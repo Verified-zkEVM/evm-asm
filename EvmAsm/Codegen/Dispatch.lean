@@ -33,6 +33,7 @@ import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
+import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
@@ -1441,8 +1442,11 @@ def emitDispatcherEpilogueCore
     eip7708SyntheticLogFunctions ++ "\n" ++
     zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
     zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
-    zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
-    zkvmBn254G1MulSafeFailWrapper ++ "\n" ++
+    -- Real BN254 ecAdd/ecMul kernels (0x06/0x07): field/curve helpers +
+    -- `zkvm_bn254_g1_add` / `zkvm_bn254_g1_mul` backed by the ziskemu
+    -- Bn254CurveAdd/Dbl + Arith256Mod accelerators. Pairing (0x08) keeps
+    -- the deterministic safe-fail wrapper until its backend lands.
+    bn254PrecompileFunctions ++ "\n" ++
     zkvmBn254PairingSafeFailWrapper ++ "\n" ++
     zkvmBlake2fSafeFailWrapper ++ "\n" ++
     zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
@@ -2267,8 +2271,10 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   eip7708SyntheticLogFunctions ++ "\n" ++
   zkvmBls12G1AddSafeFailWrapper ++ "\n" ++
   zkvmBls12G1MsmSafeFailWrapper ++ "\n" ++
-  zkvmBn254G1AddSafeFailWrapper ++ "\n" ++
-  zkvmBn254G1MulSafeFailWrapper ++ "\n" ++
+  -- Real BN254 ecAdd/ecMul kernels (0x06/0x07); see the standalone-epilogue
+  -- emission site for the wrapper-replacement rationale. Pairing (0x08)
+  -- keeps the deterministic safe-fail wrapper until its backend lands.
+  bn254PrecompileFunctions ++ "\n" ++
   zkvmBn254PairingSafeFailWrapper ++ "\n" ++
   zkvmBlake2fSafeFailWrapper ++ "\n" ++
   zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
@@ -2556,6 +2562,11 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 64\n" ++
   "ecr_hash:\n" ++
   "  .zero 32\n" ++
+  -- BN254 ecAdd/ecMul kernel constants + accelerator staging + the
+  -- failed-call allotment cell (`bn254_allot_rest`), paired with
+  -- `bn254PrecompileFunctions` in the dispatcher text.
+  bn254FieldDataFragment ++
+  bn254CurveDataFragment ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
   -- - intrinsic.regular, execution_gas); 0 for tx.gas ≤ 16,777,216). The SSTORE

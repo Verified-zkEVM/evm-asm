@@ -538,15 +538,21 @@ def childFrameHandlers
     modexpPrecompileGasAsm
       chargePrecompileGasAsm tag
       inOffsetOff inSizeOff outOffsetOff outSizeOff ++
-    -- BN254 G1 ADD: fixed 150 gas, two 64-byte zero-padded G1 inputs.
-    -- The current runtime wrapper deterministic-fails until the host backend
-    -- path is available, so valid calls surface precompile failure after gas.
+    -- BN254 failed-call tail (kernel invalid input / child OOG): burn the
+    -- forwarded EIP-150 allotment, push 0, resume. Reached only by branches
+    -- from the two entries below (the preceding modexp block ends with jumps).
+    bn254FailureStubAsm tag netPopBytes ++
+    -- BN254 G1 ADD (EIP-196 ecAdd): fixed 150 gas charged from the child
+    -- allotment, two 64-byte zero-padded G1 inputs, real Bn254CurveAdd-backed
+    -- kernel. Invalid input (coord >= p / off-curve) is a precompile failure
+    -- that consumes the full child allotment (execution-specs OutOfGasError).
     ".L" ++ tag ++ "_bn254_add:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    chargePrecompileGasConstAsm 150 "x16" "x17" ++
+    "  li x16, 150\n" ++
+    bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_add_p1") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
     stagePrecompileInputWindowAsm
@@ -558,19 +564,24 @@ def childFrameHandlers
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_g1_add\n" ++
+    -- a0 IS x10: stash the kernel status before restoring the saved
+    -- PC into x10 (the ecrecover-path landmine, #8721 stack notes).
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_add_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
-    -- BN254 G1 MUL: fixed 6000 gas, one 64-byte point plus one 32-byte scalar.
+    -- BN254 G1 MUL (EIP-196 ecMul): fixed 6000 gas, one 64-byte point plus
+    -- one 32-byte scalar, real double-and-add kernel. Same failure mode.
     ".L" ++ tag ++ "_bn254_mul:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    chargePrecompileGasConstAsm 6000 "x16" "x17" ++
+    "  li x16, 6000\n" ++
+    bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_mul_point") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
     stagePrecompileInputWindowAsm
@@ -582,10 +593,13 @@ def childFrameHandlers
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_g1_mul\n" ++
+    -- a0 IS x10: stash the kernel status before restoring the saved
+    -- PC into x10 (the ecrecover-path landmine, #8721 stack notes).
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BN254 pairing: charge 45000 + 34000 * floor(input_size / 192), then

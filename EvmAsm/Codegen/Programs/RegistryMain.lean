@@ -53,6 +53,7 @@ import EvmAsm.Codegen.Programs.CryptoRegistry
 import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.Secp256k1Curve
 import EvmAsm.Codegen.Programs.Secp256k1Recover
+import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
@@ -602,6 +603,8 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_secp256k1_add_dbl_syscall_probe" => some ziskSecp256k1AddDblSyscallProbeUnit
   | "zisk_secp256k1_add_dbl_opcode_probe" => some ziskSecp256k1AddDblOpcodeProbeUnit
   | "zisk_secp256k1_recover_r"  => some ziskSecp256k1RecoverRProbeUnit
+  | "zisk_bn254_g1_add_real"    => some ziskBn254G1AddRealProbeUnit
+  | "zisk_bn254_g1_mul_real"    => some ziskBn254G1MulRealProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_lt_be"           => some ziskU256LtBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit
