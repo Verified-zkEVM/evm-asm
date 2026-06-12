@@ -78,26 +78,36 @@ def witnessLookupByHashFunction : String :=
   "  j .Lwlh_ret\n" ++
   ".Lwlh_linear:\n" ++
   "  beqz s1, .Lwlh_miss        # empty section ⇒ miss\n" ++
+  "  li t0, 4\n" ++
+  "  bltu s1, t0, .Lwlh_miss    # too short for an offsets table\n" ++
   "  lwu t0, 0(s0)              # first inner offset = 4 * N\n" ++
+  "  andi t1, t0, 3\n" ++
+  "  bnez t1, .Lwlh_miss        # misaligned offsets table ⇒ malformed\n" ++
+  "  bgtu t0, s1, .Lwlh_miss    # first offset past the section\n" ++
   "  srli s5, t0, 2             # s5 = N\n" ++
   "  li s6, 0                   # s6 = i\n" ++
   ".Lwlh_loop:\n" ++
   "  beq s6, s5, .Lwlh_miss\n" ++
-  "  # Compute element i bounds.\n" ++
+  "  # Compute element i bounds (every offset validated against the\n" ++
+  "  # section bounds — a malformed table must surface as a miss, not a\n" ++
+  "  # runaway keccak length; see the widx_build twin checks).\n" ++
   "  slli t0, s6, 2             # 4*i\n" ++
   "  add t1, s0, t0\n" ++
   "  lwu t2, 0(t1)              # inner_off_i\n" ++
+  "  bgtu t2, s1, .Lwlh_miss    # offset past the section\n" ++
   "  add a0, s0, t2             # el_i_start\n" ++
   "  addi t3, s6, 1\n" ++
   "  beq t3, s5, .Lwlh_use_end\n" ++
   "  slli t3, t3, 2             # 4*(i+1)\n" ++
   "  add t3, s0, t3\n" ++
   "  lwu t4, 0(t3)\n" ++
+  "  bgtu t4, s1, .Lwlh_miss    # next offset past the section\n" ++
   "  add t4, s0, t4             # el_i_end\n" ++
   "  j .Lwlh_have_end\n" ++
   ".Lwlh_use_end:\n" ++
   "  add t4, s0, s1             # el_i_end = section_end\n" ++
   ".Lwlh_have_end:\n" ++
+  "  bltu t4, a0, .Lwlh_miss    # descending offsets ⇒ malformed\n" ++
   "  sub a1, t4, a0             # el_i_len\n" ++
   "  la a2, wlh_scratch_hash\n" ++
   "  jal ra, zkvm_keccak256\n" ++
