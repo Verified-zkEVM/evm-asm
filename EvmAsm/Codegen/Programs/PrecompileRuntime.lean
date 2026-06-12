@@ -369,6 +369,42 @@ def precompileSuccess64FromFrameAsm
   "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
   "  j 7b\n"
 
+/-- EIP-2537 MSM discounted cost computed into x16 (pair count left in
+    x17) WITHOUT charging — for entries on the EIP-150 child-allotment
+    gas model (`bn254ChargeGateAsm` consumes x16 next). Mirrors
+    `chargeBls12G1MsmGasAsm`'s math, but the multiplication overflow
+    guards route to the tag's allotment-burn failure stub instead of
+    `.exit_outofgas` (a precompile failure burns the child allotment,
+    not the whole transaction). Clobbers x16/x17/x22/x23; the input
+    byte length is read from x18. -/
+def bls12MsmCostAsm (tag : String)
+    (pairBytes basePerPair maxDiscount : Nat) (tableLabel : String) : String :=
+  "  li x22, " ++ toString pairBytes ++ "\n" ++
+  "  divu x17, x18, x22\n" ++
+  "  li x16, " ++ toString basePerPair ++ "\n" ++
+  "  mul x16, x17, x16\n" ++
+  "  li x22, " ++ toString basePerPair ++ "\n" ++
+  "  divu x23, x16, x22\n" ++
+  "  bne x23, x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+  "  li x22, 128\n" ++
+  "  bltu x22, x17, 44f\n" ++
+  "  addi x23, x17, -1\n" ++
+  "  slli x23, x23, 3\n" ++
+  "  la x22, " ++ tableLabel ++ "\n" ++
+  "  add x23, x22, x23\n" ++
+  "  ld x23, 0(x23)\n" ++
+  "  j 45f\n" ++
+  "44:\n" ++
+  "  li x23, " ++ toString maxDiscount ++ "\n" ++
+  "45:\n" ++
+  "  mul x16, x16, x23\n" ++
+  "  divu x22, x16, x23\n" ++
+  "  li x23, " ++ toString basePerPair ++ "\n" ++
+  "  mul x23, x17, x23\n" ++
+  "  bne x22, x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+  "  li x23, 1000\n" ++
+  "  divu x16, x16, x23\n"
+
 def chargeBls12G1MsmGasAsm
     (inputLenReg pairCountReg costReg discountReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 160\n" ++
