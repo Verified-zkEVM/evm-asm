@@ -1331,7 +1331,10 @@ def createExecuteInitcodeFrameRuntimeFunction : String :=
       a0 (output) = effective gas_left  = gas_left' + state_gas_left'
                     where gas_left' = 0 for exceptional halts, env+568 otherwise,
                     and state_gas_left' includes the on-error restore;
-      a1 (output) = effective refund_counter = evm_refund_acc, or 0 on error.
+      a1 (output) = effective refund_counter = evm_refund_acc, or 0 on error;
+      a2 (output) = tx success bit (1 when halt_kind is 0 STOP / 1 RETURN /
+                    5 SELFDESTRUCT; 0 on REVERT or an exceptional halt) — the
+                    receipt `succeeded` field (.63.1.6.2.1).
     halt_kind is read from OUTPUT+32 (set by every halt path): 0 STOP / 1 RETURN /
     5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
     drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3. Read-only
@@ -1346,12 +1349,14 @@ def dispatcherTxGasSettleFunction : String :=
   "  ld t2, 0(t2)\n" ++
   "  la t3, evm_refund_acc\n" ++
   "  ld a1, 0(t3)\n" ++
+  "  li a2, 1                    # tx success bit (receipt `succeeded`)\n" ++
   "  beqz t1, .Ldtgs_success\n" ++
   "  li t3, 1\n" ++
   "  beq t1, t3, .Ldtgs_success\n" ++
   "  li t3, 5\n" ++
   "  beq t1, t3, .Ldtgs_success\n" ++
   "  li a1, 0                    # error: refund counter discarded\n" ++
+  "  li a2, 0                    # error: receipt status = 0\n" ++
   "  la t3, evm_state_gas_used\n" ++
   "  ld t3, 0(t3)\n" ++
   "  add t2, t2, t3              # error: state_gas_left += state_gas_used\n" ++
