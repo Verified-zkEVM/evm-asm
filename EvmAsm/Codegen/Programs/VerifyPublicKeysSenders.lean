@@ -132,12 +132,14 @@ def verifyPublicKeysMatchSendersFunction : String :=
     the check script's RECOVER_RAW_FULL switch + the 1e9 step budget.
 
     Input layout (ziskemu writes an 8-byte length header at +0, so user byte k
-    is at INPUT+8+k):
+    is at INPUT+8+k). The tx-list offset is a field so an N-key block lays the
+    keys (N*65 bytes) out from user+24 without colliding with the tx list:
       user +0   : SSZ transactions list byte length (u64)
       user +8   : execution chain id (u64)
-      user +16  : supplied public key (65 bytes, 0x04 || BE x || BE y)
-      user +88  : SSZ transactions list bytes (u32 LE offset table + tx bytes),
-                  8-byte aligned
+      user +16  : tx-list offset (u64; byte offset of the SSZ list from user+0)
+      user +24  : supplied public keys (N * 65 bytes, each 0x04 || BE x || BE y)
+      user +<tx-list offset> : SSZ transactions list bytes (u32 LE offset table
+                  + tx bytes), 8-byte aligned
 
     Output layout at 0xa0010000:
       +0  status (0 all match, 1 mismatch, 2 bad prefix, 10/20/60 recovery,
@@ -147,11 +149,12 @@ def ziskVerifyPublicKeysMatchSendersPrologue : String :=
   "  li t6, 0x40000000           # input base (8-byte length header at +0)\n" ++
   "  ld t0, 8(t6)                # tx list byte length (user +0)\n" ++
   "  la t1, bv_tx_list_len; sd t0, 0(t1)\n" ++
-  "  addi t0, t6, 96             # SSZ tx list ptr (user +88)\n" ++
+  "  ld t0, 24(t6)               # tx-list offset (user +16)\n" ++
+  "  add t0, t6, t0; addi t0, t0, 8   # SSZ tx list ptr = input + 8 + tx_list_offset\n" ++
   "  la t1, bv_tx_list_ptr; sd t0, 0(t1)\n" ++
   "  ld t0, 16(t6)               # chain id (user +8)\n" ++
   "  la t1, bv_chain_id; sd t0, 0(t1)\n" ++
-  "  addi t0, t6, 24             # public_keys base (user +16)\n" ++
+  "  addi t0, t6, 32             # public_keys base (user +24)\n" ++
   "  la t1, bv_public_keys_ptr; sd t0, 0(t1)\n" ++
   "  jal ra, verify_public_keys_match_senders\n" ++
   "  li t0, 0xa0010000\n" ++
@@ -199,5 +202,91 @@ def ziskVerifyPublicKeysMatchSendersProbeUnit : BuildUnit := {
   prologueAsm := ziskVerifyPublicKeysMatchSendersPrologue
   dataAsm     := ziskVerifyPublicKeysMatchSendersDataSection
 }
+
+/-- TX-side recovery scratch to APPEND to the guest data section
+    (`ziskStatelessVerdictV2DataSection`) when the guest closure links the
+    transaction sender-recovery stack (bmvmx.3.2). The secp256k1 constants /
+    R-decompression scratch / `tpr_*` recovery scratch and the keccak `zk3_state`
+    are ALREADY in the guest data section (the ECRECOVER backend + keccak), so
+    this section deliberately omits them — it carries only the signature
+    material (`tps_*`), the per-type signature-extractor offset scratch, the
+    signing-hash buffers, and the `verify_public_keys_match_senders` scratch +
+    `bv_chain_id`. Mirrors `ziskTxPubkeySignatureMaterialDataSection` minus the
+    already-present labels. -/
+def verifyPublicKeysSendersGuestDataSection : String :=
+  ".balign 8\n" ++
+  "tps_type:\n  .zero 8\n" ++
+  "tps_inner_off:\n  .zero 8\n" ++
+  "tps_v:\n  .zero 8\n" ++
+  "tps_cmp:\n  .zero 8\n" ++
+  "tps_secp256k1_n:\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xfe\n" ++
+  "  .byte 0xba,0xae,0xdc,0xe6,0xaf,0x48,0xa0,0x3b\n" ++
+  "  .byte 0xbf,0xd2,0x5e,0x8c,0xd0,0x36,0x41,0x41\n" ++
+  "tps_secp256k1_half_n:\n" ++
+  "  .byte 0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0x5d,0x57,0x6e,0x73,0x57,0xa4,0x50,0x1d\n" ++
+  "  .byte 0xdf,0xe9,0x2f,0x46,0x68,0x1b,0x20,0xa0\n" ++
+  "tlxs_offset:\n  .zero 8\n" ++
+  "tlxs_length:\n  .zero 8\n" ++
+  "txes_offset:\n  .zero 8\n" ++
+  "txes_length:\n  .zero 8\n" ++
+  "t29es_offset:\n  .zero 8\n" ++
+  "t29es_length:\n  .zero 8\n" ++
+  "t44es_offset:\n  .zero 8\n" ++
+  "t44es_length:\n  .zero 8\n" ++
+  "t77es_offset:\n  .zero 8\n" ++
+  "t77es_length:\n  .zero 8\n" ++
+  "tsh_buf:\n  .zero 8192\n" ++
+  "tsh_trunc_len:\n  .zero 8\n" ++
+  "rltn_offset_lo:\n  .zero 8\n" ++
+  "rltn_length_lo:\n  .zero 8\n" ++
+  "rltn_offset_hi:\n  .zero 8\n" ++
+  "rltn_length_hi:\n  .zero 8\n" ++
+  "rltn_prefix_len:\n  .zero 8\n" ++
+  "t155_buf:\n  .zero 8192\n" ++
+  "t155_offset_lo:\n  .zero 8\n" ++
+  "t155_length_lo:\n  .zero 8\n" ++
+  "t155_offset_hi:\n  .zero 8\n" ++
+  "t155_length_hi:\n  .zero 8\n" ++
+  "t155_chain_be:\n  .zero 8\n" ++
+  "t155_chain_enc:\n  .zero 9\n" ++
+  ".balign 8\n" ++
+  "t155_prefix_len:\n  .zero 8\n" ++
+  -- bmvmx.3.2: verify_public_keys_match_senders scratch + the execution chain id
+  -- captured by chain_config_valid. bv_tx_list_ptr/len and bv_public_keys_ptr
+  -- are already in the guest data section.
+  ".balign 8\n" ++
+  "bv_chain_id:\n  .zero 8\n" ++
+  "vpks_pubkey_out:\n  .zero 64\n" ++
+  "vpks_scratch:\n  .zero 312\n"
+
+/-- The transaction sender-recovery function bodies to link into the guest
+    closure(s) for the live `verify_public_keys_match_senders` call (bmvmx.3.2).
+    `tx_type_dispatch`, the `tx_extract_*` helpers, `rlp_list_count_items`,
+    `rlp_list_nth_item`, `zkvm_keccak256`, `u256_is_zero`, `u256_lt_be`,
+    `bgv_u32le`, the secp256k1 curve-common / R-decompression /
+    `secp256k1_recover_pubkey_staged` kernel, and `address_from_pubkey` are
+    ALREADY in the guest closure (and the debug-verdict prologue); this string
+    adds only the missing TX-side bodies (`rlp_list_truncate_to_n_fields`, the
+    five per-type signature extractors, both signing-hash builders, the
+    signature-material / ecrecover-staging / recover-raw / public-key-matches
+    stack, and the loop driver itself). -/
+def verifyPublicKeysSendersGuestFunctions : String :=
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  txLegacyExtractSignatureFunction ++ "\n" ++
+  txEip2930ExtractSignatureFunction ++ "\n" ++
+  txEip1559ExtractSignatureFunction ++ "\n" ++
+  txEip4844ExtractSignatureFunction ++ "\n" ++
+  txEip7702ExtractSignatureFunction ++ "\n" ++
+  txSigningHashFunction ++ "\n" ++
+  txSigningHashLegacyEip155Function ++ "\n" ++
+  txPubkeySignatureMaterialFunction ++ "\n" ++
+  txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
+  txPubkeyRecoverRawFunction ++ "\n" ++
+  txPubkeyPublicKeyMatchesFunction ++ "\n" ++
+  verifyPublicKeysMatchSendersFunction
 
 end EvmAsm.Codegen

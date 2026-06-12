@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.BalAllAccountsCode
 import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
 import EvmAsm.Codegen.Programs.StageBlockhashM29
 import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorage
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
@@ -108,6 +109,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     eip8037TxStateGasFunction ++ "\n" ++
     txIntrinsicStateGasFunction ++ "\n" ++
     blockVerdictTxStateGasArrayFunction ++ "\n" ++
+    -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
+    -- debug verdict ELF links (block_verdict calls verify_public_keys_match_senders).
+    verifyPublicKeysSendersGuestFunctions ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
@@ -369,6 +373,13 @@ def statelessVerdictV2GuestClosure : String :=
   addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
+  -- bmvmx.3.2: per-tx sender recovery vs witness public_keys. block_verdict
+  -- calls verify_public_keys_match_senders after public_keys_valid; the TX-side
+  -- recovery stack (signature extractors + signing-hash + material/stage/
+  -- recover/compare) is new here. tx_type_dispatch / tx_extract_* /
+  -- rlp_list_nth_item/count_items / zkvm_keccak256 / u256_is_zero / u256_lt_be /
+  -- bgv_u32le and the secp256k1 recover kernel are already in this closure.
+  verifyPublicKeysSendersGuestFunctions ++ "\n" ++
   statelessVerdictV2Function
 
 /-- Data section for the embedded verdict closure. -/

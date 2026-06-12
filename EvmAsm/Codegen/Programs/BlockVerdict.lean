@@ -384,6 +384,16 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
   "  jal ra, public_keys_valid\n" ++
   "  bnez a0, .Lbv_public_keys_fail\n" ++
+  -- bmvmx.3.2: bind each witness public_keys[i] to the i-th transaction's
+  -- recovered signer key (execution-specs recover_sender_from_public_key over
+  -- every tx). public_keys_valid only checked count + 65-byte SEC1 shape; this
+  -- recovers the sender from each signature and rejects on any mismatch /
+  -- recovery failure, closing the sender-attribution false-accept (a lying
+  -- witness can otherwise attribute a tx to an attacker-chosen account). Needs
+  -- bv_tx_list_ptr/len (set above), bv_public_keys_ptr (set by public_keys_valid),
+  -- and bv_chain_id (captured by chain_config_valid).
+  "  jal ra, verify_public_keys_match_senders\n" ++
+  "  bnez a0, .Lbv_public_keys_sender_fail\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  mv a0, s3; jal ra, bgv_u32le\n" ++
@@ -1208,6 +1218,8 @@ def blockVerdictFunction : String :=
   "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_public_keys_fail:\n" ++
   "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_public_keys_sender_fail:\n" ++   -- bmvmx.3.2: a witness public_keys[i] != recovered tx[i] signer (or recovery failed)
+  "  li t0, 52; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_code_preimage_fail:\n" ++
