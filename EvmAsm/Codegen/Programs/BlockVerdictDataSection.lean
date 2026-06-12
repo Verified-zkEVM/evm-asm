@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
+import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
@@ -25,6 +26,13 @@ import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 namespace EvmAsm.Codegen
 
 def ziskStatelessVerdictV2DataSection : String :=
+  -- .62.2.5: secp256k1 recovery scratch/constants for the ECRECOVER backend
+  -- (generator + field constants + R-decompression scratch + tpr_* recovery
+  -- scratch). Emitted first so the additions cannot disturb existing label
+  -- ordering assumptions below.
+  secp256k1CurveDataSection ++ "\n" ++
+  secp256k1RecoverDataSection ++ "\n" ++
+  txPubkeyRecoverRawDataSection ++ "\n" ++
   ziskStatelessVerdictDataSection ++ "\n" ++
   runtimeAccessAccountOutcomeData ++ "\n" ++
   storageAccessGasData ++ "\n" ++

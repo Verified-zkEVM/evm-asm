@@ -2541,6 +2541,21 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "evm_refund_acc:\n" ++
   "  .zero 8\n" ++
+  -- .62.2.5: ECRECOVER backend surface. `ecrecover_backend_ptr` holds the
+  -- address of `secp256k1_recover_pubkey_staged` when the linking closure arms
+  -- it (the stateless guest in dispatch_tx_runtime_code; the focused probe in
+  -- its prologue); 0 keeps the legacy empty-returndata success without linking
+  -- the secp256k1 chain. ecr_abi/ecr_pubkey/ecr_hash are the staged recovery
+  -- block, recovered key, and keccak output.
+  ".balign 8\n" ++
+  "ecrecover_backend_ptr:\n" ++
+  "  .zero 8\n" ++
+  "ecr_abi:\n" ++
+  "  .zero 128\n" ++
+  "ecr_pubkey:\n" ++
+  "  .zero 64\n" ++
+  "ecr_hash:\n" ++
+  "  .zero 32\n" ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
   -- - intrinsic.regular, execution_gas); 0 for tx.gas ≤ 16,777,216). The SSTORE

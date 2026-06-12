@@ -131,6 +131,109 @@ def ecrecoverScalarOrderGateAsm : String :=
   ecrecoverScalarBelowOrderGateAsm 64 44 ++
   ecrecoverScalarBelowOrderGateAsm 96 45
 
+/-- ECRECOVER (0x01) recovery + output tail (.62.2.5). Runs AFTER the v/r/s
+    gates have validated the staged input (hash @+0, v @+32, r @+64, s @+96 at
+    `evm_precompile_frame + precompileFrameEcrecoverInputOff`, buffer_read
+    padded). Behavior matches execution-specs `ecrecover`: on a valid
+    signature the returndata is the 32-byte left-padded keccak address of the
+    recovered public key; on recovery failure the call still SUCCEEDS with
+    empty returndata (the gates' `j 7b` path).
+
+    The recovery kernel is reached through the `ecrecover_backend_ptr` data
+    cell rather than a direct `jal`: the secp256k1 chain is only linked by
+    closures that arm the pointer (the stateless guest arms it in
+    `dispatch_tx_runtime_code`; the focused ecrecover probe arms it itself).
+    Closures that leave it 0 (the standalone dispatch probes) keep the legacy
+    success-with-empty-returndata behavior AND keep linking without the
+    secp256k1 dependency tree — the same data-driven optionality as
+    `callee_seed_count`.
+
+    Register use mirrors the SHA256 path: x13/x10/x12 are saved in s9/s10/s11
+    across the LP64 calls (the secp/keccak helpers preserve s-registers);
+    label 7 is the handler's success-push tail; numeric labels 46-48 are
+    local. -/
+def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
+  "  la x18, ecrecover_backend_ptr\n" ++
+  "  ld x18, 0(x18)\n" ++
+  "  beqz x18, 7b\n" ++
+  -- Stage the recovery ABI block (hash/r/s/recid) from the gated input
+  -- (hash/v/r/s). Both regions are 8-byte aligned; copy by u64 limbs.
+  precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
+  "  la x22, ecr_abi\n" ++
+  "  ld x16, 0(x19);  sd x16, 0(x22)\n" ++
+  "  ld x16, 8(x19);  sd x16, 8(x22)\n" ++
+  "  ld x16, 16(x19); sd x16, 16(x22)\n" ++
+  "  ld x16, 24(x19); sd x16, 24(x22)\n" ++
+  "  ld x16, 64(x19); sd x16, 32(x22)\n" ++
+  "  ld x16, 72(x19); sd x16, 40(x22)\n" ++
+  "  ld x16, 80(x19); sd x16, 48(x22)\n" ++
+  "  ld x16, 88(x19); sd x16, 56(x22)\n" ++
+  "  ld x16, 96(x19);  sd x16, 64(x22)\n" ++
+  "  ld x16, 104(x19); sd x16, 72(x22)\n" ++
+  "  ld x16, 112(x19); sd x16, 80(x22)\n" ++
+  "  ld x16, 120(x19); sd x16, 88(x22)\n" ++
+  "  lbu x16, 63(x19)\n" ++          -- v byte 31 (the v gate proved 27/28)
+  "  addi x16, x16, -27\n" ++
+  "  sd x16, 96(x22)\n" ++           -- recid word
+  "  mv s9, x13\n" ++
+  "  mv s10, x10\n" ++
+  "  mv s11, x12\n" ++
+  "  la a0, ecr_abi\n" ++
+  "  la a1, ecr_pubkey\n" ++
+  "  jalr x1, x18, 0\n" ++           -- secp256k1_recover_pubkey_staged
+  -- a0 IS x10: stash the status before restoring the EVM code pointer
+  -- (restoring first would make the bnez read the nonzero code pointer).
+  "  mv x16, a0\n" ++
+  "  mv x13, s9\n" ++
+  "  mv x10, s10\n" ++
+  "  mv x12, s11\n" ++
+  "  bnez x16, 7b\n" ++              -- invalid signature: empty-returndata success
+  "  mv s9, x13\n" ++
+  "  mv s10, x10\n" ++
+  "  mv s11, x12\n" ++
+  "  la a0, ecr_pubkey\n" ++
+  "  li a1, 64\n" ++
+  "  la a2, ecr_hash\n" ++
+  "  jal x1, zkvm_keccak256\n" ++
+  "  mv x16, a0\n" ++                -- stash status before the x10 (=a0) restore
+  "  mv x13, s9\n" ++
+  "  mv x10, s10\n" ++
+  "  mv x12, s11\n" ++
+  "  bnez x16, 7b\n" ++              -- hash backend failure: stay conservative
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 16(x15)\n" ++            -- returndata[0..12] = 0 (left padding)
+  "  sd x0, 24(x15)\n" ++
+  "  la x18, ecr_hash\n" ++
+  "  addi x18, x18, 12\n" ++         -- address = keccak(pubkey)[12..32]
+  "  addi x19, x15, 28\n" ++
+  "  li x22, 20\n" ++
+  "46:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  bnez x22, 46b\n" ++
+  "  li x16, 32\n" ++
+  "  sd x16, 8(x15)\n" ++            -- returndata length = 32
+  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  li x23, 32\n" ++
+  "  bgeu x22, x23, 47f\n" ++
+  "  mv x23, x22\n" ++
+  "47:\n" ++
+  "  beqz x23, 7b\n" ++
+  "  addi x18, x15, 16\n" ++
+  "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x19, x13, x19\n" ++
+  "48:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x23, x23, -1\n" ++
+  "  bnez x23, 48b\n" ++
+  "  j 7b\n"
+
 def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 31\n" ++
