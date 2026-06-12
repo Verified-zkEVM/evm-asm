@@ -79,34 +79,66 @@ def high_s_tx() -> bytes:
               b"", [], 1, 1, high_s]
     return bytes([2]) + rlp.encode(fields)
 
-def ssz_one_tx_list(tx: bytes) -> bytes:
-    # SSZ list of one variable-length element: a single u32 LE offset (= 4,
-    # past the 4-byte table) followed by the element bytes.
-    return struct.pack("<I", 4) + tx
+def legacy_create_eip155(nonce: int, data: bytes) -> bytes:
+    # contract-creation (to == b"") with `data` bytes of init code; large data
+    # pushes the EIP-155 signing payload past 55 bytes (the long-list RLP prefix
+    # path that exercises tx_signing_hash_legacy_eip155's new_payload_len reuse).
+    signing_list = [nonce, 10**9, 0x01000000, b"", 0, data, chain_id, 0, 0]
+    msg_hash = keccak256(rlp.encode(signing_list))
+    sig = priv.sign_recoverable(msg_hash, hasher=None)
+    r = int.from_bytes(sig[0:32], "big")
+    s = int.from_bytes(sig[32:64], "big")
+    v = sig[64] + 2 * chain_id + 35
+    return rlp.encode([nonce, 10**9, 0x01000000, b"", 0, data, v, r, s])
 
-def write_input(tx: bytes, pubkey65: bytes) -> None:
-    assert len(pubkey65) == 65
-    tx_list = ssz_one_tx_list(tx)
+def ssz_tx_list(txs) -> bytes:
+    # SSZ list of variable-length elements: a u32 LE offset table (one entry per
+    # element, first = 4*count) followed by the concatenated element bytes.
+    n = len(txs)
+    offs, cur = [], 4 * n
+    for t in txs:
+        offs.append(cur)
+        cur += len(t)
+    return b"".join(struct.pack("<I", o) for o in offs) + b"".join(txs)
+
+def write_input(txs, keys: bytes) -> None:
+    # Layout: +0 tx_list_len, +8 chain_id, +16 tx_list_offset, +24 keys,
+    # +tx_list_offset SSZ tx list. tx_list_offset is placed past the keys so an
+    # N-key block does not collide with the list.
+    tx_list = ssz_tx_list(txs)
+    tlo = (24 + len(keys) + 7) & ~7
     with open(in_path, "wb") as f:
         f.write(struct.pack("<Q", len(tx_list)))  # +0  SSZ tx list byte length
         f.write(struct.pack("<Q", chain_id))      # +8  chain_id
-        f.write(pubkey65)                         # +16 supplied public key (65)
-        f.write(b"\x00" * (88 - 16 - 65))         # pad to +88 (8-byte aligned)
-        f.write(tx_list)                          # +88 SSZ transactions list
-        pad = (-(88 + len(tx_list))) % 8
+        f.write(struct.pack("<Q", tlo))           # +16 tx-list offset
+        f.write(keys)                             # +24 supplied public keys
+        pad = tlo - (24 + len(keys))
         if pad:
             f.write(b"\x00" * pad)
+        f.write(tx_list)                          # +tlo SSZ transactions list
+        tail = (-(8 + tlo + len(tx_list))) % 8
+        if tail:
+            f.write(b"\x00" * tail)
 
 if kind == "match":
-    write_input(legacy_eip155_tx(), b"\x04" + expected_pub)
+    write_input([legacy_eip155_tx()], b"\x04" + expected_pub)
 elif kind == "mismatch":
     wrong = bytearray(expected_pub)
     wrong[0] ^= 0x01            # flip one coordinate byte
-    write_input(legacy_eip155_tx(), b"\x04" + bytes(wrong))
+    write_input([legacy_eip155_tx()], b"\x04" + bytes(wrong))
 elif kind == "bad_prefix":
-    write_input(legacy_eip155_tx(), b"\x02" + expected_pub)
+    write_input([legacy_eip155_tx()], b"\x02" + expected_pub)
 elif kind == "material_fail":
-    write_input(high_s_tx(), b"\x04" + expected_pub)
+    write_input([high_s_tx()], b"\x04" + expected_pub)
+elif kind == "create_large_data":
+    # EIP-155 contract-creation with 300 bytes of init code: the signing payload
+    # crosses 55 bytes, exercising the long-list RLP prefix path. Regression for
+    # the tx_signing_hash_legacy_eip155 new_payload_len clobber (bmvmx.3.2).
+    write_input([legacy_create_eip155(0, bytes([0x33] * 300))], b"\x04" + expected_pub)
+elif kind == "match2":
+    # Two-tx block: exercises the offset-table walk for index > 0.
+    write_input([legacy_eip155_tx(), legacy_create_eip155(1, bytes([0x33] * 300))],
+                (b"\x04" + expected_pub) * 2)
 else:
     raise SystemExit(f"unknown kind: {kind}")
 PYVEC
@@ -142,6 +174,11 @@ if [[ "${RECOVER_RAW_FULL:-0}" == "1" ]]; then
   # (status 0); a one-byte-flipped key mismatches (status 1).
   run_case "match"    "match"    0 1000000000 || FAILED=1
   run_case "mismatch" "mismatch" 1 1000000000 || FAILED=1
+  # EIP-155 contract-creation with large init code (signing payload > 55 bytes):
+  # before the tx_signing_hash_legacy_eip155 fix this ran past budget; now matches.
+  run_case "create_large_data" "create_large_data" 0 1000000000 || FAILED=1
+  # Two-tx block (offset-table walk for index > 0), second tx large-data creation.
+  run_case "match2"   "match2"   0 1000000000 || FAILED=1
 else
   echo "==> (skipping full match/mismatch cases; set RECOVER_RAW_FULL=1 to run them)"
 fi

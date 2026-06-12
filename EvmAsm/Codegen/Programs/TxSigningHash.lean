@@ -403,10 +403,10 @@ def ziskTxSigningHashProbeUnit : BuildUnit := {
         1 : RLP parse failure / fewer than 6 fields -/
 def txSigningHashLegacyEip155Function : String :=
   "tx_signing_hash_legacy_eip155:\n" ++
-  "  addi sp, sp, -56\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  mv s0, a0                   # tx_rlp ptr\n" ++
   "  mv s1, a1                   # tx_rlp len\n" ++
   "  mv s2, a2                   # chain_id\n" ++
@@ -455,10 +455,13 @@ def txSigningHashLegacyEip155Function : String :=
   "  mv t3, a0                                   # chain_id_enc_len\n" ++
   "  # tail_len = chain_id_enc_len + 2  (two 0x80 bytes for 0, 0)\n" ++
   "  addi t3, t3, 2\n" ++
-  "  # new_payload_len = body_len + tail_len\n" ++
-  "  add t4, s5, t3                              # new_payload_len\n" ++
+  "  # new_payload_len = body_len + tail_len. Held in a callee-saved register\n" ++
+  "  # (s6) because rlp_encode_list_prefix's long-list path (payload >= 56)\n" ++
+  "  # clobbers t4; new_payload_len is reused below for the chain_id length and\n" ++
+  "  # the final keccak length, so a t-reg would corrupt both for large txs.\n" ++
+  "  add s6, s5, t3                              # new_payload_len\n" ++
   "  # ---- Write new outer list prefix into t155_buf ----\n" ++
-  "  mv a0, t4; la a1, t155_buf\n" ++
+  "  mv a0, s6; la a1, t155_buf\n" ++
   "  la a2, t155_prefix_len\n" ++
   "  jal ra, rlp_encode_list_prefix\n" ++
   "  la t0, t155_prefix_len; ld t5, 0(t0)        # prefix_len\n" ++
@@ -478,9 +481,8 @@ def txSigningHashLegacyEip155Function : String :=
   "  # ---- Append encoded chain_id ----\n" ++
   "  la t1, t155_chain_enc\n" ++
   "  la t6, t155_prefix_len; ld t6, 0(t6)        # reload prefix_len\n" ++
-  "  # Reload chain_id_enc_len: re-derive from tail_len-2 ... easier to recompute\n" ++
-  "  # Actually we lost t3 above; recompute by saving differently. Use t4 - s5 - 2.\n" ++
-  "  sub t2, t4, s5\n" ++
+  "  # Recompute chain_id_enc_len from new_payload_len (s6): s6 - body_len - 2.\n" ++
+  "  sub t2, s6, s5\n" ++
   "  addi t2, t2, -2                             # chain_id_enc_len\n" ++
   ".Lt155_chain_cp:\n" ++
   "  beqz t2, .Lt155_chain_done\n" ++
@@ -497,7 +499,7 @@ def txSigningHashLegacyEip155Function : String :=
   "  sb t6, 1(t0)\n" ++
   "  # ---- Total hash input length = prefix_len + new_payload_len ----\n" ++
   "  la t0, t155_prefix_len; ld t6, 0(t0)\n" ++
-  "  add a1, t6, t4                              # total length\n" ++
+  "  add a1, t6, s6                              # total length\n" ++
   "  la a0, t155_buf                             # data ptr\n" ++
   "  mv a2, s3                                   # output hash ptr\n" ++
   "  jal ra, zkvm_keccak256\n" ++
@@ -508,8 +510,8 @@ def txSigningHashLegacyEip155Function : String :=
   ".Lt155_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_signing_hash_legacy_eip155`: probe BuildUnit.
