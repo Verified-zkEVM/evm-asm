@@ -55,6 +55,8 @@ open EvmAsm.Rv64
       a2 = calldata_floor (runtime_tx_calldata_floor) on status 0
       a3 = effective refund counter on status 0 (evm_refund_acc, or 0 when the
            tx erred — interpreter.py discards the refund counter on error)
+      a4 = tx success bit on status 0 (1 for STOP/RETURN/SELFDESTRUCT halts,
+           0 for REVERT/exceptional — the receipt `succeeded` field)
 
     Preserves the caller's s0..s3 (block_verdict holds its input frame in s0). -/
 /-! ## seed_callee_storage (bmvmx.1.6.4.2.b)
@@ -430,6 +432,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  mv t3, a0                    # effective gas_left\n" ++
   "  mv a3, a1                    # effective refund_counter\n" ++
+  "  mv a4, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  mv a1, t3                    # gas_left\n" ++
   "  mv a2, t5                    # calldata_floor\n" ++

@@ -235,6 +235,12 @@ def statelessVerdictV2GuestClosure : String :=
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
+  -- .63.1.6.2.3: receipts-consensus validators (the indexed-trie family is
+  -- already linked for the transactions/withdrawals root checks).
+  headerExtractReceiptsRootFunction ++ "\n" ++
+  blockValidateReceiptsRootIndexedFunction ++ "\n" ++
+  headerExtractLogsBloomFunction ++ "\n" ++
+  bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
