@@ -53,6 +53,9 @@ import EvmAsm.Rv64.RLP.Phase1E5LongListFive
 import EvmAsm.Rv64.RLP.Phase1E5LongListSix
 import EvmAsm.Rv64.RLP.Phase1E5LongListSeven
 import EvmAsm.Rv64.RLP.Phase1E5LongListEight
+import EvmAsm.Rv64.RLP.Phase2LongLengthBridge
+import EvmAsm.Rv64.RLP.Phase1E3LongStringFromBytesBE
+import EvmAsm.Rv64.RLP.Phase1E5LongListFromBytesBE
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3LongString
 import EvmAsm.Rv64.RLP.Phase1ToPhase3SingleByte
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3ShortString

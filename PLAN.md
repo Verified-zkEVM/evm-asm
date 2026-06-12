@@ -1078,6 +1078,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     big-endian length by reference to that closure's `…_post`. All
     16 theorems are axiom-clean (only `propext`/`Classical.choice`/
     `Quot.sound`), 0 sorry. Wired into the `EvmAsm.Rv64.RLP` umbrella.
+  - ✅ **Long-form length bridged to the pure spec (`Nat.fromBytesBE`).**
+    The full-path outputs above leave `x11` as a raw big-endian
+    accumulation; `Phase2LongLengthBridge.lean` proves it equals the value
+    the pure RLP spec decodes. Core: `rlp_be_len_{1..8}_eq_fromBytesBE`
+    (and `rlp_be_byte_eq_fromBytesBE`) show
+    `(((0 <<< 8) + e0) <<< 8 …) + e_{N-1} = BitVec.ofNat 64 (Nat.fromBytesBE
+    [e0,…,e_{N-1}])` for `N ≤ 8` (no 64-bit overflow since the value is
+    `< 256^8 = 2^64`), backed by the pure bound `Nat.fromBytesBE_lt`
+    (`EL/RLP/Properties.lean`). `Phase1E{3,5}…FromBytesBE.lean` thread this
+    through to 16 end-to-end `…_fromBytesBE_spec_within` restatements whose
+    postcondition states `x11 = BitVec.ofNat 64 (Nat.fromBytesBE [extractByte
+    …, …])` — i.e. the decoder computes the *spec-correct* length, not just a
+    bitvector. All axiom-clean, 0 sorry.
   - Remaining: the planned general `n`-iteration closure (replacing the
     unrolled 1–8 closures via induction over the byte counter),
     cross-doubleword length spans, and the short/long-list error exits
