@@ -669,14 +669,14 @@ def ziskTxPubkeySignatureMaterialDataSection : String :=
   "t44es_length:\n  .zero 8\n" ++
   "t77es_offset:\n  .zero 8\n" ++
   "t77es_length:\n  .zero 8\n" ++
-  "tsh_buf:\n  .zero 8192\n" ++
+  "tsh_buf:\n  .zero 131072\n" ++
   "tsh_trunc_len:\n  .zero 8\n" ++
   "rltn_offset_lo:\n  .zero 8\n" ++
   "rltn_length_lo:\n  .zero 8\n" ++
   "rltn_offset_hi:\n  .zero 8\n" ++
   "rltn_length_hi:\n  .zero 8\n" ++
   "rltn_prefix_len:\n  .zero 8\n" ++
-  "t155_buf:\n  .zero 8192\n" ++
+  "t155_buf:\n  .zero 131072\n" ++
   "t155_offset_lo:\n  .zero 8\n" ++
   "t155_length_lo:\n  .zero 8\n" ++
   "t155_offset_hi:\n  .zero 8\n" ++

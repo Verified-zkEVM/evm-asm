@@ -253,7 +253,7 @@ def ziskRlpListTruncateToNFieldsProbeUnit : BuildUnit := {
         1 : truncation parse failure / fewer than n fields
 
     Uses two `.data` scratch buffers:
-      * `tsh_buf` (8 KiB) -- holds `[optional type byte] ||
+      * `tsh_buf` (128 KiB) -- holds `[optional type byte] ||
         rlp([first n fields])` immediately before the keccak
         call.
       * `zk3_state` (200 bytes) -- reused from the existing
@@ -275,6 +275,11 @@ def txSigningHashFunction : String :=
   "  sb s3, 0(t0)\n" ++
   ".Ltsh_after_prefix:\n" ++
   "  # ---- Truncate inner_rlp into tsh_buf[1..] ----\n" ++
+  "  # Capacity gate: the truncated payload is <= inner_rlp len, so gate on\n" ++
+  "  # s1 against the 128 KiB staging buffer (overflow would smash the\n" ++
+  "  # adjacent length cells -- the t155_prefix_len runaway, bead .11.3).\n" ++
+  "  li t0, 131056\n" ++
+  "  bgtu s1, t0, .Ltsh_fail\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
   "  la a3, tsh_buf; addi a3, a3, 1\n" ++
   "  la a4, tsh_trunc_len\n" ++
@@ -338,7 +343,7 @@ def ziskTxSigningHashDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   "tsh_buf:\n" ++
-  "  .zero 8192\n" ++
+  "  .zero 131072\n" ++
   "tsh_trunc_len:\n" ++
   "  .zero 8\n" ++
   -- Scratch labels owned by `rlp_list_truncate_to_n_fields` (K144);
@@ -460,6 +465,11 @@ def txSigningHashLegacyEip155Function : String :=
   "  # clobbers t4; new_payload_len is reused below for the chain_id length and\n" ++
   "  # the final keccak length, so a t-reg would corrupt both for large txs.\n" ++
   "  add s6, s5, t3                              # new_payload_len\n" ++
+  "  # Capacity gate: prefix (<= 9) + payload must fit the 128 KiB t155_buf;\n" ++
+  "  # an oversized legacy tx must fail the signing-hash cleanly, not smash\n" ++
+  "  # t155_prefix_len and run keccak away (bead .11.3).\n" ++
+  "  li t0, 131056\n" ++
+  "  bgtu s6, t0, .Lt155_fail\n" ++
   "  # ---- Write new outer list prefix into t155_buf ----\n" ++
   "  mv a0, s6; la a1, t155_buf\n" ++
   "  la a2, t155_prefix_len\n" ++
@@ -546,7 +556,7 @@ def ziskTxSigningHashLegacyEip155DataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   "t155_buf:\n" ++
-  "  .zero 8192\n" ++
+  "  .zero 131072\n" ++
   "t155_offset_lo:\n" ++
   "  .zero 8\n" ++
   "t155_length_lo:\n" ++
@@ -655,7 +665,7 @@ def ziskEip7702AuthorizationSigningHashDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200\n" ++
   "tsh_buf:\n" ++
-  "  .zero 8192\n" ++
+  "  .zero 131072\n" ++
   "tsh_trunc_len:\n" ++
   "  .zero 8\n" ++
   "rltn_offset_lo:\n" ++
