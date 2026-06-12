@@ -118,4 +118,68 @@ theorem rlp_phase1_e2_full_path_spec'_within
     (rlp_phase1_step_code_disjoint_8 0x80 0xB8 off1 off2 base)
     hd_phase3
 
+/--
+  Class-level short-string wrapper for the full Phase 1 → Phase 3 e2 path.
+  The executable path theorem still supplies the branch facts; this restates
+  the output length as the pure RLP short-bytes payload length. Mirrors
+  `rlp_phase1_e4_full_path_payload_len_of_class_spec_within`.
+-/
+theorem rlp_phase1_e2_full_path_payload_len_of_class_spec_within
+    (pfx : EvmAsm.EL.RLP.Byte) (v10 v11Old v13 : Word)
+    (off1 off2 : BitVec 13) (base e2_target : Word)
+    (htarget : (base + 8 + 4) + signExtend13 off2 = e2_target)
+    (h_class : EvmAsm.EL.RLP.classifyPrefix pfx =
+      EvmAsm.EL.RLP.PrefixClass.shortBytes)
+    (hd_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2_target rlp_phase3_short_string_prog)) :
+    cpsTripleWithin 6 base (e2_target + 8)
+      (((rlp_phase1_step_code 0x80 off1 base).union
+          (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+         (CodeReq.ofProg e2_target rlp_phase3_short_string_prog))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+        (.x11 ↦ᵣ v11Old) ** (.x13 ↦ᵣ v13))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+        (.x11 ↦ᵣ
+          (BitVec.ofNat 64 (EvmAsm.EL.RLP.rlpPrefixShortBytesPayloadLen pfx) : Word)) **
+        (.x13 ↦ᵣ (v13 + signExtend12 (1 : BitVec 12)))) := by
+  have h_range :=
+    (EvmAsm.EL.RLP.classifyPrefix_shortBytes_iff pfx).mp h_class
+  have hmod : pfx.toNat % 18446744073709551616 = pfx.toNat :=
+    Nat.mod_eq_of_lt (by omega)
+  have hv5_lo :
+      ¬ BitVec.ult (pfx.zeroExtend 64)
+        ((0 : Word) + signExtend12 (0x80 : BitVec 12)) := by
+    rw [BitVec.ult_eq_decide]
+    simp only [BitVec.toNat_setWidth]
+    have hk : (((0 : Word) + signExtend12 (0x80 : BitVec 12)).toNat) = 0x80 := by decide
+    rw [hk, hmod]
+    simp only [decide_eq_true_eq]
+    omega
+  have hv5_hi :
+      BitVec.ult (pfx.zeroExtend 64)
+        ((0 : Word) + signExtend12 (0xB8 : BitVec 12)) := by
+    rw [BitVec.ult_eq_decide]
+    simp only [BitVec.toNat_setWidth]
+    have hk : (((0 : Word) + signExtend12 (0xB8 : BitVec 12)).toNat) = 0xB8 := by decide
+    rw [hk, hmod]
+    simp only [decide_eq_true_eq]
+    omega
+  have h_add_sub :
+      pfx.zeroExtend 64 + signExtend12 (-(0x80 : BitVec 12)) =
+        pfx.zeroExtend 64 - (0x80 : Word) := by
+    have hs : signExtend12 (-(0x80 : BitVec 12)) = -(0x80 : Word) := by decide
+    rw [hs, BitVec.sub_eq_add_neg]
+  have h_len :=
+    EvmAsm.EL.RLP.rlpPrefixShortBytesPayloadLen_toWord_of_class pfx h_class
+  have h_add :
+      pfx.zeroExtend 64 + signExtend12 (-(0x80 : BitVec 12)) =
+        (BitVec.ofNat 64 (EvmAsm.EL.RLP.rlpPrefixShortBytesPayloadLen pfx) : Word) := by
+    rw [h_add_sub, ← h_len]
+  rw [← h_add]
+  exact rlp_phase1_e2_full_path_spec'_within
+    (pfx.zeroExtend 64) v10 v11Old v13 off1 off2 base e2_target
+    htarget hv5_lo hv5_hi hd_phase3
+
 end EvmAsm.Rv64.RLP
