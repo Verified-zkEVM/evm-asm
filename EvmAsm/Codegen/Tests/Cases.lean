@@ -1704,35 +1704,43 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
       gasLimit         := "30000" }
-  , -- BN254 pairing charges 45000 for zero complete pairs. Seven PUSH1s (21),
-    -- CALL warm static base (100), pairing gas (45000), and GAS (2) leave 77.
-    { name           := "call_bn254_pairing_zero_pairs_gas_after_call"
+  , -- BN254 pairing costs 45000 even for zero pairs, far above the 0xff
+    -- gas word's child allotment: the child OOGs, 255 burns, the parent
+    -- pushes 0 and continues. From gasLimit=45200: 21 (pushes) + 100
+    -- (warm base) + 255 (allotment) + 2 (GAS) leave 44822 = 0xaf16.
+    -- (Success-path pairing cases need tens of millions of emulator
+    -- steps — past this runner's -n cap — and live in
+    -- scripts/codegen-zisk-bn254-pairing-check.sh instead.)
+    { name           := "call_bn254_pairing_gas_word_caps_child_allotment"
       bytecode       := callPrecompileBytecode "0x08" "0x00" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "16af000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "45200" }
-  , -- One complete 192-byte pair costs 45000 + 34000, plus 18 gas for the
-    -- 192-byte CALL input memory expansion. The current backend safe-fails,
-    -- but gas after CALL proves the one-pair charge.
-    { name           := "call_bn254_pairing_one_pair_gas_after_call"
+  , -- Same child-OOG shape with one complete 192-byte pair staged (the 18
+    -- gas of input memory expansion still charges to the parent):
+    -- 79200 - 21 - 100 - 18 - 255 - 2 = 78804 = 0x133d4.
+    { name           := "call_bn254_pairing_one_pair_child_oog_gas"
       bytecode       := callPrecompileBytecode "0x08" "0xc0" ["0x5a", "0x00"]
-      expectedOutHex := "3b00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "d433010000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "79200" }
-  , -- Non-multiple length is rejected after the base gas is consumed, leaving
-    -- empty returndata and normal halt after POP + RETURNDATASIZE.
-    { name             := "call_bn254_pairing_nonmultiple_length_after_charge"
+  , -- Non-multiple length: the 45000 base cost already exceeds the 255
+    -- allotment, so the child OOGs before the length check; the parent
+    -- pushes 0 and RETURNDATASIZE stays zero.
+    { name             := "call_bn254_pairing_nonmultiple_length_child_oog"
       bytecode         := callPrecompileBytecode "0x08" "0x01" ["0x50", "0x3d", "0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
       gasLimit         := "50000" }
-  , -- One gas short reaches the BN254 pairing gas helper and exits OOG.
-    { name             := "call_bn254_pairing_base_gas_out_of_gas"
+  , -- One gas short of the old whole-frame OOG threshold: under the
+    -- EIP-150 allotment model the parent keeps 63/64 headroom, pushes 0,
+    -- and halts normally (no frame OOG).
+    { name             := "call_bn254_pairing_child_oog_continues"
       bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0600000000000000"
+      expectedHaltKind := "0000000000000000"
       gasLimit         := "45120" }
-  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
-    -- CALL success is 0 and RETURNDATASIZE remains zero.
-    { name             := "call_bn254_pairing_backend_failure_empty_returndata"
+  , -- Generous frame gas but still a 0xff gas word: identical child-OOG
+    -- observables (push 0, empty returndata) regardless of parent balance.
+    { name             := "call_bn254_pairing_gas_word_oog_empty_returndata"
       bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x50", "0x3d", "0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"

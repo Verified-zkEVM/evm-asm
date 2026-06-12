@@ -602,8 +602,11 @@ def childFrameHandlers
     "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
-    -- BN254 pairing: charge 45000 + 34000 * floor(input_size / 192), then
-    -- reject non-multiple lengths as precompile failure with gas consumed.
+    -- BN254 pairing (EIP-197): cost = 45000 + 34000 * floor(len / 192),
+    -- charged from the EIP-150 child allotment. A gas-formula overflow,
+    -- a non-multiple-of-192 length, or kernel-invalid input (coord >= p,
+    -- off-curve, or Q outside the order-n subgroup) is a FAILED call that
+    -- burns the allotment (execution-specs OutOfGasError).
     ".L" ++ tag ++ "_bn254_pairing:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
@@ -614,15 +617,17 @@ def childFrameHandlers
     "  divu x22, x18, x16\n" ++
     "  li x16, 34000\n" ++
     "  mulhu x23, x22, x16\n" ++
-    "  bnez x23, .exit_outofgas\n" ++
+    "  bnez x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
     "  mul x16, x22, x16\n" ++
     "  li x23, 45000\n" ++
     "  add x16, x16, x23\n" ++
-    "  bltu x16, x23, .exit_outofgas\n" ++
-    chargePrecompileGasAsm "x16" "x17" ++
+    "  bltu x16, x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    bn254ChargeGateAsm tag ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 192\n" ++
     "  remu x17, x18, x16\n" ++
-    "  bnez x17, 1f\n" ++
+    "  bnez x17, .L" ++ tag ++ "_bn254_kfail\n" ++
+    "  divu x22, x18, x16\n" ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
@@ -631,10 +636,12 @@ def childFrameHandlers
     "  mv a1, x22\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_pairing\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccessBoolFromFrameAsm
       (tag ++ "_bn254_pairing_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BLAKE2F: exact 213-byte payload, then charge gas equal to the BE
