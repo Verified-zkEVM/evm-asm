@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.Bls12Pairing
 import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.Bls12Kzg
 import EvmAsm.Codegen.Programs.Blake2f
+import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.Bn254Fp2
 import EvmAsm.Codegen.Programs.Bn254Fq12
@@ -603,6 +604,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bls12_pairing_real"   => some ziskBls12PairingRealProbeUnit
   | "zisk_bls12_kzg_point_eval_real" => some ziskBls12KzgPointEvalRealProbeUnit
   | "zisk_blake2f_real"         => some ziskBlake2fRealProbeUnit
+  | "zisk_p256verify_real"      => some ziskP256VerifyRealProbeUnit
   | "zisk_bls12_map_fp_to_g1_real" => some ziskBls12MapFpToG1RealProbeUnit
   | "zisk_bls12_map_fp2_to_g2_real" => some ziskBls12MapFp2ToG2RealProbeUnit
   | "zisk_ripemd160_from_input" => some ziskRipemd160FromInputProbeUnit
