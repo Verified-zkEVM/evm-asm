@@ -720,10 +720,13 @@ def childFrameHandlers
     precompileFrameAddi "a3" (precompileFrameBls12G2InputOff + 196) ++
     "  mv a4, x17\n" ++
     "  jal x1, zkvm_blake2f\n" ++
+    -- a0 IS x10: stash the kernel status before restoring the saved
+    -- value into x10 (the ecrecover-path landmine, #8721 stack notes).
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, 1f\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_blake2f_success") outOffsetOff outSizeOff (precompileFrameBls12G2InputOff + 4) ++
     -- KZG point evaluation: execution-specs rejects non-192-byte input before
