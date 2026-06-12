@@ -1490,10 +1490,26 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     unwired → verdict byte-identical): `sstore_regular_gas` (#8630), `memory_expansion_gas` (#8631),
     `keccak256`/`copy`/`log`/`exp` per-unit leaves (#8633). EIP-2929 cold/warm is already charged via
     `evm_storage_access_gas`.
-  - **Remaining** (dispatcher-gas metering, c1 domain): wire these dynamic charges into the opcode
-    handlers all-at-once (composing with the static base + cold/warm, no double-count) + the missing
-    EIP-2930 access-list intrinsic in the runtime tx-gas; needs an EEST contract-row sweep
-    (false-reject risk). Until then contract gas-gating stays inaccurate.
+  - **Dynamic-gas wiring LANDED** (2026-06-09, c1): warmth table live in `h_SLOAD`/`h_SSTORE`,
+    SSTORE value-transition gas + refund accumulation, M31 memory-expansion / copy / keccak /
+    log / exp dynamic gas in all memory-touching handlers, account warmth in
+    BALANCE/EXTCODE*/CALL*/SELFDESTRUCT. eip7778 EEST filter = 32/32 full-match.
+  - **Amsterdam schedule + EIP-8037 state gas** (2026-06-12, branch
+    `feat/dispatcher-eip8037-state-gas`, bead `nxio8`): SSTORE moved off the legacy Cancun
+    schedule (20000 SET / 19900 zero-restore refund) to Amsterdam (2900 clean-changing +
+    97,920 EIP-8037 state gas for zero-origin creation via `evm_state_gas_left`/`evm_state_gas_used`
+    + the reservoir split at TX_MAX_GAS_LIMIT, restore refund 2800 + state credit); SSTORE
+    stipend `check_gas(2301)`; per-dispatch-call resets for `evm_refund_acc` /
+    `evm_storage_access_count` / state cells / halt_kind (all leaked across multi-tx
+    dispatch calls); `dispatcher_tx_gas_settle` folds the spec's tx-level settlement
+    (error → state restore + refund discard, exceptional halt → regular gas burnt) into
+    the `dispatch_tx_runtime_code` / block-verdict gas captures; the standalone
+    `runtime_dispatcher`/callable-probe ELFs link again (frame-helper closure bundled —
+    they had been unlinkable since the CREATE-descent handlers landed).
+  - **Remaining**: EIP-2930 access-list storage-key seeding (`evm_storage_access_seed_key`
+    exists, unwired) + the access-list intrinsic in the runtime tx-gas; child-frame
+    `incorporate_child_on_error` state-gas/refund/warmth rollback (global cells, no
+    per-frame snapshot); creation-tx intrinsic state gas + code-deposit state gas.
 
 - 🔶 **EIP-8025 witness code-preimage rejects (beads `ok3nl`/#8638, `mkwwf`; 2026-06)**: the spec rejects a
   block when execution reads a `code_hash` absent from the witness (`WitnessState.get_code` raises). (a)

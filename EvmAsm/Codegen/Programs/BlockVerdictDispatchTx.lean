@@ -49,8 +49,12 @@ open EvmAsm.Rv64
     Returns:
       a0 = status: 0 = supported, gas measured; non-zero = unsupported / lookup
            miss / not self-contained (caller should stay conservative)
-      a1 = gas_left (evm_env[568]) on status 0
+      a1 = effective gas_left on status 0: env[568] + evm_state_gas_left with
+           the spec's tx-level error rules folded in by dispatcher_tx_gas_settle
+           (exceptional halt → regular gas burnt; any error → state-gas restore)
       a2 = calldata_floor (runtime_tx_calldata_floor) on status 0
+      a3 = effective refund counter on status 0 (evm_refund_acc, or 0 when the
+           tx erred — interpreter.py discards the refund counter on error)
 
     Preserves the caller's s0..s3 (block_verdict holds its input frame in s0). -/
 /-! ## seed_callee_storage (bmvmx.1.6.4.2.b)
@@ -421,7 +425,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  "  la t2, evm_env; ld t3, 568(t2)\n" ++
+  -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
+  -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
+  -- (exceptional halt burns regular gas; any error restores state gas and
+  -- discards refunds) and a1 = the effective refund counter — so the bvgr
+  -- consumers' `tx.gas - gas_left` formula matches
+  -- `tx.gas - gas_left - state_gas_left` from fork.py process_transaction.
+  "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  mv t3, a0                    # effective gas_left\n" ++
+  "  mv a3, a1                    # effective refund_counter\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  mv a1, t3                    # gas_left\n" ++
   "  mv a2, t5                    # calldata_floor\n" ++

@@ -558,17 +558,21 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
 }
 
-/-! ## zisk_sstore_clear_gas_probe (diagnostic for .57.11.6.5.3 / d')
+/-! ## zisk_sstore_clear_gas_probe (regression pin for the SSTORE-clear charge; was the .57.11.6.5.3 / d' reproducer)
 
-    Pins the (d'/bv_fail=41) regular-gas undercount: dispatch the multi_transaction_gas_accounting
-    tx0 recipient bytecode (10× PUSH0; PUSH1 i; SSTORE — clearing slots 0..9, each preloaded to 1)
-    with gas=71050, and dump the post-dispatch env.gasRemaining (env+568) + persistent-log count
-    (env+448). SPEC charges 21000 intrinsic + 10×5000 (cold SSTORE-clear) + 50 pushes = 71050 (full)
-    -> gas_left ~0, log count = 10 preload + 10 SSTORE appends = 20. If gas_left ≈ 25200 (c2#48's
-    block_inc[0]=45850 = 71050-25200) -> tx0 under-executes (~5 SSTOREs); the log count tells how
-    many SSTOREs ran. Stages via stage_runtime_payload_code with the 10-slot preload; bundles the
-    same dispatcher + frame-helper closure as the derive probes (so it links standalone, unlike the
-    plain runtime_dispatcher unit).
+    Dispatches the multi_transaction_gas_accounting tx0 recipient bytecode
+    (10× PUSH0; PUSH1 i; SSTORE — clearing slots 0..9, each preloaded to 1)
+    with gas=71050, and dumps the post-dispatch env.gasRemaining (env+568) +
+    persistent-log count (env+448). SPEC charges 21000 intrinsic + 10×5000
+    (cold clean-changing SSTORE-clear: 2100 cold + 2900 regular) + 50 pushes =
+    71050 (full) -> gas_left = 0, log count = 10 preload + 10 SSTORE appends =
+    20. (The probe originally pinned the d' undercharge — gas_left 25200 —
+    which had TWO causes, both fixed: the BAL preload keys were staged BE and
+    invisible to the LE exec-log scan, and this probe's own preload mirrored
+    that BE staging.) Stages via stage_runtime_payload_code with the 10-slot
+    LE preload; bundles the same dispatcher + frame-helper closure as the
+    derive probes (so it links standalone, unlike the plain runtime_dispatcher
+    unit).
     Output (0xa0010000): +0 gas_left (env+568), +8 persistent_log_count (env+448),
     +16 status (0 ok / 1 staging unsupported). -/
 def ziskSstoreClearGasProbeUnit : BuildUnit := {
@@ -582,13 +586,19 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     "  addi t1, t0, 72; la t2, scgp_recip; li t3, 20\n" ++
     ".Lscgp_rc:\n  beqz t3, .Lscgp_rcd; lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lscgp_rc\n" ++
     ".Lscgp_rcd:\n" ++
-    -- build the 10-slot preload (count*64: key:32 BE, value:32 BE). zero 640B, then set key[i].byte31=i, value[i].byte63=1
+    -- build the 10-slot preload (count*64: key:32, value:32, both in the EVM
+    -- stack/exec-log LITTLE-ENDIAN-limb order that stage_runtime_payload_code
+    -- copies verbatim — dispatch_tx_runtime_code byte-reverses the BAL's BE keys
+    -- BEFORE staging, so the staged format is LE). zero 640B, then set
+    -- key[i].byte0=i, value[i].byte0=1 (i.e. key=i, value=1 as LE words). The
+    -- original BE staging (key byte31=i) left slots 1..9 invisible to the LE
+    -- scan, which is what this probe's old 25200 "expected undercharge" pinned.
     "  la t0, scgp_preload; li t1, 80\n" ++
     ".Lscgp_zp:\n  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lscgp_zp\n" ++
     "  la t0, scgp_preload; li t1, 0\n" ++
     ".Lscgp_bp:\n  li t2, 10; beq t1, t2, .Lscgp_bpd\n" ++
-    "  slli t3, t1, 6; add t4, t0, t3; addi t5, t4, 31; sb t1, 0(t5)\n" ++         -- key[i] byte31 = i
-    "  addi t5, t4, 63; li t6, 1; sb t6, 0(t5)\n" ++                               -- value[i] byte63 = 1
+    "  slli t3, t1, 6; add t4, t0, t3; sb t1, 0(t4)\n" ++                          -- key[i] byte0 = i (LE)
+    "  addi t5, t4, 32; li t6, 1; sb t6, 0(t5)\n" ++                               -- value[i] byte0 = 1 (LE)
     "  addi t1, t1, 1; j .Lscgp_bp\n" ++
     ".Lscgp_bpd:\n" ++
     -- stage_runtime_payload_code(ctx, out, exec, code, 40, preload, 10)
