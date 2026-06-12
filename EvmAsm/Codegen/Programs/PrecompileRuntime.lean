@@ -181,10 +181,13 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   "  la a0, ecr_abi\n" ++
   "  la a1, ecr_pubkey\n" ++
   "  jalr x1, x18, 0\n" ++           -- secp256k1_recover_pubkey_staged
+  -- a0 IS x10: stash the status before restoring the EVM code pointer
+  -- (restoring first would make the bnez read the nonzero code pointer).
+  "  mv x16, a0\n" ++
   "  mv x13, s9\n" ++
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
-  "  bnez a0, 7b\n" ++               -- invalid signature: empty-returndata success
+  "  bnez x16, 7b\n" ++              -- invalid signature: empty-returndata success
   "  mv s9, x13\n" ++
   "  mv s10, x10\n" ++
   "  mv s11, x12\n" ++
@@ -192,10 +195,11 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   "  li a1, 64\n" ++
   "  la a2, ecr_hash\n" ++
   "  jal x1, zkvm_keccak256\n" ++
+  "  mv x16, a0\n" ++                -- stash status before the x10 (=a0) restore
   "  mv x13, s9\n" ++
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
-  "  bnez a0, 7b\n" ++               -- hash backend failure: stay conservative
+  "  bnez x16, 7b\n" ++              -- hash backend failure: stay conservative
   "  la x15, evm_precompile_frame\n" ++
   "  sd x0, 16(x15)\n" ++            -- returndata[0..12] = 0 (left padding)
   "  sd x0, 24(x15)\n" ++
