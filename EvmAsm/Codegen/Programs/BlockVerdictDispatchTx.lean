@@ -423,6 +423,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
+  -- BEFORE the next dispatch overwrites the capture buffers; the caller stores
+  -- the bv_last_log_* window into its per-tx slot.
+  "  jal ra, block_log_window_snapshot\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
   -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and
