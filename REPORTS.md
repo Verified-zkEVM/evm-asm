@@ -22,4 +22,13 @@ use a consistent legend across both: 🟩 done · 🟢 shipped & runnable (unver
 
 the report should then give a short "what is next" which summarizes some high-level immediate next steps.
 
+the report should then end with a "Development activity since the last report" section that summarizes what the commits in this cycle have actually been focused on. compute the window from the *previous* report: find the most recent existing file in [docs/reports/](docs/reports/) (the report dated before today), read the commit hash in its header, and run `git log <that-commit>..<post-merge-tip-of-main>` over that range. (if no prior report exists, fall back to roughly the last two weeks.) from that range:
+
+- report the raw commit volume (total commits, and the conventional `feat`/`fix` subset) so the cadence is honest,
+- group commits by scope (the `feat(scope)` / `fix(scope)` prefix) and collapse them into a small table of 2–4 dominant themes, each with its contributing scopes + counts and a one-phrase description of what the work is — exclude mechanical/housekeeping scopes like `progress` (PROGRESS.md regenerations) from the themes, but you may note their count in passing,
+- close with a one-line "in one line:" takeaway naming the single primary focus of the cycle,
+- note how many PRs are open at report time (`gh pr list --state open`) and whether they fall in the same themes.
+
+keep this section concise and scannable — a table plus a sentence or two, not a commit-by-commit log.
+
 the report is written in markdown and stored in the [docs/reports/](docs/reports/) directory, and pushed to this branch (dhsorens/reports). we will keep reports just on this branch, so there is never a need for a pull request to main.
