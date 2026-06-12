@@ -417,6 +417,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a0, s0; mv a1, s1; addi a2, s2, 72\n" ++
   "  jal ra, seed_callee_storage\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
+  -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
+  -- the pointer 0 and keep the legacy empty-returndata success).
+  "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++

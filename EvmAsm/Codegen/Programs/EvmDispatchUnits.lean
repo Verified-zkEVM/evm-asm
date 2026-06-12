@@ -8,6 +8,7 @@
 import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.TxPubkey
 
 namespace EvmAsm.Codegen
 
@@ -51,6 +52,63 @@ def runtimeDispatcherCallProbeUnit : BuildUnit :=
     and surfaces them to the stable `OUTPUT+160` diagnostic window. -/
 def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
   buildRuntimeDispatchGasCaptureProbeUnit tinyInterpRegistry evmAddEpilogue
+
+/-! ## zisk_ecrecover_precompile_probe (.62.2.5 e2e)
+
+    End-to-end ECRECOVER through the DISPATCHER: arm `ecrecover_backend_ptr`
+    with the real staged kernel, then run pack-bytecode input (the check
+    script stages a known-vector hash/v/r/s via MSTOREs, CALLs 0x01, and
+    MLOADs the output window so the recovered address lands on the stack top
+    -> OUTPUT[0..32] via evmAddEpilogue). Validates the HANDLER path (staging,
+    gates, recovery, keccak-address returndata, out-window copy), not just the
+    kernel. Bundles the frame-helper closure (tinyInterpRegistry's CREATE
+    handler needs it, mirrors ziskStageSystemCallProbeUnit) plus the NoU256
+    secp256k1 chain (u256_add/sub/lt come from the curve-common-free frame
+    bundle below). -/
+def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  la t0, ecrecover_backend_ptr\n" ++
+    "  la t1, secp256k1_recover_pubkey_staged\n" ++
+    "  sd t1, 0(t0)\n" ++
+    "  jal ra, runtime_dispatcher_call\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    u256AddBeFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    u256LtBeFunction ++ "\n" ++
+    secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
+    secp256k1RecoverRFunction ++ "\n" ++
+    secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    secp256k1CurveDataSection ++ "\n" ++
+    secp256k1RecoverDataSection ++ "\n" ++
+    txPubkeyRecoverRawDataSection ++ "\n" ++
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
 
 /-! ## zisk_stage_system_call (8uld3.2.1c)
 
