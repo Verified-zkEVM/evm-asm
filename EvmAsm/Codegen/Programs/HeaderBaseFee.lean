@@ -339,6 +339,11 @@ def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
 
     because `PER_BLOB / BLOB_BASE_COST = 16`.
 
+    The schedule branch computes `used // 3` (algebraically `used * 7 // 21`),
+    but the spec's `blob_gas_used * 7` is an overflow-checked U64 multiply:
+    when `blob_gas_used > (2^64-1) // 7` the spec raises OverflowError and the
+    block is invalid, so that range must return the overflow status here too.
+
     Calling convention:
       a0 (input)  : this.excess_blob_gas (u64)
       a1 (input)  : parent.blob_gas_used (u64)
@@ -379,6 +384,8 @@ def headerValidateExcessBlobGasFunction : String :=
   "  la t0, u256m_acc\n" ++
   "  ld t0, 0(t0)\n" ++
   "  beqz t0, .Lhvebg_normal\n" ++
+  "  li t0, 2635249153387078802  # (2^64-1) // 7\n" ++
+  "  bltu t0, s1, .Lhvebg_overflow  # spec: U64 used * 7 raises OverflowError\n" ++
   "  li t0, 3\n" ++
   "  divu t1, s1, t0             # used * 7 // 21 == used // 3\n" ++
   "  add s5, s2, t1\n" ++

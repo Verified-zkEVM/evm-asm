@@ -234,6 +234,30 @@ build_test "step6_excess_schedule_wrong" 602 \
   100 1700000000 30000000 15000000 "$BF_50" \
   0 917505 2752512 0 || FAILED=1
 
+# Step 6 fail: schedule branch where the spec's U64 `blob_gas_used * 7`
+# overflows ((2^64-1)//7 + 1 = 2635249153387078803) → OverflowError in the
+# spec, status 601 here. this.excess matches the unguarded `used // 3` value
+# so a guest missing the overflow guard would wrongly return 0.
+MUL_OVERFLOW_USED=2635249153387078803
+MUL_OVERFLOW_EXCESS=$(python3 -c "print($MUL_OVERFLOW_USED // 3)")
+build_test "step6_blob_mul_overflow" 601 \
+  "$EMPTY_OMMERS_HASH" 0 "$ZERO_NONCE" \
+  "" \
+  101 1700000100 30000000 15000000 "$BF_50" \
+  100 1700000000 30000000 15000000 "$BF_50" \
+  0 "$MUL_OVERFLOW_EXCESS" "$MUL_OVERFLOW_USED" 0 || FAILED=1
+
+# All pass: schedule branch at the largest non-overflowing blob_gas_used
+# ((2^64-1)//7, where used * 7 = 2^64-2 still fits in U64).
+MUL_BOUND_USED=2635249153387078802
+MUL_BOUND_EXCESS=$(python3 -c "print($MUL_BOUND_USED // 3)")
+build_test "all_pass_blob_mul_at_bound" 0 \
+  "$EMPTY_OMMERS_HASH" 0 "$ZERO_NONCE" \
+  "" \
+  101 1700000100 30000000 15000000 "$BF_50" \
+  100 1700000000 30000000 15000000 "$BF_50" \
+  0 "$MUL_BOUND_EXCESS" "$MUL_BOUND_USED" 0 || FAILED=1
+
 # All pass: realistic Holesky 60% used scenario
 # parent.gas_used=18000000, target=15000000 (above), bf grows
 # expected = bf + delta where delta = max((bf*3M/15M)/8, 1) = (bf*0.2)/8 = bf*0.025
