@@ -225,6 +225,55 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_logs_rlp_arena:\n  .zero 65536\n" ++
   "bv_record_blooms:\n  .zero 4096\n" ++
   "bv_record_logs_desc:\n  .zero 512\n" ++
+  -- .63.1.6.2.3: encoded full-receipt RLP list (status||cumulative_gas||bloom||logs per
+  -- receipt) for block_validate_receipts_consensus_list. The encoder's internal payload
+  -- scratch caps at 32768; 64 KiB leaves margin for the list prefix + max receipts.
+  "bv_receipts_rlp:\n  .zero 65536\n" ++
+  "bv_receipts_rlp_len:\n  .zero 8\n" ++
+  -- .63.1.6.2.3: receipt_encode + receipt_records_encode_no_logs scratch (these labels were
+  -- probe-only in ziskReceiptRecordsEncodeNoLogsDataSection before the tx-bearing un-gate linked
+  -- the encoder into the guest). re_payload_buf (16K) / rle_payload_buf (32K) are the per-receipt
+  -- and list payload scratch; rle_empty_logs/rle_zero_bloom are the no-log receipt constants.
+  ".balign 8\n" ++
+  "rle_control:\n  .zero 24\n" ++
+  "rle_records:\n  .zero 1024\n" ++
+  "rle_field_len:\n  .zero 8\n" ++
+  "rle_prefix_len:\n  .zero 8\n" ++
+  "re_field_len:\n  .zero 8\n" ++
+  "re_cursor:\n  .zero 8\n" ++
+  "re_total_payload:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "rle_empty_logs:\n  .byte 0xc0\n" ++
+  ".balign 8\n" ++
+  "rle_zero_bloom:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "re_payload_buf:\n  .zero 16384\n" ++
+  ".balign 8\n" ++
+  "rle_payload_buf:\n  .zero 32768\n" ++
+  -- .63.1.6.2.3: block_validate_logs_bloom + block_logs_bloom_from_receipts_list scratch
+  -- (helb_offset/helb_length are already linked via header_extract_logs_bloom).
+  ".balign 8\n" ++
+  "relb_offset:\n  .zero 8\n" ++
+  "relb_length:\n  .zero 8\n" ++
+  "blbr_count:\n  .zero 8\n" ++
+  "blbr_offset:\n  .zero 8\n" ++
+  "blbr_length:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "blbr_scratch_bloom:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bvlb_header_bloom:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bvlb_computed_bloom:\n  .zero 256\n" ++
+  -- .63.1.6.2.3: block_validate_receipts_consensus_list scratch (the indexed-trie/root and
+  -- logs-bloom sub-scratch are already linked above / via the no-tx receipts path).
+  ".balign 8\n" ++
+  "brcl_count:\n  .zero 8\n" ++
+  "brcl_offset:\n  .zero 8\n" ++
+  "brcl_length:\n  .zero 8\n" ++
+  "brcl_root_valid:\n  .zero 8\n" ++
+  "brcl_bloom_valid:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "brcl_value_descs:\n  .zero 2048\n" ++
   -- scratch for log_records_encode_rlp (lrr_*) and the bloom accumulators
   -- (bav_/lba_/llba_ — zk3_state is already defined by the guest).
   logRecordsRlpDataSection ++

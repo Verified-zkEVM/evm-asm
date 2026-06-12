@@ -6,6 +6,11 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdict
+-- .63.1.6.2.3 (slice B): full-receipt encoder + combined root+bloom validator
+import EvmAsm.Codegen.Programs.Receipt
+import EvmAsm.Codegen.Programs.ReceiptList
+import EvmAsm.Codegen.Programs.BloomBlock
+import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
@@ -257,6 +262,21 @@ def statelessVerdictV2GuestClosure : String :=
   -- already linked for the transactions/withdrawals root checks).
   headerExtractReceiptsRootFunction ++ "\n" ++
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++
+  -- .63.1.6.2.3 (slice B): tx-bearing enforcement needs the full-receipt encoder
+  -- (receipt_records_encode_no_logs + receipt_encode + rlp_encode_u64) and the combined
+  -- root+bloom validator (block_validate_receipts_consensus_list + block_validate_logs_bloom).
+  -- rlp_list_nth_item / rlp_list_count_items / rlp_encode_bytes / rlp_encode_list_prefix /
+  -- receipt_records are already linked.
+  rlpEncodeU64Function ++ "\n" ++
+  receiptEncodeFunction ++ "\n" ++
+  receiptRecordsEncodeNoLogsFunction ++ "\n" ++
+  blockValidateLogsBloomFunction ++ "\n" ++
+  -- block_validate_logs_bloom -> block_logs_bloom_from_receipts_list -> receipt_extract_logs_bloom
+  -- + bloom_or_into (the logs_list_bloom_add / bloom_add_value family is already linked).
+  receiptExtractLogsBloomFunction ++ "\n" ++
+  bloomOrIntoFunction ++ "\n" ++
+  blockLogsBloomFromReceiptsListFunction ++ "\n" ++
+  blockValidateReceiptsConsensusListFunction ++ "\n" ++
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
