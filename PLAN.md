@@ -1193,9 +1193,16 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 - RIPEMD160 (0x03) → `zkvm_ripemd160`
 - IDENTITY (0x04) → no accelerator (pure memory copy)
 - MODEXP (0x05) → `zkvm_modexp`
-- BN254_ADD (0x06) → `zkvm_bn254_g1_add`
-- BN254_MUL (0x07) → `zkvm_bn254_g1_mul`
-- BN254_PAIRING (0x08) → `zkvm_bn254_pairing`
+- BN254_ADD (0x06) → `zkvm_bn254_g1_add` — **DONE** (real kernel,
+  `Bn254Field.lean`/`Bn254Curve.lean`, ZisK Bn254CurveAdd/Dbl `csrs
+  0x806/0x807` + Arith256Mod `csrs 0x802` accelerators; EIP-196 validation +
+  EIP-150 child-allotment failure gas; bead fhsxz.2.4.2.62.10)
+- BN254_MUL (0x07) → `zkvm_bn254_g1_mul` — **DONE** (same backend; raw
+  256-bit double-and-add, ~0.93M ziskemu steps worst case)
+- BN254_PAIRING (0x08) → `zkvm_bn254_pairing` — safe-fail wrapper; needs the
+  Fp2/Fp6/Fp12 tower (Bn254ComplexAdd/Sub/Mul `csrs 0x808/0x809/0x80a`
+  accelerate Fp2), optimal-ate Miller loop + final exponentiation
+  (bead fhsxz.2.4.2.62.10 stretch)
 - BLAKE2f (0x09) → `zkvm_blake2f`
 - KZG_POINT_EVAL (0x0a) → `zkvm_kzg_point_eval`
 - BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add`

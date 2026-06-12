@@ -234,6 +234,50 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   "  bnez x23, 48b\n" ++
   "  j 7b\n"
 
+/-- BN254 (0x06/0x07) charge-and-gate. `x16` must already hold the
+    EIP-1108 constant cost. Computes the EIP-150 child allotment
+    A = min(gas word, 63/64 * remaining) via `bn254_call_allotment`
+    (kernel suite, `Bn254Curve.lean`); if A < cost the child runs out of
+    gas — burn A and surface a failed call (`.L<tag>_bn254_fail_burn`,
+    emitted by `bn254FailureStubAsm`). Otherwise charge the cost against
+    568(x20) and park the unspent allotment A - cost in `bn254_allot_rest`
+    so an invalid-input kernel status can burn the rest (execution-specs
+    raises OutOfGasError for malformed ecAdd/ecMul input, which consumes
+    everything forwarded to the child). Clobbers x17/x22/x23/x24/x1. -/
+def bn254ChargeGateAsm (tag : String) : String :=
+  "  jal x1, bn254_call_allotment\n" ++
+  "  bltu x22, x16, .L" ++ tag ++ "_bn254_fail_burn\n" ++
+  "  ld x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub x17, x17, x16\n" ++
+  "  sd x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub x22, x22, x16\n" ++
+  "  la x17, bn254_allot_rest\n" ++
+  "  sd x22, 0(x17)\n"
+
+/-- BN254 failed-call tail (shared by the `tag`'s ecAdd/ecMul entries).
+    `.L<tag>_bn254_kfail` is the kernel-invalid-input target: it reloads
+    the parked allotment remainder and falls into `.L<tag>_bn254_fail_burn`,
+    which burns x22 gas, then pushes 0 (failed call, empty returndata) and
+    resumes the dispatch loop. Only reachable via branches. -/
+def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
+  ".L" ++ tag ++ "_bn254_kfail:\n" ++
+  "  la x17, bn254_allot_rest\n" ++
+  "  ld x22, 0(x17)\n" ++
+  ".L" ++ tag ++ "_bn254_fail_burn:\n" ++
+  "  ld x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub x17, x17, x22\n" ++
+  "  sd x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop\n"
+
 def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 31\n" ++
