@@ -1228,13 +1228,23 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   fhsxz.2.4.2.62.10.1)
 - BLAKE2f (0x09) → `zkvm_blake2f`
 - KZG_POINT_EVAL (0x0a) → `zkvm_kzg_point_eval`
-- BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add`
-- BLS12_G1_MSM (0x0c) → `zkvm_bls12_g1_msm`
-- BLS12_G2_ADD (0x0d) → `zkvm_bls12_g2_add`
-- BLS12_G2_MSM (0x0e) → `zkvm_bls12_g2_msm`
-- BLS12_PAIRING (0x0f) → `zkvm_bls12_pairing`
-- BLS12_MAP_FP_TO_G1 (0x10) → `zkvm_bls12_map_fp_to_g1`
-- BLS12_MAP_FP2_TO_G2 (0x11) → `zkvm_bls12_map_fp2_to_g2`
+- BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add` — **DONE** (real kernel,
+  `Bls12G1.lean`, ZisK Bls12_381CurveAdd/Dbl + Arith384Mod; PR #8739)
+- BLS12_G1_MSM (0x0c) → `zkvm_bls12_g1_msm` — **DONE** (LE-internal
+  double-and-add + REAL order-n subgroup check; 128-pair MSM ~14.8M
+  steps after PR #8741)
+- BLS12_G2_ADD (0x0d) → `zkvm_bls12_g2_add` — **DONE** (software Fp2
+  chord/tangent over the complex accelerators + Fermat inverse,
+  `Bls12G2.lean`; PR #8740)
+- BLS12_G2_MSM (0x0e) → `zkvm_bls12_g2_msm` — **DONE** (same backend)
+- BLS12_PAIRING (0x0f) → `zkvm_bls12_pairing` — **DONE** (py_ecc-
+  mirroring FQ12 = Fp[w]/(w^12-2w^6+2) Miller loop on fused Arith384Mod,
+  `Bls12Fq12.lean`/`Bls12Pairing.lean`; real subgroup checks both sides;
+  EEST 88/88; PR #8745)
+- BLS12_MAP_FP_TO_G1 (0x10) → `zkvm_bls12_map_fp_to_g1` — **DONE**
+  (SSWU + 11-isogeny + accelerated cofactor clear, `Bls12Map.lean`;
+  EEST 77/77 with 0x11; PR #8745)
+- BLS12_MAP_FP2_TO_G2 (0x11) → `zkvm_bls12_map_fp2_to_g2` — **DONE** (same file, 3-isogeny)
 - secp256r1_verify (0x100) → `zkvm_secp256r1_verify`
 - Non-precompile accelerators reused by EVM opcode handlers: `zkvm_keccak256`
   (KECCAK256 opcode, §8.3), `zkvm_secp256k1_verify` (transaction signature
