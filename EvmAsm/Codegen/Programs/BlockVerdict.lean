@@ -1213,6 +1213,24 @@ def blockVerdictFunction : String :=
   "  jal ra, eip7702_nonce_reuse_guard\n" ++
   "  bnez a0, .Lbv_eip7702_nonce_reuse_fail\n" ++
   "  la t2, bvgr_arena_status; ld t2, 0(t2); bnez t2, .Lbv_receipts_no_runtime_gas\n" ++
+  -- .63.1.6.2.8: the materialized receipt's cumulative_gas must include the EIP-7623 calldata
+  -- floor. block_verdict_gas_result_arena_prepare set bvgr_receipt_gas_increments[tx] =
+  -- max(after_refund, bvgr_calldata_floor), but the dispatcher's bvgr_calldata_floor is 0 for
+  -- EOA value-transfer txs, so a legacy transfer WITH calldata under-charged the receipt -> a
+  -- spurious receipts-root mismatch (latent false-reject). The block-gas gate above
+  -- (block_verdict_tx_state_gas_array) already computed the SOUND per-tx EIP-7623 floor into
+  -- bsg_floor_gas using its own safe calldata source; redo the max with it. max(after_refund,
+  -- floor) is exactly the spec receipt increment (amsterdam Account.lean:1062-1064), so this
+  -- never over-charges. SINGLE-TX ONLY: for multi-tx bsg_floor_gas is the last tx's floor, not
+  -- tx0's. bsg_floor_gas is written only by the gas gate; for single-tx it is either tx0's floor
+  -- or 0 (gate bailed before computing it) -- both safe under max. No calldata re-iteration here,
+  -- so no out-of-bounds read on max-calldata rows.
+  "  la t4, bvgr_arena_tx_count; ld t4, 0(t4); li t5, 1; bne t4, t5, .Lbv_st_receipt_floor_skip\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0)\n" ++
+  "  la t2, bsg_floor_gas; ld t3, 0(t2)\n" ++
+  "  bgeu t1, t3, .Lbv_st_receipt_floor_skip\n" ++
+  "  sd t3, 0(t0)\n" ++
+  ".Lbv_st_receipt_floor_skip:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
