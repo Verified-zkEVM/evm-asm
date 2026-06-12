@@ -510,6 +510,10 @@ def blockVerdictFunction : String :=
   -- raw evm_refund_acc read.
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a3, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a4, 0(t3)\n" ++   -- .63.1.6.2.1: receipt status, tx i
+  "  slli t4, t1, 4\n" ++   -- .63.1.6.2.1: per-tx log window (16-byte stride)
+  "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed (addrHash) to its recipient (bv_mtx_ctx+72, 20B zero-padded to 32) so the next
   -- tx's preload can thread a prior tx's committed value. The live exec log (env+448 entries
@@ -714,12 +718,17 @@ def blockVerdictFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- .63.1.6.2.1: snapshot the EOA dispatch's event-log window (EIP-7708 logs
+  -- may appear here once the transfer-log emission gap closes).
+  "  jal ra, block_log_window_snapshot\n" ++
   -- nxio8: settle fold (EIP-8037 state gas + tx-error rules) instead of a raw
   -- env[568] read; a0 = effective gas_left, a1 = effective refund counter.
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
@@ -767,6 +776,8 @@ def blockVerdictFunction : String :=
   -- raw evm_refund_acc read.
   "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a4, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -1164,14 +1175,23 @@ def blockVerdictFunction : String :=
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bv_tx_status_arr\n" ++   -- .63.1.6.2.1: per-tx settle success bits
+  "  la a4, bv_tx_log_window\n" ++   -- .63.1.6.2.1: per-tx block-arena log windows
   "  jal ra, block_receipt_records_materialize\n" ++
   "  la t2, brr_status; ld t2, 0(t2); bnez t2, .Lbv_receipt_records_fail\n" ++
+  -- .63.1.6.2.1: encode per-record logs RLP + bloom and fill logs_desc_ptr.
+  -- INERT (debug status only): nothing consumes the encoded records until the
+  -- receipts consensus enforcement lands (gated on the EIP-7708 transfer-log
+  -- emission gap — see the receipts-blocker bead).
+  "  la a0, brr_control\n" ++
+  "  jal ra, block_receipt_logs_materialize\n" ++
+  "  la t2, bv_receipt_logs_status; sd a0, 0(t2)\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  li a1, 0\n" ++
   "  li a2, 0\n" ++
   "  li a3, 0\n" ++
+  "  li a4, 0\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
@@ -1460,6 +1480,13 @@ def ziskStatelessVerdictV2Prologue : String :=
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
+  -- .63.1.6.2.1: per-tx log windows -> per-record logs RLP + bloom.
+  blockLogWindowSnapshotFunction ++ "\n" ++
+  blockReceiptLogsMaterializeFunction ++ "\n" ++
+  logRecordsEncodeRlpFunction ++ "\n" ++
+  bloomAddValueFunction ++ "\n" ++
+  logBloomAddFunction ++ "\n" ++
+  logsListBloomAddFunction ++ "\n" ++
   -- .63.1.6.2.3: receipts-consensus validators (the indexed-trie family is
   -- already linked above for the transactions/withdrawals root checks).
   headerExtractReceiptsRootFunction ++ "\n" ++

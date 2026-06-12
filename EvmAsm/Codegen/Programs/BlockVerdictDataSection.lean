@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
+import EvmAsm.Codegen.Programs.LogRecordsRlp
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
@@ -195,6 +196,41 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
   "bv_tx_status_arr:\n  .zero 128\n" ++
+  -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
+  -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
+  -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
+  -- offsets rebased into bv_block_log_meta) out between dispatches.
+  -- bv_record_* and bv_logs_rlp_arena carry the per-record logs RLP + blooms
+  -- (block_receipt_logs_materialize), in the {bloom,rlp,len} shape
+  -- receipt_records_encode_no_logs consumes via record@56.
+  "brr_tx_window_ptr:\n  .zero 8\n" ++
+  "bv_block_log_count:\n  .zero 8\n" ++
+  "bv_block_log_data_used:\n  .zero 8\n" ++
+  "bv_block_log_overflow:\n  .zero 8\n" ++
+  "bv_last_log_start:\n  .zero 8\n" ++
+  "bv_last_log_count:\n  .zero 8\n" ++
+  "bv_receipt_logs_status:\n  .zero 8\n" ++
+  "bv_logs_rlp_len:\n  .zero 8\n" ++
+  "bv_tx_log_window:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bv_block_log_descs:\n  .zero 32768\n" ++
+  "bv_block_log_meta:\n  .zero 2048\n" ++
+  "bv_block_log_data:\n  .zero 65536\n" ++
+  "bv_logs_rlp_arena:\n  .zero 65536\n" ++
+  "bv_record_blooms:\n  .zero 4096\n" ++
+  "bv_record_logs_desc:\n  .zero 512\n" ++
+  -- scratch for log_records_encode_rlp (lrr_*) and the bloom accumulators
+  -- (bav_/lba_/llba_ — zk3_state is already defined by the guest).
+  logRecordsRlpDataSection ++
+  "bav_hash:\n  .zero 32\n" ++
+  "lba_offset:\n  .zero 8\n" ++
+  "lba_length:\n  .zero 8\n" ++
+  "lba_topics_offset:\n  .zero 8\n" ++
+  "lba_topics_length:\n  .zero 8\n" ++
+  "lba_topic_count:\n  .zero 8\n" ++
+  "llba_offset:\n  .zero 8\n" ++
+  "llba_length:\n  .zero 8\n" ++
+  "llba_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
