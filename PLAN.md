@@ -1190,7 +1190,11 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 - Map EVM precompile addresses (0x01-0x11, 0x100) to `zkvm_accelerators.h` calls.
 - ECRECOVER (0x01) → `zkvm_secp256k1_ecrecover`
 - SHA256 (0x02) → `zkvm_sha256`
-- RIPEMD160 (0x03) → `zkvm_ripemd160`
+- RIPEMD160 (0x03) → `zkvm_ripemd160` — **DONE** (pure-software RV64 kernel,
+  `Ripemd160.lean` — ZisK has no RIPEMD-160 accelerator; table-driven
+  two-line compression, ~5.3k steps/64-byte block; 600+120/word gas,
+  32-byte left-padded returndata; validated against the standard vectors
+  via `scripts/codegen-zisk-ripemd160-check.sh`; bead fhsxz.2.4.2.62.11)
 - IDENTITY (0x04) → no accelerator (pure memory copy)
 - MODEXP (0x05) → `zkvm_modexp`
 - BN254_ADD (0x06) → `zkvm_bn254_g1_add` — **DONE** (real kernel,
