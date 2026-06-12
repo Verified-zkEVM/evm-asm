@@ -38,6 +38,7 @@ import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.Bls12G1
 import EvmAsm.Codegen.Programs.Bls12G2
 import EvmAsm.Codegen.Programs.Bls12Pairing
+import EvmAsm.Codegen.Programs.Bls12Kzg
 import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
@@ -1462,7 +1463,10 @@ def emitDispatcherEpilogueCore
     bn254PrecompileFunctions ++ "\n" ++
     bn254PairingKernelFunctions ++ "\n" ++
     zkvmBlake2fSafeFailWrapper ++ "\n" ++
-    zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
+    -- Real KZG point-evaluation (0x0a) kernel: compressed-G1 decode +
+    -- [tau]_2 pairing check on top of the BLS12-381 suites
+    -- (Programs/Bls12Kzg.lean).
+    bls12KzgKernelFunctions ++ "\n" ++
     zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
     -- Real BLS12-381 G2 ADD/MSM (0x0d/0x0e) kernels: software Fp2
     -- chord/tangent over the complex accelerators + Arith384Mod Fermat
@@ -2299,7 +2303,8 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   bn254PrecompileFunctions ++ "\n" ++
   bn254PairingKernelFunctions ++ "\n" ++
   zkvmBlake2fSafeFailWrapper ++ "\n" ++
-  zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
+  -- Real KZG point-evaluation kernel (see the shared-helpers branch note).
+  bls12KzgKernelFunctions ++ "\n" ++
   zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
   -- Real BLS12-381 G2 ADD/MSM kernels (see the shared-helpers branch note).
   bls12G2PrecompileFunctions ++ "\n" ++
@@ -2595,6 +2600,7 @@ def emitRuntimeDispatcherDataSectionCore
   bls12G2DataFragment ++
   bls12PairingAllDataFragments ++
   bls12MapDataFragment ++
+  bls12KzgDataFragment ++
   bn254PairingAllDataFragments ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
