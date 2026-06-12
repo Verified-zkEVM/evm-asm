@@ -129,6 +129,7 @@ def witnessIndexFunctions : String :=
   "  slli t3, t2, 2\n" ++
   "  add t3, s0, t3\n" ++
   "  lwu s6, 0(t3)              # offset_{i+1}\n" ++
+  "  bgtu s6, s1, .Lwidx_build_fail\n" ++  -- next offset past the section: malformed table
   "  j .Lwidx_build_have_end\n" ++
   ".Lwidx_build_last:\n" ++
   "  mv s6, s1\n" ++
