@@ -211,7 +211,15 @@ def eip7708SyntheticLogTopicData : String :=
   -- fhsxz.2.4.2.63.1.6.2.6: 32B right-aligned scratch for the CALL value-transfer log's
   -- `to` topic (callee 20 bytes copied into the low bytes [+12..+32], high 12 zeroed).
   ".balign 8\n" ++
-  "eip7708_cd_to32:\n  .zero 32\n"
+  "eip7708_cd_to32:\n  .zero 32\n" ++
+  -- fhsxz.2.4.2.63.1.6.2.6 Part 2: top-level tx transfer-log scratch. The verdict-side
+  -- sender/recipient/value are big-endian; these hold them reversed into the LE stack-word
+  -- form the log materializer consumes (it byte-reverses each topic slot back to canonical BE;
+  -- the appender reverses the value back to BE at descriptor+160).
+  ".balign 8\n" ++
+  "eip7708_tl_from32:\n  .zero 32\n" ++
+  "eip7708_tl_to32:\n  .zero 32\n" ++
+  "eip7708_tl_val32:\n  .zero 32\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++

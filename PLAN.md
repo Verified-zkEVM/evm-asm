@@ -1063,9 +1063,38 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     classification, Phase 3 long-string entry, and the one-byte Phase 2
     length loop. Postcondition gives the zero-copy output pair:
     `x11 = payload_length_byte`, `x13 = payload_start`.
-  - Remaining: long-string composition with Phase 2 for lenLen 2-8 and the planned
-    general `n`-iteration closure,
-    short/long-list error exits (`e4`/`e5`).
+  - ✅ **Long-form single-doubleword full paths complete (lenLen 1–8).**
+    Mirroring the `0xB8` one-byte path, every long-form prefix now has an
+    end-to-end Phase 1 → Phase 3 → Phase 2 composition:
+    - Long byte-strings (e3, prefixes `0xB8`–`0xBF`):
+      `rlp_phase1_e3_0x{B8..BF}_{one..eight}_byte_length_spec_within`
+      (`Phase1E3LongString{One..Eight}.lean`).
+    - Long lists (e5, prefixes `0xF8`–`0xFF`):
+      `rlp_phase1_e5_0x{F8..FF}_{one..eight}_byte_length_spec_within`
+      (`Phase1E5LongList{One..Eight}.lean`).
+    Each composes the proven `rlp_phase1_e{3,5}_full_path_spec'_within`
+    entry with the matching `rlp_phase2_long_loop_{N}_byte_spec_within`
+    closure via `cpsTripleWithin_seq`; the postcondition restates the
+    big-endian length by reference to that closure's `…_post`. All
+    16 theorems are axiom-clean (only `propext`/`Classical.choice`/
+    `Quot.sound`), 0 sorry. Wired into the `EvmAsm.Rv64.RLP` umbrella.
+  - ✅ **Long-form length bridged to the pure spec (`Nat.fromBytesBE`).**
+    The full-path outputs above leave `x11` as a raw big-endian
+    accumulation; `Phase2LongLengthBridge.lean` proves it equals the value
+    the pure RLP spec decodes. Core: `rlp_be_len_{1..8}_eq_fromBytesBE`
+    (and `rlp_be_byte_eq_fromBytesBE`) show
+    `(((0 <<< 8) + e0) <<< 8 …) + e_{N-1} = BitVec.ofNat 64 (Nat.fromBytesBE
+    [e0,…,e_{N-1}])` for `N ≤ 8` (no 64-bit overflow since the value is
+    `< 256^8 = 2^64`), backed by the pure bound `Nat.fromBytesBE_lt`
+    (`EL/RLP/Properties.lean`). `Phase1E{3,5}…FromBytesBE.lean` thread this
+    through to 16 end-to-end `…_fromBytesBE_spec_within` restatements whose
+    postcondition states `x11 = BitVec.ofNat 64 (Nat.fromBytesBE [extractByte
+    …, …])` — i.e. the decoder computes the *spec-correct* length, not just a
+    bitvector. All axiom-clean, 0 sorry.
+  - Remaining: the planned general `n`-iteration closure (replacing the
+    unrolled 1–8 closures via induction over the byte counter),
+    cross-doubleword length spans, and the short/long-list error exits
+    (`e4`/`e5`).
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
@@ -1190,7 +1219,11 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 - Map EVM precompile addresses (0x01-0x11, 0x100) to `zkvm_accelerators.h` calls.
 - ECRECOVER (0x01) → `zkvm_secp256k1_ecrecover`
 - SHA256 (0x02) → `zkvm_sha256`
-- RIPEMD160 (0x03) → `zkvm_ripemd160`
+- RIPEMD160 (0x03) → `zkvm_ripemd160` — **DONE** (pure-software RV64 kernel,
+  `Ripemd160.lean` — ZisK has no RIPEMD-160 accelerator; table-driven
+  two-line compression, ~5.3k steps/64-byte block; 600+120/word gas,
+  32-byte left-padded returndata; validated against the standard vectors
+  via `scripts/codegen-zisk-ripemd160-check.sh`; bead fhsxz.2.4.2.62.11)
 - IDENTITY (0x04) → no accelerator (pure memory copy)
 - MODEXP (0x05) → `zkvm_modexp`
 - BN254_ADD (0x06) → `zkvm_bn254_g1_add` — **DONE** (real kernel,
