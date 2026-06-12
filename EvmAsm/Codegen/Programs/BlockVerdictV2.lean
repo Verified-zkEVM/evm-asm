@@ -130,6 +130,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     writes its bit to OUTPUT[32]. -/
 def statelessVerdictV2GuestClosure : String :=
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++

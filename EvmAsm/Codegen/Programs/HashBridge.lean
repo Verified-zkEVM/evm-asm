@@ -199,4 +199,71 @@ def zkvmKeccak256Function : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
+/-- `zkvm_keccak256_segments`: streaming keccak256 over the CONCATENATION of a list
+    of (ptr,len) byte segments, without materializing the concatenation in one
+    buffer. Same sponge as `zkvm_keccak256` (reuses `zk3_state` + the keccak-f
+    permutation `.4byte 0x80052073`), but absorbs segment-by-segment, carrying the
+    136-byte rate-block fill across segment boundaries in a register. This lets a
+    caller hash `small_prefix || BIG_in_place_slice || small_suffix` (e.g. a tx
+    signing RLP whose calldata is megabytes) by passing the big slice as one
+    segment pointing straight into its source region -- O(1) extra memory, no copy,
+    no input mutation, no fixed-buffer cap. Identical digest to the one-shot.
+
+    Calling convention:
+      a0 (input) : segments array ptr -- N×16 bytes, each = (u64 ptr, u64 len)
+      a1 (input) : N (segment count; segments of len 0 are skipped)
+      a2 (input) : 32-byte output hash ptr
+      a0 (output): 0 (ZKVM_EOK)
+    Byte-wise absorb (correctness-first); the keccak-f permutation dominates and
+    is accelerated, so the per-byte XOR is cheap relative to the recovery. -/
+def zkvmKeccak256SegmentsFunction : String :=
+  "zkvm_keccak256_segments:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                # &segments[0]\n" ++
+  "  mv s1, a1                # remaining segment count\n" ++
+  "  mv s2, a2                # output ptr\n" ++
+  "  la s3, zk3_state\n" ++
+  "  # zero state (25 × u64)\n" ++
+  "  mv t0, s3; li t1, 25\n" ++
+  ".Lkss_zero:\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lkss_zero\n" ++
+  "  li s4, 0                 # rate-block fill (0..135), carried across segments\n" ++
+  ".Lkss_seg:\n" ++
+  "  beqz s1, .Lkss_pad\n" ++
+  "  ld s5, 0(s0)             # segment ptr\n" ++
+  "  ld s6, 8(s0)             # segment len\n" ++
+  "  addi s0, s0, 16\n" ++
+  "  addi s1, s1, -1\n" ++
+  ".Lkss_byte:\n" ++
+  "  beqz s6, .Lkss_seg\n" ++
+  "  lbu t0, 0(s5)            # message byte\n" ++
+  "  add t1, s3, s4           # &state[fill]\n" ++
+  "  lbu t2, 0(t1); xor t2, t2, t0; sb t2, 0(t1)\n" ++
+  "  addi s5, s5, 1; addi s6, s6, -1; addi s4, s4, 1\n" ++
+  "  li t0, 136; bne s4, t0, .Lkss_byte\n" ++
+  "  mv a0, s3\n" ++
+  "  .4byte 0x80052073        # keccak-f on full rate block\n" ++
+  "  li s4, 0\n" ++
+  "  j .Lkss_byte\n" ++
+  ".Lkss_pad:\n" ++
+  "  add t1, s3, s4\n" ++
+  "  lbu t2, 0(t1); xori t2, t2, 0x01; sb t2, 0(t1)   # pad start bit\n" ++
+  "  addi t1, s3, 135\n" ++
+  "  lbu t2, 0(t1); xori t2, t2, 0x80; sb t2, 0(t1)   # pad end bit\n" ++
+  "  mv a0, s3\n" ++
+  "  .4byte 0x80052073\n" ++
+  "  ld t0, 0(s3);  sd t0, 0(s2)\n" ++
+  "  ld t0, 8(s3);  sd t0, 8(s2)\n" ++
+  "  ld t0, 16(s3); sd t0, 16(s2)\n" ++
+  "  ld t0, 24(s3); sd t0, 24(s2)\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
 end EvmAsm.Codegen
