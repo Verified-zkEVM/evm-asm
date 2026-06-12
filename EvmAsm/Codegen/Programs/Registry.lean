@@ -56,6 +56,8 @@ import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bls12Field
 import EvmAsm.Codegen.Programs.Bls12G1
 import EvmAsm.Codegen.Programs.Bls12G2
+import EvmAsm.Codegen.Programs.Bls12Pairing
+import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.Bn254Fp2
 import EvmAsm.Codegen.Programs.Bn254Fq12
 import EvmAsm.Codegen.Programs.Bn254Pairing
@@ -595,6 +597,9 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bls12_g1_msm_real"    => some ziskBls12G1MsmRealProbeUnit
   | "zisk_bls12_g2_add_real"    => some ziskBls12G2AddRealProbeUnit
   | "zisk_bls12_g2_msm_real"    => some ziskBls12G2MsmRealProbeUnit
+  | "zisk_bls12_pairing_real"   => some ziskBls12PairingRealProbeUnit
+  | "zisk_bls12_map_fp_to_g1_real" => some ziskBls12MapFpToG1RealProbeUnit
+  | "zisk_bls12_map_fp2_to_g2_real" => some ziskBls12MapFp2ToG2RealProbeUnit
   | "zisk_bn254_g1_add_real"    => some ziskBn254G1AddRealProbeUnit
   | "zisk_bn254_g1_mul_real"    => some ziskBn254G1MulRealProbeUnit
   | "zisk_bn254_fp2_ops"        => some ziskBn254Fp2OpsProbeUnit

@@ -1025,28 +1025,49 @@ def childFrameHandlers
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 24b\n" ++
     "  j 7b\n" ++
-    -- BLS12-381 pairing: execution-specs rejects empty input and non-384
-    -- multiples before invoking pairing arithmetic.
+    -- BLS12-381 pairing (0x0f): nonempty multiple-of-384 input, gas
+    -- 32600*k + 37700 charged from the EIP-150 child allotment, real
+    -- py_ecc-mirroring FQ12 Miller-loop kernel on the raw EIP-2537 input
+    -- (decode + on-curve + REAL subgroup checks on both sides in-kernel).
+    -- Invalid input burns the allotment.
     "17:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
-    "  beqz x18, 1f\n" ++
+    "  beqz x18, .L" ++ tag ++ "_bn254_fail_allot\n" ++
     "  li x16, 384\n" ++
     "  remu x17, x18, x16\n" ++
-    "  bnez x17, 1f\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    chargeBls12PairingGasAsm "x18" "a1" "x22" "x23" ++
+    "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    "  li x16, 384\n" ++
+    "  divu x17, x18, x16\n" ++
+    "  li x16, 32600\n" ++
+    "  mul x16, x17, x16\n" ++
+    "  li x22, 32600\n" ++
+    "  divu x22, x16, x22\n" ++
+    "  bne x22, x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    "  li x22, 37700\n" ++
+    "  add x16, x16, x22\n" ++
+    "  bltu x16, x22, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x17\n" ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
+    "  li x17, 384\n" ++
+    "  divu a1, x18, x17\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_pairing\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     -- EIP-2537 pairing returns a 32-byte boolean word: 31 zero bytes followed
     -- by the backend `verified` byte.
     "  sd x0, 16(x15)\n" ++
@@ -1080,24 +1101,29 @@ def childFrameHandlers
     -- 64-byte Fp field element; the compact 48-byte field payload starts
     -- after the 16-byte EIP-2537 zero pad.
     "18:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 64\n" ++
-    "  bne x17, x16, 1f\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    chargePrecompileGasConstAsm 5500 "x16" "x22" ++
+    "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    "  li x16, 5500\n" ++
+    bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
-    "  add x18, x13, x18\n" ++
-    "  addi a0, x18, 16\n" ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
     precompileFrameAddi "a1" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bls12_map_fp_to_g1\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     -- EIP-2537 `g1_to_bytes`: each compact 48-byte coordinate is left-padded
     -- to a 64-byte big-endian field element.
     "  sd x0, 16(x15)\n" ++
@@ -1149,43 +1175,29 @@ def childFrameHandlers
     -- 128-byte Fp2 element. Project the two compact 48-byte Fp chunks into
     -- the G2-class compact input lane before calling the backend.
     "19:\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li x16, 1\n" ++
+    "  sd x16, 0(x15)\n" ++
+    "  sd x0, 8(x15)\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 128\n" ++
-    "  bne x17, x16, 1f\n" ++
-    "  la x15, evm_precompile_frame\n" ++
-    chargePrecompileGasConstAsm 23800 "x16" "x22" ++
-    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
-    "  add x18, x13, x18\n" ++
-    "  addi x19, x18, 16\n" ++
-    precompileFrameAddi "x23" precompileFrameBls12G2InputOff ++
-    "  li x22, 48\n" ++
-    "20:\n" ++
-    "  lbu x16, 0(x19)\n" ++
-    "  sb x16, 0(x23)\n" ++
-    "  addi x19, x19, 1\n" ++
-    "  addi x23, x23, 1\n" ++
-    "  addi x22, x22, -1\n" ++
-    "  bnez x22, 20b\n" ++
-    "  addi x19, x18, 80\n" ++
-    "  li x22, 48\n" ++
-    "21:\n" ++
-    "  lbu x16, 0(x19)\n" ++
-    "  sb x16, 0(x23)\n" ++
-    "  addi x19, x19, 1\n" ++
-    "  addi x23, x23, 1\n" ++
-    "  addi x22, x22, -1\n" ++
-    "  bnez x22, 21b\n" ++
+    "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    "  li x16, 23800\n" ++
+    bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
-    precompileFrameAddi "a0" precompileFrameBls12G2InputOff ++
+    "  ld x17, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x17\n" ++
     precompileFrameAddi "a1" precompileFrameBls12G2OutputOff ++
     "  jal x1, zkvm_bls12_map_fp2_to_g2\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
     "  la x15, evm_precompile_frame\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     -- EIP-2537 `g2_to_bytes`: each compact 48-byte FQ component is left-padded
     -- to a 64-byte big-endian field element.
     "  addi x18, x15, 16\n" ++

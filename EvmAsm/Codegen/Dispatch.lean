@@ -37,6 +37,8 @@ import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.Bls12G1
 import EvmAsm.Codegen.Programs.Bls12G2
+import EvmAsm.Codegen.Programs.Bls12Pairing
+import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
@@ -1462,9 +1464,12 @@ def emitDispatcherEpilogueCore
     -- chord/tangent over the complex accelerators + Arith384Mod Fermat
     -- inverse (Programs/Bls12G2.lean; blsf_copy_quads linked alongside).
     bls12G2PrecompileFunctions ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n"
+    -- Real BLS12-381 pairing (0x0f) kernel: py_ecc-mirroring FQ12
+    -- Miller loop on Arith384Mod (Programs/Bls12Fq12 + Bls12Pairing).
+    bls12PairingKernelFunctions ++ "\n" ++
+    -- Real BLS12-381 map precompiles (0x10/0x11): SSWU + isogeny +
+    -- accelerated cofactor clearing (Programs/Bls12Map.lean).
+    bls12MapKernelFunctions ++ "\n"
    else
     "") ++
   "h_invalid:\n" ++
@@ -2289,9 +2294,10 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
   -- Real BLS12-381 G2 ADD/MSM kernels (see the shared-helpers branch note).
   bls12G2PrecompileFunctions ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n" ++
+  -- Real BLS12-381 pairing kernel (see the shared-helpers branch note).
+  bls12PairingKernelFunctions ++ "\n" ++
+  -- Real BLS12-381 map precompiles (see the shared-helpers branch note).
+  bls12MapKernelFunctions ++ "\n" ++
   -- Call-frame switching primitives (beads .61.4/.61.5, layout #8516/#8517).
   -- Linked into the guest so the CALL/CREATE child-frame descent (.61.6/.61.8)
   -- can call them. `frame_base` resolves `call_frame_arena` (the guest verdict
@@ -2578,6 +2584,8 @@ def emitRuntimeDispatcherDataSectionCore
   bls12FieldDataFragment ++
   bls12G1DataFragment ++
   bls12G2DataFragment ++
+  bls12PairingAllDataFragments ++
+  bls12MapDataFragment ++
   bn254PairingAllDataFragments ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
