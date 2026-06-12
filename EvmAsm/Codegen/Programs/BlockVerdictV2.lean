@@ -6,6 +6,11 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdict
+-- .63.1.6.2.3 (slice B): full-receipt encoder + combined root+bloom validator
+import EvmAsm.Codegen.Programs.Receipt
+import EvmAsm.Codegen.Programs.ReceiptList
+import EvmAsm.Codegen.Programs.BloomBlock
+import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
@@ -26,6 +31,8 @@ import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
 import EvmAsm.Codegen.Programs.BalAllAccountsCode
 import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
 import EvmAsm.Codegen.Programs.StageBlockhashM29
+import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorage
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
@@ -58,10 +65,17 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     bytecodeIsSelfContainedFunction ++ "\n" ++
     balFindAccountByAddressFunction ++ "\n" ++
     balRecipientStorageKeysFunction ++ "\n" ++
+    balRecipientStorageReadsKeysFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
+    -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
+    -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
+    -- u256_add_be/u256_sub_be/u256_lt_be.
+    secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
+    secp256k1RecoverRFunction ++ "\n" ++
+    secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
     -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
     balAddrToExecLogKeyFunction ++ "\n" ++
     seedCalleeStorageFunction ++ "\n" ++
@@ -100,6 +114,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     eip8037TxStateGasFunction ++ "\n" ++
     txIntrinsicStateGasFunction ++ "\n" ++
     blockVerdictTxStateGasArrayFunction ++ "\n" ++
+    -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
+    -- debug verdict ELF links (block_verdict calls verify_public_keys_match_senders).
+    verifyPublicKeysSendersGuestFunctions ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
@@ -234,6 +251,34 @@ def statelessVerdictV2GuestClosure : String :=
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
+  -- .63.1.6.2.1: per-tx log windows -> per-record logs RLP + bloom.
+  blockLogWindowSnapshotFunction ++ "\n" ++
+  blockReceiptLogsMaterializeFunction ++ "\n" ++
+  logRecordsEncodeRlpFunction ++ "\n" ++
+  bloomAddValueFunction ++ "\n" ++
+  logBloomAddFunction ++ "\n" ++
+  logsListBloomAddFunction ++ "\n" ++
+  -- .63.1.6.2.3: receipts-consensus validators (the indexed-trie family is
+  -- already linked for the transactions/withdrawals root checks).
+  headerExtractReceiptsRootFunction ++ "\n" ++
+  blockValidateReceiptsRootIndexedFunction ++ "\n" ++
+  -- .63.1.6.2.3 (slice B): tx-bearing enforcement needs the full-receipt encoder
+  -- (receipt_records_encode_no_logs + receipt_encode + rlp_encode_u64) and the combined
+  -- root+bloom validator (block_validate_receipts_consensus_list + block_validate_logs_bloom).
+  -- rlp_list_nth_item / rlp_list_count_items / rlp_encode_bytes / rlp_encode_list_prefix /
+  -- receipt_records are already linked.
+  rlpEncodeU64Function ++ "\n" ++
+  receiptEncodeFunction ++ "\n" ++
+  receiptRecordsEncodeNoLogsFunction ++ "\n" ++
+  blockValidateLogsBloomFunction ++ "\n" ++
+  -- block_validate_logs_bloom -> block_logs_bloom_from_receipts_list -> receipt_extract_logs_bloom
+  -- + bloom_or_into (the logs_list_bloom_add / bloom_add_value family is already linked).
+  receiptExtractLogsBloomFunction ++ "\n" ++
+  bloomOrIntoFunction ++ "\n" ++
+  blockLogsBloomFromReceiptsListFunction ++ "\n" ++
+  blockValidateReceiptsConsensusListFunction ++ "\n" ++
+  headerExtractLogsBloomFunction ++ "\n" ++
+  bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
@@ -270,10 +315,17 @@ def statelessVerdictV2GuestClosure : String :=
   bytecodeIsSelfContainedFunction ++ "\n" ++
   balFindAccountByAddressFunction ++ "\n" ++
   balRecipientStorageKeysFunction ++ "\n" ++
+  balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.
   dispatchTxRuntimeCodeFunction ++ "\n" ++
+  -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
+  -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
+  -- u256_add_be/u256_sub_be/u256_lt_be.
+  secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
+  secp256k1RecoverRFunction ++ "\n" ++
+  secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
   -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
   balAddrToExecLogKeyFunction ++ "\n" ++
   seedCalleeStorageFunction ++ "\n" ++
@@ -341,6 +393,13 @@ def statelessVerdictV2GuestClosure : String :=
   addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
+  -- bmvmx.3.2: per-tx sender recovery vs witness public_keys. block_verdict
+  -- calls verify_public_keys_match_senders after public_keys_valid; the TX-side
+  -- recovery stack (signature extractors + signing-hash + material/stage/
+  -- recover/compare) is new here. tx_type_dispatch / tx_extract_* /
+  -- rlp_list_nth_item/count_items / zkvm_keccak256 / u256_is_zero / u256_lt_be /
+  -- bgv_u32le and the secp256k1 recover kernel are already in this closure.
+  verifyPublicKeysSendersGuestFunctions ++ "\n" ++
   statelessVerdictV2Function
 
 /-- Data section for the embedded verdict closure. -/

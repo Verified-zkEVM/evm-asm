@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.BalAccountPostFields
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.MptStateRootIns
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
@@ -265,7 +266,7 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_loop:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1)\n" ++
   "  beq t0, t1, .Lbaap_multi_apply\n" ++
-  "  li t2, 60000; bgeu t0, t2, .Lbaap_fail\n" ++
+  "  li t2, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t2, .Lbaap_fail\n" ++
   "  la t1, baap_sc_ptr; ld a0, 0(t1); la t1, baap_sc_len; ld a1, 0(t1); mv a2, t0\n" ++
   "  la a3, baap_item_off; la a4, baap_item_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -315,7 +316,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  addi a0, a0, 1; addi a1, a1, -1; j .Lbaap_multi_value_strip_zero\n" ++
   ".Lbaap_multi_zero_value:\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_skip_zero\n" ++
-  "  la t0, baap_storage_delete_count; ld t0, 0(t0); li t1, 60000; bgeu t0, t1, .Lbaap_fail\n" ++
+  "  la t0, baap_storage_delete_count; ld t0, 0(t0); li t1, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t1, .Lbaap_fail\n" ++
   "  li t1, 1; la t2, baap_storage_delete_flag; sd t1, 0(t2)\n" ++
   "  la a0, baap_slot; li a1, 32; la a2, srss_key\n" ++
   "  jal ra, zkvm_keccak256\n" ++

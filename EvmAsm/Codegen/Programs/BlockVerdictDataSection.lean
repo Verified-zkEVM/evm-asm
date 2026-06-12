@@ -6,12 +6,16 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
+import EvmAsm.Codegen.Programs.LogRecordsRlp
+import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
@@ -24,6 +28,18 @@ import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 namespace EvmAsm.Codegen
 
 def ziskStatelessVerdictV2DataSection : String :=
+  -- .62.2.5: secp256k1 recovery scratch/constants for the ECRECOVER backend
+  -- (generator + field constants + R-decompression scratch + tpr_* recovery
+  -- scratch). Emitted first so the additions cannot disturb existing label
+  -- ordering assumptions below.
+  secp256k1CurveDataSection ++ "\n" ++
+  secp256k1RecoverDataSection ++ "\n" ++
+  txPubkeyRecoverRawDataSection ++ "\n" ++
+  -- bmvmx.3.2: TX-side sender-recovery scratch (signature material + per-type
+  -- extractor offsets + signing-hash buffers) + verify_public_keys_match_senders
+  -- scratch + bv_chain_id. The secp/tpr_* recovery data above is already present
+  -- for the ECRECOVER backend; this adds only the transaction-signature delta.
+  verifyPublicKeysSendersGuestDataSection ++ "\n" ++
   ziskStatelessVerdictDataSection ++ "\n" ++
   runtimeAccessAccountOutcomeData ++ "\n" ++
   storageAccessGasData ++ "\n" ++
@@ -181,6 +197,95 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_tx_gas:\n  .zero 8\n" ++
   "brr_receipt_gas_ptr:\n  .zero 8\n" ++
   "brr_receipt_gas_count:\n  .zero 8\n" ++
+  -- .63.1.6.2.1: per-tx execution-status plumbing. bv_tx_status_arr holds the
+  -- dispatcher_tx_gas_settle success bit per tx (single-tx path writes index 0,
+  -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
+  "brr_tx_status_ptr:\n  .zero 8\n" ++
+  "bv_tx_status_arr:\n  .zero 128\n" ++
+  -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
+  -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
+  -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
+  -- offsets rebased into bv_block_log_meta) out between dispatches.
+  -- bv_record_* and bv_logs_rlp_arena carry the per-record logs RLP + blooms
+  -- (block_receipt_logs_materialize), in the {bloom,rlp,len} shape
+  -- receipt_records_encode_no_logs consumes via record@56.
+  "brr_tx_window_ptr:\n  .zero 8\n" ++
+  "bv_block_log_count:\n  .zero 8\n" ++
+  "bv_block_log_data_used:\n  .zero 8\n" ++
+  "bv_block_log_overflow:\n  .zero 8\n" ++
+  "bv_last_log_start:\n  .zero 8\n" ++
+  "bv_last_log_count:\n  .zero 8\n" ++
+  "bv_receipt_logs_status:\n  .zero 8\n" ++
+  "bv_logs_rlp_len:\n  .zero 8\n" ++
+  "bv_tx_log_window:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bv_block_log_descs:\n  .zero 32768\n" ++
+  "bv_block_log_meta:\n  .zero 2048\n" ++
+  "bv_block_log_data:\n  .zero 65536\n" ++
+  "bv_logs_rlp_arena:\n  .zero 65536\n" ++
+  "bv_record_blooms:\n  .zero 4096\n" ++
+  "bv_record_logs_desc:\n  .zero 512\n" ++
+  -- .63.1.6.2.3: encoded full-receipt RLP list (status||cumulative_gas||bloom||logs per
+  -- receipt) for block_validate_receipts_consensus_list. The encoder's internal payload
+  -- scratch caps at 32768; 64 KiB leaves margin for the list prefix + max receipts.
+  "bv_receipts_rlp:\n  .zero 65536\n" ++
+  "bv_receipts_rlp_len:\n  .zero 8\n" ++
+  -- .63.1.6.2.3: receipt_encode + receipt_records_encode_no_logs scratch (these labels were
+  -- probe-only in ziskReceiptRecordsEncodeNoLogsDataSection before the tx-bearing un-gate linked
+  -- the encoder into the guest). re_payload_buf (16K) / rle_payload_buf (32K) are the per-receipt
+  -- and list payload scratch; rle_empty_logs/rle_zero_bloom are the no-log receipt constants.
+  ".balign 8\n" ++
+  "rle_control:\n  .zero 24\n" ++
+  "rle_records:\n  .zero 1024\n" ++
+  "rle_field_len:\n  .zero 8\n" ++
+  "rle_prefix_len:\n  .zero 8\n" ++
+  "re_field_len:\n  .zero 8\n" ++
+  "re_cursor:\n  .zero 8\n" ++
+  "re_total_payload:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "rle_empty_logs:\n  .byte 0xc0\n" ++
+  ".balign 8\n" ++
+  "rle_zero_bloom:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "re_payload_buf:\n  .zero 16384\n" ++
+  ".balign 8\n" ++
+  "rle_payload_buf:\n  .zero 32768\n" ++
+  -- .63.1.6.2.3: block_validate_logs_bloom + block_logs_bloom_from_receipts_list scratch
+  -- (helb_offset/helb_length are already linked via header_extract_logs_bloom).
+  ".balign 8\n" ++
+  "relb_offset:\n  .zero 8\n" ++
+  "relb_length:\n  .zero 8\n" ++
+  "blbr_count:\n  .zero 8\n" ++
+  "blbr_offset:\n  .zero 8\n" ++
+  "blbr_length:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "blbr_scratch_bloom:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bvlb_header_bloom:\n  .zero 256\n" ++
+  ".balign 8\n" ++
+  "bvlb_computed_bloom:\n  .zero 256\n" ++
+  -- .63.1.6.2.3: block_validate_receipts_consensus_list scratch (the indexed-trie/root and
+  -- logs-bloom sub-scratch are already linked above / via the no-tx receipts path).
+  ".balign 8\n" ++
+  "brcl_count:\n  .zero 8\n" ++
+  "brcl_offset:\n  .zero 8\n" ++
+  "brcl_length:\n  .zero 8\n" ++
+  "brcl_root_valid:\n  .zero 8\n" ++
+  "brcl_bloom_valid:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "brcl_value_descs:\n  .zero 2048\n" ++
+  -- scratch for log_records_encode_rlp (lrr_*) and the bloom accumulators
+  -- (bav_/lba_/llba_ — zk3_state is already defined by the guest).
+  logRecordsRlpDataSection ++
+  "bav_hash:\n  .zero 32\n" ++
+  "lba_offset:\n  .zero 8\n" ++
+  "lba_length:\n  .zero 8\n" ++
+  "lba_topics_offset:\n  .zero 8\n" ++
+  "lba_topics_length:\n  .zero 8\n" ++
+  "lba_topic_count:\n  .zero 8\n" ++
+  "llba_offset:\n  .zero 8\n" ++
+  "llba_length:\n  .zero 8\n" ++
+  "llba_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n" ++
@@ -194,6 +299,24 @@ def ziskStatelessVerdictV2DataSection : String :=
   "itr_value_descs:\n  .zero 32768\n" ++
   "itr_paths:\n  .zero 16384\n" ++
   "itr_changes:\n  .zero 81920\n" ++
+  -- .63.1.6.2.3: receipts-consensus scratch (mirrors the hewr_/bvwri_ withdrawals
+  -- pair above). herr_/helb_ are header field-extraction cursors; bvrri_* the
+  -- expected/computed receipts roots + per-receipt {ptr,len} descriptors (16 B ×
+  -- 128, same cap as mpt_indexed_trie_root_small); bv_header_bloom /
+  -- bv_zero_bloom / bv_bloom_eq_out drive the header.logs_bloom compare.
+  "herr_offset:\n  .zero 8\n" ++
+  "herr_length:\n  .zero 8\n" ++
+  "helb_offset:\n  .zero 8\n" ++
+  "helb_length:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bvrri_expected_root:\n  .zero 32\n" ++
+  "bvrri_computed_root:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bvrri_value_descs:\n  .zero 2048\n" ++
+  ".balign 8\n" ++
+  "bv_header_bloom:\n  .zero 256\n" ++
+  "bv_zero_bloom:\n  .zero 256\n" ++
+  "bv_bloom_eq_out:\n  .zero 8\n" ++
   "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
@@ -215,8 +338,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_acct_ptr:\n  .zero 8\n" ++
   "bvcd_acct_len:\n  .zero 8\n" ++
   "bvcd_key_count:\n  .zero 8\n" ++
+  "bvcd_sc_count:\n  .zero 8\n" ++
   "bvcd_i:\n  .zero 8\n" ++
-  "bvcd_keys:\n  .zero 4096\n" ++      -- bmvmx.1.7.3: up to 128 x 32-byte slot keys (was 16; bal_recipient_storage_keys caps at 128)
+  "bvcd_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++     -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (bal_recipient_storage_keys caps at the gas-derived bsrAccountSlotCap; the dispatch-tx caller still bails >128 — bvcd_preload stays 128-sized — but the keys the helper writes before that bail must fit)
   "bvcd_preload:\n  .zero 8192\n" ++   -- bmvmx.1.7.3: up to 128 x 64-byte (key,value) pairs (was 16)
   -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
   -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
@@ -244,7 +368,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "csce_key_i:\n  .zero 8\n" ++ "csce_key_n:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "csce_addrkey:\n  .zero 32\n" ++
-  "csce_keys:\n  .zero 4096\n" ++   -- up to 128 x 32-byte slot keys
+  "csce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (matches the gas-derived bal_recipient_storage_keys cap; the seed loop still skips accounts >128)
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
@@ -324,6 +448,37 @@ def ziskStatelessVerdictV2DataSection : String :=
   "svf_codes_len:\n  .zero 8\n" ++
   "svf_headers_ptr:\n  .zero 8\n" ++
   "svf_headers_len:\n  .zero 8\n" ++
+  -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
+  ".balign 8\n" ++
+  "c1_saved_logcount:\n  .zero 8\n" ++
+  "c1_wcode_ptr:\n  .zero 8\n" ++
+  "c1_wcode_len:\n  .zero 8\n" ++
+  "c1_er_input:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  -- Fix7: system-call payload = env_base+504; env_base grows with the predeploy's storage preload (up to 128 slots*64) + M29 block hashes. 4096 overflowed for above-max queues (100 slots -> ~7.5KB) -> truncated storage section -> SLOAD miss -> empty derived body.
+  -- fhsxz.2.4.2.66.1: 32768 overflowed for the system_contract_errors EEST predeploys
+  -- (modified 7002/7251 contracts of 72946 B; predeploy code is NOT EIP-170-bounded):
+  -- stage_runtime_payload_code's zero+code copy ran ~40 KiB past the buffer, smashing
+  -- every .data global above (c1_saved_*, dbsr_*, rlp args) -> ERROR(exit)/false-reject.
+  -- .66.1.2: sized by the shared c1StagingBytes constant (BlockVerdictParams.lean) =
+  -- bsrMaxWitnessBytes + bsrAccountSlotCap*64 + 16384 — fits round8(code <= witness cap)
+  -- + the gas-derived preload + M29 + 584. The size guard in stage_system_call_payload
+  -- (SystemCallStaging.lean) uses the same constant and bails on anything larger
+  -- instead of corrupting .data.
+  "c1_staging:\n  .zero " ++ toString c1StagingBytes ++ "\n" ++
+  ".balign 8\n" ++
+  "c1_er_assembled:\n  .zero 2048\n" ++
+  "c1_ccode_ptr:\n  .zero 8\n" ++
+  "c1_ccode_len:\n  .zero 8\n" ++
+  "c1_bal_acct_ptr:\n  .zero 8\n" ++
+  "c1_bal_acct_len:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "c1_preload:\n  .zero " ++ toString (bsrAccountSlotCap * 64) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 64-byte (key,value) pairs — gas-derived (a 200M block's user txs can legitimately put up to the whole BAL budget of changes+reads on a predeploy; the former 512 false-rejected those blocks)
+  "c1_bal_start:\n  .zero 8\n" ++
+  "c1_bal_len:\n  .zero 8\n" ++
+  "c1_bal_count:\n  .zero 8\n" ++
+  "c1_saved_s0:\n  .zero 8\n" ++
+  "c1_saved_s3:\n  .zero 8\n" ++
   "svf_headers_count:\n  .zero 8\n" ++
   "bbcv_count:\n  .zero 8\n" ++
   "bbcv_off:\n  .zero 8\n" ++
@@ -582,18 +737,18 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baada_item_len:\n  .zero 8\n" ++
   "basr_records:\n  .zero " ++ toString (bsrMaxStateChanges * bsrAccountRecordBytes) ++
   "\nbasr_paths:\n  .zero " ++ toString (bsrMaxStateChanges * bsrPathBytes) ++
-  -- .61.3.1: the nested call-frame arena aliases basr_values+basr_accounts.
-  -- These two are block_state_root replay scratch, read ONLY inside
-  -- block_state_root (BlockVerdict.lean <=302) and dead during tx execution
-  -- (gate-verified: no post-replay reader); the contiguous pair is
-  -- 2*bsrMaxStateChanges*bsrEncodedAccountBytes = 244 MiB >= the 1025*FRAME_STRIDE
-  -- = 164 MiB the frame arena needs, so the arena reuses this region (union, zero
-  -- net RAM growth) once the dispatcher is rebased onto frame[0] in .61.3.2.
-  -- `basr_records` (just above) is LIVE during execution (:528/577/620) and is
-  -- excluded by aliasing here, after it. See docs/call-frame-memory-layout.md §5.
-  "\ncall_frame_arena:\n" ++
-  "basr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  "\nbasr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
   "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  -- .61.3.1, re-sized for the 200M block-gas target: the nested call-frame arena
+  -- is now a STANDALONE 1025*frameStride pre-zeroed block. It used to alias
+  -- basr_values+basr_accounts (the #8513 union, forced by the 1G-sized BAL arenas
+  -- leaving no free RAM), but at the 200M capacity that pair is ~49 MiB — smaller
+  -- than the ~164 MiB frame array — while the BAL downsize frees ~333 MiB, so the
+  -- arena gets its own region (and the basr_* execution-dead soundness gate is no
+  -- longer load-bearing). Fit pinned by `frameArray_and_balArenas_fit`
+  -- (CallFrameLayout.lean); ELF ground truth = readelf -lW top RW LOAD < 0xc0000000.
+  "\n.balign 32\n" ++
+  "call_frame_arena:\n  .zero " ++ toString frameArrayBytes ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
@@ -789,6 +944,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_committed:\n  .zero 16384\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
+  "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
   -- bmvmx.1.4.4: single-tx EOA settlement scalars precomputed before
   -- block_state_root (additive; no consumer yet -> verdict byte-identical).
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
@@ -810,6 +966,25 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bmvmx_coinbase_credit:\n  .zero 32\n" ++
   -- .6.2.2.2.b: multi-tx dispatch loop index cursor.
   "bv_mtx_i:\n  .zero 8\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: parent (PRE-state) header RLP ptr/len, stashed by
+  -- block_verdict from its input frame (8(s0)/16(s0)). dispatch_tx_runtime_code's
+  -- witness lookups (code/slot/balance_at_header_state_root) MUST use the PRE-state
+  -- root (the witness is the parent's post-state = this block's pre-state proof),
+  -- not sv_this_rlp (this block's POST-state header), else a recipient whose account
+  -- changes within the block (e.g. an SSTORE contract) is unprovable -> false bail.
+  ".balign 8\n" ++
+  "sv_pre_rlp_ptr:\n  .zero 8\n" ++
+  "sv_pre_rlp_len:\n  .zero 8\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: mtx-gating for dispatch_tx_runtime_code's witness lookups.
+  -- dtrc_use_pre_header: 0 (default) -> use sv_this_rlp (POST header; single-tx path,
+  -- conservative, identical to #8686); 1 -> use sv_pre_rlp_* (PRE/parent header; set by
+  -- the mtx loop ONLY around its dispatch call so multi-tx contract dispatch can prove
+  -- recipient state against the witness root. dtrc_hdr_ptr/len: the header ptr+len
+  -- resolved ONCE at dispatch entry from the flag, read by all 5 lookup sites.
+  ".balign 8\n" ++
+  "dtrc_use_pre_header:\n  .zero 8\n" ++
+  "dtrc_hdr_ptr:\n  .zero 8\n" ++
+  "dtrc_hdr_len:\n  .zero 8\n" ++
   -- bmvmx.1.4.2 compare: validate the coinbase credit against the BAL (additive; match flag only).
   ".balign 8\n" ++
   "bmvmx_coinbase_addr:\n  .zero 20\n" ++
@@ -912,6 +1087,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++
+  -- bmvmx.2: scratch for the check_transaction upfront-balance pre-validation
+  -- (sender_pre_balance >= gas_limit*max_fee_per_gas + tx.value). bv_upfront_cost
+  -- holds max_fee*gas_limit then (+ value) the upfront cost; bv_upfront_islt the
+  -- u256_lt_be verdict (1 iff pre_balance < upfront -> reject).
+  ".balign 8\n" ++
+  "bv_upfront_cost:\n  .zero 32\n" ++
+  "bv_upfront_islt:\n  .zero 8\n" ++
   -- bmvmx.1.6.6: scratch for the all-accounts per-slot tuple-sequence check (#8606). batsc_* is
   -- the wrapper's own scratch; the sub-helpers' scratch (atsc_*/bts_*/els_*) come from their Data
   -- defs. rfu_* (rlp_field_to_u64) is already provided above; slot_tuple_sequences_match is

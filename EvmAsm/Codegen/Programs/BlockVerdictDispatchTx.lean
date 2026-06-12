@@ -49,8 +49,14 @@ open EvmAsm.Rv64
     Returns:
       a0 = status: 0 = supported, gas measured; non-zero = unsupported / lookup
            miss / not self-contained (caller should stay conservative)
-      a1 = gas_left (evm_env[568]) on status 0
+      a1 = effective gas_left on status 0: env[568] + evm_state_gas_left with
+           the spec's tx-level error rules folded in by dispatcher_tx_gas_settle
+           (exceptional halt → regular gas burnt; any error → state-gas restore)
       a2 = calldata_floor (runtime_tx_calldata_floor) on status 0
+      a3 = effective refund counter on status 0 (evm_refund_acc, or 0 when the
+           tx erred — interpreter.py discards the refund counter on error)
+      a4 = tx success bit on status 0 (1 for STOP/RETURN/SELFDESTRUCT halts,
+           0 for REVERT/exceptional — the receipt `succeeded` field)
 
     Preserves the caller's s0..s3 (block_verdict holds its input frame in s0). -/
 /-! ## seed_callee_storage (bmvmx.1.6.4.2.b)
@@ -114,7 +120,7 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_key_i; ld t1, 0(t0); la t2, csce_key_n; ld t3, 0(t2); beq t1, t3, .Lscs_acct_next\n" ++
   "  la t0, callee_seed_count; ld t2, 0(t0); li t3, 128; bgeu t2, t3, .Lscs_done   # table cap\n" ++
   "  slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry: sv_this_rlp single-tx / sv_pre_rlp mtx)
   "  la t0, csce_addrp; ld a2, 0(t0)\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
@@ -125,18 +131,40 @@ def seedCalleeStorageFunction : String :=
   "  la t4, callee_seed_table; add t4, t4, t2\n" ++
   "  la t5, csce_addrkey\n" ++
   "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
-  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
-  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
-  "  la t5, sahsr_u256\n" ++
-  "  ld t6, 0(t5); sd t6, 64(t4); ld t6, 8(t5); sd t6, 72(t4); ld t6, 16(t5); sd t6, 80(t4); ld t6, 24(t5); sd t6, 88(t4)\n" ++
+  -- .57.11.6.5.3 (d'): slot key (csce_keys, BIG-endian) + value (sahsr_u256, u256 BIG-endian)
+  -- must be byte-reversed to little-endian-limb to match the exec-log scan / SSTORE-append order
+  -- (same convention BalStorageReadsExecLog already reverses BE keys into). Verbatim limb-copy
+  -- left non-zero seeded slots invisible to a nested callee's SLOAD/SSTORE.
+  "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++   -- t5 = csce_keys[i] (BE)
+  "  li t6, 0\n" ++
+  ".Lscs_krev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_krevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE key byte i
+  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry slotKey byte (31-i)
+  "  addi t6, t6, 1; j .Lscs_krev\n" ++
+  ".Lscs_krevd:\n" ++
+  "  la t5, sahsr_u256; li t6, 0\n" ++
+  ".Lscs_vrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_vrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE value byte i
+  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry value byte 32+(31-i)=63-i
+  "  addi t6, t6, 1; j .Lscs_vrev\n" ++
+  ".Lscs_vrevd:\n" ++
   "  j .Lscs_slot_commit\n" ++
   ".Lscs_slot_vzero:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3\n" ++
   "  la t4, callee_seed_table; add t4, t4, t2\n" ++
   "  la t5, csce_addrkey\n" ++
   "  ld t6, 0(t5); sd t6, 0(t4); ld t6, 8(t5); sd t6, 8(t4); ld t6, 16(t5); sd t6, 16(t4); ld t6, 24(t5); sd t6, 24(t4)\n" ++
+  -- slot key BE->LE byte-reverse (see .Lscs_krev); value is zero (slot absent at this state root).
   "  la t0, csce_key_i; ld t1, 0(t0); slli t2, t1, 5; la t5, csce_keys; add t5, t5, t2\n" ++
-  "  ld t6, 0(t5); sd t6, 32(t4); ld t6, 8(t5); sd t6, 40(t4); ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
+  "  li t6, 0\n" ++
+  ".Lscs_kzrev:\n" ++
+  "  li t0, 32; beq t6, t0, .Lscs_kzrevd\n" ++
+  "  add t0, t5, t6; lbu t1, 0(t0)\n" ++
+  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++
+  "  addi t6, t6, 1; j .Lscs_kzrev\n" ++
+  ".Lscs_kzrevd:\n" ++
   "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
   ".Lscs_slot_commit:\n" ++
   "  la t0, callee_seed_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
@@ -158,7 +186,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s0, a1                    # witness.state ptr\n" ++
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: resolve the witness-lookup header ONCE (mtx-gated). Default
+  -- (dtrc_use_pre_header=0, single-tx) = sv_this_rlp (this block's POST-state header,
+  -- whose root is NOT in the pre-rooted witness -> lookups bail -> conservative, byte-
+  -- identical to #8686). The mtx loop sets the flag=1 to use the PRE-state (parent)
+  -- header whose root IS the witness root, enabling real multi-tx contract dispatch.
+  "  la t0, dtrc_use_pre_header; ld t0, 0(t0); bnez t0, .Ldtrc_hdr_pre\n" ++
+  "  la t1, sv_this_rlp; la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
+  "  la t0, sv_this_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
+  "  j .Ldtrc_hdr_done\n" ++
+  ".Ldtrc_hdr_pre:\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
+  "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
+  ".Ldtrc_hdr_done:\n" ++
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
@@ -177,6 +218,19 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
   "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
+  "  la t0, bvcd_sc_count; sd a0, 0(t0)\n" ++
+  -- fhsxz.2.4.2.57.11.6.5 (revert fix): also preload the recipient's storage_READS slots
+  -- (accessed-but-not-net-changed). A reverting tx has empty storage_changes (its writes
+  -- roll back) but lists the touched slots in storage_reads; without these the SSTORE-clears
+  -- find no preloaded slot and undercharge (missing-slot path) -> block_regular undercount
+  -- (bv_fail=41). Append the storage_reads keys after the storage_changes keys; cap total at
+  -- 128 (the bvcd_keys/bvcd_preload buffer size).
+  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
+  "  la t0, bvcd_sc_count; ld t1, 0(t0); slli t2, t1, 5; la a2, bvcd_keys; add a2, a2, t2\n" ++
+  "  li a3, 128; sub a3, a3, t1\n" ++
+  "  jal ra, bal_recipient_storage_reads_keys\n" ++
+  "  la t0, bvcd_sc_count; ld t1, 0(t0); add a0, a0, t1   # total = storage_changes + storage_reads\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
@@ -185,23 +239,40 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_sloop:\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); la t2, bvcd_key_count; ld t3, 0(t2); beq t1, t3, .Ldtrc_stage\n" ++
   "  slli t4, t1, 5; la t5, bvcd_keys; add a3, t5, t4\n" ++
-  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
   "  addi a2, s2, 72\n" ++
   "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2\n" ++
   "  slli t2, t1, 5; la t3, bvcd_keys; add t5, t3, t2\n" ++
   "  li t6, 0\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.3 (d'): the BAL slot key (bvcd_keys) is 32-byte BIG-ENDIAN
+  -- (left-padded), but the EVM stack / exec-log scan (Storage.lean h_SLOAD/h_SSTORE) and the
+  -- runtime SSTORE-appended entries are LITTLE-ENDIAN-limb. Copying the key verbatim left
+  -- preloaded non-zero slots INVISIBLE to the scan (only slot 0 matched, identical in both
+  -- orders) -> SLOAD-of-preload returned 0 and SSTORE saw a missing slot, undercharging gas.
+  -- Byte-REVERSE the key (dst byte 31-i <- src byte i) so the preload entry's slotKey matches
+  -- the stack/append LE order. Validated: with LE preload the 10x SSTORE-clear repro charges
+  -- the full 5000 each (gas_left 25200 -> 0).
   ".Ldtrc_kcopy:\n" ++
   "  li t2, 32; beq t6, t2, .Ldtrc_kdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; sb t3, 0(t2); addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
+  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE key byte i
+  "  li t2, 31; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte (31-i): BE->LE
+  "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
   "  bnez a0, .Ldtrc_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
+  -- The witness slot value (sahsr_u256) is also u256 BIG-ENDIAN (StateCompose.lean:519);
+  -- byte-REVERSE it into the value field [entry+32..64] (dst byte 63-i <- src byte i) so
+  -- original==current read back as LE limbs match the SSTORE handler's clean/dirty test.
+  -- (The cross-tx threaded value below is already LE — it limb-copies dtrc_threadval from the
+  -- exec log — so it is left as-is.)
   ".Ldtrc_vcopy:\n" ++
   "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2); add t2, t4, t6; addi t2, t2, 32; sb t3, 0(t2); addi t6, t6, 1; j .Ldtrc_vcopy\n" ++
+  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE value byte i
+  "  li t2, 63; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte 32+(31-i)=63-i: BE->LE
+  "  addi t6, t6, 1; j .Ldtrc_vcopy\n" ++
   ".Ldtrc_vzero:\n" ++
   "  li t6, 0\n" ++
   ".Ldtrc_vzloop:\n" ++
@@ -221,7 +292,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t3, 20; beq t2, t3, .Ldtrc_rkeyd\n" ++
   "  add t3, t1, t2; lbu t4, 0(t3); la t5, dtrc_recipkey; add t5, t5, t2; sb t4, 0(t5); addi t2, t2, 1; j .Ldtrc_rkey\n" ++
   ".Ldtrc_rkeyd:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add a1, t3, t2   # a1 = slotKey ptr\n" ++
+  -- ogjan: bvcd_keys[i] is 32B BIG-endian (RLP), but bv_mtx_committed's slotKey@32 is LITTLE-
+  -- endian (EVM-stack limb order, preload-fed post-#8694/C.1). Byte-reverse it into dtrc_slotkey_le
+  -- so exec_log_latest_value's slotKey compare (a1 vs entry@32) matches the LE snapshot; else this
+  -- interacting-mtx committed-value threading silently no-ops (BE!=LE -> never found). The addrHash
+  -- (a0=dtrc_recipkey) stays BE-left-aligned -- it matches the snapshot addrHash@0 (env.ADDRESS,
+  -- BE, SLOAD self-match); reversing it too would BREAK the addrHash match.
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2  # &bvcd_keys[i] (BE)\n" ++
+  "  addi t3, t3, 31; la a1, dtrc_slotkey_le; li t4, 32\n" ++
+  ".Ldtrc_klr:\n  beqz t4, .Ldtrc_klrd\n  lbu t5, 0(t3); sb t5, 0(a1); addi t3, t3, -1; addi a1, a1, 1; addi t4, t4, -1; j .Ldtrc_klr\n" ++
+  ".Ldtrc_klrd:\n" ++
+  "  la a1, dtrc_slotkey_le                          # a1 = LE slotKey ptr\n" ++
   "  la a0, dtrc_recipkey; la a2, bv_mtx_committed; la t0, bv_mtx_committed_count; ld a3, 0(t0); la a4, dtrc_threadval\n" ++
   "  jal ra, exec_log_latest_value\n" ++
   "  beqz a0, .Ldtrc_nothread                       # no prior-tx committed value -> keep witness value\n" ++
@@ -293,6 +374,13 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- byte order matches a word GASPRICE pushes. INERT until 3vc2p.4 (self-contained
   -- recipients don't read GASPRICE). Conservative: a pricing failure leaves gasPrice 0.
   "  ld a0, 8(s2); ld a1, 16(s2); ld a2, 32(s2)\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: skip gas-pricing when base_fee ptr (ctx+32) is null. The
+  -- multi-tx context (multi_tx_nth_context) leaves +32 zero (base_fee is a per-call
+  -- input the loop doesn't supply); tx_effective_gas_pricing would then deref a null
+  -- base_fee (u256_sub_be max_fee - base_fee reads addr 0 -> ziskemu mem panic). GASPRICE
+  -- is INERT for self-contained recipients, so leaving it 0 here is correct (same as the
+  -- existing pricing-failure path). Mirrors the .Ldtrc_no_sender guard on the pubkey (+24).
+  "  beqz a2, .Ldtrc_no_gasprice\n" ++
   "  la a3, gp_egp; la a4, gp_prio\n" ++
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Ldtrc_no_gasprice\n" ++
@@ -310,7 +398,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- INERT until yisv8.2 removes SELFBALANCE(0x47) from the self-contained reject set.
   -- Conservative: a lookup miss/error leaves SELFBALANCE 0. balance_at_header_state_root
   -- preserves s-regs (s0=state ptr, s1=state len, s2=ctx survive); clobbers only dead a/t-regs.
-  "  la a0, sv_this_rlp\n  la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0)\n  la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
   "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
   "  mv a3, s0; mv a4, s1\n" ++                   -- witness state ptr/len
   "  la a5, yisv8_self_bal\n" ++
@@ -329,13 +417,30 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a0, s0; mv a1, s1; addi a2, s2, 72\n" ++
   "  jal ra, seed_callee_storage\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
+  -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
+  -- the pointer 0 and keep the legacy empty-returndata success).
+  "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  "  la t2, evm_env; ld t3, 568(t2)\n" ++
+  -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
+  -- BEFORE the next dispatch overwrites the capture buffers; the caller stores
+  -- the bv_last_log_* window into its per-tx slot.
+  "  jal ra, block_log_window_snapshot\n" ++
+  -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
+  -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
+  -- (exceptional halt burns regular gas; any error restores state gas and
+  -- discards refunds) and a1 = the effective refund counter — so the bvgr
+  -- consumers' `tx.gas - gas_left` formula matches
+  -- `tx.gas - gas_left - state_gas_left` from fork.py process_transaction.
+  "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  mv t3, a0                    # effective gas_left\n" ++
+  "  mv a3, a1                    # effective refund_counter\n" ++
+  "  mv a4, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  mv a1, t3                    # gas_left\n" ++
   "  mv a2, t5                    # calldata_floor\n" ++

@@ -67,9 +67,9 @@ open EvmAsm.Rv64
     both push success = 1. SHA256 and IDENTITY charge their exact
     word-linear inner precompile gas through the shared helper.
     MODEXP (0x05) handles the zero-length-header shortcut and charges
-    its 500 minimum gas before returning empty output. ECRECOVER /
-    RIPEMD160 remain success stubs in this slice;
-    follow-up PRs wire their output semantics.
+    its 500 minimum gas before returning empty output. RIPEMD160 (0x03)
+    hashes input bytes through the software `zkvm_ripemd160` kernel
+    (600 + 120/word gas, 32-byte left-padded returndata).
 
     **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G1
     active precompile addresses 0x0b (G1 ADD) and 0x0c (G1 MSM).
@@ -94,8 +94,6 @@ open EvmAsm.Rv64
     precompile_absence fixtures do not stop at the dispatcher surface.
 
     **Known limitations** (documented in CODEGEN.md M19 narrative):
-    - ECRECOVER / RIPEMD160 CALL / STATICCALL targets currently
-      return success without producing returndata.
     - CREATE / CREATE2 derive the target address, reject code-or-nonce
       collisions when account-witness context is attached, and run the
       bounded init-code mini-interpreter, but the deployed code is not yet
@@ -312,6 +310,27 @@ def childFrameHandlers
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, 7f\n" ++
     "6:\n" ++
+    -- 5em02.2: debit the creator's LIVE balance (env+32 = .selfBalance, big-endian) by the
+    -- endowment, so SELFBALANCE reads B-endowment after a CREATE (the transfer was inert ->
+    -- false-reject for value-creating contracts). Reached only on the committing path (value
+    -- gate passed, no address collision). ctx-gated (create_value_be valid, populated BE by
+    -- the gate above) + borrow-guarded (the gate checked PRE-state balance; the live env+32 may
+    -- be lower from an earlier same-frame value-op -> conservative skip on underflow). Same
+    -- single-tx failure-rollback caveat as 5em02.1 (a CREATE that later reverts is not undone
+    -- here). The created account's env+32 credit (init-code SELFBALANCE) is a follow-up.
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  addi a0, x20, 32\n" ++                            -- a0 = creator LIVE balance (env .selfBalance, BE)
+    "  la a1, create_value_be\n" ++                      -- a1 = endowment (BE)
+    "  la a2, create_creator_newbal\n" ++                -- a2 = out (= balance - endowment)
+    "  jal ra, u256_sub_be\n" ++
+    "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  bnez t0, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- underflow -> skip
+    "  la t0, create_creator_newbal\n  addi t1, x20, 32\n" ++
+    "  ld t2, 0(t0)\n  sd t2, 0(t1)\n  ld t2, 8(t0)\n  sd t2, 8(t1)\n" ++
+    "  ld t2, 16(t0)\n  sd t2, 16(t1)\n  ld t2, 24(t0)\n  sd t2, 24(t1)\n" ++
+    ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full
     -- dispatch loop (create_frame_descend, .5a, reusing call_frame_descend), REPLACING the
@@ -413,6 +432,8 @@ def childFrameHandlers
     "  beq x14, x16, 29f\n" ++
     "  li x16, 2\n" ++
     "  beq x14, x16, 8f\n" ++
+    "  li x16, 3\n" ++
+    "  beq x14, x16, .L" ++ tag ++ "_ripemd160\n" ++
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
@@ -498,15 +519,54 @@ def childFrameHandlers
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
     "  j 7b\n" ++
-    -- ECRECOVER fixed gas, input staging, and v gate. Later slices consume
-    -- valid staged r/s words for validation, backend recovery, and output.
+    -- RIPEMD160 (0x03): digest = ripemd160(memory[in_offset .. in_offset+
+    -- in_size)) via the software `zkvm_ripemd160` kernel (no ZisK accelerator
+    -- exists for RIPEMD-160), word-linear 600 + 120/word gas, 32-byte
+    -- returndata = 12 zero bytes ++ 20-byte hash (the EVM left-padded
+    -- encoding, written by the kernel itself). Mirrors the SHA256 path above.
+    ".L" ++ tag ++ "_ripemd160:\n" ++
+    "  li x16, 32\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  mv s9, x13\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
+    chargePrecompileWordGasAsm 600 120 "a1" "x16" "x22" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x18\n" ++
+    "  addi a2, x15, 16\n" ++
+    "  jal x1, zkvm_ripemd160\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  ld x23, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x22, 32\n" ++
+    "  bgeu x23, x22, .L" ++ tag ++ "_ripemd_outcap\n" ++
+    "  mv x22, x23\n" ++
+    ".L" ++ tag ++ "_ripemd_outcap:\n" ++
+    "  beqz x22, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    ".L" ++ tag ++ "_ripemd_copy:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, .L" ++ tag ++ "_ripemd_copy\n" ++
+    "  j 7b\n" ++
+    -- ECRECOVER fixed gas, input staging, v/r/s gates, then (.62.2.5) the
+    -- backend-pointer-gated recovery + 32-byte address output. Closures that
+    -- leave `ecrecover_backend_ptr` 0 keep the legacy empty-returndata success.
     "29:\n" ++
     chargePrecompileGasConstAsm 3000 "x16" "x17" ++
     stageEcrecoverInputAsm inOffsetOff inSizeOff ++
     ecrecoverVGateAsm ++
     ecrecoverNonzeroRSGateAsm ++
     ecrecoverScalarOrderGateAsm ++
-    "  j 7b\n" ++
+    ecrecoverRecoverAndOutputAsm outOffsetOff outSizeOff ++
     -- MODEXP header/gas path. execution-specs decodes missing length/header
     -- bytes as zero, rejects component lengths above 1024 before charging gas,
     -- and otherwise charges the EIP-2565/Osaka gas formula. Small nonzero
@@ -516,15 +576,21 @@ def childFrameHandlers
     modexpPrecompileGasAsm
       chargePrecompileGasAsm tag
       inOffsetOff inSizeOff outOffsetOff outSizeOff ++
-    -- BN254 G1 ADD: fixed 150 gas, two 64-byte zero-padded G1 inputs.
-    -- The current runtime wrapper deterministic-fails until the host backend
-    -- path is available, so valid calls surface precompile failure after gas.
+    -- BN254 failed-call tail (kernel invalid input / child OOG): burn the
+    -- forwarded EIP-150 allotment, push 0, resume. Reached only by branches
+    -- from the two entries below (the preceding modexp block ends with jumps).
+    bn254FailureStubAsm tag netPopBytes ++
+    -- BN254 G1 ADD (EIP-196 ecAdd): fixed 150 gas charged from the child
+    -- allotment, two 64-byte zero-padded G1 inputs, real Bn254CurveAdd-backed
+    -- kernel. Invalid input (coord >= p / off-curve) is a precompile failure
+    -- that consumes the full child allotment (execution-specs OutOfGasError).
     ".L" ++ tag ++ "_bn254_add:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    chargePrecompileGasConstAsm 150 "x16" "x17" ++
+    "  li x16, 150\n" ++
+    bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_add_p1") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
     stagePrecompileInputWindowAsm
@@ -536,19 +602,24 @@ def childFrameHandlers
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_g1_add\n" ++
+    -- a0 IS x10: stash the kernel status before restoring the saved
+    -- PC into x10 (the ecrecover-path landmine, #8721 stack notes).
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_add_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
-    -- BN254 G1 MUL: fixed 6000 gas, one 64-byte point plus one 32-byte scalar.
+    -- BN254 G1 MUL (EIP-196 ecMul): fixed 6000 gas, one 64-byte point plus
+    -- one 32-byte scalar, real double-and-add kernel. Same failure mode.
     ".L" ++ tag ++ "_bn254_mul:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    chargePrecompileGasConstAsm 6000 "x16" "x17" ++
+    "  li x16, 6000\n" ++
+    bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_mul_point") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
     stagePrecompileInputWindowAsm
@@ -560,14 +631,20 @@ def childFrameHandlers
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_g1_mul\n" ++
+    -- a0 IS x10: stash the kernel status before restoring the saved
+    -- PC into x10 (the ecrecover-path landmine, #8721 stack notes).
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
-    -- BN254 pairing: charge 45000 + 34000 * floor(input_size / 192), then
-    -- reject non-multiple lengths as precompile failure with gas consumed.
+    -- BN254 pairing (EIP-197): cost = 45000 + 34000 * floor(len / 192),
+    -- charged from the EIP-150 child allotment. A gas-formula overflow,
+    -- a non-multiple-of-192 length, or kernel-invalid input (coord >= p,
+    -- off-curve, or Q outside the order-n subgroup) is a FAILED call that
+    -- burns the allotment (execution-specs OutOfGasError).
     ".L" ++ tag ++ "_bn254_pairing:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
@@ -578,15 +655,17 @@ def childFrameHandlers
     "  divu x22, x18, x16\n" ++
     "  li x16, 34000\n" ++
     "  mulhu x23, x22, x16\n" ++
-    "  bnez x23, .exit_outofgas\n" ++
+    "  bnez x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
     "  mul x16, x22, x16\n" ++
     "  li x23, 45000\n" ++
     "  add x16, x16, x23\n" ++
-    "  bltu x16, x23, .exit_outofgas\n" ++
-    chargePrecompileGasAsm "x16" "x17" ++
+    "  bltu x16, x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    bn254ChargeGateAsm tag ++
+    "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 192\n" ++
     "  remu x17, x18, x16\n" ++
-    "  bnez x17, 1f\n" ++
+    "  bnez x17, .L" ++ tag ++ "_bn254_kfail\n" ++
+    "  divu x22, x18, x16\n" ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
@@ -595,10 +674,12 @@ def childFrameHandlers
     "  mv a1, x22\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
     "  jal x1, zkvm_bn254_pairing\n" ++
+    -- a0 IS x10: stash the kernel status before the saved-PC restore.
+    "  mv x16, a0\n" ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez a0, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccessBoolFromFrameAsm
       (tag ++ "_bn254_pairing_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BLAKE2F: exact 213-byte payload, then charge gas equal to the BE
@@ -1392,6 +1473,26 @@ def callDescendFallThrough
     "  la t0, nse_acct\n  ld a3, 0(t0)\n  mv a4, a3\n" ++   -- pre_nonce == post_nonce (unchanged by value transfer)
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n  la a2, nse_post_bal\n" ++
     "  jal ra, record_nonstorage_effect\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- fhsxz.2.4.2.63.1.6.2.6: EIP-7708 emit_transfer_log for this CALL value move, so the
+    -- value-bearing tx's receipt logs/bloom are complete. from = parent ADDRESS (env+0),
+    -- to = callee (x12+32), value = value word (x12+valueOff), ALL passed as raw EVM stack
+    -- words (LE-limb). The log materializer (log_records_encode_rlp / materialize_log_records)
+    -- byte-reverses each 32B topic slot to the canonical BE topic, and the appender byte-
+    -- reverses the value into the descriptor's canonical-BE amount — so every field must enter
+    -- in stack-word form. `from` (env.ADDRESS) already is; the callee `to` arg and the value
+    -- arg on the parent stack are the same form, so they pass verbatim. (The earlier BE right-
+    -- aligned `to` into [12:32] and BE `cd_value_be` produced wrong-order topics/data: the
+    -- materializer reverses the WHOLE 32B slot, so the address must sit in the low 20 bytes,
+    -- not the high 12. Latent until receipt-consensus enforcement un-gates.)
+    -- x12 = parent stack top here (restored after record_nonstorage_effect above); the appender
+    -- reads through the a1/a2 pointers into EVM memory, which its own sp frame does not disturb.
+    -- Still inside the value!=0 guard. eip7708_append_transfer_log no-ops on a zero value and
+    -- (on the 1024-descriptor cap) drops without appending; ignore its status (the receipts
+    -- encoder gates conservatively on the descriptor/data overflow flags).
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
+    "  jal ra, eip7708_append_transfer_log\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)

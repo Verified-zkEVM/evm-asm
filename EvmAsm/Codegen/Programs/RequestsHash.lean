@@ -26,7 +26,13 @@ def executionRequestsHashFunction : String :=
   "  mv a0, s0; jal ra, bgv_u32le; mv s3, a0\n" ++
   "  addi a0, s0, 4; jal ra, bgv_u32le; mv s4, a0\n" ++
   "  addi a0, s0, 8; jal ra, bgv_u32le; mv s5, a0\n" ++
-  "  li t0, 12; bltu s3, t0, .Lerh_fail\n" ++
+  -- hbo40: canonical SSZ requires the FIRST variable-field offset to EQUAL the fixed-part
+  -- size exactly. SszExecutionRequests has 3 variable SszList fields -> fixed part = 3*4 = 12,
+  -- so offset0 (s3) MUST be 12, not merely >= 12. remerkleable decode_bytes raises on any
+  -- offset0 != 12 (a leading gap between the offset table and the deposits body), so the spec
+  -- rejects it; the old `bltu s3,12` lower-bound accepted offset0 > 12 = a non-canonical
+  -- false-accept. Exact-equality is soundness-additive: every valid block has offset0 == 12.
+  "  li t0, 12; bne s3, t0, .Lerh_fail\n" ++
   "  bltu s4, s3, .Lerh_fail\n" ++
   "  bltu s5, s4, .Lerh_fail\n" ++
   "  bltu s1, s5, .Lerh_fail\n" ++

@@ -35,7 +35,10 @@ open EvmAsm.Rv64.Program
 
     The check mirrors execution-specs Amsterdam `check_transaction`:
       gas_available = block_env.block_gas_limit - block_output.block_gas_used
-      if tx.gas > gas_available: raise GasUsedExceedsLimitError
+      if min(TX_MAX_GAS_LIMIT, tx.gas) > gas_available: raise GasUsedExceedsLimitError
+    (EIP-7825 caps the worst-case regular contribution at TX_MAX_GAS_LIMIT; the spec's
+     full per-tx 2D test is min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) -- the
+     intrinsic.state subtraction is tracked by .6.5.2.)
 
     The helper intentionally takes block-gas-used increments as input rather
     than deriving them from tx gas limits. EIP-7778 increments
@@ -55,6 +58,18 @@ def eip7778RemainingBlockGasCheckFunction : String :=
   "  slli t6, t4, 3\n" ++
   "  add a4, t1, t6\n" ++
   "  ld a5, 0(a4)                # tx.gas\n" ++
+  -- fhsxz.2.4.2.57.18.11: EIP-7825 caps the per-tx worst-case REGULAR contribution at
+  -- TX_MAX_GAS_LIMIT (spec amsterdam/fork.py:591 uses min(TX_MAX_GAS_LIMIT, tx.gas -
+  -- intrinsic.state)). The raw `tx.gas > available` check false-rejected valid blocks
+  -- whose later tx declares a gas limit above the regular remaining but whose capped
+  -- worst-case contribution still fits (block_2d_gas_tx_gas_limit_exceeds_regular_remaining,
+  -- succ guest=00 exp=01). Cap at TX_MAX_GAS_LIMIT here; the intrinsic.state subtraction
+  -- (a strictly smaller refinement) is tracked by .6.5.2, and the STATE dimension is
+  -- enforced separately by eip8037_tx_gas_gate (BlockVerdictGasGate.lean). a7 is free.
+  "  li a7, 16777216             # TX_MAX_GAS_LIMIT (2^24)\n" ++
+  "  bleu a5, a7, .Le7778_cap_done\n" ++
+  "  mv a5, a7                   # worst_regular = min(TX_MAX_GAS_LIMIT, tx.gas)\n" ++
+  ".Le7778_cap_done:\n" ++
   "  sub a6, t0, t5              # gas_available\n" ++
   "  bgtu a5, a6, .Le7778_tx_fail\n" ++
   "  add a4, t2, t6\n" ++

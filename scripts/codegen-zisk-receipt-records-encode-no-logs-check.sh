@@ -72,13 +72,18 @@ def rlp_list(items) -> bytes:
     l = len(payload).to_bytes((len(payload).bit_length() + 7) // 8, "big")
     return bytes([0xf7 + len(l)]) + l + payload
 
-def receipt(status: int, gas: int) -> bytes:
+def receipt_inner(status: int, gas: int) -> bytes:
     return rlp_list([
         rlp_int(status),
         rlp_int(gas),
         rlp_bytes(b"\x00" * 256),
         rlp_list([]),
     ])
+
+def receipt(tx_type: int, status: int, gas: int) -> bytes:
+    inner = receipt_inner(status, gas)
+    # EIP-2718 typed receipt = type_byte || rlp(inner); legacy is bare rlp(inner).
+    return (bytes([tx_type]) + inner) if tx_type else inner
 
 records = parse_records(records_s)
 payload = bytearray(16 + 32 * len(records))
@@ -94,7 +99,7 @@ with open(in_file, "wb") as f:
 expected = bytearray(16)
 expected[0:8] = struct.pack("<Q", exp_status)
 if exp_status == 0:
-    encoded = rlp_list([receipt(status, gas) for tx_type, status, gas, log_count in records])
+    encoded = rlp_list([receipt(tx_type, status, gas) for tx_type, status, gas, log_count in records])
     expected[8:16] = struct.pack("<Q", len(encoded))
     expected.extend(encoded)
 else:
@@ -131,8 +136,13 @@ run_case "empty"          256 "-"                              0 || FAILED=1
 run_case "one_success"    512 "0:1:21000:0"                    0 || FAILED=1
 run_case "two_statuses"   768 "0:1:21000:0,0:0:42000:0"        0 || FAILED=1
 run_case "four_receipts"  2048 "0:1:1:0,0:1:127:0,0:1:128:0,0:1:1000000:0" 0 || FAILED=1
-run_case "log_unsupported" 512 "0:1:21000:1"                   2 || FAILED=1
-run_case "typed_unsupported" 512 "1:1:21000:0"                 4 || FAILED=1
+# log_count>0 with no logs descriptor (probe leaves @56=0) is still a malformed record.
+run_case "log_no_desc"    512 "0:1:21000:1"                    2 || FAILED=1
+# typed receipts are now encoded (type_byte || rlp(inner)); EIP-2718 types 1..4.
+run_case "typed_eip2718_2" 512 "2:1:21000:0"                   0 || FAILED=1
+run_case "typed_eip2718_4" 512 "4:0:55000:0"                   0 || FAILED=1
+run_case "typed_mixed"    768 "0:1:21000:0,2:1:42000:0"        0 || FAILED=1
+run_case "type_over_max"  512 "5:1:21000:0"                    4 || FAILED=1
 run_case "small_cap"      1 "-"                                3 || FAILED=1
 
 if [[ "$FAILED" -eq 0 ]]; then

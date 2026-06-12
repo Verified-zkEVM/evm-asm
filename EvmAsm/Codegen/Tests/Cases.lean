@@ -1607,76 +1607,140 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x12, 0x60, 0x00, 0xf1, 0x50, 0x3d, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-  , -- BN254 ADD is an Amsterdam active precompile at 0x06. The current
-    -- backend wrapper safe-fails, but the runtime still charges the fixed
-    -- 150 inner gas. With gasLimit=300: seven PUSH1s (21) + CALL warm
-    -- static base (100) + BN254 ADD (150) + GAS (2) leaves 27.
+  , -- BN254 ADD is an Amsterdam active precompile at 0x06 with a real
+    -- Bn254CurveAdd-backed kernel. Empty input zero-pads to inf + inf
+    -- (a valid success). With gasLimit=300: seven PUSH1s (21) + CALL warm
+    -- static base (100) + BN254 ADD (150, within the 0xff-gas-word child
+    -- allotment min(255, 63/64*179) = 177) + GAS (2) leaves 27.
     { name           := "call_bn254_add_fixed_gas_after_call"
       bytecode       := callPrecompileBytecode "0x06" "0x00" ["0x5a", "0x00"]
       expectedOutHex := "1b00000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "300" }
-  , -- One gas short for CALL + BN254 ADD reaches the fixed-gas helper and OOGs.
-    { name             := "call_bn254_add_fixed_gas_out_of_gas"
+  , -- gasLimit=270 leaves 149 at the precompile entry, so the EIP-150 child
+    -- allotment min(255, 63/64*149) = 147 is below the 150 cost: the CHILD
+    -- runs out of gas — the allotment burns, the parent pushes 0 and
+    -- continues to STOP (per spec, not a whole-frame OOG halt).
+    { name             := "call_bn254_add_child_oog_burns_allotment"
       bytecode         := callPrecompileBytecode "0x06" "0x00" ["0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0600000000000000"
+      expectedHaltKind := "0000000000000000"
       gasLimit         := "270" }
-  , -- Short input is accepted using execution-specs buffer_read zero padding;
-    -- the current backend safe-fail surfaces CALL success word 0 and empty
-    -- returndata, not an invalid-length dispatcher failure.
-    { name             := "call_bn254_add_short_input_backend_failure"
+  , -- Short input is accepted using execution-specs buffer_read zero padding:
+    -- one zero byte pads to inf + inf = inf, a SUCCESS with the 64-byte
+    -- (0,0) infinity encoding as returndata (RETURNDATASIZE = 0x40).
+    { name             := "call_bn254_add_zero_padded_success_returndata64"
       bytecode         := callPrecompileBytecode "0x06" "0x01" ["0x50", "0x3d", "0x00"]
-      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex   := "4000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
       gasLimit         := "10000" }
-  , -- BN254 MUL at 0x07 charges fixed 6000 gas. With gasLimit=6200:
-    -- seven PUSH1s (21) + CALL warm static base (100) + MUL (6000) +
-    -- GAS (2) leaves 77.
-    { name           := "call_bn254_mul_fixed_gas_after_call"
+  , -- BN254 MUL at 0x07 costs 6000, but the helper bytecode forwards a
+    -- 0xff gas word: the child allotment min(255, 63/64*6079) = 255 is
+    -- below cost, so the child OOGs, 255 burns, the parent pushes 0.
+    -- From gasLimit=6200: 21 (pushes) + 100 (warm base) + 255 (allotment)
+    -- + 2 (GAS) leaves 6200-378 = 5822 = 0x16be.
+    { name           := "call_bn254_mul_gas_word_caps_child_allotment"
       bytecode       := callPrecompileBytecode "0x07" "0x00" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "be16000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "6200" }
-  , { name             := "call_bn254_mul_fixed_gas_out_of_gas"
+  , -- Same child-OOG shape one PUSH short of the old whole-frame OOG limit:
+    -- the parent keeps 63/64 headroom and halts normally.
+    { name             := "call_bn254_mul_child_oog_continues"
       bytecode         := callPrecompileBytecode "0x07" "0x00" ["0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0600000000000000"
+      expectedHaltKind := "0000000000000000"
       gasLimit         := "6120" }
-  , -- STATICCALL follows the same 0x07 active-precompile dispatch. Six PUSH1s
-    -- (18) + STATICCALL warm static base (100) + MUL (6000) + GAS (2) leaves
-    -- 80 from gasLimit=6200.
-    { name           := "staticcall_bn254_mul_fixed_gas_after_call"
+  , -- PUSH2 0x1f40 forwards an 8000 gas word, so the 6000 MUL cost fits the
+    -- child allotment min(8000, 63/64*6179) = 6083. Zero-padded input is
+    -- inf * 0 = inf (success). From gasLimit=6300: 21 (pushes: six PUSH1 +
+    -- one PUSH2) + 100 (warm base) + 6000 (MUL) + 2 (GAS) leaves 177 = 0xb1.
+    { name           := "call_bn254_mul_real_cost_gas_after_call"
+      bytecode       := byteCsv ["0x60", "0x00", "0x60", "0x00", "0x60", "0x00",
+        "0x60", "0x00", "0x60", "0x00", "0x60", "0x07", "0x61", "0x1f", "0x40",
+        "0xf1", "0x5a", "0x00"]
+      expectedOutHex := "b100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "6300" }
+  , -- STATICCALL follows the same 0x07 active-precompile dispatch (and the
+    -- same 0xff gas-word child-OOG path). Six PUSH1s (18) + STATICCALL warm
+    -- static base (100) + burned allotment (255) + GAS (2) leaves
+    -- 6200-375 = 5825 = 0x16c1.
+    { name           := "staticcall_bn254_mul_gas_word_caps_child_allotment"
       bytecode       := staticcallPrecompileBytecode "0x07" "0x00" ["0x5a", "0x00"]
-      expectedOutHex := "5000000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "c116000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "6200" }
-  , -- BN254 pairing charges 45000 for zero complete pairs. Seven PUSH1s (21),
-    -- CALL warm static base (100), pairing gas (45000), and GAS (2) leave 77.
-    { name           := "call_bn254_pairing_zero_pairs_gas_after_call"
+  , -- End-to-end EIP-196 vector through the dispatcher: CALLDATACOPY stages
+    -- (1,2) + (1,2) as the 128-byte 0x06 input, the call succeeds, and
+    -- RETURNDATACOPY + RETURN surface the canonical 2*(1,2) result.
+    { name             := "call_bn254_add_known_vector_returndata"
+      bytecode         := byteCsv ["0x60", "0x80", "0x60", "0x00", "0x60", "0x00",
+        "0x37",
+        "0x60", "0x00", "0x60", "0x00", "0x60", "0x80", "0x60", "0x00",
+        "0x60", "0x00", "0x60", "0x06", "0x61", "0x1f", "0x40", "0xf1", "0x50",
+        "0x60", "0x40", "0x60", "0x00", "0x60", "0x80", "0x3e",
+        "0x60", "0x40", "0x60", "0x80", "0xf3"]
+      calldata         := "0x" ++
+        "0000000000000000000000000000000000000000000000000000000000000001" ++
+        "0000000000000000000000000000000000000000000000000000000000000002" ++
+        "0000000000000000000000000000000000000000000000000000000000000001" ++
+        "0000000000000000000000000000000000000000000000000000000000000002"
+      expectedOutHex   := "030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd3"
+      expectedHaltKind := "0100000000000000"
+      expectedReturnDataLength := "4000000000000000"
+      expectedReturnDataHex    :=
+        "030644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd3" ++
+        "15ed738c0e0a7c92e7845f96b2ae9c0a68a6a449e3538fc7ff3ebf7a5a18a2c4" }
+  , -- Off-curve input (x=1, y=1) is an execution-specs OutOfGasError: the
+    -- call FAILS (pushes 0) and the entire child allotment is consumed.
+    { name             := "call_bn254_add_invalid_point_fails_empty_returndata"
+      bytecode         := byteCsv ["0x60", "0x80", "0x60", "0x00", "0x60", "0x00",
+        "0x37",
+        "0x60", "0x00", "0x60", "0x00", "0x60", "0x80", "0x60", "0x00",
+        "0x60", "0x00", "0x60", "0x06", "0x61", "0x1f", "0x40", "0xf1",
+        "0x3d", "0x01", "0x00"]
+      calldata         := "0x" ++
+        "0000000000000000000000000000000000000000000000000000000000000001" ++
+        "0000000000000000000000000000000000000000000000000000000000000001" ++
+        "0000000000000000000000000000000000000000000000000000000000000001" ++
+        "0000000000000000000000000000000000000000000000000000000000000002"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0000000000000000"
+      gasLimit         := "30000" }
+  , -- BN254 pairing costs 45000 even for zero pairs, far above the 0xff
+    -- gas word's child allotment: the child OOGs, 255 burns, the parent
+    -- pushes 0 and continues. From gasLimit=45200: 21 (pushes) + 100
+    -- (warm base) + 255 (allotment) + 2 (GAS) leave 44822 = 0xaf16.
+    -- (Success-path pairing cases need tens of millions of emulator
+    -- steps — past this runner's -n cap — and live in
+    -- scripts/codegen-zisk-bn254-pairing-check.sh instead.)
+    { name           := "call_bn254_pairing_gas_word_caps_child_allotment"
       bytecode       := callPrecompileBytecode "0x08" "0x00" ["0x5a", "0x00"]
-      expectedOutHex := "4d00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "16af000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "45200" }
-  , -- One complete 192-byte pair costs 45000 + 34000, plus 18 gas for the
-    -- 192-byte CALL input memory expansion. The current backend safe-fails,
-    -- but gas after CALL proves the one-pair charge.
-    { name           := "call_bn254_pairing_one_pair_gas_after_call"
+  , -- Same child-OOG shape with one complete 192-byte pair staged (the 18
+    -- gas of input memory expansion still charges to the parent):
+    -- 79200 - 21 - 100 - 18 - 255 - 2 = 78804 = 0x133d4.
+    { name           := "call_bn254_pairing_one_pair_child_oog_gas"
       bytecode       := callPrecompileBytecode "0x08" "0xc0" ["0x5a", "0x00"]
-      expectedOutHex := "3b00000000000000000000000000000000000000000000000000000000000000"
+      expectedOutHex := "d433010000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "79200" }
-  , -- Non-multiple length is rejected after the base gas is consumed, leaving
-    -- empty returndata and normal halt after POP + RETURNDATASIZE.
-    { name             := "call_bn254_pairing_nonmultiple_length_after_charge"
+  , -- Non-multiple length: the 45000 base cost already exceeds the 255
+    -- allotment, so the child OOGs before the length check; the parent
+    -- pushes 0 and RETURNDATASIZE stays zero.
+    { name             := "call_bn254_pairing_nonmultiple_length_child_oog"
       bytecode         := callPrecompileBytecode "0x08" "0x01" ["0x50", "0x3d", "0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
       gasLimit         := "50000" }
-  , -- One gas short reaches the BN254 pairing gas helper and exits OOG.
-    { name             := "call_bn254_pairing_base_gas_out_of_gas"
+  , -- One gas short of the old whole-frame OOG threshold: under the
+    -- EIP-150 allotment model the parent keeps 63/64 headroom, pushes 0,
+    -- and halts normally (no frame OOG).
+    { name             := "call_bn254_pairing_child_oog_continues"
       bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind := "0600000000000000"
+      expectedHaltKind := "0000000000000000"
       gasLimit         := "45120" }
-  , -- Valid-length input reaches the deterministic backend EFAIL wrapper, so
-    -- CALL success is 0 and RETURNDATASIZE remains zero.
-    { name             := "call_bn254_pairing_backend_failure_empty_returndata"
+  , -- Generous frame gas but still a 0xff gas word: identical child-OOG
+    -- observables (push 0, empty returndata) regardless of parent balance.
+    { name             := "call_bn254_pairing_gas_word_oog_empty_returndata"
       bytecode         := callPrecompileBytecode "0x08" "0x00" ["0x50", "0x3d", "0x00"]
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000"
@@ -2380,21 +2444,41 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000"
       gasLimit       := "2208" }
   , -- PUSH1 value; PUSH1 key; SSTORE; STOP. Clean zero -> nonzero
-    -- SSTORE costs 2100 cold access + 20000 STORAGE_SET.
+    -- Amsterdam SSTORE costs 2100 cold access + 2900 regular (no EIP-2200 SET
+    -- split) + 97,920 EIP-8037 state gas (64 × 1530) for the zero-origin
+    -- creation, spilled into regular gas (raw-gas tests have an empty
+    -- state-gas reservoir): 6 + 5000 + 97920 = 102,926.
     { name                        := "sstore_cold_gas_exact"
       bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0100000000000000"
-      gasLimit                    := "22106" }
+      gasLimit                    := "102926" }
   , -- One gas short of the first cold SSTORE must halt out-of-gas before append.
     { name                        := "sstore_cold_gas_out_of_gas"
       bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind            := "0600000000000000"
       expectedPersistentLogLength := "0000000000000000"
-      gasLimit                    := "22105" }
+      gasLimit                    := "102925" }
+  , -- Amsterdam SSTORE stipend rule: check_gas(CALL_STIPEND + 1) fails the op
+    -- when gas_left < 2301 at instruction entry, even though this noop store
+    -- (missing slot, value 0) would only cost 2200: 6 (pushes) leave 2300.
+    { name                        := "sstore_stipend_out_of_gas"
+      bytecode                    := "0x60, 0x00, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind            := "0600000000000000"
+      expectedPersistentLogLength := "0000000000000000"
+      gasLimit                    := "2306" }
+  , -- One more gas passes the stipend check; the cold noop store then costs
+    -- 100 static + 2000 cold delta + 100 cold-noop branch = 2200 and appends.
+    { name                        := "sstore_stipend_boundary_ok"
+      bytecode                    := "0x60, 0x00, 0x60, 0x00, 0x55, 0x00"
+      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedPersistentLogLength := "0100000000000000"
+      gasLimit                    := "2307" }
   , -- Clean nonzero -> nonzero update with a preloaded original costs
-    -- 2100 cold access + (5000 - 2100) storage write gas.
+    -- 2100 cold access + (5000 - 2100) storage write gas (no state gas: the
+    -- original is non-zero).
     { name                        := "sstore_preloaded_nonzero_update_gas_exact"
       bytecode                    := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x00"
       storage                     := "(0x00, 0xdead)"
@@ -2402,12 +2486,12 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedPersistentLogLength := "0200000000000000"
       gasLimit                    := "5006" }
   , -- The second SSTORE to the same key is warm and dirty: first write costs
-    -- 3 + 3 + 22100, second write costs 3 + 3 + 100, STOP costs 0.
+    -- 3 + 3 + 5000 + 97920 (zero-origin creation), second 3 + 3 + 100, STOP 0.
     { name                        := "sstore_repeat_same_key_warm_gas_exact"
       bytecode                    := "0x60, 0x11, 0x60, 0x00, 0x55, 0x60, 0x22, 0x60, 0x00, 0x55, 0x00"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0200000000000000"
-      gasLimit                    := "22212" }
+      gasLimit                    := "103032" }
   , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
     -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
     -- appends a new current-value entry. SLOAD reads back 0xbeef.

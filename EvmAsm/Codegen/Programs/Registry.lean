@@ -52,6 +52,12 @@ import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.Secp256k1Curve
 import EvmAsm.Codegen.Programs.Secp256k1Recover
+import EvmAsm.Codegen.Programs.Bn254Curve
+import EvmAsm.Codegen.Programs.Bls12Field
+import EvmAsm.Codegen.Programs.Ripemd160
+import EvmAsm.Codegen.Programs.Bn254Fp2
+import EvmAsm.Codegen.Programs.Bn254Fq12
+import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
@@ -112,6 +118,7 @@ import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TxRefund
@@ -555,6 +562,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_pubkey_ecrecover_stage_material" => some ziskTxPubkeyEcrecoverStageMaterialProbeUnit
   | "zisk_tx_pubkey_recover_raw_status" => some ziskTxPubkeyRecoverRawStatusProbeUnit
   | "zisk_tx_pubkey_public_key_matches_status" => some ziskTxPubkeyPublicKeyMatchesStatusProbeUnit
+  | "zisk_verify_public_keys_match_senders" => some ziskVerifyPublicKeysMatchSendersProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
@@ -581,6 +589,13 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_secp256k1_add_dbl_syscall_probe" => some ziskSecp256k1AddDblSyscallProbeUnit
   | "zisk_secp256k1_add_dbl_opcode_probe" => some ziskSecp256k1AddDblOpcodeProbeUnit
   | "zisk_secp256k1_recover_r"  => some ziskSecp256k1RecoverRProbeUnit
+  | "zisk_bls12_accel_ops"      => some ziskBls12AccelOpsProbeUnit
+  | "zisk_ripemd160_from_input" => some ziskRipemd160FromInputProbeUnit
+  | "zisk_bn254_g1_add_real"    => some ziskBn254G1AddRealProbeUnit
+  | "zisk_bn254_g1_mul_real"    => some ziskBn254G1MulRealProbeUnit
+  | "zisk_bn254_fp2_ops"        => some ziskBn254Fp2OpsProbeUnit
+  | "zisk_bn254_fq12_ops"       => some ziskBn254Fq12OpsProbeUnit
+  | "zisk_bn254_pairing_real"   => some ziskBn254PairingRealProbeUnit
   | "zisk_u256_add_be"          => some ziskU256AddBeProbeUnit
   | "zisk_u256_lt_be"           => some ziskU256LtBeProbeUnit
   | "zisk_u256_sub_be"          => some ziskU256SubBeProbeUnit

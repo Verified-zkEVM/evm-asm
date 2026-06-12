@@ -1,5 +1,17 @@
 # EEST 1G Block-Gas Layout Plan
 
+> **SUPERSEDED (2026-06-11): the static layout is right-sized to the 200M
+> Amsterdam block-gas target.** The 1G sizing below was implemented (PR #8089)
+> but cost ~416 MiB of the fixed 512 MiB ziskemu RAM window and forced the
+> call-frame arena into the #8513 `basr_values`+`basr_accounts` union. Amsterdam
+> aims at 200,000,000 gas, so `bsrMaxBalItems` is now **100,000**
+> (= 200M / 2000), the BAL arenas shrink to ~83 MiB, and `call_frame_arena` is a
+> standalone ~164 MiB block (the union and its execution-dead soundness gate are
+> retired). Blocks declaring more than 200M gas still launch; if their actual
+> BAL/state-change counts exceed the 100,018-row caps they take the conservative
+> `bsr_fail` path. The sizing *mechanics* below remain the reference; only the
+> 500,000-item column is obsolete.
+
 This is the implementation plan for bead
 `evm-asm-fhsxz.2.4.2.57.9.1.1`. It replaces the PR #8044 direction of
 classifying high-gas EIP-8037 fixtures as `ERROR(layout)`: the desired behavior

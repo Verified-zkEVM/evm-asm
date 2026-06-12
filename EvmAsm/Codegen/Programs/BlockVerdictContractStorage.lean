@@ -16,6 +16,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -27,10 +28,11 @@ open EvmAsm.Rv64
 
     Calling convention:
       a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
-      a2 = out keys ptr (count x 32-byte big-endian slot keys; caller buffer must hold 128)
+      a2 = out keys ptr (count x 32-byte big-endian slot keys; caller buffer must hold
+           bsrAccountSlotCap entries)
     Returns:
       a0 = entry count (0 on parse failure — conservative). Keys are written only when
-           the count is <= 128 (the caller-buffer cap); if it exceeds 128, NOTHING is
+           the count is <= 512 (the caller-buffer cap); if it exceeds 512, NOTHING is
            written and the true count is returned so the caller can bail conservatively.
 
     Reads item 1 (storage_changes) of the AccountChanges list; for each entry,
@@ -54,11 +56,17 @@ def balRecipientStorageKeysFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbrsk_fail\n" ++
   "  la t0, brsk_cnt; ld s5, 0(t0)                   # entry count\n" ++
-  -- bmvmx.1.7.3: cap the write at 128 slots (the caller buffers: bvcd_keys/bvcd_preload
-  -- and csce_keys are all sized for 128). If the BAL declares MORE storage_changes than
-  -- fit, write NOTHING and return the true count so the caller bails conservatively
-  -- (.Ldtrc_unsupported / skip-account) instead of overflowing into adjacent .data.
-  "  li t0, 128; bgtu s5, t0, .Lbrsk_done            # count > cap -> return count, write nothing\n" ++
+  -- bmvmx.1.7.3 / fhsxz.2.4.2.66.1.2: cap the write at the caller KEY-buffer size —
+  -- bvcd_keys, csce_keys and sps_keys are all sized bsrAccountSlotCap*32. The cap is
+  -- gas-derived (= bsrMaxBalItems: one account's changes+reads can absorb the whole
+  -- 200M BAL budget; the former 512 cap false-rejected queue-heavy blocks far below
+  -- 200M). If the BAL declares MORE storage_changes than fit, write NOTHING and return
+  -- the true count so the caller bails conservatively (.Ldtrc_unsupported /
+  -- skip-account / requests-hash fail) instead of overflowing into adjacent .data. The
+  -- regular-tx callers still bail at their own >128 thresholds (bvcd_preload and the
+  -- callee-seed table stay 128-sized); only the system-call preload path consumes
+  -- large counts.
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu s5, t0, .Lbrsk_done            # count > cap -> return count, write nothing\n" ++
   "  mv s6, zero                  # i\n" ++
   "  mv s7, s2                    # out cursor\n" ++
   ".Lbrsk_loop:\n" ++
@@ -95,6 +103,80 @@ def balRecipientStorageKeysFunction : String :=
   ".Lbrsk_fail:\n" ++
   "  li a0, 0\n" ++
   ".Lbrsk_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 72\n" ++
+  "  ret"
+
+/-- `bal_recipient_storage_reads_keys` (fhsxz.2.4.2.57.11.6.5 revert fix) — enumerate a
+    recipient's BAL `storage_reads` (AccountChanges item 2): slots ACCESSED but not
+    net-changed (e.g. a reverting tx writes-then-reverts -> the slot is a read, not a change,
+    so `storage_changes` is empty and the recipient preload misses it -> SSTORE-clears
+    undercharge). Each `storage_reads` entry IS a slot key (RLP-minimal big-endian U256,
+    unlike `storage_changes` whose entry is `[key, [...]]`). Appends right-aligned 32-byte BE
+    keys to the out buffer (same encoding as `bal_recipient_storage_keys`, so the caller's
+    BE->LE preload re-tag applies identically).
+
+    Calling convention:
+      a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP len
+      a2 = out keys ptr             a3 = max slots to write (remaining buffer capacity)
+    Returns a0 = storage_reads count. If count > a3 (or > 512) writes NOTHING and returns the
+    true count so the caller bails conservatively instead of overflowing. Empty/absent
+    storage_reads or any parse failure returns 0 (conservative). -/
+def balRecipientStorageReadsKeysFunction : String :=
+  "bal_recipient_storage_reads_keys:\n" ++
+  "  addi sp, sp, -72\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0                    # AccountChanges ptr\n" ++
+  "  mv s1, a1                    # AccountChanges len\n" ++
+  "  mv s2, a2                    # out keys ptr\n" ++
+  "  mv s3, a3                    # max slots (remaining capacity)\n" ++
+  -- storage_reads = AccountChanges item 2.
+  "  mv a0, s0; mv a1, s1; li a2, 2; la a3, brsk_off; la a4, brsk_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbrsrk_zero\n" ++                     -- absent/fail -> 0 reads (conservative)
+  "  la t0, brsk_off; ld t0, 0(t0); add s4, s0, t0   # sr_ptr\n" ++
+  "  la t0, brsk_len; ld s5, 0(t0)                   # sr_len\n" ++
+  "  mv a0, s4; mv a1, s5; la a2, brsk_cnt\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbrsrk_zero\n" ++
+  "  la t0, brsk_cnt; ld s6, 0(t0)                   # sr count\n" ++
+  -- fhsxz.2.4.2.66.1.2: absolute clamp = bsrAccountSlotCap, in lockstep with the key
+  -- buffers; the real per-caller bound is a3 (remaining capacity), which every caller passes.
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu s6, t0, .Lbrsrk_done           # > cap -> count, write nothing\n" ++
+  "  bgtu s6, s3, .Lbrsrk_done                       # > remaining capacity -> count, write nothing\n" ++
+  "  li s7, 0                     # i (SAVED reg: rlp_list_nth_item clobbers t-regs)\n" ++
+  ".Lbrsrk_loop:\n" ++
+  "  beq s7, s6, .Lbrsrk_done\n" ++
+  -- entry = nth(storage_reads, i); the entry IS the slot key bytes.
+  "  mv a0, s4; mv a1, s5; mv a2, s7; la a3, brsk_eoff; la a4, brsk_elen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbrsrk_zero\n" ++
+  "  la t0, brsk_eoff; ld t0, 0(t0); add t1, s4, t0  # key bytes ptr\n" ++
+  "  la t0, brsk_elen; ld t4, 0(t0)                  # key byte length\n" ++
+  "  li t5, 32; bgtu t4, t5, .Lbrsrk_zero\n" ++
+  -- dst entry = out + i*32; zero it, then right-align the key bytes.
+  "  slli t0, s7, 5; add t2, s2, t0                  # dst entry ptr\n" ++
+  "  mv t0, t2; li t5, 32\n" ++
+  ".Lbrsrk_zw:\n" ++
+  "  beqz t5, .Lbrsrk_zwd\n" ++
+  "  sb zero, 0(t0); addi t0, t0, 1; addi t5, t5, -1; j .Lbrsrk_zw\n" ++
+  ".Lbrsrk_zwd:\n" ++
+  "  li t5, 32; sub t5, t5, t4; add t0, t2, t5       # dst = entry + (32 - keylen)\n" ++
+  ".Lbrsrk_cp:\n" ++
+  "  beqz t4, .Lbrsrk_cpd\n" ++
+  "  lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lbrsrk_cp\n" ++
+  ".Lbrsrk_cpd:\n" ++
+  "  addi s7, s7, 1; j .Lbrsrk_loop\n" ++
+  ".Lbrsrk_done:\n" ++
+  "  mv a0, s6\n" ++
+  "  j .Lbrsrk_ret\n" ++
+  ".Lbrsrk_zero:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbrsrk_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++

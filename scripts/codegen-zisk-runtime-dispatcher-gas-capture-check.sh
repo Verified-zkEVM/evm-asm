@@ -93,11 +93,15 @@ run_case "stop_empty" 21005 "" "0x00" \
 run_case "gas_stop_empty" 21005 "" "0x5a, 0x00" \
   3 0 21000 0 || FAILED=1
 
-# Nonzero calldata raises the EIP-7623 floor to 21040 (intrinsic 21016).
+# Nonzero calldata raises the EIP-7976 floor: every calldata byte counts 4
+# tokens x TX_DATA_TOKEN_FLOOR(16) = 64 uniformly (mlp31 / #8701), so one byte
+# gives floor 21064; the intrinsic data cost stays 4 tokens x 4 = 16 (21016).
 # Execution starts from tx.gas - intrinsic; STOP costs 0, so
-# gas_left = 21042 - 21016 = 26. Captured floor is 21040.
-run_case "stop_nonzero_calldata" 21042 "ff" "0x00" \
-  26 0 21040 0 || FAILED=1
+# gas_left = 21100 - 21016 = 84. Captured floor is 21064.
+# (The pre-mlp31 expectation 21042/26/21040 made the tx floor-short after
+# #8701 — the validate-tx-gas gate now correctly OOG-rejects gas 21042.)
+run_case "stop_nonzero_calldata" 21100 "ff" "0x00" \
+  84 0 21064 0 || FAILED=1
 
 # REVERT (0xfd) with empty memory returns halt_kind 2 and keeps gas_left from
 # the post-execution gasRemaining. PUSH1 0, PUSH1 0, REVERT: two PUSH1 (3 each)

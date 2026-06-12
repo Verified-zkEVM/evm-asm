@@ -80,7 +80,8 @@ def createRoundtripPrologue : String :=
   callFrameDescendFunction ++ "\n" ++
   createFrameDescendFunction ++ "\n" ++   -- .61.8.3.5: CREATE tail now descends via create_frame_descend
   frameReturnFunction ++ "\n" ++
-  recordNonstorageEffectFunction   -- i3djw.2: CREATE-RETURN deposit records the created account's non-storage effect
+  recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.2: CREATE-RETURN deposit records the created account's non-storage effect
+  u256SubBeFunction   -- 5em02.2: the CREATE descent's creator in-exec balance debit
 
 def createRoundtripData : String :=
   emitRuntimeDispatcherDataSection callFrameProbeRegistry ++ "\n" ++

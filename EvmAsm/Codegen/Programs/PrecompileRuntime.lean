@@ -131,6 +131,159 @@ def ecrecoverScalarOrderGateAsm : String :=
   ecrecoverScalarBelowOrderGateAsm 64 44 ++
   ecrecoverScalarBelowOrderGateAsm 96 45
 
+/-- ECRECOVER (0x01) recovery + output tail (.62.2.5). Runs AFTER the v/r/s
+    gates have validated the staged input (hash @+0, v @+32, r @+64, s @+96 at
+    `evm_precompile_frame + precompileFrameEcrecoverInputOff`, buffer_read
+    padded). Behavior matches execution-specs `ecrecover`: on a valid
+    signature the returndata is the 32-byte left-padded keccak address of the
+    recovered public key; on recovery failure the call still SUCCEEDS with
+    empty returndata (the gates' `j 7b` path).
+
+    The recovery kernel is reached through the `ecrecover_backend_ptr` data
+    cell rather than a direct `jal`: the secp256k1 chain is only linked by
+    closures that arm the pointer (the stateless guest arms it in
+    `dispatch_tx_runtime_code`; the focused ecrecover probe arms it itself).
+    Closures that leave it 0 (the standalone dispatch probes) keep the legacy
+    success-with-empty-returndata behavior AND keep linking without the
+    secp256k1 dependency tree — the same data-driven optionality as
+    `callee_seed_count`.
+
+    Register use mirrors the SHA256 path: x13/x10/x12 are saved in s9/s10/s11
+    across the LP64 calls (the secp/keccak helpers preserve s-registers);
+    label 7 is the handler's success-push tail; numeric labels 46-48 are
+    local. -/
+def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
+  "  la x18, ecrecover_backend_ptr\n" ++
+  "  ld x18, 0(x18)\n" ++
+  "  beqz x18, 7b\n" ++
+  -- Stage the recovery ABI block (hash/r/s/recid) from the gated input
+  -- (hash/v/r/s). Both regions are 8-byte aligned; copy by u64 limbs.
+  precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
+  "  la x22, ecr_abi\n" ++
+  "  ld x16, 0(x19);  sd x16, 0(x22)\n" ++
+  "  ld x16, 8(x19);  sd x16, 8(x22)\n" ++
+  "  ld x16, 16(x19); sd x16, 16(x22)\n" ++
+  "  ld x16, 24(x19); sd x16, 24(x22)\n" ++
+  "  ld x16, 64(x19); sd x16, 32(x22)\n" ++
+  "  ld x16, 72(x19); sd x16, 40(x22)\n" ++
+  "  ld x16, 80(x19); sd x16, 48(x22)\n" ++
+  "  ld x16, 88(x19); sd x16, 56(x22)\n" ++
+  "  ld x16, 96(x19);  sd x16, 64(x22)\n" ++
+  "  ld x16, 104(x19); sd x16, 72(x22)\n" ++
+  "  ld x16, 112(x19); sd x16, 80(x22)\n" ++
+  "  ld x16, 120(x19); sd x16, 88(x22)\n" ++
+  "  lbu x16, 63(x19)\n" ++          -- v byte 31 (the v gate proved 27/28)
+  "  addi x16, x16, -27\n" ++
+  "  sd x16, 96(x22)\n" ++           -- recid word
+  "  mv s9, x13\n" ++
+  "  mv s10, x10\n" ++
+  "  mv s11, x12\n" ++
+  "  la a0, ecr_abi\n" ++
+  "  la a1, ecr_pubkey\n" ++
+  "  jalr x1, x18, 0\n" ++           -- secp256k1_recover_pubkey_staged
+  -- a0 IS x10: stash the status before restoring the EVM code pointer
+  -- (restoring first would make the bnez read the nonzero code pointer).
+  "  mv x16, a0\n" ++
+  "  mv x13, s9\n" ++
+  "  mv x10, s10\n" ++
+  "  mv x12, s11\n" ++
+  "  bnez x16, 7b\n" ++              -- invalid signature: empty-returndata success
+  "  mv s9, x13\n" ++
+  "  mv s10, x10\n" ++
+  "  mv s11, x12\n" ++
+  "  la a0, ecr_pubkey\n" ++
+  "  li a1, 64\n" ++
+  "  la a2, ecr_hash\n" ++
+  "  jal x1, zkvm_keccak256\n" ++
+  "  mv x16, a0\n" ++                -- stash status before the x10 (=a0) restore
+  "  mv x13, s9\n" ++
+  "  mv x10, s10\n" ++
+  "  mv x12, s11\n" ++
+  "  bnez x16, 7b\n" ++              -- hash backend failure: stay conservative
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 16(x15)\n" ++            -- returndata[0..12] = 0 (left padding)
+  "  sd x0, 24(x15)\n" ++
+  "  la x18, ecr_hash\n" ++
+  "  addi x18, x18, 12\n" ++         -- address = keccak(pubkey)[12..32]
+  "  addi x19, x15, 28\n" ++
+  "  li x22, 20\n" ++
+  "46:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  bnez x22, 46b\n" ++
+  "  li x16, 32\n" ++
+  "  sd x16, 8(x15)\n" ++            -- returndata length = 32
+  "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  li x23, 32\n" ++
+  "  bgeu x22, x23, 47f\n" ++
+  "  mv x23, x22\n" ++
+  "47:\n" ++
+  "  beqz x23, 7b\n" ++
+  "  addi x18, x15, 16\n" ++
+  "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x19, x13, x19\n" ++
+  "48:\n" ++
+  "  lbu x16, 0(x18)\n" ++
+  "  sb x16, 0(x19)\n" ++
+  "  addi x18, x18, 1\n" ++
+  "  addi x19, x19, 1\n" ++
+  "  addi x23, x23, -1\n" ++
+  "  bnez x23, 48b\n" ++
+  "  j 7b\n"
+
+/-- BN254 (0x06/0x07) charge-and-gate. `x16` must already hold the
+    EIP-1108 constant cost. Computes the EIP-150 child allotment
+    A = min(gas word, 63/64 * remaining) via `bn254_call_allotment`
+    (kernel suite, `Bn254Curve.lean`); if A < cost the child runs out of
+    gas — burn A and surface a failed call (`.L<tag>_bn254_fail_burn`,
+    emitted by `bn254FailureStubAsm`). Otherwise charge the cost against
+    568(x20) and park the unspent allotment A - cost in `bn254_allot_rest`
+    so an invalid-input kernel status can burn the rest (execution-specs
+    raises OutOfGasError for malformed ecAdd/ecMul input, which consumes
+    everything forwarded to the child). Clobbers x17/x22/x23/x24/x1. -/
+def bn254ChargeGateAsm (tag : String) : String :=
+  "  jal x1, bn254_call_allotment\n" ++
+  "  bltu x22, x16, .L" ++ tag ++ "_bn254_fail_burn\n" ++
+  "  ld x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub x17, x17, x16\n" ++
+  "  sd x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub x22, x22, x16\n" ++
+  "  la x17, bn254_allot_rest\n" ++
+  "  sd x22, 0(x17)\n"
+
+/-- BN254 failed-call tail (shared by the `tag`'s ecAdd/ecMul entries).
+    `.L<tag>_bn254_kfail` is the kernel-invalid-input target: it reloads
+    the parked allotment remainder and falls into `.L<tag>_bn254_fail_burn`,
+    which burns x22 gas, then pushes 0 (failed call, empty returndata) and
+    resumes the dispatch loop. Only reachable via branches. -/
+def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
+  -- Entry for failures detected BEFORE the charge gate parked the
+  -- allotment (a pairing gas-formula overflow: the cost necessarily
+  -- exceeds any 64-bit allotment): compute A fresh and burn it.
+  ".L" ++ tag ++ "_bn254_fail_allot:\n" ++
+  "  jal x1, bn254_call_allotment\n" ++
+  "  j .L" ++ tag ++ "_bn254_fail_burn\n" ++
+  ".L" ++ tag ++ "_bn254_kfail:\n" ++
+  "  la x17, bn254_allot_rest\n" ++
+  "  ld x22, 0(x17)\n" ++
+  ".L" ++ tag ++ "_bn254_fail_burn:\n" ++
+  "  ld x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub x17, x17, x22\n" ++
+  "  sd x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop\n"
+
 def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 31\n" ++

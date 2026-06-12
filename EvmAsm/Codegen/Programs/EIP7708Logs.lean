@@ -107,6 +107,45 @@ def eip7708SyntheticLogFunctions : String :=
   "  sd x0, 232(t2)\n" ++
   "  sd x0, 240(t2)\n" ++
   "  sd x0, 248(t2)\n" ++
+  -- .63.1.6.2.1: ALSO record the 32-byte amount in the FULL-data surface
+  -- (evm_log_data + evm_log_data_meta) like the LOG0..4 capture path does.
+  -- Synthetic logs previously left their meta slot stale, so any meta-based
+  -- consumer (the per-tx log-window snapshot / logs-RLP encoder) would read
+  -- garbage data for them. On full-data overflow set the existing
+  -- evm_log_data_overflow flag and record a zero-length slot (consumers stay
+  -- conservative), mirroring the LOG handlers.
+  "  ld t0, 472(x20)              # descriptor index for the meta slot\n" ++
+  "  slli t0, t0, 4\n" ++
+  "  la t1, evm_log_data_meta\n" ++
+  "  add t1, t1, t0\n" ++
+  "  la t0, evm_log_data_used\n" ++
+  "  ld t3, 0(t0)\n" ++
+  "  addi t4, t3, 32\n" ++
+  "  li t0, 262144\n" ++
+  "  bleu t4, t0, .Leip7708_data_fits\n" ++
+  "  la t0, evm_log_data_overflow\n" ++
+  "  li t4, 1\n" ++
+  "  sd t4, 0(t0)\n" ++
+  "  sd x0, 0(t1)\n" ++
+  "  sd x0, 8(t1)\n" ++
+  "  j .Leip7708_data_done\n" ++
+  ".Leip7708_data_fits:\n" ++
+  "  sd t3, 0(t1)                 # meta = {offset = used, len = 32}\n" ++
+  "  li t0, 32\n" ++
+  "  sd t0, 8(t1)\n" ++
+  "  la t0, evm_log_data\n" ++
+  "  add t0, t0, t3\n" ++
+  "  ld t1, 160(t2)               # canonical BE amount from the descriptor\n" ++
+  "  sd t1, 0(t0)\n" ++
+  "  ld t1, 168(t2)\n" ++
+  "  sd t1, 8(t0)\n" ++
+  "  ld t1, 176(t2)\n" ++
+  "  sd t1, 16(t0)\n" ++
+  "  ld t1, 184(t2)\n" ++
+  "  sd t1, 24(t0)\n" ++
+  "  la t0, evm_log_data_used\n" ++
+  "  sd t4, 0(t0)\n" ++
+  ".Leip7708_data_done:\n" ++
   "  ld t0, 472(x20)\n" ++
   "  addi t0, t0, 1\n" ++
   "  sd t0, 472(x20)\n" ++
@@ -168,7 +207,19 @@ def eip7708SyntheticLogTopicData : String :=
   "  .quad 0x69c2b068fc378daa, 0xddf252ad1be2c89b\n" ++
   "eip7708_burn_topic:\n" ++
   "  .quad 0x71a0fdb75d397ca5, 0x6cffcc184412cf7a\n" ++
-  "  .quad 0x815c1ee09dbd0673, 0xcc16f5dbb4873280\n"
+  "  .quad 0x815c1ee09dbd0673, 0xcc16f5dbb4873280\n" ++
+  -- fhsxz.2.4.2.63.1.6.2.6: 32B right-aligned scratch for the CALL value-transfer log's
+  -- `to` topic (callee 20 bytes copied into the low bytes [+12..+32], high 12 zeroed).
+  ".balign 8\n" ++
+  "eip7708_cd_to32:\n  .zero 32\n" ++
+  -- fhsxz.2.4.2.63.1.6.2.6 Part 2: top-level tx transfer-log scratch. The verdict-side
+  -- sender/recipient/value are big-endian; these hold them reversed into the LE stack-word
+  -- form the log materializer consumes (it byte-reverses each topic slot back to canonical BE;
+  -- the appender reverses the value back to BE at descriptor+160).
+  ".balign 8\n" ++
+  "eip7708_tl_from32:\n  .zero 32\n" ++
+  "eip7708_tl_to32:\n  .zero 32\n" ++
+  "eip7708_tl_val32:\n  .zero 32\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++
@@ -178,6 +229,13 @@ def eip7708SyntheticLogDataSection : String :=
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
   "  .zero 262144\n" ++   -- 6c7v9: 1024 × 256-byte LOG event descriptors (was 4096 = 16×256)
+  -- .63.1.6.2.1: the synthetic-log appender now records its amount in the
+  -- full-data surface too; the standalone probe needs the labels.
+  ".balign 8\n" ++
+  "evm_log_data:\n  .zero 262144\n" ++
+  "evm_log_data_meta:\n  .zero 16384\n" ++
+  "evm_log_data_used:\n  .zero 8\n" ++
+  "evm_log_data_overflow:\n  .zero 8\n" ++
   eip7708SyntheticLogTopicData ++
   "eip7708_probe_sender:\n" ++
   "  .quad 0x1111111111111111, 0x1111111111111111, 0x0000000011111111, 0\n" ++

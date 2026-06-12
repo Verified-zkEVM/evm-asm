@@ -94,6 +94,20 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  j .dispatch_loop\n" ++
     ".Lrr_halt_" ++ toString kind ++ ":\n"
    else "") ++
+  -- 8uld3.2.1a: when system_call_mode!=0, capture the top-level (depth-0) RETURN data
+  -- (evm_memory[x14..x14+x15]) into system_call_returndata so an EIP-7002/7251 predeploy
+  -- system call's return_data is recoverable. RETURN (kind 1) only; flag is 0 for normal
+  -- txs so the halt path stays byte-identical. x13=mem base, x14=offset, x15=size (read-only).
+  (if kind == 1 then
+    "  la t0, system_call_mode\n  ld t0, 0(t0)\n  beqz t0, .Lrr_nocap_" ++ toString kind ++ "\n" ++
+    "  li t1, 4096\n  bltu t1, x15, .Lrr_nocap_" ++ toString kind ++ "\n" ++   -- oversized -> skip (conservative)
+    "  la t1, system_call_returndata_len\n  sd x15, 0(t1)\n" ++
+    "  add t2, x13, x14\n  la t3, system_call_returndata\n  mv t4, x15\n" ++
+    ".Lrr_capz_" ++ toString kind ++ ":\n" ++
+    "  beqz t4, .Lrr_nocap_" ++ toString kind ++ "\n" ++
+    "  lbu t5, 0(t2)\n  sb t5, 0(t3)\n  addi t2, t2, 1\n  addi t3, t3, 1\n  addi t4, t4, -1\n  j .Lrr_capz_" ++ toString kind ++ "\n" ++
+    ".Lrr_nocap_" ++ toString kind ++ ":\n"
+   else "") ++
   "  li x16, 0xa0010000\n" ++
   "  sd x0, 0(x16)\n" ++
   "  sd x0, 8(x16)\n" ++

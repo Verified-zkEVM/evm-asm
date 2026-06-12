@@ -342,6 +342,8 @@ def ziskBlockVerdictGasResultArenaPrologue : String :=
   "  li a0, 0x40000008\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t0, bvgr_arena_tx_count; ld a2, 0(t0)\n" ++
+  "  li a3, 0\n" ++   -- gas-only probe: record every tx as successful
+  "  li a4, 0\n" ++   -- gas-only probe: empty log windows
   "  jal ra, block_receipt_records_materialize\n" ++
   "  la t0, brr_status; ld t1, 0(t0); sd t1, 88(s1)\n" ++
   "  la t0, brr_control; ld t1, 0(t0); sd t1, 96(s1)\n" ++
@@ -383,6 +385,8 @@ def ziskBlockVerdictGasResultArenaDataSection : String :=
   "brr_tx_inner:\n  .zero 8\n" ++
   "brr_tx_gas:\n  .zero 8\n" ++
   "brr_receipt_gas_ptr:\n  .zero 8\n" ++
+  "brr_tx_status_ptr:\n  .zero 8\n" ++
+  "brr_tx_window_ptr:\n  .zero 8\n" ++
   "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++

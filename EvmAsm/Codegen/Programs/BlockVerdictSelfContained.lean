@@ -62,33 +62,30 @@ def bytecodeIsSelfContainedFunction : String :=
   "  addi t3, t2, -0x5f           # data byte count\n" ++
   "  addi t0, t0, 1; add t0, t0, t3; j .Lbsc_loop\n" ++
   ".Lbsc_check:\n" ++
-  -- Reject the un-staged-state opcodes.
-  "  li t3, 0x31; beq t2, t3, .Lbsc_unsafe\n" ++   -- BALANCE
-  -- 3vc2p.4: ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) are NO LONGER rejected (#8648).
-  -- yisv8.2 (part 2): EXTCODESIZE(0x3b)/EXTCODECOPY(0x3c)/EXTCODEHASH(0x3f) are NO LONGER
-  -- rejected — their handlers read account code from the staged state+codes witness.
-  -- 3vc2p.4 (BLOCKHASH): BLOCKHASH(0x40) is NO LONGER rejected — the M29 recent-blockhash
-  -- table is now reconstructed from the witness headers and staged into the contract-recipient
-  -- payload (3vc2p.3b: stage_blockhash_m29 #8655 + the payload M29 block #8662 + the dispatch
-  -- compute #8663), so the dispatcher setup loads env+552/+560 + evm_block_hashes and the
-  -- BLOCKHASH handler resolves through real execution.
-  -- yisv8.2: SELFBALANCE(0x47) NO LONGER rejected (#8650); CREATE/CREATE2 NO LONGER rejected
-  -- (#8649); EXTCODE*(0x3b/0x3c/0x3f) NO LONGER rejected (yisv8.2 part 2).
-  -- BALANCE(0x31) stays rejected (volatile balance, cross-account witness M31 needed);
-  -- SELFDESTRUCT(0xff) stays rejected (beneficiary state un-staged).
-  "  li t3, 0xff; beq t2, t3, .Lbsc_unsafe\n" ++   -- SELFDESTRUCT (beneficiary cold/warm + account-creation gas is un-staged)
+  -- ALL un-staged-state opcodes are now ACTIVATED (execute soundly, not bail-to-BAL-replay-trust):
+  --   ORIGIN(0x32)/CALLER(0x33)/GASPRICE(0x3a) (#8648); EXTCODESIZE/COPY/HASH(0x3b/0x3c/0x3f) +
+  --   SELFBALANCE(0x47) + CREATE/CREATE2 (yisv8.2, #8649/#8650); BLOCKHASH(0x40) (3vc2p.4, M29
+  --   recent-blockhash table reconstructed from the witness headers + staged); SELFDESTRUCT(0xff)
+  --   (ee21v, selfdestructTailAsm: beneficiary access gas + new-account surcharge + balance
+  --   transfer + EIP-7708 log); and BALANCE(0x31) (yisv8 .spine: live balance read from the
+  --   non-storage effect log -- nonstorage_effect_latest_balance in balance_at_header_state_root,
+  --   falling back to the pre-state witness when no value transfer touched the account).
+  -- No opcode is rejected here anymore -> the .Lbsc_unsafe path is vestigial (kept for any future
+  -- un-staged-state opcode). (The BALANCE 0x31 reject is REMOVED here; 0xff was removed by ee21v.)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
   "  li a0, 0; ret\n" ++
   ".Lbsc_unsafe:\n" ++
   "  li a0, 1; ret"
 
-/-- `zisk_bytecode_is_self_contained`: probe over four hand-written bytecodes.
+/-- `zisk_bytecode_is_self_contained`: probe over four hand-written bytecodes. Post-activation
+    (ee21v + yisv8 removed the last rejects) NO opcode is un-staged, so all four scan
+    self-contained (0).
     Output:
       +0  scan of PUSH1 0x07 PUSH1 0x01 SSTORE STOP (expect 0 self-contained)
-      +8  scan of PUSH1 0x00 BALANCE                (expect 1 unsafe; CALL now allowed)
+      +8  scan of PUSH1 0x00 BALANCE   (60 00 31)   (expect 0 — BALANCE activated, yisv8)
       +16 scan of PUSH1 0xF1 STOP (0xF1 is push DATA, not CALL) (expect 0)
-      +24 scan of PUSH1 0x00 SELFDESTRUCT (60 00 FF) (expect 1 unsafe) -/
+      +24 scan of PUSH1 0x00 SELFDESTRUCT (60 00 FF) (expect 0 — SELFDESTRUCT activated, ee21v) -/
 def ziskBytecodeIsSelfContainedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -98,8 +95,7 @@ def ziskBytecodeIsSelfContainedPrologue : String :=
   "  li t1, 0x60; sb t1, 2(t0); li t1, 0x01; sb t1, 3(t0)\n" ++
   "  li t1, 0x55; sb t1, 4(t0); sb zero, 5(t0)\n" ++
   "  la a0, bsc_codeA; li a1, 6; jal ra, bytecode_is_self_contained; sd a0, 0(s0)\n" ++
-  -- code B: 60 00 31 (BALANCE -> still unsafe; CALL is now allowed, so use a
-  -- genuinely-rejected un-staged-state opcode here to keep the reject assertion).
+  -- code B: 60 00 31 (BALANCE -> now self-contained; yisv8 activated it via the live-balance read).
   "  la t0, bsc_codeB\n" ++
   "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0x31; sb t1, 2(t0)\n" ++
   "  la a0, bsc_codeB; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 8(s0)\n" ++

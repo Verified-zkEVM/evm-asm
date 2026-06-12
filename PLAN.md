@@ -1190,12 +1190,26 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 - Map EVM precompile addresses (0x01-0x11, 0x100) to `zkvm_accelerators.h` calls.
 - ECRECOVER (0x01) → `zkvm_secp256k1_ecrecover`
 - SHA256 (0x02) → `zkvm_sha256`
-- RIPEMD160 (0x03) → `zkvm_ripemd160`
+- RIPEMD160 (0x03) → `zkvm_ripemd160` — **DONE** (pure-software RV64 kernel,
+  `Ripemd160.lean` — ZisK has no RIPEMD-160 accelerator; table-driven
+  two-line compression, ~5.3k steps/64-byte block; 600+120/word gas,
+  32-byte left-padded returndata; validated against the standard vectors
+  via `scripts/codegen-zisk-ripemd160-check.sh`; bead fhsxz.2.4.2.62.11)
 - IDENTITY (0x04) → no accelerator (pure memory copy)
 - MODEXP (0x05) → `zkvm_modexp`
-- BN254_ADD (0x06) → `zkvm_bn254_g1_add`
-- BN254_MUL (0x07) → `zkvm_bn254_g1_mul`
-- BN254_PAIRING (0x08) → `zkvm_bn254_pairing`
+- BN254_ADD (0x06) → `zkvm_bn254_g1_add` — **DONE** (real kernel,
+  `Bn254Field.lean`/`Bn254Curve.lean`, ZisK Bn254CurveAdd/Dbl `csrs
+  0x806/0x807` + Arith256Mod `csrs 0x802` accelerators; EIP-196 validation +
+  EIP-150 child-allotment failure gas; bead fhsxz.2.4.2.62.10)
+- BN254_MUL (0x07) → `zkvm_bn254_g1_mul` — **DONE** (same backend; raw
+  256-bit double-and-add, ~0.93M ziskemu steps worst case)
+- BN254_PAIRING (0x08) → `zkvm_bn254_pairing` — **DONE** (py_ecc-mirroring
+  FQ12 Miller loop + final exponentiation: `Bn254Fp2.lean` via
+  Bn254ComplexAdd/Sub/Mul `csrs 0x808/0x809/0x80a`, `Bn254Fq12.lean` poly
+  machine with one fused Arith256Mod per coefficient op,
+  `Bn254Fq12Point.lean`/`Bn254PairingCore.lean`/`Bn254Pairing.lean` with the
+  real EIP-197 G2 subgroup check; ~40M steps + ~22M/pair; bead
+  fhsxz.2.4.2.62.10.1)
 - BLAKE2f (0x09) → `zkvm_blake2f`
 - KZG_POINT_EVAL (0x0a) → `zkvm_kzg_point_eval`
 - BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add`
@@ -1490,10 +1504,26 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     unwired → verdict byte-identical): `sstore_regular_gas` (#8630), `memory_expansion_gas` (#8631),
     `keccak256`/`copy`/`log`/`exp` per-unit leaves (#8633). EIP-2929 cold/warm is already charged via
     `evm_storage_access_gas`.
-  - **Remaining** (dispatcher-gas metering, c1 domain): wire these dynamic charges into the opcode
-    handlers all-at-once (composing with the static base + cold/warm, no double-count) + the missing
-    EIP-2930 access-list intrinsic in the runtime tx-gas; needs an EEST contract-row sweep
-    (false-reject risk). Until then contract gas-gating stays inaccurate.
+  - **Dynamic-gas wiring LANDED** (2026-06-09, c1): warmth table live in `h_SLOAD`/`h_SSTORE`,
+    SSTORE value-transition gas + refund accumulation, M31 memory-expansion / copy / keccak /
+    log / exp dynamic gas in all memory-touching handlers, account warmth in
+    BALANCE/EXTCODE*/CALL*/SELFDESTRUCT. eip7778 EEST filter = 32/32 full-match.
+  - **Amsterdam schedule + EIP-8037 state gas** (2026-06-12, branch
+    `feat/dispatcher-eip8037-state-gas`, bead `nxio8`): SSTORE moved off the legacy Cancun
+    schedule (20000 SET / 19900 zero-restore refund) to Amsterdam (2900 clean-changing +
+    97,920 EIP-8037 state gas for zero-origin creation via `evm_state_gas_left`/`evm_state_gas_used`
+    + the reservoir split at TX_MAX_GAS_LIMIT, restore refund 2800 + state credit); SSTORE
+    stipend `check_gas(2301)`; per-dispatch-call resets for `evm_refund_acc` /
+    `evm_storage_access_count` / state cells / halt_kind (all leaked across multi-tx
+    dispatch calls); `dispatcher_tx_gas_settle` folds the spec's tx-level settlement
+    (error → state restore + refund discard, exceptional halt → regular gas burnt) into
+    the `dispatch_tx_runtime_code` / block-verdict gas captures; the standalone
+    `runtime_dispatcher`/callable-probe ELFs link again (frame-helper closure bundled —
+    they had been unlinkable since the CREATE-descent handlers landed).
+  - **Remaining**: EIP-2930 access-list storage-key seeding (`evm_storage_access_seed_key`
+    exists, unwired) + the access-list intrinsic in the runtime tx-gas; child-frame
+    `incorporate_child_on_error` state-gas/refund/warmth rollback (global cells, no
+    per-frame snapshot); creation-tx intrinsic state gas + code-deposit state gas.
 
 - 🔶 **EIP-8025 witness code-preimage rejects (beads `ok3nl`/#8638, `mkwwf`; 2026-06)**: the spec rejects a
   block when execution reads a `code_hash` absent from the witness (`WitnessState.get_code` raises). (a)
@@ -1511,6 +1541,44 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   legitimately absent). Target-own-code miss now means "no delegated-code obligation"; the marker-visible
   delegated-code reject and the extcodesize status-5 chain are unchanged (validation_codes 01427–01437 sweep
   kept all expected verdicts).
+
+- 🔶 **Receipts → stateless verdict (bead `fhsxz.2.4.2.63.1.6.2`; 2026-06-12 overnight PR stack)**:
+  the verdict never compared a guest-computed `receipts_root`/`logs_bloom` against the header (an
+  audited reachable no-tx false-accept, hermes-c3). Landed as a stacked chain on the dynamic-gas PR:
+  - **#8721** (base, bead `nxio8`): Amsterdam SSTORE schedule + EIP-8037 state gas + per-tx
+    dispatch-state resets + `dispatcher_tx_gas_settle` settlement fold (eip8037 200/200 + 271/271,
+    eip7778 32/32, random-20 — all full-match; details in the gas section above).
+  - **#8722**: NO-TX receipts consensus check (empty-trie root + zero bloom vs header, fail codes
+    50/51 — closes the audited false-accept) + per-tx receipt STATUS capture (settle success bit →
+    `bv_tx_status_arr` → materializer).
+  - **#8725**: `log_records_encode_rlp` leaf — captured LOG descriptors + `evm_log_data` → the spec
+    `rlp([log..])` (probe-verified byte-exact vs a python RLP reference).
+  - **PR 6 (this branch)**: per-tx log-window capture (`block_log_window_snapshot` — each dispatch
+    call resets/overwrites the capture buffers, so windows are copied into a block-level arena
+    between dispatches) + per-record logs RLP + bloom (`block_receipt_logs_materialize`, filling the
+    `{bloom, logs_rlp, len}` descriptors `receipt_records_encode_no_logs` consumes). INERT: debug
+    status only.
+  - **BLOCKER for tx-bearing enforcement** (new receipts-blocker bead under `.63.1.6.2`): the
+    dispatcher emits the EIP-7708 synthetic transfer log ONLY on the SELFDESTRUCT path — top-level
+    tx value transfers and CALL value transfers never land in `evm_event_logs`, so guest receipts
+    for ANY value-bearing tx are missing the transfer log and enforcement would false-reject. Fix =
+    emit the synthetic descriptor at the top-level value move (needs a log-preseed surviving the
+    per-call reset, like the callee storage seeds) + in the CALL value-transfer producer; THEN wire
+    `receipt_records_encode_no_logs` → `block_validate_receipts_root_indexed` + per-record-bloom OR
+    on the exact-measured path (build trie descriptors from records @40/@48, NOT by re-parsing the
+    carrier list — typed receipts are `type_byte||rlp` and break `rlp_list_nth_item`).
+
+- 🔶 **ECRECOVER recovery output (bead `fhsxz.2.4.2.62.2.5`; 2026-06-12, #8723 + #8724)**: the
+  precompile returned success with empty returndata for every call. `secp256k1_recover_pubkey_staged`
+  (extracted from `tx_pubkey_recover_raw`, accelerator-backed ~2e6 steps) now backs the handler tail
+  (recover → keccak → 32-byte left-padded address; invalid signature keeps empty-returndata success).
+  Reached via the `ecrecover_backend_ptr` cell so non-secp closures keep linking (the guest arms it in
+  `dispatch_tx_runtime_code`). #8724 adds the end-to-end dispatcher probe (CALL 0x01 recovers
+  `valid_signature_1` → `a94f...bf0b`; invalid v / zero r fail closed) — it caught an a0/x10 alias bug
+  in the status branches (fixed on #8723). EEST ecrecover family 80/80 before AND after (the family's
+  verdicts don't yet distinguish empty vs real returndata; a returndata-consuming EEST pin is noted on
+  the bead). RIPEMD160 backend and MODEXP success output remain blocked on ziskemu routes
+  (`docs/eest-precompile-frontier.md` row updated).
 
 - 🔧 **FileSizeGuard cap discipline (#8645)**: `EvmAsm/Codegen/Programs/FileSizeGuard.lean`'s `#eval`
   enforces a 1500-line hard cap on every file under `Programs/`, but reads siblings via `IO.FS.readFile`

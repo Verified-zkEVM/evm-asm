@@ -139,8 +139,9 @@ def multiTxNthContextFunction : String :=
   "  ld t0, 48(s0); beqz t0, .Lmtx_not_creation\n" ++
   "  li t1, 60; sd t1, 0(s0); j .Lmtx_ret\n" ++
   ".Lmtx_not_creation:\n" ++
-  "  ld t0, 64(s0); beqz t0, .Lmtx_ok\n" ++
-  "  li t1, 61; sd t1, 0(s0); j .Lmtx_ret\n" ++
+  -- fhsxz.2.4.2.57.11.6.5 (experiment): allow calldata-bearing txs. ctx+56/+64 hold
+  -- the calldata ptr/len (tx_extract_data_section); dispatch's stage_runtime_payload_code
+  -- stages both, so a non-empty-calldata call dispatches like any self-contained recipient.
   ".Lmtx_ok:\n" ++
   "  sd zero, 0(s0); j .Lmtx_ret\n" ++
   ".Lmtx_malformed:\n" ++

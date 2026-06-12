@@ -38,6 +38,8 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
+import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
@@ -78,6 +80,11 @@ def blockVerdictFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0                   # params\n" ++
   "  mv s3, a1                   # SSZ_BASE\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: stash the parent (PRE-state) header RLP ptr/len so
+  -- dispatch_tx_runtime_code's witness lookups use the PRE-state root (witness root),
+  -- not sv_this_rlp (this block's POST-state header). 8(s0)/16(s0) is the parent header.
+  "  ld t0, 8(s0); la t1, sv_pre_rlp_ptr; sd t0, 0(t1)\n" ++
+  "  ld t0, 16(s0); la t1, sv_pre_rlp_len; sd t0, 0(t1)\n" ++
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
@@ -304,6 +311,29 @@ def blockVerdictFunction : String :=
   -- nonzero header.gas_used raises InvalidBlock. Verify it here instead of trusting it.
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
   "  bnez a0, .Lbv_notx_gas_used_fail\n" ++
+  -- .63.1.6.2.3 (slice A): NO-TX receipts consensus. execution-specs apply_body
+  -- recomputes receipt_root = root(receipts_trie) and block_logs_bloom =
+  -- logs_bloom(block_logs) and hard-rejects on a header mismatch (fork.py
+  -- 368-371). A no-tx block has an EMPTY receipts trie and ZERO block logs
+  -- (system txs and withdrawals contribute neither receipts nor block_logs),
+  -- so header.receipts_root must be the empty-trie root and header.bloom must
+  -- be 256 zero bytes. The guest never checked either — the audited
+  -- false-accept (hermes-c3, bead .63.1.6): a crafted no-tx block with a
+  -- tampered bloom/receipt_root and a self-consistent payload.block_hash
+  -- passed every gate. Compute the empty indexed-trie root through the real
+  -- validator (count = 0) and compare the extracted header bloom to zeros.
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bvrri_value_descs; li a3, 0\n" ++
+  "  jal ra, block_validate_receipts_root_indexed\n" ++
+  "  bnez a0, .Lbv_notx_receipts_root_fail\n" ++
+  "  beqz a1, .Lbv_notx_receipts_root_fail\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bv_header_bloom\n" ++
+  "  jal ra, header_extract_logs_bloom\n" ++
+  "  bnez a0, .Lbv_notx_bloom_fail\n" ++
+  "  la a0, bv_header_bloom; la a1, bv_zero_bloom; la a2, bv_bloom_eq_out\n" ++
+  "  jal ra, bloom_eq\n" ++
+  "  la t0, bv_bloom_eq_out; ld t0, 0(t0); beqz t0, .Lbv_notx_bloom_fail\n" ++
   "  j .Lbv_after_tx_gate\n" ++
   blockVerdictEmptyTransactionCheckAsm ++
   "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_no_bal_for_tx  # tx blocks need BAL replay\n" ++
@@ -354,6 +384,16 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
   "  jal ra, public_keys_valid\n" ++
   "  bnez a0, .Lbv_public_keys_fail\n" ++
+  -- bmvmx.3.2: bind each witness public_keys[i] to the i-th transaction's
+  -- recovered signer key (execution-specs recover_sender_from_public_key over
+  -- every tx). public_keys_valid only checked count + 65-byte SEC1 shape; this
+  -- recovers the sender from each signature and rejects on any mismatch /
+  -- recovery failure, closing the sender-attribution false-accept (a lying
+  -- witness can otherwise attribute a tx to an attacker-chosen account). Needs
+  -- bv_tx_list_ptr/len (set above), bv_public_keys_ptr (set by public_keys_valid),
+  -- and bv_chain_id (captured by chain_config_valid).
+  "  jal ra, verify_public_keys_match_senders\n" ++
+  "  bnez a0, .Lbv_public_keys_sender_fail\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  mv a0, s3; jal ra, bgv_u32le\n" ++
@@ -442,7 +482,16 @@ def blockVerdictFunction : String :=
   "  la t0, bv_mtx_ctx; ld t0, 0(t0); bnez t0, .Lbv_mtx_bail        # unsupported tx shape\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
-  "  bnez a0, .Lbv_mtx_bail                         # recipient code-hash lookup failed\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
+  -- pre-state root. The recipient is ACCESSED (the tx sends to it), so a complete stateless
+  -- witness MUST carry it -> code 2 means the witness genuinely lacks a node on its path
+  -- (verified: the multi_transaction_gas_accounting GAS_USED_OVERFLOW witness omits tx1's
+  -- recipient node, 22 vs the valid variant's 24 nodes). An unverifiable accessed account =>
+  -- the block cannot be statelessly validated as valid => REJECT (not conservative-accept,
+  -- which was the false-accept). A valid block's witness always resolves the recipient
+  -- (code 0), so this never false-rejects. Codes 3/4 (decode/header) stay conservative.
+  "  li t1, 2; beq a0, t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  "  bnez a0, .Lbv_mtx_bail                         # other lookup failure (3/4) -> conservative\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
   "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
@@ -457,12 +506,24 @@ def blockVerdictFunction : String :=
   -- tuple-sequence comparators (bmvmx.1.6.6) would see tx i>0 writes mis-indexed as 1.
   -- Additive/inert today: exec_log_txindex is consumed only by those (still-unwired) checks.
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
+  -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
+  -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
+  -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
+  "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
+  "  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # dispatch miss / not self-contained\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
-  "  la t3, bv_mtx_refund;   add t3, t3, t0; la t4, evm_refund_acc; ld t4, 0(t4); sd t4, 0(t3)\n" ++
+  -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
+  -- raw evm_refund_acc read.
+  "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a3, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a4, 0(t3)\n" ++   -- .63.1.6.2.1: receipt status, tx i
+  "  slli t4, t1, 4\n" ++   -- .63.1.6.2.1: per-tx log window (16-byte stride)
+  "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed (addrHash) to its recipient (bv_mtx_ctx+72, 20B zero-padded to 32) so the next
   -- tx's preload can thread a prior tx's committed value. The live exec log (env+448 entries
@@ -667,11 +728,51 @@ def blockVerdictFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  "  la t2, evm_env; ld t3, 568(t2)\n" ++
-  "  la t4, bv_runtime_gas_left; sd t3, 0(t4)\n" ++
+  -- fhsxz.2.4.2.63.1.6.2.6 Part 2: EIP-7708 top-level value-transfer log for this tx. The
+  -- simple-transfer path has an EOA recipient (no recipient logs), so emitting post-dispatch
+  -- here is ordering-safe and the snapshot below captures it as log 0. Sources are big-endian
+  -- on the verdict side -- from = recovered sender (bmvmx_sender_addr), to = recipient
+  -- (bmvmx_ctx+72), value = bmvmx_value -- reversed into the LE stack-word form the log
+  -- materializer consumes (it byte-reverses each 32B topic slot back to canonical BE; the
+  -- appender reverses the value back to BE at descriptor+160). Guarded on bmvmx_avail (the
+  -- sender/recipient/value are only valid once the bmvmx compute set it) and value != 0. x20 is
+  -- saved/restored: the appender uses x20+472 for the event-log count, so set x20 = evm_env;
+  -- block_log_window_snapshot reads evm_env via `la`, so it is unaffected.
+  "  la t0, bmvmx_avail; ld t0, 0(t0); beqz t0, .Lbv_tl7708_skip\n" ++
+  "  la t0, bmvmx_value; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbv_tl7708_skip\n" ++
+  "  addi sp, sp, -16\n  sd x20, 0(sp)\n" ++
+  -- from32 = reverse(bmvmx_sender_addr[0..19]) into the low 20 bytes (LE), high 12 zeroed
+  "  la t0, eip7708_tl_from32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bmvmx_sender_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_tl_from:\n  beqz t3, .Lbv_tl_from_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_tl_from\n" ++
+  ".Lbv_tl_from_d:\n" ++
+  -- to32 = reverse(recipient bmvmx_ctx+72 [0..19]) into the low 20 bytes (LE)
+  "  la t0, eip7708_tl_to32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bmvmx_ctx; addi t1, t1, 91; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_tl_to:\n  beqz t3, .Lbv_tl_to_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_tl_to\n" ++
+  ".Lbv_tl_to_d:\n" ++
+  -- val32 = reverse(bmvmx_value[0..31]) (LE; the appender re-reverses to canonical BE at +160)
+  "  la t0, eip7708_tl_val32\n  la t1, bmvmx_value; addi t1, t1, 31; mv t2, t0; li t3, 32\n" ++
+  ".Lbv_tl_val:\n  beqz t3, .Lbv_tl_val_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_tl_val\n" ++
+  ".Lbv_tl_val_d:\n" ++
+  "  la x20, evm_env\n  la a0, eip7708_tl_from32\n  la a1, eip7708_tl_to32\n  la a2, eip7708_tl_val32\n" ++
+  "  jal ra, eip7708_append_transfer_log\n" ++
+  "  ld x20, 0(sp)\n  addi sp, sp, 16\n" ++
+  ".Lbv_tl7708_skip:\n" ++
+  -- .63.1.6.2.1: snapshot the EOA dispatch's event-log window (now incl. the Part 2 top-level
+  -- transfer log above), to be threaded into the per-tx receipt record.
+  "  jal ra, block_log_window_snapshot\n" ++
+  -- nxio8: settle fold (EIP-8037 state gas + tx-error rules) instead of a raw
+  -- env[568] read; a0 = effective gas_left, a1 = effective refund counter.
+  "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; la t5, evm_refund_acc; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -713,7 +814,12 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t4, bv_runtime_gas_left; sd a1, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; la t5, evm_refund_acc; ld t5, 0(t5); sd t5, 0(t4)\n" ++
+  -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
+  -- raw evm_refund_acc read.
+  "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd a4, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -937,6 +1043,11 @@ def blockVerdictFunction : String :=
   "  jal ra, tx_gas_bal_post_verify_runtime\n" ++
   "  la t0, bv_sender_bal_check; ld t0, 0(t0)\n" ++
   "  li t1, 40; beq t0, t1, .Lbv_sbc_bal_mismatch\n" ++          -- clean balance mismatch -> coinbase gate
+  -- bmvmx.4: status 50 = check_transaction fee invalid (max_fee < base_fee, or
+  -- priority_fee > max_fee); the runtime verify detected it and the spec REJECTS
+  -- (InsufficientMaxFeePerGasError / PriorityFeeGreaterThanMaxFeeError), so reject
+  -- here rather than fall through to the cannot-compare skip below.
+  "  li t1, 50; beq t0, t1, .Lbv_fee_invalid_fail\n" ++
   "  bnez t0, .Lbv_after_tx_gas_precharge\n" ++                  -- lookup miss / cannot-compare -> skip
   -- bmvmx.1.6.3 (nonce slice): the balance matched (status 0); now verify the sender's BAL post
   -- nonce == pre_nonce + 1 against execution (a single tx from the sender increments its nonce
@@ -944,8 +1055,47 @@ def blockVerdictFunction : String :=
   -- state-root check (which only validates the prover BAL against the prover header.state_root).
   -- Nonce is value-independent, so no coinbase gate is needed; an absent/oversized post nonce
   -- returns "skip" (2) and never rejects. A BAL post nonce != pre+1 is a prover lie -> reject.
+  -- bmvmx.2 (check_transaction nonce pre-validation): BEFORE the post check, verify the spec's
+  -- pre-condition tx.nonce == sender_pre_nonce (execution-specs amsterdam/fork.py check_transaction
+  -- raises NonceMismatchError otherwise). The post check (post == pre+1) only validates the BAL's
+  -- claimed EFFECT, not that the tx was nonce-ELIGIBLE to execute: an out-of-order tx (tx.nonce !=
+  -- pre, e.g. tx.nonce=7 with pre=3) carrying a BAL post=pre+1 would otherwise false-accept a block
+  -- the spec rejects. pre_nonce = tgbpvr_lookup[80] (the very value the post check reads as "pre");
+  -- tx.nonce = sttc_nonce (extracted by the simple_transfer context build, tx_extract_nonce_and_gas,
+  -- which ran before the gas_limit read above). Value-independent like the post check, so reuse the
+  -- same .Lbv_sender_nonce_fail. Transparent for valid in-order txs (tx.nonce == pre).
+  "  la t0, tgbpvr_lookup; ld t0, 80(t0)        # sender pre_nonce (witness-proven)\n" ++
+  "  la t1, sttc_nonce; ld t1, 0(t1)            # tx.nonce (consensus-bound)\n" ++
+  "  bne t0, t1, .Lbv_sender_nonce_fail         # tx.nonce != pre_nonce -> reject (NonceMismatchError)\n" ++
   "  la a0, tgbpvr_lookup; jal ra, sender_post_nonce_consistent\n" ++
   "  li t1, 1; beq a0, t1, .Lbv_sender_nonce_fail\n" ++
+  -- bmvmx.2 (check_transaction balance pre-validation): reject if
+  -- sender_pre_balance < gas_limit*max_fee_per_gas + tx.value (execution-specs
+  -- amsterdam/fork.py check_transaction raises InsufficientBalanceError). The
+  -- runtime verify only proves BAL post == pre - actual_debit and SKIPS (not
+  -- rejects) on insufficiency; the spec requires the sender cover the UPFRONT max
+  -- gas_limit*max_fee (>= the actual debit), so a tx funded between actual-debit
+  -- and upfront would otherwise false-accept. Operands all live here: max_fee =
+  -- tefgp_max_fee (written by tx_effective_gas_pricing inside the line-956 verify),
+  -- gas_limit = bv_simple_transfer_tx[40], value = bv_simple_transfer_tx[96] (BE),
+  -- pre_balance = tgbpvr_lookup[48] (BE). u256_mul_u64_be returns 1 on overflow
+  -- (a*b >= 2^256); u256_add_be returns carry-out; u256_lt_be writes 1 iff a<b.
+  "  la a0, tefgp_max_fee\n" ++
+  "  la t0, bv_simple_transfer_tx; ld a1, 40(t0)   # gas_limit (u64)\n" ++
+  "  la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail              # gas_limit*max_fee >= 2^256 -> reject\n" ++
+  "  la a0, bv_upfront_cost\n" ++
+  "  la t0, bv_simple_transfer_tx; addi a1, t0, 96  # tx.value (32B BE)\n" ++
+  "  la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail              # upfront cost + value >= 2^256 -> reject\n" ++
+  "  la a0, tgbpvr_lookup; addi a0, a0, 48          # sender pre_balance (32B BE)\n" ++
+  "  la a1, bv_upfront_cost\n" ++
+  "  la a2, bv_upfront_islt\n" ++
+  "  jal ra, u256_lt_be\n" ++
+  "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
+  "  bnez t0, .Lbv_sender_upfront_fail              # pre_balance < upfront -> reject\n" ++
   -- bmvmx.1.6.3 (recipient balance slice): the contract recipient RECEIVES tx.value and, on this
   -- value-movement-free path (no CALL/CALLCODE/DELEGATECALL/SELFDESTRUCT; CREATE is self-contained-
   -- rejected), its balance changes only by +value, so recipient_post == recipient_pre + value.
@@ -1040,21 +1190,21 @@ def blockVerdictFunction : String :=
   "  slli t4, t3, 3; add t5, t0, t4; ld t5, 0(t5); add t2, t2, t5; addi t3, t3, 1; j .Lbv_bstate_sum\n" ++
   ".Lbv_bstate_done:\n" ++
   "  bgtu t2, t6, .Lbv_block_state_gas_fail\n" ++
-  -- g8zeq.1.4.2 ceiling: complete the EIP-8037 equality header.gas_used == max(block_regular,
-  -- block_state) by rejecting an over-claim header.gas_used > max(...). block_regular =
-  -- sum(bvgr_block_gas_increments) is the same array the EIP-7778 gate consumed above (line
-  -- ~1011) and the arena only reaches here prepared (every tx measured self-contained /
-  -- execution-exact per the gate's own contract), so block_regular is execution-exact and a
-  -- valid block's header.gas_used == max(regular,state) is never exceeded -- no false-reject;
-  -- no riskier than the existing EIP-7778 gate that already trusts this array.
-  "  la t0, bvgr_block_gas_increments; la t1, bvgr_arena_tx_count; ld t1, 0(t1); li t3, 0; li t4, 0\n" ++
-  ".Lbv_bregular_sum:\n" ++
-  "  beq t4, t1, .Lbv_bregular_done\n" ++
-  "  slli t5, t4, 3; add t5, t0, t5; ld t5, 0(t5); add t3, t3, t5; addi t4, t4, 1; j .Lbv_bregular_sum\n" ++
-  ".Lbv_bregular_done:\n" ++
-  "  mv t5, t2; bgeu t5, t3, .Lbv_maxgas_done; mv t5, t3   # t5 = max(block_state t2, block_regular t3)\n" ++
-  ".Lbv_maxgas_done:\n" ++
-  "  bgtu t6, t5, .Lbv_block_gas_used_over_fail            # header.gas_used > max -> reject (over-claim)\n" ++
+  -- xexgj: the g8zeq.1.4.2 "EIP-8037 equality" ceiling (header.gas_used > max(block_regular,
+  -- block_state) -> reject) was UNSOUND. block_state (intrinsic, ~line 1040) is only a LOWER bound
+  -- on the actual EIP-8037 STATE gas -- state-creation gas is execution-dependent, not intrinsic --
+  -- so for a state-gas block max(block_regular, block_state) < header.gas_used and the gate
+  -- false-rejected valid blocks. Verified on eip8037 state_gas_reservoir/block_regular_gas_limit:
+  -- runtime_count==tx_count (so block_regular=147000 was exact), block_state=0, but the real state
+  -- gas == header.gas_used == 0x07000000 -- the entire miss is block_state, which the guest cannot
+  -- compute intrinsically. Replace with the SOUND block-gas-limit ceiling: every valid block has
+  -- header.gas_used <= header.gas_limit (exec payload @+412); that is exactly what the
+  -- "exceed_block_gas_limit" fixtures exercise. The exact EIP-8037 equality (gas_used ==
+  -- max(regular,state)) needs the execution-exact state gas -- deferred; the receipts_root
+  -- comparison (.63.1.6) also pins cumulative gas. (Block-state FLOOR above stays: intrinsic exact.)
+  "  mv t1, t6                                            # stash gas_used (bgv_u64le clobbers t6)\n" ++
+  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 412; jal ra, bgv_u64le   # header.gas_limit @+412\n" ++
+  "  bgtu t1, a0, .Lbv_block_gas_used_over_fail            # header.gas_used > gas_limit -> reject\n" ++
   ".Lbv_after_gas_result_gate:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  mv a1, s3\n" ++
@@ -1066,13 +1216,50 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bv_tx_status_arr\n" ++   -- .63.1.6.2.1: per-tx settle success bits
+  "  la a4, bv_tx_log_window\n" ++   -- .63.1.6.2.1: per-tx block-arena log windows
   "  jal ra, block_receipt_records_materialize\n" ++
   "  la t2, brr_status; ld t2, 0(t2); bnez t2, .Lbv_receipt_records_fail\n" ++
+  -- .63.1.6.2.1: encode per-record logs RLP + bloom and fill logs_desc_ptr.
+  "  la a0, brr_control\n" ++
+  "  jal ra, block_receipt_logs_materialize\n" ++
+  "  la t2, bv_receipt_logs_status; sd a0, 0(t2)\n" ++
+  -- .63.1.6.2.3 (slice B): TX-BEARING receipts-consensus enforcement. execution-specs
+  -- apply_body recomputes receipt_root = root(receipts_trie) and block_logs_bloom and hard-
+  -- rejects on a header mismatch (fork.py 368-371). Encode the materialized per-tx receipt
+  -- records (status||cumulative_gas||bloom||logs, with the .2.1 log descriptors @56) into one
+  -- RLP list, then validate header.receipts_root == MPT(indexed(receipts)) AND header.bloom ==
+  -- OR(receipt blooms) via the shared consensus validator. CONSERVATIVE: any materialize/encode
+  -- helper failure (logs status != 0, block-log overflow, encode status != 0) or a validator
+  -- helper error (status 1/3) falls through to accept -- only a confirmed root/bloom MISMATCH
+  -- (status 2/4) rejects, so unsupported shapes never false-reject. Depends on complete transfer
+  -- logs (#8732 Part 1 + #8735 Part 2).
+  "  bnez a0, .Lbv_receipts_accept                # logs materialize failed -> conservative accept\n" ++
+  "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_receipts_accept\n" ++
+  -- CONSERVATIVE COMPLETENESS GATE: only enforce when the EIP-7708 top-level transfer log
+  -- (Part 2) is known to have fired correctly, i.e. the bmvmx compute completed (legacy
+  -- single-tx). For non-legacy (EIP-2930/1559/4844/7702) or multi-tx blocks the bmvmx path
+  -- stays conservative (BlockVerdict.lean:156) and Part 2 does not emit, so the materialized
+  -- receipt would be MISSING the top-level transfer log -> a confirmed-but-spurious
+  -- receipts-root mismatch. Skip enforcement there (accept) until Part 2 covers all tx types.
+  -- Follow-up: extend Part 2 (tx-type-agnostic sender/recipient/value) + this gate.
+  "  la t2, bmvmx_avail; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
+  "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
+  "  jal ra, receipt_records_encode_no_logs\n" ++
+  "  bnez a0, .Lbv_receipts_accept                # encode failed/unsupported -> conservative accept\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bv_receipts_rlp; la t0, bv_receipts_rlp_len; ld a3, 0(t0)\n" ++
+  "  jal ra, block_validate_receipts_consensus_list\n" ++
+  "  li t0, 2; beq a0, t0, .Lbv_receipts_root_mismatch\n" ++
+  "  li t0, 4; beq a0, t0, .Lbv_receipts_bloom_mismatch\n" ++
+  ".Lbv_receipts_accept:\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  li a1, 0\n" ++
   "  li a2, 0\n" ++
+  "  li a3, 0\n" ++
+  "  li a4, 0\n" ++
   "  jal ra, block_receipt_records_materialize\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_cmp_mismatch:\n" ++
@@ -1089,6 +1276,8 @@ def blockVerdictFunction : String :=
   "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_public_keys_fail:\n" ++
   "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_public_keys_sender_fail:\n" ++   -- bmvmx.3.2: a witness public_keys[i] != recovered tx[i] signer (or recovery failed)
+  "  li t0, 52; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_code_preimage_fail:\n" ++
@@ -1115,6 +1304,14 @@ def blockVerdictFunction : String :=
   "  li t0, 19; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_receipt_records_fail:\n" ++
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_notx_receipts_root_fail:\n" ++   -- .63.1.6.2.3: no-tx header.receipts_root != empty-trie root
+  "  li t0, 50; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_notx_bloom_fail:\n" ++           -- .63.1.6.2.3: no-tx header.bloom != 256 zero bytes
+  "  li t0, 51; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_receipts_root_mismatch:\n" ++     -- .63.1.6.2.3 (slice B): tx-bearing header.receipts_root mismatch
+  "  li t0, 53; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_receipts_bloom_mismatch:\n" ++    -- .63.1.6.2.3 (slice B): tx-bearing header.logs_bloom mismatch
+  "  li t0, 54; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_versioned_hashes_fail:\n" ++
   "  li t0, 27; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_withdrawals_root_fail:\n" ++
@@ -1125,6 +1322,8 @@ def blockVerdictFunction : String :=
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_gas_used_over_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used > max(block_regular, block_state) (over-claim)
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_mtx_recipient_unresolvable_fail:\n" ++   -- fhsxz.2.4.2.57.11.6.5.4 (e): mtx tx recipient unresolvable at pre-state root (incomplete witness)
+  "  li t0, 47; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_hash_mismatch:\n" ++
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_storage_mismatch_fail:\n" ++   -- bmvmx.1.6.2: recipient BAL storage != execution
@@ -1153,6 +1352,10 @@ def blockVerdictFunction : String :=
   "  li t0, 45; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_code_consistent_fail:\n" ++    -- i3djw.4: a BAL account's declared code change != exec code-effect (and not a 7702 delegation)
   "  li t0, 46; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_sender_upfront_fail:\n" ++         -- bmvmx.2: sender_pre_balance < gas_limit*max_fee + value (InsufficientBalanceError)
+  "  li t0, 48; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_fee_invalid_fail:\n" ++           -- bmvmx.4: tx fee invalid (max_fee < base_fee, or priority > max_fee) -> check_transaction reject
+  "  li t0, 49; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
@@ -1351,6 +1554,19 @@ def ziskStatelessVerdictV2Prologue : String :=
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++
   blockReceiptRecordsMaterializeFunction ++ "\n" ++
+  -- .63.1.6.2.1: per-tx log windows -> per-record logs RLP + bloom.
+  blockLogWindowSnapshotFunction ++ "\n" ++
+  blockReceiptLogsMaterializeFunction ++ "\n" ++
+  logRecordsEncodeRlpFunction ++ "\n" ++
+  bloomAddValueFunction ++ "\n" ++
+  logBloomAddFunction ++ "\n" ++
+  logsListBloomAddFunction ++ "\n" ++
+  -- .63.1.6.2.3: receipts-consensus validators (the indexed-trie family is
+  -- already linked above for the transactions/withdrawals root checks).
+  headerExtractReceiptsRootFunction ++ "\n" ++
+  blockValidateReceiptsRootIndexedFunction ++ "\n" ++
+  headerExtractLogsBloomFunction ++ "\n" ++
+  bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
