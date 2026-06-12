@@ -728,8 +728,40 @@ def blockVerdictFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  -- .63.1.6.2.1: snapshot the EOA dispatch's event-log window (EIP-7708 logs
-  -- may appear here once the transfer-log emission gap closes).
+  -- fhsxz.2.4.2.63.1.6.2.6 Part 2: EIP-7708 top-level value-transfer log for this tx. The
+  -- simple-transfer path has an EOA recipient (no recipient logs), so emitting post-dispatch
+  -- here is ordering-safe and the snapshot below captures it as log 0. Sources are big-endian
+  -- on the verdict side -- from = recovered sender (bmvmx_sender_addr), to = recipient
+  -- (bmvmx_ctx+72), value = bmvmx_value -- reversed into the LE stack-word form the log
+  -- materializer consumes (it byte-reverses each 32B topic slot back to canonical BE; the
+  -- appender reverses the value back to BE at descriptor+160). Guarded on bmvmx_avail (the
+  -- sender/recipient/value are only valid once the bmvmx compute set it) and value != 0. x20 is
+  -- saved/restored: the appender uses x20+472 for the event-log count, so set x20 = evm_env;
+  -- block_log_window_snapshot reads evm_env via `la`, so it is unaffected.
+  "  la t0, bmvmx_avail; ld t0, 0(t0); beqz t0, .Lbv_tl7708_skip\n" ++
+  "  la t0, bmvmx_value; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbv_tl7708_skip\n" ++
+  "  addi sp, sp, -16\n  sd x20, 0(sp)\n" ++
+  -- from32 = reverse(bmvmx_sender_addr[0..19]) into the low 20 bytes (LE), high 12 zeroed
+  "  la t0, eip7708_tl_from32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bmvmx_sender_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_tl_from:\n  beqz t3, .Lbv_tl_from_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_tl_from\n" ++
+  ".Lbv_tl_from_d:\n" ++
+  -- to32 = reverse(recipient bmvmx_ctx+72 [0..19]) into the low 20 bytes (LE)
+  "  la t0, eip7708_tl_to32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bmvmx_ctx; addi t1, t1, 91; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_tl_to:\n  beqz t3, .Lbv_tl_to_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_tl_to\n" ++
+  ".Lbv_tl_to_d:\n" ++
+  -- val32 = reverse(bmvmx_value[0..31]) (LE; the appender re-reverses to canonical BE at +160)
+  "  la t0, eip7708_tl_val32\n  la t1, bmvmx_value; addi t1, t1, 31; mv t2, t0; li t3, 32\n" ++
+  ".Lbv_tl_val:\n  beqz t3, .Lbv_tl_val_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_tl_val\n" ++
+  ".Lbv_tl_val_d:\n" ++
+  "  la x20, evm_env\n  la a0, eip7708_tl_from32\n  la a1, eip7708_tl_to32\n  la a2, eip7708_tl_val32\n" ++
+  "  jal ra, eip7708_append_transfer_log\n" ++
+  "  ld x20, 0(sp)\n  addi sp, sp, 16\n" ++
+  ".Lbv_tl7708_skip:\n" ++
+  -- .63.1.6.2.1: snapshot the EOA dispatch's event-log window (now incl. the Part 2 top-level
+  -- transfer log above), to be threaded into the per-tx receipt record.
   "  jal ra, block_log_window_snapshot\n" ++
   -- nxio8: settle fold (EIP-8037 state gas + tx-error rules) instead of a raw
   -- env[568] read; a0 = effective gas_left, a1 = effective refund counter.
