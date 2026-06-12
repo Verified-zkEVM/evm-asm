@@ -13,6 +13,13 @@ the report should then come in three sections:
 2. STF, which covers the state of the state transition function. for each STF area, be specific about what is *modeled* (data structures / predicates defined, no computation), what is *executable* (a computable Lean def that evaluates), and what is *proven* (theorems / conformance checks) vs not. call out the honest gaps explicitly (e.g. abstract executor hooks, no closed top-level state_transition, gas schedule modeled not proven against the yellow paper). 
 3. Codegen, which covers what is possible with codegen
 
+the Codegen section must open with a "Codegen at a glance" subsection containing a compact visual that summarizes the section's bullet points, so it can be dropped into a presentation slide. it has two parts, both sourced from the same kernel-checked numbers used in the bullets:
+
+- a single-row mermaid `flowchart LR` of the stateless-guest pipeline (read_input → RLP decode → dispatch loop → handlers + precompiles → receipts + verdict → post-state root), each node colored by status via `classDef`,
+- a small status table (one row per codegen capability: dispatch loop, core handlers, storage, child frames, precompiles, receipts + verdict, scale, lowering proofs, RLP input decoder, MPT pre-state, verified post-state root), each with a one-phrase detail and a status emoji.
+
+use a consistent legend across both: 🟩 done · 🟢 shipped & runnable (unverified) · 🟨 in progress · 🟥 blocked · ⬜ not started. keep it small and scannable — it is meant to be screenshotted onto a slide. update the node/row contents and status colors each cycle to reflect the latest numbers. see the 2026-06-12 report for the canonical layout.
+
 the report should then give a short "what is next" which summarizes some high-level immediate next steps.
 
 the report is written in markdown and stored in the [docs/reports/](docs/reports/) directory, and pushed to this branch (dhsorens/reports). we will keep reports just on this branch, so there is never a need for a pull request to main.
