@@ -22,7 +22,7 @@ use a consistent legend across both: 🟩 done · 🟢 shipped & runnable (unver
 
 the report should then give a short "what is next" which summarizes some high-level immediate next steps.
 
-the report should then end with a "Development activity since the last report" section that summarizes what the commits in this cycle have actually been focused on. compute the window from the *previous* report: find the most recent existing file in [docs/reports/](docs/reports/) (the report dated before today), read the commit hash in its header, and run `git log <that-commit>..<post-merge-tip-of-main>` over that range. (if no prior report exists, fall back to roughly the last two weeks.) from that range:
+the report should then end with a "Development activity since the last report" section that summarizes what the commits in this cycle have actually been focused on. compute the window from the *previous* report: find the most recent existing file in [docs/reports/](docs/reports/) (the report dated before today), read the commit hash in its header, and run `git log <that-commit>..<post-merge-tip-of-main>` over that range. (if no prior report exists, fall back to roughly the last four weeks.) from that range:
 
 - report the raw commit volume (total commits, and the conventional `feat`/`fix` subset) so the cadence is honest,
 - group commits by scope (the `feat(scope)` / `fix(scope)` prefix) and collapse them into a small table of 2–4 dominant themes, each with its contributing scopes + counts and a one-phrase description of what the work is — exclude mechanical/housekeeping scopes like `progress` (PROGRESS.md regenerations) from the themes, but you may note their count in passing,
