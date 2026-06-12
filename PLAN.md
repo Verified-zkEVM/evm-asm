@@ -1199,10 +1199,13 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   EIP-150 child-allotment failure gas; bead fhsxz.2.4.2.62.10)
 - BN254_MUL (0x07) → `zkvm_bn254_g1_mul` — **DONE** (same backend; raw
   256-bit double-and-add, ~0.93M ziskemu steps worst case)
-- BN254_PAIRING (0x08) → `zkvm_bn254_pairing` — safe-fail wrapper; needs the
-  Fp2/Fp6/Fp12 tower (Bn254ComplexAdd/Sub/Mul `csrs 0x808/0x809/0x80a`
-  accelerate Fp2), optimal-ate Miller loop + final exponentiation
-  (bead fhsxz.2.4.2.62.10 stretch)
+- BN254_PAIRING (0x08) → `zkvm_bn254_pairing` — **DONE** (py_ecc-mirroring
+  FQ12 Miller loop + final exponentiation: `Bn254Fp2.lean` via
+  Bn254ComplexAdd/Sub/Mul `csrs 0x808/0x809/0x80a`, `Bn254Fq12.lean` poly
+  machine with one fused Arith256Mod per coefficient op,
+  `Bn254Fq12Point.lean`/`Bn254PairingCore.lean`/`Bn254Pairing.lean` with the
+  real EIP-197 G2 subgroup check; ~40M steps + ~22M/pair; bead
+  fhsxz.2.4.2.62.10.1)
 - BLAKE2f (0x09) → `zkvm_blake2f`
 - KZG_POINT_EVAL (0x0a) → `zkvm_kzg_point_eval`
 - BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add`
