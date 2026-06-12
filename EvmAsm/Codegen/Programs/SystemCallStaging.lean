@@ -123,6 +123,14 @@ def stageSystemCallFunction : String :=
   "  la t0, ssc_saved_ra; sd ra, 0(t0)\n" ++
   "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
   "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
+  -- 87gow: reset the captured return-data length to 0 BEFORE each system call. The capture
+  -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN <= 4096 bytes; a
+  -- predeploy that ends in a clean STOP (empty return_data, spec fork.py:976-997) or an
+  -- oversized return does NOT write it. Without this reset the consolidation system call would
+  -- inherit the withdrawal call's stale length -> a spurious consolidation request body ->
+  -- wrong header.requests_hash -> false-reject/accept. Spec: each return_data is a SEPARATE
+  -- MessageCallOutput; empty == len 0.
+  "  li t0, 0; la t1, system_call_returndata_len; sd t0, 0(t1)\n" ++
   "  li t0, 1; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- enable depth-0 RETURN capture
   "  jal ra, stage_system_call_payload\n" ++                     -- a0..a4 already set by caller
   "  bnez a0, .Lssc_fail\n" ++                                   -- staging rejected -> bail (no dispatch)
