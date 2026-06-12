@@ -1221,12 +1221,38 @@ def blockVerdictFunction : String :=
   "  jal ra, block_receipt_records_materialize\n" ++
   "  la t2, brr_status; ld t2, 0(t2); bnez t2, .Lbv_receipt_records_fail\n" ++
   -- .63.1.6.2.1: encode per-record logs RLP + bloom and fill logs_desc_ptr.
-  -- INERT (debug status only): nothing consumes the encoded records until the
-  -- receipts consensus enforcement lands (gated on the EIP-7708 transfer-log
-  -- emission gap — see the receipts-blocker bead).
   "  la a0, brr_control\n" ++
   "  jal ra, block_receipt_logs_materialize\n" ++
   "  la t2, bv_receipt_logs_status; sd a0, 0(t2)\n" ++
+  -- .63.1.6.2.3 (slice B): TX-BEARING receipts-consensus enforcement. execution-specs
+  -- apply_body recomputes receipt_root = root(receipts_trie) and block_logs_bloom and hard-
+  -- rejects on a header mismatch (fork.py 368-371). Encode the materialized per-tx receipt
+  -- records (status||cumulative_gas||bloom||logs, with the .2.1 log descriptors @56) into one
+  -- RLP list, then validate header.receipts_root == MPT(indexed(receipts)) AND header.bloom ==
+  -- OR(receipt blooms) via the shared consensus validator. CONSERVATIVE: any materialize/encode
+  -- helper failure (logs status != 0, block-log overflow, encode status != 0) or a validator
+  -- helper error (status 1/3) falls through to accept -- only a confirmed root/bloom MISMATCH
+  -- (status 2/4) rejects, so unsupported shapes never false-reject. Depends on complete transfer
+  -- logs (#8732 Part 1 + #8735 Part 2).
+  "  bnez a0, .Lbv_receipts_accept                # logs materialize failed -> conservative accept\n" ++
+  "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_receipts_accept\n" ++
+  -- CONSERVATIVE COMPLETENESS GATE: only enforce when the EIP-7708 top-level transfer log
+  -- (Part 2) is known to have fired correctly, i.e. the bmvmx compute completed (legacy
+  -- single-tx). For non-legacy (EIP-2930/1559/4844/7702) or multi-tx blocks the bmvmx path
+  -- stays conservative (BlockVerdict.lean:156) and Part 2 does not emit, so the materialized
+  -- receipt would be MISSING the top-level transfer log -> a confirmed-but-spurious
+  -- receipts-root mismatch. Skip enforcement there (accept) until Part 2 covers all tx types.
+  -- Follow-up: extend Part 2 (tx-type-agnostic sender/recipient/value) + this gate.
+  "  la t2, bmvmx_avail; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
+  "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
+  "  jal ra, receipt_records_encode_no_logs\n" ++
+  "  bnez a0, .Lbv_receipts_accept                # encode failed/unsupported -> conservative accept\n" ++
+  "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bv_receipts_rlp; la t0, bv_receipts_rlp_len; ld a3, 0(t0)\n" ++
+  "  jal ra, block_validate_receipts_consensus_list\n" ++
+  "  li t0, 2; beq a0, t0, .Lbv_receipts_root_mismatch\n" ++
+  "  li t0, 4; beq a0, t0, .Lbv_receipts_bloom_mismatch\n" ++
+  ".Lbv_receipts_accept:\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
@@ -1282,6 +1308,10 @@ def blockVerdictFunction : String :=
   "  li t0, 50; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_notx_bloom_fail:\n" ++           -- .63.1.6.2.3: no-tx header.bloom != 256 zero bytes
   "  li t0, 51; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_receipts_root_mismatch:\n" ++     -- .63.1.6.2.3 (slice B): tx-bearing header.receipts_root mismatch
+  "  li t0, 53; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_receipts_bloom_mismatch:\n" ++    -- .63.1.6.2.3 (slice B): tx-bearing header.logs_bloom mismatch
+  "  li t0, 54; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_versioned_hashes_fail:\n" ++
   "  li t0, 27; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_withdrawals_root_fail:\n" ++
