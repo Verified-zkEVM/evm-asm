@@ -1528,6 +1528,44 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   delegated-code reject and the extcodesize status-5 chain are unchanged (validation_codes 01427–01437 sweep
   kept all expected verdicts).
 
+- 🔶 **Receipts → stateless verdict (bead `fhsxz.2.4.2.63.1.6.2`; 2026-06-12 overnight PR stack)**:
+  the verdict never compared a guest-computed `receipts_root`/`logs_bloom` against the header (an
+  audited reachable no-tx false-accept, hermes-c3). Landed as a stacked chain on the dynamic-gas PR:
+  - **#8721** (base, bead `nxio8`): Amsterdam SSTORE schedule + EIP-8037 state gas + per-tx
+    dispatch-state resets + `dispatcher_tx_gas_settle` settlement fold (eip8037 200/200 + 271/271,
+    eip7778 32/32, random-20 — all full-match; details in the gas section above).
+  - **#8722**: NO-TX receipts consensus check (empty-trie root + zero bloom vs header, fail codes
+    50/51 — closes the audited false-accept) + per-tx receipt STATUS capture (settle success bit →
+    `bv_tx_status_arr` → materializer).
+  - **#8725**: `log_records_encode_rlp` leaf — captured LOG descriptors + `evm_log_data` → the spec
+    `rlp([log..])` (probe-verified byte-exact vs a python RLP reference).
+  - **PR 6 (this branch)**: per-tx log-window capture (`block_log_window_snapshot` — each dispatch
+    call resets/overwrites the capture buffers, so windows are copied into a block-level arena
+    between dispatches) + per-record logs RLP + bloom (`block_receipt_logs_materialize`, filling the
+    `{bloom, logs_rlp, len}` descriptors `receipt_records_encode_no_logs` consumes). INERT: debug
+    status only.
+  - **BLOCKER for tx-bearing enforcement** (new receipts-blocker bead under `.63.1.6.2`): the
+    dispatcher emits the EIP-7708 synthetic transfer log ONLY on the SELFDESTRUCT path — top-level
+    tx value transfers and CALL value transfers never land in `evm_event_logs`, so guest receipts
+    for ANY value-bearing tx are missing the transfer log and enforcement would false-reject. Fix =
+    emit the synthetic descriptor at the top-level value move (needs a log-preseed surviving the
+    per-call reset, like the callee storage seeds) + in the CALL value-transfer producer; THEN wire
+    `receipt_records_encode_no_logs` → `block_validate_receipts_root_indexed` + per-record-bloom OR
+    on the exact-measured path (build trie descriptors from records @40/@48, NOT by re-parsing the
+    carrier list — typed receipts are `type_byte||rlp` and break `rlp_list_nth_item`).
+
+- 🔶 **ECRECOVER recovery output (bead `fhsxz.2.4.2.62.2.5`; 2026-06-12, #8723 + #8724)**: the
+  precompile returned success with empty returndata for every call. `secp256k1_recover_pubkey_staged`
+  (extracted from `tx_pubkey_recover_raw`, accelerator-backed ~2e6 steps) now backs the handler tail
+  (recover → keccak → 32-byte left-padded address; invalid signature keeps empty-returndata success).
+  Reached via the `ecrecover_backend_ptr` cell so non-secp closures keep linking (the guest arms it in
+  `dispatch_tx_runtime_code`). #8724 adds the end-to-end dispatcher probe (CALL 0x01 recovers
+  `valid_signature_1` → `a94f...bf0b`; invalid v / zero r fail closed) — it caught an a0/x10 alias bug
+  in the status branches (fixed on #8723). EEST ecrecover family 80/80 before AND after (the family's
+  verdicts don't yet distinguish empty vs real returndata; a returndata-consuming EEST pin is noted on
+  the bead). RIPEMD160 backend and MODEXP success output remain blocked on ziskemu routes
+  (`docs/eest-precompile-frontier.md` row updated).
+
 - 🔧 **FileSizeGuard cap discipline (#8645)**: `EvmAsm/Codegen/Programs/FileSizeGuard.lean`'s `#eval`
   enforces a 1500-line hard cap on every file under `Programs/`, but reads siblings via `IO.FS.readFile`
   (untracked by lake), so the guard's olean caches — incremental builds miss a too-large file while the
