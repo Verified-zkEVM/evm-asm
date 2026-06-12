@@ -1529,6 +1529,18 @@ def callDescendFallThrough
     -- Still inside the value!=0 guard. eip7708_append_transfer_log no-ops on a zero value and
     -- (on the 1024-descriptor cap) drops without appending; ignore its status (the receipts
     -- encoder gates conservatively on the descriptor/data overflow flags).
+    -- h2cv5: EIP-7708 self-suppression. The spec emits the transfer log only to a DIFFERENT
+    -- account -- at the value-bearing call only when caller != current_target (amsterdam
+    -- interpreter.py:314). The value DEBIT above already skips self-calls (CALLCODE keeps the
+    -- value in the caller's own context; CALL-to-self is net-zero) via the same
+    -- cd_caller_be == x12+32 comparison; mirror it here so a self value-move does NOT emit a
+    -- spurious transfer log -> extra receipt log -> receipts_root/logs_bloom mismatch.
+    "  la t0, cd_caller_be\n  addi t1, x12, 32\n  li t2, 20\n" ++
+    ".Lcd_tl_selfchk_" ++ tag ++ ":\n" ++
+    "  beqz t2, .Lcd_nse_done_" ++ tag ++ "\n" ++       -- all 20 bytes equal -> self-call -> suppress log
+    "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n  bne t3, t4, .Lcd_tl_notself_" ++ tag ++ "\n" ++
+    "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_tl_selfchk_" ++ tag ++ "\n" ++
+    ".Lcd_tl_notself_" ++ tag ++ ":\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
     "  jal ra, eip7708_append_transfer_log\n" ++
