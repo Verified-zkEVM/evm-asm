@@ -35,6 +35,7 @@ import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bn254Pairing
+import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
@@ -1394,6 +1395,9 @@ def emitDispatcherEpilogueCore
     -- they don't fall through into these labels. The subroutines end
     -- with `ret`, returning to whoever JAL'd them.
     zkvmSha256Function ++ "\n" ++
+    -- Real RIPEMD160 (0x03) software kernel (no ZisK accelerator exists
+    -- for RIPEMD-160; see Programs/Ripemd160.lean).
+    zkvmRipemd160Function ++ "\n" ++
     zkvmKeccak256Function ++ "\n" ++
     witnessLookupByHashFunction ++ "\n" ++
     rlpListNthItemFunction ++ "\n" ++
@@ -1729,6 +1733,7 @@ def emitDispatcherDataSection
   emitPrecompileFrameData ++
   emitModexpScratchData ++
   emitSha256Data ++
+  ripemd160DataFragment ++
   ".balign 8\n" ++
   "zk3_state:\n" ++
   "  .zero 200\n" ++      -- M16: 25 × u64 keccak permutation state buffer
@@ -2264,6 +2269,10 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createRecordCodeEffectFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
+  -- Real RIPEMD160 (0x03) software kernel for the guest closures
+  -- (the guest provides `zkvm_sha256` itself, but `zkvm_ripemd160`
+  -- only exists here and in the shared-helpers epilogue branch).
+  zkvmRipemd160Function ++ "\n" ++
   storageAccessGasFunction ++ "\n" ++
   sstoreGasRefundOutcomeFunction ++ "\n" ++
   dispatcherTxGasSettleFunction ++ "\n" ++
@@ -2649,6 +2658,10 @@ def emitRuntimeDispatcherDataSectionCore
   emitPrecompileFrameData ++
   emitModexpScratchData ++
   (if includeSharedHelperData then emitSha256Data else "") ++
+  -- RIPEMD160 scratch/tables are NEW labels no guest data section provides,
+  -- so they are included unconditionally (the SharedGuest closures get
+  -- `zkvm_ripemd160` via `emitRuntimeDispatcherEmbeddedHelperFunctions`).
+  ripemd160DataFragment ++
   (if includeKeccakScratch then
     ".balign 8\n" ++
     "zk3_state:\n" ++

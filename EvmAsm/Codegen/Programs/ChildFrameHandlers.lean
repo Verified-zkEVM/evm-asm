@@ -67,9 +67,9 @@ open EvmAsm.Rv64
     both push success = 1. SHA256 and IDENTITY charge their exact
     word-linear inner precompile gas through the shared helper.
     MODEXP (0x05) handles the zero-length-header shortcut and charges
-    its 500 minimum gas before returning empty output. ECRECOVER /
-    RIPEMD160 remain success stubs in this slice;
-    follow-up PRs wire their output semantics.
+    its 500 minimum gas before returning empty output. RIPEMD160 (0x03)
+    hashes input bytes through the software `zkvm_ripemd160` kernel
+    (600 + 120/word gas, 32-byte left-padded returndata).
 
     **M27.2 update**: CALL / STATICCALL also recognize BLS12-381 G1
     active precompile addresses 0x0b (G1 ADD) and 0x0c (G1 MSM).
@@ -94,8 +94,6 @@ open EvmAsm.Rv64
     precompile_absence fixtures do not stop at the dispatcher surface.
 
     **Known limitations** (documented in CODEGEN.md M19 narrative):
-    - ECRECOVER / RIPEMD160 CALL / STATICCALL targets currently
-      return success without producing returndata.
     - CREATE / CREATE2 derive the target address, reject code-or-nonce
       collisions when account-witness context is attached, and run the
       bounded init-code mini-interpreter, but the deployed code is not yet
@@ -434,6 +432,8 @@ def childFrameHandlers
     "  beq x14, x16, 29f\n" ++
     "  li x16, 2\n" ++
     "  beq x14, x16, 8f\n" ++
+    "  li x16, 3\n" ++
+    "  beq x14, x16, .L" ++ tag ++ "_ripemd160\n" ++
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
@@ -518,6 +518,44 @@ def childFrameHandlers
     "  addi x19, x19, 1\n" ++
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 10b\n" ++
+    "  j 7b\n" ++
+    -- RIPEMD160 (0x03): digest = ripemd160(memory[in_offset .. in_offset+
+    -- in_size)) via the software `zkvm_ripemd160` kernel (no ZisK accelerator
+    -- exists for RIPEMD-160), word-linear 600 + 120/word gas, 32-byte
+    -- returndata = 12 zero bytes ++ 20-byte hash (the EVM left-padded
+    -- encoding, written by the kernel itself). Mirrors the SHA256 path above.
+    ".L" ++ tag ++ "_ripemd160:\n" ++
+    "  li x16, 32\n" ++
+    "  sd x16, 8(x15)\n" ++
+    "  mv s9, x13\n" ++
+    "  mv s10, x10\n" ++
+    "  mv s11, x12\n" ++
+    "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
+    chargePrecompileWordGasAsm 600 120 "a1" "x16" "x22" ++
+    "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
+    "  add a0, x13, x18\n" ++
+    "  addi a2, x15, 16\n" ++
+    "  jal x1, zkvm_ripemd160\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  ld x23, " ++ toString outSizeOff ++ "(x12)\n" ++
+    "  li x22, 32\n" ++
+    "  bgeu x23, x22, .L" ++ tag ++ "_ripemd_outcap\n" ++
+    "  mv x22, x23\n" ++
+    ".L" ++ tag ++ "_ripemd_outcap:\n" ++
+    "  beqz x22, 7b\n" ++
+    "  addi x18, x15, 16\n" ++
+    "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+    "  add x19, x13, x19\n" ++
+    ".L" ++ tag ++ "_ripemd_copy:\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x18, x18, 1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, .L" ++ tag ++ "_ripemd_copy\n" ++
     "  j 7b\n" ++
     -- ECRECOVER fixed gas, input staging, v/r/s gates, then (.62.2.5) the
     -- backend-pointer-gated recovery + 32-byte address output. Closures that
