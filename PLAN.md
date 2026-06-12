@@ -1091,6 +1091,18 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     postcondition states `x11 = BitVec.ofNat 64 (Nat.fromBytesBE [extractByte
     …, …])` — i.e. the decoder computes the *spec-correct* length, not just a
     bitvector. All axiom-clean, 0 sorry.
+  - ✅ **Per-exit `classifyPrefix`-level bridges complete (all five exits).**
+    Every classification exit now has a wrapper restating its full path
+    against the pure RLP classifier `classifyPrefix` (input side) and the
+    matching pure length (output side): e1 `rlp_phase1_e1_single_byte_of_class_spec_within`
+    (`classifyPrefix = .singleByte` → `x11 = 1`), e2
+    `rlp_phase1_e2_full_path_payload_len_of_class_spec_within`
+    (`x11 = ofNat (rlpPrefixShortBytesPayloadLen pfx)`), e4
+    `rlp_phase1_e4_full_path_payload_len_of_class_spec_within`
+    (`rlpPrefixShortListPayloadLen`), and e3/e5's `…_lenOfLen_of_class…`
+    (the long-form `lenLen` counter). The e1/e2 wrappers (this slice) mirror
+    e4 and reuse `rlpPrefixShortBytesPayloadLen_toWord_of_class`
+    (`EL/RLP/ProgramSpec.lean`). Axiom-clean, 0 sorry.
   - Remaining: the planned general `n`-iteration closure (replacing the
     unrolled 1–8 closures via induction over the byte counter),
     cross-doubleword length spans, and the short/long-list error exits
