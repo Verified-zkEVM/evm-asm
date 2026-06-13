@@ -24,6 +24,10 @@
 import EvmAsm.Codegen.Programs
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Evm64.Pop.Spec
+import EvmAsm.Evm64.Push0.Spec
+import EvmAsm.Evm64.MStore8.Spec
+import EvmAsm.Evm64.Dup.Spec
+import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.Sub.Spec
 import EvmAsm.Evm64.Lt.Spec
 import EvmAsm.Evm64.Gt.Spec
@@ -845,6 +849,217 @@ theorem evmNotHandlerSpec (sp base : Word)
         (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 8) ↦ₘ (a1 ^^^ c)) **
         ((sp + 16) ↦ₘ (a2 ^^^ c)) **
         ((sp + 24) ↦ₘ (a3 ^^^ c))) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 17. Concrete instance — PUSH0 (0x5f)
+-- ============================================================================
+
+/-- Handler-level spec for `h_PUSH0` (opcode 0x5f). 5-instruction body
+    (`ADDI x12 x12 -32` + 4×`SD x0`, growing the EVM stack by one zero word)
+    + 2-instruction tail = 7 RISC-V steps. PUSH0 advances the EVM code
+    pointer (`x10`) by 1 and is `x10`-clean (the body never touches `x10`),
+    so it lifts directly through the dispatcher's `cleanRetHandler` tail —
+    the same template as the arithmetic/stack handlers above. `nsp` is the
+    NEW (post-decrement) stack pointer; the four cells at `nsp` are
+    overwritten with zero. -/
+theorem evmPush0HandlerSpec (nsp base : Word)
+    (d0 d1 d2 d3 : Word)
+    (x10_init x1_init : Word) :
+    cpsTripleWithin 7 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_push0 1)
+      (((.x12 ↦ᵣ (nsp + 32)) **
+        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ nsp) **
+        (nsp ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.evm_push0_spec_within nsp base d0 d1 d2 d3
+  simp only [EvmAsm.Evm64.evm_push0_code] at h_body
+  have hBodyLen : EvmAsm.Evm64.evm_push0.length = 5 := by decide
+  have hExitEq : (base + (20 : Word)) = base + fourTimes 5 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ nsp) **
+        (nsp ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 16) ↦ₘ 0) **
+        ((nsp + 24) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 18. Concrete instance — MSTORE8 (0x53)
+-- ============================================================================
+
+/-- Handler-level spec for `h_MSTORE8` (opcode 0x53). 5-instruction body
+    (load offset + value limbs from the EVM stack, compute `memBase + offset`,
+    store the low byte, pop the two consumed words) + 2-instruction tail =
+    7 RISC-V steps. The body is `x10`-clean for any register choice disjoint
+    from `x10`/`x1`, so it lifts directly through the `cleanRetHandler` tail
+    like the unparameterized handlers above; the working registers
+    (`offReg`/`valReg`/`addrReg`/`memBaseReg`) stay as parameters. MSTORE8
+    advances the EVM code pointer by 1. -/
+theorem evmMStore8HandlerSpec
+    (offReg valReg addrReg memBaseReg : Reg)
+    (sp memBase offOld valOld addrOld offset valueLow wordOld : Word)
+    (base dwordAddr : Word)
+    (x10_init x1_init : Word)
+    (hoff_ne_x0 : offReg ≠ .x0)
+    (hval_ne_x0 : valReg ≠ .x0)
+    (haddr_ne_x0 : addrReg ≠ .x0)
+    (halign : alignToDword (memBase + offset) = dwordAddr)
+    (hvalid : isValidByteAccess (memBase + offset) = true) :
+    let targetAddr := memBase + offset
+    cpsTripleWithin 7 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base
+        (EvmAsm.Evm64.evm_mstore8 offReg valReg addrReg memBaseReg) 1)
+      (((.x12 ↦ᵣ sp) ** (memBaseReg ↦ᵣ memBase) **
+        (offReg ↦ᵣ offOld) ** (valReg ↦ᵣ valOld) ** (addrReg ↦ᵣ addrOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+        (dwordAddr ↦ₘ wordOld))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+        (memBaseReg ↦ᵣ memBase) **
+        (offReg ↦ᵣ offset) ** (valReg ↦ᵣ valueLow) **
+        (addrReg ↦ᵣ targetAddr) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+        (dwordAddr ↦ₘ
+         replaceByte wordOld (byteOffset targetAddr) (valueLow.truncate 8)))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro targetAddr
+  have h_body := EvmAsm.Evm64.evm_mstore8_spec_within
+    offReg valReg addrReg memBaseReg
+    sp memBase offOld valOld addrOld offset valueLow wordOld base dwordAddr
+    hoff_ne_x0 hval_ne_x0 haddr_ne_x0 halign hvalid
+  simp only [EvmAsm.Evm64.evm_mstore8_code] at h_body
+  have hBodyLen :
+      (EvmAsm.Evm64.evm_mstore8 offReg valReg addrReg memBaseReg).length = 5 :=
+    EvmAsm.Evm64.evm_mstore8_length offReg valReg addrReg memBaseReg
+  have hExitEq : (base + (20 : Word)) = base + fourTimes 5 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+        (memBaseReg ↦ᵣ memBase) **
+        (offReg ↦ᵣ offset) ** (valReg ↦ᵣ valueLow) **
+        (addrReg ↦ᵣ targetAddr) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+        (dwordAddr ↦ₘ
+         replaceByte wordOld (byteOffset targetAddr)
+           (valueLow.truncate 8))) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 19. Concrete instance — DUPn (0x80..0x8f)
+-- ============================================================================
+
+/-- Handler-level spec for the `h_DUPn` family (opcodes 0x80..0x8f, `1 ≤ n ≤ 16`).
+    9-instruction body (`ADDI x12 x12 -32` to grow the stack, then 4 limb
+    copies of the nth stack element) + 2-instruction tail = 11 RISC-V steps.
+    The body is `x10`-clean (only `x12`/`x7` + memory), but `evm_dup_code` is
+    a hand-built union-of-singletons (symbolic `n` blocks `ofProg` reduction),
+    so we first bridge it to `ofProg` form via `evm_dup_code_eq_ofProg`, then
+    lift through the clean-ret tail. `nsp` is the NEW (post-decrement) stack
+    pointer; DUPn advances the EVM code pointer by 1. -/
+theorem evmDupHandlerSpec (nsp base : Word) (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
+    (s0 s1 s2 s3 d0 d1 d2 d3 v7 : Word) (x10_init x1_init : Word) :
+    cpsTripleWithin 11 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base (EvmAsm.Evm64.evm_dup n) 1)
+      (((.x12 ↦ᵣ (nsp + 32)) ** (.x7 ↦ᵣ v7) **
+        (nsp ↦ₘ d0) ** ((nsp+8) ↦ₘ d1) ** ((nsp+16) ↦ₘ d2) ** ((nsp+24) ↦ₘ d3) **
+        ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
+        ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
+        ((nsp + BitVec.ofNat 64 (n*32+16)) ↦ₘ s2) **
+        ((nsp + BitVec.ofNat 64 (n*32+24)) ↦ₘ s3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ s3) **
+        (nsp ↦ₘ s0) ** ((nsp+8) ↦ₘ s1) ** ((nsp+16) ↦ₘ s2) ** ((nsp+24) ↦ₘ s3) **
+        ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
+        ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
+        ((nsp + BitVec.ofNat 64 (n*32+16)) ↦ₘ s2) **
+        ((nsp + BitVec.ofNat 64 (n*32+24)) ↦ₘ s3))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.evm_dup_spec_within nsp base n hn1 hn16
+    s0 s1 s2 s3 d0 d1 d2 d3 v7
+  rw [EvmAsm.Evm64.evm_dup_code_eq_ofProg] at h_body
+  have hBodyLen : (EvmAsm.Evm64.evm_dup n).length = 9 := EvmAsm.Evm64.evm_dup_length n
+  have hExitEq : (base + (36 : Word)) = base + fourTimes 9 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ s3) **
+        (nsp ↦ₘ s0) ** ((nsp+8) ↦ₘ s1) ** ((nsp+16) ↦ₘ s2) ** ((nsp+24) ↦ₘ s3) **
+        ((nsp + BitVec.ofNat 64 (n*32))    ↦ₘ s0) **
+        ((nsp + BitVec.ofNat 64 (n*32+8))  ↦ₘ s1) **
+        ((nsp + BitVec.ofNat 64 (n*32+16)) ↦ₘ s2) **
+        ((nsp + BitVec.ofNat 64 (n*32+24)) ↦ₘ s3)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 20. Concrete instance — SWAPn (0x90..0x9f)
+-- ============================================================================
+
+/-- Handler-level spec for the `h_SWAPn` family (opcodes 0x90..0x9f, `1 ≤ n ≤ 16`).
+    16-instruction body (4 limb quads swapping the top stack word with the
+    nth) + 2-instruction tail = 18 RISC-V steps. `x10`-clean (only `x12`/`x7`/
+    `x6` + memory); `evm_swap_code` is a union-of-singletons, so we bridge it
+    to `ofProg` via `evm_swap_code_eq_ofProg`, then lift through the clean-ret
+    tail. The stack pointer is unchanged (swap preserves depth); SWAPn advances
+    the EVM code pointer by 1. -/
+theorem evmSwapHandlerSpec (sp base : Word) (n : Nat) (hn1 : 1 ≤ n) (hn16 : n ≤ 16)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 : Word) (x10_init x1_init : Word) :
+    cpsTripleWithin 18 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base (EvmAsm.Evm64.evm_swap n) 1)
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6) **
+        (sp ↦ₘ a0) ** ((sp+8) ↦ₘ a1) ** ((sp+16) ↦ₘ a2) ** ((sp+24) ↦ₘ a3) **
+        ((sp + BitVec.ofNat 64 (n*32))    ↦ₘ b0) **
+        ((sp + BitVec.ofNat 64 (n*32+8))  ↦ₘ b1) **
+        ((sp + BitVec.ofNat 64 (n*32+16)) ↦ₘ b2) **
+        ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ b3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a3) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ b0) ** ((sp+8) ↦ₘ b1) ** ((sp+16) ↦ₘ b2) ** ((sp+24) ↦ₘ b3) **
+        ((sp + BitVec.ofNat 64 (n*32))    ↦ₘ a0) **
+        ((sp + BitVec.ofNat 64 (n*32+8))  ↦ₘ a1) **
+        ((sp + BitVec.ofNat 64 (n*32+16)) ↦ₘ a2) **
+        ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ a3))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.evm_swap_spec_within sp base n hn1 hn16
+    a0 a1 a2 a3 b0 b1 b2 b3 v7 v6
+  rw [EvmAsm.Evm64.evm_swap_code_eq_ofProg] at h_body
+  have hBodyLen : (EvmAsm.Evm64.evm_swap n).length = 16 := EvmAsm.Evm64.evm_swap_length n
+  have hExitEq : (base + (64 : Word)) = base + fourTimes 16 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ a3) ** (.x6 ↦ᵣ b3) **
+        (sp ↦ₘ b0) ** ((sp+8) ↦ₘ b1) ** ((sp+16) ↦ₘ b2) ** ((sp+24) ↦ₘ b3) **
+        ((sp + BitVec.ofNat 64 (n*32))    ↦ₘ a0) **
+        ((sp + BitVec.ofNat 64 (n*32+8))  ↦ₘ a1) **
+        ((sp + BitVec.ofNat 64 (n*32+16)) ↦ₘ a2) **
+        ((sp + BitVec.ofNat 64 (n*32+24)) ↦ₘ a3)) : Assertion).pcFree := by pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
   have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
     have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
