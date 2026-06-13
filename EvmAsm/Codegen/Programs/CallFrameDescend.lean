@@ -300,6 +300,20 @@ def callFrameDescendFunction : String :=
   "  ld t0, 472(s3); sd t0, 472(s9)   # eventLogLength\n" ++
   "  sd t0, 480(s9)                    # eventLogCheckpoint = current\n" ++
   "  sd x0, 488(s9)                    # activeMemorySize = 0 (fresh child memory)\n" ++
+  -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
+  -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used) into the
+  -- child env so a child REVERT / exceptional halt can restore it in frame_return,
+  -- matching execution-specs incorporate_child_on_error (the reverted child's
+  -- entire state-gas allocation is returned to the parent and state_gas_used is
+  -- NOT accumulated). s9 = child env; env offsets 624/632 are free (the env is
+  -- frameEnvBytes=768 and its fields end at 616). Mirrors persistentLogCheckpoint.
+  "  la t1, evm_state_gas_left; ld t0, 0(t1); sd t0, 624(s9)   # state_gas_left snapshot\n" ++
+  "  la t1, evm_state_gas_used; ld t0, 0(t1); sd t0, 632(s9)   # state_gas_used snapshot\n" ++
+  -- nxio8.4.2: also snapshot the EIP-3529 refund accumulator (evm_refund_acc) so a
+  -- child REVERT discards the child's refund_counter additions, matching
+  -- incorporate_child_on_error (which does NOT add child.refund_counter to the
+  -- parent). On success it is kept (incorporate_child_on_success accumulates it).
+  "  la t1, evm_refund_acc; ld t0, 0(t1); sd t0, 640(s9)       # refund_counter snapshot\n" ++
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
   -- 10. frame-relative stack bounds: point the under/overflow guards at the
@@ -445,6 +459,10 @@ def ziskCallFrameDescendPrologue : String :=
   "  li t1, 0xaa; sd t1, 0(t0)\n" ++
   "  li t1, 100000; sd t1, 568(t0)\n" ++
   "  li t1, 0x592; sd t1, 592(t0)\n" ++
+  -- nxio8.4.1: pre-child state gas; descend must snapshot it into child env+624/632.
+  "  la t0, evm_state_gas_left; li t1, 12345; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; li t1, 67890; sd t1, 0(t0)\n" ++
+  "  la t0, evm_refund_acc; li t1, 24680; sd t1, 0(t0)\n" ++
   -- to / value words.
   "  la t0, cfd2_to; li t1, 0xbb; sd t1, 0(t0)\n" ++
   "  la t0, cfd2_val; li t1, 0x7; sd t1, 0(t0)\n" ++
@@ -479,6 +497,10 @@ def ziskCallFrameDescendPrologue : String :=
   "  ld t0, 568(x20); sd t0, 128(s0)\n" ++
   "  ld t0, 496(x20); sd t0, 136(s0)\n" ++
   "  ld t0, 592(x20); sd t0, 144(s0)\n" ++
+  -- nxio8.4.1: descend snapshotted pre-child state gas into child env+624/632.
+  "  ld t0, 624(x20); sd t0, 176(s0)\n" ++   -- expect 12345 (state_gas_left)
+  "  ld t0, 632(x20); sd t0, 184(s0)\n" ++   -- expect 67890 (state_gas_used)
+  "  ld t0, 640(x20); sd t0, 192(s0)\n" ++   -- expect 24680 (refund_acc, nxio8.4.2)
   -- child register bases.
   "  la t1, call_frame_arena; sub t0, x13, t1; sd t0, 56(s0)\n" ++
   "  la t1, call_frame_arena; sub t0, x20, t1; sd t0, 64(s0)\n" ++
@@ -524,6 +546,11 @@ def ziskCallFrameDescendDataSection : String :=
   -- Frame-relative stack-bound cells (descend overwrites them; zeroed stubs here).
   "evm_cur_stack_top:\n  .zero 8\n" ++
   "evm_cur_stack_low:\n  .zero 8\n" ++
+  -- nxio8.4.1: EIP-8037 state-gas globals (real symbols in the guest dispatcher
+  -- data section; stubbed so the probe links + can verify the descend snapshot).
+  "evm_state_gas_left:\n  .zero 8\n" ++
+  "evm_state_gas_used:\n  .zero 8\n" ++
+  "evm_refund_acc:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "cfd2_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
