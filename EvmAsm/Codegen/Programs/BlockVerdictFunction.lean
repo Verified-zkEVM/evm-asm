@@ -477,6 +477,33 @@ def blockVerdictFunction : String :=
   "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++              -- sender pre-state nonce
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- tx.nonce (set by multi_tx_nth_context)
   "  bltu t1, t0, .Lbv_sender_nonce_fail\n" ++                  -- tx.nonce < pre_nonce -> reject
+  -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
+  -- gas_limit*max_fee_per_gas + tx.value (spec check_transaction InsufficientBalanceError,
+  -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
+  -- the mtx sources: max_fee = tefgp_max_fee (tx_effective_gas_pricing wrote it at @453 above),
+  -- gas_limit = bv_mtx_ctx+40, value = bv_mtx_ctx+96 (multi_tx_nth_context simple_transfer layout),
+  -- pre_balance = bv_mtx_sender_acct+8 (32B BE, from the account_at lookup just done). SOUND, no
+  -- false-reject: a valid tx's sender covers its upfront (>= for the first tx, strictly > for a
+  -- sequenced later tx), so pre_balance < upfront only for the definitely-insufficient case.
+  -- (Exact per-sender prior-debit accounting is the sequencing follow-up; this lower bound holds
+  -- without it.) Reuses the bv_upfront_cost/islt scratch; u256_mul_u64_be/add_be return 1 on
+  -- overflow (a*b or sum >= 2^256 -> upfront unaffordable -> reject); u256_lt_be writes 1 iff a<b.
+  "  la a0, tefgp_max_fee\n" ++
+  "  la t0, bv_mtx_ctx; ld a1, 40(t0)\n" ++                     -- gas_limit (u64)
+  "  la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++                    -- gas_limit*max_fee >= 2^256 -> reject
+  "  la a0, bv_upfront_cost\n" ++
+  "  la t0, bv_mtx_ctx; addi a1, t0, 96\n" ++                   -- tx.value (32B BE)
+  "  la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++                    -- upfront + value >= 2^256 -> reject
+  "  la a0, bv_mtx_sender_acct; addi a0, a0, 8\n" ++            -- sender pre_balance (32B BE)
+  "  la a1, bv_upfront_cost\n" ++
+  "  la a2, bv_upfront_islt\n" ++
+  "  jal ra, u256_lt_be\n" ++
+  "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
+  "  bnez t0, .Lbv_sender_upfront_fail\n" ++                    -- pre_balance < upfront -> reject
   ".Lbv_mtx_nonce_done:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
