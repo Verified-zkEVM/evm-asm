@@ -46,6 +46,9 @@ open EvmAsm.Rv64.Program
     floor), which only a gas-metered execution slice can compute exactly. -/
 def eip7778RemainingBlockGasCheckFunction : String :=
   "eip7778_remaining_block_gas_check:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd s0, 0(sp)\n" ++
+  "  mv s0, a4                   # a4 = intrinsic_state ptr (0 = none; .6.5.2 regular-dim refinement)\n" ++
   "  mv t0, a0                   # block_gas_limit\n" ++
   "  mv t1, a1                   # tx_gas ptr\n" ++
   "  mv t2, a2                   # block_gas_used_in_tx ptr\n" ++
@@ -58,17 +61,27 @@ def eip7778RemainingBlockGasCheckFunction : String :=
   "  slli t6, t4, 3\n" ++
   "  add a4, t1, t6\n" ++
   "  ld a5, 0(a4)                # tx.gas\n" ++
-  -- fhsxz.2.4.2.57.18.11: EIP-7825 caps the per-tx worst-case REGULAR contribution at
-  -- TX_MAX_GAS_LIMIT (spec amsterdam/fork.py:591 uses min(TX_MAX_GAS_LIMIT, tx.gas -
-  -- intrinsic.state)). The raw `tx.gas > available` check false-rejected valid blocks
-  -- whose later tx declares a gas limit above the regular remaining but whose capped
-  -- worst-case contribution still fits (block_2d_gas_tx_gas_limit_exceeds_regular_remaining,
-  -- succ guest=00 exp=01). Cap at TX_MAX_GAS_LIMIT here; the intrinsic.state subtraction
-  -- (a strictly smaller refinement) is tracked by .6.5.2, and the STATE dimension is
-  -- enforced separately by eip8037_tx_gas_gate (BlockVerdictGasGate.lean). a7 is free.
+  -- .57.11.6.5.2: spec amsterdam/fork.py:591 is the 2D REGULAR test
+  --   min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) > regular_gas_available -> reject.
+  -- Subtract the per-tx intrinsic.state (the component accounted in the STATE dimension,
+  -- enforced separately by eip8037_tx_gas_gate) BEFORE the TX_MAX cap when the caller
+  -- supplies the array; saturate at 0 (tx.gas < intrinsic.state is rejected by the
+  -- intrinsic-sufficiency gate, so it never legitimately reaches here). intrinsic_state == 0
+  -- keeps the legacy min(TX_MAX, tx.gas) 1D over-approx (probes / pre-.6.5.2 callers).
+  -- fhsxz.2.4.2.57.18.11: the TX_MAX cap (EIP-7825) stays -- it bounds the worst-case
+  -- regular contribution so a high declared tx.gas that still fits is not false-rejected.
+  "  beqz s0, .Le7778_istate_done\n" ++
+  "  add a4, s0, t6\n" ++
+  "  ld a6, 0(a4)                # intrinsic.state[i]\n" ++
+  "  bltu a5, a6, .Le7778_istate_zero\n" ++
+  "  sub a5, a5, a6              # tx.gas - intrinsic.state\n" ++
+  "  j .Le7778_istate_done\n" ++
+  ".Le7778_istate_zero:\n" ++
+  "  li a5, 0\n" ++
+  ".Le7778_istate_done:\n" ++
   "  li a7, 16777216             # TX_MAX_GAS_LIMIT (2^24)\n" ++
   "  bleu a5, a7, .Le7778_cap_done\n" ++
-  "  mv a5, a7                   # worst_regular = min(TX_MAX_GAS_LIMIT, tx.gas)\n" ++
+  "  mv a5, a7                   # worst_regular = min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state)\n" ++
   ".Le7778_cap_done:\n" ++
   "  sub a6, t0, t5              # gas_available\n" ++
   "  bgtu a5, a6, .Le7778_tx_fail\n" ++
@@ -83,16 +96,19 @@ def eip7778RemainingBlockGasCheckFunction : String :=
   "  li a0, 1\n" ++
   "  addi a1, t4, 1\n" ++
   "  mv a2, t5\n" ++
-  "  ret\n" ++
+  "  j .Le7778_ret\n" ++
   ".Le7778_overflow:\n" ++
   "  li a0, 2\n" ++
   "  addi a1, t4, 1\n" ++
   "  mv a2, t5\n" ++
-  "  ret\n" ++
+  "  j .Le7778_ret\n" ++
   ".Le7778_ok:\n" ++
   "  li a0, 0\n" ++
   "  li a1, 0\n" ++
   "  mv a2, t5\n" ++
+  ".Le7778_ret:\n" ++
+  "  ld s0, 0(sp)\n" ++
+  "  addi sp, sp, 16\n" ++
   "  ret"
 
 /-- `zisk_eip7778_remaining_block_gas_check`: focused zisk probe.
@@ -115,6 +131,7 @@ def ziskEip7778RemainingBlockGasCheckPrologue : String :=
   "  addi a1, s0, 24             # tx_gas array\n" ++
   "  slli t0, a3, 3\n" ++
   "  add a2, a1, t0              # block_gas_used_in_tx array\n" ++
+  "  li a4, 0                    # .6.5.2: no intrinsic_state in the probe -> legacy 1D behaviour\n" ++
   "  jal ra, eip7778_remaining_block_gas_check\n" ++
   "  sd a0, 0(s1)\n" ++
   "  sd a1, 8(s1)\n" ++
@@ -155,10 +172,12 @@ def ziskEip7778RemainingBlockGasCheckProbeUnit : BuildUnit := {
            block_gas_used on success. For status 3 this is currently 0. -/
 def eip7778RemainingBlockGasFromResultsFunction : String :=
   "eip7778_remaining_block_gas_from_results:\n" ++
-  "  addi sp, sp, -72\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp)\n" ++
+  "  mv s8, a7                   # .6.5.2: per-tx intrinsic_state ptr (0 = none) -> threaded to the check\n" ++
   "  mv s0, a0                   # block_gas_limit\n" ++
   "  mv s1, a1                   # tx_gas_limits ptr\n" ++
   "  mv s2, a2                   # gas_left ptr\n" ++
@@ -190,6 +209,7 @@ def eip7778RemainingBlockGasFromResultsFunction : String :=
   "  mv a1, s1\n" ++
   "  mv a2, s6\n" ++
   "  mv a3, s5\n" ++
+  "  mv a4, s8                   # .6.5.2: intrinsic_state ptr (0 = none)\n" ++
   "  jal ra, eip7778_remaining_block_gas_check\n" ++
   "  j .Le7778rr_ret\n" ++
   ".Le7778rr_bad_result:\n" ++
@@ -200,7 +220,8 @@ def eip7778RemainingBlockGasFromResultsFunction : String :=
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 72\n" ++
+  "  ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_eip7778_remaining_block_gas_from_results`: focused zisk probe.
@@ -228,6 +249,7 @@ def ziskEip7778RemainingBlockGasFromResultsPrologue : String :=
   "  add a3, a2, t0              # refund_counter array\n" ++
   "  add a4, a3, t0              # calldata_floor array\n" ++
   "  la a6, e7778rr_block_increments\n" ++
+  "  li a7, 0                    # .6.5.2: no intrinsic_state in the probe -> legacy 1D behaviour\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  sd a0, 0(s1)\n" ++
   "  sd a1, 8(s1)\n" ++
