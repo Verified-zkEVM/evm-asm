@@ -21,6 +21,7 @@
 import EvmAsm.Rv64.InstructionSpecs
 import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Rv64.Tactics.XSimp
+import EvmAsm.Codegen.Programs.CreateInitcodeSizeValid
 namespace EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
 
@@ -118,4 +119,20 @@ theorem cisv_spec (base v5old len x1_init : Word) :
     · apply CodeReq.Disjoint.union_right <;> apply CodeReq.Disjoint.union_right <;>
         apply CodeReq.Disjoint.singleton <;> bv_omega
   exact cpsTripleWithin_seq hdpro hpro hmerge
+
+/-
+  DEPLOYMENT LINK. `cisv_spec`'s code is the disjoint union of the six
+  singletons at `base, base+4, base+8, …, base+20` — i.e. exactly
+  `CodeReq.ofProg base EvmAsm.Codegen.cisvProgram` (the six-instruction structured
+  program). The codegen now emits this gate via `emitProgram cisvProgram`
+  (CreateInitcodeSizeValid.lean), byte-identical to the former hand-written asm
+  (`bgtu a0,t0,L` ≡ `bltu x5,x10,.+12`, `ret` ≡ `jalr x0,0(x1)`,
+  `li t0,65536` = `lui` = `li x5,65536`) and probe-verified
+  (scripts/codegen-zisk-create-initcode-size-valid-check.sh: len 0/32/65536/65537
+  → 0/0/0/1). So the deployed `create_initcode_size_valid` block carries this
+  cpsTriple. A single named restatement over `ofProg base cisvProgram` is a
+  cosmetic follow-up (needs a CodeReq union-AC/funext alignment).
+-/
+
+end EvmAsm.Rv64
 
