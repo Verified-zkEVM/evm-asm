@@ -507,6 +507,22 @@ Top-line invariants:
   https://github.com/verse-lab/splean
   The `xperm` / `xperm_hyp` / `xsimp` tactics in `Tactics/` are inspired by
   SPlean's `xsimpl` tactic.
+- **YOLO** — Mikhalchuk, V., Gladshtein, V., Sergey, I. (2026).
+  "Lazy Proof Automation for Separation Logic." ITP 2026 (to appear).
+  Artifact: https://github.com/verse-lab/yolo
+  The certificate-based permutation prover `buildPermProofCert` / `seps_permute`
+  (in `Tactics/XPerm.lean` and `SepLogic.lean`, gated behind the `xperm.cert`
+  option) **re-implements YOLO's core idea** — run the unverified atom-matching
+  search once and discharge the whole entailment with a *single* cheap verified
+  replay instead of an eager step-by-step proof. It is an **independent
+  re-implementation of the idea, not a port of YOLO's code**: it shares none of
+  YOLO's machinery (no `hprop` syntax tree, no left/right worklists, no
+  extensible operation-tag typeclasses, no recorded-tactic-script replay).
+  Instead it records the result as an index permutation `σ : List Nat` and
+  discharges it with one `seps_permute` lemma whose `σ.Perm (List.range n)` side
+  condition is closed by a single kernel-checked `decide`. Credit for the
+  underlying idea (separating fast untrusted simplification from a single
+  verified reconstruction) belongs to Mikhalchuk, Gladshtein, and Sergey.
 - Charguéraud, A. (2020). "Separation Logic for Sequential Programs
   (Functional Pearl)." *Proc. ACM Program. Lang.* 4, ICFP, Article 116.
   https://doi.org/10.1145/3408998
