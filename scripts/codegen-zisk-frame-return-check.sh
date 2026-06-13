@@ -70,6 +70,10 @@ checks = [
     ('A state_gas_used (success: unchanged)', 2000),
     ('B state_gas_left (revert: restored)',   555),
     ('B state_gas_used (revert: restored)',   666),
+    # nxio8.4.2: SUCCESS leaves the refund accumulator; REVERT discards the child's
+    # additions by restoring evm_refund_acc to the child-env snapshot.
+    ('A refund_acc (success: unchanged)',     3000),
+    ('B refund_acc (revert: restored)',       777),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):

@@ -69,6 +69,8 @@ checks = [
     # env at +624/632 so frame_return can restore it on a child REVERT.
     ('child env state_gas_left snapshot', 12345),
     ('child env state_gas_used snapshot', 67890),
+    # nxio8.4.2: descend also snapshots the EIP-3529 refund accumulator.
+    ('child env refund_acc snapshot',     24680),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):

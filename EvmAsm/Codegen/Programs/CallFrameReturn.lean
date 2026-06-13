@@ -80,6 +80,10 @@ def frameReturnFunction : String :=
   "  bnez s0, .Lfr_sgas_done\n" ++
   "  ld t0, 624(x20); la t1, evm_state_gas_left; sd t0, 0(t1)\n" ++
   "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  -- nxio8.4.2: discard the reverted child's EIP-3529 refund additions by restoring
+  -- evm_refund_acc to the pre-child snapshot (incorporate_child_on_error does not
+  -- add child.refund_counter). Success leaves it (the SSTORE refunds stay).
+  "  ld t0, 640(x20); la t1, evm_refund_acc; sd t0, 0(t1)\n" ++
   ".Lfr_sgas_done:\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
@@ -238,7 +242,8 @@ def ziskFrameReturnPrologue : String :=
   -- globals (child state-gas stays accumulated); the +624/632 snapshot is ignored.
   "  la t0, evm_state_gas_left; li t1, 1000; sd t1, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; li t1, 2000; sd t1, 0(t0)\n" ++
-  "  la t0, fr_child_env; li t1, 333; sd t1, 624(t0); li t1, 444; sd t1, 632(t0)\n" ++
+  "  la t0, evm_refund_acc; li t1, 3000; sd t1, 0(t0)\n" ++   -- nxio8.4.2: success leaves refund
+  "  la t0, fr_child_env; li t1, 333; sd t1, 624(t0); li t1, 444; sd t1, 632(t0); li t1, 888; sd t1, 640(t0)\n" ++
   "  li a0, 1; li a1, 0; li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
   "  sd x10, 0(s0)                  # expect 0x101 (parent_pc 0x100 + 1)\n" ++
@@ -257,6 +262,7 @@ def ziskFrameReturnPrologue : String :=
   -- nxio8.4.1: SUCCESS leaves the state-gas globals unchanged (1000/2000).
   "  la t0, evm_state_gas_left; ld t1, 0(t0); sd t1, 160(s0)  # expect 1000\n" ++
   "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 168(s0)  # expect 2000\n" ++
+  "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 192(s0)      # expect 3000 (success leaves)\n" ++
   -- ---- Scenario B: depth 2 -> 1, REVERT-style with a returndata byte ----
   "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
   -- frame_save_area[1] = (pc=0x300, cb=0x444)
@@ -278,7 +284,8 @@ def ziskFrameReturnPrologue : String :=
   -- entire state-gas allocation; state_gas_used is not accumulated).
   "  la t0, evm_state_gas_left; li t1, 7777; sd t1, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; li t1, 8888; sd t1, 0(t0)\n" ++
-  "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0)\n" ++
+  "  la t0, evm_refund_acc; li t1, 9999; sd t1, 0(t0)\n" ++   -- child-modified refund
+  "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0); li t1, 777; sd t1, 640(t0)\n" ++
   "  li a0, 0; la a1, fr_ret; li a2, 4\n" ++
   "  jal ra, frame_return\n" ++
   "  la t0, call_frame_arena; sub t0, x13, t0; sd t0, 56(s0)   # expect 0\n" ++
@@ -297,6 +304,7 @@ def ziskFrameReturnPrologue : String :=
   -- nxio8.4.1: REVERT restored the state-gas globals to the child-env snapshot.
   "  la t0, evm_state_gas_left; ld t1, 0(t0); sd t1, 176(s0)  # expect 555\n" ++
   "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 184(s0)  # expect 666\n" ++
+  "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 200(s0)      # expect 777 (revert restores)\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   ".Lfr_done:"
@@ -321,6 +329,7 @@ def ziskFrameReturnDataSection : String :=
   -- the guest dispatcher data section; stubbed here so the probe links).
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
+  "evm_refund_acc:\n  .zero 8\n" ++
 
   -- Frame-relative stack-bound labels + cells. `evm_stack_top`/`evm_stack_low`
   -- are address-only stubs (frame_return takes their `&` for the depth-0
