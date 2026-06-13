@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Programs
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Evm64.Pop.Spec
 import EvmAsm.Evm64.Push0.Spec
+import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.Sub.Spec
 import EvmAsm.Evm64.Lt.Spec
 import EvmAsm.Evm64.Gt.Spec
@@ -886,6 +887,76 @@ theorem evmPush0HandlerSpec (nsp base : Word)
       (((.x12 ↦ᵣ nsp) **
         (nsp ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 16) ↦ₘ 0) **
         ((nsp + 24) ↦ₘ 0)) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 18. Concrete instance — MSTORE8 (0x53)
+-- ============================================================================
+
+/-- Handler-level spec for `h_MSTORE8` (opcode 0x53). 5-instruction body
+    (load offset + value limbs from the EVM stack, compute `memBase + offset`,
+    store the low byte, pop the two consumed words) + 2-instruction tail =
+    7 RISC-V steps. The body is `x10`-clean for any register choice disjoint
+    from `x10`/`x1`, so it lifts directly through the `cleanRetHandler` tail
+    like the unparameterized handlers above; the working registers
+    (`offReg`/`valReg`/`addrReg`/`memBaseReg`) stay as parameters. MSTORE8
+    advances the EVM code pointer by 1. -/
+theorem evmMStore8HandlerSpec
+    (offReg valReg addrReg memBaseReg : Reg)
+    (sp memBase offOld valOld addrOld offset valueLow wordOld : Word)
+    (base dwordAddr : Word)
+    (x10_init x1_init : Word)
+    (hoff_ne_x0 : offReg ≠ .x0)
+    (hval_ne_x0 : valReg ≠ .x0)
+    (haddr_ne_x0 : addrReg ≠ .x0)
+    (halign : alignToDword (memBase + offset) = dwordAddr)
+    (hvalid : isValidByteAccess (memBase + offset) = true) :
+    let targetAddr := memBase + offset
+    cpsTripleWithin 7 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base
+        (EvmAsm.Evm64.evm_mstore8 offReg valReg addrReg memBaseReg) 1)
+      (((.x12 ↦ᵣ sp) ** (memBaseReg ↦ᵣ memBase) **
+        (offReg ↦ᵣ offOld) ** (valReg ↦ᵣ valOld) ** (addrReg ↦ᵣ addrOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+        (dwordAddr ↦ₘ wordOld))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+        (memBaseReg ↦ᵣ memBase) **
+        (offReg ↦ᵣ offset) ** (valReg ↦ᵣ valueLow) **
+        (addrReg ↦ᵣ targetAddr) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+        (dwordAddr ↦ₘ
+         replaceByte wordOld (byteOffset targetAddr) (valueLow.truncate 8)))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  intro targetAddr
+  have h_body := EvmAsm.Evm64.evm_mstore8_spec_within
+    offReg valReg addrReg memBaseReg
+    sp memBase offOld valOld addrOld offset valueLow wordOld base dwordAddr
+    hoff_ne_x0 hval_ne_x0 haddr_ne_x0 halign hvalid
+  simp only [EvmAsm.Evm64.evm_mstore8_code] at h_body
+  have hBodyLen :
+      (EvmAsm.Evm64.evm_mstore8 offReg valReg addrReg memBaseReg).length = 5 :=
+    EvmAsm.Evm64.evm_mstore8_length offReg valReg addrReg memBaseReg
+  have hExitEq : (base + (20 : Word)) = base + fourTimes 5 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+        (memBaseReg ↦ᵣ memBase) **
+        (offReg ↦ᵣ offset) ** (valReg ↦ᵣ valueLow) **
+        (addrReg ↦ᵣ targetAddr) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ offset) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ valueLow) **
+        (dwordAddr ↦ₘ
+         replaceByte wordOld (byteOffset targetAddr)
+           (valueLow.truncate 8))) : Assertion).pcFree := by pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
   have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
     have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
