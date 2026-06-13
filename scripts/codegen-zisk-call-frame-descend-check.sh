@@ -71,6 +71,8 @@ checks = [
     ('child env state_gas_used snapshot', 67890),
     # nxio8.4.2: descend also snapshots the EIP-3529 refund accumulator.
     ('child env refund_acc snapshot',     24680),
+    # nxio8.4.3: descend also snapshots the EIP-2929 storage-warmth count.
+    ('child env warmth_count snapshot',   5),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
