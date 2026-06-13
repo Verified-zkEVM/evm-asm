@@ -42,7 +42,7 @@ open Lean Meta Elab Tactic
     (`buildPermProofCert`) instead of the default `buildPermProof`. Default
     `false` keeps the baseline behaviour byte-for-byte unchanged. -/
 register_option xperm.cert : Bool := {
-  defValue := false
+  defValue := true
   descr := "Use the certificate-based sepConj permutation prover (seps_permute)."
 }
 
