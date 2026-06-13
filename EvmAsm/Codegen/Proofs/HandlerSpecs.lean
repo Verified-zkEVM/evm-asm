@@ -24,6 +24,7 @@
 import EvmAsm.Codegen.Programs
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Evm64.Pop.Spec
+import EvmAsm.Evm64.Push0.Spec
 import EvmAsm.Evm64.Sub.Spec
 import EvmAsm.Evm64.Lt.Spec
 import EvmAsm.Evm64.Gt.Spec
@@ -845,6 +846,46 @@ theorem evmNotHandlerSpec (sp base : Word)
         (sp ↦ₘ (a0 ^^^ c)) ** ((sp + 8) ↦ₘ (a1 ^^^ c)) **
         ((sp + 16) ↦ₘ (a2 ^^^ c)) **
         ((sp + 24) ↦ₘ (a3 ^^^ c))) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 17. Concrete instance — PUSH0 (0x5f)
+-- ============================================================================
+
+/-- Handler-level spec for `h_PUSH0` (opcode 0x5f). 5-instruction body
+    (`ADDI x12 x12 -32` + 4×`SD x0`, growing the EVM stack by one zero word)
+    + 2-instruction tail = 7 RISC-V steps. PUSH0 advances the EVM code
+    pointer (`x10`) by 1 and is `x10`-clean (the body never touches `x10`),
+    so it lifts directly through the dispatcher's `cleanRetHandler` tail —
+    the same template as the arithmetic/stack handlers above. `nsp` is the
+    NEW (post-decrement) stack pointer; the four cells at `nsp` are
+    overwritten with zero. -/
+theorem evmPush0HandlerSpec (nsp base : Word)
+    (d0 d1 d2 d3 : Word)
+    (x10_init x1_init : Word) :
+    cpsTripleWithin 7 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base EvmAsm.Evm64.evm_push0 1)
+      (((.x12 ↦ᵣ (nsp + 32)) **
+        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((.x12 ↦ᵣ nsp) **
+        (nsp ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.evm_push0_spec_within nsp base d0 d1 d2 d3
+  simp only [EvmAsm.Evm64.evm_push0_code] at h_body
+  have hBodyLen : EvmAsm.Evm64.evm_push0.length = 5 := by decide
+  have hExitEq : (base + (20 : Word)) = base + fourTimes 5 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((.x12 ↦ᵣ nsp) **
+        (nsp ↦ₘ 0) ** ((nsp + 8) ↦ₘ 0) ** ((nsp + 16) ↦ₘ 0) **
+        ((nsp + 24) ↦ₘ 0)) : Assertion).pcFree := by pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
   have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
     have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
