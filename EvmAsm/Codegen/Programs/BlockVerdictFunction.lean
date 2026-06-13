@@ -475,9 +475,34 @@ def blockVerdictFunction : String :=
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_nonce_done\n" ++                         -- sender lookup failed/absent -> skip
-  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++              -- sender pre-state nonce
-  "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- tx.nonce (set by multi_tx_nth_context)
-  "  bltu t1, t0, .Lbv_sender_nonce_fail\n" ++                  -- tx.nonce < pre_nonce -> reject
+  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++              -- t0 = sender block-start (pre-state) nonce
+  -- EXACT multi-tx nonce: tx.nonce must == pre_nonce + (count of PRIOR txs in this block from the
+  -- SAME sender). A sender's k-th tx (0-based) in the block executes at nonce pre+k. count = #{j<i :
+  -- public_keys[j] == public_keys[i]} (same 65-byte SEC1 key = same signer, verified @339). Catches
+  -- nonce REUSE and too-high (which the prior < pre lower bound missed). Sound: a valid block sequences
+  -- a sender's txs as pre,pre+1,... so tx.nonce == pre+count exactly. Validated by same-sender multi-tx
+  -- fixtures (blobhash_multiple_txs_in_block / eip7702 pointer_normal, nonces [0,1]).
+  "  la t2, bv_public_keys_ptr; ld t2, 0(t2)\n" ++              -- t2 = public_keys base
+  "  la t3, bv_mtx_i; ld t3, 0(t3)\n" ++                        -- t3 = i
+  "  slli t4, t3, 6; add t4, t4, t3; add t4, t2, t4\n" ++       -- t4 = &public_keys[i] (base + i*65)
+  "  li t5, 0\n" ++                                             -- t5 = count
+  "  li t6, 0\n" ++                                             -- t6 = j
+  ".Lbv_mtx_seq_j:\n" ++
+  "  bgeu t6, t3, .Lbv_mtx_seq_done\n" ++                       -- j >= i -> done
+  "  slli a0, t6, 6; add a0, a0, t6; add a0, t2, a0\n" ++       -- a0 = &public_keys[j]
+  "  mv a1, t4; li a2, 65\n" ++                                 -- a1 = &public_keys[i], a2 = 65 bytes
+  ".Lbv_mtx_seq_cmp:\n" ++
+  "  beqz a2, .Lbv_mtx_seq_eq\n" ++                             -- all 65 equal -> same signer
+  "  lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lbv_mtx_seq_ne\n" ++
+  "  addi a0, a0, 1; addi a1, a1, 1; addi a2, a2, -1; j .Lbv_mtx_seq_cmp\n" ++
+  ".Lbv_mtx_seq_eq:\n" ++
+  "  addi t5, t5, 1\n" ++                                       -- count++
+  ".Lbv_mtx_seq_ne:\n" ++
+  "  addi t6, t6, 1; j .Lbv_mtx_seq_j\n" ++
+  ".Lbv_mtx_seq_done:\n" ++
+  "  add t0, t0, t5\n" ++                                       -- t0 = expected = pre_nonce + count
+  "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
+  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != pre+count -> reject (Nonce*Error)
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
   -- gas_limit*max_fee_per_gas + tx.value (spec check_transaction InsufficientBalanceError,
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
