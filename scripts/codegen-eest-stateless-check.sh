@@ -45,8 +45,12 @@
 #     --skip N           skip first N selected stateless blocks after filtering
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
-#     --steps N          ziskemu max steps (default $EEST_STEPS or 1000000000)
-#     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2)
+#     --steps N          ziskemu max steps (default $EEST_STEPS or 5000000000)
+#     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
+#                        Auto per-job budgets are sized for the uncached ELF->ROM
+#                        transpile; when the ziskemu ROM cache is detected via the
+#                        first-case warmup (see below) they are relaxed and the
+#                        job count is recomputed up to the same --max-jobs cap.
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
 #                        alias for --max-failures
@@ -130,10 +134,15 @@ SKIP=0
 LIMIT=50
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
-# runaway/very-large runs. Keep the base harness high enough for current large
-# EIP-7934 block-RLP-limit fixtures; normal blocks halt long before this and
-# are not slowed.
-STEPS="${EEST_STEPS:-1000000000}"
+# runaway/very-large runs; a case that halts earlier consumes only the steps it
+# needs, so a generous cap never slows normal blocks. The heaviest legitimate
+# case observed across a full 23219-case Amsterdam run is the EIP-8037
+# state_gas_reservoir block_2d_gas_valid_when_cumulative_exceeds_limit fixture
+# (gas_limit 1e8), which halts correctly at ~2.94e9 steps; the old 1e9 cap
+# truncated it to a spurious BUDGET. 5e9 covers it with ~1.7x headroom while
+# staying ~13x below ziskemu's -n ceiling (68719476735) so a genuinely runaway
+# guest is still bounded.
+STEPS="${EEST_STEPS:-5000000000}"
 # Case-insensitive ERE matched against the ziskemu log when a run does NOT
 # produce a valid 105-byte output, to tell "exhausted the --steps budget"
 # (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
@@ -175,8 +184,10 @@ Options:
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
-  --steps N                ziskemu max steps (default $EEST_STEPS or 1000000000)
-  --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2)
+  --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
+  --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
+                           per-job budgets relax automatically (up to the same caps)
+                           when the ziskemu ROM cache is detected by the first-case warmup
   --max-failures N         stop after N FAIL/ERROR results
   --stop-after-failures N  alias for --max-failures
   --quiet-passes           suppress per-case PASS(full) lines
@@ -381,12 +392,47 @@ else
   ZISKEMU_AUTO_JOB_MEM_MIB=7000
   ZISKEMU_AUTO_JOB_CPU_THREADS=4
 fi
+JOB_MEM_MIB_AUTO=0
+JOB_CPU_THREADS_AUTO=0
 if [[ "$JOB_MEM_MIB" == "auto" ]]; then
   JOB_MEM_MIB="$ZISKEMU_AUTO_JOB_MEM_MIB"
+  JOB_MEM_MIB_AUTO=1
 fi
 if [[ "$JOB_CPU_THREADS" == "auto" ]]; then
   JOB_CPU_THREADS="$ZISKEMU_AUTO_JOB_CPU_THREADS"
+  JOB_CPU_THREADS_AUTO=1
 fi
+
+# --- ziskemu ROM cache awareness ---------------------------------------------
+# Newer ziskemu builds cache the transpiled compact ROM keyed by the ELF bytes
+# under $ZISKEMU_ROM_CACHE (or $XDG_CACHE_HOME/ziskemu, or ~/.cache/ziskemu;
+# ZISKEMU_ROM_CACHE=off|0 disables it). A cache hit skips the ELF->ROM
+# transpile entirely: measured on stateless_guest, a hit runs in ~2s wall on
+# ~1 core with ~4.3 GiB peak RSS, vs ~35s on 4 threads with ~25 GB transient
+# for the uncached transpile. Older ziskemu builds ignore the variable and
+# always transpile, and --version does not advertise the feature, so the
+# parallel path runs the FIRST case serially as a warmup and treats the cache
+# as live iff the warmup was too fast to have transpiled OR it wrote a fresh
+# *.zisk-rom entry (a first-run miss). Only then are the auto per-job budgets
+# relaxed to the cached-run numbers below. The warmup also guarantees the
+# cache is populated before fan-out, so a cold start never launches N
+# concurrent multi-GB transpiles. Non-cache builds keep today's conservative
+# budgets (the slow-warmup-no-entry fallthrough).
+ROM_CACHE_ENABLED=1
+ROM_CACHE_DIR=""
+case "${ZISKEMU_ROM_CACHE:-}" in
+  off|0) ROM_CACHE_ENABLED=0 ;;
+  "") ROM_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ziskemu" ;;
+  *) ROM_CACHE_DIR="$ZISKEMU_ROM_CACHE" ;;
+esac
+# Measured cached-run peak RSS is ~4300 MiB (mostly the deserialized compact
+# ROM); budget 5500 MiB/job for headroom so a full-width run stays clear of
+# earlyoom on shared hosts.
+ZISKEMU_CACHED_JOB_MEM_MIB="${EEST_CACHED_JOB_MEM_MIB:-5500}"
+ZISKEMU_CACHED_JOB_CPU_THREADS="${EEST_CACHED_JOB_CPU_THREADS:-1}"
+# A cached run finishes in seconds; the transpile alone takes far longer than
+# this on any host, so a warmup under the threshold proves the cache was hit.
+ROM_CACHE_WARMUP_FAST_SECS="${EEST_ROM_CACHE_WARMUP_FAST_SECS:-15}"
 
 compute_job_cap() {
   local mem_avail_kib mem_avail_mib mem_cap ncpu cpu_cap cap
@@ -424,6 +470,9 @@ compute_job_cap() {
 }
 
 CPUS="$(nproc 2>/dev/null || echo 1)"
+# Remember what the caller asked for: if the ROM-cache warmup later proves the
+# relaxed budgets apply, the cap is recomputed and JOBS is re-derived from this.
+JOBS_REQUESTED="$JOBS"
 JOB_CAP="$(compute_job_cap)"
 if [[ "$JOB_CAP" -gt "$MAX_JOBS" ]]; then
   JOB_CAP="$MAX_JOBS"
@@ -431,9 +480,42 @@ fi
 if [[ "$JOBS" == "auto" ]]; then
   JOBS="$JOB_CAP"
 elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
-  echo "==> requested --jobs $JOBS capped to $JOB_CAP (max_jobs=${MAX_JOBS}, job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)" >&2
+  echo "==> requested --jobs $JOBS capped to $JOB_CAP (max_jobs=${MAX_JOBS}, job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS); rechecked after ROM-cache warmup" >&2
   JOBS="$JOB_CAP"
 fi
+
+# Re-derive the job cap with cached-run budgets once the first-case warmup has
+# shown the ROM cache is live. Only auto-derived budgets are touched (explicit
+# --job-mem-mib / EEST_JOB_CPU_THREADS are respected), only on stock builds
+# (patched-lowmem budgets were measured for that build), and the result can
+# only grow: relaxed budgets give a cap >= the conservative one, and JOBS is
+# still bounded by the original request and --max-jobs.
+recalibrate_jobs_for_rom_cache() {
+  local warmup_secs="$1" stamp="$2" cached=0 new_cap
+  [[ "$ROM_CACHE_ENABLED" -eq 1 && -n "$ROM_CACHE_DIR" ]] || return 0
+  [[ "$ZISKEMU_FLAVOR" == "stock" ]] || return 0
+  [[ "$JOB_MEM_MIB_AUTO" -eq 1 || "$JOB_CPU_THREADS_AUTO" -eq 1 ]] || return 0
+  if [[ "$warmup_secs" -lt "$ROM_CACHE_WARMUP_FAST_SECS" ]]; then
+    cached=1
+  elif [[ -n "$(find "$ROM_CACHE_DIR" -maxdepth 1 -name '*.zisk-rom' -newer "$stamp" -print -quit 2>/dev/null)" ]]; then
+    cached=1
+  fi
+  if [[ "$cached" -ne 1 ]]; then
+    echo "==> ROM cache not detected (warmup ${warmup_secs}s, no fresh entry in $ROM_CACHE_DIR); keeping jobs=$JOBS"
+    return 0
+  fi
+  [[ "$JOB_MEM_MIB_AUTO" -eq 1 ]] && JOB_MEM_MIB="$ZISKEMU_CACHED_JOB_MEM_MIB"
+  [[ "$JOB_CPU_THREADS_AUTO" -eq 1 ]] && JOB_CPU_THREADS="$ZISKEMU_CACHED_JOB_CPU_THREADS"
+  new_cap="$(compute_job_cap)"
+  [[ "$new_cap" -gt "$MAX_JOBS" ]] && new_cap="$MAX_JOBS"
+  if [[ "$JOBS_REQUESTED" == "auto" ]]; then
+    JOBS="$new_cap"
+  else
+    JOBS="$JOBS_REQUESTED"
+    [[ "$JOBS" -gt "$new_cap" ]] && JOBS="$new_cap"
+  fi
+  echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS, max_jobs=$MAX_JOBS)"
+}
 
 echo "==> ziskemu: $ZISKEMU"
 echo "    version: $ZISKEMU_VERSION"
@@ -912,13 +994,20 @@ classify_case_result() {
   return 0
 }
 
-classify_completed_results() {
-  local line
-  for line in "${manifestLines[@]}"; do
-    classify_case_result "$line" 0 || true
+# Dispatched-but-unclassified cases, keyed by manifest index. Scanning only
+# this set after each worker completion keeps the bookkeeping O(jobs) per
+# case; the previous full-manifest rescan cost ~5s per completion at ~23k
+# selected cases (O(N^2) overall) and serialized the whole run on bash.
+declare -A inflightByIdx=()
+
+classify_inflight_results() {
+  local i
+  for i in "${!inflightByIdx[@]}"; do
+    if classify_case_result "${inflightByIdx[$i]}" 0; then
+      unset 'inflightByIdx[$i]'
+    fi
     if failure_limit_reached; then
-      print_progress
-      return 0
+      break
     fi
   done
   print_progress
@@ -953,14 +1042,27 @@ if [[ "$JOBS" -eq 1 ]]; then
     fi
   done
 else
+  # Serial first-case warmup: populates the ziskemu ROM cache on a cold start
+  # (so the fan-out below never races N concurrent multi-GB transpiles) and
+  # detects whether cached-run job budgets apply (see
+  # recalibrate_jobs_for_rom_cache). The case is a real one; its result counts.
+  romCacheStamp="$RUN_DIR/.rom-cache-stamp"
+  touch "$romCacheStamp"
+  warmupStart="$(date +%s)"
+  run_case "${manifestLines[0]}"
+  classify_case_result "${manifestLines[0]}" 1
+  print_progress
+  recalibrate_jobs_for_rom_cache "$(( $(date +%s) - warmupStart ))" "$romCacheStamp"
+
   active=0
-  nextLine=0
+  nextLine=1
   while [[ "$nextLine" -lt "$selectedCount" || "$active" -gt 0 ]]; do
     while [[ "$nextLine" -lt "$selectedCount" && "$active" -lt "$JOBS" ]]; do
       if failure_limit_reached; then
         break
       fi
       run_case "${manifestLines[$nextLine]}" &
+      inflightByIdx[$nextLine]="${manifestLines[$nextLine]}"
       active=$((active + 1))
       nextLine=$((nextLine + 1))
     done
@@ -969,7 +1071,7 @@ else
       stopEarly=1
       cleanup_children
       active=0
-      classify_completed_results
+      classify_inflight_results
       break
     fi
     if [[ "$active" -eq 0 ]]; then
@@ -978,12 +1080,12 @@ else
 
     wait_for_one_worker || worker_fail=1
     active=$((active - 1))
-    classify_completed_results
+    classify_inflight_results
     if failure_limit_reached; then
       stopEarly=1
       cleanup_children
       active=0
-      classify_completed_results
+      classify_inflight_results
       break
     fi
   done
