@@ -35,7 +35,6 @@ import EvmAsm.Evm64.And.Spec
 import EvmAsm.Evm64.Or.Spec
 import EvmAsm.Evm64.Xor.Spec
 import EvmAsm.Evm64.Not.Spec
-import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Rv64.InstructionSpecs
@@ -855,57 +854,10 @@ theorem evmNotHandlerSpec (sp base : Word)
   exact h
 
 -- ============================================================================
--- 16. Concrete instance — MSIZE (0x59)
+-- 16. Parameterized instance — the 13 simple environment opcodes
 -- ============================================================================
-
-/-- Handler-level spec for `h_MSIZE` (opcode 0x59). Lifts the verified
-    `evm_msize_spec_within` body (6-instruction memory-size push: load the
-    size cell into `tempReg`, decrement SP, write the low limb + three zero
-    upper limbs) through the dispatcher's standard `.advanceAndRet 1` tail.
-    6-instruction body + 2-instruction tail = 8 RISC-V steps.
-
-    Unlike the binary/unary arithmetic handlers, the body is parameterized by
-    the size-cell pointer register `sizeReg` and a scratch `tempReg`
-    (`tempReg ≠ x0`); the spec is correspondingly general. After the handler
-    runs, the EVM stack grows by one word holding `sizeBytes` in its low limb,
-    `x10` advances by 1, and `x1` is preserved. -/
-theorem evmMsizeHandlerSpec
-    (sizeReg tempReg : Reg) (htemp_ne_x0 : tempReg ≠ .x0)
-    (nsp base sizeLoc tempOld : Word) (sizeBytes : Nat)
-    (d0 d1 d2 d3 : Word) (x10_init x1_init : Word) :
-    cpsTripleWithin (6 + 2) base (x1_init &&& ~~~1)
-      (cleanRetHandlerCode base (EvmAsm.Evm64.evm_msize sizeReg tempReg) 1)
-      (((sizeReg ↦ᵣ sizeLoc) ** (tempReg ↦ᵣ tempOld) ** (.x12 ↦ᵣ (nsp + 32)) **
-        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3) **
-        EvmAsm.Evm64.evmMemSizeIs sizeLoc sizeBytes)
-       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
-      (((sizeReg ↦ᵣ sizeLoc) ** (tempReg ↦ᵣ BitVec.ofNat 64 sizeBytes) ** (.x12 ↦ᵣ nsp) **
-        (nsp ↦ₘ BitVec.ofNat 64 sizeBytes) ** ((nsp + 8) ↦ₘ 0) **
-        ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) **
-        EvmAsm.Evm64.evmMemSizeIs sizeLoc sizeBytes)
-       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
-  have h_body := EvmAsm.Evm64.evm_msize_spec_within sizeReg tempReg htemp_ne_x0
-    nsp base sizeLoc tempOld sizeBytes d0 d1 d2 d3
-  have hBodyLen : (EvmAsm.Evm64.evm_msize sizeReg tempReg).length = 6 :=
-    EvmAsm.Evm64.evm_msize_length sizeReg tempReg
-  have hExitEq : (base + (24 : Word)) = base + fourTimes 6 := by
-    simp only [fourTimes]; bv_omega
-  rw [hExitEq] at h_body
-  have hQpcFree :
-      (((sizeReg ↦ᵣ sizeLoc) ** (tempReg ↦ᵣ BitVec.ofNat 64 sizeBytes) ** (.x12 ↦ᵣ nsp) **
-        (nsp ↦ₘ BitVec.ofNat 64 sizeBytes) ** ((nsp + 8) ↦ₘ 0) **
-        ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) **
-        EvmAsm.Evm64.evmMemSizeIs sizeLoc sizeBytes) : Assertion).pcFree := by pcFree
-  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
-  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
-    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
-    rw [this]
-  rw [hAdvance] at h
-  exact h
-
--- ============================================================================
--- 17. Parameterized instance — the 13 simple environment opcodes
--- ============================================================================
+-- (MSIZE 0x59 is covered by the dedicated PR #8765 in this same file; this PR
+--  contributes the env-opcode family to avoid duplicating that work.)
 
 open EvmAsm.Evm64 (EvmEnv evmStackIs) in
 open EvmAsm.Evm64.Env (SimpleEnvField evm_env_load evm_env_load_length
