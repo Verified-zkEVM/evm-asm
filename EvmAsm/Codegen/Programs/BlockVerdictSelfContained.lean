@@ -85,7 +85,9 @@ def bytecodeIsSelfContainedFunction : String :=
   "  li t3, 0x44; beq t2, t3, .Lbsc_unsafe\n" ++   -- PREVRANDAO (unstaged env -> reads 0)
   -- CHAINID (0x46) ACTIVATED (6121j.1): stage_runtime_payload_code now stages bv_chain_id into the
   -- CHAINID env word (+472 -> EvmEnv+384), so a dispatched contract reads the real chain id. Lifted.
-  "  li t3, 0x4a; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOBBASEFEE (unstaged evm_env+512 -> reads 0)
+  -- BLOBBASEFEE (0x4a) ACTIVATED (6121j.1): stage_runtime_payload_code now stages the block blob
+  -- gas price (amsterdam_blob_gas_price_u256) into the payload blob_base_fee slot @+32 -> evm_env+512,
+  -- so a dispatched contract reads the real value. Lifted.
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
   "  li a0, 0; ret\n" ++
