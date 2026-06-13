@@ -420,10 +420,39 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_committed_count; sd zero, 0(t0)  # fhsxz.2.4.2.57.11.6.3.2: empty cross-tx committed table\n" ++
+  -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
+  -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
+  -- so compute the BLOCK base_fee once here (it is block-level, identical for every tx) by
+  -- reversing the payload's SSZ little-endian base_fee at bv_exec_p+440 into BE
+  -- (bv_mtx_base_fee_be), mirroring the single-tx envelope reversal at line ~101. The per-tx
+  -- fee gate below points tx_effective_gas_pricing's a2 at this buffer. bv_exec_p was set
+  -- unconditionally at line ~77 (before the tx-count split), so it is valid here.
+  "  la t4, bv_exec_p; ld t4, 0(t4); addi t1, t4, 440; la t2, bv_mtx_base_fee_be; li t3, 0\n" ++
+  ".Lbv_mtx_bf_rev:\n" ++
+  "  li t0, 32; beq t3, t0, .Lbv_mtx_bf_rev_done\n" ++
+  "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbv_mtx_bf_rev\n" ++
+  ".Lbv_mtx_bf_rev_done:\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t0, 0(t0); bnez t0, .Lbv_mtx_bail        # unsupported tx shape\n" ++
+  -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
+  -- fee-validity test as the single-tx gate (max_fee>=base_fee / priority<=max_fee),
+  -- run per tx in the mtx loop. bv_mtx_ctx holds tx ptr@8 / len@16 (simple_transfer layout,
+  -- BlockVerdictMultiTx.lean:38); base_fee comes from bv_mtx_base_fee_be (computed above —
+  -- record+32 is NOT filled by multi_tx_nth_context). Placed before the contract/EOA-recipient
+  -- routing so it covers EVERY status-0 tx the loop reaches. tx_effective_gas_pricing returns
+  -- 2 (priority>max_fee) / 3 (max_fee<base_fee) for the two spec errors; status 1 (extraction
+  -- failed) / 4 (egp overflow) -> fall through. An invalid-fee tx is spec-rejected regardless
+  -- of recipient type, and a valid block never carries one, so this only ADDS spec-faithful
+  -- rejects -- no false-reject. (t1 is reset at the code-hash compare / reloaded from bv_mtx_i
+  -- later; s0-s3 preserved by the call.)
+  "  la t2, bv_mtx_ctx\n" ++
+  "  ld a0, 8(t2); ld a1, 16(t2); la a2, bv_mtx_base_fee_be\n" ++   -- tx ptr, tx len, block base_fee (BE)
+  "  la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  li t1, 2; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- priority_fee > max_fee -> reject
+  "  li t1, 3; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- max_fee < base_fee -> reject
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
