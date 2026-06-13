@@ -283,8 +283,9 @@ private theorem cdcv_block1 (base codePtr len v6old x1_init dwordAddr wordVal : 
 /-- The full `create_deployed_code_valid` gate as a cpsTriple over the structured
     `cdcvProgram` the codegen emits: `li x5,32768 ;; block1`. The deployed gate
     sets `a0 := 1` (invalid) iff `len > 32768` OR `(len ≠ 0 ∧ code[0] = 0xEF)`,
-    else `0`. -/
-theorem cdcv_spec (base codePtr len v5old v6old x1_init dwordAddr wordVal : Word)
+    else `0`. Alternate formulation over `cdcvCode`; see `cdcv_spec` for the
+    explicit-singleton form built on `cdcv_merge1`. -/
+theorem cdcv_spec_via_blocks (base codePtr len v5old v6old x1_init dwordAddr wordVal : Word)
     (halign : alignToDword (codePtr + signExtend12 (0:BitVec 12)) = dwordAddr)
     (hvalid : isValidByteAccess (codePtr + signExtend12 (0:BitVec 12)) = true) :
     cpsTripleWithin 8 base (x1_init &&& ~~~1) (cdcvCode base)
