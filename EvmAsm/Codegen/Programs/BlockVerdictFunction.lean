@@ -889,13 +889,9 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_stx_checks_done\n" ++                          -- sender lookup failed/absent -> skip
   "  la t0, bv_stx_sender_acct; ld t0, 0(t0)\n" ++                -- sender pre-state nonce
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                        -- tx.nonce
-  -- EXACT (not just lower-bound): a single tx's nonce must EQUAL the sender's pre-state nonce
-  -- (spec check_transaction; frontier/validation/transaction/tx_nonce rejects BOTH nonce_diff=-1
-  -- and +1). A single-tx block has exactly one tx from this sender, so the valid nonce is exactly
-  -- pre (no sequencing) -- mirrors the simple-transfer exact check @1082 (bne), extended to the
-  -- contract-recipient/bail path here. Catches too-high as well as too-low; sound (valid single tx
-  -- always has nonce == pre -> never false-rejects). (The multi-tx path keeps the < pre lower bound
-  -- since a sequenced same-sender tx legitimately has nonce > pre; exact there needs per-sender count.)
+  -- EXACT (bne, not < pre): a single tx's nonce must EQUAL pre -- spec rejects too-high too
+  -- (tx_nonce nonce_diff=+1; mirrors @1082; sound: a single tx always has nonce==pre). Multi-tx
+  -- keeps < pre (a sequenced same-sender tx legitimately has nonce > pre).
   "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                     -- tx.nonce != pre_nonce -> reject (NonceMismatchError)
   "  la a0, tefgp_max_fee\n" ++
   "  la t0, bv_simple_transfer_tx; ld a1, 40(t0)\n" ++            -- gas_limit (u64)
