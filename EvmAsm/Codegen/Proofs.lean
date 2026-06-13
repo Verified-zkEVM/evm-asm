@@ -8,3 +8,4 @@
 
 import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.HandlerSpecs
+import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
