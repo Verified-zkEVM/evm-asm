@@ -1020,6 +1020,18 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- {recipient, sender, coinbase} addresses, gas/value-coupled, pinned on the gas path).
   ".balign 8\n" ++
   "i3djw_skip_list:\n  .zero 96\n" ++
+  -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
+  -- comparators. A multi-tx block's gas/value-coupled accounts are {sender_i,
+  -- recipient_i} for every tx i plus the shared {coinbase} -> up to 2N+1 entries
+  -- (N = bv_tx_count <= 16, the arena cap). 33 x 32B = 1056 B; 32-byte-strided,
+  -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
+  -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context
+  -- calls); bv_mtx_skip_ctx is the scratch record for re-extracting each recipient.
+  ".balign 8\n" ++
+  "bv_mtx_skip_list:\n  .zero 1056\n" ++
+  "bv_mtx_skip_count:\n  .zero 8\n" ++
+  "bv_mtx_skip_idx:\n  .zero 8\n" ++
+  "bv_mtx_skip_ctx:\n  .zero 192\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
   ".balign 8\n" ++

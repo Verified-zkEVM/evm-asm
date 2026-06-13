@@ -615,6 +615,38 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
+  -- bmvmx.5.5.1 (umbrella-A1): build the MULTI-TX skip-list that the all-accounts
+  -- exec-vs-BAL comparators (@1032-1110, run only on the single-tx path today) must
+  -- skip. The single-tx i3djw_skip_list is the fixed 3 entries {recipient, sender,
+  -- coinbase}; a multi-tx block has up to 2N+1 such gas/value-coupled accounts. We are
+  -- at .Lbv_mtx_done, so EVERY tx reached a status-0 supported shape -> re-deriving
+  -- each is safe (address_from_pubkey already ran @474, multi_tx_nth_context @438):
+  --   skip[2i]   = sender_i    = address_from_pubkey(public_keys[i]+1)   (as @473-474)
+  --   skip[2i+1] = recipient_i = multi_tx_nth_context(bv_mtx_skip_ctx,i)+72 (pure re-extract)
+  --   skip[2N]   = coinbase     = fee_recipient (bv_exec_p+32)            (as @161-164)
+  -- count = 2N+1. 32-byte-strided, address in the first 20 bytes. BEHAVIOR-NEUTRAL:
+  -- nothing reads bv_mtx_skip_list yet (umbrella-A2 wires it into the comparators);
+  -- built here so the existing multi-tx fixtures exercise the derivation. The build
+  -- loop's cursor lives in bv_mtx_skip_idx (memory) so it survives the jal calls;
+  -- s0/s3 (params/SSZ_BASE) are callee-saved and preserved across them.
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_skl_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_skl_done\n" ++
+  "  slli t3, t1, 6; add t4, t3, t1\n" ++                               -- t4 = i*65
+  "  la t0, bv_public_keys_ptr; ld t0, 0(t0); add t0, t0, t4; addi a0, t0, 1\n" ++  -- a0 = public_keys[i]+1 (skip 0x04)
+  "  slli t5, t1, 6; la a1, bv_mtx_skip_list; add a1, a1, t5\n" ++      -- a1 = &skip[2i] (offset i*64)
+  "  jal ra, address_from_pubkey\n" ++
+  "  la a0, bv_mtx_skip_ctx; la t0, bv_mtx_skip_idx; ld a1, 0(t0); jal ra, multi_tx_nth_context\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t5, t1, 6; addi t5, t5, 32\n" ++
+  "  la t6, bv_mtx_skip_list; add t6, t6, t5\n" ++                      -- t6 = &skip[2i+1] (offset i*64+32)
+  "  la t2, bv_mtx_skip_ctx; addi t2, t2, 72; li t3, 0\n" ++            -- src = recipient (ctx+72)
+  ".Lbv_skl_rcopy:\n  li t4, 20; beq t3, t4, .Lbv_skl_rcopy_d\n  add t4, t2, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_rcopy\n.Lbv_skl_rcopy_d:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_skl_loop\n" ++
+  ".Lbv_skl_done:\n" ++
+  "  la t2, bv_tx_count; ld t2, 0(t2); slli t5, t2, 6; la t6, bv_mtx_skip_list; add t6, t6, t5\n" ++  -- t6 = &skip[2N] (offset N*64)
+  "  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32; li t3, 0\n" ++    -- src = fee_recipient (exec_p+32)
+  ".Lbv_skl_cb:\n  li t4, 20; beq t3, t4, .Lbv_skl_cb_d\n  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_cb\n.Lbv_skl_cb_d:\n" ++
+  "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 1; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+1
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_mtx_bail:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
