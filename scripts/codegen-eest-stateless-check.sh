@@ -45,7 +45,7 @@
 #     --skip N           skip first N selected stateless blocks after filtering
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
-#     --steps N          ziskemu max steps (default $EEST_STEPS or 1000000000)
+#     --steps N          ziskemu max steps (default $EEST_STEPS or 5000000000)
 #     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
 #                        Auto per-job budgets are sized for the uncached ELF->ROM
 #                        transpile; when the ziskemu ROM cache is detected via the
@@ -134,10 +134,15 @@ SKIP=0
 LIMIT=50
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
-# runaway/very-large runs. Keep the base harness high enough for current large
-# EIP-7934 block-RLP-limit fixtures; normal blocks halt long before this and
-# are not slowed.
-STEPS="${EEST_STEPS:-1000000000}"
+# runaway/very-large runs; a case that halts earlier consumes only the steps it
+# needs, so a generous cap never slows normal blocks. The heaviest legitimate
+# case observed across a full 23219-case Amsterdam run is the EIP-8037
+# state_gas_reservoir block_2d_gas_valid_when_cumulative_exceeds_limit fixture
+# (gas_limit 1e8), which halts correctly at ~2.94e9 steps; the old 1e9 cap
+# truncated it to a spurious BUDGET. 5e9 covers it with ~1.7x headroom while
+# staying ~13x below ziskemu's -n ceiling (68719476735) so a genuinely runaway
+# guest is still bounded.
+STEPS="${EEST_STEPS:-5000000000}"
 # Case-insensitive ERE matched against the ziskemu log when a run does NOT
 # produce a valid 105-byte output, to tell "exhausted the --steps budget"
 # (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
@@ -179,7 +184,7 @@ Options:
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
-  --steps N                ziskemu max steps (default $EEST_STEPS or 1000000000)
+  --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
   --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
                            per-job budgets relax automatically (up to the same caps)
                            when the ziskemu ROM cache is detected by the first-case warmup
