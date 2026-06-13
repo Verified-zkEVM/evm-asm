@@ -65,6 +65,14 @@ checks = [
     ('evm_cur_stack_top - &arena',      0x18200),
     ('evm_cur_stack_low - &arena',      0x10200),
     ('parent gas after transfer+cost',  90000),
+    # nxio8.4.1: descend snapshots the parent's pre-child state gas into the child
+    # env at +624/632 so frame_return can restore it on a child REVERT.
+    ('child env state_gas_left snapshot', 12345),
+    ('child env state_gas_used snapshot', 67890),
+    # nxio8.4.2: descend also snapshots the EIP-3529 refund accumulator.
+    ('child env refund_acc snapshot',     24680),
+    # nxio8.4.3: descend also snapshots the EIP-2929 storage-warmth count.
+    ('child env warmth_count snapshot',   5),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
