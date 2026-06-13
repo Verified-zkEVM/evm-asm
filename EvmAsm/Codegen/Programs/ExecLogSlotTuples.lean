@@ -28,6 +28,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -110,11 +111,21 @@ def execLogSlotTuplesFunction : String :=
   "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lels_emit\n" ++
   "  ret                                   # net-zero this tx -> no tuple\n" ++
   ".Lels_emit:\n" ++
+  -- fhsxz.2.4.2.66.1.1: bound the output write. The caller's out buffer holds exactly
+  -- bsrMaxTuplesPerSlot 40-byte records (atsc_execbuf, the symmetric counterpart of the
+  -- BAL-side bal_slot_tuple_sequence cap). out_count is execution-bounded (one net-change
+  -- group per distinct tx, so <= block tx count) and never reaches the cap in practice, but
+  -- this LOCAL guard makes the no-overflow invariant explicit (out[j] is written only for
+  -- j < cap) instead of relying on a whole-program tx-count argument: at/above the cap we
+  -- skip the OOB 40-byte store while still tracking the true count + running value, so the
+  -- helper returns the true count and the caller bails conservatively (count > cap).
+  "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgeu s7, t0, .Lels_emit_capped\n" ++
   "  slli t0, s7, 5; slli t1, s7, 3; add t0, t0, t1; add t6, s5, t0   # out[out_count] base\n" ++
   "  la t0, els_grouptx; ld t2, 0(t0); sd t2, 0(t6)                   # txindex -> +0\n" ++
   "  la t0, els_groupval; addi t1, t6, 8                              # value -> +8 (32B copy)\n" ++
   "  ld t2, 0(t0);  sd t2, 0(t1);  ld t2, 8(t0);  sd t2, 8(t1)\n" ++
   "  ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  ".Lels_emit_capped:\n" ++
   "  la t0, els_groupval; la t1, els_running                          # running = group_val\n" ++
   "  ld t2, 0(t0);  sd t2, 0(t1);  ld t2, 8(t0);  sd t2, 8(t1)\n" ++
   "  ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++

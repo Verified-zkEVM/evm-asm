@@ -114,6 +114,11 @@ def accountTupleSequencesConsistentFunction : String :=
   "  mv a0, s2; la a1, atsc_key_le; mv a2, s3; mv a3, s4; mv a4, s5; la a5, atsc_execbuf\n" ++
   "  jal ra, exec_log_slot_tuples\n" ++
   "  mv t6, a0                                            # exec_count\n" ++
+  -- fhsxz.2.4.2.66.1.1: symmetric to the BAL-side cap bail above. exec_log_slot_tuples
+  -- stops writing at bsrMaxTuplesPerSlot records (atsc_execbuf capacity) but returns the
+  -- true count; > cap means the tail records were not written, so bail conservatively
+  -- instead of comparing against stale/partial atsc_execbuf contents.
+  "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu t6, t0, .Latsc_fail\n" ++
   "  # exact list-vs-list comparison\n" ++
   "  la a0, atsc_balbuf; la t0, atsc_balcount; ld a1, 0(t0); la a2, atsc_execbuf; mv a3, t6\n" ++
   "  jal ra, slot_tuple_sequences_match\n" ++
