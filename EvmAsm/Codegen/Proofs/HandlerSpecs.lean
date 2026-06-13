@@ -36,6 +36,7 @@ import EvmAsm.Evm64.Or.Spec
 import EvmAsm.Evm64.Xor.Spec
 import EvmAsm.Evm64.Not.Spec
 import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Rv64.InstructionSpecs
 
@@ -895,6 +896,55 @@ theorem evmMsizeHandlerSpec
         (nsp ↦ₘ BitVec.ofNat 64 sizeBytes) ** ((nsp + 8) ↦ₘ 0) **
         ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) **
         EvmAsm.Evm64.evmMemSizeIs sizeLoc sizeBytes) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 17. Parameterized instance — the 13 simple environment opcodes
+-- ============================================================================
+
+open EvmAsm.Evm64 (EvmEnv evmStackIs) in
+open EvmAsm.Evm64.Env (SimpleEnvField evm_env_load evm_env_load_length
+  evm_env_load_stack_spec_within) in
+/-- Handler-level spec for the 13 simple environment opcodes
+    (ADDRESS/CALLER/CALLVALUE/ORIGIN/GASPRICE/COINBASE/TIMESTAMP/NUMBER/
+    PREVRANDAO/GASLIMIT/CHAINID/BASEFEE/SELFBALANCE), parameterized by the
+    `SimpleEnvField`. Lifts the field-generic `evm_env_load_stack_spec_within`
+    9-instruction body (load the env field, decrement SP, push the value) through
+    the dispatcher's `.advanceAndRet 1` clean-ret tail. 9-instruction body +
+    2-instruction tail = 11 RISC-V steps. Instantiating `field` at `.address`,
+    `.caller`, … yields each opcode's handler spec. -/
+theorem evmEnvWrapperHandlerSpec
+    (field : SimpleEnvField)
+    (envBaseReg tmpReg : Reg) (htmp_ne_x0 : tmpReg ≠ .x0)
+    (nsp base envAddr tempOld : Word) (env : EvmEnv)
+    (d0 d1 d2 d3 : Word) (rest : List EvmAsm.Evm64.EvmWord) (x10_init x1_init : Word) :
+    cpsTripleWithin (9 + 2) base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base (evm_env_load envBaseReg tmpReg field) 1)
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ tempOld) ** (.x12 ↦ᵣ (nsp + 32)) **
+        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) ** ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3) **
+        EvmEnv.envIs envAddr env ** evmStackIs (nsp + 32) rest)
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ (field.value env).getLimbN 3) **
+        (.x12 ↦ᵣ nsp) **
+        evmStackIs nsp (field.value env :: rest) ** EvmEnv.envIs envAddr env)
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := evm_env_load_stack_spec_within envBaseReg tmpReg htmp_ne_x0
+    nsp base envAddr tempOld field env d0 d1 d2 d3 rest
+  have hBodyLen : (evm_env_load envBaseReg tmpReg field).length = 9 :=
+    evm_env_load_length envBaseReg tmpReg field
+  have hExitEq : (base + (36 : Word)) = base + fourTimes 9 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ (field.value env).getLimbN 3) **
+        (.x12 ↦ᵣ nsp) **
+        evmStackIs nsp (field.value env :: rest) **
+        EvmEnv.envIs envAddr env) : Assertion).pcFree := by pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
   have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
     have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
