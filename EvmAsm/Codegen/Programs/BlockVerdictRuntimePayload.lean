@@ -107,6 +107,13 @@ def stageRuntimePayloadFunction : String :=
   "  ld t2, 428(a2); sd t2, 312(s0)\n" ++
   -- GASLIMIT (word 10 -> +408): exec u64 @412.
   "  ld t2, 412(a2); sd t2, 408(s0)\n" ++
+  -- 6121j.1: CHAINID (word 12 -> +472): bv_chain_id (u64, set by chain_config_valid during the
+  -- verdict's config validation, BEFORE dispatch). Direct u64 copy like NUMBER/TIMESTAMP/GASLIMIT
+  -- above (the handler evm_env_load .chainId reads env+384 the same way). Activates CHAINID for
+  -- dispatched self-contained contracts -- previously conservatively rejected (#8782) because the
+  -- env word was unstaged so a dispatched contract read CHAINID=0 (false-accept). Now staged with
+  -- the real chain id, so the reject is lifted (see BlockVerdictSelfContained .Lbsc_check).
+  "  la t1, bv_chain_id; ld t2, 0(t1); sd t2, 472(s0)\n" ++
   -- COINBASE (word 6 -> +280): exec 20-byte address @32, right-aligned into a
   -- 32-byte big-endian stack word. Copy the 20 bytes byte-by-byte so the
   -- staged word has the address in its low 20 bytes (matching how the env
