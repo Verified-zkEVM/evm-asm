@@ -647,6 +647,73 @@ def blockVerdictFunction : String :=
   "  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32; li t3, 0\n" ++    -- src = fee_recipient (exec_p+32)
   ".Lbv_skl_cb:\n  li t4, 20; beq t3, t4, .Lbv_skl_cb_d\n  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_cb\n.Lbv_skl_cb_d:\n" ++
   "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 1; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+1
+  -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path.
+  -- The single-tx path runs these two comparators @1077-1094; the multi-tx path skipped them
+  -- (the @618 jump), leaving every non-gas-coupled account's balance/nonce changes unvalidated
+  -- against execution (bmvmx.5.5). Now wired here, consuming the A1 skip-list. CONSERVATIVE
+  -- guards (skip -> never false-reject, mirroring the gas-path's withdrawal guard @1174):
+  --   (a) effect-log overflow: the 64-entry cap dropped records, so a BAL-declared change might
+  --       lack its exec effect -> a non-coupled account would look forged. Skip.
+  --   (b) withdrawals: system-level balance credits land in the BAL but NOT in the tx-execution
+  --       effect log, so a withdrawal-credited (non-coupled) account would look like a declared
+  --       change with no effect -> false-reject. Skip (multi-tx + withdrawals is a follow-up).
+  "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
+  "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
+  -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
+  -- the 20B BE address @rec+0: first-seen record copied whole; a later record for the same
+  -- account overwrites only post_balance (+64, 32B) + post_nonce (+104, 8B). Records append in
+  -- tx/exec order, so the kept pre = block-start, the kept post = block-final -- exactly what
+  -- bal_account_nonstorage_consistent compares (BAL final == exec post; net-change post!=pre).
+  -- The count never resets across the block in the real path (only the probe @130 zeroes it),
+  -- so the log already holds every tx's effects. Pure loop (no calls -> counters in t/a regs).
+  "  la t0, exec_nonstorage_effect_agg_count; sd zero, 0(t0)\n" ++
+  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); li t2, 0\n" ++   -- t1 = raw count, t2 = j
+  ".Lbv_agg_loop:\n" ++
+  "  bgeu t2, t1, .Lbv_agg_done\n" ++
+  "  li t3, 112; mul t3, t2, t3; la t4, exec_nonstorage_effect_log; add t4, t4, t3\n" ++   -- t4 = &log[j]
+  "  la t5, exec_nonstorage_effect_agg_count; ld t5, 0(t5); li t6, 0\n" ++   -- t5 = agg_count, t6 = k
+  ".Lbv_agg_scan:\n" ++
+  "  bgeu t6, t5, .Lbv_agg_append\n" ++
+  "  li a0, 112; mul a0, t6, a0; la a1, exec_nonstorage_effect_agg; add a1, a1, a0; li a2, 0\n" ++   -- a1 = &agg[k]
+  ".Lbv_agg_cmp:\n" ++
+  "  li a3, 20; beq a2, a3, .Lbv_agg_update\n" ++
+  "  add a4, t4, a2; lbu a5, 0(a4); add a4, a1, a2; lbu a6, 0(a4); bne a5, a6, .Lbv_agg_scan_adv\n" ++
+  "  addi a2, a2, 1; j .Lbv_agg_cmp\n" ++
+  ".Lbv_agg_scan_adv:\n" ++
+  "  addi t6, t6, 1; j .Lbv_agg_scan\n" ++
+  ".Lbv_agg_update:\n" ++   -- agg[k] = a1: overwrite post_balance (+64,32B) + post_nonce (+104,8B) from log[j]
+  "  ld a2, 64(t4); sd a2, 64(a1); ld a2, 72(t4); sd a2, 72(a1); ld a2, 80(t4); sd a2, 80(a1); ld a2, 88(t4); sd a2, 88(a1); ld a2, 104(t4); sd a2, 104(a1)\n" ++
+  "  j .Lbv_agg_next\n" ++
+  ".Lbv_agg_append:\n" ++   -- copy full 112B log[j] -> agg[agg_count]; agg_count++
+  "  li a0, 112; mul a0, t5, a0; la a1, exec_nonstorage_effect_agg; add a1, a1, a0; li a2, 0\n" ++
+  ".Lbv_agg_copy:\n" ++
+  "  li a3, 112; beq a2, a3, .Lbv_agg_copy_d\n" ++
+  "  add a4, t4, a2; lbu a5, 0(a4); add a4, a1, a2; sb a5, 0(a4); addi a2, a2, 1; j .Lbv_agg_copy\n" ++
+  ".Lbv_agg_copy_d:\n" ++
+  "  addi t5, t5, 1; la a0, exec_nonstorage_effect_agg_count; sd t5, 0(a0)\n" ++
+  ".Lbv_agg_next:\n" ++
+  "  addi t2, t2, 1; j .Lbv_agg_loop\n" ++
+  ".Lbv_agg_done:\n" ++
+  -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
+  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may create accounts whose pre-
+  -- state has no witness node, so no exec effect is recorded though the BAL legitimately
+  -- declares their balance change -- skip those rather than false-reject (the value-mismatch
+  -- direction still validates every account that DID get an effect). Reset to 0 after so
+  -- nothing else (single-tx is a different block_verdict call anyway) sees lenient mode.
+  "  la t0, c3ns_lenient_notfound; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
+  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
+  "  la t0, c3ns_lenient_notfound; sd zero, 0(t0)\n" ++
+  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  -- reverse (covers): every exec net-changed account is present in the BAL
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
+  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_nonstorage_covers\n" ++
+  "  bnez a0, .Lbv_bal_nonstorage_covers_fail\n" ++
+  ".Lbv_mtx_ns_skip:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_mtx_bail:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
