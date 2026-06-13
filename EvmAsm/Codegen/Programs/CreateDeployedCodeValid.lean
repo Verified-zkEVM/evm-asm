@@ -22,6 +22,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -31,22 +32,23 @@ open EvmAsm.Rv64
     the EIP-170 0x6000 = 24576). Code longer than this fails deployment. -/
 def maxDeployedCodeSize : Nat := 32768
 
+/-- The `create_deployed_code_valid` body as a STRUCTURED RV64 program (a0=x10 code
+    ptr + result, a1=x11 len, t0=x5 scratch, t1=x6 byte). `bgtu a1,t0`≡`bltu x5,x11`,
+    `beqz a1`≡`beq x11,x0`, `ret`≡`jalr x0,0(x1)`, labels→PC-relative offsets. This is
+    what `emitProgram` renders below — byte-identical to the former hand-written asm —
+    and what `EvmAsm.Rv64.cdcv_spec` proves as a `cpsTriple`. -/
+def cdcvProgram : Program :=
+  [ .LI .x5 (32768 : Word), .BLTU .x5 .x11 (28 : BitVec 13), .BEQ .x11 .x0 (16 : BitVec 13),
+    .LBU .x6 .x10 (0 : BitVec 12), .LI .x5 (0xEF : Word), .BEQ .x6 .x5 (12 : BitVec 13),
+    .LI .x10 (0 : Word), .JALR .x0 .x1 0, .LI .x10 (1 : Word), .JALR .x0 .x1 0 ]
+
 /-! ## create_deployed_code_valid
     a0 = deployed code ptr   a1 = deployed code length (bytes)
     a0 (output) = 0 valid (deploy) / 1 invalid (EIP-3541 0xEF prefix or > MAX_CODE_SIZE).
-    Leaf (no calls); clobbers t0/t1. -/
+    Leaf (no calls); clobbers t0/t1. Emitted from the verified `cdcvProgram`
+    (cpsTriple-proven by `cdcv_spec`); byte-identical to the prior hand-written asm. -/
 def createDeployedCodeValidFunction : String :=
-  "create_deployed_code_valid:\n" ++
-  "  li t0, " ++ toString maxDeployedCodeSize ++ "\n" ++
-  "  bgtu a1, t0, .Lcdcv_invalid          # len > MAX_CODE_SIZE (Amsterdam EIP-7907)\n" ++
-  "  beqz a1, .Lcdcv_valid                # empty code is valid\n" ++
-  "  lbu t1, 0(a0)\n" ++
-  "  li t0, 0xEF\n" ++
-  "  beq t1, t0, .Lcdcv_invalid           # 0xEF-prefixed (EIP-3541)\n" ++
-  ".Lcdcv_valid:\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lcdcv_invalid:\n" ++
-  "  li a0, 1; ret"
+  "create_deployed_code_valid:\n" ++ emitProgram cdcvProgram
 
 /-- `zisk_create_deployed_code_valid`: known-answer probe. Surfaces 5 results to
     OUTPUT (0xa0010000):
