@@ -364,41 +364,36 @@ where
         let step2 ← mkCongrArg sepConjPicked tailProof
         mkEqTrans pickProof step2
 
-/-- The main permutation proof builder.
+/-- The AC-reflection fast path, extracted from `buildPermProof` so other
+    routes (the certificate prover) can try it first.
 
-    Given LHS and RHS as sepConj chains with the same atoms
-    (syntactically identical), builds a proof of `LHS = RHS`.
-
-    Uses AC reflection via `buildNormProof` for O(n log n) kernel work.
-    Falls back to pick-based O(n^2) algorithm if expressions contain
-    loose bvars (which would cause PANIC in AC normalization). -/
-partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
-  withTraceNode `runBlock.perf.perm (fun _ => return m!"perm") do
+    Returns `some proof` of `lhs = rhs` when the AC path applies — i.e. the
+    chains' atoms are syntactically identical up to reducible normalization
+    (`checkACEligible`) with no loose bvars — using `buildNormProof` for
+    O(n log n) kernel work. Returns `none` when the AC path does not apply, so
+    the caller can choose a non-AC strategy (pick-based fallback or certificate).
+    Throws only on a genuine AC-internal inconsistency (same as the original
+    inline code: missing AC instances, or hashes matched but normal forms
+    differ). -/
+def tryBuildPermProofAC? (lhs rhs : Expr) : MetaM (Option Expr) := do
   -- Try AC fast path with zetaReduce
   let lhsZ ← Lean.Meta.zetaReduce lhs
   let rhsZ ← Lean.Meta.zetaReduce rhs
-  -- Safety check: if zetaReduce produced loose bvars, fall back
-  if lhsZ.hasLooseBVars || rhsZ.hasLooseBVars then
-    return ← buildPermProofFallback lhs rhs
+  -- Not applicable if zetaReduce produced loose bvars
+  if lhsZ.hasLooseBVars || rhsZ.hasLooseBVars then return none
   let lhsAtoms ← flattenSepConj lhsZ
   let rhsAtoms ← flattenSepConj rhsZ
-  -- If atom counts don't match after zetaReduce, try fallback on originals
-  unless lhsAtoms.length == rhsAtoms.length do
-    return ← buildPermProofFallback lhs rhs
-  -- Handle trivial cases (0-1 atoms): just check isDefEq
+  -- Not applicable if atom counts don't match after zetaReduce
+  unless lhsAtoms.length == rhsAtoms.length do return none
+  -- Trivial cases (0-1 atoms): a defeq check yields refl; otherwise not AC's job
   if lhsAtoms.length ≤ 1 then
-    if ← isDefEq lhsZ rhsZ then
-      return ← mkEqRefl lhsZ
-    else
-      return ← buildPermProofFallback lhs rhs
-  -- Safety check: if any atom has loose bvars, fall back
-  if lhsAtoms.any (·.hasLooseBVars) || rhsAtoms.any (·.hasLooseBVars) then
-    return ← buildPermProofFallback lhs rhs
-  -- Check sorted hashes match (atoms must be syntactically identical for AC path)
+    if ← isDefEq lhsZ rhsZ then return some (← mkEqRefl lhsZ)
+    else return none
+  -- Not applicable if any atom has loose bvars
+  if lhsAtoms.any (·.hasLooseBVars) || rhsAtoms.any (·.hasLooseBVars) then return none
+  -- Atoms must be syntactically identical (sorted hashes match) for the AC path
   let acEligible ← checkACEligible lhsZ rhsZ
-  unless acEligible do
-    -- Fall back to pick-based algorithm on originals (uses isDefEq for atom matching)
-    return ← buildPermProofFallback lhs rhs
+  unless acEligible do return none
   -- AC reflection: normalize each side, check normal forms match
   let op := mkConst ``EvmAsm.Rv64.sepConj
   let some pc ← Lean.Meta.AC.preContext op
@@ -413,7 +408,18 @@ partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
     Lean.Meta.AC.buildNormProof pc rHead rTail
   unless ← isDefEq lNorm rNorm do
     throwError "xperm: AC normal forms differ (atoms matched by hash but not by AC normalization)"
-  mkEqTrans lPf (← mkEqSymm rPf)
+  return some (← mkEqTrans lPf (← mkEqSymm rPf))
+
+/-- The main permutation proof builder.
+
+    Given LHS and RHS as sepConj chains with the same atoms, builds a proof of
+    `LHS = RHS`: AC reflection (`tryBuildPermProofAC?`) when atoms are
+    syntactically identical, otherwise the pick-based O(n^2) fallback. -/
+partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.perm (fun _ => return m!"perm") do
+    match ← tryBuildPermProofAC? lhs rhs with
+    | some p => return p
+    | none => buildPermProofFallback lhs rhs
 
 /-! ## Certificate permutation prover (re-implementing YOLO's idea)
 
@@ -514,11 +520,25 @@ partial def buildPermProofCertCore (lhs rhs : Expr) : MetaM Expr := do
     `buildPermProof` on any failure. -/
 partial def buildPermProofCert (lhs rhs : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.perm (fun _ => return m!"perm-cert") do
+    -- Route: certificate → AC reflection → pick-based O(n^2) fallback.
+    --
+    -- The certificate is tried FIRST. On the real compose proofs it beats even
+    -- AC reflection: the AC gate (`checkACEligible`'s per-atom
+    -- `normalizeAtomForHash`, a full reducible-whnf tree transform) plus
+    -- `buildNormProof` costs *more* than computing the index permutation once +
+    -- one `seps_permute` + `decide`. Measured on DivMod/LoopComposeN3:
+    -- cert-first ~2.15s vs AC-first ~2.70s vs baseline 2.69s — trying AC first
+    -- pays the AC-gate cost and throws away the win.
+    --
+    -- AC reflection is kept only as a safety net (for any shape the certificate
+    -- can't handle but AC can), ahead of the O(n^2) pick-based fallback.
     try
       buildPermProofCertCore lhs rhs
     catch e =>
-      trace[runBlock.perf.perm] "xperm cert fallback to buildPermProof: {e.toMessageData}"
-      buildPermProof lhs rhs
+      trace[runBlock.perf.perm] "xperm cert-core fallback: {e.toMessageData}"
+      match ← tryBuildPermProofAC? lhs rhs with
+      | some p => return p
+      | none => buildPermProofFallback lhs rhs
 
 /-- Dispatch between the baseline and certificate permutation provers based on
     the `xperm.cert` option (default `false` ⇒ baseline `buildPermProof`). All
