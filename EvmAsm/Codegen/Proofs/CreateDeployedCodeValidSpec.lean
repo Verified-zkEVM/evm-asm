@@ -172,4 +172,141 @@ theorem cdcv_seg3
           apply CodeReq.Disjoint.singleton <;> bv_omega
   exact cpsTripleWithin_seq hd_lbu_rest h_lbu (cpsTripleWithin_seq hd_li_byte h_li h_byte)
 
+/-- The empty-length-check branch of `create_deployed_code_valid`, at `base + 8`:
+    `BEQ x11 x0` (x11 = len) jumps to the valid arm (`base + 24`, `LI x10 0; ret`)
+    when `len = 0`, else falls to the byte-load segment (`base + 12`, `cdcv_seg3`).
+    The two paths are merged over ONE shared `CodeReq` (the seg3 code already
+    contains the valid arm at `base + 24`, reached as the byte-check fall arm), via
+    `cpsBranchWithin_merge_same_cr`. Result
+    `x10 := if len = 0 then 0 else if byte0 = 239 then 1 else 0`, with the
+    path-dependent scratch regs `x5`/`x6` abstracted to `regOwn`. -/
+theorem cdcv_merge2
+    (base ptrVal oldByte oldT0 len x1_init dwordAddr wordVal : Word)
+    (halign : alignToDword ptrVal = dwordAddr)
+    (hvalid : isValidByteAccess ptrVal = true) :
+    cpsTripleWithin 6 (base + 8) (x1_init &&& ~~~1)
+      ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union
+        ((CodeReq.singleton (base + 12) (.LBU .x6 .x10 (0 : BitVec 12))).union
+          ((CodeReq.singleton (base + 16) (.LI .x5 (239 : Word))).union
+            ((CodeReq.singleton (base + 20) (.BEQ .x6 .x5 (12 : BitVec 13))).union
+              (((CodeReq.singleton (base + 32) (.LI .x10 (1 : Word))).union
+                  (CodeReq.singleton (base + 32 + 4) (.JALR .x0 .x1 0))).union
+               ((CodeReq.singleton (base + 24) (.LI .x10 (0 : Word))).union
+                  (CodeReq.singleton (base + 24 + 4) (.JALR .x0 .x1 0))))))))
+      ((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) ** (.x5 ↦ᵣ oldT0) **
+       (.x10 ↦ᵣ ptrVal) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
+      ((regOwn .x6) ** (regOwn .x5) **
+       (.x10 ↦ᵣ (if len = 0 then (0 : Word)
+                 else if (extractByte wordVal (byteOffset ptrVal)).zeroExtend 64 = (239 : Word)
+                      then (1 : Word) else 0)) **
+       (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) := by
+  have hseg := cdcv_seg3 base ptrVal oldByte oldT0 len x1_init dwordAddr wordVal halign hvalid
+  set byte0 := (extractByte wordVal (byteOffset ptrVal)).zeroExtend 64 with hb0
+  set scode :=
+    ((CodeReq.singleton (base + 12) (.LBU .x6 .x10 (0 : BitVec 12))).union
+      ((CodeReq.singleton (base + 16) (.LI .x5 (239 : Word))).union
+        ((CodeReq.singleton (base + 20) (.BEQ .x6 .x5 (12 : BitVec 13))).union
+          (((CodeReq.singleton (base + 32) (.LI .x10 (1 : Word))).union
+              (CodeReq.singleton (base + 32 + 4) (.JALR .x0 .x1 0))).union
+           ((CodeReq.singleton (base + 24) (.LI .x10 (0 : Word))).union
+              (CodeReq.singleton (base + 24 + 4) (.JALR .x0 .x1 0))))))) with hsc
+  -- {base+8} is disjoint from all of seg3's code.
+  have hd8 : (CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).Disjoint scode := by
+    rw [hsc]
+    apply CodeReq.Disjoint.union_right
+    · apply CodeReq.Disjoint.singleton; bv_omega
+    · apply CodeReq.Disjoint.union_right
+      · apply CodeReq.Disjoint.singleton; bv_omega
+      · apply CodeReq.Disjoint.union_right
+        · apply CodeReq.Disjoint.singleton; bv_omega
+        · apply CodeReq.Disjoint.union_right <;> apply CodeReq.Disjoint.union_right <;>
+            apply CodeReq.Disjoint.singleton <;> bv_omega
+  -- seg3 lifted to the merged code (seg3's code is the left-biased tail).
+  have hseg' := cpsTripleWithin_extend_code (CodeReq.mono_union_right hd8 (fun _ _ h => h)) hseg
+  -- The valid arm's two addresses are inside seg3's code → inside the merged code.
+  have hblk24 : ((CodeReq.singleton (base + 32) (.LI .x10 (1 : Word))).union
+      (CodeReq.singleton (base + 32 + 4) (.JALR .x0 .x1 0))) (base + 24) = none := by
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24) ≠ (base + 32)))]
+    exact CodeReq.singleton_miss (by bv_omega : (base + 24) ≠ (base + 32 + 4))
+  have hblk28 : ((CodeReq.singleton (base + 32) (.LI .x10 (1 : Word))).union
+      (CodeReq.singleton (base + 32 + 4) (.JALR .x0 .x1 0))) (base + 24 + 4) = none := by
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24 + 4) ≠ (base + 32)))]
+    exact CodeReq.singleton_miss (by bv_omega : (base + 24 + 4) ≠ (base + 32 + 4))
+  have hva24 : ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union scode)
+      (base + 24) = some (.LI .x10 (0 : Word)) := by
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24) ≠ (base + 8)))]
+    rw [hsc]
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24) ≠ (base + 12)))]
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24) ≠ (base + 16)))]
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24) ≠ (base + 20)))]
+    rw [CodeReq.union_none_left hblk24]
+    exact CodeReq.union_hit (CodeReq.singleton_get _ _)
+  have hva28 : ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union scode)
+      (base + 24 + 4) = some (.JALR .x0 .x1 0) := by
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24 + 4) ≠ (base + 8)))]
+    rw [hsc]
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24 + 4) ≠ (base + 12)))]
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24 + 4) ≠ (base + 16)))]
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24 + 4) ≠ (base + 20)))]
+    rw [CodeReq.union_none_left hblk28]
+    rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega : (base + 24 + 4) ≠ (base + 24)))]
+    exact CodeReq.singleton_get _ _
+  have hvalid_mono := CodeReq.union_split_mono (CodeReq.singleton_mono hva24) (CodeReq.singleton_mono hva28)
+  -- Taken arm (len = 0): the valid arm at base+24, x10 := 0.
+  have h_t : cpsTripleWithin 5 (base + 24) (x1_init &&& ~~~1)
+      ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union scode)
+      (((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** ⌜len = (0 : Word)⌝) **
+        ((.x6 ↦ᵣ oldByte) ** (.x5 ↦ᵣ oldT0) ** (.x10 ↦ᵣ ptrVal) **
+          (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)))
+      ((regOwn .x6) ** (regOwn .x5) **
+       (.x10 ↦ᵣ (if len = (0 : Word) then (0 : Word) else if byte0 = (239 : Word) then (1 : Word) else 0)) **
+       (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) :=
+    cpsTripleWithin_extend_code hvalid_mono
+      (cpsTripleWithin_mono_nSteps (by omega)
+        (cpsTripleWithin_weaken
+          (fun _ hp => by sep_perm hp)
+          (fun h hq => by
+            obtain ⟨heq, hrest⟩ := (sepConj_pure_left h).mp hq
+            rw [if_pos heq]
+            have h1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 oldT0))) h hrest
+            have h2 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 oldByte)) h h1
+            sep_perm h2)
+          (cpsTripleWithin_frameL ⌜len = (0 : Word)⌝ (by pcFree)
+            (cpsTripleWithin_frameR ((.x6 ↦ᵣ oldByte) ** (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal))
+              (by pcFree)
+              (cisv_arm (base + 24) oldT0 x1_init ptrVal (0 : Word))))))
+  -- Fall arm (len ≠ 0): seg3, x10 := if byte0 = 239 then 1 else 0.
+  have h_f : cpsTripleWithin 5 (base + 12) (x1_init &&& ~~~1)
+      ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union scode)
+      (((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** ⌜len ≠ (0 : Word)⌝) **
+        ((.x6 ↦ᵣ oldByte) ** (.x5 ↦ᵣ oldT0) ** (.x10 ↦ᵣ ptrVal) **
+          (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)))
+      ((regOwn .x6) ** (regOwn .x5) **
+       (.x10 ↦ᵣ (if len = (0 : Word) then (0 : Word) else if byte0 = (239 : Word) then (1 : Word) else 0)) **
+       (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by sep_perm hp)
+      (fun h hq => by
+        obtain ⟨hne, hrest⟩ := (sepConj_pure_left h).mp hq
+        rw [if_neg hne]
+        have h1 := sepConj_mono_left (sepConj_mono_left (regIs_to_regOwn .x6 byte0)) h hrest
+        have h2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 (239 : Word)))) h h1
+        sep_perm h2)
+      (cpsTripleWithin_frameL ⌜len ≠ (0 : Word)⌝ (by pcFree)
+        (cpsTripleWithin_frameR (.x0 ↦ᵣ 0) (by pcFree) hseg'))
+  -- Branch: BEQ x11 x0, framing the non-branch state.
+  have hbr0 := cpsBranchWithin_frameR
+    ((.x6 ↦ᵣ oldByte) ** (.x5 ↦ᵣ oldT0) ** (.x10 ↦ᵣ ptrVal) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
+    (by pcFree)
+    (generic_beq_spec_within .x11 .x0 (16 : BitVec 13) len (0 : Word) (base + 8))
+  have he_t : ((base + 8) + signExtend13 (16 : BitVec 13) : Word) = base + 24 := by
+    have : signExtend13 (16 : BitVec 13) = (16 : Word) := by decide
+    rw [this]; bv_omega
+  have he_f : ((base + 8) + 4 : Word) = base + 12 := by bv_omega
+  rw [he_t, he_f] at hbr0
+  have hbr := cpsBranchWithin_extend_code
+    (@CodeReq.union_mono_left (CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))) scode) hbr0
+  exact cpsTripleWithin_weaken (fun _ hp => by sep_perm hp) (fun _ hq => by sep_perm hq)
+    (cpsBranchWithin_merge_same_cr hbr h_t h_f)
+
 end EvmAsm.Rv64
