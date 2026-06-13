@@ -283,8 +283,9 @@ private theorem cdcv_block1 (base codePtr len v6old x1_init dwordAddr wordVal : 
 /-- The full `create_deployed_code_valid` gate as a cpsTriple over the structured
     `cdcvProgram` the codegen emits: `li x5,32768 ;; block1`. The deployed gate
     sets `a0 := 1` (invalid) iff `len > 32768` OR `(len ≠ 0 ∧ code[0] = 0xEF)`,
-    else `0`. -/
-theorem cdcv_spec (base codePtr len v5old v6old x1_init dwordAddr wordVal : Word)
+    else `0`. Alternate formulation over `cdcvCode`; see `cdcv_spec` for the
+    explicit-singleton form built on `cdcv_merge1`. -/
+theorem cdcv_spec_via_blocks (base codePtr len v5old v6old x1_init dwordAddr wordVal : Word)
     (halign : alignToDword (codePtr + signExtend12 (0:BitVec 12)) = dwordAddr)
     (hvalid : isValidByteAccess (codePtr + signExtend12 (0:BitVec 12)) = true) :
     cpsTripleWithin 8 base (x1_init &&& ~~~1) (cdcvCode base)
@@ -725,5 +726,68 @@ theorem cdcv_merge1
       ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union scode)) hbr0
   exact cpsTripleWithin_weaken (fun _ hp => by sep_perm hp) (fun _ hq => by sep_perm hq)
     (cpsBranchWithin_merge_same_cr hbr h_t h_f)
+
+/-- The full `create_deployed_code_valid` gate as a `cpsTriple`: the prologue
+    `LI x5 32768` (set the MAX_CODE_SIZE constant) sequenced with the size-check
+    branch tree (`cdcv_merge1`). 8 steps from `base`:
+    `x10 := if MAX < len then 1 else if len = 0 then 0 else if byte0 = 239 then 1 else 0`
+    (0 = valid/deploy, 1 = invalid), `x5`/`x6` abstracted to `regOwn`. This is the
+    complete EIP-7907/EIP-3541 deployed-code validity logic. The deployment-connect
+    (codegen emits this program byte-identically + the `zisk_create_deployed_code_valid`
+    probe) is the follow-up. -/
+theorem cdcv_spec
+    (base ptrVal oldByte v5old len x1_init dwordAddr wordVal : Word)
+    (halign : alignToDword ptrVal = dwordAddr)
+    (hvalid : isValidByteAccess ptrVal = true) :
+    cpsTripleWithin 8 base (x1_init &&& ~~~1)
+      ((CodeReq.singleton base (.LI .x5 (32768 : Word))).union
+        ((CodeReq.singleton (base + 4) (.BLTU .x5 .x11 (28 : BitVec 13))).union
+          ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union
+            ((CodeReq.singleton (base + 12) (.LBU .x6 .x10 (0 : BitVec 12))).union
+              ((CodeReq.singleton (base + 16) (.LI .x5 (239 : Word))).union
+                ((CodeReq.singleton (base + 20) (.BEQ .x6 .x5 (12 : BitVec 13))).union
+                  (((CodeReq.singleton (base + 32) (.LI .x10 (1 : Word))).union
+                      (CodeReq.singleton (base + 32 + 4) (.JALR .x0 .x1 0))).union
+                   ((CodeReq.singleton (base + 24) (.LI .x10 (0 : Word))).union
+                      (CodeReq.singleton (base + 24 + 4) (.JALR .x0 .x1 0))))))))))
+      ((.x5 ↦ᵣ v5old) ** (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) **
+       (.x10 ↦ᵣ ptrVal) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
+      ((regOwn .x6) ** (regOwn .x5) **
+       (.x10 ↦ᵣ (if BitVec.ult (32768 : Word) len then (1 : Word)
+                 else if len = 0 then (0 : Word)
+                 else if (extractByte wordVal (byteOffset ptrVal)).zeroExtend 64 = (239 : Word)
+                      then (1 : Word) else 0)) **
+       (.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init)) := by
+  have hm1 := cdcv_merge1 base ptrVal oldByte len x1_init dwordAddr wordVal halign hvalid
+  -- Prologue: LI x5 32768 at base, base → base+4. Frame the rest (its post is
+  -- exactly merge1's entry).
+  have hpro := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ len) ** (.x0 ↦ᵣ 0) ** (.x6 ↦ᵣ oldByte) ** (.x10 ↦ᵣ ptrVal) **
+      (dwordAddr ↦ₘ wordVal) ** (.x1 ↦ᵣ x1_init))
+    (by pcFree)
+    (li_spec_within .x5 v5old (32768 : Word) base (by nofun))
+  have hd0 : (CodeReq.singleton base (.LI .x5 (32768 : Word))).Disjoint
+      ((CodeReq.singleton (base + 4) (.BLTU .x5 .x11 (28 : BitVec 13))).union
+        ((CodeReq.singleton (base + 8) (.BEQ .x11 .x0 (16 : BitVec 13))).union
+          ((CodeReq.singleton (base + 12) (.LBU .x6 .x10 (0 : BitVec 12))).union
+            ((CodeReq.singleton (base + 16) (.LI .x5 (239 : Word))).union
+              ((CodeReq.singleton (base + 20) (.BEQ .x6 .x5 (12 : BitVec 13))).union
+                (((CodeReq.singleton (base + 32) (.LI .x10 (1 : Word))).union
+                    (CodeReq.singleton (base + 32 + 4) (.JALR .x0 .x1 0))).union
+                 ((CodeReq.singleton (base + 24) (.LI .x10 (0 : Word))).union
+                    (CodeReq.singleton (base + 24 + 4) (.JALR .x0 .x1 0))))))))) := by
+    apply CodeReq.Disjoint.union_right
+    · apply CodeReq.Disjoint.singleton; bv_omega
+    · apply CodeReq.Disjoint.union_right
+      · apply CodeReq.Disjoint.singleton; bv_omega
+      · apply CodeReq.Disjoint.union_right
+        · apply CodeReq.Disjoint.singleton; bv_omega
+        · apply CodeReq.Disjoint.union_right
+          · apply CodeReq.Disjoint.singleton; bv_omega
+          · apply CodeReq.Disjoint.union_right
+            · apply CodeReq.Disjoint.singleton; bv_omega
+            · apply CodeReq.Disjoint.union_right <;> apply CodeReq.Disjoint.union_right <;>
+                apply CodeReq.Disjoint.singleton <;> bv_omega
+  exact cpsTripleWithin_seq hd0 hpro hm1
 
 end EvmAsm.Rv64
