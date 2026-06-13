@@ -29,6 +29,7 @@ import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Evm64.Env.Spec
 import EvmAsm.Evm64.Sub.Spec
 import EvmAsm.Evm64.Lt.Spec
 import EvmAsm.Evm64.Gt.Spec
@@ -1111,6 +1112,88 @@ theorem evmMSizeHandlerSpec
         (nsp ↦ₘ BitVec.ofNat 64 sizeBytes) ** ((nsp + 8) ↦ₘ 0) **
         ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) **
         EvmAsm.Evm64.evmMemSizeIs sizeLoc sizeBytes) : Assertion).pcFree := by pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
+
+-- ============================================================================
+-- 22. Concrete instance — environment loads (h_ADDRESS/h_CALLER/… family)
+-- ============================================================================
+
+/-- Handler-level spec for the single-field environment-load handlers
+    (ADDRESS 0x30, CALLER 0x33, CALLVALUE 0x34, …, parameterized by
+    `field : SimpleEnvField`). 9-instruction body (`ADDI x12 x12 -32` to grow
+    the stack, then 4 limb copies of the env field) + 2-instruction tail =
+    11 RISC-V steps. `x10`-clean; `evm_env_load_code` is `ofProg`-based, so it
+    lifts directly via `cleanRetHandlerSpec` with `envBaseReg`/`tmpReg`/`field`
+    kept as parameters. `nsp` is the NEW (post-decrement) stack pointer; the
+    handler advances the EVM code pointer by 1. -/
+theorem evmEnvLoadHandlerSpec
+    (envBaseReg tmpReg : Reg) (htmp_ne_x0 : tmpReg ≠ .x0)
+    (envAddr nsp tempOld base : Word) (env : EvmAsm.Evm64.EvmEnv)
+    (field : EvmAsm.Evm64.Env.SimpleEnvField)
+    (d0 d1 d2 d3 : Word) (x10_init x1_init : Word) :
+    cpsTripleWithin 11 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base
+        (EvmAsm.Evm64.Env.evm_env_load envBaseReg tmpReg field) 1)
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ tempOld) **
+        (.x12 ↦ᵣ (nsp + 32)) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 0)) ↦ₘ
+           (field.value env).getLimbN 0) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 1)) ↦ₘ
+           (field.value env).getLimbN 1) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 2)) ↦ₘ
+           (field.value env).getLimbN 2) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 3)) ↦ₘ
+           (field.value env).getLimbN 3) **
+        ((nsp + BitVec.ofNat 64 (8 * 0)) ↦ₘ d0) **
+        ((nsp + BitVec.ofNat 64 (8 * 1)) ↦ₘ d1) **
+        ((nsp + BitVec.ofNat 64 (8 * 2)) ↦ₘ d2) **
+        ((nsp + BitVec.ofNat 64 (8 * 3)) ↦ₘ d3))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ (field.value env).getLimbN 3) **
+        (.x12 ↦ᵣ nsp) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 0)) ↦ₘ
+           (field.value env).getLimbN 0) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 1)) ↦ₘ
+           (field.value env).getLimbN 1) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 2)) ↦ₘ
+           (field.value env).getLimbN 2) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 3)) ↦ₘ
+           (field.value env).getLimbN 3) **
+        ((nsp + BitVec.ofNat 64 (8 * 0)) ↦ₘ (field.value env).getLimbN 0) **
+        ((nsp + BitVec.ofNat 64 (8 * 1)) ↦ₘ (field.value env).getLimbN 1) **
+        ((nsp + BitVec.ofNat 64 (8 * 2)) ↦ₘ (field.value env).getLimbN 2) **
+        ((nsp + BitVec.ofNat 64 (8 * 3)) ↦ₘ (field.value env).getLimbN 3))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.Env.evm_env_load_spec_within
+    envBaseReg tmpReg htmp_ne_x0 envAddr nsp tempOld env field d0 d1 d2 d3 base
+  simp only [EvmAsm.Evm64.Env.evm_env_load_code] at h_body
+  have hBodyLen :
+      (EvmAsm.Evm64.Env.evm_env_load envBaseReg tmpReg field).length = 9 :=
+    EvmAsm.Evm64.Env.evm_env_load_length envBaseReg tmpReg field
+  have hExitEq : (base + (36 : Word)) = base + fourTimes 9 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ (field.value env).getLimbN 3) **
+        (.x12 ↦ᵣ nsp) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 0)) ↦ₘ
+           (field.value env).getLimbN 0) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 1)) ↦ₘ
+           (field.value env).getLimbN 1) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 2)) ↦ₘ
+           (field.value env).getLimbN 2) **
+        ((envAddr + BitVec.ofNat 64 (field.offset + 8 * 3)) ↦ₘ
+           (field.value env).getLimbN 3) **
+        ((nsp + BitVec.ofNat 64 (8 * 0)) ↦ₘ (field.value env).getLimbN 0) **
+        ((nsp + BitVec.ofNat 64 (8 * 1)) ↦ₘ (field.value env).getLimbN 1) **
+        ((nsp + BitVec.ofNat 64 (8 * 2)) ↦ₘ (field.value env).getLimbN 2) **
+        ((nsp + BitVec.ofNat 64 (8 * 3)) ↦ₘ
+           (field.value env).getLimbN 3)) : Assertion).pcFree := by pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
   have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
     have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
