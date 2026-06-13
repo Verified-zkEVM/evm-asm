@@ -80,11 +80,28 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld t1, 0(t0)\n" ++
   "  beqz t1, .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_charge_new_account:\n" ++
-  "  ld t0, 568(x20)\n" ++
-  "  li t1, 25000\n" ++
-  "  bltu t0, t1, .exit_outofgas\n" ++
-  "  sub t0, t0, t1\n" ++
-  "  sd t0, 568(x20)\n" ++
+  -- nxio8.8 (EIP-8037 state dimension): SELFDESTRUCT to a new (not-alive) beneficiary with a
+  -- non-zero originator balance creates the beneficiary account, costing
+  -- StateGasCosts.NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530) = 183600
+  -- in the STATE dimension (spec amsterdam vm/instructions/system.py:660-671), NOT the legacy
+  -- 25000 GAS-dim surcharge that this replaces. The GAS-dim cost is only base(5000, dispatch) +
+  -- cold(2600, ee21v access gas); the new-account cost moved entirely to the state dimension under
+  -- EIP-8037. Mirror charge_state_gas (ChildFrameHandlerTails / Storage.lean): drain
+  -- evm_state_gas_left, spill the remainder into the frame gas_left (568(x20)), OOG when both
+  -- reservoirs are short; state_gas_used += charge. No refund snapshot -- the spec does not
+  -- credit_state_gas_refund for SELFDESTRUCT (the charge is permanent within the frame, like the
+  -- 25000 it replaces; the frame-entry 624/632 state-gas snapshot already rolls it back if a parent
+  -- reverts the frame's effects).
+  "  li t0, 183600\n" ++
+  "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+  "  bgeu t2, t0, .L_selfdestruct_csg_res\n" ++
+  "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+  "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+  "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .L_selfdestruct_csg_used\n" ++
+  ".L_selfdestruct_csg_res:\n" ++
+  "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
+  ".L_selfdestruct_csg_used:\n" ++
+  "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
   ".L_selfdestruct_surcharge_done:\n"
 
 /--
