@@ -68,7 +68,7 @@ open EvmAsm.Rv64
 -/
 def stageRuntimePayloadFunction : String :=
   "stage_runtime_payload:\n" ++
-  "  addi sp, sp, -16\n" ++
+  "  addi sp, sp, -32\n" ++   -- 6121j.1: +16 extra slot to save a0(ctx) across the BLOBBASEFEE price call
   "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
   "  mv s0, a1                    # output payload ptr\n" ++
   -- Reject any context the extractor did not fully accept.
@@ -120,6 +120,17 @@ def stageRuntimePayloadFunction : String :=
   "  add t6, t3, t4; sb t5, 0(t6)\n" ++
   "  addi t4, t4, 1; j .Lsrp_coinbase_loop\n" ++
   ".Lsrp_coinbase_done:\n" ++
+  -- 6121j.1: BLOBBASEFEE — stage the block blob gas price into the payload blob_base_fee slot @+32
+  -- (the dispatcher copies +32 -> evm_env+512, which the BLOBBASEFEE handler reads). Reuse the
+  -- verdict's amsterdam_blob_gas_price_u256 (= calculate_blob_gas_price = taylor_exponential(1,
+  -- excess_blob_gas, 11684671); co-linked in BlockVerdictV2); excess_blob_gas = SSZ exec field
+  -- @exec+520 (bgv_u64le). Save a0 (ctx, read by the trailer below) across the calls; s0 is
+  -- callee-saved (preserved by the helper). Previously the slot stayed 0 so a dispatched
+  -- BLOBBASEFEE contract read 0 (#8782 rejected it conservatively); now staged with the real price.
+  "  sd a0, 16(sp)\n" ++
+  "  addi a0, a2, 520; jal ra, bgv_u64le\n" ++                       -- a0 = excess_blob_gas (u64)
+  "  addi a1, s0, 32; jal ra, amsterdam_blob_gas_price_u256\n" ++    -- price (u256 BE) -> payload+32 (overflow unreachable for valid blocks)
+  "  ld a0, 16(sp)\n" ++                                             -- restore ctx ptr for the trailer
   -- Transaction gas / control trailer.
   "  ld t0, 40(a0)                # context tx gas limit\n" ++
   "  sd t0, 536(s0)               # gas_limit\n" ++
@@ -131,7 +142,7 @@ def stageRuntimePayloadFunction : String :=
   "  li a0, 0\n" ++
   ".Lsrp_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
+  "  addi sp, sp, 32\n" ++   -- 6121j.1: matches the -32 frame
   "  ret"
 
 /- Probe input layout (file byte 0 maps to guest INPUT+8, so the probe stores
