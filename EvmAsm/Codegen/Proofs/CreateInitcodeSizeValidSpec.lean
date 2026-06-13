@@ -120,19 +120,57 @@ theorem cisv_spec (base v5old len x1_init : Word) :
         apply CodeReq.Disjoint.singleton <;> bv_omega
   exact cpsTripleWithin_seq hdpro hpro hmerge
 
-/-
-  DEPLOYMENT LINK. `cisv_spec`'s code is the disjoint union of the six
-  singletons at `base, base+4, base+8, …, base+20` — i.e. exactly
-  `CodeReq.ofProg base EvmAsm.Codegen.cisvProgram` (the six-instruction structured
-  program). The codegen now emits this gate via `emitProgram cisvProgram`
-  (CreateInitcodeSizeValid.lean), byte-identical to the former hand-written asm
-  (`bgtu a0,t0,L` ≡ `bltu x5,x10,.+12`, `ret` ≡ `jalr x0,0(x1)`,
-  `li t0,65536` = `lui` = `li x5,65536`) and probe-verified
-  (scripts/codegen-zisk-create-initcode-size-valid-check.sh: len 0/32/65536/65537
-  → 0/0/0/1). So the deployed `create_initcode_size_valid` block carries this
-  cpsTriple. A single named restatement over `ofProg base cisvProgram` is a
-  cosmetic follow-up (needs a CodeReq union-AC/funext alignment).
--/
+/-- Commutativity of `CodeReq.union` for disjoint code maps. No general
+    `union_comm` holds (overlapping maps prefer their left argument), but for
+    disjoint maps the order is irrelevant — exactly what the deployment-link
+    alignment below needs to match `ofProg`'s sequential layout to `cisv_spec`'s
+    branch-merge layout. -/
+theorem CodeReq.union_comm_of_disjoint {cr1 cr2 : CodeReq} (hd : cr1.Disjoint cr2) :
+    cr1.union cr2 = cr2.union cr1 := by
+  funext a
+  simp only [CodeReq.union]
+  rcases hd a with h1 | h2
+  · rw [h1]; cases cr2 a <;> rfl
+  · rw [h2]; cases cr1 a <;> rfl
+
+/-- The DEPLOYED gate carries the cpsTriple. `cisv_spec` restated over
+    `CodeReq.ofProg base EvmAsm.Codegen.cisvProgram` — the six-instruction
+    STRUCTURED program the codegen actually emits (via `emitProgram`,
+    byte-identical to the prior asm, probe-verified 0/0/0/1). This is the
+    explicit proof↔deployment link: the emitted `create_initcode_size_valid`
+    block satisfies `a0 := (if 65536 < len then 1 else 0); return`. The alignment
+    reassociates `ofProg`'s sequential six-singleton layout into `cisv_spec`'s
+    branch-merge layout (arms reordered) via `union_comm_of_disjoint`. -/
+theorem cisv_deployed_spec (base v5old len x1_init : Word) :
+    cpsTripleWithin 4 base (x1_init &&& ~~~1)
+      (CodeReq.ofProg base EvmAsm.Codegen.cisvProgram)
+      ((.x5 ↦ᵣ v5old) ** (.x10 ↦ᵣ len) ** (.x1 ↦ᵣ x1_init))
+      ((.x5 ↦ᵣ (65536 : Word)) **
+       (.x10 ↦ᵣ (if BitVec.ult (65536 : Word) len then (1 : Word) else 0)) **
+       (.x1 ↦ᵣ x1_init)) := by
+  have hAB : ((CodeReq.singleton (base + 8) (.LI .x10 (0 : Word))).union
+        (CodeReq.singleton (base + 8 + 4) (.JALR .x0 .x1 0))).Disjoint
+      ((CodeReq.singleton (base + 16) (.LI .x10 (1 : Word))).union
+        (CodeReq.singleton (base + 16 + 4) (.JALR .x0 .x1 0))) := by
+    apply CodeReq.Disjoint.union_left <;> apply CodeReq.Disjoint.union_right <;>
+      apply CodeReq.Disjoint.singleton <;> bv_omega
+  have hcode : CodeReq.ofProg base EvmAsm.Codegen.cisvProgram =
+      ((CodeReq.singleton base (.LI .x5 (65536 : Word))).union
+        ((CodeReq.singleton (base + 4) (.BLTU .x5 .x10 (12 : BitVec 13))).union
+          (((CodeReq.singleton (base + 16) (.LI .x10 (1 : Word))).union
+              (CodeReq.singleton (base + 16 + 4) (.JALR .x0 .x1 0))).union
+           ((CodeReq.singleton (base + 8) (.LI .x10 (0 : Word))).union
+              (CodeReq.singleton (base + 8 + 4) (.JALR .x0 .x1 0)))))) := by
+    simp only [EvmAsm.Codegen.cisvProgram]
+    rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+        CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+    rw [show ((base + 4) + 4 : Word) = base + 8 from by bv_omega,
+        show ((base + 8) + 4 + 4 : Word) = base + 16 from by bv_omega]
+    congr 1
+    congr 1
+    rw [← CodeReq.union_assoc]
+    exact CodeReq.union_comm_of_disjoint hAB
+  rw [hcode]; exact cisv_spec base v5old len x1_init
 
 end EvmAsm.Rv64
 
