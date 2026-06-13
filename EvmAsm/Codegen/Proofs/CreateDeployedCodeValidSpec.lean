@@ -14,17 +14,14 @@
 -/
 import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
 
 namespace EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
 
-/-- The deployed-code-validity gate as a structured RV64 program (a0=x10 code ptr
-    + result, a1=x11 len, t0=x5 scratch, t1=x6 byte). `bgtu a1,t0`≡`bltu x5,x11`,
-    `beqz a1`≡`beq x11,x0`, labels→PC-relative offsets. -/
-def cdcvProgram : List Instr :=
-  [ .LI .x5 (32768 : Word), .BLTU .x5 .x11 (28 : BitVec 13), .BEQ .x11 .x0 (16 : BitVec 13),
-    .LBU .x6 .x10 (0 : BitVec 12), .LI .x5 (0xEF : Word), .BEQ .x6 .x5 (12 : BitVec 13),
-    .LI .x10 (0 : Word), .JALR .x0 .x1 0, .LI .x10 (1 : Word), .JALR .x0 .x1 0 ]
+/-- The structured program the codegen emits (`EvmAsm.Codegen.cdcvProgram`, via
+    `emitProgram`); the proof below is over exactly this deployed program. -/
+abbrev cdcvProgram : List Instr := EvmAsm.Codegen.cdcvProgram
 
 /-- The gate's full code map. -/
 abbrev cdcvCode (base : Word) : CodeReq := CodeReq.ofProg base cdcvProgram
