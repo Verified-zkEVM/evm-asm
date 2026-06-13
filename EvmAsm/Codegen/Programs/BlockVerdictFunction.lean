@@ -453,6 +453,31 @@ def blockVerdictFunction : String :=
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  li t1, 2; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- priority_fee > max_fee -> reject
   "  li t1, 3; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- max_fee < base_fee -> reject
+  -- bmvmx.5 (multi-tx nonce lower-bound, path-independent like the fee check above): the
+  -- single-tx @1082 nonce check (tx.nonce == sender_pre_nonce) does NOT cover the mtx loop, so a
+  -- multi-tx block carrying a tx whose nonce is BELOW the sender's pre-state nonce is currently
+  -- accepted (the spec rejects it, NonceMismatchError). SOUND-PARTIAL check: reject if
+  -- tx.nonce < sender_pre_nonce. Valid txs always have nonce >= the account's block-start nonce
+  -- (==pre for the sender's first tx, >pre for a sequenced later tx), so this NEVER false-rejects;
+  -- it catches the below-pre adversarial case. (The exact ==pre+prior_same_sender_count check
+  -- needs per-sender sequencing -- a follow-up; this lower bound is sound without it.)
+  -- sttc_nonce holds THIS tx's nonce (multi_tx_nth_context wrote it via tx_extract_nonce_and_gas).
+  -- sender = address_from_pubkey(public_keys[i]+1): public_keys[i] = bv_public_keys_ptr + i*65
+  -- (65-byte SEC1 0x04||x||y, verified bound to tx[i]'s signer by verify_public_keys_match_senders).
+  -- i*65 = (i<<6)+i. account_at_header_state_root(pre-state) -> sender acct, nonce@0. s0+8/16/80/88
+  -- are the same lookup args the legacy sender lookup uses (@128). Lookup fail/absent -> skip
+  -- (conservative; an absent sender has pre_nonce 0 and tx.nonce>=0, so the check is a no-op anyway).
+  "  la t0, bv_mtx_i; ld t1, 0(t0)\n" ++
+  "  slli t2, t1, 6; add t1, t2, t1\n" ++                       -- t1 = i*65
+  "  la t0, bv_public_keys_ptr; ld t0, 0(t0); add t0, t0, t1; addi a0, t0, 1\n" ++  -- a0 = public_keys[i]+1 (skip 0x04)
+  "  la a1, bv_mtx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_mtx_nonce_done\n" ++                         -- sender lookup failed/absent -> skip
+  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++              -- sender pre-state nonce
+  "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- tx.nonce (set by multi_tx_nth_context)
+  "  bltu t1, t0, .Lbv_sender_nonce_fail\n" ++                  -- tx.nonce < pre_nonce -> reject
+  ".Lbv_mtx_nonce_done:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
