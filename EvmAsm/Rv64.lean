@@ -21,6 +21,8 @@ import EvmAsm.Rv64.Tactics.XPermPartial
 import EvmAsm.Rv64.Tactics.XPermPure
 -- XPermChunked: opt-in prototype for large sepConj chains (#265 slice 3).
 import EvmAsm.Rv64.Tactics.XPermChunked
+-- XPermCert: YOLO-style certificate permutation prover (default on).
+import EvmAsm.Rv64.Tactics.XPermCert
 -- DropPure: pure-stripping rebind tactic (#1435, beads evm-asm-ww8).
 import EvmAsm.Rv64.Tactics.DropPure
 -- XCancelStruct: structural cancellation tactic (#245 slice 3, beads evm-asm-otgf).
