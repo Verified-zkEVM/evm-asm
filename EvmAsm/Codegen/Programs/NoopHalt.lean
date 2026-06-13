@@ -58,6 +58,15 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  add a0, x13, x14\n  mv a1, x15\n" ++
       "  jal ra, create_deployed_code_valid\n" ++
       "  bnez a0, .Lrr_crinv_" ++ toString kind ++ "\n" ++
+      -- nxio8.7: charge code_hash_gas (keccak-per-word, REGULAR/GAS dim) = OPCODE_KECCACK256_PER_WORD(6)
+      -- * ceil32(deployed_code_len)/32 = 6 * ((x15+31)>>5) words, spec amsterdam vm/interpreter.py:236-240
+      -- charge_gas, BEFORE the state-gas charge ('regular before state' ordering). Simple charge_gas
+      -- (no reservoir/spill): drain the child frame gas_left (568(x20)); OOG-fail the CREATE
+      -- (-> .Lrr_crinv) if short. A valid block never OOGs at deposit -> no false-reject. x15 preserved.
+      "  addi t0, x15, 31\n  srli t0, t0, 5\n" ++                  -- words = ceil32(len)/32
+      "  li t1, 6\n  mul t0, t0, t1\n" ++                          -- code_hash_gas = 6 * words
+      "  ld t1, 568(x20)\n  bltu t1, t0, .Lrr_crinv_" ++ toString kind ++ "\n" ++   -- gas_left < code_hash_gas -> OOG, CREATE fails
+      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++                   -- gas_left -= code_hash_gas
       -- nxio8.6: charge code-deposit STATE gas = deployed_code_len(x15) * COST_PER_STATE_BYTE(1530)
       -- (spec amsterdam vm/interpreter.py:241-242 charge_state_gas(evm, ulen(code)*1530), AFTER the
       -- 0xEF/MAX_CODE_SIZE validity gate just above, BEFORE the deposit). Mirrors the SSTORE
