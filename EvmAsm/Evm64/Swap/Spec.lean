@@ -195,5 +195,36 @@ theorem evm_swap_stack_spec_within (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     h_main
 
+-- ============================================================================
+-- Code bridge: union-of-singletons `evm_swap_code` = `ofProg` form
+-- ============================================================================
+
+/-- The hand-built union-of-singletons `evm_swap_code` equals the `ofProg`
+    form of the `evm_swap` program. Union-form because symbolic `n` blocks
+    `ofProg` reduction; re-established here via per-instruction peeling
+    (mirrors `evm_dup_code_eq_ofProg` / `exp_prologue_code_eq_ofProg`).
+    Enables handler-level lifting of the SWAPn body spec via
+    `cleanRetHandlerSpec`. -/
+theorem evm_swap_code_eq_ofProg (base : Word) (n : Nat) :
+    evm_swap_code base n = CodeReq.ofProg base (evm_swap n) := by
+  unfold evm_swap_code evm_swap swap_one_limb LD SD single seq
+  change _ = CodeReq.ofProg base
+    [.LD .x7 .x12 (BitVec.ofNat 12 0),     .LD .x6 .x12 (BitVec.ofNat 12 (n*32)),
+     .SD .x12 .x6 (BitVec.ofNat 12 0),     .SD .x12 .x7 (BitVec.ofNat 12 (n*32)),
+     .LD .x7 .x12 (BitVec.ofNat 12 8),     .LD .x6 .x12 (BitVec.ofNat 12 (n*32+8)),
+     .SD .x12 .x6 (BitVec.ofNat 12 8),     .SD .x12 .x7 (BitVec.ofNat 12 (n*32+8)),
+     .LD .x7 .x12 (BitVec.ofNat 12 16),    .LD .x6 .x12 (BitVec.ofNat 12 (n*32+16)),
+     .SD .x12 .x6 (BitVec.ofNat 12 16),    .SD .x12 .x7 (BitVec.ofNat 12 (n*32+16)),
+     .LD .x7 .x12 (BitVec.ofNat 12 24),    .LD .x6 .x12 (BitVec.ofNat 12 (n*32+24)),
+     .SD .x12 .x6 (BitVec.ofNat 12 24),    .SD .x12 .x7 (BitVec.ofNat 12 (n*32+24))]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_singleton]
+  simp only [← CodeReq.union_assoc]
+  bv_addr
+
 
 end EvmAsm.Evm64
