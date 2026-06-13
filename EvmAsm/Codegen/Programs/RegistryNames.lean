@@ -250,6 +250,7 @@ def knownProgramNames : List String :=
    "zisk_tx_pubkey_recover_raw_status",
    "zisk_tx_pubkey_public_key_matches_status",
    "zisk_verify_public_keys_match_senders",
+   "zisk_seed_tx_access_list",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",
