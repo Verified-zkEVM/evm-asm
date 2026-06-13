@@ -2540,7 +2540,10 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "cd_caller_be:\n  .zero 32\n" ++
   "cd_value_be:\n  .zero 32\n" ++
   "cd_balance_be:\n  .zero 32\n" ++
-  "cd_caller_newbal:\n  .zero 32\n"
+  "cd_caller_newbal:\n  .zero 32\n" ++
+  -- nxio8.8: the CALL callee (`to`) as canonical 20-byte big-endian, for the
+  -- EIP-8037 new-account state-gas check (is_account_alive(to)) in callDescendFallThrough.
+  "cd_callee_be:\n  .zero 32\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked

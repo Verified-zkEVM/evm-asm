@@ -363,6 +363,60 @@ def callDescendFallThrough
     "  jal ra, eip7708_append_transfer_log\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n") ++
+  -- nxio8.8 (EIP-8037): CALL (mode 0) with value!=0 to a not-alive callee creates the
+  -- account -> charge_state_gas(NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530)
+  -- = 183600). Spec vm/instructions/system.py:463-464: `if value != 0 and not is_account_alive(to):
+  -- charge_state_gas(NEW_ACCOUNT)`. Charged in the PARENT here (before the frame switch). NOT
+  -- refunded on child failure: the spec charges it BEFORE saving call_state_gas_reservoir (line 480),
+  -- so state_gas_used stays; and a not-alive callee has no code -> the CALL routes to .Lcd_empty
+  -- (no child frame at all), so the charge simply stands. CALLCODE(mode 2) recipient is
+  -- current_target (always alive) -> excluded; STATICCALL/DELEGATECALL carry no value. Mirrors the
+  -- SELFDESTRUCT new-beneficiary charge (#8789): same is_account_alive helpers + charge_state_gas.
+  (if mode != 0 then "" else
+    "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  beqz t3, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- value == 0: no charge
+    "  ld t3, 584(x20)\n  beqz t3, .Lcd_nacc_done_" ++ tag ++ "\n" ++   -- no account-witness ctx: skip
+    -- callee (`to`) word at x12+32: build cd_callee_be = reverse(mem[x12+32 .. x12+51]) = canonical
+    -- 20-byte big-endian (stack words are LE-stored; mirrors the SELFDESTRUCT beneficiary / cd_caller_be).
+    "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+    ".Lcd_nacc_addr_" ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
+    "  bnez t2, .Lcd_nacc_addr_" ++ tag ++ "\n" ++
+    -- account_exists_at_header_state_root(callee) -> aex_predicate (helper clobbers a-regs aliasing x10/x12/x13)
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
+    "  jal ra, account_exists_at_header_state_root\n" ++
+    "  mv t6, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- lookup err -> conservative skip (no charge)
+    "  la t0, aex_predicate\n  ld t1, 0(t0)\n" ++
+    "  beqz t1, .Lcd_nacc_charge_" ++ tag ++ "\n" ++         -- not exists -> not alive -> charge
+    -- exists: account_is_empty_at_header_state_root(callee) -> aie_predicate
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
+    "  jal ra, account_is_empty_at_header_state_root\n" ++
+    "  mv t6, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- lookup err -> skip
+    "  la t0, aie_predicate\n  ld t1, 0(t0)\n" ++
+    "  beqz t1, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- exists & not empty = alive -> no charge
+    ".Lcd_nacc_charge_" ++ tag ++ ":\n" ++
+    -- charge_state_gas(183600): drain evm_state_gas_left, spill remainder into the frame gas_left
+    -- (568(x20)), OOG -> .exit_outofgas when both reservoirs short; state_gas_used += 183600.
+    "  li t0, 183600\n" ++
+    "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+    "  bgeu t2, t0, .Lcd_nacc_res_" ++ tag ++ "\n" ++
+    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+    "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcd_nacc_used_" ++ tag ++ "\n" ++
+    ".Lcd_nacc_res_" ++ tag ++ ":\n" ++
+    "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    ".Lcd_nacc_used_" ++ tag ++ ":\n" ++
+    "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    ".Lcd_nacc_done_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
