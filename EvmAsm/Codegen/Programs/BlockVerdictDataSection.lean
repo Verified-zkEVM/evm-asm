@@ -1094,6 +1094,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bv_upfront_cost:\n  .zero 32\n" ++
   "bv_upfront_islt:\n  .zero 8\n" ++
+  -- bmvmx.5: out scratch for the hoisted single-tx fee-validity gate's
+  -- tx_effective_gas_pricing call (effective_gas_price / priority_fee_per_gas, 32B BE
+  -- each). Only the call's status (2/3) is consumed; the values are unused here.
+  ".balign 8\n" ++
+  "bv_fee_egp_scratch:\n  .zero 32\n" ++
+  "bv_fee_prio_scratch:\n  .zero 32\n" ++
   -- bmvmx.1.6.6: scratch for the all-accounts per-slot tuple-sequence check (#8606). batsc_* is
   -- the wrapper's own scratch; the sub-helpers' scratch (atsc_*/bts_*/els_*) come from their Data
   -- defs. rfu_* (rlp_field_to_u64) is already provided above; slot_tuple_sequences_match is

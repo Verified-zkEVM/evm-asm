@@ -511,6 +511,29 @@ def blockVerdictFunction : String :=
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
   "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
+  -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
+  -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
+  -- and max_priority_fee_per_gas <= max_fee_per_gas (PriorityFeeGreaterThanMaxFeeError,
+  -- amsterdam/fork.py check_transaction) -- are PATH-INDEPENDENT: they read only the tx
+  -- fee fields and the block base_fee, no execution or sender lookup. They were enforced
+  -- ONLY inside the value-movement-free contract path (.Lbv_sbc_safe status 50, ~line 1006),
+  -- so a value-MOVING contract recipient (CALL/DELEGATECALL/SELFDESTRUCT bytecode), a
+  -- coinbase sender, or a block with withdrawals collateral-SKIPPED the fee check -- a
+  -- latent false-accept (an adversarial max_fee<base_fee / priority>max_fee tx on those
+  -- paths is spec-rejected but guest-accepted). Hoist it here, UNCONDITIONALLY for the
+  -- single tx, before the value-move / EOA-vs-contract split. tx_effective_gas_pricing
+  -- returns 2 (priority>max_fee) / 3 (max_fee<base_fee) for exactly those two spec errors;
+  -- status 1 (extraction failed) / 4 (egp overflow) are "cannot determine" -> fall through
+  -- (never newly false-reject). A valid block never carries such a tx, so this only ADDS
+  -- rejects the spec also makes -- strictly sound, no false-reject. (Multi-tx loop fee gate
+  -- + the nonce-eligibility/upfront-balance hoists are bmvmx.5 follow-ups.)
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  ld a0, 8(t2); ld a1, 16(t2); ld a2, 32(t2)\n" ++           -- tx ptr, tx len, base_fee_per_gas ptr
+  "  la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  li t1, 2; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- priority_fee > max_fee -> reject
+  "  li t1, 3; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- max_fee < base_fee -> reject
+  "  la t2, bv_simple_transfer_tx\n" ++                         -- restore t2 (jal clobbered it) for the code-hash route below
   -- evm-asm-fhsxz.2.4.2.57.11.6.4.3.2: route a contract recipient (non-empty code)
   -- to the execution-derived contract dispatch; EOA (empty-code) recipients fall
   -- through to the existing simple-transfer path BYTE-IDENTICALLY (no regression).
