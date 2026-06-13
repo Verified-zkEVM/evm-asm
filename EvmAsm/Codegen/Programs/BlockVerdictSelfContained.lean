@@ -70,8 +70,21 @@ def bytecodeIsSelfContainedFunction : String :=
   --   transfer + EIP-7708 log); and BALANCE(0x31) (yisv8 .spine: live balance read from the
   --   non-storage effect log -- nonstorage_effect_latest_balance in balance_at_header_state_root,
   --   falling back to the pre-state witness when no value transfer touched the account).
-  -- No opcode is rejected here anymore -> the .Lbsc_unsafe path is vestigial (kept for any future
-  -- un-staged-state opcode). (The BALANCE 0x31 reject is REMOVED here; 0xff was removed by ee21v.)
+  -- (The BALANCE 0x31 reject is REMOVED here; 0xff was removed by ee21v.)
+  -- 6121j: PREVRANDAO(0x44) / CHAINID(0x46) / BLOBBASEFEE(0x4a) are NOT yet activated -- the
+  -- verdict's contract-stage path does NOT stage their env words (prev_randao / chain_id /
+  -- blob_base_fee), so a DISPATCHED self-contained contract reads 0 for them instead of the real
+  -- value (BLOBBASEFEE handler reads the zeroed evm_env+512; CHAINID/PREVRANDAO read unstaged env).
+  -- A self-contained contract using any of them would execute against wrong env, and its
+  -- exec-derived sender/recipient balance+gas results could match a FORGED BAL the spec rejects
+  -- (false-accept). Reject here so such contracts take the conservative .Ldtrc_unsupported bail
+  -- (BlockVerdictDispatchTx.lean:212: skip the exec-derived check, rely on the independent
+  -- BAL/state-root checks). Sound + no false-reject (the bail is conservative-accept; the EIP-7778
+  -- gate fails open). Feature-completeness follow-up (6121j): STAGE the real values and re-activate
+  -- (CHAINID const, PREVRANDAO header copy, BLOBBASEFEE = taylor_exponential blob gas price).
+  "  li t3, 0x44; beq t2, t3, .Lbsc_unsafe\n" ++   -- PREVRANDAO (unstaged env -> reads 0)
+  "  li t3, 0x46; beq t2, t3, .Lbsc_unsafe\n" ++   -- CHAINID (unstaged env -> reads 0)
+  "  li t3, 0x4a; beq t2, t3, .Lbsc_unsafe\n" ++   -- BLOBBASEFEE (unstaged evm_env+512 -> reads 0)
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
   "  li a0, 0; ret\n" ++
