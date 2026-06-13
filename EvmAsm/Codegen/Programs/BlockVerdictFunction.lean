@@ -872,6 +872,33 @@ def blockVerdictFunction : String :=
   "  la a3, bv_cf_code_off; la a4, bv_cf_code_len\n" ++
   "  jal ra, witness_lookup_by_hash\n" ++
   "  bnez a0, .Lbv_code_preimage_fail            # current-frame code preimage absent -> reject\n" ++
+  -- bmvmx.5 (single-tx CONTRACT-recipient nonce/balance lower bound): a non-self-contained
+  -- contract recipient bails inside dispatch_tx_runtime_code (.Ldtrc_unsupported, many points)
+  -- -> skips the @1020 sender checks, so a single value-moving tx to such a recipient with a bad
+  -- nonce/balance was accepted (spec check_transaction rejects: Nonce/InsufficientBalance). Check
+  -- HERE, before dispatch, on the contract path only (EOA/simple-transfer never reaches here ->
+  -- no redundant lookup; the self-contained path redundantly re-checks @1020, harmless). Same
+  -- proven pattern as the multi-tx checks (#8791/#8792) with i=0: sender = public_keys[0] (=
+  -- bv_public_keys_ptr, verified bound to tx[0]'s signer @339), sttc_nonce = tx.nonce (single-tx
+  -- context build), tefgp_max_fee (tx_effective_gas_pricing @566), gas/value from bv_simple_transfer_tx.
+  -- Sound lower bounds (reject if tx.nonce<pre or pre_balance<upfront) -> no false-reject.
+  "  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n" ++   -- public_keys[0]+1 (skip SEC1 0x04)
+  "  la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_stx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_stx_sender_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_stx_checks_done\n" ++                          -- sender lookup failed/absent -> skip
+  "  la t0, bv_stx_sender_acct; ld t0, 0(t0)\n" ++                -- sender pre-state nonce
+  "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                        -- tx.nonce
+  "  bltu t1, t0, .Lbv_sender_nonce_fail\n" ++                    -- tx.nonce < pre_nonce -> reject
+  "  la a0, tefgp_max_fee\n" ++
+  "  la t0, bv_simple_transfer_tx; ld a1, 40(t0)\n" ++            -- gas_limit (u64)
+  "  la a2, bv_upfront_cost\n  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la a0, bv_upfront_cost\n  la t0, bv_simple_transfer_tx; addi a1, t0, 96\n  la a2, bv_upfront_cost\n  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la a0, bv_stx_sender_acct; addi a0, a0, 8\n  la a1, bv_upfront_cost\n  la a2, bv_upfront_islt\n  jal ra, u256_lt_be\n" ++
+  "  la t0, bv_upfront_islt; ld t0, 0(t0)\n  bnez t0, .Lbv_sender_upfront_fail\n" ++
+  ".Lbv_stx_checks_done:\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
