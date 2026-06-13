@@ -37,4 +37,8 @@ abbrev evm_dup_code (base : Word) (n : Nat) : CodeReq :=
   |>.union (CodeReq.singleton (base + 28) (.LD .x7 .x12 (BitVec.ofNat 12 (n*32+24))))
   |>.union (CodeReq.singleton (base + 32) (.SD .x12 .x7 (BitVec.ofNat 12 24)))
 
+/-- Concrete instruction length of `evm_dup` (n-independent). -/
+theorem evm_dup_length (n : Nat) : (evm_dup n).length = 9 := by
+  simp [evm_dup, dup_one_limb, ADDI, LD, SD, single, seq, Program.length_append]
+
 end EvmAsm.Evm64
