@@ -36,6 +36,7 @@ import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Evm64.Env.Spec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
+import EvmAsm.Evm64.Push.Spec
 import EvmAsm.Evm64.Sub.Spec
 import EvmAsm.Evm64.Lt.Spec
 import EvmAsm.Evm64.Gt.Spec
@@ -1505,5 +1506,148 @@ theorem evmMLoadHandlerSpec
          (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3))) : Assertion).pcFree := by pcFree
   have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
   exact h
+
+-- ============================================================================
+-- 22. Passthrough handler lift (x10-preserving bodies, e.g. PUSHn)
+-- ============================================================================
+
+/-- Handler lift for an x10-PRESERVING body: the body reads `x10` (e.g. PUSHn
+    fetching its immediate from the EVM code pointer) and leaves it unchanged,
+    so `x10` appears in the body spec's P and Q at the same value. Threads `x10`
+    through the body, then advances it by `n` and returns. The third handler
+    pattern, between `cleanRetHandlerSpec` (x10 framed out) and
+    `reloadRetHandlerSpec` (x10 clobbered). -/
+theorem passthroughRetHandlerSpec
+    {nSteps : Nat} {base : Word} {body : List Instr} {S : Assertion} {n : BitVec 12}
+    {R : Assertion} {x10_init : Word}
+    (hSpcFree : S.pcFree)
+    (hBodyLen : body.length = nSteps)
+    (hBodyLenBound : nSteps < 2 ^ 60)
+    (h_body : cpsTripleWithin nSteps base (base + fourTimes nSteps)
+                (CodeReq.ofProg base body)
+                ((.x10 ↦ᵣ x10_init) ** R) ((.x10 ↦ᵣ x10_init) ** S))
+    (x1_init : Word) :
+    cpsTripleWithin (nSteps + 2) base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base body n)
+      ((.x10 ↦ᵣ x10_init) ** R ** (.x1 ↦ᵣ x1_init))
+      ((.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S ** (.x1 ↦ᵣ x1_init)) := by
+  have hNBound : (4 * nSteps : Nat) < 2 ^ 64 := by
+    have : (2:Nat)^60 * 4 ≤ 2^64 := by decide
+    omega
+  have p1 :
+      cpsTripleWithin nSteps base (base + fourTimes nSteps) (CodeReq.ofProg base body)
+        ((.x10 ↦ᵣ x10_init) ** R ** (.x1 ↦ᵣ x1_init))
+        ((.x10 ↦ᵣ x10_init) ** S ** (.x1 ↦ᵣ x1_init)) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+      (cpsTripleWithin_frameR ((.x1 ↦ᵣ x1_init)) pcFree_regIs h_body)
+  have p2 :
+      cpsTripleWithin 1 (base + fourTimes nSteps) ((base + fourTimes nSteps) + 4)
+        (CodeReq.singleton (base + fourTimes nSteps) (.ADDI .x10 .x10 n))
+        ((.x10 ↦ᵣ x10_init) ** S ** (.x1 ↦ᵣ x1_init))
+        ((.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S ** (.x1 ↦ᵣ x1_init)) := by
+    have core := addi_spec_same_within .x10 x10_init n (base + fourTimes nSteps) (by decide)
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+      (cpsTripleWithin_frameR (S ** (.x1 ↦ᵣ x1_init)) (pcFree_sepConj hSpcFree pcFree_regIs) core)
+  have p3 :
+      cpsTripleWithin 1 ((base + fourTimes nSteps) + 4) (x1_init &&& ~~~1)
+        (CodeReq.singleton ((base + fourTimes nSteps) + 4) (.JALR .x0 .x1 0))
+        ((.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S ** (.x1 ↦ᵣ x1_init))
+        ((.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S ** (.x1 ↦ᵣ x1_init)) := by
+    have core := EvmAsm.Evm64.ret_spec_within' ((base + fourTimes nSteps) + 4) x1_init
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+      (cpsTripleWithin_frameL ((.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S)
+        (pcFree_sepConj pcFree_regIs hSpcFree) core)
+  have hbody_none : ∀ (a : Word),
+      (∀ k : Nat, k < nSteps → a ≠ base + BitVec.ofNat 64 (4 * k)) →
+      CodeReq.ofProg base body a = none := by
+    intro a ha; apply CodeReq.ofProg_none_range; intro k hk; rw [hBodyLen] at hk; exact ha k hk
+  have d12 : (CodeReq.ofProg base body).Disjoint
+      (CodeReq.singleton (base + fourTimes nSteps) (.ADDI .x10 .x10 n)) := by
+    apply CodeReq.Disjoint.ofProg_singleton
+    apply hbody_none; intro k hk heq
+    simp only [fourTimes] at heq
+    have : (4 * k : Nat) < 2 ^ 64 := by omega
+    bv_omega
+  have d123 : ((CodeReq.ofProg base body).union
+      (CodeReq.singleton (base + fourTimes nSteps) (.ADDI .x10 .x10 n))).Disjoint
+      (CodeReq.singleton ((base + fourTimes nSteps) + 4) (.JALR .x0 .x1 0)) := by
+    apply CodeReq.Disjoint.union_left
+    · apply CodeReq.Disjoint.ofProg_singleton
+      apply hbody_none; intro k hk heq
+      simp only [fourTimes] at heq
+      have : (4 * k : Nat) < 2 ^ 64 := by omega
+      bv_omega
+    · apply CodeReq.Disjoint.singleton; bv_omega
+  have s12 := cpsTripleWithin_seq d12 p1 p2
+  have s123 := cpsTripleWithin_seq d123 s12 p3
+  have hCodeEq :
+      ((CodeReq.ofProg base body).union
+        (CodeReq.singleton (base + fourTimes nSteps) (.ADDI .x10 .x10 n))).union
+        (CodeReq.singleton ((base + fourTimes nSteps) + 4) (.JALR .x0 .x1 0))
+      = cleanRetHandlerCode base body n := by
+    unfold cleanRetHandlerCode cleanRetHandlerProgram cc_ret
+    change ((CodeReq.ofProg base body).union _).union _ = CodeReq.ofProg base
+      (body ++ ([Instr.ADDI .x10 .x10 n] ++ [Instr.JALR .x0 .x1 0]))
+    rw [CodeReq.ofProg_append, CodeReq.ofProg_append]
+    simp only [CodeReq.ofProg_singleton, List.length_cons, List.length_nil,
+      hBodyLen, fourTimes, ← CodeReq.union_assoc]
+    repeat' congr 1
+  rw [← hCodeEq, show nSteps + 2 = nSteps + 1 + 1 from by omega]
+  exact s123
+
+-- ============================================================================
+-- 23. Concrete instance — PUSH1 (0x60), via the passthrough lift
+-- ============================================================================
+
+/-- Handler-level spec for `h_PUSH1` (opcode 0x60). PUSH1 reads its 1 immediate
+    byte from the EVM code pointer `x10` (= `codePtr`) and leaves `x10`
+    unchanged, then the dispatcher advances `x10` by 2 (opcode + 1 immediate).
+    First application of `passthroughRetHandlerSpec`; the same recipe covers the
+    PUSH1..32 family (`evm_push n`, advance `n+1`). -/
+theorem evmPush1HandlerSpec
+    (sp codePtr v7Old d0 d1 d2 d3 codeWord codeDwordAddr : Word)
+    (base x1_init : Word) (rest : List EvmAsm.Evm64.EvmWord) (byteVal : BitVec 8)
+    (h_byte : extractByte codeWord
+        (byteOffset (codePtr + signExtend12 (BitVec.ofNat 12 (EvmAsm.Evm64.pushByteSrcOffset 0)))) = byteVal)
+    (h_code_align : alignToDword (codePtr + signExtend12 (BitVec.ofNat 12 (EvmAsm.Evm64.pushByteSrcOffset 0))) = codeDwordAddr)
+    (h_code_valid : isValidByteAccess (codePtr + signExtend12 (BitVec.ofNat 12 (EvmAsm.Evm64.pushByteSrcOffset 0))) = true)
+    (h_dst_align : alignToDword (sp + signExtend12 ((-32 : BitVec 12)) + signExtend12 (BitVec.ofNat 12 (EvmAsm.Evm64.pushByteDstOffset 1 0))) = sp + signExtend12 ((-32 : BitVec 12)))
+    (h_dst_valid : isValidByteAccess (sp + signExtend12 ((-32 : BitVec 12)) + signExtend12 (BitVec.ofNat 12 (EvmAsm.Evm64.pushByteDstOffset 1 0))) = true) :
+    let nsp := sp + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin (7 + 2) base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base (EvmAsm.Evm64.evm_push 1) 2)
+      ((.x10 ↦ᵣ codePtr) **
+        ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
+         ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+         ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+         ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+         ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+         (codeDwordAddr ↦ₘ codeWord) ** EvmAsm.Evm64.evmStackIs sp rest)
+       ** (.x1 ↦ᵣ x1_init))
+      ((.x10 ↦ᵣ (codePtr + signExtend12 2)) **
+        ((.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ byteVal.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+         (codeDwordAddr ↦ₘ codeWord) **
+         EvmAsm.Evm64.evmStackIs nsp (EvmAsm.Evm64.pushImmediateWord 1 (fun _ => byteVal) :: rest))
+       ** (.x1 ↦ᵣ x1_init)) := by
+  intro nsp
+  have h0 := EvmAsm.Evm64.evm_push1_stack_spec_within sp codePtr v7Old d0 d1 d2 d3 codeWord codeDwordAddr
+    base rest byteVal h_byte h_code_align h_code_valid h_dst_align h_dst_valid
+  simp only [EvmAsm.Evm64.evm_push_code] at h0
+  rw [show (base + 28 : Word) = base + fourTimes 7 from by simp only [fourTimes]; bv_omega] at h0
+  have h_body : cpsTripleWithin 7 base (base + fourTimes 7) (CodeReq.ofProg base (EvmAsm.Evm64.evm_push 1))
+      ((.x10 ↦ᵣ codePtr) **
+        ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word)) **
+         ((nsp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+         ((nsp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+         ((nsp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+         ((nsp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+         (codeDwordAddr ↦ₘ codeWord) ** EvmAsm.Evm64.evmStackIs sp rest))
+      ((.x10 ↦ᵣ codePtr) **
+        ((.x12 ↦ᵣ nsp) ** (.x7 ↦ᵣ byteVal.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+         (codeDwordAddr ↦ₘ codeWord) **
+         EvmAsm.Evm64.evmStackIs nsp (EvmAsm.Evm64.pushImmediateWord 1 (fun _ => byteVal) :: rest))) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) h0
+  have hlen : (EvmAsm.Evm64.evm_push 1).length = 7 := by decide
+  exact passthroughRetHandlerSpec (by pcFree) hlen (by decide) h_body x1_init
 
 end EvmAsm.Codegen.Proofs
