@@ -1041,6 +1041,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "exec_nonstorage_effect_agg_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_agg:\n  .zero 7168\n" ++
+  -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
+  -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
+  -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
+  -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
+  ".balign 8\n" ++
+  "bv_b1_count:\n  .zero 8\n" ++
+  "bv_b1_expected:\n  .zero 8\n" ++
+  "bv_b1_acct_ptr:\n  .zero 8\n" ++
+  "bv_b1_acct_len:\n  .zero 8\n" ++
+  "bv_b1_finals:\n  .zero 88\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
   ".balign 8\n" ++
