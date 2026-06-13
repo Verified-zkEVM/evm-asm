@@ -22,6 +22,7 @@
 -/
 
 import EvmAsm.Codegen.Programs
+import EvmAsm.Codegen.Proofs.ReloadHandler
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Evm64.Pop.Spec
 import EvmAsm.Evm64.Push0.Spec
