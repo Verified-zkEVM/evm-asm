@@ -29,6 +29,7 @@ import EvmAsm.Evm64.Push0.Spec
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
+import EvmAsm.Evm64.Multiply.Spec
 import EvmAsm.Evm64.Sub.Spec
 import EvmAsm.Evm64.Lt.Spec
 import EvmAsm.Evm64.Gt.Spec
@@ -1067,5 +1068,48 @@ theorem evmSwapHandlerSpec (sp base : Word) (n : Nat) (hn1 : 1 ≤ n) (hn16 : n 
     rw [this]
   rw [hAdvance] at h
   exact h
+
+-- ============================================================================
+-- 17. Concrete instance — MUL (0x02), via the reload-handler lift
+-- ============================================================================
+
+/-- Handler-level spec for `h_MUL` (opcode 0x02). The MUL body CLOBBERS the
+    EVM code pointer `x10` (it is used as a multiplication scratch register, so
+    `evmMulStackPost` only `regOwn`s it) and so cannot use the clean-ret tail.
+    Instead it lifts through `reloadRetHandlerSpec`: the handler saves `x10`
+    into `save`, runs the 63-instruction `evm_mul` body, reloads `x10`, advances
+    the EVM code pointer by 1, and returns. First application of the reload
+    lift; the same recipe (`rw [evm_X_code_eq_ofProg]`, factor P/Q via `xperm`,
+    apply `reloadRetHandlerSpec`) handles all 7 x10-clobbering opcodes. -/
+theorem evmMulHandlerSpec (sp base : Word) (a b : EvmAsm.Evm64.EvmWord)
+    (v5 v6 v7 v11 : Word) (save : Reg) (hsave_ne_x0 : save ≠ .x0)
+    (x10_init s_init x1_init : Word) :
+    cpsTripleWithin (63 + 4) base (x1_init &&& ~~~1)
+      (CodeReq.ofProg base (saveReloadHandlerProgram EvmAsm.Evm64.evm_mul 1 save))
+      ((save ↦ᵣ s_init) ** (.x10 ↦ᵣ x10_init) **
+        ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) **
+         EvmAsm.Evm64.evmWordIs sp a ** EvmAsm.Evm64.evmWordIs (sp + 32) b)
+        ** (.x1 ↦ᵣ x1_init))
+      ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ (x10_init + signExtend12 1)) **
+        ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
+         memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) ** memOwn (sp + 24) **
+         EvmAsm.Evm64.evmWordIs (sp + 32) (a * b))
+        ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body0 := EvmAsm.Evm64.evm_mul_stack_spec_within sp (base + 4) a b v5 v6 v7 x10_init v11
+  rw [EvmAsm.Evm64.evm_mul_code_eq_ofProg] at h_body0
+  unfold EvmAsm.Evm64.evmMulStackPost at h_body0
+  have h_body : cpsTripleWithin 63 (base + 4) ((base + 4) + (252 : Word))
+      (CodeReq.ofProg (base + 4) EvmAsm.Evm64.evm_mul)
+      ((.x10 ↦ᵣ x10_init) **
+        ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) **
+         EvmAsm.Evm64.evmWordIs sp a ** EvmAsm.Evm64.evmWordIs (sp + 32) b))
+      (regOwn .x10 **
+        ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
+         memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) ** memOwn (sp + 24) **
+         EvmAsm.Evm64.evmWordIs (sp + 32) (a * b))) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) h_body0
+  have hlen : EvmAsm.Evm64.evm_mul.length = 63 := by decide
+  exact reloadRetHandlerSpec (by pcFree) (by pcFree) hsave_ne_x0 hlen (by decide) h_body
+    s_init x1_init
 
 end EvmAsm.Codegen.Proofs
