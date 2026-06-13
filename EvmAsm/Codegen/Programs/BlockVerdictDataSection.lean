@@ -1112,6 +1112,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- (account_at_header_state_root output; nonce@0).
   "bv_mtx_sender_addr:\n  .zero 32\n" ++
   "bv_mtx_sender_acct:\n  .zero 128\n" ++
+  -- bmvmx.5: single-tx contract-recipient sender scratch (same role as the mtx pair, i=0 path).
+  "bv_stx_sender_addr:\n  .zero 32\n" ++
+  "bv_stx_sender_acct:\n  .zero 128\n" ++
   -- bmvmx.1.6.6: scratch for the all-accounts per-slot tuple-sequence check (#8606). batsc_* is
   -- the wrapper's own scratch; the sub-helpers' scratch (atsc_*/bts_*/els_*) come from their Data
   -- defs. rfu_* (rlp_field_to_u64) is already provided above; slot_tuple_sequences_match is
