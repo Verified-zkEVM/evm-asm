@@ -1111,6 +1111,30 @@ def blockVerdictFunction : String :=
   "  li a5, 16\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
+  -- .57.11.6.5.2: fill bvgr_tx_state_gas (per-tx intrinsic.state) FIRST, so the EIP-7778
+  -- remaining-block-gas check below can apply the spec's 2D REGULAR test
+  -- min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) (amsterdam fork.py:591) instead of the
+  -- 1D over-approx min(TX_MAX, tx.gas). block_verdict_tx_state_gas_array depends only on the
+  -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
+  -- same conservative skip. (Moved up from just below the EIP-7778 check.)
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
+  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bvgr_tx_state_gas\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  -- .57.11.6.5.2: block_verdict_tx_state_gas_array can bail (a0 != 0) even after a successful
+  -- arena_prepare -- e.g. tx_intrinsic_state_gas unsupported for some tx (TxIntrinsicStateGas.lean).
+  -- Do NOT skip the EIP-7778 reject check on that bail (that would be a regression: the check
+  -- ran unconditionally before this reorder). Instead ZERO bvgr_tx_state_gas and fall through:
+  -- the check below then uses intrinsic.state == 0 = the legacy min(TX_MAX, tx.gas) over-approx
+  -- (= the pre-fix behaviour, sound), and the block_state floor sums 0 (no false-reject). The
+  -- floor/ceiling still run, so this is strictly >= the old conservative skip.
+  "  beqz a0, .Lbv_state_gas_filled\n" ++
+  "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
+  ".Lbv_state_gas_zero:\n" ++
+  "  beq t4, t3, .Lbv_state_gas_filled\n" ++
+  "  slli t5, t4, 3; add t5, t2, t5; sd zero, 0(t5); addi t4, t4, 1; j .Lbv_state_gas_zero\n" ++
+  ".Lbv_state_gas_filled:\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
   "  la a2, bvgr_gas_left\n" ++
@@ -1118,6 +1142,7 @@ def blockVerdictFunction : String :=
   "  la a4, bvgr_calldata_floor\n" ++
   "  la t2, bvgr_arena_tx_count; ld a5, 0(t2)\n" ++
   "  la a6, bvgr_block_gas_increments\n" ++
+  "  la a7, bvgr_tx_state_gas    # .57.11.6.5.2: per-tx intrinsic.state -> spec 2D regular test\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
@@ -1132,12 +1157,6 @@ def blockVerdictFunction : String :=
   -- max(block_regular, block_state)) lands just below, completing the EIP-8037
   -- equality; it uses block_regular = sum(bvgr_block_gas_increments), the same
   -- array the EIP-7778 gate above already trusts (arena prepared => execution-exact).
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
-  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
-  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
-  "  la a3, bvgr_tx_state_gas\n" ++
-  "  jal ra, block_verdict_tx_state_gas_array\n" ++
-  "  bnez a0, .Lbv_after_gas_result_gate          # conservative: skip on parse failure\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
   "  mv t6, a0\n" ++
   "  la t0, bvgr_tx_state_gas; la t1, bvgr_arena_tx_count; ld t1, 0(t1); li t2, 0; li t3, 0\n" ++
