@@ -33,6 +33,7 @@ import EvmAsm.Evm64.Multiply.Spec
 import EvmAsm.Evm64.SignExtend.Spec
 import EvmAsm.Evm64.Byte.Spec
 import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Env.Spec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
@@ -1649,5 +1650,57 @@ theorem evmPush1HandlerSpec
     cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) h0
   have hlen : (EvmAsm.Evm64.evm_push 1).length = 7 := by decide
   exact passthroughRetHandlerSpec (by pcFree) hlen (by decide) h_body x1_init
+
+-- ============================================================================
+-- 24. Concrete instance — CALLDATASIZE (0x36), via the clean-ret lift
+-- ============================================================================
+
+/-- Handler-level spec for `h_CALLDATASIZE` (opcode 0x36). The 6-instruction
+    `evm_calldatasize` body loads `env.callDataLen` (offset `callDataLenOff`)
+    and grows the stack by one word holding the length as its low limb with
+    three zero limbs; the 2-instruction clean-ret tail advances the EVM code
+    pointer by 1 and returns (8 RISC-V instructions total). Structurally
+    identical to `evmMSizeHandlerSpec` (no `x10` clobber → it lifts directly
+    through `cleanRetHandlerSpec`); the only difference from MSIZE is the source
+    cell (`env.callDataLen` instead of the memory-size cell). -/
+theorem evmCallDataSizeHandlerSpec
+    (envBaseReg tmpReg : Reg) (htmp_ne_x0 : tmpReg ≠ .x0)
+    (nsp base envAddr tempOld callDataLen : Word)
+    (d0 d1 d2 d3 : Word) (x10_init x1_init : Word) :
+    cpsTripleWithin 8 base (x1_init &&& ~~~1)
+      (cleanRetHandlerCode base (EvmAsm.Evm64.Calldata.evm_calldatasize envBaseReg tmpReg) 1)
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ tempOld) **
+        (.x12 ↦ᵣ (nsp + 32)) **
+        (nsp ↦ₘ d0) ** ((nsp + 8) ↦ₘ d1) **
+        ((nsp + 16) ↦ₘ d2) ** ((nsp + 24) ↦ₘ d3) **
+        ((envAddr + BitVec.ofNat 64 EvmAsm.Evm64.EvmEnv.callDataLenOff) ↦ₘ callDataLen))
+       ** (.x10 ↦ᵣ x10_init) ** (.x1 ↦ᵣ x1_init))
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ callDataLen) **
+        (.x12 ↦ᵣ nsp) **
+        (nsp ↦ₘ callDataLen) ** ((nsp + 8) ↦ₘ 0) **
+        ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) **
+        ((envAddr + BitVec.ofNat 64 EvmAsm.Evm64.EvmEnv.callDataLenOff) ↦ₘ callDataLen))
+       ** (.x10 ↦ᵣ (x10_init + 1)) ** (.x1 ↦ᵣ x1_init)) := by
+  have h_body := EvmAsm.Evm64.Calldata.evm_calldatasize_spec_within envBaseReg tmpReg htmp_ne_x0
+    nsp base envAddr tempOld callDataLen d0 d1 d2 d3
+  simp only [EvmAsm.Evm64.Calldata.evm_calldatasize_code] at h_body
+  have hBodyLen : (EvmAsm.Evm64.Calldata.evm_calldatasize envBaseReg tmpReg).length = 6 :=
+    EvmAsm.Evm64.Calldata.evm_calldatasize_length envBaseReg tmpReg
+  have hExitEq : (base + (24 : Word)) = base + fourTimes 6 := by
+    simp only [fourTimes]; bv_omega
+  rw [hExitEq] at h_body
+  have hQpcFree :
+      (((envBaseReg ↦ᵣ envAddr) ** (tmpReg ↦ᵣ callDataLen) **
+        (.x12 ↦ᵣ nsp) **
+        (nsp ↦ₘ callDataLen) ** ((nsp + 8) ↦ₘ 0) **
+        ((nsp + 16) ↦ₘ 0) ** ((nsp + 24) ↦ₘ 0) **
+        ((envAddr + BitVec.ofNat 64 EvmAsm.Evm64.EvmEnv.callDataLenOff) ↦ₘ callDataLen)) : Assertion).pcFree := by
+    pcFree
+  have h := cleanRetHandlerSpec hQpcFree hBodyLen (by decide) h_body 1 x10_init x1_init
+  have hAdvance : x10_init + signExtend12 (1 : BitVec 12) = x10_init + 1 := by
+    have : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+    rw [this]
+  rw [hAdvance] at h
+  exact h
 
 end EvmAsm.Codegen.Proofs
