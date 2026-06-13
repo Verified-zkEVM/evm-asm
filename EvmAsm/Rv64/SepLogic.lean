@@ -2954,6 +2954,46 @@ theorem seps_pick (xs : List Assertion) (n : Nat) (hn : n < xs.length) :
       simp only [seps_cons, List.getElem_cons_succ, List.eraseIdx_cons_succ]
       rw [ih rest (Nat.lt_of_succ_lt_succ hn'), sepConj_left_comm']
 
+/-- A permutation of the underlying atom list yields an equal `seps` chain.
+
+    This is the *certificate* lemma for the YOLO-style permutation prover
+    (`buildPermProofCert`): instead of emitting an O(n) chain of `seps_pick`
+    rewrites, the prover computes the index permutation as data and discharges
+    the whole reordering with this single lemma. The `List.Perm` witness records
+    the reordering; the kernel checks it once. -/
+theorem seps_perm {l₁ l₂ : List Assertion} (h : l₁.Perm l₂) : seps l₁ = seps l₂ := by
+  induction h with
+  | nil => rfl
+  | cons x _ ih => rw [seps_cons, seps_cons, ih]
+  | swap x y l => rw [seps_cons, seps_cons, seps_cons, seps_cons, sepConj_left_comm']
+  | trans _ _ ih₁ ih₂ => rw [ih₁, ih₂]
+
+/-- Index-based permutation certificate for `seps`.
+
+    `σ` is a list of indices into `l`; `seps l` equals the `seps` of `l`
+    reordered according to `σ`, provided `σ` is a permutation of `[0, …, |l|)`.
+
+    The point of phrasing the reordering with a `List Nat` index vector (rather
+    than a `List.Perm` over `Assertion`s) is that the side condition
+    `σ.Perm (List.range l.length)` is **decidable** — `Nat` has `DecidableEq`,
+    whereas `Assertion = PartialState → Prop` does not. So `buildPermProofCert`
+    can discharge it with a single kernel-checked `decide`, with no `isDefEq`
+    work on the (potentially large) atom expressions. -/
+theorem seps_permute (l : List Assertion) (σ : List Nat)
+    (hσ : σ.Perm (List.range l.length)) :
+    seps l = seps (σ.map (fun i => l.getD i empAssertion)) := by
+  have hrec : (List.range l.length).map (fun i => l.getD i empAssertion) = l := by
+    apply List.ext_getElem
+    · simp
+    · intro i h1 h2
+      simp only [List.getElem_map, List.getElem_range]
+      simp [h2]
+  have hp : ((List.range l.length).map (fun i => l.getD i empAssertion)).Perm
+            (σ.map (fun i => l.getD i empAssertion)) := hσ.symm.map _
+  calc seps l
+      = seps ((List.range l.length).map (fun i => l.getD i empAssertion)) := by rw [hrec]
+    _ = seps (σ.map (fun i => l.getD i empAssertion)) := seps_perm hp
+
 /-- `sep_perm h` closes a goal of the form `(A₁ ** ... ** Aₙ) s` given a hypothesis `h`
     that is a permutation of the same assertions applied to the same state.
     Works by proving assertion equality via `ac_rfl` and transporting with `congrFun`.
