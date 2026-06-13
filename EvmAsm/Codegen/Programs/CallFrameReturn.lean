@@ -84,6 +84,12 @@ def frameReturnFunction : String :=
   -- evm_refund_acc to the pre-child snapshot (incorporate_child_on_error does not
   -- add child.refund_counter). Success leaves it (the SSTORE refunds stay).
   "  ld t0, 640(x20); la t1, evm_refund_acc; sd t0, 0(t1)\n" ++
+  -- nxio8.4.3: truncate the EIP-2929 storage-warmth set to the pre-child count,
+  -- discarding keys the reverted child warmed (incorporate_child_on_error rolls
+  -- back accessed_storage_keys). The keys array beyond the count is stale but a
+  -- future cold access overwrites slot[count]. Success leaves it (warmth
+  -- propagates up per incorporate_child_on_success).
+  "  ld t0, 648(x20); la t1, evm_storage_access_count; sd t0, 0(t1)\n" ++
   ".Lfr_sgas_done:\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
@@ -243,7 +249,8 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_state_gas_left; li t1, 1000; sd t1, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; li t1, 2000; sd t1, 0(t0)\n" ++
   "  la t0, evm_refund_acc; li t1, 3000; sd t1, 0(t0)\n" ++   -- nxio8.4.2: success leaves refund
-  "  la t0, fr_child_env; li t1, 333; sd t1, 624(t0); li t1, 444; sd t1, 632(t0); li t1, 888; sd t1, 640(t0)\n" ++
+  "  la t0, evm_storage_access_count; li t1, 11; sd t1, 0(t0)\n" ++   -- nxio8.4.3: success leaves warmth
+  "  la t0, fr_child_env; li t1, 333; sd t1, 624(t0); li t1, 444; sd t1, 632(t0); li t1, 888; sd t1, 640(t0); li t1, 22; sd t1, 648(t0)\n" ++
   "  li a0, 1; li a1, 0; li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
   "  sd x10, 0(s0)                  # expect 0x101 (parent_pc 0x100 + 1)\n" ++
@@ -263,6 +270,7 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_state_gas_left; ld t1, 0(t0); sd t1, 160(s0)  # expect 1000\n" ++
   "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 168(s0)  # expect 2000\n" ++
   "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 192(s0)      # expect 3000 (success leaves)\n" ++
+  "  la t0, evm_storage_access_count; ld t1, 0(t0); sd t1, 208(s0)  # expect 11 (success leaves)\n" ++
   -- ---- Scenario B: depth 2 -> 1, REVERT-style with a returndata byte ----
   "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
   -- frame_save_area[1] = (pc=0x300, cb=0x444)
@@ -285,7 +293,8 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_state_gas_left; li t1, 7777; sd t1, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; li t1, 8888; sd t1, 0(t0)\n" ++
   "  la t0, evm_refund_acc; li t1, 9999; sd t1, 0(t0)\n" ++   -- child-modified refund
-  "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0); li t1, 777; sd t1, 640(t0)\n" ++
+  "  la t0, evm_storage_access_count; li t1, 33; sd t1, 0(t0)\n" ++   -- child-modified warmth count
+  "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0); li t1, 777; sd t1, 640(t0); li t1, 44; sd t1, 648(t0)\n" ++
   "  li a0, 0; la a1, fr_ret; li a2, 4\n" ++
   "  jal ra, frame_return\n" ++
   "  la t0, call_frame_arena; sub t0, x13, t0; sd t0, 56(s0)   # expect 0\n" ++
@@ -305,6 +314,7 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_state_gas_left; ld t1, 0(t0); sd t1, 176(s0)  # expect 555\n" ++
   "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 184(s0)  # expect 666\n" ++
   "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 200(s0)      # expect 777 (revert restores)\n" ++
+  "  la t0, evm_storage_access_count; ld t1, 0(t0); sd t1, 216(s0)  # expect 44 (revert restores)\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   ".Lfr_done:"
@@ -330,6 +340,7 @@ def ziskFrameReturnDataSection : String :=
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n" ++
+  "evm_storage_access_count:\n  .zero 8\n" ++
 
   -- Frame-relative stack-bound labels + cells. `evm_stack_top`/`evm_stack_low`
   -- are address-only stubs (frame_return takes their `&` for the depth-0

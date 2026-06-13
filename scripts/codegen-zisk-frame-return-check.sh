@@ -74,6 +74,10 @@ checks = [
     # additions by restoring evm_refund_acc to the child-env snapshot.
     ('A refund_acc (success: unchanged)',     3000),
     ('B refund_acc (revert: restored)',       777),
+    # nxio8.4.3: SUCCESS leaves the EIP-2929 warmth count; REVERT truncates it
+    # back to the child-env snapshot (discarding the reverted child's warm keys).
+    ('A warmth_count (success: unchanged)',   11),
+    ('B warmth_count (revert: restored)',     44),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):
