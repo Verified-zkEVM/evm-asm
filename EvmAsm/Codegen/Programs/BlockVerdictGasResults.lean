@@ -337,6 +337,7 @@ def ziskBlockVerdictGasResultArenaPrologue : String :=
   "  la a4, bvgr_calldata_floor\n" ++
   "  la t0, bvgr_arena_tx_count; ld a5, 0(t0)\n" ++
   "  la a6, bvgr_block_gas_increments\n" ++
+  "  li a7, 0                    # .6.5.2: probe consumer -> legacy 1D (no intrinsic_state array)\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  sd a0, 64(s1); sd a1, 72(s1); sd a2, 80(s1)\n" ++
   "  li a0, 0x40000008\n" ++
