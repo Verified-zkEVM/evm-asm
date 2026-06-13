@@ -1032,6 +1032,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_skip_count:\n  .zero 8\n" ++
   "bv_mtx_skip_idx:\n  .zero 8\n" ++
   "bv_mtx_skip_ctx:\n  .zero 192\n" ++
+  -- bmvmx.5.5.1 (umbrella-A2a): per-account aggregation of exec_nonstorage_effect_log
+  -- for the multi-tx nonstorage comparators. record_nonstorage_effect APPENDS one record
+  -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed
+  -- by the 20B BE address (first-seen pre kept, last-seen post overwritten) so the per-
+  -- account comparator sees the block-aggregate {pre, post}. Dedup -> count <= the log cap
+  -- (64), so 64 x 112 B suffices.
+  ".balign 8\n" ++
+  "exec_nonstorage_effect_agg_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_agg:\n  .zero 7168\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
   ".balign 8\n" ++
@@ -1040,6 +1049,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c3ns_acct_len:\n  .zero 8\n" ++
   "c3ns_addr_off:\n  .zero 8\n" ++
   "c3ns_addr_len:\n  .zero 8\n" ++
+  "c3ns_lenient_notfound:\n  .zero 8\n" ++   -- bmvmx.5.5.1 (A2a): 0 strict (single-tx), 1 lenient (multi-tx)
   "c2nsc_finals:\n  .zero 88\n" ++
   "c2nsf_off:\n  .zero 8\n" ++
   "c2nsf_len:\n  .zero 8\n" ++
