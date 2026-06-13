@@ -37,7 +37,7 @@ elab "xsimp" : tactic => do
   if Expr.isAppOfArity goalType ``EvmAsm.Rv64.himpl 2 then
     let p := Expr.appArg! (Expr.appFn! goalType)
     let q := Expr.appArg! goalType
-    let eqProof ← buildPermProof p q
+    let eqProof ← buildPermProofDispatch p q
     let result := mkApp (mkApp (mkConst ``EvmAsm.Rv64.himpl_of_eq) p) q
     goal.assign (mkApp result eqProof)
   else

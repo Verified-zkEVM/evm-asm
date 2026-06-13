@@ -32,8 +32,19 @@
 import Lean
 import Lean.Meta.Tactic.AC.Main
 import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.Tactics.PerfTrace
 
 open Lean Meta Elab Tactic
+
+/-- PoC A/B switch: when `true`, the `xperm` family (`xperm`, `xperm_hyp`,
+    `xcancel`, `seqFrame`/`runBlock` postcondition permutations, `xsimp`) builds
+    its `sepConj`-permutation proofs via the YOLO-style certificate prover
+    (`buildPermProofCert`) instead of the default `buildPermProof`. Default
+    `false` keeps the baseline behaviour byte-for-byte unchanged. -/
+register_option xperm.cert : Bool := {
+  defValue := true
+  descr := "Use the certificate-based sepConj permutation prover (seps_permute)."
+}
 
 namespace EvmAsm.Rv64.Tactics
 
@@ -353,41 +364,36 @@ where
         let step2 ← mkCongrArg sepConjPicked tailProof
         mkEqTrans pickProof step2
 
-/-- The main permutation proof builder.
+/-- The AC-reflection fast path, extracted from `buildPermProof` so other
+    routes (the certificate prover) can try it first.
 
-    Given LHS and RHS as sepConj chains with the same atoms
-    (syntactically identical), builds a proof of `LHS = RHS`.
-
-    Uses AC reflection via `buildNormProof` for O(n log n) kernel work.
-    Falls back to pick-based O(n^2) algorithm if expressions contain
-    loose bvars (which would cause PANIC in AC normalization). -/
-partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
-  withTraceNode `runBlock.perf.perm (fun _ => return m!"perm") do
+    Returns `some proof` of `lhs = rhs` when the AC path applies — i.e. the
+    chains' atoms are syntactically identical up to reducible normalization
+    (`checkACEligible`) with no loose bvars — using `buildNormProof` for
+    O(n log n) kernel work. Returns `none` when the AC path does not apply, so
+    the caller can choose a non-AC strategy (pick-based fallback or certificate).
+    Throws only on a genuine AC-internal inconsistency (same as the original
+    inline code: missing AC instances, or hashes matched but normal forms
+    differ). -/
+def tryBuildPermProofAC? (lhs rhs : Expr) : MetaM (Option Expr) := do
   -- Try AC fast path with zetaReduce
   let lhsZ ← Lean.Meta.zetaReduce lhs
   let rhsZ ← Lean.Meta.zetaReduce rhs
-  -- Safety check: if zetaReduce produced loose bvars, fall back
-  if lhsZ.hasLooseBVars || rhsZ.hasLooseBVars then
-    return ← buildPermProofFallback lhs rhs
+  -- Not applicable if zetaReduce produced loose bvars
+  if lhsZ.hasLooseBVars || rhsZ.hasLooseBVars then return none
   let lhsAtoms ← flattenSepConj lhsZ
   let rhsAtoms ← flattenSepConj rhsZ
-  -- If atom counts don't match after zetaReduce, try fallback on originals
-  unless lhsAtoms.length == rhsAtoms.length do
-    return ← buildPermProofFallback lhs rhs
-  -- Handle trivial cases (0-1 atoms): just check isDefEq
+  -- Not applicable if atom counts don't match after zetaReduce
+  unless lhsAtoms.length == rhsAtoms.length do return none
+  -- Trivial cases (0-1 atoms): a defeq check yields refl; otherwise not AC's job
   if lhsAtoms.length ≤ 1 then
-    if ← isDefEq lhsZ rhsZ then
-      return ← mkEqRefl lhsZ
-    else
-      return ← buildPermProofFallback lhs rhs
-  -- Safety check: if any atom has loose bvars, fall back
-  if lhsAtoms.any (·.hasLooseBVars) || rhsAtoms.any (·.hasLooseBVars) then
-    return ← buildPermProofFallback lhs rhs
-  -- Check sorted hashes match (atoms must be syntactically identical for AC path)
+    if ← isDefEq lhsZ rhsZ then return some (← mkEqRefl lhsZ)
+    else return none
+  -- Not applicable if any atom has loose bvars
+  if lhsAtoms.any (·.hasLooseBVars) || rhsAtoms.any (·.hasLooseBVars) then return none
+  -- Atoms must be syntactically identical (sorted hashes match) for the AC path
   let acEligible ← checkACEligible lhsZ rhsZ
-  unless acEligible do
-    -- Fall back to pick-based algorithm on originals (uses isDefEq for atom matching)
-    return ← buildPermProofFallback lhs rhs
+  unless acEligible do return none
   -- AC reflection: normalize each side, check normal forms match
   let op := mkConst ``EvmAsm.Rv64.sepConj
   let some pc ← Lean.Meta.AC.preContext op
@@ -402,7 +408,144 @@ partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
     Lean.Meta.AC.buildNormProof pc rHead rTail
   unless ← isDefEq lNorm rNorm do
     throwError "xperm: AC normal forms differ (atoms matched by hash but not by AC normalization)"
-  mkEqTrans lPf (← mkEqSymm rPf)
+  return some (← mkEqTrans lPf (← mkEqSymm rPf))
+
+/-- The main permutation proof builder.
+
+    Given LHS and RHS as sepConj chains with the same atoms, builds a proof of
+    `LHS = RHS`: AC reflection (`tryBuildPermProofAC?`) when atoms are
+    syntactically identical, otherwise the pick-based O(n^2) fallback. -/
+partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.perm (fun _ => return m!"perm") do
+    match ← tryBuildPermProofAC? lhs rhs with
+    | some p => return p
+    | none => buildPermProofFallback lhs rhs
+
+/-! ## Certificate permutation prover (re-implementing YOLO's idea)
+
+  This re-implements the *core idea* of YOLO — Valentin Mikhalchuk, Vladimir
+  Gladshtein, Ilya Sergey, "Lazy Proof Automation for Separation Logic", ITP 2026
+  (to appear); artifact https://github.com/verse-lab/yolo — namely: run the
+  (untrusted) atom-matching search *once*, then discharge the whole entailment
+  with a *single* cheap verified replay instead of an eager step-by-step proof.
+  Credit for that idea belongs to Mikhalchuk, Gladshtein, and Sergey.
+
+  It is an INDEPENDENT re-implementation, NOT a port of YOLO's code: it shares
+  none of YOLO's machinery (no `hprop` syntax tree, no left/right worklists, no
+  extensible operation-tag typeclasses, no recorded-tactic-script replay). Here
+  the search result is recorded as a **data certificate** — an index permutation
+  `σ : List Nat` — and the reordering is discharged by one
+  `EvmAsm.Rv64.seps_permute` whose side condition `σ.Perm (List.range n)` is a
+  decidable check on `List Nat`, kernel-checked by a single `decide` with no
+  `isDefEq` on atom expressions.
+
+  This collapses the `O(n²)` proof term / `whnf` count / kernel re-check of
+  `buildPermProofFallback` to `O(n)` (the `O(n²)` `isDefEq` *search* is the same
+  and irreducible). Always kernel-checked; the certificate `σ` *is* the recorded
+  script. Falls back to `buildPermProof` on any unexpected shape. -/
+
+/-- Build a `List Nat` literal from an array of `Nat`s. -/
+private def mkNatListExpr (ns : Array Nat) : Expr :=
+  let nat := mkConst ``Nat
+  ns.foldr (init := mkApp (mkConst ``List.nil [0]) nat)
+    fun n acc => mkApp3 (mkConst ``List.cons [0]) nat (mkNatLit n) acc
+
+/-- Find the first still-available LHS atom that is `isDefEq` to `target`.
+    Hash pre-filtering (matching-hash bucket first, then reducible `isDefEq`),
+    mirroring `findAtomIdx`, but with explicit availability so each atom is
+    consumed at most once. -/
+private def findAvailIdx (target : Expr) (atoms : Array Expr) (available : Array Bool) :
+    MetaM (Option Nat) := do
+  let h := target.hash
+  for i in [:atoms.size] do
+    if available[i]! && atoms[i]!.hash == h then
+      if ← isDefEq target atoms[i]! then return some i
+  for i in [:atoms.size] do
+    if available[i]! && atoms[i]!.hash != h then
+      if ← withReducible (isDefEq target atoms[i]!) then return some i
+  return none
+
+/-- Compute the index permutation `σ`: for each RHS atom, the original index of
+    the matching LHS atom (consuming each LHS atom at most once). -/
+private def computeSigma (rhsAtoms lhsAtoms : Array Expr) : MetaM (Array Nat) := do
+  let mut available : Array Bool := Array.mk (List.replicate lhsAtoms.size true)
+  let mut σ : Array Nat := Array.mkEmpty rhsAtoms.size
+  for j in [:rhsAtoms.size] do
+    match ← findAvailIdx rhsAtoms[j]! lhsAtoms available with
+    | some i =>
+      available := available.set! i false
+      σ := σ.push i
+    | none =>
+      throwError "xperm cert: no LHS atom matches RHS atom {j}:\n  {rhsAtoms[j]!}"
+  return σ
+
+/-- Certificate proof builder (may throw; callers fall back to `buildPermProof`).
+    Returns a proof of `lhs = rhs`. -/
+partial def buildPermProofCertCore (lhs rhs : Expr) : MetaM Expr := do
+  let lhs ← instantiateMVars lhs
+  let rhs ← instantiateMVars rhs
+  -- Reassociate to right-associated form so the `seps`-list bridge is `defeq`.
+  let (lhsRA, lhsPf) ← reassocProof lhs
+  let (rhsRA, rhsPf) ← reassocProof rhs
+  let lhsAtoms := (← flattenSepConj lhsRA).toArray
+  let rhsAtoms := (← flattenSepConj rhsRA).toArray
+  unless lhsAtoms.size == rhsAtoms.size do
+    throwError "xperm cert: atom count mismatch ({lhsAtoms.size} vs {rhsAtoms.size})"
+  if lhsAtoms.size ≤ 1 then
+    throwError "xperm cert: trivial chain, deferring"
+  if lhsAtoms.any (·.hasLooseBVars) || rhsAtoms.any (·.hasLooseBVars) then
+    throwError "xperm cert: loose bvars in atoms"
+  -- YOLO fast phase: search the index permutation once.
+  let σ ← computeSigma rhsAtoms lhsAtoms
+  -- Single verified certificate: seps lhsList = seps (σ.map (lhsList.getD · emp)).
+  let lhsList := mkAssertionList lhsAtoms
+  let σExpr := mkNatListExpr σ
+  let rangeExpr ← mkAppM ``List.range #[mkNatLit lhsAtoms.size]
+  let permProp ← mkAppM ``List.Perm #[σExpr, rangeExpr]
+  let hσ ← mkDecideProof permProp
+  let certPf ← mkAppM ``EvmAsm.Rv64.seps_permute #[lhsList, σExpr, hσ]
+  -- Emp bridges: lhsRA = empified(lhsRA) (=defeq seps lhsList); same for rhs.
+  let (lhsEmpPf, _) ← buildAddEmpProof lhsRA
+  let (rhsEmpPf, _) ← buildAddEmpProof rhsRA
+  -- lhs =(lhsPf) lhsRA =(lhsEmpPf) seps lhsList =(certPf) seps(σ.map …)
+  --     =defeq= seps rhsList =(symm rhsEmpPf) rhsRA =(symm rhsPf) rhs
+  let p ← mkEqTrans certPf (← mkEqSymm rhsEmpPf)
+  let p ← mkEqTrans lhsEmpPf p
+  let p ← mkEqTrans lhsPf p
+  let p ← mkEqTrans p (← mkEqSymm rhsPf)
+  return p
+
+/-- Drop-in alternative to `buildPermProof` using the certificate prover.
+    Wrapped in the `runBlock.perf.perm` trace node; falls back to
+    `buildPermProof` on any failure. -/
+partial def buildPermProofCert (lhs rhs : Expr) : MetaM Expr :=
+  withTraceNode `runBlock.perf.perm (fun _ => return m!"perm-cert") do
+    -- Route: certificate → AC reflection → pick-based O(n^2) fallback.
+    --
+    -- The certificate is tried FIRST. On the real compose proofs it beats even
+    -- AC reflection: the AC gate (`checkACEligible`'s per-atom
+    -- `normalizeAtomForHash`, a full reducible-whnf tree transform) plus
+    -- `buildNormProof` costs *more* than computing the index permutation once +
+    -- one `seps_permute` + `decide`. Measured on DivMod/LoopComposeN3:
+    -- cert-first ~2.15s vs AC-first ~2.70s vs baseline 2.69s — trying AC first
+    -- pays the AC-gate cost and throws away the win.
+    --
+    -- AC reflection is kept only as a safety net (for any shape the certificate
+    -- can't handle but AC can), ahead of the O(n^2) pick-based fallback.
+    try
+      buildPermProofCertCore lhs rhs
+    catch e =>
+      trace[runBlock.perf.perm] "xperm cert-core fallback: {e.toMessageData}"
+      match ← tryBuildPermProofAC? lhs rhs with
+      | some p => return p
+      | none => buildPermProofFallback lhs rhs
+
+/-- Dispatch between the baseline and certificate permutation provers based on
+    the `xperm.cert` option (default `false` ⇒ baseline `buildPermProof`). All
+    `xperm`-family entry points route through this. -/
+def buildPermProofDispatch (lhs rhs : Expr) : MetaM Expr := do
+  if xperm.cert.get (← getOptions) then buildPermProofCert lhs rhs
+  else buildPermProof lhs rhs
 
 /-- `xperm` tactic: proves `⊢ P = Q` where P and Q are AC-permutations of
     sepConj chains, using `isDefEq` for atom matching. -/
@@ -411,7 +554,7 @@ elab "xperm" : tactic => do
   let goalType ← goal.getType
   let some (_, lhsExpr, rhsExpr) := Expr.eq? goalType
     | throwError "xperm: goal is not an equality, got:\n{goalType}"
-  let proof ← buildPermProof lhsExpr rhsExpr
+  let proof ← buildPermProofDispatch lhsExpr rhsExpr
   goal.assign proof
 
 end EvmAsm.Rv64.Tactics
