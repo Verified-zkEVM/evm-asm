@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
 
@@ -394,6 +395,10 @@ def statelessVerdictV2GuestClosure : String :=
   addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: link dispatcher_capture_exec_state_gas so the verdict can
+  -- persist each tx's executed state gas into bvgr_tx_exec_state_gas (behavior-neutral substrate
+  -- for the EIP-7778 2D state-dim; the array is filled but not yet read by eip8037_state_used_before_tx).
+  dispatcherCaptureExecStateGasFunction ++ "\n" ++
   -- bmvmx.3.2: per-tx sender recovery vs witness public_keys. block_verdict
   -- calls verify_public_keys_match_senders after public_keys_valid; the TX-side
   -- recovery stack (signature extractors + signing-hash + material/stage/

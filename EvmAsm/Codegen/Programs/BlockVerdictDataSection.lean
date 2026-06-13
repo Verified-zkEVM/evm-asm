@@ -394,6 +394,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bvgr_block_gas_increments. Filled by block_verdict_tx_state_gas_array; fed
   -- (with bvgr_block_gas_increments) to eip8037_block_gas_used by g8zeq.1.4.2.
   "bvgr_tx_state_gas:\n  .zero 128\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: per-tx EXECUTED state gas (net of refunds), filled by
+  -- dispatcher_capture_exec_state_gas at each contract dispatch (16 entries x 8B, mirrors
+  -- bvgr_tx_state_gas). Behavior-neutral substrate for the 2D state-dim (P3 reads it).
+  "bvgr_tx_exec_state_gas:\n  .zero 128\n" ++
   "bvgr_receipt_gas_increments:\n  .zero 128\n" ++
   "bvgr_before_refund:\n  .zero 128\n" ++
   "bvgr_applied_refund:\n  .zero 128\n" ++

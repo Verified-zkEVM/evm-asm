@@ -486,6 +486,10 @@ def blockVerdictFunction : String :=
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # dispatch miss / not self-contained\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
+  -- (i = bv_mtx_i; evm_state_gas_used is fresh per-tx). Clobbers only a0/t0-t2, preserves the dispatch
+  -- results a1-a4 used below. Behavior-neutral substrate (array not yet read by the gate).
+  "  la a0, bv_mtx_i; ld a0, 0(a0); jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
@@ -820,6 +824,9 @@ def blockVerdictFunction : String :=
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist tx0's executed state gas into bvgr_tx_exec_state_gas[0].
+  -- Clobbers only a0/t0-t2, preserves the dispatch results a1-a4 stored below. Behavior-neutral.
+  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bv_runtime_gas_left; sd a1, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd a2, 0(t4)\n" ++
   -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
