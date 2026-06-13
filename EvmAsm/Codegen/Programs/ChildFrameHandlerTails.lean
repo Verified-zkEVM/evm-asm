@@ -258,8 +258,32 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- create_frame_descend reads the endowment from x12 (stack top) itself; do NOT pass it in
     -- a0 (== x10 the PC) -- that would clobber the parent return PC the descent saves (#8608).
     -- a1 = netPopBytes (frame_return pops the CREATE args: 64 for CREATE / 96 for CREATE2).
+    -- nxio8.8: charge create_account_state_gas = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530)
+    -- = 183600 (spec amsterdam vm/instructions/system.py:89, pay-before-execute, BEFORE the init child).
+    -- Mirror charge_state_gas (Storage.lean): drain evm_state_gas_left; spill the remainder into the
+    -- PARENT gas_left (568(x20), still the parent env here, before the descend); OOG-fail the CREATE
+    -- (push 0 via 7f) when both reservoirs are short. evm_state_gas_used += charge. Preserves the
+    -- dispatcher state x10/x12/x13/x20/x21 (only t0-t3 + the parent gas_left). The charge is REFUNDED
+    -- on child failure by the snapshot bump after create_frame_descend below (the descent snapshots
+    -- POST-charge into child_env+624/632, so adding/subtracting 183600 makes incorporate_child_on_error's
+    -- rollback restore the PRE-charge reservoir/used -- matching spec 'refunded on any failure path').
+    "  li t0, 183600\n" ++
+    "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+    "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+    "  ld t2, 568(x20)\n  bltu t2, t3, 7f\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    ".Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    ".Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
     "  li a1, " ++ toString netPopBytes ++ "\n" ++
     "  jal x1, create_frame_descend\n" ++
+    -- nxio8.8 refund-on-failure: the descent snapshotted state-gas POST-charge into child_env+624/632;
+    -- bump the snapshot by the charge so incorporate_child_on_error restores the PRE-charge reservoir
+    -- on child error/revert (x20 = child env here). On child success the snapshot is unused (charge stands).
+    "  ld t0, 624(x20)\n  li t1, 183600\n  add t0, t0, t1\n  sd t0, 624(x20)\n" ++
+    "  ld t0, 632(x20)\n  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++
     "  j .dispatch_loop\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
