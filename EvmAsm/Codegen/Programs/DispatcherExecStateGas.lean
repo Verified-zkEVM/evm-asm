@@ -40,6 +40,7 @@
   (coordinated via /tmp/to_c1.txt; c1 owns the verdict gate + dispatch loop).
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 
@@ -53,7 +54,7 @@ open EvmAsm.Rv64
     array at a caller-supplied transaction index.
 
     Calling convention:
-      a0 (input)  : transaction index i (0 <= i < 16, the bvgr_* array capacity)
+      a0 (input)  : transaction index i (0 <= i < bvMtxArenaTxCap, the bvgr_* array capacity)
       ra (input)  : return
       (output)    : bvgr_tx_exec_state_gas[i] := evm_state_gas_used  (raw u64)
     Clobbers t0, t1, t2 only (no saved regs, no stack frame, no loop — a
@@ -72,39 +73,39 @@ def dispatcherCaptureExecStateGasFunction : String :=
   "  sd t0, 0(t1)               # bvgr_tx_exec_state_gas[i] = state_gas_used\n" ++
   "  ret"
 
-/-- The per-tx executed-state-gas array definition (16 entries * 8 bytes = 128,
+/-- The per-tx executed-state-gas array definition (`bvMtxArenaTxCap` entries,
     matching `bvgr_tx_state_gas`). c1 adds this identical line next to
     `bvgr_tx_state_gas` in `BlockVerdictDataSection.lean` so the verdict program
     links it; this copy is for the standalone probe. -/
 def dispatcherExecStateGasArrayDef : String :=
-  "bvgr_tx_exec_state_gas:\n  .zero 128\n"
+  "bvgr_tx_exec_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n"
 
 /-- `zisk_capture_exec_state_gas`: focused probe for
     `dispatcher_capture_exec_state_gas`.
 
-    Drives three captures at distinct indices (0, 3, 15 = last) with distinct
+    Drives three captures at distinct indices (0, 17, 1023 = last) with distinct
     `evm_state_gas_used` values, then reads the array back to assert: the value
     landed, the 8-byte stride is correct, and an untouched entry stays 0.
 
     Output layout at 0xa0010000:
-      +0  bvgr_tx_exec_state_gas[0]   (expect 0x1111)
-      +8  bvgr_tx_exec_state_gas[3]   (expect 0x2222)
-      +16 bvgr_tx_exec_state_gas[15]  (expect 0x3333)
-      +24 bvgr_tx_exec_state_gas[1]   (expect 0 — untouched) -/
+      +0  bvgr_tx_exec_state_gas[0]    (expect 0x1111)
+      +8  bvgr_tx_exec_state_gas[17]   (expect 0x2222)
+      +16 bvgr_tx_exec_state_gas[1023] (expect 0x3333)
+      +24 bvgr_tx_exec_state_gas[1]    (expect 0 — untouched) -/
 def ziskCaptureExecStateGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la t0, evm_state_gas_used; li t1, 0x1111; sd t1, 0(t0)\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t0, evm_state_gas_used; li t1, 0x2222; sd t1, 0(t0)\n" ++
-  "  li a0, 3; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 17; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t0, evm_state_gas_used; li t1, 0x3333; sd t1, 0(t0)\n" ++
-  "  li a0, 15; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 1023; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  li t0, 0xa0010000\n" ++
   "  la t1, bvgr_tx_exec_state_gas\n" ++
-  "  ld t2, 0(t1);   sd t2, 0(t0)     # [0]  expect 0x1111\n" ++
-  "  ld t2, 24(t1);  sd t2, 8(t0)     # [3]  expect 0x2222\n" ++
-  "  ld t2, 120(t1); sd t2, 16(t0)    # [15] expect 0x3333\n" ++
-  "  ld t2, 8(t1);   sd t2, 24(t0)    # [1]  untouched, expect 0\n" ++
+  "  ld t2, 0(t1);     sd t2, 0(t0)     # [0]    expect 0x1111\n" ++
+  "  ld t2, 136(t1);   sd t2, 8(t0)     # [17]   expect 0x2222\n" ++
+  "  li t3, 8184; add t3, t1, t3; ld t2, 0(t3); sd t2, 16(t0)  # [1023] expect 0x3333\n" ++
+  "  ld t2, 8(t1);     sd t2, 24(t0)    # [1]    untouched, expect 0\n" ++
   "  j .Lcesg_pdone\n" ++
   dispatcherCaptureExecStateGasFunction ++ "\n" ++
   ".Lcesg_pdone:"
