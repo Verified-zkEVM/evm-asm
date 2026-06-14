@@ -876,8 +876,8 @@ def blockVerdictFunction : String :=
   -- saved/restored: the appender uses x20+472 for the event-log count, so set x20 = evm_env;
   -- block_log_window_snapshot reads evm_env via `la`, so it is unaffected.
   "  la t0, bmvmx_avail; ld t0, 0(t0); bnez t0, .Lbv_tl7708_ready\n" ++
-  -- bmvmx.7.1/57t4x: widen Part-2 top-level transfer-log coverage to the already-supported
-  -- single typed simple-transfer runtime path. Keep this independent from bmvmx_avail:
+  -- bmvmx.7.1/bmvmx.7.3/57t4x: widen Part-2 top-level transfer-log coverage to the already-supported
+  -- single typed simple-transfer runtime path, now including type-3 blob transfers and type-4 set-code transfers. Keep this independent from bmvmx_avail:
   -- the balance-movement verifier is still legacy-only, but receipts completeness only
   -- needs sender/recipient/value. simple_transfer_tx_context has already accepted the tx,
   -- so +24/+72/+96/+160 are populated here. Type 4 relies on the shared gas gate's
@@ -886,6 +886,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_simple_transfer_tx; ld t1, 0(t0); bnez t1, .Lbv_tl7708_skip\n" ++
   "  ld t1, 160(t0); li t2, 1; beq t1, t2, .Lbv_tl_typed_ok\n" ++
   "  li t2, 2; beq t1, t2, .Lbv_tl_typed_ok\n" ++
+  "  li t2, 3; beq t1, t2, .Lbv_tl_typed_ok\n" ++
   "  li t2, 4; bne t1, t2, .Lbv_tl7708_skip\n" ++
   ".Lbv_tl_typed_ok:\n" ++
   "  addi t1, t0, 96; la t2, bmvmx_value; li t3, 0\n" ++
