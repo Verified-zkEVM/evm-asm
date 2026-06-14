@@ -373,6 +373,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "runtime_dispatcher_call_probe" => some runtimeDispatcherCallProbeUnit
   | "runtime_dispatcher_gas_capture_probe" => some runtimeDispatcherGasCaptureProbeUnit
+  | "zisk_runtime_access_list_seeded_sload" => some ziskRuntimeAccessListSeededSloadProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_headers_keccak_chain" => some ziskHeadersKeccakChainProbeUnit
   | "zisk_headers_keccak_array" => some ziskHeadersKeccakArrayProbeUnit
