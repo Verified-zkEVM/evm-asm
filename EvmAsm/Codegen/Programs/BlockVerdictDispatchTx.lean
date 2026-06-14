@@ -416,6 +416,22 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
   "  mv a0, s0; mv a1, s1; addi a2, s2, 72\n" ++
   "  jal ra, seed_callee_storage\n" ++
+  "  # nxio8.5.2b: pass this tx access_list span to the callable setup so it can seed\n" ++
+  "  # EIP-2929 storage warmth after evm_storage_access_count is reset. Legacy, empty,\n" ++
+  "  # malformed, or unsupported spans leave the pending seed globals zero (safe overcharge).\n" ++
+  "  la t0, runtime_tx_access_list_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
+  "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
+  "  beqz a0, .Ldtrc_access_seed_done\n" ++
+  "  beqz a1, .Ldtrc_access_seed_done\n" ++
+  "  la a2, txal_span_ptr; la a3, txal_span_len\n" ++
+  "  jal ra, tx_access_list_span\n" ++
+  "  bnez a0, .Ldtrc_access_seed_done\n" ++
+  "  la t0, txal_span_ptr; ld t1, 0(t0); la t0, runtime_tx_access_list_ptr; sd t1, 0(t0)\n" ++
+  "  la t0, txal_span_len; ld t1, 0(t0); la t0, runtime_tx_access_list_len; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
+  ".Ldtrc_access_seed_done:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave

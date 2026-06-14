@@ -46,6 +46,7 @@ import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.CallFrameBase
@@ -2246,6 +2247,22 @@ def emitCalleeStorageSeedLoop : String :=
   "  addi x7, x7, 96; addi x6, x6, -1; j .Lcallee_seed_loop\n" ++
   ".Lcallee_seed_done:\n"
 
+/-- Seed the per-transaction storage warm set from a pending tx access-list span.
+    The span is prepared by `dispatch_tx_runtime_code`; standalone callers leave
+    the globals zero, so this is inert. Runs after callable setup resets
+    `evm_storage_access_count` and before opcode execution. -/
+def emitTxAccessListSeedLoop : String :=
+  "  la x5, runtime_tx_access_list_ptr; ld a0, 0(x5)\n" ++
+  "  la x6, runtime_tx_access_list_len; ld a1, 0(x6)\n" ++
+  "  la x7, runtime_tx_access_list_seed_fn; ld x28, 0(x7)\n" ++
+  "  sd x0, 0(x5); sd x0, 0(x6); sd x0, 0(x7)\n" ++
+  "  beqz x28, .Ltx_access_seed_done\n" ++
+  "  beqz a0, .Ltx_access_seed_done\n" ++
+  "  beqz a1, .Ltx_access_seed_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
+  ".Ltx_access_seed_done:\n"
+
 /-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
     opcode-handler calls, so the caller's return address is saved in the
     runtime data section and restored by the callable exit join. -/
@@ -2257,6 +2274,7 @@ def emitRuntimeDispatcherCallablePrologue : String :=
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  emitTxAccessListSeedLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
   emitRuntimeDispatcherLoop
 
@@ -2560,6 +2578,26 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_dispatcher_input_ptr:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_access_list_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_access_list_len:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_access_list_seed_fn:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "txal_type:\n  .zero 8\n" ++
+  "txal_inner_off:\n  .zero 8\n" ++
+  "txal_span_ptr:\n  .zero 8\n" ++
+  "txal_span_len:\n  .zero 8\n" ++
+  "t29_offset:\n  .zero 8\n" ++
+  "t29_length:\n  .zero 8\n" ++
+  "t1d_offset:\n  .zero 8\n" ++
+  "t1d_length:\n  .zero 8\n" ++
+  "t77_offset:\n  .zero 8\n" ++
+  "t77_length:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "txal_decode:\n  .zero 248\n" ++
+  seedTxAccessListDataSection ++ "\n" ++
   -- EIP-7623 calldata floor persisted by the validate-tx-gas path so a
   -- caller can read the exact `calldata_floor_gas_cost` the transaction
   -- was validated against (0 when --validate-tx-gas was not requested).

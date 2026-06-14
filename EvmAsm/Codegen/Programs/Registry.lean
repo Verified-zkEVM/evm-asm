@@ -334,6 +334,7 @@ def lookupProgram : String → Option BuildUnit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "runtime_dispatcher_call_probe" => some runtimeDispatcherCallProbeUnit
   | "runtime_dispatcher_gas_capture_probe" => some runtimeDispatcherGasCaptureProbeUnit
+  | "zisk_runtime_access_list_seeded_sload" => some ziskRuntimeAccessListSeededSloadProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
   | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit

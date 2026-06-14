@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
+import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
@@ -71,6 +72,12 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
+    txAccessListSpanFunction ++ "\n" ++
+    txEip2930DecodeFunction ++ "\n" ++
+    txEip1559DecodeFunction ++ "\n" ++
+    txEip7702DecodeFunction ++ "\n" ++
+    storageAccessSeedFunction ++ "\n" ++
+    seedTxAccessListFunction ++ "\n" ++
     -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
     -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
     -- u256_add_be/u256_sub_be/u256_lt_be.
@@ -322,6 +329,12 @@ def statelessVerdictV2GuestClosure : String :=
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.
   dispatchTxRuntimeCodeFunction ++ "\n" ++
+  txAccessListSpanFunction ++ "\n" ++
+    txEip2930DecodeFunction ++ "\n" ++
+    txEip1559DecodeFunction ++ "\n" ++
+    txEip7702DecodeFunction ++ "\n" ++
+  storageAccessSeedFunction ++ "\n" ++
+  seedTxAccessListFunction ++ "\n" ++
   -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
   -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
   -- u256_add_be/u256_sub_be/u256_lt_be.
