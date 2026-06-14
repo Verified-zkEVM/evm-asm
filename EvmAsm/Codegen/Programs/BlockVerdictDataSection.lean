@@ -201,7 +201,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- dispatcher_tx_gas_settle success bit per tx (single-tx path writes index 0,
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
-  "bv_tx_status_arr:\n  .zero 128\n" ++
+  "bv_tx_status_arr:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
   -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
   -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
   -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
@@ -217,7 +217,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_last_log_count:\n  .zero 8\n" ++
   "bv_receipt_logs_status:\n  .zero 8\n" ++
   "bv_logs_rlp_len:\n  .zero 8\n" ++
-  "bv_tx_log_window:\n  .zero 256\n" ++
+  "bv_tx_log_window:\n  .zero " ++ toString bmvFixtureLogWindowArenaBytes ++ "\n" ++
   ".balign 8\n" ++
   "bv_block_log_descs:\n  .zero 32768\n" ++
   "bv_block_log_meta:\n  .zero 2048\n" ++
@@ -385,22 +385,22 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_arena_runtime_count:\n  .zero 8\n" ++
   "bvgr_arena_fail_index:\n  .zero 8\n" ++
   "bvgr_arena_substatus:\n  .zero 8\n" ++
-  "bvgr_tx_gas_limits:\n  .zero 128\n" ++
-  "bvgr_gas_left:\n  .zero 128\n" ++
-  "bvgr_refund_counter:\n  .zero 128\n" ++
-  "bvgr_calldata_floor:\n  .zero 128\n" ++
-  "bvgr_block_gas_increments:\n  .zero 128\n" ++
+  "bvgr_tx_gas_limits:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_gas_left:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_refund_counter:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_calldata_floor:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_block_gas_increments:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
   -- g8zeq.1.4.3: per-tx EIP-8037 state-gas array, the state counterpart of
   -- bvgr_block_gas_increments. Filled by block_verdict_tx_state_gas_array; fed
   -- (with bvgr_block_gas_increments) to eip8037_block_gas_used by g8zeq.1.4.2.
-  "bvgr_tx_state_gas:\n  .zero 128\n" ++
+  "bvgr_tx_state_gas:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: per-tx EXECUTED state gas (net of refunds), filled by
   -- dispatcher_capture_exec_state_gas at each contract dispatch (16 entries x 8B, mirrors
   -- bvgr_tx_state_gas). Behavior-neutral substrate for the 2D state-dim (P3 reads it).
-  "bvgr_tx_exec_state_gas:\n  .zero 128\n" ++
-  "bvgr_receipt_gas_increments:\n  .zero 128\n" ++
-  "bvgr_before_refund:\n  .zero 128\n" ++
-  "bvgr_applied_refund:\n  .zero 128\n" ++
+  "bvgr_tx_exec_state_gas:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_receipt_gas_increments:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_before_refund:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_applied_refund:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
   -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
@@ -931,9 +931,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- multi-tx dispatch loop (.6.2.2.2.b). 16-wide u64 arrays (arena capacity 16);
   -- bv_mtx_ctx is one 192-byte multi_tx_nth_context record reused per index.
   ".balign 8\n" ++
-  "bv_mtx_gas_left:\n  .zero 128\n" ++
-  "bv_mtx_refund:\n  .zero 128\n" ++
-  "bv_mtx_calldata:\n  .zero 128\n" ++
+  "bv_mtx_gas_left:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bv_mtx_refund:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bv_mtx_calldata:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
   -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
