@@ -1,11 +1,7 @@
 /-
   EvmAsm.Codegen.Programs.BlockVerdictFunction
 
-  Extracted from `BlockVerdict.lean` to keep every file under the
-  `FileSizeGuard` line cap. Holds `blockVerdictFunction`, the full
-  state-transition verdict assembly string (header rebuild + post-state
-  recompute + state-root compare). It is concatenated into the
-  `zisk_stateless_verdict_v2` probe prologue back in `BlockVerdict.lean`.
+  Main block_verdict assembly string, split from BlockVerdict.lean for FileSizeGuard.
 -/
 
 import EvmAsm.Rv64.Program
@@ -14,6 +10,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
+import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 
 namespace EvmAsm.Codegen
 
@@ -77,7 +74,7 @@ def blockVerdictFunction : String :=
   -- and block_state_root (BlockVerdict.lean:67-302) reads none of these globals.
   "  la t0, bmvmx_avail; sd zero, 0(t0)\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++             -- bmvmx.1.4.3.1: envelope predicate flags default 0
+  bvReceiptsShapeClear ++  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++             -- bmvmx.1.4.3.1: envelope predicate flags default 0
   "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
   "  addi t4, s3, 60; la t0, bv_exec_p; sd t4, 0(t0)\n" ++         -- exec_p = ssz_base(s3)+60 (block_state_root's bsr_exec_p derivation; 0(s0) is NOT populated pre-348)
   "  la t4, bv_exec_p; ld t4, 0(t4); addi a0, t4, 504; jal ra, bgv_u32le\n" ++       -- transactions_offset
@@ -192,12 +189,7 @@ def blockVerdictFunction : String :=
   "  la t0, bmvmx_coinbase_checked; li t1, 1; sd t1, 0(t0)\n" ++       -- bmvmx.1.4.3.1: coinbase compare PERFORMED in-envelope (distinctness cleared below)
   ".Lbmvmx_cb_skip:\n" ++
   "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
-  -- bmvmx.1.4.3.1 distinctness: clear bmvmx_sender_checked if sender overlaps recipient (self-
-  -- transfer: value nets out, debit would overcount value) or coinbase (priority fee credited
-  -- back); clear bmvmx_coinbase_checked if coinbase overlaps sender or recipient (also receives
-  -- value). Reached only when the compute completed (bmvmx_avail just set); sender_addr,
-  -- coinbase_addr and the recipient (bmvmx_ctx+72) are all populated here. Each *_checked is 0
-  -- unless its compare was performed above, so this only narrows, never widens.
+  bvReceiptsShapeSet 1 true ++  -- Distinctness clears the performed sender/coinbase checks when value/fee effects overlap.
   "  la a0, bmvmx_sender_addr; la a1, bmvmx_ctx; addi a1, a1, 72; jal ra, .Lbmvmx_addr20_ne\n" ++
   "  bnez a0, .Lbmvmx_s_vs_cb\n" ++                                    -- sender == recipient -> clear sender_checked
   "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++
@@ -444,7 +436,7 @@ def blockVerdictFunction : String :=
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
-  "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail; ld t2, 48(t0); bnez t2, .Lbv_mtx_bail        # unsupported/creation tx shape\n" ++
+  "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail; ld t2, 48(t0); bnez t2, .Lbv_mtx_creation_unsupported        # creation tx shape\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
   -- fee-validity test as the single-tx gate (max_fee>=base_fee / priority<=max_fee),
   -- run per tx in the mtx loop. bv_mtx_ctx holds tx ptr@8 / len@16 (simple_transfer layout,
@@ -622,8 +614,8 @@ def blockVerdictFunction : String :=
   ".Lbv_mtx_tl7708_skip:\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
-  "  bnez a0, .Lbv_mtx_bail                         # dispatch miss / not self-contained\n" ++
-  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
+  "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # dispatch miss / not self-contained\n" ++
+  bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
   -- (i = bv_mtx_i; evm_state_gas_used is fresh per-tx). Clobbers only a0/t0-t2, preserves the dispatch
   -- results a1-a4 used below. Behavior-neutral substrate (array not yet read by the gate).
   "  la a0, bv_mtx_i; ld a0, 0(a0); jal ra, dispatcher_capture_exec_state_gas\n" ++
@@ -675,12 +667,19 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
   blockVerdictMtxValidationTail ++
+  ".Lbv_mtx_creation_unsupported:\n" ++
+  bvReceiptsShapeSet 60 false ++
+  "  j .Lbv_mtx_bail_after_shape\n" ++
+  ".Lbv_mtx_dispatch_unsupported:\n" ++
+  bvReceiptsShapeSet 61 false ++
+  "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_bail:\n" ++
+  bvReceiptsShapeSet 62 false ++  ".Lbv_mtx_bail_after_shape:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_singletx:\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_creation_unsupported\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
   -- and max_priority_fee_per_gas <= max_fee_per_gas (PriorityFeeGreaterThanMaxFeeError,
@@ -899,7 +898,7 @@ def blockVerdictFunction : String :=
   ".Lbv_tl_typed_vdone:\n" ++
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
-  ".Lbv_tl7708_ready:\n" ++
+  bvReceiptsShapeSet 2 true ++  ".Lbv_tl7708_ready:\n" ++
   "  la t0, bmvmx_value; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbv_tl7708_skip\n" ++
   -- EIP-7708 self-suppression: emit the transfer log ONLY to a DIFFERENT account. The spec
@@ -1034,7 +1033,7 @@ def blockVerdictFunction : String :=
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
   "  bnez a0, .Lbv_contract_dispatch_unsupported\n" ++
-  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist tx0's executed state gas into bvgr_tx_exec_state_gas[0].
+  bvReceiptsShapeSet 3 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist tx0's executed state gas into bvgr_tx_exec_state_gas[0].
   -- Clobbers only a0/t0-t2, preserves the dispatch results a1-a4 stored below. Behavior-neutral.
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bv_runtime_gas_left; sd a1, 0(t4)\n" ++
@@ -1379,9 +1378,11 @@ def blockVerdictFunction : String :=
   "  beqz t2, .Lbv_after_tx_gas_precharge\n" ++                  -- sender == coinbase -> skip
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
+  ".Lbv_creation_unsupported:\n" ++
+  bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  "  j .Lbv_after_tx_gas_precharge\n" ++
+  bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1.3: prefill the transaction-count and
   -- intrinsic-state-gas substrate BEFORE eip8037_tx_gas_gate. The gate still

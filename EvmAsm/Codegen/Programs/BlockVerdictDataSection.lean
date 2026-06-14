@@ -974,6 +974,21 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bmvmx_avail:\n  .zero 8\n" ++
   "eip7708_tl_typed_avail:\n  .zero 8\n" ++
+  -- Receipts completeness shape for the enforcement tail:
+  --   0 unknown/none
+  --   1 legacy single-tx simple EOA
+  --   2 typed single-tx simple EOA
+  --   3 single-tx calldata contract dispatch complete
+  --   4 multi-tx EOA dispatch complete
+  --   5 multi-tx contract dispatch complete
+  --   60 top-level creation unsupported
+  --   61 runtime dispatch miss / non-self-contained
+  --   62 other multi-tx unsupported bail
+  -- `bv_receipts_enforce_enabled` is the stable gate bit consumed by
+  -- BlockVerdictReceiptsTail; the older availability flags remain as
+  -- compatibility/debug signals for the paths that originally introduced them.
+  "bv_receipts_completeness_shape:\n  .zero 8\n" ++
+  "bv_receipts_enforce_enabled:\n  .zero 8\n" ++
   "bmvmx_gas_used:\n  .zero 8\n" ++
   "bmvmx_txoff:\n  .zero 8\n" ++
   "bmvmx_ctx:\n  .zero 192\n" ++

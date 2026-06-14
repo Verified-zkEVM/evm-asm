@@ -88,13 +88,13 @@ def blockVerdictReceiptsTail : String :=
   "  la a7, c1_er_assembled\n" ++
   "  jal ra, requests_hash_verify\n" ++
   "  bnez a0, .Lbv_requests_hash_fail\n" ++
-  -- CONSERVATIVE COMPLETENESS GATE: enforce only when the EIP-7708 top-level transfer log
-  -- (Part 2) is known to be represented in the materialized log window. bmvmx_avail covers
-  -- the legacy single-tx path; eip7708_tl_typed_avail covers the narrow type-1/type-2/type-3/type-4
-  -- simple-transfer paths added by bmvmx.7.1/bmvmx.7.3/57t4x. Other typed and multi-tx blocks remain conservative until their
-  -- top-level logs are complete, avoiding confirmed-but-spurious receipts-root mismatches.
-  "  la t2, bmvmx_avail; ld t2, 0(t2); bnez t2, .Lbv_receipts_enforce\n" ++
-  "  la t2, eip7708_tl_typed_avail; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
+  -- CONSERVATIVE COMPLETENESS GATE: enforce only when the transaction-shape-specific
+  -- receipt completeness classifier set bv_receipts_enforce_enabled. The classifier keeps
+  -- legacy simple EOA, typed simple EOA, single-tx contract, multi-tx EOA/contract,
+  -- top-level creation unsupported, and dispatch-miss/non-self-contained reasons separate
+  -- in bv_receipts_completeness_shape so unsupported materialization cannot be confused with
+  -- a consensus comparison that is safe to enforce.
+  "  la t2, bv_receipts_enforce_enabled; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
   ".Lbv_receipts_enforce:\n" ++
   "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
   "  jal ra, receipt_records_encode_no_logs\n" ++
