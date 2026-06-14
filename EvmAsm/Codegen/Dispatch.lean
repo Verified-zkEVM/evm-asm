@@ -2131,15 +2131,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   ".runtime_tx_gas_access_list:\n" ++
   -- Access-list counts are supplied by transaction-aware callers. Legacy and
   -- standalone runtime probes leave both labels zero, preserving the old path.
-  -- tokens_in_access_list = 80 * address_count + 128 * storage_key_count;
-  -- the floor adds 16 gas per token, while regular intrinsic gas adds
-  -- 2400/address and 1900/storage key.
+  -- tokens_in_access_list = 80 * address_count + 128 * storage_key_count.
+  -- Amsterdam regular intrinsic gas includes both the legacy access-list
+  -- surcharge (2400/address, 1900/storage key) and the EIP-7623 access-token
+  -- floor surcharge (16 gas per token); the separate floor accumulator keeps
+  -- only the calldata-floor value used by the post-refund max.
   "  la x11, runtime_tx_access_list_address_count\n" ++
   "  ld x11, 0(x11)\n" ++
   "  beqz x11, .runtime_tx_gas_access_slots\n" ++
   "  li x15, 2400\n" ++
   ".runtime_tx_gas_addr_loop:\n" ++
   "  add x7, x7, x15\n" ++
+  "  addi x7, x7, 1280\n" ++
   "  addi x10, x10, 1280\n" ++
   "  addi x11, x11, -1\n" ++
   "  bnez x11, .runtime_tx_gas_addr_loop\n" ++
@@ -2151,6 +2154,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  li x14, 2048\n" ++
   ".runtime_tx_gas_slot_loop:\n" ++
   "  add x7, x7, x15\n" ++
+  "  add x7, x7, x14\n" ++
   "  add x10, x10, x14\n" ++
   "  addi x11, x11, -1\n" ++
   "  bnez x11, .runtime_tx_gas_slot_loop\n" ++
