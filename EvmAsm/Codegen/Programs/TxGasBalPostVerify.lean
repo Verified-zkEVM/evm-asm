@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.U256GasPricing
 
@@ -184,6 +185,31 @@ def txGasBalPostVerifyFunction : String :=
   "  li t0, 36; sd t0, 0(s7)\n" ++
   "  j .Ltgbpv_ret\n" ++
   ".Ltgbpv_refund_add_ok:\n" ++
+  "  # Blob transactions burn blob_count * GAS_PER_BLOB * max_fee_per_blob_gas in\n" ++
+  "  # addition to execution gas. tx_upfront_precharge does not model that debit,\n" ++
+  "  # so account for it in the expected sender post-balance before value netting.\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, tgbpv_tx_type; la a3, tgbpv_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Ltgbpv_after_blob_fee\n" ++
+  "  la t0, tgbpv_tx_type; ld t0, 0(t0); li t1, 3; bne t0, t1, .Ltgbpv_after_blob_fee\n" ++
+  "  la t0, tgbpv_inner_off; ld t0, 0(t0); bltu s1, t0, .Ltgbpv_after_blob_fee\n" ++
+  "  add a0, s0, t0; sub a1, s1, t0; la a2, tgbpv_t48\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltgbpv_after_blob_fee\n" ++
+  "  la t0, tgbpv_t48; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, tgbpv_inner_off; ld t3, 0(t3); add t3, s0, t3; add a0, t3, t1; mv a1, t2; la a2, tgbpv_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Ltgbpv_after_blob_fee\n" ++
+  "  la t0, tgbpv_blob_count; ld a1, 0(t0); beqz a1, .Ltgbpv_after_blob_fee\n" ++
+  "  li t0, 6; bgtu a1, t0, .Ltgbpv_after_blob_fee\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, tcbg_blob_fee_be; la a2, tgbpv_blob_debit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Ltgbpv_after_blob_fee\n" ++
+  "  la a0, tgbpv_expected_balance; la a1, tgbpv_blob_debit; la a2, tgbpv_expected_balance\n" ++
+  "  jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Ltgbpv_after_blob_fee\n" ++
+  ".Ltgbpv_after_blob_fee:\n" ++
   "  mv a0, s0; mv a1, s1; la a2, tgbpv_value\n" ++
   "  jal ra, tx_extract_value\n" ++
   "  beqz a0, .Ltgbpv_value_ok\n" ++
@@ -306,6 +332,7 @@ def ziskTxGasBalPostVerifyPrologue : String :=
   txTypeDispatchFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
+  txExtractToAddressFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
@@ -316,6 +343,7 @@ def ziskTxGasBalPostVerifyPrologue : String :=
   u256MulU64BeFunction ++ "\n" ++
   accountChargeGasPreExecFunction ++ "\n" ++
   txUpfrontPrechargeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
   txGasBalPostVerifyFunction ++ "\n" ++
   ".Ltgbpvp_done:"
 
@@ -348,6 +376,10 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   "t48_length:\n  .zero 8\n" ++
   "tegp_type:\n  .zero 8\n" ++
   "tegp_inner_off:\n  .zero 8\n" ++
+  "tea_type:\n  .zero 8\n" ++
+  "tea_inner_off:\n  .zero 8\n" ++
+  "tea_field_off:\n  .zero 8\n" ++
+  "tea_field_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "afp_digest:\n  .zero 32\n" ++
   "zk3_state:\n  .zero 200\n" ++
@@ -369,8 +401,14 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   "tgbpv_expected_balance:\n  .zero 32\n" ++
   "tgbpv_post_balance:\n  .zero 32\n" ++
   "tgbpv_value:\n  .zero 32\n" ++
+  "tgbpv_blob_debit:\n  .zero 32\n" ++
+  "tcbg_blob_fee_be:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
+  "tgbpv_tx_type:\n  .zero 8\n" ++
+  "tgbpv_inner_off:\n  .zero 8\n" ++
+  "tgbpv_blob_count:\n  .zero 8\n" ++
+  "tgbpv_t48:\n  .zero 248\n" ++
   "tgbpv_to_addr:\n  .zero 24\n" ++
   "tgbpv_is_creation:\n  .zero 8\n" ++
   "tgbpv_lookup:\n  .zero 168\n" ++
