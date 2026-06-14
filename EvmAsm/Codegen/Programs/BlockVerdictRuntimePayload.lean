@@ -13,6 +13,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
 
@@ -105,6 +108,12 @@ def stageRuntimePayloadFunction : String :=
   "  ld t2, 404(a2); sd t2, 344(s0)\n" ++
   -- TIMESTAMP (word 7 -> +312): exec u64 @428.
   "  ld t2, 428(a2); sd t2, 312(s0)\n" ++
+  -- PREVRANDAO (word 9 -> +376): 32-byte direct copy from exec+372.
+  "  addi t1, a2, 372\n" ++
+  "  ld t2, 0(t1); sd t2, 376(s0)\n" ++
+  "  ld t2, 8(t1); sd t2, 384(s0)\n" ++
+  "  ld t2, 16(t1); sd t2, 392(s0)\n" ++
+  "  ld t2, 24(t1); sd t2, 400(s0)\n" ++
   -- GASLIMIT (word 10 -> +408): exec u64 @412.
   "  ld t2, 412(a2); sd t2, 408(s0)\n" ++
   -- 6121j.1: CHAINID (word 12 -> +472): bv_chain_id (u64, set by chain_config_valid during the
@@ -176,6 +185,7 @@ def stageRuntimePayloadFunction : String :=
       +56   staged witness.codes len
       +64   staged gas_limit
       +72   context status (for diagnostics)
+      +80   PREVRANDAO low byte (env word 9 @ payload+376)
 -/
 def ziskStageRuntimePayloadPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -208,6 +218,7 @@ def ziskStageRuntimePayloadPrologue : String :=
   "  ld t2, 576(t1); sd t2, 56(t0)  # witness.codes len\n" ++
   "  ld t2, 536(t1); sd t2, 64(t0)  # gas_limit\n" ++
   "  li t3, 0xa0020000; ld t2, 0(t3); sd t2, 72(t0)  # context status\n" ++
+  "  lbu t2, 376(t1); sd t2, 80(t0)  # PREVRANDAO low byte\n" ++
   "  j .Lsrpp_done\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
@@ -218,6 +229,13 @@ def ziskStageRuntimePayloadPrologue : String :=
   txExtractValueFunction ++ "\n" ++
   txExtractDataSectionFunction ++ "\n" ++
   simpleTransferTxContextFunction ++ "\n" ++
+  bgvU64leFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  amsterdamBlobGasPriceU256Function ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   ".Lsrpp_done:"
 
@@ -231,6 +249,8 @@ def ziskStageRuntimePayloadDataSection : String :=
   "bv_tx_item_start:\n  .zero 8\n" ++
   "bv_public_keys_ptr:\n  .zero 8\n" ++
   "bv_public_keys_len:\n  .zero 8\n" ++
+  "bv_chain_id:\n  .zero 8\n" ++
+  "u256m_acc:\n  .zero 40\n" ++
   "teng_type:\n  .zero 8\n" ++
   "teng_inner_off:\n  .zero 8\n" ++
   "rfu_offset:\n  .zero 8\n" ++
