@@ -27,6 +27,11 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxDecode2930
+import EvmAsm.Codegen.Programs.TxDecode1559
+import EvmAsm.Codegen.Programs.TxDecode4844
+import EvmAsm.Codegen.Programs.TxDecode7702
 
 namespace EvmAsm.Codegen
 
@@ -139,6 +144,163 @@ def seedTxAccessListDataSection : String :=
   "stal_klen:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "stal_token:\n  .zero 32\n"
+
+
+/-! ## tx_access_list_span
+
+    Calling convention:
+      a0 (input)  : encoded transaction ptr
+      a1 (input)  : encoded transaction byte length
+      a2 (input)  : out ptr for access_list ptr (u64)
+      a3 (input)  : out ptr for access_list length (u64)
+      ra (input)  : return
+      a0 (output) : 0 typed tx with access_list span; 1 legacy/no access_list;
+                    2 malformed or unsupported typed transaction
+
+    The returned span is the whole encoded access_list item, including its RLP
+    list prefix, so callers can pass it directly to `seed_tx_access_list`. -/
+def txAccessListSpanFunction : String :=
+  "tx_access_list_span:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra,  0(sp)\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx len\n" ++
+  "  mv s2, a2                   # span ptr out\n" ++
+  "  mv s3, a3                   # span len out\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, txal_type; la a3, txal_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Ltxal_fail\n" ++
+  "  la t0, txal_type; ld s4, 0(t0)\n" ++
+  "  la t0, txal_inner_off; ld t1, 0(t0)\n" ++
+  "  beqz s4, .Ltxal_none\n" ++
+  "  add s5, s0, t1              # inner ptr\n" ++
+  "  sub s6, s1, t1              # inner len\n" ++
+  "  li t0, 1\n" ++
+  "  beq s4, t0, .Ltxal_type1\n" ++
+  "  li t0, 2\n" ++
+  "  beq s4, t0, .Ltxal_type2\n" ++
+  "  li t0, 3\n" ++
+  "  beq s4, t0, .Ltxal_type3\n" ++
+  "  li t0, 4\n" ++
+  "  beq s4, t0, .Ltxal_type4\n" ++
+  "  j .Ltxal_fail\n" ++
+  ".Ltxal_type1:\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
+  "  jal ra, tx_eip2930_decode\n" ++
+  "  bnez a0, .Ltxal_fail\n" ++
+  "  la t0, txal_decode; ld t1, 128(t0); ld t2, 136(t0)\n" ++
+  "  j .Ltxal_have_span\n" ++
+  ".Ltxal_type2:\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
+  "  jal ra, tx_eip1559_decode\n" ++
+  "  bnez a0, .Ltxal_fail\n" ++
+  "  la t0, txal_decode; ld t1, 160(t0); ld t2, 168(t0)\n" ++
+  "  j .Ltxal_have_span\n" ++
+  ".Ltxal_type3:\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltxal_fail\n" ++
+  "  la t0, txal_decode; lwu t1, 152(t0); lwu t2, 156(t0)\n" ++
+  "  j .Ltxal_have_span\n" ++
+  ".Ltxal_type4:\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
+  "  jal ra, tx_eip7702_decode\n" ++
+  "  bnez a0, .Ltxal_fail\n" ++
+  "  la t0, txal_decode; lwu t1, 152(t0); lwu t2, 156(t0)\n" ++
+  ".Ltxal_have_span:\n" ++
+  "  add t3, s5, t1\n" ++
+  "  sd t3, 0(s2); sd t2, 0(s3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Ltxal_ret\n" ++
+  ".Ltxal_none:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Ltxal_ret\n" ++
+  ".Ltxal_fail:\n" ++
+  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
+  "  li a0, 2\n" ++
+  ".Ltxal_ret:\n" ++
+  "  ld ra,  0(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret"
+
+def txAccessListSpanDataSection : String :=
+  ".balign 8\n" ++
+  "txal_type:\n  .zero 8\n" ++
+  "txal_inner_off:\n  .zero 8\n" ++
+  "txal_span_ptr:\n  .zero 8\n" ++
+  "txal_span_len:\n  .zero 8\n" ++
+  "rfu_offset:\n  .zero 8\n" ++
+  "rfu_length:\n  .zero 8\n" ++
+  "t29_offset:\n  .zero 8\n" ++
+  "t29_length:\n  .zero 8\n" ++
+  "t1d_offset:\n  .zero 8\n" ++
+  "t1d_length:\n  .zero 8\n" ++
+  "t48_offset:\n  .zero 8\n" ++
+  "t48_length:\n  .zero 8\n" ++
+  "t77_offset:\n  .zero 8\n" ++
+  "t77_length:\n  .zero 8\n" ++
+  "tcbg_blob_fee_be:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "txal_decode:\n  .zero 248\n"
+
+/-- `zisk_tx_access_list_span`: focused probe.
+
+    Input layout:
+      user +0   : encoded transaction byte length (u64)
+      user +8   : encoded transaction bytes
+
+    Output layout at 0xa0010000:
+      +0  status (0 span / 1 legacy-no-list / 2 malformed)
+      +8  access_list offset from encoded transaction base, or 0
+      +16 access_list byte length, or 0
+      +24 first byte of the access_list span, or 0 -/
+def ziskTxAccessListSpanPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000           # input base (8-byte length header at +0)\n" ++
+  "  ld a1, 8(s0)                # tx len (user +0)\n" ++
+  "  addi a0, s0, 16             # tx ptr (user +8)\n" ++
+  "  mv s1, a0                   # save tx ptr\n" ++
+  "  la a2, txal_span_ptr; la a3, txal_span_len\n" ++
+  "  jal ra, tx_access_list_span\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)                # status\n" ++
+  "  la t1, txal_span_ptr; ld t2, 0(t1)\n" ++
+  "  la t1, txal_span_len; ld t3, 0(t1)\n" ++
+  "  bnez a0, .Ltxal_probe_zero\n" ++
+  "  sub t4, t2, s1\n" ++
+  "  sd t4, 8(t0)\n" ++
+  "  sd t3, 16(t0)\n" ++
+  "  lbu t5, 0(t2)\n" ++
+  "  sd t5, 24(t0)\n" ++
+  "  j .Ltxal_pdone\n" ++
+  ".Ltxal_probe_zero:\n" ++
+  "  sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  j .Ltxal_pdone\n" ++
+  txTypeDispatchFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  txEip2930DecodeFunction ++ "\n" ++
+  txEip1559DecodeFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
+  txEip7702DecodeFunction ++ "\n" ++
+  txAccessListSpanFunction ++ "\n" ++
+  ".Ltxal_pdone:"
+
+def ziskTxAccessListSpanDataSection : String :=
+  ".section .data\n" ++
+  txAccessListSpanDataSection
+
+def ziskTxAccessListSpanProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskTxAccessListSpanPrologue
+  dataAsm     := ziskTxAccessListSpanDataSection
+}
 
 /-- `zisk_seed_tx_access_list`: focused probe.
 
