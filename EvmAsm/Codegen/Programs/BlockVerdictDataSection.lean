@@ -348,6 +348,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 3 BAL/account/key cap; 4 storage proof/slot lookup; 5 payload cap; 6 staging;
   -- 7 access-list unsupported/parse/count. Nonzero still means conservative bail.
   "bv_dispatch_runtime_status:\n  .zero 8\n" ++
+  -- Runtime-gas completeness classifier: 0 complete/unknown, 1 gas-result arena tx/count/cap,
+  -- 2 runtime_count/pointer mismatch, 3 single-tx dispatch unsupported,
+  -- 4 multi-tx dispatch unsupported, 5 multi-tx generic bail. Nonzero is debug-only.
+  "bv_runtime_completeness_status:\n  .zero 8\n" ++
   -- Contract-recipient dispatch scratch (evm-asm-fhsxz.2.4.2.57.11.6.4.3.2).
   ".balign 8\n" ++
   "bvcd_code_ptr:\n  .zero 8\n" ++

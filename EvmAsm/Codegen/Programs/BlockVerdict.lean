@@ -139,6 +139,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_receipt_logs_status; ld t2, 0(t1); sd t2, 440(t0)\n" ++
   "  la t1, bv_block_log_overflow; ld t2, 0(t1); sd t2, 448(t0)\n" ++
   "  la t1, bv_dispatch_runtime_status; ld t2, 0(t1); sd t2, 456(t0)\n" ++
+  "  la t1, bv_runtime_completeness_status; ld t2, 0(t1); sd t2, 464(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++

@@ -39,7 +39,7 @@ def blockVerdictFunction : String :=
   "  la t0, bvgr_runtime_gas_left_ptr; sd zero, 0(t0)\n" ++
   "  la t0, bvgr_runtime_refund_counter_ptr; sd zero, 0(t0)\n" ++
   "  la t0, bvgr_runtime_calldata_floor_ptr; sd zero, 0(t0)\n" ++
-  "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+  "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n  la t0, bv_runtime_completeness_status; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
@@ -671,10 +671,10 @@ def blockVerdictFunction : String :=
   bvReceiptsShapeSet 60 false ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_dispatch_unsupported:\n" ++
-  bvReceiptsShapeSet 61 false ++
+  bvRuntimeCompletenessSet 4 ++ bvReceiptsShapeSet 61 false ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_bail:\n" ++
-  bvReceiptsShapeSet 62 false ++  ".Lbv_mtx_bail_after_shape:\n" ++
+  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 false ++  ".Lbv_mtx_bail_after_shape:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_singletx:\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
@@ -1382,7 +1382,7 @@ def blockVerdictFunction : String :=
   bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
+  bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1.3: prefill the transaction-count and
   -- intrinsic-state-gas substrate BEFORE eip8037_tx_gas_gate. The gate still
@@ -1424,6 +1424,7 @@ def blockVerdictFunction : String :=
   "  la t2, bvgr_runtime_count; ld a4, 0(t2)\n" ++
   "  li a5, 16\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
+  bvRuntimeCompletenessSetFromArenaStatus ++
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
   -- .57.11.6.5.2: fill bvgr_tx_state_gas (per-tx intrinsic.state) FIRST, so the EIP-7778
   -- remaining-block-gas check below can apply the spec's 2D REGULAR test
