@@ -436,6 +436,7 @@ def blockVerdictFunction : String :=
   "  li t0, 32; beq t3, t0, .Lbv_mtx_bf_rev_done\n" ++
   "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbv_mtx_bf_rev\n" ++
   ".Lbv_mtx_bf_rev_done:\n" ++
+  "  la t0, bv_mtx_nonce_seen_count; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
@@ -463,8 +464,7 @@ def blockVerdictFunction : String :=
   -- accepted (the spec rejects it, NonceMismatchError). SOUND-PARTIAL check: reject if
   -- tx.nonce < sender_pre_nonce. Valid txs always have nonce >= the account's block-start nonce
   -- (==pre for the sender's first tx, >pre for a sequenced later tx), so this NEVER false-rejects;
-  -- it catches the below-pre adversarial case. (The exact ==pre+prior_same_sender_count check
-  -- needs per-sender sequencing -- a follow-up; this lower bound is sound without it.)
+  -- it catches the below-pre adversarial case; the running-count check below also rejects nonce reuse and too-high nonces.
   -- sttc_nonce holds THIS tx's nonce (multi_tx_nth_context wrote it via tx_extract_nonce_and_gas).
   -- sender = address_from_pubkey(public_keys[i]+1): public_keys[i] = bv_public_keys_ptr + i*65
   -- (65-byte SEC1 0x04||x||y, verified bound to tx[i]'s signer by verify_public_keys_match_senders).
@@ -479,30 +479,34 @@ def blockVerdictFunction : String :=
   "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_nonce_done\n" ++                         -- sender lookup failed/absent -> skip
   "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++              -- t0 = sender block-start (pre-state) nonce
-  -- EXACT multi-tx nonce: tx.nonce must == pre_nonce + (count of PRIOR txs in this block from the
-  -- SAME sender). A sender's k-th tx (0-based) in the block executes at nonce pre+k. count = #{j<i :
-  -- public_keys[j] == public_keys[i]} (same 65-byte SEC1 key = same signer, verified @339). Catches
-  -- nonce REUSE and too-high (which the prior < pre lower bound missed). Sound: a valid block sequences
-  -- a sender's txs as pre,pre+1,... so tx.nonce == pre+count exactly. Validated by same-sender multi-tx
-  -- fixtures (blobhash_multiple_txs_in_block / eip7702 pointer_normal, nonces [0,1]).
-  "  la t2, bv_public_keys_ptr; ld t2, 0(t2)\n" ++              -- t2 = public_keys base
-  "  la t3, bv_mtx_i; ld t3, 0(t3)\n" ++                        -- t3 = i
-  "  slli t4, t3, 6; add t4, t4, t3; add t4, t2, t4\n" ++       -- t4 = &public_keys[i] (base + i*65)
-  "  li t5, 0\n" ++                                             -- t5 = count
-  "  li t6, 0\n" ++                                             -- t6 = j
-  ".Lbv_mtx_seq_j:\n" ++
-  "  bgeu t6, t3, .Lbv_mtx_seq_done\n" ++                       -- j >= i -> done
-  "  slli a0, t6, 6; add a0, a0, t6; add a0, t2, a0\n" ++       -- a0 = &public_keys[j]
-  "  mv a1, t4; li a2, 65\n" ++                                 -- a1 = &public_keys[i], a2 = 65 bytes
+  -- EXACT multi-tx nonce: tx.nonce must == pre_nonce + the running count already seen for
+  -- this sender address in the current block. A sender's k-th tx (0-based) executes at nonce
+  -- pre+k. The running table is updated in tx order, so this avoids rescanning prior public
+  -- keys for every tx while preserving the same reject condition for nonce reuse and too-high
+  -- nonces. Sound: valid blocks sequence each sender's txs as pre,pre+1,...
+  "  la t1, bv_mtx_nonce_pre; sd t0, 0(t1)\n" ++                -- stash pre_nonce across table update
+  "  la t2, bv_mtx_nonce_seen_count; ld t3, 0(t2); li t4, 0\n" ++ -- t3 = distinct count, t4 = k
+  ".Lbv_mtx_seq_scan:\n" ++
+  "  bgeu t4, t3, .Lbv_mtx_seq_new\n" ++
+  "  slli t5, t4, 5; la t6, bv_mtx_nonce_seen_addrs; add t6, t6, t5; li a0, 0\n" ++ -- t6 = addr[k]
   ".Lbv_mtx_seq_cmp:\n" ++
-  "  beqz a2, .Lbv_mtx_seq_eq\n" ++                             -- all 65 equal -> same signer
-  "  lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lbv_mtx_seq_ne\n" ++
-  "  addi a0, a0, 1; addi a1, a1, 1; addi a2, a2, -1; j .Lbv_mtx_seq_cmp\n" ++
-  ".Lbv_mtx_seq_eq:\n" ++
-  "  addi t5, t5, 1\n" ++                                       -- count++
-  ".Lbv_mtx_seq_ne:\n" ++
-  "  addi t6, t6, 1; j .Lbv_mtx_seq_j\n" ++
+  "  li a1, 20; beq a0, a1, .Lbv_mtx_seq_found\n" ++
+  "  add a2, t6, a0; lbu a3, 0(a2); la a4, bv_mtx_sender_addr; add a4, a4, a0; lbu a5, 0(a4); bne a3, a5, .Lbv_mtx_seq_next\n" ++
+  "  addi a0, a0, 1; j .Lbv_mtx_seq_cmp\n" ++
+  ".Lbv_mtx_seq_next:\n" ++
+  "  addi t4, t4, 1; j .Lbv_mtx_seq_scan\n" ++
+  ".Lbv_mtx_seq_found:\n" ++
+  "  slli t5, t4, 3; la t6, bv_mtx_nonce_seen_counts; add t6, t6, t5; ld t5, 0(t6); addi a0, t5, 1; sd a0, 0(t6); j .Lbv_mtx_seq_done\n" ++
+  ".Lbv_mtx_seq_new:\n" ++
+  "  li a0, 16; bgeu t3, a0, .Lbv_sender_nonce_fail\n" ++
+  "  slli t5, t3, 5; la t6, bv_mtx_nonce_seen_addrs; add t6, t6, t5; li a0, 0\n" ++
+  ".Lbv_mtx_seq_copy:\n" ++
+  "  li a1, 20; beq a0, a1, .Lbv_mtx_seq_new_count\n" ++
+  "  la a2, bv_mtx_sender_addr; add a2, a2, a0; lbu a3, 0(a2); add a4, t6, a0; sb a3, 0(a4); addi a0, a0, 1; j .Lbv_mtx_seq_copy\n" ++
+  ".Lbv_mtx_seq_new_count:\n" ++
+  "  slli a0, t3, 3; la a1, bv_mtx_nonce_seen_counts; add a1, a1, a0; li a2, 1; sd a2, 0(a1); addi t3, t3, 1; la a0, bv_mtx_nonce_seen_count; sd t3, 0(a0); li t5, 0\n" ++
   ".Lbv_mtx_seq_done:\n" ++
+  "  la t0, bv_mtx_nonce_pre; ld t0, 0(t0)\n" ++
   "  add t0, t0, t5\n" ++                                       -- t0 = expected = pre_nonce + count
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
   "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != pre+count -> reject (Nonce*Error)
@@ -879,10 +883,10 @@ def blockVerdictFunction : String :=
   "  li t2, 2; bne t1, t2, .Lbv_tl7708_skip\n" ++
   ".Lbv_tl_typed_ok:\n" ++
   "  addi t1, t0, 96; la t2, bmvmx_value; li t3, 0\n" ++
-  ".Lbv_tl2_vcopy:\n" ++
-  "  li t4, 32; beq t3, t4, .Lbv_tl2_vdone\n" ++
-  "  add t5, t1, t3; lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5); addi t3, t3, 1; j .Lbv_tl2_vcopy\n" ++
-  ".Lbv_tl2_vdone:\n" ++
+  ".Lbv_tl_typed_vcopy:\n" ++
+  "  li t4, 32; beq t3, t4, .Lbv_tl_typed_vdone\n" ++
+  "  add t5, t1, t3; lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5); addi t3, t3, 1; j .Lbv_tl_typed_vcopy\n" ++
+  ".Lbv_tl_typed_vdone:\n" ++
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   ".Lbv_tl7708_ready:\n" ++

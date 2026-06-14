@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
+import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 
 namespace EvmAsm.Codegen
 
@@ -944,6 +945,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
+  -- bmvmx.5.5.6.3: running sender counts for the exact multi-tx nonce check.
+  -- 16 entries, matching the current multi-tx arena cap; addresses are 32-byte
+  -- strided with the 20-byte address in the prefix, counts are u64.
+  "bv_mtx_nonce_seen_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_mtx_nonce_seen_addrs:\n  .zero 512\n" ++
+  ".balign 8\n" ++
+  "bv_mtx_nonce_seen_counts:\n  .zero 128\n" ++
+  "bv_mtx_nonce_pre:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
   -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
   -- tx's recipient (its entries are all the recipient's own — dispatch_tx_runtime_code
@@ -1056,7 +1066,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
   -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
+  -- bv_b1_sender_table is 16 x (32-byte padded address + u64 total tx count), filled by
+  -- b1_sender_count_table from the A1 sender lanes.
   ".balign 8\n" ++
+  b1SenderCountTableScratchDataSection ++
+  ".balign 8\n" ++
+  "bv_b1_sender_count:\n  .zero 8\n" ++
+  "bv_b1_sender_table:\n  .zero 640\n" ++
   "bv_b1_count:\n  .zero 8\n" ++
   "bv_b1_expected:\n  .zero 8\n" ++
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
