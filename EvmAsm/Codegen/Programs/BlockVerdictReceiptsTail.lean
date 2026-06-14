@@ -60,14 +60,14 @@ def blockVerdictReceiptsTail : String :=
   -- logs (#8732 Part 1 + #8735 Part 2).
   "  bnez a0, .Lbv_receipts_accept                # logs materialize failed -> conservative accept\n" ++
   "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_receipts_accept\n" ++
-  -- CONSERVATIVE COMPLETENESS GATE: only enforce when the EIP-7708 top-level transfer log
-  -- (Part 2) is known to have fired correctly, i.e. the bmvmx compute completed (legacy
-  -- single-tx). For non-legacy (EIP-2930/1559/4844/7702) or multi-tx blocks the bmvmx path
-  -- stays conservative (BlockVerdict.lean:156) and Part 2 does not emit, so the materialized
-  -- receipt would be MISSING the top-level transfer log -> a confirmed-but-spurious
-  -- receipts-root mismatch. Skip enforcement there (accept) until Part 2 covers all tx types.
-  -- Follow-up: extend Part 2 (tx-type-agnostic sender/recipient/value) + this gate.
-  "  la t2, bmvmx_avail; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
+  -- CONSERVATIVE COMPLETENESS GATE: enforce only when the EIP-7708 top-level transfer log
+  -- (Part 2) is known to be represented in the materialized log window. bmvmx_avail covers
+  -- the legacy single-tx path; eip7708_tl_type2_avail covers the narrow type-2 simple-transfer
+  -- path added by bmvmx.7.1. Other typed and multi-tx blocks remain conservative until their
+  -- top-level logs are complete, avoiding confirmed-but-spurious receipts-root mismatches.
+  "  la t2, bmvmx_avail; ld t2, 0(t2); bnez t2, .Lbv_receipts_enforce\n" ++
+  "  la t2, eip7708_tl_type2_avail; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
+  ".Lbv_receipts_enforce:\n" ++
   "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
   "  jal ra, receipt_records_encode_no_logs\n" ++
   "  bnez a0, .Lbv_receipts_accept                # encode failed/unsupported -> conservative accept\n" ++
