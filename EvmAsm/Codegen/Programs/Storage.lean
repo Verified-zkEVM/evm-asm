@@ -60,6 +60,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -299,6 +300,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x55]
     , preBody :=
         stackUnderflowGuardAsm 2 ++ "\n" ++
+        staticContextWriteGuardAsm ++
         -- Amsterdam SSTORE stipend guard: `check_gas(evm, CALL_STIPEND + 1)`
         -- (storage.py) fails the op when gas_left < 2301 at instruction entry,
         -- WITHOUT charging. The dispatch loop already deducted the 100 static
@@ -370,6 +372,13 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
+        -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
+        -- 16384 entries of 128 bytes. Never append past it into the
+        -- transient-log region; halt conservatively before any append-path
+        -- gas/refund bookkeeping mutates state.
+        "  ld x15, 448(x20)\n" ++
+        "  li x14, 16384\n" ++
+        "  bgeu x15, x14, .exit_outofgas\n" ++
         sstoreValueTransitionGasAsm ++
         -- bmvmx.1.6.3: accumulate this SSTORE's EIP-3529 refund delta into evm_refund_acc
         -- (signed). x18 = &found.original (or 0 -> original==current==0). sstore_gas_refund_outcome
@@ -527,6 +536,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x5d]
     , preBody :=
         stackUnderflowGuardAsm 2 ++ "\n" ++
+        staticContextWriteGuardAsm ++
         "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
         "  li x14, 0xa0830000\n" ++
         "  slli x16, x15, 7\n" ++
