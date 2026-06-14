@@ -11,7 +11,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
-
+import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -679,7 +679,7 @@ def blockVerdictFunction : String :=
   ".Lbv_singletx:\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_creation_unsupported\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
   -- and max_priority_fee_per_gas <= max_fee_per_gas (PriorityFeeGreaterThanMaxFeeError,
@@ -1378,7 +1378,7 @@ def blockVerdictFunction : String :=
   "  beqz t2, .Lbv_after_tx_gas_precharge\n" ++                  -- sender == coinbase -> skip
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
-  ".Lbv_creation_unsupported:\n" ++
+  ".Lbv_creation_dispatch:\n  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n  beqz a0, .Lbv_after_tx_gas_precharge\n.Lbv_creation_unsupported:\n" ++
   bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++

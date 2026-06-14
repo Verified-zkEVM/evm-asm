@@ -224,4 +224,58 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
   dataAsm     := ziskStageCreationRuntimePayloadDataSection
 }
 
+/-! ## block_verdict_single_tx_creation_runtime
+
+    Narrow integration helper for top-level creation receipts. It supports
+    exactly the staging shape above, runs the staged initcode through the
+    callable runtime dispatcher, and stores the same one-transaction runtime
+    windows as the existing EOA/contract paths. It deliberately leaves receipt
+    enforcement disabled; later slices reconcile created-account effects before
+    enforcing creation receipts.
+
+    ABI:
+      a0 = simple_transfer_tx_context output
+      a1 = execution payload ptr
+
+    Returns:
+      a0 = 0 when runtime windows were filled; nonzero staging status otherwise.
+-/
+def blockVerdictSingleTxCreationRuntimeFunction : String :=
+  "block_verdict_single_tx_creation_runtime:\n" ++
+  "  addi sp, sp, -40\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv s1, a1\n" ++
+  "  la a1, bv_runtime_payload\n" ++
+  "  mv a2, s1\n" ++
+  "  jal ra, stage_creation_runtime_payload\n" ++
+  "  bnez a0, .Lbvcr_ret\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  "  jal ra, runtime_dispatcher_call\n" ++
+  "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+  "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
+  "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
+  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
+  "  li t5, 6; la t4, bv_receipts_completeness_shape; sd t5, 0(t4)\n" ++
+  "  la t4, bv_receipts_enforce_enabled; sd zero, 0(t4)\n" ++
+  "  li a0, 0\n" ++
+  ".Lbvcr_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 40\n" ++
+  "  ret"
+
 end EvmAsm.Codegen
