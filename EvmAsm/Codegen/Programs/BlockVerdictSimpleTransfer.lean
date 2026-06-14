@@ -217,8 +217,13 @@ def blockVerdictTxGasPrechargeDataSection : String :=
   "tgbpv_expected_balance:\n  .zero 32\n" ++
   "tgbpv_post_balance:\n  .zero 32\n" ++
   "tgbpv_value:\n  .zero 32\n" ++
+  "tgbpv_blob_debit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
+  "tgbpv_tx_type:\n  .zero 8\n" ++
+  "tgbpv_inner_off:\n  .zero 8\n" ++
+  "tgbpv_blob_count:\n  .zero 8\n" ++
+  "tgbpv_t48:\n  .zero 248\n" ++
   "tgbpv_to_addr:\n  .zero 24\n" ++
   "tgbpv_is_creation:\n  .zero 8\n" ++
   "tgbpv_lookup:\n  .zero 168\n" ++
