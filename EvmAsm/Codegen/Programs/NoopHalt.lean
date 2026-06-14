@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Selfdestruct
+import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -264,7 +265,7 @@ def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom "  j .exit_invalid_op" }
   , { label := "h_SELFDESTRUCT", opcodes := [0xff]
-    , preBody := stackUnderflowGuardAsm 1
+    , preBody := stackUnderflowGuardAsm 1 ++ "\n" ++ staticContextWriteGuardAsm
     , body := []
     , tail := .custom selfdestructTailAsm } ]
 

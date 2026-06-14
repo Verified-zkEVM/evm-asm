@@ -7,6 +7,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.StaticContext
 
 namespace EvmAsm.Codegen
 
@@ -153,23 +154,23 @@ def logCapturePreBody (topicCount : Nat) : String :=
     byte, and returns to the dispatcher. -/
 def logHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_LOG0", opcodes := [0xa0]
-    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++ logDynamicGasAsm 0 ++ logCapturePreBody 0
+    , preBody := stackUnderflowGuardAsm 2 ++ "\n" ++ staticContextWriteGuardAsm ++ logDynamicGasAsm 0 ++ logCapturePreBody 0
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG1", opcodes := [0xa1]
-    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++ logDynamicGasAsm 1 ++ logCapturePreBody 1
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++ staticContextWriteGuardAsm ++ logDynamicGasAsm 1 ++ logCapturePreBody 1
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 96)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG2", opcodes := [0xa2]
-    , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ logDynamicGasAsm 2 ++ logCapturePreBody 2
+    , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ staticContextWriteGuardAsm ++ logDynamicGasAsm 2 ++ logCapturePreBody 2
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 128)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG3", opcodes := [0xa3]
-    , preBody := stackUnderflowGuardAsm 5 ++ "\n" ++ logDynamicGasAsm 3 ++ logCapturePreBody 3
+    , preBody := stackUnderflowGuardAsm 5 ++ "\n" ++ staticContextWriteGuardAsm ++ logDynamicGasAsm 3 ++ logCapturePreBody 3
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 160)
     , tail := .advanceAndRet 1 }
   , { label := "h_LOG4", opcodes := [0xa4]
-    , preBody := stackUnderflowGuardAsm 6 ++ "\n" ++ logDynamicGasAsm 4 ++ logCapturePreBody 4
+    , preBody := stackUnderflowGuardAsm 6 ++ "\n" ++ staticContextWriteGuardAsm ++ logDynamicGasAsm 4 ++ logCapturePreBody 4
     , body := ADDI .x12 .x12 (BitVec.ofNat 12 192)
     , tail := .advanceAndRet 1 } ]
 
