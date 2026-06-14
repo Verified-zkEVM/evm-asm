@@ -52,6 +52,7 @@ import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.CallFrameReturn
+import EvmAsm.Codegen.Programs.StaticContext
 
 namespace EvmAsm.Codegen
 
@@ -960,6 +961,7 @@ def emitDispatcherPrologue : String :=
   "  la x5, evm_code_end\n" ++
   "  sub x5, x5, x10\n" ++         -- x5 = len(code) = evm_code_end - evm_code
   "  sd x5, 496(x20)\n" ++         -- env.codeSize = running bytecode length
+  "  sd x0, " ++ toString staticContextFlagOff ++ "(x20)\n" ++ -- env.isStatic = 0
   -- M21: .data-baked variant has no calldata input. Initialize env's
   -- callDataPtrOff (416) to point at a safe zero region (`evm_memory`)
   -- and callDataLenOff (424) to 0. Any CALLDATALOAD reads zeros from
@@ -1024,7 +1026,7 @@ def emitDispatcherPrologue : String :=
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
   "  jalr x1, x7, 0\n" ++
-  "  j .dispatch_loop"
+  "  j .dispatch_loop\n"
 
 /-- Emit an exceptional-halt exit block: zero the result bytes at
     `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
@@ -1046,6 +1048,19 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"  li x17, {kind}\n" ++         -- halt_kind
   "  sd x17, 32(x16)\n" ++
   "  j .exit_no_epilogue\n"
+
+/-- STATICCALL write violation. At child depth, fail only the child frame and
+    resume the parent. At depth 0, surface the same halt kind as INVALID. -/
+def emitStaticViolationExit : String :=
+  ".exit_static_violation:\n" ++
+  "  la t0, evm_call_depth\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  beqz t0, .exit_invalid_op\n" ++
+  "  li a0, 0\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
+  "  jal ra, frame_return\n" ++
+  "  j .dispatch_loop\n"
 
 
 /-- CREATE/CREATE2 child-frame staging helper emitted into the runtime dispatcher.
@@ -1501,6 +1516,7 @@ def emitDispatcherEpilogueCore
   --   .exit_outofgas    (6) — M30 dispatch-loop gas underflow
   --   .exit_stack_underflow(7) — stack consumer with too few words
   --   .exit_stack_overflow(8) — PUSH beyond the 1024-word EVM stack limit
+  emitStaticViolationExit ++
   emitExceptionalExit ".exit_invalid" 4 ++
   emitExceptionalExit ".exit_invalid_op" 3 ++
   emitExceptionalExit ".exit_selfdestruct" 5 ++
@@ -1841,6 +1857,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  addi x5, x10, -8\n" ++       -- &(bytecode length)
   "  ld x5, 0(x5)\n" ++            -- x5 = bytecode length (exact)
   "  sd x5, 496(x20)\n" ++         -- M33: env.codeSize = bytecode length (CODESIZE/CODECOPY)
+  "  sd x0, " ++ toString staticContextFlagOff ++ "(x20)\n" ++ -- env.isStatic = 0
   "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
   "  srli x5, x5, 3\n" ++
   "  slli x5, x5, 3\n" ++          -- x5 = padded bytecode length
