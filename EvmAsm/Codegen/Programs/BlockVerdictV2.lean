@@ -453,6 +453,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
+  b1SenderCountTableFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
