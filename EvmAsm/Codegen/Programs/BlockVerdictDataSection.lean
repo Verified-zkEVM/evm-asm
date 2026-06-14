@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
+import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 
 namespace EvmAsm.Codegen
 
@@ -1065,7 +1066,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
   -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
+  -- bv_b1_sender_table is 16 x (32-byte padded address + u64 total tx count), filled by
+  -- b1_sender_count_table from the A1 sender lanes.
   ".balign 8\n" ++
+  b1SenderCountTableScratchDataSection ++
+  ".balign 8\n" ++
+  "bv_b1_sender_count:\n  .zero 8\n" ++
+  "bv_b1_sender_table:\n  .zero 640\n" ++
   "bv_b1_count:\n  .zero 8\n" ++
   "bv_b1_expected:\n  .zero 8\n" ++
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
