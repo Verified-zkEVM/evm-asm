@@ -91,7 +91,7 @@ def blockVerdictReceiptsTail : String :=
   -- CONSERVATIVE COMPLETENESS GATE: enforce only when the EIP-7708 top-level transfer log
   -- (Part 2) is known to be represented in the materialized log window. bmvmx_avail covers
   -- the legacy single-tx path; eip7708_tl_typed_avail covers the narrow type-1/type-2 simple-transfer
-  -- paths added by bmvmx.7.1. Other typed and multi-tx blocks remain conservative until their
+  -- paths added by bmvmx.7.1 plus the type-3 blob-transfer path from bmvmx.7.3. Other typed and multi-tx blocks remain conservative until their
   -- top-level logs are complete, avoiding confirmed-but-spurious receipts-root mismatches.
   "  la t2, bmvmx_avail; ld t2, 0(t2); bnez t2, .Lbv_receipts_enforce\n" ++
   "  la t2, eip7708_tl_typed_avail; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
