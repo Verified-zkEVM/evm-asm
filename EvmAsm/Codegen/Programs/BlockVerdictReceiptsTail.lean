@@ -48,21 +48,20 @@ def blockVerdictReceiptsTail : String :=
   "  la a0, brr_control\n" ++
   "  jal ra, block_receipt_logs_materialize\n" ++
   "  la t2, bv_receipt_logs_status; sd a0, 0(t2)\n" ++
-  -- Persist the exact log-materializer status before the conservative-accept branch:
+  -- Persist the exact log-materializer status before branching:
   -- 0 success, 1 malformed log window or RLP encode failure, 2 bloom helper failure,
-  -- 3 block-log arena/capture overflow. Statuses 1/2 are malformed/unsupported helper
-  -- debt; status 3 is capacity debt. All nonzero statuses remain conservative accepts.
+  -- 3 block-log arena/capture overflow. For enforced receipt shapes, statuses 1/2
+  -- are malformed supported data and reject; status 3 remains capacity debt and
+  -- conservatively accepts.
   -- .63.1.6.2.3 (slice B): TX-BEARING receipts-consensus enforcement. execution-specs
   -- apply_body recomputes receipt_root = root(receipts_trie) and block_logs_bloom and hard-
   -- rejects on a header mismatch (fork.py 368-371). Encode the materialized per-tx receipt
   -- records (status||cumulative_gas||bloom||logs, with the .2.1 log descriptors @56) into one
   -- RLP list, then validate header.receipts_root == MPT(indexed(receipts)) AND header.bloom ==
-  -- OR(receipt blooms) via the shared consensus validator. CONSERVATIVE: any materialize/encode
-  -- helper failure (logs status != 0, block-log overflow, encode status != 0) or a validator
-  -- helper error (status 1/3) falls through to accept -- only a confirmed root/bloom MISMATCH
-  -- (status 2/4) rejects, so unsupported shapes never false-reject. Depends on complete transfer
-  -- logs (#8732 Part 1 + #8735 Part 2).
-  "  bnez a0, .Lbv_receipts_accept                # logs materialize failed -> conservative accept\n" ++
+  -- OR(receipt blooms) via the shared consensus validator. Unsupported capacity still
+  -- conservatively accepts, but malformed helper statuses on an enforced receipt shape reject
+  -- instead of silently accepting. Confirmed root/bloom mismatches reject as before.
+  "  bnez a0, .Lbv_receipt_logs_helper_status\n" ++
   -- `bv_block_log_overflow` is recorded separately from the helper return status because
   -- block_log_window_snapshot can set it before this tail runs. Overflow remains capacity
   -- debt and never becomes a reject without EEST/spec coverage evidence.
@@ -105,20 +104,34 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_receipts_enforce:\n" ++
   "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
   "  jal ra, receipt_records_encode_no_logs\n" ++
-  -- Persist the exact encoder status before the conservative-accept branch: 0 success,
+  -- Persist the exact encoder status before branching: 0 success,
   -- 1 malformed/count over capacity, 2 missing logs descriptor, 3 output/scratch overflow,
-  -- 4 unsupported tx type. Any nonzero remains a conservative accept.
+  -- 4 unsupported tx type. Status 3 remains capacity debt; statuses 2/4 are
+  -- malformed enforced-shape data and reject. Status 1 is ambiguous with count
+  -- capacity and remains conservative until the count/capacity split is repaired.
   "  la t2, bv_receipts_encoder_status; sd a0, 0(t2)\n" ++
-  "  bnez a0, .Lbv_receipts_accept                # encode failed/unsupported -> conservative accept\n" ++
+  "  bnez a0, .Lbv_receipts_encoder_helper_status\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bv_receipts_rlp; la t0, bv_receipts_rlp_len; ld a3, 0(t0)\n" ++
   "  jal ra, block_validate_receipts_consensus_list\n" ++
   -- Persist the exact validator status before branching: 0 success, 1 receipts-root helper
-  -- failure, 2 root mismatch, 3 logs-bloom helper failure, 4 bloom mismatch. Only the two
-  -- confirmed consensus mismatches reject; helper failures remain conservative accepts.
+  -- failure, 2 root mismatch, 3 logs-bloom helper failure, 4 bloom mismatch. In an
+  -- enforced shape, helper statuses mean the supported receipt list could not be
+  -- checked precisely, so reject instead of silently accepting.
   "  la t2, bv_receipts_validator_status; sd a0, 0(t2)\n" ++
   "  li t0, 2; beq a0, t0, .Lbv_receipts_root_mismatch\n" ++
   "  li t0, 4; beq a0, t0, .Lbv_receipts_bloom_mismatch\n" ++
+  "  li t0, 1; beq a0, t0, .Lbv_receipts_helper_fail\n" ++
+  "  li t0, 3; beq a0, t0, .Lbv_receipts_helper_fail\n" ++
+  "  j .Lbv_receipts_accept\n" ++
+  ".Lbv_receipt_logs_helper_status:\n" ++
+  "  li t0, 3; beq a0, t0, .Lbv_receipts_accept\n" ++
+  "  la t0, bv_receipts_enforce_enabled; ld t0, 0(t0); beqz t0, .Lbv_receipts_accept\n" ++
+  "  j .Lbv_receipts_helper_fail\n" ++
+  ".Lbv_receipts_encoder_helper_status:\n" ++
+  "  li t0, 3; beq a0, t0, .Lbv_receipts_accept\n" ++
+  "  li t0, 1; beq a0, t0, .Lbv_receipts_accept\n" ++
+  "  j .Lbv_receipts_helper_fail\n" ++
   ".Lbv_receipts_accept:\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
@@ -173,6 +186,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_requests_hash_fail:\n" ++
   "  li t0, 55; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_receipts_helper_fail:\n" ++     -- enforced receipt helper failure on supported shape
+  "  li t0, 56; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_notx_receipts_root_fail:\n" ++   -- .63.1.6.2.3: no-tx header.receipts_root != empty-trie root
   "  li t0, 50; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_notx_bloom_fail:\n" ++           -- .63.1.6.2.3: no-tx header.bloom != 256 zero bytes
