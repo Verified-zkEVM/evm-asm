@@ -60,6 +60,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -299,6 +300,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x55]
     , preBody :=
         stackUnderflowGuardAsm 2 ++ "\n" ++
+        staticContextWriteGuardAsm ++
         -- Amsterdam SSTORE stipend guard: `check_gas(evm, CALL_STIPEND + 1)`
         -- (storage.py) fails the op when gas_left < 2301 at instruction entry,
         -- WITHOUT charging. The dispatch loop already deducted the 100 static
@@ -534,6 +536,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x5d]
     , preBody :=
         stackUnderflowGuardAsm 2 ++ "\n" ++
+        staticContextWriteGuardAsm ++
         "  ld x15, 464(x20)\n" ++         -- x15 = transient log_length
         "  li x14, 0xa0830000\n" ++
         "  slli x16, x15, 7\n" ++
