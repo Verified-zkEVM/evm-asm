@@ -1058,6 +1058,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
   "bv_b1_acct_len:\n  .zero 8\n" ++
   "bv_b1_finals:\n  .zero 88\n" ++
+  -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
+  -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
+  "bv_b2_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_b2_table:\n  .zero 1024\n" ++
+  "bv_b2_debit_out:\n  .zero 48\n" ++
+  "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
   ".balign 8\n" ++
@@ -1124,9 +1131,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_gasdebit:\n  .zero 32\n" ++
   "tgbpvr_expected:\n  .zero 32\n" ++
   "tgbpvr_zero:\n  .zero 32\n" ++
+  "tgbpvr_blobdebit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpvr_to:\n  .zero 24\n" ++
   "tgbpvr_iscreation:\n  .zero 8\n" ++
+  "tgbpvr_tx_type:\n  .zero 8\n" ++
+  "tgbpvr_inner_off:\n  .zero 8\n" ++
+  "tgbpvr_blob_count:\n  .zero 8\n" ++
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++

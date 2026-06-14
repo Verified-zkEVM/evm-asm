@@ -68,6 +68,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictDataSection
 import EvmAsm.Codegen.Programs.BlockVerdictRuntimePayload
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
+import EvmAsm.Codegen.Programs.MultiTxSenderDebit
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -306,6 +307,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
+  multiTxActualSenderDebitFunction ++ "\n" ++
+  multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++
