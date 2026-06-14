@@ -49,21 +49,31 @@ raw = ast.literal_eval(os.environ["RECEIPTS_PY"])
 root_override = os.environ["ROOT_OVERRIDE"]
 bloom_override = os.environ["BLOOM_OVERRIDE"]
 
+def rlp_list_prefix(payload_len: int) -> bytes:
+    if payload_len <= 55:
+        return bytes([0xC0 + payload_len])
+    length_bytes = payload_len.to_bytes((payload_len.bit_length() + 7) // 8, "big")
+    return bytes([0xF7 + len(length_bytes)]) + length_bytes
+
 receipt_values = []
-receipt_items = []
 block_bloom = bytearray(256)
 for item in raw:
     status = Uint(item.get("status", 1))
     gas = Uint(item.get("gas", 21000))
     bloom = bytes.fromhex(item.get("bloom", "00" * 256))
     logs = []
-    receipt_items.append([status, gas, bloom, logs])
-    receipt_values.append(rlp.encode([status, gas, bloom, logs]))
+    inner = rlp.encode([status, gas, bloom, logs])
+    tx_type = item.get("type", 0)
+    if tx_type:
+        receipt_values.append(bytes([tx_type]) + inner)
+    else:
+        receipt_values.append(inner)
     if len(bloom) == 256:
         for i, b in enumerate(bloom):
             block_bloom[i] |= b
 
-receipts_list_rlp = rlp.encode(receipt_items)
+receipts_payload = b"".join(receipt_values)
+receipts_list_rlp = rlp_list_prefix(len(receipts_payload)) + receipts_payload
 trie = Trie(secured=False, default=None)
 for i, value in enumerate(receipt_values):
     trie_set(trie, Bytes(rlp.encode(Uint(i))), Bytes(value))
@@ -157,6 +167,7 @@ CASES=(
   "empty|[]|||0|1|1"
   "one|[{'status':1,'gas':21000,'bloom':'$B0'}]|||0|1|1"
   "two|[{'status':1,'gas':21000,'bloom':'$B0'},{'status':1,'gas':42000,'bloom':'$B1'}]|||0|1|1"
+  "typed_one|[{'type':2,'status':1,'gas':21000,'bloom':'$B0'}]|||0|1|1"
   "five|[{'status':1,'gas':21000,'bloom':'$B0'},{'status':0,'gas':42000,'bloom':'$B1'},{'status':1,'gas':63000,'bloom':'$B2'},{'status':1,'gas':84000,'bloom':'$B3'},{'status':0,'gas':105000,'bloom':'$B0'}]|||0|1|1"
   "wrong_root|[{'status':1,'gas':21000,'bloom':'$B0'}]|wrong||2|0|0"
   "wrong_bloom_zero|[{'status':1,'gas':21000,'bloom':'$B0'}]||zero|4|1|0"
