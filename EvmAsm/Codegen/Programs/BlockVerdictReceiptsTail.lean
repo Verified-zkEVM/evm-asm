@@ -60,6 +60,34 @@ def blockVerdictReceiptsTail : String :=
   -- logs (#8732 Part 1 + #8735 Part 2).
   "  bnez a0, .Lbv_receipts_accept                # logs materialize failed -> conservative accept\n" ++
   "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_receipts_accept\n" ++
+  -- 8uld3.4: derive EIP-6110 deposit requests from EXECUTION-produced logs and
+  -- verify the final requests_hash against the value that the early header-hash
+  -- check already committed to (`erh_requests_hash`). This stops trusting the
+  -- SSZ execution_requests.deposits body: a block whose SSZ deposits match the
+  -- header but whose receipts contain different deposit logs is rejected here.
+  -- The scratch sizes mirror existing arenas: block log data is capped at 64KiB
+  -- and descriptors at 128, so 81920 bytes covers records (data + 80*128);
+  -- 32768 covers all derived request bodies plus the assembled section.
+  "  la a0, bv_block_log_descs\n" ++
+  "  la t2, bv_block_log_count; ld a1, 0(t2)\n" ++
+  "  la a2, bv_block_log_data\n" ++
+  "  la a3, bv_block_log_meta\n" ++
+  "  la a4, c1_log_records\n" ++
+  "  jal ra, materialize_log_records\n" ++
+  "  la a0, c1_log_records\n" ++
+  "  la t2, bv_block_log_count; ld a1, 0(t2)\n" ++
+  "  la a2, c1_dbody\n" ++
+  "  la a3, c1_dstatus\n" ++
+  "  jal ra, parse_deposit_requests\n" ++
+  "  la t2, c1_dlen; sd a0, 0(t2)\n" ++
+  "  la t2, c1_dstatus; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
+  "  la a0, c1_dbody; la t2, c1_dlen; ld a1, 0(t2)\n" ++
+  "  la a2, dbsr_wbody; la t2, dbsr_wlen; ld a3, 0(t2)\n" ++
+  "  la a4, dbsr_cbody; la t2, dbsr_clen; ld a5, 0(t2)\n" ++
+  "  la a6, erh_requests_hash\n" ++
+  "  la a7, c1_er_assembled\n" ++
+  "  jal ra, requests_hash_verify\n" ++
+  "  bnez a0, .Lbv_requests_hash_fail\n" ++
   -- CONSERVATIVE COMPLETENESS GATE: enforce only when the EIP-7708 top-level transfer log
   -- (Part 2) is known to be represented in the materialized log window. bmvmx_avail covers
   -- the legacy single-tx path; eip7708_tl_typed_avail covers the narrow type-1/type-2 simple-transfer
@@ -128,6 +156,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 19; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_receipt_records_fail:\n" ++
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_requests_hash_fail:\n" ++
+  "  li t0, 55; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_notx_receipts_root_fail:\n" ++   -- .63.1.6.2.3: no-tx header.receipts_root != empty-trie root
   "  li t0, 50; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_notx_bloom_fail:\n" ++           -- .63.1.6.2.3: no-tx header.bloom != 256 zero bytes

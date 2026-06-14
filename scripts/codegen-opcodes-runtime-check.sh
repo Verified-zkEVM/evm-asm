@@ -38,6 +38,8 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   exit 1
 fi
 
+OPCODE_RUNTIME_STEP_LIMIT="${OPCODE_RUNTIME_STEP_LIMIT:-5000000}"
+
 mkdir -p gen-out
 
 echo "==> lake build codegen"
@@ -138,20 +140,33 @@ while IFS= read -r line; do
   "$PYTHON" scripts/pack-bytecode.py ${pack_args[@]+"${pack_args[@]}"} "$bytecode_csv" "gen-out/$name.input"
 
   echo "==> ziskemu -e runtime_dispatcher.elf -i gen-out/$name.input"
+  : >"gen-out/$name.output"
+  set +e
   "$ZISKEMU" -e gen-out/runtime_dispatcher.elf -i "gen-out/$name.input" \
-    -o "gen-out/$name.output" -n 500000 \
+    -o "gen-out/$name.output" -n "$OPCODE_RUNTIME_STEP_LIMIT" \
     >"gen-out/$name.emu.log" 2>&1
+  emu_status=$?
+  set -e
 
-  actual="$(xxd -p -c 64 -l 32 "gen-out/$name.output" | tr -d '\n')"
+  case_failed=""
+  if [[ "$emu_status" -ne 0 ]]; then
+    case_failed="emulator_exit_$emu_status"
+  fi
+
+  if [[ -f "gen-out/$name.output" ]]; then
+    actual="$(xxd -p -c 64 -l 32 "gen-out/$name.output" | tr -d '\n')"
+  else
+    actual=""
+    case_failed="${case_failed:+$case_failed,}output_missing"
+  fi
 
   echo "expected:"
   echo "  $expected"
   echo "actual:"
   echo "  $actual"
 
-  case_failed=""
   if [[ "$actual" != "$expected" ]]; then
-    case_failed="output"
+    case_failed="${case_failed:+$case_failed,}output"
   fi
 
   # M23: if the case asserts on halt-kind, read OUTPUT_ADDR + 32..40

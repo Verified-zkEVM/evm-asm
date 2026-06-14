@@ -38,7 +38,7 @@ def frameStackBytes : Nat := 0x8000
 def frameReturndataBytes : Nat := 0x10000
 
 /-- Per-frame env subblock (ADDRESS/SELFBALANCE/CALLER/CALLVALUE, calldata
-    ptr/len, log checkpoints, codeSize, gasRemaining); 768 B. -/
+    ptr/len, log checkpoints, codeSize, isStatic, gasRemaining); 768 B. -/
 def frameEnvBytes : Nat := 0x300
 
 /-- Saved PC (x10) cell. -/
