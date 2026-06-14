@@ -17,6 +17,11 @@ import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
+import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.MaterializeLogRecords
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
@@ -126,10 +131,65 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
     -- debug verdict ELF links (block_verdict calls verify_public_keys_match_senders).
     verifyPublicKeysSendersGuestFunctions ++ "\n" ++
+    -- 8uld3.2.3 / .63.1.6.2.3: mirror the request-derivation and receipts-consensus
+    -- bodies that block_verdict now reaches inside the embedded guest closure. The
+    -- standalone debug ELF does not include statelessGuestUnit.epilogueAsm, so these
+    -- symbols must be emitted here as well.
+    deriveBlockSystemRequestsFunction ++ "\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    deriveConsolidationRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    parseDepositRequestsFunction ++ "\n" ++
+    extractDepositDataFunction ++ "\n" ++
+    materializeLogRecordsFunction ++ "\n" ++
+    assembleExecutionRequestsFunction ++ "\n" ++
+    requestsHashVerifyFunction ++ "\n" ++
+    stagePredeployStoragePreloadFunction ++ "\n" ++
+    zkvmKeccak256SegmentsFunction ++ "\n" ++
+    rlpEncodeU64Function ++ "\n" ++
+    receiptEncodeFunction ++ "\n" ++
+    receiptRecordsEncodeNoLogsFunction ++ "\n" ++
+    blockValidateLogsBloomFunction ++ "\n" ++
+    receiptExtractLogsBloomFunction ++ "\n" ++
+    bloomOrIntoFunction ++ "\n" ++
+    blockLogsBloomFromReceiptsListFunction ++ "\n" ++
+    blockValidateReceiptsConsensusListFunction ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
     executionRequestsHashShaDataSection ++ "\n" ++
+    -- Data labels for the request-derivation/predeploy-storage helpers above.
+    -- ziskStatelessVerdictV2DataSection already owns the receipt-consensus scratch.
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    consolidationRequestPredeployAddrData ++
+    deriveBlockSystemRequestsData ++ "\n" ++
+    ".balign 8\n" ++
+    "pdr_deposit_addr:\n" ++
+    "  .byte 0x00, 0x00, 0x00, 0x00, 0x21, 0x9a, 0xb5, 0x40\n" ++
+    "  .byte 0x35, 0x6c, 0xbb, 0x83, 0x9c, 0xbe, 0x05, 0x30\n" ++
+    "  .byte 0x3d, 0x77, 0x05, 0xfa\n" ++
+    ".balign 8\n" ++
+    "pdr_deposit_sig:\n" ++
+    "  .byte 0x64, 0x9b, 0xbc, 0x62, 0xd0, 0xe3, 0x13, 0x42\n" ++
+    "  .byte 0xaf, 0xea, 0x4e, 0x5c, 0xd8, 0x2d, 0x40, 0x49\n" ++
+    "  .byte 0xe7, 0xe1, 0xee, 0x91, 0x2f, 0xc0, 0x88, 0x9a\n" ++
+    "  .byte 0xa7, 0x90, 0x80, 0x3b, 0xe3, 0x90, 0x38, 0xc5\n" ++
+    ".balign 8\n" ++
+    "pdr_out:\n  .zero 2048\n" ++
+    "pdr_status:\n  .zero 8\n" ++
+    "rhv_hash:\n  .zero 32\n" ++
+    stagePredeployStoragePreloadData ++ "\n" ++
     emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
 
