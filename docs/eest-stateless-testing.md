@@ -61,6 +61,18 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 1000000000
 ```
 
+Run a transaction-count histogram over cached stateless fixtures:
+
+```bash
+uv run --directory execution-specs --quiet \
+  python3 ../scripts/eest-stateless-tx-count-histogram.py
+```
+
+This decodes each fixture block's `statelessInputBytes` through the local
+Amsterdam `execution-specs` stateless input decoder and reports the maximum
+transaction count, threshold counts such as `tx_count > 16`, and the highest-tx
+blocks. Use `--filter SUBSTR`, `--limit N`, or `--tsv` for focused audits.
+
 Run a focused gas-parity comparison against the local Python execution-specs:
 
 ```bash
