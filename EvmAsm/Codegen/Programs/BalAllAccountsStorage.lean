@@ -48,15 +48,19 @@ open EvmAsm.Rv64
     malformed entries are not callee storage accounts). -/
 def balAllAccountsStorageConsistentFunction : String :=
   "bal_all_accounts_storage_consistent:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  li a5, 1                    # legacy ABI: one skipped recipient\n" ++
+  "  j bal_all_accounts_storage_consistent_skip_list\n" ++
+  "bal_all_accounts_storage_consistent_skip_list:\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
   "  mv s0, a0                   # BAL section ptr\n" ++
   "  mv s1, a1                   # BAL section len\n" ++
   "  mv s2, a2                   # exec log base\n" ++
   "  mv s3, a3                   # exec log entry count\n" ++
-  "  mv s4, a4                   # recipient 20B BE addr ptr\n" ++
+  "  mv s4, a4                   # skip-list ptr (32-byte-strided 20B BE entries)\n" ++
+  "  mv s8, a5                   # skip-list count\n" ++
   "  mv a0, s0; mv a1, s1; la a2, c2bal_acct_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lc2baas_fail\n" ++
@@ -85,13 +89,20 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  li t0, 1; beq a0, t0, .Lc2baas_next       # EIP-2935 history row -> skip\n" ++
   "  li t0, 2; beq a0, t0, .Lc2baas_next       # EIP-4788 beacon-roots row -> skip\n" ++
   "  la t0, c2bal_addr_off; ld t1, 0(t0); add t3, s7, t1   # addr ptr (20B BE)\n" ++
-  "  li t4, 0\n" ++
-  ".Lc2baas_rcmp:\n" ++
-  "  li t5, 20; beq t4, t5, .Lc2baas_next      # all 20 bytes equal recipient -> skip\n" ++
-  "  add t5, t3, t4; lbu t6, 0(t5)\n" ++
-  "  add t5, s4, t4; lbu a0, 0(t5)\n" ++
-  "  bne t6, a0, .Lc2baas_check                # differs from recipient -> a callee, check it\n" ++
-  "  addi t4, t4, 1; j .Lc2baas_rcmp\n" ++
+  "  li t4, 0                    # skip-list index\n" ++
+  ".Lc2baas_skip_outer:\n" ++
+  "  beq t4, s8, .Lc2baas_check  # not in skip-list -> check it\n" ++
+  "  slli t5, t4, 5; add t5, s4, t5\n" ++
+  "  li t6, 0                    # byte index\n" ++
+  ".Lc2baas_skip_cmp:\n" ++
+  "  li a0, 20; beq t6, a0, .Lc2baas_next      # all 20 bytes equal skip entry -> skip\n" ++
+  "  add a0, t3, t6; lbu a1, 0(a0)\n" ++
+  "  add a0, t5, t6; lbu a2, 0(a0)\n" ++
+  "  bne a1, a2, .Lc2baas_skip_advance\n" ++
+  "  addi t6, t6, 1; j .Lc2baas_skip_cmp\n" ++
+  ".Lc2baas_skip_advance:\n" ++
+  "  addi t4, t4, 1; j .Lc2baas_skip_outer\n" ++
+
   ".Lc2baas_check:\n" ++
   "  la t0, c2bal_addr_off; ld t1, 0(t0); add a0, s7, t1   # addr ptr (re-derive across calls)\n" ++
   "  la a1, c2bal_key\n" ++
@@ -111,8 +122,8 @@ def balAllAccountsStorageConsistentFunction : String :=
   ".Lc2baas_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret"
 
 /-- `zisk_bal_all_accounts_storage_consistent`: focused probe.
@@ -159,6 +170,33 @@ def balAllAccountsStorageConsistentData : String :=
   ".balign 32\n" ++
   "c2bal_key:\n  .zero 32\n"
 
+/-- `zisk_bal_all_accounts_storage_consistent_skip_list`: probe for the new skip-list ABI.
+    Input after the ziskemu length wrapper:
+      +8  BAL section length, +16 exec-log entry count, +24 skip count,
+      +32 skip list (32-byte-strided), then exec log, then BAL section. -/
+def ziskBalAllAccountsStorageConsistentSkipListPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li t6, 0x40000000\n" ++
+  "  ld a1, 8(t6)                # BAL section len\n" ++
+  "  ld a3, 16(t6)               # exec log entry count\n" ++
+  "  ld a5, 24(t6)               # skip-list count\n" ++
+  "  addi a4, t6, 32             # skip-list base\n" ++
+  "  slli t0, a5, 5; add a2, a4, t0   # exec log base\n" ++
+  "  slli t0, a3, 7; add a0, a2, t0   # BAL section ptr\n" ++
+  "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  j .Lc2baas_sl_pdone\n" ++
+  balAllAccountsStorageConsistentFunction ++ "\n" ++
+  balAccountIsModeledSystemFunction ++ "\n" ++
+  balStorageMatchesExecLogFunction ++ "\n" ++
+  balStorageCoversExecLogFunction ++ "\n" ++
+  balStorageChangeValuesFunction ++ "\n" ++
+  balAddrToExecLogKeyFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  ".Lc2baas_sl_pdone:"
+
 def ziskBalAllAccountsStorageConsistentDataSection : String :=
   ".section .data\n" ++
   balAllAccountsStorageConsistentData ++
@@ -170,6 +208,12 @@ def ziskBalAllAccountsStorageConsistentDataSection : String :=
 def ziskBalAllAccountsStorageConsistentProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskBalAllAccountsStorageConsistentPrologue
+  dataAsm     := ziskBalAllAccountsStorageConsistentDataSection
+}
+
+def ziskBalAllAccountsStorageConsistentSkipListProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBalAllAccountsStorageConsistentSkipListPrologue
   dataAsm     := ziskBalAllAccountsStorageConsistentDataSection
 }
 
