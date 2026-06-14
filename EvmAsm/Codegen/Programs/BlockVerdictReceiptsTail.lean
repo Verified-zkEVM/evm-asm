@@ -105,10 +105,9 @@ def blockVerdictReceiptsTail : String :=
   "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
   "  jal ra, receipt_records_encode_no_logs\n" ++
   -- Persist the exact encoder status before branching: 0 success,
-  -- 1 malformed/count over capacity, 2 missing logs descriptor, 3 output/scratch overflow,
-  -- 4 unsupported tx type. Status 3 remains capacity debt; statuses 2/4 are
-  -- malformed enforced-shape data and reject. Status 1 is ambiguous with count
-  -- capacity and remains conservative until the count/capacity split is repaired.
+  -- 1 malformed arena, 2 missing logs descriptor, 3 output/scratch overflow,
+  -- 4 unsupported tx type, 5 record-count capacity overflow. Statuses 3/5 remain
+  -- capacity debt; statuses 1/2/4 are malformed enforced-shape data and reject.
   "  la t2, bv_receipts_encoder_status; sd a0, 0(t2)\n" ++
   "  bnez a0, .Lbv_receipts_encoder_helper_status\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++

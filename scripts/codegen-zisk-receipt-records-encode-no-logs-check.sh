@@ -27,20 +27,23 @@ lake exe codegen --program zisk_receipt_records_encode_no_logs --halt linux93 \
 
 REPO_ROOT="$(pwd)"
 
-# run_case <name> <cap> <records> <exp_status>
+# run_case <name> <output_cap> <control_cap> <mode_flags> <records> <exp_status>
 # records grammar: tx_type:status:cumulative_gas:log_count[, ...]
+# mode_flags: bit0 force null record base, bit1 bypass append and call encoder directly.
 run_case() {
-  local name="$1" cap="$2" records="$3" exp_status="$4"
+  local name="$1" cap="$2" control_cap="$3" flags="$4" records="$5" exp_status="$6"
   local in_file="$REPO_ROOT/gen-out/zisk_receipt_records_encode_no_logs_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_receipt_records_encode_no_logs_${name}.output"
   local exp_file="$REPO_ROOT/gen-out/zisk_receipt_records_encode_no_logs_${name}.expected"
 
-  python3 - "$in_file" "$exp_file" "$cap" "$records" "$exp_status" <<'PY'
+  python3 - "$in_file" "$exp_file" "$cap" "$control_cap" "$flags" "$records" "$exp_status" <<'PY'
 import struct
 import sys
 
-in_file, exp_file, cap_s, records_s, exp_status_s = sys.argv[1:]
+in_file, exp_file, cap_s, control_cap_s, flags_s, records_s, exp_status_s = sys.argv[1:]
 cap = int(cap_s)
+control_cap = int(control_cap_s)
+flags = int(flags_s)
 exp_status = int(exp_status_s)
 
 def parse_records(text):
@@ -86,10 +89,12 @@ def receipt(tx_type: int, status: int, gas: int) -> bytes:
     return (bytes([tx_type]) + inner) if tx_type else inner
 
 records = parse_records(records_s)
-payload = bytearray(16 + 32 * len(records))
+payload = bytearray(32 + 32 * len(records))
 payload[0:8] = struct.pack("<Q", len(records))
 payload[8:16] = struct.pack("<Q", cap)
-cursor = 16
+payload[16:24] = struct.pack("<Q", control_cap)
+payload[24:32] = struct.pack("<Q", flags)
+cursor = 32
 for row in records:
     payload[cursor:cursor + 32] = struct.pack("<QQQQ", *row)
     cursor += 32
@@ -132,18 +137,21 @@ PY
 }
 
 FAILED=0
-run_case "empty"          256 "-"                              0 || FAILED=1
-run_case "one_success"    512 "0:1:21000:0"                    0 || FAILED=1
-run_case "two_statuses"   768 "0:1:21000:0,0:0:42000:0"        0 || FAILED=1
-run_case "four_receipts"  2048 "0:1:1:0,0:1:127:0,0:1:128:0,0:1:1000000:0" 0 || FAILED=1
+run_case "empty"          256 16 0 "-"                              0 || FAILED=1
+run_case "one_success"    512 16 0 "0:1:21000:0"                    0 || FAILED=1
+run_case "two_statuses"   768 16 0 "0:1:21000:0,0:0:42000:0"        0 || FAILED=1
+run_case "four_receipts"  2048 16 0 "0:1:1:0,0:1:127:0,0:1:128:0,0:1:1000000:0" 0 || FAILED=1
 # log_count>0 with no logs descriptor (probe leaves @56=0) is still a malformed record.
-run_case "log_no_desc"    512 "0:1:21000:1"                    2 || FAILED=1
+run_case "log_no_desc"    512 16 0 "0:1:21000:1"                    2 || FAILED=1
 # typed receipts are now encoded (type_byte || rlp(inner)); EIP-2718 types 1..4.
-run_case "typed_eip2718_2" 512 "2:1:21000:0"                   0 || FAILED=1
-run_case "typed_eip2718_4" 512 "4:0:55000:0"                   0 || FAILED=1
-run_case "typed_mixed"    768 "0:1:21000:0,2:1:42000:0"        0 || FAILED=1
-run_case "type_over_max"  512 "5:1:21000:0"                    4 || FAILED=1
-run_case "small_cap"      1 "-"                                3 || FAILED=1
+run_case "typed_eip2718_2" 512 16 0 "2:1:21000:0"                   0 || FAILED=1
+run_case "typed_eip2718_4" 512 16 0 "4:0:55000:0"                   0 || FAILED=1
+run_case "typed_mixed"    768 16 0 "0:1:21000:0,2:1:42000:0"        0 || FAILED=1
+run_case "type_over_max"  512 16 0 "5:1:21000:0"                    4 || FAILED=1
+run_case "small_cap"      1 16 0 "-"                                3 || FAILED=1
+# Direct-control modes cover encoder status splitting that the append path cannot reach.
+run_case "malformed_null_base" 512 16 1 "-"                         1 || FAILED=1
+run_case "count_over_capacity" 512 1 2 "0:1:21000:0,0:1:42000:0"    5 || FAILED=1
 
 if [[ "$FAILED" -eq 0 ]]; then
   echo "==> PASS: no-log receipt-record list encoder"
