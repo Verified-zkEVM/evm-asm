@@ -419,6 +419,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- dispatcher_capture_exec_state_gas at each contract dispatch (mirrors
   -- bvgr_tx_state_gas). Behavior-neutral substrate for the 2D state-dim (P3 reads it).
   "bvgr_tx_exec_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- xbi56.1: exact net EIP-8037 tx_state_gas = intrinsic + executed - refund,
+  -- with transaction error rules applied. Populated after runtime gas results.
+  "bvgr_tx_total_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
