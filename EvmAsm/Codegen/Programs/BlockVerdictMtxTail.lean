@@ -144,11 +144,10 @@ def blockVerdictMtxValidationTail : String :=
   "  addi t2, t2, 1; j .Lbv_agg_loop\n" ++
   ".Lbv_agg_done:\n" ++
   -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
-  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may create accounts whose pre-
-  -- state has no witness node, so no exec effect is recorded though the BAL legitimately
-  -- declares their balance change -- skip those rather than false-reject (the value-mismatch
-  -- direction still validates every account that DID get an effect). Reset to 0 after so
-  -- nothing else (single-tx is a different block_verdict call anyway) sees lenient mode.
+  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may still have created-account
+  -- effects outside the CALL zero-pre path, so strict notfound remains gated until those are
+  -- complete. Value-mismatch still validates every account that DID get an effect. Reset to 0
+  -- after so nothing else observes lenient mode.
   "  la t0, c3ns_lenient_notfound; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++

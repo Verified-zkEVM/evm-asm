@@ -318,7 +318,13 @@ def callDescendFallThrough
     "  jal ra, account_at_header_state_root\n" ++
     "  mv t0, a0\n" ++                                  -- status (capture before restoring x10=a0)
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  bnez t0, .Lcd_nse_done_" ++ tag ++ "\n" ++       -- callee absent/err -> skip (conservative)
+    "  beqz t0, .Lcd_nse_have_pre_" ++ tag ++ "\n" ++
+    "  li t1, 1\n  beq t0, t1, .Lcd_nse_zero_pre_" ++ tag ++ "\n" ++
+    "  li t1, 2\n  beq t0, t1, .Lcd_nse_zero_pre_" ++ tag ++ "\n" ++
+    "  j .Lcd_nse_done_" ++ tag ++ "\n" ++       -- decode/header errors -> skip (conservative)
+    ".Lcd_nse_zero_pre_" ++ tag ++ ":\n" ++
+    "  la t0, nse_acct\n  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
+    ".Lcd_nse_have_pre_" ++ tag ++ ":\n" ++
     -- post_balance = pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
     "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
