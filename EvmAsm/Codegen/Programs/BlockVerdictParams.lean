@@ -89,4 +89,35 @@ def bsrSystemAccountBytes : Nat := 128
 def bsrStateChangeBytes : Nat := 40
 def baapStorageDescBytes : Nat := 40
 
+/-- Current static multi-transaction fixture arena capacity. The verdict guest's
+    active per-tx u64/log-window buffers are still sized to this bound while the
+    full-capacity migration lands in smaller slices. -/
+def bmvFixtureTxCapacity : Nat := 16
+
+/-- Full Amsterdam transaction capacity target from the 200M block-gas limit and
+    the 21,000 gas intrinsic floor: floor(200,000,000 / 21,000) = 9,523. -/
+def bmvFullTxCapacity : Nat := 9523
+
+def bmvU64PerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 8
+def bmvLogWindowPerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 16
+
+def bmvFixtureU64PerTxArenaBytes : Nat :=
+  bmvU64PerTxArenaBytes bmvFixtureTxCapacity
+
+def bmvFixtureLogWindowArenaBytes : Nat :=
+  bmvLogWindowPerTxArenaBytes bmvFixtureTxCapacity
+
+def bmvFullU64PerTxArenaBytes : Nat :=
+  bmvU64PerTxArenaBytes bmvFullTxCapacity
+
+def bmvFullLogWindowArenaBytes : Nat :=
+  bmvLogWindowPerTxArenaBytes bmvFullTxCapacity
+
+#guard bmvFixtureTxCapacity = 16
+#guard bmvFullTxCapacity = 9523
+#guard bmvFixtureU64PerTxArenaBytes = 128
+#guard bmvFixtureLogWindowArenaBytes = 256
+#guard bmvFullU64PerTxArenaBytes = 76184
+#guard bmvFullLogWindowArenaBytes = 152368
+
 end EvmAsm.Codegen
