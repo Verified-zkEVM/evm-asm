@@ -638,6 +638,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_worst_state:\n  .zero 8\n" ++
   "bsg_prior_state:\n  .zero 8\n" ++
   "bsg_state_gas:\n  .zero 8\n" ++
+  "bsg_exact_state_ok:\n  .zero 8\n" ++
   "bsg_blob_count:\n  .zero 8\n" ++
   "bsg_blob_gas_accum:\n  .zero 8\n" ++
   "bgvh_count_scratch:\n  .zero 8\n" ++
@@ -958,6 +959,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
   ".balign 8\n" ++
   "bmvmx_avail:\n  .zero 8\n" ++
+  "eip7708_tl_type2_avail:\n  .zero 8\n" ++
   "bmvmx_gas_used:\n  .zero 8\n" ++
   "bmvmx_txoff:\n  .zero 8\n" ++
   "bmvmx_ctx:\n  .zero 192\n" ++

@@ -2122,11 +2122,37 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  j .runtime_tx_gas_data_loop\n" ++
   ".runtime_tx_gas_create_words:\n" ++
   "  ld x8, -8(x5)\n" ++           -- x8 = is_creation
-  "  beqz x8, .runtime_tx_gas_check\n" ++
+  "  beqz x8, .runtime_tx_gas_access_list\n" ++
   "  addi x12, x12, 31\n" ++
   "  srli x12, x12, 5\n" ++        -- ceil(calldata_len / 32)
   "  slli x12, x12, 1\n" ++        -- CODE_INIT_PER_WORD = 2
   "  add x7, x7, x12\n" ++
+  ".runtime_tx_gas_access_list:\n" ++
+  -- Access-list counts are supplied by transaction-aware callers. Legacy and
+  -- standalone runtime probes leave both labels zero, preserving the old path.
+  -- tokens_in_access_list = 80 * address_count + 128 * storage_key_count;
+  -- the floor adds 16 gas per token, while regular intrinsic gas adds
+  -- 2400/address and 1900/storage key.
+  "  la x11, runtime_tx_access_list_address_count\n" ++
+  "  ld x11, 0(x11)\n" ++
+  "  beqz x11, .runtime_tx_gas_access_slots\n" ++
+  "  li x15, 2400\n" ++
+  ".runtime_tx_gas_addr_loop:\n" ++
+  "  add x7, x7, x15\n" ++
+  "  addi x10, x10, 1280\n" ++
+  "  addi x11, x11, -1\n" ++
+  "  bnez x11, .runtime_tx_gas_addr_loop\n" ++
+  ".runtime_tx_gas_access_slots:\n" ++
+  "  la x11, runtime_tx_access_list_storage_key_count\n" ++
+  "  ld x11, 0(x11)\n" ++
+  "  beqz x11, .runtime_tx_gas_check\n" ++
+  "  li x15, 1900\n" ++
+  "  li x14, 2048\n" ++
+  ".runtime_tx_gas_slot_loop:\n" ++
+  "  add x7, x7, x15\n" ++
+  "  add x10, x10, x14\n" ++
+  "  addi x11, x11, -1\n" ++
+  "  bnez x11, .runtime_tx_gas_slot_loop\n" ++
   ".runtime_tx_gas_check:\n" ++
   -- Persist the EIP-7623 calldata floor (x10) so a caller (e.g. the
   -- block-verdict gas-result capture probe) can read the exact
@@ -2581,6 +2607,13 @@ def emitRuntimeDispatcherDataSectionCore
   -- caller can read the exact `calldata_floor_gas_cost` the transaction
   -- was validated against (0 when --validate-tx-gas was not requested).
   "runtime_tx_calldata_floor:\n" ++
+  "  .zero 8\n" ++
+  -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
+  -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy
+  -- and standalone runtime inputs.
+  "runtime_tx_access_list_address_count:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_access_list_storage_key_count:\n" ++
   "  .zero 8\n" ++
   -- bmvmx.1.6.4.2: nested-callee storage seed table consumed by the callable
   -- dispatcher prologue's seed loop. `callee_seed_count` is 0 by default, so the
