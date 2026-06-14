@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.CreateRuntime
 import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.ChildFrameHandlerTails
 
@@ -108,17 +109,17 @@ def childFrameHandlers
     List OpcodeHandlerSpec :=
   [ { label := "h_CREATE"
     , opcodes := [0xf0]
-    , preBody := stackUnderflowGuardAsm 3 ++ "\n"
+    , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++ staticContextWriteGuardAsm
     , body := []
     , tail := .custom (createUnsupportedTail 64 false) }
   , { label := "h_CALL"
     , opcodes := [0xf1]
-    , preBody := stackUnderflowGuardAsm 7 ++ "\n"
+    , preBody := stackUnderflowGuardAsm 7 ++ "\n" ++ staticContextValueTransferGuardAsm 64
     , body := []
     , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 callFallThrough) }
   , { label := "h_CALLCODE"
     , opcodes := [0xf2]
-    , preBody := stackUnderflowGuardAsm 7 ++ "\n"
+    , preBody := stackUnderflowGuardAsm 7 ++ "\n" ++ staticContextValueTransferGuardAsm 64
     , body := []
     , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 callcodeFallThrough) }
   , { label := "h_DELEGATECALL"
@@ -128,7 +129,7 @@ def childFrameHandlers
     , tail := .custom (basicPrecompileCallTail "delegatecall_target" 160 64 96 128 160 delegateFallThrough) }
   , { label := "h_CREATE2"
     , opcodes := [0xf5]
-    , preBody := stackUnderflowGuardAsm 4 ++ "\n"
+    , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ staticContextWriteGuardAsm
     , body := []
     , tail := .custom (createUnsupportedTail 96 true) }
   , { label := "h_STATICCALL"
@@ -200,6 +201,17 @@ def callDescendFallThrough
   "  ld t0, 0(t0)\n" ++
   "  li t1, 1024\n" ++
   "  bgeu t0, t1, .Lcd_fail_" ++ tag ++ "\n" ++
+  -- Static-context value transfer gate. STATICCALL itself is value-less, but
+  -- CALL/CALLCODE with a nonzero value is state-changing and must exceptional-fail.
+  (if !valueBearing then "" else
+    "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  beqz t3, .Lcd_static_ok_" ++ tag ++ "\n" ++
+    "  ld t4, " ++ toString staticContextFlagOff ++ "(x20)\n" ++
+    "  bnez t4, .exit_static_violation\n" ++
+    ".Lcd_static_ok_" ++ tag ++ ":\n") ++
   -- balance gate (value-bearing CALL only): EVM `generic_call` rejects the call
   -- with a pushed 0 when the caller's balance is below the transfer value
   -- (vm/instructions/system.py; the value is NOT transferred and the sub-call is
