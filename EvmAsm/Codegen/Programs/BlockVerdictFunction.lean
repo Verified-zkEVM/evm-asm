@@ -563,6 +563,36 @@ def blockVerdictFunction : String :=
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
   -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
   "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
+  -- bmvmx.7.2: multi-tx contract-recipient top-level EIP-7708 value-transfer log.
+  -- Emit before runtime dispatch so the block log window preserves spec order: top-level
+  -- value move first, then logs produced by the recipient code. If append overflows, leave
+  -- the completeness flag unset and let the receipts gate stay conservative.
+  "  la t0, bv_mtx_ctx; addi t0, t0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbv_mtx_tl7708_skip\n" ++
+  "  la t0, bv_mtx_sender_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_mtx_tl_selfcmp:\n" ++
+  "  beqz t2, .Lbv_mtx_tl7708_skip\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_tl_notself\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_tl_selfcmp\n" ++
+  ".Lbv_mtx_tl_notself:\n" ++
+  "  addi sp, sp, -16\n  sd x20, 0(sp)\n" ++
+  "  la t0, eip7708_tl_from32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bv_mtx_sender_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_mtx_tl_from:\n  beqz t3, .Lbv_mtx_tl_from_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_mtx_tl_from\n" ++
+  ".Lbv_mtx_tl_from_d:\n" ++
+  "  la t0, eip7708_tl_to32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bv_mtx_ctx; addi t1, t1, 91; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_mtx_tl_to:\n  beqz t3, .Lbv_mtx_tl_to_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_mtx_tl_to\n" ++
+  ".Lbv_mtx_tl_to_d:\n" ++
+  "  la t0, eip7708_tl_val32\n  la t1, bv_mtx_ctx; addi t1, t1, 127; mv t2, t0; li t3, 32\n" ++
+  ".Lbv_mtx_tl_val:\n  beqz t3, .Lbv_mtx_tl_val_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_mtx_tl_val\n" ++
+  ".Lbv_mtx_tl_val_d:\n" ++
+  "  la x20, evm_env\n  la a0, eip7708_tl_from32\n  la a1, eip7708_tl_to32\n  la a2, eip7708_tl_val32\n" ++
+  "  jal ra, eip7708_append_transfer_log\n" ++
+  "  ld x20, 0(sp)\n  addi sp, sp, 16\n" ++
+  "  bnez a0, .Lbv_mtx_tl7708_skip\n" ++
+  "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_tl7708_skip:\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # dispatch miss / not self-contained\n" ++
