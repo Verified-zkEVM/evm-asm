@@ -370,6 +370,13 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
+        -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
+        -- 16384 entries of 128 bytes. Never append past it into the
+        -- transient-log region; halt conservatively before any append-path
+        -- gas/refund bookkeeping mutates state.
+        "  ld x15, 448(x20)\n" ++
+        "  li x14, 16384\n" ++
+        "  bgeu x15, x14, .exit_outofgas\n" ++
         sstoreValueTransitionGasAsm ++
         -- bmvmx.1.6.3: accumulate this SSTORE's EIP-3529 refund delta into evm_refund_acc
         -- (signed). x18 = &found.original (or 0 -> original==current==0). sstore_gas_refund_outcome
