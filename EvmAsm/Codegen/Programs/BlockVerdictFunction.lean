@@ -75,6 +75,7 @@ def blockVerdictFunction : String :=
   -- (= bv_exec_p). All bv_* writes here are idempotent with the post-348 tx preamble,
   -- and block_state_root (BlockVerdict.lean:67-302) reads none of these globals.
   "  la t0, bmvmx_avail; sd zero, 0(t0)\n" ++
+  "  la t0, eip7708_tl_type1_avail; sd zero, 0(t0)\n" ++
   "  la t0, eip7708_tl_type2_avail; sd zero, 0(t0)\n" ++
   "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++             -- bmvmx.1.4.3.1: envelope predicate flags default 0
   "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
@@ -820,21 +821,26 @@ def blockVerdictFunction : String :=
   -- saved/restored: the appender uses x20+472 for the event-log count, so set x20 = evm_env;
   -- block_log_window_snapshot reads evm_env via `la`, so it is unaffected.
   "  la t0, bmvmx_avail; ld t0, 0(t0); bnez t0, .Lbv_tl7708_ready\n" ++
-  -- bmvmx.7.1: widen Part-2 top-level transfer-log coverage to the already-supported
-  -- single type-2 simple-transfer runtime path. Keep this independent from bmvmx_avail:
+  -- bmvmx.7.1/.7.2: widen Part-2 top-level transfer-log coverage to the already-supported
+  -- single type-1/type-2 simple-transfer runtime paths. Keep this independent from bmvmx_avail:
   -- the balance-movement verifier is still legacy-only, but receipts completeness only
   -- needs sender/recipient/value. simple_transfer_tx_context has already accepted the tx,
   -- so +24/+72/+96/+160 are populated here. Reuse bmvmx_sender_addr/bmvmx_value so the
   -- legacy packing block below remains the single source for the EIP-7708 descriptor shape.
   "  la t0, bv_simple_transfer_tx; ld t1, 0(t0); bnez t1, .Lbv_tl7708_skip\n" ++
-  "  ld t1, 160(t0); li t2, 2; bne t1, t2, .Lbv_tl7708_skip\n" ++
+  "  ld t1, 160(t0); li t2, 1; beq t1, t2, .Lbv_tl_typed_ok\n" ++
+  "  li t2, 2; bne t1, t2, .Lbv_tl7708_skip\n" ++
+  ".Lbv_tl_typed_ok:\n" ++
   "  addi t1, t0, 96; la t2, bmvmx_value; li t3, 0\n" ++
-  ".Lbv_tl2_vcopy:\n" ++
-  "  li t4, 32; beq t3, t4, .Lbv_tl2_vdone\n" ++
-  "  add t5, t1, t3; lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5); addi t3, t3, 1; j .Lbv_tl2_vcopy\n" ++
-  ".Lbv_tl2_vdone:\n" ++
+  ".Lbv_tl_typed_vcopy:\n" ++
+  "  li t4, 32; beq t3, t4, .Lbv_tl_typed_vdone\n" ++
+  "  add t5, t1, t3; lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5); addi t3, t3, 1; j .Lbv_tl_typed_vcopy\n" ++
+  ".Lbv_tl_typed_vdone:\n" ++
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  li t1, 1; la t0, eip7708_tl_type2_avail; sd t1, 0(t0)\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 1; beq t1, t2, .Lbv_tl_set_type1\n" ++
+  "  li t1, 1; la t0, eip7708_tl_type2_avail; sd t1, 0(t0); j .Lbv_tl7708_ready\n" ++
+  ".Lbv_tl_set_type1:\n" ++
+  "  li t1, 1; la t0, eip7708_tl_type1_avail; sd t1, 0(t0)\n" ++
   ".Lbv_tl7708_ready:\n" ++
   "  la t0, bmvmx_value; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
   "  beqz t1, .Lbv_tl7708_skip\n" ++
