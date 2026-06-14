@@ -17,6 +17,7 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
@@ -317,6 +318,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
+  eip8037TxStateGasFunction ++ "\n" ++
+  txIntrinsicStateGasFunction ++ "\n" ++
+  blockVerdictTxStateGasArrayFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxActualSenderDebitFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++

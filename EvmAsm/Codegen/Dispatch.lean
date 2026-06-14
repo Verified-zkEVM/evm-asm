@@ -952,6 +952,8 @@ def emitDispatcherPrologue : String :=
   "  la x10, evm_code\n" ++
   "  la x21, evm_code\n" ++       -- M15: preserved code base (for PC, JUMP, JUMPI)
   "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++
   -- M33: stash the exact running-bytecode length at env+496 for CODESIZE /
@@ -1008,7 +1010,15 @@ def emitDispatcherPrologue : String :=
   -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
+  "  mv x10, x21\n" ++
+  "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
+  "  la x13, evm_memory\n" ++
   ".dispatch_loop:\n" ++
+  "  sub x5, x10, x21\n" ++
+  "  ld x6, 496(x20)\n" ++
+  "  bgeu x5, x6, .exit_label\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against
@@ -1041,6 +1051,16 @@ def emitDispatcherPrologue : String :=
     `6` out-of-gas · `7` stack underflow · `8` stack overflow. -/
 def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"{label}:\n" ++
+  "  la x18, evm_call_depth\n" ++
+  "  ld x18, 0(x18)\n" ++
+  s!"  beqz x18, {label}_top\n" ++
+  "  sd x0, 568(x20)\n" ++
+  "  li a0, 0\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
+  "  jal ra, frame_return\n" ++
+  "  j .dispatch_loop\n" ++
+  s!"{label}_top:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
   "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
   "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
@@ -1049,7 +1069,6 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"  li x17, {kind}\n" ++         -- halt_kind
   "  sd x17, 32(x16)\n" ++
   "  j .exit_no_epilogue\n"
-
 /-- STATICCALL write violation. At child depth, fail only the child frame and
     resume the parent. At depth 0, surface the same halt kind as INVALID. -/
 def emitStaticViolationExit : String :=
@@ -1057,6 +1076,7 @@ def emitStaticViolationExit : String :=
   "  la t0, evm_call_depth\n" ++
   "  ld t0, 0(t0)\n" ++
   "  beqz t0, .exit_invalid_op\n" ++
+  "  sd x0, 568(x20)\n" ++
   "  li a0, 0\n" ++
   "  li a1, 0\n" ++
   "  li a2, 0\n" ++
@@ -1847,6 +1867,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
                                 -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
   inputAsm ++
   "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++       -- M12: env-region base (ADDRESS, CALLER, …)
   -- M21: populate env's callDataPtr / callDataLen from the input region.
@@ -2201,6 +2223,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory"
 
 def emitRuntimeDispatcherSetup : String :=
@@ -2228,7 +2252,15 @@ def emitRuntimeDispatcherLoop : String :=
   -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
+  "  mv x10, x21\n" ++
+  "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
+  "  la x13, evm_memory\n" ++
   ".dispatch_loop:\n" ++
+  "  sub x5, x10, x21\n" ++
+  "  ld x6, 496(x20)\n" ++
+  "  bgeu x5, x6, .exit_label\n" ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against

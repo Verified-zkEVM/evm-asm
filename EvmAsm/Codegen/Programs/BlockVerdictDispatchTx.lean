@@ -333,12 +333,39 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- 3vc2p.3b: + M29 hashes (count*32)
+  "  la t0, dtrc_hdr_len; ld t2, 0(t0); add t1, t1, t2\n" ++        -- nested-CALL account-witness header bytes
+  "  add t1, t1, s1\n" ++                                             -- witness.state bytes
+  "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++       -- witness.codes bytes
   "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_payload_cap_unsupported\n" ++       -- payload > buffer -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++
+  -- bmvmx/gcylw: stage the same account-witness context used by the top-level
+  -- recipient lookup into the callable runtime trailer, so nested CALL/EXTCODE
+  -- lookups read the pre-header/state/codes context instead of zero lengths.
+  "  la t0, bv_runtime_payload\n" ++
+  "  la t5, srpc_env_base; ld t1, 0(t5); add t0, t0, t1\n" ++
+  "  la t2, dtrc_hdr_len; ld t3, 0(t2); sd t3, 472(t0)\n" ++
+  "  sd s1, 480(t0)\n" ++
+  "  la t2, svf_codes_len; ld t4, 0(t2); sd t4, 488(t0)\n" ++
+  "  addi t5, t0, 496\n" ++
+  "  la t2, dtrc_hdr_ptr; ld t2, 0(t2); mv t6, t3\n" ++
+  ".Ldtrc_ctx_hdr_copy:\n" ++
+  "  beqz t6, .Ldtrc_ctx_state_copy_start\n" ++
+  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_hdr_copy\n" ++
+  ".Ldtrc_ctx_state_copy_start:\n" ++
+  "  mv t2, s0; mv t6, s1\n" ++
+  ".Ldtrc_ctx_state_copy:\n" ++
+  "  beqz t6, .Ldtrc_ctx_codes_copy_start\n" ++
+  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_state_copy\n" ++
+  ".Ldtrc_ctx_codes_copy_start:\n" ++
+  "  la t2, svf_codes_ptr; ld t2, 0(t2); mv t6, t4\n" ++
+  ".Ldtrc_ctx_codes_copy:\n" ++
+  "  beqz t6, .Ldtrc_ctx_done\n" ++
+  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_codes_copy\n" ++
+  ".Ldtrc_ctx_done:\n" ++
   -- 3vc2p.1: stage CALLER (env+64) + ORIGIN (env+128) = tx.sender into the runtime
   -- payload's env words, so CALLER/ORIGIN resolve once 3vc2p.4 activates them (for a
   -- top-level tx, CALLER == ORIGIN == tx.sender). The sender is derived from the

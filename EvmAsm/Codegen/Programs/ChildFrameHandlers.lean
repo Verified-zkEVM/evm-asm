@@ -436,11 +436,18 @@ def callDescendFallThrough
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcd_nacc_done_" ++ tag ++ ":\n") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
+  -- `account_at_address` expects a canonical 20-byte big-endian address, while
+  -- the EVM stack word stores the low 20 address bytes in word order. Mirror the
+  -- new-account helper's conversion before code lookup for every CALL-family mode.
+  "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+  ".Lcd_code_addr_" ++ tag ++ ":\n" ++
+  "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lcd_code_addr_" ++ tag ++ "\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
   "  ld a0, 576(x20)\n" ++
   "  ld a1, 584(x20)\n" ++
-  "  addi a2, x12, 32\n" ++
+  "  la a2, cd_callee_be\n" ++
   "  ld a3, 592(x20)\n" ++
   "  ld a4, 600(x20)\n" ++
   "  ld a5, 608(x20)\n" ++
@@ -450,9 +457,9 @@ def callDescendFallThrough
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  beqz t2, .Lcd_descend_" ++ tag ++ "\n" ++
-  "  li t3, 2\n" ++
+  "  li t3, 1\n" ++
   "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
-  -- fail (status 1/3/5): pop args, push 0
+  -- fail (status 2/3/4/5): pop args, push 0
   ".Lcd_fail_" ++ tag ++ ":\n" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
