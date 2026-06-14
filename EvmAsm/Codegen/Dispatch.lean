@@ -946,6 +946,11 @@ def emitRuntimeAccountWitnessData : String :=
     JUMP/JUMPI compute `target = x21 + dest`. `x21` is audited the
     same way `x20` was: zero references across `EvmAsm/Evm64/*/Program.lean`
     and zero uses by any existing handler `preBody`/`tail`. -/
+def emitDispatchLoopCodeSizeStopGuard : String :=
+  "  sub x5, x10, x21\n" ++
+  "  ld x6, 496(x20)\n" ++
+  "  bgeu x5, x6, .exit_label\n"
+
 def emitDispatcherPrologue : String :=
   "  la sp, lp64_sp_top\n" ++     -- M16: LP64 stack ptr for ECALL-bridge helpers
                                   -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
@@ -1009,6 +1014,7 @@ def emitDispatcherPrologue : String :=
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
   ".dispatch_loop:\n" ++
+  emitDispatchLoopCodeSizeStopGuard ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against
@@ -2229,6 +2235,7 @@ def emitRuntimeDispatcherLoop : String :=
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
   ".dispatch_loop:\n" ++
+  emitDispatchLoopCodeSizeStopGuard ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against
