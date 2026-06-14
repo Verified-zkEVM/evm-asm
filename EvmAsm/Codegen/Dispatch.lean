@@ -2304,7 +2304,8 @@ def emitTxAccessListSeedLoop : String :=
   "  beqz a1, .Ltx_access_seed_done\n" ++
   "  jalr ra, x28, 0\n" ++
   "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
-  ".Ltx_access_seed_done:\n"
+  ".Ltx_access_seed_done:\n" ++
+  "  mv x10, x21\n"
 
 /-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
     opcode-handler calls, so the caller's return address is saved in the
