@@ -31,6 +31,7 @@ open EvmAsm.Rv64
     Output:
       +0   status
              0  ok: single tx, 65-byte pubkey, non-creation, empty calldata
+                legacy/2930/1559/blob tx
              1  transaction count is not exactly one
              2  public key bundle is not exactly 65 bytes
              3  tx item start exceeds tx list length
@@ -42,8 +43,7 @@ open EvmAsm.Rv64
              50 data-section extraction failed
              60 contract creation transaction
              61 non-empty calldata/initcode
-             62 EIP-4844 blob transaction; this helper does not yet account
-                for blob-fee precharge
+             62 reserved (formerly EIP-4844 blob unsupported)
              63 EIP-7702 set-code transaction; this helper does not yet
                 account for authorization-list gas/processing
       +8   tx ptr
@@ -112,9 +112,6 @@ def simpleTransferTxContextFunction : String :=
   "  bltu s2, t3, .Lsttc_inner_oob\n" ++
   "  add t4, s1, t3; sd t4, 176(s0)\n" ++
   "  sub t4, s2, t3; sd t4, 184(s0)\n" ++
-  "  li t2, 3; bne t1, t2, .Lsttc_not_blob_tx\n" ++
-  "  li t0, 62; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_not_blob_tx:\n" ++
   "  li t2, 4; bne t1, t2, .Lsttc_not_set_code_tx\n" ++
   "  li t0, 63; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_not_set_code_tx:\n" ++
