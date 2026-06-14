@@ -231,6 +231,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- scratch caps at 32768; 64 KiB leaves margin for the list prefix + max receipts.
   "bv_receipts_rlp:\n  .zero 65536\n" ++
   "bv_receipts_rlp_len:\n  .zero 8\n" ++
+  -- Status returned by receipt_records_encode_no_logs in the receipts tail:
+  -- 0 success, 1 malformed/count over capacity, 2 missing logs descriptor,
+  -- 3 output/scratch overflow, 4 unsupported tx type.
+  "bv_receipts_encoder_status:\n  .zero 8\n" ++
   -- Status returned by block_validate_receipts_consensus_list in the receipts tail:
   -- 0 success, 1 receipts-root helper failure, 2 receipts-root mismatch,
   -- 3 logs-bloom helper failure, 4 logs-bloom mismatch.
