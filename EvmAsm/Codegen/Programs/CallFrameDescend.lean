@@ -329,6 +329,16 @@ def callFrameDescendFunction : String :=
   -- The warm-set is append-only; truncating the count on revert reverts the
   -- additions (the gas already charged stays — regular gas is spent on revert).
   "  la t1, evm_storage_access_count; ld t0, 0(t1); sd t0, 648(s9)  # warmth count snapshot\n" ++
+  -- i3djw/reverted-CREATE rollback: CREATE deposit appends to global code and
+  -- non-storage effect logs. A later child REVERT must discard those records,
+  -- exactly like storage/log cursors above; otherwise the block-verdict reverse
+  -- BAL covers checks see stale created-account effects and false-reject valid
+  -- reverted-create blocks.
+  "  la t1, exec_nonstorage_effect_count; ld t0, 0(t1); sd t0, 656(s9)  # nonstorage effect count snapshot\n" ++
+  "  la t1, exec_nonstorage_effect_overflow; ld t0, 0(t1); sd t0, 664(s9)  # nonstorage overflow snapshot\n" ++
+  "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
+  "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
+  "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
   -- 10. frame-relative stack bounds: point the under/overflow guards at the
@@ -569,6 +579,11 @@ def ziskCallFrameDescendDataSection : String :=
   "evm_state_gas_used:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n" ++
   "evm_storage_access_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
+  "exec_code_effect_count:\n  .zero 8\n" ++
+  "exec_code_effect_next:\n  .zero 8\n" ++
+  "exec_code_effect_overflow:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "cfd2_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
