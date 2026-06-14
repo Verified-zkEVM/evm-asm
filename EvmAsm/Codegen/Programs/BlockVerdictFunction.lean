@@ -9,6 +9,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
@@ -417,7 +418,7 @@ def blockVerdictFunction : String :=
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
   "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
-  "  li t1, 16; bgtu t0, t1, .Lbv_mtx_bail         # arena capacity is 16 entries\n" ++
+  "  li t1, " ++ toString bvMtxArenaTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # arena capacity\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
@@ -506,7 +507,7 @@ def blockVerdictFunction : String :=
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
   "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != pre+count -> reject (Nonce*Error)
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
-  -- gas_limit*max_fee_per_gas + tx.value (spec check_transaction InsufficientBalanceError,
+  -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
   -- the mtx sources: max_fee = tefgp_max_fee (tx_effective_gas_pricing wrote it at @453 above),
   -- gas_limit = bv_mtx_ctx+40, value = bv_mtx_ctx+96 (multi_tx_nth_context simple_transfer layout),
@@ -526,6 +527,24 @@ def blockVerdictFunction : String :=
   "  la a2, bv_upfront_cost\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_sender_upfront_fail\n" ++                    -- upfront + value >= 2^256 -> reject
+  "  la t0, bv_mtx_ctx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_mtx_upfront_blob_done\n" ++
+  "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, bv_mtx_ctx; ld t3, 176(t3); add a0, t3, t1; mv a1, t2; la a2, bv_upfront_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la t0, bv_upfront_blob_count; ld a1, 0(t0); beqz a1, .Lbv_sender_upfront_fail\n" ++
+  "  li t2, 6; bgtu a1, t2, .Lbv_sender_upfront_fail\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, tcbg_blob_fee_be; la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  ".Lbv_mtx_upfront_blob_done:\n" ++
   "  la a0, bv_mtx_sender_acct; addi a0, a0, 8\n" ++            -- sender pre_balance (32B BE)
   "  la a1, bv_upfront_cost\n" ++
   "  la a2, bv_upfront_islt\n" ++
@@ -945,6 +964,24 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_sender_upfront_fail\n" ++
   "  la a0, bv_upfront_cost\n  la t0, bv_simple_transfer_tx; addi a1, t0, 96\n  la a2, bv_upfront_cost\n  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_stx_upfront_blob_done\n" ++
+  "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, bv_simple_transfer_tx; ld t3, 176(t3); add a0, t3, t1; mv a1, t2; la a2, bv_upfront_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la t0, bv_upfront_blob_count; ld a1, 0(t0); beqz a1, .Lbv_sender_upfront_fail\n" ++
+  "  li t2, 6; bgtu a1, t2, .Lbv_sender_upfront_fail\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, tcbg_blob_fee_be; la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  ".Lbv_stx_upfront_blob_done:\n" ++
   "  la a0, bv_stx_sender_acct; addi a0, a0, 8\n  la a1, bv_upfront_cost\n  la a2, bv_upfront_islt\n  jal ra, u256_lt_be\n" ++
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n  bnez t0, .Lbv_sender_upfront_fail\n" ++
   ".Lbv_stx_checks_done:\n" ++
@@ -1213,11 +1250,11 @@ def blockVerdictFunction : String :=
   "  la a0, tgbpvr_lookup; jal ra, sender_post_nonce_consistent\n" ++
   "  li t1, 1; beq a0, t1, .Lbv_sender_nonce_fail\n" ++
   -- bmvmx.2 (check_transaction balance pre-validation): reject if
-  -- sender_pre_balance < gas_limit*max_fee_per_gas + tx.value (execution-specs
+  -- sender_pre_balance < gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (execution-specs
   -- amsterdam/fork.py check_transaction raises InsufficientBalanceError). The
   -- runtime verify only proves BAL post == pre - actual_debit and SKIPS (not
   -- rejects) on insufficiency; the spec requires the sender cover the UPFRONT max
-  -- gas_limit*max_fee (>= the actual debit), so a tx funded between actual-debit
+  -- gas_limit*max_fee plus any blob precharge (>= the actual debit), so a tx funded between actual-debit
   -- and upfront would otherwise false-accept. Operands all live here: max_fee =
   -- tefgp_max_fee (written by tx_effective_gas_pricing inside the line-956 verify),
   -- gas_limit = bv_simple_transfer_tx[40], value = bv_simple_transfer_tx[96] (BE),
@@ -1233,6 +1270,24 @@ def blockVerdictFunction : String :=
   "  la a2, bv_upfront_cost\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_sender_upfront_fail              # upfront cost + value >= 2^256 -> reject\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_runtime_upfront_blob_done\n" ++
+  "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, bv_simple_transfer_tx; ld t3, 176(t3); add a0, t3, t1; mv a1, t2; la a2, bv_upfront_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la t0, bv_upfront_blob_count; ld a1, 0(t0); beqz a1, .Lbv_sender_upfront_fail\n" ++
+  "  li t2, 6; bgtu a1, t2, .Lbv_sender_upfront_fail\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, tcbg_blob_fee_be; la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_sender_upfront_fail\n" ++
+  ".Lbv_runtime_upfront_blob_done:\n" ++
   "  la a0, tgbpvr_lookup; addi a0, a0, 48          # sender pre_balance (32B BE)\n" ++
   "  la a1, bv_upfront_cost\n" ++
   "  la a2, bv_upfront_islt\n" ++
@@ -1280,6 +1335,29 @@ def blockVerdictFunction : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.2.1.3: prefill the transaction-count and
+  -- intrinsic-state-gas substrate BEFORE eip8037_tx_gas_gate. The gate still
+  -- runs unconditionally: a substrate parse/fill failure zeros the prefix and
+  -- falls through, preserving the old conservative gate behavior while making
+  -- the exact per-tx state dimension available to the follow-up gate patch.
+  "  la t2, bvgr_arena_tx_count; sd zero, 0(t2)\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  la a1, bvgr_tx_gas_limits\n" ++
+  "  li a2, 16\n" ++
+  "  jal ra, block_verdict_tx_gas_limits\n" ++
+  "  bnez a0, .Lbv_pregate_state_gas_ready\n" ++
+  "  la t2, bvgr_arena_tx_count; sd a1, 0(t2)\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
+  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bvgr_tx_state_gas\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  "  beqz a0, .Lbv_pregate_state_gas_ready\n" ++
+  "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
+  ".Lbv_pregate_state_gas_zero:\n" ++
+  "  beq t4, t3, .Lbv_pregate_state_gas_ready\n" ++
+  "  slli t5, t4, 3; add t5, t2, t5; sd zero, 0(t5); addi t4, t4, 1; j .Lbv_pregate_state_gas_zero\n" ++
+  ".Lbv_pregate_state_gas_ready:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)             # exec_payload\n" ++
