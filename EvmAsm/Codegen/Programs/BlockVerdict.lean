@@ -47,6 +47,7 @@ import EvmAsm.Codegen.Programs.SszWithdrawal
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.BlockAccessListHash
+import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
@@ -312,6 +313,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
+  b1SenderCountTableFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
