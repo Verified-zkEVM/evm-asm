@@ -94,7 +94,7 @@ def blockVerdictFunction : String :=
   "  srli t1, a0, 2; la t0, bv_tx_count; sd t1, 0(t0)\n" ++
   "  li t0, 1; bne t1, t0, .Lbmvmx_done\n" ++                       -- single-tx class only
   "  la a0, bmvmx_ctx; li a1, 0; jal ra, multi_tx_nth_context\n" ++
-  "  la t0, bmvmx_ctx; ld t0, 0(t0); bnez t0, .Lbmvmx_done\n" ++   -- unsupported tx shape
+  "  la t0, bmvmx_ctx; ld t1, 0(t0); bnez t1, .Lbmvmx_done; ld t1, 48(t0); bnez t1, .Lbmvmx_done\n" ++   -- unsupported/creation tx shape
   -- bmvmx.1.4.3.1 envelope (cheap half): restrict the exec-derived balance compare to a
   -- LEGACY (type-0, no access list) single tx. Outside legacy, stay conservative: jump to
   -- .Lbmvmx_done (skip the whole inert compute; bmvmx_avail stays 0, so .4.3.2's gate never
@@ -444,7 +444,7 @@ def blockVerdictFunction : String :=
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
-  "  la t0, bv_mtx_ctx; ld t0, 0(t0); bnez t0, .Lbv_mtx_bail        # unsupported tx shape\n" ++
+  "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail; ld t2, 48(t0); bnez t2, .Lbv_mtx_bail        # unsupported/creation tx shape\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
   -- fee-validity test as the single-tx gate (max_fee>=base_fee / priority<=max_fee),
   -- run per tx in the mtx loop. bv_mtx_ctx holds tx ptr@8 / len@16 (simple_transfer layout,
@@ -680,7 +680,7 @@ def blockVerdictFunction : String :=
   ".Lbv_singletx:\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
   -- and max_priority_fee_per_gas <= max_fee_per_gas (PriorityFeeGreaterThanMaxFeeError,
