@@ -4,6 +4,8 @@
   Multi-tx EOA recipient settlement fragment for block_verdict.
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
+
 namespace EvmAsm.Codegen
 
 /-- Multi-tx EOA recipient settlement fragment, concatenated at the empty-code
@@ -64,7 +66,7 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a2, 0(t3)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd t5, 0(t3)\n" ++
-  "  slli t4, t1, 4\n" ++
+  bvReceiptsShapeSet 4 true ++  "  slli t4, t1, 4\n" ++
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++

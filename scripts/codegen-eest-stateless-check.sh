@@ -721,6 +721,18 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${tx_root_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 424 ]]; then
+    raw="$(od -An -v -tu8 -j 408 -N 16 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a receipts_gate_labels=(
+      receipts_shape
+      receipts_enforce
+    )
+    for i in "${!receipts_gate_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${receipts_gate_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 
