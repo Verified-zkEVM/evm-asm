@@ -341,6 +341,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- conservatively for any payload that would still exceed this, so the staging write can
   -- never overflow into the adjacent gas-result / bvcd_* cells.
   "bv_runtime_payload:\n  .zero 65536\n" ++
+  "bv_stop_code:\n  .byte 0x00\n" ++
+  ".balign 8\n" ++
   "bv_runtime_gas_left:\n  .zero 8\n" ++
   "bv_runtime_refund_counter:\n  .zero 8\n" ++
   "bv_runtime_calldata_floor:\n  .zero 8\n" ++

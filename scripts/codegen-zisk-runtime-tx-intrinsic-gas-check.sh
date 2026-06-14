@@ -71,17 +71,19 @@ run_case "empty_call_reject" \
   "0000000000000000000000000000000000000000000000000000000000000000" \
   "0600000000000000" || FAILED=1
 
-# Nonzero calldata byte has intrinsic 21016 but EIP-7623 floor 21040.
+# Nonzero calldata raises the EIP-7976 floor: every byte counts 4 tokens
+# x TX_DATA_TOKEN_FLOOR(16) = 64 uniformly, so one byte gives floor 21064;
+# the intrinsic data cost stays 4 tokens x 4 = 16 (21016).
 run_case "nonzero_calldata_floor_reject" \
-  21039 0 "ff" \
+  21063 0 "ff" \
   "0000000000000000000000000000000000000000000000000000000000000000" \
   "0600000000000000" || FAILED=1
 
 # If the floor is covered, execution still starts from tx.gas - intrinsic.
-# 21042 - 21016 - GAS(2) = 24.
+# 21066 - 21016 - GAS(2) = 48.
 run_case "nonzero_calldata_floor_accept" \
-  21042 0 "ff" \
-  "1800000000000000000000000000000000000000000000000000000000000000" \
+  21066 0 "ff" \
+  "3000000000000000000000000000000000000000000000000000000000000000" \
   "0000000000000000" || FAILED=1
 
 # Creation adds 32000 intrinsic gas. 53005 - 53000 - GAS(2) = 3.
