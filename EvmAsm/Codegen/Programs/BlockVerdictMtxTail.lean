@@ -134,6 +134,17 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b2_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b2_loop\n" ++
   ".Lbv_b2_done:\n" ++
+  -- bmvmx.5.5.1.2.1.2: all-accounts STORAGE exec-vs-BAL for the MULTI-TX path,
+  -- storage-only slice. Reuse the A1 skip-list so every top-level sender/recipient plus
+  -- coinbase is left to the gas/value path, while non-recipient nested-callee storage remains
+  -- checked against the persistent execution storage log. Tuple-sequence wiring stays out of
+  -- this slice so regressions are attributable to storage only.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0xa0630000\n" ++
+  "  la t0, evm_env; ld a3, 448(t0)\n" ++
+  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
+  "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
   -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
   -- here, consuming the A1 skip-list. CONSERVATIVE guards (skip -> never false-reject, like the
