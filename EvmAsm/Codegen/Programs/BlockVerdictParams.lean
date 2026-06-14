@@ -62,6 +62,18 @@ def bsrMaxTuplesPerSlot : Nat := 10000
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
+/-- Multi-transaction verdict arena capacity. The cached `zkevm@v0.4.0`
+    stateless fixtures include blocks with more than the old 16-entry arena
+    cap, topping out at 1021 transactions. Use 1024 so the tx-count gate and
+    every fixed per-tx arena have one shared current-fixture-sized bound.
+    Full Amsterdam worst-case capacity (~9523 txs at 200M / 21000) still needs
+    the separate streaming/dynamic design tracked by bmvmx.5.5.7. -/
+def bvMtxArenaTxCap : Nat := 1024
+def bvMtxU64ArenaBytes : Nat := bvMtxArenaTxCap * 8
+def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
+def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
+def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
+
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
     Predeploy code comes from the witness and is NOT EIP-170-bounded, but the
