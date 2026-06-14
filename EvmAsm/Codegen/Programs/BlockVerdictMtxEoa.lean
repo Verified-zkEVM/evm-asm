@@ -21,8 +21,29 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la a0, bv_mtx_ctx\n" ++
   "  la a1, bv_runtime_payload\n" ++
   "  la t2, bv_exec_p; ld a2, 0(t2)\n" ++
-  "  jal ra, stage_runtime_payload\n" ++
+  "  la a3, bv_stop_code\n" ++
+  "  li a4, 1\n" ++
+  "  li a5, 0\n" ++
+  "  li a6, 0\n" ++
+  "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
+  "  la t6, bv_mtx_ctx; ld t0, 160(t6); beqz t0, .Lbv_mtx_eoa_access_ready\n" ++
+  "  li t1, 1; li a2, 7; beq t0, t1, .Lbv_mtx_eoa_access_field\n" ++
+  "  li a2, 8; li t1, 2; beq t0, t1, .Lbv_mtx_eoa_access_field\n" ++
+  "  li t1, 3; beq t0, t1, .Lbv_mtx_eoa_access_field\n" ++
+  "  li t1, 4; bne t0, t1, .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_eoa_access_field:\n" ++
+  "  ld a0, 176(t6); ld a1, 184(t6); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la t6, bv_mtx_ctx; la t0, bsg_access_off; ld t0, 0(t0); ld a0, 176(t6); add a0, a0, t0\n" ++
+  "  la t0, bsg_access_len; ld a1, 0(t0)\n" ++
+  "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
+  "  jal ra, access_list_count\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_eoa_access_ready:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
@@ -66,16 +87,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a2, 0(t3)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd t5, 0(t3)\n" ++
-  -- Blob txs still need blob-aware multi-tx settlement before the receipt
-  -- consensus encoder is complete for this shape. Keep the verdict
-  -- conservative instead of false-rejecting valid pre-fund blob blocks.
-  "  la t4, bv_mtx_ctx; ld t4, 160(t4); li t5, 3; beq t4, t5, .Lbv_mtx_eoa_receipts_blob\n" ++
   "  la t4, bv_receipts_completeness_shape; ld t4, 0(t4); li t5, 60; bgeu t4, t5, .Lbv_mtx_eoa_receipts_ready\n" ++
   bvReceiptsShapeSet 4 true ++
-  "  j .Lbv_mtx_eoa_receipts_ready\n" ++
-  ".Lbv_mtx_eoa_receipts_blob:\n" ++
-  bvReceiptsShapeSet 64 false ++
   ".Lbv_mtx_eoa_receipts_ready:\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0)\n" ++
   "  slli t4, t1, 4\n" ++
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++

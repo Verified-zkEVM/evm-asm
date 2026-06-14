@@ -418,10 +418,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, seed_callee_storage\n" ++
   -- fhsxz.2.4.2.57.18.10: pass access-list cardinalities into the runtime
   -- dispatcher's tx-gas validator so the captured calldata floor and regular
-  -- intrinsic gas include tokens_in_access_list. The context builders reject
-  -- type 3/4 before this helper; type 0 has no access list, type 1 uses field 7,
-  -- and type 2 uses field 8 of the inner RLP payload. Parse failures bail
-  -- conservatively instead of undercounting.
+  -- intrinsic gas include tokens_in_access_list. Type 0 has no access list,
+  -- type 1 uses field 7, and EIP-1559/blob/7702 typed txs use field 8 of the
+  -- inner RLP payload. Parse failures bail conservatively instead of undercounting.
   "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
   -- nxio8.5.2b: pass the same access-list span to the callable setup so it can
@@ -431,8 +430,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
   "  ld t0, 160(s2); beqz t0, .Ldtrc_access_done\n" ++
   "  li a2, 7; li t1, 1; beq t0, t1, .Ldtrc_access_field\n" ++
-  "  li t1, 2; bne t0, t1, .Ldtrc_access_list_unsupported\n" ++
-  "  li a2, 8\n" ++
+  "  li a2, 8; li t1, 2; beq t0, t1, .Ldtrc_access_field\n" ++
+  "  li t1, 3; beq t0, t1, .Ldtrc_access_field\n" ++
+  "  li t1, 4; bne t0, t1, .Ldtrc_access_list_unsupported\n" ++
   ".Ldtrc_access_field:\n" ++
   "  ld a0, 176(s2); ld a1, 184(s2); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
