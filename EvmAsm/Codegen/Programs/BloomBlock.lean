@@ -65,19 +65,37 @@ def blockLogsBloomFromReceiptsListFunction : String :=
   "  la a2, blbr_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lblbr_parse_fail\n" ++
-  "  la t0, blbr_count; ld s3, 0(t0)              # n_receipts\n" ++
-  "  li s4, 0                                     # i\n" ++
+  "  la t0, blbr_count; ld s3, 0(t0)              # raw RLP item count\n" ++
+  "  li s4, 0                                     # raw item index\n" ++
   ".Lblbr_loop:\n" ++
-  "  bge s4, s3, .Lblbr_done\n" ++
-  "  # Extract receipt_i bounds (full encoded item).\n" ++
+  "  bgeu s4, s3, .Lblbr_done\n" ++
+  "  # Extract the next receipt. Typed receipts are encoded as type_byte || rlp(inner),\n" ++
+  "  # which appears as two raw RLP items inside this internal list.\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s4\n" ++
   "  la a3, blbr_offset; la a4, blbr_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
+  "  jal ra, rlp_item_span\n" ++
   "  bnez a0, .Lblbr_parse_fail\n" ++
   "  la t0, blbr_offset; ld t1, 0(t0)\n" ++
   "  la t0, blbr_length; ld t2, 0(t0)\n" ++
-  "  add a0, s0, t1                                # receipt_i ptr\n" ++
-  "  mv a1, t2                                    # receipt_i len\n" ++
+  "  add a0, s0, t1                                # default legacy receipt ptr\n" ++
+  "  mv a1, t2                                    # default legacy receipt len\n" ++
+  "  li t3, 1; bne t2, t3, .Lblbr_have_receipt\n" ++
+  "  lbu t3, 0(a0); beqz t3, .Lblbr_have_receipt\n" ++
+  "  li t4, 4; bgtu t3, t4, .Lblbr_have_receipt\n" ++
+  "  addi t3, s4, 1; bgeu t3, s3, .Lblbr_parse_fail\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, t3\n" ++
+  "  la a3, blbr_next_offset; la a4, blbr_next_length\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lblbr_parse_fail\n" ++
+  "  la t0, blbr_next_offset; ld t1, 0(t0)\n" ++
+  "  la t0, blbr_next_length; ld t2, 0(t0)\n" ++
+  "  add a0, s0, t1                                # typed inner receipt ptr\n" ++
+  "  mv a1, t2                                    # typed inner receipt len\n" ++
+  "  addi s4, s4, 2\n" ++
+  "  j .Lblbr_extract\n" ++
+  ".Lblbr_have_receipt:\n" ++
+  "  addi s4, s4, 1\n" ++
+  ".Lblbr_extract:\n" ++
   "  la a2, blbr_scratch_bloom\n" ++
   "  jal ra, receipt_extract_logs_bloom\n" ++
   "  bnez a0, .Lblbr_child_err                    # 1 or 2 -> propagate\n" ++
@@ -85,7 +103,6 @@ def blockLogsBloomFromReceiptsListFunction : String :=
   "  mv a0, s2\n" ++
   "  la a1, blbr_scratch_bloom\n" ++
   "  jal ra, bloom_or_into\n" ++
-  "  addi s4, s4, 1\n" ++
   "  j .Lblbr_loop\n" ++
   ".Lblbr_done:\n" ++
   "  li a0, 0\n" ++
@@ -129,6 +146,8 @@ def ziskBlockLogsBloomFromReceiptsListPrologue : String :=
   "  j .Lblbr_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpItemSizeFunction ++ "\n" ++
+  rlpItemSpanFunction ++ "\n" ++
   receiptExtractLogsBloomFunction ++ "\n" ++
   bloomOrIntoFunction ++ "\n" ++
   blockLogsBloomFromReceiptsListFunction ++ "\n" ++
@@ -146,6 +165,10 @@ def ziskBlockLogsBloomFromReceiptsListDataSection : String :=
   "blbr_offset:\n" ++
   "  .zero 8\n" ++
   "blbr_length:\n" ++
+  "  .zero 8\n" ++
+  "blbr_next_offset:\n" ++
+  "  .zero 8\n" ++
+  "blbr_next_length:\n" ++
   "  .zero 8\n" ++
   "blbr_scratch_bloom:\n" ++
   "  .zero 256"
@@ -289,6 +312,10 @@ def ziskBlockValidateLogsBloomDataSection : String :=
   "blbr_offset:\n" ++
   "  .zero 8\n" ++
   "blbr_length:\n" ++
+  "  .zero 8\n" ++
+  "blbr_next_offset:\n" ++
+  "  .zero 8\n" ++
+  "blbr_next_length:\n" ++
   "  .zero 8\n" ++
   "blbr_scratch_bloom:\n" ++
   "  .zero 256\n" ++
