@@ -749,6 +749,7 @@ def blockVerdictFunction : String :=
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_after_tx_gas_precharge\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  ld t0, 160(t2); li t1, 3; beq t0, t1, .Lbv_after_tx_gas_precharge  # blob txs need blob-aware settlement\n" ++
+  "  li t1, 4; beq t0, t1, .Lbv_after_tx_gas_precharge  # EIP-7702 auth-list intrinsic gas is not 21k-only\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); ld a3, 24(t2); ld a2, 32(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a5, 0(t2)\n" ++
