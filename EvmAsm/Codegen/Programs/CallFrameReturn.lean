@@ -85,6 +85,23 @@ def frameReturnFunction : String :=
   -- to the snapshot. On success (s0 != 0) leave them — the child's state gas stays
   -- accumulated (incorporate_child_on_success). x20 = child env here (pre-repoint).
   "  bnez s0, .Lfr_sgas_done\n" ++
+  -- If child state-gas charges spilled into regular gas, restore that spilled
+  -- regular amount to the child leftover before merging it into the parent.
+  -- spill = max(0, (used - used0) - max(0, left0 - left)). The globals are
+  -- restored below; this accounts for the regular-gas side of the same rollback.
+  "  ld t0, 632(x20)                 # used0\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used\n" ++
+  "  bleu t2, t0, .Lfr_sgas_no_spill\n" ++
+  "  sub t2, t2, t0                 # t2 = used_delta\n" ++
+  "  ld t0, 624(x20)                 # left0\n" ++
+  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left\n" ++
+  "  bleu t0, t3, .Lfr_sgas_add_spill\n" ++
+  "  sub t3, t0, t3                 # t3 = reservoir_spent\n" ++
+  "  bleu t2, t3, .Lfr_sgas_no_spill\n" ++
+  "  sub t2, t2, t3\n" ++
+  ".Lfr_sgas_add_spill:\n" ++
+  "  add s7, s7, t2\n" ++
+  ".Lfr_sgas_no_spill:\n" ++
   "  ld t0, 624(x20); la t1, evm_state_gas_left; sd t0, 0(t1)\n" ++
   "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
   -- nxio8.4.2: discard the reverted child's EIP-3529 refund additions by restoring
