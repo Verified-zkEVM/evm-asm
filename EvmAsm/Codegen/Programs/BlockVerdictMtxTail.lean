@@ -114,6 +114,17 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b2_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b2_loop\n" ++
   ".Lbv_b2_done:\n" ++
+  -- bmvmx.5.5.1.2.1.2: all-accounts STORAGE exec-vs-BAL for the MULTI-TX path,
+  -- storage-only slice. Reuse the A1 skip-list so every top-level sender/recipient plus
+  -- coinbase is left to the gas/value path, while non-recipient nested-callee storage remains
+  -- checked against the persistent execution storage log. Tuple-sequence wiring stays out of
+  -- this slice so regressions are attributable to storage only.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0xa0630000\n" ++
+  "  la t0, evm_env; ld a3, 448(t0)\n" ++
+  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
+  "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
   -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
   -- here, consuming the A1 skip-list. CONSERVATIVE guards (skip -> never false-reject, like the
@@ -155,11 +166,10 @@ def blockVerdictMtxValidationTail : String :=
   "  addi t2, t2, 1; j .Lbv_agg_loop\n" ++
   ".Lbv_agg_done:\n" ++
   -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
-  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may create accounts whose pre-
-  -- state has no witness node, so no exec effect is recorded though the BAL legitimately
-  -- declares their balance change -- skip those rather than false-reject (the value-mismatch
-  -- direction still validates every account that DID get an effect). Reset to 0 after so
-  -- nothing else (single-tx is a different block_verdict call anyway) sees lenient mode.
+  -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may still have created-account
+  -- effects outside the CALL zero-pre path, so strict notfound remains gated until those are
+  -- complete. Value-mismatch still validates every account that DID get an effect. Reset to 0
+  -- after so nothing else observes lenient mode.
   "  la t0, c3ns_lenient_notfound; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++

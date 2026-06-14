@@ -960,7 +960,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
   ".balign 8\n" ++
   "bmvmx_avail:\n  .zero 8\n" ++
-  "eip7708_tl_type2_avail:\n  .zero 8\n" ++
+  "eip7708_tl_typed_avail:\n  .zero 8\n" ++
   "bmvmx_gas_used:\n  .zero 8\n" ++
   "bmvmx_txoff:\n  .zero 8\n" ++
   "bmvmx_ctx:\n  .zero 192\n" ++
