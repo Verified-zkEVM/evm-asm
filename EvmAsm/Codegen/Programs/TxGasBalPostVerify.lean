@@ -24,7 +24,12 @@ open EvmAsm.Rv64
 
     Compose sender BAL lookup with the transaction upfront gas precharge helper,
     then validate the simple-transfer sender post balance:
-      charged_balance + (tx.gas_limit - 21000) * effective_gas_price - tx.value.
+      charged_balance + (tx.gas_limit - 21000) * effective_gas_price
+      - blob_gas_used * blob_gas_price - tx.value.
+
+    `blob_gas_price` is supplied by the caller in the global
+    `bsg_blob_price_be` scratch. The block verdict precomputes it from
+    header.excess_blob_gas before invoking this helper.
 
     Calling convention:
       a0 = tx ptr
@@ -185,7 +190,7 @@ def txGasBalPostVerifyFunction : String :=
   "  li t0, 36; sd t0, 0(s7)\n" ++
   "  j .Ltgbpv_ret\n" ++
   ".Ltgbpv_refund_add_ok:\n" ++
-  "  # Blob transactions burn blob_count * GAS_PER_BLOB * max_fee_per_blob_gas in\n" ++
+  "  # Blob transactions burn blob_count * GAS_PER_BLOB * blob_gas_price in\n" ++
   "  # addition to execution gas. tx_upfront_precharge does not model that debit,\n" ++
   "  # so account for it in the expected sender post-balance before value netting.\n" ++
   "  mv a0, s0; mv a1, s1; la a2, tgbpv_tx_type; la a3, tgbpv_inner_off\n" ++
@@ -203,7 +208,7 @@ def txGasBalPostVerifyFunction : String :=
   "  la t0, tgbpv_blob_count; ld a1, 0(t0); beqz a1, .Ltgbpv_after_blob_fee\n" ++
   "  li t0, 6; bgtu a1, t0, .Ltgbpv_after_blob_fee\n" ++
   "  slli a1, a1, 17\n" ++
-  "  la a0, tcbg_blob_fee_be; la a2, tgbpv_blob_debit\n" ++
+  "  la a0, bsg_blob_price_be; la a2, tgbpv_blob_debit\n" ++
   "  jal ra, u256_mul_u64_be\n" ++
   "  bnez a0, .Ltgbpv_after_blob_fee\n" ++
   "  la a0, tgbpv_expected_balance; la a1, tgbpv_blob_debit; la a2, tgbpv_expected_balance\n" ++
@@ -403,6 +408,7 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   "tgbpv_value:\n  .zero 32\n" ++
   "tgbpv_blob_debit:\n  .zero 32\n" ++
   "tcbg_blob_fee_be:\n  .zero 32\n" ++
+  "bsg_blob_price_be:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
   "tgbpv_tx_type:\n  .zero 8\n" ++
