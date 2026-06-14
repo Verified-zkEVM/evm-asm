@@ -424,6 +424,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- conservatively instead of undercounting.
   "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
+  -- nxio8.5.2b: pass the same access-list span to the callable setup so it can
+  -- seed EIP-2929 storage warmth after evm_storage_access_count is reset.
+  "  la t0, runtime_tx_access_list_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
   "  ld t0, 160(s2); beqz t0, .Ldtrc_access_done\n" ++
   "  li a2, 7; li t1, 1; beq t0, t1, .Ldtrc_access_field\n" ++
   "  li t1, 2; bne t0, t1, .Ldtrc_unsupported\n" ++
@@ -437,6 +442,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
   "  jal ra, access_list_count\n" ++
   "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  ld t0, 176(s2); la t1, bsg_access_off; ld t1, 0(t1); add t2, t0, t1\n" ++
+  "  la t0, runtime_tx_access_list_ptr; sd t2, 0(t0)\n" ++
+  "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
   ".Ldtrc_access_done:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
