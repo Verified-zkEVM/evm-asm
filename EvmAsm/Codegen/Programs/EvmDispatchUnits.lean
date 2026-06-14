@@ -53,6 +53,63 @@ def runtimeDispatcherCallProbeUnit : BuildUnit :=
 def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
   buildRuntimeDispatchGasCaptureProbeUnit tinyInterpRegistry evmAddEpilogue
 
+/-! ## zisk_runtime_access_list_seeded_sload
+
+    Focused nxio8.5.2b probe: arm the pending tx-access-list globals, run the
+    same seed hook used by `runtime_dispatcher_call`, then charge the listed
+    `(address, slot)` directly. The access list contains one address and slot
+    zero, so the charge helper must report warm status 0, leave 5000 gas
+    unchanged, and leave exactly one warm-set key. -/
+def ziskRuntimeAccessListSeededSloadProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la t0, rtal_probe_gas; li t1, 5000; sd t1, 0(t0)\n" ++
+    "  la t0, runtime_tx_access_list_ptr; la t1, rtal_access_list; sd t1, 0(t0)\n" ++
+    "  la t0, runtime_tx_access_list_len; li t1, 58; sd t1, 0(t0)\n" ++
+    "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
+    emitTxAccessListSeedLoop ++ "\n" ++
+    "  la a0, rtal_addr_token; la a1, rtal_slot_zero; la a2, rtal_probe_gas\n" ++
+    "  jal ra, evm_storage_access_charge_key\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  sd a0, 0(t0)\n" ++
+    "  la t1, rtal_probe_gas; ld t2, 0(t1); sd t2, 8(t0)\n" ++
+    "  la t1, evm_storage_access_count; ld t2, 0(t1); sd t2, 16(t0)\n" ++
+    "  la t1, runtime_tx_access_list_ptr; ld t2, 0(t1); sd t2, 24(t0)\n" ++
+    "  la t1, runtime_tx_access_list_len; ld t2, 0(t1); sd t2, 32(t0)\n" ++
+    "  la t1, runtime_tx_access_list_seed_fn; ld t2, 0(t1); sd t2, 40(t0)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    rlpListNthItemFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
+    storageAccessSeedFunction ++ "\n" ++
+    storageAccessGasFunction ++ "\n" ++
+    seedTxAccessListFunction
+  dataAsm     :=
+    ".section .data\n" ++
+    ".balign 8\n" ++
+    "runtime_tx_access_list_ptr:\n  .zero 8\n" ++
+    "runtime_tx_access_list_len:\n  .zero 8\n" ++
+    "runtime_tx_access_list_seed_fn:\n  .zero 8\n" ++
+    ".balign 8\n" ++
+    "rtal_probe_gas:\n  .zero 8\n" ++
+    storageAccessGasData ++
+    seedTxAccessListDataSection ++
+    ".balign 8\n" ++
+    "rtal_addr_token:\n" ++
+    "  .byte 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa\n" ++
+    "  .byte 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x12, 0x34, 0x56, 0x78\n" ++
+    "  .zero 12\n" ++
+    ".balign 8\n" ++
+    "rtal_slot_zero:\n  .zero 32\n" ++
+    ".balign 8\n" ++
+    "rtal_access_list:\n" ++
+    "  .byte 0xf8, 0x38, 0xf7, 0x94\n" ++
+    "  .byte 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa\n" ++
+    "  .byte 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x12, 0x34, 0x56, 0x78\n" ++
+    "  .byte 0xe1, 0xa0\n" ++
+    "  .zero 32\n"
+}
+
 /-! ## zisk_ecrecover_precompile_probe (.62.2.5 e2e)
 
     End-to-end ECRECOVER through the DISPATCHER: arm `ecrecover_backend_ptr`
