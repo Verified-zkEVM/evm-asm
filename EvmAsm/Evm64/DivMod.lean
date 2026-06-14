@@ -299,6 +299,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FullShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ParamShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1N2V5StackSpecUnconditional
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
