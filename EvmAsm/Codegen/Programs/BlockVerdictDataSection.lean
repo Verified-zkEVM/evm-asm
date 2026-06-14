@@ -935,6 +935,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_refund:\n  .zero 128\n" ++
   "bv_mtx_calldata:\n  .zero 128\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
+  -- bmvmx.5.5.6.3: running sender counts for the exact multi-tx nonce check.
+  -- 16 entries, matching the current multi-tx arena cap; addresses are 32-byte
+  -- strided with the 20-byte address in the prefix, counts are u64.
+  "bv_mtx_nonce_seen_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_mtx_nonce_seen_addrs:\n  .zero 512\n" ++
+  ".balign 8\n" ++
+  "bv_mtx_nonce_seen_counts:\n  .zero 128\n" ++
+  "bv_mtx_nonce_pre:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
   -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
   -- tx's recipient (its entries are all the recipient's own — dispatch_tx_runtime_code
