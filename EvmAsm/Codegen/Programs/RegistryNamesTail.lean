@@ -170,6 +170,7 @@ def knownProgramNamesTail : List String :=
    "zisk_init_code_cost", "zisk_intrinsic_gas_amsterdam_counts",
    "zisk_eip8037_reservoir_split",
    "zisk_eip8037_tx_state_gas",
+   "zisk_eip8037_tx_state_gas_net_array",
    "zisk_eip8037_block_gas_used",
    "zisk_tx_intrinsic_state_gas",
    "zisk_block_verdict_tx_state_gas_array",
