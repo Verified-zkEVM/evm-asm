@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Stateless.Entry
@@ -77,9 +78,11 @@ def statelessGuestUnit : BuildUnit := {
     -- replaces the SSZ-deposits trust (BlockVerdictStateRoot.lean:430-445) with derivation.
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++
+    materializeLogRecordsFunction ++ "\n" ++
     -- 8uld3.2.3.3.1 (C.1): assemble [deposit, derived-w, derived-c] into the SSZ
     -- execution_requests section that execution_requests_hash then hashes.
     assembleExecutionRequestsFunction ++ "\n" ++
+    requestsHashVerifyFunction ++ "\n" ++
     -- 8uld3.2.3.3.1 (C.1): stage the system-call predeploy's request-queue storage so its
     -- SLOAD reads real witness values (builds the (key,original-value) preload from the
     -- predeploy's BAL AccountChanges). Fed to the system call via scc_preload_ptr/count (8uld3.2.1.5).
@@ -123,6 +126,7 @@ def statelessGuestUnit : BuildUnit := {
     ".balign 8\n" ++
     "pdr_out:\n  .zero 2048\n" ++
     "pdr_status:\n  .zero 8\n" ++
+    "rhv_hash:\n  .zero 32\n" ++
     stagePredeployStoragePreloadData ++ "\n" ++   -- 8uld3.2.3.3.1 (C.1): sps_* globals for the predeploy storage preload
     emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
