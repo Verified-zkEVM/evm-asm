@@ -613,8 +613,8 @@ def blockVerdictFunction : String :=
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_tl7708_skip:\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
-  "  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
-  "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # dispatch miss / not self-contained\n" ++
+  "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
+  "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
   bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
   -- (i = bv_mtx_i; evm_state_gas_used is fresh per-tx). Clobbers only a0/t0-t2, preserves the dispatch
   -- results a1-a4 used below. Behavior-neutral substrate (array not yet read by the gate).
@@ -981,7 +981,7 @@ def blockVerdictFunction : String :=
   "  jal ra, witness_lookup_by_hash\n" ++
   "  bnez a0, .Lbv_code_preimage_fail            # current-frame code preimage absent -> reject\n" ++
   -- bmvmx.5 (single-tx CONTRACT-recipient nonce/balance lower bound): a non-self-contained
-  -- contract recipient bails inside dispatch_tx_runtime_code (.Ldtrc_unsupported, many points)
+  -- contract recipient bails inside dispatch_tx_runtime_code (structured nonzero reason codes)
   -- -> skips the @1020 sender checks, so a single value-moving tx to such a recipient with a bad
   -- nonce/balance was accepted (spec check_transaction rejects: Nonce/InsufficientBalance). Check
   -- HERE, before dispatch, on the contract path only (EOA/simple-transfer never reaches here ->
@@ -1032,7 +1032,7 @@ def blockVerdictFunction : String :=
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
-  "  bnez a0, .Lbv_contract_dispatch_unsupported\n" ++
+  "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  bnez a0, .Lbv_contract_dispatch_unsupported\n" ++
   bvReceiptsShapeSet 3 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist tx0's executed state gas into bvgr_tx_exec_state_gas[0].
   -- Clobbers only a0/t0-t2, preserves the dispatch results a1-a4 stored below. Behavior-neutral.
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++

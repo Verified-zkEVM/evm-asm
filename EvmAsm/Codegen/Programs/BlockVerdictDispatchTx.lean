@@ -204,20 +204,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++
   "  jal ra, bytecode_is_self_contained\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_self_contained_unsupported\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
-  "  li t0, 2; beq a0, t0, .Ldtrc_unsupported\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_bal_unsupported\n" ++
   "  bnez a0, .Ldtrc_zero_storage\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
-  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_bal_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
   "  la t0, bvcd_sc_count; sd a0, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5 (revert fix): also preload the recipient's storage_READS slots
   -- (accessed-but-not-net-changed). A reverting tx has empty storage_changes (its writes
@@ -230,7 +230,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a3, 128; sub a3, a3, t1\n" ++
   "  jal ra, bal_recipient_storage_reads_keys\n" ++
   "  la t0, bvcd_sc_count; ld t1, 0(t0); add a0, a0, t1   # total = storage_changes + storage_reads\n" ++
-  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_bal_unsupported\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
@@ -261,7 +261,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_storage_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
   -- The witness slot value (sahsr_u256) is also u256 BIG-ENDIAN (StateCompose.lean:519);
   -- byte-REVERSE it into the value field [entry+32..64] (dst byte 63-i <- src byte i) so
@@ -333,12 +333,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- 3vc2p.3b: + M29 hashes (count*32)
-  "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_unsupported\n" ++       -- payload > buffer -> conservative bail
+  "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_payload_cap_unsupported\n" ++       -- payload > buffer -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_stage_unsupported\n" ++
   -- 3vc2p.1: stage CALLER (env+64) + ORIGIN (env+128) = tx.sender into the runtime
   -- payload's env words, so CALLER/ORIGIN resolve once 3vc2p.4 activates them (for a
   -- top-level tx, CALLER == ORIGIN == tx.sender). The sender is derived from the
@@ -431,17 +431,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
   "  ld t0, 160(s2); beqz t0, .Ldtrc_access_done\n" ++
   "  li a2, 7; li t1, 1; beq t0, t1, .Ldtrc_access_field\n" ++
-  "  li t1, 2; bne t0, t1, .Ldtrc_unsupported\n" ++
+  "  li t1, 2; bne t0, t1, .Ldtrc_access_list_unsupported\n" ++
   "  li a2, 8\n" ++
   ".Ldtrc_access_field:\n" ++
   "  ld a0, 176(s2); ld a1, 184(s2); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_access_list_unsupported\n" ++
   "  ld t0, 176(s2); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
   "  la t1, bsg_access_len; ld a1, 0(t1)\n" ++
   "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
   "  jal ra, access_list_count\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_access_list_unsupported\n" ++
   "  ld t0, 176(s2); la t1, bsg_access_off; ld t1, 0(t1); add t2, t0, t1\n" ++
   "  la t0, runtime_tx_access_list_ptr; sd t2, 0(t0)\n" ++
   "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
@@ -477,8 +477,23 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a2, t5                    # calldata_floor\n" ++
   "  li a0, 0\n" ++
   "  j .Ldtrc_ret\n" ++
-  ".Ldtrc_unsupported:\n" ++
-  "  li a0, 1\n" ++
+  -- Structured unsupported reason codes. Callers continue to treat any nonzero
+  -- value as a conservative dispatch bail, but the code now distinguishes where
+  -- the unsupported path came from for verdict/debug triage.
+  ".Ldtrc_code_lookup_unsupported:\n" ++
+  "  li a0, 1; j .Ldtrc_ret\n" ++
+  ".Ldtrc_self_contained_unsupported:\n" ++
+  "  li a0, 2; j .Ldtrc_ret\n" ++
+  ".Ldtrc_bal_unsupported:\n" ++
+  "  li a0, 3; j .Ldtrc_ret\n" ++
+  ".Ldtrc_storage_unsupported:\n" ++
+  "  li a0, 4; j .Ldtrc_ret\n" ++
+  ".Ldtrc_payload_cap_unsupported:\n" ++
+  "  li a0, 5; j .Ldtrc_ret\n" ++
+  ".Ldtrc_stage_unsupported:\n" ++
+  "  li a0, 6; j .Ldtrc_ret\n" ++
+  ".Ldtrc_access_list_unsupported:\n" ++
+  "  li a0, 7\n" ++
   ".Ldtrc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
