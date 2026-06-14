@@ -61,6 +61,7 @@ import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
 import EvmAsm.Evm64.DivMod.Spec.DivisorLimbCaseToShape
+import EvmAsm.Evm64.DivMod.Spec.DivisorShapeToLimbCase
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeDecidable
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeDisjoint
 import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNeZero
