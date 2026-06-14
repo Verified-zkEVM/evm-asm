@@ -9,6 +9,9 @@ import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
+import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 
 namespace EvmAsm.Codegen
 
@@ -52,6 +55,138 @@ def runtimeDispatcherCallProbeUnit : BuildUnit :=
     and surfaces them to the stable `OUTPUT+160` diagnostic window. -/
 def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
   buildRuntimeDispatchGasCaptureProbeUnit tinyInterpRegistry evmAddEpilogue
+
+
+/-! ## zisk_creation_runtime_windows
+
+    Probe for the top-level creation runtime-window integration. It runs the
+    supported one-byte STOP initcode shape through
+    `block_verdict_single_tx_creation_runtime`, then verifies the verdict-facing
+    windows are populated. It then resets `bvgr_runtime_count` and calls the same
+    helper with unsupported non-STOP initcode to pin the conservative
+    `runtime_count=0` behavior.
+
+    Output (0xa0010000):
+      +0  supported helper status              (expect 0)
+      +8  bvgr_runtime_count after supported   (expect 1)
+      +16 bv_tx_status_arr[0]                  (expect 1)
+      +24 bv_runtime_gas_left                  (expect 53000)
+      +32 bv_runtime_refund_counter            (expect 0)
+      +40 bv_runtime_calldata_floor            (expect 0)
+      +48 bv_tx_log_window start               (expect 0)
+      +56 bv_tx_log_window count               (expect 0)
+      +64 bv_receipts_completeness_shape       (expect 6)
+      +72 bv_receipts_enforce_enabled          (expect 0)
+      +80 bvgr_tx_exec_state_gas[0]            (expect 0)
+      +88 unsupported helper status            (expect 4)
+      +96 bvgr_runtime_count after unsupported (expect 0) -/
+def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    -- Supported one-byte STOP top-level creation context.
+    "  la t0, crw_ctx\n" ++
+    "  sd zero, 0(t0)\n" ++
+    "  li t1, 53000; sd t1, 40(t0)\n" ++
+    "  li t1, 1; sd t1, 48(t0)\n" ++
+    "  la t1, crw_stop_initcode; sd t1, 56(t0)\n" ++
+    "  li t1, 1; sd t1, 64(t0)\n" ++
+    "  li t1, 0x42; sd t1, 96(t0)\n" ++
+    -- Synthetic exec payload: just enough block env for staging.
+    "  la t2, crw_exec\n" ++
+    "  li t1, 0xC0; sb t1, 32(t2)\n" ++
+    "  li t1, 99; sd t1, 404(t2)\n" ++
+    "  li t1, 12345; sd t1, 428(t2)\n" ++
+    "  li t1, 30000000; sd t1, 412(t2)\n" ++
+    "  li t1, 7; sd t1, 440(t2)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  li s0, 0xa0010000\n" ++
+    "  sd a0, 0(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 8(s0)\n" ++
+    "  la t0, bv_tx_status_arr; ld t1, 0(t0); sd t1, 16(s0)\n" ++
+    "  la t0, bv_runtime_gas_left; ld t1, 0(t0); sd t1, 24(s0)\n" ++
+    "  la t0, bv_runtime_refund_counter; ld t1, 0(t0); sd t1, 32(s0)\n" ++
+    "  la t0, bv_runtime_calldata_floor; ld t1, 0(t0); sd t1, 40(s0)\n" ++
+    "  la t0, bv_tx_log_window; ld t1, 0(t0); sd t1, 48(s0); ld t1, 8(t0); sd t1, 56(s0)\n" ++
+    "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); sd t1, 64(s0)\n" ++
+    "  la t0, bv_receipts_enforce_enabled; ld t1, 0(t0); sd t1, 72(s0)\n" ++
+    "  la t0, bvgr_tx_exec_state_gas; ld t1, 0(t0); sd t1, 80(s0)\n" ++
+    -- Unsupported non-STOP initcode must not populate runtime_count.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; la t1, crw_bad_initcode; sd t1, 56(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 88(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 96(s0)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
+    stageCreationRuntimePayloadFunction ++ "\n" ++
+    blockLogWindowSnapshotFunction ++ "\n" ++
+    dispatcherCaptureExecStateGasFunction ++ "\n" ++
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "crw_ctx:\n  .zero 192\n" ++
+    "crw_exec:\n  .zero 512\n" ++
+    "crw_stop_initcode:\n  .byte 0x00\n" ++
+    ".balign 8\n" ++
+    "crw_bad_initcode:\n  .byte 0x01\n" ++
+    ".balign 8\n" ++
+    "bv_runtime_payload:\n  .zero 65536\n" ++
+    "bv_runtime_gas_left:\n  .zero 8\n" ++
+    "bv_runtime_refund_counter:\n  .zero 8\n" ++
+    "bv_runtime_calldata_floor:\n  .zero 8\n" ++
+    "bv_tx_status_arr:\n  .zero 8192\n" ++
+    "bv_tx_log_window:\n  .zero 16\n" ++
+    "bv_last_log_start:\n  .zero 8\n" ++
+    "bv_last_log_count:\n  .zero 8\n" ++
+    "bv_receipts_completeness_shape:\n  .zero 8\n" ++
+    "bv_receipts_enforce_enabled:\n  .zero 8\n" ++
+    "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
+    "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
+    "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
+    "bvgr_runtime_count:\n  .zero 8\n" ++
+    dispatcherExecStateGasArrayDef ++
+    ".balign 8\n" ++
+    "bv_block_log_count:\n  .zero 8\n" ++
+    "bv_block_log_data_used:\n  .zero 8\n" ++
+    "bv_block_log_overflow:\n  .zero 8\n" ++
+    ".balign 8\n" ++
+    "bv_block_log_descs:\n  .zero 32768\n" ++
+    "bv_block_log_meta:\n  .zero 2048\n" ++
+    "bv_block_log_data:\n  .zero 65536\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+}
 
 /-! ## zisk_runtime_access_list_seeded_sload
 
