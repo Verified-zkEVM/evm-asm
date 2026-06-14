@@ -62,6 +62,18 @@ def bsrMaxTuplesPerSlot : Nat := 10000
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
+/-- Multi-transaction verdict arena capacity. The cached `zkevm@v0.4.0`
+    stateless fixtures include blocks with more than the old 16-entry arena
+    cap, topping out at 1021 transactions. Use 1024 so the tx-count gate and
+    every fixed per-tx arena have one shared current-fixture-sized bound.
+    Full Amsterdam worst-case capacity (~9523 txs at 200M / 21000) still needs
+    the separate streaming/dynamic design tracked by bmvmx.5.5.7. -/
+def bvMtxArenaTxCap : Nat := 1024
+def bvMtxU64ArenaBytes : Nat := bvMtxArenaTxCap * 8
+def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
+def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
+def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
+
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
     Predeploy code comes from the witness and is NOT EIP-170-bounded, but the
@@ -76,5 +88,36 @@ def bsrEncodedAccountBytes : Nat := 256
 def bsrSystemAccountBytes : Nat := 128
 def bsrStateChangeBytes : Nat := 40
 def baapStorageDescBytes : Nat := 40
+
+/-- Current static multi-transaction fixture arena capacity. The verdict guest's
+    active per-tx u64/log-window buffers are still sized to this bound while the
+    full-capacity migration lands in smaller slices. -/
+def bmvFixtureTxCapacity : Nat := 16
+
+/-- Full Amsterdam transaction capacity target from the 200M block-gas limit and
+    the 21,000 gas intrinsic floor: floor(200,000,000 / 21,000) = 9,523. -/
+def bmvFullTxCapacity : Nat := 9523
+
+def bmvU64PerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 8
+def bmvLogWindowPerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 16
+
+def bmvFixtureU64PerTxArenaBytes : Nat :=
+  bmvU64PerTxArenaBytes bmvFixtureTxCapacity
+
+def bmvFixtureLogWindowArenaBytes : Nat :=
+  bmvLogWindowPerTxArenaBytes bmvFixtureTxCapacity
+
+def bmvFullU64PerTxArenaBytes : Nat :=
+  bmvU64PerTxArenaBytes bmvFullTxCapacity
+
+def bmvFullLogWindowArenaBytes : Nat :=
+  bmvLogWindowPerTxArenaBytes bmvFullTxCapacity
+
+#guard bmvFixtureTxCapacity = 16
+#guard bmvFullTxCapacity = 9523
+#guard bmvFixtureU64PerTxArenaBytes = 128
+#guard bmvFixtureLogWindowArenaBytes = 256
+#guard bmvFullU64PerTxArenaBytes = 76184
+#guard bmvFullLogWindowArenaBytes = 152368
 
 end EvmAsm.Codegen
