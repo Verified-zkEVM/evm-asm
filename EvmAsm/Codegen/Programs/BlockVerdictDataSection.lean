@@ -959,7 +959,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
   ".balign 8\n" ++
   "bmvmx_avail:\n  .zero 8\n" ++
-  "eip7708_tl_type2_avail:\n  .zero 8\n" ++
+  "eip7708_tl_typed_avail:\n  .zero 8\n" ++
   "bmvmx_gas_used:\n  .zero 8\n" ++
   "bmvmx_txoff:\n  .zero 8\n" ++
   "bmvmx_ctx:\n  .zero 192\n" ++
@@ -1058,6 +1058,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
   "bv_b1_acct_len:\n  .zero 8\n" ++
   "bv_b1_finals:\n  .zero 88\n" ++
+  -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
+  -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
+  "bv_b2_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_b2_table:\n  .zero 1024\n" ++
+  "bv_b2_debit_out:\n  .zero 48\n" ++
+  "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
   ".balign 8\n" ++
