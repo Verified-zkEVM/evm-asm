@@ -258,6 +258,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "blbr_count:\n  .zero 8\n" ++
   "blbr_offset:\n  .zero 8\n" ++
   "blbr_length:\n  .zero 8\n" ++
+  "blbr_next_offset:\n  .zero 8\n" ++
+  "blbr_next_length:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "blbr_scratch_bloom:\n  .zero 256\n" ++
   ".balign 8\n" ++
@@ -270,6 +272,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brcl_count:\n  .zero 8\n" ++
   "brcl_offset:\n  .zero 8\n" ++
   "brcl_length:\n  .zero 8\n" ++
+  "brcl_next_offset:\n  .zero 8\n" ++
+  "brcl_next_length:\n  .zero 8\n" ++
   "brcl_root_valid:\n  .zero 8\n" ++
   "brcl_bloom_valid:\n  .zero 8\n" ++
   ".balign 8\n" ++
