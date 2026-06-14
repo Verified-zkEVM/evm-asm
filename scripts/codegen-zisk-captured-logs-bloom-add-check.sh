@@ -28,6 +28,9 @@ lake build codegen
 echo "==> emit zisk_captured_logs_bloom_add ELF"
 lake exe codegen --program zisk_captured_logs_bloom_add --halt linux93 \
   -o gen-out/zisk_captured_logs_bloom_add
+echo "==> emit zisk_logs_list_bloom_add ELF"
+lake exe codegen --program zisk_logs_list_bloom_add --halt linux93 \
+  -o gen-out/zisk_logs_list_bloom_add
 
 REPO_ROOT="$(pwd)"
 
@@ -37,6 +40,8 @@ run_case() {
   local in_file="$REPO_ROOT/gen-out/zisk_captured_logs_bloom_add_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_captured_logs_bloom_add_${name}.output"
   local exp_file="$REPO_ROOT/gen-out/zisk_captured_logs_bloom_add_${name}.expected"
+  local rlp_in_file="$REPO_ROOT/gen-out/zisk_logs_list_bloom_add_${name}.input"
+  local rlp_out_file="$REPO_ROOT/gen-out/zisk_logs_list_bloom_add_${name}.output"
 
   SPEC_JSON="$spec" uv run --directory execution-specs --quiet python3 -c '
 import json, os, struct, sys
@@ -71,8 +76,24 @@ def descriptor(address, topics, data=b""):
     d[192:224] = stack_word_from_address(address)
     return bytes(d)
 
+def rlp_bytes(value):
+    if len(value) == 1 and value[0] < 0x80:
+        return value
+    if len(value) < 56:
+        return bytes([0x80 + len(value)]) + value
+    length = len(value).to_bytes((len(value).bit_length() + 7) // 8, "big")
+    return bytes([0xb7 + len(length)]) + length + value
+
+def rlp_list(items):
+    payload = b"".join(items)
+    if len(payload) < 56:
+        return bytes([0xc0 + len(payload)]) + payload
+    length = len(payload).to_bytes((len(payload).bit_length() + 7) // 8, "big")
+    return bytes([0xf7 + len(length)]) + length + payload
+
 raw = json.loads(os.environ["SPEC_JSON"])
 mode = raw.get("mode", "logs")
+logs_rlp = None
 if mode == "count_over_cap":
     # 6c7v9: the descriptor cap was raised 16 -> 1024; 1025 still exceeds it. The
     # count gate rejects before any descriptor is read, so the body is a placeholder.
@@ -90,12 +111,18 @@ elif mode == "topic_over_cap":
 else:
     logs = raw["logs"]
     parts = []
+    rlp_items = []
     bloom = bytearray(256)
     for log in logs:
         address = log["address"]
         topics = log.get("topics", [])
         data = bytes.fromhex(log.get("data", ""))
         parts.append(descriptor(address, topics, data))
+        rlp_items.append(rlp_list([
+            rlp_bytes(bytes.fromhex(address)),
+            rlp_list([rlp_bytes(bytes.fromhex(topic)) for topic in topics]),
+            rlp_bytes(data),
+        ]))
         add(bloom, bytes.fromhex(address))
         for topic in topics:
             add(bloom, bytes.fromhex(topic))
@@ -103,6 +130,7 @@ else:
     count = len(parts)
     expected_status = 0
     bloom = bytes(bloom)
+    logs_rlp = rlp_list(rlp_items)
 
 with open(sys.argv[1], "wb") as f:
     f.write(struct.pack("<Q", count))
@@ -116,7 +144,14 @@ with open(sys.argv[2], "wb") as f:
     else:
         f.write(struct.pack("<Q", expected_status))
         f.write(bytes(248))
-' "$in_file" "$exp_file"
+if logs_rlp is not None:
+    with open(sys.argv[3], "wb") as f:
+        f.write(struct.pack("<Q", len(logs_rlp)))
+        f.write(logs_rlp)
+        pad = (-(8 + len(logs_rlp))) % 8
+        if pad:
+            f.write(bytes(pad))
+' "$in_file" "$exp_file" "$rlp_in_file"
 
   "$ZISKEMU" -e gen-out/zisk_captured_logs_bloom_add.elf \
     -i "$in_file" -o "$out_file" -n 10000000 \
@@ -128,10 +163,22 @@ with open(sys.argv[2], "wb") as f:
   actual_status="${actual:0:16}"
   expected_status="${expected:0:16}"
 
-  if [[ "$actual" == "$expected" ]]; then
+  local rlp_actual=""
+  if [[ -s "$rlp_in_file" ]]; then
+    "$ZISKEMU" -e gen-out/zisk_logs_list_bloom_add.elf \
+      -i "$rlp_in_file" -o "$rlp_out_file" -n 10000000 \
+      >"$REPO_ROOT/gen-out/zisk_logs_list_bloom_add_${name}.emu.log" 2>&1 || true
+    rlp_actual="$(xxd -p -l 256 "$rlp_out_file" 2>/dev/null | tr -d '\n')"
+  fi
+
+  if [[ "$actual" == "$expected" && ( -z "$rlp_actual" || "$rlp_actual" == "$expected" ) ]]; then
     local bits
     bits="$(python3 -c "print(bin(int('$actual', 16)).count('1'))")"
-    printf "  %-24s OK   status=%s bits_set=%d\n" "$name" "$expected_status" "$bits"
+    if [[ -n "$rlp_actual" ]]; then
+      printf "  %-24s OK   status=%s bits_set=%d rlp_oracle=match\n" "$name" "$expected_status" "$bits"
+    else
+      printf "  %-24s OK   status=%s bits_set=%d\n" "$name" "$expected_status" "$bits"
+    fi
     return 0
   fi
 
@@ -139,6 +186,9 @@ with open(sys.argv[2], "wb") as f:
   printf "      status actual/expected: %s / %s\n" "$actual_status" "$expected_status"
   printf "      bloom actual:   %s...\n" "${actual:0:80}"
   printf "      bloom expected: %s...\n" "${expected:0:80}"
+  if [[ -n "$rlp_actual" ]]; then
+    printf "      rlp oracle:     %s...\n" "${rlp_actual:0:80}"
+  fi
   return 1
 }
 
@@ -152,6 +202,9 @@ T3="4444444444444444444444444444444444444444444444444444444444444444"
 FAILED=0
 run_case "zero_logs" '{"logs":[]}' || FAILED=1
 run_case "one_log0" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[],\"data\":\"deadbeef\"}]}" || FAILED=1
+run_case "one_log1" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[\"$T0\"],\"data\":\"\"}]}" || FAILED=1
+run_case "one_log2" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[\"$T0\",\"$T1\"],\"data\":\"ab\"}]}" || FAILED=1
+run_case "one_log3" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[\"$T0\",\"$T1\",\"$T2\"],\"data\":\"abcdef\"}]}" || FAILED=1
 run_case "one_log4" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[\"$T0\",\"$T1\",\"$T2\",\"$T3\"],\"data\":\"ab\"}]}" || FAILED=1
 run_case "two_logs_mixed" "{\"logs\":[{\"address\":\"$A1\",\"topics\":[\"$T0\"],\"data\":\"\"},{\"address\":\"$A2\",\"topics\":[\"$T1\",\"$T2\"],\"data\":\"cafebabe\"}]}" || FAILED=1
 run_case "count_over_cap" '{"mode":"count_over_cap"}' || FAILED=1

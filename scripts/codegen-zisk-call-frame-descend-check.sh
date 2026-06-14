@@ -85,5 +85,37 @@ sys.exit(1 if failed else 0)
 PY
 
 echo
+
+echo "==> emit zisk_set_call_env ELF"
+lake exe codegen --program zisk_set_call_env --halt linux93 \
+  -o gen-out/zisk_set_call_env
+
+: > gen-out/zisk_set_call_env.input
+"$ZISKEMU" -e gen-out/zisk_set_call_env.elf \
+  -i gen-out/zisk_set_call_env.input -o gen-out/zisk_set_call_env.output -n 100000000 \
+  >gen-out/zisk_set_call_env.emu.log 2>&1
+
+python3 - <<'PY'
+import struct, sys
+data = open("gen-out/zisk_set_call_env.output", "rb").read()
+checks = [
+    ("mode0 ADDRESS", 0xbb), ("mode0 CALLER", 0xaa), ("mode0 CALLVALUE", 0xdd),
+    ("mode1 ADDRESS", 0xbb), ("mode1 CALLER", 0xaa), ("mode1 CALLVALUE", 0),
+    ("mode2 ADDRESS", 0xaa), ("mode2 CALLER", 0xaa), ("mode2 CALLVALUE", 0xdd),
+    ("mode3 ADDRESS", 0xaa), ("mode3 CALLER", 0xcc), ("mode3 CALLVALUE", 0xee),
+    ("mode0 isStatic", 7), ("mode1 isStatic", 1),
+    ("mode2 isStatic", 7), ("mode3 isStatic", 7),
+]
+failed = False
+for i, (label, exp) in enumerate(checks):
+    off = i * 8
+    got = struct.unpack("<Q", data[off:off+8])[0] if off + 8 <= len(data) else None
+    ok = got == exp
+    failed = failed or not ok
+    print(f"  {'OK  ' if ok else 'FAIL'} {label:34s} got={got:#x} exp={exp:#x}")
+sys.exit(1 if failed else 0)
+PY
+
+echo
 echo "==> PASS: call_frame_descend performs the full CALL child-frame switch"
 echo "          (depth, save-area, return-context, regs, env, gas, code, witness)"
