@@ -46,7 +46,7 @@ open EvmAsm.Rv64
     populates only the transaction-intrinsic fields.
 
     Status (record +0):
-      0  ok: non-creation, empty calldata, legacy/2930/1559 tx
+      0  ok: non-creation, empty calldata, legacy/2930/1559/blob tx
       3  malformed transaction list (too short / offset table not 4-aligned /
          offset out of range)
       4  transaction item is empty
@@ -58,7 +58,7 @@ open EvmAsm.Rv64
       50 data-section extraction failed
       60 contract creation transaction
       61 non-empty calldata/initcode
-      62 EIP-4844 blob transaction (precharge not modeled here)
+      62 reserved (formerly EIP-4844 blob unsupported)
       63 EIP-7702 set-code transaction (authorization list not modeled here) -/
 def multiTxNthContextFunction : String :=
   "multi_tx_nth_context:\n" ++
@@ -106,9 +106,6 @@ def multiTxNthContextFunction : String :=
   "  bltu s2, t3, .Lmtx_inner_oob\n" ++
   "  add t4, s1, t3; sd t4, 176(s0)\n" ++
   "  sub t4, s2, t3; sd t4, 184(s0)\n" ++
-  "  li t2, 3; bne t1, t2, .Lmtx_not_blob_tx\n" ++
-  "  li t0, 62; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_not_blob_tx:\n" ++
   "  li t2, 4; bne t1, t2, .Lmtx_not_set_code_tx\n" ++
   "  li t0, 63; sd t0, 0(s0); j .Lmtx_ret\n" ++
   ".Lmtx_not_set_code_tx:\n" ++

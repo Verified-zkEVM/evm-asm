@@ -638,6 +638,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_worst_state:\n  .zero 8\n" ++
   "bsg_prior_state:\n  .zero 8\n" ++
   "bsg_state_gas:\n  .zero 8\n" ++
+  "bsg_exact_state_ok:\n  .zero 8\n" ++
   "bsg_blob_count:\n  .zero 8\n" ++
   "bsg_blob_gas_accum:\n  .zero 8\n" ++
   "bgvh_count_scratch:\n  .zero 8\n" ++
@@ -1134,11 +1135,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++
   -- bmvmx.2: scratch for the check_transaction upfront-balance pre-validation
-  -- (sender_pre_balance >= gas_limit*max_fee_per_gas + tx.value). bv_upfront_cost
-  -- holds max_fee*gas_limit then (+ value) the upfront cost; bv_upfront_islt the
-  -- u256_lt_be verdict (1 iff pre_balance < upfront -> reject).
+  -- (sender_pre_balance >= gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas
+  -- + tx.value). bv_upfront_cost holds the cumulative upfront cost; bv_upfront_islt
+  -- is the u256_lt_be verdict (1 iff pre_balance < upfront -> reject).
   ".balign 8\n" ++
   "bv_upfront_cost:\n  .zero 32\n" ++
+  "bv_upfront_blob_cost:\n  .zero 32\n" ++
+  "bv_upfront_blob_count:\n  .zero 8\n" ++
   "bv_upfront_islt:\n  .zero 8\n" ++
   -- bmvmx.5: out scratch for the hoisted single-tx fee-validity gate's
   -- tx_effective_gas_pricing call (effective_gas_price / priority_fee_per_gas, 32B BE
