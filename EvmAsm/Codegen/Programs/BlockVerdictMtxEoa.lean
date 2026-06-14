@@ -66,7 +66,17 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a2, 0(t3)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd t5, 0(t3)\n" ++
-  bvReceiptsShapeSet 4 true ++  "  slli t4, t1, 4\n" ++
+  -- Blob txs still need blob-aware multi-tx settlement before the receipt
+  -- consensus encoder is complete for this shape. Keep the verdict
+  -- conservative instead of false-rejecting valid pre-fund blob blocks.
+  "  la t4, bv_mtx_ctx; ld t4, 160(t4); li t5, 3; beq t4, t5, .Lbv_mtx_eoa_receipts_blob\n" ++
+  "  la t4, bv_receipts_completeness_shape; ld t4, 0(t4); li t5, 60; bgeu t4, t5, .Lbv_mtx_eoa_receipts_ready\n" ++
+  bvReceiptsShapeSet 4 true ++
+  "  j .Lbv_mtx_eoa_receipts_ready\n" ++
+  ".Lbv_mtx_eoa_receipts_blob:\n" ++
+  bvReceiptsShapeSet 64 false ++
+  ".Lbv_mtx_eoa_receipts_ready:\n" ++
+  "  slli t4, t1, 4\n" ++
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
