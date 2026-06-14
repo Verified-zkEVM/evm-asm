@@ -60,15 +60,22 @@ open EvmAsm.Rv64
     Clobbers t0-t4 (and the dispatcher regs it intentionally repoints). -/
 def frameReturnFunction : String :=
   "frame_return:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s6, 40(sp); sd s7, 48(sp)\n" ++
+  "  sd s8, 56(sp); sd s9, 64(sp); sd s10, 72(sp)\n" ++
   "  mv s0, a0                      # success word\n" ++
   "  mv s1, a1                      # child returndata ptr\n" ++
   "  mv s2, a2                      # returndata len\n" ++
   -- Capture the child frame's leftover gas (x20 = child env at entry) for the
   -- EIP-150 refund below; held in s7 across the x20 repoint.
   "  ld s7, 568(x20)\n" ++
+  -- Capture the child frame's committed log cursors. On success these become
+  -- the parent's live cursors; on REVERT/exceptional failure the parent keeps
+  -- its pre-child checkpoint values.
+  "  ld s8, 448(x20)                 # child persistentLogLength\n" ++
+  "  ld s9, 464(x20)                 # child transientLogLength\n" ++
+  "  ld s10, 472(x20)                # child eventLogLength\n" ++
   -- nxio8.4.1: on a child REVERT / exceptional halt (success word s0 == 0) restore
   -- the parent's pre-child EIP-8037 state gas, snapshotted into the child env
   -- (env+624/632) by call_frame_descend. incorporate_child_on_error returns the
@@ -180,6 +187,14 @@ def frameReturnFunction : String :=
   "  sub t3, t3, t4               # parent stack low = top - 1024*32\n" ++
   "  la t4, evm_cur_stack_low; sd t3, 0(t4)\n" ++
   "5:\n" ++
+  -- Merge child frame log cursors into the parent only on success. On failure,
+  -- the parent env still holds the pre-child checkpoint values, so stale child
+  -- entries past those cursors remain ignored.
+  "  beqz s0, .Lfr_log_merge_done\n" ++
+  "  sd s8, 448(x20)\n" ++
+  "  sd s9, 464(x20)\n" ++
+  "  sd s10, 472(x20)\n" ++
+  ".Lfr_log_merge_done:\n" ++
   -- EIP-150 gas refund: return the child frame's UNUSED gas to the parent
   -- (x20 = parent env here). Pairs with the cost deduction in call_frame_descend.
   "  ld t0, 568(x20)\n" ++
@@ -193,7 +208,8 @@ def frameReturnFunction : String :=
   "  addi x10, x10, 1\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s6, 40(sp); ld s7, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s8, 56(sp); ld s9, 64(sp); ld s10, 72(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_frame_return`: unit probe for `frame_return` over synthesized state.
@@ -227,7 +243,12 @@ def frameReturnFunction : String :=
       +136 precompile_frame data[0] after scenario B (expect 0xab)
     EIP-150 gas refund (parent gas += child leftover):
       +144 parent gas after scenario A (100 + 50 = 150)
-      +152 parent gas after scenario B (200 + 30 = 230) -/
+      +152 parent gas after scenario B (200 + 30 = 230)
+    Log cursor merge/rollback:
+      +224 parent persistent cursor after success
+      +232 parent transient/event cursors after success packed as transient<<32 | event
+      +240 parent persistent cursor after revert
+      +248 parent transient/event cursors after revert packed as transient<<32 | event -/
 def ziskFrameReturnPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -244,6 +265,9 @@ def ziskFrameReturnPrologue : String :=
   "  la x20, fr_child_env\n" ++                       -- child env for the gas read
   "  la t0, fr_child_env; li t1, 50; sd t1, 568(t0)\n" ++   -- child leftover gas = 50
   "  la t0, evm_env;      li t1, 100; sd t1, 568(t0)\n" ++  -- parent gas = 100
+  -- Success should merge the child's committed storage/transient/event cursors into the parent.
+  "  la t0, fr_child_env; li t1, 12; sd t1, 448(t0); li t1, 13; sd t1, 464(t0); li t1, 14; sd t1, 472(t0)\n" ++
+  "  la t0, evm_env;      li t1, 1;  sd t1, 448(t0); li t1, 2;  sd t1, 464(t0); li t1, 3;  sd t1, 472(t0)\n" ++
   -- nxio8.4.1: state gas before a SUCCESS return = 1000/2000; success leaves the
   -- globals (child state-gas stays accumulated); the +624/632 snapshot is ignored.
   "  la t0, evm_state_gas_left; li t1, 1000; sd t1, 0(t0)\n" ++
@@ -271,6 +295,8 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 168(s0)  # expect 2000\n" ++
   "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 192(s0)      # expect 3000 (success leaves)\n" ++
   "  la t0, evm_storage_access_count; ld t1, 0(t0); sd t1, 208(s0)  # expect 11 (success leaves)\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); sd t1, 224(s0)  # expect 12 (success merges persistent)\n" ++
+  "  ld t1, 464(t0); slli t1, t1, 32; ld t2, 472(t0); or t1, t1, t2; sd t1, 232(s0)  # expect 13<<32 | 14\n" ++
   -- ---- Scenario B: depth 2 -> 1, REVERT-style with a returndata byte ----
   "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
   -- frame_save_area[1] = (pc=0x300, cb=0x444)
@@ -286,6 +312,9 @@ def ziskFrameReturnPrologue : String :=
   "  la x20, fr_child_env\n" ++
   "  la t0, fr_child_env; li t1, 30; sd t1, 568(t0)\n" ++   -- child leftover gas = 30
   "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; li t1, 200; sd t1, 568(t0)\n" ++  -- parent (frame[1]) gas = 200
+  -- Revert should preserve the parent's pre-child cursors and ignore the child lengths.
+  "  la t0, fr_child_env; li t1, 99; sd t1, 448(t0); li t1, 98; sd t1, 464(t0); li t1, 97; sd t1, 472(t0)\n" ++
+  "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; li t1, 21; sd t1, 448(t0); li t1, 22; sd t1, 464(t0); li t1, 23; sd t1, 472(t0)\n" ++
   -- nxio8.4.1: child mutated the state-gas globals to 7777/8888; the pre-child
   -- snapshot (555/666) lives in the child env at +624/632. A REVERT must roll the
   -- globals back to the snapshot (incorporate_child_on_error returns the child's
@@ -315,6 +344,8 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 184(s0)  # expect 666\n" ++
   "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 200(s0)      # expect 777 (revert restores)\n" ++
   "  la t0, evm_storage_access_count; ld t1, 0(t0); sd t1, 216(s0)  # expect 44 (revert restores)\n" ++
+  "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; ld t1, 448(t0); sd t1, 240(s0)  # expect 21 (revert preserves persistent)\n" ++
+  "  ld t1, 464(t0); slli t1, t1, 32; ld t2, 472(t0); or t1, t1, t2; sd t1, 248(s0)  # expect 22<<32 | 23\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   ".Lfr_done:"

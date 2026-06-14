@@ -201,7 +201,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- dispatcher_tx_gas_settle success bit per tx (single-tx path writes index 0,
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
-  "bv_tx_status_arr:\n  .zero 128\n" ++
+  "bv_tx_status_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
   -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
   -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
@@ -217,7 +217,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_last_log_count:\n  .zero 8\n" ++
   "bv_receipt_logs_status:\n  .zero 8\n" ++
   "bv_logs_rlp_len:\n  .zero 8\n" ++
-  "bv_tx_log_window:\n  .zero 256\n" ++
+  "bv_tx_log_window:\n  .zero " ++ toString bvMtxLogWindowBytes ++ "\n" ++
   ".balign 8\n" ++
   "bv_block_log_descs:\n  .zero 32768\n" ++
   "bv_block_log_meta:\n  .zero 2048\n" ++
@@ -385,22 +385,22 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_arena_runtime_count:\n  .zero 8\n" ++
   "bvgr_arena_fail_index:\n  .zero 8\n" ++
   "bvgr_arena_substatus:\n  .zero 8\n" ++
-  "bvgr_tx_gas_limits:\n  .zero 128\n" ++
-  "bvgr_gas_left:\n  .zero 128\n" ++
-  "bvgr_refund_counter:\n  .zero 128\n" ++
-  "bvgr_calldata_floor:\n  .zero 128\n" ++
-  "bvgr_block_gas_increments:\n  .zero 128\n" ++
+  "bvgr_tx_gas_limits:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_refund_counter:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_calldata_floor:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_block_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- g8zeq.1.4.3: per-tx EIP-8037 state-gas array, the state counterpart of
   -- bvgr_block_gas_increments. Filled by block_verdict_tx_state_gas_array; fed
   -- (with bvgr_block_gas_increments) to eip8037_block_gas_used by g8zeq.1.4.2.
-  "bvgr_tx_state_gas:\n  .zero 128\n" ++
+  "bvgr_tx_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: per-tx EXECUTED state gas (net of refunds), filled by
-  -- dispatcher_capture_exec_state_gas at each contract dispatch (16 entries x 8B, mirrors
+  -- dispatcher_capture_exec_state_gas at each contract dispatch (mirrors
   -- bvgr_tx_state_gas). Behavior-neutral substrate for the 2D state-dim (P3 reads it).
-  "bvgr_tx_exec_state_gas:\n  .zero 128\n" ++
-  "bvgr_receipt_gas_increments:\n  .zero 128\n" ++
-  "bvgr_before_refund:\n  .zero 128\n" ++
-  "bvgr_applied_refund:\n  .zero 128\n" ++
+  "bvgr_tx_exec_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
   -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
@@ -471,7 +471,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- instead of corrupting .data.
   "c1_staging:\n  .zero " ++ toString c1StagingBytes ++ "\n" ++
   ".balign 8\n" ++
-  "c1_er_assembled:\n  .zero 2048\n" ++
+  "c1_er_assembled:\n  .zero 32768\n" ++
+  "c1_dstatus:\n  .zero 8\n" ++
+  "c1_dlen:\n  .zero 8\n" ++
+  "c1_dbody:\n  .zero 32768\n" ++
+  "c1_log_records:\n  .zero 81920\n" ++
   "c1_ccode_ptr:\n  .zero 8\n" ++
   "c1_ccode_len:\n  .zero 8\n" ++
   "c1_bal_acct_ptr:\n  .zero 8\n" ++
@@ -634,6 +638,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_worst_state:\n  .zero 8\n" ++
   "bsg_prior_state:\n  .zero 8\n" ++
   "bsg_state_gas:\n  .zero 8\n" ++
+  "bsg_exact_state_ok:\n  .zero 8\n" ++
   "bsg_blob_count:\n  .zero 8\n" ++
   "bsg_blob_gas_accum:\n  .zero 8\n" ++
   "bgvh_count_scratch:\n  .zero 8\n" ++
@@ -928,12 +933,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bti_sc_coff:\n  .zero 8\n" ++
   "bti_sc_clen:\n  .zero 8\n" ++
   -- .6.2.2.2.a: per-tx runtime-result arrays + context scratch for the gated
-  -- multi-tx dispatch loop (.6.2.2.2.b). 16-wide u64 arrays (arena capacity 16);
+  -- multi-tx dispatch loop (.6.2.2.2.b). U64 arrays share bvMtxArenaTxCap;
   -- bv_mtx_ctx is one 192-byte multi_tx_nth_context record reused per index.
   ".balign 8\n" ++
-  "bv_mtx_gas_left:\n  .zero 128\n" ++
-  "bv_mtx_refund:\n  .zero 128\n" ++
-  "bv_mtx_calldata:\n  .zero 128\n" ++
+  "bv_mtx_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
   -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
@@ -954,6 +959,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
   ".balign 8\n" ++
   "bmvmx_avail:\n  .zero 8\n" ++
+  "eip7708_tl_typed_avail:\n  .zero 8\n" ++
   "bmvmx_gas_used:\n  .zero 8\n" ++
   "bmvmx_txoff:\n  .zero 8\n" ++
   "bmvmx_ctx:\n  .zero 192\n" ++
@@ -1023,12 +1029,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
   -- comparators. A multi-tx block's gas/value-coupled accounts are {sender_i,
   -- recipient_i} for every tx i plus the shared {coinbase} -> up to 2N+1 entries
-  -- (N = bv_tx_count <= 16, the arena cap). 33 x 32B = 1056 B; 32-byte-strided,
+  -- (N = bv_tx_count <= bvMtxArenaTxCap). The skip list has 2N+1 entries,
+  -- 32-byte-strided,
   -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
   -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context
   -- calls); bv_mtx_skip_ctx is the scratch record for re-extracting each recipient.
   ".balign 8\n" ++
-  "bv_mtx_skip_list:\n  .zero 1056\n" ++
+  "bv_mtx_skip_list:\n  .zero " ++ toString bvMtxSkipListBytes ++ "\n" ++
   "bv_mtx_skip_count:\n  .zero 8\n" ++
   "bv_mtx_skip_idx:\n  .zero 8\n" ++
   "bv_mtx_skip_ctx:\n  .zero 192\n" ++
@@ -1051,6 +1058,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
   "bv_b1_acct_len:\n  .zero 8\n" ++
   "bv_b1_finals:\n  .zero 88\n" ++
+  -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
+  -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
+  "bv_b2_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_b2_table:\n  .zero 1024\n" ++
+  "bv_b2_debit_out:\n  .zero 48\n" ++
+  "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
   ".balign 8\n" ++
@@ -1117,18 +1131,24 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_gasdebit:\n  .zero 32\n" ++
   "tgbpvr_expected:\n  .zero 32\n" ++
   "tgbpvr_zero:\n  .zero 32\n" ++
+  "tgbpvr_blobdebit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpvr_to:\n  .zero 24\n" ++
   "tgbpvr_iscreation:\n  .zero 8\n" ++
+  "tgbpvr_tx_type:\n  .zero 8\n" ++
+  "tgbpvr_inner_off:\n  .zero 8\n" ++
+  "tgbpvr_blob_count:\n  .zero 8\n" ++
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++
   -- bmvmx.2: scratch for the check_transaction upfront-balance pre-validation
-  -- (sender_pre_balance >= gas_limit*max_fee_per_gas + tx.value). bv_upfront_cost
-  -- holds max_fee*gas_limit then (+ value) the upfront cost; bv_upfront_islt the
-  -- u256_lt_be verdict (1 iff pre_balance < upfront -> reject).
+  -- (sender_pre_balance >= gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas
+  -- + tx.value). bv_upfront_cost holds the cumulative upfront cost; bv_upfront_islt
+  -- is the u256_lt_be verdict (1 iff pre_balance < upfront -> reject).
   ".balign 8\n" ++
   "bv_upfront_cost:\n  .zero 32\n" ++
+  "bv_upfront_blob_cost:\n  .zero 32\n" ++
+  "bv_upfront_blob_count:\n  .zero 8\n" ++
   "bv_upfront_islt:\n  .zero 8\n" ++
   -- bmvmx.5: out scratch for the hoisted single-tx fee-validity gate's
   -- tx_effective_gas_pricing call (effective_gas_price / priority_fee_per_gas, 32B BE
