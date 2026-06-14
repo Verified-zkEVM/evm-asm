@@ -303,6 +303,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   txGasSenderBalLookupFunction ++ "\n" ++
   simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
+  stageCreationRuntimePayloadFunction ++ "\n" ++
+  blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
