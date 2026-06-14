@@ -4,7 +4,7 @@
 # Unit-check dispatcher_capture_exec_state_gas: persist the EXECUTED state gas
 # (evm_state_gas_used global) into the per-tx strided bvgr_tx_exec_state_gas
 # array at a caller-supplied transaction index. The probe captures three
-# distinct values at distinct indices (0, 3, 15 = last entry) and asserts the
+# distinct values at distinct indices (0, 17, 1023 = last entry) and asserts the
 # value landed, the 8-byte stride is correct, and an untouched entry stays 0.
 #
 # Substrate half of the EIP-7778 2D state-dimension gate (fork.py:584-598): the
@@ -41,8 +41,8 @@ d = open('gen-out/zisk_capture_exec_state_gas.output', 'rb').read()
 def u(o): return struct.unpack('<Q', d[o:o+8])[0] if o + 8 <= len(d) else None
 checks = [
     ('bvgr_tx_exec_state_gas[0]',         0x1111),
-    ('bvgr_tx_exec_state_gas[3]',         0x2222),
-    ('bvgr_tx_exec_state_gas[15] (last)', 0x3333),
+    ('bvgr_tx_exec_state_gas[17] (>16)',  0x2222),
+    ('bvgr_tx_exec_state_gas[1023] (last)', 0x3333),
     ('bvgr_tx_exec_state_gas[1] (untouched)', 0),
 ]
 failed = False

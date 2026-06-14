@@ -8,16 +8,18 @@
   the simple-transfer settlement (21000 intrinsic, full unused-gas refund). A
   contract recipient instead consumes runtime gas, so the sender's settlement is
 
-      sender_post = sender_pre - receipt_inc * effective_gas_price - value
+      sender_post = sender_pre - receipt_inc * effective_gas_price - blob_fee - value
 
-  where `receipt_inc` is the EIP-3529-refunded, EIP-7623-floored gas (the `a2`
+  where `blob_fee` is nonzero only for EIP-4844 transactions, computed as
+  `blob_gas_used * blob_gas_price`, and `receipt_inc` is the EIP-3529-refunded, EIP-7623-floored gas (the `a2`
   output of `tx_gas_result_increments`), i.e. exactly `sender_debit_from_gas`
   (#8583) with the now-real per-tx refund counter (#8590). This helper composes:
 
     1. `tx_gas_sender_bal_lookup`  -> sender BAL row, pre-balance, post-balance
     2. `tx_effective_gas_pricing`  -> effective_gas_price
     3. `tx_extract_value`          -> value
-    4. `sender_debit_from_gas`     -> gas_debit = receipt_inc * eff_gas_price
+    4. `sender_debit_from_gas`     -> gas_debit = receipt_inc * eff_gas_price, then
+                                      add the EIP-4844 blob fee when tx type = 3
                                       (value passed as 0 so the value netting is
                                       applied separately, honoring self-transfer)
     5. `expected = pre - gas_debit`, then `-= value` unless the recipient IS the
@@ -45,6 +47,7 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
+import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.U256GasPricing
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 
@@ -77,7 +80,7 @@ open EvmAsm.Rv64
              50 fee invalid (max_fee < base_fee, or priority > max_fee) -> caller rejects (bmvmx.4)
       +8   sender address (20 B)
       +32  pre balance, u256 BE
-      +64  gas_debit = receipt_inc * effective_gas_price, u256 BE
+      +64  gas_debit = receipt_inc * effective_gas_price + blob_fee, u256 BE
       +96  expected post balance, u256 BE
       +128 normalized BAL post balance, u256 BE
       +160 tx value, u256 BE -/
@@ -167,10 +170,37 @@ def txGasBalPostVerifyRuntimeFunction : String :=
   "  la t0, tgbpvr_value; addi t4, s7, 160\n" ++
   "  ld t5, 0(t0); sd t5, 0(t4); ld t5, 8(t0); sd t5, 8(t4)\n" ++
   "  ld t5, 16(t0); sd t5, 16(t4); ld t5, 24(t0); sd t5, 24(t4)\n" ++
-  "  # 5. gas_debit = sender_debit_from_gas(gas, ZERO value) = receipt_inc * eff_gas_price.\n" ++
+  "  # 5. gas_debit = receipt_inc * eff_gas_price, plus blob fee for type-3 txs.\n" ++
   "  la t0, tgbpvr_in; ld a0, 0(t0); ld a1, 8(t0); ld a2, 16(t0); ld a3, 24(t0)\n" ++
   "  la a4, tgbpvr_egp; la a5, tgbpvr_zero; la a6, tgbpvr_gasdebit\n" ++
   "  jal ra, sender_debit_from_gas\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, tgbpvr_tx_type; la a3, tgbpvr_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Ltgbpvr_blob_inconclusive\n" ++
+  "  la t0, tgbpvr_tx_type; ld t1, 0(t0); li t2, 3; bne t1, t2, .Ltgbpvr_blob_done\n" ++
+  "  la t0, tgbpvr_inner_off; ld t3, 0(t0); bltu s1, t3, .Ltgbpvr_blob_inconclusive\n" ++
+  "  add a0, s0, t3; sub a1, s1, t3; la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ltgbpvr_blob_inconclusive\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, tgbpvr_inner_off; ld t3, 0(t3); add t3, s0, t3; add a0, t3, t1; mv a1, t2; la a2, tgbpvr_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Ltgbpvr_blob_inconclusive\n" ++
+  "  la t0, tgbpvr_blob_count; ld a1, 0(t0); beqz a1, .Ltgbpvr_blob_inconclusive\n" ++
+  "  li t2, 6; bgtu a1, t2, .Ltgbpvr_blob_inconclusive\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, bsg_blob_price_be; la a2, tgbpvr_blobdebit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Ltgbpvr_blob_overflow\n" ++
+  "  la a0, tgbpvr_gasdebit; la a1, tgbpvr_blobdebit; la a2, tgbpvr_gasdebit\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Ltgbpvr_blob_overflow\n" ++
+  "  j .Ltgbpvr_blob_done\n" ++
+  ".Ltgbpvr_blob_inconclusive:\n" ++
+  "  li t0, 39; sd t0, 0(s7); j .Ltgbpvr_ret\n" ++
+  ".Ltgbpvr_blob_overflow:\n" ++
+  "  li t0, 38; sd t0, 0(s7); j .Ltgbpvr_ret\n" ++
+  ".Ltgbpvr_blob_done:\n" ++
   "  la t0, tgbpvr_gasdebit; addi t4, s7, 64\n" ++
   "  ld t5, 0(t0); sd t5, 0(t4); ld t5, 8(t0); sd t5, 8(t4)\n" ++
   "  ld t5, 16(t0); sd t5, 16(t4); ld t5, 24(t0); sd t5, 24(t4)\n" ++
@@ -276,6 +306,7 @@ def ziskTxGasBalPostVerifyRuntimePrologue : String :=
   txExtractValueFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
+  txEip4844DecodeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
@@ -343,9 +374,17 @@ def ziskTxGasBalPostVerifyRuntimeDataSection : String :=
   "tgbpvr_gasdebit:\n  .zero 32\n" ++
   "tgbpvr_expected:\n  .zero 32\n" ++
   "tgbpvr_zero:\n  .zero 32\n" ++
+  "tgbpvr_blobdebit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpvr_to:\n  .zero 24\n" ++
   "tgbpvr_iscreation:\n  .zero 8\n" ++
+  "tgbpvr_tx_type:\n  .zero 8\n" ++
+  "tgbpvr_inner_off:\n  .zero 8\n" ++
+  "tgbpvr_blob_count:\n  .zero 8\n" ++
+  "tcbg_struct:\n  .zero 248\n" ++
+  ".balign 32\n" ++
+  "tcbg_blob_fee_be:\n  .zero 32\n" ++
+  "bsg_blob_price_be:\n  .zero 32\n" ++
   "tgbpvr_lookup:\n  .zero 168\n" ++
   "tgbpvr_records:\n  .zero 4096"
 
