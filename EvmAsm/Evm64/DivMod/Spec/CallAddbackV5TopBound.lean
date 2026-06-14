@@ -10,8 +10,8 @@
   `uHi < vTop`, so the v4 `rhatdd_hi_zero` / extra side conditions are gone.
 
   It is the first half of the bridge toward the val256-level `hq_over` bound
-  needed to make `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions`
-  unconditional (bead `evm-asm-wbc4i.8.2.2`). The remaining (harder) half is
+  used by the legacy `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions_legacy`
+  helper before the U4-general wrapper (bead `evm-asm-wbc4i.8.2.2`). The remaining (harder) half is
   the top-limb → val256 quotient bridge.
 
   Bead `evm-asm-wbc4i.8.2.2.1`.
