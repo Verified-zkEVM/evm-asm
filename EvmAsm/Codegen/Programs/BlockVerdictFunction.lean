@@ -717,6 +717,7 @@ def blockVerdictFunction : String :=
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
   ".Lbv_cd_eoa_restore:\n" ++
   "  la t2, bv_simple_transfer_tx        # restore t2 for the EOA path (jal clobbered it)\n" ++
+  "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # EOA calldata not staged here\n" ++
   "  ld t0,  96(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 104(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 112(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
@@ -1027,10 +1028,11 @@ def blockVerdictFunction : String :=
   "  la a0, bv_stx_sender_acct; addi a0, a0, 8\n  la a1, bv_upfront_cost\n  la a2, bv_upfront_islt\n  jal ra, u256_lt_be\n" ++
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n  bnez t0, .Lbv_sender_upfront_fail\n" ++
   ".Lbv_stx_checks_done:\n" ++
+  "  jal ra, bv_emit_single_tx_tl7708\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
-  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  bnez a0, .Lbv_contract_dispatch_unsupported\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist tx0's executed state gas into bvgr_tx_exec_state_gas[0].
   -- Clobbers only a0/t0-t2, preserves the dispatch results a1-a4 stored below. Behavior-neutral.
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
@@ -1376,6 +1378,9 @@ def blockVerdictFunction : String :=
   "  beqz t2, .Lbv_after_tx_gas_precharge\n" ++                  -- sender == coinbase -> skip
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
+  ".Lbv_contract_dispatch_unsupported:\n" ++
+  "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
+  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1.3: prefill the transaction-count and
   -- intrinsic-state-gas substrate BEFORE eip8037_tx_gas_gate. The gate still

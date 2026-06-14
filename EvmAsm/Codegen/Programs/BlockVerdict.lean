@@ -67,6 +67,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictDataSection
 import EvmAsm.Codegen.Programs.BlockVerdictRuntimePayload
+import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit
@@ -279,6 +280,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
+  blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
