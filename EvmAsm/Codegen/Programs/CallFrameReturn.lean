@@ -97,6 +97,14 @@ def frameReturnFunction : String :=
   -- future cold access overwrites slot[count]. Success leaves it (warmth
   -- propagates up per incorporate_child_on_success).
   "  ld t0, 648(x20); la t1, evm_storage_access_count; sd t0, 0(t1)\n" ++
+  -- i3djw/reverted-CREATE rollback: truncate global effect logs to the
+  -- pre-child snapshots captured by call_frame_descend. Successful child frames
+  -- keep their CREATE/CALL value effects; reverted child frames discard them.
+  "  ld t0, 656(x20); la t1, exec_nonstorage_effect_count; sd t0, 0(t1)\n" ++
+  "  ld t0, 664(x20); la t1, exec_nonstorage_effect_overflow; sd t0, 0(t1)\n" ++
+  "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
+  "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
+  "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
   ".Lfr_sgas_done:\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
@@ -372,6 +380,11 @@ def ziskFrameReturnDataSection : String :=
   "evm_state_gas_used:\n  .zero 8\n" ++
   "evm_refund_acc:\n  .zero 8\n" ++
   "evm_storage_access_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
+  "exec_code_effect_count:\n  .zero 8\n" ++
+  "exec_code_effect_next:\n  .zero 8\n" ++
+  "exec_code_effect_overflow:\n  .zero 8\n" ++
 
   -- Frame-relative stack-bound labels + cells. `evm_stack_top`/`evm_stack_low`
   -- are address-only stubs (frame_return takes their `&` for the depth-0
