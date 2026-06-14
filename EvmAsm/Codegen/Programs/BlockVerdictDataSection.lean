@@ -1124,9 +1124,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_gasdebit:\n  .zero 32\n" ++
   "tgbpvr_expected:\n  .zero 32\n" ++
   "tgbpvr_zero:\n  .zero 32\n" ++
+  "tgbpvr_blobdebit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpvr_to:\n  .zero 24\n" ++
   "tgbpvr_iscreation:\n  .zero 8\n" ++
+  "tgbpvr_tx_type:\n  .zero 8\n" ++
+  "tgbpvr_inner_off:\n  .zero 8\n" ++
+  "tgbpvr_blob_count:\n  .zero 8\n" ++
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++
