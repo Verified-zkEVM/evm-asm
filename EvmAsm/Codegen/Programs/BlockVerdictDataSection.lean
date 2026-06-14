@@ -344,6 +344,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_runtime_gas_left:\n  .zero 8\n" ++
   "bv_runtime_refund_counter:\n  .zero 8\n" ++
   "bv_runtime_calldata_floor:\n  .zero 8\n" ++
+  -- Last dispatch_tx_runtime_code status: 0 success; 1 code lookup; 2 non-self-contained;
+  -- 3 BAL/account/key cap; 4 storage proof/slot lookup; 5 payload cap; 6 staging;
+  -- 7 access-list unsupported/parse/count. Nonzero still means conservative bail.
+  "bv_dispatch_runtime_status:\n  .zero 8\n" ++
   -- Contract-recipient dispatch scratch (evm-asm-fhsxz.2.4.2.57.11.6.4.3.2).
   ".balign 8\n" ++
   "bvcd_code_ptr:\n  .zero 8\n" ++

@@ -757,6 +757,12 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${receipts_log_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 464 ]]; then
+    raw="$(od -An -v -tu8 -j 456 -N 8 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    value="${words[0]:-?}"
+    dbg="${dbg:+$dbg }dispatch_runtime_status=$value"
+  fi
   echo "$dbg"
 }
 
