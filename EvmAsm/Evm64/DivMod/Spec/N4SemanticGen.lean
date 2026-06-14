@@ -85,4 +85,15 @@ theorem n4CallAddbackBeqSemanticHoldsV5_gen {a b : EvmWord}
   · exact n4CallAddbackBeqSemanticHoldsV5_of_u4_pos hb3nz hshift_nz hcall (by omega)
       h_borrow h_carry2
 
+/-- Runtime-condition semantic bridge with the v5 trial-bound obligations
+    discharged by the U4-general n=4 addback argument. -/
+theorem n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions {a b : EvmWord}
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (h_borrow : isAddbackBorrowN4CallV5Evm a b)
+    (h_carry2 : isAddbackCarry2NzN4CallV5Evm a b) :
+    n4CallAddbackBeqSemanticHoldsV5 a b :=
+  n4CallAddbackBeqSemanticHoldsV5_gen hb3nz hshift_nz hcall h_borrow h_carry2
+
 end EvmAsm.Evm64

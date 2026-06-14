@@ -9,7 +9,7 @@
 
   This is the clean math link the n=4 unconditional-semantic routing (bead
   `.8.2.2`) needs: the `hq_over` hypothesis of
-  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions` is stated over the
+  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions_legacy` is stated over the
   normalized WINDOW `val256(U0..U3)/val256(B0..B3Prime)`, while the proven trial
   bounds (`#7201` top-limb `+1`, `#7219` val256 `+2`) are over the ORIGINAL
   `val256 a / val256 b = qTrue`.  Under `U4 = 0` (which the dispatcher routing
