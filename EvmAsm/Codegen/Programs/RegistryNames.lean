@@ -21,6 +21,7 @@ def knownProgramNames : List String :=
    "runtime_dispatcher",
    "runtime_dispatcher_call_probe",
    "runtime_dispatcher_gas_capture_probe",
+   "zisk_runtime_access_list_seeded_sload",
   "stateless_guest"] ++
   knownCryptoProgramNames ++
   ["zisk_headers_keccak_chain",

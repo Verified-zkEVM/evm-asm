@@ -79,4 +79,3 @@ The follow-up work should land in separate PRs:
   log/receipt streaming or digest substrate.
 - Add full-capacity probes: one fixture/regression for the observed 1,021-tx
   EEST case and one synthetic or generated near-9,523 transaction block.
-
