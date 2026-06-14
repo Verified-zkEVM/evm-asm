@@ -416,22 +416,37 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
   "  mv a0, s0; mv a1, s1; addi a2, s2, 72\n" ++
   "  jal ra, seed_callee_storage\n" ++
-  "  # nxio8.5.2b: pass this tx access_list span to the callable setup so it can seed\n" ++
-  "  # EIP-2929 storage warmth after evm_storage_access_count is reset. Legacy, empty,\n" ++
-  "  # malformed, or unsupported spans leave the pending seed globals zero (safe overcharge).\n" ++
+  -- fhsxz.2.4.2.57.18.10: pass access-list cardinalities into the runtime
+  -- dispatcher's tx-gas validator so the captured calldata floor and regular
+  -- intrinsic gas include tokens_in_access_list. The context builders reject
+  -- type 3/4 before this helper; type 0 has no access list, type 1 uses field 7,
+  -- and type 2 uses field 8 of the inner RLP payload. Parse failures bail
+  -- conservatively instead of undercounting.
+  "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
+  -- nxio8.5.2b: pass the same access-list span to the callable setup so it can
+  -- seed EIP-2929 storage warmth after evm_storage_access_count is reset.
   "  la t0, runtime_tx_access_list_ptr; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_len; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
-  "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
-  "  beqz a0, .Ldtrc_access_seed_done\n" ++
-  "  beqz a1, .Ldtrc_access_seed_done\n" ++
-  "  la a2, txal_span_ptr; la a3, txal_span_len\n" ++
-  "  jal ra, tx_access_list_span\n" ++
-  "  bnez a0, .Ldtrc_access_seed_done\n" ++
-  "  la t0, txal_span_ptr; ld t1, 0(t0); la t0, runtime_tx_access_list_ptr; sd t1, 0(t0)\n" ++
-  "  la t0, txal_span_len; ld t1, 0(t0); la t0, runtime_tx_access_list_len; sd t1, 0(t0)\n" ++
+  "  ld t0, 160(s2); beqz t0, .Ldtrc_access_done\n" ++
+  "  li a2, 7; li t1, 1; beq t0, t1, .Ldtrc_access_field\n" ++
+  "  li t1, 2; bne t0, t1, .Ldtrc_unsupported\n" ++
+  "  li a2, 8\n" ++
+  ".Ldtrc_access_field:\n" ++
+  "  ld a0, 176(s2); ld a1, 184(s2); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  ld t0, 176(s2); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
+  "  la t1, bsg_access_len; ld a1, 0(t1)\n" ++
+  "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
+  "  jal ra, access_list_count\n" ++
+  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  ld t0, 176(s2); la t1, bsg_access_off; ld t1, 0(t1); add t2, t0, t1\n" ++
+  "  la t0, runtime_tx_access_list_ptr; sd t2, 0(t0)\n" ++
+  "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
-  ".Ldtrc_access_seed_done:\n" ++
+  ".Ldtrc_access_done:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave

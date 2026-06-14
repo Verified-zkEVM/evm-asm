@@ -121,6 +121,33 @@ def eip8037TxGasGateFunction : String :=
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 96\n" ++
   "  ret\n" ++
+  "eip8037_prior_state_used_exact:\n" ++
+  "  # a0 = prior tx count (0-based current tx index), a1 = out ptr.\n" ++
+  "  # Returns a0=0 when the execution-derived prior-state sum is exact, else 1.\n" ++
+  "  sd zero, 0(a1)\n" ++
+  "  beqz a0, .Lepse_ok\n" ++
+  "  la t0, bsg_exact_state_ok; ld t0, 0(t0); beqz t0, .Lepse_fail\n" ++
+  "  la t0, bvgr_runtime_count; ld t0, 0(t0); bltu t0, a0, .Lepse_fail\n" ++
+  "  li t0, 16; bgtu a0, t0, .Lepse_fail\n" ++
+  "  mv t0, a0                   # prior count\n" ++
+  "  li t1, 0                    # i\n" ++
+  "  li t2, 0                    # accumulated state gas\n" ++
+  ".Lepse_loop:\n" ++
+  "  beq t1, t0, .Lepse_store\n" ++
+  "  slli t3, t1, 3\n" ++
+  "  la t4, bvgr_tx_state_gas; add t4, t4, t3; ld t5, 0(t4)\n" ++
+  "  add t6, t2, t5; bltu t6, t2, .Lepse_fail; mv t2, t6\n" ++
+  "  la t4, bv_tx_status_arr; add t4, t4, t3; ld t5, 0(t4); beqz t5, .Lepse_next\n" ++
+  "  la t4, bvgr_tx_exec_state_gas; add t4, t4, t3; ld t5, 0(t4)\n" ++
+  "  add t6, t2, t5; bltu t6, t2, .Lepse_fail; mv t2, t6\n" ++
+  ".Lepse_next:\n" ++
+  "  addi t1, t1, 1; j .Lepse_loop\n" ++
+  ".Lepse_store:\n" ++
+  "  sd t2, 0(a1)\n" ++
+  ".Lepse_ok:\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lepse_fail:\n" ++
+  "  li a0, 1; ret\n" ++
   "eip8037_tx_gas_gate:\n" ++
   "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -133,6 +160,7 @@ def eip8037TxGasGateFunction : String :=
   "  mv s3, a3                   # gas_limit\n" ++
   "  li s4, 0                    # accumulated worst regular gas\n" ++
   "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
+  "  la t0, bsg_exact_state_ok; sd zero, 0(t0)\n" ++
   "  addi a0, s0, 420; jal ra, bgv_u64le       # header gas_used\n" ++
   "  la t0, bsg_header_gas_used; sd a0, 0(t0)\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
@@ -148,6 +176,11 @@ def eip8037TxGasGateFunction : String :=
   "  srli s7, a0, 2              # tx_count = first offset / 4\n" ++
   "  beqz s7, .Letg_ok\n" ++
   "  li t0, 16; bgtu s7, t0, .Letg_ok\n" ++
+  "  mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  "  bnez a0, .Letg_state_array_ready\n" ++
+  "  la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Letg_state_array_ready:\n" ++
   "  li s8, 0                    # tx index, 0-based\n" ++
   "  la t0, bsg_blob_gas_accum; sd zero, 0(t0)\n" ++
   ".Letg_tx_loop:\n" ++
@@ -356,9 +389,13 @@ def eip8037TxGasGateFunction : String :=
   "  bltu t1, s11, .Letg_ok\n" ++
   "  sub t2, t1, s11             # tx.gas - intrinsic.regular\n" ++
   "  la t0, bsg_worst_state; sd t2, 0(t0)\n" ++
+  "  mv a0, s8; la a1, bsg_prior_state\n" ++
+  "  jal ra, eip8037_prior_state_used_exact\n" ++
+  "  beqz a0, .Letg_prior_state_have\n" ++
   "  addi a2, s8, 1\n" ++
   "  mv a0, s1; mv a1, s2; la a3, bsg_prior_state\n" ++
   "  jal ra, eip8037_state_used_before_tx\n" ++
+  ".Letg_prior_state_have:\n" ++
   "  la t0, bsg_worst_state; ld t2, 0(t0)\n" ++
   "  la t0, bsg_prior_state; ld t3, 0(t0)\n" ++
   "  bltu s3, t3, .Letg_state_fail\n" ++

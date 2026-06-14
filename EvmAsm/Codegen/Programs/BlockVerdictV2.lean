@@ -44,6 +44,7 @@ import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.MultiTxSenderDebit
 
 namespace EvmAsm.Codegen
 
@@ -396,6 +397,8 @@ def statelessVerdictV2GuestClosure : String :=
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
+  multiTxActualSenderDebitFunction ++ "\n" ++
+  multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++
