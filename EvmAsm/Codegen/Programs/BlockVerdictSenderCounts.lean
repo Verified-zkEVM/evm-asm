@@ -140,16 +140,20 @@ def b1SenderCountTableFunction : String :=
   ".Lb1sc_we_count:\n" ++
   "  sd a1, 32(t1); ret"
 
+/-- Shared scratch arena for `b1_sender_count_table`. -/
+def b1SenderCountTableScratchDataSection : String :=
+  ".balign 32\n" ++
+  "b1sc_sort_a:\n  .zero 32768\n" ++
+  "b1sc_sort_b:\n  .zero 32768\n" ++
+  ".balign 8\n" ++
+  "b1sc_counts:\n  .zero 2048\n"
+
 /-- Scratch/data for `b1_sender_count_table` and its focused probe. -/
 def b1SenderCountTableDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "b1sc_out_count:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "b1sc_sort_a:\n  .zero 32768\n" ++
-  "b1sc_sort_b:\n  .zero 32768\n" ++
-  ".balign 8\n" ++
-  "b1sc_counts:\n  .zero 2048\n" ++
+  b1SenderCountTableScratchDataSection ++
   ".balign 32\n" ++
   -- Six sender lanes with 64-byte stride: A, B, A, C, B, A.
   "b1sc_probe_skip:\n" ++
