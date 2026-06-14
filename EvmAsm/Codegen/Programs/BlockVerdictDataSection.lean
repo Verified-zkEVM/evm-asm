@@ -231,6 +231,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- scratch caps at 32768; 64 KiB leaves margin for the list prefix + max receipts.
   "bv_receipts_rlp:\n  .zero 65536\n" ++
   "bv_receipts_rlp_len:\n  .zero 8\n" ++
+  -- Status returned by block_validate_receipts_consensus_list in the receipts tail:
+  -- 0 success, 1 receipts-root helper failure, 2 receipts-root mismatch,
+  -- 3 logs-bloom helper failure, 4 logs-bloom mismatch.
+  "bv_receipts_validator_status:\n  .zero 8\n" ++
   -- .63.1.6.2.3: receipt_encode + receipt_records_encode_no_logs scratch (these labels were
   -- probe-only in ziskReceiptRecordsEncodeNoLogsDataSection before the tx-bearing un-gate linked
   -- the encoder into the guest). re_payload_buf (16K) / rle_payload_buf (32K) are the per-receipt

@@ -102,6 +102,10 @@ def blockVerdictReceiptsTail : String :=
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bv_receipts_rlp; la t0, bv_receipts_rlp_len; ld a3, 0(t0)\n" ++
   "  jal ra, block_validate_receipts_consensus_list\n" ++
+  -- Persist the exact validator status before branching: 0 success, 1 receipts-root helper
+  -- failure, 2 root mismatch, 3 logs-bloom helper failure, 4 bloom mismatch. Only the two
+  -- confirmed consensus mismatches reject; helper failures remain conservative accepts.
+  "  la t2, bv_receipts_validator_status; sd a0, 0(t2)\n" ++
   "  li t0, 2; beq a0, t0, .Lbv_receipts_root_mismatch\n" ++
   "  li t0, 4; beq a0, t0, .Lbv_receipts_bloom_mismatch\n" ++
   ".Lbv_receipts_accept:\n" ++
