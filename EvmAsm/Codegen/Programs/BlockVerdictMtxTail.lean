@@ -52,44 +52,24 @@ def blockVerdictMtxValidationTail : String :=
   -- nonce check (.Lbv_sender_nonce_fail, status 40). An EOA sender's nonce increments once per
   -- tx (no internal code), so final == pre+count for every valid block -> never false-rejects;
   -- catches a BAL forging the sender's final nonce. Post-loop pass; sender_i = skip[2i] (A1),
-  -- validated ONCE (first occurrence). Conservative skips: sender absent from BAL, account_at
-  -- failure, no declared nonce change. Cursor in bv_mtx_skip_idx (survives jals; s0 callee-saved).
-  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++                       -- i = 0
+  -- compacted by b1_sender_count_table into distinct sender/count rows. Conservative skips:
+  -- sender absent from BAL, account_at failure, no declared nonce change. Cursor in
+  -- bv_mtx_skip_idx walks the distinct table and survives jals via memory.
+  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, 16; la a4, bv_b1_sender_count\n" ++
+  "  jal ra, b1_sender_count_table\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                              -- impossible for tx_count <= 16; reject if table build failed
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++                       -- i = 0 over distinct sender table
   ".Lbv_b1_loop:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
-  "  slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++      -- t4 = &sender_i = skip[2i] (offset i*64)
-  "  li t5, 0\n" ++                                                     -- k = 0 (first-occurrence scan)
-  ".Lbv_b1_fchk:\n" ++
-  "  bgeu t5, t1, .Lbv_b1_first\n" ++                                   -- k >= i -> i is the first occurrence
-  "  slli t6, t5, 6; la a0, bv_mtx_skip_list; add a0, a0, t6; li a1, 0\n" ++   -- a0 = &skip[2k]
-  ".Lbv_b1_fcmp:\n" ++
-  "  li a2, 20; beq a1, a2, .Lbv_b1_next\n" ++                          -- skip[2k] == sender_i (20B) -> i is a duplicate -> skip
-  "  add a2, a0, a1; lbu a3, 0(a2); add a2, t4, a1; lbu a4, 0(a2); bne a3, a4, .Lbv_b1_fadv\n" ++
-  "  addi a1, a1, 1; j .Lbv_b1_fcmp\n" ++
-  ".Lbv_b1_fadv:\n" ++
-  "  addi t5, t5, 1; j .Lbv_b1_fchk\n" ++
-  ".Lbv_b1_first:\n" ++
-  "  li t5, 0; li t6, 0\n" ++                                          -- k = 0, count = 0
-  ".Lbv_b1_cnt:\n" ++
-  "  la a5, bv_tx_count; ld a5, 0(a5); bgeu t5, a5, .Lbv_b1_cntd\n" ++
-  "  slli a0, t5, 6; la a1, bv_mtx_skip_list; add a0, a1, a0; li a1, 0\n" ++   -- a0 = &skip[2k]
-  ".Lbv_b1_ccmp:\n" ++
-  "  li a2, 20; beq a1, a2, .Lbv_b1_cmatch\n" ++
-  "  add a2, a0, a1; lbu a3, 0(a2); add a2, t4, a1; lbu a4, 0(a2); bne a3, a4, .Lbv_b1_cadv\n" ++
-  "  addi a1, a1, 1; j .Lbv_b1_ccmp\n" ++
-  ".Lbv_b1_cmatch:\n" ++
-  "  addi t6, t6, 1\n" ++
-  ".Lbv_b1_cadv:\n" ++
-  "  addi t5, t5, 1; j .Lbv_b1_cnt\n" ++
-  ".Lbv_b1_cntd:\n" ++
-  "  la t0, bv_b1_count; sd t6, 0(t0)\n" ++                            -- stash total count (jal clobbers t6)
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
+  "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- t4 = &distinct sender entry
+  "  ld t6, 32(t4); la t0, bv_b1_count; sd t6, 0(t0)\n" ++             -- stash total count (jal clobbers t6)
   "  ld a0, 8(s0); ld a1, 16(s0); mv a2, t4; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_b1_next\n" ++                                       -- sender lookup fail/absent -> skip (conservative)
   "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++                     -- t0 = pre_nonce (nonce@0)
   "  la t1, bv_b1_count; ld t1, 0(t1); add t0, t0, t1\n" ++            -- expected = pre_nonce + count
   "  la t1, bv_b1_expected; sd t0, 0(t1)\n" ++                         -- stash (jal clobbers)
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++  -- reload t4 = &sender_i
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- reload t4 = &distinct sender entry
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lbv_b1_next\n" ++                                       -- sender absent from BAL -> skip (conservative)
