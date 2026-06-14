@@ -884,10 +884,10 @@ def blockVerdictFunction : String :=
   "  li t2, 2; bne t1, t2, .Lbv_tl7708_skip\n" ++
   ".Lbv_tl_typed_ok:\n" ++
   "  addi t1, t0, 96; la t2, bmvmx_value; li t3, 0\n" ++
-  ".Lbv_tl2_vcopy:\n" ++
-  "  li t4, 32; beq t3, t4, .Lbv_tl2_vdone\n" ++
-  "  add t5, t1, t3; lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5); addi t3, t3, 1; j .Lbv_tl2_vcopy\n" ++
-  ".Lbv_tl2_vdone:\n" ++
+  ".Lbv_tl_typed_vcopy:\n" ++
+  "  li t4, 32; beq t3, t4, .Lbv_tl_typed_vdone\n" ++
+  "  add t5, t1, t3; lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5); addi t3, t3, 1; j .Lbv_tl_typed_vcopy\n" ++
+  ".Lbv_tl_typed_vdone:\n" ++
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   ".Lbv_tl7708_ready:\n" ++

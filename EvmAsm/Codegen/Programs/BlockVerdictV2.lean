@@ -17,6 +17,11 @@ import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
+import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.MaterializeLogRecords
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
@@ -131,6 +136,10 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
     -- debug verdict ELF links (block_verdict calls verify_public_keys_match_senders).
     verifyPublicKeysSendersGuestFunctions ++ "\n" ++
+    -- 8uld3.2.3 / .63.1.6.2.3: mirror the request-derivation and receipts-consensus
+    -- bodies that block_verdict now reaches inside the embedded guest closure. The
+    -- standalone debug ELF does not include statelessGuestUnit.epilogueAsm, so these
+    -- symbols must be emitted here as well.
     deriveBlockSystemRequestsFunction ++ "\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
@@ -142,6 +151,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     assembleExecutionRequestsFunction ++ "\n" ++
     requestsHashVerifyFunction ++ "\n" ++
     stagePredeployStoragePreloadFunction ++ "\n" ++
+    zkvmKeccak256SegmentsFunction ++ "\n" ++
     rlpEncodeU64Function ++ "\n" ++
     receiptEncodeFunction ++ "\n" ++
     receiptRecordsEncodeNoLogsFunction ++ "\n" ++
@@ -150,11 +160,12 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     bloomOrIntoFunction ++ "\n" ++
     blockLogsBloomFromReceiptsListFunction ++ "\n" ++
     blockValidateReceiptsConsensusListFunction ++ "\n" ++
-    zkvmKeccak256SegmentsFunction ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
     executionRequestsHashShaDataSection ++ "\n" ++
+    -- Data labels for the request-derivation/predeploy-storage helpers above.
+    -- ziskStatelessVerdictV2DataSection already owns the receipt-consensus scratch.
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
