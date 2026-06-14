@@ -9,6 +9,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
@@ -416,7 +417,7 @@ def blockVerdictFunction : String :=
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
   "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
-  "  li t1, 16; bgtu t0, t1, .Lbv_mtx_bail         # arena capacity is 16 entries\n" ++
+  "  li t1, " ++ toString bvMtxArenaTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # arena capacity\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
