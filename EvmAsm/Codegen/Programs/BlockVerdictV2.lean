@@ -50,6 +50,11 @@ import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit
+import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.MaterializeLogRecords
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 
 namespace EvmAsm.Codegen
 
