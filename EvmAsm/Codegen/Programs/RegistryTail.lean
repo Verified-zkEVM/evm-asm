@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.LogRecordsRlp
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
+import EvmAsm.Codegen.Programs.B3CoinbaseFee
 
 namespace EvmAsm.Codegen
 
