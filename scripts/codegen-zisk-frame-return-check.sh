@@ -78,6 +78,12 @@ checks = [
     # back to the child-env snapshot (discarding the reverted child's warm keys).
     ('A warmth_count (success: unchanged)',   11),
     ('B warmth_count (revert: restored)',     44),
+    # .61.9: SUCCESS commits child-frame storage/transient/event cursors into the
+    # parent; REVERT leaves the parent's pre-child cursor values intact.
+    ('A persistent cursor (success merge)',    12),
+    ('A transient/event cursor pack',          (13 << 32) | 14),
+    ('B persistent cursor (revert preserve)',  21),
+    ('B transient/event cursor pack',          (22 << 32) | 23),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):

@@ -27,6 +27,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
+import EvmAsm.Codegen.Programs.StaticContext
 
 namespace EvmAsm.Codegen
 
@@ -66,8 +67,7 @@ def callFrameEnterFunction : String :=
     a2 = to-word ptr, a3 = value-word ptr, a4 = mode)`: set the child frame's
     per-frame env call-context for one of the four message-call kinds. `a4` mode:
     `0 = CALL`, `1 = STATICCALL`, `2 = CALLCODE`, `3 = DELEGATECALL` (modes 0/1
-    keep the exact prior `is_static` behavior, so the descend path and the
-    `zisk_call_frame_descend` probe are byte-identical). The three 32-byte words,
+    set/propagate the static-context flag). The three 32-byte words,
     per execution-specs `vm/instructions/system.py` (the current_target / caller /
     value roles):
 
@@ -84,6 +84,15 @@ def callFrameEnterFunction : String :=
     Offsets per the per-frame env layout (docs §3). Clobbers t0/t1. -/
 def callFrameSetCallEnvFunction : String :=
   "call_frame_set_call_env:\n" ++
+  -- isStatic (env+504): STATICCALL sets it; every other call kind inherits the parent.
+  "  li t1, 1\n" ++
+  "  beq a4, t1, .Lcfsce_static_set\n" ++
+  "  ld t0, " ++ toString staticContextFlagOff ++ "(a1)\n" ++
+  "  sd t0, " ++ toString staticContextFlagOff ++ "(a0)\n" ++
+  "  j .Lcfsce_addr\n" ++
+  ".Lcfsce_static_set:\n" ++
+  "  sd t1, " ++ toString staticContextFlagOff ++ "(a0)\n" ++
+  ".Lcfsce_addr:\n" ++
   -- ADDRESS (env+0): mode >= 2 (CALLCODE/DELEGATECALL) -> parent.ADDRESS, else to.
   "  li t1, 2\n" ++
   "  bgeu a4, t1, .Lcfsce_addr_self\n" ++
@@ -586,7 +595,8 @@ def ziskCallFrameDescendProbeUnit : BuildUnit := {
       +0/+8/+16   mode 0 CALL        ADDRESS/CALLER/CALLVALUE (expect 0xbb/0xaa/0xdd)
       +24/+32/+40 mode 1 STATICCALL  (expect 0xbb/0xaa/0)
       +48/+56/+64 mode 2 CALLCODE    (expect 0xaa/0xaa/0xdd)
-      +72/+80/+88 mode 3 DELEGATECALL(expect 0xaa/0xcc/0xee) -/
+      +72/+80/+88 mode 3 DELEGATECALL(expect 0xaa/0xcc/0xee)
+      +96/+104/+112/+120 isStatic flags modes 0..3 (expect 7/1/7/7) -/
 def ziskSetCallEnvPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -595,6 +605,7 @@ def ziskSetCallEnvPrologue : String :=
   "  li t1, 0xaa; sd t1, 0(t0)\n" ++
   "  li t1, 0xcc; sd t1, 64(t0)\n" ++
   "  li t1, 0xee; sd t1, 96(t0)\n" ++
+  "  li t1, 7; sd t1, " ++ toString staticContextFlagOff ++ "(t0)\n" ++
   "  la t0, sce_to;  li t1, 0xbb; sd t1, 0(t0)\n" ++
   "  la t0, sce_val; li t1, 0xdd; sd t1, 0(t0)\n" ++
   -- run the helper for all four modes into distinct child env buffers.
@@ -611,6 +622,10 @@ def ziskSetCallEnvPrologue : String :=
   "  la t0, sce_child1; ld t1, 0(t0); sd t1, 24(s0); ld t1, 64(t0); sd t1, 32(s0); ld t1, 96(t0); sd t1, 40(s0)\n" ++
   "  la t0, sce_child2; ld t1, 0(t0); sd t1, 48(s0); ld t1, 64(t0); sd t1, 56(s0); ld t1, 96(t0); sd t1, 64(s0)\n" ++
   "  la t0, sce_child3; ld t1, 0(t0); sd t1, 72(s0); ld t1, 64(t0); sd t1, 80(s0); ld t1, 96(t0); sd t1, 88(s0)\n" ++
+  "  la t0, sce_child0; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 96(s0)\n" ++
+  "  la t0, sce_child1; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 104(s0)\n" ++
+  "  la t0, sce_child2; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 112(s0)\n" ++
+  "  la t0, sce_child3; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 120(s0)\n" ++
   "  j .Lsce_done\n" ++
   callFrameSetCallEnvFunction ++ "\n" ++
   ".Lsce_done:"
@@ -618,13 +633,13 @@ def ziskSetCallEnvPrologue : String :=
 def ziskSetCallEnvDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "sce_penv:\n  .zero 128\n" ++
+  "sce_penv:\n  .zero 512\n" ++
   "sce_to:\n  .zero 32\n" ++
   "sce_val:\n  .zero 32\n" ++
-  "sce_child0:\n  .zero 128\n" ++
-  "sce_child1:\n  .zero 128\n" ++
-  "sce_child2:\n  .zero 128\n" ++
-  "sce_child3:\n  .zero 128\n"
+  "sce_child0:\n  .zero 512\n" ++
+  "sce_child1:\n  .zero 512\n" ++
+  "sce_child2:\n  .zero 512\n" ++
+  "sce_child3:\n  .zero 512\n"
 
 def ziskSetCallEnvProbeUnit : BuildUnit := {
   body        := NOP

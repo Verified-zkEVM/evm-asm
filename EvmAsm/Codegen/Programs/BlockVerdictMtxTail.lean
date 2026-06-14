@@ -103,6 +103,37 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b1_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b1_loop\n" ++
   ".Lbv_b1_done:\n" ++
+  -- bmvmx.5.5.2.2.2 (umbrella-B2.2): maintain a per-sender running
+  -- balance table in tx order. This rejects only if actual post-exec debit
+  -- underflows the sender running balance; final BAL-post comparison is B2.3.
+  "  la t0, bv_b2_count; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_b2_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b2_done\n" ++
+  "  slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); mv a2, t4; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la a0, bv_mtx_skip_ctx; la t0, bv_mtx_skip_idx; ld a1, 0(t0); jal ra, multi_tx_nth_context\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_mtx_base_fee_be; la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
+  "  la t2, bv_mtx_gas_left; add t2, t2, t1; ld a1, 0(t2)\n" ++
+  "  la t2, bv_mtx_refund; add t2, t2, t1; ld a2, 0(t2)\n" ++
+  "  la t2, bv_mtx_calldata; add t2, t2, t1; ld a3, 0(t2)\n" ++
+  "  la a0, bv_mtx_skip_ctx; la a4, bv_fee_egp_scratch; la a5, bv_b2_debit_out\n" ++
+  "  jal ra, multi_tx_actual_sender_debit\n" ++
+  "  la t0, bv_b2_debit_out; ld t0, 0(t0); bnez t0, .Lbv_b2_next\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++
+  "  la a0, bv_b2_table; la a1, bv_b2_count; li a2, 16; mv a3, t4; la a4, bv_mtx_sender_acct; addi a4, a4, 8; la a5, bv_b2_debit_out; addi a5, a5, 16\n" ++
+  "  jal ra, multi_tx_running_sender_balance_step\n" ++
+  "  li t0, 1; beq a0, t0, .Lbv_sender_upfront_fail\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  ".Lbv_b2_next:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b2_loop\n" ++
+  ".Lbv_b2_done:\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
   -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
   -- here, consuming the A1 skip-list. CONSERVATIVE guards (skip -> never false-reject, like the
