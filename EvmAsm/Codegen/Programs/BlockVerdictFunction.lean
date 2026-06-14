@@ -9,6 +9,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
@@ -416,7 +417,7 @@ def blockVerdictFunction : String :=
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
   "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
-  "  li t1, 16; bgtu t0, t1, .Lbv_mtx_bail         # arena capacity is 16 entries\n" ++
+  "  li t1, " ++ toString bvMtxArenaTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # arena capacity\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
@@ -1261,6 +1262,29 @@ def blockVerdictFunction : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
   ".Lbv_after_tx_gas_precharge:\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.2.1.3: prefill the transaction-count and
+  -- intrinsic-state-gas substrate BEFORE eip8037_tx_gas_gate. The gate still
+  -- runs unconditionally: a substrate parse/fill failure zeros the prefix and
+  -- falls through, preserving the old conservative gate behavior while making
+  -- the exact per-tx state dimension available to the follow-up gate patch.
+  "  la t2, bvgr_arena_tx_count; sd zero, 0(t2)\n" ++
+  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
+  "  la a1, bvgr_tx_gas_limits\n" ++
+  "  li a2, 16\n" ++
+  "  jal ra, block_verdict_tx_gas_limits\n" ++
+  "  bnez a0, .Lbv_pregate_state_gas_ready\n" ++
+  "  la t2, bvgr_arena_tx_count; sd a1, 0(t2)\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
+  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bvgr_tx_state_gas\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  "  beqz a0, .Lbv_pregate_state_gas_ready\n" ++
+  "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
+  ".Lbv_pregate_state_gas_zero:\n" ++
+  "  beq t4, t3, .Lbv_pregate_state_gas_ready\n" ++
+  "  slli t5, t4, 3; add t5, t2, t5; sd zero, 0(t5); addi t4, t4, 1; j .Lbv_pregate_state_gas_zero\n" ++
+  ".Lbv_pregate_state_gas_ready:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)             # exec_payload\n" ++
