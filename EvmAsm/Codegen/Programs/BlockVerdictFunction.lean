@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
+import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 
 namespace EvmAsm.Codegen
 
@@ -576,7 +577,7 @@ def blockVerdictFunction : String :=
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
-  "  j .Lbv_mtx_bail                                # EOA recipient -> not measured here, conservative\n" ++
+  blockVerdictMtxEoaSettlement ++
   ".Lbv_mtx_is_contract:\n" ++
   -- bmvmx.1.6.6 multi-tx enabler: stamp this user tx's block_access_index = i+1 (EIP-7928:
   -- 0 for system, i+1 for the i-th user tx; fork.py:1030) so the SSTORE handler tags every
