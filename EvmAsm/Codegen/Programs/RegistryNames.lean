@@ -246,6 +246,7 @@ def knownProgramNames : List String :=
    "zisk_tx_signing_hash",
    "zisk_tx_signing_hash_legacy_eip155",
    "zisk_eip7702_authorization_signing_hash",
+   "zisk_eip7702_authorization_recover_address",
    "zisk_tx_pubkey_signature_material",
    "zisk_tx_pubkey_ecrecover_stage_material",
    "zisk_tx_pubkey_recover_raw_status",
