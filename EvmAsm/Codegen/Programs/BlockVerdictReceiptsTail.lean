@@ -98,6 +98,10 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_receipts_enforce:\n" ++
   "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
   "  jal ra, receipt_records_encode_no_logs\n" ++
+  -- Persist the exact encoder status before the conservative-accept branch: 0 success,
+  -- 1 malformed/count over capacity, 2 missing logs descriptor, 3 output/scratch overflow,
+  -- 4 unsupported tx type. Any nonzero remains a conservative accept.
+  "  la t2, bv_receipts_encoder_status; sd a0, 0(t2)\n" ++
   "  bnez a0, .Lbv_receipts_accept                # encode failed/unsupported -> conservative accept\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bv_receipts_rlp; la t0, bv_receipts_rlp_len; ld a3, 0(t0)\n" ++

@@ -135,6 +135,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_receipts_completeness_shape; ld t2, 0(t1); sd t2, 408(t0)\n" ++
   "  la t1, bv_receipts_enforce_enabled; ld t2, 0(t1); sd t2, 416(t0)\n" ++
   "  la t1, bv_receipts_validator_status; ld t2, 0(t1); sd t2, 424(t0)\n" ++
+  "  la t1, bv_receipts_encoder_status; ld t2, 0(t1); sd t2, 432(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++

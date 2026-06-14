@@ -739,6 +739,12 @@ format_verdict_debug() {
     value="${words[0]:-?}"
     dbg="${dbg:+$dbg }receipts_validator_status=$value"
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 440 ]]; then
+    raw="$(od -An -v -tu8 -j 432 -N 8 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    value="${words[0]:-?}"
+    dbg="${dbg:+$dbg }receipts_encoder_status=$value"
+  fi
   echo "$dbg"
 }
 
