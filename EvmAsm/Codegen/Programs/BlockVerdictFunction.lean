@@ -328,6 +328,9 @@ def blockVerdictFunction : String :=
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 512; jal ra, bgv_u64le\n" ++
   "  la t2, bv_blob_gas_observed; sd a0, 0(t2)\n" ++
   "  la t2, bv_blob_gas_expected; ld t0, 0(t2); bne a0, t0, .Lbv_blob_gas_used_fail\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 520; jal ra, bgv_u64le\n" ++
+  "  la a1, bsg_blob_price_be; jal ra, amsterdam_blob_gas_price_u256\n" ++
+  "  bnez a0, .Lbv_blob_gas_used_fail\n" ++
   "  mv a0, s3\n" ++
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
   "  jal ra, public_keys_valid\n" ++
