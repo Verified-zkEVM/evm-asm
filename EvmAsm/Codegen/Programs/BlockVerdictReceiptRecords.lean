@@ -432,4 +432,58 @@ def blockReceiptLogsMaterializeFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret"
 
+/-- `zisk_block_receipt_logs_materialize_overflow`: focused probe for a
+    nonzero block_receipt_logs_materialize status. It forces the existing
+    block-log overflow flag before calling the helper, so the output must be
+    status 3 with the overflow flag still set. Output layout:
+      +0  block_receipt_logs_materialize return status
+      +8  bv_receipt_logs_status mirror
+      +16 bv_block_log_overflow. -/
+def ziskBlockReceiptLogsMaterializeOverflowPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  sd zero, 0(s0); sd zero, 8(s0); sd zero, 16(s0)\n" ++
+  "  la t0, brr_control; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0)\n" ++
+  "  la t0, bv_receipt_logs_status; sd zero, 0(t0)\n" ++
+  "  la t0, bv_block_log_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la a0, brr_control\n" ++
+  "  jal ra, block_receipt_logs_materialize\n" ++
+  "  sd a0, 0(s0)\n" ++
+  "  la t0, bv_receipt_logs_status; sd a0, 0(t0); ld t1, 0(t0); sd t1, 8(s0)\n" ++
+  "  la t0, bv_block_log_overflow; ld t1, 0(t0); sd t1, 16(s0)\n" ++
+  "  j .Lbrlmp_done\n" ++
+  rlpEncodeBytesFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  logRecordsEncodeRlpFunction ++ "\n" ++
+  bloomAddValueFunction ++ "\n" ++
+  logBloomAddFunction ++ "\n" ++
+  logsListBloomAddFunction ++ "\n" ++
+  blockReceiptLogsMaterializeFunction ++ "\n" ++
+  ".Lbrlmp_done:"
+
+def ziskBlockReceiptLogsMaterializeOverflowDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "brr_control:\n  .zero 24\n" ++
+  "bv_block_log_overflow:\n  .zero 8\n" ++
+  "bv_receipt_logs_status:\n  .zero 8\n" ++
+  "bv_block_log_descs:\n  .zero 256\n" ++
+  "bv_block_log_meta:\n  .zero 16\n" ++
+  "bv_block_log_data:\n  .zero 1\n" ++
+  "bv_record_blooms:\n  .zero 256\n" ++
+  "bv_record_logs_desc:\n  .zero 24\n" ++
+  "bv_logs_rlp_arena:\n  .zero 1\n" ++
+  "bv_logs_rlp_len:\n  .zero 8\n" ++
+  logRecordsRlpDataSection ++
+  ziskLogsListBloomAddDataSection
+
+def ziskBlockReceiptLogsMaterializeOverflowProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockReceiptLogsMaterializeOverflowPrologue
+  dataAsm     := ziskBlockReceiptLogsMaterializeOverflowDataSection
+}
+
 end EvmAsm.Codegen

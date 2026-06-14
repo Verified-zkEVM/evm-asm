@@ -48,6 +48,10 @@ def blockVerdictReceiptsTail : String :=
   "  la a0, brr_control\n" ++
   "  jal ra, block_receipt_logs_materialize\n" ++
   "  la t2, bv_receipt_logs_status; sd a0, 0(t2)\n" ++
+  -- Persist the exact log-materializer status before the conservative-accept branch:
+  -- 0 success, 1 malformed log window or RLP encode failure, 2 bloom helper failure,
+  -- 3 block-log arena/capture overflow. Statuses 1/2 are malformed/unsupported helper
+  -- debt; status 3 is capacity debt. All nonzero statuses remain conservative accepts.
   -- .63.1.6.2.3 (slice B): TX-BEARING receipts-consensus enforcement. execution-specs
   -- apply_body recomputes receipt_root = root(receipts_trie) and block_logs_bloom and hard-
   -- rejects on a header mismatch (fork.py 368-371). Encode the materialized per-tx receipt
@@ -59,6 +63,9 @@ def blockVerdictReceiptsTail : String :=
   -- (status 2/4) rejects, so unsupported shapes never false-reject. Depends on complete transfer
   -- logs (#8732 Part 1 + #8735 Part 2).
   "  bnez a0, .Lbv_receipts_accept                # logs materialize failed -> conservative accept\n" ++
+  -- `bv_block_log_overflow` is recorded separately from the helper return status because
+  -- block_log_window_snapshot can set it before this tail runs. Overflow remains capacity
+  -- debt and never becomes a reject without EEST/spec coverage evidence.
   "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_receipts_accept\n" ++
   -- 8uld3.4: derive EIP-6110 deposit requests from EXECUTION-produced logs and
   -- verify the final requests_hash against the value that the early header-hash
