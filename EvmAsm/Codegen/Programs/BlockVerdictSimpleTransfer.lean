@@ -30,7 +30,7 @@ open EvmAsm.Rv64
 
     Output:
       +0   status
-             0  ok: single tx, 65-byte pubkey, non-creation,
+             0  ok: single tx, 65-byte pubkey, classified creation or non-creation,
                 legacy/2930/1559/blob/7702 tx
              1  transaction count is not exactly one
              2  public key bundle is not exactly 65 bytes
@@ -41,7 +41,7 @@ open EvmAsm.Rv64
              30 to-address extraction failed
              40 value extraction failed
              50 data-section extraction failed
-             60 contract creation transaction
+             60 reserved (formerly contract creation transaction)
              61 reserved (formerly non-empty calldata/initcode)
              62 reserved (formerly EIP-4844 blob unsupported)
              63 reserved (formerly EIP-7702 set-code unsupported)
@@ -135,8 +135,6 @@ def simpleTransferTxContextFunction : String :=
   "  beqz a0, .Lsttc_data_ok\n" ++
   "  li t0, 50; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_data_ok:\n" ++
-  "  ld t0, 48(s0); beqz t0, .Lsttc_not_creation\n" ++
-  "  li t1, 60; sd t1, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_not_creation:\n" ++
   ".Lsttc_ok:\n" ++
   "  sd zero, 0(s0); j .Lsttc_ret\n" ++
