@@ -24,6 +24,7 @@ def lookupReceiptProgramTail : String → Option BuildUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
   | "zisk_receipt_records_probe" => some ziskReceiptRecordsProbeUnit
   | "zisk_block_receipt_records_materialize" => some ziskBlockReceiptRecordsMaterializeProbeUnit
+  | "zisk_block_receipt_logs_materialize_overflow" => some ziskBlockReceiptLogsMaterializeOverflowProbeUnit
   | "zisk_eip7778_remaining_block_gas_check" => some ziskEip7778RemainingBlockGasCheckProbeUnit
   | "zisk_eip7778_remaining_block_gas_from_results" => some ziskEip7778RemainingBlockGasFromResultsProbeUnit
   | "zisk_tx_gas_result_increments" => some ziskTxGasResultIncrementsProbeUnit
@@ -44,6 +45,7 @@ def knownReceiptProgramNamesTail : List String :=
    "zisk_receipt_encode",
    "zisk_typed_receipt_encode",
    "zisk_receipt_records_probe",
+   "zisk_block_receipt_logs_materialize_overflow",
    "zisk_eip7778_remaining_block_gas_check",
    "zisk_eip7778_remaining_block_gas_from_results",
    "zisk_tx_gas_result_increments",

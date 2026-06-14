@@ -745,6 +745,18 @@ format_verdict_debug() {
     value="${words[0]:-?}"
     dbg="${dbg:+$dbg }receipts_encoder_status=$value"
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 456 ]]; then
+    raw="$(od -An -v -tu8 -j 440 -N 16 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a receipts_log_labels=(
+      receipt_logs_status
+      block_log_overflow
+    )
+    for i in "${!receipts_log_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${receipts_log_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 
