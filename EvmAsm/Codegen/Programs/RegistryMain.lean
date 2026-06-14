@@ -593,6 +593,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "zisk_tx_pubkey_public_key_matches_status" => some ziskTxPubkeyPublicKeyMatchesStatusProbeUnit
   | "zisk_verify_public_keys_match_senders" => some ziskVerifyPublicKeysMatchSendersProbeUnit
   | "zisk_seed_tx_access_list" => some ziskSeedTxAccessListProbeUnit
+  | "zisk_tx_access_list_span" => some ziskTxAccessListSpanProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
