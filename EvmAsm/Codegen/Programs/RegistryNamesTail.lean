@@ -26,6 +26,7 @@ def knownProgramNamesTail : List String :=
    "zisk_storage_root_single_slot",
    "zisk_account_set_storage_root",
    "zisk_block_access_list_hash",
+   "zisk_b1_sender_count_table",
    "zisk_account_apply_storage_slot", "zisk_storage_effect_records_probe", "zisk_sstore_gas_refund_outcome",
    "zisk_mpt_leaf_node_encode",
    "zisk_mpt_node_slot_encode",
