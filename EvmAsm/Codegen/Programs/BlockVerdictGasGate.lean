@@ -336,6 +336,11 @@ def eip8037TxGasGateFunction : String :=
   "  la a6, bsg_intrinsic_gas; la a7, bsg_floor_gas\n" ++
   "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
   "  bnez a0, .Letg_ok\n" ++
+  "  la t0, bsg_floor_gas; ld t1, 0(t0)\n" ++
+  "  slli t2, s8, 3; la t3, bv_mtx_calldata; add t3, t3, t2; ld t4, 0(t3)\n" ++
+  "  bgeu t4, t1, .Letg_floor_stored\n" ++
+  "  sd t1, 0(t3)\n" ++
+  ".Letg_floor_stored:\n" ++
   "  # EIP-8037 intrinsic.state gas: CREATE new-account reserve plus EIP-7702\n" ++
   "  # authorization reserve (calculate_intrinsic_cost). Computed once here and\n" ++
   "  # consumed by both the per-tx sufficiency test and the 2D block accounting.\n" ++
