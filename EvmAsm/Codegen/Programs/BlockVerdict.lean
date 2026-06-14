@@ -38,6 +38,7 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
@@ -68,6 +69,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictDataSection
 import EvmAsm.Codegen.Programs.BlockVerdictRuntimePayload
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
+import EvmAsm.Codegen.Programs.MultiTxSenderDebit
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -306,11 +308,14 @@ def ziskStatelessVerdictV2Prologue : String :=
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
+  multiTxActualSenderDebitFunction ++ "\n" ++
+  multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
+  dispatcherCaptureExecStateGasFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
