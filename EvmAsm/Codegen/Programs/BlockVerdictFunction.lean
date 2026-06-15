@@ -1401,10 +1401,10 @@ def blockVerdictFunction : String :=
   "  jal ra, block_verdict_tx_gas_limits\n" ++
   "  bnez a0, .Lbv_pregate_state_gas_ready\n" ++
   "  la t2, bvgr_arena_tx_count; sd a1, 0(t2)\n" ++
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
-  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_state_gas\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   "  beqz a0, .Lbv_pregate_state_gas_ready\n" ++
   "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
@@ -1437,10 +1437,10 @@ def blockVerdictFunction : String :=
   -- 1D over-approx min(TX_MAX, tx.gas). block_verdict_tx_state_gas_array depends only on the
   -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
   -- same conservative skip. (Moved up from just below the EIP-7778 check.)
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
-  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_state_gas\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   -- .57.11.6.5.2: block_verdict_tx_state_gas_array can bail (a0 != 0) even after a successful
   -- arena_prepare -- e.g. tx_intrinsic_state_gas unsupported for some tx (TxIntrinsicStateGas.lean).
