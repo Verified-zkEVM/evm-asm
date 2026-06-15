@@ -99,10 +99,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
     secp256k1RecoverRFunction ++ "\n" ++
     secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
-    addressFromPubkeyFunction ++ "\n" ++
-    eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
-    eip7702AuthorizationSigningHashFunction ++ "\n" ++
-    eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
+    -- The base V2 verdict closure already emits address_from_pubkey and the
+    -- EIP-7702 authorization-recovery helpers for tx-state-gas accounting.
+    -- Re-emitting them in this debug-only helper block duplicates symbols.
     -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
     balAddrToExecLogKeyFunction ++ "\n" ++
     seedCalleeStorageFunction ++ "\n" ++
@@ -115,8 +114,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
-  committedStorageSnapshotUpsertFunction ++ "\n" ++
-  committedStorageLatestValueFunction ++ "\n" ++
+  -- The base V2 verdict closure also emits the committed-storage snapshot and
+  -- lookup helpers used by multi-tx dispatch. Keep only exec_log_latest_value
+  -- here; re-emitting the committed-storage callees duplicates symbols.
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
