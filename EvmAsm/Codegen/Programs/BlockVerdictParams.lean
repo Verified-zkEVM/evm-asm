@@ -74,6 +74,14 @@ def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
 def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 
+/-- Cross-transaction committed-storage threading table. This is a storage-write
+    capacity, not a transaction-count capacity: it snapshots 128-byte storage-log
+    entries across txs so later tx preloads can see earlier committed values.
+    Overflow is conservative and tracked separately from tx arena overflow. -/
+def bvMtxCommittedEntryBytes : Nat := 128
+def bvMtxCommittedCapacity : Nat := 128
+def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
+
 /-- Receipt/log arena capacities are deliberately separate from the transaction
     count cap. Capacity overflow is conservative receipt-enforcement debt
     (accept/no enforcement), while malformed data inside an enforced shape may
@@ -141,6 +149,7 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFixtureLogWindowArenaBytes = 256
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
+#guard bvMtxCommittedBytes = 16384
 #guard bvReceiptRecordsBytes = 1024
 #guard bvBlockLogDescBytes = 32768
 #guard bvBlockLogMetaBytes = 2048
