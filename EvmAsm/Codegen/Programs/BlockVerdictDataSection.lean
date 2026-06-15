@@ -203,6 +203,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
   "bv_tx_status_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- xbi56.2: per-tx creation flag parallel to bv_tx_status_arr, used by the
+  -- EIP-8037 tx-error state-gas rule when materializing exact block state gas.
+  "bv_tx_is_creation_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
   -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
   -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
@@ -424,6 +427,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- xbi56.1: exact net EIP-8037 tx_state_gas = intrinsic + executed - refund,
   -- with transaction error rules applied. Populated after runtime gas results.
   "bvgr_tx_total_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- xbi56.2: EIP-8037 state-refund input to the net state-gas materializer.
+  -- Current block-verdict runtime paths do not yet expose nonzero state refunds;
+  -- this zero-initialized array keeps the exact block gas check honest for rows
+  -- with no state refund and leaves refund plumbing as explicit follow-up debt.
+  "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_exact_header_gas_used:\n  .zero 8\n" ++
+  "bv_exact_expected_gas_used:\n  .zero 8\n" ++
+  "bv_exact_net_status:\n  .zero 8\n" ++
+  "bv_exact_net_index:\n  .zero 8\n" ++
+  "bv_exact_block_status:\n  .zero 8\n" ++
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++

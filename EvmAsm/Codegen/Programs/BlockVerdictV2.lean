@@ -445,6 +445,8 @@ def statelessVerdictV2GuestClosure : String :=
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
+  eip8037BlockGasUsedFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
