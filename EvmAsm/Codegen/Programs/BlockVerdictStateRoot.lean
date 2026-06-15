@@ -59,6 +59,7 @@ import EvmAsm.Codegen.Programs.BalAllAccountsTupleSequences
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
+import EvmAsm.Codegen.Programs.BlockVerdictSystemStorageCapture
 import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictDataSection
@@ -439,6 +440,8 @@ def statelessVerdictV2Function : String :=
   -- is resolved at the PRE-state (parent header). witness.state = svf_witness_section+off0 ..
   -- svf_codes_ptr; witness.codes = svf_codes_ptr/len.
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
+  "  la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
+  "  la t2, bv_system_storage_log_count; sd zero, 0(t2)\n" ++
   -- 8uld3.2.3.3.1 Fix1: parse the block BAL at the requests_hash point (bsr_bal_start is the
   -- block_state_root context's, 0 here). s0 is the BAL input (block_access_list_hash uses it @484).
   "  mv a0, s0; la a1, c1_bal_start; la a2, c1_bal_len; la a3, c1_bal_count; jal ra, bal_section_info\n" ++
@@ -484,6 +487,10 @@ def statelessVerdictV2Function : String :=
   ".Lc1_w_copy:\n" ++
   "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
   ".Lc1_w_copyd:\n" ++
+  "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
+  "  jal ra, capture_system_storage_exec_rows\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   -- == CONSOLIDATION (EIP-7251) ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
@@ -523,6 +530,10 @@ def statelessVerdictV2Function : String :=
   ".Lc1_c_copy:\n" ++
   "  beqz t3, .Lc1_c_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_copy\n" ++
   ".Lc1_c_copyd:\n" ++
+  "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
+  "  jal ra, capture_system_storage_exec_rows\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).

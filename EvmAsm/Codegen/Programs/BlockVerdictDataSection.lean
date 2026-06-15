@@ -532,6 +532,17 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
   ".balign 8\n" ++
   "c1_saved_logcount:\n  .zero 8\n" ++
+  "c1_system_log_cursor:\n  .zero 8\n" ++
+  -- bmvmx.5.5.1.2.1.3.1.1: side arena for system-call SSTORE rows.
+  -- The system-call derives append to the regular storage log, then the verdict
+  -- restores evm_env+448 so user storage/nonstorage comparators preserve their
+  -- current behavior. Capture those erased rows here with txindex=0 for the
+  -- follow-up tuple-merge comparator.
+  "bv_system_storage_log_count:\n  .zero 8\n" ++
+  "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
+  ".balign 32\n" ++
+  "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
+  ".balign 8\n" ++
   "c1_wcode_ptr:\n  .zero 8\n" ++
   "c1_wcode_len:\n  .zero 8\n" ++
   "c1_er_input:\n  .zero 8\n" ++

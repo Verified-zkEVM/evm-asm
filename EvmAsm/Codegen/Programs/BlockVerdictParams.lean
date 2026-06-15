@@ -97,6 +97,14 @@ def bvMtxCommittedChunkPages : Nat := 4
 def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
 def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
 
+/-- Persistent storage exec-log row capacity:
+    `(0xa0830000 - 0xa0630000) / 128 = 16384`.  The system-tuple side arena
+    mirrors this maximum because it captures rows that temporarily append to the
+    same runtime storage log before the verdict restores the user-log count. -/
+def bvSystemStorageLogCapacity : Nat := 16384
+def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
+def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
+
 /-- Receipt/log arena capacities are deliberately separate from the transaction
     count cap. Capacity overflow is conservative receipt-enforcement debt
     (accept/no enforcement), while malformed data inside an enforced shape may
