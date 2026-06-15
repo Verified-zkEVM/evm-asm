@@ -98,9 +98,11 @@ def blockVerdictReceiptsTail : String :=
   "  la a0, c1_dbody; la t2, c1_dlen; ld a1, 0(t2)\n" ++
   "  la a2, dbsr_wbody; la t2, dbsr_wlen; ld a3, 0(t2)\n" ++
   "  la a4, dbsr_cbody; la t2, dbsr_clen; ld a5, 0(t2)\n" ++
+  "  add t0, a1, a3; add t0, t0, a5; addi t0, t0, 12; la t1, c1_er_assembled_len; sd t0, 0(t1)\n" ++
   "  la a6, erh_requests_hash\n" ++
   "  la a7, c1_er_assembled\n" ++
   "  jal ra, requests_hash_verify\n" ++
+  "  la t2, c1_erh_status; sd a0, 0(t2)\n" ++
   "  bnez a0, .Lbv_requests_hash_fail\n" ++
   -- CONSERVATIVE COMPLETENESS GATE: enforce only when the transaction-shape-specific
   -- receipt completeness classifier set bv_receipts_enforce_enabled. The classifier keeps

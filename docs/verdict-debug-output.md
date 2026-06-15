@@ -27,7 +27,8 @@ ABI-stable for EEST triage logs.
 | 464 | 8 | `runtime_completeness_status` |
 | 472 | 16 | `mtx_committed_overflow`, `mtx_committed_count` |
 | 488 | 136 | `widx_build_status`, `widx_build_section_len`, `widx_build_count`, `widx_enabled`, `wlh_lookup_calls`, `wlh_indexed_calls`, `wlh_indexed_hits`, `wlh_indexed_misses`, `wlh_linear_calls`, `wlh_linear_hits`, `wlh_linear_misses`, `wlh_linear_iterations`, `wlh_linear_last_section_len`, `wlh_linear_max_section_len`, `svf_codes_len`, `svf_headers_len`, `svf_headers_count` |
+| 624 | 96 | `request_dstatus`, `request_dlen`, `request_dbody_cap`, `request_log_records_cap`, `request_wlen`, `request_clen`, `request_system_body_cap`, `request_er_assembled_len`, `request_er_assembled_cap`, `request_erh_status`, `request_erh_blob_cap`, `request_notx_deposit_len` |
 
-The current final byte is `OUTPUT + 624`. The smoke check emits/links both the
+The current final byte is `OUTPUT + 720`. The smoke check emits/links both the
 normal probe and the experimental BSR-cap patched probe, then verifies the shell
 formatter reaches the final emitted word.

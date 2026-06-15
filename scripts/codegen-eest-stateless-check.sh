@@ -824,6 +824,28 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${witness_lookup_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 768 ]]; then
+    raw="$(od -An -v -tu8 -j 672 -N 96 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a request_body_labels=(
+      request_dstatus
+      request_dlen
+      request_dbody_cap
+      request_log_records_cap
+      request_wlen
+      request_clen
+      request_system_body_cap
+      request_er_assembled_len
+      request_er_assembled_cap
+      request_erh_status
+      request_erh_blob_cap
+      request_notx_deposit_len
+    )
+    for i in "${!request_body_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${request_body_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 
