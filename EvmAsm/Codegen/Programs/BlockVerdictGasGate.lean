@@ -30,11 +30,9 @@ open EvmAsm.Rv64
     also mirrors the execution-spec pre-execution block-gas
     availability check when it can prove rejection from the intrinsic/floor gas
     lower bound of prior transactions. Single-transaction overflow is always
-    invalid. Multi-transaction regular overflow is rejected only when the
-    accumulated worst-regular gas before the overflowing transaction agrees with
-    the block header's final `gas_used`; otherwise this conservative bound may
-    be above execution-spec `block_gas_used` because prior transactions returned
-    unused gas, so the gate fails open. -/
+    invalid. Multi-transaction worst-regular overflow is not a safe
+    pre-runtime rejection because prior transactions may return unused gas; it
+    is deferred to the post-runtime exact gas-used check for supported rows. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -161,8 +159,6 @@ def eip8037TxGasGateFunction : String :=
   "  li s4, 0                    # accumulated worst regular gas\n" ++
   "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
   "  la t0, bsg_exact_state_ok; sd zero, 0(t0)\n" ++
-  "  addi a0, s0, 420; jal ra, bgv_u64le       # header gas_used\n" ++
-  "  la t0, bsg_header_gas_used; sd a0, 0(t0)\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
   "  add s5, s0, a0              # tx list ptr\n" ++
   "  addi a0, s0, 508; jal ra, bgv_u32le\n" ++
@@ -177,6 +173,7 @@ def eip8037TxGasGateFunction : String :=
   "  beqz s7, .Letg_ok\n" ++
   "  li t0, 16; bgtu s7, t0, .Letg_ok\n" ++
   "  mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas\n" ++
+  "  li a4, 0; li a5, 0; li a6, 0      # pre-runtime gate has no BAL refund context\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   "  bnez a0, .Letg_state_array_ready\n" ++
   "  la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)\n" ++
@@ -409,8 +406,8 @@ def eip8037TxGasGateFunction : String :=
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
   ".Letg_regular_fail:\n" ++
   "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
-  "  la t0, bsg_header_gas_used; ld t0, 0(t0)\n" ++
-  "  beq s4, t0, .Letg_regular_reject\n" ++
+  "  # Multi-tx worst-regular overflow is only an upper bound before runtime.\n" ++
+  "  # Supported rows are checked exactly after gas-result arena materializes.\n" ++
   "  j .Letg_ok\n" ++
   ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++

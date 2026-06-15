@@ -155,6 +155,7 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "bv_runtime_refund_counter:\n  .zero 8\n" ++
     "bv_runtime_calldata_floor:\n  .zero 8\n" ++
     "bv_tx_status_arr:\n  .zero 8192\n" ++
+    "bv_tx_is_creation_arr:\n  .zero 8192\n" ++
     "bv_tx_log_window:\n  .zero 16\n" ++
     "bv_last_log_start:\n  .zero 8\n" ++
     "bv_last_log_count:\n  .zero 8\n" ++
