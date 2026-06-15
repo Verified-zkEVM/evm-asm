@@ -449,6 +449,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_auth_off:\n  .zero 8\n" ++
   "teer_auth_len:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
   "teer_tuple_len:\n  .zero 8\n" ++
   "teer_target_off:\n  .zero 8\n" ++
@@ -991,6 +992,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bal_find_account_by_address private scratch:
   ".balign 8\n" ++
   "bfa_cnt:\n  .zero 8\n" ++
+  "bfa_index:\n  .zero 8\n" ++
   "bfa_aoff:\n  .zero 8\n" ++
   "bfa_alen:\n  .zero 8\n" ++
   "bfa_doff:\n  .zero 8\n" ++
@@ -1274,12 +1276,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tgbpvr_expected:\n  .zero 32\n" ++
   "tgbpvr_zero:\n  .zero 32\n" ++
   "tgbpvr_blobdebit:\n  .zero 32\n" ++
+  "tgbpvr_authdebit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpvr_to:\n  .zero 24\n" ++
   "tgbpvr_iscreation:\n  .zero 8\n" ++
   "tgbpvr_tx_type:\n  .zero 8\n" ++
   "tgbpvr_inner_off:\n  .zero 8\n" ++
   "tgbpvr_blob_count:\n  .zero 8\n" ++
+  "tgbpvr_auth_off:\n  .zero 8\n" ++
+  "tgbpvr_auth_len:\n  .zero 8\n" ++
+  "tgbpvr_auth_count:\n  .zero 8\n" ++
   "tgbpvr_lookup:\n  .zero 168\n" ++
   ".balign 8\n" ++
   "bv_sender_bal_check:\n  .zero 192\n" ++

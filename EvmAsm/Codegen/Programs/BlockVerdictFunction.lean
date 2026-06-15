@@ -1101,22 +1101,31 @@ def blockVerdictFunction : String :=
   -- if the delegated runtime later reverts/errors. The all-accounts code/nonstorage paths
   -- cover those effects; the self-contained-recipient unchanged assumption does not apply.
   "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 4; bne t1, t2, .Lbv_recipient_nc_check\n" ++
-  "  la t0, bmvmx_sender_addr; la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
+  "  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1; la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, bv_stx_sender_addr; la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
   ".Lbv_recipient_sender_cmp:\n" ++
   "  beqz t2, .Lbv_recipient_nc_done\n" ++
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_recipient_nc_check\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_recipient_sender_cmp\n" ++
   ".Lbv_recipient_nc_check:\n" ++
-  -- .61.8c-2: once CREATE/CREATE2 is activated in the self-contained gate (.8c-3), a CREATE-executing
-  -- recipient legitimately changes its OWN nonce (the EVM increments the creator's nonce on each
-  -- CREATE) and the created account carries code_changes, so the "code+nonce unchanged" assumption
-  -- above is FALSE for it -- the strict empty-list checks below would FALSE-REJECT a VALID CREATE
-  -- block at .Lbv_bal_recipient_field_fail. Skip the recipient nonce_changes/code_changes checks when
-  -- the recipient bytecode contains CREATE (0xf0) or CREATE2 (0xf5); the created account's nonce/code
-  -- are validated by the all-accounts comparators (bal_all_accounts_code_consistent + i3djw), not the
-  -- recipient-field check. Pushdata-aware scan over bvcd_code, mirroring the .Lbv_sbc_scan value-move
-  -- guard. Conservative (skipping never false-rejects). Inert until .8c-3 (CREATE recipients are
-  -- self-contained-rejected pre-.8c, so this region is unreachable for them today).
+  -- CREATE/CREATE2 and EIP-7702 can legitimately change recipient nonce/code;
+  -- all-accounts comparators cover those effects, so this local recipient-field
+  -- unchanged check must skip those precise surfaces.
+  -- EIP-7702 set-delegation can legitimately update the authorized recipient code;
+  -- sender==recipient also duplicates the sender nonce effect checked below.
+  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 4; bne t1, t2, .Lbv_rnc_sender_guard\n" ++
+  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bacc_finals; jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lbv_rnc_sender_guard; la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbv_rnc_sender_guard\n" ++
+  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbv_rnc_sender_guard; ld t2, 64(t0); la t4, bvcd_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
+  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lbv_rnc_sender_guard; lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lbv_rnc_sender_guard\n" ++
+  "  lbu t3, 2(t2); bnez t3, .Lbv_rnc_sender_guard; j .Lbv_recipient_nc_done\n" ++
+  ".Lbv_rnc_sender_guard:\n" ++
+  "  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1; la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, bv_stx_sender_addr; la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_rnc_sender_cmp:\n" ++
+  "  beqz t2, .Lbv_recipient_code_check; lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_rnc_scan_start\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_rnc_sender_cmp\n" ++
+  ".Lbv_rnc_scan_start:\n" ++
   "  la t0, bvcd_code_ptr; ld t0, 0(t0); la t1, bvcd_code_len; ld t1, 0(t1); add t1, t0, t1\n" ++
   ".Lbv_rnc_scan:\n" ++
   "  bgeu t0, t1, .Lbv_rnc_check\n" ++
@@ -1194,8 +1203,7 @@ def blockVerdictFunction : String :=
   -- address in the first 20 bytes.
   "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
   ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
-  "  la t0, i3djw_skip_list; addi t0, t0, 32\n  la t1, bmvmx_sender_addr\n  li t2, 20\n" ++
-  ".Lbv_i3sk1:\n  beqz t2, .Lbv_i3sk1d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk1\n.Lbv_i3sk1d:\n" ++
+  "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
   "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bmvmx_coinbase_addr\n  li t2, 20\n" ++
   ".Lbv_i3sk2:\n  beqz t2, .Lbv_i3sk2d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk2\n.Lbv_i3sk2d:\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
@@ -1243,26 +1251,9 @@ def blockVerdictFunction : String :=
   "  la t0, evm_env; ld a4, 448(t0)\n" ++
   "  jal ra, bal_storage_reads_in_exec_log\n" ++
   "  bnez a0, .Lbv_bal_reads_fail\n" ++
-  -- bmvmx.1.6.3 (balance slice): execution-derived sender BAL post-balance compare.
-  -- dispatch_tx_runtime_code replayed the (self-contained) recipient with EXACT gas, so the
-  -- sender settlement is sender_post = sender_pre - receipt_inc*eff_gas_price - value, computed
-  -- by tx_gas_bal_post_verify_runtime (sender_debit_from_gas #8583 + the runtime gas result).
-  -- This is exact ONLY when execution cannot move value to the sender, so the REJECT is gated
-  -- conservatively (any failed gate -> skip, never newly false-reject). The .Lbv_sbc_scan guard
-  -- below is the SOLE entry into the sender + post-nonce + recipient-balance checks, so all three
-  -- inherit this value-move protection (see the recipient slice's note at .Lbv_rbc_do):
-  --   * recipient bytecode has no CALL(0xf1) / CALLCODE(0xf2) / DELEGATECALL(0xf4) /
-  --     SELFDESTRUCT(0xff) opcode -- the ways execution can move value to/from the sender
-  --     (DELEGATECALL runs delegated code in the recipient's context, which may SELFDESTRUCT to
-  --     the sender; STATICCALL is safe -- static mode forbids value/SELFDESTRUCT). Pushdata-aware
-  --     scan over bvcd_code. SSTORE is NO LONGER bailed: the per-tx EIP-3529 refund is now real
-  --     (evm_refund_acc surfaced into bv_runtime_refund_counter, #8590 merged), so receipt_inc is
-  --     exact for SSTORE-writing recipients too -- the bulk of EEST contract recipients, a large
-  --     coverage gain.
-  --   * the block has no withdrawals (else the sender may be credited),
-  --   * the sender is not the block coinbase (else it also receives the priority fee).
-  -- Only a clean value mismatch (kernel status 40) rejects; every other status (lookup miss,
-  -- post absent, egp/value parse fail, underflow) is treated as "cannot compare" -> skip.
+  -- Execution-derived sender BAL compare. This exact check is entered only after
+  -- value-move gates (no CALL/CALLCODE/DELEGATECALL/SELFDESTRUCT, no withdrawals,
+  -- non-coinbase sender). Status 40 is a clean mismatch; other statuses skip.
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t0, bvcd_code_ptr; ld t0, 0(t0); la t1, bvcd_code_len; ld t1, 0(t1); add t1, t0, t1\n" ++
   ".Lbv_sbc_scan:\n" ++
@@ -1278,6 +1269,7 @@ def blockVerdictFunction : String :=
   "  li t3, 0xff; beq t2, t3, .Lbv_after_tx_gas_precharge\n" ++   -- SELFDESTRUCT -> value move
   "  addi t0, t0, 1; j .Lbv_sbc_scan\n" ++
   ".Lbv_sbc_safe:\n" ++
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t0, tgbpvr_in\n" ++
   "  la t1, bv_simple_transfer_tx; ld t2, 40(t1); sd t2, 0(t0)\n" ++       -- gas_limit
   "  la t1, bv_runtime_gas_left; ld t2, 0(t1); sd t2, 8(t0)\n" ++           -- gas_left
@@ -1423,6 +1415,7 @@ def blockVerdictFunction : String :=
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_state_gas\n" ++
+  "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   "  beqz a0, .Lbv_pregate_state_gas_ready\n" ++
@@ -1459,6 +1452,7 @@ def blockVerdictFunction : String :=
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_state_gas\n" ++
+  "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   -- .57.11.6.5.2: block_verdict_tx_state_gas_array can bail (a0 != 0) even after a successful
