@@ -8,6 +8,8 @@ import EvmAsm.EL.RLP.Decode
 import EvmAsm.EL.RLP.PrefixDecode
 import EvmAsm.EL.RLP.ReadLength
 import EvmAsm.EL.RLP.FullDecode
+import Mathlib.Data.List.Induction
+import Mathlib.Tactic.Positivity
 
 namespace EvmAsm.EL.RLP
 
@@ -78,6 +80,61 @@ theorem Nat.fromBytesBE_toBytesBE (n : Nat) :
       simp only [BitVec.toNat_ofNat]; omega
     rw [hr]
     omega
+
+/-- 8-bit `ofNat ∘ toNat` is the identity. -/
+private theorem ofNat8_toNat (b : Byte) : BitVec.ofNat 8 b.toNat = b := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt b.isLt]
+
+/-- The big-endian decode of a list with a nonzero leading byte is positive. -/
+theorem Nat.fromBytesBE_pos_of_head_ne_zero (b : Byte) (tl : List Byte)
+    (hb : b ≠ 0) : 0 < Nat.fromBytesBE (b :: tl) := by
+  have hbn : 0 < b.toNat := by
+    rcases Nat.eq_zero_or_pos b.toNat with h | h
+    · exact absurd (by apply BitVec.eq_of_toNat_eq; simpa using h) hb
+    · exact h
+  have hmul : 0 < b.toNat * 256 ^ tl.length := Nat.mul_pos hbn (by positivity)
+  have he : Nat.fromBytesBE (b :: tl)
+      = b.toNat * 256 ^ tl.length + Nat.fromBytesBE tl := rfl
+  omega
+
+/-- Canonical inverse of the big-endian bijection: a byte list with a nonzero
+    leading byte (no leading zeros) is recovered by `toBytesBE ∘ fromBytesBE`.
+    `headD 1` makes `[]` vacuously canonical (`toBytesBE (fromBytesBE []) = []`).
+    Reverse (snoc) induction (`List.reverseRecOn`) matches `toBytesBE`'s
+    low-byte-last recursion. -/
+theorem Nat.toBytesBE_fromBytesBE_of_canonical :
+    ∀ (bs : List Byte), bs.headD 1 ≠ 0 → Nat.toBytesBE (Nat.fromBytesBE bs) = bs := by
+  intro bs
+  induction bs using List.reverseRecOn with
+  | nil => intro _; simp [Nat.fromBytesBE, Nat.toBytesBE]
+  | append_singleton xs b ih =>
+    intro h
+    have hxs : xs.headD 1 ≠ 0 := by
+      cases xs with
+      | nil => simp
+      | cons y ys => simpa using h
+    have ihxs := ih hxs
+    have hblt : b.toNat < 256 := by simpa using b.isLt
+    rw [Nat.fromBytesBE_snoc]
+    have hk0 : Nat.fromBytesBE xs * 256 + b.toNat ≠ 0 := by
+      cases xs with
+      | nil =>
+        simp only [List.nil_append] at h
+        have hb0 : b.toNat ≠ 0 := fun hh =>
+          h (BitVec.eq_of_toNat_eq (by simpa using hh))
+        simp only [Nat.fromBytesBE]; omega
+      | cons y ys =>
+        have hy : y ≠ 0 := by simpa using h
+        have := Nat.fromBytesBE_pos_of_head_ne_zero y ys hy
+        omega
+    obtain ⟨k', hk'⟩ : ∃ k', Nat.fromBytesBE xs * 256 + b.toNat = k' + 1 :=
+      ⟨Nat.fromBytesBE xs * 256 + b.toNat - 1, by omega⟩
+    rw [hk', Nat.toBytesBE_succ, ← hk']
+    have hdiv : (Nat.fromBytesBE xs * 256 + b.toNat) / 256
+        = Nat.fromBytesBE xs := by omega
+    have hmod : (Nat.fromBytesBE xs * 256 + b.toNat) % 256 = b.toNat := by omega
+    rw [hdiv, hmod, ihxs, ofNat8_toNat]
 
 /-! ## takeBytes properties -/
 
@@ -2399,6 +2456,22 @@ theorem decodeFully_encode (item : RLPItem) (h : (encode item).length < 256 ^ 8)
     decodeFully (encode item) = some item :=
   decodeFully_encode_of_decode_encode (decode_encode item h)
 
+/-- **Injectivity of `encode`** over items the decoder supports
+    (`(encode i₁).length < 256^8`): distinct items never share an encoding. A
+    direct corollary of the round-trip — both sides re-decode to themselves, so
+    equal encodings force equal items. -/
+theorem encode_injective {i₁ i₂ : RLPItem} (h : (encode i₁).length < 256 ^ 8)
+    (heq : encode i₁ = encode i₂) : i₁ = i₂ := by
+  have h₁ := decode_encode i₁ h
+  have h₂ := decode_encode i₂ (heq ▸ h)
+  rw [heq, h₂] at h₁
+  simp only [Option.some.injEq, Prod.mk.injEq] at h₁
+  exact h₁.1.symm
+
+/-- Cross-check: two distinct items have distinct encodings (contrapositive of
+    `encode_injective`). -/
+example : encode (.bytes [0x01]) ≠ encode (.list [.bytes [0x01]]) := by decide
+
 /-- Generality cross-check: a nested list round-trips via the general theorem
     (the bound is discharged by `decide`). -/
 example :
@@ -2459,7 +2532,43 @@ example : decode [0x81, 0x0F] = none := by decide
 example : decode [0x81, 0x7F] = none := by decide
 example : decode [0x81, 0x00] = none := by decide
 
+/-! ## Quasi-encoding rejection (ACL2 §4.2.1)
+
+Coglio's ACL2 RLP development (arXiv:2009.13769) emphasizes that a correct
+decoder must **reject** the five families of non-canonical "quasi-encodings" —
+byte sequences that *could* be parsed but are not in the image of `encode`.
+Accepting them (as some implementations did) breaks the right-inverse /
+decodability property and the database-key consensus rule. Our decoder rejects
+all five; the parametric rejections are named lemmas, with concrete `decide`
+cross-checks below.
+
+1. Redundant singleton `[0x81, x]` with `x < 0x80` — must use the single-byte
+   form `[x]`. Rejected by `decode_canonical_rejection_single`.
+2. Long byte-string with a leading-zero length field — rejected because
+   `readLength` enforces no leading zeros
+   (`readLength_none_of_takeBytes_leading_zero`).
+3. Long byte-string form used for a `≤ 55` payload — rejected by the
+   `lenVal ≤ 55` guard (`decodeAux_long_bytes_short_length_rejected`).
+4. Long list with a leading-zero length field — as (2).
+5. Long list form used for a `≤ 55` payload — as (3),
+   `decodeAux_long_list_short_length_rejected`. -/
+
+-- (1) redundant singleton (parametric form already proven)
+example (b : Byte) (h : b.toNat < 0x80) : decode [(0x81 : Byte), b] = none :=
+  decode_canonical_rejection_single b h
+
+-- (2) long byte-string, leading-zero length field (prefix 0xB9 ⇒ 2 length bytes)
+example : decode [0xB9, 0x00, 0x40] = none := by decide
+-- (3) long byte-string form for a short (≤55) payload (prefix 0xB8, len 5)
+example : decode [0xB8, 0x05] = none := by decide
+-- (4) long list, leading-zero length field (prefix 0xF9 ⇒ 2 length bytes)
+example : decode [0xF9, 0x00, 0x40] = none := by decide
+-- (5) long list form for a short (≤55) payload (prefix 0xF8, len 5)
+example : decode [0xF8, 0x05] = none := by decide
+
 end EvmAsm.EL.RLP
+
+
 
 
 

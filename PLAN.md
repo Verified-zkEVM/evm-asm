@@ -983,8 +983,26 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   fuel-parametric `decodeAux_succ_encodeBytes_append`, plus `encode_list_short`/
   `_long`, `decodeItems_succ_of_ne_nil`, `takeBytes_append_length`,
   `le_encodeBytes_length`. A single top-level `< 256^8` bound implies every
-  nested bound. Lean-core only; axiom-clean, 0 sorry. **The RLP encode→decode
-  round-trip is now complete end-to-end.**
+  nested bound. Axiom-clean, 0 sorry. **The RLP encode→decode round-trip is now
+  complete end-to-end.**
+- ✅ **Decodability part 1 — injectivity + canonical bijection + quasi-encoding
+  rejection** (`Properties.lean`). Informed by Coglio's ACL2 RLP work
+  (arXiv:2009.13769), whose headline results are the encode/decode *mutual
+  inverses*, injectivity, and rejection of non-canonical "quasi-encodings".
+  Added: `encode_injective` (`encode i₁ = encode i₂ → i₁ = i₂`, a corollary of
+  the round-trip); `Nat.toBytesBE_fromBytesBE_of_canonical` (the canonical
+  inverse of the big-endian bijection — `toBytesBE (fromBytesBE bs) = bs` for a
+  no-leading-zero `bs`, the foundation the right-inverse needs) +
+  `Nat.fromBytesBE_pos_of_head_ne_zero`; and a documented **quasi-encoding
+  rejection** section (the five ACL2 forms, each pointed at its rejecting lemma
+  with `decide` cross-checks). **Now imports Mathlib** (`List.reverseRecOn`,
+  `positivity`) rather than re-deriving list/arithmetic facts. Axiom-clean
+  (classical), 0 sorry.
+- Remaining (decodability part 2): the full **right inverse**
+  `decode bs = some (item, rest) → bs = encode item ++ rest` (mutual fuel
+  induction over `decodeAux`/`decodeItems`, reusing the canonical inverse + the
+  `_eq_some_iff` bridges) — certifying the decoder accepts *only* canonical
+  encodings (the ACL2 `rlp-encode-tree-of-rlp-parse-tree` analogue).
 
 ### EL.2 Byte-Level Infrastructure ✅
 - **File**: `EvmAsm/Rv64/ByteOps.lean`
