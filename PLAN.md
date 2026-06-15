@@ -958,6 +958,20 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 - `RLPItem` type (bytes | list), `encode`, `decode` with canonical enforcement
 - 17 kernel-verified properties via `decide` (round-trip, spec conformance)
 - 0 sorry, 0 axioms
+- ✅ **General byte-string round-trip (parametric, not `decide`)** (`Properties.lean`).
+  `decode_encode_bytes (data) (hlen : data.length < 256^8) :
+  decode (encode (.bytes data)) = some (.bytes data, [])` — every leaf `RLPItem`
+  re-decodes to itself, for all lengths the decoder's 8-byte length field
+  supports. Short form (`≤ 55`) is unconditional. Supporting new foundations:
+  `Nat.fromBytesBE_toBytesBE` (big-endian round-trip), `Nat.fromBytesBE_snoc`,
+  `Nat.toBytesBE_succ`, `Nat.toBytesBE_length_le` (`len < 256^k → length ≤ k`),
+  `Nat.toBytesBE_eq_cons_of_pos` (nonzero leading byte / no-leading-zero),
+  `readLength_toBytesBE_append`, `encodeBytes_long_of_length`. All Lean-core
+  (no Mathlib): `Nat.toBytesBE.induct`, `omega`, `List.take_left`/`drop_left`.
+  Axiom-clean (propext/Classical.choice/Quot.sound), 0 sorry. This is the leaf
+  half of the round-trip keystone; the `.list`/mutual-induction half (which
+  discharges `FullDecode.decodeFully_encode_of_decode_encode`'s `h_roundtrip`
+  hypothesis) is the planned follow-up.
 
 ### EL.2 Byte-Level Infrastructure ✅
 - **File**: `EvmAsm/Rv64/ByteOps.lean`
@@ -1141,6 +1155,21 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     them. Proof: `cases classifyPrefix pfx` + `exact <handler>`. Axiom-clean,
     0 sorry. **The single-item RLP decode arc is complete end-to-end**
     (classify → per-class length extraction → unified dispatch).
+  - ✅ **List-payload single-byte-run decode (pure spec)** (`EL/RLP/ListDecode.lean`).
+    The merged `ListDecodeBridge` *characterizes* list decode in terms of
+    `decodeItems`/`decodeListPayload` but never *computes* `decodeItems` for any
+    concrete payload class. `decodeItems_singleByte_run` closes that gap: a run of
+    bytes each `< 0x80` (with depth budget `2 * bs.length ≤ nDepth`) decodes to
+    one one-byte `RLPItem.bytes` per byte, consuming the whole run (induction on
+    `bs`, reusing `decodeAux_cons_singleByte_of_classifyPrefix` +
+    `classifyPrefix_singleByte_iff`). `decodeAux_shortList_of_singleByte_items`
+    lifts it through the merged short-list characterization
+    (`ListDecodeBridge.decodeAux_cons_shortList_eq_some_iff`) to a full
+    `RLPItem.list` of single-byte items, with a concrete cross-check
+    (`0xC3 [0x01,0x7F,0x05]`). Axiom-clean (propext/Quot.sound), 0 sorry. This is
+    the pure-spec foundation for the first RV64 list-payload loop (single-byte
+    items are the one fixed-stride, zero-copy case); the RV64 loop + `decodeItems`
+    bridge is the follow-up.
   - Remaining (future): a full semantic bridge to the pure `decodeAux` (needs
     canonical-encoding `>55`/leading-zero validation the RV64 path does not
     perform, plus recursive list decode `decodeItems` for list payloads);
