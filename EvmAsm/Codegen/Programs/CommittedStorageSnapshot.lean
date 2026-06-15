@@ -234,6 +234,147 @@ def ziskCommittedStorageSnapshotUpsertProbeUnit : BuildUnit := {
   dataAsm     := ziskCommittedStorageSnapshotUpsertDataSection
 }
 
+
+/-! ## bv_mtx_committed_chunked_snapshot_upsert
+    a0 = recipient ptr (20B)
+    a1 = live storage log base (128B entries)
+    a2 = live storage log entry count
+    a3 = chunked committed table base (128B entries, contiguous pages)
+    a4 = committed table count across all chunks
+    a5 = committed table total capacity
+    a6 = overflow status ptr (u64; set to 1 on overflow)
+    returns:
+      a0 = new committed table count
+      a1 = status (0 ok, 1 overflow)
+
+    The chunked helper keeps the same 128-byte entry layout as the current
+    upsert helper, but its ABI treats a4/a5 as global counts over the contiguous
+    chunk pages. Existing keys update in place across page boundaries; new
+    unique keys append at the global count and overflow only when total chunked
+    capacity is exhausted. -/
+def committedStorageChunkedSnapshotUpsertFunction : String :=
+  "bv_mtx_committed_chunked_snapshot_upsert:\n" ++
+  "  li t0, 0                      # j = 0\n" ++
+  ".Lcscsu_loop:\n" ++
+  "  beq t0, a2, .Lcscsu_done\n" ++
+  "  slli t1, t0, 7; add t1, a1, t1   # src = live[j]\n" ++
+  "  li t2, 0                      # i = 0\n" ++
+  ".Lcscsu_scan:\n" ++
+  "  beq t2, a4, .Lcscsu_no_match\n" ++
+  "  slli t3, t2, 7; add t3, a3, t3   # entry = table[i]\n" ++
+  "  li t4, 0\n" ++
+  ".Lcscsu_addr_cmp:\n" ++
+  "  li t5, 20; beq t4, t5, .Lcscsu_slot_cmp\n" ++
+  "  add t5, a0, t4; lbu t5, 0(t5); add t6, t3, t4; lbu t6, 0(t6); bne t5, t6, .Lcscsu_next_entry\n" ++
+  "  addi t4, t4, 1; j .Lcscsu_addr_cmp\n" ++
+  ".Lcscsu_slot_cmp:\n" ++
+  "  ld t5, 32(t1);  ld t6, 32(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
+  "  ld t5, 40(t1);  ld t6, 40(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
+  "  ld t5, 48(t1);  ld t6, 48(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
+  "  ld t5, 56(t1);  ld t6, 56(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
+  "  j .Lcscsu_store_payload\n" ++
+  ".Lcscsu_next_entry:\n" ++
+  "  addi t2, t2, 1; j .Lcscsu_scan\n" ++
+  ".Lcscsu_no_match:\n" ++
+  "  bgeu a4, a5, .Lcscsu_overflow\n" ++
+  "  slli t3, a4, 7; add t3, a3, t3   # dst = table[count]\n" ++
+  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
+  "  li t4, 0\n" ++
+  ".Lcscsu_addr_copy:\n" ++
+  "  li t5, 20; beq t4, t5, .Lcscsu_store_payload_append\n" ++
+  "  add t5, a0, t4; lbu t6, 0(t5); add t5, t3, t4; sb t6, 0(t5); addi t4, t4, 1; j .Lcscsu_addr_copy\n" ++
+  ".Lcscsu_store_payload_append:\n" ++
+  "  addi a4, a4, 1\n" ++
+  ".Lcscsu_store_payload:\n" ++
+  "  ld t4, 32(t1);  sd t4, 32(t3);  ld t4, 40(t1);  sd t4, 40(t3)\n" ++
+  "  ld t4, 48(t1);  sd t4, 48(t3);  ld t4, 56(t1);  sd t4, 56(t3)\n" ++
+  "  ld t4, 64(t1);  sd t4, 64(t3);  ld t4, 72(t1);  sd t4, 72(t3)\n" ++
+  "  ld t4, 80(t1);  sd t4, 80(t3);  ld t4, 88(t1);  sd t4, 88(t3)\n" ++
+  "  ld t4, 96(t1);  sd t4, 96(t3);  ld t4, 104(t1); sd t4, 104(t3)\n" ++
+  "  ld t4, 112(t1); sd t4, 112(t3); ld t4, 120(t1); sd t4, 120(t3)\n" ++
+  "  addi t0, t0, 1; j .Lcscsu_loop\n" ++
+  ".Lcscsu_overflow:\n" ++
+  "  li t0, 1; sd t0, 0(a6); mv a0, a4; li a1, 1; ret\n" ++
+  ".Lcscsu_done:\n" ++
+  "  mv a0, a4; li a1, 0; ret"
+
+/-- `zisk_mtx_committed_chunked_snapshot_upsert`: focused probe.
+    Input after ziskemu's length wrapper:
+      +8 mode: 0 zero-live, 1 129 unique inserts, 2 duplicate update across
+          chunk boundary, 3 exact full-capacity fill, 4 overflow one unique
+          beyond full capacity
+    Output:
+      +0 returned count
+      +8 returned status
+      +16 stored overflow status
+      +24 entry0 slotKey low byte
+      +32 entry0 current low byte
+      +40 entry128 slotKey low byte
+      +48 entry128 current low byte
+      +56 entry511 current low byte
+      +64 sentinel word after capacity -/
+def ziskCommittedStorageChunkedSnapshotUpsertPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  li t6, 0x40000000; ld s1, 8(t6)\n" ++
+  "  la t0, cscsu_recipient; li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 19(t0)\n" ++
+  "  la t0, cscsu_status; sd zero, 0(t0)\n" ++
+  "  la t0, cscsu_table; li t1, 0xEE; li t2, 65536; add t0, t0, t2; sd t1, 0(t0)\n" ++
+  "  la t0, cscsu_live; li t2, 0\n" ++
+  ".Lcscsup_seed_live_loop:\n" ++
+  "  li t3, 129; beq t2, t3, .Lcscsup_seed_live_done\n" ++
+  "  addi t1, t2, 1; sd t1, 32(t0); sd t1, 64(t0); sd t1, 96(t0)\n" ++
+  "  addi t0, t0, 128; addi t2, t2, 1; j .Lcscsup_seed_live_loop\n" ++
+  ".Lcscsup_seed_live_done:\n" ++
+  "  li a2, 0; li a4, 0; li a5, 512\n" ++
+  "  beqz s1, .Lcscsup_call\n" ++
+  "  li t0, 1; beq s1, t0, .Lcscsup_129_unique\n" ++
+  "  li t0, 2; beq s1, t0, .Lcscsup_cross_duplicate\n" ++
+  "  li t0, 3; beq s1, t0, .Lcscsup_full_fill\n" ++
+  "  j .Lcscsup_overflow\n" ++
+  ".Lcscsup_129_unique:\n  li a2, 129; j .Lcscsup_call\n" ++
+  ".Lcscsup_cross_duplicate:\n" ++
+  "  la t0, cscsu_table; li t2, 0\n" ++
+  ".Lcscsup_seed_table_loop:\n" ++
+  "  li t3, 130; beq t2, t3, .Lcscsup_seed_table_done\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 19(t0); addi t1, t2, 1; sd t1, 32(t0); sd t1, 64(t0); sd t1, 96(t0)\n" ++
+  "  addi t0, t0, 128; addi t2, t2, 1; j .Lcscsup_seed_table_loop\n" ++
+  ".Lcscsup_seed_table_done:\n" ++
+  "  la t0, cscsu_live; li t1, 129; sd t1, 32(t0); sd t1, 64(t0); li t1, 0x77; sd t1, 96(t0)\n" ++
+  "  li a2, 1; li a4, 130; j .Lcscsup_call\n" ++
+  ".Lcscsup_full_fill:\n" ++
+  "  la t0, cscsu_live; li t1, 512; sd t1, 32(t0); sd t1, 64(t0); li t1, 0x66; sd t1, 96(t0)\n" ++
+  "  li a2, 1; li a4, 511; j .Lcscsup_call\n" ++
+  ".Lcscsup_overflow:\n" ++
+  "  la t0, cscsu_live; li t1, 513; sd t1, 32(t0); sd t1, 64(t0); li t1, 0x55; sd t1, 96(t0)\n" ++
+  "  li a2, 1; li a4, 512\n" ++
+  ".Lcscsup_call:\n" ++
+  "  la a0, cscsu_recipient; la a1, cscsu_live; la a3, cscsu_table; la a6, cscsu_status\n" ++
+  "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
+  "  sd a0, 0(s0); sd a1, 8(s0); la t0, cscsu_status; ld t1, 0(t0); sd t1, 16(s0)\n" ++
+  "  la t0, cscsu_table\n" ++
+  "  ld t1, 32(t0); sd t1, 24(s0); ld t1, 96(t0); sd t1, 32(s0)\n" ++
+  "  li t2, 16384; add t3, t0, t2; ld t1, 32(t3); sd t1, 40(s0); ld t1, 96(t3); sd t1, 48(s0)\n" ++
+  "  li t2, 65408; add t3, t0, t2; ld t1, 96(t3); sd t1, 56(s0)\n" ++
+  "  li t2, 65536; add t3, t0, t2; ld t1, 0(t3); sd t1, 64(s0)\n" ++
+  "  j .Lcscsup_done\n" ++
+  committedStorageChunkedSnapshotUpsertFunction ++ "\n" ++
+  ".Lcscsup_done:"
+
+def ziskCommittedStorageChunkedSnapshotUpsertDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "cscsu_live:\n  .zero 16640\n" ++
+  "cscsu_table:\n  .zero 65544\n" ++
+  "cscsu_recipient:\n  .zero 32\n" ++
+  "cscsu_status:\n  .zero 8\n"
+
+def ziskCommittedStorageChunkedSnapshotUpsertProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskCommittedStorageChunkedSnapshotUpsertPrologue
+  dataAsm     := ziskCommittedStorageChunkedSnapshotUpsertDataSection
+}
+
 def ziskCommittedStorageSnapshotDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
