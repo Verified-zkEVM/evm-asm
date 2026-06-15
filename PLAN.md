@@ -1129,12 +1129,23 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `…_lenOfLen_of_class…` prefix wrapper; e3 rewrites `x14 = pfx − 0xB7` to
     `ofNat n` via `rlpPrefixLongBytesLenOfLen_toWord_of_class`). Axiom-clean,
     0 sorry.
-  - Remaining: unified single-item dispatch — compose the Phase-1
-    `cpsNBranchWithin` classifier with all five general handlers (e1/e2/e4 flat
-    + the e3/e5 general long-form full paths); needs a "`cpsNBranch` then
-    per-exit continue" composition (the structurally hardest piece).
-    Also: cross-doubleword length spans, and `readLength` canonical / `>55`
-    validation.
+  - ✅ **Unified single-item decode (capstone)** (`UnifiedDecodeItem.lean`).
+    `rlp_decode_single_item_spec_within`: for an arbitrary prefix byte, one
+    theorem whose conclusion is a `match classifyPrefix pfx` dispatching to the
+    five per-class full-path handlers — the RV64 analogue of the pure
+    `decodeAux_cons_eq_classifyPrefix_match`. Each branch reaches the
+    class-appropriate exit with the spec-correct decoded length
+    (`1` / `rlpPrefixShort{Bytes,List}PayloadLen` / `Nat.fromBytesBE …`).
+    Long-form-only proof obligations (window `hwin`, loop `hback`) ride in a
+    `match`-typed hypothesis `rlpDecodeLongHyps` so flat callers needn't supply
+    them. Proof: `cases classifyPrefix pfx` + `exact <handler>`. Axiom-clean,
+    0 sorry. **The single-item RLP decode arc is complete end-to-end**
+    (classify → per-class length extraction → unified dispatch).
+  - Remaining (future): a full semantic bridge to the pure `decodeAux` (needs
+    canonical-encoding `>55`/leading-zero validation the RV64 path does not
+    perform, plus recursive list decode `decodeItems` for list payloads);
+    cross-doubleword length spans (`n ≤ 8` single-doubleword only); Phase-4
+    `read_input` pipeline integration.
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
