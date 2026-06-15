@@ -984,4 +984,99 @@ def ziskBloomEqProbeUnit : BuildUnit := {
   dataAsm     := ziskBloomEqDataSection
 }
 
+
+/-! ## running bloom checkpoint helpers
+
+    Side-array storage for hot receipt/block bloom accumulation and
+    per-call-depth checkpoints. The descriptor-backed receipt/log-bloom
+    materialization remains authoritative; these helpers are only the
+    substrate for later call-frame rollback plumbing.
+
+    `running_bloom_zero(ptr)` clears a 256-byte bloom.
+    `running_bloom_copy(dst, src)` copies one 256-byte bloom.
+
+    Both routines process aligned 8-byte words, so callers must pass
+    8-byte-aligned bloom/checkpoint labels. -/
+
+def runningBloomZeroFunction : String :=
+  "running_bloom_zero:\n" ++
+  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
+  "  mv t1, a0                  # bloom cursor\n" ++
+  ".Lrbz_loop:\n" ++
+  "  beqz t0, .Lrbz_done\n" ++
+  "  sd zero, 0(t1)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lrbz_loop\n" ++
+  ".Lrbz_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+def runningBloomCopyFunction : String :=
+  "running_bloom_copy:\n" ++
+  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
+  "  mv t1, a0                  # dst cursor\n" ++
+  "  mv t2, a1                  # src cursor\n" ++
+  ".Lrbc_loop:\n" ++
+  "  beqz t0, .Lrbc_done\n" ++
+  "  ld t3, 0(t2)\n" ++
+  "  sd t3, 0(t1)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lrbc_loop\n" ++
+  ".Lrbc_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ret"
+
+/-- `zisk_running_bloom_checkpoint`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : pad
+      bytes  8..264: bloom pattern
+    The probe copies the pattern into the hot running block bloom,
+    snapshots it into checkpoint depth 0, zeroes the hot bloom, restores
+    from the checkpoint, and emits the restored 256 bytes. -/
+def ziskRunningBloomCheckpointPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  addi s0, a3, 16             # input bloom ptr (after host shift + pad)\n" ++
+  "  la s1, rb_running_block_bloom\n" ++
+  "  la s2, rb_bloom_checkpoints\n" ++
+  "  la a0, rb_running_block_bloom\n" ++
+  "  jal ra, running_bloom_zero\n" ++
+  "  la a0, rb_running_receipt_bloom\n" ++
+  "  jal ra, running_bloom_zero\n" ++
+  "  mv a0, s2\n" ++
+  "  jal ra, running_bloom_zero\n" ++
+  "  mv a0, s1; mv a1, s0\n" ++
+  "  jal ra, running_bloom_copy   # seed hot running bloom\n" ++
+  "  mv a0, s2; mv a1, s1\n" ++
+  "  jal ra, running_bloom_copy   # snapshot depth 0\n" ++
+  "  mv a0, s1\n" ++
+  "  jal ra, running_bloom_zero   # simulate child mutation/rollback target\n" ++
+  "  mv a0, s1; mv a1, s2\n" ++
+  "  jal ra, running_bloom_copy   # restore from checkpoint\n" ++
+  "  li a0, 0xa0010000; mv a1, s1\n" ++
+  "  jal ra, running_bloom_copy   # emit restored bloom\n" ++
+  "  j .Lrbc_pdone\n" ++
+  runningBloomZeroFunction ++ "\n" ++
+  runningBloomCopyFunction ++ "\n" ++
+  ".Lrbc_pdone:"
+
+def ziskRunningBloomCheckpointDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "rb_running_block_bloom:\n" ++
+  "  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n" ++
+  "  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n" ++
+  "  .zero 262144\n"
+
+def ziskRunningBloomCheckpointProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRunningBloomCheckpointPrologue
+  dataAsm     := ziskRunningBloomCheckpointDataSection
+}
+
 end EvmAsm.Codegen
