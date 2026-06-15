@@ -544,6 +544,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
   ".balign 8\n" ++
+  "bv_system_storage_capture_status:\n  .zero 8\n" ++
+  "bv_system_storage_capture_start:\n  .zero 8\n" ++
+  "bv_system_storage_capture_end:\n  .zero 8\n" ++
+  "bv_system_storage_capture_rows:\n  .zero 8\n" ++
+  "bv_system_storage_capture_old_count:\n  .zero 8\n" ++
+  "bv_system_storage_capture_new_count:\n  .zero 8\n" ++
   "c1_wcode_ptr:\n  .zero 8\n" ++
   "c1_wcode_len:\n  .zero 8\n" ++
   "c1_er_input:\n  .zero 8\n" ++

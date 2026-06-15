@@ -8,6 +8,7 @@ import EvmAsm.EL.RLP.Prefix
 import EvmAsm.EL.RLP.PrefixDecode
 import EvmAsm.EL.RLP.ByteStringDecodeBridge
 import EvmAsm.EL.RLP.ListDecodeBridge
+import EvmAsm.EL.RLP.ListDecode
 import EvmAsm.EL.RLP.Program
 import EvmAsm.EL.RLP.ProgramSpec
 import EvmAsm.EL.RLP.ReadLength
