@@ -60,6 +60,7 @@ def witnessLookupByHashFunction : String :=
   "  mv s2, a2                  # target_hash ptr\n" ++
   "  mv s3, a3                  # out_offset ptr\n" ++
   "  mv s4, a4                  # out_length ptr\n" ++
+  "  la t0, wlh_lookup_calls; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, widx_enabled\n" ++
   "  ld t0, 0(t0)\n" ++
   "  beqz t0, .Lwlh_linear\n" ++
@@ -74,9 +75,20 @@ def witnessLookupByHashFunction : String :=
   "  mv a2, s2\n" ++
   "  mv a3, s3\n" ++
   "  mv a4, s4\n" ++
+  "  la t0, wlh_indexed_calls; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  jal ra, witness_lookup_by_hash_indexed\n" ++
+  "  bnez a0, .Lwlh_indexed_miss_count\n" ++
+  "  la t0, wlh_indexed_hits; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  j .Lwlh_ret\n" ++
+  ".Lwlh_indexed_miss_count:\n" ++
+  "  la t0, wlh_indexed_misses; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lwlh_ret\n" ++
   ".Lwlh_linear:\n" ++
+  "  la t0, wlh_linear_calls; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, wlh_linear_last_section_len; sd s1, 0(t0)\n" ++
+  "  la t0, wlh_linear_max_section_len; ld t1, 0(t0); bgeu t1, s1, .Lwlh_linear_max_done\n" ++
+  "  sd s1, 0(t0)\n" ++
+  ".Lwlh_linear_max_done:\n" ++
   "  beqz s1, .Lwlh_miss        # empty section ⇒ miss\n" ++
   "  li t0, 4\n" ++
   "  bltu s1, t0, .Lwlh_miss    # too short for an offsets table\n" ++
@@ -110,6 +122,7 @@ def witnessLookupByHashFunction : String :=
   "  bltu t4, a0, .Lwlh_miss    # descending offsets ⇒ malformed\n" ++
   "  sub a1, t4, a0             # el_i_len\n" ++
   "  la a2, wlh_scratch_hash\n" ++
+  "  la t0, wlh_linear_iterations; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  jal ra, zkvm_keccak256\n" ++
   "  # Compare scratch_hash vs target_hash.\n" ++
   "  la t0, wlh_scratch_hash\n" ++
@@ -134,12 +147,14 @@ def witnessLookupByHashFunction : String :=
   "  sub t4, s1, t2             # length = section_len - inner_off_i\n" ++
   ".Lwlh_store_len:\n" ++
   "  sd t4, 0(s4)\n" ++
+  "  la t0, wlh_linear_hits; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  li a0, 0                   # hit\n" ++
   "  j .Lwlh_ret\n" ++
   ".Lwlh_no_match:\n" ++
   "  addi s6, s6, 1\n" ++
   "  j .Lwlh_loop\n" ++
   ".Lwlh_miss:\n" ++
+  "  la t0, wlh_linear_misses; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  li a0, 1                   # miss\n" ++
   ".Lwlh_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
