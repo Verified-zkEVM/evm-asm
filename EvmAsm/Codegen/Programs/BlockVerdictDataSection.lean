@@ -203,6 +203,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
   "bv_tx_status_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- xbi56.2: per-tx creation flag parallel to bv_tx_status_arr, used by the
+  -- EIP-8037 tx-error state-gas rule when materializing exact block state gas.
+  "bv_tx_is_creation_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
   -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
   -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
@@ -220,16 +223,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_logs_rlp_len:\n  .zero 8\n" ++
   "bv_tx_log_window:\n  .zero " ++ toString bvMtxLogWindowBytes ++ "\n" ++
   ".balign 8\n" ++
-  "bv_block_log_descs:\n  .zero 32768\n" ++
-  "bv_block_log_meta:\n  .zero 2048\n" ++
-  "bv_block_log_data:\n  .zero 65536\n" ++
-  "bv_logs_rlp_arena:\n  .zero 65536\n" ++
-  "bv_record_blooms:\n  .zero 4096\n" ++
-  "bv_record_logs_desc:\n  .zero 512\n" ++
-  -- .63.1.6.2.3: encoded full-receipt RLP list (status||cumulative_gas||bloom||logs per
-  -- receipt) for block_validate_receipts_consensus_list. The encoder's internal payload
-  -- scratch caps at 32768; 64 KiB leaves margin for the list prefix + max receipts.
-  "bv_receipts_rlp:\n  .zero 65536\n" ++
+  "bv_block_log_descs:\n  .zero " ++ toString bvBlockLogDescBytes ++ "\n" ++
+  "bv_block_log_meta:\n  .zero " ++ toString bvBlockLogMetaBytes ++ "\n" ++
+  "bv_block_log_data:\n  .zero " ++ toString bvBlockLogDataBytes ++ "\n" ++
+  "bv_logs_rlp_arena:\n  .zero " ++ toString bvLogsRlpArenaBytes ++ "\n" ++
+  "bv_record_blooms:\n  .zero " ++ toString bvRecordBloomsBytes ++ "\n" ++
+  "bv_record_logs_desc:\n  .zero " ++ toString bvRecordLogsDescBytes ++ "\n" ++
+  -- .63.1.6.2.3: encoded full-receipt RLP list plus encoder scratch.
+  -- Output/scratch overflow is capacity debt and remains conservative unless a
+  -- later slice proves a supported in-capacity semantic mismatch.
+  "bv_receipts_rlp:\n  .zero " ++ toString bvReceiptsRlpBytes ++ "\n" ++
   "bv_receipts_rlp_len:\n  .zero 8\n" ++
   -- Status returned by receipt_records_encode_no_logs in the receipts tail:
   -- 0 success, 1 malformed/count over capacity, 2 missing logs descriptor,
@@ -241,11 +244,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_receipts_validator_status:\n  .zero 8\n" ++
   -- .63.1.6.2.3: receipt_encode + receipt_records_encode_no_logs scratch (these labels were
   -- probe-only in ziskReceiptRecordsEncodeNoLogsDataSection before the tx-bearing un-gate linked
-  -- the encoder into the guest). re_payload_buf (16K) / rle_payload_buf (32K) are the per-receipt
+  -- the encoder into the guest). re_payload_buf / rle_payload_buf are the per-receipt
   -- and list payload scratch; rle_empty_logs/rle_zero_bloom are the no-log receipt constants.
   ".balign 8\n" ++
   "rle_control:\n  .zero 24\n" ++
-  "rle_records:\n  .zero 1024\n" ++
+  "rle_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
   "rle_field_len:\n  .zero 8\n" ++
   "rle_prefix_len:\n  .zero 8\n" ++
   "re_field_len:\n  .zero 8\n" ++
@@ -256,9 +259,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "rle_zero_bloom:\n  .zero 256\n" ++
   ".balign 8\n" ++
-  "re_payload_buf:\n  .zero 16384\n" ++
+  "re_payload_buf:\n  .zero " ++ toString bvReceiptEncodePayloadBytes ++ "\n" ++
   ".balign 8\n" ++
-  "rle_payload_buf:\n  .zero 32768\n" ++
+  "rle_payload_buf:\n  .zero " ++ toString bvReceiptListPayloadBytes ++ "\n" ++
   -- .63.1.6.2.3: block_validate_logs_bloom + block_logs_bloom_from_receipts_list scratch
   -- (helb_offset/helb_length are already linked via header_extract_logs_bloom).
   ".balign 8\n" ++
@@ -286,7 +289,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brcl_root_valid:\n  .zero 8\n" ++
   "brcl_bloom_valid:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "brcl_value_descs:\n  .zero 2048\n" ++
+  "brcl_value_descs:\n  .zero " ++ toString bvReceiptConsensusDescBytes ++ "\n" ++
   -- scratch for log_records_encode_rlp (lrr_*) and the bloom accumulators
   -- (bav_/lba_/llba_ — zk3_state is already defined by the guest).
   logRecordsRlpDataSection ++
@@ -301,7 +304,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "llba_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
-  "brr_records:\n  .zero 1024\n" ++
+  "brr_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
   "hewr_offset:\n  .zero 8\n" ++
   "hewr_length:\n  .zero 8\n" ++
   ".balign 32\n" ++
@@ -325,7 +328,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvrri_expected_root:\n  .zero 32\n" ++
   "bvrri_computed_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "bvrri_value_descs:\n  .zero 2048\n" ++
+  "bvrri_value_descs:\n  .zero " ++ toString bvReceiptConsensusDescBytes ++ "\n" ++
   ".balign 8\n" ++
   "bv_header_bloom:\n  .zero 256\n" ++
   "bv_zero_bloom:\n  .zero 256\n" ++
@@ -424,9 +427,57 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- xbi56.1: exact net EIP-8037 tx_state_gas = intrinsic + executed - refund,
   -- with transaction error rules applied. Populated after runtime gas results.
   "bvgr_tx_total_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- xbi56.2: EIP-8037 state-refund input to the net state-gas materializer.
+  -- Current block-verdict runtime paths do not yet expose nonzero state refunds;
+  -- this zero-initialized array keeps the exact block gas check honest for rows
+  -- with no state refund and leaves refund plumbing as explicit follow-up debt.
+  "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_exact_header_gas_used:\n  .zero 8\n" ++
+  "bv_exact_expected_gas_used:\n  .zero 8\n" ++
+  "bv_exact_net_status:\n  .zero 8\n" ++
+  "bv_exact_net_index:\n  .zero 8\n" ++
+  "bv_exact_block_status:\n  .zero 8\n" ++
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- EIP-7702 state-refund scratch used by tx_eip7702_existing_authority_refund.
+  -- The current helper is a coarse syntactic bridge; evm-asm-cqesh tracks the
+  -- precise BAL/account predicate follow-up.
+  "teer_type:\n  .zero 8\n" ++
+  "teer_inner_off:\n  .zero 8\n" ++
+  "teer_auth_off:\n  .zero 8\n" ++
+  "teer_auth_len:\n  .zero 8\n" ++
+  "teer_auth_count:\n  .zero 8\n" ++
+  "teer_tuple_off:\n  .zero 8\n" ++
+  "teer_tuple_len:\n  .zero 8\n" ++
+  "teer_target_off:\n  .zero 8\n" ++
+  "teer_target_len:\n  .zero 8\n" ++
+  "teer_auth_chain:\n  .zero 8\n" ++
+  "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_authority:\n  .zero 24\n" ++
+  ".balign 8\n" ++
+  "teer_recover_scratch:\n  .zero 360\n" ++
+  "teer_acct_ptr:\n  .zero 8\n" ++
+  "teer_acct_len:\n  .zero 8\n" ++
+  "teer_finals:\n  .zero 88\n" ++
+  "a77ra_cmp:\n  .zero 8\n" ++
+  "a77ra_secp256k1_n:\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xfe\n" ++
+  "  .byte 0xba,0xae,0xdc,0xe6,0xaf,0x48,0xa0,0x3b\n" ++
+  "  .byte 0xbf,0xd2,0x5e,0x8c,0xd0,0x36,0x41,0x41\n" ++
+  "a77ra_secp256k1_half_n:\n" ++
+  "  .byte 0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0x5d,0x57,0x6e,0x73,0x57,0xa4,0x50,0x1d\n" ++
+  "  .byte 0xdf,0xe9,0x2f,0x46,0x68,0x1b,0x20,0xa0\n" ++
+  "ta77es_offset:\n  .zero 8\n" ++
+  "ta77es_length:\n  .zero 8\n" ++
+  "bvrga_type:\n  .zero 8\n" ++
+  "bvrga_inner_off:\n  .zero 8\n" ++
+  "bvrga_auth_off:\n  .zero 8\n" ++
+  "bvrga_auth_len:\n  .zero 8\n" ++
+  "bvrga_auth_count:\n  .zero 8\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
   -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
@@ -654,7 +705,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_auth_off:\n  .zero 8\n" ++
   "bsg_auth_len:\n  .zero 8\n" ++
   "bsg_auth_count:\n  .zero 8\n" ++
-  "bsg_header_gas_used:\n  .zero 8\n" ++
   "bsg_min_block_gas:\n  .zero 8\n" ++
   "alc_scratch:\n  .zero 8\n" ++
   "alc_entry_offset:\n  .zero 8\n" ++
@@ -976,16 +1026,23 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_nonce_seen_counts:\n  .zero 128\n" ++
   "bv_mtx_nonce_pre:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
-  -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
-  -- tx's recipient (its entries are all the recipient's own — dispatch_tx_runtime_code
+  -- the multi-tx loop upserts the live exec log's entries here, re-keyed (addrHash) to that
+  -- tx's recipient (its entries are all the recipient's own because dispatch_tx_runtime_code
   -- requires self-contained), so the NEXT tx's preload can thread a prior tx's committed
-  -- value via exec_log_latest_value. 128 entries × 128 B; count 0 for tx0 / single-tx /
-  -- independent blocks -> no threading -> byte-identical. dtrc_recipkey / dtrc_threadval are
-  -- the per-slot query key (recipient 20B, zero-padded) and the threaded-value output buffer.
+  -- value via exec_log_latest_value. Capacity counts unique (recipient, slotKey) keys;
+  -- duplicate writes update in place. Unique-key overflow is conservative and surfaced via
+  -- bv_mtx_committed_overflow. dtrc_recipkey / dtrc_threadval are the per-slot query key
+  -- and threaded-value output buffer. The chunked labels below are behavior-neutral substrate
+  -- for the follow-up helpers: same 128-entry page layout, four pages total, exact until
+  -- bv_mtx_committed_chunk_overflow reports conservative unique-key capacity exhaustion.
   ".balign 8\n" ++
   "bv_mtx_committed_count:\n  .zero 8\n" ++
+  "bv_mtx_committed_overflow:\n  .zero 8\n" ++
+  "bv_mtx_committed_chunk_count:\n  .zero 8\n" ++
+  "bv_mtx_committed_chunk_overflow:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_mtx_committed:\n  .zero 16384\n" ++
+  "bv_mtx_committed:\n  .zero " ++ toString bvMtxCommittedBytes ++ "\n" ++
+  "bv_mtx_committed_chunked:\n  .zero " ++ toString bvMtxCommittedChunkBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
   "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
@@ -1116,9 +1173,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_finals:\n  .zero 88\n" ++
   -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
   -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
+  -- Capacity follows bvMtxArenaTxCap so all-distinct current-fixture blocks do
+  -- not hit the old 16-entry table-full path.
   "bv_b2_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_b2_table:\n  .zero 1024\n" ++
+  "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
   "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
