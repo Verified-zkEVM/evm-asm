@@ -185,7 +185,11 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_runtime_access_list_seeded_sload
@@ -299,7 +303,11 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_stage_system_call (8uld3.2.1c)
@@ -381,7 +389,11 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_withdrawal_requests (8uld3.2b)
@@ -463,7 +475,11 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_consolidation_requests (8uld3.3)
@@ -545,7 +561,11 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_requests_hash_e2e (8uld3.2.3 / 8uld3.4 integration)
@@ -664,7 +684,11 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_block_system_requests (8uld3.2.3/8uld3.4 glue)
@@ -747,7 +771,11 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_sstore_clear_gas_probe (regression pin for the SSTORE-clear charge; was the .57.11.6.5.3 / d' reproducer)
@@ -854,7 +882,11 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 end EvmAsm.Codegen
