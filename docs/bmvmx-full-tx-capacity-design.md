@@ -20,9 +20,9 @@ The current `main` implementation has several independent ceilings:
   `bv_tx_status_arr`, `bv_tx_log_window`, `bvgr_tx_gas_limits`,
   `bvgr_block_gas_increments`, `bvgr_tx_state_gas`,
   `bvgr_tx_exec_state_gas`, and `bvgr_receipt_gas_increments`.
-- Active-loop-only helpers, including the skip list, recipient-credit helper,
-  and current sender count/balance tables, remain tied to
-  `bvMtxActiveTxCap = 1024` until their algorithm slices land.
+- Active-loop-only helpers, including the recipient-credit helper, remain tied
+  to `bvMtxActiveTxCap = 1024` until their algorithm slices land. Sender count,
+  sender balance, and the skip list now use full-capacity post-loop tables.
 - The multi-tx skip list stores `2N+1` 32-byte addresses. At 9,523
   transactions this is 19,047 entries, about 610 KiB, which is acceptable as a
   fixed arena if it remains the only large per-transaction helper.
@@ -129,8 +129,9 @@ The follow-up work should land in separate PRs:
   coinbase has `2 * 9523 + 1` entries, and adds a focused
   `scripts/codegen-zisk-multi-tx-nth-context-check.sh` probe for 1024, 1025,
   9523, and `index == count` out-of-range behavior.
-- Extend the multi-tx sender debit / actual-balance checks to the same
-  aggregation substrate.
+- Landed sender balance aggregation: `evm-asm-vv4hr.1.4` sizes the B2 running
+  sender-balance table from `bvMtxSenderBalanceEntries = bvMtxFullTxCap`, so
+  distinct-sender balance tracking no longer inherits the active loop cap.
 - Landed committed-storage threading slices:
   `evm-asm-bmvmx.5.5.7.4.4.1`/`.4.4.2` added and wired the first keyed upsert,
   while `evm-asm-bmvmx.5.5.7.4.4.4` adds the active 512-entry chunked table,

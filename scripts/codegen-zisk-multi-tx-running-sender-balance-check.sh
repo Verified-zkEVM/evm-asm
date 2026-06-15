@@ -22,7 +22,19 @@ echo "==> emit zisk_multi_tx_running_sender_balance ELF"
 lake exe codegen --program zisk_multi_tx_running_sender_balance --halt linux93 \
   -o gen-out/zisk_multi_tx_running_sender_balance
 
+grep -q "li a2, 9523" gen-out/zisk_multi_tx_running_sender_balance.s
+grep -q "\.zero 609472" gen-out/zisk_multi_tx_running_sender_balance.s
+
 REPO_ROOT="$(pwd)"
+
+distinct_spec() {
+  local n="$1"
+  python3 - "$n" <<'PY'
+import sys
+n = int(sys.argv[1])
+print(','.join(f'{i + 1}:100:1' for i in range(n)))
+PY
+}
 
 run_case() {
   local name="$1" spec="$2" expected_status="$3" expected_count="$4" expected_table="$5"
@@ -40,7 +52,7 @@ def u256(n: int) -> bytes:
     return n.to_bytes(32, "big")
 
 def sender(seed: int) -> bytes:
-    return bytes([seed]) * 20 + bytes(12)
+    return seed.to_bytes(20, "big") + bytes(12)
 
 rows = []
 for raw in filter(None, spec.split(",")):
@@ -65,8 +77,13 @@ with open(exp_path, "wb") as f:
     f.write(expected)
 PY
 
+  local steps=2000000
+  if [[ "$name" == "distinct1024" || "$name" == "distinct1025" ]]; then
+    steps=200000000
+  fi
+
   "$ZISKEMU" -e gen-out/zisk_multi_tx_running_sender_balance.elf \
-    -i "$in_file" -o "$out_file" -n 2000000 \
+    -i "$in_file" -o "$out_file" -n "$steps" \
     >"$REPO_ROOT/gen-out/zisk_multi_tx_running_sender_balance_${name}.emu.log" 2>&1 || true
 
     local cmp_len=256
@@ -88,6 +105,8 @@ FAILED=0
 run_case "same_sender_valid" "1:100:30,1:999:40" 0 1 "1:30" || FAILED=1
 run_case "distinct_senders" "1:100:30,2:80:10" 0 2 "1:70,2:70" || FAILED=1
 run_case "distinct_17" "1:100:1,2:100:1,3:100:1,4:100:1,5:100:1,6:100:1,7:100:1,8:100:1,9:100:1,10:100:1,11:100:1,12:100:1,13:100:1,14:100:1,15:100:1,16:100:1,17:100:1" 0 17 "COUNT_ONLY" || FAILED=1
+run_case "distinct1024" "$(distinct_spec 1024)" 0 1024 "COUNT_ONLY" || FAILED=1
+run_case "distinct1025" "$(distinct_spec 1025)" 0 1025 "COUNT_ONLY" || FAILED=1
 run_case "same_sender_underflow" "1:50:30,1:999:25" 1 1 "1:20" || FAILED=1
 run_case "first_sender_underflow" "3:10:11" 1 0 "" || FAILED=1
 
