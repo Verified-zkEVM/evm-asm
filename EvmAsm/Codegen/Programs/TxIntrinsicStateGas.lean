@@ -28,6 +28,9 @@ import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
+import EvmAsm.Codegen.Programs.Eip7702Authority
 
 namespace EvmAsm.Codegen
 
@@ -156,16 +159,16 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
 
 /-! ## tx_eip7702_existing_authority_refund
 
-    Temporary coarse bridge for the EIP-7702 existing-authority state-gas
-    refund. For type-4 authorizations that pass basic chain/nonce/target
-    parsing, this subtracts the existing-account refund; callers pass BAL ptr 0
-    to keep the older intrinsic-only behavior. Bead evm-asm-cqesh tracks
-    replacing this syntactic proxy with the precise execution-specs
-    `set_delegation` account predicate.
+    Bridge for the EIP-7702 existing-authority state-gas refund. For type-4
+    authorizations that pass basic chain/nonce/target parsing, this recovers the
+    authority address, finds the authority's BAL AccountChanges row, and only
+    subtracts the refund when BAL records the matching 0xef0100||target
+    delegation marker. Callers pass BAL ptr 0 to keep the older intrinsic-only
+    behavior.
 
     Calling convention:
       a0 = encoded tx ptr, a1 = encoded tx len
-      a2 = BAL ptr gate (0 disables), a3 = reserved
+      a2 = BAL ptr gate (0 disables), a3 = BAL length
       a4 = block chain id
       a0 output = refund amount (u64). Parse failures for an individual
                   authorization conservatively contribute zero. -/
@@ -219,6 +222,27 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lteer_next\n" ++
   "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_next\n" ++
+  "  la t0, teer_target_off; ld t0, 0(t0); add s11, s9, t0\n" ++
+  "  la t0, teer_tuple_len; ld a1, 0(t0); mv a0, s9; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
+  "  jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_next\n" ++
+  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_next\n" ++
+  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
+  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_next\n" ++
+  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_next\n" ++
+  "  lbu t3, 2(t2); bnez t3, .Lteer_next\n" ++
+  "  addi t2, t2, 3; mv t4, s11; li t5, 20\n" ++
+  ".Lteer_marker_cmp:\n" ++
+  "  beqz t5, .Lteer_refund_match\n" ++
+  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
+  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
   ".Lteer_refund_match:\n" ++
   liAmsterdamNewAccountStateGas "t3" ++
   "  add s10, s10, t3; j .Lteer_next\n" ++
@@ -430,6 +454,23 @@ def ziskBlockVerdictTxStateGasArrayPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpEncodeListPrefixFunction ++ "\n" ++
+  rlpListTruncateToNFieldsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  secp256k1CurveCommonFunctions ++ "\n" ++
+  secp256k1RecoverRFunction ++ "\n" ++
+  txSigningHashFunction ++ "\n" ++
+  txPubkeyEcrecoverStageMaterialFunction ++ "\n" ++
+  secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
+  addressFromPubkeyFunction ++ "\n" ++
+  eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
+  eip7702AuthorizationSigningHashFunction ++ "\n" ++
+  eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
+  balFindAccountByAddressFunction ++ "\n" ++
+  balAccountNonstorageFinalsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   ".Lbvtsg_pdone:"
 
@@ -458,6 +499,27 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_target_len:\n  .zero 8\n" ++
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_authority:\n  .zero 24\n" ++
+  ".balign 8\n" ++
+  "teer_recover_scratch:\n  .zero 360\n" ++
+  "teer_acct_ptr:\n  .zero 8\n" ++
+  "teer_acct_len:\n  .zero 8\n" ++
+  "teer_finals:\n  .zero 88\n" ++
+  ziskEip7702AuthorizationRecoverAddressDataSection ++ "\n" ++
+  "c2nsf_off:\n  .zero 8\n" ++
+  "c2nsf_len:\n  .zero 8\n" ++
+  "c2nsf_cnt:\n  .zero 8\n" ++
+  "c2nsf_toff:\n  .zero 8\n" ++
+  "c2nsf_tlen:\n  .zero 8\n" ++
+  "c2nsf_coff:\n  .zero 8\n" ++
+  "c2nsf_clen:\n  .zero 8\n" ++
+  "rfu_offset:\n  .zero 8\n" ++
+  "rfu_length:\n  .zero 8\n" ++
+  "bfa_cnt:\n  .zero 8\n" ++
+  "bfa_aoff:\n  .zero 8\n" ++
+  "bfa_alen:\n  .zero 8\n" ++
+  "bfa_doff:\n  .zero 8\n" ++
+  "bfa_dlen:\n  .zero 8\n" ++
   "teer_data_end:\n  .zero 8"
 
 def ziskBlockVerdictTxStateGasArrayProbeUnit : BuildUnit := {

@@ -321,6 +321,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip8037TxGasGateFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
+  eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
+  eip7702AuthorizationSigningHashFunction ++ "\n" ++
+  eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++

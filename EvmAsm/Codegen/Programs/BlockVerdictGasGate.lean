@@ -177,6 +177,7 @@ def eip8037TxGasGateFunction : String :=
   "  beqz s7, .Letg_ok\n" ++
   "  li t0, 16; bgtu s7, t0, .Letg_ok\n" ++
   "  mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas\n" ++
+  "  li a4, 0; li a5, 0; li a6, 0      # pre-runtime gate has no BAL refund context\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   "  bnez a0, .Letg_state_array_ready\n" ++
   "  la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)\n" ++
