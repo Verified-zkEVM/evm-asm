@@ -39,6 +39,13 @@ def blockVerdictReceiptsTail : String :=
   "  bgeu t1, t3, .Lbv_st_receipt_floor_skip\n" ++
   "  sd t3, 0(t0)\n" ++
   ".Lbv_st_receipt_floor_skip:\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
+  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
+  "  la a3, bvgr_receipt_gas_increments\n" ++
+  "  la a4, bvgr_tx_state_gas\n" ++
+  "  la a5, bvgr_tx_exec_state_gas\n" ++
+  "  jal ra, block_verdict_receipt_gas_eip8037_adjust\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
