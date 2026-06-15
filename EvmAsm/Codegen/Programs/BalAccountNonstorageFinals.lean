@@ -96,12 +96,12 @@ def balAccountNonstorageFinalsFunction : String :=
   "  mv a0, s3; mv a1, s4; mv a2, t1; la a3, c2nsf_toff; la a4, c2nsf_tlen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_toff; ld t1, 0(t0); add t2, s3, t1    # last code tuple ptr\n" ++
+  "  la t0, c2nsf_toff; ld t1, 0(t0); add s4, s3, t1    # last code tuple ptr; keep across call\n" ++
   "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
-  "  mv a0, t2; li a2, 1; la a3, c2nsf_coff; la a4, c2nsf_clen\n" ++
+  "  mv a0, s4; li a2, 1; la a3, c2nsf_coff; la a4, c2nsf_clen\n" ++
   "  jal ra, rlp_list_nth_item                          # code field within the tuple\n" ++
   "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_coff; ld t3, 0(t0); add t3, t2, t3    # absolute code field ptr\n" ++
+  "  la t0, c2nsf_coff; ld t3, 0(t0); add t3, s4, t3    # absolute code field ptr\n" ++
   "  sub t3, t3, s0                                      # offset relative to AccountChanges\n" ++
   "  sd t3, 64(s2)\n" ++
   "  la t0, c2nsf_clen; ld t3, 0(t0); sd t3, 72(s2)\n" ++
