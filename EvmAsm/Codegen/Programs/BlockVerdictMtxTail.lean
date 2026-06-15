@@ -57,9 +57,9 @@ def blockVerdictMtxValidationTail : String :=
   -- compacted by b1_sender_count_table into distinct sender/count rows. Conservative skips:
   -- sender absent from BAL, account_at failure, no declared nonce change. Cursor in
   -- bv_mtx_skip_idx walks the distinct table and survives jals via memory.
-  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, 16; la a4, bv_b1_sender_count\n" ++
+  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, bv_b1_sender_count\n" ++
   "  jal ra, b1_sender_count_table\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                              -- impossible for tx_count <= 16; reject if table build failed
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                              -- reject if table build failed (capacity/malformed)
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++                       -- i = 0 over distinct sender table
   ".Lbv_b1_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
