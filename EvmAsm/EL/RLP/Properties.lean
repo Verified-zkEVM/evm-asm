@@ -5,6 +5,8 @@
 -/
 -- `Decode` transitively imports `Basic`.
 import EvmAsm.EL.RLP.Decode
+import EvmAsm.EL.RLP.PrefixDecode
+import EvmAsm.EL.RLP.ReadLength
 
 namespace EvmAsm.EL.RLP
 
@@ -34,6 +36,46 @@ theorem Nat.fromBytesBE_lt (bs : List Byte) :
       rw [List.length_cons, Nat.pow_succ, Nat.mul_comm]
     -- `ih : fromBytesBE bs < 256 ^ bs.length`, with the linear facts above,
     -- omega chains: fromBytesBE (b::bs) < (b+1)·256^L ≤ 256·256^L = 256^(L+1).
+    omega
+
+/-- One-step unfold of `Nat.toBytesBE` at a successor: the low byte is appended
+    last (least significant), with the higher digits encoded recursively. -/
+theorem Nat.toBytesBE_succ (n : Nat) :
+    Nat.toBytesBE (n + 1)
+      = Nat.toBytesBE ((n + 1) / 256) ++ [BitVec.ofNat 8 ((n + 1) % 256)] := by
+  rw [Nat.toBytesBE]
+
+/-- Big-endian decode of a snoc list: appending a low-order byte `b` shifts the
+    decoded value up by one base-256 digit. `fromBytesBE` recurses on the head,
+    so this is proved by induction on the prefix `xs`. -/
+theorem Nat.fromBytesBE_snoc (xs : List Byte) (b : Byte) :
+    Nat.fromBytesBE (xs ++ [b]) = Nat.fromBytesBE xs * 256 + b.toNat := by
+  induction xs with
+  | nil => simp [Nat.fromBytesBE]
+  | cons c cs ih =>
+    have hlen : (cs ++ [b]).length = cs.length + 1 := by simp
+    have key : Nat.fromBytesBE ((c :: cs) ++ [b])
+        = c.toNat * 256 ^ (cs ++ [b]).length + Nat.fromBytesBE (cs ++ [b]) := rfl
+    have hcons : Nat.fromBytesBE (c :: cs)
+        = c.toNat * 256 ^ cs.length + Nat.fromBytesBE cs := rfl
+    have hassoc : c.toNat * (256 ^ cs.length * 256)
+        = c.toNat * 256 ^ cs.length * 256 := (Nat.mul_assoc _ _ _).symm
+    rw [key, ih, hlen, Nat.pow_succ, hcons, Nat.add_mul, hassoc]
+    omega
+
+/-- Big-endian round-trip: decoding the minimal big-endian encoding of `n`
+    recovers `n`. Induction follows `toBytesBE`'s own division recursion
+    (`Nat.toBytesBE.induct`), using `fromBytesBE_snoc` for the appended low byte
+    and `Nat.div_add_mod` (via `omega`) to reassemble `n`. -/
+theorem Nat.fromBytesBE_toBytesBE (n : Nat) :
+    Nat.fromBytesBE (Nat.toBytesBE n) = n := by
+  induction n using Nat.toBytesBE.induct with
+  | case1 => simp [Nat.toBytesBE, Nat.fromBytesBE]
+  | case2 m _hlt ih =>
+    rw [Nat.toBytesBE_succ, Nat.fromBytesBE_snoc, ih]
+    have hr : (BitVec.ofNat 8 ((m + 1) % 256)).toNat = (m + 1) % 256 := by
+      simp only [BitVec.toNat_ofNat]; omega
+    rw [hr]
     omega
 
 /-! ## takeBytes properties -/
@@ -1897,6 +1939,183 @@ theorem decode_encode_bytes_single_large (b : Byte) (h : ¬ b.toNat < 0x80) :
     encodeBytes_single_large b h]
   simp [decode, decodeAux, takeBytes, h]
 
+/-- 8-bit truncation round-trips for values `< 256`. -/
+private theorem toNat_ofNat8_of_lt {x : Nat} (h : x < 256) :
+    (BitVec.ofNat 8 x).toNat = x := by
+  simp only [BitVec.toNat_ofNat]; omega
+
+/-- Round-trip for a non-singleton short byte string (`length ≤ 55` and `≠ 1`,
+    so `[]` and length `≥ 2`): the encoder emits `[0x80 + len] ++ data`, which
+    classifies as `shortBytes` with payload length `len`; `takeBytes` consumes
+    exactly `data`, and the non-singleton match branch returns `.bytes data`. -/
+theorem decode_encode_bytes_short_general (data : List Byte)
+    (hne1 : data.length ≠ 1) (hlen : data.length ≤ 55) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  have hlt : 0x80 + data.length < 256 := by omega
+  have henc : encode (.bytes data)
+      = BitVec.ofNat 8 (0x80 + data.length) :: data := by
+    show encodeBytes data = _
+    rw [encodeBytes_short_of_length_ne_one data hlen hne1]; rfl
+  have htoNat : (BitVec.ofNat 8 (0x80 + data.length)).toNat = 0x80 + data.length :=
+    toNat_ofNat8_of_lt hlt
+  have hclass : classifyPrefix (BitVec.ofNat 8 (0x80 + data.length)) = .shortBytes := by
+    rw [classifyPrefix_shortBytes_iff, htoNat]; omega
+  have hpl : rlpPrefixShortBytesPayloadLen (BitVec.ofNat 8 (0x80 + data.length))
+      = data.length := by
+    rw [rlpPrefixShortBytesPayloadLen, htoNat]; omega
+  rw [henc, decode_cons_eq_classifyPrefix_match, hclass, hpl,
+      takeBytes_length_ge (Nat.le_refl data.length)]
+  simp only [List.take_length, List.drop_length, Option.bind_eq_bind, Option.bind_some]
+  rcases data with _ | ⟨x, _ | ⟨y, t⟩⟩
+  · rfl
+  · simp at hne1
+  · rfl
+
+/-- General short byte-string round-trip (`length ≤ 55`): dispatches on the
+    encoder's structure — the two singleton special cases plus the non-singleton
+    `decode_encode_bytes_short_general`. -/
+theorem decode_encode_bytes_short (data : List Byte) (hlen : data.length ≤ 55) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  rcases data with _ | ⟨b, _ | ⟨c, t⟩⟩
+  · exact decode_encode_bytes_short_general [] (by simp) hlen
+  · by_cases hb : b.toNat < 0x80
+    · exact decode_encode_bytes_single_small b hb
+    · exact decode_encode_bytes_single_large b hb
+  · exact decode_encode_bytes_short_general (b :: c :: t) (by simp) hlen
+
+/-! ### Long byte-string round-trip (`length > 55`)
+
+The long form encodes the payload length as a big-endian length field. The
+round-trip needs three `toBytesBE` facts — the encoded length fits in `≤ 8`
+bytes (matching the decoder's length-of-length range `[1,8]`), is nonempty, and
+has a nonzero leading byte (so `readLength`'s leading-zero canonicity check
+passes) — together with the `fromBytesBE`/`toBytesBE` round-trip. -/
+
+/-- The minimal big-endian encoding of a value `< 256 ^ k` uses at most `k`
+    bytes. Induction follows `toBytesBE`'s division recursion. -/
+theorem Nat.toBytesBE_length_le :
+    ∀ (len k : Nat), len < 256 ^ k → (Nat.toBytesBE len).length ≤ k := by
+  intro len
+  induction len using Nat.toBytesBE.induct with
+  | case1 => intro k _; simp [Nat.toBytesBE]
+  | case2 m _hlt ih =>
+    intro k h
+    rw [Nat.toBytesBE_succ, List.length_append, List.length_cons, List.length_nil]
+    cases k with
+    | zero => rw [Nat.pow_zero] at h; omega
+    | succ k' =>
+      have hpow : 256 ^ (k' + 1) = 256 ^ k' * 256 := by rw [Nat.pow_succ]
+      have hk : (m + 1) / 256 < 256 ^ k' := by omega
+      have := ih k' hk
+      omega
+
+/-- The minimal big-endian encoding of a positive value is a nonempty list whose
+    leading (most-significant) byte is nonzero — the canonical no-leading-zero
+    shape. Induction follows `toBytesBE`'s division recursion. -/
+theorem Nat.toBytesBE_eq_cons_of_pos :
+    ∀ (n : Nat), 0 < n →
+      ∃ b tl, Nat.toBytesBE n = b :: tl ∧ b ≠ (0 : Byte) := by
+  intro n
+  induction n using Nat.toBytesBE.induct with
+  | case1 => intro h; omega
+  | case2 m _hlt ih =>
+    intro _h
+    rw [Nat.toBytesBE_succ]
+    by_cases hq : (m + 1) / 256 = 0
+    · rw [hq, Nat.toBytesBE_zero, List.nil_append]
+      refine ⟨BitVec.ofNat 8 ((m + 1) % 256), [], rfl, ?_⟩
+      have hlt : m + 1 < 256 := by omega
+      have hmod : (m + 1) % 256 = m + 1 := Nat.mod_eq_of_lt hlt
+      rw [hmod]
+      intro hcontra
+      have h0 : (BitVec.ofNat 8 (m + 1)).toNat = 0 := by rw [hcontra]; rfl
+      rw [toNat_ofNat8_of_lt hlt] at h0
+      omega
+    · obtain ⟨b, tl, hbtl, hb⟩ := ih (Nat.pos_of_ne_zero hq)
+      rw [hbtl, List.cons_append]
+      exact ⟨b, tl ++ [BitVec.ofNat 8 ((m + 1) % 256)], rfl, hb⟩
+
+/-- `readLength` recovers the length from a canonical big-endian length field:
+    reading `(toBytesBE len).length` bytes off `toBytesBE len ++ rest` returns
+    `len` (via the `fromBytesBE` round-trip) and the remaining `rest`. The
+    leading-zero check passes because `toBytesBE`'s leading byte is nonzero. -/
+theorem readLength_toBytesBE_append (len : Nat) (rest : List Byte) (hpos : 0 < len) :
+    readLength (Nat.toBytesBE len ++ rest) (Nat.toBytesBE len).length
+      = some (len, rest) := by
+  obtain ⟨b, tl, hbtl, hb⟩ := Nat.toBytesBE_eq_cons_of_pos len hpos
+  have htake : takeBytes (Nat.toBytesBE len ++ rest) (Nat.toBytesBE len).length
+      = some (b :: tl, rest) := by
+    rw [takeBytes_length_ge (by rw [List.length_append]; omega),
+        List.take_left, List.drop_left, hbtl]
+  rw [readLength_some_of_takeBytes_nonzero htake hb, ← hbtl,
+      Nat.fromBytesBE_toBytesBE]
+
+/-- Long-form byte-string encoding (`length > 55`): the encoder emits the
+    `0xB7 + lenOfLen` prefix, the big-endian length field, then the payload. -/
+theorem encodeBytes_long_of_length (data : List Byte) (hlen : 55 < data.length) :
+    encodeBytes data
+      = [BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)]
+          ++ Nat.toBytesBE data.length ++ data := by
+  cases data with
+  | nil => simp at hlen
+  | cons a tl =>
+    cases tl with
+    | nil => simp at hlen
+    | cons b t =>
+      have hnle : ¬ t.length ≤ 53 := by
+        simp only [List.length_cons] at hlen; omega
+      simp [encodeBytes, hnle]
+
+/-- Long byte-string round-trip (`55 < length < 256 ^ 8`): the encoded prefix
+    classifies as `longBytes` with length-of-length `(toBytesBE len).length ∈
+    [1,8]`; `readLength` recovers `len`, the `> 55` check passes, and `takeBytes`
+    consumes exactly the payload. -/
+theorem decode_encode_bytes_long (data : List Byte)
+    (hlong : 55 < data.length) (hlen : data.length < 256 ^ 8) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  obtain ⟨b0, tl0, hcons, _hb0⟩ := Nat.toBytesBE_eq_cons_of_pos data.length (by omega)
+  have hL1 : 1 ≤ (Nat.toBytesBE data.length).length := by rw [hcons]; simp
+  have hL8 : (Nat.toBytesBE data.length).length ≤ 8 := Nat.toBytesBE_length_le _ _ hlen
+  have hpfxlt : 0xB7 + (Nat.toBytesBE data.length).length < 256 := by omega
+  have htoNat : (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)).toNat
+      = 0xB7 + (Nat.toBytesBE data.length).length := toNat_ofNat8_of_lt hpfxlt
+  have henc : encode (.bytes data)
+      = BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)
+          :: (Nat.toBytesBE data.length ++ data) := by
+    show encodeBytes data = _
+    rw [encodeBytes_long_of_length data hlong]; rfl
+  have hclass : classifyPrefix (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length))
+      = .longBytes := by
+    rw [classifyPrefix_longBytes_iff, htoNat]; omega
+  have hlol : rlpPrefixLongBytesLenOfLen
+      (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length))
+      = (Nat.toBytesBE data.length).length := by
+    rw [rlpPrefixLongBytesLenOfLen, htoNat]; omega
+  rw [henc, decode_cons_eq_classifyPrefix_match, hclass, hlol,
+      readLength_toBytesBE_append data.length data (by omega)]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [if_neg (by omega : ¬ data.length ≤ 55),
+      takeBytes_length_ge (Nat.le_refl data.length)]
+  simp only [Option.bind_some, List.take_length, List.drop_length]
+
+/-- General byte-string round-trip: any byte payload short enough for the
+    8-byte length field (`length < 256 ^ 8`, i.e. every length the decoder
+    supports) re-decodes to itself. Combines the short (`≤ 55`) and long
+    (`> 55`) cases. -/
+theorem decode_encode_bytes (data : List Byte) (hlen : data.length < 256 ^ 8) :
+    decode (encode (.bytes data)) = some (.bytes data, []) := by
+  by_cases hshort : data.length ≤ 55
+  · exact decode_encode_bytes_short data hshort
+  · exact decode_encode_bytes_long data (by omega) hlen
+
+/-- Generality cross-check: a 100-byte payload (long form) round-trips via the
+    general theorem instantly — `decide` on the recursive decoder would be far
+    more expensive at this size. -/
+example : decode (encode (.bytes (List.replicate 100 (0x61 : Byte))))
+    = some (.bytes (List.replicate 100 (0x61 : Byte)), []) := by
+  apply decode_encode_bytes
+  rw [List.length_replicate]; decide
+
 /-! ## Round-trip correctness (concrete cases)
 
 The round-trip property `decode (encode item) = some (item, [])` is verified
@@ -1950,3 +2169,5 @@ example : decode [0x81, 0x7F] = none := by decide
 example : decode [0x81, 0x00] = none := by decide
 
 end EvmAsm.EL.RLP
+
+
