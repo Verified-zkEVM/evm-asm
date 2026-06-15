@@ -10,6 +10,8 @@
   affect label resolution.
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+
 namespace EvmAsm.Codegen
 
 /-- Multi-tx exec-vs-BAL validation tail of `block_verdict` (skip-list build + B1
@@ -107,7 +109,7 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, multi_tx_actual_sender_debit\n" ++
   "  la t0, bv_b2_debit_out; ld t0, 0(t0); bnez t0, .Lbv_b2_next\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++
-  "  la a0, bv_b2_table; la a1, bv_b2_count; li a2, 16; mv a3, t4; la a4, bv_mtx_sender_acct; addi a4, a4, 8; la a5, bv_b2_debit_out; addi a5, a5, 16\n" ++
+  "  la a0, bv_b2_table; la a1, bv_b2_count; li a2, " ++ toString bvMtxSenderBalanceEntries ++ "; mv a3, t4; la a4, bv_mtx_sender_acct; addi a4, a4, 8; la a5, bv_b2_debit_out; addi a5, a5, 16\n" ++
   "  jal ra, multi_tx_running_sender_balance_step\n" ++
   "  li t0, 1; beq a0, t0, .Lbv_sender_upfront_fail\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
