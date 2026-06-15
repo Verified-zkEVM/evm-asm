@@ -247,7 +247,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
   ".Lteer_marker_match:\n" ++
   "  # The final delegation marker only proves the authority is non-empty after the block.\n" ++
-  "  # Existing-authority refund applies here only if that code change is before this tx.\n" ++
+  "  # Existing-authority refund applies if that code change is no later than this tx;\n" ++
+  "  # the equal-index case is this tx's own set_delegation refund.\n" ++
   "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0)\n" ++
   "  li a2, 5; la a3, c2nsf_off; la a4, c2nsf_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -270,7 +271,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  li a2, 0; addi a3, sp, 112\n" ++
   "  jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Lteer_next\n" ++
-  "  ld t0, 112(sp); ld t1, 104(sp); bgeu t0, t1, .Lteer_next\n" ++
+  "  ld t0, 112(sp); ld t1, 104(sp); bgtu t0, t1, .Lteer_next\n" ++
   ".Lteer_refund_match:\n" ++
   liAmsterdamNewAccountStateGas "t3" ++
   "  add s10, s10, t3; j .Lteer_next\n" ++
@@ -333,8 +334,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  slli t0, s6, 3\n" ++
   "  add t1, s3, t0; ld t2, 0(t1)\n" ++
   "  beqz s4, .Lbvrga_after_intr_state\n" ++
-  "  add t3, s4, t0; ld t3, 0(t3); bgeu t2, t3, .Lbvrga_store_next\n" ++
-  "  add t2, t2, t3\n" ++
+  "  add t3, s4, t0; ld t3, 0(t3); add t2, t2, t3\n" ++
   ".Lbvrga_after_intr_state:\n" ++
   "  sd t2, 0(t1)\n" ++
   "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
@@ -353,8 +353,6 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 7500; mul t0, t0, t1\n" ++
   "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2); add t3, t3, t0; sd t3, 0(t2)\n" ++
   "  j .Lbvrga_next\n" ++
-  ".Lbvrga_store_next:\n" ++
-  "  sd t2, 0(t1)\n" ++
   ".Lbvrga_next:\n" ++
   "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
   ".Lbvrga_done:\n" ++
