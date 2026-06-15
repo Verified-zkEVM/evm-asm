@@ -24,7 +24,7 @@ lake exe codegen --program zisk_b1_sender_count_table --halt linux93 \
 
 python3 - <<'PY'
 import struct
-for mode in range(6):
+for mode in range(13):
     with open(f'gen-out/zisk_b1_sender_count_table_mode{mode}.input', 'wb') as f:
         f.write(struct.pack('<Q', mode))
 PY
@@ -33,8 +33,8 @@ run_mode() {
   local mode="$1"
   local steps=5000000
   case "$mode" in
-    2|3) steps=50000000 ;;
-    4) steps=300000000 ;;
+    2|3|10|11) steps=50000000 ;;
+    4|12) steps=300000000 ;;
     5) steps=2000000 ;;
   esac
   "$ZISKEMU" -e gen-out/zisk_b1_sender_count_table.elf \
@@ -43,7 +43,7 @@ run_mode() {
     >"gen-out/zisk_b1_sender_count_table_mode${mode}.emu.log" 2>&1 || true
 }
 
-for mode in 0 1 2 3 4 5; do
+for mode in 0 1 2 3 4 5 6 7 8 9 10 11 12; do
   run_mode "$mode"
 done
 
@@ -107,6 +107,26 @@ for mode, label, exp_status, exp_count, exp_find_status, exp_find_count in bound
         print(f"  {'OK  ' if ok_count else 'FAIL'} {label}.count  got={count!r} exp={exp_count!r}")
     print(f"  {'OK  ' if ok_find_status else 'FAIL'} {label}.find_status got={find_status!r} exp={exp_find_status!r}")
     print(f"  {'OK  ' if ok_find_count else 'FAIL'} {label}.find_count  got={find_count!r} exp={exp_find_count!r}")
+
+sequence_cases = [
+    (6, 'seq_repeated_valid', 0, 6),
+    (7, 'seq_reuse_reject', 40, 2),
+    (8, 'seq_too_high_reject', 40, 2),
+    (9, 'seq_distinct17', 0, 17),
+    (10, 'seq_distinct1024', 0, 1024),
+    (11, 'seq_distinct1025', 0, 1025),
+    (12, 'seq_distinct9523', 0, 9523),
+]
+
+for mode, label, exp_status, exp_processed in sequence_cases:
+    dm = open(f'gen-out/zisk_b1_sender_count_table_mode{mode}.output', 'rb').read()
+    seq_status = struct.unpack('<Q', dm[152:160])[0] if len(dm) >= 160 else None
+    processed = struct.unpack('<Q', dm[160:168])[0] if len(dm) >= 168 else None
+    ok_status = seq_status == exp_status
+    ok_processed = processed == exp_processed
+    failed = failed or not ok_status or not ok_processed
+    print(f"  {'OK  ' if ok_status else 'FAIL'} {label}.seq_status got={seq_status!r} exp={exp_status!r}")
+    print(f"  {'OK  ' if ok_processed else 'FAIL'} {label}.processed  got={processed!r} exp={exp_processed!r}")
 
 sys.exit(1 if failed else 0)
 PY
