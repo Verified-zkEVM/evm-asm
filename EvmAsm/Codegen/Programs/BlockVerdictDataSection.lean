@@ -440,6 +440,44 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- EIP-7702 state-refund scratch used by tx_eip7702_existing_authority_refund.
+  -- The current helper is a coarse syntactic bridge; evm-asm-cqesh tracks the
+  -- precise BAL/account predicate follow-up.
+  "teer_type:\n  .zero 8\n" ++
+  "teer_inner_off:\n  .zero 8\n" ++
+  "teer_auth_off:\n  .zero 8\n" ++
+  "teer_auth_len:\n  .zero 8\n" ++
+  "teer_auth_count:\n  .zero 8\n" ++
+  "teer_tuple_off:\n  .zero 8\n" ++
+  "teer_tuple_len:\n  .zero 8\n" ++
+  "teer_target_off:\n  .zero 8\n" ++
+  "teer_target_len:\n  .zero 8\n" ++
+  "teer_auth_chain:\n  .zero 8\n" ++
+  "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_authority:\n  .zero 24\n" ++
+  ".balign 8\n" ++
+  "teer_recover_scratch:\n  .zero 360\n" ++
+  "teer_acct_ptr:\n  .zero 8\n" ++
+  "teer_acct_len:\n  .zero 8\n" ++
+  "teer_finals:\n  .zero 88\n" ++
+  "a77ra_cmp:\n  .zero 8\n" ++
+  "a77ra_secp256k1_n:\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xfe\n" ++
+  "  .byte 0xba,0xae,0xdc,0xe6,0xaf,0x48,0xa0,0x3b\n" ++
+  "  .byte 0xbf,0xd2,0x5e,0x8c,0xd0,0x36,0x41,0x41\n" ++
+  "a77ra_secp256k1_half_n:\n" ++
+  "  .byte 0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0x5d,0x57,0x6e,0x73,0x57,0xa4,0x50,0x1d\n" ++
+  "  .byte 0xdf,0xe9,0x2f,0x46,0x68,0x1b,0x20,0xa0\n" ++
+  "ta77es_offset:\n  .zero 8\n" ++
+  "ta77es_length:\n  .zero 8\n" ++
+  "bvrga_type:\n  .zero 8\n" ++
+  "bvrga_inner_off:\n  .zero 8\n" ++
+  "bvrga_auth_off:\n  .zero 8\n" ++
+  "bvrga_auth_len:\n  .zero 8\n" ++
+  "bvrga_auth_count:\n  .zero 8\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
   -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
