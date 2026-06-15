@@ -146,7 +146,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   txEip4844ValidateBlobHashesFunction ++ "\n" ++
@@ -322,6 +321,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip8037TxGasGateFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
+  txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
+  blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxActualSenderDebitFunction ++ "\n" ++

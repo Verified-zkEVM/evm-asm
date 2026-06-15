@@ -110,11 +110,12 @@ def stageCreationRuntimePayloadFunction : String :=
   "  li t0, 1; sd t0, 0(s0)\n" ++
   -- Env trailer starts at +88 for one padded bytecode dword and no calldata/storage.
   "  addi t6, s0, 88              # env base\n" ++
-  -- COINBASE (word 6 -> +192): exec 20-byte address @32, low-aligned.
+  -- COINBASE (word 6 -> +192): exec 20-byte canonical address at payload byte 32,
+  -- reversed into the low 160 bits of the EVM stack word layout.
   "  addi t1, s2, 32; addi t2, t6, 192; li t3, 0\n" ++
   ".Lscrp_coinbase:\n" ++
   "  li t4, 20; beq t3, t4, .Lscrp_coinbase_done\n" ++
-  "  add t5, t1, t3; lbu t4, 0(t5); add t5, t2, t3; sb t4, 0(t5)\n" ++
+  "  add t5, t1, t3; lbu t4, 0(t5); li t5, 19; sub t5, t5, t3; add t5, t2, t5; sb t4, 0(t5)\n" ++
   "  addi t3, t3, 1; j .Lscrp_coinbase\n" ++
   ".Lscrp_coinbase_done:\n" ++
   -- NUMBER (word 8), TIMESTAMP (word 7), GASLIMIT (word 10).

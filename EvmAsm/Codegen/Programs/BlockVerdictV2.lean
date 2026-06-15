@@ -128,6 +128,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     btiScanStorageChangesFunction ++ "\n" ++
     balTxsIndependentFunction ++ "\n" ++
     multiTxNthContextFunction ++ "\n" ++
+    rlpFieldToU64Function ++ "\n" ++
     -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
     -- debug verdict ELF links (block_verdict calls verify_public_keys_match_senders).
     verifyPublicKeysSendersGuestFunctions ++ "\n" ++
@@ -444,6 +445,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- already in this closure; only these three bodies are new.
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
+  blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
@@ -468,6 +470,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
+  txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
