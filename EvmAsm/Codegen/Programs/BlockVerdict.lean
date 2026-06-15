@@ -92,16 +92,16 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, baacd_fail_code; ld t2, 0(t1); sd t2, 64(t0)\n" ++
   "  la t1, bacv_fail_code; ld t2, 0(t1); sd t2, 72(t0)\n" ++
   "  la t1, baap_fail_code; ld t2, 0(t1); sd t2, 80(t0)\n" ++
-  "  la t1, sri_fail_index; ld t2, 0(t1); sd t2, 88(t0)\n" ++
-  "  la t1, sri_fail_mode; ld t2, 0(t1); sd t2, 96(t0)\n" ++
-  "  la t1, sri_fail_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
-  "  la t1, bv_block_rlp_len; ld t2, 0(t1); sd t2, 112(t0)\n" ++
-  "  la t1, brr_status; ld t2, 0(t1); sd t2, 120(t0)\n" ++
-  "  la t1, brr_control; ld t2, 0(t1); sd t2, 128(t0)\n" ++
-  "  la t1, brr_append_status; ld t2, 0(t1); sd t2, 136(t0)\n" ++
-  "  la t1, brr_records; ld t2, 0(t1); sd t2, 144(t0)\n" ++
-  "  la t1, brr_records; ld t2, 8(t1); sd t2, 152(t0)\n" ++
-  "  la t1, brr_records; ld t2, 16(t1); sd t2, 160(t0)\n" ++
+  "  la t1, bvgr_block_gas_increments; ld t2, 0(t1); sd t2, 88(t0)\n" ++
+  "  la t1, bvgr_block_gas_increments; ld t2, 8(t1); sd t2, 96(t0)\n" ++
+  "  la t1, bvgr_tx_total_state_gas; ld t2, 0(t1); sd t2, 104(t0)\n" ++
+  "  la t1, bvgr_tx_total_state_gas; ld t2, 8(t1); sd t2, 112(t0)\n" ++
+  "  la t1, bv_exact_net_status; ld t2, 0(t1); sd t2, 120(t0)\n" ++
+  "  la t1, bv_exact_net_index; ld t2, 0(t1); sd t2, 128(t0)\n" ++
+  "  la t1, bv_exact_block_status; ld t2, 0(t1); sd t2, 136(t0)\n" ++
+  "  la t1, bv_exact_header_gas_used; ld t2, 0(t1); sd t2, 144(t0)\n" ++
+  "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1); sd t2, 152(t0)\n" ++
+  "  la t1, brr_records; ld t2, 80(t1); sd t2, 160(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 0(t1); sd t2, 168(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 8(t1); sd t2, 176(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 16(t1); sd t2, 184(t0)\n" ++
@@ -327,6 +327,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
+  eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxActualSenderDebitFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++

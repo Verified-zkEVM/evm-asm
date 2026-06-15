@@ -261,6 +261,7 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; ld t5, 48(s0); sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
