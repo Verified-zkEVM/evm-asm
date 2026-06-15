@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.BloomAddValue
+import EvmAsm.Codegen.Programs.CallFrameReturn
 
 namespace EvmAsm.Codegen
 
@@ -1077,6 +1078,86 @@ def ziskRunningBloomCheckpointProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskRunningBloomCheckpointPrologue
   dataAsm     := ziskRunningBloomCheckpointDataSection
+}
+
+/-- `zisk_running_bloom_log_commit_revert`: probe BuildUnit.
+    Input layout:
+      bytes  0.. 8 : pad
+      bytes  8..16 : mode (0 = committed top-level LOG, 1 = child LOG then REVERT)
+      bytes 16..24 : parent log RLP length
+      bytes 24..32 : child log RLP length
+      bytes 32..288: parent log RLP slot
+      bytes 288..  : child log RLP
+
+    Both modes emit the hot running block bloom (256 bytes). Mode 0 proves a
+    committed LOG-shaped update mutates the hot bloom. Mode 1 snapshots that
+    parent bloom, applies a second LOG-shaped child update, returns the child
+    with success=0, and emits the restored hot bloom; without rollback the output
+    would include the child log's bloom bits. -/
+def ziskRunningBloomLogCommitRevertPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1, 16(s0)                # mode (after host shift + pad)\n" ++
+  "  ld s2, 24(s0)                # parent log len\n" ++
+  "  ld s5, 32(s0)                # child log len\n" ++
+  "  addi s3, s0, 40              # parent log ptr\n" ++
+  "  addi s6, s0, 296             # child log ptr\n" ++
+  "  la a0, rb_running_block_bloom\n" ++
+  "  jal ra, running_bloom_zero\n" ++
+  "  la a0, rb_running_receipt_bloom\n" ++
+  "  jal ra, running_bloom_zero\n" ++
+  "  la a0, rb_bloom_checkpoints\n" ++
+  "  jal ra, running_bloom_zero\n" ++
+  "  la a0, rb_running_block_bloom; mv a1, s3; mv a2, s2\n" ++
+  "  jal ra, log_bloom_add        # committed parent LOG update\n" ++
+  "  beqz a0, .Lrbl_parent_ok\n" ++
+  "  li t0, 0xa0010000; sd a0, 0(t0); j .Lrbl_done\n" ++
+  ".Lrbl_parent_ok:\n" ++
+  "  beqz s1, .Lrbl_emit\n" ++
+  "  la a0, rb_bloom_checkpoints; la a1, rb_running_block_bloom\n" ++
+  "  jal ra, running_bloom_copy   # snapshot parent bloom at depth 0\n" ++
+  "  la a0, rb_running_block_bloom; mv a1, s6; mv a2, s5\n" ++
+  "  jal ra, log_bloom_add        # child LOG update, should be rolled back\n" ++
+  "  beqz a0, .Lrbl_child_ok\n" ++
+  "  li t0, 0xa0010000; sd a0, 0(t0); j .Lrbl_done\n" ++
+  ".Lrbl_child_ok:\n" ++
+  "  la t0, evm_call_depth; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, frame_save_area; sd x0, 0(t0); sd x0, 8(t0)\n" ++
+  "  la t0, frame_call_ctx; addi t0, t0, 32\n" ++
+  "  la t1, fr_pstack; sd t1, 0(t0)\n" ++
+  "  la t1, fr_out; sd t1, 8(t0)\n" ++
+  "  sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la x20, fr_child_env\n" ++
+  "  sd x0, 568(x20); sd x0, 624(x20); sd x0, 632(x20); sd x0, 640(x20); sd x0, 648(x20)\n" ++
+  "  sd x0, 656(x20); sd x0, 664(x20); sd x0, 672(x20); sd x0, 680(x20); sd x0, 688(x20)\n" ++
+  "  la t0, evm_state_gas_left; sd x0, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; sd x0, 0(t0)\n" ++
+  "  la t0, evm_refund_acc; sd x0, 0(t0)\n" ++
+  "  la t0, evm_storage_access_count; sd x0, 0(t0)\n" ++
+  "  li a0, 0; li a1, 0; li a2, 0\n" ++
+  "  jal ra, frame_return         # failed child restores rb_bloom_checkpoints[0]\n" ++
+  ".Lrbl_emit:\n" ++
+  "  li a0, 0xa0010000; la a1, rb_running_block_bloom\n" ++
+  "  jal ra, running_bloom_copy\n" ++
+  "  j .Lrbl_done\n" ++
+  rlpListNthItemFunction ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
+  bloomAddValueFunction ++ "\n" ++
+  logBloomAddFunction ++ "\n" ++
+  runningBloomZeroFunction ++ "\n" ++
+  runningBloomCopyFunction ++ "\n" ++
+  frameReturnFunction ++ "\n" ++
+  ".Lrbl_done:"
+
+def ziskRunningBloomLogCommitRevertDataSection : String :=
+  ziskFrameReturnDataSection ++ "\n" ++
+  ziskLogBloomAddDataSection
+
+def ziskRunningBloomLogCommitRevertProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskRunningBloomLogCommitRevertPrologue
+  dataAsm     := ziskRunningBloomLogCommitRevertDataSection
 }
 
 end EvmAsm.Codegen
