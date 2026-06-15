@@ -9,6 +9,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -20,7 +21,7 @@ open EvmAsm.Rv64
 
     Calling convention:
       a0 = skip-list ptr, where sender_i starts at a0 + i*64
-      a1 = tx_count, maximum 1024 for this scratch-backed helper
+      a1 = tx_count, maximum bvMtxSenderCountEntries for this scratch-backed helper
       a2 = output table ptr, entries are 40 bytes: 32-byte padded address + u64 count
       a3 = output table capacity in entries
       a4 = output distinct-count ptr
@@ -36,7 +37,7 @@ def b1SenderCountTableFunction : String :=
   "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1024; bgtu s1, t0, .Lb1sc_cap\n" ++
+  "  li t0, " ++ toString bvMtxSenderCountEntries ++ "; bgtu s1, t0, .Lb1sc_cap\n" ++
   "  bgtu s1, s3, .Lb1sc_cap\n" ++
   "  beqz s1, .Lb1sc_zero\n" ++
   "  la s5, b1sc_sort_a; la s6, b1sc_sort_b\n" ++
@@ -143,8 +144,8 @@ def b1SenderCountTableFunction : String :=
 /-- Shared scratch arena for `b1_sender_count_table`. -/
 def b1SenderCountTableScratchDataSection : String :=
   ".balign 32\n" ++
-  "b1sc_sort_a:\n  .zero 32768\n" ++
-  "b1sc_sort_b:\n  .zero 32768\n" ++
+  "b1sc_sort_a:\n  .zero " ++ toString bvMtxSenderCountSortBytes ++ "\n" ++
+  "b1sc_sort_b:\n  .zero " ++ toString bvMtxSenderCountSortBytes ++ "\n" ++
   ".balign 8\n" ++
   "b1sc_counts:\n  .zero 2048\n"
 
@@ -155,7 +156,7 @@ def b1SenderCountTableDataSection : String :=
   "b1sc_out_count:\n  .zero 8\n" ++
   b1SenderCountTableScratchDataSection ++
   ".balign 32\n" ++
-  -- Six sender lanes with 64-byte stride: A, B, A, C, B, A.
+  -- Sender lanes with 64-byte stride. The first six are A, B, A, C, B, A; mode 1 overwrites them with 17 distinct senders.
   "b1sc_probe_skip:\n" ++
   "  .rept 20\n  .byte 0x11\n  .endr\n  .zero 44\n" ++
   "  .rept 20\n  .byte 0x22\n  .endr\n  .zero 44\n" ++
@@ -163,8 +164,9 @@ def b1SenderCountTableDataSection : String :=
   "  .rept 20\n  .byte 0x33\n  .endr\n  .zero 44\n" ++
   "  .rept 20\n  .byte 0x22\n  .endr\n  .zero 44\n" ++
   "  .rept 20\n  .byte 0x11\n  .endr\n  .zero 44\n" ++
+  "  .zero 704\n" ++
   ".balign 8\n" ++
-  "b1sc_probe_table:\n  .zero 320\n"
+  "b1sc_probe_table:\n  .zero " ++ toString bvMtxSenderCountTableBytes ++ "\n"
 
 /-- `zisk_b1_sender_count_table`: focused probe for the deterministic sender table.
     Output at 0xa0010000:
@@ -173,7 +175,16 @@ def b1SenderCountTableDataSection : String :=
       +16  first three 40-byte table entries, sorted by address. -/
 def ziskB1SenderCountTablePrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  la a0, b1sc_probe_skip; li a1, 6; la a2, b1sc_probe_table; li a3, 8; la a4, b1sc_out_count\n" ++
+  "  li t6, 0x40000000; ld s1, 8(t6)\n" ++
+  "  la a0, b1sc_probe_skip; li a1, 6; la a2, b1sc_probe_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, b1sc_out_count\n" ++
+  "  li t0, 1; bne s1, t0, .Lb1scp_call\n" ++
+  "  la t0, b1sc_probe_skip; li t1, 0\n" ++
+  ".Lb1scp_seed_distinct:\n" ++
+  "  li t2, 17; beq t1, t2, .Lb1scp_seed_done\n" ++
+  "  addi t3, t1, 1; sb t3, 0(t0); addi t0, t0, 64; addi t1, t1, 1; j .Lb1scp_seed_distinct\n" ++
+  ".Lb1scp_seed_done:\n" ++
+  "  li a1, 17\n" ++
+  ".Lb1scp_call:\n" ++
   "  jal ra, b1_sender_count_table\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++

@@ -203,11 +203,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
   "bv_tx_status_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- .63.1.6.2.1: block-level log stream + per-tx windows. The per-tx
-  -- bv_tx_log_window table is tx-count-sized, while bv_block_log_descs/meta/data
-  -- are separate stream capacities. Overflow is conservative capacity debt;
-  -- malformed data inside an enforced shape remains rejectable. bv_record_* and
-  -- bv_logs_rlp_arena carry per-record logs RLP + blooms for record@56.
+  -- xbi56.2: per-tx creation flag parallel to bv_tx_status_arr, used by the
+  -- EIP-8037 tx-error state-gas rule when materializing exact block state gas.
+  "bv_tx_is_creation_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
+  -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
+  -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
+  -- offsets rebased into bv_block_log_meta) out between dispatches.
+  -- bv_record_* and bv_logs_rlp_arena carry the per-record logs RLP + blooms
+  -- (block_receipt_logs_materialize), in the {bloom,rlp,len} shape
+  -- receipt_records_encode_no_logs consumes via record@56.
   "brr_tx_window_ptr:\n  .zero 8\n" ++
   "bv_block_log_count:\n  .zero 8\n" ++
   "bv_block_log_data_used:\n  .zero 8\n" ++
@@ -422,9 +427,57 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- xbi56.1: exact net EIP-8037 tx_state_gas = intrinsic + executed - refund,
   -- with transaction error rules applied. Populated after runtime gas results.
   "bvgr_tx_total_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- xbi56.2: EIP-8037 state-refund input to the net state-gas materializer.
+  -- Current block-verdict runtime paths do not yet expose nonzero state refunds;
+  -- this zero-initialized array keeps the exact block gas check honest for rows
+  -- with no state refund and leaves refund plumbing as explicit follow-up debt.
+  "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_exact_header_gas_used:\n  .zero 8\n" ++
+  "bv_exact_expected_gas_used:\n  .zero 8\n" ++
+  "bv_exact_net_status:\n  .zero 8\n" ++
+  "bv_exact_net_index:\n  .zero 8\n" ++
+  "bv_exact_block_status:\n  .zero 8\n" ++
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- EIP-7702 state-refund scratch used by tx_eip7702_existing_authority_refund.
+  -- The current helper is a coarse syntactic bridge; evm-asm-cqesh tracks the
+  -- precise BAL/account predicate follow-up.
+  "teer_type:\n  .zero 8\n" ++
+  "teer_inner_off:\n  .zero 8\n" ++
+  "teer_auth_off:\n  .zero 8\n" ++
+  "teer_auth_len:\n  .zero 8\n" ++
+  "teer_auth_count:\n  .zero 8\n" ++
+  "teer_tuple_off:\n  .zero 8\n" ++
+  "teer_tuple_len:\n  .zero 8\n" ++
+  "teer_target_off:\n  .zero 8\n" ++
+  "teer_target_len:\n  .zero 8\n" ++
+  "teer_auth_chain:\n  .zero 8\n" ++
+  "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_authority:\n  .zero 24\n" ++
+  ".balign 8\n" ++
+  "teer_recover_scratch:\n  .zero 360\n" ++
+  "teer_acct_ptr:\n  .zero 8\n" ++
+  "teer_acct_len:\n  .zero 8\n" ++
+  "teer_finals:\n  .zero 88\n" ++
+  "a77ra_cmp:\n  .zero 8\n" ++
+  "a77ra_secp256k1_n:\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xfe\n" ++
+  "  .byte 0xba,0xae,0xdc,0xe6,0xaf,0x48,0xa0,0x3b\n" ++
+  "  .byte 0xbf,0xd2,0x5e,0x8c,0xd0,0x36,0x41,0x41\n" ++
+  "a77ra_secp256k1_half_n:\n" ++
+  "  .byte 0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
+  "  .byte 0x5d,0x57,0x6e,0x73,0x57,0xa4,0x50,0x1d\n" ++
+  "  .byte 0xdf,0xe9,0x2f,0x46,0x68,0x1b,0x20,0xa0\n" ++
+  "ta77es_offset:\n  .zero 8\n" ++
+  "ta77es_length:\n  .zero 8\n" ++
+  "bvrga_type:\n  .zero 8\n" ++
+  "bvrga_inner_off:\n  .zero 8\n" ++
+  "bvrga_auth_off:\n  .zero 8\n" ++
+  "bvrga_auth_len:\n  .zero 8\n" ++
+  "bvrga_auth_count:\n  .zero 8\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
   -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
@@ -652,7 +705,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_auth_off:\n  .zero 8\n" ++
   "bsg_auth_len:\n  .zero 8\n" ++
   "bsg_auth_count:\n  .zero 8\n" ++
-  "bsg_header_gas_used:\n  .zero 8\n" ++
   "bsg_min_block_gas:\n  .zero 8\n" ++
   "alc_scratch:\n  .zero 8\n" ++
   "alc_entry_offset:\n  .zero 8\n" ++
@@ -1108,13 +1160,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
   -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
-  -- bv_b1_sender_table is 16 x (32-byte padded address + u64 total tx count), filled by
-  -- b1_sender_count_table from the A1 sender lanes.
+  -- bv_b1_sender_table is sized to bvMtxArenaTxCap distinct senders; each row is
+  -- 32-byte padded address + u64 total tx count, filled by b1_sender_count_table.
   ".balign 8\n" ++
   b1SenderCountTableScratchDataSection ++
   ".balign 8\n" ++
   "bv_b1_sender_count:\n  .zero 8\n" ++
-  "bv_b1_sender_table:\n  .zero 640\n" ++
+  "bv_b1_sender_table:\n  .zero " ++ toString bvMtxSenderCountTableBytes ++ "\n" ++
   "bv_b1_count:\n  .zero 8\n" ++
   "bv_b1_expected:\n  .zero 8\n" ++
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
@@ -1122,9 +1174,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_finals:\n  .zero 88\n" ++
   -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
   -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
+  -- Capacity follows bvMtxArenaTxCap so all-distinct current-fixture blocks do
+  -- not hit the old 16-entry table-full path.
   "bv_b2_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_b2_table:\n  .zero 1024\n" ++
+  "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
   "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
