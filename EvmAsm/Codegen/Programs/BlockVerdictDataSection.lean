@@ -974,12 +974,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_nonce_seen_counts:\n  .zero 128\n" ++
   "bv_mtx_nonce_pre:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
-  -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
-  -- tx's recipient (its entries are all the recipient's own — dispatch_tx_runtime_code
+  -- the multi-tx loop upserts the live exec log's entries here, re-keyed (addrHash) to that
+  -- tx's recipient (its entries are all the recipient's own because dispatch_tx_runtime_code
   -- requires self-contained), so the NEXT tx's preload can thread a prior tx's committed
-  -- value via exec_log_latest_value. Capacity is independent of transaction count; overflow
-  -- is conservative and surfaced via bv_mtx_committed_overflow. dtrc_recipkey /
-  -- dtrc_threadval are the per-slot query key and threaded-value output buffer.
+  -- value via exec_log_latest_value. Capacity counts unique (recipient, slotKey) keys;
+  -- duplicate writes update in place. Unique-key overflow is conservative and surfaced via
+  -- bv_mtx_committed_overflow. dtrc_recipkey / dtrc_threadval are the per-slot query key
+  -- and threaded-value output buffer.
   ".balign 8\n" ++
   "bv_mtx_committed_count:\n  .zero 8\n" ++
   "bv_mtx_committed_overflow:\n  .zero 8\n" ++

@@ -74,9 +74,10 @@ def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
 def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 
-/-- Cross-transaction committed-storage threading table. This is a storage-write
-    capacity, not a transaction-count capacity: it snapshots 128-byte storage-log
-    entries across txs so later tx preloads can see earlier committed values.
+/-- Cross-transaction committed-storage threading table. This is a unique
+    `(recipient, slotKey)` capacity, not a transaction-count or raw-write
+    capacity: each tx snapshots 128-byte storage-log entries so later tx preloads
+    can see earlier committed values, while duplicate keys update in place.
     Overflow is conservative and tracked separately from tx arena overflow. -/
 def bvMtxCommittedEntryBytes : Nat := 128
 def bvMtxCommittedCapacity : Nat := 128
