@@ -1116,9 +1116,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_finals:\n  .zero 88\n" ++
   -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
   -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
+  -- Capacity follows bvMtxArenaTxCap so all-distinct current-fixture blocks do
+  -- not hit the old 16-entry table-full path.
   "bv_b2_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_b2_table:\n  .zero 1024\n" ++
+  "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
   "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps

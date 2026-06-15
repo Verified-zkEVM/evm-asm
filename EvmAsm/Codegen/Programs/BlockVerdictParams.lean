@@ -73,6 +73,8 @@ def bvMtxU64ArenaBytes : Nat := bvMtxArenaTxCap * 8
 def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
 def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
+def bvMtxSenderBalanceEntries : Nat := bvMtxArenaTxCap
+def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
 
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
@@ -113,6 +115,8 @@ def bmvFullU64PerTxArenaBytes : Nat :=
 def bmvFullLogWindowArenaBytes : Nat :=
   bmvLogWindowPerTxArenaBytes bmvFullTxCapacity
 
+#guard bvMtxSenderBalanceEntries = 1024
+#guard bvMtxSenderBalanceTableBytes = 65536
 #guard bmvFixtureTxCapacity = 16
 #guard bmvFullTxCapacity = 9523
 #guard bmvFixtureU64PerTxArenaBytes = 128

@@ -55,7 +55,7 @@ expected = bytearray(256)
 struct.pack_into("<Q", expected, 0, int(expected_status))
 struct.pack_into("<Q", expected, 8, int(expected_count))
 off = 16
-if expected_table:
+if expected_table and expected_table != "COUNT_ONLY":
     for item in expected_table.split(","):
         seed_s, balance_s = item.split(":")
         expected[off : off + 32] = sender(int(seed_s))
@@ -70,7 +70,7 @@ PY
     >"$REPO_ROOT/gen-out/zisk_multi_tx_running_sender_balance_${name}.emu.log" 2>&1 || true
 
     local cmp_len=256
-  if [[ "$expected_status" != "0" ]]; then
+  if [[ "$expected_status" != "0" || "$expected_table" == "COUNT_ONLY" ]]; then
     cmp_len=16
   fi
   if cmp -n "$cmp_len" -s "$out_file" "$exp_file"; then
@@ -87,6 +87,7 @@ PY
 FAILED=0
 run_case "same_sender_valid" "1:100:30,1:999:40" 0 1 "1:30" || FAILED=1
 run_case "distinct_senders" "1:100:30,2:80:10" 0 2 "1:70,2:70" || FAILED=1
+run_case "distinct_17" "1:100:1,2:100:1,3:100:1,4:100:1,5:100:1,6:100:1,7:100:1,8:100:1,9:100:1,10:100:1,11:100:1,12:100:1,13:100:1,14:100:1,15:100:1,16:100:1,17:100:1" 0 17 "COUNT_ONLY" || FAILED=1
 run_case "same_sender_underflow" "1:50:30,1:999:25" 1 1 "1:20" || FAILED=1
 run_case "first_sender_underflow" "3:10:11" 1 0 "" || FAILED=1
 
