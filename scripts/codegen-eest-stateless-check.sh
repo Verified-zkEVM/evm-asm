@@ -853,6 +853,32 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${request_body_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 896 ]]; then
+    raw="$(od -An -v -tu8 -j 768 -N 128 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a mtx_cap_labels=(
+      mtx_arena_tx_cap
+      mtx_full_200m_tx_cap
+      mtx_u64_arena_bytes
+      mtx_log_window_bytes
+      mtx_skip_list_cap
+      mtx_skip_count
+      mtx_loop_index
+      mtx_sender_count_cap
+      mtx_sender_count
+      mtx_sender_balance_cap
+      mtx_sender_balance_count
+      mtx_committed_chunk_cap
+      mtx_committed_chunk_bytes
+      mtx_nonce_seen_count
+      mtx_nonce_seen_cap
+      mtx_tx_count
+    )
+    for i in "${!mtx_cap_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${mtx_cap_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 

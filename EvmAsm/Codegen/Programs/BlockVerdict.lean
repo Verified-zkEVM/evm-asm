@@ -181,6 +181,22 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, c1_erh_status; ld t2, 0(t1); sd t2, 744(t0)\n" ++
   "  li t2, 1572865; sd t2, 752(t0)\n" ++
   "  la t1, c1_notx_deposit_body_len; ld t2, 0(t1); sd t2, 760(t0)\n" ++
+  "  li t2, " ++ toString bvMtxArenaTxCap ++ "; sd t2, 768(t0)\n" ++
+  "  li t2, " ++ toString bmvFullTxCapacity ++ "; sd t2, 776(t0)\n" ++
+  "  li t2, " ++ toString bvMtxU64ArenaBytes ++ "; sd t2, 784(t0)\n" ++
+  "  li t2, " ++ toString bvMtxLogWindowBytes ++ "; sd t2, 792(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSkipListEntries ++ "; sd t2, 800(t0)\n" ++
+  "  la t1, bv_mtx_skip_count; ld t2, 0(t1); sd t2, 808(t0)\n" ++
+  "  la t1, bv_mtx_i; ld t2, 0(t1); sd t2, 816(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSenderCountEntries ++ "; sd t2, 824(t0)\n" ++
+  "  la t1, bv_b1_sender_count; ld t2, 0(t1); sd t2, 832(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSenderBalanceEntries ++ "; sd t2, 840(t0)\n" ++
+  "  la t1, bv_b2_count; ld t2, 0(t1); sd t2, 848(t0)\n" ++
+  "  li t2, " ++ toString bvMtxCommittedChunkCapacity ++ "; sd t2, 856(t0)\n" ++
+  "  li t2, " ++ toString bvMtxCommittedChunkBytes ++ "; sd t2, 864(t0)\n" ++
+  "  la t1, bv_mtx_nonce_seen_count; ld t2, 0(t1); sd t2, 872(t0)\n" ++
+  "  li t2, 16; sd t2, 880(t0)\n" ++
+  "  la t1, bv_tx_count; ld t2, 0(t1); sd t2, 888(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
