@@ -127,6 +127,15 @@ def blockVerdictMtxValidationTail : String :=
   "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
   "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
+  -- bmvmx.5.5.1.2.1.3: tuple-sequence consistency over every non-skip BAL account
+  -- in the multi-tx path. This mirrors the single-tx call while using the A1 skip-list.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  li a2, 0xa0630000\n" ++
+  "  la t0, evm_env; ld a3, 448(t0)\n" ++
+  "  la a4, exec_log_txindex\n" ++
+  "  la a5, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a6, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_tuple_sequences_consistent_skip_list\n" ++
+  "  bnez a0, .Lbv_bal_tuple_fail\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
   -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
   -- here, consuming the A1 skip-list. CONSERVATIVE guards (skip -> never false-reject, like the

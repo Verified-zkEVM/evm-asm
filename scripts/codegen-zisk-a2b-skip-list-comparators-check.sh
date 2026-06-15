@@ -73,6 +73,8 @@ elif mode == \"two_skip_ok\":
     skips = [R1, R2]; accounts = [[R1, skipped_sc, [], [], [], []], [R2, skipped_sc, [], [], [], []], [C, callee_sc, [], [], [], []]]
 elif mode == \"callee_bad\":
     skips = [R1, R2]; bad_sc = [[K, [[1,b32(0x11)],[3,b32(0x99)]]]]; accounts = [[R1, skipped_sc, [], [], [], []], [R2, skipped_sc, [], [], [], []], [C, bad_sc, [], [], [], []]]
+elif mode == \"system_tuple_ok\":
+    skips = [R1, R2]; system_sc = [[K, [[0,b32(0x44)]]]]; accounts = [[R1, skipped_sc, [], [], [], []], [R2, skipped_sc, [], [], [], []], [C, system_sc, [], [], [], []]]; rows = []
 else:
     raise ValueError(mode)
 txidx = b\"\".join(struct.pack(\"<Q\", t) for _, t in rows); log = b\"\".join(e for e, _ in rows)
@@ -93,6 +95,7 @@ run_storage two_skip_ok two_skip_ok 0 || FAILED=1
 run_storage callee_bad  callee_bad  1 || FAILED=1
 run_tuple one_skip_ok one_skip_ok 0 || FAILED=1
 run_tuple two_skip_ok two_skip_ok 0 || FAILED=1
+run_tuple system_tuple_ok system_tuple_ok 0 || FAILED=1
 run_tuple callee_bad  callee_bad  1 || FAILED=1
 
 echo
