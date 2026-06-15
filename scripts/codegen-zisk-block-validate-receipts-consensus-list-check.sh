@@ -162,6 +162,10 @@ SHORT="$(python3 - <<'PY'
 print('aa' * 16)
 PY
 )"
+MANY129="$(python3 - <<'PY'
+print('[' + ','.join("{'status':1,'gas':21000}" for _ in range(129)) + ']')
+PY
+)"
 
 CASES=(
   "empty|[]|||0|1|1"
@@ -174,6 +178,7 @@ CASES=(
   "wrong_bloom_extra|[]||extra|4|1|0"
   "short_receipt_bloom|[{'status':1,'gas':21000,'bloom':'$SHORT'}]|||3|1|0"
   "short_header_root|[{'status':1,'gas':21000,'bloom':'$B0'}]|short||1|0|0"
+  "129_receipts_capacity|$MANY129|||1|0|0"
 )
 
 FAILED=0

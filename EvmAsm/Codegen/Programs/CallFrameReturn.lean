@@ -122,6 +122,26 @@ def frameReturnFunction : String :=
   "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
   "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
   "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
+  -- 3hlnt.2.2: failed child frames restore the hot running block bloom from the
+  -- child-depth checkpoint captured by call_frame_descend. Success leaves the
+  -- child-updated hot bloom intact.
+  "  la t0, evm_call_depth\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  slli t0, t0, 8\n" ++
+  "  la t1, rb_bloom_checkpoints\n" ++
+  "  add t1, t1, t0                 # src = checkpoint[child_depth - 1]\n" ++
+  "  la t2, rb_running_block_bloom  # dst = hot running block bloom\n" ++
+  "  li t3, 32\n" ++
+  ".Lfr_bloom_restore_loop:\n" ++
+  "  beqz t3, .Lfr_bloom_restore_done\n" ++
+  "  ld t4, 0(t1)\n" ++
+  "  sd t4, 0(t2)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lfr_bloom_restore_loop\n" ++
+  ".Lfr_bloom_restore_done:\n" ++
   ".Lfr_sgas_done:\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
@@ -245,19 +265,19 @@ def frameReturnFunction : String :=
     success word.
 
     Output (depth-1→0 case):
-      +0  x10 after return            (expect parent_pc 0x100 + 1 = 0x101)
-      +8  x21 after return            (expect parent_cb 0x222)
-      +16 x13 - &evm_memory           (expect 0)
-      +24 x20 - &evm_env              (expect 0)
-      +32 x12 - &fr_pstack            (expect 192 = netPopBytes)
-      +40 success word at x12         (expect 1)
-      +48 evm_call_depth after        (expect 0)
+      +0  packed parent codebase:pc+1     (expect 0x222:0x101)
+      +8  running bloom word0 after success (expect child-updated word0)
+      +16 packed x20/x13 deltas           (expect 0:0 against evm_env/evm_memory)
+      +24 running bloom word31 after success
+      +32 packed success:x12-delta        (expect 1:192)
+      +48 evm_call_depth after            (expect 0)
     Output (depth-2→1 case):
-      +56 x13 - &call_frame_arena     (expect 0  = frame_base(1)+frameMemOff)
-      +64 x20 - &call_frame_arena     (expect 0x28400 = +frameEnvOff)
-      +72 x12 - &fr_pstack2           (expect 160 = netPopBytes)
-      +80 success word at x12         (expect 0  — REVERT path)
-      +88 evm_call_depth after        (expect 1)
+      +40 running bloom word0 after REVERT (expect checkpoint[1] word0)
+      +56 packed x20/x13 deltas           (expect 0x28400:0 against call_frame_arena)
+      +64 running bloom word31 after REVERT
+      +72 x12 - &fr_pstack2               (expect 160 = netPopBytes)
+      +80 success word at x12             (expect 0 — REVERT path)
+      +88 evm_call_depth after            (expect 1)
       +96 first copied returndata byte at outoff_abs (expect 0xab)
     Frame-relative stack-bound restores:
       +104 evm_cur_stack_top - &evm_stack_top   (scenario A, expect 0)
@@ -300,14 +320,13 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_refund_acc; li t1, 3000; sd t1, 0(t0)\n" ++   -- nxio8.4.2: success leaves refund
   "  la t0, evm_storage_access_count; li t1, 11; sd t1, 0(t0)\n" ++   -- nxio8.4.3: success leaves warmth
   "  la t0, fr_child_env; li t1, 333; sd t1, 624(t0); li t1, 444; sd t1, 632(t0); li t1, 888; sd t1, 640(t0); li t1, 22; sd t1, 648(t0)\n" ++
+  "  la t0, rb_running_block_bloom; li t1, 0x1111222233334444; sd t1, 0(t0); li t1, 0xaaaabbbbccccdddd; sd t1, 248(t0)\n" ++
   "  li a0, 1; li a1, 0; li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
-  "  sd x10, 0(s0)                  # expect 0x101 (parent_pc 0x100 + 1)\n" ++
-  "  sd x21, 8(s0)                  # expect 0x222\n" ++
-  "  la t0, evm_memory; sub t0, x13, t0; sd t0, 16(s0)   # expect 0\n" ++
-  "  la t0, evm_env;    sub t0, x20, t0; sd t0, 24(s0)   # expect 0\n" ++
-  "  la t0, fr_pstack;  sub t0, x12, t0; sd t0, 32(s0)   # expect 192\n" ++
-  "  ld t0, 0(x12); sd t0, 40(s0)                        # expect 1\n" ++
+  "  slli t0, x21, 32; or t0, t0, x10; sd t0, 0(s0)       # pack parent_cb:parent_pc+1\n" ++
+  "  la t0, rb_running_block_bloom; ld t1, 0(t0); sd t1, 8(s0); ld t1, 248(t0); sd t1, 24(s0)\n" ++
+  "  la t0, evm_memory; sub t1, x13, t0; la t0, evm_env; sub t2, x20, t0; slli t2, t2, 32; or t1, t1, t2; sd t1, 16(s0)\n" ++
+  "  la t0, fr_pstack; sub t1, x12, t0; ld t2, 0(x12); slli t2, t2, 32; or t1, t1, t2; sd t1, 32(s0)\n" ++
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 48(s0)  # expect 0\n" ++
   -- frame-relative stack bounds restored to the depth-0 global arena (cur_top == &evm_stack_top).
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, evm_stack_top; sub t1, t1, t2; sd t1, 104(s0)  # expect 0\n" ++
@@ -340,19 +359,21 @@ def ziskFrameReturnPrologue : String :=
   -- Revert should preserve the parent's pre-child cursors and ignore the child lengths.
   "  la t0, fr_child_env; li t1, 99; sd t1, 448(t0); li t1, 98; sd t1, 464(t0); li t1, 97; sd t1, 472(t0)\n" ++
   "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; li t1, 21; sd t1, 448(t0); li t1, 22; sd t1, 464(t0); li t1, 23; sd t1, 472(t0)\n" ++
-  -- nxio8.4.1: child mutated the state-gas globals to 7777/8888; the pre-child
+  -- nxio8.4.1: child mutated the state-gas globals to 444/766; the pre-child
   -- snapshot (555/666) lives in the child env at +624/632. A REVERT must roll the
   -- globals back to the snapshot (incorporate_child_on_error returns the child's
   -- entire state-gas allocation; state_gas_used is not accumulated).
-  "  la t0, evm_state_gas_left; li t1, 7777; sd t1, 0(t0)\n" ++
-  "  la t0, evm_state_gas_used; li t1, 8888; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_left; li t1, 444; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; li t1, 766; sd t1, 0(t0)\n" ++
   "  la t0, evm_refund_acc; li t1, 9999; sd t1, 0(t0)\n" ++   -- child-modified refund
   "  la t0, evm_storage_access_count; li t1, 33; sd t1, 0(t0)\n" ++   -- child-modified warmth count
   "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0); li t1, 777; sd t1, 640(t0); li t1, 44; sd t1, 648(t0)\n" ++
+  "  la t0, rb_running_block_bloom; li t1, 0x9999888877776666; sd t1, 0(t0); li t1, 0x5555444433332222; sd t1, 248(t0)\n" ++
+  "  la t0, rb_bloom_checkpoints; addi t0, t0, 256; li t1, 0x123456789abcdef0; sd t1, 0(t0); li t1, 0x0fedcba987654321; sd t1, 248(t0)\n" ++
   "  li a0, 0; la a1, fr_ret; li a2, 4\n" ++
   "  jal ra, frame_return\n" ++
-  "  la t0, call_frame_arena; sub t0, x13, t0; sd t0, 56(s0)   # expect 0\n" ++
-  "  la t0, call_frame_arena; sub t0, x20, t0; sd t0, 64(s0)   # expect 0x28400\n" ++
+  "  la t0, rb_running_block_bloom; ld t1, 0(t0); sd t1, 40(s0); ld t1, 248(t0); sd t1, 64(s0)\n" ++
+  "  la t0, call_frame_arena; sub t1, x13, t0; sub t2, x20, t0; slli t2, t2, 32; or t1, t1, t2; sd t1, 56(s0)\n" ++
   "  la t0, fr_pstack2; sub t0, x12, t0; sd t0, 72(s0)         # expect 160\n" ++
   "  ld t0, 0(x12); sd t0, 80(s0)                              # expect 0\n" ++
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 88(s0)        # expect 1\n" ++
@@ -402,6 +423,9 @@ def ziskFrameReturnDataSection : String :=
   "exec_code_effect_count:\n  .zero 8\n" ++
   "exec_code_effect_next:\n  .zero 8\n" ++
   "exec_code_effect_overflow:\n  .zero 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
 
   -- Frame-relative stack-bound labels + cells. `evm_stack_top`/`evm_stack_low`
   -- are address-only stubs (frame_return takes their `&` for the depth-0

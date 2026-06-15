@@ -73,6 +73,29 @@ def bvMtxU64ArenaBytes : Nat := bvMtxArenaTxCap * 8
 def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
 def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
+def bvMtxSenderBalanceEntries : Nat := bvMtxArenaTxCap
+def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
+def bvMtxSenderCountEntries : Nat := bvMtxArenaTxCap
+def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
+def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
+
+/-- Cross-transaction committed-storage threading table. This is a unique
+    `(recipient, slotKey)` capacity, not a transaction-count or raw-write
+    capacity: each tx snapshots 128-byte storage-log entries so later tx preloads
+    can see earlier committed values, while duplicate keys update in place.
+    Overflow is conservative and tracked separately from tx arena overflow. -/
+def bvMtxCommittedEntryBytes : Nat := 128
+def bvMtxCommittedPageCapacity : Nat := 128
+/-- Current single-page committed-storage capacity used by the existing helper ABI. -/
+def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
+def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
+
+/-- Behavior-neutral chunked committed-storage substrate for the follow-up
+    helpers. Each page preserves the current 128-entry layout; the total capacity
+    is the number of unique `(recipient, slotKey)` entries across all pages. -/
+def bvMtxCommittedChunkPages : Nat := 4
+def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
+def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
 
 /-- Receipt/log arena capacities are deliberately separate from the transaction
     count cap. Capacity overflow is conservative receipt-enforcement debt
@@ -135,12 +158,20 @@ def bmvFullU64PerTxArenaBytes : Nat :=
 def bmvFullLogWindowArenaBytes : Nat :=
   bmvLogWindowPerTxArenaBytes bmvFullTxCapacity
 
+#guard bvMtxSenderBalanceEntries = 1024
+#guard bvMtxSenderBalanceTableBytes = 65536
+#guard bvMtxSenderCountEntries = 1024
+#guard bvMtxSenderCountTableBytes = 40960
+#guard bvMtxSenderCountSortBytes = 32768
 #guard bmvFixtureTxCapacity = 16
 #guard bmvFullTxCapacity = 9523
 #guard bmvFixtureU64PerTxArenaBytes = 128
 #guard bmvFixtureLogWindowArenaBytes = 256
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
+#guard bvMtxCommittedBytes = 16384
+#guard bvMtxCommittedChunkCapacity = 512
+#guard bvMtxCommittedChunkBytes = 65536
 #guard bvReceiptRecordsBytes = 1024
 #guard bvBlockLogDescBytes = 32768
 #guard bvBlockLogMetaBytes = 2048
