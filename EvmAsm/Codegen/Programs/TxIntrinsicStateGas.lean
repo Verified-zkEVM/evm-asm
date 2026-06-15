@@ -246,6 +246,14 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
   "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
   ".Lteer_marker_match:\n" ++
+  "  # A processed authorization with nonzero auth.nonce proves the authority account\n" ++
+  "  # existed before set_delegation; BAL must show the matching nonce increment.\n" ++
+  "  la t0, teer_auth_nonce; ld t1, 0(t0); beqz t1, .Lteer_existing_code_check\n" ++
+  "  la t0, teer_finals; ld t2, 40(t0); beqz t2, .Lteer_existing_code_check\n" ++
+  "  ld t2, 48(t0); addi t3, t1, 1; bne t2, t3, .Lteer_existing_code_check\n" ++
+  liAmsterdamNewAccountStateGas "t3" ++
+  "  add s10, s10, t3\n" ++
+  ".Lteer_existing_code_check:\n" ++
   "  # The final delegation marker only proves the authority is non-empty after the block.\n" ++
   "  # Existing-authority refund applies if that code change is no later than this tx;\n" ++
   "  # the equal-index case is this tx's own set_delegation refund.\n" ++
@@ -273,7 +281,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  bnez a0, .Lteer_next\n" ++
   "  ld t0, 112(sp); ld t1, 104(sp); bgtu t0, t1, .Lteer_next\n" ++
   ".Lteer_refund_match:\n" ++
-  liAmsterdamNewAccountStateGas "t3" ++
+  "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
   "  add s10, s10, t3; j .Lteer_next\n" ++
 
   ".Lteer_next:\n" ++
