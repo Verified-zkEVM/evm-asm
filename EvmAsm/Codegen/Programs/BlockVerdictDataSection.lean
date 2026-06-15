@@ -566,13 +566,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- instead of corrupting .data.
   "c1_staging:\n  .zero " ++ toString c1StagingBytes ++ "\n" ++
   ".balign 8\n" ++
-  "c1_er_assembled:\n  .zero 32768\n" ++
+  "c1_er_assembled:\n  .zero " ++ toString bvMaxExecutionRequestSectionBytes ++ "\n" ++
   "c1_er_assembled_len:\n  .zero 8\n" ++
   "c1_erh_status:\n  .zero 8\n" ++
   "c1_notx_deposit_body_len:\n  .zero 8\n" ++
   "c1_dstatus:\n  .zero 8\n" ++
   "c1_dlen:\n  .zero 8\n" ++
-  "c1_dbody:\n  .zero 32768\n" ++
+  "c1_dbody:\n  .zero " ++ toString bvMaxDepositRequestBodyBytes ++ "\n" ++
   "c1_log_records:\n  .zero 81920\n" ++
   "c1_ccode_ptr:\n  .zero 8\n" ++
   "c1_ccode_len:\n  .zero 8\n" ++
