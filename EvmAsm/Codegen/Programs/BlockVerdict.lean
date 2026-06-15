@@ -197,6 +197,23 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_mtx_nonce_seen_count; ld t2, 0(t1); sd t2, 872(t0)\n" ++
   "  li t2, 16; sd t2, 880(t0)\n" ++
   "  la t1, bv_tx_count; ld t2, 0(t1); sd t2, 888(t0)\n" ++
+  "  la t1, brr_control; ld t2, 0(t1); sd t2, 896(t0)\n" ++
+  "  li t2, " ++ toString bvReceiptRecordCapacity ++ "; sd t2, 904(t0)\n" ++
+  "  la t1, brr_status; ld t2, 0(t1); sd t2, 912(t0)\n" ++
+  "  la t1, brr_append_status; ld t2, 0(t1); sd t2, 920(t0)\n" ++
+  "  la t1, bv_block_log_count; ld t2, 0(t1); sd t2, 928(t0)\n" ++
+  "  li t2, " ++ toString bvBlockLogDescCapacity ++ "; sd t2, 936(t0)\n" ++
+  "  la t1, bv_block_log_data_used; ld t2, 0(t1); sd t2, 944(t0)\n" ++
+  "  li t2, " ++ toString bvBlockLogDataBytes ++ "; sd t2, 952(t0)\n" ++
+  "  la t1, bv_logs_rlp_arena_used; ld t2, 0(t1); sd t2, 960(t0)\n" ++
+  "  li t2, " ++ toString bvLogsRlpArenaBytes ++ "; sd t2, 968(t0)\n" ++
+  "  la t1, bv_logs_rlp_len; ld t2, 0(t1); sd t2, 976(t0)\n" ++
+  "  la t1, bv_receipts_rlp_len; ld t2, 0(t1); sd t2, 984(t0)\n" ++
+  "  li t2, " ++ toString bvReceiptsRlpBytes ++ "; sd t2, 992(t0)\n" ++
+  "  la t1, brr_control; ld t2, 0(t1); slli t2, t2, 8; sd t2, 1000(t0)\n" ++
+  "  li t2, " ++ toString bvRecordBloomsBytes ++ "; sd t2, 1008(t0)\n" ++
+  "  la t1, bv_receipt_logs_status; ld t2, 0(t1); sd t2, 1016(t0)\n" ++
+  "  la t1, bv_block_log_overflow; ld t2, 0(t1); sd t2, 1024(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++

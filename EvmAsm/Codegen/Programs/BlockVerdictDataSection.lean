@@ -221,6 +221,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_last_log_count:\n  .zero 8\n" ++
   "bv_receipt_logs_status:\n  .zero 8\n" ++
   "bv_logs_rlp_len:\n  .zero 8\n" ++
+  "bv_logs_rlp_arena_used:\n  .zero 8\n" ++
   "bv_tx_log_window:\n  .zero " ++ toString bvMtxLogWindowBytes ++ "\n" ++
   ".balign 8\n" ++
   "bv_block_log_descs:\n  .zero " ++ toString bvBlockLogDescBytes ++ "\n" ++
