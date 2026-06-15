@@ -781,6 +781,18 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${committed_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 504 ]]; then
+    raw="$(od -An -v -tu8 -j 488 -N 16 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a mtx_skip_labels=(
+      mtx_skip_cap
+      mtx_skip_count
+    )
+    for i in "${!mtx_skip_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${mtx_skip_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 
