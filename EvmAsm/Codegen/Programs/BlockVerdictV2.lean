@@ -492,6 +492,7 @@ def statelessVerdictV2GuestClosure : String :=
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
+  b1SenderTableFindFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
