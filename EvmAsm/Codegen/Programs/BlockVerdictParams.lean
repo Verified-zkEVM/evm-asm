@@ -80,8 +80,17 @@ def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
     can see earlier committed values, while duplicate keys update in place.
     Overflow is conservative and tracked separately from tx arena overflow. -/
 def bvMtxCommittedEntryBytes : Nat := 128
-def bvMtxCommittedCapacity : Nat := 128
+def bvMtxCommittedPageCapacity : Nat := 128
+/-- Current single-page committed-storage capacity used by the existing helper ABI. -/
+def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
 def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
+
+/-- Behavior-neutral chunked committed-storage substrate for the follow-up
+    helpers. Each page preserves the current 128-entry layout; the total capacity
+    is the number of unique `(recipient, slotKey)` entries across all pages. -/
+def bvMtxCommittedChunkPages : Nat := 4
+def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
+def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
 
 /-- Receipt/log arena capacities are deliberately separate from the transaction
     count cap. Capacity overflow is conservative receipt-enforcement debt
@@ -151,6 +160,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
 #guard bvMtxCommittedBytes = 16384
+#guard bvMtxCommittedChunkCapacity = 512
+#guard bvMtxCommittedChunkBytes = 65536
 #guard bvReceiptRecordsBytes = 1024
 #guard bvBlockLogDescBytes = 32768
 #guard bvBlockLogMetaBytes = 2048

@@ -980,12 +980,17 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- value via exec_log_latest_value. Capacity counts unique (recipient, slotKey) keys;
   -- duplicate writes update in place. Unique-key overflow is conservative and surfaced via
   -- bv_mtx_committed_overflow. dtrc_recipkey / dtrc_threadval are the per-slot query key
-  -- and threaded-value output buffer.
+  -- and threaded-value output buffer. The chunked labels below are behavior-neutral substrate
+  -- for the follow-up helpers: same 128-entry page layout, four pages total, exact until
+  -- bv_mtx_committed_chunk_overflow reports conservative unique-key capacity exhaustion.
   ".balign 8\n" ++
   "bv_mtx_committed_count:\n  .zero 8\n" ++
   "bv_mtx_committed_overflow:\n  .zero 8\n" ++
+  "bv_mtx_committed_chunk_count:\n  .zero 8\n" ++
+  "bv_mtx_committed_chunk_overflow:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_mtx_committed:\n  .zero " ++ toString bvMtxCommittedBytes ++ "\n" ++
+  "bv_mtx_committed_chunked:\n  .zero " ++ toString bvMtxCommittedChunkBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
   "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
