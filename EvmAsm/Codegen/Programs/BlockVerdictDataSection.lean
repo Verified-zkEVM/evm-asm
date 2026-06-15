@@ -1029,13 +1029,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
   -- tx's recipient (its entries are all the recipient's own — dispatch_tx_runtime_code
   -- requires self-contained), so the NEXT tx's preload can thread a prior tx's committed
-  -- value via exec_log_latest_value. 128 entries × 128 B; count 0 for tx0 / single-tx /
-  -- independent blocks -> no threading -> byte-identical. dtrc_recipkey / dtrc_threadval are
-  -- the per-slot query key (recipient 20B, zero-padded) and the threaded-value output buffer.
+  -- value via exec_log_latest_value. Capacity is independent of transaction count; overflow
+  -- is conservative and surfaced via bv_mtx_committed_overflow. dtrc_recipkey /
+  -- dtrc_threadval are the per-slot query key and threaded-value output buffer.
   ".balign 8\n" ++
   "bv_mtx_committed_count:\n  .zero 8\n" ++
+  "bv_mtx_committed_overflow:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_mtx_committed:\n  .zero 16384\n" ++
+  "bv_mtx_committed:\n  .zero " ++ toString bvMtxCommittedBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
   "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match

@@ -420,7 +420,7 @@ def blockVerdictFunction : String :=
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  "  la t0, bv_mtx_committed_count; sd zero, 0(t0)  # fhsxz.2.4.2.57.11.6.3.2: empty cross-tx committed table\n" ++
+  "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty cross-tx committed table/status\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
   -- so compute the BLOCK base_fee once here (it is block-level, identical for every tx) by
@@ -634,9 +634,8 @@ def blockVerdictFunction : String :=
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed (addrHash) to its recipient (bv_mtx_ctx+72, 20B zero-padded to 32) so the next
-  -- tx's preload can thread a prior tx's committed value. The live exec log (env+448 entries
-  -- at 0xa0630000) holds the recipient's own slots only (dispatch_tx_runtime_code requires
-  -- self-contained), so a single recipient re-tag is correct. Append (last-write-wins via
+  -- tx's preload can thread a prior tx's committed value. The live exec log holds the
+  -- recipient's own slots only, so a single recipient re-tag is correct. Append (last-write-wins via
   -- exec_log_latest_value's last-match); bail conservatively if the table overflows.
   "  la t0, evm_env; ld t0, 448(t0)                 # t0 = live log entry count\n" ++
   "  la t1, bv_mtx_committed_count; ld t1, 0(t1)    # t1 = table count\n" ++
@@ -644,7 +643,7 @@ def blockVerdictFunction : String :=
   "  li t3, 0                                       # j = 0\n" ++
   ".Lbv_mtx_snap:\n" ++
   "  beq t3, t0, .Lbv_mtx_snap_done\n" ++
-  "  li t4, 128; bgeu t1, t4, .Lbv_mtx_bail         # committed table full -> conservative\n" ++
+  "  li t4, " ++ toString bvMtxCommittedCapacity ++ "; bgeu t1, t4, .Lbv_mtx_committed_full  # table full -> conservative\n" ++
   "  slli t4, t3, 7; add t4, t2, t4                 # src = live[j]\n" ++
   "  slli t5, t1, 7; la t6, bv_mtx_committed; add t5, t6, t5   # dst = table[count]\n" ++
   "  sd zero, 0(t5); sd zero, 8(t5); sd zero, 16(t5); sd zero, 24(t5)   # addrHash = 0, then recipient 20B\n" ++
@@ -660,6 +659,7 @@ def blockVerdictFunction : String :=
   "  ld a0, 96(t4);  sd a0, 96(t5);  ld a0, 104(t4); sd a0, 104(t5)\n" ++  -- current
   "  ld a0, 112(t4); sd a0, 112(t5); ld a0, 120(t4); sd a0, 120(t5)\n" ++
   "  addi t1, t1, 1; addi t3, t3, 1; j .Lbv_mtx_snap\n" ++
+  ".Lbv_mtx_committed_full:\n  la t5, bv_mtx_committed_overflow; li t6, 1; sd t6, 0(t5); j .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_snap_done:\n" ++
   "  la t4, bv_mtx_committed_count; sd t1, 0(t4)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
