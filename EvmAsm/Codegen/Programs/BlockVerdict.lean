@@ -169,6 +169,18 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, svf_codes_len; ld t2, 0(t1); sd t2, 648(t0)\n" ++
   "  la t1, svf_headers_len; ld t2, 0(t1); sd t2, 656(t0)\n" ++
   "  la t1, svf_headers_count; ld t2, 0(t1); sd t2, 664(t0)\n" ++
+  "  la t1, c1_dstatus; ld t2, 0(t1); sd t2, 672(t0)\n" ++
+  "  la t1, c1_dlen; ld t2, 0(t1); sd t2, 680(t0)\n" ++
+  "  li t2, 32768; sd t2, 688(t0)\n" ++
+  "  li t2, 81920; sd t2, 696(t0)\n" ++
+  "  la t1, dbsr_wlen; ld t2, 0(t1); sd t2, 704(t0)\n" ++
+  "  la t1, dbsr_clen; ld t2, 0(t1); sd t2, 712(t0)\n" ++
+  "  li t2, 2048; sd t2, 720(t0)\n" ++
+  "  la t1, c1_er_assembled_len; ld t2, 0(t1); sd t2, 728(t0)\n" ++
+  "  li t2, 32768; sd t2, 736(t0)\n" ++
+  "  la t1, c1_erh_status; ld t2, 0(t1); sd t2, 744(t0)\n" ++
+  "  li t2, 1572865; sd t2, 752(t0)\n" ++
+  "  la t1, c1_notx_deposit_body_len; ld t2, 0(t1); sd t2, 760(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
