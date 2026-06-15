@@ -74,6 +74,28 @@ def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
 def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 
+/-- Receipt/log arena capacities are deliberately separate from the transaction
+    count cap. Capacity overflow is conservative receipt-enforcement debt
+    (accept/no enforcement), while malformed data inside an enforced shape may
+    still reject. These names preserve the current static sizes while making the
+    independent limits explicit for the follow-up capacity slices. -/
+def bvReceiptRecordCapacity : Nat := 16
+def bvReceiptRecordBytes : Nat := 64
+def bvReceiptRecordsBytes : Nat := bvReceiptRecordCapacity * bvReceiptRecordBytes
+def bvBlockLogDescCapacity : Nat := 128
+def bvBlockLogDescBytes : Nat := bvBlockLogDescCapacity * 256
+def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 16
+def bvBlockLogDataBytes : Nat := 65536
+def bvLogsRlpArenaBytes : Nat := 65536
+def bvRecordBloomBytes : Nat := 256
+def bvRecordBloomsBytes : Nat := bvReceiptRecordCapacity * bvRecordBloomBytes
+def bvRecordLogsDescBytes : Nat := bvReceiptRecordCapacity * 32
+def bvReceiptsRlpBytes : Nat := 65536
+def bvReceiptEncodePayloadBytes : Nat := 16384
+def bvReceiptListPayloadBytes : Nat := 32768
+def bvReceiptConsensusDescCapacity : Nat := 128
+def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
+
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
     Predeploy code comes from the witness and is NOT EIP-170-bounded, but the
@@ -119,5 +141,16 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFixtureLogWindowArenaBytes = 256
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
+#guard bvReceiptRecordsBytes = 1024
+#guard bvBlockLogDescBytes = 32768
+#guard bvBlockLogMetaBytes = 2048
+#guard bvBlockLogDataBytes = 65536
+#guard bvLogsRlpArenaBytes = 65536
+#guard bvRecordBloomsBytes = 4096
+#guard bvRecordLogsDescBytes = 512
+#guard bvReceiptsRlpBytes = 65536
+#guard bvReceiptEncodePayloadBytes = 16384
+#guard bvReceiptListPayloadBytes = 32768
+#guard bvReceiptConsensusDescBytes = 2048
 
 end EvmAsm.Codegen

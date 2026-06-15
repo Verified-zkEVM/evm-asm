@@ -203,13 +203,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- the mtx loop index i); brr_tx_status_ptr is the materializer's saved arg.
   "brr_tx_status_ptr:\n  .zero 8\n" ++
   "bv_tx_status_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- .63.1.6.2.1: block-level log arena + per-tx windows. Each dispatch call
-  -- resets/overwrites the capture buffers, so block_log_window_snapshot copies
-  -- every tx's descriptors (256 B each, 128 cap) + data bytes (64 KiB cap,
-  -- offsets rebased into bv_block_log_meta) out between dispatches.
-  -- bv_record_* and bv_logs_rlp_arena carry the per-record logs RLP + blooms
-  -- (block_receipt_logs_materialize), in the {bloom,rlp,len} shape
-  -- receipt_records_encode_no_logs consumes via record@56.
+  -- .63.1.6.2.1: block-level log stream + per-tx windows. The per-tx
+  -- bv_tx_log_window table is tx-count-sized, while bv_block_log_descs/meta/data
+  -- are separate stream capacities. Overflow is conservative capacity debt;
+  -- malformed data inside an enforced shape remains rejectable. bv_record_* and
+  -- bv_logs_rlp_arena carry per-record logs RLP + blooms for record@56.
   "brr_tx_window_ptr:\n  .zero 8\n" ++
   "bv_block_log_count:\n  .zero 8\n" ++
   "bv_block_log_data_used:\n  .zero 8\n" ++
@@ -220,16 +218,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_logs_rlp_len:\n  .zero 8\n" ++
   "bv_tx_log_window:\n  .zero " ++ toString bvMtxLogWindowBytes ++ "\n" ++
   ".balign 8\n" ++
-  "bv_block_log_descs:\n  .zero 32768\n" ++
-  "bv_block_log_meta:\n  .zero 2048\n" ++
-  "bv_block_log_data:\n  .zero 65536\n" ++
-  "bv_logs_rlp_arena:\n  .zero 65536\n" ++
-  "bv_record_blooms:\n  .zero 4096\n" ++
-  "bv_record_logs_desc:\n  .zero 512\n" ++
-  -- .63.1.6.2.3: encoded full-receipt RLP list (status||cumulative_gas||bloom||logs per
-  -- receipt) for block_validate_receipts_consensus_list. The encoder's internal payload
-  -- scratch caps at 32768; 64 KiB leaves margin for the list prefix + max receipts.
-  "bv_receipts_rlp:\n  .zero 65536\n" ++
+  "bv_block_log_descs:\n  .zero " ++ toString bvBlockLogDescBytes ++ "\n" ++
+  "bv_block_log_meta:\n  .zero " ++ toString bvBlockLogMetaBytes ++ "\n" ++
+  "bv_block_log_data:\n  .zero " ++ toString bvBlockLogDataBytes ++ "\n" ++
+  "bv_logs_rlp_arena:\n  .zero " ++ toString bvLogsRlpArenaBytes ++ "\n" ++
+  "bv_record_blooms:\n  .zero " ++ toString bvRecordBloomsBytes ++ "\n" ++
+  "bv_record_logs_desc:\n  .zero " ++ toString bvRecordLogsDescBytes ++ "\n" ++
+  -- .63.1.6.2.3: encoded full-receipt RLP list plus encoder scratch.
+  -- Output/scratch overflow is capacity debt and remains conservative unless a
+  -- later slice proves a supported in-capacity semantic mismatch.
+  "bv_receipts_rlp:\n  .zero " ++ toString bvReceiptsRlpBytes ++ "\n" ++
   "bv_receipts_rlp_len:\n  .zero 8\n" ++
   -- Status returned by receipt_records_encode_no_logs in the receipts tail:
   -- 0 success, 1 malformed/count over capacity, 2 missing logs descriptor,
@@ -241,11 +239,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_receipts_validator_status:\n  .zero 8\n" ++
   -- .63.1.6.2.3: receipt_encode + receipt_records_encode_no_logs scratch (these labels were
   -- probe-only in ziskReceiptRecordsEncodeNoLogsDataSection before the tx-bearing un-gate linked
-  -- the encoder into the guest). re_payload_buf (16K) / rle_payload_buf (32K) are the per-receipt
+  -- the encoder into the guest). re_payload_buf / rle_payload_buf are the per-receipt
   -- and list payload scratch; rle_empty_logs/rle_zero_bloom are the no-log receipt constants.
   ".balign 8\n" ++
   "rle_control:\n  .zero 24\n" ++
-  "rle_records:\n  .zero 1024\n" ++
+  "rle_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
   "rle_field_len:\n  .zero 8\n" ++
   "rle_prefix_len:\n  .zero 8\n" ++
   "re_field_len:\n  .zero 8\n" ++
@@ -256,9 +254,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "rle_zero_bloom:\n  .zero 256\n" ++
   ".balign 8\n" ++
-  "re_payload_buf:\n  .zero 16384\n" ++
+  "re_payload_buf:\n  .zero " ++ toString bvReceiptEncodePayloadBytes ++ "\n" ++
   ".balign 8\n" ++
-  "rle_payload_buf:\n  .zero 32768\n" ++
+  "rle_payload_buf:\n  .zero " ++ toString bvReceiptListPayloadBytes ++ "\n" ++
   -- .63.1.6.2.3: block_validate_logs_bloom + block_logs_bloom_from_receipts_list scratch
   -- (helb_offset/helb_length are already linked via header_extract_logs_bloom).
   ".balign 8\n" ++
@@ -286,7 +284,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brcl_root_valid:\n  .zero 8\n" ++
   "brcl_bloom_valid:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "brcl_value_descs:\n  .zero 2048\n" ++
+  "brcl_value_descs:\n  .zero " ++ toString bvReceiptConsensusDescBytes ++ "\n" ++
   -- scratch for log_records_encode_rlp (lrr_*) and the bloom accumulators
   -- (bav_/lba_/llba_ — zk3_state is already defined by the guest).
   logRecordsRlpDataSection ++
@@ -301,7 +299,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "llba_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
-  "brr_records:\n  .zero 1024\n" ++
+  "brr_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
   "hewr_offset:\n  .zero 8\n" ++
   "hewr_length:\n  .zero 8\n" ++
   ".balign 32\n" ++
@@ -325,7 +323,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvrri_expected_root:\n  .zero 32\n" ++
   "bvrri_computed_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "bvrri_value_descs:\n  .zero 2048\n" ++
+  "bvrri_value_descs:\n  .zero " ++ toString bvReceiptConsensusDescBytes ++ "\n" ++
   ".balign 8\n" ++
   "bv_header_bloom:\n  .zero 256\n" ++
   "bv_zero_bloom:\n  .zero 256\n" ++
