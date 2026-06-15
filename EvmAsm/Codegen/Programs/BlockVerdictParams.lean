@@ -76,6 +76,46 @@ def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 def bvMtxSenderBalanceEntries : Nat := bvMtxArenaTxCap
 def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
 
+/-- Cross-transaction committed-storage threading table. This is a unique
+    `(recipient, slotKey)` capacity, not a transaction-count or raw-write
+    capacity: each tx snapshots 128-byte storage-log entries so later tx preloads
+    can see earlier committed values, while duplicate keys update in place.
+    Overflow is conservative and tracked separately from tx arena overflow. -/
+def bvMtxCommittedEntryBytes : Nat := 128
+def bvMtxCommittedPageCapacity : Nat := 128
+/-- Current single-page committed-storage capacity used by the existing helper ABI. -/
+def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
+def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
+
+/-- Behavior-neutral chunked committed-storage substrate for the follow-up
+    helpers. Each page preserves the current 128-entry layout; the total capacity
+    is the number of unique `(recipient, slotKey)` entries across all pages. -/
+def bvMtxCommittedChunkPages : Nat := 4
+def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
+def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
+
+/-- Receipt/log arena capacities are deliberately separate from the transaction
+    count cap. Capacity overflow is conservative receipt-enforcement debt
+    (accept/no enforcement), while malformed data inside an enforced shape may
+    still reject. These names preserve the current static sizes while making the
+    independent limits explicit for the follow-up capacity slices. -/
+def bvReceiptRecordCapacity : Nat := 16
+def bvReceiptRecordBytes : Nat := 64
+def bvReceiptRecordsBytes : Nat := bvReceiptRecordCapacity * bvReceiptRecordBytes
+def bvBlockLogDescCapacity : Nat := 128
+def bvBlockLogDescBytes : Nat := bvBlockLogDescCapacity * 256
+def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 16
+def bvBlockLogDataBytes : Nat := 65536
+def bvLogsRlpArenaBytes : Nat := 65536
+def bvRecordBloomBytes : Nat := 256
+def bvRecordBloomsBytes : Nat := bvReceiptRecordCapacity * bvRecordBloomBytes
+def bvRecordLogsDescBytes : Nat := bvReceiptRecordCapacity * 32
+def bvReceiptsRlpBytes : Nat := 65536
+def bvReceiptEncodePayloadBytes : Nat := 16384
+def bvReceiptListPayloadBytes : Nat := 32768
+def bvReceiptConsensusDescCapacity : Nat := 128
+def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
+
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
     Predeploy code comes from the witness and is NOT EIP-170-bounded, but the
@@ -123,5 +163,19 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFixtureLogWindowArenaBytes = 256
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
+#guard bvMtxCommittedBytes = 16384
+#guard bvMtxCommittedChunkCapacity = 512
+#guard bvMtxCommittedChunkBytes = 65536
+#guard bvReceiptRecordsBytes = 1024
+#guard bvBlockLogDescBytes = 32768
+#guard bvBlockLogMetaBytes = 2048
+#guard bvBlockLogDataBytes = 65536
+#guard bvLogsRlpArenaBytes = 65536
+#guard bvRecordBloomsBytes = 4096
+#guard bvRecordLogsDescBytes = 512
+#guard bvReceiptsRlpBytes = 65536
+#guard bvReceiptEncodePayloadBytes = 16384
+#guard bvReceiptListPayloadBytes = 32768
+#guard bvReceiptConsensusDescBytes = 2048
 
 end EvmAsm.Codegen
