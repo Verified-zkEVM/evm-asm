@@ -39,10 +39,11 @@ def logTopicCopies (topicCount : Nat) : String :=
       +192..224 ADDRESS context word
       +224..256 CALLER context word
 
-    The descriptor uses the dispatcher's current stack-word byte order
-    (low limb first). A full receipt encoder can canonicalize to the
-    Ethereum byte order later. Overflow writes halt_kind = 4 and exits
-    via `.exit_no_epilogue` instead of silently dropping the event. -/
+    Topic slots use the dispatcher's stack-word byte order (low limb first).
+    The address context is copied from env.ADDRESS as the canonical low-aligned
+    20-byte account address used by top-level runtime staging. Overflow writes
+    halt_kind = 4 and exits via `.exit_no_epilogue` instead of silently dropping
+    the event. -/
 def logCapturePreBody (topicCount : Nat) : String :=
   "  ld x15, 472(x20)\n" ++          -- x15 = event log length
   "  li x16, 1024\n" ++              -- static cap: 1024 descriptors (6c7v9: raised from 16)
