@@ -797,6 +797,33 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${system_capture_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 672 ]]; then
+    raw="$(od -An -v -tu8 -j 536 -N 136 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a witness_lookup_labels=(
+      widx_build_status
+      widx_build_section_len
+      widx_build_count
+      widx_enabled
+      wlh_lookup_calls
+      wlh_indexed_calls
+      wlh_indexed_hits
+      wlh_indexed_misses
+      wlh_linear_calls
+      wlh_linear_hits
+      wlh_linear_misses
+      wlh_linear_iterations
+      wlh_linear_last_section_len
+      wlh_linear_max_section_len
+      svf_codes_len
+      svf_headers_len
+      svf_headers_count
+    )
+    for i in "${!witness_lookup_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${witness_lookup_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 

@@ -152,6 +152,23 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_system_storage_capture_rows; ld t2, 0(t1); sd t2, 512(t0)\n" ++
   "  la t1, bv_system_storage_capture_old_count; ld t2, 0(t1); sd t2, 520(t0)\n" ++
   "  la t1, bv_system_storage_capture_new_count; ld t2, 0(t1); sd t2, 528(t0)\n" ++
+  "  la t1, widx_build_status; ld t2, 0(t1); sd t2, 536(t0)\n" ++
+  "  la t1, widx_build_section_len; ld t2, 0(t1); sd t2, 544(t0)\n" ++
+  "  la t1, widx_build_count; ld t2, 0(t1); sd t2, 552(t0)\n" ++
+  "  la t1, widx_enabled; ld t2, 0(t1); sd t2, 560(t0)\n" ++
+  "  la t1, wlh_lookup_calls; ld t2, 0(t1); sd t2, 568(t0)\n" ++
+  "  la t1, wlh_indexed_calls; ld t2, 0(t1); sd t2, 576(t0)\n" ++
+  "  la t1, wlh_indexed_hits; ld t2, 0(t1); sd t2, 584(t0)\n" ++
+  "  la t1, wlh_indexed_misses; ld t2, 0(t1); sd t2, 592(t0)\n" ++
+  "  la t1, wlh_linear_calls; ld t2, 0(t1); sd t2, 600(t0)\n" ++
+  "  la t1, wlh_linear_hits; ld t2, 0(t1); sd t2, 608(t0)\n" ++
+  "  la t1, wlh_linear_misses; ld t2, 0(t1); sd t2, 616(t0)\n" ++
+  "  la t1, wlh_linear_iterations; ld t2, 0(t1); sd t2, 624(t0)\n" ++
+  "  la t1, wlh_linear_last_section_len; ld t2, 0(t1); sd t2, 632(t0)\n" ++
+  "  la t1, wlh_linear_max_section_len; ld t2, 0(t1); sd t2, 640(t0)\n" ++
+  "  la t1, svf_codes_len; ld t2, 0(t1); sd t2, 648(t0)\n" ++
+  "  la t1, svf_headers_len; ld t2, 0(t1); sd t2, 656(t0)\n" ++
+  "  la t1, svf_headers_count; ld t2, 0(t1); sd t2, 664(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
