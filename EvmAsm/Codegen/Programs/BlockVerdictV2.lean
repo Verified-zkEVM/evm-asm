@@ -128,12 +128,6 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     btiScanStorageChangesFunction ++ "\n" ++
     balTxsIndependentFunction ++ "\n" ++
     multiTxNthContextFunction ++ "\n" ++
-    -- g8zeq.1.4.2: block_verdict's block_state-gas floor check calls
-    -- block_verdict_tx_state_gas_array -> tx_intrinsic_state_gas -> eip8037_tx_state_gas;
-    -- mirror the guest closure so this debug verdict ELF links (je0xd pattern).
-    eip8037TxStateGasFunction ++ "\n" ++
-    txIntrinsicStateGasFunction ++ "\n" ++
-    blockVerdictTxStateGasArrayFunction ++ "\n" ++
     -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
     -- debug verdict ELF links (block_verdict calls verify_public_keys_match_senders).
     verifyPublicKeysSendersGuestFunctions ++ "\n" ++
