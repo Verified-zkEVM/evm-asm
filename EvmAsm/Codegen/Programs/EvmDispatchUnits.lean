@@ -77,9 +77,17 @@ def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
       +56 bv_tx_log_window count               (expect 0)
       +64 bv_receipts_completeness_shape       (expect 6)
       +72 bv_receipts_enforce_enabled          (expect 0)
-      +80 bvgr_tx_exec_state_gas[0]            (expect 0)
-      +88 unsupported helper status            (expect 4)
-      +96 bvgr_runtime_count after unsupported (expect 0) -/
+      +80  bvgr_tx_exec_state_gas[0]           (expect 0)
+      +88  non-STOP helper status              (expect 4)
+      +96  runtime_count after non-STOP        (expect 0)
+      +104 bad-context helper status           (expect 1)
+      +112 runtime_count after bad context     (expect 0)
+      +120 non-creation helper status          (expect 2)
+      +128 runtime_count after non-creation    (expect 0)
+      +136 null-initcode helper status         (expect 3)
+      +144 runtime_count after null initcode   (expect 0)
+      +152 long-initcode helper status         (expect 3)
+      +160 runtime_count after long initcode   (expect 0) -/
 def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
   body        := []
   prologueAsm :=
@@ -114,11 +122,38 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "  la t0, bvgr_tx_exec_state_gas; ld t1, 0(t0); sd t1, 80(s0)\n" ++
     -- Unsupported non-STOP initcode must not populate runtime_count.
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
-    "  la t0, crw_ctx; la t1, crw_bad_initcode; sd t1, 56(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_bad_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
     "  la a0, crw_ctx; la a1, crw_exec\n" ++
     "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
     "  sd a0, 88(s0)\n" ++
     "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 96(s0)\n" ++
+    -- Bad context status must stay conservative.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; li t1, 9; sd t1, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_stop_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 104(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 112(s0)\n" ++
+    -- Non-creation contexts must not be executed as constructors.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); sd zero, 48(t0); la t1, crw_stop_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 120(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 128(s0)\n" ++
+    -- Missing initcode pointer and too-large initcode stay unsupported shape.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); sd zero, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 136(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 144(s0)\n" ++
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_long_initcode; sd t1, 56(t0); li t1, 2; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 152(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 160(s0)\n" ++
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
     stageCreationRuntimePayloadFunction ++ "\n" ++
@@ -149,6 +184,8 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "crw_stop_initcode:\n  .byte 0x00\n" ++
     ".balign 8\n" ++
     "crw_bad_initcode:\n  .byte 0x01\n" ++
+    ".balign 8\n" ++
+    "crw_long_initcode:\n  .byte 0x00, 0x00\n" ++
     ".balign 8\n" ++
     "bv_runtime_payload:\n  .zero 65536\n" ++
     "bv_runtime_gas_left:\n  .zero 8\n" ++
