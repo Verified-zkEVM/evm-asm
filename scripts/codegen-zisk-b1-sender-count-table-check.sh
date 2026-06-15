@@ -22,16 +22,29 @@ echo "==> emit zisk_b1_sender_count_table ELF"
 lake exe codegen --program zisk_b1_sender_count_table --halt linux93 \
   -o gen-out/zisk_b1_sender_count_table
 
-: > gen-out/zisk_b1_sender_count_table.input
-"$ZISKEMU" -e gen-out/zisk_b1_sender_count_table.elf \
-  -i gen-out/zisk_b1_sender_count_table.input \
-  -o gen-out/zisk_b1_sender_count_table.output -n 2000000 \
-  >gen-out/zisk_b1_sender_count_table.emu.log 2>&1 || true
+python3 - <<'PY'
+import struct
+with open('gen-out/zisk_b1_sender_count_table_mode0.input', 'wb') as f:
+    f.write(struct.pack('<Q', 0))
+with open('gen-out/zisk_b1_sender_count_table_mode1.input', 'wb') as f:
+    f.write(struct.pack('<Q', 1))
+PY
+
+run_mode() {
+  local mode="$1"
+  "$ZISKEMU" -e gen-out/zisk_b1_sender_count_table.elf \
+    -i "gen-out/zisk_b1_sender_count_table_mode${mode}.input" \
+    -o "gen-out/zisk_b1_sender_count_table_mode${mode}.output" -n 2000000 \
+    >"gen-out/zisk_b1_sender_count_table_mode${mode}.emu.log" 2>&1 || true
+}
+
+run_mode 0
+run_mode 1
 
 python3 - <<'PY'
 import struct, sys
 
-d = open('gen-out/zisk_b1_sender_count_table.output', 'rb').read()
+d = open('gen-out/zisk_b1_sender_count_table_mode0.output', 'rb').read()
 
 def u64(o):
     return struct.unpack('<Q', d[o:o + 8])[0] if o + 8 <= len(d) else None
@@ -61,6 +74,14 @@ for i, (addr, count) in enumerate(expected):
     failed = failed or not ok_addr or not ok_count
     print(f"  {'OK  ' if ok_addr else 'FAIL'} entry[{i}].addr      got={got_addr.hex()} exp={addr.hex()}")
     print(f"  {'OK  ' if ok_count else 'FAIL'} entry[{i}].count     got={got_count!r} exp={count!r}")
+
+d17 = open('gen-out/zisk_b1_sender_count_table_mode1.output', 'rb').read()
+status17 = struct.unpack('<Q', d17[0:8])[0]
+count17 = struct.unpack('<Q', d17[8:16])[0]
+ok17 = status17 == 0 and count17 == 17
+failed = failed or not ok17
+print(f"  {'OK  ' if status17 == 0 else 'FAIL'} distinct17.status got={status17!r} exp=0")
+print(f"  {'OK  ' if count17 == 17 else 'FAIL'} distinct17.count  got={count17!r} exp=17")
 
 sys.exit(1 if failed else 0)
 PY

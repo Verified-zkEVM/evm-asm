@@ -19,6 +19,8 @@ namespace EvmAsm.Codegen
 
 def lookupReceiptProgramTail : String → Option BuildUnit
   | "zisk_bloom_eq" => some ziskBloomEqProbeUnit
+  | "zisk_running_bloom_checkpoint" => some ziskRunningBloomCheckpointProbeUnit
+  | "zisk_running_bloom_log_commit_revert" => some ziskRunningBloomLogCommitRevertProbeUnit
   | "zisk_rlp_encode_u64" => some ziskRlpEncodeU64ProbeUnit
   | "zisk_receipt_encode" => some ziskReceiptEncodeProbeUnit
   | "zisk_typed_receipt_encode" => some ziskTypedReceiptEncodeProbeUnit
@@ -42,6 +44,8 @@ def lookupReceiptProgramTail : String → Option BuildUnit
 
 def knownReceiptProgramNamesTail : List String :=
   ["zisk_bloom_eq",
+   "zisk_running_bloom_checkpoint",
+   "zisk_running_bloom_log_commit_revert",
    "zisk_rlp_encode_u64",
    "zisk_receipt_encode",
    "zisk_typed_receipt_encode",

@@ -421,7 +421,8 @@ def blockVerdictFunction : String :=
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty cross-tx committed table/status\n" ++
+  "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty legacy cross-tx committed table/status\n" ++
+  "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
   -- so compute the BLOCK base_fee once here (it is block-level, identical for every tx) by
@@ -635,14 +636,15 @@ def blockVerdictFunction : String :=
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
+  -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
   "  la a0, bv_mtx_ctx; addi a0, a0, 72             # recipient key\n" ++
   "  li a1, 0xa0630000                              # live storage log base\n" ++
   "  la t0, evm_env; ld a2, 448(t0)                 # live log entry count\n" ++
-  "  la a3, bv_mtx_committed; la t0, bv_mtx_committed_count; ld a4, 0(t0)\n" ++
-  "  li a5, " ++ toString bvMtxCommittedCapacity ++ "; la a6, bv_mtx_committed_overflow\n" ++
-  "  jal ra, bv_mtx_committed_snapshot_append\n" ++
-  "  bnez a1, .Lbv_mtx_bail                         # table full -> conservative\n" ++
-  "  la t4, bv_mtx_committed_count; sd a0, 0(t4)\n" ++
+  "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
+  "  li a5, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a6, bv_mtx_committed_chunk_overflow\n" ++
+  "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
+  "  bnez a1, .Lbv_mtx_bail                         # chunked table full -> conservative\n" ++
+  "  la t4, bv_mtx_committed_chunk_count; sd a0, 0(t4)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++

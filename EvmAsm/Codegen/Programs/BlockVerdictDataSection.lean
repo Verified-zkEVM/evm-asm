@@ -835,6 +835,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "\n.balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString frameArrayBytes ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
+  ".balign 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
@@ -1026,17 +1030,24 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_nonce_seen_counts:\n  .zero 128\n" ++
   "bv_mtx_nonce_pre:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
-  -- the multi-tx loop appends the live exec log's entries here, re-keyed (addrHash) to that
-  -- tx's recipient (its entries are all the recipient's own — dispatch_tx_runtime_code
+  -- the multi-tx loop upserts the live exec log's entries here, re-keyed (addrHash) to that
+  -- tx's recipient (its entries are all the recipient's own because dispatch_tx_runtime_code
   -- requires self-contained), so the NEXT tx's preload can thread a prior tx's committed
-  -- value via exec_log_latest_value. Capacity is independent of transaction count; overflow
-  -- is conservative and surfaced via bv_mtx_committed_overflow. dtrc_recipkey /
-  -- dtrc_threadval are the per-slot query key and threaded-value output buffer.
+  -- value via exec_log_latest_value. Capacity counts unique (recipient, slotKey) keys;
+  -- duplicate writes update in place. The active chunked table keeps the same 128-entry
+  -- page layout over four pages (512 unique keys total); unique-key overflow is
+  -- conservative and surfaced via bv_mtx_committed_chunk_overflow. The legacy single-page
+  -- labels remain while the stacked transition lands, but block-verdict call sites use the
+  -- chunked count/table/overflow labels. dtrc_recipkey / dtrc_threadval are the per-slot
+  -- query key and threaded-value output buffer.
   ".balign 8\n" ++
   "bv_mtx_committed_count:\n  .zero 8\n" ++
   "bv_mtx_committed_overflow:\n  .zero 8\n" ++
+  "bv_mtx_committed_chunk_count:\n  .zero 8\n" ++
+  "bv_mtx_committed_chunk_overflow:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_mtx_committed:\n  .zero " ++ toString bvMtxCommittedBytes ++ "\n" ++
+  "bv_mtx_committed_chunked:\n  .zero " ++ toString bvMtxCommittedChunkBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
   "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
@@ -1153,13 +1164,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
   -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
-  -- bv_b1_sender_table is 16 x (32-byte padded address + u64 total tx count), filled by
-  -- b1_sender_count_table from the A1 sender lanes.
+  -- bv_b1_sender_table is sized to bvMtxArenaTxCap distinct senders; each row is
+  -- 32-byte padded address + u64 total tx count, filled by b1_sender_count_table.
   ".balign 8\n" ++
   b1SenderCountTableScratchDataSection ++
   ".balign 8\n" ++
   "bv_b1_sender_count:\n  .zero 8\n" ++
-  "bv_b1_sender_table:\n  .zero 640\n" ++
+  "bv_b1_sender_table:\n  .zero " ++ toString bvMtxSenderCountTableBytes ++ "\n" ++
   "bv_b1_count:\n  .zero 8\n" ++
   "bv_b1_expected:\n  .zero 8\n" ++
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
@@ -1167,9 +1178,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_finals:\n  .zero 88\n" ++
   -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
   -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
+  -- Capacity follows bvMtxArenaTxCap so all-distinct current-fixture blocks do
+  -- not hit the old 16-entry table-full path.
   "bv_b2_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_b2_table:\n  .zero 1024\n" ++
+  "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
   "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
