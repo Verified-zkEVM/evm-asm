@@ -427,6 +427,25 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- EIP-7702 state-refund scratch used by tx_eip7702_existing_authority_refund.
+  -- The current helper is a coarse syntactic bridge; evm-asm-cqesh tracks the
+  -- precise BAL/account predicate follow-up.
+  "teer_type:\n  .zero 8\n" ++
+  "teer_inner_off:\n  .zero 8\n" ++
+  "teer_auth_off:\n  .zero 8\n" ++
+  "teer_auth_len:\n  .zero 8\n" ++
+  "teer_auth_count:\n  .zero 8\n" ++
+  "teer_tuple_off:\n  .zero 8\n" ++
+  "teer_tuple_len:\n  .zero 8\n" ++
+  "teer_target_off:\n  .zero 8\n" ++
+  "teer_target_len:\n  .zero 8\n" ++
+  "teer_auth_chain:\n  .zero 8\n" ++
+  "teer_auth_nonce:\n  .zero 8\n" ++
+  "bvrga_type:\n  .zero 8\n" ++
+  "bvrga_inner_off:\n  .zero 8\n" ++
+  "bvrga_auth_off:\n  .zero 8\n" ++
+  "bvrga_auth_len:\n  .zero 8\n" ++
+  "bvrga_auth_count:\n  .zero 8\n" ++
   blockVerdictTxGasPrechargeDataSection ++
   ".balign 8\n" ++
   -- uyu11.1: EIP-4895 withdrawal-aware credit scratch for the coinbase/recipient
