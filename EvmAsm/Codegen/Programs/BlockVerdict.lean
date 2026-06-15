@@ -419,6 +419,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
+  b1SenderTableFindFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++

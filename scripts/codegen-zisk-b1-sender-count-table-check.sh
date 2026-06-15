@@ -65,6 +65,8 @@ failed = False
 checks = [
     ('status', u64(0), 0),
     ('distinct count', u64(8), 3),
+    ('find last status', u64(136), 0),
+    ('find last count', u64(144), 1),
 ]
 for label, got, exp in checks:
     ok = got == exp
@@ -82,23 +84,29 @@ for i, (addr, count) in enumerate(expected):
     print(f"  {'OK  ' if ok_count else 'FAIL'} entry[{i}].count     got={got_count!r} exp={count!r}")
 
 boundary_cases = [
-    (1, 'distinct17', 0, 17),
-    (2, 'distinct1024', 0, 1024),
-    (3, 'distinct1025', 0, 1025),
-    (4, 'distinct9523', 0, 9523),
-    (5, 'overcap9524', 1, None),
+    (1, 'distinct17', 0, 17, 0, 1),
+    (2, 'distinct1024', 0, 1024, 0, 1),
+    (3, 'distinct1025', 0, 1025, 0, 1),
+    (4, 'distinct9523', 0, 9523, 0, 1),
+    (5, 'overcap9524', 1, None, 9, 0),
 ]
 
-for mode, label, exp_status, exp_count in boundary_cases:
+for mode, label, exp_status, exp_count, exp_find_status, exp_find_count in boundary_cases:
     dm = open(f'gen-out/zisk_b1_sender_count_table_mode{mode}.output', 'rb').read()
     status = struct.unpack('<Q', dm[0:8])[0] if len(dm) >= 8 else None
     count = struct.unpack('<Q', dm[8:16])[0] if len(dm) >= 16 else None
+    find_status = struct.unpack('<Q', dm[136:144])[0] if len(dm) >= 144 else None
+    find_count = struct.unpack('<Q', dm[144:152])[0] if len(dm) >= 152 else None
     ok_status = status == exp_status
     ok_count = exp_count is None or count == exp_count
-    failed = failed or not ok_status or not ok_count
+    ok_find_status = find_status == exp_find_status
+    ok_find_count = find_count == exp_find_count
+    failed = failed or not ok_status or not ok_count or not ok_find_status or not ok_find_count
     print(f"  {'OK  ' if ok_status else 'FAIL'} {label}.status got={status!r} exp={exp_status!r}")
     if exp_count is not None:
         print(f"  {'OK  ' if ok_count else 'FAIL'} {label}.count  got={count!r} exp={exp_count!r}")
+    print(f"  {'OK  ' if ok_find_status else 'FAIL'} {label}.find_status got={find_status!r} exp={exp_find_status!r}")
+    print(f"  {'OK  ' if ok_find_count else 'FAIL'} {label}.find_count  got={find_count!r} exp={exp_find_count!r}")
 
 sys.exit(1 if failed else 0)
 PY

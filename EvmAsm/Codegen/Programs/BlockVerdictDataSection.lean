@@ -1043,14 +1043,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
-  -- bmvmx.5.5.6.3: running sender counts for the exact multi-tx nonce check.
-  -- This tx-order table is sized to bvMtxExactNonceSeenEntries, matching the
-  -- active loop cap while the indexed full-cap aggregation slice remains open.
-  "bv_mtx_nonce_seen_count:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "bv_mtx_nonce_seen_addrs:\n  .zero " ++ toString bvMtxExactNonceSeenAddrBytes ++ "\n" ++
-  ".balign 8\n" ++
-  "bv_mtx_nonce_seen_counts:\n  .zero " ++ toString bvMtxExactNonceSeenCountBytes ++ "\n" ++
+  -- bmvmx.5.5.6.3: scratch for the exact multi-tx nonce check. The
+  -- running per-sender counts now live in bv_b1_sender_table after the
+  -- pre-loop indexed sender aggregation.
+
   "bv_mtx_nonce_pre:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx committed-storage table. After each per-tx dispatch
   -- the multi-tx loop upserts the live exec log's entries here, re-keyed (addrHash) to that

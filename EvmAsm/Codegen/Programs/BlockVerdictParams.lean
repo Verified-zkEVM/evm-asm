@@ -97,14 +97,6 @@ def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
 def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
 def bvMtxSenderCountSkipBytes : Nat := bvMtxSenderCountEntries * 64
 
-/-- Exact in-loop nonce sequencing still uses a tx-order running table while
-    the indexed aggregation helper lands. Size it to the active execution-loop
-    cap so the old 16-entry helper-local boundary is gone without widening the
-    active loop gate. -/
-def bvMtxExactNonceSeenEntries : Nat := bvMtxActiveTxCap
-def bvMtxExactNonceSeenAddrBytes : Nat := bvMtxExactNonceSeenEntries * 32
-def bvMtxExactNonceSeenCountBytes : Nat := bvMtxExactNonceSeenEntries * 8
-
 /-- Cross-transaction committed-storage threading table. This is a unique
     `(recipient, slotKey)` capacity, not a transaction-count or raw-write
     capacity: each tx snapshots 128-byte storage-log entries so later tx preloads
@@ -196,9 +188,6 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736
 #guard bvMtxSenderCountSkipBytes = 609472
-#guard bvMtxExactNonceSeenEntries = 1024
-#guard bvMtxExactNonceSeenAddrBytes = 32768
-#guard bvMtxExactNonceSeenCountBytes = 8192
 #guard bvMtxActiveTxCap = 1024
 #guard bvMtxFullTxCap = 9523
 #guard bvMtxArenaTxCap = bvMtxActiveTxCap
