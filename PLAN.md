@@ -969,9 +969,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `readLength_toBytesBE_append`, `encodeBytes_long_of_length`. All Lean-core
   (no Mathlib): `Nat.toBytesBE.induct`, `omega`, `List.take_left`/`drop_left`.
   Axiom-clean (propext/Classical.choice/Quot.sound), 0 sorry. This is the leaf
-  half of the round-trip keystone; the `.list`/mutual-induction half (which
+  half of the round-trip keystone.
+- ✅ **Full round-trip keystone (`decode (encode item) = some (item, [])`)**
+  (`Properties.lean`). `decode_encode (item) (h : (encode item).length < 256^8)`
+  re-decodes *every* `RLPItem` (lists + nesting) to itself; `decodeFully_encode`
   discharges `FullDecode.decodeFully_encode_of_decode_encode`'s `h_roundtrip`
-  hypothesis) is the planned follow-up.
+  hypothesis, making full decode of any (length-bounded) encoded item
+  unconditional. Key idea: both `decodeAux`/`decodeItems` recurse on the fuel
+  `nDepth`, so `decode_encode_mutual` is proved by a single **step induction on
+  `nDepth`** (an `decodeAux`-on-`encode` statement ∧ a `decodeItems`-on-
+  `encodeItems` statement) — the IH at `nDepth-1` covers all sub-items, so no
+  induction on `RLPItem` is needed. Reuses the leaf round-trip via the new
+  fuel-parametric `decodeAux_succ_encodeBytes_append`, plus `encode_list_short`/
+  `_long`, `decodeItems_succ_of_ne_nil`, `takeBytes_append_length`,
+  `le_encodeBytes_length`. A single top-level `< 256^8` bound implies every
+  nested bound. Lean-core only; axiom-clean, 0 sorry. **The RLP encode→decode
+  round-trip is now complete end-to-end.**
 
 ### EL.2 Byte-Level Infrastructure ✅
 - **File**: `EvmAsm/Rv64/ByteOps.lean`
