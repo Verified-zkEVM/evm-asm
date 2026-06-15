@@ -34,6 +34,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
+import EvmAsm.Codegen.Programs.SystemStorageSlotTuples
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
@@ -106,14 +107,6 @@ def accountTupleSequencesConsistentFunction : String :=
   -- .66.1.2: > bsrMaxTuplesPerSlot -> the helper wrote nothing (returns the true count);
   -- bail conservatively instead of comparing against stale atsc_balbuf contents.
   "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu a0, t0, .Latsc_fail\n" ++
-  -- EIP-7928 reserves block_access_index 0 for system transactions. The runtime
-  -- exec log records user-tx SSTOREs, not system-predeploy storage writes, so skip
-  -- any slot whose BAL tuple sequence starts at index 0. Mixed system+user slots
-  -- remain conservative debt: validating them precisely requires deriving the
-  -- system write into the same tuple source as user runtime writes.
-  "  beqz a0, .Latsc_no_system_tuple\n" ++
-  "  la t0, atsc_balbuf; ld t1, 0(t0); beqz t1, .Latsc_next_slot\n" ++
-  ".Latsc_no_system_tuple:\n" ++
   "  la t0, atsc_balcount; sd a0, 0(t0)                   # bal_count\n" ++
   "  # reverse each BAL tuple's 32B value (BE -> LE) to match the LE exec output\n" ++
   "  mv t0, a0; la t1, atsc_balbuf                        # t0=count; record = bai@0, value@8\n" ++
@@ -121,9 +114,9 @@ def accountTupleSequencesConsistentFunction : String :=
   ".Latsc_vrb:\n  beqz t4, .Latsc_vrn\n  lbu t5, 0(t2); lbu t6, 0(t3); sb t6, 0(t2); sb t5, 0(t3); addi t2, t2, 1; addi t3, t3, -1; addi t4, t4, -1; j .Latsc_vrb\n" ++
   ".Latsc_vrn:\n  addi t1, t1, 40; addi t0, t0, -1; j .Latsc_vr\n" ++
   ".Latsc_vrd:\n" ++
-  "  # exec net-change tuple sequence for this slot (searched by LE atsc_key_le)\n" ++
-  "  mv a0, s2; la a1, atsc_key_le; mv a2, s3; mv a3, s4; mv a4, s5; la a5, atsc_execbuf\n" ++
-  "  jal ra, exec_log_slot_tuples\n" ++
+  "  # exec net-change tuple sequence for this slot: captured system rows first, then user rows.\n" ++
+  "  mv a0, s2; la a1, atsc_key_le; la a2, bv_system_storage_log; la t0, bv_system_storage_log_count; ld a3, 0(t0); mv a4, s3; mv a5, s4; mv a6, s5; la a7, atsc_execbuf\n" ++
+  "  jal ra, system_user_exec_log_slot_tuples\n" ++
   "  mv t6, a0                                            # exec_count\n" ++
   -- fhsxz.2.4.2.66.1.1: symmetric to the BAL-side cap bail above. exec_log_slot_tuples
   -- stops writing at bsrMaxTuplesPerSlot records (atsc_execbuf capacity) but returns the
@@ -159,7 +152,14 @@ def accountTupleSequencesConsistentData : String :=
   "atsc_key:\n  .zero 32\n" ++
   "atsc_key_le:\n  .zero 32\n" ++       -- LE byte-reverse of atsc_key for the exec-log search (bmvmx.1.6.6)
   "atsc_balbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++   -- .66.1.2: bsrMaxTuplesPerSlot tuples * 40B (was 256; one net-change tuple per tx, ~9.5k max at 200M)
-  "atsc_execbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n"
+  "atsc_execbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
+  systemUserExecLogSlotTuplesData
+
+def accountTupleSequencesConsistentEmptySystemData : String :=
+  ".balign 8\n" ++
+  "bv_system_storage_log_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_system_storage_log:\n  .zero 128\n"
 
 /-- `zisk_account_tuple_sequences_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
@@ -183,6 +183,7 @@ def ziskAccountTupleSequencesConsistentPrologue : String :=
   "  j .Latsc_pdone\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balSlotTupleSequenceFunction ++ "\n" ++
+  systemUserExecLogSlotTuplesFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -193,6 +194,7 @@ def ziskAccountTupleSequencesConsistentPrologue : String :=
 def ziskAccountTupleSequencesConsistentDataSection : String :=
   ".section .data\n" ++
   accountTupleSequencesConsistentData ++ "\n" ++
+  accountTupleSequencesConsistentEmptySystemData ++ "\n" ++
   balSlotTupleSequenceData ++ "\n" ++          -- bts_* scratch
   ziskRlpFieldToU64DataSection ++ "\n" ++      -- rfu_* scratch (rlp_field_to_u64)
   execLogSlotTuplesData                        -- els_* scratch
