@@ -267,6 +267,7 @@ def runtimeAccessWordToBe20Asm (tag srcReg dstReg idxReg tmpReg : String) : Stri
     words known before opcode execution:
       - ADDRESS/current executing account at env+0
       - CALLER at env+64
+      - COINBASE at env+192
       - ORIGIN/sender at env+256
 
     The standalone runtime does not currently carry a distinct tx.to/create
@@ -292,6 +293,14 @@ def runtimeAccessSeedInitialAccountsFunction : String :=
   "  addi t1, x20, 64\n" ++
   "  mv t2, s0\n" ++
   runtimeAccessWordToBe20Asm "caller" "t1" "t2" "t3" "t4" ++
+  "  mv a0, s0\n" ++
+  "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
+  "  addi t1, x20, 192\n" ++
+  "  mv t2, s0\n" ++
+  runtimeAccessWordToBe20Asm "coinbase" "t1" "t2" "t3" "t4" ++
   "  mv a0, s0\n" ++
   "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++

@@ -73,6 +73,11 @@ def bvMtxU64ArenaBytes : Nat := bvMtxArenaTxCap * 8
 def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
 def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
+def bvMtxSenderBalanceEntries : Nat := bvMtxArenaTxCap
+def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
+def bvMtxSenderCountEntries : Nat := bvMtxArenaTxCap
+def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
+def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
 
 /-- Cross-transaction committed-storage threading table. This is a unique
     `(recipient, slotKey)` capacity, not a transaction-count or raw-write
@@ -153,6 +158,11 @@ def bmvFullU64PerTxArenaBytes : Nat :=
 def bmvFullLogWindowArenaBytes : Nat :=
   bmvLogWindowPerTxArenaBytes bmvFullTxCapacity
 
+#guard bvMtxSenderBalanceEntries = 1024
+#guard bvMtxSenderBalanceTableBytes = 65536
+#guard bvMtxSenderCountEntries = 1024
+#guard bvMtxSenderCountTableBytes = 40960
+#guard bvMtxSenderCountSortBytes = 32768
 #guard bmvFixtureTxCapacity = 16
 #guard bmvFullTxCapacity = 9523
 #guard bmvFixtureU64PerTxArenaBytes = 128

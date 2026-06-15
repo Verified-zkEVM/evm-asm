@@ -141,11 +141,12 @@ def stageRuntimePayloadCodeFunction : String :=
   ".Lsrpc_m29_done:\n" ++
   -- env words base (now after the M29 block).
   "  add s5, s0, t1               # s5 = &env_words (env_base)\n" ++
-  -- COINBASE (word 6 -> +192): exec 20-byte address @32, low-aligned.
+  -- COINBASE (word 6 -> +192): exec 20-byte canonical address at payload byte 32,
+  -- reversed into the low 160 bits of the EVM stack word layout.
   "  addi t3, s2, 32; addi t4, s5, 192; li t5, 0\n" ++
   ".Lsrpc_cb:\n" ++
   "  li t6, 20; beq t5, t6, .Lsrpc_cb_done\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_cb\n" ++
+  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 19; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_cb\n" ++
   ".Lsrpc_cb_done:\n" ++
   -- NUMBER (word 8 -> +256) = exec u64 @404; TIMESTAMP (word 7 -> +224) = @428;
   -- PREVRANDAO (word 9 -> +288) = exec Bytes32 @372; GASLIMIT (word 10 -> +320) = @412.
