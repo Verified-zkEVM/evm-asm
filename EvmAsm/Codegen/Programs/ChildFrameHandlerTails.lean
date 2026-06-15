@@ -264,11 +264,12 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- PARENT gas_left (568(x20), still the parent env here, before the descend); OOG-fail the CREATE
     -- (push 0 via 7f) when both reservoirs are short. evm_state_gas_used += charge. Preserves the
     -- dispatcher state x10/x12/x13/x20/x21 (only t0-t3 + the parent gas_left). The charge is REFUNDED
-    -- on child failure by the snapshot bump after create_frame_descend below (the descent snapshots
-    -- POST-charge into child_env+624/632, so adding/subtracting 183600 makes incorporate_child_on_error's
-    -- rollback restore the PRE-charge reservoir/used -- matching spec 'refunded on any failure path').
+    -- on child failure by the snapshot rewrite after create_frame_descend below. The descent snapshots
+    -- POST-charge into child_env+624/632, so we preserve the pre-charge reservoir and subtract 183600
+    -- from the used snapshot; incorporate_child_on_error then restores the exact pre-charge state and
+    -- frame_return can also restore any regular-gas spill.
     "  li t0, 183600\n" ++
-    "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+    "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n  mv t4, t2\n" ++
     "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
     "  ld t2, 568(x20)\n  bltu t2, t3, 7f\n" ++
@@ -277,13 +278,16 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    "  addi sp, sp, -16\n  sd t4, 0(sp)\n" ++
     "  li a1, " ++ toString netPopBytes ++ "\n" ++
     "  jal x1, create_frame_descend\n" ++
+    "  ld t4, 0(sp)\n  addi sp, sp, 16\n" ++
     -- nxio8.8 refund-on-failure: the descent snapshotted state-gas POST-charge into child_env+624/632;
-    -- bump the snapshot by the charge so incorporate_child_on_error restores the PRE-charge reservoir
-    -- on child error/revert (x20 = child env here). On child success the snapshot is unused (charge stands).
-    "  ld t0, 624(x20)\n  li t1, 183600\n  add t0, t0, t1\n  sd t0, 624(x20)\n" ++
-    "  ld t0, 632(x20)\n  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++
+    -- rewrite the snapshot to the PRE-charge reservoir/used values. On child error/revert,
+    -- frame_return restores those globals and restores any regular-gas spill to the parent;
+    -- on child success the snapshot is unused and the charge stands.
+    "  sd t4, 624(x20)\n" ++
+    "  ld t0, 632(x20)\n  li t1, 183600\n  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++
     "  j .dispatch_loop\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
