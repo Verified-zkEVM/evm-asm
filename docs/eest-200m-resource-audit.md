@@ -25,8 +25,8 @@ The distinction matters:
 | Per-account BAL slot staging | Up to the full BAL item budget for one account | `bsrAccountSlotCap = 100000` | Covered for staging capacity. |
 | Per-slot tuple sequence | One tuple per tx plus seed/system margin | `bsrMaxTuplesPerSlot = 10000` | Covers `9523` minimum-gas txs plus margin. |
 | Witness bytes | Large valid state witnesses under the 200M target | `bsrMaxWitnessBytes = 524288` | Size guard widened, but record count/perf still needs work. |
-| Transaction arrays | `floor(200000000 / 21000) = 9523` txs | `bvMtxArenaTxCap = 1024` | Gap: `evm-asm-vv4hr.1`. |
-| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Existing P1 `evm-asm-bmvmx.5.5.7.3` | Partial: current work raised some tables to 1024; full target remains. |
+| Transaction arrays | `floor(200000000 / 21000) = 9523` txs | Cheap u64/log-window arenas use `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: foundation split landed; algorithmic cap gaps remain under `evm-asm-vv4hr.1`. |
+| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Active sender tables use `bvMtxActiveTxCap = 1024` | Gap: aggregation slices under `evm-asm-vv4hr.1`; related existing P1 `evm-asm-bmvmx.5.5.7.3`. |
 | Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | `bvMtxCommittedChunkCapacity = 512` | Gap: `evm-asm-vv4hr.2`. |
 | System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 16384`; some paths are best-effort | Gap: `evm-asm-vv4hr.7`; related ungate beads `evm-asm-hwngs`, `evm-asm-40igg`. |
 | Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = 16` | Gap: `evm-asm-vv4hr.3`. |
@@ -42,8 +42,10 @@ The distinction matters:
 
 Every discovered 200M resource gap has a P1 child bead:
 
-- `evm-asm-vv4hr.1`: lift multi-tx verdict arenas from `1024` to the `9523`
-  transaction target, or replace them with a streaming design.
+- `evm-asm-vv4hr.1`: finish lifting multi-tx verdict algorithms from the
+  `1024` active loop cap to the `9523` transaction target, or replace them
+  with streaming/chunked designs. Cheap per-tx result arenas are already sized
+  from `bvMtxFullTxCap`.
 - `evm-asm-vv4hr.2`: extend committed-storage threading beyond `512` unique
   `(recipient, slotKey)` entries while preserving latest-write-wins semantics.
 - `evm-asm-vv4hr.3`: stream or resize receipt/log materialization so receipts
