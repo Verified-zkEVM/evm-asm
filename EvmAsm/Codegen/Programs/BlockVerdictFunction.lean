@@ -12,6 +12,8 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
+import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
+import EvmAsm.Codegen.Programs.BlockVerdictExactGas
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -419,7 +421,8 @@ def blockVerdictFunction : String :=
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  "  la t0, bv_mtx_committed_count; sd zero, 0(t0)  # fhsxz.2.4.2.57.11.6.3.2: empty cross-tx committed table\n" ++
+  "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty legacy cross-tx committed table/status\n" ++
+  "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
   -- so compute the BLOCK base_fee once here (it is block-level, identical for every tx) by
@@ -626,40 +629,22 @@ def blockVerdictFunction : String :=
   -- raw evm_refund_acc read.
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a3, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a4, 0(t3)\n" ++   -- .63.1.6.2.1: receipt status, tx i
+  "  la t3, bv_tx_is_creation_arr; add t3, t3, t0; la t4, bv_mtx_ctx; ld t5, 48(t4); sd t5, 0(t3)\n" ++
   "  slli t4, t1, 4\n" ++   -- .63.1.6.2.1: per-tx log window (16-byte stride)
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
-  -- re-keyed (addrHash) to its recipient (bv_mtx_ctx+72, 20B zero-padded to 32) so the next
-  -- tx's preload can thread a prior tx's committed value. The live exec log (env+448 entries
-  -- at 0xa0630000) holds the recipient's own slots only (dispatch_tx_runtime_code requires
-  -- self-contained), so a single recipient re-tag is correct. Append (last-write-wins via
-  -- exec_log_latest_value's last-match); bail conservatively if the table overflows.
-  "  la t0, evm_env; ld t0, 448(t0)                 # t0 = live log entry count\n" ++
-  "  la t1, bv_mtx_committed_count; ld t1, 0(t1)    # t1 = table count\n" ++
-  "  li t2, 0xa0630000                              # t2 = live log base\n" ++
-  "  li t3, 0                                       # j = 0\n" ++
-  ".Lbv_mtx_snap:\n" ++
-  "  beq t3, t0, .Lbv_mtx_snap_done\n" ++
-  "  li t4, 128; bgeu t1, t4, .Lbv_mtx_bail         # committed table full -> conservative\n" ++
-  "  slli t4, t3, 7; add t4, t2, t4                 # src = live[j]\n" ++
-  "  slli t5, t1, 7; la t6, bv_mtx_committed; add t5, t6, t5   # dst = table[count]\n" ++
-  "  sd zero, 0(t5); sd zero, 8(t5); sd zero, 16(t5); sd zero, 24(t5)   # addrHash = 0, then recipient 20B\n" ++
-  "  la t6, bv_mtx_ctx; addi t6, t6, 72; li a0, 0\n" ++
-  ".Lbv_mtx_snap_k:\n" ++
-  "  li a1, 20; beq a0, a1, .Lbv_mtx_snap_kd\n" ++
-  "  add a2, t6, a0; lbu a3, 0(a2); add a2, t5, a0; sb a3, 0(a2); addi a0, a0, 1; j .Lbv_mtx_snap_k\n" ++
-  ".Lbv_mtx_snap_kd:\n" ++
-  "  ld a0, 32(t4);  sd a0, 32(t5);  ld a0, 40(t4);  sd a0, 40(t5)\n" ++   -- slotKey
-  "  ld a0, 48(t4);  sd a0, 48(t5);  ld a0, 56(t4);  sd a0, 56(t5)\n" ++
-  "  ld a0, 64(t4);  sd a0, 64(t5);  ld a0, 72(t4);  sd a0, 72(t5)\n" ++   -- original
-  "  ld a0, 80(t4);  sd a0, 80(t5);  ld a0, 88(t4);  sd a0, 88(t5)\n" ++
-  "  ld a0, 96(t4);  sd a0, 96(t5);  ld a0, 104(t4); sd a0, 104(t5)\n" ++  -- current
-  "  ld a0, 112(t4); sd a0, 112(t5); ld a0, 120(t4); sd a0, 120(t5)\n" ++
-  "  addi t1, t1, 1; addi t3, t3, 1; j .Lbv_mtx_snap\n" ++
-  ".Lbv_mtx_snap_done:\n" ++
-  "  la t4, bv_mtx_committed_count; sd t1, 0(t4)\n" ++
+  -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
+  -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72             # recipient key\n" ++
+  "  li a1, 0xa0630000                              # live storage log base\n" ++
+  "  la t0, evm_env; ld a2, 448(t0)                 # live log entry count\n" ++
+  "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
+  "  li a5, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a6, bv_mtx_committed_chunk_overflow\n" ++
+  "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
+  "  bnez a1, .Lbv_mtx_bail                         # chunked table full -> conservative\n" ++
+  "  la t4, bv_mtx_committed_chunk_count; sd a0, 0(t4)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
@@ -941,10 +926,12 @@ def blockVerdictFunction : String :=
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  "  la t4, bv_tx_is_creation_arr; ld t5, 48(s0); sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -1042,6 +1029,7 @@ def blockVerdictFunction : String :=
   -- raw evm_refund_acc read.
   "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a4, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
@@ -1396,10 +1384,10 @@ def blockVerdictFunction : String :=
   "  jal ra, block_verdict_tx_gas_limits\n" ++
   "  bnez a0, .Lbv_pregate_state_gas_ready\n" ++
   "  la t2, bvgr_arena_tx_count; sd a1, 0(t2)\n" ++
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
-  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_state_gas\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   "  beqz a0, .Lbv_pregate_state_gas_ready\n" ++
   "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
@@ -1432,10 +1420,10 @@ def blockVerdictFunction : String :=
   -- 1D over-approx min(TX_MAX, tx.gas). block_verdict_tx_state_gas_array depends only on the
   -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
   -- same conservative skip. (Moved up from just below the EIP-7778 check.)
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
-  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
   "  la a3, bvgr_tx_state_gas\n" ++
+  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   -- .57.11.6.5.2: block_verdict_tx_state_gas_array can bail (a0 != 0) even after a successful
   -- arena_prepare -- e.g. tx_intrinsic_state_gas unsupported for some tx (TxIntrinsicStateGas.lean).
@@ -1463,38 +1451,7 @@ def blockVerdictFunction : String :=
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
   "  la t2, bv_eip7778_used; sd a2, 0(t2)\n" ++
   "  bnez a0, .Lbv_eip7778_block_gas_fail\n" ++
-  -- g8zeq.1.4.2: EIP-8037 block_state-gas floor. block_state = sum of per-tx
-  -- INTRINSIC state gas (exact + execution-independent); every valid block has
-  -- header.gas_used = max(block_regular, block_state) >= block_state. So reject
-  -- when block_state > header.gas_used (the header under-claims the state-gas
-  -- floor it must cover). Sound by construction -- block_state is exact, so no
-  -- valid block is false-rejected. The ceiling half (reject header.gas_used >
-  -- max(block_regular, block_state)) lands just below, completing the EIP-8037
-  -- equality; it uses block_regular = sum(bvgr_block_gas_increments), the same
-  -- array the EIP-7778 gate above already trusts (arena prepared => execution-exact).
-  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
-  "  mv t6, a0\n" ++
-  "  la t0, bvgr_tx_state_gas; la t1, bvgr_arena_tx_count; ld t1, 0(t1); li t2, 0; li t3, 0\n" ++
-  ".Lbv_bstate_sum:\n" ++
-  "  beq t3, t1, .Lbv_bstate_done\n" ++
-  "  slli t4, t3, 3; add t5, t0, t4; ld t5, 0(t5); add t2, t2, t5; addi t3, t3, 1; j .Lbv_bstate_sum\n" ++
-  ".Lbv_bstate_done:\n" ++
-  "  bgtu t2, t6, .Lbv_block_state_gas_fail\n" ++
-  -- xexgj: the g8zeq.1.4.2 "EIP-8037 equality" ceiling (header.gas_used > max(block_regular,
-  -- block_state) -> reject) was UNSOUND. block_state (intrinsic, ~line 1040) is only a LOWER bound
-  -- on the actual EIP-8037 STATE gas -- state-creation gas is execution-dependent, not intrinsic --
-  -- so for a state-gas block max(block_regular, block_state) < header.gas_used and the gate
-  -- false-rejected valid blocks. Verified on eip8037 state_gas_reservoir/block_regular_gas_limit:
-  -- runtime_count==tx_count (so block_regular=147000 was exact), block_state=0, but the real state
-  -- gas == header.gas_used == 0x07000000 -- the entire miss is block_state, which the guest cannot
-  -- compute intrinsically. Replace with the SOUND block-gas-limit ceiling: every valid block has
-  -- header.gas_used <= header.gas_limit (exec payload @+412); that is exactly what the
-  -- "exceed_block_gas_limit" fixtures exercise. The exact EIP-8037 equality (gas_used ==
-  -- max(regular,state)) needs the execution-exact state gas -- deferred; the receipts_root
-  -- comparison (.63.1.6) also pins cumulative gas. (Block-state FLOOR above stays: intrinsic exact.)
-  "  mv t1, t6                                            # stash gas_used (bgv_u64le clobbers t6)\n" ++
-  "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 412; jal ra, bgv_u64le   # header.gas_limit @+412\n" ++
-  "  bgtu t1, a0, .Lbv_block_gas_used_over_fail            # header.gas_used > gas_limit -> reject\n" ++
+  blockVerdictExactGasCheck ++
   blockVerdictReceiptsTail
 
 end EvmAsm.Codegen

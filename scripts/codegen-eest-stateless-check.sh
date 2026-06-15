@@ -642,16 +642,16 @@ format_verdict_debug() {
     baacd_fail
     bacv_fail
     baap_fail
-    sri_index
-    sri_mode
-    sri_status
-    block_rlp_len
-    brr_status
-    brr_count
-    brr_append
-    brr0
-    brr1
-    brr2
+    block_inc0
+    block_inc1
+    tx_state0
+    tx_state1
+    exact_net_status
+    exact_net_index
+    exact_block_status
+    exact_header_gas_used
+    exact_expected_gas_used
+    receipt1_cumulative
   )
   local -a words=()
   local i value dbg=""
@@ -768,6 +768,18 @@ format_verdict_debug() {
     read -r -a words <<< "$raw"
     value="${words[0]:-?}"
     dbg="${dbg:+$dbg }runtime_completeness_status=$value"
+  fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 488 ]]; then
+    raw="$(od -An -v -tu8 -j 472 -N 16 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a committed_labels=(
+      mtx_committed_overflow
+      mtx_committed_count
+    )
+    for i in "${!committed_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${committed_labels[$i]}=$value"
+    done
   fi
   echo "$dbg"
 }
