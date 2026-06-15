@@ -188,7 +188,7 @@ def ziskMultiTxRunningSenderBalancePrologue : String :=
   ".Lmtxrb_probe_status:\n" ++
   "  sd a0, 0(s1)\n" ++
   "  la t0, mtxrb_count; ld t0, 0(t0); sd t0, 8(s1)\n" ++
-  "  la t1, mtxrb_table; addi t2, s1, 16; li t3, 0; li t4, 1024\n" ++
+  "  la t1, mtxrb_table; addi t2, s1, 16; li t3, 0; li t4, 240   # remaining 256-byte probe output window\n" ++
   ".Lmtxrb_probe_copy:\n" ++
   "  beq t3, t4, .Lmtxrb_probe_done\n" ++
   "  add t5, t1, t3; lbu t5, 0(t5); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lmtxrb_probe_copy\n" ++
