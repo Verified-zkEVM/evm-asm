@@ -44,19 +44,19 @@ python3 - <<'PY'
 import struct, sys
 data = open('gen-out/zisk_frame_return.output', 'rb').read()
 checks = [
-    ('A x10 (parent_pc+1)',        0x101),
-    ('A x21 (parent codebase)',    0x222),
-    ('A x13 - &evm_memory',        0),
-    ('A x20 - &evm_env',           0),
-    ('A x12 - &fr_pstack (netpop)',192),
-    ('A success word',             1),
-    ('A evm_call_depth',           0),
-    ('B x13 - &call_frame_arena',  0),
-    ('B x20 - &arena (frameEnvOff)', 0x28400),
-    ('B x12 - &fr_pstack2 (netpop)', 160),
-    ('B success word (REVERT)',    0),
-    ('B evm_call_depth',           1),
-    ('B copied returndata byte',   0xab),
+    ('A pc/codebase pack',              (0x222 << 32) | 0x101),
+    ('A running bloom word0 (success keep)',   0x1111222233334444),
+    ('A mem/env delta pack',            0),
+    ('A running bloom word31 (success keep)',  0xaaaabbbbccccdddd),
+    ('A stack/success pack',            (1 << 32) | 192),
+    ('B running bloom word0 (revert restore)', 0x123456789abcdef0),
+    ('A evm_call_depth',                0),
+    ('B mem/env delta pack',            (0x28400 << 32) | 0),
+    ('B running bloom word31 (revert restore)',0x0fedcba987654321),
+    ('B x12 - &fr_pstack2 (netpop)',    160),
+    ('B success word (REVERT)',         0),
+    ('B evm_call_depth',                1),
+    ('B copied returndata byte',        0xab),
     ('A cur_stack_top - &evm_stack_top',     0),
     ('B cur_stack_top - &call_frame_arena',  0x18200),
     ('A returndata size (STOP, none)',       0),
@@ -64,6 +64,26 @@ checks = [
     ('B returndata data[0]',                 0xab),
     ('A gas refund (100+50)',                150),
     ('B gas refund (200+30)',                230),
+    # nxio8.4.1: SUCCESS leaves the EIP-8037 state-gas globals unchanged;
+    # REVERT restores them to the child-env snapshot (incorporate_child_on_error).
+    ('A state_gas_left (success: unchanged)', 1000),
+    ('A state_gas_used (success: unchanged)', 2000),
+    ('B state_gas_left (revert: restored)',   555),
+    ('B state_gas_used (revert: restored)',   666),
+    # nxio8.4.2: SUCCESS leaves the refund accumulator; REVERT discards the child's
+    # additions by restoring evm_refund_acc to the child-env snapshot.
+    ('A refund_acc (success: unchanged)',     3000),
+    ('B refund_acc (revert: restored)',       777),
+    # nxio8.4.3: SUCCESS leaves the EIP-2929 warmth count; REVERT truncates it
+    # back to the child-env snapshot (discarding the reverted child's warm keys).
+    ('A warmth_count (success: unchanged)',   11),
+    ('B warmth_count (revert: restored)',     44),
+    # .61.9: SUCCESS commits child-frame storage/transient/event cursors into the
+    # parent; REVERT leaves the parent's pre-child cursor values intact.
+    ('A persistent cursor (success merge)',    12),
+    ('A transient/event cursor pack',          (13 << 32) | 14),
+    ('B persistent cursor (revert preserve)',  21),
+    ('B transient/event cursor pack',          (22 << 32) | 23),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):

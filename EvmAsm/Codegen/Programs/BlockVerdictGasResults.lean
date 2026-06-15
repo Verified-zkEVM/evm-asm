@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BlockGasRemaining
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.TxExtract
 
@@ -253,7 +254,7 @@ def ziskBlockVerdictTxGasLimitsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a0, 0x40000008\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
-  "  li a2, 16\n" ++
+  "  li a2, " ++ toString bmvFixtureTxCapacity ++ "\n" ++
   "  jal ra, block_verdict_tx_gas_limits\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0); sd a1, 8(t0); sd a2, 16(t0); sd a3, 24(t0)\n" ++
@@ -281,7 +282,7 @@ def ziskBlockVerdictTxGasLimitsDataSection : String :=
   "bvgr_tx_inner:\n  .zero 8\n" ++
   "bvgr_nonce:\n  .zero 8\n" ++
   "bvgr_gas:\n  .zero 8\n" ++
-  "bvgr_tx_gas_limits:\n  .zero 128\n"
+  "bvgr_tx_gas_limits:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n"
 
 def ziskBlockVerdictTxGasLimitsProbeUnit : BuildUnit := {
   body        := NOP
@@ -320,7 +321,7 @@ def ziskBlockVerdictGasResultArenaPrologue : String :=
   "  addi a2, s0, 136\n" ++
   "  addi a3, s0, 264\n" ++
   "  ld a4, 0(s0)\n" ++
-  "  li a5, 16\n" ++
+  "  li a5, " ++ toString bmvFixtureTxCapacity ++ "\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
   "  li s1, 0xa0010000\n" ++
   "  sd a0, 0(s1); sd a1, 8(s1)\n" ++
@@ -337,6 +338,7 @@ def ziskBlockVerdictGasResultArenaPrologue : String :=
   "  la a4, bvgr_calldata_floor\n" ++
   "  la t0, bvgr_arena_tx_count; ld a5, 0(t0)\n" ++
   "  la a6, bvgr_block_gas_increments\n" ++
+  "  li a7, 0                    # .6.5.2: probe consumer -> legacy 1D (no intrinsic_state array)\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  sd a0, 64(s1); sd a1, 72(s1); sd a2, 80(s1)\n" ++
   "  li a0, 0x40000008\n" ++
@@ -372,13 +374,13 @@ def ziskBlockVerdictGasResultArenaDataSection : String :=
   "bvgr_arena_runtime_count:\n  .zero 8\n" ++
   "bvgr_arena_fail_index:\n  .zero 8\n" ++
   "bvgr_arena_substatus:\n  .zero 8\n" ++
-  "bvgr_gas_left:\n  .zero 128\n" ++
-  "bvgr_refund_counter:\n  .zero 128\n" ++
-  "bvgr_calldata_floor:\n  .zero 128\n" ++
-  "bvgr_block_gas_increments:\n  .zero 128\n" ++
-  "bvgr_receipt_gas_increments:\n  .zero 128\n" ++
-  "bvgr_before_refund:\n  .zero 128\n" ++
-  "bvgr_applied_refund:\n  .zero 128\n" ++
+  "bvgr_gas_left:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_refund_counter:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_calldata_floor:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_block_gas_increments:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_receipt_gas_increments:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_before_refund:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
+  "bvgr_applied_refund:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n" ++
   "brr_status:\n  .zero 8\n" ++
   "brr_append_status:\n  .zero 8\n" ++
   "brr_tx_type:\n  .zero 8\n" ++

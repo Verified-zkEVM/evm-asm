@@ -21,6 +21,7 @@ def knownProgramNames : List String :=
    "runtime_dispatcher",
    "runtime_dispatcher_call_probe",
    "runtime_dispatcher_gas_capture_probe",
+   "zisk_runtime_access_list_seeded_sload",
   "stateless_guest"] ++
   knownCryptoProgramNames ++
   ["zisk_headers_keccak_chain",
@@ -245,11 +246,14 @@ def knownProgramNames : List String :=
    "zisk_tx_signing_hash",
    "zisk_tx_signing_hash_legacy_eip155",
    "zisk_eip7702_authorization_signing_hash",
+   "zisk_eip7702_authorization_recover_address",
    "zisk_tx_pubkey_signature_material",
    "zisk_tx_pubkey_ecrecover_stage_material",
    "zisk_tx_pubkey_recover_raw_status",
    "zisk_tx_pubkey_public_key_matches_status",
    "zisk_verify_public_keys_match_senders",
+   "zisk_seed_tx_access_list",
+   "zisk_tx_access_list_span",
    "zisk_header_minimal_decode",
    "zisk_header_extended_decode",
    "zisk_coinbase_extract_from_header",

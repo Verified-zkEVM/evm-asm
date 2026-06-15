@@ -1205,31 +1205,31 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedHaltKind := "0000000000000000" }
   , -- CREATE2 size=1 charges static CREATE base, EIP-3860 initcode word
     -- gas, EIP-1014 hashcost, and memory expansion: 4 PUSH1s (12) +
-    -- 32000 + 8 + 3.
+    -- 9000 + 8 + 3.
     { name             := "create2_initcode_len1_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
       expectedOutHex   := "38bf260bb3b098f0ff6ff250028ff8b42b2e1a4d000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "32023" }
+      gasLimit         := "9023" }
   , -- One less gas fails in CREATE2's dynamic initcode charge before
     -- address derivation or later unsupported deployment slices.
     { name             := "create2_initcode_len1_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "32022" }
+      gasLimit         := "9022" }
   , -- At 33 bytes CREATE2 rounds to two words for both EIP-3860 and
-    -- EIP-1014 hashcost: 4 PUSH1s (12) + 32000 + 16 + memory gas 6.
+    -- EIP-1014 hashcost: 4 PUSH1s (12) + 9000 + 16 + memory gas 6.
     { name             := "create2_initcode_len33_gas_exact"
       bytecode         := "0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
       expectedOutHex   := "05539a1fc4f022d6cdeb61c98ff5d21bf5d5d9b9000000000000000000000000"
       expectedHaltKind := "0000000000000000"
-      gasLimit         := "32034" }
+      gasLimit         := "9034" }
   , { name             := "create2_initcode_len33_out_of_gas"
       bytecode         := "0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x00, 0xf5, 0x00"
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
-      gasLimit         := "32033" }
+      gasLimit         := "9033" }
   , -- CREATE2 size is the third decoded word. High size limbs are rejected
     -- before later address/precheck/deployment slices consume initcode.
     { name             := "create2_high_size_limb_out_of_gas"
@@ -1516,6 +1516,43 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x37, 0x60, 0x20, 0x60, 0x40, 0x60, 0xc8, 0x60, 0x00, 0x60, 0x00, 0x60, 0x02, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
       calldata         := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       expectedOutHex   := "605ed279d0a1af786c79054f9424d196ed6a1f0331100a923d711885d42099bb"
+      expectedHaltKind := "0100000000000000" }
+  , -- STATICCALL to RIPEMD160 over empty input writes the EVM
+    -- left-padded digest: twelve zero bytes plus ripemd160("").
+    { name             := "staticcall_ripemd160_precompile_empty"
+      bytecode         := "0x60, 0x20, 0x60, 0x40, 0x60, 0x00, 0x60, 0x00, 0x60, 0x03, 0x60, 0xff, 0xfa, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "0000000000000000000000009c1185a5c5e9fc54612808977ee8f548b2258d31"
+      expectedHaltKind := "0100000000000000" }
+  , -- RIPEMD160 empty input charges 600 inner gas; with six PUSH1s
+    -- and STATICCALL's warm static base, total = 718.
+    { name           := "staticcall_ripemd160_precompile_gas_empty_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x03, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "718" }
+  , -- One byte and 32 bytes both charge one RIPEMD160 word plus
+    -- one CALL memory-expansion word: total = 841.
+    { name           := "staticcall_ripemd160_precompile_gas_len1_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x01, 0x60, 0x00, 0x60, 0x03, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "841" }
+  , { name           := "staticcall_ripemd160_precompile_gas_len32_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x20, 0x60, 0x00, 0x60, 0x03, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "841" }
+  , -- 33 bytes charges two RIPEMD160 words and two memory-expansion words.
+    { name           := "staticcall_ripemd160_precompile_gas_len33_exact"
+      bytecode       := "0x60, 0x00, 0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x03, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex := "0100000000000000000000000000000000000000000000000000000000000000"
+      gasLimit       := "964" }
+  , { name             := "staticcall_ripemd160_precompile_gas_len33_out_of_gas"
+      bytecode         := "0x60, 0x00, 0x60, 0x00, 0x60, 0x21, 0x60, 0x00, 0x60, 0x03, 0x60, 0xff, 0xfa, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "963" }
+  , -- CALL to RIPEMD160 over memory[0..3) = "abc".
+    { name             := "call_ripemd160_precompile_abc"
+      bytecode         := "0x60, 0x61, 0x60, 0x00, 0x53, 0x60, 0x62, 0x60, 0x01, 0x53, 0x60, 0x63, 0x60, 0x02, 0x53, 0x60, 0x20, 0x60, 0x40, 0x60, 0x03, 0x60, 0x00, 0x60, 0x00, 0x60, 0x03, 0x60, 0xff, 0xf1, 0x50, 0x60, 0x20, 0x60, 0x40, 0xf3"
+      expectedOutHex   := "0000000000000000000000008eb208f7e05d987a9b044a8e98c6b087f15a0bfc"
       expectedHaltKind := "0100000000000000" }
   , -- MODEXP with an empty input decodes all three length fields as zero.
     -- execution-specs charges the 500 minimum gas and returns empty output.

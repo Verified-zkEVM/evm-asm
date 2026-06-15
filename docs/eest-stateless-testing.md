@@ -61,6 +61,18 @@ scripts/codegen-eest-stateless-check.sh \
   --steps 1000000000
 ```
 
+Run a transaction-count histogram over cached stateless fixtures:
+
+```bash
+uv run --directory execution-specs --quiet \
+  python3 ../scripts/eest-stateless-tx-count-histogram.py
+```
+
+This decodes each fixture block's `statelessInputBytes` through the local
+Amsterdam `execution-specs` stateless input decoder and reports the maximum
+transaction count, threshold counts such as `tx_count > 16`, and the highest-tx
+blocks. Use `--filter SUBSTR`, `--limit N`, or `--tsv` for focused audits.
+
 Run a focused gas-parity comparison against the local Python execution-specs:
 
 ```bash
@@ -394,12 +406,24 @@ uv run --directory execution-specs --quiet python3 \
   ../scripts/eest-bal-replay-report.py --failures-only --details
 ```
 
-The report includes `state_witness_bytes`, `over_bsr_cap`, `bal_rows`, and
-`over_bsr_bal_cap`; the cap columns mark inputs whose state witness or BAL row
-count exceeds the current `block_state_root` caps. Pass `--bsr-cap N` and
-`--bsr-bal-cap N` to model different proposed arena caps in those columns. The
-guest default is a 64 KiB state-witness cap. That is an implementation cap for
-the current EEST harness, not a protocol maximum.
+The report includes transaction, BAL/storage, receipt/log cap, request-body,
+witness state/code/header, and system side-capture dimensions. Cap columns mark
+inputs whose state witness or BAL row count exceeds the current
+`block_state_root` caps. Pass `--bsr-cap N` and `--bsr-bal-cap N` to model
+different proposed arena caps in those columns. The guest default is a 512 KiB
+state-witness cap. That is an implementation cap for the current EEST harness,
+not a protocol maximum.
+
+The stateless harness prints the same 200M resource table automatically for
+`BUDGET(steps)` rows. To force the table for a normal one-row smoke run:
+
+```bash
+scripts/codegen-eest-preflight-report-smoke.sh
+```
+
+Equivalently, pass `--preflight-report always` to
+`scripts/codegen-eest-stateless-check.sh`; use `--preflight-report never` to
+suppress the advisory table.
 
 The BSR scratch layout was reviewed against the local `execution-specs`
 checkout. The hard protocol/test limits that matter for the current layout are:
@@ -461,8 +485,9 @@ scripts/codegen-eest-bal-large-witness-frontier-check.sh
 
 This selects the single large-witness withdrawal-request case, raises the
 experimental block-state-root witness cap to 256 KiB, and stops after the first
-reported failure or error. The current blocker is an emulator non-completion
-before the guest writes stateless output, even with a 2B-step cap.
+reported failure or error. It always prints the decoded 200M resource table for
+the selected row. The current blocker is an emulator non-completion before the
+guest writes stateless output, even with a 2B-step cap.
 
 To probe the large remaining case past both known caps:
 

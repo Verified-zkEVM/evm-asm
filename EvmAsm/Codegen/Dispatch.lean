@@ -37,16 +37,23 @@ import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.Bls12G1
 import EvmAsm.Codegen.Programs.Bls12G2
+import EvmAsm.Codegen.Programs.Bls12Pairing
+import EvmAsm.Codegen.Programs.Bls12Kzg
+import EvmAsm.Codegen.Programs.Blake2f
+import EvmAsm.Codegen.Programs.P256Verify
+import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.CallFrameReturn
+import EvmAsm.Codegen.Programs.StaticContext
 
 namespace EvmAsm.Codegen
 
@@ -342,7 +349,9 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     Sourced from the standard EVM gas tiers
     (`execution-specs/src/ethereum/forks/prague/vm/gas.py`): ZERO=0,
     JUMPDEST=1, BASE=2, VERYLOW=3, LOW=5, MID=8, HIGH=10, BLOCKHASH=20,
-    KECCAK256 base=30, LOG base=375, warm access=100, CREATE=32000.
+    KECCAK256 base=30, LOG base=375, warm access=100. Amsterdam/EIP-8037
+    moves the account-growth portion of CREATE/CREATE2 into state gas, so the
+    regular static base is 9000 rather than the pre-Amsterdam 32000.
 
     **Static base costs only** — all *dynamic* components are dropped:
     memory-expansion, copy (per-word), KECCAK/LOG per-word/per-topic, EXP
@@ -395,7 +404,7 @@ def staticGasCost (op : Nat) : Nat :=
     | 0x5e => 3                                              -- MCOPY (base)
     | 0x5f => 2                                              -- PUSH0 (BASE)
     -- child frames (base; dynamic call/create costs dropped)
-    | 0xf0 => 32000 | 0xf5 => 32000                          -- CREATE, CREATE2
+    | 0xf0 => 9000 | 0xf5 => 9000                              -- CREATE, CREATE2
     | 0xf1 | 0xf2 | 0xf4 | 0xfa => 100                       -- CALL,CALLCODE,DELEGATECALL,STATICCALL
     | 0xff => 5000                                           -- SELFDESTRUCT (base)
     -- STOP (0x00), RETURN (0xf3), REVERT (0xfd), INVALID (0xfe),
@@ -939,12 +948,19 @@ def emitRuntimeAccountWitnessData : String :=
     JUMP/JUMPI compute `target = x21 + dest`. `x21` is audited the
     same way `x20` was: zero references across `EvmAsm/Evm64/*/Program.lean`
     and zero uses by any existing handler `preBody`/`tail`. -/
+def emitDispatchLoopCodeSizeStopGuard : String :=
+  "  sub x5, x10, x21\n" ++
+  "  ld x6, 496(x20)\n" ++
+  "  bgeu x5, x6, .exit_label\n"
+
 def emitDispatcherPrologue : String :=
   "  la sp, lp64_sp_top\n" ++     -- M16: LP64 stack ptr for ECALL-bridge helpers
                                   -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
   "  la x10, evm_code\n" ++
   "  la x21, evm_code\n" ++       -- M15: preserved code base (for PC, JUMP, JUMPI)
   "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++
   -- M33: stash the exact running-bytecode length at env+496 for CODESIZE /
@@ -955,6 +971,7 @@ def emitDispatcherPrologue : String :=
   "  la x5, evm_code_end\n" ++
   "  sub x5, x5, x10\n" ++         -- x5 = len(code) = evm_code_end - evm_code
   "  sd x5, 496(x20)\n" ++         -- env.codeSize = running bytecode length
+  "  sd x0, " ++ toString staticContextFlagOff ++ "(x20)\n" ++ -- env.isStatic = 0
   -- M21: .data-baked variant has no calldata input. Initialize env's
   -- callDataPtrOff (416) to point at a safe zero region (`evm_memory`)
   -- and callDataLenOff (424) to 0. Any CALLDATALOAD reads zeros from
@@ -1000,7 +1017,13 @@ def emitDispatcherPrologue : String :=
   -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
+  "  mv x10, x21\n" ++
+  "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
+  "  la x13, evm_memory\n" ++
   ".dispatch_loop:\n" ++
+  emitDispatchLoopCodeSizeStopGuard ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against
@@ -1019,7 +1042,7 @@ def emitDispatcherPrologue : String :=
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
   "  jalr x1, x7, 0\n" ++
-  "  j .dispatch_loop"
+  "  j .dispatch_loop\n"
 
 /-- Emit an exceptional-halt exit block: zero the result bytes at
     `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
@@ -1033,6 +1056,16 @@ def emitDispatcherPrologue : String :=
     `6` out-of-gas · `7` stack underflow · `8` stack overflow. -/
 def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"{label}:\n" ++
+  "  la x18, evm_call_depth\n" ++
+  "  ld x18, 0(x18)\n" ++
+  s!"  beqz x18, {label}_top\n" ++
+  "  sd x0, 568(x20)\n" ++
+  "  li a0, 0\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
+  "  jal ra, frame_return\n" ++
+  "  j .dispatch_loop\n" ++
+  s!"{label}_top:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
   "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
   "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
@@ -1041,6 +1074,19 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"  li x17, {kind}\n" ++         -- halt_kind
   "  sd x17, 32(x16)\n" ++
   "  j .exit_no_epilogue\n"
+/-- STATICCALL write violation. At child depth, fail only the child frame and
+    resume the parent. At depth 0, surface the same halt kind as INVALID. -/
+def emitStaticViolationExit : String :=
+  ".exit_static_violation:\n" ++
+  "  la t0, evm_call_depth\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  beqz t0, .exit_invalid_op\n" ++
+  "  sd x0, 568(x20)\n" ++
+  "  li a0, 0\n" ++
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
+  "  jal ra, frame_return\n" ++
+  "  j .dispatch_loop\n"
 
 
 /-- CREATE/CREATE2 child-frame staging helper emitted into the runtime dispatcher.
@@ -1459,17 +1505,26 @@ def emitDispatcherEpilogueCore
     -- accelerated).
     bn254PrecompileFunctions ++ "\n" ++
     bn254PairingKernelFunctions ++ "\n" ++
-    zkvmBlake2fSafeFailWrapper ++ "\n" ++
-    zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
-    zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
+    -- Real BLAKE2F (0x09) kernel backed by the ziskemu Blake2bRound
+    -- accelerator (Programs/Blake2f.lean).
+    blake2fKernelFunctions ++ "\n" ++
+    -- Real KZG point-evaluation (0x0a) kernel: compressed-G1 decode +
+    -- [tau]_2 pairing check on top of the BLS12-381 suites
+    -- (Programs/Bls12Kzg.lean).
+    bls12KzgKernelFunctions ++ "\n" ++
+    -- Real P256VERIFY (0x100) kernel: software P-256 ECDSA over the
+    -- Arith256Mod accelerator (Programs/P256Verify.lean).
+    p256VerifyKernelFunctions ++ "\n" ++
     -- Real BLS12-381 G2 ADD/MSM (0x0d/0x0e) kernels: software Fp2
     -- chord/tangent over the complex accelerators + Arith384Mod Fermat
     -- inverse (Programs/Bls12G2.lean; blsf_copy_quads linked alongside).
-    bls12CopyQuadsFunction ++ "\n" ++
     bls12G2PrecompileFunctions ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
-    bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n"
+    -- Real BLS12-381 pairing (0x0f) kernel: py_ecc-mirroring FQ12
+    -- Miller loop on Arith384Mod (Programs/Bls12Fq12 + Bls12Pairing).
+    bls12PairingKernelFunctions ++ "\n" ++
+    -- Real BLS12-381 map precompiles (0x10/0x11): SSWU + isogeny +
+    -- accelerated cofactor clearing (Programs/Bls12Map.lean).
+    bls12MapKernelFunctions ++ "\n"
    else
     "") ++
   "h_invalid:\n" ++
@@ -1487,6 +1542,7 @@ def emitDispatcherEpilogueCore
   --   .exit_outofgas    (6) — M30 dispatch-loop gas underflow
   --   .exit_stack_underflow(7) — stack consumer with too few words
   --   .exit_stack_overflow(8) — PUSH beyond the 1024-word EVM stack limit
+  emitStaticViolationExit ++
   emitExceptionalExit ".exit_invalid" 4 ++
   emitExceptionalExit ".exit_invalid_op" 3 ++
   emitExceptionalExit ".exit_selfdestruct" 5 ++
@@ -1816,6 +1872,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
                                 -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
   inputAsm ++
   "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory\n" ++
   "  la x20, evm_env\n" ++       -- M12: env-region base (ADDRESS, CALLER, …)
   -- M21: populate env's callDataPtr / callDataLen from the input region.
@@ -1827,6 +1885,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  addi x5, x10, -8\n" ++       -- &(bytecode length)
   "  ld x5, 0(x5)\n" ++            -- x5 = bytecode length (exact)
   "  sd x5, 496(x20)\n" ++         -- M33: env.codeSize = bytecode length (CODESIZE/CODECOPY)
+  "  sd x0, " ++ toString staticContextFlagOff ++ "(x20)\n" ++ -- env.isStatic = 0
   "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
   "  srli x5, x5, 3\n" ++
   "  slli x5, x5, 3\n" ++          -- x5 = padded bytecode length
@@ -2091,11 +2150,41 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  j .runtime_tx_gas_data_loop\n" ++
   ".runtime_tx_gas_create_words:\n" ++
   "  ld x8, -8(x5)\n" ++           -- x8 = is_creation
-  "  beqz x8, .runtime_tx_gas_check\n" ++
+  "  beqz x8, .runtime_tx_gas_access_list\n" ++
   "  addi x12, x12, 31\n" ++
   "  srli x12, x12, 5\n" ++        -- ceil(calldata_len / 32)
   "  slli x12, x12, 1\n" ++        -- CODE_INIT_PER_WORD = 2
   "  add x7, x7, x12\n" ++
+  ".runtime_tx_gas_access_list:\n" ++
+  -- Access-list counts are supplied by transaction-aware callers. Legacy and
+  -- standalone runtime probes leave both labels zero, preserving the old path.
+  -- tokens_in_access_list = 80 * address_count + 128 * storage_key_count.
+  -- Amsterdam regular intrinsic gas includes both the legacy access-list
+  -- surcharge (2400/address, 1900/storage key) and the EIP-7623 access-token
+  -- floor surcharge (16 gas per token); the separate floor accumulator keeps
+  -- only the calldata-floor value used by the post-refund max.
+  "  la x11, runtime_tx_access_list_address_count\n" ++
+  "  ld x11, 0(x11)\n" ++
+  "  beqz x11, .runtime_tx_gas_access_slots\n" ++
+  "  li x15, 2400\n" ++
+  ".runtime_tx_gas_addr_loop:\n" ++
+  "  add x7, x7, x15\n" ++
+  "  addi x7, x7, 1280\n" ++
+  "  addi x10, x10, 1280\n" ++
+  "  addi x11, x11, -1\n" ++
+  "  bnez x11, .runtime_tx_gas_addr_loop\n" ++
+  ".runtime_tx_gas_access_slots:\n" ++
+  "  la x11, runtime_tx_access_list_storage_key_count\n" ++
+  "  ld x11, 0(x11)\n" ++
+  "  beqz x11, .runtime_tx_gas_check\n" ++
+  "  li x15, 1900\n" ++
+  "  li x14, 2048\n" ++
+  ".runtime_tx_gas_slot_loop:\n" ++
+  "  add x7, x7, x15\n" ++
+  "  add x7, x7, x14\n" ++
+  "  add x10, x10, x14\n" ++
+  "  addi x11, x11, -1\n" ++
+  "  bnez x11, .runtime_tx_gas_slot_loop\n" ++
   ".runtime_tx_gas_check:\n" ++
   -- Persist the EIP-7623 calldata floor (x10) so a caller (e.g. the
   -- block-verdict gas-result capture probe) can read the exact
@@ -2139,6 +2228,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory"
 
 def emitRuntimeDispatcherSetup : String :=
@@ -2166,7 +2257,13 @@ def emitRuntimeDispatcherLoop : String :=
   -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
+  "  mv x10, x21\n" ++
+  "  la x12, evm_stack_top\n" ++
+  "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
+  "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
+  "  la x13, evm_memory\n" ++
   ".dispatch_loop:\n" ++
+  emitDispatchLoopCodeSizeStopGuard ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against
@@ -2232,6 +2329,23 @@ def emitCalleeStorageSeedLoop : String :=
   "  addi x7, x7, 96; addi x6, x6, -1; j .Lcallee_seed_loop\n" ++
   ".Lcallee_seed_done:\n"
 
+/-- Seed the per-transaction storage warm set from a pending tx access-list span.
+    The span is prepared by `dispatch_tx_runtime_code`; standalone callers leave
+    the globals zero, so this is inert. Runs after callable setup resets
+    `evm_storage_access_count` and before opcode execution. -/
+def emitTxAccessListSeedLoop : String :=
+  "  la x5, runtime_tx_access_list_ptr; ld a0, 0(x5)\n" ++
+  "  la x6, runtime_tx_access_list_len; ld a1, 0(x6)\n" ++
+  "  la x7, runtime_tx_access_list_seed_fn; ld x28, 0(x7)\n" ++
+  "  sd x0, 0(x5); sd x0, 0(x6); sd x0, 0(x7)\n" ++
+  "  beqz x28, .Ltx_access_seed_done\n" ++
+  "  beqz a0, .Ltx_access_seed_done\n" ++
+  "  beqz a1, .Ltx_access_seed_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
+  ".Ltx_access_seed_done:\n" ++
+  "  mv x10, x21\n"
+
 /-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
     opcode-handler calls, so the caller's return address is saved in the
     runtime data section and restored by the callable exit join. -/
@@ -2243,6 +2357,7 @@ def emitRuntimeDispatcherCallablePrologue : String :=
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  emitTxAccessListSeedLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
   emitRuntimeDispatcherLoop
 
@@ -2294,15 +2409,18 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   -- standalone-epilogue emission site for the wrapper-replacement rationale.
   bn254PrecompileFunctions ++ "\n" ++
   bn254PairingKernelFunctions ++ "\n" ++
-  zkvmBlake2fSafeFailWrapper ++ "\n" ++
-  zkvmKzgPointEvalSafeFailWrapper ++ "\n" ++
-  zkvmSecp256r1VerifySafeFailWrapper ++ "\n" ++
+  -- Real BLAKE2F kernel (see the shared-helpers branch note).
+  blake2fKernelFunctions ++ "\n" ++
+  -- Real KZG point-evaluation kernel (see the shared-helpers branch note).
+  bls12KzgKernelFunctions ++ "\n" ++
+  -- Real P256VERIFY kernel (see the shared-helpers branch note).
+  p256VerifyKernelFunctions ++ "\n" ++
   -- Real BLS12-381 G2 ADD/MSM kernels (see the shared-helpers branch note).
-  bls12CopyQuadsFunction ++ "\n" ++
   bls12G2PrecompileFunctions ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_pairing" "0x10f" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_map_fp_to_g1" "0x110" ++ "\n" ++
-  bls12SafeFailWrapper "zkvm_bls12_map_fp2_to_g2" "0x111" ++ "\n" ++
+  -- Real BLS12-381 pairing kernel (see the shared-helpers branch note).
+  bls12PairingKernelFunctions ++ "\n" ++
+  -- Real BLS12-381 map precompiles (see the shared-helpers branch note).
+  bls12MapKernelFunctions ++ "\n" ++
   -- Call-frame switching primitives (beads .61.4/.61.5, layout #8516/#8517).
   -- Linked into the guest so the CALL/CREATE child-frame descent (.61.6/.61.8)
   -- can call them. `frame_base` resolves `call_frame_arena` (the guest verdict
@@ -2523,7 +2641,10 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "cd_caller_be:\n  .zero 32\n" ++
   "cd_value_be:\n  .zero 32\n" ++
   "cd_balance_be:\n  .zero 32\n" ++
-  "cd_caller_newbal:\n  .zero 32\n"
+  "cd_caller_newbal:\n  .zero 32\n" ++
+  -- nxio8.8: the CALL callee (`to`) as canonical 20-byte big-endian, for the
+  -- EIP-8037 new-account state-gas check (is_account_alive(to)) in callDescendFallThrough.
+  "cd_callee_be:\n  .zero 32\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
@@ -2540,10 +2661,37 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_dispatcher_input_ptr:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_access_list_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_access_list_len:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_access_list_seed_fn:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "txal_type:\n  .zero 8\n" ++
+  "txal_inner_off:\n  .zero 8\n" ++
+  "txal_span_ptr:\n  .zero 8\n" ++
+  "txal_span_len:\n  .zero 8\n" ++
+  "t29_offset:\n  .zero 8\n" ++
+  "t29_length:\n  .zero 8\n" ++
+  "t1d_offset:\n  .zero 8\n" ++
+  "t1d_length:\n  .zero 8\n" ++
+  "t77_offset:\n  .zero 8\n" ++
+  "t77_length:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "txal_decode:\n  .zero 248\n" ++
+  seedTxAccessListDataSection ++ "\n" ++
   -- EIP-7623 calldata floor persisted by the validate-tx-gas path so a
   -- caller can read the exact `calldata_floor_gas_cost` the transaction
   -- was validated against (0 when --validate-tx-gas was not requested).
   "runtime_tx_calldata_floor:\n" ++
+  "  .zero 8\n" ++
+  -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
+  -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy
+  -- and standalone runtime inputs.
+  "runtime_tx_access_list_address_count:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_access_list_storage_key_count:\n" ++
   "  .zero 8\n" ++
   -- bmvmx.1.6.4.2: nested-callee storage seed table consumed by the callable
   -- dispatcher prologue's seed loop. `callee_seed_count` is 0 by default, so the
@@ -2589,6 +2737,11 @@ def emitRuntimeDispatcherDataSectionCore
   bls12FieldDataFragment ++
   bls12G1DataFragment ++
   bls12G2DataFragment ++
+  bls12PairingAllDataFragments ++
+  bls12MapDataFragment ++
+  bls12KzgDataFragment ++
+  blake2fDataFragment ++
+  p256VerifyDataFragment ++
   bn254PairingAllDataFragments ++
   -- nxio8: EIP-8037 state-gas cells. `evm_state_gas_left` is the per-tx state-gas
   -- reservoir (fork.py: state_gas_reservoir = execution_gas - min(TX_MAX_GAS_LIMIT
@@ -2797,7 +2950,11 @@ def runtimeDispatcherStandaloneFrameData : String :=
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
   ".balign 32\n" ++
-  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+  ".balign 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n"
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
     The emitted ELF doesn't carry any bytecode — the test harness

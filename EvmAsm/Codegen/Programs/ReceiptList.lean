@@ -8,6 +8,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptRecords
 
@@ -38,10 +39,11 @@ open EvmAsm.Rv64.Program
       a3 = u64 out length pointer
       a0 output status:
         0 success
-        1 malformed arena or record count above capacity
+        1 malformed arena
         2 log_count > 0 but the record carries no logs descriptor (@56 == 0)
         3 output capacity or internal scratch overflow
         4 unsupported tx type (> 4)
+        5 record count above capacity
 -/
 def receiptRecordsEncodeNoLogsFunction : String :=
   "receipt_records_encode_no_logs:\n" ++
@@ -57,12 +59,12 @@ def receiptRecordsEncodeNoLogsFunction : String :=
   "  sd zero, 0(s3)\n" ++
   "  ld s4, 0(s0)                # count\n" ++
   "  ld t0, 8(s0)                # capacity\n" ++
-  "  bgtu s4, t0, .Lrlen_malformed\n" ++
+  "  bgtu s4, t0, .Lrlen_count_over_capacity\n" ++
   "  ld s5, 16(s0)               # record base\n" ++
   "  beqz s5, .Lrlen_malformed\n" ++
   "  li s6, 0                    # index\n" ++
   "  li s7, 0                    # payload cursor\n" ++
-  "  li s8, 32768                # payload scratch cap\n" ++
+  "  li s8, " ++ toString bvReceiptListPayloadBytes ++ "                # payload scratch cap\n" ++
   ".Lrlen_loop:\n" ++
   "  beq s6, s4, .Lrlen_finish\n" ++
   "  slli t0, s6, 6\n" ++
@@ -142,6 +144,9 @@ def receiptRecordsEncodeNoLogsFunction : String :=
   "  j .Lrlen_ret\n" ++
   ".Lrlen_type_unsupported:\n" ++
   "  li a0, 4\n" ++
+  "  j .Lrlen_ret\n" ++
+  ".Lrlen_count_over_capacity:\n" ++
+  "  li a0, 5\n" ++
   ".Lrlen_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
@@ -155,7 +160,9 @@ def receiptRecordsEncodeNoLogsFunction : String :=
     Input layout (file maps to INPUT+8 at 0x40000000):
       INPUT+8  record count
       INPUT+16 output capacity
-      INPUT+24 records, four u64 fields each:
+      INPUT+24 control capacity
+      INPUT+32 mode flags: bit0 force null record base, bit1 bypass append
+      INPUT+40 records, four u64 fields each:
           tx_type, status, cumulative_gas, log_count
 
     Output layout:
@@ -178,14 +185,17 @@ def ziskReceiptRecordsEncodeNoLogsPrologue : String :=
   ".Lrlenp_zero_done:\n" ++
   "  ld s2, 8(s0)                # count\n" ++
   "  ld s3, 16(s0)               # output cap\n" ++
+  "  ld s6, 24(s0)               # control capacity\n" ++
+  "  ld s7, 32(s0)               # mode flags\n" ++
   "  la a0, rle_control\n" ++
-  "  li a1, 16\n" ++
+  "  mv a1, s6\n" ++
   "  la a2, rle_records\n" ++
   "  jal ra, receipt_records_init\n" ++
+  "  bnez s7, .Lrlenp_direct_control\n" ++
   "  ld s2, 8(s0)                # count (reload after helper call)\n" ++
   "  ld s3, 16(s0)               # output cap\n" ++
   "  li s4, 0                    # index\n" ++
-  "  addi s5, s0, 24             # input record cursor\n" ++
+  "  addi s5, s0, 40             # input record cursor\n" ++
   ".Lrlenp_append_loop:\n" ++
   "  beq s4, s2, .Lrlenp_encode\n" ++
   "  ld a1, 0(s5)                # tx type\n" ++
@@ -201,6 +211,15 @@ def ziskReceiptRecordsEncodeNoLogsPrologue : String :=
   "  addi s4, s4, 1\n" ++
   "  addi s5, s5, 32\n" ++
   "  j .Lrlenp_append_loop\n" ++
+  ".Lrlenp_direct_control:\n" ++
+  "  la t0, rle_control\n" ++
+  "  ld t1, 8(s0); sd t1, 0(t0)  # direct count\n" ++
+  "  ld t1, 24(s0); sd t1, 8(t0) # direct capacity\n" ++
+  "  andi t2, s7, 1; bnez t2, .Lrlenp_direct_null_base\n" ++
+  "  la t1, rle_records; sd t1, 16(t0)\n" ++
+  "  j .Lrlenp_encode\n" ++
+  ".Lrlenp_direct_null_base:\n" ++
+  "  sd zero, 16(t0)\n" ++
   ".Lrlenp_encode:\n" ++
   "  la a0, rle_control\n" ++
   "  li a1, 0xa0010010\n" ++
@@ -227,7 +246,7 @@ def ziskReceiptRecordsEncodeNoLogsDataSection : String :=
   ".balign 8\n" ++
   "rle_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
-  "rle_records:\n  .zero 1024\n" ++
+  "rle_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
   ".balign 8\n" ++
   "rle_field_len:\n  .zero 8\n" ++
   "rle_prefix_len:\n  .zero 8\n" ++
@@ -239,9 +258,9 @@ def ziskReceiptRecordsEncodeNoLogsDataSection : String :=
   ".balign 8\n" ++
   "rle_zero_bloom:\n  .zero 256\n" ++
   ".balign 8\n" ++
-  "re_payload_buf:\n  .zero 16384\n" ++
+  "re_payload_buf:\n  .zero " ++ toString bvReceiptEncodePayloadBytes ++ "\n" ++
   ".balign 8\n" ++
-  "rle_payload_buf:\n  .zero 32768"
+  "rle_payload_buf:\n  .zero " ++ toString bvReceiptListPayloadBytes
 
 def ziskReceiptRecordsEncodeNoLogsProbeUnit : BuildUnit := {
   body        := NOP

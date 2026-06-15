@@ -226,7 +226,7 @@ hard-gate noisy heuristics):
 | `check-progress.sh` / `check-drift.sh` | `PROGRESS.md`/`DRIFT.md` regenerate identically from the kernel registry |
 | `check-conformance-floor.sh` | conformance-vector count never silently drops |
 | `check-roundtrip-coverage.sh` | every `Instr` constructor has a round-trip `#guard` |
-| `check-file-size.sh` | per-file line caps (1200/1500) |
+| `check-file-size.sh` | per-file line caps (Evm64 1200/1500; Codegen/Programs 1500, mirroring the `FileSizeGuard.lean` `#eval` that a warm `.lake` cache otherwise skips) |
 | `check-unimported.sh` | zero-orphan module graph |
 | `check-no-warnings.sh` | clean build log |
 | **`check-heartbeats-approved.sh`** | EVERY mention of `heartbeats` (overrides *and* prose) in `.lean`/lakefiles is sanctioned in `scripts/approved-heartbeat-overrides.txt` at its exact value — a dumb substring scan (no lexer to bypass); a ceiling + audit log, never a license to inflate |

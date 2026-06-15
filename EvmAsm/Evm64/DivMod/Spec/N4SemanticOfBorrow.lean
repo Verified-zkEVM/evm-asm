@@ -9,7 +9,7 @@
   Consolidates the semantic-discharge chain: the `+1` `hq_over` (#7579, via
   `qHat ≤ 1` under `U4 = 0`), `h_carry2` from `h_borrow` (#7580), and `h_rem_lt`
   from the runtime conditions (#7199) all fed into
-  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions`.  All three previously-
+  `n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions_legacy`.  All three previously-
   hypothesised runtime conditions (`hq_over`, `h_carry2`, `h_rem_lt`) are now
   discharged; the only remaining runtime input on the U4=0 single-addback branch is
   `h_borrow`, which the n=4 v5 code path establishes by execution.  Bead
@@ -29,7 +29,7 @@ theorem n4CallAddbackBeqSemanticHoldsV5_of_borrow_u4_zero {a b : EvmWord}
     (hu4 : (n4CallAddbackBeqU4 a b).toNat = 0)
     (h_borrow : isAddbackBorrowN4CallV5Evm a b) :
     n4CallAddbackBeqSemanticHoldsV5 a b :=
-  n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions hb3nz hshift_nz
+  n4CallAddbackBeqSemanticHoldsV5_of_runtime_conditions_legacy hb3nz hshift_nz
     (n4CallAddbackBeqQHatV5_le_window_div_plus_one_of_u4_zero hb3nz hu4)
     h_borrow
     (n4CallAddbackBeqCarry2_of_borrow_and_u4_zero hb3nz hu4 h_borrow)

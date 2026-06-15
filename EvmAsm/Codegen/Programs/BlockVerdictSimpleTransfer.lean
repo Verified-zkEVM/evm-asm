@@ -30,7 +30,8 @@ open EvmAsm.Rv64
 
     Output:
       +0   status
-             0  ok: single tx, 65-byte pubkey, non-creation, empty calldata
+             0  ok: single tx, 65-byte pubkey, classified creation or non-creation,
+                legacy/2930/1559/blob/7702 tx
              1  transaction count is not exactly one
              2  public key bundle is not exactly 65 bytes
              3  tx item start exceeds tx list length
@@ -40,12 +41,10 @@ open EvmAsm.Rv64
              30 to-address extraction failed
              40 value extraction failed
              50 data-section extraction failed
-             60 contract creation transaction
-             61 non-empty calldata/initcode
-             62 EIP-4844 blob transaction; this helper does not yet account
-                for blob-fee precharge
-             63 EIP-7702 set-code transaction; this helper does not yet
-                account for authorization-list gas/processing
+             60 reserved (formerly contract creation transaction)
+             61 reserved (formerly non-empty calldata/initcode)
+             62 reserved (formerly EIP-4844 blob unsupported)
+             63 reserved (formerly EIP-7702 set-code unsupported)
       +8   tx ptr
       +16  tx len
       +24  selected pubkey ptr (64-byte x||y tail)
@@ -112,12 +111,6 @@ def simpleTransferTxContextFunction : String :=
   "  bltu s2, t3, .Lsttc_inner_oob\n" ++
   "  add t4, s1, t3; sd t4, 176(s0)\n" ++
   "  sub t4, s2, t3; sd t4, 184(s0)\n" ++
-  "  li t2, 3; bne t1, t2, .Lsttc_not_blob_tx\n" ++
-  "  li t0, 62; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_not_blob_tx:\n" ++
-  "  li t2, 4; bne t1, t2, .Lsttc_not_set_code_tx\n" ++
-  "  li t0, 63; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_not_set_code_tx:\n" ++
   "  mv a0, s1; mv a1, s2; la a2, sttc_nonce; addi a3, s0, 40\n" ++
   "  jal ra, tx_extract_nonce_and_gas\n" ++
   "  sd a0, 128(s0)\n" ++
@@ -142,11 +135,7 @@ def simpleTransferTxContextFunction : String :=
   "  beqz a0, .Lsttc_data_ok\n" ++
   "  li t0, 50; sd t0, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_data_ok:\n" ++
-  "  ld t0, 48(s0); beqz t0, .Lsttc_not_creation\n" ++
-  "  li t1, 60; sd t1, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_not_creation:\n" ++
-  "  ld t0, 64(s0); beqz t0, .Lsttc_ok\n" ++
-  "  li t1, 61; sd t1, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_ok:\n" ++
   "  sd zero, 0(s0); j .Lsttc_ret\n" ++
   ".Lsttc_item_oob:\n" ++
@@ -220,8 +209,13 @@ def blockVerdictTxGasPrechargeDataSection : String :=
   "tgbpv_expected_balance:\n  .zero 32\n" ++
   "tgbpv_post_balance:\n  .zero 32\n" ++
   "tgbpv_value:\n  .zero 32\n" ++
+  "tgbpv_blob_debit:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "tgbpv_nonce:\n  .zero 8\n" ++
+  "tgbpv_tx_type:\n  .zero 8\n" ++
+  "tgbpv_inner_off:\n  .zero 8\n" ++
+  "tgbpv_blob_count:\n  .zero 8\n" ++
+  "tgbpv_t48:\n  .zero 248\n" ++
   "tgbpv_to_addr:\n  .zero 24\n" ++
   "tgbpv_is_creation:\n  .zero 8\n" ++
   "tgbpv_lookup:\n  .zero 168\n" ++

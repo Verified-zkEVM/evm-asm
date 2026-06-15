@@ -22,6 +22,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -30,17 +31,23 @@ open EvmAsm.Rv64
 /-- EIP-3860 MAX_INITCODE_SIZE (bytes) = 2 * Amsterdam/EIP-7954 MAX_CODE_SIZE (32768) = 65536. -/
 def maxInitcodeSize : Nat := 65536
 
+/-- The `create_initcode_size_valid` body as a STRUCTURED RV64 program (a0=x10,
+    t0=x5; `bgtu a0,t0,L` ≡ `bltu x5,x10,.+12`, `ret` ≡ `jalr x0,0(x1)`). This is
+    what `emitProgram` renders below — byte-identical to the former hand-written
+    asm — and what `EvmAsm.Codegen.Proofs.cisv_spec` proves as a `cpsTriple`:
+    `a0 := (if maxInitcodeSize < len then 1 else 0); return`. -/
+def cisvProgram : Program :=
+  [ .LI .x5 (65536 : Word), .BLTU .x5 .x10 (12 : BitVec 13),
+    .LI .x10 (0 : Word), .JALR .x0 .x1 0,
+    .LI .x10 (1 : Word), .JALR .x0 .x1 0 ]
+
 /-! ## create_initcode_size_valid
     a0 = init code length (bytes)
     a0 (output) = 0 valid / 1 invalid (len > MAX_INITCODE_SIZE).
-    Leaf; clobbers t0. -/
+    Leaf; clobbers t0. Emitted from the verified `cisvProgram` (cpsTriple-proven
+    by `cisv_spec`); byte-identical to the prior hand-written asm. -/
 def createInitcodeSizeValidFunction : String :=
-  "create_initcode_size_valid:\n" ++
-  "  li t0, " ++ toString maxInitcodeSize ++ "\n" ++
-  "  bgtu a0, t0, .Lcisv_invalid    # len > MAX_INITCODE_SIZE (EIP-3860)\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lcisv_invalid:\n" ++
-  "  li a0, 1; ret"
+  "create_initcode_size_valid:\n" ++ emitProgram cisvProgram
 
 /-- `zisk_create_initcode_size_valid`: known-answer probe. Surfaces 4 results to
     OUTPUT (0xa0010000):

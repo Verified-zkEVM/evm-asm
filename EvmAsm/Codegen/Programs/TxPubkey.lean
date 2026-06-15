@@ -590,6 +590,7 @@ def ziskTxPubkeyEcrecoverStageMaterialPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
   u256LtBeFunction ++ "\n" ++
   txLegacyExtractSignatureFunction ++ "\n" ++
@@ -629,6 +630,7 @@ def ziskTxPubkeySignatureMaterialPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
   u256LtBeFunction ++ "\n" ++
   txLegacyExtractSignatureFunction ++ "\n" ++
@@ -743,6 +745,7 @@ def ziskTxPubkeyRecoverRawStatusPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
   -- secp256k1 recovery stack (curve common already provides u256_lt_be/_add_be/
   -- _sub_be, so the standalone u256_lt_be above is dropped to avoid a duplicate
@@ -823,6 +826,7 @@ def ziskTxPubkeyPublicKeyMatchesStatusPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
   -- secp256k1 recovery stack (curve common already provides u256_lt_be/_add_be/
   -- _sub_be, so no standalone u256_lt_be is linked here to avoid a duplicate

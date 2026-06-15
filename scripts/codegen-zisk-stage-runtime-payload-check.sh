@@ -79,6 +79,8 @@ struct.pack_into('<Q', payload, 64 - 8 + 404, 0x1234)
 struct.pack_into('<Q', payload, 64 - 8 + 412, 0x55aa)
 # timestamp u64 (@guest +64 + 428 -> file +484).
 struct.pack_into('<Q', payload, 64 - 8 + 428, 0x99)
+# prev_randao Bytes32 (@guest +64 + 372 -> file +428), first byte marker.
+payload[64 - 8 + 372] = 0x44
 
 for i in range(pubkeys_len):
     payload[320 - 8 + i] = (i + 1) & 0xff
@@ -109,7 +111,7 @@ run_case() {
     -i "$in_file" -o "$out_file" -n 1000000 \
     >"$log_file" 2>&1 || true
 
-  local a_status a_bc a_cd a_gf a_ic a_hl a_ws a_wc a_gl
+  local a_status a_bc a_cd a_gf a_ic a_hl a_ws a_wc a_gl a_pr
   a_status="$(xxd -p -l 8 "$out_file" 2>/dev/null | tr -d '\n')"
   a_bc="$(dd if="$out_file" bs=1 skip=8  count=8 2>/dev/null | xxd -p | tr -d '\n')"
   a_cd="$(dd if="$out_file" bs=1 skip=16 count=8 2>/dev/null | xxd -p | tr -d '\n')"
@@ -119,32 +121,38 @@ run_case() {
   a_ws="$(dd if="$out_file" bs=1 skip=48 count=8 2>/dev/null | xxd -p | tr -d '\n')"
   a_wc="$(dd if="$out_file" bs=1 skip=56 count=8 2>/dev/null | xxd -p | tr -d '\n')"
   a_gl="$(dd if="$out_file" bs=1 skip=64 count=8 2>/dev/null | xxd -p | tr -d '\n')"
+  a_pr="$(dd if="$out_file" bs=1 skip=80 count=8 2>/dev/null | xxd -p | tr -d '\n')"
 
-  local e_status e_bc e_cd e_gf e_ic e_gl e_zero
+  local e_status e_bc e_cd e_gf e_ic e_gl e_pr e_zero
   e_status="$(le64_hex "$exp_status")"
   e_bc="$(le64_hex "$exp_bc_len")"
   e_cd="$(le64_hex "$exp_cd_len")"
   e_gf="$(le64_hex "$exp_gas_flag")"
   e_ic="$(le64_hex "$exp_is_creation")"
   e_gl="$(le64_hex "$exp_gas_limit")"
+  if [[ "$exp_status" == "0" ]]; then
+    e_pr="$(le64_hex 68)"
+  else
+    e_pr="$(le64_hex 0)"
+  fi
   e_zero="$(le64_hex 0)"
 
   if [[ "$a_status" == "$e_status" && "$a_bc" == "$e_bc" && \
         "$a_cd" == "$e_cd" && "$a_gf" == "$e_gf" && \
         "$a_ic" == "$e_ic" && "$a_gl" == "$e_gl" && \
-        "$a_hl" == "$e_zero" && "$a_ws" == "$e_zero" && \
-        "$a_wc" == "$e_zero" ]]; then
-    printf "  %-22s OK   status=%s bc=%s cd=%s gas_flag=%s creation=%s gas=%s\n" \
+        "$a_pr" == "$e_pr" && "$a_hl" == "$e_zero" && \
+        "$a_ws" == "$e_zero" && "$a_wc" == "$e_zero" ]]; then
+    printf "  %-22s OK   status=%s bc=%s cd=%s gas_flag=%s creation=%s gas=%s prev_randao=%s\n" \
       "$name" "$exp_status" "$exp_bc_len" "$exp_cd_len" "$exp_gas_flag" \
-      "$exp_is_creation" "$exp_gas_limit"
+      "$exp_is_creation" "$exp_gas_limit" "$([[ "$exp_status" == "0" ]] && echo 0x44 || echo 0x00)"
     return 0
   fi
 
   printf "  %-22s FAIL\n" "$name"
-  printf "    expected status=%s bc=%s cd=%s gf=%s ic=%s gl=%s witness=0/0/0\n" \
-    "$e_status" "$e_bc" "$e_cd" "$e_gf" "$e_ic" "$e_gl"
-  printf "    actual   status=%s bc=%s cd=%s gf=%s ic=%s gl=%s witness=%s/%s/%s\n" \
-    "$a_status" "$a_bc" "$a_cd" "$a_gf" "$a_ic" "$a_gl" "$a_hl" "$a_ws" "$a_wc"
+  printf "    expected status=%s bc=%s cd=%s gf=%s ic=%s gl=%s pr=%s witness=0/0/0\n" \
+    "$e_status" "$e_bc" "$e_cd" "$e_gf" "$e_ic" "$e_gl" "$e_pr"
+  printf "    actual   status=%s bc=%s cd=%s gf=%s ic=%s gl=%s pr=%s witness=%s/%s/%s\n" \
+    "$a_status" "$a_bc" "$a_cd" "$a_gf" "$a_ic" "$a_gl" "$a_pr" "$a_hl" "$a_ws" "$a_wc"
   printf "    emulator log: %s\n" "$log_file"
   return 1
 }
@@ -156,8 +164,9 @@ run_case "legacy_ok"      legacy      1 65 0 1 0 1 0 21000 || FAILED=1
 run_case "eip1559_ok"     eip1559     1 65 0 1 0 1 0 21000 || FAILED=1
 # Unsupported context (count != 1) -> stage status 1, no payload staged.
 run_case "zero_tx"        legacy      0 65 1 0 0 0 0 0 || FAILED=1
-# Non-empty calldata -> extractor status 61 -> stage status 1.
-run_case "nonempty_data"  legacy_data 1 65 1 0 0 0 0 0 || FAILED=1
+# Non-empty calldata to an EOA is staged with the calldata length preserved; later
+# gas/account gates decide whether the transaction is executable.
+run_case "nonempty_data"  legacy_data 1 65 0 1 2 1 0 21000 || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

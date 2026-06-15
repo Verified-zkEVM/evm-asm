@@ -27,6 +27,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
+import EvmAsm.Codegen.Programs.StaticContext
 
 namespace EvmAsm.Codegen
 
@@ -66,8 +67,7 @@ def callFrameEnterFunction : String :=
     a2 = to-word ptr, a3 = value-word ptr, a4 = mode)`: set the child frame's
     per-frame env call-context for one of the four message-call kinds. `a4` mode:
     `0 = CALL`, `1 = STATICCALL`, `2 = CALLCODE`, `3 = DELEGATECALL` (modes 0/1
-    keep the exact prior `is_static` behavior, so the descend path and the
-    `zisk_call_frame_descend` probe are byte-identical). The three 32-byte words,
+    set/propagate the static-context flag). The three 32-byte words,
     per execution-specs `vm/instructions/system.py` (the current_target / caller /
     value roles):
 
@@ -84,6 +84,15 @@ def callFrameEnterFunction : String :=
     Offsets per the per-frame env layout (docs §3). Clobbers t0/t1. -/
 def callFrameSetCallEnvFunction : String :=
   "call_frame_set_call_env:\n" ++
+  -- isStatic (env+504): STATICCALL sets it; every other call kind inherits the parent.
+  "  li t1, 1\n" ++
+  "  beq a4, t1, .Lcfsce_static_set\n" ++
+  "  ld t0, " ++ toString staticContextFlagOff ++ "(a1)\n" ++
+  "  sd t0, " ++ toString staticContextFlagOff ++ "(a0)\n" ++
+  "  j .Lcfsce_addr\n" ++
+  ".Lcfsce_static_set:\n" ++
+  "  sd t1, " ++ toString staticContextFlagOff ++ "(a0)\n" ++
+  ".Lcfsce_addr:\n" ++
   -- ADDRESS (env+0): mode >= 2 (CALLCODE/DELEGATECALL) -> parent.ADDRESS, else to.
   "  li t1, 2\n" ++
   "  bgeu a4, t1, .Lcfsce_addr_self\n" ++
@@ -300,6 +309,55 @@ def callFrameDescendFunction : String :=
   "  ld t0, 472(s3); sd t0, 472(s9)   # eventLogLength\n" ++
   "  sd t0, 480(s9)                    # eventLogCheckpoint = current\n" ++
   "  sd x0, 488(s9)                    # activeMemorySize = 0 (fresh child memory)\n" ++
+  -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
+  -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used) into the
+  -- child env so a child REVERT / exceptional halt can restore it in frame_return,
+  -- matching execution-specs incorporate_child_on_error (the reverted child's
+  -- entire state-gas allocation is returned to the parent and state_gas_used is
+  -- NOT accumulated). s9 = child env; env offsets 624/632 are free (the env is
+  -- frameEnvBytes=768 and its fields end at 616). Mirrors persistentLogCheckpoint.
+  "  la t1, evm_state_gas_left; ld t0, 0(t1); sd t0, 624(s9)   # state_gas_left snapshot\n" ++
+  "  la t1, evm_state_gas_used; ld t0, 0(t1); sd t0, 632(s9)   # state_gas_used snapshot\n" ++
+  -- nxio8.4.2: also snapshot the EIP-3529 refund accumulator (evm_refund_acc) so a
+  -- child REVERT discards the child's refund_counter additions, matching
+  -- incorporate_child_on_error (which does NOT add child.refund_counter to the
+  -- parent). On success it is kept (incorporate_child_on_success accumulates it).
+  "  la t1, evm_refund_acc; ld t0, 0(t1); sd t0, 640(s9)       # refund_counter snapshot\n" ++
+  -- nxio8.4.3: snapshot the EIP-2929 storage-warmth count so a child REVERT
+  -- discards the (contract,slot) keys the child warmed — incorporate_child_on_error
+  -- does NOT .update() the parent's accessed_storage_keys (warmth is rolled back).
+  -- The warm-set is append-only; truncating the count on revert reverts the
+  -- additions (the gas already charged stays — regular gas is spent on revert).
+  "  la t1, evm_storage_access_count; ld t0, 0(t1); sd t0, 648(s9)  # warmth count snapshot\n" ++
+  -- i3djw/reverted-CREATE rollback: CREATE deposit appends to global code and
+  -- non-storage effect logs. A later child REVERT must discard those records,
+  -- exactly like storage/log cursors above; otherwise the block-verdict reverse
+  -- BAL covers checks see stale created-account effects and false-reject valid
+  -- reverted-create blocks.
+  "  la t1, exec_nonstorage_effect_count; ld t0, 0(t1); sd t0, 656(s9)  # nonstorage effect count snapshot\n" ++
+  "  la t1, exec_nonstorage_effect_overflow; ld t0, 0(t1); sd t0, 664(s9)  # nonstorage overflow snapshot\n" ++
+  "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
+  "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
+  "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  -- 3hlnt.2.2: snapshot the hot running block bloom into the child-depth
+  -- checkpoint slab. The consensus receipt/log-bloom path still comes from
+  -- descriptors; this only gives the hot accumulator the same rollback shape
+  -- as the scalar frame checkpoints above.
+  "  addi t0, s8, -1\n" ++
+  "  slli t0, t0, 8\n" ++
+  "  la t1, rb_bloom_checkpoints\n" ++
+  "  add t1, t1, t0                 # dst = checkpoint[child_depth - 1]\n" ++
+  "  la t2, rb_running_block_bloom  # src = hot running block bloom\n" ++
+  "  li t3, 32\n" ++
+  ".Lcfd_bloom_checkpoint_loop:\n" ++
+  "  beqz t3, .Lcfd_bloom_checkpoint_done\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  sd t4, 0(t1)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcfd_bloom_checkpoint_loop\n" ++
+  ".Lcfd_bloom_checkpoint_done:\n" ++
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
   -- 10. frame-relative stack bounds: point the under/overflow guards at the
@@ -435,7 +493,10 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
       +152 evm_cur_stack_top - &arena      (expect 0x18200 = child frame stack top)
       +160 evm_cur_stack_low - &arena      (expect 0x10200 = top - 1024*32)
-      +168 parent env.gasRemaining        (expect 90000 = 100000 - transfer 9000 - cost 1000) -/
+      +168 parent env.gasRemaining        (expect 90000 = 100000 - transfer 9000 - cost 1000)
+      +176/+184 state-gas snapshots       (expect 12345/67890)
+      +192/+200 refund/warmth snapshots   (expect 24680/5)
+      +208/+216 running bloom checkpoint  (expect word0/word31 copied) -/
 def ziskCallFrameDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -445,6 +506,14 @@ def ziskCallFrameDescendPrologue : String :=
   "  li t1, 0xaa; sd t1, 0(t0)\n" ++
   "  li t1, 100000; sd t1, 568(t0)\n" ++
   "  li t1, 0x592; sd t1, 592(t0)\n" ++
+  -- nxio8.4.1: pre-child state gas; descend must snapshot it into child env+624/632.
+  "  la t0, evm_state_gas_left; li t1, 12345; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; li t1, 67890; sd t1, 0(t0)\n" ++
+  "  la t0, evm_refund_acc; li t1, 24680; sd t1, 0(t0)\n" ++
+  "  la t0, evm_storage_access_count; li t1, 5; sd t1, 0(t0)\n" ++
+  -- Running block bloom snapshot source; descend should copy word0/word31 into
+  -- rb_bloom_checkpoints[0].
+  "  la t0, rb_running_block_bloom; li t1, 0x1111222233334444; sd t1, 0(t0); li t1, 0xaaaabbbbccccdddd; sd t1, 248(t0)\n" ++
   -- to / value words.
   "  la t0, cfd2_to; li t1, 0xbb; sd t1, 0(t0)\n" ++
   "  la t0, cfd2_val; li t1, 0x7; sd t1, 0(t0)\n" ++
@@ -479,6 +548,12 @@ def ziskCallFrameDescendPrologue : String :=
   "  ld t0, 568(x20); sd t0, 128(s0)\n" ++
   "  ld t0, 496(x20); sd t0, 136(s0)\n" ++
   "  ld t0, 592(x20); sd t0, 144(s0)\n" ++
+  -- nxio8.4.1: descend snapshotted pre-child state gas into child env+624/632.
+  "  ld t0, 624(x20); sd t0, 176(s0)\n" ++   -- expect 12345 (state_gas_left)
+  "  ld t0, 632(x20); sd t0, 184(s0)\n" ++   -- expect 67890 (state_gas_used)
+  "  ld t0, 640(x20); sd t0, 192(s0)\n" ++   -- expect 24680 (refund_acc, nxio8.4.2)
+  "  ld t0, 648(x20); sd t0, 200(s0)\n" ++   -- expect 5 (warmth count, nxio8.4.3)
+  "  la t0, rb_bloom_checkpoints; ld t1, 0(t0); sd t1, 208(s0); ld t1, 248(t0); sd t1, 216(s0)\n" ++
   -- child register bases.
   "  la t1, call_frame_arena; sub t0, x13, t1; sd t0, 56(s0)\n" ++
   "  la t1, call_frame_arena; sub t0, x20, t1; sd t0, 64(s0)\n" ++
@@ -524,6 +599,20 @@ def ziskCallFrameDescendDataSection : String :=
   -- Frame-relative stack-bound cells (descend overwrites them; zeroed stubs here).
   "evm_cur_stack_top:\n  .zero 8\n" ++
   "evm_cur_stack_low:\n  .zero 8\n" ++
+  -- nxio8.4.1: EIP-8037 state-gas globals (real symbols in the guest dispatcher
+  -- data section; stubbed so the probe links + can verify the descend snapshot).
+  "evm_state_gas_left:\n  .zero 8\n" ++
+  "evm_state_gas_used:\n  .zero 8\n" ++
+  "evm_refund_acc:\n  .zero 8\n" ++
+  "evm_storage_access_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
+  "exec_code_effect_count:\n  .zero 8\n" ++
+  "exec_code_effect_next:\n  .zero 8\n" ++
+  "exec_code_effect_overflow:\n  .zero 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
   ".balign 8\n" ++
   "cfd2_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
@@ -550,7 +639,8 @@ def ziskCallFrameDescendProbeUnit : BuildUnit := {
       +0/+8/+16   mode 0 CALL        ADDRESS/CALLER/CALLVALUE (expect 0xbb/0xaa/0xdd)
       +24/+32/+40 mode 1 STATICCALL  (expect 0xbb/0xaa/0)
       +48/+56/+64 mode 2 CALLCODE    (expect 0xaa/0xaa/0xdd)
-      +72/+80/+88 mode 3 DELEGATECALL(expect 0xaa/0xcc/0xee) -/
+      +72/+80/+88 mode 3 DELEGATECALL(expect 0xaa/0xcc/0xee)
+      +96/+104/+112/+120 isStatic flags modes 0..3 (expect 7/1/7/7) -/
 def ziskSetCallEnvPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -559,6 +649,7 @@ def ziskSetCallEnvPrologue : String :=
   "  li t1, 0xaa; sd t1, 0(t0)\n" ++
   "  li t1, 0xcc; sd t1, 64(t0)\n" ++
   "  li t1, 0xee; sd t1, 96(t0)\n" ++
+  "  li t1, 7; sd t1, " ++ toString staticContextFlagOff ++ "(t0)\n" ++
   "  la t0, sce_to;  li t1, 0xbb; sd t1, 0(t0)\n" ++
   "  la t0, sce_val; li t1, 0xdd; sd t1, 0(t0)\n" ++
   -- run the helper for all four modes into distinct child env buffers.
@@ -575,6 +666,10 @@ def ziskSetCallEnvPrologue : String :=
   "  la t0, sce_child1; ld t1, 0(t0); sd t1, 24(s0); ld t1, 64(t0); sd t1, 32(s0); ld t1, 96(t0); sd t1, 40(s0)\n" ++
   "  la t0, sce_child2; ld t1, 0(t0); sd t1, 48(s0); ld t1, 64(t0); sd t1, 56(s0); ld t1, 96(t0); sd t1, 64(s0)\n" ++
   "  la t0, sce_child3; ld t1, 0(t0); sd t1, 72(s0); ld t1, 64(t0); sd t1, 80(s0); ld t1, 96(t0); sd t1, 88(s0)\n" ++
+  "  la t0, sce_child0; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 96(s0)\n" ++
+  "  la t0, sce_child1; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 104(s0)\n" ++
+  "  la t0, sce_child2; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 112(s0)\n" ++
+  "  la t0, sce_child3; ld t1, " ++ toString staticContextFlagOff ++ "(t0); sd t1, 120(s0)\n" ++
   "  j .Lsce_done\n" ++
   callFrameSetCallEnvFunction ++ "\n" ++
   ".Lsce_done:"
@@ -582,13 +677,13 @@ def ziskSetCallEnvPrologue : String :=
 def ziskSetCallEnvDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "sce_penv:\n  .zero 128\n" ++
+  "sce_penv:\n  .zero 512\n" ++
   "sce_to:\n  .zero 32\n" ++
   "sce_val:\n  .zero 32\n" ++
-  "sce_child0:\n  .zero 128\n" ++
-  "sce_child1:\n  .zero 128\n" ++
-  "sce_child2:\n  .zero 128\n" ++
-  "sce_child3:\n  .zero 128\n"
+  "sce_child0:\n  .zero 512\n" ++
+  "sce_child1:\n  .zero 512\n" ++
+  "sce_child2:\n  .zero 512\n" ++
+  "sce_child3:\n  .zero 512\n"
 
 def ziskSetCallEnvProbeUnit : BuildUnit := {
   body        := NOP

@@ -958,6 +958,62 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 - `RLPItem` type (bytes | list), `encode`, `decode` with canonical enforcement
 - 17 kernel-verified properties via `decide` (round-trip, spec conformance)
 - 0 sorry, 0 axioms
+- ✅ **General byte-string round-trip (parametric, not `decide`)** (`Properties.lean`).
+  `decode_encode_bytes (data) (hlen : data.length < 256^8) :
+  decode (encode (.bytes data)) = some (.bytes data, [])` — every leaf `RLPItem`
+  re-decodes to itself, for all lengths the decoder's 8-byte length field
+  supports. Short form (`≤ 55`) is unconditional. Supporting new foundations:
+  `Nat.fromBytesBE_toBytesBE` (big-endian round-trip), `Nat.fromBytesBE_snoc`,
+  `Nat.toBytesBE_succ`, `Nat.toBytesBE_length_le` (`len < 256^k → length ≤ k`),
+  `Nat.toBytesBE_eq_cons_of_pos` (nonzero leading byte / no-leading-zero),
+  `readLength_toBytesBE_append`, `encodeBytes_long_of_length`. All Lean-core
+  (no Mathlib): `Nat.toBytesBE.induct`, `omega`, `List.take_left`/`drop_left`.
+  Axiom-clean (propext/Classical.choice/Quot.sound), 0 sorry. This is the leaf
+  half of the round-trip keystone.
+- ✅ **Full round-trip keystone (`decode (encode item) = some (item, [])`)**
+  (`Properties.lean`). `decode_encode (item) (h : (encode item).length < 256^8)`
+  re-decodes *every* `RLPItem` (lists + nesting) to itself; `decodeFully_encode`
+  discharges `FullDecode.decodeFully_encode_of_decode_encode`'s `h_roundtrip`
+  hypothesis, making full decode of any (length-bounded) encoded item
+  unconditional. Key idea: both `decodeAux`/`decodeItems` recurse on the fuel
+  `nDepth`, so `decode_encode_mutual` is proved by a single **step induction on
+  `nDepth`** (an `decodeAux`-on-`encode` statement ∧ a `decodeItems`-on-
+  `encodeItems` statement) — the IH at `nDepth-1` covers all sub-items, so no
+  induction on `RLPItem` is needed. Reuses the leaf round-trip via the new
+  fuel-parametric `decodeAux_succ_encodeBytes_append`, plus `encode_list_short`/
+  `_long`, `decodeItems_succ_of_ne_nil`, `takeBytes_append_length`,
+  `le_encodeBytes_length`. A single top-level `< 256^8` bound implies every
+  nested bound. Axiom-clean, 0 sorry. **The RLP encode→decode round-trip is now
+  complete end-to-end.**
+- ✅ **Decodability part 1 — injectivity + canonical bijection + quasi-encoding
+  rejection** (`Properties.lean`). Informed by Coglio's ACL2 RLP work
+  (arXiv:2009.13769), whose headline results are the encode/decode *mutual
+  inverses*, injectivity, and rejection of non-canonical "quasi-encodings".
+  Added: `encode_injective` (`encode i₁ = encode i₂ → i₁ = i₂`, a corollary of
+  the round-trip); `Nat.toBytesBE_fromBytesBE_of_canonical` (the canonical
+  inverse of the big-endian bijection — `toBytesBE (fromBytesBE bs) = bs` for a
+  no-leading-zero `bs`, the foundation the right-inverse needs) +
+  `Nat.fromBytesBE_pos_of_head_ne_zero`; and a documented **quasi-encoding
+  rejection** section (the five ACL2 forms, each pointed at its rejecting lemma
+  with `decide` cross-checks). **Now imports Mathlib** (`List.reverseRecOn`,
+  `positivity`) rather than re-deriving list/arithmetic facts. Axiom-clean
+  (classical), 0 sorry.
+- ✅ **Decodability part 2 — the full right inverse** (`Properties.lean`).
+  `decode_eq_some_imp_encode : decode bs = some (item, rest) → bs = encode item ++ rest`
+  — whatever `decode` accepts re-encodes to exactly the bytes consumed, so the
+  decoder accepts *only* canonical encodings (the ACL2
+  `rlp-encode-tree-of-rlp-parse-tree` analogue, the property whose failure hid a
+  real decoder bug in Coglio's work). Proved by `decode_right_inverse_mutual`
+  (step induction on the fuel `nDepth`, same shape as `decode_encode_mutual`):
+  byte classes are standalone `decodeAux_{singleByte,shortBytes,longBytes}_right_inv`
+  lemmas; list classes recurse through the IH. Reconstruction helpers
+  `takeBytes_eq_some_imp`, `readLength_eq_some_imp` (the latter exposing the
+  canonical length field via `toBytesBE_fromBytesBE_of_canonical`). Capstone
+  `decodeFully_eq_encode : decodeFully bs = some item ↔ bs = encode item`
+  (within the 8-byte bound) — full decode is *exactly* the inverse of `encode`.
+  Axiom-clean (classical), 0 sorry. **RLP decodability is now complete: both
+  inverses + injectivity + quasi-encoding rejection, to parity with the ACL2
+  formalization.**
 
 ### EL.2 Byte-Level Infrastructure ✅
 - **File**: `EvmAsm/Rv64/ByteOps.lean`
@@ -1063,9 +1119,104 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     classification, Phase 3 long-string entry, and the one-byte Phase 2
     length loop. Postcondition gives the zero-copy output pair:
     `x11 = payload_length_byte`, `x13 = payload_start`.
-  - Remaining: long-string composition with Phase 2 for lenLen 2-8 and the planned
-    general `n`-iteration closure,
-    short/long-list error exits (`e4`/`e5`).
+  - ✅ **Long-form single-doubleword full paths complete (lenLen 1–8).**
+    Mirroring the `0xB8` one-byte path, every long-form prefix now has an
+    end-to-end Phase 1 → Phase 3 → Phase 2 composition:
+    - Long byte-strings (e3, prefixes `0xB8`–`0xBF`):
+      `rlp_phase1_e3_0x{B8..BF}_{one..eight}_byte_length_spec_within`
+      (`Phase1E3LongString{One..Eight}.lean`).
+    - Long lists (e5, prefixes `0xF8`–`0xFF`):
+      `rlp_phase1_e5_0x{F8..FF}_{one..eight}_byte_length_spec_within`
+      (`Phase1E5LongList{One..Eight}.lean`).
+    Each composes the proven `rlp_phase1_e{3,5}_full_path_spec'_within`
+    entry with the matching `rlp_phase2_long_loop_{N}_byte_spec_within`
+    closure via `cpsTripleWithin_seq`; the postcondition restates the
+    big-endian length by reference to that closure's `…_post`. All
+    16 theorems are axiom-clean (only `propext`/`Classical.choice`/
+    `Quot.sound`), 0 sorry. Wired into the `EvmAsm.Rv64.RLP` umbrella.
+  - ✅ **Long-form length bridged to the pure spec (`Nat.fromBytesBE`).**
+    The full-path outputs above leave `x11` as a raw big-endian
+    accumulation; `Phase2LongLengthBridge.lean` proves it equals the value
+    the pure RLP spec decodes. Core: `rlp_be_len_{1..8}_eq_fromBytesBE`
+    (and `rlp_be_byte_eq_fromBytesBE`) show
+    `(((0 <<< 8) + e0) <<< 8 …) + e_{N-1} = BitVec.ofNat 64 (Nat.fromBytesBE
+    [e0,…,e_{N-1}])` for `N ≤ 8` (no 64-bit overflow since the value is
+    `< 256^8 = 2^64`), backed by the pure bound `Nat.fromBytesBE_lt`
+    (`EL/RLP/Properties.lean`). `Phase1E{3,5}…FromBytesBE.lean` thread this
+    through to 16 end-to-end `…_fromBytesBE_spec_within` restatements whose
+    postcondition states `x11 = BitVec.ofNat 64 (Nat.fromBytesBE [extractByte
+    …, …])` — i.e. the decoder computes the *spec-correct* length, not just a
+    bitvector. All axiom-clean, 0 sorry.
+  - ✅ **Per-exit `classifyPrefix`-level bridges complete (all five exits).**
+    Every classification exit now has a wrapper restating its full path
+    against the pure RLP classifier `classifyPrefix` (input side) and the
+    matching pure length (output side): e1 `rlp_phase1_e1_single_byte_of_class_spec_within`
+    (`classifyPrefix = .singleByte` → `x11 = 1`), e2
+    `rlp_phase1_e2_full_path_payload_len_of_class_spec_within`
+    (`x11 = ofNat (rlpPrefixShortBytesPayloadLen pfx)`), e4
+    `rlp_phase1_e4_full_path_payload_len_of_class_spec_within`
+    (`rlpPrefixShortListPayloadLen`), and e3/e5's `…_lenOfLen_of_class…`
+    (the long-form `lenLen` counter). The e1/e2 wrappers (this slice) mirror
+    e4 and reuse `rlpPrefixShortBytesPayloadLen_toWord_of_class`
+    (`EL/RLP/ProgramSpec.lean`). Axiom-clean, 0 sorry.
+  - ✅ **General n-iteration long-form loop closure** (`Phase2LongLoopGeneral.lean`).
+    The decoder runs a single back-branching loop whose iteration count is the
+    runtime counter; the eight unrolled closures only covered fixed counts 1–8.
+    `rlp_phase2_long_loop_n_byte_spec_within (n) (1 ≤ n ≤ 8)` now proves the
+    loop for an **arbitrary** count in one theorem (by induction on the count),
+    with the decoded length bridged to the pure spec
+    `BitVec.ofNat 64 (Nat.fromBytesBE (rlpLoopByteList …))`. This is the
+    keystone for a unified single-item decoder (apply at the symbolic
+    length-of-length). The prior blocker — parametric counter arithmetic
+    (`BitVec.ofNat 64 (n+1) + signExtend12 (-1) = BitVec.ofNat 64 n`) — is
+    resolved by `word_ofNat_succ_dec`/`_ne_zero`/`_add_one` (toNat + omega).
+    Supporting: `rlpLoopAcc` (the loop's big-endian fold), `rlpLoopAcc_toNat`
+    (mod-form invariant), and `rlpLoopAcc_zero_eq_fromBytesBE` (the fold ↔
+    `fromBytesBE` bridge). Axiom-clean, 0 sorry.
+  - ✅ **General long-form full paths** (`Phase1E3LongBytesFull.lean` /
+    `Phase1E5LongListFull.lean`). For an **arbitrary** in-class prefix,
+    `rlp_phase1_e3_longBytes_full_spec_within` /
+    `rlp_phase1_e5_longList_full_spec_within` compose the Phase-1 classify +
+    Phase-3 entry with the n-iteration closure at the symbolic
+    `n = rlpPrefixLong{Bytes,List}LenOfLen pfx ∈ [1,8]`, yielding the decoded
+    `x11 = ofNat (Nat.fromBytesBE (rlpLoopByteList …))` and payload pointer
+    `x13`. Collapses the 16 concrete-prefix `…_fromBytesBE_spec_within` paths
+    into 2 parametric theorems (e5 reuses the existing
+    `…_lenOfLen_of_class…` prefix wrapper; e3 rewrites `x14 = pfx − 0xB7` to
+    `ofNat n` via `rlpPrefixLongBytesLenOfLen_toWord_of_class`). Axiom-clean,
+    0 sorry.
+  - ✅ **Unified single-item decode (capstone)** (`UnifiedDecodeItem.lean`).
+    `rlp_decode_single_item_spec_within`: for an arbitrary prefix byte, one
+    theorem whose conclusion is a `match classifyPrefix pfx` dispatching to the
+    five per-class full-path handlers — the RV64 analogue of the pure
+    `decodeAux_cons_eq_classifyPrefix_match`. Each branch reaches the
+    class-appropriate exit with the spec-correct decoded length
+    (`1` / `rlpPrefixShort{Bytes,List}PayloadLen` / `Nat.fromBytesBE …`).
+    Long-form-only proof obligations (window `hwin`, loop `hback`) ride in a
+    `match`-typed hypothesis `rlpDecodeLongHyps` so flat callers needn't supply
+    them. Proof: `cases classifyPrefix pfx` + `exact <handler>`. Axiom-clean,
+    0 sorry. **The single-item RLP decode arc is complete end-to-end**
+    (classify → per-class length extraction → unified dispatch).
+  - ✅ **List-payload single-byte-run decode (pure spec)** (`EL/RLP/ListDecode.lean`).
+    The merged `ListDecodeBridge` *characterizes* list decode in terms of
+    `decodeItems`/`decodeListPayload` but never *computes* `decodeItems` for any
+    concrete payload class. `decodeItems_singleByte_run` closes that gap: a run of
+    bytes each `< 0x80` (with depth budget `2 * bs.length ≤ nDepth`) decodes to
+    one one-byte `RLPItem.bytes` per byte, consuming the whole run (induction on
+    `bs`, reusing `decodeAux_cons_singleByte_of_classifyPrefix` +
+    `classifyPrefix_singleByte_iff`). `decodeAux_shortList_of_singleByte_items`
+    lifts it through the merged short-list characterization
+    (`ListDecodeBridge.decodeAux_cons_shortList_eq_some_iff`) to a full
+    `RLPItem.list` of single-byte items, with a concrete cross-check
+    (`0xC3 [0x01,0x7F,0x05]`). Axiom-clean (propext/Quot.sound), 0 sorry. This is
+    the pure-spec foundation for the first RV64 list-payload loop (single-byte
+    items are the one fixed-stride, zero-copy case); the RV64 loop + `decodeItems`
+    bridge is the follow-up.
+  - Remaining (future): a full semantic bridge to the pure `decodeAux` (needs
+    canonical-encoding `>55`/leading-zero validation the RV64 path does not
+    perform, plus recursive list decode `decodeItems` for list payloads);
+    cross-doubleword length spans (`n ≤ 8` single-doubleword only); Phase-4
+    `read_input` pipeline integration.
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
@@ -1212,13 +1363,23 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
   fhsxz.2.4.2.62.10.1)
 - BLAKE2f (0x09) → `zkvm_blake2f`
 - KZG_POINT_EVAL (0x0a) → `zkvm_kzg_point_eval`
-- BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add`
-- BLS12_G1_MSM (0x0c) → `zkvm_bls12_g1_msm`
-- BLS12_G2_ADD (0x0d) → `zkvm_bls12_g2_add`
-- BLS12_G2_MSM (0x0e) → `zkvm_bls12_g2_msm`
-- BLS12_PAIRING (0x0f) → `zkvm_bls12_pairing`
-- BLS12_MAP_FP_TO_G1 (0x10) → `zkvm_bls12_map_fp_to_g1`
-- BLS12_MAP_FP2_TO_G2 (0x11) → `zkvm_bls12_map_fp2_to_g2`
+- BLS12_G1_ADD (0x0b) → `zkvm_bls12_g1_add` — **DONE** (real kernel,
+  `Bls12G1.lean`, ZisK Bls12_381CurveAdd/Dbl + Arith384Mod; PR #8739)
+- BLS12_G1_MSM (0x0c) → `zkvm_bls12_g1_msm` — **DONE** (LE-internal
+  double-and-add + REAL order-n subgroup check; 128-pair MSM ~14.8M
+  steps after PR #8741)
+- BLS12_G2_ADD (0x0d) → `zkvm_bls12_g2_add` — **DONE** (software Fp2
+  chord/tangent over the complex accelerators + Fermat inverse,
+  `Bls12G2.lean`; PR #8740)
+- BLS12_G2_MSM (0x0e) → `zkvm_bls12_g2_msm` — **DONE** (same backend)
+- BLS12_PAIRING (0x0f) → `zkvm_bls12_pairing` — **DONE** (py_ecc-
+  mirroring FQ12 = Fp[w]/(w^12-2w^6+2) Miller loop on fused Arith384Mod,
+  `Bls12Fq12.lean`/`Bls12Pairing.lean`; real subgroup checks both sides;
+  EEST 88/88; PR #8745)
+- BLS12_MAP_FP_TO_G1 (0x10) → `zkvm_bls12_map_fp_to_g1` — **DONE**
+  (SSWU + 11-isogeny + accelerated cofactor clear, `Bls12Map.lean`;
+  EEST 77/77 with 0x11; PR #8745)
+- BLS12_MAP_FP2_TO_G2 (0x11) → `zkvm_bls12_map_fp2_to_g2` — **DONE** (same file, 3-isogeny)
 - secp256r1_verify (0x100) → `zkvm_secp256r1_verify`
 - Non-precompile accelerators reused by EVM opcode handlers: `zkvm_keccak256`
   (KECCAK256 opcode, §8.3), `zkvm_secp256k1_verify` (transaction signature

@@ -13,10 +13,13 @@
       from the append-per-write storage exec-log + `exec_log_txindex`;
     - `slot_tuple_sequences_match` (#8596) — exact list-vs-list comparison.
   Iterates the account's `storage_changes` (AccountChanges item 1), extracts each
-  `slot_key` (item 0 of the SlotChanges), and rejects on the first slot whose sequences
-  differ. A single-tx block degenerates to one tuple per slot (= the final), so this is
-  a no-op there; it bites once the multi-tx loop sets `current_block_access_index` per
-  tx (.57.11.6.3).
+  `slot_key` (item 0 of the SlotChanges), and rejects on the first user-transaction
+  slot whose sequences differ. Slots whose BAL tuple sequence starts at
+  `block_access_index = 0` are system-transaction storage effects; the runtime exec log
+  only records user transaction SSTOREs today, so those slots are skipped conservatively
+  until system-tx tuple derivation is wired. A single-tx block degenerates to one tuple
+  per slot (= the final), so this is a no-op there; it bites once the multi-tx loop sets
+  `current_block_access_index` per tx (.57.11.6.3).
 
   Buffer note: `atsc_balbuf`/`atsc_execbuf` hold up to bsrMaxTuplesPerSlot tuples
   (40 B each) per slot (.66.1.2: gas-derived — per-slot tuple count is bounded by the
@@ -31,6 +34,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
+import EvmAsm.Codegen.Programs.SystemStorageSlotTuples
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
@@ -110,14 +114,20 @@ def accountTupleSequencesConsistentFunction : String :=
   ".Latsc_vrb:\n  beqz t4, .Latsc_vrn\n  lbu t5, 0(t2); lbu t6, 0(t3); sb t6, 0(t2); sb t5, 0(t3); addi t2, t2, 1; addi t3, t3, -1; addi t4, t4, -1; j .Latsc_vrb\n" ++
   ".Latsc_vrn:\n  addi t1, t1, 40; addi t0, t0, -1; j .Latsc_vr\n" ++
   ".Latsc_vrd:\n" ++
-  "  # exec net-change tuple sequence for this slot (searched by LE atsc_key_le)\n" ++
-  "  mv a0, s2; la a1, atsc_key_le; mv a2, s3; mv a3, s4; mv a4, s5; la a5, atsc_execbuf\n" ++
-  "  jal ra, exec_log_slot_tuples\n" ++
+  "  # exec net-change tuple sequence for this slot: captured system rows first, then user rows.\n" ++
+  "  mv a0, s2; la a1, atsc_key_le; la a2, bv_system_storage_log; la t0, bv_system_storage_log_count; ld a3, 0(t0); mv a4, s3; mv a5, s4; mv a6, s5; la a7, atsc_execbuf\n" ++
+  "  jal ra, system_user_exec_log_slot_tuples\n" ++
   "  mv t6, a0                                            # exec_count\n" ++
+  -- fhsxz.2.4.2.66.1.1: symmetric to the BAL-side cap bail above. exec_log_slot_tuples
+  -- stops writing at bsrMaxTuplesPerSlot records (atsc_execbuf capacity) but returns the
+  -- true count; > cap means the tail records were not written, so bail conservatively
+  -- instead of comparing against stale/partial atsc_execbuf contents.
+  "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu t6, t0, .Latsc_fail\n" ++
   "  # exact list-vs-list comparison\n" ++
   "  la a0, atsc_balbuf; la t0, atsc_balcount; ld a1, 0(t0); la a2, atsc_execbuf; mv a3, t6\n" ++
   "  jal ra, slot_tuple_sequences_match\n" ++
   "  bnez a0, .Latsc_fail\n" ++
+  ".Latsc_next_slot:\n" ++
   "  addi s9, s9, 1; j .Latsc_loop\n" ++
   ".Latsc_ok:\n" ++
   "  li a0, 0; j .Latsc_ret\n" ++
@@ -142,7 +152,14 @@ def accountTupleSequencesConsistentData : String :=
   "atsc_key:\n  .zero 32\n" ++
   "atsc_key_le:\n  .zero 32\n" ++       -- LE byte-reverse of atsc_key for the exec-log search (bmvmx.1.6.6)
   "atsc_balbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++   -- .66.1.2: bsrMaxTuplesPerSlot tuples * 40B (was 256; one net-change tuple per tx, ~9.5k max at 200M)
-  "atsc_execbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n"
+  "atsc_execbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
+  systemUserExecLogSlotTuplesData
+
+def accountTupleSequencesConsistentEmptySystemData : String :=
+  ".balign 8\n" ++
+  "bv_system_storage_log_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_system_storage_log:\n  .zero 128\n"
 
 /-- `zisk_account_tuple_sequences_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
@@ -166,6 +183,7 @@ def ziskAccountTupleSequencesConsistentPrologue : String :=
   "  j .Latsc_pdone\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balSlotTupleSequenceFunction ++ "\n" ++
+  systemUserExecLogSlotTuplesFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
@@ -176,6 +194,7 @@ def ziskAccountTupleSequencesConsistentPrologue : String :=
 def ziskAccountTupleSequencesConsistentDataSection : String :=
   ".section .data\n" ++
   accountTupleSequencesConsistentData ++ "\n" ++
+  accountTupleSequencesConsistentEmptySystemData ++ "\n" ++
   balSlotTupleSequenceData ++ "\n" ++          -- bts_* scratch
   ziskRlpFieldToU64DataSection ++ "\n" ++      -- rfu_* scratch (rlp_field_to_u64)
   execLogSlotTuplesData                        -- els_* scratch

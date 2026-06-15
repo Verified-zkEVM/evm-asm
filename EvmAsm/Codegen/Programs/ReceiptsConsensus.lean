@@ -6,6 +6,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BloomBlock
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
@@ -58,24 +59,43 @@ def blockValidateReceiptsConsensusListFunction : String :=
   "  mv a0, s2; mv a1, s3; la a2, brcl_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbrcl_root_fail\n" ++
-  "  la t0, brcl_count; ld s4, 0(t0)\n" ++
-  "  li t0, 129; bgeu s4, t0, .Lbrcl_root_fail\n" ++
-  "  li s5, 0                    # i\n" ++
+  "  la t0, brcl_count; ld s4, 0(t0)          # raw RLP item count\n" ++
+  "  li s5, 0                    # raw item index\n" ++
   "  la s6, brcl_value_descs\n" ++
+  "  li s7, 0                    # logical receipt count\n" ++
   ".Lbrcl_desc_loop:\n" ++
   "  beq s5, s4, .Lbrcl_desc_done\n" ++
+  "  li t0, " ++ toString bvReceiptConsensusDescCapacity ++ "; bgeu s7, t0, .Lbrcl_root_fail\n" ++
   "  mv a0, s2; mv a1, s3; mv a2, s5\n" ++
   "  la a3, brcl_offset; la a4, brcl_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
+  "  jal ra, rlp_item_span\n" ++
   "  bnez a0, .Lbrcl_root_fail\n" ++
   "  la t0, brcl_offset; ld t1, 0(t0); add t2, s2, t1\n" ++
   "  la t0, brcl_length; ld t3, 0(t0)\n" ++
-  "  slli t4, s5, 4; add t5, s6, t4\n" ++
-  "  sd t2, 0(t5); sd t3, 8(t5)\n" ++
+  "  li t4, 1; bne t3, t4, .Lbrcl_store_legacy\n" ++
+  "  lbu t4, 0(t2); beqz t4, .Lbrcl_store_legacy\n" ++
+  "  li t5, 4; bgtu t4, t5, .Lbrcl_store_legacy\n" ++
+  "  addi t4, s5, 1; bgeu t4, s4, .Lbrcl_root_fail\n" ++
+  "  mv a0, s2; mv a1, s3; mv a2, t4\n" ++
+  "  la a3, brcl_next_offset; la a4, brcl_next_length\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbrcl_root_fail\n" ++
+  "  la t0, brcl_offset; ld t1, 0(t0); add t2, s2, t1\n" ++
+  "  la t0, brcl_next_offset; ld t4, 0(t0)\n" ++
+  "  la t0, brcl_next_length; ld t5, 0(t0)\n" ++
+  "  add t6, t4, t5\n" ++
+  "  sub t3, t6, t1              # typed receipt len = type byte + inner list\n" ++
+  "  addi s5, s5, 2\n" ++
+  "  j .Lbrcl_store_desc\n" ++
+  ".Lbrcl_store_legacy:\n" ++
   "  addi s5, s5, 1\n" ++
+  ".Lbrcl_store_desc:\n" ++
+  "  slli t4, s7, 4; add t5, s6, t4\n" ++
+  "  sd t2, 0(t5); sd t3, 8(t5)\n" ++
+  "  addi s7, s7, 1\n" ++
   "  j .Lbrcl_desc_loop\n" ++
   ".Lbrcl_desc_done:\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, brcl_value_descs; mv a3, s4\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, brcl_value_descs; mv a3, s7\n" ++
   "  jal ra, block_validate_receipts_root_indexed\n" ++
   "  bnez a0, .Lbrcl_root_fail\n" ++
   "  la t0, brcl_root_valid; sd a1, 0(t0)\n" ++
@@ -178,9 +198,11 @@ def ziskBlockValidateReceiptsConsensusListDataSection : String :=
   "brcl_count:\n  .zero 8\n" ++
   "brcl_offset:\n  .zero 8\n" ++
   "brcl_length:\n  .zero 8\n" ++
+  "brcl_next_offset:\n  .zero 8\n" ++
+  "brcl_next_length:\n  .zero 8\n" ++
   "brcl_root_valid:\n  .zero 8\n" ++
   "brcl_bloom_valid:\n  .zero 8\n" ++
-  "brcl_value_descs:\n  .zero 2048"
+  "brcl_value_descs:\n  .zero " ++ toString bvReceiptConsensusDescBytes
 
 def ziskBlockValidateReceiptsConsensusListProbeUnit : BuildUnit := {
   body        := NOP

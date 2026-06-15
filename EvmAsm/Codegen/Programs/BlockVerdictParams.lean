@@ -62,6 +62,93 @@ def bsrMaxTuplesPerSlot : Nat := 10000
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
+/-- Active multi-transaction execution-loop capacity. The cached `zkevm@v0.4.0`
+    stateless fixtures include blocks with more than the old 16-entry arena
+    cap, topping out at 1021 transactions. Keep this as the conservative loop
+    gate while sender aggregation, skip-list traversal, and other non-cheap
+    algorithms are generalized to the full 200M target. -/
+def bvMtxActiveTxCap : Nat := 1024
+
+/-- Full Amsterdam transaction capacity target from the 200M block-gas limit and
+    the 21,000 gas intrinsic floor: floor(200,000,000 / 21,000) = 9,523. -/
+def bvMtxFullTxCap : Nat := 9523
+
+/-- Compatibility alias for existing active-loop call sites. New code should
+    choose `bvMtxActiveTxCap` or `bvMtxFullTxCap` explicitly. -/
+def bvMtxArenaTxCap : Nat := bvMtxActiveTxCap
+
+/-- Cheap per-transaction result arenas use the full tx-capacity target. They
+    are indexed only by tx number and are small enough to make static sizing
+    preferable to preserving the old 1024 fixture cap. -/
+def bvMtxU64ArenaBytes : Nat := bvMtxFullTxCap * 8
+def bvMtxLogWindowBytes : Nat := bvMtxFullTxCap * 16
+
+/-- The multi-tx skip-list stores `{sender_i, recipient_i}` for every
+    transaction plus the shared coinbase account. It is sized to the full 200M
+    tx-count target so the post-loop BAL comparators do not inherit the active
+    execution-loop cap. -/
+def bvMtxSkipListEntries : Nat := bvMtxFullTxCap * 2 + 1
+def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
+/-- Sender-balance remains active-loop sized until its running-balance
+    algorithm is lifted in the follow-up full-capacity slice. -/
+def bvMtxSenderBalanceEntries : Nat := bvMtxActiveTxCap
+def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
+/-- Sender-count aggregation is a post-loop, keyed-by-sender table. It is sized
+    to the full tx-count target so the B1 final-nonce check does not inherit the
+    active execution-loop cap. -/
+def bvMtxSenderCountEntries : Nat := bvMtxFullTxCap
+def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
+def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
+def bvMtxSenderCountSkipBytes : Nat := bvMtxSenderCountEntries * 64
+
+/-- Cross-transaction committed-storage threading table. This is a unique
+    `(recipient, slotKey)` capacity, not a transaction-count or raw-write
+    capacity: each tx snapshots 128-byte storage-log entries so later tx preloads
+    can see earlier committed values, while duplicate keys update in place.
+    Overflow is conservative and tracked separately from tx arena overflow. -/
+def bvMtxCommittedEntryBytes : Nat := 128
+def bvMtxCommittedPageCapacity : Nat := 128
+/-- Current single-page committed-storage capacity used by the existing helper ABI. -/
+def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
+def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
+
+/-- Behavior-neutral chunked committed-storage substrate for the follow-up
+    helpers. Each page preserves the current 128-entry layout; the total capacity
+    is the number of unique `(recipient, slotKey)` entries across all pages. -/
+def bvMtxCommittedChunkPages : Nat := 4
+def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
+def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
+
+/-- Persistent storage exec-log row capacity:
+    `(0xa0830000 - 0xa0630000) / 128 = 16384`.  The system-tuple side arena
+    mirrors this maximum because it captures rows that temporarily append to the
+    same runtime storage log before the verdict restores the user-log count. -/
+def bvSystemStorageLogCapacity : Nat := 16384
+def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
+def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
+
+/-- Receipt/log arena capacities are deliberately separate from the transaction
+    count cap. Capacity overflow is conservative receipt-enforcement debt
+    (accept/no enforcement), while malformed data inside an enforced shape may
+    still reject. These names preserve the current static sizes while making the
+    independent limits explicit for the follow-up capacity slices. -/
+def bvReceiptRecordCapacity : Nat := 16
+def bvReceiptRecordBytes : Nat := 64
+def bvReceiptRecordsBytes : Nat := bvReceiptRecordCapacity * bvReceiptRecordBytes
+def bvBlockLogDescCapacity : Nat := 128
+def bvBlockLogDescBytes : Nat := bvBlockLogDescCapacity * 256
+def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 16
+def bvBlockLogDataBytes : Nat := 65536
+def bvLogsRlpArenaBytes : Nat := 65536
+def bvRecordBloomBytes : Nat := 256
+def bvRecordBloomsBytes : Nat := bvReceiptRecordCapacity * bvRecordBloomBytes
+def bvRecordLogsDescBytes : Nat := bvReceiptRecordCapacity * 32
+def bvReceiptsRlpBytes : Nat := 65536
+def bvReceiptEncodePayloadBytes : Nat := 16384
+def bvReceiptListPayloadBytes : Nat := 32768
+def bvReceiptConsensusDescCapacity : Nat := 128
+def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
+
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
     Predeploy code comes from the witness and is NOT EIP-170-bounded, but the
@@ -76,5 +163,61 @@ def bsrEncodedAccountBytes : Nat := 256
 def bsrSystemAccountBytes : Nat := 128
 def bsrStateChangeBytes : Nat := 40
 def baapStorageDescBytes : Nat := 40
+
+/-- Current static multi-transaction fixture arena capacity. The verdict guest's
+    active per-tx u64/log-window buffers are still sized to this bound while the
+    full-capacity migration lands in smaller slices. -/
+def bmvFixtureTxCapacity : Nat := 16
+
+def bmvFullTxCapacity : Nat := bvMtxFullTxCap
+
+def bmvU64PerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 8
+def bmvLogWindowPerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 16
+
+def bmvFixtureU64PerTxArenaBytes : Nat :=
+  bmvU64PerTxArenaBytes bmvFixtureTxCapacity
+
+def bmvFixtureLogWindowArenaBytes : Nat :=
+  bmvLogWindowPerTxArenaBytes bmvFixtureTxCapacity
+
+def bmvFullU64PerTxArenaBytes : Nat :=
+  bmvU64PerTxArenaBytes bmvFullTxCapacity
+
+def bmvFullLogWindowArenaBytes : Nat :=
+  bmvLogWindowPerTxArenaBytes bmvFullTxCapacity
+
+#guard bvMtxSenderBalanceEntries = 1024
+#guard bvMtxSenderBalanceTableBytes = 65536
+#guard bvMtxSkipListEntries = 19047
+#guard bvMtxSkipListBytes = 609504
+#guard bvMtxSenderCountEntries = 9523
+#guard bvMtxSenderCountTableBytes = 380920
+#guard bvMtxSenderCountSortBytes = 304736
+#guard bvMtxSenderCountSkipBytes = 609472
+#guard bvMtxActiveTxCap = 1024
+#guard bvMtxFullTxCap = 9523
+#guard bvMtxArenaTxCap = bvMtxActiveTxCap
+#guard bvMtxU64ArenaBytes = 76184
+#guard bvMtxLogWindowBytes = 152368
+#guard bmvFixtureTxCapacity = 16
+#guard bmvFullTxCapacity = 9523
+#guard bmvFixtureU64PerTxArenaBytes = 128
+#guard bmvFixtureLogWindowArenaBytes = 256
+#guard bmvFullU64PerTxArenaBytes = 76184
+#guard bmvFullLogWindowArenaBytes = 152368
+#guard bvMtxCommittedBytes = 16384
+#guard bvMtxCommittedChunkCapacity = 512
+#guard bvMtxCommittedChunkBytes = 65536
+#guard bvReceiptRecordsBytes = 1024
+#guard bvBlockLogDescBytes = 32768
+#guard bvBlockLogMetaBytes = 2048
+#guard bvBlockLogDataBytes = 65536
+#guard bvLogsRlpArenaBytes = 65536
+#guard bvRecordBloomsBytes = 4096
+#guard bvRecordLogsDescBytes = 512
+#guard bvReceiptsRlpBytes = 65536
+#guard bvReceiptEncodePayloadBytes = 16384
+#guard bvReceiptListPayloadBytes = 32768
+#guard bvReceiptConsensusDescBytes = 2048
 
 end EvmAsm.Codegen

@@ -13,6 +13,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
 
@@ -68,7 +71,7 @@ open EvmAsm.Rv64
 -/
 def stageRuntimePayloadFunction : String :=
   "stage_runtime_payload:\n" ++
-  "  addi sp, sp, -16\n" ++
+  "  addi sp, sp, -32\n" ++   -- 6121j.1: +16 extra slot to save a0(ctx) across the BLOBBASEFEE price call
   "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
   "  mv s0, a1                    # output payload ptr\n" ++
   -- Reject any context the extractor did not fully accept.
@@ -105,21 +108,43 @@ def stageRuntimePayloadFunction : String :=
   "  ld t2, 404(a2); sd t2, 344(s0)\n" ++
   -- TIMESTAMP (word 7 -> +312): exec u64 @428.
   "  ld t2, 428(a2); sd t2, 312(s0)\n" ++
+  -- PREVRANDAO (word 9 -> +376): 32-byte direct copy from exec+372.
+  "  addi t1, a2, 372\n" ++
+  "  ld t2, 0(t1); sd t2, 376(s0)\n" ++
+  "  ld t2, 8(t1); sd t2, 384(s0)\n" ++
+  "  ld t2, 16(t1); sd t2, 392(s0)\n" ++
+  "  ld t2, 24(t1); sd t2, 400(s0)\n" ++
   -- GASLIMIT (word 10 -> +408): exec u64 @412.
   "  ld t2, 412(a2); sd t2, 408(s0)\n" ++
-  -- COINBASE (word 6 -> +280): exec 20-byte address @32, right-aligned into a
-  -- 32-byte big-endian stack word. Copy the 20 bytes byte-by-byte so the
-  -- staged word has the address in its low 20 bytes (matching how the env
-  -- trailer copy treats these words verbatim).
+  -- 6121j.1: CHAINID (word 12 -> +472): bv_chain_id (u64, set by chain_config_valid during the
+  -- verdict's config validation, BEFORE dispatch). Direct u64 copy like NUMBER/TIMESTAMP/GASLIMIT
+  -- above (the handler evm_env_load .chainId reads env+384 the same way). Activates CHAINID for
+  -- dispatched self-contained contracts -- previously conservatively rejected (#8782) because the
+  -- env word was unstaged so a dispatched contract read CHAINID=0 (false-accept). Now staged with
+  -- the real chain id, so the reject is lifted (see BlockVerdictSelfContained .Lbsc_check).
+  "  la t1, bv_chain_id; ld t2, 0(t1); sd t2, 472(s0)\n" ++
+  -- COINBASE (word 6 -> +280): exec 20-byte canonical address at payload byte 32,
+  -- reversed into the low 160 bits of the EVM stack word layout.
   "  addi t1, a2, 32              # exec coinbase ptr\n" ++
   "  addi t3, s0, 280             # dst env word\n" ++
   "  li t4, 0\n" ++
   ".Lsrp_coinbase_loop:\n" ++
   "  li t5, 20; beq t4, t5, .Lsrp_coinbase_done\n" ++
   "  add t6, t1, t4; lbu t5, 0(t6)\n" ++
-  "  add t6, t3, t4; sb t5, 0(t6)\n" ++
+  "  li t6, 19; sub t6, t6, t4; add t6, t3, t6; sb t5, 0(t6)\n" ++
   "  addi t4, t4, 1; j .Lsrp_coinbase_loop\n" ++
   ".Lsrp_coinbase_done:\n" ++
+  -- 6121j.1: BLOBBASEFEE — stage the block blob gas price into the payload blob_base_fee slot @+32
+  -- (the dispatcher copies +32 -> evm_env+512, which the BLOBBASEFEE handler reads). Reuse the
+  -- verdict's amsterdam_blob_gas_price_u256 (= calculate_blob_gas_price = taylor_exponential(1,
+  -- excess_blob_gas, 11684671); co-linked in BlockVerdictV2); excess_blob_gas = SSZ exec field
+  -- @exec+520 (bgv_u64le). Save a0 (ctx, read by the trailer below) across the calls; s0 is
+  -- callee-saved (preserved by the helper). Previously the slot stayed 0 so a dispatched
+  -- BLOBBASEFEE contract read 0 (#8782 rejected it conservatively); now staged with the real price.
+  "  sd a0, 16(sp)\n" ++
+  "  addi a0, a2, 520; jal ra, bgv_u64le\n" ++                       -- a0 = excess_blob_gas (u64)
+  "  addi a1, s0, 32; jal ra, amsterdam_blob_gas_price_u256\n" ++    -- price (u256 BE) -> payload+32 (overflow unreachable for valid blocks)
+  "  ld a0, 16(sp)\n" ++                                             -- restore ctx ptr for the trailer
   -- Transaction gas / control trailer.
   "  ld t0, 40(a0)                # context tx gas limit\n" ++
   "  sd t0, 536(s0)               # gas_limit\n" ++
@@ -131,7 +156,7 @@ def stageRuntimePayloadFunction : String :=
   "  li a0, 0\n" ++
   ".Lsrp_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
+  "  addi sp, sp, 32\n" ++   -- 6121j.1: matches the -32 frame
   "  ret"
 
 /- Probe input layout (file byte 0 maps to guest INPUT+8, so the probe stores
@@ -158,6 +183,7 @@ def stageRuntimePayloadFunction : String :=
       +56   staged witness.codes len
       +64   staged gas_limit
       +72   context status (for diagnostics)
+      +80   PREVRANDAO low byte (env word 9 @ payload+376)
 -/
 def ziskStageRuntimePayloadPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -190,6 +216,7 @@ def ziskStageRuntimePayloadPrologue : String :=
   "  ld t2, 576(t1); sd t2, 56(t0)  # witness.codes len\n" ++
   "  ld t2, 536(t1); sd t2, 64(t0)  # gas_limit\n" ++
   "  li t3, 0xa0020000; ld t2, 0(t3); sd t2, 72(t0)  # context status\n" ++
+  "  lbu t2, 376(t1); sd t2, 80(t0)  # PREVRANDAO low byte\n" ++
   "  j .Lsrpp_done\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
@@ -200,6 +227,13 @@ def ziskStageRuntimePayloadPrologue : String :=
   txExtractValueFunction ++ "\n" ++
   txExtractDataSectionFunction ++ "\n" ++
   simpleTransferTxContextFunction ++ "\n" ++
+  bgvU64leFunction ++ "\n" ++
+  u256FromU64BeFunction ++ "\n" ++
+  u256IsZeroFunction ++ "\n" ++
+  u256AddBeFunction ++ "\n" ++
+  u256MulU64BeFunction ++ "\n" ++
+  u256DivU64BeFunction ++ "\n" ++
+  amsterdamBlobGasPriceU256Function ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   ".Lsrpp_done:"
 
@@ -213,6 +247,8 @@ def ziskStageRuntimePayloadDataSection : String :=
   "bv_tx_item_start:\n  .zero 8\n" ++
   "bv_public_keys_ptr:\n  .zero 8\n" ++
   "bv_public_keys_len:\n  .zero 8\n" ++
+  "bv_chain_id:\n  .zero 8\n" ++
+  "u256m_acc:\n  .zero 40\n" ++
   "teng_type:\n  .zero 8\n" ++
   "teng_inner_off:\n  .zero 8\n" ++
   "rfu_offset:\n  .zero 8\n" ++

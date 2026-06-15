@@ -104,7 +104,7 @@ elab "xcancel" hyp:ident : tactic => do
 
   -- Build permutation proof: hypAssertion = goalAssertionInst
   let goalAssertionInst ← instantiateMVars goalAssertion
-  let permProof ← buildPermProof hypAssertion goalAssertionInst
+  let permProof ← buildPermProofDispatch hypAssertion goalAssertionInst
   -- Close goal: Eq.mp (congrFun permProof s) hyp
   let proof ← mkEqMP (← mkCongrFun permProof stateExpr) hypExpr
   goal.assign proof

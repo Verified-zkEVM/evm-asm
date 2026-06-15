@@ -60,15 +60,89 @@ open EvmAsm.Rv64
     Clobbers t0-t4 (and the dispatcher regs it intentionally repoints). -/
 def frameReturnFunction : String :=
   "frame_return:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s6, 40(sp); sd s7, 48(sp)\n" ++
+  "  sd s8, 56(sp); sd s9, 64(sp); sd s10, 72(sp)\n" ++
   "  mv s0, a0                      # success word\n" ++
   "  mv s1, a1                      # child returndata ptr\n" ++
   "  mv s2, a2                      # returndata len\n" ++
   -- Capture the child frame's leftover gas (x20 = child env at entry) for the
   -- EIP-150 refund below; held in s7 across the x20 repoint.
   "  ld s7, 568(x20)\n" ++
+  -- Capture the child frame's committed log cursors. On success these become
+  -- the parent's live cursors; on REVERT/exceptional failure the parent keeps
+  -- its pre-child checkpoint values.
+  "  ld s8, 448(x20)                 # child persistentLogLength\n" ++
+  "  ld s9, 464(x20)                 # child transientLogLength\n" ++
+  "  ld s10, 472(x20)                # child eventLogLength\n" ++
+  -- nxio8.4.1: on a child REVERT / exceptional halt (success word s0 == 0) restore
+  -- the parent's pre-child EIP-8037 state gas, snapshotted into the child env
+  -- (env+624/632) by call_frame_descend. incorporate_child_on_error returns the
+  -- reverted child's entire state-gas allocation (used + left) to the parent and
+  -- does NOT accumulate its state_gas_used; the guest's globals (evm_state_gas_left /
+  -- evm_state_gas_used) were mutated in place by the child's SSTOREs, so we roll them back
+  -- to the snapshot. On success (s0 != 0) leave them — the child's state gas stays
+  -- accumulated (incorporate_child_on_success). x20 = child env here (pre-repoint).
+  "  bnez s0, .Lfr_sgas_done\n" ++
+  -- If child state-gas charges spilled into regular gas, restore that spilled
+  -- regular amount to the child leftover before merging it into the parent.
+  -- spill = max(0, (used - used0) - max(0, left0 - left)). The globals are
+  -- restored below; this accounts for the regular-gas side of the same rollback.
+  "  ld t0, 632(x20)                 # used0\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used\n" ++
+  "  bleu t2, t0, .Lfr_sgas_no_spill\n" ++
+  "  sub t2, t2, t0                 # t2 = used_delta\n" ++
+  "  ld t0, 624(x20)                 # left0\n" ++
+  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # left\n" ++
+  "  bleu t0, t3, .Lfr_sgas_add_spill\n" ++
+  "  sub t3, t0, t3                 # t3 = reservoir_spent\n" ++
+  "  bleu t2, t3, .Lfr_sgas_no_spill\n" ++
+  "  sub t2, t2, t3\n" ++
+  ".Lfr_sgas_add_spill:\n" ++
+  "  add s7, s7, t2\n" ++
+  ".Lfr_sgas_no_spill:\n" ++
+  "  ld t0, 624(x20); la t1, evm_state_gas_left; sd t0, 0(t1)\n" ++
+  "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  -- nxio8.4.2: discard the reverted child's EIP-3529 refund additions by restoring
+  -- evm_refund_acc to the pre-child snapshot (incorporate_child_on_error does not
+  -- add child.refund_counter). Success leaves it (the SSTORE refunds stay).
+  "  ld t0, 640(x20); la t1, evm_refund_acc; sd t0, 0(t1)\n" ++
+  -- nxio8.4.3: truncate the EIP-2929 storage-warmth set to the pre-child count,
+  -- discarding keys the reverted child warmed (incorporate_child_on_error rolls
+  -- back accessed_storage_keys). The keys array beyond the count is stale but a
+  -- future cold access overwrites slot[count]. Success leaves it (warmth
+  -- propagates up per incorporate_child_on_success).
+  "  ld t0, 648(x20); la t1, evm_storage_access_count; sd t0, 0(t1)\n" ++
+  -- i3djw/reverted-CREATE rollback: truncate global effect logs to the
+  -- pre-child snapshots captured by call_frame_descend. Successful child frames
+  -- keep their CREATE/CALL value effects; reverted child frames discard them.
+  "  ld t0, 656(x20); la t1, exec_nonstorage_effect_count; sd t0, 0(t1)\n" ++
+  "  ld t0, 664(x20); la t1, exec_nonstorage_effect_overflow; sd t0, 0(t1)\n" ++
+  "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
+  "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
+  "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
+  -- 3hlnt.2.2: failed child frames restore the hot running block bloom from the
+  -- child-depth checkpoint captured by call_frame_descend. Success leaves the
+  -- child-updated hot bloom intact.
+  "  la t0, evm_call_depth\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  slli t0, t0, 8\n" ++
+  "  la t1, rb_bloom_checkpoints\n" ++
+  "  add t1, t1, t0                 # src = checkpoint[child_depth - 1]\n" ++
+  "  la t2, rb_running_block_bloom  # dst = hot running block bloom\n" ++
+  "  li t3, 32\n" ++
+  ".Lfr_bloom_restore_loop:\n" ++
+  "  beqz t3, .Lfr_bloom_restore_done\n" ++
+  "  ld t4, 0(t1)\n" ++
+  "  sd t4, 0(t2)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lfr_bloom_restore_loop\n" ++
+  ".Lfr_bloom_restore_done:\n" ++
+  ".Lfr_sgas_done:\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
   "  ld t1, 0(t0)                   # t1 = child depth d\n" ++
@@ -158,6 +232,14 @@ def frameReturnFunction : String :=
   "  sub t3, t3, t4               # parent stack low = top - 1024*32\n" ++
   "  la t4, evm_cur_stack_low; sd t3, 0(t4)\n" ++
   "5:\n" ++
+  -- Merge child frame log cursors into the parent only on success. On failure,
+  -- the parent env still holds the pre-child checkpoint values, so stale child
+  -- entries past those cursors remain ignored.
+  "  beqz s0, .Lfr_log_merge_done\n" ++
+  "  sd s8, 448(x20)\n" ++
+  "  sd s9, 464(x20)\n" ++
+  "  sd s10, 472(x20)\n" ++
+  ".Lfr_log_merge_done:\n" ++
   -- EIP-150 gas refund: return the child frame's UNUSED gas to the parent
   -- (x20 = parent env here). Pairs with the cost deduction in call_frame_descend.
   "  ld t0, 568(x20)\n" ++
@@ -171,7 +253,8 @@ def frameReturnFunction : String :=
   "  addi x10, x10, 1\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s6, 40(sp); ld s7, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s8, 56(sp); ld s9, 64(sp); ld s10, 72(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_frame_return`: unit probe for `frame_return` over synthesized state.
@@ -182,19 +265,19 @@ def frameReturnFunction : String :=
     success word.
 
     Output (depth-1→0 case):
-      +0  x10 after return            (expect parent_pc 0x100 + 1 = 0x101)
-      +8  x21 after return            (expect parent_cb 0x222)
-      +16 x13 - &evm_memory           (expect 0)
-      +24 x20 - &evm_env              (expect 0)
-      +32 x12 - &fr_pstack            (expect 192 = netPopBytes)
-      +40 success word at x12         (expect 1)
-      +48 evm_call_depth after        (expect 0)
+      +0  packed parent codebase:pc+1     (expect 0x222:0x101)
+      +8  running bloom word0 after success (expect child-updated word0)
+      +16 packed x20/x13 deltas           (expect 0:0 against evm_env/evm_memory)
+      +24 running bloom word31 after success
+      +32 packed success:x12-delta        (expect 1:192)
+      +48 evm_call_depth after            (expect 0)
     Output (depth-2→1 case):
-      +56 x13 - &call_frame_arena     (expect 0  = frame_base(1)+frameMemOff)
-      +64 x20 - &call_frame_arena     (expect 0x28400 = +frameEnvOff)
-      +72 x12 - &fr_pstack2           (expect 160 = netPopBytes)
-      +80 success word at x12         (expect 0  — REVERT path)
-      +88 evm_call_depth after        (expect 1)
+      +40 running bloom word0 after REVERT (expect checkpoint[1] word0)
+      +56 packed x20/x13 deltas           (expect 0x28400:0 against call_frame_arena)
+      +64 running bloom word31 after REVERT
+      +72 x12 - &fr_pstack2               (expect 160 = netPopBytes)
+      +80 success word at x12             (expect 0 — REVERT path)
+      +88 evm_call_depth after            (expect 1)
       +96 first copied returndata byte at outoff_abs (expect 0xab)
     Frame-relative stack-bound restores:
       +104 evm_cur_stack_top - &evm_stack_top   (scenario A, expect 0)
@@ -205,7 +288,12 @@ def frameReturnFunction : String :=
       +136 precompile_frame data[0] after scenario B (expect 0xab)
     EIP-150 gas refund (parent gas += child leftover):
       +144 parent gas after scenario A (100 + 50 = 150)
-      +152 parent gas after scenario B (200 + 30 = 230) -/
+      +152 parent gas after scenario B (200 + 30 = 230)
+    Log cursor merge/rollback:
+      +224 parent persistent cursor after success
+      +232 parent transient/event cursors after success packed as transient<<32 | event
+      +240 parent persistent cursor after revert
+      +248 parent transient/event cursors after revert packed as transient<<32 | event -/
 def ziskFrameReturnPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -222,14 +310,23 @@ def ziskFrameReturnPrologue : String :=
   "  la x20, fr_child_env\n" ++                       -- child env for the gas read
   "  la t0, fr_child_env; li t1, 50; sd t1, 568(t0)\n" ++   -- child leftover gas = 50
   "  la t0, evm_env;      li t1, 100; sd t1, 568(t0)\n" ++  -- parent gas = 100
+  -- Success should merge the child's committed storage/transient/event cursors into the parent.
+  "  la t0, fr_child_env; li t1, 12; sd t1, 448(t0); li t1, 13; sd t1, 464(t0); li t1, 14; sd t1, 472(t0)\n" ++
+  "  la t0, evm_env;      li t1, 1;  sd t1, 448(t0); li t1, 2;  sd t1, 464(t0); li t1, 3;  sd t1, 472(t0)\n" ++
+  -- nxio8.4.1: state gas before a SUCCESS return = 1000/2000; success leaves the
+  -- globals (child state-gas stays accumulated); the +624/632 snapshot is ignored.
+  "  la t0, evm_state_gas_left; li t1, 1000; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; li t1, 2000; sd t1, 0(t0)\n" ++
+  "  la t0, evm_refund_acc; li t1, 3000; sd t1, 0(t0)\n" ++   -- nxio8.4.2: success leaves refund
+  "  la t0, evm_storage_access_count; li t1, 11; sd t1, 0(t0)\n" ++   -- nxio8.4.3: success leaves warmth
+  "  la t0, fr_child_env; li t1, 333; sd t1, 624(t0); li t1, 444; sd t1, 632(t0); li t1, 888; sd t1, 640(t0); li t1, 22; sd t1, 648(t0)\n" ++
+  "  la t0, rb_running_block_bloom; li t1, 0x1111222233334444; sd t1, 0(t0); li t1, 0xaaaabbbbccccdddd; sd t1, 248(t0)\n" ++
   "  li a0, 1; li a1, 0; li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
-  "  sd x10, 0(s0)                  # expect 0x101 (parent_pc 0x100 + 1)\n" ++
-  "  sd x21, 8(s0)                  # expect 0x222\n" ++
-  "  la t0, evm_memory; sub t0, x13, t0; sd t0, 16(s0)   # expect 0\n" ++
-  "  la t0, evm_env;    sub t0, x20, t0; sd t0, 24(s0)   # expect 0\n" ++
-  "  la t0, fr_pstack;  sub t0, x12, t0; sd t0, 32(s0)   # expect 192\n" ++
-  "  ld t0, 0(x12); sd t0, 40(s0)                        # expect 1\n" ++
+  "  slli t0, x21, 32; or t0, t0, x10; sd t0, 0(s0)       # pack parent_cb:parent_pc+1\n" ++
+  "  la t0, rb_running_block_bloom; ld t1, 0(t0); sd t1, 8(s0); ld t1, 248(t0); sd t1, 24(s0)\n" ++
+  "  la t0, evm_memory; sub t1, x13, t0; la t0, evm_env; sub t2, x20, t0; slli t2, t2, 32; or t1, t1, t2; sd t1, 16(s0)\n" ++
+  "  la t0, fr_pstack; sub t1, x12, t0; ld t2, 0(x12); slli t2, t2, 32; or t1, t1, t2; sd t1, 32(s0)\n" ++
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 48(s0)  # expect 0\n" ++
   -- frame-relative stack bounds restored to the depth-0 global arena (cur_top == &evm_stack_top).
   "  la t0, evm_cur_stack_top; ld t1, 0(t0); la t2, evm_stack_top; sub t1, t1, t2; sd t1, 104(s0)  # expect 0\n" ++
@@ -237,6 +334,13 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_precompile_frame; ld t1, 8(t0); sd t1, 120(s0)  # expect 0\n" ++
   -- EIP-150 gas refund: parent gas 100 + child leftover 50 = 150.
   "  la t0, evm_env; ld t1, 568(t0); sd t1, 144(s0)  # expect 150\n" ++
+  -- nxio8.4.1: SUCCESS leaves the state-gas globals unchanged (1000/2000).
+  "  la t0, evm_state_gas_left; ld t1, 0(t0); sd t1, 160(s0)  # expect 1000\n" ++
+  "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 168(s0)  # expect 2000\n" ++
+  "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 192(s0)      # expect 3000 (success leaves)\n" ++
+  "  la t0, evm_storage_access_count; ld t1, 0(t0); sd t1, 208(s0)  # expect 11 (success leaves)\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); sd t1, 224(s0)  # expect 12 (success merges persistent)\n" ++
+  "  ld t1, 464(t0); slli t1, t1, 32; ld t2, 472(t0); or t1, t1, t2; sd t1, 232(s0)  # expect 13<<32 | 14\n" ++
   -- ---- Scenario B: depth 2 -> 1, REVERT-style with a returndata byte ----
   "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
   -- frame_save_area[1] = (pc=0x300, cb=0x444)
@@ -252,10 +356,24 @@ def ziskFrameReturnPrologue : String :=
   "  la x20, fr_child_env\n" ++
   "  la t0, fr_child_env; li t1, 30; sd t1, 568(t0)\n" ++   -- child leftover gas = 30
   "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; li t1, 200; sd t1, 568(t0)\n" ++  -- parent (frame[1]) gas = 200
+  -- Revert should preserve the parent's pre-child cursors and ignore the child lengths.
+  "  la t0, fr_child_env; li t1, 99; sd t1, 448(t0); li t1, 98; sd t1, 464(t0); li t1, 97; sd t1, 472(t0)\n" ++
+  "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; li t1, 21; sd t1, 448(t0); li t1, 22; sd t1, 464(t0); li t1, 23; sd t1, 472(t0)\n" ++
+  -- nxio8.4.1: child mutated the state-gas globals to 444/766; the pre-child
+  -- snapshot (555/666) lives in the child env at +624/632. A REVERT must roll the
+  -- globals back to the snapshot (incorporate_child_on_error returns the child's
+  -- entire state-gas allocation; state_gas_used is not accumulated).
+  "  la t0, evm_state_gas_left; li t1, 444; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; li t1, 766; sd t1, 0(t0)\n" ++
+  "  la t0, evm_refund_acc; li t1, 9999; sd t1, 0(t0)\n" ++   -- child-modified refund
+  "  la t0, evm_storage_access_count; li t1, 33; sd t1, 0(t0)\n" ++   -- child-modified warmth count
+  "  la t0, fr_child_env; li t1, 555; sd t1, 624(t0); li t1, 666; sd t1, 632(t0); li t1, 777; sd t1, 640(t0); li t1, 44; sd t1, 648(t0)\n" ++
+  "  la t0, rb_running_block_bloom; li t1, 0x9999888877776666; sd t1, 0(t0); li t1, 0x5555444433332222; sd t1, 248(t0)\n" ++
+  "  la t0, rb_bloom_checkpoints; addi t0, t0, 256; li t1, 0x123456789abcdef0; sd t1, 0(t0); li t1, 0x0fedcba987654321; sd t1, 248(t0)\n" ++
   "  li a0, 0; la a1, fr_ret; li a2, 4\n" ++
   "  jal ra, frame_return\n" ++
-  "  la t0, call_frame_arena; sub t0, x13, t0; sd t0, 56(s0)   # expect 0\n" ++
-  "  la t0, call_frame_arena; sub t0, x20, t0; sd t0, 64(s0)   # expect 0x28400\n" ++
+  "  la t0, rb_running_block_bloom; ld t1, 0(t0); sd t1, 40(s0); ld t1, 248(t0); sd t1, 64(s0)\n" ++
+  "  la t0, call_frame_arena; sub t1, x13, t0; sub t2, x20, t0; slli t2, t2, 32; or t1, t1, t2; sd t1, 56(s0)\n" ++
   "  la t0, fr_pstack2; sub t0, x12, t0; sd t0, 72(s0)         # expect 160\n" ++
   "  ld t0, 0(x12); sd t0, 80(s0)                              # expect 0\n" ++
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 88(s0)        # expect 1\n" ++
@@ -267,6 +385,13 @@ def ziskFrameReturnPrologue : String :=
   "  la t0, evm_precompile_frame; lbu t1, 16(t0); sd t1, 136(s0)  # expect 0xab\n" ++
   -- EIP-150 gas refund: parent gas 200 + child leftover 30 = 230.
   "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; ld t1, 568(t0); sd t1, 152(s0)  # expect 230\n" ++
+  -- nxio8.4.1: REVERT restored the state-gas globals to the child-env snapshot.
+  "  la t0, evm_state_gas_left; ld t1, 0(t0); sd t1, 176(s0)  # expect 555\n" ++
+  "  la t0, evm_state_gas_used; ld t1, 0(t0); sd t1, 184(s0)  # expect 666\n" ++
+  "  la t0, evm_refund_acc; ld t1, 0(t0); sd t1, 200(s0)      # expect 777 (revert restores)\n" ++
+  "  la t0, evm_storage_access_count; ld t1, 0(t0); sd t1, 216(s0)  # expect 44 (revert restores)\n" ++
+  "  la t0, call_frame_arena; li t2, 0x28400; add t0, t0, t2; ld t1, 448(t0); sd t1, 240(s0)  # expect 21 (revert preserves persistent)\n" ++
+  "  ld t1, 464(t0); slli t1, t1, 32; ld t2, 472(t0); or t1, t1, t2; sd t1, 248(s0)  # expect 22<<32 | 23\n" ++
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   ".Lfr_done:"
@@ -286,7 +411,21 @@ def ziskFrameReturnDataSection : String :=
   ".balign 32\n" ++
   "evm_memory:\n  .zero 64\n" ++
   "evm_env:\n  .zero 640\n" ++          -- enlarged: frame_return refunds gas at env+568
-  "fr_child_env:\n  .zero 640\n" ++       -- child env (x20 at frame_return entry); +568 = child gas
+  "fr_child_env:\n  .zero 768\n" ++       -- child env (x20 at frame_return entry); +568 = child gas, +624/632 = state-gas snapshot (nxio8.4.1)
+  -- nxio8.4.1: global EIP-8037 state-gas accumulators (the real symbols live in
+  -- the guest dispatcher data section; stubbed here so the probe links).
+  "evm_state_gas_left:\n  .zero 8\n" ++
+  "evm_state_gas_used:\n  .zero 8\n" ++
+  "evm_refund_acc:\n  .zero 8\n" ++
+  "evm_storage_access_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_count:\n  .zero 8\n" ++
+  "exec_nonstorage_effect_overflow:\n  .zero 8\n" ++
+  "exec_code_effect_count:\n  .zero 8\n" ++
+  "exec_code_effect_next:\n  .zero 8\n" ++
+  "exec_code_effect_overflow:\n  .zero 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
 
   -- Frame-relative stack-bound labels + cells. `evm_stack_top`/`evm_stack_low`
   -- are address-only stubs (frame_return takes their `&` for the depth-0

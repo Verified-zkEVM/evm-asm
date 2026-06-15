@@ -9,6 +9,9 @@ import EvmAsm.Codegen.Programs.Evm
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.TxPubkey
+import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
+import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 
 namespace EvmAsm.Codegen
 
@@ -52,6 +55,237 @@ def runtimeDispatcherCallProbeUnit : BuildUnit :=
     and surfaces them to the stable `OUTPUT+160` diagnostic window. -/
 def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
   buildRuntimeDispatchGasCaptureProbeUnit tinyInterpRegistry evmAddEpilogue
+
+
+/-! ## zisk_creation_runtime_windows
+
+    Probe for the top-level creation runtime-window integration. It runs the
+    supported one-byte STOP initcode shape through
+    `block_verdict_single_tx_creation_runtime`, then verifies the verdict-facing
+    windows are populated. It then resets `bvgr_runtime_count` and calls the same
+    helper with unsupported non-STOP initcode to pin the conservative
+    `runtime_count=0` behavior.
+
+    Output (0xa0010000):
+      +0  supported helper status              (expect 0)
+      +8  bvgr_runtime_count after supported   (expect 1)
+      +16 bv_tx_status_arr[0]                  (expect 1)
+      +24 bv_runtime_gas_left                  (expect 53000)
+      +32 bv_runtime_refund_counter            (expect 0)
+      +40 bv_runtime_calldata_floor            (expect 0)
+      +48 bv_tx_log_window start               (expect 0)
+      +56 bv_tx_log_window count               (expect 0)
+      +64 bv_receipts_completeness_shape       (expect 6)
+      +72 bv_receipts_enforce_enabled          (expect 0)
+      +80  bvgr_tx_exec_state_gas[0]           (expect 0)
+      +88  non-STOP helper status              (expect 4)
+      +96  runtime_count after non-STOP        (expect 0)
+      +104 bad-context helper status           (expect 1)
+      +112 runtime_count after bad context     (expect 0)
+      +120 non-creation helper status          (expect 2)
+      +128 runtime_count after non-creation    (expect 0)
+      +136 null-initcode helper status         (expect 3)
+      +144 runtime_count after null initcode   (expect 0)
+      +152 long-initcode helper status         (expect 3)
+      +160 runtime_count after long initcode   (expect 0) -/
+def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    -- Supported one-byte STOP top-level creation context.
+    "  la t0, crw_ctx\n" ++
+    "  sd zero, 0(t0)\n" ++
+    "  li t1, 53000; sd t1, 40(t0)\n" ++
+    "  li t1, 1; sd t1, 48(t0)\n" ++
+    "  la t1, crw_stop_initcode; sd t1, 56(t0)\n" ++
+    "  li t1, 1; sd t1, 64(t0)\n" ++
+    "  li t1, 0x42; sd t1, 96(t0)\n" ++
+    -- Synthetic exec payload: just enough block env for staging.
+    "  la t2, crw_exec\n" ++
+    "  li t1, 0xC0; sb t1, 32(t2)\n" ++
+    "  li t1, 99; sd t1, 404(t2)\n" ++
+    "  li t1, 12345; sd t1, 428(t2)\n" ++
+    "  li t1, 30000000; sd t1, 412(t2)\n" ++
+    "  li t1, 7; sd t1, 440(t2)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  li s0, 0xa0010000\n" ++
+    "  sd a0, 0(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 8(s0)\n" ++
+    "  la t0, bv_tx_status_arr; ld t1, 0(t0); sd t1, 16(s0)\n" ++
+    "  la t0, bv_runtime_gas_left; ld t1, 0(t0); sd t1, 24(s0)\n" ++
+    "  la t0, bv_runtime_refund_counter; ld t1, 0(t0); sd t1, 32(s0)\n" ++
+    "  la t0, bv_runtime_calldata_floor; ld t1, 0(t0); sd t1, 40(s0)\n" ++
+    "  la t0, bv_tx_log_window; ld t1, 0(t0); sd t1, 48(s0); ld t1, 8(t0); sd t1, 56(s0)\n" ++
+    "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); sd t1, 64(s0)\n" ++
+    "  la t0, bv_receipts_enforce_enabled; ld t1, 0(t0); sd t1, 72(s0)\n" ++
+    "  la t0, bvgr_tx_exec_state_gas; ld t1, 0(t0); sd t1, 80(s0)\n" ++
+    -- Unsupported non-STOP initcode must not populate runtime_count.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_bad_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 88(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 96(s0)\n" ++
+    -- Bad context status must stay conservative.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; li t1, 9; sd t1, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_stop_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 104(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 112(s0)\n" ++
+    -- Non-creation contexts must not be executed as constructors.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); sd zero, 48(t0); la t1, crw_stop_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 120(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 128(s0)\n" ++
+    -- Missing initcode pointer and too-large initcode stay unsupported shape.
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); sd zero, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 136(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 144(s0)\n" ++
+    "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
+    "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_long_initcode; sd t1, 56(t0); li t1, 2; sd t1, 64(t0)\n" ++
+    "  la a0, crw_ctx; la a1, crw_exec\n" ++
+    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  sd a0, 152(s0)\n" ++
+    "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 160(s0)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
+    stageCreationRuntimePayloadFunction ++ "\n" ++
+    blockLogWindowSnapshotFunction ++ "\n" ++
+    dispatcherCaptureExecStateGasFunction ++ "\n" ++
+    frameBaseFunction ++ "\n" ++
+    frameDepthPushFunction ++ "\n" ++
+    frameDepthPopFunction ++ "\n" ++
+    frameSaveRegsFunction ++ "\n" ++
+    frameLoadRegsFunction ++ "\n" ++
+    callFrameEnterFunction ++ "\n" ++
+    callFrameSetCallEnvFunction ++ "\n" ++
+    callFrameSetCalldataFunction ++ "\n" ++
+    callFrameForwardGasFunction ++ "\n" ++
+    callFrameDescendFunction ++ "\n" ++
+    createFrameDescendFunction ++ "\n" ++
+    frameReturnFunction ++ "\n" ++
+    recordNonstorageEffectFunction ++ "\n" ++
+    nonstorageEffectLatestBalanceFunction ++ "\n" ++
+    u256SubBeFunction ++ "\n" ++
+    emitRuntimeDispatcherCallablePrologue
+  epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
+  dataAsm     :=
+    emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 8\n" ++
+    "crw_ctx:\n  .zero 192\n" ++
+    "crw_exec:\n  .zero 512\n" ++
+    "crw_stop_initcode:\n  .byte 0x00\n" ++
+    ".balign 8\n" ++
+    "crw_bad_initcode:\n  .byte 0x01\n" ++
+    ".balign 8\n" ++
+    "crw_long_initcode:\n  .byte 0x00, 0x00\n" ++
+    ".balign 8\n" ++
+    "bv_runtime_payload:\n  .zero 65536\n" ++
+    "bv_runtime_gas_left:\n  .zero 8\n" ++
+    "bv_runtime_refund_counter:\n  .zero 8\n" ++
+    "bv_runtime_calldata_floor:\n  .zero 8\n" ++
+    "bv_tx_status_arr:\n  .zero 8192\n" ++
+    "bv_tx_is_creation_arr:\n  .zero 8192\n" ++
+    "bv_tx_log_window:\n  .zero 16\n" ++
+    "bv_last_log_start:\n  .zero 8\n" ++
+    "bv_last_log_count:\n  .zero 8\n" ++
+    "bv_receipts_completeness_shape:\n  .zero 8\n" ++
+    "bv_receipts_enforce_enabled:\n  .zero 8\n" ++
+    "bvgr_runtime_gas_left_ptr:\n  .zero 8\n" ++
+    "bvgr_runtime_refund_counter_ptr:\n  .zero 8\n" ++
+    "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
+    "bvgr_runtime_count:\n  .zero 8\n" ++
+    dispatcherExecStateGasArrayDef ++
+    ".balign 8\n" ++
+    "bv_block_log_count:\n  .zero 8\n" ++
+    "bv_block_log_data_used:\n  .zero 8\n" ++
+    "bv_block_log_overflow:\n  .zero 8\n" ++
+    ".balign 8\n" ++
+    "bv_block_log_descs:\n  .zero " ++ toString bvBlockLogDescBytes ++ "\n" ++
+    "bv_block_log_meta:\n  .zero " ++ toString bvBlockLogMetaBytes ++ "\n" ++
+    "bv_block_log_data:\n  .zero " ++ toString bvBlockLogDataBytes ++ "\n" ++
+    ".balign 8\n" ++
+    "srpc_env_base:\n  .zero 8\n" ++
+    "m29_stage_cur:\n  .zero 8\n" ++
+    "m29_stage_count:\n  .zero 8\n" ++
+    "m29_stage_table:\n  .zero 8192\n" ++
+    ".balign 8\n" ++
+    "evm_call_depth:\n  .zero 8\n" ++
+    ".balign 16\n" ++
+    "frame_save_area:\n  .zero 16400\n" ++
+    ".balign 32\n" ++
+    "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 32\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
+}
+
+/-! ## zisk_runtime_access_list_seeded_sload
+
+    Focused nxio8.5.2b probe: arm the pending tx-access-list globals, run the
+    same seed hook used by `runtime_dispatcher_call`, then charge the listed
+    `(address, slot)` directly. The access list contains one address and slot
+    zero, so the charge helper must report warm status 0, leave 5000 gas
+    unchanged, and leave exactly one warm-set key. -/
+def ziskRuntimeAccessListSeededSloadProbeUnit : BuildUnit := {
+  body        := []
+  prologueAsm :=
+    "  li sp, 0xa0050000\n" ++
+    "  la t0, rtal_probe_gas; li t1, 5000; sd t1, 0(t0)\n" ++
+    "  la t0, runtime_tx_access_list_ptr; la t1, rtal_access_list; sd t1, 0(t0)\n" ++
+    "  la t0, runtime_tx_access_list_len; li t1, 58; sd t1, 0(t0)\n" ++
+    "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
+    emitTxAccessListSeedLoop ++ "\n" ++
+    "  la a0, rtal_addr_token; la a1, rtal_slot_zero; la a2, rtal_probe_gas\n" ++
+    "  jal ra, evm_storage_access_charge_key\n" ++
+    "  li t0, 0xa0010000\n" ++
+    "  sd a0, 0(t0)\n" ++
+    "  la t1, rtal_probe_gas; ld t2, 0(t1); sd t2, 8(t0)\n" ++
+    "  la t1, evm_storage_access_count; ld t2, 0(t1); sd t2, 16(t0)\n" ++
+    "  la t1, runtime_tx_access_list_ptr; ld t2, 0(t1); sd t2, 24(t0)\n" ++
+    "  la t1, runtime_tx_access_list_len; ld t2, 0(t1); sd t2, 32(t0)\n" ++
+    "  la t1, runtime_tx_access_list_seed_fn; ld t2, 0(t1); sd t2, 40(t0)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    rlpListNthItemFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
+    storageAccessSeedFunction ++ "\n" ++
+    storageAccessGasFunction ++ "\n" ++
+    seedTxAccessListFunction
+  dataAsm     :=
+    ".section .data\n" ++
+    ".balign 8\n" ++
+    "runtime_tx_access_list_ptr:\n  .zero 8\n" ++
+    "runtime_tx_access_list_len:\n  .zero 8\n" ++
+    "runtime_tx_access_list_seed_fn:\n  .zero 8\n" ++
+    ".balign 8\n" ++
+    "rtal_probe_gas:\n  .zero 8\n" ++
+    storageAccessGasData ++
+    seedTxAccessListDataSection ++
+    ".balign 8\n" ++
+    "rtal_addr_token:\n" ++
+    "  .byte 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa\n" ++
+    "  .byte 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x12, 0x34, 0x56, 0x78\n" ++
+    "  .zero 12\n" ++
+    ".balign 8\n" ++
+    "rtal_slot_zero:\n  .zero 32\n" ++
+    ".balign 8\n" ++
+    "rtal_access_list:\n" ++
+    "  .byte 0xf8, 0x38, 0xf7, 0x94\n" ++
+    "  .byte 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa\n" ++
+    "  .byte 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x12, 0x34, 0x56, 0x78\n" ++
+    "  .byte 0xe1, 0xa0\n" ++
+    "  .zero 32\n"
+}
 
 /-! ## zisk_ecrecover_precompile_probe (.62.2.5 e2e)
 
@@ -107,7 +341,11 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_stage_system_call (8uld3.2.1c)
@@ -189,7 +427,11 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_withdrawal_requests (8uld3.2b)
@@ -271,7 +513,11 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_consolidation_requests (8uld3.3)
@@ -353,7 +599,11 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_requests_hash_e2e (8uld3.2.3 / 8uld3.4 integration)
@@ -472,7 +722,11 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_derive_block_system_requests (8uld3.2.3/8uld3.4 glue)
@@ -555,7 +809,11 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 /-! ## zisk_sstore_clear_gas_probe (regression pin for the SSTORE-clear charge; was the .57.11.6.5.3 / d' reproducer)
@@ -662,7 +920,11 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    ".balign 8\n" ++
+    "rb_running_block_bloom:\n  .zero 256\n" ++
+    "rb_running_receipt_bloom:\n  .zero 256\n" ++
+    "rb_bloom_checkpoints:\n  .zero 262144\n"
 }
 
 end EvmAsm.Codegen

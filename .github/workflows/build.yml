@@ -71,6 +71,15 @@ jobs:
       - name: No-warnings guard (EvmAsm/ source paths)
         run: scripts/check-no-warnings.sh build.log
 
+      # The `codegen` exe (root `Main`) is NOT part of defaultTargets, so the
+      # plain `lake build` above does not build it. Build it explicitly as its
+      # own gate: this is the closure the Docker image build compiles, so a
+      # codegen-only break (e.g. a registry/program edit that the EvmAsm lib
+      # never imports) is caught on the PR path instead of at image-build time.
+      # The downstream link-check reuses this build via the lake cache.
+      - name: Build codegen executable
+        run: lake build codegen
+
       - name: Install RISC-V binutils for codegen link checks
         run: |
           sudo apt-get update

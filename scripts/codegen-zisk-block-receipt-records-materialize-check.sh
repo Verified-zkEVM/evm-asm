@@ -31,6 +31,7 @@ REPO_ROOT="$(pwd)"
 # mode=empty: no transactions.
 # mode=legacy_stop: one legacy tx whose data field is STOP (0x00).
 # mode=two_legacy_stop: two legacy STOP txs, testing runtime receipt-gas increments.
+# mode=over_capacity: 17 legacy STOP txs; the receipt-record arena accepts 16 and reports append-capacity debt.
 run_case() {
   local name="$1" mode="$2"
   local in_file="$REPO_ROOT/gen-out/zisk_block_receipt_records_${name}.input"
@@ -45,7 +46,7 @@ in_file, expected_file, mode = sys.argv[1:]
 TX_OFF = 600
 GAS_FEED_OFF = 0x1000
 GAS_USED = 21000
-payload = bytearray(GAS_FEED_OFF + 64)
+payload = bytearray(GAS_FEED_OFF + 512)
 payload[420:428] = struct.pack('<Q', GAS_USED)
 payload[504:508] = struct.pack('<I', TX_OFF)
 
@@ -86,6 +87,9 @@ def legacy_stop_tx(gas_limit: int) -> bytes:
     rlp_int(1),                  # s
     ])
 
+expected_brr_status = 0
+expected_append_status = 0
+
 if mode == 'empty':
     wd_off = TX_OFF
     expected_count = 0
@@ -116,6 +120,30 @@ elif mode == 'two_legacy_stop':
     expected_last_status = 0
     first_record = (0, 1, 18000, 0, 0, 0, 0, 0)
     last_record = (0, 1, 42000, 0, 0, 0, 0, 0)
+elif mode == 'over_capacity':
+    txs = [legacy_stop_tx(21000 + i) for i in range(17)]
+    offsets = []
+    cursor = 4 * len(txs)
+    body = bytearray()
+    for tx in txs:
+        offsets.append(cursor)
+        body.extend(tx)
+        cursor += len(tx)
+    tx_list = struct.pack('<' + 'I' * len(offsets), *offsets) + bytes(body)
+    payload[TX_OFF:TX_OFF + len(tx_list)] = tx_list
+    gas_increments = [1000 + i for i in range(len(txs))]
+    payload[GAS_FEED_OFF:GAS_FEED_OFF + 8 + 8 * len(gas_increments)] = (
+        struct.pack('<Q', len(gas_increments))
+        + struct.pack('<' + 'Q' * len(gas_increments), *gas_increments)
+    )
+    wd_off = TX_OFF + len(tx_list)
+    expected_brr_status = 2
+    expected_append_status = 1
+    expected_count = 16
+    expected_first_status = 0
+    expected_last_status = 0
+    first_record = (0, 1, gas_increments[0], 0, 0, 0, 0, 0)
+    last_record = (0, 1, sum(gas_increments[:16]), 0, 0, 0, 0, 0)
 else:
     raise ValueError(mode)
 
@@ -124,9 +152,9 @@ with open(in_file, 'wb') as f:
     f.write(payload)
 
 out = bytearray(168)
-out[0:8] = struct.pack('<Q', 0)                    # brr_status
+out[0:8] = struct.pack('<Q', expected_brr_status)  # brr_status
 out[8:16] = struct.pack('<Q', expected_count)       # count
-out[16:24] = struct.pack('<Q', 0)                   # append status
+out[16:24] = struct.pack('<Q', expected_append_status)
 out[24:32] = struct.pack('<Q', expected_first_status)
 out[32:96] = struct.pack('<QQQQQQQQ', *first_record)
 out[96:104] = struct.pack('<Q', expected_last_status)
@@ -156,6 +184,7 @@ FAILED=0
 run_case "empty" empty || FAILED=1
 run_case "legacy_stop" legacy_stop || FAILED=1
 run_case "two_legacy_stop" two_legacy_stop || FAILED=1
+run_case "over_capacity" over_capacity || FAILED=1
 
 if [[ $FAILED -eq 0 ]]; then
   echo "==> PASS: block receipt-record materializer probe"

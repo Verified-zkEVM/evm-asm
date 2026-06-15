@@ -14,15 +14,23 @@ import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
+import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.MaterializeLogRecords
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
+import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
@@ -39,9 +47,18 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
+import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.Eip7702Authority
+import EvmAsm.Codegen.Programs.MultiTxSenderDebit
+import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.MaterializeLogRecords
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
+import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 
 namespace EvmAsm.Codegen
 
@@ -70,12 +87,21 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
+    txAccessListSpanFunction ++ "\n" ++
+    txEip2930DecodeFunction ++ "\n" ++
+    txEip1559DecodeFunction ++ "\n" ++
+    txEip7702DecodeFunction ++ "\n" ++
+    storageAccessSeedFunction ++ "\n" ++
+    seedTxAccessListFunction ++ "\n" ++
     -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
     -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
     -- u256_add_be/u256_sub_be/u256_lt_be.
     secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
     secp256k1RecoverRFunction ++ "\n" ++
     secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
+    -- The base V2 verdict closure already emits address_from_pubkey and the
+    -- EIP-7702 authorization-recovery helpers for tx-state-gas accounting.
+    -- Re-emitting them in this debug-only helper block duplicates symbols.
     -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
     balAddrToExecLogKeyFunction ++ "\n" ++
     seedCalleeStorageFunction ++ "\n" ++
@@ -87,6 +113,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
+  systemUserExecLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
@@ -108,19 +135,69 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     btiScanStorageChangesFunction ++ "\n" ++
     balTxsIndependentFunction ++ "\n" ++
     multiTxNthContextFunction ++ "\n" ++
-    -- g8zeq.1.4.2: block_verdict's block_state-gas floor check calls
-    -- block_verdict_tx_state_gas_array -> tx_intrinsic_state_gas -> eip8037_tx_state_gas;
-    -- mirror the guest closure so this debug verdict ELF links (je0xd pattern).
-    eip8037TxStateGasFunction ++ "\n" ++
-    txIntrinsicStateGasFunction ++ "\n" ++
-    blockVerdictTxStateGasArrayFunction ++ "\n" ++
+    rlpFieldToU64Function ++ "\n" ++
     -- bmvmx.3.2: mirror the guest closure's per-tx sender-recovery stack so this
     -- debug verdict ELF links (block_verdict calls verify_public_keys_match_senders).
     verifyPublicKeysSendersGuestFunctions ++ "\n" ++
+    -- 8uld3.2.3 / .63.1.6.2.3: mirror the request-derivation and receipts-consensus
+    -- bodies that block_verdict now reaches inside the embedded guest closure. The
+    -- standalone debug ELF does not include statelessGuestUnit.epilogueAsm, so these
+    -- symbols must be emitted here as well.
+    deriveBlockSystemRequestsFunction ++ "\n" ++
+    deriveWithdrawalRequestsFunction ++ "\n" ++
+    deriveConsolidationRequestsFunction ++ "\n" ++
+    stageSystemCallFunction ++ "\n" ++
+    stageSystemCallPayloadFunction ++ "\n" ++
+    parseDepositRequestsFunction ++ "\n" ++
+    extractDepositDataFunction ++ "\n" ++
+    materializeLogRecordsFunction ++ "\n" ++
+    assembleExecutionRequestsFunction ++ "\n" ++
+    requestsHashVerifyFunction ++ "\n" ++
+    stagePredeployStoragePreloadFunction ++ "\n" ++
+    zkvmKeccak256SegmentsFunction ++ "\n" ++
+    rlpEncodeU64Function ++ "\n" ++
+    receiptEncodeFunction ++ "\n" ++
+    receiptRecordsEncodeNoLogsFunction ++ "\n" ++
+    blockValidateLogsBloomFunction ++ "\n" ++
+    receiptExtractLogsBloomFunction ++ "\n" ++
+    bloomOrIntoFunction ++ "\n" ++
+    blockLogsBloomFromReceiptsListFunction ++ "\n" ++
+    blockValidateReceiptsConsensusListFunction ++ "\n" ++
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
     executionRequestsHashShaDataSection ++ "\n" ++
+    -- Data labels for the request-derivation/predeploy-storage helpers above.
+    -- ziskStatelessVerdictV2DataSection already owns the receipt-consensus scratch.
+    ".balign 8\n" ++
+    "scc_ctx:\n  .zero 192\n" ++
+    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    ".balign 8\n" ++
+    "scc_system_addr:\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+    "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe\n" ++
+    ".balign 8\n" ++
+    "ssc_saved_ra:\n  .zero 8\n" ++
+    "ssc_saved_s0:\n  .zero 8\n" ++
+    withdrawalRequestPredeployAddrData ++
+    consolidationRequestPredeployAddrData ++
+    deriveBlockSystemRequestsData ++ "\n" ++
+    ".balign 8\n" ++
+    "pdr_deposit_addr:\n" ++
+    "  .byte 0x00, 0x00, 0x00, 0x00, 0x21, 0x9a, 0xb5, 0x40\n" ++
+    "  .byte 0x35, 0x6c, 0xbb, 0x83, 0x9c, 0xbe, 0x05, 0x30\n" ++
+    "  .byte 0x3d, 0x77, 0x05, 0xfa\n" ++
+    ".balign 8\n" ++
+    "pdr_deposit_sig:\n" ++
+    "  .byte 0x64, 0x9b, 0xbc, 0x62, 0xd0, 0xe3, 0x13, 0x42\n" ++
+    "  .byte 0xaf, 0xea, 0x4e, 0x5c, 0xd8, 0x2d, 0x40, 0x49\n" ++
+    "  .byte 0xe7, 0xe1, 0xee, 0x91, 0x2f, 0xc0, 0x88, 0x9a\n" ++
+    "  .byte 0xa7, 0x90, 0x80, 0x3b, 0xe3, 0x90, 0x38, 0xc5\n" ++
+    ".balign 8\n" ++
+    "pdr_out:\n  .zero 2048\n" ++
+    "pdr_status:\n  .zero 8\n" ++
+    "rhv_hash:\n  .zero 32\n" ++
+    stagePredeployStoragePreloadData ++ "\n" ++
     emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
 
@@ -130,6 +207,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     writes its bit to OUTPUT[32]. -/
 def statelessVerdictV2GuestClosure : String :=
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
@@ -245,6 +323,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
+  captureSystemStorageExecRowsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
@@ -302,6 +381,8 @@ def statelessVerdictV2GuestClosure : String :=
   txGasSenderBalLookupFunction ++ "\n" ++
   simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
+  stageCreationRuntimePayloadFunction ++ "\n" ++
+  blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
   -- .6.4.3.2 contract-recipient dispatch: state/code lookups + BAL storage-key
   -- enumeration + self-containment gate + variable pack-bytecode staging. The
   -- shared callees (account_at_address, header_extract_state_root,
@@ -317,9 +398,16 @@ def statelessVerdictV2GuestClosure : String :=
   balRecipientStorageKeysFunction ++ "\n" ++
   balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.
   dispatchTxRuntimeCodeFunction ++ "\n" ++
+  txAccessListSpanFunction ++ "\n" ++
+    txEip2930DecodeFunction ++ "\n" ++
+    txEip1559DecodeFunction ++ "\n" ++
+    txEip7702DecodeFunction ++ "\n" ++
+  storageAccessSeedFunction ++ "\n" ++
+  seedTxAccessListFunction ++ "\n" ++
   -- .62.2.5: ECRECOVER recovery backend (armed via ecrecover_backend_ptr in
   -- dispatch_tx_runtime_code). NoU256 variants: this closure already links
   -- u256_add_be/u256_sub_be/u256_lt_be.
@@ -337,7 +425,12 @@ def statelessVerdictV2GuestClosure : String :=
   balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
+  systemUserExecLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
+  committedStorageSnapshotUpsertFunction ++ "\n" ++
+  committedStorageLatestValueFunction ++ "\n" ++
+  committedStorageChunkedSnapshotUpsertFunction ++ "\n" ++
+  committedStorageChunkedLatestValueFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
@@ -365,7 +458,10 @@ def statelessVerdictV2GuestClosure : String :=
   -- already in this closure; only these three bodies are new.
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
+  blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
+  eip8037BlockGasUsedFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
@@ -381,18 +477,30 @@ def statelessVerdictV2GuestClosure : String :=
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037TxGasGateFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
+  multiTxActualSenderDebitFunction ++ "\n" ++
+  multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
+  eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
+  eip7702AuthorizationSigningHashFunction ++ "\n" ++
+  eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
+  txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
+  b1SenderCountTableFunction ++ "\n" ++
+  b1SenderTableFindFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   eip7702NonceReuseGuardFunction ++ "\n" ++
+  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: link dispatcher_capture_exec_state_gas so the verdict can
+  -- persist each tx's executed state gas into bvgr_tx_exec_state_gas (behavior-neutral substrate
+  -- for the EIP-7778 2D state-dim; the array is filled but not yet read by eip8037_state_used_before_tx).
+  dispatcherCaptureExecStateGasFunction ++ "\n" ++
   -- bmvmx.3.2: per-tx sender recovery vs witness public_keys. block_verdict
   -- calls verify_public_keys_match_senders after public_keys_valid; the TX-side
   -- recovery stack (signature extractors + signing-hash + material/stage/

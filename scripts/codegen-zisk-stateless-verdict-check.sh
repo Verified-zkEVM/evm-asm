@@ -138,8 +138,8 @@ patch_bsr_caps_and_relink() {
   local elf="gen-out/zisk_stateless_verdict_v2.elf"
   local old_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, 262144; bgtu a2, t1, .Lbsr_cons_change_cap"
   local new_witness="  la t0, bsr_fail_code; sd zero, 0(t0); li t1, $BSR_WITNESS_CAP; bgtu a2, t1, .Lbsr_cons_change_cap"
-  local old_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
-  local new_bal=$'  li t0, 1000000000; bgtu a0, t0, .Lbsr_cons_change_cap; li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 500002; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local old_bal=$'  li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 100018; bgtu t0, t1, .Lbsr_cons_change_cap'
+  local new_bal=$'  li t0, 2000; divu t1, a0, t0\n  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; li t1, '"$BSR_BAL_CAP"$'; bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, 100018; bgtu t0, t1, .Lbsr_cons_change_cap'
   local as_tool ld_tool
 
   python3 - "$asm" "$BSR_WITNESS_CAP" "$old_witness" "$new_witness" "$BSR_BAL_CAP" "$old_bal" "$new_bal" <<'PYPATCH'

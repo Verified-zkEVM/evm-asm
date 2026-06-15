@@ -96,7 +96,8 @@ def callValueEffectPrologue : String :=
   accountAtHeaderStateRootFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
-  recordNonstorageEffectFunction
+  recordNonstorageEffectFunction ++ "\n" ++
+  nonstorageEffectLatestBalanceFunction
 
 def callValueEffectData : String :=
   emitRuntimeDispatcherDataSection callFrameGuestRegistry ++ "\n" ++
@@ -109,11 +110,16 @@ def callValueEffectData : String :=
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
+  ".balign 8\n" ++
   "cd_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
   "cd_zero_word:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "cd_caller_be:\n  .zero 32\n" ++
+  "cd_callee_be:\n  .zero 32\n" ++
   "cd_value_be:\n  .zero 32\n" ++
   "cd_balance_be:\n  .zero 32\n" ++
   "cd_caller_newbal:\n  .zero 32\n" ++

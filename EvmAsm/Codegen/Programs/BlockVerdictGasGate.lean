@@ -30,11 +30,9 @@ open EvmAsm.Rv64
     also mirrors the execution-spec pre-execution block-gas
     availability check when it can prove rejection from the intrinsic/floor gas
     lower bound of prior transactions. Single-transaction overflow is always
-    invalid. Multi-transaction regular overflow is rejected only when the
-    accumulated worst-regular gas before the overflowing transaction agrees with
-    the block header's final `gas_used`; otherwise this conservative bound may
-    be above execution-spec `block_gas_used` because prior transactions returned
-    unused gas, so the gate fails open. -/
+    invalid. Multi-transaction worst-regular overflow is not a safe
+    pre-runtime rejection because prior transactions may return unused gas; it
+    is deferred to the post-runtime exact gas-used check for supported rows. -/
 def eip8037TxGasGateFunction : String :=
   "eip8037_state_used_before_tx:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -121,6 +119,33 @@ def eip8037TxGasGateFunction : String :=
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 96\n" ++
   "  ret\n" ++
+  "eip8037_prior_state_used_exact:\n" ++
+  "  # a0 = prior tx count (0-based current tx index), a1 = out ptr.\n" ++
+  "  # Returns a0=0 when the execution-derived prior-state sum is exact, else 1.\n" ++
+  "  sd zero, 0(a1)\n" ++
+  "  beqz a0, .Lepse_ok\n" ++
+  "  la t0, bsg_exact_state_ok; ld t0, 0(t0); beqz t0, .Lepse_fail\n" ++
+  "  la t0, bvgr_runtime_count; ld t0, 0(t0); bltu t0, a0, .Lepse_fail\n" ++
+  "  li t0, 16; bgtu a0, t0, .Lepse_fail\n" ++
+  "  mv t0, a0                   # prior count\n" ++
+  "  li t1, 0                    # i\n" ++
+  "  li t2, 0                    # accumulated state gas\n" ++
+  ".Lepse_loop:\n" ++
+  "  beq t1, t0, .Lepse_store\n" ++
+  "  slli t3, t1, 3\n" ++
+  "  la t4, bvgr_tx_state_gas; add t4, t4, t3; ld t5, 0(t4)\n" ++
+  "  add t6, t2, t5; bltu t6, t2, .Lepse_fail; mv t2, t6\n" ++
+  "  la t4, bv_tx_status_arr; add t4, t4, t3; ld t5, 0(t4); beqz t5, .Lepse_next\n" ++
+  "  la t4, bvgr_tx_exec_state_gas; add t4, t4, t3; ld t5, 0(t4)\n" ++
+  "  add t6, t2, t5; bltu t6, t2, .Lepse_fail; mv t2, t6\n" ++
+  ".Lepse_next:\n" ++
+  "  addi t1, t1, 1; j .Lepse_loop\n" ++
+  ".Lepse_store:\n" ++
+  "  sd t2, 0(a1)\n" ++
+  ".Lepse_ok:\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lepse_fail:\n" ++
+  "  li a0, 1; ret\n" ++
   "eip8037_tx_gas_gate:\n" ++
   "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -133,8 +158,7 @@ def eip8037TxGasGateFunction : String :=
   "  mv s3, a3                   # gas_limit\n" ++
   "  li s4, 0                    # accumulated worst regular gas\n" ++
   "  la t0, bsg_min_block_gas; sd zero, 0(t0)\n" ++
-  "  addi a0, s0, 420; jal ra, bgv_u64le       # header gas_used\n" ++
-  "  la t0, bsg_header_gas_used; sd a0, 0(t0)\n" ++
+  "  la t0, bsg_exact_state_ok; sd zero, 0(t0)\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
   "  add s5, s0, a0              # tx list ptr\n" ++
   "  addi a0, s0, 508; jal ra, bgv_u32le\n" ++
@@ -148,6 +172,12 @@ def eip8037TxGasGateFunction : String :=
   "  srli s7, a0, 2              # tx_count = first offset / 4\n" ++
   "  beqz s7, .Letg_ok\n" ++
   "  li t0, 16; bgtu s7, t0, .Letg_ok\n" ++
+  "  mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas\n" ++
+  "  li a4, 0; li a5, 0; li a6, 0      # pre-runtime gate has no BAL refund context\n" ++
+  "  jal ra, block_verdict_tx_state_gas_array\n" ++
+  "  bnez a0, .Letg_state_array_ready\n" ++
+  "  la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Letg_state_array_ready:\n" ++
   "  li s8, 0                    # tx index, 0-based\n" ++
   "  la t0, bsg_blob_gas_accum; sd zero, 0(t0)\n" ++
   ".Letg_tx_loop:\n" ++
@@ -303,6 +333,11 @@ def eip8037TxGasGateFunction : String :=
   "  la a6, bsg_intrinsic_gas; la a7, bsg_floor_gas\n" ++
   "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
   "  bnez a0, .Letg_ok\n" ++
+  "  la t0, bsg_floor_gas; ld t1, 0(t0)\n" ++
+  "  slli t2, s8, 3; la t3, bv_mtx_calldata; add t3, t3, t2; ld t4, 0(t3)\n" ++
+  "  bgeu t4, t1, .Letg_floor_stored\n" ++
+  "  sd t1, 0(t3)\n" ++
+  ".Letg_floor_stored:\n" ++
   "  # EIP-8037 intrinsic.state gas: CREATE new-account reserve plus EIP-7702\n" ++
   "  # authorization reserve (calculate_intrinsic_cost). Computed once here and\n" ++
   "  # consumed by both the per-tx sufficiency test and the 2D block accounting.\n" ++
@@ -356,9 +391,13 @@ def eip8037TxGasGateFunction : String :=
   "  bltu t1, s11, .Letg_ok\n" ++
   "  sub t2, t1, s11             # tx.gas - intrinsic.regular\n" ++
   "  la t0, bsg_worst_state; sd t2, 0(t0)\n" ++
+  "  mv a0, s8; la a1, bsg_prior_state\n" ++
+  "  jal ra, eip8037_prior_state_used_exact\n" ++
+  "  beqz a0, .Letg_prior_state_have\n" ++
   "  addi a2, s8, 1\n" ++
   "  mv a0, s1; mv a1, s2; la a3, bsg_prior_state\n" ++
   "  jal ra, eip8037_state_used_before_tx\n" ++
+  ".Letg_prior_state_have:\n" ++
   "  la t0, bsg_worst_state; ld t2, 0(t0)\n" ++
   "  la t0, bsg_prior_state; ld t3, 0(t0)\n" ++
   "  bltu s3, t3, .Letg_state_fail\n" ++
@@ -367,8 +406,8 @@ def eip8037TxGasGateFunction : String :=
   "  addi s8, s8, 1; j .Letg_tx_loop\n" ++
   ".Letg_regular_fail:\n" ++
   "  li t0, 1; beq s7, t0, .Letg_regular_reject\n" ++
-  "  la t0, bsg_header_gas_used; ld t0, 0(t0)\n" ++
-  "  beq s4, t0, .Letg_regular_reject\n" ++
+  "  # Multi-tx worst-regular overflow is only an upper bound before runtime.\n" ++
+  "  # Supported rows are checked exactly after gas-result arena materializes.\n" ++
   "  j .Letg_ok\n" ++
   ".Letg_regular_reject:\n" ++
   "  li a0, 1; j .Letg_ret\n" ++

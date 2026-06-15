@@ -20,6 +20,8 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
 
 namespace EvmAsm.Codegen
 
@@ -204,20 +206,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++
   "  jal ra, bytecode_is_self_contained\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_self_contained_unsupported\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
-  "  li t0, 2; beq a0, t0, .Ldtrc_unsupported\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_bal_unsupported\n" ++
   "  bnez a0, .Ldtrc_zero_storage\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
-  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_bal_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
   "  la t0, bvcd_sc_count; sd a0, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5 (revert fix): also preload the recipient's storage_READS slots
   -- (accessed-but-not-net-changed). A reverting tx has empty storage_changes (its writes
@@ -230,7 +232,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a3, 128; sub a3, a3, t1\n" ++
   "  jal ra, bal_recipient_storage_reads_keys\n" ++
   "  la t0, bvcd_sc_count; ld t1, 0(t0); add a0, a0, t1   # total = storage_changes + storage_reads\n" ++
-  "  li t0, 128; bgtu a0, t0, .Ldtrc_unsupported\n" ++
+  "  li t0, 128; bgtu a0, t0, .Ldtrc_bal_unsupported\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
@@ -261,7 +263,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
   ".Ldtrc_kdone:\n" ++
   "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_storage_unsupported\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
   -- The witness slot value (sahsr_u256) is also u256 BIG-ENDIAN (StateCompose.lean:519);
   -- byte-REVERSE it into the value field [entry+32..64] (dst byte 63-i <- src byte i) so
@@ -281,31 +283,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_vdone:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2 cross-tx threading: if a prior tx in this block committed a
   -- value for (recipient, slotKey), stage that committed value as this slot's preload
-  -- (original==current) instead of the block-pre witness value, so this tx's SSTORE gas/
-  -- refund uses the in-block committed original. bv_mtx_committed_count is 0 for tx0 /
-  -- single-tx / independent blocks -> no match -> byte-identical. Recipient key = ctx+72
-  -- (20B, zero-padded to 32) — the same re-keying the snapshot uses.
-  "  la t0, bv_mtx_committed_count; ld a3, 0(t0); beqz a3, .Ldtrc_nothread\n" ++
-  "  la t0, dtrc_recipkey; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  addi t1, s2, 72; li t2, 0\n" ++
-  ".Ldtrc_rkey:\n" ++
-  "  li t3, 20; beq t2, t3, .Ldtrc_rkeyd\n" ++
-  "  add t3, t1, t2; lbu t4, 0(t3); la t5, dtrc_recipkey; add t5, t5, t2; sb t4, 0(t5); addi t2, t2, 1; j .Ldtrc_rkey\n" ++
-  ".Ldtrc_rkeyd:\n" ++
-  -- ogjan: bvcd_keys[i] is 32B BIG-endian (RLP), but bv_mtx_committed's slotKey@32 is LITTLE-
-  -- endian (EVM-stack limb order, preload-fed post-#8694/C.1). Byte-reverse it into dtrc_slotkey_le
-  -- so exec_log_latest_value's slotKey compare (a1 vs entry@32) matches the LE snapshot; else this
-  -- interacting-mtx committed-value threading silently no-ops (BE!=LE -> never found). The addrHash
-  -- (a0=dtrc_recipkey) stays BE-left-aligned -- it matches the snapshot addrHash@0 (env.ADDRESS,
-  -- BE, SLOAD self-match); reversing it too would BREAK the addrHash match.
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2  # &bvcd_keys[i] (BE)\n" ++
-  "  addi t3, t3, 31; la a1, dtrc_slotkey_le; li t4, 32\n" ++
-  ".Ldtrc_klr:\n  beqz t4, .Ldtrc_klrd\n  lbu t5, 0(t3); sb t5, 0(a1); addi t3, t3, -1; addi a1, a1, 1; addi t4, t4, -1; j .Ldtrc_klr\n" ++
-  ".Ldtrc_klrd:\n" ++
-  "  la a1, dtrc_slotkey_le                          # a1 = LE slotKey ptr\n" ++
-  "  la a0, dtrc_recipkey; la a2, bv_mtx_committed; la t0, bv_mtx_committed_count; ld a3, 0(t0); la a4, dtrc_threadval\n" ++
-  "  jal ra, exec_log_latest_value\n" ++
-  "  beqz a0, .Ldtrc_nothread                       # no prior-tx committed value -> keep witness value\n" ++
+  -- (original==current). The helper bounds the table count by the named committed-storage
+  -- capacity, prepares recipient/slot scratch, and preserves latest matching entry semantics.
+  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Ldtrc_nothread\n" ++
+  "  addi a0, s2, 72                                  # recipient 20B ptr\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2  # BE slot key ptr\n" ++
+  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported # over-capacity table count -> conservative\n" ++
+  "  li t0, 1; bne a0, t0, .Ldtrc_nothread            # no prior-tx value -> keep witness value\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2   # preload entry i\n" ++
   "  la t5, dtrc_threadval\n" ++
   "  ld t6, 0(t5);  sd t6, 32(t4); ld t6, 8(t5);  sd t6, 40(t4)\n" ++
@@ -333,12 +319,39 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- 3vc2p.3b: + M29 hashes (count*32)
-  "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_unsupported\n" ++       -- payload > buffer -> conservative bail
+  "  la t0, dtrc_hdr_len; ld t2, 0(t0); add t1, t1, t2\n" ++        -- nested-CALL account-witness header bytes
+  "  add t1, t1, s1\n" ++                                             -- witness.state bytes
+  "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++       -- witness.codes bytes
+  "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_payload_cap_unsupported\n" ++       -- payload > buffer -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
-  "  bnez a0, .Ldtrc_unsupported\n" ++
+  "  bnez a0, .Ldtrc_stage_unsupported\n" ++
+  -- bmvmx/gcylw: stage the same account-witness context used by the top-level
+  -- recipient lookup into the callable runtime trailer, so nested CALL/EXTCODE
+  -- lookups read the pre-header/state/codes context instead of zero lengths.
+  "  la t0, bv_runtime_payload\n" ++
+  "  la t5, srpc_env_base; ld t1, 0(t5); add t0, t0, t1\n" ++
+  "  la t2, dtrc_hdr_len; ld t3, 0(t2); sd t3, 472(t0)\n" ++
+  "  sd s1, 480(t0)\n" ++
+  "  la t2, svf_codes_len; ld t4, 0(t2); sd t4, 488(t0)\n" ++
+  "  addi t5, t0, 496\n" ++
+  "  la t2, dtrc_hdr_ptr; ld t2, 0(t2); mv t6, t3\n" ++
+  ".Ldtrc_ctx_hdr_copy:\n" ++
+  "  beqz t6, .Ldtrc_ctx_state_copy_start\n" ++
+  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_hdr_copy\n" ++
+  ".Ldtrc_ctx_state_copy_start:\n" ++
+  "  mv t2, s0; mv t6, s1\n" ++
+  ".Ldtrc_ctx_state_copy:\n" ++
+  "  beqz t6, .Ldtrc_ctx_codes_copy_start\n" ++
+  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_state_copy\n" ++
+  ".Ldtrc_ctx_codes_copy_start:\n" ++
+  "  la t2, svf_codes_ptr; ld t2, 0(t2); mv t6, t4\n" ++
+  ".Ldtrc_ctx_codes_copy:\n" ++
+  "  beqz t6, .Ldtrc_ctx_done\n" ++
+  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_codes_copy\n" ++
+  ".Ldtrc_ctx_done:\n" ++
   -- 3vc2p.1: stage CALLER (env+64) + ORIGIN (env+128) = tx.sender into the runtime
   -- payload's env words, so CALLER/ORIGIN resolve once 3vc2p.4 activates them (for a
   -- top-level tx, CALLER == ORIGIN == tx.sender). The sender is derived from the
@@ -416,6 +429,37 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
   "  mv a0, s0; mv a1, s1; addi a2, s2, 72\n" ++
   "  jal ra, seed_callee_storage\n" ++
+  -- fhsxz.2.4.2.57.18.10: pass access-list cardinalities into the runtime
+  -- dispatcher's tx-gas validator so the captured calldata floor and regular
+  -- intrinsic gas include tokens_in_access_list. Type 0 has no access list,
+  -- type 1 uses field 7, and EIP-1559/blob/7702 typed txs use field 8 of the
+  -- inner RLP payload. Parse failures bail conservatively instead of undercounting.
+  "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
+  -- nxio8.5.2b: pass the same access-list span to the callable setup so it can
+  -- seed EIP-2929 storage warmth after evm_storage_access_count is reset.
+  "  la t0, runtime_tx_access_list_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
+  "  ld t0, 160(s2); beqz t0, .Ldtrc_access_done\n" ++
+  "  li a2, 7; li t1, 1; beq t0, t1, .Ldtrc_access_field\n" ++
+  "  li a2, 8; li t1, 2; beq t0, t1, .Ldtrc_access_field\n" ++
+  "  li t1, 3; beq t0, t1, .Ldtrc_access_field\n" ++
+  "  li t1, 4; bne t0, t1, .Ldtrc_access_list_unsupported\n" ++
+  ".Ldtrc_access_field:\n" ++
+  "  ld a0, 176(s2); ld a1, 184(s2); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ldtrc_access_list_unsupported\n" ++
+  "  ld t0, 176(s2); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
+  "  la t1, bsg_access_len; ld a1, 0(t1)\n" ++
+  "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
+  "  jal ra, access_list_count\n" ++
+  "  bnez a0, .Ldtrc_access_list_unsupported\n" ++
+  "  ld t0, 176(s2); la t1, bsg_access_off; ld t1, 0(t1); add t2, t0, t1\n" ++
+  "  la t0, runtime_tx_access_list_ptr; sd t2, 0(t0)\n" ++
+  "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
+  ".Ldtrc_access_done:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
@@ -446,8 +490,23 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a2, t5                    # calldata_floor\n" ++
   "  li a0, 0\n" ++
   "  j .Ldtrc_ret\n" ++
-  ".Ldtrc_unsupported:\n" ++
-  "  li a0, 1\n" ++
+  -- Structured unsupported reason codes. Callers continue to treat any nonzero
+  -- value as a conservative dispatch bail, but the code now distinguishes where
+  -- the unsupported path came from for verdict/debug triage.
+  ".Ldtrc_code_lookup_unsupported:\n" ++
+  "  li a0, 1; j .Ldtrc_ret\n" ++
+  ".Ldtrc_self_contained_unsupported:\n" ++
+  "  li a0, 2; j .Ldtrc_ret\n" ++
+  ".Ldtrc_bal_unsupported:\n" ++
+  "  li a0, 3; j .Ldtrc_ret\n" ++
+  ".Ldtrc_storage_unsupported:\n" ++
+  "  li a0, 4; j .Ldtrc_ret\n" ++
+  ".Ldtrc_payload_cap_unsupported:\n" ++
+  "  li a0, 5; j .Ldtrc_ret\n" ++
+  ".Ldtrc_stage_unsupported:\n" ++
+  "  li a0, 6; j .Ldtrc_ret\n" ++
+  ".Ldtrc_access_list_unsupported:\n" ++
+  "  li a0, 7\n" ++
   ".Ldtrc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++

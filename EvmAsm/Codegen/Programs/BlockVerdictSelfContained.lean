@@ -70,22 +70,29 @@ def bytecodeIsSelfContainedFunction : String :=
   --   transfer + EIP-7708 log); and BALANCE(0x31) (yisv8 .spine: live balance read from the
   --   non-storage effect log -- nonstorage_effect_latest_balance in balance_at_header_state_root,
   --   falling back to the pre-state witness when no value transfer touched the account).
-  -- No opcode is rejected here anymore -> the .Lbsc_unsafe path is vestigial (kept for any future
-  -- un-staged-state opcode). (The BALANCE 0x31 reject is REMOVED here; 0xff was removed by ee21v.)
+  -- (The BALANCE 0x31 reject is REMOVED here; 0xff was removed by ee21v.)
+  -- PREVRANDAO (0x44) ACTIVATED (ha909): stage_runtime_payload_code now copies the execution
+  -- payload prev_randao Bytes32 into env word 9, so dispatched contracts read the real header mix.
+  -- CHAINID (0x46) ACTIVATED (6121j.1): stage_runtime_payload_code now stages bv_chain_id into the
+  -- CHAINID env word (+472 -> EvmEnv+384), so a dispatched contract reads the real chain id. Lifted.
+  -- BLOBBASEFEE (0x4a) ACTIVATED (6121j.1): stage_runtime_payload_code now stages the block blob
+  -- gas price (amsterdam_blob_gas_price_u256) into the payload blob_base_fee slot @+32 -> evm_env+512,
+  -- so a dispatched contract reads the real value. Lifted.
   "  addi t0, t0, 1; j .Lbsc_loop\n" ++
   ".Lbsc_safe:\n" ++
   "  li a0, 0; ret\n" ++
   ".Lbsc_unsafe:\n" ++
   "  li a0, 1; ret"
 
-/-- `zisk_bytecode_is_self_contained`: probe over four hand-written bytecodes. Post-activation
-    (ee21v + yisv8 removed the last rejects) NO opcode is un-staged, so all four scan
-    self-contained (0).
+/-- `zisk_bytecode_is_self_contained`: probe over hand-written bytecodes. Post-activation
+    (ee21v + yisv8 + ha909 removed the last rejects) these opcodes scan self-contained (0).
     Output:
       +0  scan of PUSH1 0x07 PUSH1 0x01 SSTORE STOP (expect 0 self-contained)
       +8  scan of PUSH1 0x00 BALANCE   (60 00 31)   (expect 0 — BALANCE activated, yisv8)
       +16 scan of PUSH1 0xF1 STOP (0xF1 is push DATA, not CALL) (expect 0)
-      +24 scan of PUSH1 0x00 SELFDESTRUCT (60 00 FF) (expect 0 — SELFDESTRUCT activated, ee21v) -/
+      +24 scan of PUSH1 0x00 SELFDESTRUCT (60 00 FF) (expect 0 — SELFDESTRUCT activated, ee21v)
+      +32 scan of PUSH1 0x00 BLOCKHASH (60 00 40) (expect 0 — M29 staged, 3vc2p.4)
+      +40 scan of PREVRANDAO STOP (44 00) (expect 0 — PREVRANDAO staged, ha909) -/
 def ziskBytecodeIsSelfContainedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -111,6 +118,10 @@ def ziskBytecodeIsSelfContainedPrologue : String :=
   "  la t0, bsc_codeE\n" ++
   "  li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0); li t1, 0x40; sb t1, 2(t0)\n" ++
   "  la a0, bsc_codeE; li a1, 3; jal ra, bytecode_is_self_contained; sd a0, 32(s0)\n" ++
+  -- code F: 44 00 (PREVRANDAO STOP -> self-contained: prev_randao env word staged, ha909).
+  "  la t0, bsc_codeF\n" ++
+  "  li t1, 0x44; sb t1, 0(t0); sb zero, 1(t0)\n" ++
+  "  la a0, bsc_codeF; li a1, 2; jal ra, bytecode_is_self_contained; sd a0, 40(s0)\n" ++
   "  j .Lbscp_done\n" ++
   bytecodeIsSelfContainedFunction ++ "\n" ++
   ".Lbscp_done:"
@@ -122,7 +133,8 @@ def ziskBytecodeIsSelfContainedDataSection : String :=
   "bsc_codeB:\n  .zero 16\n" ++
   "bsc_codeC:\n  .zero 16\n" ++
   "bsc_codeD:\n  .zero 16\n" ++
-  "bsc_codeE:\n  .zero 16\n"
+  "bsc_codeE:\n  .zero 16\n" ++
+  "bsc_codeF:\n  .zero 16\n"
 
 def ziskBytecodeIsSelfContainedProbeUnit : BuildUnit := {
   body        := NOP

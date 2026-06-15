@@ -56,6 +56,11 @@ import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bls12Field
 import EvmAsm.Codegen.Programs.Bls12G1
 import EvmAsm.Codegen.Programs.Bls12G2
+import EvmAsm.Codegen.Programs.Bls12Pairing
+import EvmAsm.Codegen.Programs.Bls12Map
+import EvmAsm.Codegen.Programs.Bls12Kzg
+import EvmAsm.Codegen.Programs.Blake2f
+import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.Bn254Fp2
 import EvmAsm.Codegen.Programs.Bn254Fq12
@@ -119,8 +124,10 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.Eip7702Authority
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
+import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TxRefund
@@ -328,6 +335,7 @@ def lookupProgram : String → Option BuildUnit
   | "runtime_dispatcher"        => some runtimeDispatcherUnit
   | "runtime_dispatcher_call_probe" => some runtimeDispatcherCallProbeUnit
   | "runtime_dispatcher_gas_capture_probe" => some runtimeDispatcherGasCaptureProbeUnit
+  | "zisk_runtime_access_list_seeded_sload" => some ziskRuntimeAccessListSeededSloadProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
   | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
   | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
@@ -560,11 +568,14 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_signing_hash" => some ziskTxSigningHashProbeUnit
   | "zisk_tx_signing_hash_legacy_eip155" => some ziskTxSigningHashLegacyEip155ProbeUnit
   | "zisk_eip7702_authorization_signing_hash" => some ziskEip7702AuthorizationSigningHashProbeUnit
+  | "zisk_eip7702_authorization_recover_address" => some ziskEip7702AuthorizationRecoverAddressProbeUnit
   | "zisk_tx_pubkey_signature_material" => some ziskTxPubkeySignatureMaterialProbeUnit
   | "zisk_tx_pubkey_ecrecover_stage_material" => some ziskTxPubkeyEcrecoverStageMaterialProbeUnit
   | "zisk_tx_pubkey_recover_raw_status" => some ziskTxPubkeyRecoverRawStatusProbeUnit
   | "zisk_tx_pubkey_public_key_matches_status" => some ziskTxPubkeyPublicKeyMatchesStatusProbeUnit
   | "zisk_verify_public_keys_match_senders" => some ziskVerifyPublicKeysMatchSendersProbeUnit
+  | "zisk_seed_tx_access_list" => some ziskSeedTxAccessListProbeUnit
+  | "zisk_tx_access_list_span" => some ziskTxAccessListSpanProbeUnit
   | "zisk_header_minimal_decode" => some ziskHeaderMinimalDecodeProbeUnit
   | "zisk_header_extended_decode" => some ziskHeaderExtendedDecodeProbeUnit
   | "zisk_coinbase_extract_from_header" => some ziskCoinbaseExtractFromHeaderProbeUnit
@@ -596,6 +607,12 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_bls12_g1_msm_real"    => some ziskBls12G1MsmRealProbeUnit
   | "zisk_bls12_g2_add_real"    => some ziskBls12G2AddRealProbeUnit
   | "zisk_bls12_g2_msm_real"    => some ziskBls12G2MsmRealProbeUnit
+  | "zisk_bls12_pairing_real"   => some ziskBls12PairingRealProbeUnit
+  | "zisk_bls12_kzg_point_eval_real" => some ziskBls12KzgPointEvalRealProbeUnit
+  | "zisk_blake2f_real"         => some ziskBlake2fRealProbeUnit
+  | "zisk_p256verify_real"      => some ziskP256VerifyRealProbeUnit
+  | "zisk_bls12_map_fp_to_g1_real" => some ziskBls12MapFpToG1RealProbeUnit
+  | "zisk_bls12_map_fp2_to_g2_real" => some ziskBls12MapFp2ToG2RealProbeUnit
   | "zisk_ripemd160_from_input" => some ziskRipemd160FromInputProbeUnit
   | "zisk_bn254_g1_add_real"    => some ziskBn254G1AddRealProbeUnit
   | "zisk_bn254_g1_mul_real"    => some ziskBn254G1MulRealProbeUnit

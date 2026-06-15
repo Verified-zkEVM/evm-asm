@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Selfdestruct
+import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -58,6 +59,39 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  add a0, x13, x14\n  mv a1, x15\n" ++
       "  jal ra, create_deployed_code_valid\n" ++
       "  bnez a0, .Lrr_crinv_" ++ toString kind ++ "\n" ++
+      -- nxio8.7: charge code_hash_gas (keccak-per-word, REGULAR/GAS dim) = OPCODE_KECCACK256_PER_WORD(6)
+      -- * ceil32(deployed_code_len)/32 = 6 * ((x15+31)>>5) words, spec amsterdam vm/interpreter.py:236-240
+      -- charge_gas, BEFORE the state-gas charge ('regular before state' ordering). Simple charge_gas
+      -- (no reservoir/spill): drain the child frame gas_left (568(x20)); OOG-fail the CREATE
+      -- (-> .Lrr_crinv) if short. A valid block never OOGs at deposit -> no false-reject. x15 preserved.
+      "  addi t0, x15, 31\n  srli t0, t0, 5\n" ++                  -- words = ceil32(len)/32
+      "  li t1, 6\n  mul t0, t0, t1\n" ++                          -- code_hash_gas = 6 * words
+      "  ld t1, 568(x20)\n  bltu t1, t0, .Lrr_crinv_" ++ toString kind ++ "\n" ++   -- gas_left < code_hash_gas -> OOG, CREATE fails
+      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++                   -- gas_left -= code_hash_gas
+      -- nxio8.6: charge code-deposit STATE gas = deployed_code_len(x15) * COST_PER_STATE_BYTE(1530)
+      -- (spec amsterdam vm/interpreter.py:241-242 charge_state_gas(evm, ulen(code)*1530), AFTER the
+      -- 0xEF/MAX_CODE_SIZE validity gate just above, BEFORE the deposit). Mirrors the SSTORE
+      -- charge_state_gas pattern (Storage.lean): drain the global evm_state_gas_left reservoir; spill
+      -- the remainder into the child frame gas_left (568(x20) = child env, before frame_return); if
+      -- both are short, OOG-FAIL the CREATE (consume all child gas, push 0 via .Lrr_crinv) -- a valid
+      -- block never OOGs at deposit, so no false-reject. evm_state_gas_used += charge on the non-OOG
+      -- paths (spec raises BEFORE state_gas_used += amount; gas.py:302-311). Previously DROPPED ->
+      -- state gas under-counted -> EIP-7778/8037 state budget too lenient (false-accept on state-heavy
+      -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
+      -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
+      -- the child gas_left). x15 <= MAX_CODE_SIZE (0x8000) so x15*1530 cannot overflow u64.
+      "  li t0, 1530\n  mul t0, x15, t0\n" ++
+      "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+      "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
+      "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++                                  -- reservoir short: spill = charge - reservoir; reservoir = 0
+      "  ld t2, 568(x20)\n  bgeu t2, t3, .Lrr_csg_spill_" ++ toString kind ++ "\n" ++  -- child gas_left >= spill -> ok
+      "  sd x0, 568(x20)\n  j .Lrr_crinv_" ++ toString kind ++ "\n" ++         -- OOG: consume all child gas, CREATE fails
+      ".Lrr_csg_spill_" ++ toString kind ++ ":\n" ++
+      "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lrr_csg_used_" ++ toString kind ++ "\n" ++
+      ".Lrr_csg_res_" ++ toString kind ++ ":\n" ++
+      "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++                                  -- reservoir covers it
+      ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
+      "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
       -- i3djw.2: record the created account's NON-STORAGE effect (pre absent 0/0; post
@@ -231,7 +265,7 @@ def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
     , body := []
     , tail := .custom "  j .exit_invalid_op" }
   , { label := "h_SELFDESTRUCT", opcodes := [0xff]
-    , preBody := stackUnderflowGuardAsm 1
+    , preBody := stackUnderflowGuardAsm 1 ++ "\n" ++ staticContextWriteGuardAsm
     , body := []
     , tail := .custom selfdestructTailAsm } ]
 

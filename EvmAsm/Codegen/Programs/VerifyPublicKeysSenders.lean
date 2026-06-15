@@ -167,6 +167,7 @@ def ziskVerifyPublicKeysMatchSendersPrologue : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpListTruncateToNFieldsFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
+  zkvmKeccak256SegmentsFunction ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
   -- secp256k1 recovery stack (curve common provides u256_lt_be/_add_be/_sub_be,
   -- so no standalone u256_lt_be is linked here to avoid a duplicate label).
