@@ -1036,7 +1036,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- .6.2.2.2.a: per-tx runtime-result arrays + context scratch for the gated
   -- multi-tx dispatch loop (.6.2.2.2.b). U64 arrays are cheap tx-indexed
   -- full-capacity arenas; the active loop gate remains bvMtxActiveTxCap until
-  -- the sender/skip-list algorithms land. bv_mtx_ctx is one 192-byte
+  -- the sender-balance algorithm lands. bv_mtx_ctx is one 192-byte
   -- multi_tx_nth_context record reused per index.
   ".balign 8\n" ++
   "bv_mtx_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
@@ -1160,7 +1160,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
   -- comparators. A multi-tx block's gas/value-coupled accounts are {sender_i,
   -- recipient_i} for every tx i plus the shared {coinbase} -> up to 2N+1 entries
-  -- (N = bv_tx_count <= bvMtxActiveTxCap). The active skip list has 2N+1
+  -- (N = bv_tx_count <= bvMtxFullTxCap). The skip list has 2N+1
   -- entries, 32-byte-strided,
   -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
   -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context

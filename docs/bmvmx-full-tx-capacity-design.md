@@ -124,6 +124,11 @@ The follow-up work should land in separate PRs:
   covers repeated-sender sequencing, nonce reuse rejection, too-high nonce
   rejection, 17-entry survival, 1024/1025 boundaries, and a 9,523-entry
   lower-level frontier for the exact lookup/running-count substrate.
+- Skip-list/nth-context stack: `evm-asm-vv4hr.1.5` sizes the multi-tx
+  BAL skip-list from `bvMtxFullTxCap`, so `{sender_i, recipient_i}` plus
+  coinbase has `2 * 9523 + 1` entries, and adds a focused
+  `scripts/codegen-zisk-multi-tx-nth-context-check.sh` probe for 1024, 1025,
+  9523, and `index == count` out-of-range behavior.
 - Extend the multi-tx sender debit / actual-balance checks to the same
   aggregation substrate.
 - Landed committed-storage threading slices:
@@ -137,6 +142,6 @@ The follow-up work should land in separate PRs:
   log/receipt streaming or digest substrate.
 - Remaining full-capacity probes: add one fixture/regression for the observed
   1,021-tx EEST case and one end-to-end synthetic or generated near-9,523
-  transaction block after the active loop and skip-list slices move from
-  `bvMtxActiveTxCap` to `bvMtxFullTxCap`; the sender nonce substrate already
-  has lower-level 9,523 evidence via `.1.3.4`.
+  transaction block after the active loop moves from `bvMtxActiveTxCap` to
+  `bvMtxFullTxCap`; the sender nonce and nth-context substrates already have
+  lower-level 9,523 evidence via `.1.3.4` and `.1.5`.
