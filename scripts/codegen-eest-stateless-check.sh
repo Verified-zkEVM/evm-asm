@@ -863,6 +863,33 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${mtx_cap_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 984 ]]; then
+    raw="$(od -An -v -tu8 -j 848 -N 136 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a receipt_log_cap_labels=(
+      receipt_record_count
+      receipt_record_cap
+      receipt_records_status
+      receipt_append_status
+      block_log_count
+      block_log_desc_cap
+      block_log_data_used
+      block_log_data_cap
+      logs_rlp_arena_used
+      logs_rlp_arena_cap
+      logs_rlp_last_len
+      receipts_rlp_len
+      receipts_rlp_cap
+      record_bloom_bytes_used
+      record_bloom_bytes_cap
+      receipt_logs_status_mirror
+      block_log_overflow_mirror
+    )
+    for i in "${!receipt_log_cap_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${receipt_log_cap_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 
