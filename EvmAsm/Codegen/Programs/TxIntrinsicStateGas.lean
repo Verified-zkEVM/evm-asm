@@ -299,12 +299,12 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
 
 /-! ## block_verdict_receipt_gas_eip8037_adjust
 
-    Add EIP-8037 state-gas components to per-tx receipt gas increments. The
-    runtime arena records regular execution gas; Amsterdam receipts use the
-    transaction's total gas accounting. Type-4 authorizations need their
-    settlement component, while non-type-4 txs keep the generic intrinsic-state
-    fold. Decode failures are non-gating: the helper leaves that tx's receipt gas
-    at the runtime value. -/
+    Repair EIP-7702 type-4 receipt gas increments when the runtime arena only
+    recorded regular execution gas. Amsterdam receipts use
+    `tx_gas_used_after_refund`; EIP-8037 block-state gas is tracked separately
+    and must not be folded into non-type-4 receipt cumulative gas. Decode
+    failures are non-gating: the helper leaves that tx's receipt gas at the
+    runtime value. -/
 def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "block_verdict_receipt_gas_eip8037_adjust:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -341,8 +341,8 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  sub s11, s9, s8\n" ++
   "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lbvrga_generic_state\n" ++
-  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvrga_generic_state\n" ++
+  "  bnez a0, .Lbvrga_next\n" ++
+  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvrga_next\n" ++
   "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvrga_next\n" ++
   "  add a0, s10, t0; sub a1, s11, t0; li a2, 9; la a3, bvrga_auth_off; la a4, bvrga_auth_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -365,19 +365,15 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   ".Lbvrga_type4_check_state:\n" ++
   "  beqz s4, .Lbvrga_type4_add_auth\n" ++
   "  add t5, s4, t1; ld t5, 0(t5); bgeu t3, t5, .Lbvrga_type4_add_state\n" ++
+  "  sub t0, t4, t6\n" ++
+  liAmsterdamNewAccountStateGas "t1" ++
+  "  add t0, t0, t1; bltu t5, t0, .Lbvrga_type4_add_auth\n" ++
+  "  add t3, t3, t5; add t3, t3, t6; sd t3, 0(t2); j .Lbvrga_next\n" ++
   ".Lbvrga_type4_add_auth:\n" ++
   "  add t3, t3, t4; sd t3, 0(t2); j .Lbvrga_next\n" ++
   ".Lbvrga_type4_add_state:\n" ++
   "  add t3, t3, t5; sd t3, 0(t2)\n" ++
   "  j .Lbvrga_next\n" ++
-  ".Lbvrga_generic_state:\n" ++
-  "  slli t0, s6, 3\n" ++
-  "  add t1, s3, t0; ld t2, 0(t1)\n" ++
-  "  beqz s4, .Lbvrga_store_next\n" ++
-  "  add t3, s4, t0; ld t3, 0(t3); bgeu t2, t3, .Lbvrga_store_next\n" ++
-  "  add t2, t2, t3\n" ++
-  ".Lbvrga_store_next:\n" ++
-  "  sd t2, 0(t1)\n" ++
   ".Lbvrga_next:\n" ++
   "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
   ".Lbvrga_done:\n" ++
