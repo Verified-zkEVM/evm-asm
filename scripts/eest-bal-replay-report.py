@@ -84,8 +84,84 @@ MODELED_SYSTEM_ADDRESSES = {
     "000f3df6d732807ef1319fb7b8bb8522d0beac02",
 }
 WITHDRAWAL_REQUEST_ADDRESS = "00000961ef480eb55e80d19ad83579a64c007002"
-BLOCK_STATE_ROOT_WITNESS_CAP = 32768
-BLOCK_STATE_ROOT_BAL_CAP = 512
+BLOCK_STATE_ROOT_WITNESS_CAP = 524288
+BLOCK_STATE_ROOT_BAL_CAP = 100000
+BV_MTX_ARENA_TX_CAP = 1024
+BMV_FULL_TX_CAPACITY = 9523
+BV_MTX_COMMITTED_CHUNK_CAPACITY = 512
+BV_RECEIPT_RECORD_CAPACITY = 16
+BV_BLOCK_LOG_DESC_CAPACITY = 128
+BV_BLOCK_LOG_DATA_BYTES = 65536
+BV_LOGS_RLP_ARENA_BYTES = 65536
+BV_RECEIPTS_RLP_BYTES = 65536
+BV_SYSTEM_STORAGE_LOG_CAPACITY = 16384
+C1_DEPOSIT_BODY_BYTES = 32768
+C1_LOG_RECORDS_BYTES = 81920
+C1_EXECUTION_REQUESTS_BYTES = 32768
+SYSTEM_REQUEST_BODY_BYTES = 2048
+ERH_BLOB_BYTES = 1572865
+
+
+def byte_len(value) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return len(value)
+    try:
+        return len(bytes(value))
+    except Exception:
+        return 0
+
+
+def seq_count(value) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return len(value)
+    try:
+        return len(value)
+    except Exception:
+        return 0
+
+
+def fixed_item_count(value, item_size: int) -> int:
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return len(value) // item_size
+    return seq_count(value)
+
+
+def request_body_metrics(stateless_input) -> dict[str, int]:
+    request = getattr(stateless_input, "new_payload_request", None)
+    execution_requests = getattr(request, "execution_requests", None)
+    if execution_requests is None:
+        return {
+            "request_deposits": 0,
+            "request_deposit_bytes": 0,
+            "request_withdrawals": 0,
+            "request_withdrawal_bytes": 0,
+            "request_consolidations": 0,
+            "request_consolidation_bytes": 0,
+            "request_section_bytes": 0,
+        }
+
+    deposits = getattr(execution_requests, "deposits", None)
+    withdrawals = getattr(execution_requests, "withdrawals", None)
+    consolidations = getattr(execution_requests, "consolidations", None)
+    deposit_count = fixed_item_count(deposits, 192)
+    withdrawal_count = fixed_item_count(withdrawals, 76)
+    consolidation_count = fixed_item_count(consolidations, 116)
+    deposit_bytes = byte_len(deposits) or deposit_count * 192
+    withdrawal_bytes = byte_len(withdrawals) or withdrawal_count * 76
+    consolidation_bytes = byte_len(consolidations) or consolidation_count * 116
+    return {
+        "request_deposits": deposit_count,
+        "request_deposit_bytes": deposit_bytes,
+        "request_withdrawals": withdrawal_count,
+        "request_withdrawal_bytes": withdrawal_bytes,
+        "request_consolidations": consolidation_count,
+        "request_consolidation_bytes": consolidation_bytes,
+        "request_section_bytes": 12 + deposit_bytes + withdrawal_bytes + consolidation_bytes,
+    }
 
 
 def summarize(
@@ -95,10 +171,13 @@ def summarize(
     bsr_bal_cap: int,
 ) -> tuple[dict[str, int], list[dict[str, str]]]:
     stateless_input, payload, bal = decode_bal(input_path)
+    request_metrics = request_body_metrics(stateless_input)
+    tx_count = len(payload.transactions)
     summary = {
         "input_len": input_path.stat().st_size - 8,
         "bal_bytes": len(payload.block_access_list),
         "bal_rows": len(bal),
+        "bsr_bal_cap": bsr_bal_cap,
         "over_bsr_bal_cap": 0,
         "readonly_rows": 0,
         "changed_rows": 0,
@@ -114,6 +193,7 @@ def summarize(
         "state_nodes": len(stateless_input.witness.state),
         "state_witness_bytes": sum(4 + len(node) for node in stateless_input.witness.state),
         "state_max_bytes": max((len(node) for node in stateless_input.witness.state), default=0),
+        "bsr_witness_cap": bsr_cap,
         "over_bsr_cap": 0,
         "codes": len(stateless_input.witness.codes),
         "code_witness_bytes": sum(4 + len(code) for code in stateless_input.witness.codes),
@@ -121,7 +201,23 @@ def summarize(
         "headers": len(stateless_input.witness.headers),
         "headers_witness_bytes": sum(4 + len(header) for header in stateless_input.witness.headers),
         "header_max_bytes": max((len(header) for header in stateless_input.witness.headers), default=0),
-        "txs": len(payload.transactions),
+        "txs": tx_count,
+        "tx_arena_cap": BV_MTX_ARENA_TX_CAP,
+        "tx_full_200m_cap": BMV_FULL_TX_CAPACITY,
+        "receipt_records_required": tx_count,
+        "receipt_record_cap": BV_RECEIPT_RECORD_CAPACITY,
+        "block_log_desc_cap": BV_BLOCK_LOG_DESC_CAPACITY,
+        "block_log_data_cap": BV_BLOCK_LOG_DATA_BYTES,
+        "logs_rlp_cap": BV_LOGS_RLP_ARENA_BYTES,
+        "receipts_rlp_cap": BV_RECEIPTS_RLP_BYTES,
+        "committed_storage_cap": BV_MTX_COMMITTED_CHUNK_CAPACITY,
+        "system_storage_cap": BV_SYSTEM_STORAGE_LOG_CAPACITY,
+        "deposit_body_cap": C1_DEPOSIT_BODY_BYTES,
+        "log_records_cap": C1_LOG_RECORDS_BYTES,
+        "execution_requests_cap": C1_EXECUTION_REQUESTS_BYTES,
+        "system_request_body_cap": SYSTEM_REQUEST_BODY_BYTES,
+        "request_hash_blob_cap": ERH_BLOB_BYTES,
+        **request_metrics,
     }
     summary["over_bsr_cap"] = int(summary["state_witness_bytes"] > bsr_cap)
     summary["over_bsr_bal_cap"] = int(summary["bal_rows"] > bsr_bal_cap)
@@ -189,6 +285,14 @@ def result_is_failure(
     return actual[:210] != expected_hex[:210]
 
 
+def result_status(results_dir: Path, label: str) -> str:
+    result = results_dir / f"{label}.result.tsv"
+    if not result.is_file():
+        return "MISSING"
+    status, _actual = result.read_text().rstrip("\n").split("\t", 1)
+    return status
+
+
 def main() -> int:
     root = repo_root()
     add_execution_specs_to_path(root)
@@ -222,6 +326,11 @@ def main() -> int:
         help="only include completed harness ERROR or non-full-match cases",
     )
     parser.add_argument(
+        "--status-only",
+        default="",
+        help="only include rows whose result.tsv status equals this value (for example BUDGET)",
+    )
+    parser.add_argument(
         "--bsr-cap",
         type=int,
         default=BLOCK_STATE_ROOT_WITNESS_CAP,
@@ -249,6 +358,7 @@ def main() -> int:
         "input_len",
         "bal_bytes",
         "bal_rows",
+        "bsr_bal_cap",
         "over_bsr_bal_cap",
         "readonly_rows",
         "changed_rows",
@@ -264,6 +374,7 @@ def main() -> int:
         "state_nodes",
         "state_witness_bytes",
         "state_max_bytes",
+        "bsr_witness_cap",
         "over_bsr_cap",
         "codes",
         "code_witness_bytes",
@@ -272,6 +383,28 @@ def main() -> int:
         "headers_witness_bytes",
         "header_max_bytes",
         "txs",
+        "tx_arena_cap",
+        "tx_full_200m_cap",
+        "receipt_records_required",
+        "receipt_record_cap",
+        "block_log_desc_cap",
+        "block_log_data_cap",
+        "logs_rlp_cap",
+        "receipts_rlp_cap",
+        "committed_storage_cap",
+        "system_storage_cap",
+        "deposit_body_cap",
+        "log_records_cap",
+        "execution_requests_cap",
+        "system_request_body_cap",
+        "request_hash_blob_cap",
+        "request_deposits",
+        "request_deposit_bytes",
+        "request_withdrawals",
+        "request_withdrawal_bytes",
+        "request_consolidations",
+        "request_consolidation_bytes",
+        "request_section_bytes",
     ]
     detail_columns = [
         "row",
@@ -314,6 +447,8 @@ def main() -> int:
             else:
                 raise SystemExit(f"bad manifest row with {len(parts)} columns: {line!r}")
             if args.filter and args.filter not in label and args.filter not in relpath:
+                continue
+            if args.status_only and result_status(results_dir, label) != args.status_only:
                 continue
             if args.failures_only and not result_is_failure(
                 results_dir, label, expected_hex

@@ -173,6 +173,7 @@ VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
+PREFLIGHT_REPORT="${EEST_PREFLIGHT_REPORT:-budget}"
 
 usage() {
   cat <<'USAGE'
@@ -212,6 +213,7 @@ Options:
                            repeatedly to sample different subsets and seek discoveries
   --seed N                 integer seed for --random (default: auto-generated and printed)
   --reverse                process the selected fixtures last-to-first (applied after --random)
+  --preflight-report MODE  emit decoded 200M resource dimensions: budget (default), always, never
   --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
@@ -256,6 +258,7 @@ while [[ $# -gt 0 ]]; do
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
     --reverse) REVERSE_ORDER=1; shift ;;
+    --preflight-report) require_arg "$1" "${2:-}"; PREFLIGHT_REPORT="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -348,6 +351,10 @@ if [[ "$REVERSE_ORDER" != "0" && "$REVERSE_ORDER" != "1" ]]; then
   echo "EEST_REVERSE_ORDER must be 0 or 1 (got: $REVERSE_ORDER)" >&2
   exit 1
 fi
+case "$PREFLIGHT_REPORT" in
+  budget|always|never) ;;
+  *) echo "--preflight-report/EEST_PREFLIGHT_REPORT must be budget, always, or never (got: $PREFLIGHT_REPORT)" >&2; exit 1 ;;
+esac
 
 cleanup_children() {
   local pids
@@ -1130,6 +1137,32 @@ classify_missing_results() {
   print_progress
 }
 
+emit_preflight_report() {
+  local status_filter="${1:-}"
+  local -a report_args=(--manifest "$MANIFEST" --results-dir "$RUN_DIR")
+  [[ -n "$status_filter" ]] && report_args+=(--status-only "$status_filter")
+  [[ -n "$BSR_WITNESS_CAP" ]] && report_args+=(--bsr-cap "$BSR_WITNESS_CAP")
+  [[ -n "$BSR_BAL_CAP" ]] && report_args+=(--bsr-bal-cap "$BSR_BAL_CAP")
+
+  echo "==> EEST 200M resource preflight diagnostics${status_filter:+ ($status_filter rows)}"
+  if command -v uv >/dev/null 2>&1 && [[ -d execution-specs ]]; then
+    local uv_manifest="$MANIFEST"
+    local uv_results="$RUN_DIR"
+    [[ "$uv_manifest" = /* ]] || uv_manifest="../$uv_manifest"
+    [[ "$uv_results" = /* ]] || uv_results="../$uv_results"
+    local -a uv_args=(--manifest "$uv_manifest" --results-dir "$uv_results")
+    [[ -n "$status_filter" ]] && uv_args+=(--status-only "$status_filter")
+    [[ -n "$BSR_WITNESS_CAP" ]] && uv_args+=(--bsr-cap "$BSR_WITNESS_CAP")
+    [[ -n "$BSR_BAL_CAP" ]] && uv_args+=(--bsr-bal-cap "$BSR_BAL_CAP")
+    uv run --directory execution-specs --quiet python3 \
+      ../scripts/eest-bal-replay-report.py "${uv_args[@]}" || \
+      echo "  warn: 200M resource preflight diagnostics failed" >&2
+  else
+    python3 scripts/eest-bal-replay-report.py "${report_args[@]}" || \
+      echo "  warn: 200M resource preflight diagnostics failed" >&2
+  fi
+}
+
 failure_limit_reached() {
   [[ -n "$MAX_FAILURES" && $((fail + err)) -ge "$MAX_FAILURES" ]]
 }
@@ -1207,6 +1240,11 @@ if [[ "$stopEarly" -eq 0 ]]; then
 fi
 if [[ "$stopEarly" -eq 1 ]]; then
   echo "==> stopped after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
+fi
+if [[ "$PREFLIGHT_REPORT" == "always" ]]; then
+  emit_preflight_report
+elif [[ "$PREFLIGHT_REPORT" == "budget" && "$budget" -gt 0 ]]; then
+  emit_preflight_report BUDGET
 fi
 
 ran=$((total - err - budget))
