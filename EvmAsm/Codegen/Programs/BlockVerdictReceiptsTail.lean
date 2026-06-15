@@ -98,7 +98,9 @@ def blockVerdictReceiptsTail : String :=
   "  la a0, c1_dbody; la t2, c1_dlen; ld a1, 0(t2)\n" ++
   "  la a2, dbsr_wbody; la t2, dbsr_wlen; ld a3, 0(t2)\n" ++
   "  la a4, dbsr_cbody; la t2, dbsr_clen; ld a5, 0(t2)\n" ++
-  "  add t0, a1, a3; add t0, t0, a5; addi t0, t0, 12; la t1, c1_er_assembled_len; sd t0, 0(t1)\n" ++
+  "  add t0, a1, a3; add t0, t0, a5; addi t0, t0, 12\n" ++
+  "  li t2, " ++ toString bvMaxExecutionRequestSectionBytes ++ "; bgtu t0, t2, .Lbv_requests_hash_fail\n" ++
+  "  la t1, c1_er_assembled_len; sd t0, 0(t1)\n" ++
   "  la a6, erh_requests_hash\n" ++
   "  la a7, c1_er_assembled\n" ++
   "  jal ra, requests_hash_verify\n" ++

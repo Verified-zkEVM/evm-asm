@@ -555,6 +555,8 @@ def statelessVerdictV2Function : String :=
   "  mv a0, t2; mv a1, t3\n" ++
   "  la t0, dbsr_wbody; mv a2, t0; la t0, dbsr_wlen; ld a3, 0(t0)\n" ++
   "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
+  "  mv t0, a1; add t0, t0, a3; add t0, t0, a5; addi t0, t0, 12\n" ++
+  "  li t1, " ++ toString bvMaxExecutionRequestSectionBytes ++ "; bgtu t0, t1, .Lv2_requests_hash_fail\n" ++
   "  la a6, c1_er_assembled\n" ++
   "  jal ra, assemble_execution_requests\n" ++
   "  la t0, c1_er_assembled_len; sd a0, 0(t0)\n" ++

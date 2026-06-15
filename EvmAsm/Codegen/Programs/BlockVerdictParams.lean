@@ -148,6 +148,13 @@ def bvReceiptListPayloadBytes : Nat := 32768
 def bvReceiptConsensusDescCapacity : Nat := 128
 def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
 
+/-- Amsterdam SSZ execution-request capacity:
+    deposits 8192*192, withdrawals 16*76, consolidations 2*116, plus the
+    3-entry offset table used by the guest's flattened request-section body. -/
+def bvMaxDepositRequestBodyBytes : Nat := 8192 * 192
+def bvMaxExecutionRequestSectionBytes : Nat :=
+  12 + bvMaxDepositRequestBodyBytes + 16 * 76 + 2 * 116
+
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
     Predeploy code comes from the witness and is NOT EIP-170-bounded, but the
