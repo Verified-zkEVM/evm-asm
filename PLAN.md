@@ -1117,11 +1117,24 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     Supporting: `rlpLoopAcc` (the loop's big-endian fold), `rlpLoopAcc_toNat`
     (mod-form invariant), and `rlpLoopAcc_zero_eq_fromBytesBE` (the fold ↔
     `fromBytesBE` bridge). Axiom-clean, 0 sorry.
-  - Remaining: unified single-item dispatch (compose the Phase-1
-    `cpsNBranchWithin` classifier with all five general handlers, incl. the
-    general long-form full paths that apply the n-iteration closure at the
-    runtime lenLen), cross-doubleword length spans, and `readLength` canonical
-    / `>55` validation.
+  - ✅ **General long-form full paths** (`Phase1E3LongBytesFull.lean` /
+    `Phase1E5LongListFull.lean`). For an **arbitrary** in-class prefix,
+    `rlp_phase1_e3_longBytes_full_spec_within` /
+    `rlp_phase1_e5_longList_full_spec_within` compose the Phase-1 classify +
+    Phase-3 entry with the n-iteration closure at the symbolic
+    `n = rlpPrefixLong{Bytes,List}LenOfLen pfx ∈ [1,8]`, yielding the decoded
+    `x11 = ofNat (Nat.fromBytesBE (rlpLoopByteList …))` and payload pointer
+    `x13`. Collapses the 16 concrete-prefix `…_fromBytesBE_spec_within` paths
+    into 2 parametric theorems (e5 reuses the existing
+    `…_lenOfLen_of_class…` prefix wrapper; e3 rewrites `x14 = pfx − 0xB7` to
+    `ofNat n` via `rlpPrefixLongBytesLenOfLen_toWord_of_class`). Axiom-clean,
+    0 sorry.
+  - Remaining: unified single-item dispatch — compose the Phase-1
+    `cpsNBranchWithin` classifier with all five general handlers (e1/e2/e4 flat
+    + the e3/e5 general long-form full paths); needs a "`cpsNBranch` then
+    per-exit continue" composition (the structurally hardest piece).
+    Also: cross-doubleword length spans, and `readLength` canonical / `>55`
+    validation.
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
