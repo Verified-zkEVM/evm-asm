@@ -58,6 +58,7 @@ run_case "insert"    1 "1:0:0:170:7:66:17:0:0:0:238" || FAILED=1
 run_case "duplicate" 2 "1:0:0:170:7:66:51:0:0:0:238" || FAILED=1
 run_case "mixed"     3 "2:0:0:170:7:66:51:170:9:85:238" || FAILED=1
 run_case "overflow"  4 "3:1:1:0:0:0:0:0:0:0:238" || FAILED=1
+run_case "highdup"   5 "1:0:0:170:7:66:130:0:0:0:238" || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then

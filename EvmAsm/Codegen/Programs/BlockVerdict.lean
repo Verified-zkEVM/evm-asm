@@ -291,7 +291,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
-  committedStorageSnapshotAppendFunction ++ "\n" ++
+  committedStorageSnapshotUpsertFunction ++ "\n" ++
   committedStorageLatestValueFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++

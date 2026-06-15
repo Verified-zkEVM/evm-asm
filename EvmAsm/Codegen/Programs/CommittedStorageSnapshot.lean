@@ -167,7 +167,7 @@ def committedStorageSnapshotUpsertFunction : String :=
 /-- `zisk_mtx_committed_snapshot_upsert`: focused probe.
     Input after ziskemu's length wrapper:
       +8  mode: 0 zero-live, 1 insert, 2 duplicate, 3 duplicate-plus-new,
-          4 overflow for a new unique key
+          4 overflow for a new unique key, 5 high duplicate-write collapse
     Output matches the append probe shape:
       +0  returned count
       +8  returned status
@@ -196,6 +196,15 @@ def ziskCommittedStorageSnapshotUpsertPrologue : String :=
   "  li t0, 1; beq s1, t0, .Lcssup_one\n" ++
   "  li t0, 2; beq s1, t0, .Lcssup_duplicate\n" ++
   "  li t0, 3; beq s1, t0, .Lcssup_mixed\n" ++
+  "  li t0, 4; beq s1, t0, .Lcssup_overflow\n" ++
+  "  la t0, cssu_live; li t2, 0\n" ++
+  ".Lcssup_highdup_loop:\n" ++
+  "  li t3, 130; beq t2, t3, .Lcssup_highdup_done\n" ++
+  "  li t1, 0x07; sd t1, 32(t0); li t1, 0x42; sd t1, 64(t0); addi t1, t2, 1; sd t1, 96(t0)\n" ++
+  "  addi t0, t0, 128; addi t2, t2, 1; j .Lcssup_highdup_loop\n" ++
+  ".Lcssup_highdup_done:\n" ++
+  "  li a2, 130; li a4, 0; li a5, 128; j .Lcssup_call\n" ++
+  ".Lcssup_overflow:\n" ++
   "  li a2, 1; li a4, 3; li a5, 3; j .Lcssup_call\n" ++
   ".Lcssup_one:\n  li a2, 1; j .Lcssup_call\n" ++
   ".Lcssup_duplicate:\n  li a2, 2; j .Lcssup_call\n" ++
@@ -214,7 +223,7 @@ def ziskCommittedStorageSnapshotUpsertPrologue : String :=
 def ziskCommittedStorageSnapshotUpsertDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "cssu_live:\n  .zero 384\n" ++
+  "cssu_live:\n  .zero 16640\n" ++
   "cssu_table:\n  .zero 512\n" ++
   "cssu_recipient:\n  .zero 32\n" ++
   "cssu_status:\n  .zero 8\n"

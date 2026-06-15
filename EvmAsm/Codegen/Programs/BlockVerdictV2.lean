@@ -115,7 +115,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
-  committedStorageSnapshotAppendFunction ++ "\n" ++
+  committedStorageSnapshotUpsertFunction ++ "\n" ++
   committedStorageLatestValueFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
@@ -427,7 +427,7 @@ def statelessVerdictV2GuestClosure : String :=
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
-  committedStorageSnapshotAppendFunction ++ "\n" ++
+  committedStorageSnapshotUpsertFunction ++ "\n" ++
   committedStorageLatestValueFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++

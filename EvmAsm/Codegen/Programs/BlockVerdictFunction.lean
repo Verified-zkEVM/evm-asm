@@ -635,12 +635,13 @@ def blockVerdictFunction : String :=
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
+  -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
   "  la a0, bv_mtx_ctx; addi a0, a0, 72             # recipient key\n" ++
   "  li a1, 0xa0630000                              # live storage log base\n" ++
   "  la t0, evm_env; ld a2, 448(t0)                 # live log entry count\n" ++
   "  la a3, bv_mtx_committed; la t0, bv_mtx_committed_count; ld a4, 0(t0)\n" ++
   "  li a5, " ++ toString bvMtxCommittedCapacity ++ "; la a6, bv_mtx_committed_overflow\n" ++
-  "  jal ra, bv_mtx_committed_snapshot_append\n" ++
+  "  jal ra, bv_mtx_committed_snapshot_upsert\n" ++
   "  bnez a1, .Lbv_mtx_bail                         # table full -> conservative\n" ++
   "  la t4, bv_mtx_committed_count; sd a0, 0(t4)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
