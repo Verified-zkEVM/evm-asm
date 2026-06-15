@@ -305,7 +305,8 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  slli t0, s6, 3\n" ++
   "  add t1, s3, t0; ld t2, 0(t1)\n" ++
   "  beqz s4, .Lbvrga_after_intr_state\n" ++
-  "  add t3, s4, t0; ld t3, 0(t3); add t2, t2, t3\n" ++
+  "  add t3, s4, t0; ld t3, 0(t3); bgeu t2, t3, .Lbvrga_store_next\n" ++
+  "  add t2, t2, t3\n" ++
   ".Lbvrga_after_intr_state:\n" ++
   "  sd t2, 0(t1)\n" ++
   "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
@@ -323,6 +324,9 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  bnez a0, .Lbvrga_next\n" ++
   "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 7500; mul t0, t0, t1\n" ++
   "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2); add t3, t3, t0; sd t3, 0(t2)\n" ++
+  "  j .Lbvrga_next\n" ++
+  ".Lbvrga_store_next:\n" ++
+  "  sd t2, 0(t1)\n" ++
   ".Lbvrga_next:\n" ++
   "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
   ".Lbvrga_done:\n" ++
