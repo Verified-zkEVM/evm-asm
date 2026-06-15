@@ -23,10 +23,11 @@ The current `main` implementation has several independent ceilings:
 - The sender sequencing checks are currently quadratic scans over prior public
   keys / skip-list entries. That is acceptable for fixture-sized tests, but not
   for the full gas-limit target.
-- `bv_mtx_committed` is a 128-entry table of 128-byte committed storage
-  records. This is not a transaction-count cap. On the keyed-upsert path it is
-  a unique `(recipient, slotKey)` cap: duplicate writes update the existing
-  entry in place, while a 129th unique key remains conservative capacity debt.
+- The active committed-storage threading path uses the chunked
+  `bv_mtx_committed_chunked` table: four 128-entry pages of 128-byte committed
+  storage records, for `bvMtxCommittedChunkCapacity = 512` unique
+  `(recipient, slotKey)` entries. This is not a transaction-count cap. Duplicate
+  writes update the existing entry in place.
 - Receipt/log validation has separate windows and record arenas. Raising the tx
   cap alone does not cover blocks with many logs or large receipt material.
 
@@ -44,11 +45,12 @@ Use a staged design:
 3. Replace quadratic sender counting with a deterministic per-sender aggregation
    table that is explicitly sized or chunked for 9,523 transactions. This table
    should serve both exact nonce sequencing and sender debit/balance aggregation.
-4. Do not scale `bv_mtx_committed` as `transactions * storage-writes`.
-   The current keyed-upsert design counts unique `(recipient, slotKey)` entries,
-   not raw writes, so duplicate-heavy blocks can exceed the old 128-write shape
-   while preserving latest-write-wins. More than 128 unique committed keys is
-   still conservative debt for the streaming/chunked follow-up.
+4. Do not scale committed storage as `transactions * storage-writes`.
+   The active chunked keyed-upsert design counts unique `(recipient, slotKey)`
+   entries, not raw writes, so duplicate-heavy blocks can exceed both the old
+   128-write shape and the active 512-unique-key shape while preserving
+   latest-write-wins. More than 512 unique committed keys is still conservative
+   capacity debt for a later streaming design.
 5. Treat receipt/log capacity separately from transaction count. Full-capacity
    receipt validation should consume per-tx windows plus a log/receipt stream or
    digest substrate instead of allocating a worst-case static log body per
@@ -67,24 +69,37 @@ enough to make a blind static allocation a maintainable interface.
 
 ## Committed-Storage Classification
 
-The committed-storage threading table now has a precise near-term model:
+The committed-storage threading table now has a precise chunked model:
 
-- Exact: up to `bvMtxCommittedCapacity = 128` unique `(recipient, slotKey)`
-  entries. Each committed entry remains a 128-byte storage-log record.
-- Exact above 128 raw writes when they collapse onto at most 128 unique keys.
-  `bv_mtx_committed_snapshot_upsert` scans the existing table for the re-keyed
-  recipient plus slot key and updates that entry in place, so later writes keep
-  execution-specs last-write-wins behavior without consuming another slot.
-- Conservative: more than 128 unique `(recipient, slotKey)` entries. The helper
-  sets `bv_mtx_committed_overflow` and returns a nonzero status before writing
-  past the table. A later streaming/chunked design is tracked by bead
-  `evm-asm-bmvmx.5.5.7.4.4.4`.
+- Exact: up to `bvMtxCommittedChunkCapacity = 512` unique `(recipient, slotKey)`
+  entries across four 128-entry pages. Each committed entry remains a 128-byte
+  storage-log record, and the block-verdict call sites read/write
+  `bv_mtx_committed_chunked`, `bv_mtx_committed_chunk_count`, and
+  `bv_mtx_committed_chunk_overflow`.
+- Exact above 512 raw writes when they collapse onto at most 512 unique keys.
+  `bv_mtx_committed_chunked_snapshot_upsert` scans the populated prefix for the
+  re-keyed recipient plus slot key and updates that entry in place, so later
+  writes keep execution-specs last-write-wins behavior without consuming another
+  slot. `bv_mtx_committed_chunked_latest_value` scans the same populated prefix
+  for preload threading.
+- Conservative: more than 512 unique `(recipient, slotKey)` entries. The helper
+  sets `bv_mtx_committed_chunk_overflow` and returns a nonzero status before
+  writing past the table. That remaining capacity boundary is tracked by the
+  follow-up streaming/full-capacity work under `evm-asm-bmvmx.5.5.7.4`.
 
-Evidence lives in `scripts/codegen-zisk-mtx-committed-snapshot-upsert-check.sh`:
-mode `highdup` writes 130 committed records to the same key and expects one
-committed table entry with the latest value; mode `overflow` fills the table and
-then attempts a new unique key, expecting conservative overflow and an unchanged
-sentinel beyond capacity.
+Evidence:
+
+- `scripts/codegen-zisk-mtx-committed-chunked-snapshot-upsert-check.sh` covers
+  129 unique keys, duplicate updates across the old 128-entry page boundary,
+  exact full-capacity fill at 512 unique keys, and conservative overflow of a
+  513th unique key with the sentinel beyond capacity unchanged.
+- `scripts/codegen-zisk-mtx-committed-chunked-latest-value-check.sh` covers
+  lookup in page 0, lookup in page 1, duplicate last-wins lookup across pages,
+  and conservative over-capacity lookup status.
+- `scripts/codegen-zisk-mtx-committed-block-verdict-threading-check.sh` uses the
+  actual block-verdict global labels to prove the wired path can upsert and
+  thread 129 unique keys, collapse 130 duplicate raw writes to one key, and
+  leave the post-table sentinel unchanged on chunk-capacity overflow.
 
 ## Implementation Beads
 
@@ -96,11 +111,13 @@ The follow-up work should land in separate PRs:
   helper that handles 9,523 transactions.
 - Extend the multi-tx sender debit / actual-balance checks to the same
   aggregation substrate.
-- Landed keyed committed-storage upsert slices:
-  `evm-asm-bmvmx.5.5.7.4.4.1` adds the helper/probe and
-  `evm-asm-bmvmx.5.5.7.4.4.2` wires the multi-tx snapshot path through it.
-- Extend committed-storage threading beyond 128 unique `(recipient, slotKey)`
-  entries with a streaming or chunked design (`evm-asm-bmvmx.5.5.7.4.4.4`).
+- Landed committed-storage threading slices:
+  `evm-asm-bmvmx.5.5.7.4.4.1`/`.4.4.2` added and wired the first keyed upsert,
+  while `evm-asm-bmvmx.5.5.7.4.4.4` adds the active 512-entry chunked table,
+  chunked upsert/lookup helpers, block-verdict wiring, and above-128 evidence.
+- Extend committed-storage threading beyond 512 unique `(recipient, slotKey)`
+  entries with a streaming design once an execution-specs-covered fixture needs
+  it.
 - Decouple receipt/log validation capacity from the tx cap and connect it to the
   log/receipt streaming or digest substrate.
 - Add full-capacity probes: one fixture/regression for the observed 1,021-tx

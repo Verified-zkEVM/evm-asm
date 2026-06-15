@@ -96,6 +96,10 @@ def callFrameRoundtripData : String :=
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
+  ".balign 8\n" ++
   "rt_cd_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++
   "rt_cd_zero:\n  .zero 32\n" ++

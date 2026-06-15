@@ -1103,10 +1103,25 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (the long-form `lenLen` counter). The e1/e2 wrappers (this slice) mirror
     e4 and reuse `rlpPrefixShortBytesPayloadLen_toWord_of_class`
     (`EL/RLP/ProgramSpec.lean`). Axiom-clean, 0 sorry.
-  - Remaining: the planned general `n`-iteration closure (replacing the
-    unrolled 1–8 closures via induction over the byte counter),
-    cross-doubleword length spans, and the short/long-list error exits
-    (`e4`/`e5`).
+  - ✅ **General n-iteration long-form loop closure** (`Phase2LongLoopGeneral.lean`).
+    The decoder runs a single back-branching loop whose iteration count is the
+    runtime counter; the eight unrolled closures only covered fixed counts 1–8.
+    `rlp_phase2_long_loop_n_byte_spec_within (n) (1 ≤ n ≤ 8)` now proves the
+    loop for an **arbitrary** count in one theorem (by induction on the count),
+    with the decoded length bridged to the pure spec
+    `BitVec.ofNat 64 (Nat.fromBytesBE (rlpLoopByteList …))`. This is the
+    keystone for a unified single-item decoder (apply at the symbolic
+    length-of-length). The prior blocker — parametric counter arithmetic
+    (`BitVec.ofNat 64 (n+1) + signExtend12 (-1) = BitVec.ofNat 64 n`) — is
+    resolved by `word_ofNat_succ_dec`/`_ne_zero`/`_add_one` (toNat + omega).
+    Supporting: `rlpLoopAcc` (the loop's big-endian fold), `rlpLoopAcc_toNat`
+    (mod-form invariant), and `rlpLoopAcc_zero_eq_fromBytesBE` (the fold ↔
+    `fromBytesBE` bridge). Axiom-clean, 0 sorry.
+  - Remaining: unified single-item dispatch (compose the Phase-1
+    `cpsNBranchWithin` classifier with all five general handlers, incl. the
+    general long-form full paths that apply the n-iteration closure at the
+    runtime lenLen), cross-doubleword length spans, and `readLength` canonical
+    / `>55` validation.
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)

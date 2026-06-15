@@ -339,6 +339,25 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  -- 3hlnt.2.2: snapshot the hot running block bloom into the child-depth
+  -- checkpoint slab. The consensus receipt/log-bloom path still comes from
+  -- descriptors; this only gives the hot accumulator the same rollback shape
+  -- as the scalar frame checkpoints above.
+  "  addi t0, s8, -1\n" ++
+  "  slli t0, t0, 8\n" ++
+  "  la t1, rb_bloom_checkpoints\n" ++
+  "  add t1, t1, t0                 # dst = checkpoint[child_depth - 1]\n" ++
+  "  la t2, rb_running_block_bloom  # src = hot running block bloom\n" ++
+  "  li t3, 32\n" ++
+  ".Lcfd_bloom_checkpoint_loop:\n" ++
+  "  beqz t3, .Lcfd_bloom_checkpoint_done\n" ++
+  "  ld t4, 0(t2)\n" ++
+  "  sd t4, 0(t1)\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, 8\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lcfd_bloom_checkpoint_loop\n" ++
+  ".Lcfd_bloom_checkpoint_done:\n" ++
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
   -- 10. frame-relative stack bounds: point the under/overflow guards at the
@@ -474,7 +493,10 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
       +152 evm_cur_stack_top - &arena      (expect 0x18200 = child frame stack top)
       +160 evm_cur_stack_low - &arena      (expect 0x10200 = top - 1024*32)
-      +168 parent env.gasRemaining        (expect 90000 = 100000 - transfer 9000 - cost 1000) -/
+      +168 parent env.gasRemaining        (expect 90000 = 100000 - transfer 9000 - cost 1000)
+      +176/+184 state-gas snapshots       (expect 12345/67890)
+      +192/+200 refund/warmth snapshots   (expect 24680/5)
+      +208/+216 running bloom checkpoint  (expect word0/word31 copied) -/
 def ziskCallFrameDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -489,6 +511,9 @@ def ziskCallFrameDescendPrologue : String :=
   "  la t0, evm_state_gas_used; li t1, 67890; sd t1, 0(t0)\n" ++
   "  la t0, evm_refund_acc; li t1, 24680; sd t1, 0(t0)\n" ++
   "  la t0, evm_storage_access_count; li t1, 5; sd t1, 0(t0)\n" ++
+  -- Running block bloom snapshot source; descend should copy word0/word31 into
+  -- rb_bloom_checkpoints[0].
+  "  la t0, rb_running_block_bloom; li t1, 0x1111222233334444; sd t1, 0(t0); li t1, 0xaaaabbbbccccdddd; sd t1, 248(t0)\n" ++
   -- to / value words.
   "  la t0, cfd2_to; li t1, 0xbb; sd t1, 0(t0)\n" ++
   "  la t0, cfd2_val; li t1, 0x7; sd t1, 0(t0)\n" ++
@@ -528,6 +553,7 @@ def ziskCallFrameDescendPrologue : String :=
   "  ld t0, 632(x20); sd t0, 184(s0)\n" ++   -- expect 67890 (state_gas_used)
   "  ld t0, 640(x20); sd t0, 192(s0)\n" ++   -- expect 24680 (refund_acc, nxio8.4.2)
   "  ld t0, 648(x20); sd t0, 200(s0)\n" ++   -- expect 5 (warmth count, nxio8.4.3)
+  "  la t0, rb_bloom_checkpoints; ld t1, 0(t0); sd t1, 208(s0); ld t1, 248(t0); sd t1, 216(s0)\n" ++
   -- child register bases.
   "  la t1, call_frame_arena; sub t0, x13, t1; sd t0, 56(s0)\n" ++
   "  la t1, call_frame_arena; sub t0, x20, t1; sd t0, 64(s0)\n" ++
@@ -584,6 +610,9 @@ def ziskCallFrameDescendDataSection : String :=
   "exec_code_effect_count:\n  .zero 8\n" ++
   "exec_code_effect_next:\n  .zero 8\n" ++
   "exec_code_effect_overflow:\n  .zero 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
   ".balign 8\n" ++
   "cfd2_desc:\n  .zero 96\n" ++
   ".balign 32\n" ++

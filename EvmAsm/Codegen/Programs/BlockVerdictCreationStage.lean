@@ -252,6 +252,7 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  mv a2, s1\n" ++
   "  jal ra, stage_creation_runtime_payload\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
+  "  ld s2, 48(s0)               # save is_creation before dispatcher clobbers caller state\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
@@ -261,7 +262,7 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++
-  "  la t4, bv_tx_is_creation_arr; ld t5, 48(s0); sd t5, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++

@@ -94,6 +94,10 @@ def createRoundtripData : String :=
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
+  ".balign 8\n" ++
   -- parent: PUSH1 10; PUSH1 0; PUSH1 0; CREATE; PUSH1 0; SSTORE; STOP.
   "cr_parent_code:\n  .byte 0x60, 0x0a, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x60, 0x00, 0x55\n" ++
   "  .byte 0x60, 0x0a, 0x60, 0x00, 0x60, 0x00, 0xf0, 0x60, 0x01, 0x55, 0x00\n" ++
