@@ -1030,11 +1030,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- tx's recipient (its entries are all the recipient's own because dispatch_tx_runtime_code
   -- requires self-contained), so the NEXT tx's preload can thread a prior tx's committed
   -- value via exec_log_latest_value. Capacity counts unique (recipient, slotKey) keys;
-  -- duplicate writes update in place. Unique-key overflow is conservative and surfaced via
-  -- bv_mtx_committed_overflow. dtrc_recipkey / dtrc_threadval are the per-slot query key
-  -- and threaded-value output buffer. The chunked labels below are behavior-neutral substrate
-  -- for the follow-up helpers: same 128-entry page layout, four pages total, exact until
-  -- bv_mtx_committed_chunk_overflow reports conservative unique-key capacity exhaustion.
+  -- duplicate writes update in place. The active chunked table keeps the same 128-entry
+  -- page layout over four pages (512 unique keys total); unique-key overflow is
+  -- conservative and surfaced via bv_mtx_committed_chunk_overflow. The legacy single-page
+  -- labels remain while the stacked transition lands, but block-verdict call sites use the
+  -- chunked count/table/overflow labels. dtrc_recipkey / dtrc_threadval are the per-slot
+  -- query key and threaded-value output buffer.
   ".balign 8\n" ++
   "bv_mtx_committed_count:\n  .zero 8\n" ++
   "bv_mtx_committed_overflow:\n  .zero 8\n" ++
