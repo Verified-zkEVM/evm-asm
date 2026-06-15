@@ -108,11 +108,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, sv_recomputed; ld t2, 8(t1); sd t2, 176(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 16(t1); sd t2, 184(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 24(t1); sd t2, 192(t0)\n" ++
-  "  la t1, sv_params; ld t1, 0(t1); addi t1, t1, 52\n" ++
+  "  la t1, sv_params; ld t1, 0(t1); beqz t1, .Lv2_dbg_no_payload_root; addi t1, t1, 52\n" ++
   "  ld t2, 0(t1); sd t2, 200(t0)\n" ++
   "  ld t2, 8(t1); sd t2, 208(t0)\n" ++
   "  ld t2, 16(t1); sd t2, 216(t0)\n" ++
   "  ld t2, 24(t1); sd t2, 224(t0)\n" ++
+  ".Lv2_dbg_no_payload_root:\n" ++
   "  la t1, bvgr_arena_status; ld t2, 0(t1); sd t2, 232(t0)\n" ++
   "  la t1, bvgr_arena_tx_count; ld t2, 0(t1); sd t2, 240(t0)\n" ++
   "  la t1, bvgr_arena_runtime_count; ld t2, 0(t1); sd t2, 248(t0)\n" ++

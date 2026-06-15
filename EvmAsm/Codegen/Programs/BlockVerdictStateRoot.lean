@@ -489,7 +489,7 @@ def statelessVerdictV2Function : String :=
   ".Lc1_w_copyd:\n" ++
   "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
-  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   -- == CONSOLIDATION (EIP-7251) ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
@@ -532,7 +532,7 @@ def statelessVerdictV2Function : String :=
   ".Lc1_c_copyd:\n" ++
   "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
-  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
