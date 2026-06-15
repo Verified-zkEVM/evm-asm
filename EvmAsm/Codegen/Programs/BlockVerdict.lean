@@ -194,7 +194,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_b2_count; ld t2, 0(t1); sd t2, 848(t0)\n" ++
   "  li t2, " ++ toString bvMtxCommittedChunkCapacity ++ "; sd t2, 856(t0)\n" ++
   "  li t2, " ++ toString bvMtxCommittedChunkBytes ++ "; sd t2, 864(t0)\n" ++
-  "  la t1, bv_mtx_nonce_seen_count; ld t2, 0(t1); sd t2, 872(t0)\n" ++
+  "  li t2, 0; sd t2, 872(t0)  # retired nonce-seen debug counter\n" ++
   "  li t2, 16; sd t2, 880(t0)\n" ++
   "  la t1, bv_tx_count; ld t2, 0(t1); sd t2, 888(t0)\n" ++
   "  la t1, brr_control; ld t2, 0(t1); sd t2, 896(t0)\n" ++

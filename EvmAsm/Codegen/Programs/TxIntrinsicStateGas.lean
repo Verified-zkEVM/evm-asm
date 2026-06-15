@@ -170,15 +170,17 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
       a0 = encoded tx ptr, a1 = encoded tx len
       a2 = BAL ptr gate (0 disables), a3 = BAL length
       a4 = block chain id
+      a5 = current tx block_access_index (tx index + 1)
       a0 output = refund amount (u64). Parse failures for an individual
                   authorization conservatively contribute zero. -/
 def txEip7702ExistingAuthorityRefundFunction : String :=
   "tx_eip7702_existing_authority_refund:\n" ++
-  "  addi sp, sp, -104\n" ++
+  "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  sd a5, 104(sp)              # current block_access_index\n" ++
   "  mv s0, a0                   # tx ptr\n" ++
   "  mv s1, a1                   # tx len\n" ++
   "  mv s2, a2                   # BAL ptr\n" ++
@@ -240,9 +242,35 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  lbu t3, 2(t2); bnez t3, .Lteer_next\n" ++
   "  addi t2, t2, 3; mv t4, s11; li t5, 20\n" ++
   ".Lteer_marker_cmp:\n" ++
-  "  beqz t5, .Lteer_refund_match\n" ++
+  "  beqz t5, .Lteer_marker_match\n" ++
   "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
   "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
+  ".Lteer_marker_match:\n" ++
+  "  # The final delegation marker only proves the authority is non-empty after the block.\n" ++
+  "  # Existing-authority refund applies here only if that code change is before this tx.\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0)\n" ++
+  "  li a2, 5; la a3, c2nsf_off; la a4, c2nsf_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
+  "  la t0, c2nsf_len; ld t2, 0(t0)\n" ++
+  "  mv a0, t1; mv a1, t2; la a2, c2nsf_cnt\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, c2nsf_cnt; ld t3, 0(t0); beqz t3, .Lteer_next\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
+  "  la t0, c2nsf_len; ld t2, 0(t0)\n" ++
+  "  mv a0, t1; mv a1, t2; mv a2, t3; la a3, c2nsf_toff; la a4, c2nsf_tlen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
+  "  la t0, c2nsf_toff; ld t3, 0(t0); add a0, t1, t3\n" ++
+  "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
+  "  li a2, 0; addi a3, sp, 112\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  ld t0, 112(sp); ld t1, 104(sp); bgeu t0, t1, .Lteer_next\n" ++
   ".Lteer_refund_match:\n" ++
   liAmsterdamNewAccountStateGas "t3" ++
   "  add s10, s10, t3; j .Lteer_next\n" ++
@@ -255,7 +283,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 104\n" ++
+  "  addi sp, sp, 128\n" ++
   "  ret"
 
 
@@ -405,7 +433,7 @@ def blockVerdictTxStateGasArrayFunction : String :=
   "  jal ra, tx_intrinsic_state_gas\n" ++
   "  bnez a0, .Lbvtsg_tx_fail\n" ++
   "  beqz s8, .Lbvtsg_after_refund\n" ++
-  "  add a0, s0, s6; sub a1, s7, s6; mv a2, s8; mv a3, s9; mv a4, s10\n" ++
+  "  add a0, s0, s6; sub a1, s7, s6; mv a2, s8; mv a3, s9; mv a4, s10; addi a5, s5, 1\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  slli t0, s5, 3; add t1, s3, t0; ld t2, 0(t1); bgtu a0, t2, .Lbvtsg_refund_clamp\n" ++
   "  sub t2, t2, a0; sd t2, 0(t1); j .Lbvtsg_after_refund\n" ++
