@@ -50,6 +50,8 @@ import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
+import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
@@ -289,6 +291,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
+  committedStorageSnapshotUpsertFunction ++ "\n" ++
+  committedStorageLatestValueFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
