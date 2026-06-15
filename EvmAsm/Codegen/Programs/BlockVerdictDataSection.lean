@@ -705,7 +705,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_auth_off:\n  .zero 8\n" ++
   "bsg_auth_len:\n  .zero 8\n" ++
   "bsg_auth_count:\n  .zero 8\n" ++
-  "bsg_header_gas_used:\n  .zero 8\n" ++
   "bsg_min_block_gas:\n  .zero 8\n" ++
   "alc_scratch:\n  .zero 8\n" ++
   "alc_entry_offset:\n  .zero 8\n" ++
