@@ -1188,8 +1188,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
   -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
-  -- bv_b1_sender_table is sized to bvMtxActiveTxCap distinct senders; each row is
-  -- 32-byte padded address + u64 total tx count, filled by b1_sender_count_table.
+  -- bv_b1_sender_table is sized to bvMtxSenderCountEntries distinct senders, which
+  -- follows the full 200M tx-count target. Each row is a 32-byte padded address
+  -- plus u64 total tx count, filled by b1_sender_count_table.
   ".balign 8\n" ++
   b1SenderCountTableScratchDataSection ++
   ".balign 8\n" ++

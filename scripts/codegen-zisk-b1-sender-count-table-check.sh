@@ -24,22 +24,28 @@ lake exe codegen --program zisk_b1_sender_count_table --halt linux93 \
 
 python3 - <<'PY'
 import struct
-with open('gen-out/zisk_b1_sender_count_table_mode0.input', 'wb') as f:
-    f.write(struct.pack('<Q', 0))
-with open('gen-out/zisk_b1_sender_count_table_mode1.input', 'wb') as f:
-    f.write(struct.pack('<Q', 1))
+for mode in range(6):
+    with open(f'gen-out/zisk_b1_sender_count_table_mode{mode}.input', 'wb') as f:
+        f.write(struct.pack('<Q', mode))
 PY
 
 run_mode() {
   local mode="$1"
+  local steps=5000000
+  case "$mode" in
+    2|3) steps=50000000 ;;
+    4) steps=300000000 ;;
+    5) steps=2000000 ;;
+  esac
   "$ZISKEMU" -e gen-out/zisk_b1_sender_count_table.elf \
     -i "gen-out/zisk_b1_sender_count_table_mode${mode}.input" \
-    -o "gen-out/zisk_b1_sender_count_table_mode${mode}.output" -n 2000000 \
+    -o "gen-out/zisk_b1_sender_count_table_mode${mode}.output" -n "$steps" \
     >"gen-out/zisk_b1_sender_count_table_mode${mode}.emu.log" 2>&1 || true
 }
 
-run_mode 0
-run_mode 1
+for mode in 0 1 2 3 4 5; do
+  run_mode "$mode"
+done
 
 python3 - <<'PY'
 import struct, sys
@@ -75,13 +81,24 @@ for i, (addr, count) in enumerate(expected):
     print(f"  {'OK  ' if ok_addr else 'FAIL'} entry[{i}].addr      got={got_addr.hex()} exp={addr.hex()}")
     print(f"  {'OK  ' if ok_count else 'FAIL'} entry[{i}].count     got={got_count!r} exp={count!r}")
 
-d17 = open('gen-out/zisk_b1_sender_count_table_mode1.output', 'rb').read()
-status17 = struct.unpack('<Q', d17[0:8])[0]
-count17 = struct.unpack('<Q', d17[8:16])[0]
-ok17 = status17 == 0 and count17 == 17
-failed = failed or not ok17
-print(f"  {'OK  ' if status17 == 0 else 'FAIL'} distinct17.status got={status17!r} exp=0")
-print(f"  {'OK  ' if count17 == 17 else 'FAIL'} distinct17.count  got={count17!r} exp=17")
+boundary_cases = [
+    (1, 'distinct17', 0, 17),
+    (2, 'distinct1024', 0, 1024),
+    (3, 'distinct1025', 0, 1025),
+    (4, 'distinct9523', 0, 9523),
+    (5, 'overcap9524', 1, None),
+]
+
+for mode, label, exp_status, exp_count in boundary_cases:
+    dm = open(f'gen-out/zisk_b1_sender_count_table_mode{mode}.output', 'rb').read()
+    status = struct.unpack('<Q', dm[0:8])[0] if len(dm) >= 8 else None
+    count = struct.unpack('<Q', dm[8:16])[0] if len(dm) >= 16 else None
+    ok_status = status == exp_status
+    ok_count = exp_count is None or count == exp_count
+    failed = failed or not ok_status or not ok_count
+    print(f"  {'OK  ' if ok_status else 'FAIL'} {label}.status got={status!r} exp={exp_status!r}")
+    if exp_count is not None:
+        print(f"  {'OK  ' if ok_count else 'FAIL'} {label}.count  got={count!r} exp={exp_count!r}")
 
 sys.exit(1 if failed else 0)
 PY
