@@ -9,6 +9,8 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.BalCodePreimagesAux
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
+import EvmAsm.Codegen.Programs.EvmAccessGas
 
 namespace EvmAsm.Codegen
 
@@ -1007,6 +1009,82 @@ def balCodePreimagesValidFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  addi sp, sp, 80\n" ++
+  "  ret\n" ++
+  "\n" ++
+  "# Resolve a same-block EIP-7702 delegation marker from the BAL.\n" ++
+  "# a0 = 20-byte target address ptr, a1/a2 = witness.state ptr/len, a3 = charge delegation access.\n" ++
+  "# On success, cahsr_code_offset/cahsr_code_length name the delegated pre-state code.\n" ++
+  "bal_same_block_delegation_code_resolve:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
+  "  mv s0, a0                  # target address ptr\n" ++
+  "  mv s1, a1                  # witness.state ptr\n" ++
+  "  mv s2, a2                  # witness.state len\n" ++
+  "  mv s10, a3                 # charge delegated access when nonzero\n" ++
+  "  la t0, bv_bal_start; ld s3, 0(t0)\n" ++
+  "  la t0, bv_bal_len; ld s4, 0(t0)\n" ++
+  "  beqz s3, .Lbsbd_no\n" ++
+  "  mv a0, s3; mv a1, s4; la a2, bbcv_scan_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbsbd_no\n" ++
+  "  la t0, bbcv_scan_count; ld s5, 0(t0)\n" ++
+  "  li s6, 0\n" ++
+  ".Lbsbd_loop:\n" ++
+  "  beq s6, s5, .Lbsbd_no\n" ++
+  "  mv a0, s3; mv a1, s4; mv a2, s6; la a3, bbcv_scan_off; la a4, bbcv_scan_size\n" ++
+  "  jal ra, rlp_item_span\n" ++
+  "  bnez a0, .Lbsbd_no\n" ++
+  "  la t0, bbcv_scan_off; ld t1, 0(t0); add s7, s3, t1\n" ++
+  "  la t0, bbcv_scan_size; ld s8, 0(t0)\n" ++
+  "  mv a0, s7; mv a1, s8; li a2, 0; la a3, bbcv_scan_addr_off; la a4, bbcv_scan_addr_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbsbd_no\n" ++
+  "  la t0, bbcv_scan_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbsbd_next\n" ++
+  "  la t0, bbcv_scan_addr_off; ld t1, 0(t0); add s9, s7, t1\n" ++
+  "  mv a0, s0; mv a1, s9\n" ++
+  "  jal ra, bbcv_addr_eq20\n" ++
+  "  beqz a0, .Lbsbd_next\n" ++
+  "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lbsbd_no\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++
+  "  la t0, bacc_finals; ld t1, 72(t0); li t2, 23; bne t1, t2, .Lbsbd_no\n" ++
+  "  la t0, bacc_finals; ld t1, 64(t0); add s9, s7, t1\n" ++
+  "  lbu t0, 0(s9); li t1, 0xef; bne t0, t1, .Lbsbd_no\n" ++
+  "  lbu t0, 1(s9); li t1, 0x01; bne t0, t1, .Lbsbd_no\n" ++
+  "  lbu t0, 2(s9); bnez t0, .Lbsbd_no\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  addi a2, s9, 3             # delegated address ptr\n" ++
+  "  mv a3, s1; mv a4, s2\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lbsbd_no\n" ++
+  "  beqz s10, .Lbsbd_ret\n" ++
+  "  sd s4, 96(sp); ld x20, 40(sp)   # restore caller env base only while charging gas\n" ++
+  "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
+  "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
+  "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
+  "  ld s4, 96(sp)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbsbd_ret\n" ++
+  ".Lbsbd_next:\n" ++
+  "  addi s6, s6, 1\n" ++
+  "  j .Lbsbd_loop\n" ++
+  ".Lbsbd_no:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbsbd_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
