@@ -8,6 +8,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.ReceiptRecords
 import EvmAsm.Codegen.Programs.LogRecordsRlp
@@ -50,7 +51,7 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  la t0, brr_tx_window_ptr; sd a4, 0(t0)\n" ++
   "  la t0, brr_status; sd zero, 0(t0)\n" ++
   "  la t0, brr_append_status; sd zero, 0(t0)\n" ++
-  "  la a0, brr_control; li a1, 16; la a2, brr_records\n" ++
+  "  la a0, brr_control; li a1, " ++ toString bvReceiptRecordCapacity ++ "; la a2, brr_records\n" ++
   "  jal ra, receipt_records_init\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
   "  mv s1, a0                   # transactions_offset\n" ++
@@ -223,7 +224,7 @@ def ziskBlockReceiptRecordsMaterializeDataSection : String :=
   "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
-  "brr_records:\n  .zero 1024"
+  "brr_records:\n  .zero " ++ toString bvReceiptRecordsBytes
 
 def ziskBlockReceiptRecordsMaterializeProbeUnit : BuildUnit := {
   body        := NOP
