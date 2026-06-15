@@ -123,17 +123,15 @@ def stageRuntimePayloadFunction : String :=
   -- env word was unstaged so a dispatched contract read CHAINID=0 (false-accept). Now staged with
   -- the real chain id, so the reject is lifted (see BlockVerdictSelfContained .Lbsc_check).
   "  la t1, bv_chain_id; ld t2, 0(t1); sd t2, 472(s0)\n" ++
-  -- COINBASE (word 6 -> +280): exec 20-byte address @32, right-aligned into a
-  -- 32-byte big-endian stack word. Copy the 20 bytes byte-by-byte so the
-  -- staged word has the address in its low 20 bytes (matching how the env
-  -- trailer copy treats these words verbatim).
+  -- COINBASE (word 6 -> +280): exec 20-byte canonical address at payload byte 32,
+  -- reversed into the low 160 bits of the EVM stack word layout.
   "  addi t1, a2, 32              # exec coinbase ptr\n" ++
   "  addi t3, s0, 280             # dst env word\n" ++
   "  li t4, 0\n" ++
   ".Lsrp_coinbase_loop:\n" ++
   "  li t5, 20; beq t4, t5, .Lsrp_coinbase_done\n" ++
   "  add t6, t1, t4; lbu t5, 0(t6)\n" ++
-  "  add t6, t3, t4; sb t5, 0(t6)\n" ++
+  "  li t6, 19; sub t6, t6, t4; add t6, t3, t6; sb t5, 0(t6)\n" ++
   "  addi t4, t4, 1; j .Lsrp_coinbase_loop\n" ++
   ".Lsrp_coinbase_done:\n" ++
   -- 6121j.1: BLOBBASEFEE — stage the block blob gas price into the payload blob_base_fee slot @+32
