@@ -1382,7 +1382,7 @@ def blockVerdictFunction : String :=
   "  la t2, bvgr_arena_tx_count; sd zero, 0(t2)\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
-  "  li a2, 16\n" ++
+  "  li a2, " ++ toString bvMtxFullTxCap ++ "\n" ++
   "  jal ra, block_verdict_tx_gas_limits\n" ++
   "  bnez a0, .Lbv_pregate_state_gas_ready\n" ++
   "  la t2, bvgr_arena_tx_count; sd a1, 0(t2)\n" ++
@@ -1412,7 +1412,7 @@ def blockVerdictFunction : String :=
   "  la t2, bvgr_runtime_refund_counter_ptr; ld a2, 0(t2)\n" ++
   "  la t2, bvgr_runtime_calldata_floor_ptr; ld a3, 0(t2)\n" ++
   "  la t2, bvgr_runtime_count; ld a4, 0(t2)\n" ++
-  "  li a5, 16\n" ++
+  "  li a5, " ++ toString bvMtxFullTxCap ++ "\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
   bvRuntimeCompletenessSetFromArenaStatus ++
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++

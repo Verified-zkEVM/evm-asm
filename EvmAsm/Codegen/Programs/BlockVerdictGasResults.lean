@@ -254,7 +254,7 @@ def ziskBlockVerdictTxGasLimitsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a0, 0x40000008\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
-  "  li a2, 16\n" ++
+  "  li a2, " ++ toString bmvFixtureTxCapacity ++ "\n" ++
   "  jal ra, block_verdict_tx_gas_limits\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0); sd a1, 8(t0); sd a2, 16(t0); sd a3, 24(t0)\n" ++
@@ -321,7 +321,7 @@ def ziskBlockVerdictGasResultArenaPrologue : String :=
   "  addi a2, s0, 136\n" ++
   "  addi a3, s0, 264\n" ++
   "  ld a4, 0(s0)\n" ++
-  "  li a5, 16\n" ++
+  "  li a5, " ++ toString bmvFixtureTxCapacity ++ "\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
   "  li s1, 0xa0010000\n" ++
   "  sd a0, 0(s1); sd a1, 8(s1)\n" ++
