@@ -134,8 +134,17 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   "  bnez a0, .Lc3ns_fail                     # parse failure -> reject\n" ++
   "  la t0, c2nsc_finals\n" ++
   "  ld t1, 0(t0);  bnez t1, .Lc3ns_fail      # has_balance declared but no exec effect -> reject\n" ++
+  "  ld t1, 56(t0); beqz t1, .Lc3ns_no_7702_code\n" ++
+  "  # EIP-7702 set_delegation installs 0xef0100||target directly from authorization,\n" ++
+  "  # so an authority account can have BAL nonce/code changes without a CALL/CREATE exec effect.\n" ++
+  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lc3ns_fail\n" ++
+  "  ld t2, 64(t0); add t2, s7, t2\n" ++
+  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lc3ns_fail\n" ++
+  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lc3ns_fail\n" ++
+  "  lbu t3, 2(t2); bnez t3, .Lc3ns_fail\n" ++
+  "  j .Lc3ns_next\n" ++
+  ".Lc3ns_no_7702_code:\n" ++
   "  ld t1, 40(t0); bnez t1, .Lc3ns_fail      # has_nonce\n" ++
-  "  ld t1, 56(t0); bnez t1, .Lc3ns_fail      # has_code\n" ++
   "  # declares no non-storage change (storage-only callee) -> nothing to check here\n" ++
   ".Lc3ns_next:\n" ++
   "  addi s5, s5, 1; j .Lc3ns_loop\n" ++

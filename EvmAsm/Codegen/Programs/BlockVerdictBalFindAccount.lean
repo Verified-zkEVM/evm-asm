@@ -67,6 +67,7 @@ def balFindAccountByAddressFunction : String :=
   "  lbu t5, 0(t1); lbu t6, 0(t3); bne t5, t6, .Lbfa_next\n" ++
   "  addi t1, t1, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lbfa_cmp\n" ++
   ".Lbfa_match:\n" ++
+  "  la t6, bfa_index; sd s6, 0(t6)\n" ++
   "  la t0, bfa_aoff; ld t0, 0(t0); add t1, s0, t0; sd t1, 0(s3)\n" ++
   "  la t0, bfa_alen; ld t2, 0(t0); sd t2, 0(s4)\n" ++
   "  li a0, 0; j .Lbfa_ret\n" ++
@@ -112,6 +113,7 @@ def ziskBalFindAccountByAddressDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "bfa_cnt:\n  .zero 8\n" ++
+  "bfa_index:\n  .zero 8\n" ++
   "bfa_aoff:\n  .zero 8\n" ++
   "bfa_alen:\n  .zero 8\n" ++
   "bfa_doff:\n  .zero 8\n" ++
