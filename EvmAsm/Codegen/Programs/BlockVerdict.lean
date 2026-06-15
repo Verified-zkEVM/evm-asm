@@ -146,6 +146,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_runtime_completeness_status; ld t2, 0(t1); sd t2, 464(t0)\n" ++
   "  la t1, bv_mtx_committed_chunk_overflow; ld t2, 0(t1); sd t2, 472(t0)\n" ++
   "  la t1, bv_mtx_committed_chunk_count; ld t2, 0(t1); sd t2, 480(t0)\n" ++
+  "  la t1, bv_system_storage_capture_status; ld t2, 0(t1); sd t2, 488(t0)\n" ++
+  "  la t1, bv_system_storage_capture_start; ld t2, 0(t1); sd t2, 496(t0)\n" ++
+  "  la t1, bv_system_storage_capture_end; ld t2, 0(t1); sd t2, 504(t0)\n" ++
+  "  la t1, bv_system_storage_capture_rows; ld t2, 0(t1); sd t2, 512(t0)\n" ++
+  "  la t1, bv_system_storage_capture_old_count; ld t2, 0(t1); sd t2, 520(t0)\n" ++
+  "  la t1, bv_system_storage_capture_new_count; ld t2, 0(t1); sd t2, 528(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
