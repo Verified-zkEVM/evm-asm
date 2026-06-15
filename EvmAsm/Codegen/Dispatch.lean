@@ -988,6 +988,7 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
+  "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++   -- reset per-tx SELFDESTRUCT execution flag
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++   -- i3djw/.8c: reset the per-created-account code-effect log per tx

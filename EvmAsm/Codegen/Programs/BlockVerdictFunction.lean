@@ -1108,9 +1108,9 @@ def blockVerdictFunction : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_recipient_nc_check\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_recipient_sender_cmp\n" ++
   ".Lbv_recipient_nc_check:\n" ++
-  -- CREATE/CREATE2 and EIP-7702 can legitimately change recipient nonce/code;
-  -- all-accounts comparators cover those effects, so this local recipient-field
-  -- unchanged check must skip those precise surfaces.
+  -- CREATE/CREATE2 and executed SELFDESTRUCT can legitimately change recipient
+  -- nonce/code; all-accounts comparators cover those effects, so this local
+  -- recipient-field unchanged check must skip those precise surfaces.
   -- EIP-7702 set-delegation can legitimately update the authorized recipient code;
   -- sender==recipient also duplicates the sender nonce effect checked below.
   "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 4; bne t1, t2, .Lbv_rnc_sender_guard\n" ++
@@ -1120,6 +1120,7 @@ def blockVerdictFunction : String :=
   "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lbv_rnc_sender_guard; lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lbv_rnc_sender_guard\n" ++
   "  lbu t3, 2(t2); bnez t3, .Lbv_rnc_sender_guard; j .Lbv_recipient_nc_done\n" ++
   ".Lbv_rnc_sender_guard:\n" ++
+  "  la t0, evm_selfdestruct_staged; ld t0, 0(t0); bnez t0, .Lbv_recipient_nc_done\n" ++
   "  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1; la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  la t0, bv_stx_sender_addr; la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
   ".Lbv_rnc_sender_cmp:\n" ++

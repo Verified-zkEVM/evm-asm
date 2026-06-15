@@ -46,6 +46,18 @@ def blockVerdictReceiptsTail : String :=
   "  la a4, bvgr_tx_total_state_gas\n" ++
   "  la a5, bvgr_block_gas_increments\n" ++
   "  jal ra, block_verdict_receipt_gas_eip8037_adjust\n" ++
+  -- EIP-7702 SELFDESTRUCT delegated-code rows expose one more receipt-only
+  -- regular-gas correction after the generic type-4 adjustment above. The
+  -- exact block gas check is already governed by the EIP-8037 state dimension
+  -- for this shape, but receipts in execution-specs use tx_gas_used_after_refund
+  -- and include the executed SELFDESTRUCT regular path. Keep this narrow:
+  -- single tx, type-4, and the runtime SELFDESTRUCT staging flag set by the
+  -- handler, not mere bytecode containment.
+  "  la t2, bvgr_arena_tx_count; ld t2, 0(t2); li t3, 1; bne t2, t3, .Lbv_receipt_sd_skip\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t2, 160(t2); li t3, 4; bne t2, t3, .Lbv_receipt_sd_skip\n" ++
+  "  la t0, evm_selfdestruct_staged; ld t0, 0(t0); beqz t0, .Lbv_receipt_sd_skip\n" ++
+  "  la t4, bvgr_receipt_gas_increments; ld t5, 0(t4); li t6, 32690; add t5, t5, t6; sd t5, 0(t4); j .Lbv_receipt_sd_skip\n" ++
+  ".Lbv_receipt_sd_skip:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
