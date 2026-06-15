@@ -114,7 +114,6 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
