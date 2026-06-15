@@ -83,10 +83,14 @@ def bvMtxArenaTxCap : Nat := bvMtxActiveTxCap
 def bvMtxU64ArenaBytes : Nat := bvMtxFullTxCap * 8
 def bvMtxLogWindowBytes : Nat := bvMtxFullTxCap * 16
 
-/-- The skip-list and sender-balance tables remain active-loop sized until
-    their algorithms land in the follow-up full-capacity slices. -/
-def bvMtxSkipListEntries : Nat := bvMtxActiveTxCap * 2 + 1
+/-- The multi-tx skip-list stores `{sender_i, recipient_i}` for every
+    transaction plus the shared coinbase account. It is sized to the full 200M
+    tx-count target so the post-loop BAL comparators do not inherit the active
+    execution-loop cap. -/
+def bvMtxSkipListEntries : Nat := bvMtxFullTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
+/-- Sender-balance remains active-loop sized until its running-balance
+    algorithm is lifted in the follow-up full-capacity slice. -/
 def bvMtxSenderBalanceEntries : Nat := bvMtxActiveTxCap
 def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
 /-- Sender-count aggregation is a post-loop, keyed-by-sender table. It is sized
@@ -184,6 +188,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 
 #guard bvMtxSenderBalanceEntries = 1024
 #guard bvMtxSenderBalanceTableBytes = 65536
+#guard bvMtxSkipListEntries = 19047
+#guard bvMtxSkipListBytes = 609504
 #guard bvMtxSenderCountEntries = 9523
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736
