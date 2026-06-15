@@ -127,12 +127,11 @@ def bvSystemStorageLogCapacity : Nat := 16384
 def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
 def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
 
-/-- Receipt/log arena capacities are deliberately separate from the transaction
-    count cap. Capacity overflow is conservative receipt-enforcement debt
-    (accept/no enforcement), while malformed data inside an enforced shape may
-    still reject. These names preserve the current static sizes while making the
-    independent limits explicit for the follow-up capacity slices. -/
-def bvReceiptRecordCapacity : Nat := 16
+/-- Receipt/log arena capacities are deliberately separated by resource type.
+    Receipt records are per transaction and therefore use the full Amsterdam
+    200M intrinsic-floor transaction count target; log/RLP byte arenas remain
+    independent capacity slices tracked under `evm-asm-vv4hr.3`. -/
+def bvReceiptRecordCapacity : Nat := bvMtxFullTxCap
 def bvReceiptRecordBytes : Nat := 64
 def bvReceiptRecordsBytes : Nat := bvReceiptRecordCapacity * bvReceiptRecordBytes
 def bvBlockLogDescCapacity : Nat := 128
@@ -215,13 +214,13 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxCommittedBytes = 16384
 #guard bvMtxCommittedChunkCapacity = 512
 #guard bvMtxCommittedChunkBytes = 65536
-#guard bvReceiptRecordsBytes = 1024
+#guard bvReceiptRecordsBytes = 609472
 #guard bvBlockLogDescBytes = 32768
 #guard bvBlockLogMetaBytes = 2048
 #guard bvBlockLogDataBytes = 65536
 #guard bvLogsRlpArenaBytes = 65536
-#guard bvRecordBloomsBytes = 4096
-#guard bvRecordLogsDescBytes = 512
+#guard bvRecordBloomsBytes = 2437888
+#guard bvRecordLogsDescBytes = 304736
 #guard bvReceiptsRlpBytes = 65536
 #guard bvReceiptEncodePayloadBytes = 16384
 #guard bvReceiptListPayloadBytes = 32768
