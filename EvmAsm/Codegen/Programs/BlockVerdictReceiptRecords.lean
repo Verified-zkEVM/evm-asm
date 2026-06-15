@@ -439,6 +439,7 @@ def blockReceiptLogsMaterializeFunction : String :=
   "  ld s2, 16(s0)               # record base\n" ++
   "  li s3, 0                    # i\n" ++
   "  li s4, 0                    # rlp arena cursor\n" ++
+  "  la t0, bv_logs_rlp_arena_used; sd zero, 0(t0)\n" ++
   ".Lbrlm_loop:\n" ++
   "  beq s3, s1, .Lbrlm_ok\n" ++
   "  slli t0, s3, 6\n" ++
@@ -509,6 +510,7 @@ def blockReceiptLogsMaterializeFunction : String :=
   ".Lbrlm_ok:\n" ++
   "  li a0, 0\n" ++
   ".Lbrlm_ret:\n" ++
+  "  la t0, bv_logs_rlp_arena_used; sd s4, 0(t0)\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
