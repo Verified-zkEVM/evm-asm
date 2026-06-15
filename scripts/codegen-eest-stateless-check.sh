@@ -788,8 +788,24 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${committed_labels[$i]}=$value"
     done
   fi
-  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 624 ]]; then
-    raw="$(od -An -v -tu8 -j 488 -N 136 "$out" 2>/dev/null | xargs || true)"
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 536 ]]; then
+    raw="$(od -An -v -tu8 -j 488 -N 48 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a system_capture_labels=(
+      system_capture_status
+      system_capture_start
+      system_capture_end
+      system_capture_rows
+      system_capture_old_count
+      system_capture_new_count
+    )
+    for i in "${!system_capture_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${system_capture_labels[$i]}=$value"
+    done
+  fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 672 ]]; then
+    raw="$(od -An -v -tu8 -j 536 -N 136 "$out" 2>/dev/null | xargs || true)"
     read -r -a words <<< "$raw"
     local -a witness_lookup_labels=(
       widx_build_status
@@ -815,8 +831,8 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${witness_lookup_labels[$i]}=$value"
     done
   fi
-  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 720 ]]; then
-    raw="$(od -An -v -tu8 -j 624 -N 96 "$out" 2>/dev/null | xargs || true)"
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 768 ]]; then
+    raw="$(od -An -v -tu8 -j 672 -N 96 "$out" 2>/dev/null | xargs || true)"
     read -r -a words <<< "$raw"
     local -a request_body_labels=(
       request_dstatus
@@ -837,8 +853,8 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${request_body_labels[$i]}=$value"
     done
   fi
-  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 848 ]]; then
-    raw="$(od -An -v -tu8 -j 720 -N 128 "$out" 2>/dev/null | xargs || true)"
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 896 ]]; then
+    raw="$(od -An -v -tu8 -j 768 -N 128 "$out" 2>/dev/null | xargs || true)"
     read -r -a words <<< "$raw"
     local -a mtx_cap_labels=(
       mtx_arena_tx_cap

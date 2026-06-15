@@ -1117,11 +1117,50 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     Supporting: `rlpLoopAcc` (the loop's big-endian fold), `rlpLoopAcc_toNat`
     (mod-form invariant), and `rlpLoopAcc_zero_eq_fromBytesBE` (the fold ↔
     `fromBytesBE` bridge). Axiom-clean, 0 sorry.
-  - Remaining: unified single-item dispatch (compose the Phase-1
-    `cpsNBranchWithin` classifier with all five general handlers, incl. the
-    general long-form full paths that apply the n-iteration closure at the
-    runtime lenLen), cross-doubleword length spans, and `readLength` canonical
-    / `>55` validation.
+  - ✅ **General long-form full paths** (`Phase1E3LongBytesFull.lean` /
+    `Phase1E5LongListFull.lean`). For an **arbitrary** in-class prefix,
+    `rlp_phase1_e3_longBytes_full_spec_within` /
+    `rlp_phase1_e5_longList_full_spec_within` compose the Phase-1 classify +
+    Phase-3 entry with the n-iteration closure at the symbolic
+    `n = rlpPrefixLong{Bytes,List}LenOfLen pfx ∈ [1,8]`, yielding the decoded
+    `x11 = ofNat (Nat.fromBytesBE (rlpLoopByteList …))` and payload pointer
+    `x13`. Collapses the 16 concrete-prefix `…_fromBytesBE_spec_within` paths
+    into 2 parametric theorems (e5 reuses the existing
+    `…_lenOfLen_of_class…` prefix wrapper; e3 rewrites `x14 = pfx − 0xB7` to
+    `ofNat n` via `rlpPrefixLongBytesLenOfLen_toWord_of_class`). Axiom-clean,
+    0 sorry.
+  - ✅ **Unified single-item decode (capstone)** (`UnifiedDecodeItem.lean`).
+    `rlp_decode_single_item_spec_within`: for an arbitrary prefix byte, one
+    theorem whose conclusion is a `match classifyPrefix pfx` dispatching to the
+    five per-class full-path handlers — the RV64 analogue of the pure
+    `decodeAux_cons_eq_classifyPrefix_match`. Each branch reaches the
+    class-appropriate exit with the spec-correct decoded length
+    (`1` / `rlpPrefixShort{Bytes,List}PayloadLen` / `Nat.fromBytesBE …`).
+    Long-form-only proof obligations (window `hwin`, loop `hback`) ride in a
+    `match`-typed hypothesis `rlpDecodeLongHyps` so flat callers needn't supply
+    them. Proof: `cases classifyPrefix pfx` + `exact <handler>`. Axiom-clean,
+    0 sorry. **The single-item RLP decode arc is complete end-to-end**
+    (classify → per-class length extraction → unified dispatch).
+  - ✅ **List-payload single-byte-run decode (pure spec)** (`EL/RLP/ListDecode.lean`).
+    The merged `ListDecodeBridge` *characterizes* list decode in terms of
+    `decodeItems`/`decodeListPayload` but never *computes* `decodeItems` for any
+    concrete payload class. `decodeItems_singleByte_run` closes that gap: a run of
+    bytes each `< 0x80` (with depth budget `2 * bs.length ≤ nDepth`) decodes to
+    one one-byte `RLPItem.bytes` per byte, consuming the whole run (induction on
+    `bs`, reusing `decodeAux_cons_singleByte_of_classifyPrefix` +
+    `classifyPrefix_singleByte_iff`). `decodeAux_shortList_of_singleByte_items`
+    lifts it through the merged short-list characterization
+    (`ListDecodeBridge.decodeAux_cons_shortList_eq_some_iff`) to a full
+    `RLPItem.list` of single-byte items, with a concrete cross-check
+    (`0xC3 [0x01,0x7F,0x05]`). Axiom-clean (propext/Quot.sound), 0 sorry. This is
+    the pure-spec foundation for the first RV64 list-payload loop (single-byte
+    items are the one fixed-stride, zero-copy case); the RV64 loop + `decodeItems`
+    bridge is the follow-up.
+  - Remaining (future): a full semantic bridge to the pure `decodeAux` (needs
+    canonical-encoding `>55`/leading-zero validation the RV64 path does not
+    perform, plus recursive list decode `decodeItems` for list payloads);
+    cross-doubleword length spans (`n ≤ 8` single-doubleword only); Phase-4
+    `read_input` pipeline integration.
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)

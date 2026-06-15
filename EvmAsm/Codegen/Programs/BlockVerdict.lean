@@ -108,11 +108,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, sv_recomputed; ld t2, 8(t1); sd t2, 176(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 16(t1); sd t2, 184(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 24(t1); sd t2, 192(t0)\n" ++
-  "  la t1, sv_params; ld t1, 0(t1); addi t1, t1, 52\n" ++
+  "  la t1, sv_params; ld t1, 0(t1); beqz t1, .Lv2_dbg_no_payload_root; addi t1, t1, 52\n" ++
   "  ld t2, 0(t1); sd t2, 200(t0)\n" ++
   "  ld t2, 8(t1); sd t2, 208(t0)\n" ++
   "  ld t2, 16(t1); sd t2, 216(t0)\n" ++
   "  ld t2, 24(t1); sd t2, 224(t0)\n" ++
+  ".Lv2_dbg_no_payload_root:\n" ++
   "  la t1, bvgr_arena_status; ld t2, 0(t1); sd t2, 232(t0)\n" ++
   "  la t1, bvgr_arena_tx_count; ld t2, 0(t1); sd t2, 240(t0)\n" ++
   "  la t1, bvgr_arena_runtime_count; ld t2, 0(t1); sd t2, 248(t0)\n" ++
@@ -145,51 +146,57 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_runtime_completeness_status; ld t2, 0(t1); sd t2, 464(t0)\n" ++
   "  la t1, bv_mtx_committed_chunk_overflow; ld t2, 0(t1); sd t2, 472(t0)\n" ++
   "  la t1, bv_mtx_committed_chunk_count; ld t2, 0(t1); sd t2, 480(t0)\n" ++
-  "  la t1, widx_build_status; ld t2, 0(t1); sd t2, 488(t0)\n" ++
-  "  la t1, widx_build_section_len; ld t2, 0(t1); sd t2, 496(t0)\n" ++
-  "  la t1, widx_build_count; ld t2, 0(t1); sd t2, 504(t0)\n" ++
-  "  la t1, widx_enabled; ld t2, 0(t1); sd t2, 512(t0)\n" ++
-  "  la t1, wlh_lookup_calls; ld t2, 0(t1); sd t2, 520(t0)\n" ++
-  "  la t1, wlh_indexed_calls; ld t2, 0(t1); sd t2, 528(t0)\n" ++
-  "  la t1, wlh_indexed_hits; ld t2, 0(t1); sd t2, 536(t0)\n" ++
-  "  la t1, wlh_indexed_misses; ld t2, 0(t1); sd t2, 544(t0)\n" ++
-  "  la t1, wlh_linear_calls; ld t2, 0(t1); sd t2, 552(t0)\n" ++
-  "  la t1, wlh_linear_hits; ld t2, 0(t1); sd t2, 560(t0)\n" ++
-  "  la t1, wlh_linear_misses; ld t2, 0(t1); sd t2, 568(t0)\n" ++
-  "  la t1, wlh_linear_iterations; ld t2, 0(t1); sd t2, 576(t0)\n" ++
-  "  la t1, wlh_linear_last_section_len; ld t2, 0(t1); sd t2, 584(t0)\n" ++
-  "  la t1, wlh_linear_max_section_len; ld t2, 0(t1); sd t2, 592(t0)\n" ++
-  "  la t1, svf_codes_len; ld t2, 0(t1); sd t2, 600(t0)\n" ++
-  "  la t1, svf_headers_len; ld t2, 0(t1); sd t2, 608(t0)\n" ++
-  "  la t1, svf_headers_count; ld t2, 0(t1); sd t2, 616(t0)\n" ++
-  "  la t1, c1_dstatus; ld t2, 0(t1); sd t2, 624(t0)\n" ++
-  "  la t1, c1_dlen; ld t2, 0(t1); sd t2, 632(t0)\n" ++
-  "  li t2, 32768; sd t2, 640(t0)\n" ++
-  "  li t2, 81920; sd t2, 648(t0)\n" ++
-  "  la t1, dbsr_wlen; ld t2, 0(t1); sd t2, 656(t0)\n" ++
-  "  la t1, dbsr_clen; ld t2, 0(t1); sd t2, 664(t0)\n" ++
-  "  li t2, 2048; sd t2, 672(t0)\n" ++
-  "  la t1, c1_er_assembled_len; ld t2, 0(t1); sd t2, 680(t0)\n" ++
+  "  la t1, bv_system_storage_capture_status; ld t2, 0(t1); sd t2, 488(t0)\n" ++
+  "  la t1, bv_system_storage_capture_start; ld t2, 0(t1); sd t2, 496(t0)\n" ++
+  "  la t1, bv_system_storage_capture_end; ld t2, 0(t1); sd t2, 504(t0)\n" ++
+  "  la t1, bv_system_storage_capture_rows; ld t2, 0(t1); sd t2, 512(t0)\n" ++
+  "  la t1, bv_system_storage_capture_old_count; ld t2, 0(t1); sd t2, 520(t0)\n" ++
+  "  la t1, bv_system_storage_capture_new_count; ld t2, 0(t1); sd t2, 528(t0)\n" ++
+  "  la t1, widx_build_status; ld t2, 0(t1); sd t2, 536(t0)\n" ++
+  "  la t1, widx_build_section_len; ld t2, 0(t1); sd t2, 544(t0)\n" ++
+  "  la t1, widx_build_count; ld t2, 0(t1); sd t2, 552(t0)\n" ++
+  "  la t1, widx_enabled; ld t2, 0(t1); sd t2, 560(t0)\n" ++
+  "  la t1, wlh_lookup_calls; ld t2, 0(t1); sd t2, 568(t0)\n" ++
+  "  la t1, wlh_indexed_calls; ld t2, 0(t1); sd t2, 576(t0)\n" ++
+  "  la t1, wlh_indexed_hits; ld t2, 0(t1); sd t2, 584(t0)\n" ++
+  "  la t1, wlh_indexed_misses; ld t2, 0(t1); sd t2, 592(t0)\n" ++
+  "  la t1, wlh_linear_calls; ld t2, 0(t1); sd t2, 600(t0)\n" ++
+  "  la t1, wlh_linear_hits; ld t2, 0(t1); sd t2, 608(t0)\n" ++
+  "  la t1, wlh_linear_misses; ld t2, 0(t1); sd t2, 616(t0)\n" ++
+  "  la t1, wlh_linear_iterations; ld t2, 0(t1); sd t2, 624(t0)\n" ++
+  "  la t1, wlh_linear_last_section_len; ld t2, 0(t1); sd t2, 632(t0)\n" ++
+  "  la t1, wlh_linear_max_section_len; ld t2, 0(t1); sd t2, 640(t0)\n" ++
+  "  la t1, svf_codes_len; ld t2, 0(t1); sd t2, 648(t0)\n" ++
+  "  la t1, svf_headers_len; ld t2, 0(t1); sd t2, 656(t0)\n" ++
+  "  la t1, svf_headers_count; ld t2, 0(t1); sd t2, 664(t0)\n" ++
+  "  la t1, c1_dstatus; ld t2, 0(t1); sd t2, 672(t0)\n" ++
+  "  la t1, c1_dlen; ld t2, 0(t1); sd t2, 680(t0)\n" ++
   "  li t2, 32768; sd t2, 688(t0)\n" ++
-  "  la t1, c1_erh_status; ld t2, 0(t1); sd t2, 696(t0)\n" ++
-  "  li t2, 1572865; sd t2, 704(t0)\n" ++
-  "  la t1, c1_notx_deposit_body_len; ld t2, 0(t1); sd t2, 712(t0)\n" ++
-  "  li t2, " ++ toString bvMtxArenaTxCap ++ "; sd t2, 720(t0)\n" ++
-  "  li t2, " ++ toString bmvFullTxCapacity ++ "; sd t2, 728(t0)\n" ++
-  "  li t2, " ++ toString bvMtxU64ArenaBytes ++ "; sd t2, 736(t0)\n" ++
-  "  li t2, " ++ toString bvMtxLogWindowBytes ++ "; sd t2, 744(t0)\n" ++
-  "  li t2, " ++ toString bvMtxSkipListEntries ++ "; sd t2, 752(t0)\n" ++
-  "  la t1, bv_mtx_skip_count; ld t2, 0(t1); sd t2, 760(t0)\n" ++
-  "  la t1, bv_mtx_i; ld t2, 0(t1); sd t2, 768(t0)\n" ++
-  "  li t2, " ++ toString bvMtxSenderCountEntries ++ "; sd t2, 776(t0)\n" ++
-  "  la t1, bv_b1_sender_count; ld t2, 0(t1); sd t2, 784(t0)\n" ++
-  "  li t2, " ++ toString bvMtxSenderBalanceEntries ++ "; sd t2, 792(t0)\n" ++
-  "  la t1, bv_b2_count; ld t2, 0(t1); sd t2, 800(t0)\n" ++
-  "  li t2, " ++ toString bvMtxCommittedChunkCapacity ++ "; sd t2, 808(t0)\n" ++
-  "  li t2, " ++ toString bvMtxCommittedChunkBytes ++ "; sd t2, 816(t0)\n" ++
-  "  la t1, bv_mtx_nonce_seen_count; ld t2, 0(t1); sd t2, 824(t0)\n" ++
-  "  li t2, 16; sd t2, 832(t0)\n" ++
-  "  la t1, bv_tx_count; ld t2, 0(t1); sd t2, 840(t0)\n" ++
+  "  li t2, 81920; sd t2, 696(t0)\n" ++
+  "  la t1, dbsr_wlen; ld t2, 0(t1); sd t2, 704(t0)\n" ++
+  "  la t1, dbsr_clen; ld t2, 0(t1); sd t2, 712(t0)\n" ++
+  "  li t2, 2048; sd t2, 720(t0)\n" ++
+  "  la t1, c1_er_assembled_len; ld t2, 0(t1); sd t2, 728(t0)\n" ++
+  "  li t2, 32768; sd t2, 736(t0)\n" ++
+  "  la t1, c1_erh_status; ld t2, 0(t1); sd t2, 744(t0)\n" ++
+  "  li t2, 1572865; sd t2, 752(t0)\n" ++
+  "  la t1, c1_notx_deposit_body_len; ld t2, 0(t1); sd t2, 760(t0)\n" ++
+  "  li t2, " ++ toString bvMtxArenaTxCap ++ "; sd t2, 768(t0)\n" ++
+  "  li t2, " ++ toString bmvFullTxCapacity ++ "; sd t2, 776(t0)\n" ++
+  "  li t2, " ++ toString bvMtxU64ArenaBytes ++ "; sd t2, 784(t0)\n" ++
+  "  li t2, " ++ toString bvMtxLogWindowBytes ++ "; sd t2, 792(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSkipListEntries ++ "; sd t2, 800(t0)\n" ++
+  "  la t1, bv_mtx_skip_count; ld t2, 0(t1); sd t2, 808(t0)\n" ++
+  "  la t1, bv_mtx_i; ld t2, 0(t1); sd t2, 816(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSenderCountEntries ++ "; sd t2, 824(t0)\n" ++
+  "  la t1, bv_b1_sender_count; ld t2, 0(t1); sd t2, 832(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSenderBalanceEntries ++ "; sd t2, 840(t0)\n" ++
+  "  la t1, bv_b2_count; ld t2, 0(t1); sd t2, 848(t0)\n" ++
+  "  li t2, " ++ toString bvMtxCommittedChunkCapacity ++ "; sd t2, 856(t0)\n" ++
+  "  li t2, " ++ toString bvMtxCommittedChunkBytes ++ "; sd t2, 864(t0)\n" ++
+  "  la t1, bv_mtx_nonce_seen_count; ld t2, 0(t1); sd t2, 872(t0)\n" ++
+  "  li t2, 16; sd t2, 880(t0)\n" ++
+  "  la t1, bv_tx_count; ld t2, 0(t1); sd t2, 888(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
