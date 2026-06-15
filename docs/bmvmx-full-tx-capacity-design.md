@@ -116,8 +116,14 @@ The follow-up work should land in separate PRs:
 - Landed foundation: `bvMtxActiveTxCap = 1024` names the current loop cap,
   `bvMtxFullTxCap = 9523` names the 200M target, and cheap per-tx u64/status/
   log-window arenas derive their byte sizes from the full cap.
-- Replace the quadratic sender-count scans with a deterministic aggregation
-  helper that handles 9,523 transactions.
+- Sender nonce aggregation stack: `evm-asm-vv4hr.1.3.1` sizes the B1
+  sender-count table to the 9,523 full cap, `.1.3.2` removes the old
+  16-entry exact nonce seen table, `.1.3.3` replaces the in-loop exact nonce
+  scan with indexed sender-table lookup, and `.1.3.4` adds frontier evidence.
+  The focused `scripts/codegen-zisk-b1-sender-count-table-check.sh` probe now
+  covers repeated-sender sequencing, nonce reuse rejection, too-high nonce
+  rejection, 17-entry survival, 1024/1025 boundaries, and a 9,523-entry
+  lower-level frontier for the exact lookup/running-count substrate.
 - Extend the multi-tx sender debit / actual-balance checks to the same
   aggregation substrate.
 - Landed committed-storage threading slices:
@@ -129,5 +135,8 @@ The follow-up work should land in separate PRs:
   it.
 - Decouple receipt/log validation capacity from the tx cap and connect it to the
   log/receipt streaming or digest substrate.
-- Add full-capacity probes: one fixture/regression for the observed 1,021-tx
-  EEST case and one synthetic or generated near-9,523 transaction block.
+- Remaining full-capacity probes: add one fixture/regression for the observed
+  1,021-tx EEST case and one end-to-end synthetic or generated near-9,523
+  transaction block after the active loop and skip-list slices move from
+  `bvMtxActiveTxCap` to `bvMtxFullTxCap`; the sender nonce substrate already
+  has lower-level 9,523 evidence via `.1.3.4`.
