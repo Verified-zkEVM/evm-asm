@@ -575,6 +575,9 @@ def blockVerdictFunction : String :=
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
+  "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  beqz a0, .Lbv_mtx_is_contract\n" ++
   blockVerdictMtxEoaSettlement ++
   ".Lbv_mtx_is_contract:\n" ++
   -- bmvmx.1.6.6 multi-tx enabler: stamp this user tx's block_access_index = i+1 (EIP-7928:
@@ -703,6 +706,14 @@ def blockVerdictFunction : String :=
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  bnez a0, .Lbv_cd_eoa_restore\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, bv_tx_recipient_code_hash\n" ++
+  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
+  "  j .Lbv_contract_dispatch\n" ++
   ".Lbv_cd_eoa_restore:\n" ++
   "  la t2, bv_simple_transfer_tx        # restore t2 for the EOA path (jal clobbered it)\n" ++
   "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # EOA calldata not staged here\n" ++
@@ -1023,7 +1034,7 @@ def blockVerdictFunction : String :=
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
-  "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  bnez a0, .Lbv_contract_dispatch_unsupported\n" ++
+  "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n  bnez a0, .Lbv_contract_dispatch_unsupported\n" ++
   bvReceiptsShapeSet 3 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist tx0's executed state gas into bvgr_tx_exec_state_gas[0].
   -- Clobbers only a0/t0-t2, preserves the dispatch results a1-a4 stored below. Behavior-neutral.
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++

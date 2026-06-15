@@ -206,7 +206,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .Ldtrc_have_code\n" ++
+  "  addi a0, s2, 72; mv a1, s0; mv a2, s1; li a3, 0\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
+  ".Ldtrc_have_code:\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++

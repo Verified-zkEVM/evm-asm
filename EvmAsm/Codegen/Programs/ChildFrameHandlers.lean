@@ -457,6 +457,14 @@ def callDescendFallThrough
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  beqz t2, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
+  "  la a0, cd_callee_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 1\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  mv t3, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  beqz t3, .Lcd_descend_" ++ tag ++ "\n" ++
   "  li t3, 1\n" ++
   "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   -- fail (status 2/3/4/5): pop args, push 0
