@@ -73,6 +73,8 @@ checks = [
     ('child env refund_acc snapshot',     24680),
     # nxio8.4.3: descend also snapshots the EIP-2929 storage-warmth count.
     ('child env warmth_count snapshot',   5),
+    ('running bloom checkpoint[0]',       0x1111222233334444),
+    ('running bloom checkpoint[31]',      0xaaaabbbbccccdddd),
 ]
 failed = False
 for i, (label, exp) in enumerate(checks):

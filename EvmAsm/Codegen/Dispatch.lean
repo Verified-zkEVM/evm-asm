@@ -2950,7 +2950,11 @@ def runtimeDispatcherStandaloneFrameData : String :=
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
   ".balign 32\n" ++
-  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n"
+  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+  ".balign 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n"
 
 /-- Build a runtime-bytecode `BuildUnit` for `registry` + `exitBody`.
     The emitted ELF doesn't carry any bytecode — the test harness

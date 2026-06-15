@@ -835,6 +835,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "\n.balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString frameArrayBytes ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
+  ".balign 8\n" ++
+  "rb_running_block_bloom:\n  .zero 256\n" ++
+  "rb_running_receipt_bloom:\n  .zero 256\n" ++
+  "rb_bloom_checkpoints:\n  .zero 262144\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++
