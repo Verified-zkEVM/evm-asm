@@ -13,10 +13,13 @@
       from the append-per-write storage exec-log + `exec_log_txindex`;
     - `slot_tuple_sequences_match` (#8596) — exact list-vs-list comparison.
   Iterates the account's `storage_changes` (AccountChanges item 1), extracts each
-  `slot_key` (item 0 of the SlotChanges), and rejects on the first slot whose sequences
-  differ. A single-tx block degenerates to one tuple per slot (= the final), so this is
-  a no-op there; it bites once the multi-tx loop sets `current_block_access_index` per
-  tx (.57.11.6.3).
+  `slot_key` (item 0 of the SlotChanges), and rejects on the first user-transaction
+  slot whose sequences differ. Slots whose BAL tuple sequence starts at
+  `block_access_index = 0` are system-transaction storage effects; the runtime exec log
+  only records user transaction SSTOREs today, so those slots are skipped conservatively
+  until system-tx tuple derivation is wired. A single-tx block degenerates to one tuple
+  per slot (= the final), so this is a no-op there; it bites once the multi-tx loop sets
+  `current_block_access_index` per tx (.57.11.6.3).
 
   Buffer note: `atsc_balbuf`/`atsc_execbuf` hold up to bsrMaxTuplesPerSlot tuples
   (40 B each) per slot (.66.1.2: gas-derived — per-slot tuple count is bounded by the
@@ -103,6 +106,14 @@ def accountTupleSequencesConsistentFunction : String :=
   -- .66.1.2: > bsrMaxTuplesPerSlot -> the helper wrote nothing (returns the true count);
   -- bail conservatively instead of comparing against stale atsc_balbuf contents.
   "  li t0, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu a0, t0, .Latsc_fail\n" ++
+  -- EIP-7928 reserves block_access_index 0 for system transactions. The runtime
+  -- exec log records user-tx SSTOREs, not system-predeploy storage writes, so skip
+  -- any slot whose BAL tuple sequence starts at index 0. Mixed system+user slots
+  -- remain conservative debt: validating them precisely requires deriving the
+  -- system write into the same tuple source as user runtime writes.
+  "  beqz a0, .Latsc_no_system_tuple\n" ++
+  "  la t0, atsc_balbuf; ld t1, 0(t0); beqz t1, .Latsc_next_slot\n" ++
+  ".Latsc_no_system_tuple:\n" ++
   "  la t0, atsc_balcount; sd a0, 0(t0)                   # bal_count\n" ++
   "  # reverse each BAL tuple's 32B value (BE -> LE) to match the LE exec output\n" ++
   "  mv t0, a0; la t1, atsc_balbuf                        # t0=count; record = bai@0, value@8\n" ++
@@ -123,6 +134,7 @@ def accountTupleSequencesConsistentFunction : String :=
   "  la a0, atsc_balbuf; la t0, atsc_balcount; ld a1, 0(t0); la a2, atsc_execbuf; mv a3, t6\n" ++
   "  jal ra, slot_tuple_sequences_match\n" ++
   "  bnez a0, .Latsc_fail\n" ++
+  ".Latsc_next_slot:\n" ++
   "  addi s9, s9, 1; j .Latsc_loop\n" ++
   ".Latsc_ok:\n" ++
   "  li a0, 0; j .Latsc_ret\n" ++
