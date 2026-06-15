@@ -83,15 +83,19 @@ def bvMtxArenaTxCap : Nat := bvMtxActiveTxCap
 def bvMtxU64ArenaBytes : Nat := bvMtxFullTxCap * 8
 def bvMtxLogWindowBytes : Nat := bvMtxFullTxCap * 16
 
-/-- The skip-list and sender aggregation tables remain active-loop sized until
+/-- The skip-list and sender-balance tables remain active-loop sized until
     their algorithms land in the follow-up full-capacity slices. -/
 def bvMtxSkipListEntries : Nat := bvMtxActiveTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 def bvMtxSenderBalanceEntries : Nat := bvMtxActiveTxCap
 def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
-def bvMtxSenderCountEntries : Nat := bvMtxActiveTxCap
+/-- Sender-count aggregation is a post-loop, keyed-by-sender table. It is sized
+    to the full tx-count target so the B1 final-nonce check does not inherit the
+    active execution-loop cap. -/
+def bvMtxSenderCountEntries : Nat := bvMtxFullTxCap
 def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
 def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
+def bvMtxSenderCountSkipBytes : Nat := bvMtxSenderCountEntries * 64
 
 /-- Cross-transaction committed-storage threading table. This is a unique
     `(recipient, slotKey)` capacity, not a transaction-count or raw-write
@@ -180,9 +184,10 @@ def bmvFullLogWindowArenaBytes : Nat :=
 
 #guard bvMtxSenderBalanceEntries = 1024
 #guard bvMtxSenderBalanceTableBytes = 65536
-#guard bvMtxSenderCountEntries = 1024
-#guard bvMtxSenderCountTableBytes = 40960
-#guard bvMtxSenderCountSortBytes = 32768
+#guard bvMtxSenderCountEntries = 9523
+#guard bvMtxSenderCountTableBytes = 380920
+#guard bvMtxSenderCountSortBytes = 304736
+#guard bvMtxSenderCountSkipBytes = 609472
 #guard bvMtxActiveTxCap = 1024
 #guard bvMtxFullTxCap = 9523
 #guard bvMtxArenaTxCap = bvMtxActiveTxCap

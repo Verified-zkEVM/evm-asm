@@ -156,7 +156,9 @@ def b1SenderCountTableDataSection : String :=
   "b1sc_out_count:\n  .zero 8\n" ++
   b1SenderCountTableScratchDataSection ++
   ".balign 32\n" ++
-  -- Sender lanes with 64-byte stride. The first six are A, B, A, C, B, A; mode 1 overwrites them with 17 distinct senders.
+  -- Sender lanes with 64-byte stride. Mode 0 keeps the first six as
+  -- A, B, A, C, B, A; the other modes seed distinct senders programmatically
+  -- up to the full 200M transaction-capacity target.
   "b1sc_probe_skip:\n" ++
   "  .rept 20\n  .byte 0x11\n  .endr\n  .zero 44\n" ++
   "  .rept 20\n  .byte 0x22\n  .endr\n  .zero 44\n" ++
@@ -164,7 +166,7 @@ def b1SenderCountTableDataSection : String :=
   "  .rept 20\n  .byte 0x33\n  .endr\n  .zero 44\n" ++
   "  .rept 20\n  .byte 0x22\n  .endr\n  .zero 44\n" ++
   "  .rept 20\n  .byte 0x11\n  .endr\n  .zero 44\n" ++
-  "  .zero 704\n" ++
+  "  .zero " ++ toString (bvMtxSenderCountSkipBytes - 384) ++ "\n" ++
   ".balign 8\n" ++
   "b1sc_probe_table:\n  .zero " ++ toString bvMtxSenderCountTableBytes ++ "\n"
 
@@ -177,13 +179,24 @@ def ziskB1SenderCountTablePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t6, 0x40000000; ld s1, 8(t6)\n" ++
   "  la a0, b1sc_probe_skip; li a1, 6; la a2, b1sc_probe_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, b1sc_out_count\n" ++
-  "  li t0, 1; bne s1, t0, .Lb1scp_call\n" ++
-  "  la t0, b1sc_probe_skip; li t1, 0\n" ++
+  "  li t0, 5; beq s1, t0, .Lb1scp_over_cap\n" ++
+  "  beqz s1, .Lb1scp_call\n" ++
+  "  li t0, 1; beq s1, t0, .Lb1scp_mode17\n" ++
+  "  li t0, 2; beq s1, t0, .Lb1scp_mode1024\n" ++
+  "  li t0, 3; beq s1, t0, .Lb1scp_mode1025\n" ++
+  "  li t0, 4; beq s1, t0, .Lb1scp_mode_full\n" ++
+  "  j .Lb1scp_call\n" ++
+  ".Lb1scp_mode17:\n  li a1, 17; j .Lb1scp_seed_distinct\n" ++
+  ".Lb1scp_mode1024:\n  li a1, 1024; j .Lb1scp_seed_distinct\n" ++
+  ".Lb1scp_mode1025:\n  li a1, 1025; j .Lb1scp_seed_distinct\n" ++
+  ".Lb1scp_mode_full:\n  li a1, " ++ toString bvMtxSenderCountEntries ++ "; j .Lb1scp_seed_distinct\n" ++
+  ".Lb1scp_over_cap:\n  li a1, " ++ toString (bvMtxSenderCountEntries + 1) ++ "; j .Lb1scp_call\n" ++
   ".Lb1scp_seed_distinct:\n" ++
-  "  li t2, 17; beq t1, t2, .Lb1scp_seed_done\n" ++
-  "  addi t3, t1, 1; sb t3, 0(t0); addi t0, t0, 64; addi t1, t1, 1; j .Lb1scp_seed_distinct\n" ++
-  ".Lb1scp_seed_done:\n" ++
-  "  li a1, 17\n" ++
+  "  la t0, b1sc_probe_skip; li t1, 0\n" ++
+  ".Lb1scp_seed_loop:\n" ++
+  "  bgeu t1, a1, .Lb1scp_call\n" ++
+  "  addi t3, t1, 1; srli t4, t3, 8; sb t4, 18(t0); andi t4, t3, 255; sb t4, 19(t0)\n" ++
+  "  addi t0, t0, 64; addi t1, t1, 1; j .Lb1scp_seed_loop\n" ++
   ".Lb1scp_call:\n" ++
   "  jal ra, b1_sender_count_table\n" ++
   "  li t0, 0xa0010000\n" ++
