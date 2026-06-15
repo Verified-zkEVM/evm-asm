@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictExactGas
+import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
