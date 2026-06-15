@@ -421,6 +421,27 @@ def blockVerdictFunction : String :=
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # interacting / parse error -> conservative\n" ++
+  -- Build the sorted sender index once from public keys. The exact per-tx nonce
+  -- check below binary-searches this table and mutates the count field as the
+  -- running prior-seen count; the B1 final-nonce tail rebuilds totals later.
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_mtx_sender_seed_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_mtx_sender_seed_done\n" ++
+  "  slli t3, t1, 6; add t4, t3, t1\n" ++
+  "  la t0, bv_public_keys_ptr; ld t0, 0(t0); add t0, t0, t4; addi a0, t0, 1\n" ++
+  "  slli t5, t1, 6; la a1, bv_mtx_skip_list; add a1, a1, t5\n" ++
+  "  jal ra, address_from_pubkey\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_sender_seed_loop\n" ++
+  ".Lbv_mtx_sender_seed_done:\n" ++
+  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, bv_b1_sender_count\n" ++
+  "  jal ra, b1_sender_count_table\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_mtx_sender_count_zero_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_mtx_sender_count_zero_done\n" ++
+  "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3; sd zero, 32(t4)\n" ++
+  "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_mtx_sender_count_zero_loop\n" ++
+  ".Lbv_mtx_sender_count_zero_done:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty legacy cross-tx committed table/status\n" ++
   "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
@@ -436,7 +457,6 @@ def blockVerdictFunction : String :=
   "  li t0, 32; beq t3, t0, .Lbv_mtx_bf_rev_done\n" ++
   "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbv_mtx_bf_rev\n" ++
   ".Lbv_mtx_bf_rev_done:\n" ++
-  "  la t0, bv_mtx_nonce_seen_count; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
@@ -480,32 +500,14 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_mtx_nonce_done\n" ++                         -- sender lookup failed/absent -> skip
   "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++              -- t0 = sender block-start (pre-state) nonce
   -- EXACT multi-tx nonce: tx.nonce must == pre_nonce + the running count already seen for
-  -- this sender address in the current block. A sender's k-th tx (0-based) executes at nonce
-  -- pre+k. The running table is updated in tx order, so this avoids rescanning prior public
-  -- keys for every tx while preserving the same reject condition for nonce reuse and too-high
-  -- nonces. Sound: valid blocks sequence each sender's txs as pre,pre+1,...
-  "  la t1, bv_mtx_nonce_pre; sd t0, 0(t1)\n" ++                -- stash pre_nonce across table update
-  "  la t2, bv_mtx_nonce_seen_count; ld t3, 0(t2); li t4, 0\n" ++ -- t3 = distinct count, t4 = k
-  ".Lbv_mtx_seq_scan:\n" ++
-  "  bgeu t4, t3, .Lbv_mtx_seq_new\n" ++
-  "  slli t5, t4, 5; la t6, bv_mtx_nonce_seen_addrs; add t6, t6, t5; li a0, 0\n" ++ -- t6 = addr[k]
-  ".Lbv_mtx_seq_cmp:\n" ++
-  "  li a1, 20; beq a0, a1, .Lbv_mtx_seq_found\n" ++
-  "  add a2, t6, a0; lbu a3, 0(a2); la a4, bv_mtx_sender_addr; add a4, a4, a0; lbu a5, 0(a4); bne a3, a5, .Lbv_mtx_seq_next\n" ++
-  "  addi a0, a0, 1; j .Lbv_mtx_seq_cmp\n" ++
-  ".Lbv_mtx_seq_next:\n" ++
-  "  addi t4, t4, 1; j .Lbv_mtx_seq_scan\n" ++
-  ".Lbv_mtx_seq_found:\n" ++
-  "  slli t5, t4, 3; la t6, bv_mtx_nonce_seen_counts; add t6, t6, t5; ld t5, 0(t6); addi a0, t5, 1; sd a0, 0(t6); j .Lbv_mtx_seq_done\n" ++
-  ".Lbv_mtx_seq_new:\n" ++
-  "  li a0, 16; bgeu t3, a0, .Lbv_sender_nonce_fail\n" ++
-  "  slli t5, t3, 5; la t6, bv_mtx_nonce_seen_addrs; add t6, t6, t5; li a0, 0\n" ++
-  ".Lbv_mtx_seq_copy:\n" ++
-  "  li a1, 20; beq a0, a1, .Lbv_mtx_seq_new_count\n" ++
-  "  la a2, bv_mtx_sender_addr; add a2, a2, a0; lbu a3, 0(a2); add a4, t6, a0; sb a3, 0(a4); addi a0, a0, 1; j .Lbv_mtx_seq_copy\n" ++
-  ".Lbv_mtx_seq_new_count:\n" ++
-  "  slli a0, t3, 3; la a1, bv_mtx_nonce_seen_counts; add a1, a1, a0; li a2, 1; sd a2, 0(a1); addi t3, t3, 1; la a0, bv_mtx_nonce_seen_count; sd t3, 0(a0); li t5, 0\n" ++
-  ".Lbv_mtx_seq_done:\n" ++
+  -- this sender address in the current block. The pre-loop sender index is sorted, so each
+  -- tx does a bounded binary lookup and increments that sender's running count in place.
+  -- Sound: valid blocks sequence each sender's txs as pre,pre+1,...
+  "  la t1, bv_mtx_nonce_pre; sd t0, 0(t1)\n" ++                -- stash pre_nonce across table lookup
+  "  la a0, bv_b1_sender_table; la t2, bv_b1_sender_count; ld a1, 0(t2); la a2, bv_mtx_sender_addr\n" ++
+  "  jal ra, b1_sender_table_find\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  mv t6, a1; ld t5, 32(t6); addi a0, t5, 1; sd a0, 32(t6)\n" ++
   "  la t0, bv_mtx_nonce_pre; ld t0, 0(t0)\n" ++
   "  add t0, t0, t5\n" ++                                       -- t0 = expected = pre_nonce + count
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce

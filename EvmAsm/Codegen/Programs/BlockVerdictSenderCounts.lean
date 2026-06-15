@@ -141,6 +141,51 @@ def b1SenderCountTableFunction : String :=
   ".Lb1sc_we_count:\n" ++
   "  sd a1, 32(t1); ret"
 
+/-! `b1_sender_table_find`
+
+    Binary-search a sorted 40-byte sender-count table produced by
+    `b1_sender_count_table`.
+
+    Calling convention:
+      a0 = table ptr, entries are 32-byte padded address + u64 count
+      a1 = distinct sender count
+      a2 = 20-byte address ptr
+
+    Returns:
+      a0 = 0 and a1 = entry ptr when found
+      a0 = 1 when absent/malformed. -/
+def b1SenderTableFindFunction : String :=
+  "b1_sender_table_find:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  li s3, 0; mv s4, s1\n" ++
+  ".Lb1stf_loop:\n" ++
+  "  bgeu s3, s4, .Lb1stf_absent\n" ++
+  "  add s5, s3, s4; srli s5, s5, 1\n" ++
+  "  li t0, 40; mul t0, s5, t0; add t1, s0, t0\n" ++
+  "  li t2, 0\n" ++
+  ".Lb1stf_cmp:\n" ++
+  "  li t3, 20; beq t2, t3, .Lb1stf_found\n" ++
+  "  add t3, t1, t2; lbu t4, 0(t3); add t3, s2, t2; lbu t5, 0(t3)\n" ++
+  "  bltu t4, t5, .Lb1stf_entry_less\n" ++
+  "  bltu t5, t4, .Lb1stf_entry_greater\n" ++
+  "  addi t2, t2, 1; j .Lb1stf_cmp\n" ++
+  ".Lb1stf_entry_less:\n" ++
+  "  addi s3, s5, 1; j .Lb1stf_loop\n" ++
+  ".Lb1stf_entry_greater:\n" ++
+  "  mv s4, s5; j .Lb1stf_loop\n" ++
+  ".Lb1stf_found:\n" ++
+  "  li a0, 0; mv a1, t1; j .Lb1stf_ret\n" ++
+  ".Lb1stf_absent:\n" ++
+  "  li a0, 1\n" ++
+  ".Lb1stf_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
 /-- Shared scratch arena for `b1_sender_count_table`. -/
 def b1SenderCountTableScratchDataSection : String :=
   ".balign 32\n" ++
@@ -180,6 +225,13 @@ def ziskB1SenderCountTablePrologue : String :=
   "  li t6, 0x40000000; ld s1, 8(t6)\n" ++
   "  la a0, b1sc_probe_skip; li a1, 6; la a2, b1sc_probe_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, b1sc_out_count\n" ++
   "  li t0, 5; beq s1, t0, .Lb1scp_over_cap\n" ++
+  "  li t0, 6; beq s1, t0, .Lb1scp_seq_repeated_valid\n" ++
+  "  li t0, 7; beq s1, t0, .Lb1scp_seq_reuse\n" ++
+  "  li t0, 8; beq s1, t0, .Lb1scp_seq_too_high\n" ++
+  "  li t0, 9; beq s1, t0, .Lb1scp_seq17\n" ++
+  "  li t0, 10; beq s1, t0, .Lb1scp_seq1024\n" ++
+  "  li t0, 11; beq s1, t0, .Lb1scp_seq1025\n" ++
+  "  li t0, 12; beq s1, t0, .Lb1scp_seq_full\n" ++
   "  beqz s1, .Lb1scp_call\n" ++
   "  li t0, 1; beq s1, t0, .Lb1scp_mode17\n" ++
   "  li t0, 2; beq s1, t0, .Lb1scp_mode1024\n" ++
@@ -191,6 +243,51 @@ def ziskB1SenderCountTablePrologue : String :=
   ".Lb1scp_mode1025:\n  li a1, 1025; j .Lb1scp_seed_distinct\n" ++
   ".Lb1scp_mode_full:\n  li a1, " ++ toString bvMtxSenderCountEntries ++ "; j .Lb1scp_seed_distinct\n" ++
   ".Lb1scp_over_cap:\n  li a1, " ++ toString (bvMtxSenderCountEntries + 1) ++ "; j .Lb1scp_call\n" ++
+  ".Lb1scp_seq_repeated_valid:\n  li a1, 6; li s2, 6; li s3, 0; j .Lb1scp_seq_call\n" ++
+  ".Lb1scp_seq_reuse:\n  li a1, 6; li s2, 6; li s3, 1; j .Lb1scp_seq_call\n" ++
+  ".Lb1scp_seq_too_high:\n  li a1, 6; li s2, 6; li s3, 2; j .Lb1scp_seq_call\n" ++
+  ".Lb1scp_seq17:\n  li a1, 17; li s2, 17; li s3, 0; j .Lb1scp_seed_distinct_seq\n" ++
+  ".Lb1scp_seq1024:\n  li a1, 1024; li s2, 1024; li s3, 0; j .Lb1scp_seed_distinct_seq\n" ++
+  ".Lb1scp_seq1025:\n  li a1, 1025; li s2, 1025; li s3, 0; j .Lb1scp_seed_distinct_seq\n" ++
+  ".Lb1scp_seq_full:\n  li a1, " ++ toString bvMtxSenderCountEntries ++ "; li s2, " ++ toString bvMtxSenderCountEntries ++ "; li s3, 0; j .Lb1scp_seed_distinct_seq\n" ++
+  ".Lb1scp_seed_distinct_seq:\n" ++
+  "  la t0, b1sc_probe_skip; li t1, 0\n" ++
+  ".Lb1scp_seed_seq_loop:\n" ++
+  "  bgeu t1, a1, .Lb1scp_seq_call\n" ++
+  "  addi t3, t1, 1; srli t4, t3, 8; sb t4, 18(t0); andi t4, t3, 255; sb t4, 19(t0)\n" ++
+  "  addi t0, t0, 64; addi t1, t1, 1; j .Lb1scp_seed_seq_loop\n" ++
+  ".Lb1scp_seq_call:\n" ++
+  "  jal ra, b1_sender_count_table\n" ++
+  "  bnez a0, .Lb1scp_seq_build_fail\n" ++
+  "  la t0, b1sc_out_count; ld t1, 0(t0); li s4, 0\n" ++
+  ".Lb1scp_seq_zero_loop:\n" ++
+  "  bgeu s4, t1, .Lb1scp_seq_loop_init\n" ++
+  "  li t2, 40; mul t2, s4, t2; la t3, b1sc_probe_table; add t3, t3, t2; sd zero, 32(t3)\n" ++
+  "  addi s4, s4, 1; j .Lb1scp_seq_zero_loop\n" ++
+  ".Lb1scp_seq_loop_init:\n" ++
+  "  li s4, 0; li s5, 5\n" ++
+  ".Lb1scp_seq_loop:\n" ++
+  "  bgeu s4, s2, .Lb1scp_seq_ok\n" ++
+  "  slli t0, s4, 6; la a2, b1sc_probe_skip; add a2, a2, t0; la a0, b1sc_probe_table; la t1, b1sc_out_count; ld a1, 0(t1)\n" ++
+  "  jal ra, b1_sender_table_find\n" ++
+  "  bnez a0, .Lb1scp_seq_lookup_fail\n" ++
+  "  mv t6, a1; ld t5, 32(t6); add t0, s5, t5; mv t1, t0\n" ++
+  "  li t2, 2; bne s4, t2, .Lb1scp_seq_have_nonce\n" ++
+  "  li t2, 1; beq s3, t2, .Lb1scp_seq_nonce_low\n" ++
+  "  li t2, 2; beq s3, t2, .Lb1scp_seq_nonce_high\n" ++
+  ".Lb1scp_seq_have_nonce:\n" ++
+  "  bne t1, t0, .Lb1scp_seq_mismatch\n" ++
+  "  addi t5, t5, 1; sd t5, 32(t6); addi s4, s4, 1; j .Lb1scp_seq_loop\n" ++
+  ".Lb1scp_seq_nonce_low:\n  mv t1, s5; j .Lb1scp_seq_have_nonce\n" ++
+  ".Lb1scp_seq_nonce_high:\n  addi t1, t0, 1; j .Lb1scp_seq_have_nonce\n" ++
+  ".Lb1scp_seq_ok:\n" ++
+  "  li t0, 0xa0010000; sd zero, 152(t0); sd s4, 160(t0); j .Lb1scp_halt\n" ++
+  ".Lb1scp_seq_mismatch:\n" ++
+  "  li t0, 0xa0010000; li t1, 40; sd t1, 152(t0); sd s4, 160(t0); j .Lb1scp_halt\n" ++
+  ".Lb1scp_seq_lookup_fail:\n" ++
+  "  li t0, 0xa0010000; li t1, 41; sd t1, 152(t0); sd s4, 160(t0); j .Lb1scp_halt\n" ++
+  ".Lb1scp_seq_build_fail:\n" ++
+  "  li t0, 0xa0010000; li t1, 42; sd t1, 152(t0); sd zero, 160(t0); j .Lb1scp_halt\n" ++
   ".Lb1scp_seed_distinct:\n" ++
   "  la t0, b1sc_probe_skip; li t1, 0\n" ++
   ".Lb1scp_seed_loop:\n" ++
@@ -208,8 +305,16 @@ def ziskB1SenderCountTablePrologue : String :=
   "  add t3, t1, t2; lbu t4, 0(t3); addi t5, t0, 16; add t5, t5, t2; sb t4, 0(t5)\n" ++
   "  addi t2, t2, 1; j .Lb1scp_copy_out\n" ++
   ".Lb1scp_done:\n" ++
+  "  li t0, 0xa0010000; ld t1, 0(t0); bnez t1, .Lb1scp_find_skip\n" ++
+  "  la t2, b1sc_out_count; ld a1, 0(t2); addi t3, a1, -1; li t4, 40; mul t3, t3, t4\n" ++
+  "  la a2, b1sc_probe_table; add a2, a2, t3; la a0, b1sc_probe_table\n" ++
+  "  jal ra, b1_sender_table_find\n" ++
+  "  li t0, 0xa0010000; sd a0, 136(t0); bnez a0, .Lb1scp_halt; ld t1, 32(a1); sd t1, 144(t0); j .Lb1scp_halt\n" ++
+  ".Lb1scp_find_skip:\n" ++
+  "  li t2, 9; sd t2, 136(t0); sd zero, 144(t0)\n" ++
   "  j .Lb1scp_halt\n" ++
   b1SenderCountTableFunction ++ "\n" ++
+  b1SenderTableFindFunction ++ "\n" ++
   ".Lb1scp_halt:"
 
 def ziskB1SenderCountTableProbeUnit : BuildUnit := {
