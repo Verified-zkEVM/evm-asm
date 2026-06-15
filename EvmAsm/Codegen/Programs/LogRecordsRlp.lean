@@ -10,11 +10,10 @@
   input (`receipt_encode` field 3 / `logs_desc_ptr@8`): the per-tx bloom can
   then be derived from the same encoding via `logs_list_bloom_add`.
 
-  Descriptor layout (EvmLogHandlers, native stack-word order — 32-byte words
-  as four LITTLE-ENDIAN u64 limbs):
+  Descriptor layout (EvmLogHandlers):
     +0    topic_count (u64, 0..4)
-    +32   four 32-byte topic slots (LE)
-    +192  executing ADDRESS context word (LE; low 160 bits = the address)
+    +32   four 32-byte topic slots (stack-word / LE order)
+    +192  executing ADDRESS context bytes (canonical 20-byte BE, low-aligned)
   Full data: evm_log_data_meta[i] = {byte offset (u64), data length (u64)}
   into evm_log_data.
 
@@ -71,19 +70,19 @@ def logRecordsEncodeRlpFunction : String :=
   ".Llrr_log_loop:\n" ++
   "  beqz s1, .Llrr_finish\n" ++
   -- ---- per-log inner payload: address item then topics list then data ----
-  -- address: BE bytes = LE word bytes 19..0 of the ADDRESS context word.
+  -- address: descriptor bytes +192..+211 are already canonical BE for the
+  -- top-level runtime payload path; topics below remain stack words and are reversed.
   "  la t0, lrr_addr_be\n" ++
-  "  addi t1, s0, 192\n" ++       -- LE address word
+  "  addi t1, s0, 192\n" ++       -- canonical address bytes
   "  li t2, 0\n" ++
-  ".Llrr_addr_rev:\n" ++
+  ".Llrr_addr_copy:\n" ++
   "  li t3, 20; beq t2, t3, .Llrr_addr_done\n" ++
-  "  li t3, 19; sub t3, t3, t2\n" ++
-  "  add t3, t1, t3\n" ++
+  "  add t3, t1, t2\n" ++
   "  lbu t4, 0(t3)\n" ++
   "  add t3, t0, t2\n" ++
   "  sb t4, 0(t3)\n" ++
   "  addi t2, t2, 1\n" ++
-  "  j .Llrr_addr_rev\n" ++
+  "  j .Llrr_addr_copy\n" ++
   ".Llrr_addr_done:\n" ++
   "  la a0, lrr_addr_be; li a1, 20; la a2, lrr_inner; la a3, lrr_len\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
