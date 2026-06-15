@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictExactGas
+import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -645,6 +646,7 @@ def blockVerdictFunction : String :=
   "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
   "  bnez a1, .Lbv_mtx_bail                         # chunked table full -> conservative\n" ++
   "  la t4, bv_mtx_committed_chunk_count; sd a0, 0(t4)\n" ++
+  blockVerdictMtxCoinbaseFeeEffect ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
