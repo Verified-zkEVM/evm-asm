@@ -642,16 +642,16 @@ format_verdict_debug() {
     baacd_fail
     bacv_fail
     baap_fail
-    sri_index
-    sri_mode
-    sri_status
-    block_rlp_len
-    brr_status
-    brr_count
-    brr_append
-    brr0
-    brr1
-    brr2
+    block_inc0
+    block_inc1
+    tx_state0
+    tx_state1
+    exact_net_status
+    exact_net_index
+    exact_block_status
+    exact_header_gas_used
+    exact_expected_gas_used
+    receipt1_cumulative
   )
   local -a words=()
   local i value dbg=""
