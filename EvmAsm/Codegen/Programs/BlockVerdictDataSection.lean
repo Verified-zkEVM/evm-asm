@@ -1290,6 +1290,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.5: block base_fee (BE, 32B) for the multi-tx fee gate -- multi_tx_nth_context does
   -- not fill the record's base_fee, so the mtx loop reverses the payload LE base_fee here once.
   "bv_mtx_base_fee_be:\n  .zero 32\n" ++
+  -- Live coinbase fee effect scratch for multi-tx BALANCE(COINBASE) reads.
+  ".balign 8\n" ++
+  "bv_mtx_cbfee_receipt_inc:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_mtx_cbfee_egp:\n  .zero 32\n" ++
+  "bv_mtx_cbfee_priority:\n  .zero 32\n" ++
+  "bv_mtx_cbfee_credit:\n  .zero 32\n" ++
+  "bv_mtx_cbfee_pre:\n  .zero 32\n" ++
+  "bv_mtx_cbfee_post:\n  .zero 32\n" ++
   -- bmvmx.5: per-mtx-tx sender scratch for the multi-tx nonce lower-bound check. sender address
   -- (address_from_pubkey of the verified public_keys[i]) + the sender's pre-state account
   -- (account_at_header_state_root output; nonce@0).
