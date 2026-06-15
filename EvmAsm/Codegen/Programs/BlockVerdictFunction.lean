@@ -498,7 +498,7 @@ def blockVerdictFunction : String :=
   ".Lbv_mtx_seq_found:\n" ++
   "  slli t5, t4, 3; la t6, bv_mtx_nonce_seen_counts; add t6, t6, t5; ld t5, 0(t6); addi a0, t5, 1; sd a0, 0(t6); j .Lbv_mtx_seq_done\n" ++
   ".Lbv_mtx_seq_new:\n" ++
-  "  li a0, 16; bgeu t3, a0, .Lbv_sender_nonce_fail\n" ++
+  "  li a0, " ++ toString bvMtxExactNonceSeenEntries ++ "; bgeu t3, a0, .Lbv_sender_nonce_fail\n" ++
   "  slli t5, t3, 5; la t6, bv_mtx_nonce_seen_addrs; add t6, t6, t5; li a0, 0\n" ++
   ".Lbv_mtx_seq_copy:\n" ++
   "  li a1, 20; beq a0, a1, .Lbv_mtx_seq_new_count\n" ++
