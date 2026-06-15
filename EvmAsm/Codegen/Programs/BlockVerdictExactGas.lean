@@ -26,14 +26,16 @@ def blockVerdictExactGasCheck : String :=
   -- Normalize the regular-gas increments for the exact final header check.
   -- Some runtime paths already report regular-only block increments, while
   -- state-executing contract paths report settlement increments that include the
-  -- EIP-8037 state dimension. Subtract state only when the increment is large
-  -- enough to contain it; otherwise keep the regular-only value.
+  -- EIP-8037 state reservation consumed by the gas-result helper. Subtract that
+  -- intrinsic reservation, not the final net block-state gas: top-level CREATE
+  -- collisions refund the state dimension to zero, but the settlement increment
+  -- can still carry the reserved 183600 before normalization.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
   "  slli t5, t1, 3\n" ++
   "  la t6, bvgr_block_gas_increments; add t6, t6, t5; ld a0, 0(t6)\n" ++
-  "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  la t6, bvgr_tx_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
   "  bltu a0, a1, .Lbv_regular_eip8037_floor\n" ++
   "  sub a0, a0, a1\n" ++
   ".Lbv_regular_eip8037_floor:\n" ++

@@ -16,6 +16,7 @@ import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictExactGas
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.BlockVerdictEip7702SenderAuth
+import EvmAsm.Codegen.Programs.BlockVerdictCreateCollision
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -1401,7 +1402,7 @@ def blockVerdictFunction : String :=
   "  beqz t2, .Lbv_after_tx_gas_precharge\n" ++                  -- sender == coinbase -> skip
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_sender_bal_fail\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_sbc_cb_cmp\n" ++
-  ".Lbv_creation_dispatch:\n  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n  beqz a0, .Lbv_after_tx_gas_precharge\n.Lbv_creation_unsupported:\n" ++
+  blockVerdictCreateCollisionBranch ++
   bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
