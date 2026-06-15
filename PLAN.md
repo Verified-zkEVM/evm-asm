@@ -998,11 +998,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   with `decide` cross-checks). **Now imports Mathlib** (`List.reverseRecOn`,
   `positivity`) rather than re-deriving list/arithmetic facts. Axiom-clean
   (classical), 0 sorry.
-- Remaining (decodability part 2): the full **right inverse**
-  `decode bs = some (item, rest) → bs = encode item ++ rest` (mutual fuel
-  induction over `decodeAux`/`decodeItems`, reusing the canonical inverse + the
-  `_eq_some_iff` bridges) — certifying the decoder accepts *only* canonical
-  encodings (the ACL2 `rlp-encode-tree-of-rlp-parse-tree` analogue).
+- ✅ **Decodability part 2 — the full right inverse** (`Properties.lean`).
+  `decode_eq_some_imp_encode : decode bs = some (item, rest) → bs = encode item ++ rest`
+  — whatever `decode` accepts re-encodes to exactly the bytes consumed, so the
+  decoder accepts *only* canonical encodings (the ACL2
+  `rlp-encode-tree-of-rlp-parse-tree` analogue, the property whose failure hid a
+  real decoder bug in Coglio's work). Proved by `decode_right_inverse_mutual`
+  (step induction on the fuel `nDepth`, same shape as `decode_encode_mutual`):
+  byte classes are standalone `decodeAux_{singleByte,shortBytes,longBytes}_right_inv`
+  lemmas; list classes recurse through the IH. Reconstruction helpers
+  `takeBytes_eq_some_imp`, `readLength_eq_some_imp` (the latter exposing the
+  canonical length field via `toBytesBE_fromBytesBE_of_canonical`). Capstone
+  `decodeFully_eq_encode : decodeFully bs = some item ↔ bs = encode item`
+  (within the 8-byte bound) — full decode is *exactly* the inverse of `encode`.
+  Axiom-clean (classical), 0 sorry. **RLP decodability is now complete: both
+  inverses + injectivity + quasi-encoding rejection, to parity with the ACL2
+  formalization.**
 
 ### EL.2 Byte-Level Infrastructure ✅
 - **File**: `EvmAsm/Rv64/ByteOps.lean`
