@@ -8,6 +8,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalGasValid
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.ReceiptRecords
 import EvmAsm.Codegen.Programs.LogRecordsRlp
@@ -50,7 +51,7 @@ def blockReceiptRecordsMaterializeFunction : String :=
   "  la t0, brr_tx_window_ptr; sd a4, 0(t0)\n" ++
   "  la t0, brr_status; sd zero, 0(t0)\n" ++
   "  la t0, brr_append_status; sd zero, 0(t0)\n" ++
-  "  la a0, brr_control; li a1, 16; la a2, brr_records\n" ++
+  "  la a0, brr_control; li a1, " ++ toString bvReceiptRecordCapacity ++ "; la a2, brr_records\n" ++
   "  jal ra, receipt_records_init\n" ++
   "  addi a0, s0, 504; jal ra, bgv_u32le\n" ++
   "  mv s1, a0                   # transactions_offset\n" ++
@@ -223,7 +224,7 @@ def ziskBlockReceiptRecordsMaterializeDataSection : String :=
   "brr_receipt_gas_count:\n  .zero 8\n" ++
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
-  "brr_records:\n  .zero 1024"
+  "brr_records:\n  .zero " ++ toString bvReceiptRecordsBytes
 
 def ziskBlockReceiptRecordsMaterializeProbeUnit : BuildUnit := {
   body        := NOP
@@ -260,7 +261,7 @@ def blockLogWindowSnapshotFunction : String :=
   "  la t1, bv_last_log_count; sd s0, 0(t1)\n" ++
   "  beqz s0, .Lblws_ok\n" ++
   "  add t2, s1, s0\n" ++
-  "  li t3, 128\n" ++
+  "  li t3, " ++ toString bvBlockLogDescCapacity ++ "\n" ++
   "  bgtu t2, t3, .Lblws_overflow\n" ++
   "  la t1, evm_log_data_overflow; ld t1, 0(t1); bnez t1, .Lblws_overflow\n" ++
   "  add t2, s1, s0\n" ++
@@ -287,7 +288,7 @@ def blockLogWindowSnapshotFunction : String :=
   "  ld s4, 8(t0)                # data len\n" ++
   "  la t0, bv_block_log_data_used; ld s5, 0(t0)\n" ++
   "  add t1, s5, s4\n" ++
-  "  li t2, 65536\n" ++
+  "  li t2, " ++ toString bvBlockLogDataBytes ++ "\n" ++
   "  bgtu t1, t2, .Lblws_overflow\n" ++
   "  add t0, s1, s2\n" ++
   "  slli t0, t0, 4\n" ++
@@ -326,6 +327,88 @@ def blockLogWindowSnapshotFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
   "  addi sp, sp, 56\n" ++
   "  ret"
+
+
+/-- `zisk_block_log_window_snapshot_overflow`: focused probe for the block-log
+    stream-capacity checks inside `block_log_window_snapshot`. Input mode is a
+    u64 at INPUT_ADDR + 8:
+      1 = descriptor-capacity overflow (`bv_block_log_count` starts at cap)
+      2 = data-capacity overflow (one captured log has data length cap+1)
+
+    Output layout:
+      +0  block_log_window_snapshot return status
+      +8  bv_block_log_count
+      +16 bv_block_log_data_used
+      +24 bv_block_log_overflow
+      +32 bv_last_log_start
+      +40 bv_last_log_count. -/
+def ziskBlockLogWindowSnapshotOverflowPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  li t0, 6\n" ++
+  ".Lblwsp_zero_out:\n" ++
+  "  beqz t0, .Lblwsp_zero_out_done\n" ++
+  "  sd zero, 0(s0)\n" ++
+  "  addi s0, s0, 8\n" ++
+  "  addi t0, t0, -1\n" ++
+  "  j .Lblwsp_zero_out\n" ++
+  ".Lblwsp_zero_out_done:\n" ++
+  "  la t0, evm_env\n" ++
+  "  li t1, 1; sd t1, 472(t0)\n" ++
+  "  la t0, bv_block_log_count; sd zero, 0(t0)\n" ++
+  "  la t0, bv_block_log_data_used; sd zero, 0(t0)\n" ++
+  "  la t0, bv_block_log_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, bv_last_log_start; sd zero, 0(t0)\n" ++
+  "  la t0, bv_last_log_count; sd zero, 0(t0)\n" ++
+  "  la t0, evm_log_data_overflow; sd zero, 0(t0)\n" ++
+  "  li t0, 0x40000008; ld t1, 0(t0)\n" ++
+  "  li t2, 1; beq t1, t2, .Lblwsp_desc_overflow\n" ++
+  "  li t2, 2; beq t1, t2, .Lblwsp_data_overflow\n" ++
+  "  j .Lblwsp_call\n" ++
+  ".Lblwsp_desc_overflow:\n" ++
+  "  la t0, bv_block_log_count; li t2, " ++ toString bvBlockLogDescCapacity ++ "; sd t2, 0(t0)\n" ++
+  "  j .Lblwsp_call\n" ++
+  ".Lblwsp_data_overflow:\n" ++
+  "  la t0, evm_log_data_meta; sd zero, 0(t0)\n" ++
+  "  li t2, " ++ toString (bvBlockLogDataBytes + 1) ++ "; sd t2, 8(t0)\n" ++
+  ".Lblwsp_call:\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  sd a0, 0(s0)\n" ++
+  "  la t0, bv_block_log_count; ld t1, 0(t0); sd t1, 8(s0)\n" ++
+  "  la t0, bv_block_log_data_used; ld t1, 0(t0); sd t1, 16(s0)\n" ++
+  "  la t0, bv_block_log_overflow; ld t1, 0(t0); sd t1, 24(s0)\n" ++
+  "  la t0, bv_last_log_start; ld t1, 0(t0); sd t1, 32(s0)\n" ++
+  "  la t0, bv_last_log_count; ld t1, 0(t0); sd t1, 40(s0)\n" ++
+  "  j .Lblwsp_done\n" ++
+  blockLogWindowSnapshotFunction ++ "\n" ++
+  ".Lblwsp_done:"
+
+def ziskBlockLogWindowSnapshotOverflowDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "evm_env:\n  .zero 480\n" ++
+  "evm_log_data_overflow:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "evm_event_logs:\n  .zero 256\n" ++
+  "evm_log_data_meta:\n  .zero 16\n" ++
+  "evm_log_data:\n  .zero 1\n" ++
+  ".balign 8\n" ++
+  "bv_block_log_count:\n  .zero 8\n" ++
+  "bv_block_log_data_used:\n  .zero 8\n" ++
+  "bv_block_log_overflow:\n  .zero 8\n" ++
+  "bv_last_log_start:\n  .zero 8\n" ++
+  "bv_last_log_count:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bv_block_log_descs:\n  .zero 256\n" ++
+  "bv_block_log_meta:\n  .zero 16\n" ++
+  "bv_block_log_data:\n  .zero 1"
+
+def ziskBlockLogWindowSnapshotOverflowProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBlockLogWindowSnapshotOverflowPrologue
+  dataAsm     := ziskBlockLogWindowSnapshotOverflowDataSection
+}
 
 /-! ## block_receipt_logs_materialize (.63.1.6.2.1 logs into records)
 
@@ -373,7 +456,7 @@ def blockReceiptLogsMaterializeFunction : String :=
   "  add a3, a3, t3\n" ++
   "  la a4, bv_logs_rlp_arena\n" ++
   "  add a4, a4, s4\n" ++
-  "  li a5, 65536\n" ++
+  "  li a5, " ++ toString bvLogsRlpArenaBytes ++ "\n" ++
   "  sub a5, a5, s4\n" ++
   "  la a6, bv_logs_rlp_len\n" ++
   "  jal ra, log_records_encode_rlp\n" ++
