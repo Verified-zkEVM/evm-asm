@@ -153,6 +153,162 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
   dataAsm     := ziskTxIntrinsicStateGasDataSection
 }
 
+
+/-! ## tx_eip7702_existing_authority_refund
+
+    Temporary coarse bridge for the EIP-7702 existing-authority state-gas
+    refund. For type-4 authorizations that pass basic chain/nonce/target
+    parsing, this subtracts the existing-account refund; callers pass BAL ptr 0
+    to keep the older intrinsic-only behavior. Bead evm-asm-cqesh tracks
+    replacing this syntactic proxy with the precise execution-specs
+    `set_delegation` account predicate.
+
+    Calling convention:
+      a0 = encoded tx ptr, a1 = encoded tx len
+      a2 = BAL ptr gate (0 disables), a3 = reserved
+      a4 = block chain id
+      a0 output = refund amount (u64). Parse failures for an individual
+                  authorization conservatively contribute zero. -/
+def txEip7702ExistingAuthorityRefundFunction : String :=
+  "tx_eip7702_existing_authority_refund:\n" ++
+  "  addi sp, sp, -104\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx len\n" ++
+  "  mv s2, a2                   # BAL ptr\n" ++
+  "  mv s3, a3                   # reserved\n" ++
+  "  mv s4, a4                   # chain id\n" ++
+  "  li s10, 0                   # accumulated refund\n" ++
+  "  beqz s2, .Lteer_done\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lteer_done\n" ++
+  "  la t0, teer_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lteer_done\n" ++
+  "  la t0, teer_inner_off; ld t1, 0(t0); add s5, s0, t1; sub s6, s1, t1\n" ++
+  "  mv a0, s5; mv a1, s6; li a2, 9; la a3, teer_auth_off; la a4, teer_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_done\n" ++
+  "  la t0, teer_auth_off; ld t1, 0(t0); add s5, s5, t1     # auth list ptr\n" ++
+  "  la t0, teer_auth_len; ld s6, 0(t0)                     # auth list len\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, teer_auth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lteer_done\n" ++
+  "  la t0, teer_auth_count; ld s7, 0(t0)\n" ++
+  "  li s8, 0\n" ++
+  ".Lteer_loop:\n" ++
+  "  beq s8, s7, .Lteer_done\n" ++
+  "  mv a0, s5; mv a1, s6; mv a2, s8; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
+  "  la t0, teer_tuple_len; ld t2, 0(t0)\n" ++
+  "  mv a0, s9; mv a1, t2; li a2, 0; la a3, teer_auth_chain\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_chain_ok; bne t1, s4, .Lteer_next\n" ++
+  ".Lteer_chain_ok:\n" ++
+  "  la t0, teer_tuple_len; ld t2, 0(t0)\n" ++
+  "  mv a0, s9; mv a1, t2; li a2, 2; la a3, teer_auth_nonce\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, teer_auth_nonce; ld t1, 0(t0); li t2, -1; beq t1, t2, .Lteer_next\n" ++
+  "  la t0, teer_tuple_len; ld a1, 0(t0); mv a0, s9; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_next\n" ++
+  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_next\n" ++
+  ".Lteer_refund_match:\n" ++
+  liAmsterdamNewAccountStateGas "t3" ++
+  "  add s10, s10, t3; j .Lteer_next\n" ++
+
+  ".Lteer_next:\n" ++
+  "  addi s8, s8, 1; j .Lteer_loop\n" ++
+  ".Lteer_done:\n" ++
+  "  mv a0, s10\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 104\n" ++
+  "  ret"
+
+
+/-! ## block_verdict_receipt_gas_eip8037_adjust
+
+    Add EIP-8037 state-gas components to per-tx receipt gas increments. The
+    runtime arena records regular execution gas; Amsterdam receipts use the
+    transaction's total gas accounting, so type-4 authorizations also need their
+    regular auth-list intrinsic charge and every tx needs intrinsic state gas
+    folded into the receipt increment. Executed state gas is part of the block
+    gas accounting, not the receipt cumulative gas. Decode failures are non-gating:
+    the helper leaves that tx's receipt gas at the runtime value. -/
+def blockVerdictReceiptGasEip8037AdjustFunction : String :=
+  "block_verdict_receipt_gas_eip8037_adjust:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                   # tx list ptr\n" ++
+  "  mv s1, a1                   # tx list len\n" ++
+  "  mv s2, a2                   # tx count\n" ++
+  "  mv s3, a3                   # receipt gas increments\n" ++
+  "  mv s4, a4                   # intrinsic state gas array\n" ++
+  "  mv s5, a5                   # reserved/ignored: executed state gas is not receipt gas\n" ++
+  "  beqz s2, .Lbvrga_done\n" ++
+  "  li t0, 4; bltu s1, t0, .Lbvrga_done\n" ++
+  "  slli s7, s2, 2             # minimum item offset = tx_count * 4\n" ++
+  "  bgtu s7, s1, .Lbvrga_done\n" ++
+  "  li s6, 0\n" ++
+  ".Lbvrga_loop:\n" ++
+  "  beq s6, s2, .Lbvrga_done\n" ++
+  "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le\n" ++
+  "  mv s8, a0\n" ++
+  "  bltu s8, s7, .Lbvrga_next\n" ++
+  "  bgtu s8, s1, .Lbvrga_next\n" ++
+  "  addi t0, s6, 1; beq t0, s2, .Lbvrga_last\n" ++
+  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le\n" ++
+  "  mv s9, a0; j .Lbvrga_have_next\n" ++
+  ".Lbvrga_last:\n" ++
+  "  mv s9, s1\n" ++
+  ".Lbvrga_have_next:\n" ++
+  "  bltu s9, s8, .Lbvrga_next\n" ++
+  "  bgtu s9, s1, .Lbvrga_next\n" ++
+  "  add s10, s0, s8\n" ++
+  "  sub s11, s9, s8\n" ++
+  "  slli t0, s6, 3\n" ++
+  "  add t1, s3, t0; ld t2, 0(t1)\n" ++
+  "  beqz s4, .Lbvrga_after_intr_state\n" ++
+  "  add t3, s4, t0; ld t3, 0(t3); add t2, t2, t3\n" ++
+  ".Lbvrga_after_intr_state:\n" ++
+  "  sd t2, 0(t1)\n" ++
+  "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbvrga_next\n" ++
+  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvrga_next\n" ++
+  "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvrga_next\n" ++
+  "  add a0, s10, t0; sub a1, s11, t0; li a2, 9; la a3, bvrga_auth_off; la a4, bvrga_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvrga_next\n" ++
+  "  la t0, bvrga_inner_off; ld t1, 0(t0); add t1, s10, t1\n" ++
+  "  la t0, bvrga_auth_off; ld t2, 0(t0); add a0, t1, t2\n" ++
+  "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbvrga_next\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 7500; mul t0, t0, t1\n" ++
+  "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2); add t3, t3, t0; sd t3, 0(t2)\n" ++
+  ".Lbvrga_next:\n" ++
+  "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
+  ".Lbvrga_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret"
+
 /-! ## block_verdict_tx_state_gas_array  (g8zeq.1.4.3)
 
     Fill a per-tx `tx_state_gas` array from the SSZ transactions section, the
@@ -171,6 +327,9 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
       a1 (input)  : section byte length
       a2 (input)  : expected transaction count (arena consistency)
       a3 (input)  : u64 out array ptr (>= 8*count bytes)
+      a4 (input)  : optional BAL ptr (0 disables existing-authority refunds)
+      a5 (input)  : BAL length
+      a6 (input)  : block chain id
       ra (input)  : return
       a0 (output) :
         0 : success (out[0..count) populated)
@@ -179,14 +338,18 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
         3 : a per-tx tx_intrinsic_state_gas call failed -/
 def blockVerdictTxStateGasArrayFunction : String :=
   "block_verdict_tx_state_gas_array:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   "  mv s0, a0                   # tx-section ptr\n" ++
   "  mv s1, a1                   # tx-section len\n" ++
   "  mv s2, a2                   # expected count\n" ++
   "  mv s3, a3                   # out array\n" ++
+  "  mv s8, a4                   # optional BAL ptr\n" ++
+  "  mv s9, a5                   # BAL len\n" ++
+  "  mv s10, a6                  # chain id\n" ++
   "  li t0, 4; bltu s1, t0, .Lbvtsg_malformed\n" ++
   "  mv a0, s0; jal ra, bgv_u32le             # first offset = 4 * tx_count\n" ++
   "  andi t0, a0, 3; bnez t0, .Lbvtsg_malformed\n" ++
@@ -213,6 +376,14 @@ def blockVerdictTxStateGasArrayFunction : String :=
   "  slli t0, s5, 3; add a2, s3, t0   # &out[i]\n" ++
   "  jal ra, tx_intrinsic_state_gas\n" ++
   "  bnez a0, .Lbvtsg_tx_fail\n" ++
+  "  beqz s8, .Lbvtsg_after_refund\n" ++
+  "  add a0, s0, s6; sub a1, s7, s6; mv a2, s8; mv a3, s9; mv a4, s10\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  slli t0, s5, 3; add t1, s3, t0; ld t2, 0(t1); bgtu a0, t2, .Lbvtsg_refund_clamp\n" ++
+  "  sub t2, t2, a0; sd t2, 0(t1); j .Lbvtsg_after_refund\n" ++
+  ".Lbvtsg_refund_clamp:\n" ++
+  "  sd zero, 0(t1)\n" ++
+  ".Lbvtsg_after_refund:\n" ++
   "  addi s5, s5, 1; j .Lbvtsg_loop\n" ++
   ".Lbvtsg_ok:\n" ++
   "  li a0, 0; j .Lbvtsg_ret\n" ++
@@ -226,7 +397,8 @@ def blockVerdictTxStateGasArrayFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret"
 
 /-- `zisk_block_verdict_tx_state_gas_array`: focused probe.
@@ -244,17 +416,20 @@ def ziskBlockVerdictTxStateGasArrayPrologue : String :=
   "  ld a2, 16(a4)               # expected count\n" ++
   "  addi a0, a4, 24             # tx-section ptr\n" ++
   "  li a3, 0xa0010008           # out array (OUTPUT + 8)\n" ++
+  "  li a4, 0; li a5, 0; li a6, 0 # no BAL refund in the standalone probe\n" ++
   "  jal ra, block_verdict_tx_state_gas_array\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lbvtsg_pdone\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   ".Lbvtsg_pdone:"
 
@@ -271,7 +446,19 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "tis_inner_off:\n  .zero 8\n" ++
   "tis_auth_off:\n  .zero 8\n" ++
   "tis_auth_len:\n  .zero 8\n" ++
-  "tis_auth_count:\n  .zero 8"
+  "tis_auth_count:\n  .zero 8\n" ++
+  "teer_type:\n  .zero 8\n" ++
+  "teer_inner_off:\n  .zero 8\n" ++
+  "teer_auth_off:\n  .zero 8\n" ++
+  "teer_auth_len:\n  .zero 8\n" ++
+  "teer_auth_count:\n  .zero 8\n" ++
+  "teer_tuple_off:\n  .zero 8\n" ++
+  "teer_tuple_len:\n  .zero 8\n" ++
+  "teer_target_off:\n  .zero 8\n" ++
+  "teer_target_len:\n  .zero 8\n" ++
+  "teer_auth_chain:\n  .zero 8\n" ++
+  "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_data_end:\n  .zero 8"
 
 def ziskBlockVerdictTxStateGasArrayProbeUnit : BuildUnit := {
   body        := NOP
