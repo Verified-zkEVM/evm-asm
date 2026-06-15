@@ -7,6 +7,8 @@
   concatenated back byte-identically via blockVerdictReceiptsTail.
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+
 namespace EvmAsm.Codegen
 
 /-- Tail of `block_verdict`, concatenated after the main body (byte-identical). -/
@@ -78,9 +80,8 @@ def blockVerdictReceiptsTail : String :=
   -- check already committed to (`erh_requests_hash`). This stops trusting the
   -- SSZ execution_requests.deposits body: a block whose SSZ deposits match the
   -- header but whose receipts contain different deposit logs is rejected here.
-  -- The scratch sizes mirror existing arenas: block log data is capped at 64KiB
-  -- and descriptors at 128, so 81920 bytes covers records (data + 80*128);
-  -- 32768 covers all derived request bodies plus the assembled section.
+  -- The scratch sizes mirror the named block-log and request-body arenas;
+  -- over-capacity remains conservative and is tracked by follow-up capacity beads.
   "  la a0, bv_block_log_descs\n" ++
   "  la t2, bv_block_log_count; ld a1, 0(t2)\n" ++
   "  la a2, bv_block_log_data\n" ++
@@ -109,7 +110,7 @@ def blockVerdictReceiptsTail : String :=
   -- a consensus comparison that is safe to enforce.
   "  la t2, bv_receipts_enforce_enabled; ld t2, 0(t2); beqz t2, .Lbv_receipts_accept\n" ++
   ".Lbv_receipts_enforce:\n" ++
-  "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, 65536; la a3, bv_receipts_rlp_len\n" ++
+  "  la a0, brr_control; la a1, bv_receipts_rlp; li a2, " ++ toString bvReceiptsRlpBytes ++ "; la a3, bv_receipts_rlp_len\n" ++
   "  jal ra, receipt_records_encode_no_logs\n" ++
   -- Persist the exact encoder status before branching: 0 success,
   -- 1 malformed arena, 2 missing logs descriptor, 3 output/scratch overflow,

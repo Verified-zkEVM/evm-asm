@@ -8,6 +8,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptRecords
 
@@ -63,7 +64,7 @@ def receiptRecordsEncodeNoLogsFunction : String :=
   "  beqz s5, .Lrlen_malformed\n" ++
   "  li s6, 0                    # index\n" ++
   "  li s7, 0                    # payload cursor\n" ++
-  "  li s8, 32768                # payload scratch cap\n" ++
+  "  li s8, " ++ toString bvReceiptListPayloadBytes ++ "                # payload scratch cap\n" ++
   ".Lrlen_loop:\n" ++
   "  beq s6, s4, .Lrlen_finish\n" ++
   "  slli t0, s6, 6\n" ++
@@ -245,7 +246,7 @@ def ziskReceiptRecordsEncodeNoLogsDataSection : String :=
   ".balign 8\n" ++
   "rle_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
-  "rle_records:\n  .zero 1024\n" ++
+  "rle_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
   ".balign 8\n" ++
   "rle_field_len:\n  .zero 8\n" ++
   "rle_prefix_len:\n  .zero 8\n" ++
@@ -257,9 +258,9 @@ def ziskReceiptRecordsEncodeNoLogsDataSection : String :=
   ".balign 8\n" ++
   "rle_zero_bloom:\n  .zero 256\n" ++
   ".balign 8\n" ++
-  "re_payload_buf:\n  .zero 16384\n" ++
+  "re_payload_buf:\n  .zero " ++ toString bvReceiptEncodePayloadBytes ++ "\n" ++
   ".balign 8\n" ++
-  "rle_payload_buf:\n  .zero 32768"
+  "rle_payload_buf:\n  .zero " ++ toString bvReceiptListPayloadBytes
 
 def ziskReceiptRecordsEncodeNoLogsProbeUnit : BuildUnit := {
   body        := NOP

@@ -769,6 +769,18 @@ format_verdict_debug() {
     value="${words[0]:-?}"
     dbg="${dbg:+$dbg }runtime_completeness_status=$value"
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 488 ]]; then
+    raw="$(od -An -v -tu8 -j 472 -N 16 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a committed_labels=(
+      mtx_committed_overflow
+      mtx_committed_count
+    )
+    for i in "${!committed_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${committed_labels[$i]}=$value"
+    done
+  fi
   echo "$dbg"
 }
 

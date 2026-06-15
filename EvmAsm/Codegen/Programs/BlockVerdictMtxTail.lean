@@ -10,6 +10,8 @@
   affect label resolution.
 -/
 
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+
 namespace EvmAsm.Codegen
 
 /-- Multi-tx exec-vs-BAL validation tail of `block_verdict` (skip-list build + B1
@@ -55,9 +57,9 @@ def blockVerdictMtxValidationTail : String :=
   -- compacted by b1_sender_count_table into distinct sender/count rows. Conservative skips:
   -- sender absent from BAL, account_at failure, no declared nonce change. Cursor in
   -- bv_mtx_skip_idx walks the distinct table and survives jals via memory.
-  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, 16; la a4, bv_b1_sender_count\n" ++
+  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, bv_b1_sender_count\n" ++
   "  jal ra, b1_sender_count_table\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                              -- impossible for tx_count <= 16; reject if table build failed
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                              -- reject if table build failed (capacity/malformed)
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++                       -- i = 0 over distinct sender table
   ".Lbv_b1_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
@@ -107,7 +109,7 @@ def blockVerdictMtxValidationTail : String :=
   "  jal ra, multi_tx_actual_sender_debit\n" ++
   "  la t0, bv_b2_debit_out; ld t0, 0(t0); bnez t0, .Lbv_b2_next\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++
-  "  la a0, bv_b2_table; la a1, bv_b2_count; li a2, 16; mv a3, t4; la a4, bv_mtx_sender_acct; addi a4, a4, 8; la a5, bv_b2_debit_out; addi a5, a5, 16\n" ++
+  "  la a0, bv_b2_table; la a1, bv_b2_count; li a2, " ++ toString bvMtxSenderBalanceEntries ++ "; mv a3, t4; la a4, bv_mtx_sender_acct; addi a4, a4, 8; la a5, bv_b2_debit_out; addi a5, a5, 16\n" ++
   "  jal ra, multi_tx_running_sender_balance_step\n" ++
   "  li t0, 1; beq a0, t0, .Lbv_sender_upfront_fail\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
