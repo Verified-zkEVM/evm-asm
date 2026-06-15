@@ -7,6 +7,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
@@ -18,7 +19,7 @@ open EvmAsm.Rv64
     Calling convention:
       a0 = recipient address array ptr (20-byte elements)
       a1 = tx value array ptr (32-byte big-endian u256 elements)
-      a2 = tx count, bounded by 1024
+      a2 = tx count, bounded by `bvMtxActiveTxCap`
       a3 = out entry table ptr (64-byte entries)
       a4 = out count ptr
 
@@ -29,7 +30,7 @@ open EvmAsm.Rv64
     Returns:
       a0 = 0 on success
       a0 = 1 if an aggregate value overflows u256
-      a0 = 2 if tx count exceeds 1024
+      a0 = 2 if tx count exceeds `bvMtxActiveTxCap`
 
     Zero-value rows are retained as zero-credit entries. A later verdict caller can
     skip zero-credit accounts, but keeping them here makes the grouping exact and
@@ -45,7 +46,7 @@ def b3RecipientCreditTableFunction : String :=
   "  mv s2, a2                    # tx count\n" ++
   "  mv s3, a3                    # output table\n" ++
   "  mv s8, a4                    # output count ptr\n" ++
-  "  li t0, 1024\n" ++
+  "  li t0, " ++ toString bvMtxActiveTxCap ++ "\n" ++
   "  bltu t0, s2, .Lb3rct_too_many\n" ++
   "  sd zero, 0(s8)\n" ++
   "  li s4, 0                     # tx index\n" ++

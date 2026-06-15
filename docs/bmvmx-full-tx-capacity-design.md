@@ -4,19 +4,25 @@ This note records the capacity decision for the BMV multi-transaction verdict
 path. The Amsterdam execution target is a 200,000,000 gas block. At the minimum
 21,000 gas per transaction, a valid block can contain 9,523 transactions, so a
 full-capacity path must not treat the current 16-entry multi-tx arena as a
-semantic limit.
+semantic limit. The active loop cap has since been raised to 1,024, while some
+older helper-local tables are still 16-entry and the full 9,523 target remains
+unfinished.
 
 ## Current Limits
 
 The current `main` implementation has several independent ceilings:
 
-- `BlockVerdictFunction.lean` gates the multi-tx runtime loop at 16
-  transactions before `bal_txs_independent`.
-- The runtime-result arrays in `BlockVerdictDataSection.lean` are 16-wide:
+- `BlockVerdictFunction.lean` gates the multi-tx runtime loop at
+  `bvMtxActiveTxCap = 1024` transactions before `bal_txs_independent`.
+- The cheap runtime-result arrays in `BlockVerdictDataSection.lean` are now
+  sized from `bvMtxFullTxCap = 9523`:
   `bv_mtx_gas_left`, `bv_mtx_refund`, `bv_mtx_calldata`,
   `bv_tx_status_arr`, `bv_tx_log_window`, `bvgr_tx_gas_limits`,
   `bvgr_block_gas_increments`, `bvgr_tx_state_gas`,
   `bvgr_tx_exec_state_gas`, and `bvgr_receipt_gas_increments`.
+- Active-loop-only helpers, including the skip list, recipient-credit helper,
+  and current sender count/balance tables, remain tied to
+  `bvMtxActiveTxCap = 1024` until their algorithm slices land.
 - The multi-tx skip list stores `2N+1` 32-byte addresses. At 9,523
   transactions this is 19,047 entries, about 610 KiB, which is acceptable as a
   fixed arena if it remains the only large per-transaction helper.
@@ -41,7 +47,9 @@ Use a staged design:
    pretending to solve the full gas-limit case.
 2. Introduce a named full-capacity constant of 9,523 and convert the cheap,
    truly per-transaction arrays to derived sizes from that constant. These are
-   u64 arrays, status arrays, and 16-byte log-window descriptors.
+   u64 arrays, status arrays, and 16-byte log-window descriptors. This
+   foundation slice is landed as `bvMtxFullTxCap`, while the active loop stays
+   separately named as `bvMtxActiveTxCap`.
 3. Replace quadratic sender counting with a deterministic per-sender aggregation
    table that is explicitly sized or chunked for 9,523 transactions. This table
    should serve both exact nonce sequencing and sender debit/balance aggregation.
@@ -105,8 +113,9 @@ Evidence:
 
 The follow-up work should land in separate PRs:
 
-- Define `bvMtxFullTxCap = 9523` and derive byte sizes for the cheap per-tx
-  arrays; keep the current fixture cap separate until all consumers are ready.
+- Landed foundation: `bvMtxActiveTxCap = 1024` names the current loop cap,
+  `bvMtxFullTxCap = 9523` names the 200M target, and cheap per-tx u64/status/
+  log-window arenas derive their byte sizes from the full cap.
 - Replace the quadratic sender-count scans with a deterministic aggregation
   helper that handles 9,523 transactions.
 - Extend the multi-tx sender debit / actual-balance checks to the same

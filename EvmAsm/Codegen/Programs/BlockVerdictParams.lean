@@ -62,20 +62,34 @@ def bsrMaxTuplesPerSlot : Nat := 10000
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
-/-- Multi-transaction verdict arena capacity. The cached `zkevm@v0.4.0`
+/-- Active multi-transaction execution-loop capacity. The cached `zkevm@v0.4.0`
     stateless fixtures include blocks with more than the old 16-entry arena
-    cap, topping out at 1021 transactions. Use 1024 so the tx-count gate and
-    every fixed per-tx arena have one shared current-fixture-sized bound.
-    Full Amsterdam worst-case capacity (~9523 txs at 200M / 21000) still needs
-    the separate streaming/dynamic design tracked by bmvmx.5.5.7. -/
-def bvMtxArenaTxCap : Nat := 1024
-def bvMtxU64ArenaBytes : Nat := bvMtxArenaTxCap * 8
-def bvMtxLogWindowBytes : Nat := bvMtxArenaTxCap * 16
-def bvMtxSkipListEntries : Nat := bvMtxArenaTxCap * 2 + 1
+    cap, topping out at 1021 transactions. Keep this as the conservative loop
+    gate while sender aggregation, skip-list traversal, and other non-cheap
+    algorithms are generalized to the full 200M target. -/
+def bvMtxActiveTxCap : Nat := 1024
+
+/-- Full Amsterdam transaction capacity target from the 200M block-gas limit and
+    the 21,000 gas intrinsic floor: floor(200,000,000 / 21,000) = 9,523. -/
+def bvMtxFullTxCap : Nat := 9523
+
+/-- Compatibility alias for existing active-loop call sites. New code should
+    choose `bvMtxActiveTxCap` or `bvMtxFullTxCap` explicitly. -/
+def bvMtxArenaTxCap : Nat := bvMtxActiveTxCap
+
+/-- Cheap per-transaction result arenas use the full tx-capacity target. They
+    are indexed only by tx number and are small enough to make static sizing
+    preferable to preserving the old 1024 fixture cap. -/
+def bvMtxU64ArenaBytes : Nat := bvMtxFullTxCap * 8
+def bvMtxLogWindowBytes : Nat := bvMtxFullTxCap * 16
+
+/-- The skip-list and sender aggregation tables remain active-loop sized until
+    their algorithms land in the follow-up full-capacity slices. -/
+def bvMtxSkipListEntries : Nat := bvMtxActiveTxCap * 2 + 1
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
-def bvMtxSenderBalanceEntries : Nat := bvMtxArenaTxCap
+def bvMtxSenderBalanceEntries : Nat := bvMtxActiveTxCap
 def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
-def bvMtxSenderCountEntries : Nat := bvMtxArenaTxCap
+def bvMtxSenderCountEntries : Nat := bvMtxActiveTxCap
 def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
 def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
 
@@ -147,9 +161,7 @@ def baapStorageDescBytes : Nat := 40
     full-capacity migration lands in smaller slices. -/
 def bmvFixtureTxCapacity : Nat := 16
 
-/-- Full Amsterdam transaction capacity target from the 200M block-gas limit and
-    the 21,000 gas intrinsic floor: floor(200,000,000 / 21,000) = 9,523. -/
-def bmvFullTxCapacity : Nat := 9523
+def bmvFullTxCapacity : Nat := bvMtxFullTxCap
 
 def bmvU64PerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 8
 def bmvLogWindowPerTxArenaBytes (txCapacity : Nat) : Nat := txCapacity * 16
@@ -171,6 +183,11 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderCountEntries = 1024
 #guard bvMtxSenderCountTableBytes = 40960
 #guard bvMtxSenderCountSortBytes = 32768
+#guard bvMtxActiveTxCap = 1024
+#guard bvMtxFullTxCap = 9523
+#guard bvMtxArenaTxCap = bvMtxActiveTxCap
+#guard bvMtxU64ArenaBytes = 76184
+#guard bvMtxLogWindowBytes = 152368
 #guard bmvFixtureTxCapacity = 16
 #guard bmvFullTxCapacity = 9523
 #guard bmvFixtureU64PerTxArenaBytes = 128

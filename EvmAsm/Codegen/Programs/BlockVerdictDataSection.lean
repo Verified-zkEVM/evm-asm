@@ -1024,16 +1024,19 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bti_sc_coff:\n  .zero 8\n" ++
   "bti_sc_clen:\n  .zero 8\n" ++
   -- .6.2.2.2.a: per-tx runtime-result arrays + context scratch for the gated
-  -- multi-tx dispatch loop (.6.2.2.2.b). U64 arrays share bvMtxArenaTxCap;
-  -- bv_mtx_ctx is one 192-byte multi_tx_nth_context record reused per index.
+  -- multi-tx dispatch loop (.6.2.2.2.b). U64 arrays are cheap tx-indexed
+  -- full-capacity arenas; the active loop gate remains bvMtxActiveTxCap until
+  -- the sender/skip-list algorithms land. bv_mtx_ctx is one 192-byte
+  -- multi_tx_nth_context record reused per index.
   ".balign 8\n" ++
   "bv_mtx_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
   -- bmvmx.5.5.6.3: running sender counts for the exact multi-tx nonce check.
-  -- 16 entries, matching the current multi-tx arena cap; addresses are 32-byte
-  -- strided with the 20-byte address in the prefix, counts are u64.
+  -- 16 entries for the currently wired exact-nonce helper. This is separate
+  -- from the 1024 active loop cap and the 9523 full-capacity target; the
+  -- follow-up sender aggregation slice replaces this table.
   "bv_mtx_nonce_seen_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_mtx_nonce_seen_addrs:\n  .zero 512\n" ++
@@ -1152,8 +1155,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
   -- comparators. A multi-tx block's gas/value-coupled accounts are {sender_i,
   -- recipient_i} for every tx i plus the shared {coinbase} -> up to 2N+1 entries
-  -- (N = bv_tx_count <= bvMtxArenaTxCap). The skip list has 2N+1 entries,
-  -- 32-byte-strided,
+  -- (N = bv_tx_count <= bvMtxActiveTxCap). The active skip list has 2N+1
+  -- entries, 32-byte-strided,
   -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
   -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context
   -- calls); bv_mtx_skip_ctx is the scratch record for re-extracting each recipient.
@@ -1175,7 +1178,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
   -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
-  -- bv_b1_sender_table is sized to bvMtxArenaTxCap distinct senders; each row is
+  -- bv_b1_sender_table is sized to bvMtxActiveTxCap distinct senders; each row is
   -- 32-byte padded address + u64 total tx count, filled by b1_sender_count_table.
   ".balign 8\n" ++
   b1SenderCountTableScratchDataSection ++
@@ -1189,8 +1192,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_b1_finals:\n  .zero 88\n" ++
   -- bmvmx.5.5.2.2.2 (B2.2): per-sender running balance table for multi-tx sender debits.
   -- Entries are 64B: sender address lane (first 20B used) + running u256 BE balance.
-  -- Capacity follows bvMtxArenaTxCap so all-distinct current-fixture blocks do
-  -- not hit the old 16-entry table-full path.
+  -- Capacity follows bvMtxActiveTxCap so all-distinct current-fixture blocks do
+  -- not hit the old 16-entry table-full path. Full 9523-tx aggregation is a
+  -- separate follow-up slice.
   "bv_b2_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
