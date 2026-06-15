@@ -103,7 +103,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_exact_block_status; ld t2, 0(t1); sd t2, 136(t0)\n" ++
   "  la t1, bv_exact_header_gas_used; ld t2, 0(t1); sd t2, 144(t0)\n" ++
   "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1); sd t2, 152(t0)\n" ++
-  "  la t1, brr_records; ld t2, 80(t1); sd t2, 160(t0)\n" ++
+  "  la t1, brr_records; ld t2, 16(t1); sd t2, 160(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 0(t1); sd t2, 168(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 8(t1); sd t2, 176(t0)\n" ++
   "  la t1, sv_recomputed; ld t2, 16(t1); sd t2, 184(t0)\n" ++

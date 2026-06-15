@@ -246,11 +246,12 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_next\n" ++
   "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_marker_cmp\n" ++
   ".Lteer_marker_match:\n" ++
-  "  # A processed authorization with nonzero auth.nonce proves the authority account\n" ++
-  "  # existed before set_delegation; BAL must show the matching nonce increment.\n" ++
-  "  la t0, teer_auth_nonce; ld t1, 0(t0); beqz t1, .Lteer_existing_code_check\n" ++
-  "  la t0, teer_finals; ld t2, 40(t0); beqz t2, .Lteer_existing_code_check\n" ++
-  "  ld t2, 48(t0); addi t3, t1, 1; bne t2, t3, .Lteer_existing_code_check\n" ++
+  "  # execution-specs set_delegation refunds the NEW_ACCOUNT state component when\n" ++
+  "  # the recovered authority account already exists in pre-state. When block_verdict\n" ++
+  "  # provides teer_records_ptr, use the matched BAL row index to read that pre-record flag.\n" ++
+  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_existing_code_check\n" ++
+  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
+  "  ld t3, 16(t2); bnez t3, .Lteer_existing_code_check\n" ++
   liAmsterdamNewAccountStateGas "t3" ++
   "  add s10, s10, t3\n" ++
   ".Lteer_existing_code_check:\n" ++
@@ -299,11 +300,10 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
 
     Add EIP-8037 state-gas components to per-tx receipt gas increments. The
     runtime arena records regular execution gas; Amsterdam receipts use the
-    transaction's total gas accounting, so type-4 authorizations also need their
-    regular auth-list intrinsic charge and every tx needs intrinsic state gas
-    folded into the receipt increment. Executed state gas is part of the block
-    gas accounting, not the receipt cumulative gas. Decode failures are non-gating:
-    the helper leaves that tx's receipt gas at the runtime value. -/
+    transaction's total gas accounting. Type-4 authorizations need their
+    settlement component, while non-type-4 txs keep the generic intrinsic-state
+    fold. Decode failures are non-gating: the helper leaves that tx's receipt gas
+    at the runtime value. -/
 def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "block_verdict_receipt_gas_eip8037_adjust:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -316,7 +316,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  mv s2, a2                   # tx count\n" ++
   "  mv s3, a3                   # receipt gas increments\n" ++
   "  mv s4, a4                   # intrinsic state gas array\n" ++
-  "  mv s5, a5                   # reserved/ignored: executed state gas is not receipt gas\n" ++
+  "  mv s5, a5                   # block gas increments (skip if receipt already includes state gas)\n" ++
   "  beqz s2, .Lbvrga_done\n" ++
   "  li t0, 4; bltu s1, t0, .Lbvrga_done\n" ++
   "  slli s7, s2, 2             # minimum item offset = tx_count * 4\n" ++
@@ -338,17 +338,10 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  bgtu s9, s1, .Lbvrga_next\n" ++
   "  add s10, s0, s8\n" ++
   "  sub s11, s9, s8\n" ++
-  "  slli t0, s6, 3\n" ++
-  "  add t1, s3, t0; ld t2, 0(t1)\n" ++
-  "  beqz s4, .Lbvrga_after_intr_state\n" ++
-  "  add t3, s4, t0; ld t3, 0(t3); bgeu t2, t3, .Lbvrga_store_next\n" ++
-  "  add t2, t2, t3\n" ++
-  ".Lbvrga_after_intr_state:\n" ++
-  "  sd t2, 0(t1)\n" ++
   "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
   "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lbvrga_next\n" ++
-  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvrga_next\n" ++
+  "  bnez a0, .Lbvrga_generic_state\n" ++
+  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvrga_generic_state\n" ++
   "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvrga_next\n" ++
   "  add a0, s10, t0; sub a1, s11, t0; li a2, 9; la a3, bvrga_auth_off; la a4, bvrga_auth_len\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
@@ -358,9 +351,30 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvrga_next\n" ++
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 7500; mul t0, t0, t1\n" ++
-  "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2); add t3, t3, t0; sd t3, 0(t2)\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 42690; mul t4, t0, t1; li t1, 7500; mul t6, t0, t1\n" ++
+  "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2)\n" ++
+  "  beqz s5, .Lbvrga_type4_check_state\n" ++
+  "  add t5, s5, t1; ld t5, 0(t5); bgtu t3, t5, .Lbvrga_type4_maybe_auth_regular\n" ++
+  "  j .Lbvrga_type4_check_state\n" ++
+  ".Lbvrga_type4_maybe_auth_regular:\n" ++
+  "  beqz s4, .Lbvrga_next\n" ++
+  "  add t5, s4, t1; ld t5, 0(t5); li t0, 35190; la t1, bvrga_auth_count; ld t1, 0(t1); mul t0, t0, t1\n" ++
+  "  bleu t5, t0, .Lbvrga_next\n" ++
+  "  add t3, t3, t6; sd t3, 0(t2); j .Lbvrga_next\n" ++
+  ".Lbvrga_type4_check_state:\n" ++
+  "  beqz s4, .Lbvrga_type4_add_auth\n" ++
+  "  add t5, s4, t1; ld t5, 0(t5); bgeu t3, t5, .Lbvrga_type4_add_state\n" ++
+  ".Lbvrga_type4_add_auth:\n" ++
+  "  add t3, t3, t4; sd t3, 0(t2); j .Lbvrga_next\n" ++
+  ".Lbvrga_type4_add_state:\n" ++
+  "  add t3, t3, t5; sd t3, 0(t2)\n" ++
   "  j .Lbvrga_next\n" ++
+  ".Lbvrga_generic_state:\n" ++
+  "  slli t0, s6, 3\n" ++
+  "  add t1, s3, t0; ld t2, 0(t1)\n" ++
+  "  beqz s4, .Lbvrga_store_next\n" ++
+  "  add t3, s4, t0; ld t3, 0(t3); bgeu t2, t3, .Lbvrga_store_next\n" ++
+  "  add t2, t2, t3\n" ++
   ".Lbvrga_store_next:\n" ++
   "  sd t2, 0(t1)\n" ++
   ".Lbvrga_next:\n" ++
@@ -533,6 +547,7 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_auth_off:\n  .zero 8\n" ++
   "teer_auth_len:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
+  "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
   "teer_tuple_len:\n  .zero 8\n" ++
   "teer_target_off:\n  .zero 8\n" ++
@@ -556,6 +571,7 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "rfu_offset:\n  .zero 8\n" ++
   "rfu_length:\n  .zero 8\n" ++
   "bfa_cnt:\n  .zero 8\n" ++
+  "bfa_index:\n  .zero 8\n" ++
   "bfa_aoff:\n  .zero 8\n" ++
   "bfa_alen:\n  .zero 8\n" ++
   "bfa_doff:\n  .zero 8\n" ++
