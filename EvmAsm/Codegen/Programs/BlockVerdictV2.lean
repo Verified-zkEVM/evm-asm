@@ -47,6 +47,7 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
+import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
@@ -113,6 +114,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
+  committedStorageSnapshotAppendFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
@@ -423,6 +425,7 @@ def statelessVerdictV2GuestClosure : String :=
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
+  committedStorageSnapshotAppendFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
