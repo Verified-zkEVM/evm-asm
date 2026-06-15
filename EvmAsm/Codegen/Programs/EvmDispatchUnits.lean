@@ -171,9 +171,9 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "bv_block_log_data_used:\n  .zero 8\n" ++
     "bv_block_log_overflow:\n  .zero 8\n" ++
     ".balign 8\n" ++
-    "bv_block_log_descs:\n  .zero 32768\n" ++
-    "bv_block_log_meta:\n  .zero 2048\n" ++
-    "bv_block_log_data:\n  .zero 65536\n" ++
+    "bv_block_log_descs:\n  .zero " ++ toString bvBlockLogDescBytes ++ "\n" ++
+    "bv_block_log_meta:\n  .zero " ++ toString bvBlockLogMetaBytes ++ "\n" ++
+    "bv_block_log_data:\n  .zero " ++ toString bvBlockLogDataBytes ++ "\n" ++
     ".balign 8\n" ++
     "srpc_env_base:\n  .zero 8\n" ++
     "m29_stage_cur:\n  .zero 8\n" ++
