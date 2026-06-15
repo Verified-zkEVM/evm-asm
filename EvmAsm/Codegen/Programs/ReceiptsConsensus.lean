@@ -6,6 +6,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BloomBlock
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
@@ -64,7 +65,7 @@ def blockValidateReceiptsConsensusListFunction : String :=
   "  li s7, 0                    # logical receipt count\n" ++
   ".Lbrcl_desc_loop:\n" ++
   "  beq s5, s4, .Lbrcl_desc_done\n" ++
-  "  li t0, 128; bgeu s7, t0, .Lbrcl_root_fail\n" ++
+  "  li t0, " ++ toString bvReceiptConsensusDescCapacity ++ "; bgeu s7, t0, .Lbrcl_root_fail\n" ++
   "  mv a0, s2; mv a1, s3; mv a2, s5\n" ++
   "  la a3, brcl_offset; la a4, brcl_length\n" ++
   "  jal ra, rlp_item_span\n" ++
@@ -201,7 +202,7 @@ def ziskBlockValidateReceiptsConsensusListDataSection : String :=
   "brcl_next_length:\n  .zero 8\n" ++
   "brcl_root_valid:\n  .zero 8\n" ++
   "brcl_bloom_valid:\n  .zero 8\n" ++
-  "brcl_value_descs:\n  .zero 2048"
+  "brcl_value_descs:\n  .zero " ++ toString bvReceiptConsensusDescBytes
 
 def ziskBlockValidateReceiptsConsensusListProbeUnit : BuildUnit := {
   body        := NOP

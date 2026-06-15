@@ -10,6 +10,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -178,7 +179,7 @@ def ziskMultiTxRunningSenderBalancePrologue : String :=
   ".Lmtxrb_probe_loop:\n" ++
   "  bgeu s3, s2, .Lmtxrb_probe_done_rows\n" ++
   "  li t0, 96; mul t0, s3, t0; addi t0, t0, 16; add s4, s0, t0\n" ++
-  "  la a0, mtxrb_table; la a1, mtxrb_count; li a2, 16; mv a3, s4; addi a4, s4, 32; addi a5, s4, 64\n" ++
+  "  la a0, mtxrb_table; la a1, mtxrb_count; li a2, " ++ toString bvMtxSenderBalanceEntries ++ "; mv a3, s4; addi a4, s4, 32; addi a5, s4, 64\n" ++
   "  jal ra, multi_tx_running_sender_balance_step\n" ++
   "  bnez a0, .Lmtxrb_probe_status\n" ++
   "  addi s3, s3, 1; j .Lmtxrb_probe_loop\n" ++
@@ -202,7 +203,7 @@ def ziskMultiTxRunningSenderBalanceDataSection : String :=
   ".balign 8\n" ++
   "mtxrb_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "mtxrb_table:\n  .zero 1024\n"
+  "mtxrb_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n"
 
 def ziskMultiTxRunningSenderBalanceProbeUnit : BuildUnit := {
   body        := NOP

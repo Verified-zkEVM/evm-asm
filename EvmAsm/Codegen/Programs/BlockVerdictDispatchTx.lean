@@ -20,6 +20,8 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
 
 namespace EvmAsm.Codegen
 
@@ -281,31 +283,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_vdone:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2 cross-tx threading: if a prior tx in this block committed a
   -- value for (recipient, slotKey), stage that committed value as this slot's preload
-  -- (original==current) instead of the block-pre witness value, so this tx's SSTORE gas/
-  -- refund uses the in-block committed original. bv_mtx_committed_count is 0 for tx0 /
-  -- single-tx / independent blocks -> no match -> byte-identical. Recipient key = ctx+72
-  -- (20B, zero-padded to 32) — the same re-keying the snapshot uses.
-  "  la t0, bv_mtx_committed_count; ld a3, 0(t0); beqz a3, .Ldtrc_nothread\n" ++
-  "  la t0, dtrc_recipkey; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  addi t1, s2, 72; li t2, 0\n" ++
-  ".Ldtrc_rkey:\n" ++
-  "  li t3, 20; beq t2, t3, .Ldtrc_rkeyd\n" ++
-  "  add t3, t1, t2; lbu t4, 0(t3); la t5, dtrc_recipkey; add t5, t5, t2; sb t4, 0(t5); addi t2, t2, 1; j .Ldtrc_rkey\n" ++
-  ".Ldtrc_rkeyd:\n" ++
-  -- ogjan: bvcd_keys[i] is 32B BIG-endian (RLP), but bv_mtx_committed's slotKey@32 is LITTLE-
-  -- endian (EVM-stack limb order, preload-fed post-#8694/C.1). Byte-reverse it into dtrc_slotkey_le
-  -- so exec_log_latest_value's slotKey compare (a1 vs entry@32) matches the LE snapshot; else this
-  -- interacting-mtx committed-value threading silently no-ops (BE!=LE -> never found). The addrHash
-  -- (a0=dtrc_recipkey) stays BE-left-aligned -- it matches the snapshot addrHash@0 (env.ADDRESS,
-  -- BE, SLOAD self-match); reversing it too would BREAK the addrHash match.
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2  # &bvcd_keys[i] (BE)\n" ++
-  "  addi t3, t3, 31; la a1, dtrc_slotkey_le; li t4, 32\n" ++
-  ".Ldtrc_klr:\n  beqz t4, .Ldtrc_klrd\n  lbu t5, 0(t3); sb t5, 0(a1); addi t3, t3, -1; addi a1, a1, 1; addi t4, t4, -1; j .Ldtrc_klr\n" ++
-  ".Ldtrc_klrd:\n" ++
-  "  la a1, dtrc_slotkey_le                          # a1 = LE slotKey ptr\n" ++
-  "  la a0, dtrc_recipkey; la a2, bv_mtx_committed; la t0, bv_mtx_committed_count; ld a3, 0(t0); la a4, dtrc_threadval\n" ++
-  "  jal ra, exec_log_latest_value\n" ++
-  "  beqz a0, .Ldtrc_nothread                       # no prior-tx committed value -> keep witness value\n" ++
+  -- (original==current). The helper bounds the table count by the named committed-storage
+  -- capacity, prepares recipient/slot scratch, and preserves latest matching entry semantics.
+  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Ldtrc_nothread\n" ++
+  "  addi a0, s2, 72                                  # recipient 20B ptr\n" ++
+  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2  # BE slot key ptr\n" ++
+  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported # over-capacity table count -> conservative\n" ++
+  "  li t0, 1; bne a0, t0, .Ldtrc_nothread            # no prior-tx value -> keep witness value\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2   # preload entry i\n" ++
   "  la t5, dtrc_threadval\n" ++
   "  ld t6, 0(t5);  sd t6, 32(t4); ld t6, 8(t5);  sd t6, 40(t4)\n" ++
