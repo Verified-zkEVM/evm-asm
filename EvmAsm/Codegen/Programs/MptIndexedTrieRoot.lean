@@ -482,6 +482,7 @@ def mptIndexedTrieRootSmallFunction : String :=
   "  mv s2, a2                   # out root\n" ++
   "  li t0, 2049\n" ++
   "  bgeu s1, t0, .Litr_fail\n" ++
+  "  beqz s1, .Litr_empty\n" ++
   "  li t0, 1\n" ++
   "  beq s1, t0, .Litr_one_leaf\n" ++
   "  mv a0, s0\n" ++
@@ -544,6 +545,18 @@ def mptIndexedTrieRootSmallFunction : String :=
   "  ld a1, 8(s0)                # value len\n" ++
   "  mv a2, s2                   # out root\n" ++
   "  jal ra, mpt_indexed_trie_root_one_leaf\n" ++
+  "  j .Litr_ret\n" ++
+  ".Litr_empty:\n" ++
+  "  la t0, iw_empty_trie_root\n" ++
+  "  li t1, 32\n" ++
+  ".Litr_empty_copy:\n" ++
+  "  lbu t2, 0(t0)\n" ++
+  "  sb t2, 0(s2)\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  addi s2, s2, 1\n" ++
+  "  addi t1, t1, -1\n" ++
+  "  bnez t1, .Litr_empty_copy\n" ++
+  "  li a0, 0\n" ++
   "  j .Litr_ret\n" ++
   ".Litr_build_done:\n" ++
   "  la a0, iw_empty_trie_root\n" ++
