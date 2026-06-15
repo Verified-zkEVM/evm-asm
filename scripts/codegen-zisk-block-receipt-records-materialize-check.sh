@@ -31,7 +31,7 @@ REPO_ROOT="$(pwd)"
 # mode=empty: no transactions.
 # mode=legacy_stop: one legacy tx whose data field is STOP (0x00).
 # mode=two_legacy_stop: two legacy STOP txs, testing runtime receipt-gas increments.
-# mode=over_capacity: 17 legacy STOP txs; the receipt-record arena accepts 16 and reports append-capacity debt.
+# mode=seventeen_legacy_stop: 17 legacy STOP txs; covers the former 16-record cap.
 run_case() {
   local name="$1" mode="$2"
   local in_file="$REPO_ROOT/gen-out/zisk_block_receipt_records_${name}.input"
@@ -120,7 +120,7 @@ elif mode == 'two_legacy_stop':
     expected_last_status = 0
     first_record = (0, 1, 18000, 0, 0, 0, 0, 0)
     last_record = (0, 1, 42000, 0, 0, 0, 0, 0)
-elif mode == 'over_capacity':
+elif mode == 'seventeen_legacy_stop':
     txs = [legacy_stop_tx(21000 + i) for i in range(17)]
     offsets = []
     cursor = 4 * len(txs)
@@ -137,13 +137,11 @@ elif mode == 'over_capacity':
         + struct.pack('<' + 'Q' * len(gas_increments), *gas_increments)
     )
     wd_off = TX_OFF + len(tx_list)
-    expected_brr_status = 2
-    expected_append_status = 1
-    expected_count = 16
+    expected_count = len(txs)
     expected_first_status = 0
     expected_last_status = 0
     first_record = (0, 1, gas_increments[0], 0, 0, 0, 0, 0)
-    last_record = (0, 1, sum(gas_increments[:16]), 0, 0, 0, 0, 0)
+    last_record = (0, 1, sum(gas_increments), 0, 0, 0, 0, 0)
 else:
     raise ValueError(mode)
 
@@ -184,7 +182,7 @@ FAILED=0
 run_case "empty" empty || FAILED=1
 run_case "legacy_stop" legacy_stop || FAILED=1
 run_case "two_legacy_stop" two_legacy_stop || FAILED=1
-run_case "over_capacity" over_capacity || FAILED=1
+run_case "seventeen_legacy_stop" seventeen_legacy_stop || FAILED=1
 
 if [[ $FAILED -eq 0 ]]; then
   echo "==> PASS: block receipt-record materializer probe"

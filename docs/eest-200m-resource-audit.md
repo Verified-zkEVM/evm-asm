@@ -29,7 +29,7 @@ The distinction matters:
 | Sender aggregation | Up to `9523` txs, repeated or distinct senders | Active sender tables use `bvMtxActiveTxCap = 1024` | Gap: aggregation slices under `evm-asm-vv4hr.1`; related existing P1 `evm-asm-bmvmx.5.5.7.3`. |
 | Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | `bvMtxCommittedChunkCapacity = 512` | Gap: `evm-asm-vv4hr.2`. |
 | System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 16384`; some paths are best-effort | Gap: `evm-asm-vv4hr.7`; related ungate beads `evm-asm-hwngs`, `evm-asm-40igg`. |
-| Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = 16` | Gap: `evm-asm-vv4hr.3`. |
+| Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523` | Covered for per-tx records; log/RLP capacity remains separate. |
 | Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3`. |
 | Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536` | Gap: `evm-asm-vv4hr.3`. |
 | Execution requests hash input | EIP-6110 deposits `8192 * 192`, withdrawals `16 * 76`, consolidations `2 * 116` | `erh_blob = 1572865` | Hash helper covers the deposit body cap. |
