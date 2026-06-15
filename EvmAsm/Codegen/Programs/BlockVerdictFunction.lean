@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictExactGas
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
+import EvmAsm.Codegen.Programs.BlockVerdictEip7702SenderAuth
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -1064,6 +1065,11 @@ def blockVerdictFunction : String :=
   "  la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  -- Reverted/exceptional txs keep access evidence, but their storage writes do not commit.
+  -- The raw replay log still contains attempted SSTOREs; do not require those reverted writes
+  -- to appear as BAL storage_changes. State-root/BAL application already rejects any committed
+  -- storage_changes a failed tx tries to claim.
+  "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_recipient_storage_exact_done\n" ++
   "  la a0, evm_env                              # recipient addrHash (env.ADDRESS@0, exec-log key)\n" ++
   "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
   "  li a3, 0xa0630000                           # persistent storage log base\n" ++
@@ -1081,12 +1087,25 @@ def blockVerdictFunction : String :=
   "  la t0, evm_env; ld a4, 448(t0)\n" ++
   "  jal ra, bal_storage_covers_exec_log\n" ++
   "  bnez a0, .Lbv_bal_storage_omit_fail\n" ++
+  ".Lbv_recipient_storage_exact_done:\n" ++
   -- bmvmx.1.6.3 (nonce/code slice): a self-contained CALL recipient is a pre-existing contract
   -- that executes no CREATE/CREATE2 (rejected by bytecode_is_self_contained), so the call leaves
   -- its code and nonce unchanged. Its BAL nonce_changes (AccountChanges item 4) and code_changes
   -- (item 5) must therefore be empty RLP lists; a non-empty list claims a change execution did
   -- not make -> reject (succ=0). bvcd_acct_ptr/len still hold the recipient AccountChanges found
   -- above. (The balance_changes value compare needs execution-derived gas — bmvmx.1.4.3.)
+  -- EIP-7702 authorization processing can legitimately update the recipient when the
+  -- recipient is also an authority: set_delegation increments nonce and installs the
+  -- 0xef0100 delegation marker before message execution, and those effects persist even
+  -- if the delegated runtime later reverts/errors. The all-accounts code/nonstorage paths
+  -- cover those effects; the self-contained-recipient unchanged assumption does not apply.
+  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 4; bne t1, t2, .Lbv_recipient_nc_check\n" ++
+  "  la t0, bmvmx_sender_addr; la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_recipient_sender_cmp:\n" ++
+  "  beqz t2, .Lbv_recipient_nc_done\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_recipient_nc_check\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_recipient_sender_cmp\n" ++
+  ".Lbv_recipient_nc_check:\n" ++
   -- .61.8c-2: once CREATE/CREATE2 is activated in the self-contained gate (.8c-3), a CREATE-executing
   -- recipient legitimately changes its OWN nonce (the EVM increments the creator's nonce on each
   -- CREATE) and the created account carries code_changes, so the "code+nonce unchanged" assumption
@@ -1295,7 +1314,8 @@ def blockVerdictFunction : String :=
   "  la t1, sttc_nonce; ld t1, 0(t1)            # tx.nonce (consensus-bound)\n" ++
   "  bne t0, t1, .Lbv_sender_nonce_fail         # tx.nonce != pre_nonce -> reject (NonceMismatchError)\n" ++
   "  la a0, tgbpvr_lookup; jal ra, sender_post_nonce_consistent\n" ++
-  "  li t1, 1; beq a0, t1, .Lbv_sender_nonce_fail\n" ++
+  "  li t1, 1; bne a0, t1, .Lbv_sender_nonce_checked\n" ++
+  eip7702SenderSelfAuthPostNonceCheck ++
   -- bmvmx.2 (check_transaction balance pre-validation): reject if
   -- sender_pre_balance < gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (execution-specs
   -- amsterdam/fork.py check_transaction raises InsufficientBalanceError). The
