@@ -557,8 +557,10 @@ def statelessVerdictV2Function : String :=
   "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
   "  la a6, c1_er_assembled\n" ++
   "  jal ra, assemble_execution_requests\n" ++
+  "  la t0, c1_er_assembled_len; sd a0, 0(t0)\n" ++
   "  mv a1, a0; la a0, c1_er_assembled; la a2, erh_requests_hash\n" ++
   "  jal ra, execution_requests_hash\n" ++
+  "  la t0, c1_erh_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
   -- hv09f.1: parse_deposit_requests scans receipts for deposit-contract logs; a
   -- no-tx block has no transaction calling the deposit contract, hence zero deposit
@@ -576,6 +578,7 @@ def statelessVerdictV2Function : String :=
   "  srli t0, a0, 32                                       # deposits end (offset[1])\n" ++
   "  slli t1, a0, 32; srli t1, t1, 32                      # deposits start (offset[0])\n" ++
   "  sub t2, t0, t1                                        # deposits body length\n" ++
+  "  la t3, c1_notx_deposit_body_len; sd t2, 0(t3)\n" ++
   "  bnez t2, .Lv2_notx_deposits_fail\n" ++
   ".Lv2_after_notx_deposits:\n" ++
   "  mv a0, s0; la a1, svf_bal_hash\n" ++
