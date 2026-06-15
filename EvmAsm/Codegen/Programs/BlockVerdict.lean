@@ -146,8 +146,74 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_runtime_completeness_status; ld t2, 0(t1); sd t2, 464(t0)\n" ++
   "  la t1, bv_mtx_committed_chunk_overflow; ld t2, 0(t1); sd t2, 472(t0)\n" ++
   "  la t1, bv_mtx_committed_chunk_count; ld t2, 0(t1); sd t2, 480(t0)\n" ++
-  "  li t2, " ++ toString bvMtxSkipListEntries ++ "; sd t2, 488(t0)\n" ++
-  "  la t1, bv_mtx_skip_count; ld t2, 0(t1); sd t2, 496(t0)\n" ++
+  "  la t1, bv_system_storage_capture_status; ld t2, 0(t1); sd t2, 488(t0)\n" ++
+  "  la t1, bv_system_storage_capture_start; ld t2, 0(t1); sd t2, 496(t0)\n" ++
+  "  la t1, bv_system_storage_capture_end; ld t2, 0(t1); sd t2, 504(t0)\n" ++
+  "  la t1, bv_system_storage_capture_rows; ld t2, 0(t1); sd t2, 512(t0)\n" ++
+  "  la t1, bv_system_storage_capture_old_count; ld t2, 0(t1); sd t2, 520(t0)\n" ++
+  "  la t1, bv_system_storage_capture_new_count; ld t2, 0(t1); sd t2, 528(t0)\n" ++
+  "  la t1, widx_build_status; ld t2, 0(t1); sd t2, 536(t0)\n" ++
+  "  la t1, widx_build_section_len; ld t2, 0(t1); sd t2, 544(t0)\n" ++
+  "  la t1, widx_build_count; ld t2, 0(t1); sd t2, 552(t0)\n" ++
+  "  la t1, widx_enabled; ld t2, 0(t1); sd t2, 560(t0)\n" ++
+  "  la t1, wlh_lookup_calls; ld t2, 0(t1); sd t2, 568(t0)\n" ++
+  "  la t1, wlh_indexed_calls; ld t2, 0(t1); sd t2, 576(t0)\n" ++
+  "  la t1, wlh_indexed_hits; ld t2, 0(t1); sd t2, 584(t0)\n" ++
+  "  la t1, wlh_indexed_misses; ld t2, 0(t1); sd t2, 592(t0)\n" ++
+  "  la t1, wlh_linear_calls; ld t2, 0(t1); sd t2, 600(t0)\n" ++
+  "  la t1, wlh_linear_hits; ld t2, 0(t1); sd t2, 608(t0)\n" ++
+  "  la t1, wlh_linear_misses; ld t2, 0(t1); sd t2, 616(t0)\n" ++
+  "  la t1, wlh_linear_iterations; ld t2, 0(t1); sd t2, 624(t0)\n" ++
+  "  la t1, wlh_linear_last_section_len; ld t2, 0(t1); sd t2, 632(t0)\n" ++
+  "  la t1, wlh_linear_max_section_len; ld t2, 0(t1); sd t2, 640(t0)\n" ++
+  "  la t1, svf_codes_len; ld t2, 0(t1); sd t2, 648(t0)\n" ++
+  "  la t1, svf_headers_len; ld t2, 0(t1); sd t2, 656(t0)\n" ++
+  "  la t1, svf_headers_count; ld t2, 0(t1); sd t2, 664(t0)\n" ++
+  "  la t1, c1_dstatus; ld t2, 0(t1); sd t2, 672(t0)\n" ++
+  "  la t1, c1_dlen; ld t2, 0(t1); sd t2, 680(t0)\n" ++
+  "  li t2, 32768; sd t2, 688(t0)\n" ++
+  "  li t2, 81920; sd t2, 696(t0)\n" ++
+  "  la t1, dbsr_wlen; ld t2, 0(t1); sd t2, 704(t0)\n" ++
+  "  la t1, dbsr_clen; ld t2, 0(t1); sd t2, 712(t0)\n" ++
+  "  li t2, 2048; sd t2, 720(t0)\n" ++
+  "  la t1, c1_er_assembled_len; ld t2, 0(t1); sd t2, 728(t0)\n" ++
+  "  li t2, 32768; sd t2, 736(t0)\n" ++
+  "  la t1, c1_erh_status; ld t2, 0(t1); sd t2, 744(t0)\n" ++
+  "  li t2, 1572865; sd t2, 752(t0)\n" ++
+  "  la t1, c1_notx_deposit_body_len; ld t2, 0(t1); sd t2, 760(t0)\n" ++
+  "  li t2, " ++ toString bvMtxArenaTxCap ++ "; sd t2, 768(t0)\n" ++
+  "  li t2, " ++ toString bmvFullTxCapacity ++ "; sd t2, 776(t0)\n" ++
+  "  li t2, " ++ toString bvMtxU64ArenaBytes ++ "; sd t2, 784(t0)\n" ++
+  "  li t2, " ++ toString bvMtxLogWindowBytes ++ "; sd t2, 792(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSkipListEntries ++ "; sd t2, 800(t0)\n" ++
+  "  la t1, bv_mtx_skip_count; ld t2, 0(t1); sd t2, 808(t0)\n" ++
+  "  la t1, bv_mtx_i; ld t2, 0(t1); sd t2, 816(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSenderCountEntries ++ "; sd t2, 824(t0)\n" ++
+  "  la t1, bv_b1_sender_count; ld t2, 0(t1); sd t2, 832(t0)\n" ++
+  "  li t2, " ++ toString bvMtxSenderBalanceEntries ++ "; sd t2, 840(t0)\n" ++
+  "  la t1, bv_b2_count; ld t2, 0(t1); sd t2, 848(t0)\n" ++
+  "  li t2, " ++ toString bvMtxCommittedChunkCapacity ++ "; sd t2, 856(t0)\n" ++
+  "  li t2, " ++ toString bvMtxCommittedChunkBytes ++ "; sd t2, 864(t0)\n" ++
+  "  la t1, bv_mtx_nonce_seen_count; ld t2, 0(t1); sd t2, 872(t0)\n" ++
+  "  li t2, 16; sd t2, 880(t0)\n" ++
+  "  la t1, bv_tx_count; ld t2, 0(t1); sd t2, 888(t0)\n" ++
+  "  la t1, brr_control; ld t2, 0(t1); sd t2, 896(t0)\n" ++
+  "  li t2, " ++ toString bvReceiptRecordCapacity ++ "; sd t2, 904(t0)\n" ++
+  "  la t1, brr_status; ld t2, 0(t1); sd t2, 912(t0)\n" ++
+  "  la t1, brr_append_status; ld t2, 0(t1); sd t2, 920(t0)\n" ++
+  "  la t1, bv_block_log_count; ld t2, 0(t1); sd t2, 928(t0)\n" ++
+  "  li t2, " ++ toString bvBlockLogDescCapacity ++ "; sd t2, 936(t0)\n" ++
+  "  la t1, bv_block_log_data_used; ld t2, 0(t1); sd t2, 944(t0)\n" ++
+  "  li t2, " ++ toString bvBlockLogDataBytes ++ "; sd t2, 952(t0)\n" ++
+  "  la t1, bv_logs_rlp_arena_used; ld t2, 0(t1); sd t2, 960(t0)\n" ++
+  "  li t2, " ++ toString bvLogsRlpArenaBytes ++ "; sd t2, 968(t0)\n" ++
+  "  la t1, bv_logs_rlp_len; ld t2, 0(t1); sd t2, 976(t0)\n" ++
+  "  la t1, bv_receipts_rlp_len; ld t2, 0(t1); sd t2, 984(t0)\n" ++
+  "  li t2, " ++ toString bvReceiptsRlpBytes ++ "; sd t2, 992(t0)\n" ++
+  "  la t1, brr_control; ld t2, 0(t1); slli t2, t2, 8; sd t2, 1000(t0)\n" ++
+  "  li t2, " ++ toString bvRecordBloomsBytes ++ "; sd t2, 1008(t0)\n" ++
+  "  la t1, bv_receipt_logs_status; ld t2, 0(t1); sd t2, 1016(t0)\n" ++
+  "  la t1, bv_block_log_overflow; ld t2, 0(t1); sd t2, 1024(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++

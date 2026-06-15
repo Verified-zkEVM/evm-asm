@@ -173,6 +173,7 @@ VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
+PREFLIGHT_REPORT="${EEST_PREFLIGHT_REPORT:-budget}"
 
 usage() {
   cat <<'USAGE'
@@ -212,6 +213,7 @@ Options:
                            repeatedly to sample different subsets and seek discoveries
   --seed N                 integer seed for --random (default: auto-generated and printed)
   --reverse                process the selected fixtures last-to-first (applied after --random)
+  --preflight-report MODE  emit decoded 200M resource dimensions: budget (default), always, never
   --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
 USAGE
@@ -256,6 +258,7 @@ while [[ $# -gt 0 ]]; do
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
     --reverse) REVERSE_ORDER=1; shift ;;
+    --preflight-report) require_arg "$1" "${2:-}"; PREFLIGHT_REPORT="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -348,6 +351,10 @@ if [[ "$REVERSE_ORDER" != "0" && "$REVERSE_ORDER" != "1" ]]; then
   echo "EEST_REVERSE_ORDER must be 0 or 1 (got: $REVERSE_ORDER)" >&2
   exit 1
 fi
+case "$PREFLIGHT_REPORT" in
+  budget|always|never) ;;
+  *) echo "--preflight-report/EEST_PREFLIGHT_REPORT must be budget, always, or never (got: $PREFLIGHT_REPORT)" >&2; exit 1 ;;
+esac
 
 cleanup_children() {
   local pids
@@ -781,16 +788,122 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${committed_labels[$i]}=$value"
     done
   fi
-  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 504 ]]; then
-    raw="$(od -An -v -tu8 -j 488 -N 16 "$out" 2>/dev/null | xargs || true)"
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 536 ]]; then
+    raw="$(od -An -v -tu8 -j 488 -N 48 "$out" 2>/dev/null | xargs || true)"
     read -r -a words <<< "$raw"
-    local -a mtx_skip_labels=(
-      mtx_skip_cap
-      mtx_skip_count
+    local -a system_capture_labels=(
+      system_capture_status
+      system_capture_start
+      system_capture_end
+      system_capture_rows
+      system_capture_old_count
+      system_capture_new_count
     )
-    for i in "${!mtx_skip_labels[@]}"; do
+    for i in "${!system_capture_labels[@]}"; do
       value="${words[$i]:-?}"
-      dbg="${dbg:+$dbg }${mtx_skip_labels[$i]}=$value"
+      dbg="${dbg:+$dbg }${system_capture_labels[$i]}=$value"
+    done
+  fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 672 ]]; then
+    raw="$(od -An -v -tu8 -j 536 -N 136 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a witness_lookup_labels=(
+      widx_build_status
+      widx_build_section_len
+      widx_build_count
+      widx_enabled
+      wlh_lookup_calls
+      wlh_indexed_calls
+      wlh_indexed_hits
+      wlh_indexed_misses
+      wlh_linear_calls
+      wlh_linear_hits
+      wlh_linear_misses
+      wlh_linear_iterations
+      wlh_linear_last_section_len
+      wlh_linear_max_section_len
+      svf_codes_len
+      svf_headers_len
+      svf_headers_count
+    )
+    for i in "${!witness_lookup_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${witness_lookup_labels[$i]}=$value"
+    done
+  fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 768 ]]; then
+    raw="$(od -An -v -tu8 -j 672 -N 96 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a request_body_labels=(
+      request_dstatus
+      request_dlen
+      request_dbody_cap
+      request_log_records_cap
+      request_wlen
+      request_clen
+      request_system_body_cap
+      request_er_assembled_len
+      request_er_assembled_cap
+      request_erh_status
+      request_erh_blob_cap
+      request_notx_deposit_len
+    )
+    for i in "${!request_body_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${request_body_labels[$i]}=$value"
+    done
+  fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 896 ]]; then
+    raw="$(od -An -v -tu8 -j 768 -N 128 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a mtx_cap_labels=(
+      mtx_arena_tx_cap
+      mtx_full_200m_tx_cap
+      mtx_u64_arena_bytes
+      mtx_log_window_bytes
+      mtx_skip_list_cap
+      mtx_skip_count
+      mtx_loop_index
+      mtx_sender_count_cap
+      mtx_sender_count
+      mtx_sender_balance_cap
+      mtx_sender_balance_count
+      mtx_committed_chunk_cap
+      mtx_committed_chunk_bytes
+      mtx_nonce_seen_count
+      mtx_nonce_seen_cap
+      mtx_tx_count
+    )
+    for i in "${!mtx_cap_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${mtx_cap_labels[$i]}=$value"
+    done
+  fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 1032 ]]; then
+    raw="$(od -An -v -tu8 -j 896 -N 136 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a receipt_log_cap_labels=(
+      receipt_record_count
+      receipt_record_cap
+      receipt_records_status
+      receipt_append_status
+      block_log_count
+      block_log_desc_cap
+      block_log_data_used
+      block_log_data_cap
+      logs_rlp_arena_used
+      logs_rlp_arena_cap
+      logs_rlp_last_len
+      receipts_rlp_len
+      receipts_rlp_cap
+      record_bloom_bytes_used
+      record_bloom_bytes_cap
+      receipt_logs_status_mirror
+      block_log_overflow_mirror
+    )
+    for i in "${!receipt_log_cap_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${receipt_log_cap_labels[$i]}=$value"
     done
   fi
   echo "$dbg"
@@ -1093,6 +1206,32 @@ classify_missing_results() {
   print_progress
 }
 
+emit_preflight_report() {
+  local status_filter="${1:-}"
+  local -a report_args=(--manifest "$MANIFEST" --results-dir "$RUN_DIR")
+  [[ -n "$status_filter" ]] && report_args+=(--status-only "$status_filter")
+  [[ -n "$BSR_WITNESS_CAP" ]] && report_args+=(--bsr-cap "$BSR_WITNESS_CAP")
+  [[ -n "$BSR_BAL_CAP" ]] && report_args+=(--bsr-bal-cap "$BSR_BAL_CAP")
+
+  echo "==> EEST 200M resource preflight diagnostics${status_filter:+ ($status_filter rows)}"
+  if command -v uv >/dev/null 2>&1 && [[ -d execution-specs ]]; then
+    local uv_manifest="$MANIFEST"
+    local uv_results="$RUN_DIR"
+    [[ "$uv_manifest" = /* ]] || uv_manifest="../$uv_manifest"
+    [[ "$uv_results" = /* ]] || uv_results="../$uv_results"
+    local -a uv_args=(--manifest "$uv_manifest" --results-dir "$uv_results")
+    [[ -n "$status_filter" ]] && uv_args+=(--status-only "$status_filter")
+    [[ -n "$BSR_WITNESS_CAP" ]] && uv_args+=(--bsr-cap "$BSR_WITNESS_CAP")
+    [[ -n "$BSR_BAL_CAP" ]] && uv_args+=(--bsr-bal-cap "$BSR_BAL_CAP")
+    uv run --directory execution-specs --quiet python3 \
+      ../scripts/eest-bal-replay-report.py "${uv_args[@]}" || \
+      echo "  warn: 200M resource preflight diagnostics failed" >&2
+  else
+    python3 scripts/eest-bal-replay-report.py "${report_args[@]}" || \
+      echo "  warn: 200M resource preflight diagnostics failed" >&2
+  fi
+}
+
 failure_limit_reached() {
   [[ -n "$MAX_FAILURES" && $((fail + err)) -ge "$MAX_FAILURES" ]]
 }
@@ -1170,6 +1309,11 @@ if [[ "$stopEarly" -eq 0 ]]; then
 fi
 if [[ "$stopEarly" -eq 1 ]]; then
   echo "==> stopped after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
+fi
+if [[ "$PREFLIGHT_REPORT" == "always" ]]; then
+  emit_preflight_report
+elif [[ "$PREFLIGHT_REPORT" == "budget" && "$budget" -gt 0 ]]; then
+  emit_preflight_report BUDGET
 fi
 
 ran=$((total - err - budget))

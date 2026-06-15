@@ -107,12 +107,26 @@ def witnessIndexFunctions : String :=
   "  la t0, widx_enabled; sd zero, 0(t0)\n" ++
   "  mv s0, a0                  # section ptr\n" ++
   "  mv s1, a1                  # section len\n" ++
+  "  la t0, widx_build_status; sd zero, 0(t0)\n" ++
+  "  la t0, widx_build_section_len; sd s1, 0(t0)\n" ++
+  "  la t0, widx_build_count; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_lookup_calls; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_indexed_calls; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_indexed_hits; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_indexed_misses; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_linear_calls; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_linear_hits; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_linear_misses; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_linear_iterations; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_linear_last_section_len; sd zero, 0(t0)\n" ++
+  "  la t0, wlh_linear_max_section_len; sd zero, 0(t0)\n" ++
   "  beqz s1, .Lwidx_build_empty\n" ++
   "  li t0, 4; bltu s1, t0, .Lwidx_build_fail\n" ++
   "  lwu t0, 0(s0)              # first offset = 4*N\n" ++
   "  andi t1, t0, 3; bnez t1, .Lwidx_build_fail\n" ++
   "  bgtu t0, s1, .Lwidx_build_fail\n" ++
   "  srli s2, t0, 2             # count\n" ++
+  "  la t1, widx_build_count; sd s2, 0(t1)\n" ++
   "  li t1, 8192\n" ++
   "  bgtu s2, t1, .Lwidx_build_fail\n" ++
   "  mv s3, t0                  # first data offset, lower bound\n" ++
@@ -173,6 +187,7 @@ def witnessIndexFunctions : String :=
   "  li a0, 0\n" ++
   "  j .Lwidx_build_ret\n" ++
   ".Lwidx_build_fail:\n" ++
+  "  li t1, 1; la t0, widx_build_status; sd t1, 0(t0)\n" ++
   "  li a0, 1\n" ++
   ".Lwidx_build_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
@@ -223,6 +238,19 @@ def witnessIndexFunctions : String :=
   "widx_section_ptr:\n  .zero 8\n" ++
   "widx_section_len:\n  .zero 8\n" ++
   "widx_count:\n  .zero 8\n" ++
+  "widx_build_status:\n  .zero 8\n" ++
+  "widx_build_section_len:\n  .zero 8\n" ++
+  "widx_build_count:\n  .zero 8\n" ++
+  "wlh_lookup_calls:\n  .zero 8\n" ++
+  "wlh_indexed_calls:\n  .zero 8\n" ++
+  "wlh_indexed_hits:\n  .zero 8\n" ++
+  "wlh_indexed_misses:\n  .zero 8\n" ++
+  "wlh_linear_calls:\n  .zero 8\n" ++
+  "wlh_linear_hits:\n  .zero 8\n" ++
+  "wlh_linear_misses:\n  .zero 8\n" ++
+  "wlh_linear_iterations:\n  .zero 8\n" ++
+  "wlh_linear_last_section_len:\n  .zero 8\n" ++
+  "wlh_linear_max_section_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "widx_records:\n  .zero 393216\n" ++
   ".popsection"
