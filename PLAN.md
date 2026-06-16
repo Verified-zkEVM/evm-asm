@@ -1242,9 +1242,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   byte-packing primitives (`packBytes`, `extractByte_packBytes`, `packDword`)
   were **relocated** from `Evm64/CodeRegion.lean` down to `Rv64/ByteOps.lean`
   (their natural home; one source of truth for both layers). Axiom-clean, 0 sorry.
-  **Next:** `bytesRegion_lbu_within` (read byte `i` across dwords — needs the
-  `alignToDword (alignedBase + i)` arithmetic the loop currently *assumes*), then
-  the list-decode loop + 5-exit reconvergence.
+- ✅ **`bytesRegion_lbu_within` — read byte `i` across dwords** (`MemRegion.lean`).
+  An `LBU` at `regionBase + i` (`i < bs.length`, base dword-aligned, no overflow)
+  reads `bs[i]` — the multi-dword read the single-`dwordAddr` `hwin` model could
+  not express (cross-check: reads byte 9 of a 10-byte / 2-dword region). New
+  supporting lemmas: `alignToDword_add_ofNat_of_aligned`
+  (`alignToDword (base + i) = base + 8*(i/8)`) and `byteOffset_add_ofNat_of_aligned`
+  (`= i % 8`) — the BitVec masking arithmetic the existing loop *assumes*; plus
+  `bytesRegion_dword_at` (extract the `dw`-th dword cell, partial last chunk OK).
+  Composition mirrors `Evm64/Push`: `generic_lbu_spec_within` +
+  `extractByte_packBytes`, framed via `cpsTripleWithin_frameR` + `xperm_hyp`.
+  Axiom-clean, 0 sorry. **Next:** the list-decode loop (single-byte items →
+  `decodeItems_singleByte_run`, then varying-size) + the unified decoder's 5-exit
+  reconvergence.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
