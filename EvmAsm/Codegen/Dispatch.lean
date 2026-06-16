@@ -948,10 +948,22 @@ def emitRuntimeAccountWitnessData : String :=
     JUMP/JUMPI compute `target = x21 + dest`. `x21` is audited the
     same way `x20` was: zero references across `EvmAsm/Evm64/*/Program.lean`
     and zero uses by any existing handler `preBody`/`tail`. -/
-def emitDispatchLoopCodeSizeStopGuard : String :=
+def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String :=
   "  sub x5, x10, x21\n" ++
   "  ld x6, 496(x20)\n" ++
-  "  bgeu x5, x6, .exit_label\n"
+  if depthAwareStop then
+    "  bltu x5, x6, 1f\n" ++
+    "  la t0, evm_call_depth\n" ++
+    "  ld t0, 0(t0)\n" ++
+    "  beqz t0, .exit_label\n" ++
+    "  li a0, 1\n" ++
+    "  li a1, 0\n" ++
+    "  li a2, 0\n" ++
+    "  jal ra, frame_return\n" ++
+    "  j .dispatch_loop\n" ++
+    "1:\n"
+  else
+    "  bgeu x5, x6, .exit_label\n"
 
 def emitDispatcherPrologue : String :=
   "  la sp, lp64_sp_top\n" ++     -- M16: LP64 stack ptr for ECALL-bridge helpers
@@ -2254,7 +2266,7 @@ def emitRuntimeDispatcherCallableSetup : String :=
 
 /-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
     runtime dispatcher and the callable wrapper. -/
-def emitRuntimeDispatcherLoop : String :=
+def emitRuntimeDispatcherLoop (depthAwareStop : Bool := false) : String :=
   -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
   -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
   emitJumpdestBitmapBuild ++
@@ -2264,7 +2276,7 @@ def emitRuntimeDispatcherLoop : String :=
   "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory\n" ++
   ".dispatch_loop:\n" ++
-  emitDispatchLoopCodeSizeStopGuard ++
+  emitDispatchLoopCodeSizeStopGuard depthAwareStop ++
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against
@@ -2350,7 +2362,7 @@ def emitTxAccessListSeedLoop : String :=
 /-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
     opcode-handler calls, so the caller's return address is saved in the
     runtime data section and restored by the callable exit join. -/
-def emitRuntimeDispatcherCallablePrologue : String :=
+def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : String :=
   "runtime_dispatcher_call:\n" ++
   "  la x5, runtime_dispatcher_caller_ra\n" ++
   "  sd ra, 0(x5)\n" ++
@@ -2360,7 +2372,7 @@ def emitRuntimeDispatcherCallablePrologue : String :=
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
   emitTxAccessListSeedLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
-  emitRuntimeDispatcherLoop
+  emitRuntimeDispatcherLoop depthAwareStop
 
 /-- Callable runtime dispatcher text body. This is used both by standalone
     probes and by larger guests that need `runtime_dispatcher_call` linked as
@@ -2453,7 +2465,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
 def emitRuntimeDispatcherCallableCoreSharedHelpers
     (registry : List OpcodeHandlerSpec)
     (exitBody : Program) : String :=
-  emitRuntimeDispatcherCallablePrologue ++ "\n" ++
+  emitRuntimeDispatcherCallablePrologue true ++ "\n" ++
   emitRuntimeDispatcherEmbeddedHelperFunctions ++ "\n" ++
   emitDispatcherCallableEpilogueSharedHelpers registry exitBody
 
