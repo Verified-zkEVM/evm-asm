@@ -4,9 +4,15 @@
 # Pure hash -> index search: locate the position i where
 # keccak(witness.headers[i]) == block_hash.
 #
-# Output (16 bytes):
+# Output (64 bytes):
 #   bytes  0.. 8 : status (0 = found, 1 = miss)
 #   bytes  8..16 : index (u64; 0 on miss)
+#   bytes 16..24 : index build status
+#   bytes 24..32 : witness_lookup_by_hash call count
+#   bytes 32..40 : indexed lookup call count
+#   bytes 40..48 : linear lookup call count
+#   bytes 48..56 : linear lookup iteration count
+#   bytes 56..64 : index build entry count
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -42,6 +48,7 @@ run_case() {
   local in_file="$REPO_ROOT/gen-out/zisk_whfi_${name}.input"
   local out_file="$REPO_ROOT/gen-out/zisk_whfi_${name}.output"
   local exp_file="$REPO_ROOT/gen-out/zisk_whfi_${name}.expected"
+  rm -f "$in_file" "$out_file" "$exp_file"
 
   uv run --directory execution-specs --quiet python3 -c "
 import struct, sys
@@ -70,34 +77,52 @@ def build_ssz_section(elements):
     for e in elements: section += e
     return section
 
+def expected_words(status, index, build_status, lookup_calls, indexed_calls, linear_calls, linear_iters, build_count):
+    return b''.join(struct.pack('<Q', x) for x in (
+        status, index, build_status, lookup_calls, indexed_calls,
+        linear_calls, linear_iters, build_count,
+    ))
+
+def valid_expected(status, index, count):
+    return expected_words(status, index, 0, 1, 1, 0, 0, count)
+
 mode = '$mode'
 
 if mode == 'three_idx0':
     headers = [encode_header(0x44), encode_header(0x55), encode_header(0x66)]
     witness_headers = build_ssz_section(headers)
     block_hash = k256(headers[0])
-    expected = struct.pack('<Q', 0) + struct.pack('<Q', 0)
+    expected = valid_expected(0, 0, len(headers))
 elif mode == 'three_idx1':
     headers = [encode_header(0x44), encode_header(0x55), encode_header(0x66)]
     witness_headers = build_ssz_section(headers)
     block_hash = k256(headers[1])
-    expected = struct.pack('<Q', 0) + struct.pack('<Q', 1)
+    expected = valid_expected(0, 1, len(headers))
 elif mode == 'three_idx2_last':
     headers = [encode_header(0x44), encode_header(0x55), encode_header(0x66)]
     witness_headers = build_ssz_section(headers)
     block_hash = k256(headers[2])
-    expected = struct.pack('<Q', 0) + struct.pack('<Q', 2)
+    expected = valid_expected(0, 2, len(headers))
+elif mode == 'many_headers_last':
+    headers = [encode_header((0x40 + i) % 256) for i in range(96)]
+    witness_headers = build_ssz_section(headers)
+    block_hash = k256(headers[-1])
+    expected = valid_expected(0, len(headers) - 1, len(headers))
 elif mode == 'miss':
     headers = [encode_header(0x44), encode_header(0x55)]
     witness_headers = build_ssz_section(headers)
     block_hash = b'\\xee' * 32
-    expected = struct.pack('<Q', 1) + struct.pack('<Q', 0)
+    expected = valid_expected(1, 0, len(headers))
 elif mode == 'empty_section':
     witness_headers = b''
     block_hash = b'\\xee' * 32
-    expected = struct.pack('<Q', 1) + struct.pack('<Q', 0)
+    expected = valid_expected(1, 0, 0)
+elif mode == 'malformed_short_offsets':
+    witness_headers = b'\\x02\\x00\\x00'
+    block_hash = b'\\xee' * 32
+    expected = expected_words(1, 0, 1, 1, 0, 1, 0, 0)
 else:
-    raise SystemExit('bad mode')
+    raise SystemExit('bad mode: ' + mode)
 
 with open(sys.argv[1], 'wb') as f:
     record = (
@@ -114,7 +139,7 @@ with open(sys.argv[2], 'wb') as f:
 " "$in_file" "$exp_file"
 
   "$ZISKEMU" -e gen-out/zisk_witness_headers_find_index_by_block_hash.elf \
-    -i "$in_file" -o "$out_file" -n 4000000 \
+    -i "$in_file" -o "$out_file" -n 12000000 \
     >"$REPO_ROOT/gen-out/zisk_whfi_${name}.emu.log" 2>&1 || true
 
   local exp_size
@@ -137,8 +162,10 @@ FAILED=0
 run_case "first_index_match"           three_idx0 || FAILED=1
 run_case "middle_index_match"          three_idx1 || FAILED=1
 run_case "last_index_match"            three_idx2_last || FAILED=1
+run_case "many_headers_last_match"     many_headers_last || FAILED=1
 run_case "unrelated_hash_miss"         miss || FAILED=1
 run_case "empty_section_miss"          empty_section || FAILED=1
+run_case "malformed_short_offsets"     malformed_short_offsets || FAILED=1
 
 echo
 if [[ $FAILED -eq 0 ]]; then
