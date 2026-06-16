@@ -63,7 +63,7 @@ def descriptor(topic_count: int, topics: list[bytes], amount_word: bytes) -> byt
     for i, topic in enumerate(topics):
         d[32 + 32 * i : 64 + 32 * i] = topic
     d[160:192] = amount_word[::-1]
-    d[192:224] = bytes.fromhex('fe' + 'ff' * 19) + bytes(12)
+    d[192:224] = bytes.fromhex('ff' * 19 + 'fe') + bytes(12)
     return bytes(d)
 
 sender = word_from_address_byte(0x11)
