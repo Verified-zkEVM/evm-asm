@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Evm64.MulMod.Program
+import EvmAsm.Evm64.EvmWordArith.MulHigh
 
 namespace EvmAsm.Evm64.MulMod.ProductAlgebra
 
@@ -114,5 +115,43 @@ theorem productOffsetIndices_offsets :
       [productLimb a b 4, productLimb a b 5, productLimb a b 6,
        productLimb a b 7] := by
   rfl
+
+
+/-- High limbs of the 512-bit product agree with the limbs of `mulHigh`. -/
+private theorem productLimb_high_eq_mulHigh_getLimb (a b : EvmWord) (i : Fin 4) :
+    productLimb a b (i.val + 4) = (EvmWord.mulHigh a b).getLimb i := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [productLimb, productNat, EvmWord.getLimb, EvmWord.mulHigh_correct,
+    BitVec.toNat_ofNat, BitVec.extractLsb'_toNat, Nat.shiftRight_eq_div_pow]
+  rw [Nat.div_div_eq_div_mul]
+  have hmul : 2 ^ 256 * 2 ^ (i.val * 64) = 2 ^ (64 * (i.val + 4)) := by
+    rw [← Nat.pow_add]
+    congr 1
+    omega
+  rw [hmul]
+
+@[simp] theorem productLimb_four_eq_mulHigh_getLimb_zero (a b : EvmWord) :
+    productLimb a b 4 = (EvmWord.mulHigh a b).getLimb 0 := by
+  exact productLimb_high_eq_mulHigh_getLimb a b 0
+
+@[simp] theorem productLimb_five_eq_mulHigh_getLimb_one (a b : EvmWord) :
+    productLimb a b 5 = (EvmWord.mulHigh a b).getLimb 1 := by
+  exact productLimb_high_eq_mulHigh_getLimb a b 1
+
+@[simp] theorem productLimb_six_eq_mulHigh_getLimb_two (a b : EvmWord) :
+    productLimb a b 6 = (EvmWord.mulHigh a b).getLimb 2 := by
+  exact productLimb_high_eq_mulHigh_getLimb a b 2
+
+@[simp] theorem productLimb_seven_eq_mulHigh_getLimb_three (a b : EvmWord) :
+    productLimb a b 7 = (EvmWord.mulHigh a b).getLimb 3 := by
+  exact productLimb_high_eq_mulHigh_getLimb a b 3
+
+@[simp] theorem productHighLimbs_eq_mulHigh_getLimbs (a b : EvmWord) :
+    productHighLimbs a b =
+      [(EvmWord.mulHigh a b).getLimb 0, (EvmWord.mulHigh a b).getLimb 1,
+       (EvmWord.mulHigh a b).getLimb 2, (EvmWord.mulHigh a b).getLimb 3] := by
+  simp only [productHighLimbs_eq, productLimb_four_eq_mulHigh_getLimb_zero,
+    productLimb_five_eq_mulHigh_getLimb_one, productLimb_six_eq_mulHigh_getLimb_two,
+    productLimb_seven_eq_mulHigh_getLimb_three]
 
 end EvmAsm.Evm64.MulMod.ProductAlgebra
