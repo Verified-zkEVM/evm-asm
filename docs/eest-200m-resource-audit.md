@@ -26,9 +26,9 @@ The distinction matters:
 | Per-slot tuple sequence | One tuple per tx plus seed/system margin | `bsrMaxTuplesPerSlot = 10000` | Covers `9523` minimum-gas txs plus margin. |
 | Witness bytes | Large valid state witnesses under the 200M target | `bsrMaxWitnessBytes = 524288` | Size guard widened, but record count/perf still needs work. |
 | Transaction arrays | `floor(200000000 / 21000) = 9523` txs | Cheap u64/log-window arenas use `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: foundation split landed; algorithmic cap gaps remain under `evm-asm-vv4hr.1`. |
-| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Active sender tables use `bvMtxActiveTxCap = 1024` | Gap: aggregation slices under `evm-asm-vv4hr.1`; related existing P1 `evm-asm-bmvmx.5.5.7.3`. |
+| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Sender count and sender-balance tables derive from `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: aggregation substrates have full-cap probes; end-to-end active-loop migration remains under `evm-asm-vv4hr.1`. |
 | Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | `bvMtxCommittedChunkCapacity = 512` | Gap: `evm-asm-vv4hr.2`. |
-| System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 16384`; some paths are best-effort | Gap: `evm-asm-vv4hr.7`; related ungate beads `evm-asm-hwngs`, `evm-asm-40igg`. |
+| System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 600000`, derived as `2 * 30000000 / 100` for withdrawal plus consolidation system calls at the cheapest SSTORE gas floor | Capacity boundary covered by `evm-asm-vv4hr.7.1`; precise tuple binding/evidence remains under `evm-asm-vv4hr.7.2`/`.7.3` and ungate bead `evm-asm-40igg`. |
 | Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523` | Covered for per-tx records; log/RLP capacity remains separate. |
 | Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3`. |
 | Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536` | Gap: `evm-asm-vv4hr.3`. |
@@ -63,7 +63,9 @@ Every discovered 200M resource gap has a P1 child bead:
   precisely without truncation, uninitialized reads, or debug-probe exits.
 - `evm-asm-vv4hr.7`: make system-storage side capture precise under full
   resource load and ungate modeled system tuple checks only when capture is
-  complete.
+  complete. Child `evm-asm-vv4hr.7.1` covers the side-capture capacity
+  boundary; `.7.2` binds modeled-system tuple checks to complete capture, and
+  `.7.3` adds full-resource evidence.
 
 Existing related P1s:
 
