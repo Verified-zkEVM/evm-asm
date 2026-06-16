@@ -2799,6 +2799,41 @@ example : decodeFully (encode (.list [.bytes [0x07], .list []]))
     = some (.list [.bytes [0x07], .list []]) :=
   (decodeFully_eq_encode _ _ (by decide)).mpr rfl
 
+/-! ### Self-delimiting encoding / prefix-unambiguity (ACL2 `rlp-encode-tree-unamb-prefix`)
+
+An RLP encoding determines exactly where it ends, so no valid encoding is a
+proper prefix of another. This follows directly from the two inverses: an
+encoding followed by *any* trailing bytes decodes back to the item and the exact
+trailer. -/
+
+/-- Left inverse with an arbitrary trailer (generalizes `decode_encode`). -/
+theorem decode_encode_append (item : RLPItem) (rest : List Byte)
+    (h : (encode item).length < 256 ^ 8) :
+    decode (encode item ++ rest) = some (item, rest) := by
+  rw [decode_eq_decodeAux_length]
+  exact (decode_encode_mutual (2 * (encode item ++ rest).length)).1 item rest h
+    (by rw [List.length_append]; omega)
+
+/-- Encodings are left-cancellable against an arbitrary trailer: `encode` is
+    self-delimiting, so the split point is unique. -/
+theorem encode_append_cancel {i₁ i₂ : RLPItem} {r₁ r₂ : List Byte}
+    (h₁ : (encode i₁).length < 256 ^ 8) (h₂ : (encode i₂).length < 256 ^ 8)
+    (heq : encode i₁ ++ r₁ = encode i₂ ++ r₂) : i₁ = i₂ ∧ r₁ = r₂ := by
+  have d₁ := decode_encode_append i₁ r₁ h₁
+  have d₂ := decode_encode_append i₂ r₂ h₂
+  rw [heq, d₂] at d₁
+  simp only [Option.some.injEq, Prod.mk.injEq] at d₁
+  exact ⟨d₁.1.symm, d₁.2.symm⟩
+
+/-- **Prefix-unambiguity.** No valid encoding is a proper prefix of another: if
+    `encode i₁` is a prefix of `encode i₂` then the items are equal. -/
+theorem encode_prefix_unambiguous {i₁ i₂ : RLPItem}
+    (h₁ : (encode i₁).length < 256 ^ 8) (h₂ : (encode i₂).length < 256 ^ 8)
+    (hpre : encode i₁ <+: encode i₂) : i₁ = i₂ := by
+  obtain ⟨t, ht⟩ := hpre
+  exact (encode_append_cancel h₁ h₂ (r₁ := t) (r₂ := [])
+    (by rw [List.append_nil]; exact ht)).1
+
 /-! ## Round-trip correctness (concrete cases)
 
 The round-trip property `decode (encode item) = some (item, [])` is verified
