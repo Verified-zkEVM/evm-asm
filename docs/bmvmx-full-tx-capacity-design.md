@@ -38,7 +38,9 @@ The current `main` implementation has several independent ceilings:
   records, record bloom storage, and record log descriptors derive from
   `bvMtxFullTxCap = 9523`; block-log descriptors, log data bytes, log-list RLP,
   receipt-list scratch/RLP, and consensus receipt descriptors remain separately
-  capped.
+  capped. The 200M block-log capture targets are gas-derived, not tx-derived:
+  `bvBlockLogFullDescTarget = 533333` cheapest LOG0 descriptors and
+  `bvBlockLogFullDataBytes = 25000000` copied LOG data bytes.
 
 ## Decision
 
@@ -150,6 +152,8 @@ The follow-up work should land in separate PRs:
 - Decouple the remaining receipt/log validation capacity from the tx cap and
   connect block-log capture, log-list RLP, receipt-list RLP, and consensus
   descriptor traversal to the log/receipt streaming or digest substrate. The
+  first block-log capture target is static and gas-derived: `533333` descriptors
+  (`200000000 / 375`) and `25000000` copied data bytes (`200000000 / 8`). The
   per-tx receipt record storage is already full-capacity.
 - Full-capacity evidence wrapper: `scripts/codegen-bmvmx-full-capacity-probes.sh`
   now resolves both `bvMtxActiveTxCap` and `bvMtxFullTxCap`, scans available

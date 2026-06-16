@@ -160,6 +160,31 @@ def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
 def bvReceiptRecordCapacity : Nat := bvMtxFullTxCap
 def bvReceiptRecordBytes : Nat := 64
 def bvReceiptRecordsBytes : Nat := bvReceiptRecordCapacity * bvReceiptRecordBytes
+
+/-- Current EEST resource target for Amsterdam/Prague/Osaka stateless blocks. -/
+def bvResourceBlockGasLimit : Nat := 200000000
+
+/-- EVM LOG base gas. A zero-topic, zero-data LOG0 is the cheapest way to
+    increase the number of execution-derived receipt log descriptors. -/
+def bvBlockLogMinGas : Nat := 375
+
+/-- EVM LOG data gas per byte. Topic/base gas can only reduce the number of
+    data bytes that fit inside the same block gas target. -/
+def bvBlockLogDataByteGas : Nat := 8
+
+/-- Full descriptor target for the 200M resource work. This is a target for
+    follow-up resizing/chunking, not the active arena used by the guest today. -/
+def bvBlockLogFullDescTarget : Nat :=
+  bvResourceBlockGasLimit / bvBlockLogMinGas
+def bvBlockLogFullDescBytes : Nat := bvBlockLogFullDescTarget * 256
+def bvBlockLogFullMetaBytes : Nat := bvBlockLogFullDescTarget * 16
+
+/-- Full copied-log-data byte target for the 200M resource work. It deliberately
+    uses a simple upper bound (`gas_limit / LOGDATA_GAS`) so the implementation
+    target covers every execution-specs-valid mix of LOG base/topic/data gas. -/
+def bvBlockLogFullDataBytes : Nat :=
+  bvResourceBlockGasLimit / bvBlockLogDataByteGas
+
 def bvBlockLogDescCapacity : Nat := 128
 def bvBlockLogDescBytes : Nat := bvBlockLogDescCapacity * 256
 def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 16
@@ -258,6 +283,13 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxCommittedFullKeyCap = 600000
 #guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
+#guard bvResourceBlockGasLimit = 200000000
+#guard bvBlockLogMinGas = 375
+#guard bvBlockLogDataByteGas = 8
+#guard bvBlockLogFullDescTarget = 533333
+#guard bvBlockLogFullDescBytes = 136533248
+#guard bvBlockLogFullMetaBytes = 8533328
+#guard bvBlockLogFullDataBytes = 25000000
 #guard bvBlockLogDescBytes = 32768
 #guard bvBlockLogMetaBytes = 2048
 #guard bvBlockLogDataBytes = 65536
