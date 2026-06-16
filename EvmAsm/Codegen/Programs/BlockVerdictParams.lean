@@ -113,8 +113,9 @@ def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
 def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
 
 /-- Behavior-neutral chunked committed-storage substrate for the follow-up
-    helpers. Each page preserves the current 128-entry layout; the total capacity
-    is the number of unique `(recipient, slotKey)` entries across all pages. -/
+    helpers. Each page preserves the current 128-entry layout; the active total
+    capacity is the number of unique `(recipient, slotKey)` entries across the
+    currently wired pages. -/
 def bvMtxCommittedChunkPages : Nat := 4
 def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
 def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
@@ -136,6 +137,19 @@ def bvSystemRequestCallCount : Nat := 2
 def bvSystemStorageMinSstoreGas : Nat := 100
 def bvSystemStorageLogCapacity : Nat :=
   bvSystemRequestCallCount * (bvSystemTransactionGas / bvSystemStorageMinSstoreGas)
+
+/-- Full committed-storage unique-key target for the 200M resource work.
+
+    This is keyed by unique `(recipient, slotKey)`, not by transaction count or
+    raw duplicate writes. Every unique committed key must originate from at least
+    one persistent storage exec-log row, so the system-call SSTORE side-capture
+    arena is the current guest-wide upper bound. The active block-verdict path
+    still uses `bvMtxCommittedChunkCapacity`; follow-up slices migrate the
+    upsert/lookup substrate to this full target or to an equivalent streaming
+    design. -/
+def bvMtxCommittedFullKeyCap : Nat := bvSystemStorageLogCapacity
+def bvMtxCommittedFullBytes : Nat :=
+  bvMtxCommittedFullKeyCap * bvMtxCommittedEntryBytes
 def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
 def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
 
@@ -232,6 +246,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxCommittedBytes = 16384
 #guard bvMtxCommittedChunkCapacity = 512
 #guard bvMtxCommittedChunkBytes = 65536
+#guard bvMtxCommittedFullKeyCap = 600000
+#guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
 #guard bvBlockLogDescBytes = 32768
 #guard bvBlockLogMetaBytes = 2048
