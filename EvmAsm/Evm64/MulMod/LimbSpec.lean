@@ -100,4 +100,49 @@ theorem evm_mulmod_product_zero_spec_within (sp : Word) (base : Word)
   have I7 := sd_x0_spec_gen_within .x12 sp p7 152 (base + 28)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7
 
+-- ============================================================================
+-- evm_mulmod_product_propagate_carry
+-- ============================================================================
+
+abbrev evm_mulmod_product_propagate_carry_code (base : Word) (offsets : List (BitVec 12)) :
+    CodeReq :=
+  CodeReq.ofProg base (evm_mulmod_product_propagate_carry offsets)
+
+/-- One product-window carry propagation step: add incoming carry to a limb,
+    store the updated limb, and leave the overflow carry in `x10`. -/
+def mulModCarryStepValue (limb carry : Word) : Word :=
+  limb + carry
+
+/-- Carry-out from `mulModCarryStepValue`. -/
+def mulModCarryStepCarry (limb carry : Word) : Word :=
+  if BitVec.ult (limb + carry) carry then (1 : Word) else 0
+
+/-- Empty carry propagation is a no-op. -/
+theorem evm_mulmod_product_propagate_carry_nil_spec_within (base sp carry v9 : Word) :
+    cpsTripleWithin 0 base base (evm_mulmod_product_propagate_carry_code base [])
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9))
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9)) := by
+  show cpsTripleWithin 0 base base CodeReq.empty
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9))
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9))
+  exact cpsTripleWithin_refl (fun _ hp => hp)
+
+/-- Single-limb carry propagation. This is the reusable step used to build the
+    concrete carry-offset list specs for `evm_mulmod_product_add_partial`. -/
+theorem evm_mulmod_product_propagate_carry_one_spec_within (sp base : Word)
+    (off : BitVec 12) (carry limb v9 : Word) :
+    cpsTripleWithin 4 base (base + 16)
+      (evm_mulmod_product_propagate_carry_code base [off])
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
+       ((sp + signExtend12 off) ↦ₘ limb))
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ mulModCarryStepCarry limb carry) **
+       (.x9 ↦ᵣ mulModCarryStepValue limb carry) **
+       ((sp + signExtend12 off) ↦ₘ mulModCarryStepValue limb carry)) := by
+  unfold mulModCarryStepValue mulModCarryStepCarry
+  have I0 := ld_spec_gen_within .x9 .x12 sp v9 limb off base (by nofun)
+  have I1 := add_spec_gen_rd_eq_rs1_within .x9 .x10 limb carry (base + 4) (by nofun)
+  have I2 := sltu_spec_gen_rd_eq_rs2_within .x10 .x9 (limb + carry) carry (base + 8) (by nofun)
+  have I3 := sd_spec_gen_within .x12 .x9 sp (limb + carry) limb off (base + 12)
+  runBlock I0 I1 I2 I3
+
 end EvmAsm.Evm64
