@@ -28,7 +28,6 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
-import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
@@ -75,14 +74,10 @@ def balAllAccountsTupleSequencesConsistentFunction : String :=
   "  jal ra, rlp_list_nth_item                             # item 0 = address\n" ++
   "  bnez a0, .Lbatsc_fail\n" ++
   "  la t0, batsc_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbatsc_next   # not 20B -> skip\n" ++
-  -- Mirror the storage comparator's modeled-system boundary: EIP-2935/EIP-4788
-  -- storage is verified by explicit block-level replay, not the per-tx runtime log.
-  -- The broad per-slot index-0 skip is gone; only these modeled accounts stay out
-  -- until their replay descriptors are materialized as tuple rows.
-  "  mv a0, s8; mv a1, s9\n" ++
-  "  jal ra, bal_account_is_modeled_system\n" ++
-  "  li t0, 1; beq a0, t0, .Lbatsc_next       # EIP-2935 history row -> replay path\n" ++
-  "  li t0, 2; beq a0, t0, .Lbatsc_next       # EIP-4788 beacon-roots row -> replay path\n" ++
+  -- EIP-2935/EIP-4788 modeled-system rows are checked here too: the
+  -- account-level comparator merges captured system storage rows with the user
+  -- exec log, so forged system tuple sequences reject precisely instead of being
+  -- hidden behind a modeled-account bypass.
   "  la t0, batsc_addr_off; ld t1, 0(t0); add t3, s8, t1   # addr ptr (20B BE)\n" ++
   "  li t4, 0                    # skip-list index\n" ++
   ".Lbatsc_skip_outer:\n" ++
@@ -141,7 +136,6 @@ def ziskBalAllAccountsTupleSequencesConsistentPrologue : String :=
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
@@ -188,7 +182,6 @@ def ziskBalAllAccountsTupleSequencesConsistentSkipListPrologue : String :=
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
@@ -211,7 +204,6 @@ def ziskBalAllAccountsTupleSequencesConsistentDataSection : String :=
   accountTupleSequencesConsistentData ++ "\n" ++   -- atsc_* + tuple buffers
   accountTupleSequencesConsistentEmptySystemData ++ "\n" ++
   balSlotTupleSequenceData ++ "\n" ++               -- bts_*
-  ziskBalAccountIsModeledSystemDataSection ++ "\n" ++
   ziskRlpFieldToU64DataSection ++ "\n" ++           -- rfu_*
   execLogSlotTuplesData                             -- els_*
 

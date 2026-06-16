@@ -437,6 +437,10 @@ def blockVerdictFunction : String :=
   "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   "  bnez a0, .Lbv_cd_eoa_restore        # code-hash lookup failed -> conservative EOA path\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  beqz a0, .Lbv_cd_same_block_delegation\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
   "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
@@ -446,6 +450,7 @@ def blockVerdictFunction : String :=
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  bnez a0, .Lbv_cd_eoa_restore\n" ++
+  ".Lbv_cd_same_block_delegation:\n" ++
   "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, bv_tx_recipient_code_hash\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
