@@ -67,14 +67,21 @@ def logCapturePreBody (topicCount : Nat) : String :=
   "  sd x18, 16(x14)\n" ++
   logTopicCopies topicCount ++
   -- Capture the local address and caller context from the env block.
-  "  ld x21, 0(x20)\n" ++
-  "  sd x21, 192(x14)\n" ++
-  "  ld x21, 8(x20)\n" ++
-  "  sd x21, 200(x14)\n" ++
-  "  ld x21, 16(x20)\n" ++
-  "  sd x21, 208(x14)\n" ++
-  "  ld x21, 24(x20)\n" ++
-  "  sd x21, 216(x14)\n" ++
+  -- env.ADDRESS @ env+0 is the EVM stack-word layout (low limb first, since #8967),
+  -- but the receipt log encoder (LogRecordsRlp) consumes descriptor+192 as the
+  -- canonical 20-byte BE address, so reverse the 20 address bytes here. The
+  -- descriptor was pre-zeroed, so the upper 12 bytes of the +192 word stay zero
+  -- (matching the canonical low-aligned form the encoder + bloom expect).
+  "  addi x22, x20, 19\n" ++        -- src = env+19 (MSB of the LE address)
+  "  addi x23, x14, 192\n" ++       -- dst = descriptor+192 (canonical BE)
+  "  li x16, 20\n" ++
+  "42:\n" ++
+  "  lbu x21, 0(x22)\n" ++
+  "  sb x21, 0(x23)\n" ++
+  "  addi x22, x22, -1\n" ++
+  "  addi x23, x23, 1\n" ++
+  "  addi x16, x16, -1\n" ++
+  "  bnez x16, 42b\n" ++
   "  ld x21, 64(x20)\n" ++
   "  sd x21, 224(x14)\n" ++
   "  ld x21, 72(x20)\n" ++
