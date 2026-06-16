@@ -27,7 +27,7 @@ The distinction matters:
 | Witness bytes | Large valid state witnesses under the 200M target | `bsrMaxWitnessBytes = 524288` | Size guard widened, but record count/perf still needs work. |
 | Transaction arrays | `floor(200000000 / 21000) = 9523` txs | Cheap u64/log-window arenas use `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: foundation split landed; algorithmic cap gaps remain under `evm-asm-vv4hr.1`. |
 | Sender aggregation | Up to `9523` txs, repeated or distinct senders | Active sender tables use `bvMtxActiveTxCap = 1024` | Gap: aggregation slices under `evm-asm-vv4hr.1`; related existing P1 `evm-asm-bmvmx.5.5.7.3`. |
-| Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | `bvMtxCommittedChunkCapacity = 512` | Gap: `evm-asm-vv4hr.2`. |
+| Committed storage threading | All unique `(recipient, slotKey)` keys reachable under the supported storage-log arena | Active `bvMtxCommittedChunkCapacity = 512`; target `bvMtxCommittedFullKeyCap = 16384` | Gap: migrate upsert/lookup/wiring under `evm-asm-vv4hr.2`. |
 | System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 16384`; some paths are best-effort | Gap: `evm-asm-vv4hr.7`; related ungate beads `evm-asm-hwngs`, `evm-asm-40igg`. |
 | Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523` | Covered for per-tx records; log/RLP capacity remains separate. |
 | Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3`. |
@@ -46,8 +46,10 @@ Every discovered 200M resource gap has a P1 child bead:
   `1024` active loop cap to the `9523` transaction target, or replace them
   with streaming/chunked designs. Cheap per-tx result arenas are already sized
   from `bvMtxFullTxCap`.
-- `evm-asm-vv4hr.2`: extend committed-storage threading beyond `512` unique
-  `(recipient, slotKey)` entries while preserving latest-write-wins semantics.
+- `evm-asm-vv4hr.2`: extend committed-storage threading beyond the active `512`
+  unique `(recipient, slotKey)` entries toward `bvMtxCommittedFullKeyCap = 16384`,
+  the existing persistent storage exec-log row cap. The bound is unique-key based:
+  duplicate writes update in place and do not consume additional committed slots.
 - `evm-asm-vv4hr.3`: stream or resize receipt/log materialization so receipts
   and logs are not capped by 16 records, 128 descriptors, or 64 KiB payload
   arenas.

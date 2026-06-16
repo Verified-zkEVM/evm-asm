@@ -95,6 +95,7 @@ BV_BLOCK_LOG_DATA_BYTES = 65536
 BV_LOGS_RLP_ARENA_BYTES = 65536
 BV_RECEIPTS_RLP_BYTES = 65536
 BV_SYSTEM_STORAGE_LOG_CAPACITY = 16384
+BV_MTX_COMMITTED_FULL_KEY_CAP = BV_SYSTEM_STORAGE_LOG_CAPACITY
 C1_DEPOSIT_BODY_BYTES = 32768
 C1_LOG_RECORDS_BYTES = 81920
 C1_EXECUTION_REQUESTS_BYTES = 32768
@@ -211,6 +212,8 @@ def summarize(
         "logs_rlp_cap": BV_LOGS_RLP_ARENA_BYTES,
         "receipts_rlp_cap": BV_RECEIPTS_RLP_BYTES,
         "committed_storage_cap": BV_MTX_COMMITTED_CHUNK_CAPACITY,
+        "committed_storage_active_cap": BV_MTX_COMMITTED_CHUNK_CAPACITY,
+        "committed_storage_full_key_cap": BV_MTX_COMMITTED_FULL_KEY_CAP,
         "system_storage_cap": BV_SYSTEM_STORAGE_LOG_CAPACITY,
         "deposit_body_cap": C1_DEPOSIT_BODY_BYTES,
         "log_records_cap": C1_LOG_RECORDS_BYTES,
@@ -392,6 +395,8 @@ def main() -> int:
         "logs_rlp_cap",
         "receipts_rlp_cap",
         "committed_storage_cap",
+        "committed_storage_active_cap",
+        "committed_storage_full_key_cap",
         "system_storage_cap",
         "deposit_body_cap",
         "log_records_cap",
