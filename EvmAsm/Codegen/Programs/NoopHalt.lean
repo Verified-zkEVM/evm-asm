@@ -235,6 +235,7 @@ private def selfdestructTailAsm : String :=
   "  la x14, evm_selfdestruct_staged\n" ++
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
+  selfdestructBeneficiaryNonstorageAsm ++
   "  addi x12, x12, 32\n" ++
   "  j .exit_selfdestruct"
 

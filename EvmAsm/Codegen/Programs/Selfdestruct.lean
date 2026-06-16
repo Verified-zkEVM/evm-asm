@@ -380,6 +380,52 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   ".L_selfdestruct_eip7708_done:\n"
 
 /--
+ednoc / i3djw.3: record the SELFDESTRUCT beneficiary's non-storage balance effect so the
+all-accounts non-storage FORWARD check (`bal_all_accounts_nonstorage_consistent`, bv_fail=44)
+reproduces the BAL's declared beneficiary balance change.
+
+Hooks off `evm_selfdestruct_staged` (NOT `sdai_transfer_status==0`) so it also covers a NEW
+beneficiary, whose account lookup fails (`sdai_status=4`) and skips the runtime transfer staging
+-- yet the post-state recompute still creates it. transferred = origin pre-balance
+(`sdai_origin_rlp`, BE, valid for status 0 or 4); beneficiary pre = its balance if it existed
+(`sdai_status==0`) else 0; post = pre + transferred; nonce unchanged (0/0). Zero transfer or
+self-destruct-to-self records nothing (the balance-0 self-destruct rows that pass via
+conservative-accept stay unaffected). The all-accounts wrapper skips {sender,recipient,coinbase};
+`record_nonstorage_effect`/`account_extract_balance`/`u256_add_be` are dispatcher-linked. Saves/
+restores the dispatcher's x10/x12 around each helper call (mirrors the eip7708 fragment). -/
+def selfdestructBeneficiaryNonstorageAsm : String :=
+  "  la t0, evm_selfdestruct_staged; ld t0, 0(t0); beqz t0, .L_sdbn_done\n" ++
+  "  la t0, sdai_status; ld t0, 0(t0); beqz t0, .L_sdbn_origin_ok\n" ++
+  "  li t1, 4; bne t0, t1, .L_sdbn_done\n" ++
+  ".L_sdbn_origin_ok:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd x10, 96(sp); sd x12, 104(sp)\n" ++
+  "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 64\n" ++
+  "  jal ra, account_extract_balance\n" ++
+  "  ld t0, 64(sp); ld t1, 72(sp); or t0, t0, t1; ld t1, 80(sp); or t0, t0, t1; ld t1, 88(sp); or t0, t0, t1\n" ++
+  "  beqz t0, .L_sdbn_restore\n" ++
+  "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
+  ".L_sdbn_cmp:\n" ++
+  "  beqz t2, .L_sdbn_restore\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L_sdbn_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_cmp\n" ++
+  ".L_sdbn_diff:\n" ++
+  "  la t0, sdai_status; ld t0, 0(t0); bnez t0, .L_sdbn_pre_zero\n" ++
+  "  la a0, sdai_beneficiary_rlp; la t0, sdai_beneficiary_len; ld a1, 0(t0); mv a2, sp\n" ++
+  "  jal ra, account_extract_balance\n" ++
+  "  j .L_sdbn_have_pre\n" ++
+  ".L_sdbn_pre_zero:\n" ++
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  ".L_sdbn_have_pre:\n" ++
+  "  mv a0, sp; addi a1, sp, 64; addi a2, sp, 32\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  la a0, evm_selfdestruct_beneficiary; mv a1, sp; addi a2, sp, 32; li a3, 0; li a4, 0\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  ".L_sdbn_restore:\n" ++
+  "  ld x10, 96(sp); ld x12, 104(sp); addi sp, sp, 112\n" ++
+  ".L_sdbn_done:\n"
+
+/--
 Runtime-layout probe for `selfdestructLoadAccountInputsAsm`.
 
 Input is the normal `scripts/pack-bytecode.py` runtime payload. The bytecode
