@@ -45,6 +45,7 @@ def blockVerdictReceiptsTail : String :=
   "  la a3, bvgr_receipt_gas_increments\n" ++
   "  la a4, bvgr_tx_total_state_gas\n" ++
   "  la a5, bvgr_block_gas_increments\n" ++
+  "  la a6, bvgr_tx_exec_state_gas\n" ++
   "  jal ra, block_verdict_receipt_gas_eip8037_adjust\n" ++
   -- EIP-7702 SELFDESTRUCT delegated-code rows expose one more receipt-only
   -- regular-gas correction after the generic type-4 adjustment above. The

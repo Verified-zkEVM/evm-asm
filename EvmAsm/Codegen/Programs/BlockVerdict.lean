@@ -404,6 +404,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   blockVerdictReceiptGasEip8037AdjustFunction ++ "\n" ++
+  blockVerdictFailedType4AuthRegularAdjustFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
