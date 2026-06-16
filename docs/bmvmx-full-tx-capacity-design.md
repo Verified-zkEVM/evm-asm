@@ -34,8 +34,11 @@ The current `main` implementation has several independent ceilings:
   storage records, for `bvMtxCommittedChunkCapacity = 512` unique
   `(recipient, slotKey)` entries. This is not a transaction-count cap. Duplicate
   writes update the existing entry in place.
-- Receipt/log validation has separate windows and record arenas. Raising the tx
-  cap alone does not cover blocks with many logs or large receipt material.
+- Receipt/log validation has separate windows and byte arenas. Per-tx receipt
+  records, record bloom storage, and record log descriptors derive from
+  `bvMtxFullTxCap = 9523`; block-log descriptors, log data bytes, log-list RLP,
+  receipt-list scratch/RLP, and consensus receipt descriptors remain separately
+  capped.
 
 ## Decision
 
@@ -139,8 +142,10 @@ The follow-up work should land in separate PRs:
 - Extend committed-storage threading beyond 512 unique `(recipient, slotKey)`
   entries with a streaming design once an execution-specs-covered fixture needs
   it.
-- Decouple receipt/log validation capacity from the tx cap and connect it to the
-  log/receipt streaming or digest substrate.
+- Decouple the remaining receipt/log validation capacity from the tx cap and
+  connect block-log capture, log-list RLP, receipt-list RLP, and consensus
+  descriptor traversal to the log/receipt streaming or digest substrate. The
+  per-tx receipt record storage is already full-capacity.
 - Remaining full-capacity probes: add one fixture/regression for the observed
   1,021-tx EEST case and one end-to-end synthetic or generated near-9,523
   transaction block after the active loop moves from `bvMtxActiveTxCap` to

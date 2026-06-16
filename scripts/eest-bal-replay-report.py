@@ -89,11 +89,13 @@ BLOCK_STATE_ROOT_BAL_CAP = 100000
 BV_MTX_ARENA_TX_CAP = 1024
 BMV_FULL_TX_CAPACITY = 9523
 BV_MTX_COMMITTED_CHUNK_CAPACITY = 512
-BV_RECEIPT_RECORD_CAPACITY = 16
+BV_RECEIPT_RECORD_CAPACITY = BMV_FULL_TX_CAPACITY
 BV_BLOCK_LOG_DESC_CAPACITY = 128
 BV_BLOCK_LOG_DATA_BYTES = 65536
 BV_LOGS_RLP_ARENA_BYTES = 65536
 BV_RECEIPTS_RLP_BYTES = 65536
+BV_RECEIPT_LIST_PAYLOAD_BYTES = 32768
+BV_RECEIPT_CONSENSUS_DESC_CAPACITY = 128
 BV_SYSTEM_STORAGE_LOG_CAPACITY = 16384
 C1_DEPOSIT_BODY_BYTES = 32768
 C1_LOG_RECORDS_BYTES = 81920
@@ -210,6 +212,8 @@ def summarize(
         "block_log_data_cap": BV_BLOCK_LOG_DATA_BYTES,
         "logs_rlp_cap": BV_LOGS_RLP_ARENA_BYTES,
         "receipts_rlp_cap": BV_RECEIPTS_RLP_BYTES,
+        "receipt_list_payload_cap": BV_RECEIPT_LIST_PAYLOAD_BYTES,
+        "receipt_consensus_desc_cap": BV_RECEIPT_CONSENSUS_DESC_CAPACITY,
         "committed_storage_cap": BV_MTX_COMMITTED_CHUNK_CAPACITY,
         "system_storage_cap": BV_SYSTEM_STORAGE_LOG_CAPACITY,
         "deposit_body_cap": C1_DEPOSIT_BODY_BYTES,
@@ -391,6 +395,8 @@ def main() -> int:
         "block_log_data_cap",
         "logs_rlp_cap",
         "receipts_rlp_cap",
+        "receipt_list_payload_cap",
+        "receipt_consensus_desc_cap",
         "committed_storage_cap",
         "system_storage_cap",
         "deposit_body_cap",

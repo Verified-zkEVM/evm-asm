@@ -29,9 +29,9 @@ The distinction matters:
 | Sender aggregation | Up to `9523` txs, repeated or distinct senders | Active sender tables use `bvMtxActiveTxCap = 1024` | Gap: aggregation slices under `evm-asm-vv4hr.1`; related existing P1 `evm-asm-bmvmx.5.5.7.3`. |
 | Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | `bvMtxCommittedChunkCapacity = 512` | Gap: `evm-asm-vv4hr.2`. |
 | System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 16384`; some paths are best-effort | Gap: `evm-asm-vv4hr.7`; related ungate beads `evm-asm-hwngs`, `evm-asm-40igg`. |
-| Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523` | Covered for per-tx records; log/RLP capacity remains separate. |
-| Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3`. |
-| Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536` | Gap: `evm-asm-vv4hr.3`. |
+| Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523`; `bvRecordBloomsBytes` and `bvRecordLogsDescBytes` derive from the same cap | Covered for per-tx record/bloom/descriptor storage; log capture and RLP materialization remain separate. |
+| Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3.2`. |
+| Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536`, `bvReceiptListPayloadBytes = 32768`, `bvReceiptConsensusDescCapacity = 128` | Gaps: `evm-asm-vv4hr.3.3` and `evm-asm-vv4hr.3.4`. |
 | Execution requests hash input | EIP-6110 deposits `8192 * 192`, withdrawals `16 * 76`, consolidations `2 * 116` | `erh_blob = 1572865` | Hash helper covers the deposit body cap. |
 | Execution-derived deposit body staging | Same deposit body cap when deriving requests from logs | `c1_dbody = 32768`, `c1_log_records = 81920` | Gap: `evm-asm-vv4hr.4`. |
 | System-call payload staging | Witness code plus 100k preloads plus M29 slack | `c1StagingBytes = bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384` | Covered by shared guard for current staging model. |
@@ -48,9 +48,10 @@ Every discovered 200M resource gap has a P1 child bead:
   from `bvMtxFullTxCap`.
 - `evm-asm-vv4hr.2`: extend committed-storage threading beyond `512` unique
   `(recipient, slotKey)` entries while preserving latest-write-wins semantics.
-- `evm-asm-vv4hr.3`: stream or resize receipt/log materialization so receipts
-  and logs are not capped by 16 records, 128 descriptors, or 64 KiB payload
-  arenas.
+- `evm-asm-vv4hr.3`: stream or resize receipt/log materialization so receipt
+  roots and logs bloom are not capped by 128 log descriptors, 128 consensus
+  receipt descriptors, 32 KiB receipt-list scratch, or 64 KiB log/receipt RLP
+  arenas. Per-tx receipt records are already sized to the 9,523 full-tx target.
 - `evm-asm-vv4hr.4`: make execution-derived EIP-6110 deposit request bodies
   cover the full deposit cap instead of the current `c1_dbody` /
   `c1_log_records` staging limits.
