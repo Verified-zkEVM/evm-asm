@@ -466,16 +466,30 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- EIP-7623 calldata floor (amsterdam fork.py:1132-1144). All inputs are verdict-
   -- side arrays; no runtime change (the EIP-8037 2D-gas runtime stays as-is, 249/250).
   "  slli t1, s6, 3\n" ++
+  -- huo4a: dimension reconstruction = before_refund + tx_total_state_gas + 7500*auth_count,
+  -- THEN subtract tx_exec_state_gas. Add-before-subtract + saturate avoids the unsigned
+  -- UNDERFLOW that bit reverted txs (jouwf): a reverted SSTORE leaves bvgr_tx_exec_state_gas
+  -- holding the pre-revert state gas (large) while before_refund is small, so the old
+  -- `before_refund - exec_state` first step wrapped to ~2^64. When exec_state exceeds the
+  -- base the dimension is invalid (reverted), so saturate to 0 and let the max below recover
+  -- before_refund.
   "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++   -- t3 = before_refund[i]
-  "  ld t0, 104(sp); add t0, t0, t1; ld t4, 0(t0); sub t3, t3, t4\n" ++  -- t3 -= tx_exec_state_gas[i]
   "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++              -- t3 += tx_total_state_gas[i]
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 += 7500*auth_count (dimension reconstruction)
-  -- huo4a fix: take max(dimension, before_refund). When the runtime under-charged the
-  -- per-auth intrinsic (e.g. set_code_to_self_destruct, gas_left>0) the dimension
-  -- reconstruction is the larger, correct value; when before_refund already reflects the
-  -- full charge (e.g. set_code_to_sstore that exhausts gas, gas_left=0) before_refund is
-  -- the larger, correct value (the dimension under-counts because exec_state then holds the
-  -- unspent state reservoir, not the consumed state). #8989 omitted this max and regressed
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 = before_refund + tot + 7500*auth
+  "  ld t0, 104(sp); add t0, t0, t1; ld t4, 0(t0)\n" ++              -- t4 = tx_exec_state_gas[i]
+  -- For legitimate txs base = before_refund+tot+7500 >= exec_state (before_refund already
+  -- includes the state charged to the pool). exec_state > base only happens on a REVERT,
+  -- where bvgr_tx_exec_state_gas holds the stale pre-revert state gas: the state was reverted
+  -- (state_used=0), so the correct exec_state contribution is 0 -> keep base, skip the
+  -- subtraction (verified: set_code_to_sstore revert receipt = before_refund 33221 + tot
+  -- 35190 + 7500 = 75911 = spec). This also avoids the unsigned underflow (jouwf).
+  "  bltu t3, t4, .Lbvrga_type4_dimmaxchk\n" ++                       -- exec_state > base (revert): keep base
+  "  sub t3, t3, t4\n" ++                                            -- t3 -= exec_state (no underflow)
+  ".Lbvrga_type4_dimmaxchk:\n" ++
+  -- max(dimension, before_refund): when the runtime under-charged the per-auth intrinsic
+  -- (set_code_to_self_destruct, gas_left>0) the dimension is the larger, correct value; when
+  -- before_refund already reflects the full charge (set_code_to_sstore exhausting gas, or a
+  -- revert) before_refund is the larger, correct value. #8989 omitted this and regressed
   -- set_code_to_sstore[tx_value_1].
   "  la t0, bvgr_before_refund; add t0, t0, t1; ld t4, 0(t0)\n" ++   -- t4 = before_refund[i] (reload)
   "  bgeu t3, t4, .Lbvrga_type4_dimmax\n" ++
