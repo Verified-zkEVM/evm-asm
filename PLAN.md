@@ -1014,6 +1014,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   Axiom-clean (classical), 0 sorry. **RLP decodability is now complete: both
   inverses + injectivity + quasi-encoding rejection, to parity with the ACL2
   formalization.**
+- ✅ **Self-delimiting encoding / prefix-unambiguity** (`Properties.lean`).
+  `decode_encode_append` (left inverse with arbitrary trailer), `encode_append_cancel`
+  (`encode i₁ ++ r₁ = encode i₂ ++ r₂ → i₁ = i₂ ∧ r₁ = r₂`), and
+  `encode_prefix_unambiguous` (`encode i₁ <+: encode i₂ → i₁ = i₂`, the ACL2
+  `rlp-encode-tree-unamb-prefix` analogue — no valid encoding is a proper prefix
+  of another). All fall out of the two inverses. Axiom-clean, 0 sorry.
+- ✅ **RLP scalar layer** (`EvmAsm/EL/RLP/Scalar.lean`, ACL2 `rlp-encode-scalar`).
+  `encodeScalar n := encodeBytes (Nat.toBytesBE n)` (nonneg int → minimal
+  big-endian bytes → byte string; nonces/balances/gas/lengths) and `decodeScalar`.
+  `decodeScalar_encodeScalar` (round-trip), `encodeScalar_injective`, and
+  `decodeScalar_eq_some_imp` (right inverse) — all reuse `decode_encode_bytes` +
+  the `Nat.fromBytesBE/toBytesBE` bijection. Axiom-clean, 0 sorry. **Pure-spec RLP
+  is now at full ACL2 parity (tree + scalar, both inverse directions).**
 
 ### EL.2 Byte-Level Infrastructure ✅
 - **File**: `EvmAsm/Rv64/ByteOps.lean`
