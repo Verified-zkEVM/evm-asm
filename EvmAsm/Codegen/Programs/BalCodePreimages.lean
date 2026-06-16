@@ -264,7 +264,7 @@ def balCodePreimagesValidFunction : String :=
   "  # code_hash has no witness.codes preimage makes WitnessState.get_code\n" ++
   "  # raise and the block invalid. The system_contract_reaches_gas_limit\n" ++
   "  # rows DO carry their (72945-byte) predeploy preimage; they previously\n" ++
-  "  # reached this label only because witness_lookup_by_hash false-missed\n" ++
+  "  # reached this label only because the code-preimage lookup false-missed\n" ++
   "  # codes sections above a 64 KiB linear-scan cap (since removed).\n" ++
   "  li a0, 1; j .Lbbcv_ret\n" ++
   ".Lbbcv_parse_fail:\n" ++
@@ -922,7 +922,7 @@ def balCodePreimagesValidFunction : String :=
   "  j .Lbcdcv_ok               # absent/empty target has no delegated code\n" ++
   ".Lbcdcv_lookup_target_code:\n" ++
   "  mv a0, s5; mv a1, s6; la a2, bbcv_code_hash; la a3, bbcv_code_off; la a4, bbcv_code_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
   "  # A miss on the TARGET's own code carries no delegated-code obligation:\n" ++
   "  # a CALL whose precheck raises (e.g. value!=0 inside a STATICCALL frame,\n" ++
   "  # as in static_create_contract_suicide_during_init) never reads the\n" ++
@@ -952,7 +952,7 @@ def balCodePreimagesValidFunction : String :=
   "  j .Lbcdcv_ok               # delegated account absent/empty\n" ++
   ".Lbcdcv_lookup_delegated_code:\n" ++
   "  mv a0, s5; mv a1, s6; la a2, bbcv_delegated_code_hash; la a3, bbcv_code_off; la a4, bbcv_code_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
   "  bnez a0, .Lbcdcv_bad\n" ++
   ".Lbcdcv_ok:\n" ++
   "  li a0, 0; j .Lbcdcv_ret\n" ++
