@@ -88,6 +88,7 @@ def blockStateRootFunction : String :=
   "  mv s5, a5                   # out_root\n" ++
   "  # derive the system writes (SSZ_BASE in a6)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); jal ra, system_write_descriptors\n" ++
+  "  jal ra, append_modeled_system_storage_tuple_rows; bnez a0, .Lbsr_cons_change_cap\n" ++
   "  # system change 0 = EIP-2935\n" ++
   "  la a0, bsr_addr_2935; la a1, swd_2935_slot; la a2, swd_2935_val\n" ++
   "  la t0, swd_2935_vlen; ld a3, 0(t0); li a4, 0\n" ++
@@ -432,7 +433,10 @@ def statelessVerdictV2Function : String :=
   -- clobbered those globals with 0xb6 (.66 crash) — so they are RE-DERIVED from the stable input
   -- region after the last derive (see below); no save needed.
   -- 8uld3.2.3.3.1 (C.1): hash the EXECUTION-DERIVED withdrawal(EIP-7002)+consolidation(EIP-7251)
-  -- request bodies instead of trusting the SSZ-input ones (deposits stay SSZ-trusted -> .3.3).
+  -- request bodies instead of trusting the SSZ-input ones. Deposits remain SSZ-backed for
+  -- tx-bearing prelude setup until the receipt tail derives them from logs; no-tx blocks use
+  -- the empty derived deposit body before header rebuild, since no transaction can emit a
+  -- deposit-contract log.
   -- Snapshot/restore the exec-log count (evm_env+448) around the system calls so their SSTORE
   -- effects stay OUT of the storage comparator (preserving its current passing behavior; the
   -- 7002/7251 predeploy writes are EIP-7928 index-0 system writes the comparator already
@@ -550,9 +554,21 @@ def statelessVerdictV2Function : String :=
   "  addi s0, s0, 18\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0\n" ++
   "  addi t0, s0, 16; add t0, t0, s3; la t1, c1_er_input; sd t0, 0(t1)\n" ++
+  -- For no-tx blocks, execution-derived deposits are necessarily empty: no transaction
+  -- can call the deposit contract or emit a deposit log. Use the empty derived body in
+  -- the header rebuild so a forged SSZ deposits body mismatches requests_hash before
+  -- the legacy hv09f no-tx length guard runs. Tx-bearing paths keep the existing SSZ
+  -- deposit prelude until the receipt tail derives deposits from materialized logs.
+  "  la t0, svf_tx_count; ld t0, 0(t0); beqz t0, .Lv2_er_empty_deposits\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++
   "  mv a0, t2; mv a1, t3\n" ++
+  "  j .Lv2_er_deposits_ready\n" ++
+  ".Lv2_er_empty_deposits:\n" ++
+  "  la a0, c1_dbody; li a1, 0\n" ++
+  "  la t0, c1_dlen; sd zero, 0(t0)\n" ++
+  "  la t0, c1_dstatus; sd zero, 0(t0)\n" ++
+  ".Lv2_er_deposits_ready:\n" ++
   "  la t0, dbsr_wbody; mv a2, t0; la t0, dbsr_wlen; ld a3, 0(t0)\n" ++
   "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
   "  mv t0, a1; add t0, t0, a3; add t0, t0, a5; addi t0, t0, 12\n" ++
@@ -564,13 +580,13 @@ def statelessVerdictV2Function : String :=
   "  jal ra, execution_requests_hash\n" ++
   "  la t0, c1_erh_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
-  -- hv09f.1: parse_deposit_requests scans receipts for deposit-contract logs; a
-  -- no-tx block has no transaction calling the deposit contract, hence zero deposit
-  -- logs, so execution_requests.deposits MUST be empty. The guest trusts the SSZ
-  -- deposits, so a no-tx block with a fabricated non-empty deposits list (and a
-  -- matching header.requests_hash) would be accepted though the spec rejects it.
-  -- Reject when tx_count == 0 and the deposits body is non-empty. Sound by
-  -- construction: a valid no-tx block has empty deposits, so no false-reject.
+  -- hv09f.1 legacy guard: parse_deposit_requests scans receipts for deposit-contract
+  -- logs; a no-tx block has no transaction calling the deposit contract, hence zero
+  -- deposit logs, so execution_requests.deposits MUST be empty. The header rebuild
+  -- above now uses an empty derived deposit body for tx_count==0, so a fabricated
+  -- non-empty SSZ deposits list with a matching header.requests_hash should already
+  -- fail via the derived requests_hash/header path. Keep this guard until the focused
+  -- no-tx evidence bead retires it explicitly.
   -- (Withdrawals/consolidations are NOT checked: the 7002/7251 system contracts can
   -- enqueue those in a no-tx block.) execution_requests_hash already validated the
   -- offset table (>=12 bytes, monotonic), so reading offset[0]/offset[1] is safe and

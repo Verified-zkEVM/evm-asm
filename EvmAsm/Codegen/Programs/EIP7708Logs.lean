@@ -96,11 +96,12 @@ def eip7708SyntheticLogFunctions : String :=
   "  addi t1, t1, 1\n" ++
   "  addi t3, t3, -1\n" ++
   "  bnez t3, .Leip7708_amount_rev\n" ++
-  "  li t0, -2\n" ++
+  -- log_records_encode_rlp consumes descriptor+192 as canonical 20-byte BE.
+  "  li t0, -1\n" ++
   "  sd t0, 192(t2)\n" ++
   "  li t0, -1\n" ++
   "  sd t0, 200(t2)\n" ++
-  "  li t0, 0xffffffff\n" ++
+  "  li t0, 0xfeffffff\n" ++
   "  sd t0, 208(t2)\n" ++
   "  sd x0, 216(t2)\n" ++
   "  sd x0, 224(t2)\n" ++

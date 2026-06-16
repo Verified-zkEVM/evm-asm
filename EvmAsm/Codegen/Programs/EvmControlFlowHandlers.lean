@@ -10,28 +10,35 @@ import EvmAsm.Codegen.Dispatch
 namespace EvmAsm.Codegen
 
 /-- Validity check shared by JUMP / taken-JUMPI: require `code[dest]`
-    to be JUMPDEST (this is also how the body's invalid-dest sentinel
-    routes to `.exit_invalid`), then test bit `dest = x10 - x21` of the
-    valid-JUMPDEST bitmap the dispatcher prologue precomputed
-    (`emitJumpdestBitmapBuild`). A literal `0x5b` inside PUSH data has
-    no bit set, so it is rejected. O(1) per jump — M15.6 replaces the
-    former O(dest) pushdata-aware scan. Destinations at or beyond the
-    bitmap capacity (impossible for protocol-sized code) are rejected
-    before the bitmap load so the lookup never reads past the region. -/
+    to be JUMPDEST in the *current frame* and reject literal `0x5b` bytes
+    embedded in PUSH data. The top-level dispatcher still builds a bitmap for
+    standalone probes, but nested CALL/STATICCALL frames can switch `x21` to
+    different code, so this checker scans from the current code base up to the
+    destination using PUSH-width skips and the current frame `env.codeSize`. -/
 private def jumpBitmapCheckAsm : String :=
   "  li x18, 0x5b\n" ++
   "  bne x17, x18, .exit_invalid\n" ++
-  "  sub x18, x10, x21\n" ++
-  s!"  li x19, {jumpdestBitmapCodeCapacity}\n" ++
+  "  sub x18, x10, x21             # dest = target - codebase\n" ++
+  "  ld x19, 496(x20)              # current frame codeSize\n" ++
   "  bgeu x18, x19, .exit_invalid\n" ++
-  "  srli x19, x18, 3\n" ++
-  "  la x5, evm_jumpdest_bitmap\n" ++
-  "  add x5, x5, x19\n" ++
-  "  lbu x19, 0(x5)\n" ++
-  "  andi x18, x18, 7\n" ++
-  "  srl x19, x19, x18\n" ++
-  "  andi x19, x19, 1\n" ++
-  "  beqz x19, .exit_invalid\n" ++
+  "  mv x5, x21                    # scan ptr = codebase\n" ++
+  "  li x6, 0                      # scan pc\n" ++
+  "1:\n" ++
+  "  beq x6, x18, 3f\n" ++
+  "  bgeu x6, x18, .exit_invalid   # overshot via PUSH data\n" ++
+  "  lbu x7, 0(x5)\n" ++
+  "  li x19, 0x60\n" ++
+  "  bltu x7, x19, 2f\n" ++
+  "  li x19, 0x7f\n" ++
+  "  bltu x19, x7, 2f\n" ++
+  "  addi x7, x7, -0x5f            # PUSH payload width\n" ++
+  "  add x6, x6, x7\n" ++
+  "  add x5, x5, x7\n" ++
+  "2:\n" ++
+  "  addi x6, x6, 1\n" ++
+  "  addi x5, x5, 1\n" ++
+  "  j 1b\n" ++
+  "3:\n" ++
   "  ret"
 
 private def jumpValidityTail : HandlerTail :=
