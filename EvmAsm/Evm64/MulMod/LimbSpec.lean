@@ -413,6 +413,25 @@ def evmMulModAddPartialCorePost (sp : Word)
   ((sp + signExtend12 loOff) ↦ₘ mulModAddPartialLoValue lo a b) **
   ((sp + signExtend12 hiOff) ↦ₘ mulModAddPartialHiValue hi lo a b)
 
+abbrev evm_mulmod_product_add_partial_finish_code (base : Word) (hiOff : BitVec 12) : CodeReq :=
+  CodeReq.ofProg base (OR' .x10 .x13 .x14 ;; SD .x12 .x11 hiOff)
+
+/-- Combined suffix for `evm_mulmod_product_add_partial`: merge the two
+    high-limb carry flags, then store the already-computed high-limb value. -/
+theorem evm_mulmod_product_add_partial_finish_spec_within (sp base : Word)
+    (hiOff : BitVec 12) (loCarry hiBaseCarry hiCarryFromLo hiVal hiOld : Word) :
+    cpsTripleWithin 2 base (base + 8)
+      (evm_mulmod_product_add_partial_finish_code base hiOff)
+      ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
+       (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) ** ((sp + signExtend12 hiOff) ↦ₘ hiOld))
+      (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) ** ((sp + signExtend12 hiOff) ↦ₘ hiVal)) **
+       (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
+       (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) := by
+  have I0 := or_spec_gen_within .x10 .x13 .x14 loCarry hiBaseCarry hiCarryFromLo
+    (base + 0) (by nofun)
+  have I1 := sd_spec_gen_within .x12 .x11 sp hiVal hiOld hiOff (base + 4)
+  runBlock I0 I1
+
 /-- Empty carry propagation is a no-op. -/
 theorem evm_mulmod_product_propagate_carry_nil_spec_within (base sp carry v9 : Word) :
     cpsTripleWithin 0 base base (evm_mulmod_product_propagate_carry_code base [])
