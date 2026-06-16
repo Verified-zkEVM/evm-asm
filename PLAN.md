@@ -1268,9 +1268,20 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `< 0x80` precondition + matching consumed length `bs.length`). Cross-dword
   cross-check: 10-byte / 2-dword payload → 10 items in `4*10` steps. Reuses
   Phase-2's `word_ofNat_*`/`cnt_dec_1` counter lemmas. Axiom-clean, 0 sorry.
-  **Next:** in-line `< 0x80` validation (3-exit fail path) discharging the
-  precondition operationally; then varying-size items + the unified decoder's
-  5-exit reconvergence.
+- ✅ **In-line `< 0x80` validation — drop the `hsingle` assumption**
+  (`SingleByteListLoopValidated.lean`). The validated loop *proves* every payload
+  byte `< 0x80` in-machine instead of assuming it: it ORs each byte into an
+  accumulator (`x11`) during the scan (a `cpsTripleWithin` closure mirroring the
+  Phase-2 accumulator — `sbll_val_iter/body/loop_succ/n`), then a single post-loop
+  `ANDI x15, x11, 0x80; BNE x15, x0, fail` (accumulate-then-check, avoiding a
+  branching loop closure). `sbll_val_loop_checked_spec_within` is the 2-exit
+  `cpsBranchWithin` (success = `acc &&& 0x80 = 0`, fail = some byte `≥ 0x80`);
+  `sbll_val_loop_bridge` derives `decodeItems_singleByte_run` from the
+  *machine-checked* success condition — **no `hsingle` precondition**. Key new
+  BitVec lemma `orAccList_and_0x80_eq_zero_imp_all_lt` (accumulator bit-7 clear ⇒
+  all bytes `< 0x80`) via `BitVec.msb_eq_false_iff_two_mul_lt`. `OR` cannot
+  overflow ⇒ no `n ≤ 8` bound. Cross-dword cross-check at 10 bytes. Axiom-clean,
+  0 sorry. **Next:** varying-size items + the unified decoder's 5-exit reconvergence.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1

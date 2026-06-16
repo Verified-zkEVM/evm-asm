@@ -56,6 +56,7 @@ import EvmAsm.Rv64.RLP.Phase1E5LongListEight
 import EvmAsm.Rv64.RLP.Phase2LongLengthBridge
 import EvmAsm.Rv64.RLP.Phase2LongLoopGeneral
 import EvmAsm.Rv64.RLP.SingleByteListLoop
+import EvmAsm.Rv64.RLP.SingleByteListLoopValidated
 import EvmAsm.Rv64.RLP.Phase1E3LongBytesFull
 import EvmAsm.Rv64.RLP.Phase1E5LongListFull
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
