@@ -455,7 +455,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- component in `tx_gas_used_after_refund`, but not the whole EIP-8037 state
   -- dimension. The runtime increment already contains regular execution/auth
   -- gas; add 42690 per authorization tuple. Decode failures leave it intact.
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 42690; mul t4, t0, t1\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 42690; mul t4, t0, t1; li t1, 7500; mul t6, t0, t1\n" ++
   "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2)\n" ++
   "  beqz s5, .Lbvrga_type4_check_state\n" ++
   "  add t5, s5, t1; ld t5, 0(t5); bgtu t3, t5, .Lbvrga_type4_maybe_auth_regular\n" ++
@@ -487,6 +487,11 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   ".Lbvrga_type4_check_state:\n" ++
   "  beqz s4, .Lbvrga_type4_add_auth\n" ++
   "  add t5, s4, t1; ld t5, 0(t5); bgeu t3, t5, .Lbvrga_type4_add_state\n" ++
+  "  beqz s5, .Lbvrga_type4_state_floor\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbvrga_type4_state_floor\n" ++
+  "  slli t1, s6, 3; add t0, s5, t1; ld t0, 0(t0); bne t0, t3, .Lbvrga_type4_state_floor\n" ++
+  "  add t3, t3, t4; j .Lbvrga_type4_store_adjusted\n" ++
+  ".Lbvrga_type4_state_floor:\n" ++
   "  sub t0, t4, t6\n" ++
   liAmsterdamNewAccountStateGas "t1" ++
   "  add t0, t0, t1; bltu t5, t0, .Lbvrga_type4_add_auth\n" ++
