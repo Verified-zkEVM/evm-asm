@@ -34,17 +34,12 @@ calls. This is still necessary for paths that do not reach the receipt tail, but
 it means the early value is a header commitment, not yet proof that deposits were
 execution-derived.
 
-The same prelude still has the `hv09f.1` no-tx special guard:
-
-- if `svf_tx_count == 0`, read SSZ deposit offsets from the input section;
-- store the SSZ deposit body length in `c1_notx_deposit_body_len`;
-- reject non-empty deposits through `.Lv2_notx_deposits_fail`.
-
-That guard is sound for no-tx blocks, but it is not the final architecture. The
-next implementation slice should replace it with the same general derived
-requests-hash comparison used by the receipt tail, so no-tx/no-runtime paths
-also reject forged deposits through a derived hash mismatch rather than a
-special-case length check.
+The former `hv09f.1` no-tx SSZ-deposit length guard has been retired. For
+`svf_tx_count == 0`, the prelude now assembles `requests_hash` with an empty
+execution-derived deposit body before header comparison. A no-tx block with a
+non-empty SSZ `execution_requests.deposits` body therefore rejects through the
+general derived requests-hash/header mismatch path rather than through a
+special-case deposit-length fail code.
 
 
 ## No-Runtime Classification
@@ -97,11 +92,13 @@ follow-up checks need:
   SSZ `ExecutionRequests` section;
 - `request_erh_status` mirrors `c1_erh_status` from `execution_requests_hash` or
   `requests_hash_verify`;
-- `request_notx_deposit_len` mirrors the legacy no-tx SSZ deposit-body guard.
+- `request_notx_deposit_len` is retained only as a retired/zero debug word for
+  compatibility with the existing debug output layout.
 
 ## Follow-Up Beads
 
-- `evm-asm-8uld3.2.3.3.3.2`: route no-tx and no-runtime paths through derived
-  deposit hashing, then remove or retire the `hv09f.1` special guard.
+- `evm-asm-8uld3.2.3.3.3.2`: route remaining no-runtime paths through precise
+  derived-deposit handling where sound; the no-tx `hv09f.1` special guard is
+  retired.
 - `evm-asm-8uld3.2.3.3.3.3`: add tx-bearing forged-deposit EEST/debug evidence
   for the receipt-tail derived path and a paired valid case.
