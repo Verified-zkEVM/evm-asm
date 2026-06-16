@@ -7,6 +7,7 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
 
 namespace EvmAsm.Codegen
 
@@ -49,8 +50,38 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++         -- memory_start_index
     "  ld x15, 96(x12)
 " ++         -- size
+    "  ld x5, " ++ toString activeMemorySizeOff ++ "(x20)
+" ++
+    "  la x6, ecc_old_active; sd x5, 0(x6)
+" ++
+    "  addi sp, sp, -8
+" ++
+    "  sd x5, 0(sp)
+" ++
     copyWordGasAsm "extcodecopy" "x15" "x16" "x17" "x18" ++
     updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" "x6" true ++
+    "  ld x5, 0(sp)
+" ++
+    "  addi sp, sp, 8
+" ++
+    "  ld x6, " ++ toString activeMemorySizeOff ++ "(x20)
+" ++
+    "  add x7, x13, x5
+" ++
+    "  add x8, x13, x6
+" ++
+    ".Lrt_ecc_zero_new_mem:
+" ++
+    "  bgeu x7, x8, .Lrt_ecc_zero_new_done
+" ++
+    "  sb zero, 0(x7)
+" ++
+    "  addi x7, x7, 1
+" ++
+    "  j .Lrt_ecc_zero_new_mem
+" ++
+    ".Lrt_ecc_zero_new_done:
+" ++
     "  add x19, x13, x14
 " ++       -- output ptr = evm_memory + memory_start
     "  la t1, ecc_address_scratch
@@ -63,6 +94,8 @@ private def extcodecopyWitnessTail : HandlerTail :=
     "  sd x12, 8(sp)
 " ++
     "  sd x13, 16(sp)
+" ++
+    "  sd x21, 24(sp)
 " ++
     "  la a0, ecc_address_scratch
 " ++
@@ -80,7 +113,135 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  ld x13, 16(sp)
 " ++
+    "  ld x21, 24(sp)
+" ++
     "  addi sp, sp, 32
+" ++
+    "  ld x14, 32(x12)
+" ++
+    "  ld x15, 96(x12)
+" ++
+    "  add x19, x13, x14
+" ++
+    "  addi sp, sp, -64
+" ++
+    "  sd x10, 0(sp)
+" ++
+    "  sd x12, 8(sp)
+" ++
+    "  sd x13, 16(sp)
+" ++
+    "  sd x14, 24(sp)
+" ++
+    "  sd x15, 32(sp)
+" ++
+    "  sd x19, 40(sp)
+" ++
+    "  sd x21, 48(sp)
+" ++
+    "  la a0, ecc_address_scratch
+" ++
+    "  jal ra, runtime_same_block_delegation_code
+" ++
+    "  bnez a0, .Lrt_ecc_after_same_block
+" ++
+    "  ld x10, 0(sp)
+" ++
+    "  ld x12, 8(sp)
+" ++
+    "  ld x13, 16(sp)
+" ++
+    "  ld x14, 24(sp)
+" ++
+    "  ld x15, 32(sp)
+" ++
+    "  ld x19, 40(sp)
+" ++
+    "  ld x21, 48(sp)
+" ++
+    "  addi sp, sp, 64
+" ++
+    "  la t0, rsbd_code_ptr; ld t1, 0(t0)
+" ++
+    "  la t0, rsbd_code_len; ld t2, 0(t0)
+" ++
+    "  ld t3, 64(x12)
+" ++
+    "  li t4, 0
+" ++
+    ".Lrt_ecc_same_loop:
+" ++
+    "  beq t4, x15, .Lrt_ecc_same_done
+" ++
+    "  add t5, t3, t4
+" ++
+    "  bgeu t5, t2, .Lrt_ecc_same_zero
+" ++
+    "  add t6, t1, t5; lbu t6, 0(t6)
+" ++
+    "  j .Lrt_ecc_same_store
+" ++
+    ".Lrt_ecc_same_zero:
+" ++
+    "  li t6, 0
+" ++
+    ".Lrt_ecc_same_store:
+" ++
+    "  add t0, x19, t4; sb t6, 0(t0)
+" ++
+    "  addi t4, t4, 1; j .Lrt_ecc_same_loop
+" ++
+    ".Lrt_ecc_same_done:
+" ++
+    "  la t0, ecc_same_block_hit; li t1, 1; sd t1, 0(t0)
+" ++
+    "  add t0, x14, x15
+" ++
+    "  la t1, ecc_old_active; ld t1, 0(t1)
+" ++
+    "  bgeu t0, t1, .Lrt_ecc_tail_start_ok
+" ++
+    "  mv t0, t1
+" ++
+    ".Lrt_ecc_tail_start_ok:
+" ++
+    "  ld t2, " ++ toString activeMemorySizeOff ++ "(x20)
+" ++
+    ".Lrt_ecc_tail_zero_loop:
+" ++
+    "  bgeu t0, t2, .Lrt_ecc_tail_zero_done
+" ++
+    "  add t3, x13, t0; sb zero, 0(t3)
+" ++
+    "  addi t0, t0, 1
+" ++
+    "  j .Lrt_ecc_tail_zero_loop
+" ++
+    ".Lrt_ecc_tail_zero_done:
+" ++
+    "  addi x12, x12, 128
+" ++
+    "  addi x10, x10, 1
+" ++
+    "  j .dispatch_loop
+" ++
+    ".Lrt_ecc_after_same_block:
+" ++
+    "  ld x10, 0(sp)
+" ++
+    "  ld x12, 8(sp)
+" ++
+    "  ld x13, 16(sp)
+" ++
+    "  ld x14, 24(sp)
+" ++
+    "  ld x15, 32(sp)
+" ++
+    "  ld x19, 40(sp)
+" ++
+    "  ld x21, 48(sp)
+" ++
+    "  addi sp, sp, 64
 " ++
     "  ld t0, 608(x20)
 " ++         -- witness.codes ptr
@@ -101,6 +262,8 @@ private def extcodecopyWitnessTail : HandlerTail :=
     "  sd x12, 8(sp)
 " ++
     "  sd x13, 16(sp)
+" ++
+    "  sd x21, 24(sp)
 " ++
     "  ld a0, 576(x20)
 " ++         -- header ptr
@@ -127,6 +290,8 @@ private def extcodecopyWitnessTail : HandlerTail :=
     "  ld x12, 8(sp)
 " ++
     "  ld x13, 16(sp)
+" ++
+    "  ld x21, 24(sp)
 " ++
     "  addi sp, sp, 32
 " ++
@@ -161,6 +326,8 @@ private def extcodecopyWitnessTail : HandlerTail :=
     "  ld x12, 8(sp)
 " ++
     "  ld x13, 16(sp)
+" ++
+    "  ld x21, 24(sp)
 " ++
     "  addi sp, sp, 32
 " ++
