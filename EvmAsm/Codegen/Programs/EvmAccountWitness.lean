@@ -8,6 +8,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.StateCompose
+import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
 
 namespace EvmAsm.Codegen
 
@@ -44,6 +45,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
+    "  sd x21, 16(sp)\n" ++
     "  la a0, eahsr_address_scratch\n" ++
     "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
     "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
@@ -51,12 +53,41 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  jal ra, runtime_access_account_charge\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  sd x21, 16(sp)\n" ++
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, runtime_same_block_delegation_code\n" ++
+    "  bnez a0, .Lextcodehash_after_same_block\n" ++
+    "  la t0, rsbd_code_ptr; ld a0, 0(t0)\n" ++
+    "  la t0, rsbd_code_len; ld a1, 0(t0)\n" ++
+    "  la a2, rsbd_hash\n" ++
+    "  jal ra, zkvm_keccak256\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
+    "  la t0, rsbd_hash; addi t0, t0, 31; mv t1, x12; li t2, 32\n" ++
+    ".Lextcodehash_same_block_rev:\n" ++
+    "  beqz t2, .Lextcodehash_same_block_rev_done\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lextcodehash_same_block_rev\n" ++
+    ".Lextcodehash_same_block_rev_done:\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodehash_after_same_block:\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
     "  addi sp, sp, 32\n" ++
     "  ld t0, 584(x20)\n" ++          -- header length; zero means no witness context
     "  beqz t0, .Lextcodehash_no_context\n" ++
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
+    "  sd x21, 16(sp)\n" ++
     "  ld a0, 576(x20)\n" ++         -- header ptr
     "  ld a1, 584(x20)\n" ++         -- header len
     "  la a2, eahsr_address_scratch\n" ++
@@ -66,6 +97,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  jal ra, extcodehash_at_header_state_root\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop\n" ++
@@ -89,6 +121,7 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
+    "  sd x21, 16(sp)\n" ++
     "  la a0, eahsr_address_scratch\n" ++
     "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
     "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
@@ -96,12 +129,37 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  jal ra, runtime_access_account_charge\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32\n" ++
+    "  sd x10, 0(sp)\n" ++
+    "  sd x12, 8(sp)\n" ++
+    "  sd x21, 16(sp)\n" ++
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, runtime_same_block_delegation_code\n" ++
+    "  bnez a0, .Lextcodesize_after_same_block\n" ++
+    "  la t0, rsbd_code_len; ld t1, 0(t0)\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  sd t1, 0(x12)\n" ++
+    "  sd zero, 8(x12)\n" ++
+    "  sd zero, 16(x12)\n" ++
+    "  sd zero, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodesize_after_same_block:\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
     "  addi sp, sp, 32\n" ++
     "  ld t0, 584(x20)\n" ++
     "  beqz t0, .Lextcodesize_no_context\n" ++
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
+    "  sd x21, 16(sp)\n" ++
     "  ld a0, 576(x20)\n" ++         -- header ptr
     "  ld a1, 584(x20)\n" ++         -- header len
     "  la a2, eahsr_address_scratch\n" ++
@@ -114,6 +172,7 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  ld t1, 0(t0)\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
     "  addi sp, sp, 32\n" ++
     "  sd t1, 0(x12)\n" ++
     "  sd zero, 8(x12)\n" ++

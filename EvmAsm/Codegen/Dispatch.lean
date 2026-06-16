@@ -49,6 +49,7 @@ import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.EIP7708Logs
+import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CallFrameDescend
@@ -1490,6 +1491,7 @@ def emitDispatcherEpilogueCore
     extcodehashAtHeaderStateRootFunction ++ "\n" ++
     extcodesizeAtHeaderStateRootFunction ++ "\n" ++
     extcodecopyAtHeaderStateRootFunction ++ "\n" ++
+    runtimeSameBlockDelegationCodeFunction ++ "\n" ++
     hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
     addressComputeCreateFunction ++ "\n" ++
     addressComputeCreate2Function ++ "\n" ++
@@ -2397,6 +2399,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   accountIsEmptyAtHeaderStateRootFunction ++ "\n" ++
   extcodehashAtHeaderStateRootFunction ++ "\n" ++
   extcodecopyAtHeaderStateRootFunction ++ "\n" ++
+  runtimeSameBlockDelegationCodeFunction ++ "\n" ++
   hasCodeOrNonceAtHeaderStateRootFunction ++ "\n" ++
   createStageInitcodeFrameRuntimeFunction ++ "\n" ++
   createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
@@ -2680,6 +2683,7 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_access_list_seed_fn:\n" ++
   "  .zero 8\n" ++
+  runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
   "txal_type:\n  .zero 8\n" ++
   "txal_inner_off:\n  .zero 8\n" ++
