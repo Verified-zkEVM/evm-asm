@@ -35,7 +35,7 @@ The distinction matters:
 | Execution requests hash input | EIP-6110 deposits `8192 * 192`, withdrawals `16 * 76`, consolidations `2 * 116` | `erh_blob = 1572865` | Hash helper covers the deposit body cap. |
 | Execution-derived deposit body staging | Same deposit body cap when deriving requests from logs | `c1_dbody = 32768`, `c1_log_records = 81920` | Gap: `evm-asm-vv4hr.4`. |
 | System-call payload staging | Witness code plus 100k preloads plus M29 slack | `c1StagingBytes = bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384` | Covered by shared guard for current staging model. |
-| Witness node index | All witness records needed by valid 200M blocks | `MptWitnessIndex` cap `8192` records | Gap: `evm-asm-vv4hr.5`. |
+| Witness node index | All `witness.state` records representable under the 512 KiB accepted witness byte guard | `mptWitnessIndexCapacity = 131072` records; arena `6291456` bytes | Covered for fixed-arena record count; lookup/code/header performance work continues under `evm-asm-vv4hr.5`. |
 | Debug/probe output | Every capacity bail is observable without crashing | Fixed verdict/debug layouts | Gap: `evm-asm-vv4hr.6`. |
 
 ## Follow-Up Beads
@@ -57,8 +57,10 @@ Every discovered 200M resource gap has a P1 child bead:
   cover the full deposit cap instead of the current `c1_dbody` /
   `c1_log_records` staging limits.
 - `evm-asm-vv4hr.5`: extend witness/header/code indexing and step behavior so
-  valid large witnesses do not fail through index overflow or
-  `EmulationNoCompleted`.
+  valid large witnesses do not fail through code/header linear scans or
+  `EmulationNoCompleted`. The `witness.state` NodeDb fixed arena is now sized
+  from the 512 KiB accepted witness byte guard: 524288 / 4 = 131072 records,
+  or 6291456 bytes of RAM at 48 bytes per sorted record.
 - `evm-asm-vv4hr.6`: make verdict debug/probe output report every resource cap
   precisely without truncation, uninitialized reads, or debug-probe exits.
 - `evm-asm-vv4hr.7`: make system-storage side capture precise under full
