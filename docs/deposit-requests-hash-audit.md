@@ -46,6 +46,42 @@ requests-hash comparison used by the receipt tail, so no-tx/no-runtime paths
 also reject forged deposits through a derived hash mismatch rather than a
 special-case length check.
 
+
+## No-Runtime Classification
+
+The only path that can use an empty derived deposit body without inspecting
+receipt logs is the true no-transaction path:
+
+- `svf_tx_count == 0`: no transaction can call the deposit contract, so the
+  execution-derived deposit body is exactly empty. The prelude may assemble the
+  requests hash with `c1_dbody` and `c1_dlen = 0`, then compare it against the
+  header commitment. This is the scope of `evm-asm-8uld3.2.3.3.3.2.1`.
+
+Tx-bearing paths need stricter handling because a syntactically unsupported or
+non-runtime-dispatched transaction may still be capable, in the execution spec,
+of emitting a deposit-contract log if it were executed. These paths must not be
+silently converted to empty deposits merely because the guest did not
+materialize runtime logs:
+
+- `bvgr_arena_status != 0` or `bvgr_arena_runtime_count == 0` for a block with
+  transactions: the guest lacks complete runtime receipt/log evidence, so deposit
+  derivation is unsupported rather than empty.
+- `bv_block_log_overflow != 0`: log capture exceeded the current arena; a
+  deposit log might be among the uncaptured logs, so the path remains capacity
+  debt.
+- `bv_receipt_logs_status == 3`: block-log arena overflow propagated through
+  `block_receipt_logs_materialize`; this is also capacity debt, not evidence of
+  zero deposits.
+- receipt/encoder/validator helper statuses that conservatively accept due to
+  capacity (`bv_receipts_encoder_status` 3 or 5, or validator helper failure on a
+  non-enforced shape) do not prove the deposit log set is empty.
+
+For tx-bearing blocks, the precise path is the receipt tail: materialize all
+block logs, parse deposits from those logs, and verify `requests_hash` with the
+derived deposit body. If that path is not reached or is blocked by capacity, the
+follow-up should preserve a precise unsupported/capacity status rather than
+claiming empty deposits.
+
 ## Debug Fields For Follow-Up Evidence
 
 The existing stateless debug output already exposes the request-body fields the
