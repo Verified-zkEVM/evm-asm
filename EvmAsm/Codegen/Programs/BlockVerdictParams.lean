@@ -181,6 +181,16 @@ def bvMaxDepositRequestBodyBytes : Nat := 8192 * 192
 def bvMaxExecutionRequestSectionBytes : Nat :=
   12 + bvMaxDepositRequestBodyBytes + 16 * 76 + 2 * 116
 
+/-- One canonicalized EIP-6110 deposit log record has the common 80-byte
+    log-record header plus the 576-byte DepositEvent ABI payload. -/
+def bvDepositLogRecordBytes : Nat := 80 + 576
+
+/-- Protocol target for execution-derived EIP-6110 deposit log-record staging.
+    This is the target later capacity/streaming slices must cover before
+    `parse_deposit_requests`; the current `c1_log_records` arena is still much
+    smaller and is tracked under `evm-asm-vv4hr.4`. -/
+def bvMaxDepositLogRecordBytes : Nat := 8192 * bvDepositLogRecordBytes
+
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
     Predeploy code comes from the witness and is NOT EIP-170-bounded, but the
@@ -259,5 +269,9 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvReceiptEncodePayloadBytes = 16384
 #guard bvReceiptListPayloadBytes = 32768
 #guard bvReceiptConsensusDescBytes = 2048
+#guard bvMaxDepositRequestBodyBytes = 1572864
+#guard bvMaxExecutionRequestSectionBytes = 1574324
+#guard bvDepositLogRecordBytes = 656
+#guard bvMaxDepositLogRecordBytes = 5373952
 
 end EvmAsm.Codegen

@@ -33,10 +33,34 @@ The distinction matters:
 | Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3.2`. |
 | Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536`, `bvReceiptListPayloadBytes = 32768`, `bvReceiptConsensusDescCapacity = 128` | Gaps: `evm-asm-vv4hr.3.3` and `evm-asm-vv4hr.3.4`. |
 | Execution requests hash input | EIP-6110 deposits `8192 * 192`, withdrawals `16 * 76`, consolidations `2 * 116` | `erh_blob = 1572865` | Hash helper covers the deposit body cap. |
-| Execution-derived deposit body staging | Same deposit body cap when deriving requests from logs | `c1_dbody = 32768`, `c1_log_records = 81920` | Gap: `evm-asm-vv4hr.4`. |
+| Execution-derived deposit body staging | Deposit body `8192 * 192 = 1572864`; canonicalized deposit log records `8192 * (80 + 576) = 5373952` before parsing | `c1_dbody = bvMaxDepositRequestBodyBytes = 1572864`, `c1_log_records = 81920` | Body arena covered; log-record staging remains gap `evm-asm-vv4hr.4`. |
 | System-call payload staging | Witness code plus 100k preloads plus M29 slack | `c1StagingBytes = bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384` | Covered by shared guard for current staging model. |
 | Witness node index | All `witness.state` records representable under the 512 KiB accepted witness byte guard | `mptWitnessIndexCapacity = 131072` records; arena `6291456` bytes | Covered for fixed-arena record count; lookup/code/header performance work continues under `evm-asm-vv4hr.5`. |
 | Debug/probe output | Every capacity bail is observable without crashing | Fixed verdict/debug layouts | Gap: `evm-asm-vv4hr.6`. |
+
+## EIP-6110 Derived Deposit Bounds
+
+Execution-derived EIP-6110 deposits are bounded by the protocol request cap, not
+by contract code size and not directly by the 200M gas target. The request body
+contains at most `8192` deposit requests of `192` bytes each, so the final
+derived deposit body target is `8192 * 192 = 1572864` bytes. The current
+`c1_dbody` arena uses `bvMaxDepositRequestBodyBytes` and already matches that
+body target.
+
+Before parsing, the receipt-tail path stages canonicalized log records in the
+format consumed by `parse_deposit_requests`: an 80-byte record header followed
+by the DepositEvent ABI payload. A valid deposit event payload is `576` bytes,
+so full-capacity deposit-only staging is `8192 * (80 + 576) = 5373952` bytes.
+`BlockVerdictParams.lean` names this as `bvMaxDepositLogRecordBytes`. The
+current `c1_log_records = 81920` buffer is therefore the remaining capacity gap
+for the follow-up implementation beads; it covers only the current small staging
+frontier, not the protocol target.
+
+This derivation assumes the ZisK input/RAM split noted by the operator: large
+fixture input and witness bytes are not constrained by the guest RAM arena in the
+same way as `.data` staging buffers. The guest should still reject or report
+precise unsupported status when actual decoded log records exceed the staged or
+streamed target.
 
 ## Follow-Up Beads
 
@@ -54,9 +78,12 @@ Every discovered 200M resource gap has a P1 child bead:
   roots and logs bloom are not capped by 128 log descriptors, 128 consensus
   receipt descriptors, 32 KiB receipt-list scratch, or 64 KiB log/receipt RLP
   arenas. Per-tx receipt records are already sized to the 9,523 full-tx target.
-- `evm-asm-vv4hr.4`: make execution-derived EIP-6110 deposit request bodies
-  cover the full deposit cap instead of the current `c1_dbody` /
-  `c1_log_records` staging limits.
+- `evm-asm-vv4hr.4`: make execution-derived EIP-6110 deposit request derivation
+  cover the full deposit cap. `c1_dbody` is already sized to
+  `bvMaxDepositRequestBodyBytes = 8192 * 192 = 1572864`; the remaining staging
+  gap is the canonical log-record input before parsing:
+  `bvMaxDepositLogRecordBytes = 8192 * (80 + 576) = 5373952` versus the current
+  `c1_log_records = 81920`.
 - `evm-asm-vv4hr.5`: extend witness/header/code indexing and step behavior so
   valid large witnesses do not fail through code/header linear scans or
   `EmulationNoCompleted`. The `witness.state` NodeDb fixed arena is now sized
