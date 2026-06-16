@@ -24,18 +24,22 @@ def blockVerdictExactGasCheck : String :=
   "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++
   "  bnez a0, .Lbv_block_state_gas_fail\n" ++
   -- Normalize the regular-gas increments for the exact final header check.
-  -- Some runtime paths already report regular-only block increments, while
-  -- state-executing contract paths report settlement increments that include the
-  -- EIP-8037 state reservation consumed by the gas-result helper. Subtract that
-  -- intrinsic reservation, not the final net block-state gas: top-level CREATE
-  -- collisions refund the state dimension to zero, but the settlement increment
-  -- can still carry the reserved 183600 before normalization.
+  -- Runtime gas-result increments are receipt-style settlement increments and
+  -- can include EIP-8037 state gas. Subtract the state dimension that was folded
+  -- into the settlement increment before feeding the block-level regular/state
+  -- max: executed SSTORE rows need the net total state gas, while reverted
+  -- CREATE/collision rows can still carry the intrinsic reservation even when
+  -- their net state dimension refunds to zero.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
   "  slli t5, t1, 3\n" ++
   "  la t6, bvgr_block_gas_increments; add t6, t6, t5; ld a0, 0(t6)\n" ++
   "  la t6, bvgr_tx_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a2, 0(t6)\n" ++
+  "  bgeu a1, a2, .Lbv_regular_eip8037_have_state_sub\n" ++
+  "  mv a1, a2\n" ++
+  ".Lbv_regular_eip8037_have_state_sub:\n" ++
   "  bltu a0, a1, .Lbv_regular_eip8037_floor\n" ++
   "  sub a0, a0, a1\n" ++
   ".Lbv_regular_eip8037_floor:\n" ++
