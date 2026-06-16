@@ -17,3 +17,4 @@ import EvmAsm.EL.RLP.LongForm
 import EvmAsm.EL.RLP.LongFormDecodeBridge
 import EvmAsm.EL.RLP.FullDecode
 import EvmAsm.EL.RLP.Properties
+import EvmAsm.EL.RLP.Scalar

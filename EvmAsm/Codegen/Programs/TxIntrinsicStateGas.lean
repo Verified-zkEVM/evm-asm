@@ -202,6 +202,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lteer_done\n" ++
   "  la t0, teer_auth_count; ld s7, 0(t0)\n" ++
+  "  li t0, 1; bgtu s7, t0, .Lteer_same_authority_try\n" ++
+  ".Lteer_single_loop_setup:\n" ++
   "  li s8, 0\n" ++
   ".Lteer_loop:\n" ++
   "  beq s8, s7, .Lteer_done\n" ++
@@ -287,6 +289,102 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
 
   ".Lteer_next:\n" ++
   "  addi s8, s8, 1; j .Lteer_loop\n" ++
+  ".Lteer_same_authority_try:\n" ++
+  "  mv a0, s5; mv a1, s6; li a2, 0; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
+  "  la t0, teer_tuple_len; ld s11, 0(t0)\n" ++
+  "  mv a0, s9; mv a1, s11; li a2, 0; la a3, teer_auth_chain\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_same_first_chain_ok; bne t1, s4, .Lteer_single_loop_setup\n" ++
+  ".Lteer_same_first_chain_ok:\n" ++
+  "  mv a0, s9; mv a1, s11; li a2, 2; la a3, teer_first_nonce\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_first_nonce; ld t1, 0(t0); li t2, -1; beq t1, t2, .Lteer_single_loop_setup\n" ++
+  "  mv a0, s9; mv a1, s11; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_single_loop_setup\n" ++
+  "  mv a0, s9; mv a1, s11; la a2, teer_first_authority; la a3, teer_recover_scratch\n" ++
+  "  jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  mv a0, s2; mv a1, s3; la a2, teer_first_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
+  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bne t2, t1, .Lteer_single_loop_setup\n" ++
+  "  addi t0, s7, -1; mv a0, s5; mv a1, s6; mv a2, t0; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
+  "  la t0, teer_tuple_len; ld s11, 0(t0)\n" ++
+  "  mv a0, s9; mv a1, s11; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_single_loop_setup\n" ++
+  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
+  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
+  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_single_loop_setup\n" ++
+  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_single_loop_setup\n" ++
+  "  lbu t3, 2(t2); bnez t3, .Lteer_single_loop_setup\n" ++
+  "  addi t2, t2, 3; la t0, teer_target_off; ld t4, 0(t0); add t4, s9, t4; li t5, 20\n" ++
+  ".Lteer_same_final_marker_cmp:\n" ++
+  "  beqz t5, .Lteer_same_loop_start\n" ++
+  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_single_loop_setup\n" ++
+  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_same_final_marker_cmp\n" ++
+  ".Lteer_same_loop_start:\n" ++
+  "  li s8, 0\n" ++
+  ".Lteer_same_loop:\n" ++
+  "  beq s8, s7, .Lteer_same_compute_refund\n" ++
+  "  mv a0, s5; mv a1, s6; mv a2, s8; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
+  "  la t0, teer_tuple_len; ld s11, 0(t0)\n" ++
+  "  mv a0, s9; mv a1, s11; li a2, 0; la a3, teer_auth_chain\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_same_chain_ok; bne t1, s4, .Lteer_single_loop_setup\n" ++
+  ".Lteer_same_chain_ok:\n" ++
+  "  mv a0, s9; mv a1, s11; li a2, 2; la a3, teer_auth_nonce\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s8; la t0, teer_auth_nonce; ld t2, 0(t0); bne t2, t1, .Lteer_single_loop_setup\n" ++
+  "  mv a0, s9; mv a1, s11; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_single_loop_setup\n" ++
+  "  mv a0, s9; mv a1, s11; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
+  "  jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_authority; la t1, teer_first_authority; li t2, 20\n" ++
+  ".Lteer_same_authority_cmp:\n" ++
+  "  beqz t2, .Lteer_same_next\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lteer_single_loop_setup\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lteer_same_authority_cmp\n" ++
+  ".Lteer_same_next:\n" ++
+  "  addi s8, s8, 1; j .Lteer_same_loop\n" ++
+  ".Lteer_same_compute_refund:\n" ++
+  "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_single_loop_setup\n" ++
+  "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
+  "  ld t3, 16(t2)\n" ++
+  liAmsterdamNewAccountStateGas "t4" ++
+  "  mul s10, s7, t4\n" ++
+  "  beqz t3, .Lteer_same_have_new_refund\n" ++
+  "  sub s10, s10, t4\n" ++
+  ".Lteer_same_have_new_refund:\n" ++
+  "  addi t5, s7, -1\n" ++
+  "  li t4, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
+  "  mul t5, t5, t4\n" ++
+  "  add s10, s10, t5\n" ++
+  "  j .Lteer_done\n" ++
   ".Lteer_done:\n" ++
   "  mv a0, s10\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -318,6 +416,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  mv s3, a3                   # receipt gas increments\n" ++
   "  mv s4, a4                   # intrinsic state gas array\n" ++
   "  mv s5, a5                   # block gas increments (skip if receipt already includes state gas)\n" ++
+  "  sd a6, 104(sp)              # executed state gas array (optional)\n" ++
   "  beqz s2, .Lbvrga_done\n" ++
   "  li t0, 4; bltu s1, t0, .Lbvrga_done\n" ++
   "  slli s7, s2, 2             # minimum item offset = tx_count * 4\n" ++
@@ -352,6 +451,10 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvrga_next\n" ++
+  -- Amsterdam type-4 receipt gas includes the per-authorization state
+  -- component in `tx_gas_used_after_refund`, but not the whole EIP-8037 state
+  -- dimension. The runtime increment already contains regular execution/auth
+  -- gas; add 42690 per authorization tuple. Decode failures leave it intact.
   "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 42690; mul t4, t0, t1; li t1, 7500; mul t6, t0, t1\n" ++
   "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2)\n" ++
   "  beqz s5, .Lbvrga_type4_check_state\n" ++
@@ -361,22 +464,134 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  beqz s4, .Lbvrga_next\n" ++
   "  add t5, s4, t1; ld t5, 0(t5); li t0, 35190; la t1, bvrga_auth_count; ld t1, 0(t1); mul t0, t0, t1\n" ++
   "  bleu t5, t0, .Lbvrga_next\n" ++
-  "  add t3, t3, t6; sd t3, 0(t2); j .Lbvrga_next\n" ++
+  -- Receipt gas for type-4 txs includes auth regular gas and, when the
+  -- authority did not already hold a delegation indicator, the net auth-base
+  -- state component. `tx_total_state_gas - tx_exec_state_gas` distinguishes
+  -- that case from the already-delegated path, which is already correct with
+  -- just PER_AUTH_BASE_COST. The 2500-per-auth subtraction preserves the
+  -- delegated target's cold-account delta in receipt gas while removing the
+  -- receipt-side state settlement refund observed in execution-specs for this
+  -- branch.
+  "  add t3, t3, t6\n" ++
+  "  ld t4, 104(sp); beqz t4, .Lbvrga_type4_store_regular\n" ++
+  "  slli t1, s6, 3; add t4, t4, t1; ld t4, 0(t4)\n" ++
+  "  bleu t5, t4, .Lbvrga_type4_store_regular\n" ++
+  "  sub t5, t5, t4\n" ++
+  "  bleu t5, t0, .Lbvrga_type4_have_net_auth_state\n" ++
+  "  mv t5, t0\n" ++
+  ".Lbvrga_type4_have_net_auth_state:\n" ++
+  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t4, 2500; mul t4, t4, t1\n" ++
+  "  bleu t5, t4, .Lbvrga_type4_store_regular\n" ++
+  "  sub t5, t5, t4; add t3, t3, t5\n" ++
+  ".Lbvrga_type4_store_regular:\n" ++
+  "  j .Lbvrga_type4_store_adjusted\n" ++
   ".Lbvrga_type4_check_state:\n" ++
   "  beqz s4, .Lbvrga_type4_add_auth\n" ++
   "  add t5, s4, t1; ld t5, 0(t5); bgeu t3, t5, .Lbvrga_type4_add_state\n" ++
+  "  beqz s5, .Lbvrga_type4_state_floor\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbvrga_type4_state_floor\n" ++
+  "  slli t1, s6, 3; add t0, s5, t1; ld t0, 0(t0); bne t0, t3, .Lbvrga_type4_state_floor\n" ++
+  "  add t3, t3, t4; j .Lbvrga_type4_store_adjusted\n" ++
+  ".Lbvrga_type4_state_floor:\n" ++
   "  sub t0, t4, t6\n" ++
   liAmsterdamNewAccountStateGas "t1" ++
   "  add t0, t0, t1; bltu t5, t0, .Lbvrga_type4_add_auth\n" ++
-  "  add t3, t3, t5; add t3, t3, t6; sd t3, 0(t2); j .Lbvrga_next\n" ++
+  "  add t3, t3, t5; add t3, t3, t6; j .Lbvrga_type4_store_adjusted\n" ++
   ".Lbvrga_type4_add_auth:\n" ++
-  "  add t3, t3, t4; sd t3, 0(t2); j .Lbvrga_next\n" ++
+  "  add t3, t3, t4; j .Lbvrga_type4_store_adjusted\n" ++
   ".Lbvrga_type4_add_state:\n" ++
-  "  add t3, t3, t5; sd t3, 0(t2)\n" ++
+  "  add t3, t3, t5; add t3, t3, t6\n" ++
+  ".Lbvrga_type4_store_adjusted:\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 1; bleu t0, t1, .Lbvrga_type4_store_final\n" ++
+  "  beqz s4, .Lbvrga_type4_store_final\n" ++
+  "  slli t1, s6, 3; add t5, s4, t1; ld t5, 0(t5)\n" ++
+  "  li t1, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
+  "  mul t4, t0, t1; bgtu t5, t4, .Lbvrga_type4_store_final\n" ++
+  "  addi t0, t0, -1; mul t0, t0, t1; bleu t3, t0, .Lbvrga_type4_store_final\n" ++
+  "  sub t3, t3, t0\n" ++
+  ".Lbvrga_type4_store_final:\n" ++
+  "  sd t3, 0(t2)\n" ++
   "  j .Lbvrga_next\n" ++
   ".Lbvrga_next:\n" ++
   "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
   ".Lbvrga_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret"
+
+/-! ## block_verdict_failed_type4_auth_regular_adjust
+
+    The runtime gas-result arena records post-dispatch gas usage, while
+    Amsterdam block regular gas for type-4 transactions also includes the
+    per-authorization regular intrinsic cost. For successful type-4 contract
+    execution, the state/regular split above is sufficient for the current
+    supported rows. For failed type-4 execution (REVERT/exceptional status 0),
+    execution-specs still counts `PER_AUTH_BASE_COST * auth_count` in the block
+    regular dimension. This helper raises `regular_inc[i]` to at least
+    `before_refund[i] + 7500 * auth_count` for failed type-4 transactions.
+
+    Decode failures are non-gating: the caller keeps the previous regular
+    increment. -/
+def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
+  "block_verdict_failed_type4_auth_regular_adjust:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                   # tx list ptr\n" ++
+  "  mv s1, a1                   # tx list len\n" ++
+  "  mv s2, a2                   # tx count\n" ++
+  "  mv s3, a3                   # regular increments\n" ++
+  "  mv s4, a4                   # before-refund increments\n" ++
+  "  mv s5, a5                   # tx status array\n" ++
+  "  beqz s2, .Lbvf4ar_done\n" ++
+  "  li t0, 4; bltu s1, t0, .Lbvf4ar_done\n" ++
+  "  slli s7, s2, 2\n" ++
+  "  bgtu s7, s1, .Lbvf4ar_done\n" ++
+  "  li s6, 0\n" ++
+  ".Lbvf4ar_loop:\n" ++
+  "  beq s6, s2, .Lbvf4ar_done\n" ++
+  "  slli t0, s6, 3; add t1, s5, t0; ld t1, 0(t1); bnez t1, .Lbvf4ar_next\n" ++
+  "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le\n" ++
+  "  mv s8, a0\n" ++
+  "  bltu s8, s7, .Lbvf4ar_next\n" ++
+  "  bgtu s8, s1, .Lbvf4ar_next\n" ++
+  "  addi t0, s6, 1; beq t0, s2, .Lbvf4ar_last\n" ++
+  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le\n" ++
+  "  mv s9, a0; j .Lbvf4ar_have_next\n" ++
+  ".Lbvf4ar_last:\n" ++
+  "  mv s9, s1\n" ++
+  ".Lbvf4ar_have_next:\n" ++
+  "  bltu s9, s8, .Lbvf4ar_next\n" ++
+  "  bgtu s9, s1, .Lbvf4ar_next\n" ++
+  "  add s10, s0, s8\n" ++
+  "  sub s11, s9, s8\n" ++
+  "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbvf4ar_next\n" ++
+  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvf4ar_next\n" ++
+  "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvf4ar_next\n" ++
+  "  add a0, s10, t0; sub a1, s11, t0; li a2, 9; la a3, bvrga_auth_off; la a4, bvrga_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvf4ar_next\n" ++
+  "  la t0, bvrga_inner_off; ld t1, 0(t0); add t1, s10, t1\n" ++
+  "  la t0, bvrga_auth_off; ld t2, 0(t0); add a0, t1, t2\n" ++
+  "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbvf4ar_next\n" ++
+  "  slli t0, s6, 3\n" ++
+  "  add t1, s4, t0; ld t2, 0(t1)\n" ++
+  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3\n" ++
+  "  add t2, t2, t1; bltu t2, t1, .Lbvf4ar_next\n" ++
+  "  add t1, s3, t0; ld t3, 0(t1); bgeu t3, t2, .Lbvf4ar_next\n" ++
+  "  sd t2, 0(t1)\n" ++
+  ".Lbvf4ar_next:\n" ++
+  "  addi s6, s6, 1; j .Lbvf4ar_loop\n" ++
+  ".Lbvf4ar_done:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
@@ -551,7 +766,9 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_target_len:\n  .zero 8\n" ++
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
+  "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++
   "teer_acct_ptr:\n  .zero 8\n" ++

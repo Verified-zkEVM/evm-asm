@@ -22,16 +22,23 @@ out_file="gen-out/zisk_capture_system_storage_exec_rows.output"
 python3 - <<'PY2'
 from pathlib import Path
 out = Path('gen-out/zisk_capture_system_storage_exec_rows.output').read_bytes()
-vals = [int.from_bytes(out[i:i+8], 'little') for i in range(0, 112, 8)]
-want = [0, 2, 0, 0, 0x2222, 0x333f, 1, 2, 1, 3, 16383, 2, 16385, 2]
+vals = [int.from_bytes(out[i:i+8], 'little') for i in range(0, 144, 8)]
+cap = vals[17]
+want = [
+    0, 2, 0, 0, 0x2222, 0x333f,
+    1,
+    0, cap, 0x2222,
+    2, 1, 2, cap, 1, cap + 1, 2, cap,
+]
 if vals != want:
     raise SystemExit(f"FAIL: got={vals} want={want}")
 print(
     f"  status={vals[0]} count={vals[1]} tx0={vals[2]} tx1={vals[3]} "
     f"row0=0x{vals[4]:x} row1_last=0x{vals[5]:x} "
-    f"malformed={vals[6]} overflow={vals[7]} "
-    f"last_range=[{vals[8]},{vals[9]}) old={vals[10]} rows={vals[11]} "
-    f"new={vals[12]} last_status={vals[13]}"
+    f"malformed={vals[6]} exact_cap={vals[7]} exact_count={vals[8]} "
+    f"exact_row=0x{vals[9]:x} overflow={vals[10]} "
+    f"last_range=[{vals[11]},{vals[12]}) old={vals[13]} rows={vals[14]} "
+    f"new={vals[15]} last_status={vals[16]} cap={vals[17]}"
 )
 PY2
 
