@@ -119,11 +119,23 @@ def bvMtxCommittedChunkPages : Nat := 4
 def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
 def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
 
-/-- Persistent storage exec-log row capacity:
-    `(0xa0830000 - 0xa0630000) / 128 = 16384`.  The system-tuple side arena
-    mirrors this maximum because it captures rows that temporarily append to the
-    same runtime storage log before the verdict restores the user-log count. -/
-def bvSystemStorageLogCapacity : Nat := 16384
+/-- Execution-specs runs each EIP-7002/EIP-7251 system transaction with
+    `SYSTEM_TRANSACTION_GAS = 30,000,000`. The stateless verdict derives both
+    withdrawal and consolidation requests, so side capture must be sized for two
+    such calls. -/
+def bvSystemTransactionGas : Nat := 30000000
+def bvSystemRequestCallCount : Nat := 2
+
+/-- Conservative row bound for system-call SSTORE side capture. `SSTORE` costs at
+    least 100 gas even for the cheapest warm/dirty case, so two 30M-gas system
+    transactions can append at most 600,000 storage rows before gas exhaustion.
+    This bound is independent of the regular runtime storage-log arena
+    (`0xa0630000..0xa0830000` = 16,384 rows): system-call rows are copied aside
+    before the verdict restores the user log count, and must not inherit that
+    smaller incidental runtime window. -/
+def bvSystemStorageMinSstoreGas : Nat := 100
+def bvSystemStorageLogCapacity : Nat :=
+  bvSystemRequestCallCount * (bvSystemTransactionGas / bvSystemStorageMinSstoreGas)
 def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
 def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
 
@@ -201,6 +213,12 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderCountSortBytes = 304736
 #guard bvMtxSenderCountSkipBytes = 609472
 #guard bvMtxActiveTxCap = 1024
+#guard bvSystemTransactionGas = 30000000
+#guard bvSystemRequestCallCount = 2
+#guard bvSystemStorageMinSstoreGas = 100
+#guard bvSystemStorageLogCapacity = 600000
+#guard bvSystemStorageLogBytes = 76800000
+#guard bvSystemStorageTxindexBytes = 4800000
 #guard bvMtxFullTxCap = 9523
 #guard bvMtxArenaTxCap = bvMtxActiveTxCap
 #guard bvMtxU64ArenaBytes = 76184
