@@ -318,6 +318,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  mv s3, a3                   # receipt gas increments\n" ++
   "  mv s4, a4                   # intrinsic state gas array\n" ++
   "  mv s5, a5                   # block gas increments (skip if receipt already includes state gas)\n" ++
+  "  sd a6, 104(sp)              # executed state gas array (optional)\n" ++
   "  beqz s2, .Lbvrga_done\n" ++
   "  li t0, 4; bltu s1, t0, .Lbvrga_done\n" ++
   "  slli s7, s2, 2             # minimum item offset = tx_count * 4\n" ++
@@ -361,7 +362,26 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  beqz s4, .Lbvrga_next\n" ++
   "  add t5, s4, t1; ld t5, 0(t5); li t0, 35190; la t1, bvrga_auth_count; ld t1, 0(t1); mul t0, t0, t1\n" ++
   "  bleu t5, t0, .Lbvrga_next\n" ++
-  "  add t3, t3, t6; sd t3, 0(t2); j .Lbvrga_next\n" ++
+  -- Receipt gas for type-4 txs includes auth regular gas and, when the
+  -- authority did not already hold a delegation indicator, the net auth-base
+  -- state component. `tx_total_state_gas - tx_exec_state_gas` distinguishes
+  -- that case from the already-delegated path, which is already correct with
+  -- just PER_AUTH_BASE_COST. The 5000-per-auth subtraction matches the
+  -- receipt-side refund interaction observed in execution-specs for this
+  -- settlement-derived branch.
+  "  add t3, t3, t6\n" ++
+  "  ld t4, 104(sp); beqz t4, .Lbvrga_type4_store_regular\n" ++
+  "  slli t1, s6, 3; add t4, t4, t1; ld t4, 0(t4)\n" ++
+  "  bleu t5, t4, .Lbvrga_type4_store_regular\n" ++
+  "  sub t5, t5, t4\n" ++
+  "  bleu t5, t0, .Lbvrga_type4_have_net_auth_state\n" ++
+  "  mv t5, t0\n" ++
+  ".Lbvrga_type4_have_net_auth_state:\n" ++
+  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t4, 5000; mul t4, t4, t1\n" ++
+  "  bleu t5, t4, .Lbvrga_type4_store_regular\n" ++
+  "  sub t5, t5, t4; add t3, t3, t5\n" ++
+  ".Lbvrga_type4_store_regular:\n" ++
+  "  sd t3, 0(t2); j .Lbvrga_next\n" ++
   ".Lbvrga_type4_check_state:\n" ++
   "  beqz s4, .Lbvrga_type4_add_auth\n" ++
   "  add t5, s4, t1; ld t5, 0(t5); bgeu t3, t5, .Lbvrga_type4_add_state\n" ++
@@ -372,11 +392,88 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   ".Lbvrga_type4_add_auth:\n" ++
   "  add t3, t3, t4; sd t3, 0(t2); j .Lbvrga_next\n" ++
   ".Lbvrga_type4_add_state:\n" ++
-  "  add t3, t3, t5; sd t3, 0(t2)\n" ++
+  "  add t3, t3, t5; add t3, t3, t6; sd t3, 0(t2)\n" ++
   "  j .Lbvrga_next\n" ++
   ".Lbvrga_next:\n" ++
   "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
   ".Lbvrga_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret"
+
+/-! ## block_verdict_failed_type4_auth_regular_adjust
+
+    The runtime gas-result arena records post-dispatch gas usage, while
+    Amsterdam block regular gas for type-4 transactions also includes the
+    per-authorization regular intrinsic cost. For successful type-4 contract
+    execution, the state/regular split above is sufficient for the current
+    supported rows. For failed type-4 execution (REVERT/exceptional status 0),
+    execution-specs still counts `PER_AUTH_BASE_COST * auth_count` in the block
+    regular dimension. This helper raises `regular_inc[i]` to at least
+    `before_refund[i] + 7500 * auth_count` for failed type-4 transactions.
+
+    Decode failures are non-gating: the caller keeps the previous regular
+    increment. -/
+def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
+  "block_verdict_failed_type4_auth_regular_adjust:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                   # tx list ptr\n" ++
+  "  mv s1, a1                   # tx list len\n" ++
+  "  mv s2, a2                   # tx count\n" ++
+  "  mv s3, a3                   # regular increments\n" ++
+  "  mv s4, a4                   # before-refund increments\n" ++
+  "  mv s5, a5                   # tx status array\n" ++
+  "  beqz s2, .Lbvf4ar_done\n" ++
+  "  li t0, 4; bltu s1, t0, .Lbvf4ar_done\n" ++
+  "  slli s7, s2, 2\n" ++
+  "  bgtu s7, s1, .Lbvf4ar_done\n" ++
+  "  li s6, 0\n" ++
+  ".Lbvf4ar_loop:\n" ++
+  "  beq s6, s2, .Lbvf4ar_done\n" ++
+  "  slli t0, s6, 3; add t1, s5, t0; ld t1, 0(t1); bnez t1, .Lbvf4ar_next\n" ++
+  "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le\n" ++
+  "  mv s8, a0\n" ++
+  "  bltu s8, s7, .Lbvf4ar_next\n" ++
+  "  bgtu s8, s1, .Lbvf4ar_next\n" ++
+  "  addi t0, s6, 1; beq t0, s2, .Lbvf4ar_last\n" ++
+  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le\n" ++
+  "  mv s9, a0; j .Lbvf4ar_have_next\n" ++
+  ".Lbvf4ar_last:\n" ++
+  "  mv s9, s1\n" ++
+  ".Lbvf4ar_have_next:\n" ++
+  "  bltu s9, s8, .Lbvf4ar_next\n" ++
+  "  bgtu s9, s1, .Lbvf4ar_next\n" ++
+  "  add s10, s0, s8\n" ++
+  "  sub s11, s9, s8\n" ++
+  "  mv a0, s10; mv a1, s11; la a2, bvrga_type; la a3, bvrga_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbvf4ar_next\n" ++
+  "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvf4ar_next\n" ++
+  "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvf4ar_next\n" ++
+  "  add a0, s10, t0; sub a1, s11, t0; li a2, 9; la a3, bvrga_auth_off; la a4, bvrga_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbvf4ar_next\n" ++
+  "  la t0, bvrga_inner_off; ld t1, 0(t0); add t1, s10, t1\n" ++
+  "  la t0, bvrga_auth_off; ld t2, 0(t0); add a0, t1, t2\n" ++
+  "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbvf4ar_next\n" ++
+  "  slli t0, s6, 3\n" ++
+  "  add t1, s4, t0; ld t2, 0(t1)\n" ++
+  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3\n" ++
+  "  add t2, t2, t1; bltu t2, t1, .Lbvf4ar_next\n" ++
+  "  add t1, s3, t0; ld t3, 0(t1); bgeu t3, t2, .Lbvf4ar_next\n" ++
+  "  sd t2, 0(t1)\n" ++
+  ".Lbvf4ar_next:\n" ++
+  "  addi s6, s6, 1; j .Lbvf4ar_loop\n" ++
+  ".Lbvf4ar_done:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
