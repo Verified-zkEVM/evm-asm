@@ -456,7 +456,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_target_len:\n  .zero 8\n" ++
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
+  "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++
   "teer_acct_ptr:\n  .zero 8\n" ++
