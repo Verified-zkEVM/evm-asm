@@ -342,7 +342,11 @@ def statelessVerdictV2Function : String :=
   "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, t5\n" ++
   "  la t3, svf_codes_ptr; sd t2, 0(t3)\n" ++
   "  sub t4, t6, t5; la t3, svf_codes_len; sd t4, 0(t3)\n" ++
-  "  add t2, t0, t6\n" ++
+  "  mv a0, t2; mv a1, t4; jal ra, witness_codes_index_build\n" ++
+  "  bnez a0, .Lv2_witness_codes_index_fail\n" ++
+  "  la t1, svf_witness_section; ld t0, 0(t1); addi a0, t0, 8; jal ra, bgv_u32le # headers offset\n" ++
+  "  mv t6, a0\n" ++
+  "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, t6\n" ++
   "  la t3, svf_headers_ptr; sd t2, 0(t3)\n" ++
   "  la t1, svf_witness_end; ld t1, 0(t1); bltu t1, t2, .Lv2_headers_bounds_fail\n" ++
   "  sub a1, t1, t2; la t3, svf_headers_len; sd a1, 0(t3)\n" ++
@@ -610,6 +614,9 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_witness_index_fail:\n" ++
   "  li t0, 20; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_witness_codes_index_fail:\n" ++
+  "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_witness_offsets_fail:\n" ++
   "  li t0, 21; la t1, bv_fail_code; sd t0, 0(t1)\n" ++

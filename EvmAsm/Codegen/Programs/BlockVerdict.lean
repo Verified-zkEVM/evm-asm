@@ -70,6 +70,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictDataSection
 import EvmAsm.Codegen.Programs.BlockVerdictRuntimePayload
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
@@ -214,10 +215,23 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  li t2, " ++ toString bvRecordBloomsBytes ++ "; sd t2, 1008(t0)\n" ++
   "  la t1, bv_receipt_logs_status; ld t2, 0(t1); sd t2, 1016(t0)\n" ++
   "  la t1, bv_block_log_overflow; ld t2, 0(t1); sd t2, 1024(t0)\n" ++
+  "  la t1, wcidx_build_status; ld t2, 0(t1); sd t2, 1032(t0)\n" ++
+  "  la t1, wcidx_build_section_len; ld t2, 0(t1); sd t2, 1040(t0)\n" ++
+  "  la t1, wcidx_build_count; ld t2, 0(t1); sd t2, 1048(t0)\n" ++
+  "  la t1, wcidx_enabled; ld t2, 0(t1); sd t2, 1056(t0)\n" ++
+  "  la t1, wclh_lookup_calls; ld t2, 0(t1); sd t2, 1064(t0)\n" ++
+  "  la t1, wclh_indexed_calls; ld t2, 0(t1); sd t2, 1072(t0)\n" ++
+  "  la t1, wclh_indexed_hits; ld t2, 0(t1); sd t2, 1080(t0)\n" ++
+  "  la t1, wclh_indexed_misses; ld t2, 0(t1); sd t2, 1088(t0)\n" ++
+  "  la t1, wclh_linear_calls; ld t2, 0(t1); sd t2, 1096(t0)\n" ++
+  "  la t1, wclh_linear_hits; ld t2, 0(t1); sd t2, 1104(t0)\n" ++
+  "  la t1, wclh_linear_misses; ld t2, 0(t1); sd t2, 1112(t0)\n" ++
+  "  la t1, wclh_linear_iterations; ld t2, 0(t1); sd t2, 1120(t0)\n" ++
   "  j .Lv2_pdone\n" ++
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
