@@ -168,8 +168,8 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
 /-- `zisk_capture_system_storage_exec_rows`: focused side-arena copy probe.
     Copies source rows [1,3), so output checks that two rows were appended,
     both side txindex entries are 0, and the first/last copied dwords match
-    source row 1 and source row 2 respectively. Then it checks the precise
-    malformed and capacity-overflow status codes. -/
+    source row 1 and source row 2 respectively. Then it checks malformed,
+    exact-capacity, and cap+1 overflow status codes. -/
 def ziskCaptureSystemStorageExecRowsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la t0, cssc_src\n" ++
@@ -187,17 +187,25 @@ def ziskCaptureSystemStorageExecRowsPrologue : String :=
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 48(t0)\n" ++
-  "  li t1, 16383; la t2, cssc_side_count; sd t1, 0(t2)\n" ++
-  "  li a0, 1; li a1, 3; la a2, cssc_src; la a3, cssc_side_log; la a4, cssc_side_txindex; la a5, cssc_side_count\n" ++
+  "  li t1, " ++ toString (bvSystemStorageLogCapacity - 1) ++ "; la t2, cssc_side_count; sd t1, 0(t2)\n" ++
+  "  li a0, 1; li a1, 2; la a2, cssc_src; li a3, 0xa1000000; li a4, 0xa0800000; la a5, cssc_side_count\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 56(t0)\n" ++
-  "  la t1, bv_system_storage_capture_start; ld t2, 0(t1); sd t2, 64(t0)\n" ++
-  "  la t1, bv_system_storage_capture_end; ld t2, 0(t1); sd t2, 72(t0)\n" ++
-  "  la t1, bv_system_storage_capture_old_count; ld t2, 0(t1); sd t2, 80(t0)\n" ++
-  "  la t1, bv_system_storage_capture_rows; ld t2, 0(t1); sd t2, 88(t0)\n" ++
-  "  la t1, bv_system_storage_capture_new_count; ld t2, 0(t1); sd t2, 96(t0)\n" ++
-  "  la t1, bv_system_storage_capture_status; ld t2, 0(t1); sd t2, 104(t0)\n" ++
+  "  la t1, cssc_side_count; ld t2, 0(t1); sd t2, 64(t0)\n" ++
+  "  li t3, 0xa1000000; li t4, " ++ toString ((bvSystemStorageLogCapacity - 1) * 128) ++ "; add t3, t3, t4; ld t5, 0(t3); sd t5, 72(t0)\n" ++
+  "  li t1, " ++ toString bvSystemStorageLogCapacity ++ "; la t2, cssc_side_count; sd t1, 0(t2)\n" ++
+  "  li a0, 1; li a1, 2; la a2, cssc_src; li a3, 0xa1000000; li a4, 0xa0800000; la a5, cssc_side_count\n" ++
+  "  jal ra, capture_system_storage_exec_rows\n" ++
+  "  li t0, 0xa0010000\n" ++
+  "  sd a0, 80(t0)\n" ++
+  "  la t1, bv_system_storage_capture_start; ld t2, 0(t1); sd t2, 88(t0)\n" ++
+  "  la t1, bv_system_storage_capture_end; ld t2, 0(t1); sd t2, 96(t0)\n" ++
+  "  la t1, bv_system_storage_capture_old_count; ld t2, 0(t1); sd t2, 104(t0)\n" ++
+  "  la t1, bv_system_storage_capture_rows; ld t2, 0(t1); sd t2, 112(t0)\n" ++
+  "  la t1, bv_system_storage_capture_new_count; ld t2, 0(t1); sd t2, 120(t0)\n" ++
+  "  la t1, bv_system_storage_capture_status; ld t2, 0(t1); sd t2, 128(t0)\n" ++
+  "  li t2, " ++ toString bvSystemStorageLogCapacity ++ "; sd t2, 136(t0)\n" ++
   "  j .Lcssc_pdone\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
   ".Lcssc_pdone:"
