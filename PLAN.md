@@ -1252,9 +1252,36 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `bytesRegion_dword_at` (extract the `dw`-th dword cell, partial last chunk OK).
   Composition mirrors `Evm64/Push`: `generic_lbu_spec_within` +
   `extractByte_packBytes`, framed via `cpsTripleWithin_frameR` + `xperm_hyp`.
-  Axiom-clean, 0 sorry. **Next:** the list-decode loop (single-byte items →
-  `decodeItems_singleByte_run`, then varying-size) + the unified decoder's 5-exit
-  reconvergence.
+  Axiom-clean, 0 sorry.
+- ✅ **Single-byte-item list-decode loop** (`SingleByteListLoop.lean`). The first
+  RV64 RLP *list*-decode loop: a 4-instruction back-branch body
+  (`LBU x12,x13,0; ADDI x13,x13,1; ADDI x14,x14,-1; BNE x14,x0,back`) traversing a
+  single-byte-item payload, reading each byte from `bytesRegion` via
+  `bytesRegion_lbu_within` (assume-precondition scope — every byte `< 0x80` assumed,
+  no in-line validation/fail-exit yet). Layers: `sbll_iter_spec_within` (3-instr
+  triple), `sbll_body_spec_within` (2-exit `cpsBranchWithin`), `sbll_loop_succ/n_spec_within`
+  (n-iteration closure by **remaining-count induction with a generalized start
+  index** — keeping `regionBase`/`bs` fixed and re-indexing the per-iteration
+  validity hypotheses, since `bytesRegion_lbu_within` is keyed by the *absolute*
+  byte index, unlike Phase-2's `dwordAddr`-shift), and `sbll_loop_bridge` tying the
+  operational spec to the pure `decodeItems_singleByte_run` (zero-copy: shared
+  `< 0x80` precondition + matching consumed length `bs.length`). Cross-dword
+  cross-check: 10-byte / 2-dword payload → 10 items in `4*10` steps. Reuses
+  Phase-2's `word_ofNat_*`/`cnt_dec_1` counter lemmas. Axiom-clean, 0 sorry.
+- ✅ **In-line `< 0x80` validation — drop the `hsingle` assumption**
+  (`SingleByteListLoopValidated.lean`). The validated loop *proves* every payload
+  byte `< 0x80` in-machine instead of assuming it: it ORs each byte into an
+  accumulator (`x11`) during the scan (a `cpsTripleWithin` closure mirroring the
+  Phase-2 accumulator — `sbll_val_iter/body/loop_succ/n`), then a single post-loop
+  `ANDI x15, x11, 0x80; BNE x15, x0, fail` (accumulate-then-check, avoiding a
+  branching loop closure). `sbll_val_loop_checked_spec_within` is the 2-exit
+  `cpsBranchWithin` (success = `acc &&& 0x80 = 0`, fail = some byte `≥ 0x80`);
+  `sbll_val_loop_bridge` derives `decodeItems_singleByte_run` from the
+  *machine-checked* success condition — **no `hsingle` precondition**. Key new
+  BitVec lemma `orAccList_and_0x80_eq_zero_imp_all_lt` (accumulator bit-7 clear ⇒
+  all bytes `< 0x80`) via `BitVec.msb_eq_false_iff_two_mul_lt`. `OR` cannot
+  overflow ⇒ no `n ≤ 8` bound. Cross-dword cross-check at 10 bytes. Axiom-clean,
+  0 sorry. **Next:** varying-size items + the unified decoder's 5-exit reconvergence.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1

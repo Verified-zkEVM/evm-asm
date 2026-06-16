@@ -455,7 +455,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- component in `tx_gas_used_after_refund`, but not the whole EIP-8037 state
   -- dimension. The runtime increment already contains regular execution/auth
   -- gas; add 42690 per authorization tuple. Decode failures leave it intact.
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 42690; mul t4, t0, t1\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 42690; mul t4, t0, t1; li t1, 7500; mul t6, t0, t1\n" ++
   "  slli t1, s6, 3; add t2, s3, t1; ld t3, 0(t2)\n" ++
   "  beqz s5, .Lbvrga_type4_check_state\n" ++
   "  add t5, s5, t1; ld t5, 0(t5); bgtu t3, t5, .Lbvrga_type4_maybe_auth_regular\n" ++
@@ -468,9 +468,10 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- authority did not already hold a delegation indicator, the net auth-base
   -- state component. `tx_total_state_gas - tx_exec_state_gas` distinguishes
   -- that case from the already-delegated path, which is already correct with
-  -- just PER_AUTH_BASE_COST. The 5000-per-auth subtraction matches the
-  -- receipt-side refund interaction observed in execution-specs for this
-  -- settlement-derived branch.
+  -- just PER_AUTH_BASE_COST. The 2500-per-auth subtraction preserves the
+  -- delegated target's cold-account delta in receipt gas while removing the
+  -- receipt-side state settlement refund observed in execution-specs for this
+  -- branch.
   "  add t3, t3, t6\n" ++
   "  ld t4, 104(sp); beqz t4, .Lbvrga_type4_store_regular\n" ++
   "  slli t1, s6, 3; add t4, t4, t1; ld t4, 0(t4)\n" ++
@@ -479,7 +480,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  bleu t5, t0, .Lbvrga_type4_have_net_auth_state\n" ++
   "  mv t5, t0\n" ++
   ".Lbvrga_type4_have_net_auth_state:\n" ++
-  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t4, 5000; mul t4, t4, t1\n" ++
+  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t4, 2500; mul t4, t4, t1\n" ++
   "  bleu t5, t4, .Lbvrga_type4_store_regular\n" ++
   "  sub t5, t5, t4; add t3, t3, t5\n" ++
   ".Lbvrga_type4_store_regular:\n" ++
@@ -487,6 +488,11 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   ".Lbvrga_type4_check_state:\n" ++
   "  beqz s4, .Lbvrga_type4_add_auth\n" ++
   "  add t5, s4, t1; ld t5, 0(t5); bgeu t3, t5, .Lbvrga_type4_add_state\n" ++
+  "  beqz s5, .Lbvrga_type4_state_floor\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbvrga_type4_state_floor\n" ++
+  "  slli t1, s6, 3; add t0, s5, t1; ld t0, 0(t0); bne t0, t3, .Lbvrga_type4_state_floor\n" ++
+  "  add t3, t3, t4; j .Lbvrga_type4_store_adjusted\n" ++
+  ".Lbvrga_type4_state_floor:\n" ++
   "  sub t0, t4, t6\n" ++
   liAmsterdamNewAccountStateGas "t1" ++
   "  add t0, t0, t1; bltu t5, t0, .Lbvrga_type4_add_auth\n" ++
