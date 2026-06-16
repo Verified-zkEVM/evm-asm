@@ -324,6 +324,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
+  appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
