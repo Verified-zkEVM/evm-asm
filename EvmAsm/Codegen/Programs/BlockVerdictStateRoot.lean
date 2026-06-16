@@ -88,6 +88,7 @@ def blockStateRootFunction : String :=
   "  mv s5, a5                   # out_root\n" ++
   "  # derive the system writes (SSZ_BASE in a6)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); jal ra, system_write_descriptors\n" ++
+  "  jal ra, append_modeled_system_storage_tuple_rows; bnez a0, .Lbsr_cons_change_cap\n" ++
   "  # system change 0 = EIP-2935\n" ++
   "  la a0, bsr_addr_2935; la a1, swd_2935_slot; la a2, swd_2935_val\n" ++
   "  la t0, swd_2935_vlen; ld a3, 0(t0); li a4, 0\n" ++
