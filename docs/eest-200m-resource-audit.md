@@ -26,17 +26,41 @@ The distinction matters:
 | Per-slot tuple sequence | One tuple per tx plus seed/system margin | `bsrMaxTuplesPerSlot = 10000` | Covers `9523` minimum-gas txs plus margin. |
 | Witness bytes | Large valid state witnesses under the 200M target | `bsrMaxWitnessBytes = 524288` | Size guard widened, but record count/perf still needs work. |
 | Transaction arrays | `floor(200000000 / 21000) = 9523` txs | Cheap u64/log-window arenas use `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: foundation split landed; algorithmic cap gaps remain under `evm-asm-vv4hr.1`. |
-| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Active sender tables use `bvMtxActiveTxCap = 1024` | Gap: aggregation slices under `evm-asm-vv4hr.1`; related existing P1 `evm-asm-bmvmx.5.5.7.3`. |
-| Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | `bvMtxCommittedChunkCapacity = 512` | Gap: `evm-asm-vv4hr.2`. |
-| System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 16384`; some paths are best-effort | Gap: `evm-asm-vv4hr.7`; related ungate beads `evm-asm-hwngs`, `evm-asm-40igg`. |
-| Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523` | Covered for per-tx records; log/RLP capacity remains separate. |
-| Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3`. |
-| Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536` | Gap: `evm-asm-vv4hr.3`. |
+| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Sender count and sender-balance tables derive from `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: aggregation substrates have full-cap probes; end-to-end active-loop migration remains under `evm-asm-vv4hr.1`. |
+| Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | Active `bvMtxCommittedChunkCapacity = 512`; target `bvMtxCommittedFullKeyCap = 600000` | Gap: migrate upsert/lookup/wiring under `evm-asm-vv4hr.2`. |
+| System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 600000`, derived as `2 * 30000000 / 100` for withdrawal plus consolidation system calls at the cheapest SSTORE gas floor | Capacity boundary covered by `evm-asm-vv4hr.7.1`; precise tuple binding/evidence remains under `evm-asm-vv4hr.7.2`/`.7.3` and ungate bead `evm-asm-40igg`. |
+| Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523`; `bvRecordBloomsBytes` and `bvRecordLogsDescBytes` derive from the same cap | Covered for per-tx record/bloom/descriptor storage; log capture and RLP materialization remain separate. |
+| Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3.2`. |
+| Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536`, `bvReceiptListPayloadBytes = 32768`, `bvReceiptConsensusDescCapacity = 128` | Gaps: `evm-asm-vv4hr.3.3` and `evm-asm-vv4hr.3.4`. |
 | Execution requests hash input | EIP-6110 deposits `8192 * 192`, withdrawals `16 * 76`, consolidations `2 * 116` | `erh_blob = 1572865` | Hash helper covers the deposit body cap. |
-| Execution-derived deposit body staging | Same deposit body cap when deriving requests from logs | `c1_dbody = 32768`, `c1_log_records = 81920` | Gap: `evm-asm-vv4hr.4`. |
+| Execution-derived deposit body staging | Deposit body `8192 * 192 = 1572864`; canonicalized deposit log records `8192 * (80 + 576) = 5373952` before parsing | `c1_dbody = bvMaxDepositRequestBodyBytes = 1572864`, `c1_log_records = bvMaxDepositLogRecordBytes = 5373952` | Covered for deposit-only staging; upstream descriptor/data capture and parser guards remain under `evm-asm-vv4hr.3` / `evm-asm-vv4hr.4`. |
 | System-call payload staging | Witness code plus 100k preloads plus M29 slack | `c1StagingBytes = bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384` | Covered by shared guard for current staging model. |
-| Witness node index | All witness records needed by valid 200M blocks | `MptWitnessIndex` cap `8192` records | Gap: `evm-asm-vv4hr.5`. |
+| Witness node index | All `witness.state` records representable under the 512 KiB accepted witness byte guard | `mptWitnessIndexCapacity = 131072` records; arena `6291456` bytes | Covered for fixed-arena record count; lookup/code/header performance work continues under `evm-asm-vv4hr.5`. |
 | Debug/probe output | Every capacity bail is observable without crashing | Fixed verdict/debug layouts | Gap: `evm-asm-vv4hr.6`. |
+
+## EIP-6110 Derived Deposit Bounds
+
+Execution-derived EIP-6110 deposits are bounded by the protocol request cap, not
+by contract code size and not directly by the 200M gas target. The request body
+contains at most `8192` deposit requests of `192` bytes each, so the final
+derived deposit body target is `8192 * 192 = 1572864` bytes. The current
+`c1_dbody` arena uses `bvMaxDepositRequestBodyBytes` and already matches that
+body target.
+
+Before parsing, the receipt-tail path stages canonicalized log records in the
+format consumed by `parse_deposit_requests`: an 80-byte record header followed
+by the DepositEvent ABI payload. A valid deposit event payload is `576` bytes,
+so full-capacity deposit-only staging is `8192 * (80 + 576) = 5373952` bytes.
+`BlockVerdictParams.lean` names this as `bvMaxDepositLogRecordBytes`, and
+`c1_log_records` is sized to that target. The remaining follow-up work is not the
+raw staging byte count: it is making upstream block-log descriptor/data capture
+and `parse_deposit_requests` capacity/status handling precise for this target.
+
+This derivation assumes the ZisK input/RAM split noted by the operator: large
+fixture input and witness bytes are not constrained by the guest RAM arena in the
+same way as `.data` staging buffers. The guest should still reject or report
+precise unsupported status when actual decoded log records exceed the staged or
+streamed target.
 
 ## Follow-Up Beads
 
@@ -46,22 +70,32 @@ Every discovered 200M resource gap has a P1 child bead:
   `1024` active loop cap to the `9523` transaction target, or replace them
   with streaming/chunked designs. Cheap per-tx result arenas are already sized
   from `bvMtxFullTxCap`.
-- `evm-asm-vv4hr.2`: extend committed-storage threading beyond `512` unique
-  `(recipient, slotKey)` entries while preserving latest-write-wins semantics.
-- `evm-asm-vv4hr.3`: stream or resize receipt/log materialization so receipts
-  and logs are not capped by 16 records, 128 descriptors, or 64 KiB payload
-  arenas.
-- `evm-asm-vv4hr.4`: make execution-derived EIP-6110 deposit request bodies
-  cover the full deposit cap instead of the current `c1_dbody` /
-  `c1_log_records` staging limits.
+- `evm-asm-vv4hr.2`: extend committed-storage threading beyond the active `512`
+  unique `(recipient, slotKey)` entries toward `bvMtxCommittedFullKeyCap = 600000`,
+  the system-call SSTORE side-capture row cap. The bound is unique-key based:
+  duplicate writes update in place and do not consume additional committed slots.
+- `evm-asm-vv4hr.3`: stream or resize receipt/log materialization so receipt
+  roots and logs bloom are not capped by 128 log descriptors, 128 consensus
+  receipt descriptors, 32 KiB receipt-list scratch, or 64 KiB log/receipt RLP
+  arenas. Per-tx receipt records are already sized to the 9,523 full-tx target.
+- `evm-asm-vv4hr.4`: make execution-derived EIP-6110 deposit request derivation
+  cover the full deposit cap. `c1_dbody` is sized to
+  `bvMaxDepositRequestBodyBytes = 8192 * 192 = 1572864`, and `c1_log_records`
+  is sized to `bvMaxDepositLogRecordBytes = 8192 * (80 + 576) = 5373952`.
+  Remaining children add parser capacity/status safety, request-hash wiring, and
+  max-cap evidence.
 - `evm-asm-vv4hr.5`: extend witness/header/code indexing and step behavior so
-  valid large witnesses do not fail through index overflow or
-  `EmulationNoCompleted`.
+  valid large witnesses do not fail through code/header linear scans or
+  `EmulationNoCompleted`. The `witness.state` NodeDb fixed arena is now sized
+  from the 512 KiB accepted witness byte guard: 524288 / 4 = 131072 records,
+  or 6291456 bytes of RAM at 48 bytes per sorted record.
 - `evm-asm-vv4hr.6`: make verdict debug/probe output report every resource cap
   precisely without truncation, uninitialized reads, or debug-probe exits.
 - `evm-asm-vv4hr.7`: make system-storage side capture precise under full
   resource load and ungate modeled system tuple checks only when capture is
-  complete.
+  complete. Child `evm-asm-vv4hr.7.1` covers the side-capture capacity
+  boundary; `.7.2` binds modeled-system tuple checks to complete capture, and
+  `.7.3` adds full-resource evidence.
 
 Existing related P1s:
 
