@@ -113,8 +113,9 @@ def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
 def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
 
 /-- Behavior-neutral chunked committed-storage substrate for the follow-up
-    helpers. Each page preserves the current 128-entry layout; the total capacity
-    is the number of unique `(recipient, slotKey)` entries across all pages. -/
+    helpers. Each page preserves the current 128-entry layout; the active total
+    capacity is the number of unique `(recipient, slotKey)` entries across the
+    currently wired pages. -/
 def bvMtxCommittedChunkPages : Nat := 4
 def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
 def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
@@ -136,6 +137,19 @@ def bvSystemRequestCallCount : Nat := 2
 def bvSystemStorageMinSstoreGas : Nat := 100
 def bvSystemStorageLogCapacity : Nat :=
   bvSystemRequestCallCount * (bvSystemTransactionGas / bvSystemStorageMinSstoreGas)
+
+/-- Full committed-storage unique-key target for the 200M resource work.
+
+    This is keyed by unique `(recipient, slotKey)`, not by transaction count or
+    raw duplicate writes. Every unique committed key must originate from at least
+    one persistent storage exec-log row, so the system-call SSTORE side-capture
+    arena is the current guest-wide upper bound. The active block-verdict path
+    still uses `bvMtxCommittedChunkCapacity`; follow-up slices migrate the
+    upsert/lookup substrate to this full target or to an equivalent streaming
+    design. -/
+def bvMtxCommittedFullKeyCap : Nat := bvSystemStorageLogCapacity
+def bvMtxCommittedFullBytes : Nat :=
+  bvMtxCommittedFullKeyCap * bvMtxCommittedEntryBytes
 def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
 def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
 
@@ -166,6 +180,15 @@ def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
 def bvMaxDepositRequestBodyBytes : Nat := 8192 * 192
 def bvMaxExecutionRequestSectionBytes : Nat :=
   12 + bvMaxDepositRequestBodyBytes + 16 * 76 + 2 * 116
+
+/-- One canonicalized EIP-6110 deposit log record has the common 80-byte
+    log-record header plus the 576-byte DepositEvent ABI payload. -/
+def bvDepositLogRecordBytes : Nat := 80 + 576
+
+/-- Protocol target for execution-derived EIP-6110 deposit log-record staging
+    before `parse_deposit_requests`. Upstream block-log descriptor/data capture
+    has independent capacity work under `evm-asm-vv4hr.3`. -/
+def bvMaxDepositLogRecordBytes : Nat := 8192 * bvDepositLogRecordBytes
 
 /-- `c1_staging` (system-call payload buffer) byte size: must hold
     round8(predeploy codelen) + preload_count*64 + m29_count*32 + 584.
@@ -232,6 +255,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxCommittedBytes = 16384
 #guard bvMtxCommittedChunkCapacity = 512
 #guard bvMtxCommittedChunkBytes = 65536
+#guard bvMtxCommittedFullKeyCap = 600000
+#guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
 #guard bvBlockLogDescBytes = 32768
 #guard bvBlockLogMetaBytes = 2048
@@ -243,5 +268,9 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvReceiptEncodePayloadBytes = 16384
 #guard bvReceiptListPayloadBytes = 32768
 #guard bvReceiptConsensusDescBytes = 2048
+#guard bvMaxDepositRequestBodyBytes = 1572864
+#guard bvMaxExecutionRequestSectionBytes = 1574324
+#guard bvDepositLogRecordBytes = 656
+#guard bvMaxDepositLogRecordBytes = 5373952
 
 end EvmAsm.Codegen

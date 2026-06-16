@@ -34,8 +34,11 @@ The current `main` implementation has several independent ceilings:
   storage records, for `bvMtxCommittedChunkCapacity = 512` unique
   `(recipient, slotKey)` entries. This is not a transaction-count cap. Duplicate
   writes update the existing entry in place.
-- Receipt/log validation has separate windows and record arenas. Raising the tx
-  cap alone does not cover blocks with many logs or large receipt material.
+- Receipt/log validation has separate windows and byte arenas. Per-tx receipt
+  records, record bloom storage, and record log descriptors derive from
+  `bvMtxFullTxCap = 9523`; block-log descriptors, log data bytes, log-list RLP,
+  receipt-list scratch/RLP, and consensus receipt descriptors remain separately
+  capped.
 
 ## Decision
 
@@ -90,10 +93,14 @@ The committed-storage threading table now has a precise chunked model:
   writes keep execution-specs last-write-wins behavior without consuming another
   slot. `bv_mtx_committed_chunked_latest_value` scans the same populated prefix
   for preload threading.
-- Conservative: more than 512 unique `(recipient, slotKey)` entries. The helper
-  sets `bv_mtx_committed_chunk_overflow` and returns a nonzero status before
-  writing past the table. That remaining capacity boundary is tracked by the
-  follow-up streaming/full-capacity work under `evm-asm-bmvmx.5.5.7.4`.
+- Conservative today: more than 512 unique `(recipient, slotKey)` entries. The
+  helper sets `bv_mtx_committed_chunk_overflow` and returns a nonzero status
+  before writing past the active table.
+- Full target: `bvMtxCommittedFullKeyCap = 16384` unique keys, matching the
+  existing persistent storage exec-log row capacity. This is the current
+  guest-wide upper bound because each unique committed key must originate from
+  at least one committed storage-effect row. It is not `tx_count * writes` and
+  duplicate writes continue to collapse by key.
 
 Evidence:
 
@@ -137,10 +144,13 @@ The follow-up work should land in separate PRs:
   while `evm-asm-bmvmx.5.5.7.4.4.4` adds the active 512-entry chunked table,
   chunked upsert/lookup helpers, block-verdict wiring, and above-128 evidence.
 - Extend committed-storage threading beyond 512 unique `(recipient, slotKey)`
-  entries with a streaming design once an execution-specs-covered fixture needs
-  it.
-- Decouple receipt/log validation capacity from the tx cap and connect it to the
-  log/receipt streaming or digest substrate.
+  entries toward the `bvMtxCommittedFullKeyCap = 600000`-key target, or replace
+  the fixed arena with an equivalent streaming/indexed design, once the follow-up
+  slices migrate the active upsert/lookup and block-verdict wiring.
+- Decouple the remaining receipt/log validation capacity from the tx cap and
+  connect block-log capture, log-list RLP, receipt-list RLP, and consensus
+  descriptor traversal to the log/receipt streaming or digest substrate. The
+  per-tx receipt record storage is already full-capacity.
 - Full-capacity evidence wrapper: `scripts/codegen-bmvmx-full-capacity-probes.sh`
   now resolves both `bvMtxActiveTxCap` and `bvMtxFullTxCap`, scans available
   EEST fixtures for the observed 1,021-tx frontier, and generates synthetic

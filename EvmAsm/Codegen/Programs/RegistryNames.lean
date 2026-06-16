@@ -143,6 +143,7 @@ def knownProgramNames : List String :=
    "zisk_storage_root_present_in_witness_storage",
    "zisk_witness_storage_keccak_at_index",
    "zisk_witness_lookup_by_hash_indexed",
+   "zisk_witness_codes_lookup_by_hash_indexed",
    "zisk_witness_codes_keccak_at_index",
    "zisk_state_account_with_spec_default",
    "zisk_state_extract_storage_root_for_address",
