@@ -376,15 +376,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1\n" ++                                    -- t2 = &env_words
-  "  la t3, srpc_sender_addr; addi t4, t2, 64; li t5, 0\n" ++   -- CALLER (word 2 -> +64)
+  "  la t3, srpc_sender_addr; addi t4, t2, 64; li t5, 0\n" ++   -- CALLER (word 2 -> +64), BE address -> stack-word layout
   ".Ldtrc_caller:\n" ++
   "  li t6, 20; beq t5, t6, .Ldtrc_caller_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_caller\n" ++
+  "  li a5, 19; sub a5, a5, t5; add a5, t3, a5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_caller\n" ++
   ".Ldtrc_caller_d:\n" ++
   "  addi t4, t2, 128; li t5, 0\n" ++                        -- ORIGIN (word 4 -> +128); t3 still = srpc_sender_addr
   ".Ldtrc_origin:\n" ++
   "  li t6, 20; beq t5, t6, .Ldtrc_origin_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_origin\n" ++
+  "  li a5, 19; sub a5, a5, t5; add a5, t3, a5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_origin\n" ++
   ".Ldtrc_origin_d:\n" ++
   ".Ldtrc_no_sender:\n" ++
   -- 3vc2p.2: GASPRICE (word 5 -> env_base+160) = effective_gas_price. Computed via
