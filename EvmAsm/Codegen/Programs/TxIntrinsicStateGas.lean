@@ -469,9 +469,9 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- state component. `tx_total_state_gas - tx_exec_state_gas` distinguishes
   -- that case from the already-delegated path, which is already correct with
   -- just PER_AUTH_BASE_COST. The 2500-per-auth subtraction preserves the
-  -- delegated target's cold-account delta in receipt gas while removing the
-  -- receipt-side state settlement refund observed in execution-specs for this
-  -- branch.
+  -- delegated target's cold-account delta in receipt gas. Execution-specs
+  -- receipt gas includes this full net auth-state component; do not apply the
+  -- 2500 state-clear refund here.
   "  add t3, t3, t6\n" ++
   "  ld t4, 104(sp); beqz t4, .Lbvrga_type4_store_regular\n" ++
   "  slli t1, s6, 3; add t4, t4, t1; ld t4, 0(t4)\n" ++
@@ -480,9 +480,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  bleu t5, t0, .Lbvrga_type4_have_net_auth_state\n" ++
   "  mv t5, t0\n" ++
   ".Lbvrga_type4_have_net_auth_state:\n" ++
-  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t4, 2500; mul t4, t4, t1\n" ++
-  "  bleu t5, t4, .Lbvrga_type4_store_regular\n" ++
-  "  sub t5, t5, t4; add t3, t3, t5\n" ++
+  "  add t3, t3, t5\n" ++
   ".Lbvrga_type4_store_regular:\n" ++
   "  j .Lbvrga_type4_store_adjusted\n" ++
   ".Lbvrga_type4_check_state:\n" ++
