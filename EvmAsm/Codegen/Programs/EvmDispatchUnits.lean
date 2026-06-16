@@ -345,10 +345,14 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
     secp256k1RecoverRFunction ++ "\n" ++
     secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
     secp256k1CurveDataSection ++ "\n" ++
     secp256k1RecoverDataSection ++ "\n" ++
     txPubkeyRecoverRawDataSection ++ "\n" ++
@@ -409,10 +413,14 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
@@ -497,10 +505,14 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
@@ -583,10 +595,14 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
@@ -695,10 +711,14 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
@@ -790,10 +810,14 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
@@ -910,10 +934,14 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
     emitRuntimeDispatcherDataSection tinyInterpRegistry ++ "\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "srpc_env_base:\n  .zero 8\n" ++
     "m29_stage_cur:\n  .zero 8\n" ++
