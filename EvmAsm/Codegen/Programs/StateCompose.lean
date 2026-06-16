@@ -6,6 +6,7 @@
   so it can reference the string-constant helpers defined there.
 -/
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 namespace EvmAsm.Codegen
 
@@ -739,10 +740,10 @@ def ziskSlotAtHeaderStateRootProbeUnit : BuildUnit := {
     extract `state_root` from the header, walk the state trie to
     the account leaf, decode the four account fields, then look
     up the account's `code_hash` in the `witness.codes` SSZ list
-    via `witness_lookup_by_hash`.
+    via `witness_codes_lookup_by_hash`.
 
     Composes K201 `header_extract_state_root`, K28
-    `account_at_address`, and K19 `witness_lookup_by_hash`.
+    `account_at_address`, and the code-specific K19 `witness_codes_lookup_by_hash`.
 
     Calling convention (7 args, fits in a0..a6):
       a0 (input)  : header_rlp ptr
@@ -801,14 +802,14 @@ def codeAtHeaderStateRootFunction : String :=
   "  # a0 is 1/2/3; propagate.\n" ++
   "  j .Lcahsr_ret\n" ++
   ".Lcahsr_step3:\n" ++
-  "  # Step 3: witness_lookup_by_hash(codes, &acct.code_hash).\n" ++
+  "  # Step 3: witness_codes_lookup_by_hash(codes, &acct.code_hash).\n" ++
   "  mv a0, s5\n" ++
   "  mv a1, s6\n" ++
   "  la a2, cahsr_acct_struct\n" ++
   "  addi a2, a2, 72            # &acct_struct.code_hash\n" ++
   "  la a3, cahsr_code_offset\n" ++
   "  la a4, cahsr_code_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
   "  beqz a0, .Lcahsr_ret       # a0=0 hit\n" ++
   "  li a0, 5                   # miss -> 5\n" ++
   ".Lcahsr_ret:\n" ++
@@ -835,17 +836,21 @@ def codeAtHeaderStateRootFunction : String :=
       bytes 16..24 : matched code length (on hit) -/
 def ziskCodeAtHeaderStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t1, 0x40000000\n" ++
-  "  ld t2, 8(t1)                # header_rlp_len\n" ++
-  "  ld t3, 16(t1)               # witness_state_len\n" ++
-  "  ld t4, 24(t1)               # witness_codes_len\n" ++
-  "  addi a2, t1, 32             # address ptr (20 B)\n" ++
-  "  addi a0, t1, 52             # header_rlp ptr\n" ++
-  "  mv a1, t2                   # header_rlp_len\n" ++
-  "  add a3, a0, t2              # witness.state ptr\n" ++
-  "  mv a4, t3                   # witness_state_len\n" ++
-  "  add a5, a3, t3              # witness.codes ptr\n" ++
-  "  mv a6, t4                   # witness_codes_len\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1, 8(s0)                # header_rlp_len\n" ++
+  "  ld s2, 16(s0)               # witness_state_len\n" ++
+  "  ld s3, 24(s0)               # witness_codes_len\n" ++
+  "  addi s4, s0, 52             # header_rlp ptr\n" ++
+  "  add s5, s4, s1              # witness.state ptr\n" ++
+  "  add s6, s5, s2              # witness.codes ptr\n" ++
+  "  mv a0, s6; mv a1, s3; jal ra, witness_codes_index_build\n" ++
+  "  mv a0, s4                   # header_rlp ptr\n" ++
+  "  mv a1, s1                   # header_rlp_len\n" ++
+  "  addi a2, s0, 32             # address ptr (20 B)\n" ++
+  "  mv a3, s5                   # witness.state ptr\n" ++
+  "  mv a4, s2                   # witness_state_len\n" ++
+  "  mv a5, s6                   # witness.codes ptr\n" ++
+  "  mv a6, s3                   # witness_codes_len\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status at OUTPUT + 0\n" ++
@@ -855,6 +860,7 @@ def ziskCodeAtHeaderStateRootPrologue : String :=
   "  j .Lcahsr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
@@ -875,6 +881,8 @@ def ziskCodeAtHeaderStateRootDataSection : String :=
   "  .zero 200\n" ++
   ".balign 32\n" ++
   "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  "wclh_scratch_hash:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "mnk_dummy_offset:\n" ++
@@ -981,7 +989,7 @@ def ziskCodeAtHeaderStateRootProbeUnit : BuildUnit := {
     rule).
 
     Composes K201 `header_extract_state_root`, K28
-    `account_at_address`, K19 `witness_lookup_by_hash`, and an
+    `account_at_address`, code-specific K19 `witness_codes_lookup_by_hash`, and an
     inline 4 x u64 compare against the pre-baked
     `EMPTY_CODE_HASH` constant.
 
@@ -1060,13 +1068,13 @@ def extcodesizeAtHeaderStateRootFunction : String :=
   "  li a0, 0\n" ++
   "  j .Lecsahsr_ret\n" ++
   ".Lecsahsr_lookup:\n" ++
-  "  # Step 3: witness_lookup_by_hash(codes, &acct.code_hash).\n" ++
+  "  # Step 3: witness_codes_lookup_by_hash(codes, &acct.code_hash).\n" ++
   "  mv a0, s5\n" ++
   "  mv a1, s6\n" ++
   "  addi a2, s7, 72            # &acct.code_hash\n" ++
   "  la a3, ecsahsr_dummy_offset\n" ++
   "  la a4, ecsahsr_code_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
   "  beqz a0, .Lecsahsr_ret\n" ++
   "  # miss -> witness integrity violation (5); zero output.\n" ++
   "  la t0, ecsahsr_code_len\n" ++
@@ -1094,17 +1102,21 @@ def extcodesizeAtHeaderStateRootFunction : String :=
       bytes  8..16 : code length (u64; 0 for missing/empty) -/
 def ziskExtcodesizeAtHeaderStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t1, 0x40000000\n" ++
-  "  ld t2, 8(t1)                # header_rlp_len\n" ++
-  "  ld t3, 16(t1)               # witness_state_len\n" ++
-  "  ld t4, 24(t1)               # witness_codes_len\n" ++
-  "  addi a2, t1, 32             # address ptr\n" ++
-  "  addi a0, t1, 52             # header_rlp ptr\n" ++
-  "  mv a1, t2                   # header_rlp_len\n" ++
-  "  add a3, a0, t2              # witness.state ptr\n" ++
-  "  mv a4, t3                   # witness_state_len\n" ++
-  "  add a5, a3, t3              # witness.codes ptr\n" ++
-  "  mv a6, t4                   # witness_codes_len\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1, 8(s0)                # header_rlp_len\n" ++
+  "  ld s2, 16(s0)               # witness_state_len\n" ++
+  "  ld s3, 24(s0)               # witness_codes_len\n" ++
+  "  addi s4, s0, 52             # header_rlp ptr\n" ++
+  "  add s5, s4, s1              # witness.state ptr\n" ++
+  "  add s6, s5, s2              # witness.codes ptr\n" ++
+  "  mv a0, s6; mv a1, s3; jal ra, witness_codes_index_build\n" ++
+  "  mv a0, s4                   # header_rlp ptr\n" ++
+  "  mv a1, s1                   # header_rlp_len\n" ++
+  "  addi a2, s0, 32             # address ptr\n" ++
+  "  mv a3, s5                   # witness.state ptr\n" ++
+  "  mv a4, s2                   # witness_state_len\n" ++
+  "  mv a5, s6                   # witness.codes ptr\n" ++
+  "  mv a6, s3                   # witness_codes_len\n" ++
   "  jal ra, extcodesize_at_header_state_root\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status at OUTPUT + 0\n" ++
@@ -1113,6 +1125,7 @@ def ziskExtcodesizeAtHeaderStateRootPrologue : String :=
   "  j .Lecsahsr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
@@ -1133,6 +1146,8 @@ def ziskExtcodesizeAtHeaderStateRootDataSection : String :=
   "  .zero 200\n" ++
   ".balign 32\n" ++
   "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  "wclh_scratch_hash:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "mnk_dummy_offset:\n" ++
