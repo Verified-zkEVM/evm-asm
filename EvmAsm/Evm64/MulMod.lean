@@ -13,6 +13,7 @@
 import EvmAsm.Evm64.MulMod.AddrNormAttr
 import EvmAsm.Evm64.MulMod.Layout
 import EvmAsm.Evm64.MulMod.Program
+import EvmAsm.Evm64.MulMod.ProductAlgebra
 import EvmAsm.Evm64.MulMod.LimbSpec
 import EvmAsm.Evm64.MulMod.AddrNorm
 import EvmAsm.Evm64.MulMod.Compose.Base

@@ -201,15 +201,19 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   ".Ldtrc_hdr_done:\n" ++
+  "  addi a0, s2, 72; mv a1, s0; mv a2, s1; li a3, 0\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
   "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  beqz a0, .Ldtrc_have_code\n" ++
-  "  addi a0, s2, 72; mv a1, s0; mv a2, s1; li a3, 0\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
+  "  j .Ldtrc_have_code\n" ++
+  ".Ldtrc_same_block_delegation_code:\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
+  "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   ".Ldtrc_have_code:\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
@@ -372,15 +376,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1\n" ++                                    -- t2 = &env_words
-  "  la t3, srpc_sender_addr; addi t4, t2, 64; li t5, 0\n" ++   -- CALLER (word 2 -> +64)
+  "  la t3, srpc_sender_addr; addi t4, t2, 64; li t5, 0\n" ++   -- CALLER (word 2 -> +64), BE address -> stack-word layout
   ".Ldtrc_caller:\n" ++
   "  li t6, 20; beq t5, t6, .Ldtrc_caller_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_caller\n" ++
+  "  li a5, 19; sub a5, a5, t5; add a5, t3, a5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_caller\n" ++
   ".Ldtrc_caller_d:\n" ++
   "  addi t4, t2, 128; li t5, 0\n" ++                        -- ORIGIN (word 4 -> +128); t3 still = srpc_sender_addr
   ".Ldtrc_origin:\n" ++
   "  li t6, 20; beq t5, t6, .Ldtrc_origin_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_origin\n" ++
+  "  li a5, 19; sub a5, a5, t5; add a5, t3, a5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Ldtrc_origin\n" ++
   ".Ldtrc_origin_d:\n" ++
   ".Ldtrc_no_sender:\n" ++
   -- 3vc2p.2: GASPRICE (word 5 -> env_base+160) = effective_gas_price. Computed via
@@ -464,7 +468,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
   ".Ldtrc_access_done:\n" ++
+  "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  "  la t4, bv_bal_start; ld t5, 0(t4); la t4, runtime_current_bal_ptr; sd t5, 0(t4)\n" ++
+  "  la t4, bv_bal_len; ld t5, 0(t4); la t4, runtime_current_bal_len; sd t5, 0(t4)\n" ++
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
@@ -475,6 +482,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
+  "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
   -- BEFORE the next dispatch overwrites the capture buffers; the caller stores
   -- the bv_last_log_* window into its per-tx slot.

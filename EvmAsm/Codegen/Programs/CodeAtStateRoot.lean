@@ -3,7 +3,7 @@
 
   Trusted-state_root historical bytecode extractor. Given
   a state_root + address, walks K28 to find the account's
-  code_hash, then K19 over witness.codes to retrieve the
+  code_hash, then code-specific K19 over witness.codes to retrieve the
   bytecode location.
 
   Direct-state_root version of #7333 (block-hash-keyed).
@@ -17,6 +17,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 namespace EvmAsm.Codegen
 
@@ -27,14 +28,14 @@ open EvmAsm.Rv64.Program
 
     Pipeline:
       state_root + address -> account.code_hash         [K28]
-      code_hash + witness.codes -> (offset, length)     [K19]
+      code_hash + witness.codes -> (offset, length)     [code-specific K19]
 
     Returns the location of the bytecode within
     witness.codes so the caller can slice it.
 
     Distinct from #7333 (block_hash-keyed):
       * #7333: K19 over witness.headers first, then K201,
-        then K28 + K19 over witness.codes.
+        then K28 + code-specific K19 over witness.codes.
       * THIS: skips the chain walk -- assumes caller
         already has a trusted state_root.
 
@@ -118,14 +119,14 @@ def codeAtStateRootAddressFunction : String :=
   "  li a0, 2                   # EMPTY_CODE_HASH\n" ++
   "  j .Lcasr_ret\n" ++
   ".Lcasr_lookup:\n" ++
-  "  # K19 over witness.codes with code_hash.\n" ++
+  "  # Code-specific K19 over witness.codes with code_hash.\n" ++
   "  mv a0, s4\n" ++
   "  mv a1, s5\n" ++
   "  la t0, casr_walked_struct\n" ++
   "  addi a2, t0, 72            # target_hash\n" ++
   "  mv a3, s7                  # offset out\n" ++
   "  mv a4, s6                  # length out\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
   "  beqz a0, .Lcasr_done\n" ++
   "  li a0, 5\n" ++
   "  j .Lcasr_ret\n" ++
@@ -153,13 +154,18 @@ def codeAtStateRootAddressFunction : String :=
       bytes 16..24 : code_length (u64) -/
 def ziskCodeAtStateRootAddressPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t4, 0x40000000\n" ++
-  "  ld a3, 8(t4)                # witness_state_len\n" ++
-  "  ld a5, 16(t4)               # witness_codes_len\n" ++
-  "  addi a0, t4, 24             # state_root ptr\n" ++
-  "  addi a1, t4, 56             # address ptr\n" ++
-  "  addi a2, t4, 76             # witness.state ptr\n" ++
-  "  add  a4, a2, a3             # witness.codes ptr\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1, 8(s0)                # witness_state_len\n" ++
+  "  ld s2, 16(s0)               # witness_codes_len\n" ++
+  "  addi s3, s0, 76             # witness.state ptr\n" ++
+  "  add s4, s3, s1              # witness.codes ptr\n" ++
+  "  mv a0, s4; mv a1, s2; jal ra, witness_codes_index_build\n" ++
+  "  addi a0, s0, 24             # state_root ptr\n" ++
+  "  addi a1, s0, 56             # address ptr\n" ++
+  "  mv a2, s3                   # witness.state ptr\n" ++
+  "  mv a3, s1                   # witness.state len\n" ++
+  "  mv a4, s4                   # witness.codes ptr\n" ++
+  "  mv a5, s2                   # witness.codes len\n" ++
   "  li a6, 0xa0010010           # length out (OUTPUT + 16)\n" ++
   "  la t0, casr_code_offset_out_ptr\n" ++
   "  li t1, 0xa0010008\n" ++
@@ -170,6 +176,7 @@ def ziskCodeAtStateRootAddressPrologue : String :=
   "  j .Lcasr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
@@ -189,6 +196,8 @@ def ziskCodeAtStateRootAddressDataSection : String :=
   "  .zero 200\n" ++
   ".balign 32\n" ++
   "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  "wclh_scratch_hash:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "mnk_dummy_offset:\n" ++

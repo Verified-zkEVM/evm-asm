@@ -831,6 +831,28 @@ format_verdict_debug() {
       dbg="${dbg:+$dbg }${witness_lookup_labels[$i]}=$value"
     done
   fi
+  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 1128 ]]; then
+    raw="$(od -An -v -tu8 -j 1032 -N 96 "$out" 2>/dev/null | xargs || true)"
+    read -r -a words <<< "$raw"
+    local -a witness_code_lookup_labels=(
+      wcidx_build_status
+      wcidx_build_section_len
+      wcidx_build_count
+      wcidx_enabled
+      wclh_lookup_calls
+      wclh_indexed_calls
+      wclh_indexed_hits
+      wclh_indexed_misses
+      wclh_linear_calls
+      wclh_linear_hits
+      wclh_linear_misses
+      wclh_linear_iterations
+    )
+    for i in "${!witness_code_lookup_labels[@]}"; do
+      value="${words[$i]:-?}"
+      dbg="${dbg:+$dbg }${witness_code_lookup_labels[$i]}=$value"
+    done
+  fi
   if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 768 ]]; then
     raw="$(od -An -v -tu8 -j 672 -N 96 "$out" 2>/dev/null | xargs || true)"
     read -r -a words <<< "$raw"

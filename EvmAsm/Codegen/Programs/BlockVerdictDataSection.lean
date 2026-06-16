@@ -456,7 +456,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_target_len:\n  .zero 8\n" ++
   "teer_auth_chain:\n  .zero 8\n" ++
   "teer_auth_nonce:\n  .zero 8\n" ++
+  "teer_first_nonce:\n  .zero 8\n" ++
   "teer_authority:\n  .zero 24\n" ++
+  "teer_first_authority:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "teer_recover_scratch:\n  .zero 360\n" ++
   "teer_acct_ptr:\n  .zero 8\n" ++
@@ -529,6 +531,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "svf_witness_end:\n  .zero 8\n" ++
   "svf_codes_ptr:\n  .zero 8\n" ++
   "svf_codes_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "wclh_scratch_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
   "svf_headers_ptr:\n  .zero 8\n" ++
   "svf_headers_len:\n  .zero 8\n" ++
   -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
@@ -574,7 +579,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_dstatus:\n  .zero 8\n" ++
   "c1_dlen:\n  .zero 8\n" ++
   "c1_dbody:\n  .zero " ++ toString bvMaxDepositRequestBodyBytes ++ "\n" ++
-  "c1_log_records:\n  .zero 81920\n" ++
+  "c1_log_records:\n  .zero " ++ toString bvMaxDepositLogRecordBytes ++ "\n" ++
   "c1_ccode_ptr:\n  .zero 8\n" ++
   "c1_ccode_len:\n  .zero 8\n" ++
   "c1_bal_acct_ptr:\n  .zero 8\n" ++
@@ -640,6 +645,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_tx_recipient_code_hash:\n  .zero 32\n" ++
   "bv_create_addr:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bv_creation_ctx_ptr:\n  .zero 8\n" ++
+  ".balign 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
   "bbcv_create_addr:\n  .zero 32\n" ++
   "bbcv_create2_salt:\n  .zero 32\n" ++
@@ -653,7 +661,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "ac_digest:\n  .zero 32\n" ++
   "bbcv_stop_code_hash:\n" ++
   "  .quad 0x14281e7a9e7836bc, 0x7d818f8229424636, 0x9165d677b4f71266, 0x8ac9bc64e0a996ff\n" ++
-  ".balign 32\n" ++
   "chahsr_state_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "chahsr_acct_struct:\n  .zero 104\n" ++

@@ -8,11 +8,28 @@
 
 namespace EvmAsm.Codegen
 
+/-- Bytes stored per sorted witness-index record: 32-byte hash plus offset/len. -/
+def mptWitnessIndexRecordBytes : Nat := 48
+
+/-- Maximum `witness.state` records indexed by the stateless guest.
+
+    The accepted `block_state_root` witness byte guard is 512 KiB. An SSZ
+    `List[Bytes]` offset table uses four bytes per element, so the largest
+    record count representable under that byte guard is 524288 / 4 = 131072.
+    The backing arena is therefore about 6 MiB, well within the assumed ZisK RAM
+    layout where input and RAM are separate regions. -/
+def mptWitnessIndexCapacity : Nat := 524288 / 4
+
+/-- Backing bytes reserved for `widx_records`. -/
+def mptWitnessIndexArenaBytes : Nat :=
+  mptWitnessIndexCapacity * mptWitnessIndexRecordBytes
+
 /-- Sorted full-hash witness index helpers plus their private data labels.
     `witness_index_build(section_ptr, section_len)` computes one keccak per SSZ
     list entry, stores `(hash, offset, len)` records, and heapsorts them by the
     full 32-byte hash. `witness_lookup_by_hash_indexed` then does binary search.
-    Capacity is 8192 records; larger sections fail conservatively at build. -/
+    Capacity is `mptWitnessIndexCapacity`; larger sections fail conservatively
+    at build. -/
 def witnessIndexFunctions : String :=
   "\n" ++
   "widx_record_ptr:\n" ++
@@ -127,7 +144,7 @@ def witnessIndexFunctions : String :=
   "  bgtu t0, s1, .Lwidx_build_fail\n" ++
   "  srli s2, t0, 2             # count\n" ++
   "  la t1, widx_build_count; sd s2, 0(t1)\n" ++
-  "  li t1, 8192\n" ++
+  "  li t1, " ++ toString mptWitnessIndexCapacity ++ "\n" ++
   "  bgtu s2, t1, .Lwidx_build_fail\n" ++
   "  mv s3, t0                  # first data offset, lower bound\n" ++
   "  li s4, 0                   # i\n" ++
@@ -252,7 +269,7 @@ def witnessIndexFunctions : String :=
   "wlh_linear_last_section_len:\n  .zero 8\n" ++
   "wlh_linear_max_section_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "widx_records:\n  .zero 393216\n" ++
+  "widx_records:\n  .zero " ++ toString mptWitnessIndexArenaBytes ++ "\n" ++
   ".popsection"
 
 end EvmAsm.Codegen
