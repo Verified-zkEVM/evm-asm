@@ -24,6 +24,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.ParseDepositRequests
+import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 
 namespace EvmAsm.Codegen
 
@@ -33,9 +34,12 @@ open EvmAsm.Rv64
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes 8.. : the 576-byte DepositEvent ABI payload (one deposit log's data)
     Output (at 0xa0010000):
-      +0  status (0 ok / 1 malformed deposit)
-      +8  total deposit-request bytes written (expect 192)
-      +16 the 192-byte deposit body (pubkey48 || wc32 || amount8 || sig96 || index8). -/
+      +0   c1_dstatus-style parse status (0 ok / 1 malformed deposit)
+      +8   c1_dlen-style total deposit-request bytes written (expect 192)
+      +16  the 192-byte deposit body (pubkey48 || wc32 || amount8 || sig96 || index8)
+      +208 c1_erh_status-style verify(zero header hash) (expect 1 mismatch)
+      +216 c1_erh_status-style verify(correct derived hash) (expect 0 match)
+      +224 c1_erh_status-style verify(corrupted header hash) (expect 1 mismatch). -/
 def ziskDepositDerivationE2EPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a6, 0x40000000\n" ++
@@ -66,6 +70,7 @@ def ziskDepositDerivationE2EPrologue : String :=
   -- parse_deposit_requests(records, 1, body, status)
   "  la a0, dde_records\n  li a1, 1\n  la a2, dde_body\n  la a3, dde_status\n" ++
   "  jal ra, parse_deposit_requests\n" ++
+  "  la t0, dde_len; sd a0, 0(t0)\n" ++
   -- output: status, total bytes, then the 192-byte body
   "  li t0, 0xa0010000\n" ++
   "  la t1, dde_status; ld t2, 0(t1); sd t2, 0(t0)\n" ++
@@ -75,10 +80,36 @@ def ziskDepositDerivationE2EPrologue : String :=
   "  beqz t4, .Ldde_dd\n" ++
   "  lbu t5, 0(t1); sb t5, 0(t3); addi t1, t1, 1; addi t3, t3, 1; addi t4, t4, -1; j .Ldde_dump\n" ++
   ".Ldde_dd:\n" ++
+  -- Verify the execution-derived deposit body against a matching and forged header.requests_hash.
+  -- This mirrors BlockVerdictReceiptsTail's c1_dbody/c1_dlen -> requests_hash_verify flow.
+  "  la t0, dde_hash; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la a0, dde_body; la t0, dde_len; ld a1, 0(t0); li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
+  "  la a6, dde_hash; la a7, dde_section\n" ++
+  "  jal ra, requests_hash_verify\n" ++
+  "  li t0, 0xa0010000; sd a0, 208(t0)\n" ++
+  "  la t1, rhv_hash; la t2, dde_hash; li t3, 32\n" ++
+  ".Ldde_hash_cp:\n" ++
+  "  beqz t3, .Ldde_hash_cpd\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldde_hash_cp\n" ++
+  ".Ldde_hash_cpd:\n" ++
+  "  la a0, dde_body; la t0, dde_len; ld a1, 0(t0); li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
+  "  la a6, dde_hash; la a7, dde_section\n" ++
+  "  jal ra, requests_hash_verify\n" ++
+  "  li t0, 0xa0010000; sd a0, 216(t0)\n" ++
+  "  la t0, dde_hash; lbu t1, 0(t0); xori t1, t1, 0xff; sb t1, 0(t0)\n" ++
+  "  la a0, dde_body; la t0, dde_len; ld a1, 0(t0); li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
+  "  la a6, dde_hash; la a7, dde_section\n" ++
+  "  jal ra, requests_hash_verify\n" ++
+  "  li t0, 0xa0010000; sd a0, 224(t0)\n" ++
   "  j .Ldde_done\n" ++
   materializeLogRecordsFunction ++ "\n" ++
   parseDepositRequestsFunction ++ "\n" ++
   extractDepositDataFunction ++ "\n" ++
+  requestsHashVerifyFunction ++ "\n" ++
+  assembleExecutionRequestsFunction ++ "\n" ++
+  executionRequestsHashFunction ++ "\n" ++
+  bgvU32leFunction ++ "\n" ++
+  zkvmSha256Function ++ "\n" ++
   ".Ldde_done:"
 
 def ziskDepositDerivationE2EDataSection : String :=
@@ -104,7 +135,15 @@ def ziskDepositDerivationE2EDataSection : String :=
   "dde_records:\n  .zero 1024\n" ++
   ".balign 8\n" ++
   "dde_body:\n  .zero 256\n" ++
-  "dde_status:\n  .zero 8\n"
+  "dde_status:\n  .zero 8\n" ++
+  "dde_len:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "dde_hash:\n  .zero 32\n" ++
+  "rhv_hash:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "dde_section:\n  .zero 1024\n" ++
+  executionRequestsHashShaDataSection ++ "\n" ++
+  executionRequestsHashDataSection
 
 def ziskDepositDerivationE2EProbeUnit : BuildUnit := {
   body        := NOP
