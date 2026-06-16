@@ -4,8 +4,9 @@
 # End-to-end deposit-request derivation: a synthesized M26 descriptor for a real
 # DepositEvent (address/topic0 stored little-endian) + its 576-byte ABI payload ->
 # materialize_log_records (LE->BE canonicalization) -> parse_deposit_requests ->
-# extract_deposit_data -> the 192-byte deposit body. Confirms materialize's OUTPUT
-# record format agrees with what parse_deposit_requests consumes.
+# extract_deposit_data -> the 192-byte deposit body. Then feed that execution-derived
+# deposit body through requests_hash_verify with empty withdrawal/consolidation bodies
+# and assert the valid derived hash accepts while a forged header hash rejects.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -49,11 +50,19 @@ d = open('gen-out/zisk_dde.output', 'rb').read()
 status = struct.unpack('<Q', d[0:8])[0]
 total = struct.unpack('<Q', d[8:16])[0]
 body = d[16:16 + 192]
+verify_zero = struct.unpack('<Q', d[208:216])[0]
+verify_match = struct.unpack('<Q', d[216:224])[0]
+verify_corrupt = struct.unpack('<Q', d[224:232])[0]
 exp = open('gen-out/zisk_dde.expect', 'rb').read()
-ok = (status == 0 and total == 192 and body == exp)
-print(f"  status={status} total={total} body_match={body == exp}")
+ok = (status == 0 and total == 192 and body == exp and verify_zero == 1 and verify_match == 0 and verify_corrupt == 1)
+print(
+    f"  c1_dstatus={status} c1_dlen={total} body_match={body == exp} "
+    f"c1_erh_status(zero)={verify_zero} c1_erh_status(correct)={verify_match} "
+    f"c1_erh_status(corrupt)={verify_corrupt}"
+)
 if not ok:
-    print("  FAIL: end-to-end deposit derivation incorrect")
+    print("  FAIL: derived deposit body did not yield sound requests_hash verification")
+    print("  (expect status=0, total=192, body_match=True, verify(zero)=1, verify(correct)=0, verify(corrupt)=1)")
     raise SystemExit(1)
-print("  PASS: descriptor -> materialize -> parse_deposit_requests -> 192-byte deposit body")
+print("  PASS: descriptor -> materialize -> parse_deposit_requests -> derived deposit requests_hash accept/reject")
 PY
