@@ -91,6 +91,11 @@ BV_MTX_ARENA_TX_CAP = 1024
 BMV_FULL_TX_CAPACITY = 9523
 BV_MTX_COMMITTED_CHUNK_CAPACITY = 512
 BV_RECEIPT_RECORD_CAPACITY = BMV_FULL_TX_CAPACITY
+BV_RESOURCE_BLOCK_GAS_LIMIT = 200_000_000
+BV_BLOCK_LOG_MIN_GAS = 375
+BV_BLOCK_LOG_DATA_BYTE_GAS = 8
+BV_BLOCK_LOG_DESC_FULL_TARGET = BV_RESOURCE_BLOCK_GAS_LIMIT // BV_BLOCK_LOG_MIN_GAS
+BV_BLOCK_LOG_DATA_FULL_TARGET = BV_RESOURCE_BLOCK_GAS_LIMIT // BV_BLOCK_LOG_DATA_BYTE_GAS
 BV_BLOCK_LOG_DESC_CAPACITY = 128
 BV_BLOCK_LOG_DATA_BYTES = 65536
 BV_LOGS_RLP_ARENA_BYTES = 65536
@@ -213,7 +218,9 @@ def summarize(
         "receipt_records_required": tx_count,
         "receipt_record_cap": BV_RECEIPT_RECORD_CAPACITY,
         "block_log_desc_cap": BV_BLOCK_LOG_DESC_CAPACITY,
+        "block_log_desc_full_target": BV_BLOCK_LOG_DESC_FULL_TARGET,
         "block_log_data_cap": BV_BLOCK_LOG_DATA_BYTES,
+        "block_log_data_full_target": BV_BLOCK_LOG_DATA_FULL_TARGET,
         "logs_rlp_cap": BV_LOGS_RLP_ARENA_BYTES,
         "receipts_rlp_cap": BV_RECEIPTS_RLP_BYTES,
         "receipt_list_payload_cap": BV_RECEIPT_LIST_PAYLOAD_BYTES,
@@ -401,7 +408,9 @@ def main() -> int:
         "receipt_records_required",
         "receipt_record_cap",
         "block_log_desc_cap",
+        "block_log_desc_full_target",
         "block_log_data_cap",
+        "block_log_data_full_target",
         "logs_rlp_cap",
         "receipts_rlp_cap",
         "receipt_list_payload_cap",
