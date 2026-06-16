@@ -167,10 +167,13 @@ def stageRuntimePayloadCodeFunction : String :=
   "  li t6, 20; beq t5, t6, .Lsrpc_ad_done\n" ++
   "  li a5, 19; sub a5, a5, t5; add a5, t3, a5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_ad\n" ++
   ".Lsrpc_ad_done:\n" ++
-  -- CALLVALUE (word 3 -> +96): 32-byte copy of ctx value (ctx+96).
-  "  addi t3, s1, 96\n" ++
-  "  ld a5, 0(t3); sd a5, 96(s5); ld a5, 8(t3); sd a5, 104(s5)\n" ++
-  "  ld a5, 16(t3); sd a5, 112(s5); ld a5, 24(t3); sd a5, 120(s5)\n" ++
+  -- CALLVALUE (word 3 -> +96): context value is stored BE in the tx context;
+  -- reverse it into the low-limb-first EVM stack-word layout that env loads push.
+  "  addi t3, s1, 96; addi t4, s5, 96; li t5, 0\n" ++
+  ".Lsrpc_cv:\n" ++
+  "  li t6, 32; beq t5, t6, .Lsrpc_cv_done\n" ++
+  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 31; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_cv\n" ++
+  ".Lsrpc_cv_done:\n" ++
   -- Trailer (relative to env_base s5): SLOTNUM@+416 (zero), gas@+448,
   -- validate@+456, is_creation@+464, witness lens@+472/+480/+488 (zero).
   "  ld t3, 40(s1); sd t3, 448(s5)        # gas limit (ctx tx gas)\n" ++
