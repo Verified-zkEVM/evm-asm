@@ -22,6 +22,7 @@ import EvmAsm.Codegen.Programs.ParseDepositRequests
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
@@ -209,6 +210,7 @@ def statelessVerdictV2GuestClosure : String :=
   zkvmKeccak256Function ++ "\n" ++
   zkvmKeccak256SegmentsFunction ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
