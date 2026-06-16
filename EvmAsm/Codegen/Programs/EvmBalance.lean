@@ -46,6 +46,8 @@ private def balanceWitnessTail : HandlerTail :=
 " ++
     "  sd x12, 8(sp)
 " ++
+    "  sd x21, 16(sp)
+" ++
     "  la a0, eahsr_address_scratch
 " ++
     "  la a1, " ++ runtimeAccessAccountTableLabel ++ "
@@ -60,6 +62,8 @@ private def balanceWitnessTail : HandlerTail :=
 " ++
     "  ld x12, 8(sp)
 " ++
+    "  ld x21, 16(sp)
+" ++
     "  addi sp, sp, 32
 " ++
     "  ld t0, 584(x20)
@@ -71,6 +75,8 @@ private def balanceWitnessTail : HandlerTail :=
     "  sd x10, 0(sp)
 " ++
     "  sd x12, 8(sp)
+" ++
+    "  sd x21, 16(sp)
 " ++
     "  ld a0, 576(x20)
 " ++         -- header ptr
@@ -89,6 +95,8 @@ private def balanceWitnessTail : HandlerTail :=
     "  ld x10, 0(sp)
 " ++
     "  ld x12, 8(sp)
+" ++
+    "  ld x21, 16(sp)
 " ++
     "  addi sp, sp, 32
 " ++
