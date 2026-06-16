@@ -56,6 +56,7 @@ def blockVerdictExactGasCheck : String :=
   "  la a3, bvgr_block_gas_increments\n" ++
   "  la a4, bvgr_before_refund\n" ++
   "  la a5, bv_tx_status_arr\n" ++
+  "  la a6, bvgr_tx_total_state_gas\n" ++
   "  jal ra, block_verdict_failed_type4_auth_regular_adjust\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
   "  la t2, bv_exact_header_gas_used; sd a0, 0(t2)\n" ++

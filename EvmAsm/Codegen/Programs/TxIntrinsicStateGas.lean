@@ -529,7 +529,9 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
     supported rows. For failed type-4 execution (REVERT/exceptional status 0),
     execution-specs still counts `PER_AUTH_BASE_COST * auth_count` in the block
     regular dimension. This helper raises `regular_inc[i]` to at least
-    `before_refund[i] + 7500 * auth_count` for failed type-4 transactions.
+    `before_refund[i] + 7500 * auth_count` for failed type-4 transactions,
+    except when exact-gas normalization has already produced
+    `before_refund[i] - tx_state_gas[i]` for an OOG path.
 
     Decode failures are non-gating: the caller keeps the previous regular
     increment. -/
@@ -546,6 +548,7 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  mv s3, a3                   # regular increments\n" ++
   "  mv s4, a4                   # before-refund increments\n" ++
   "  mv s5, a5                   # tx status array\n" ++
+  "  sd a6, 104(sp)              # tx_state_gas array (optional)\n" ++
   "  beqz s2, .Lbvf4ar_done\n" ++
   "  li t0, 4; bltu s1, t0, .Lbvf4ar_done\n" ++
   "  slli s7, s2, 2\n" ++
@@ -582,7 +585,14 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvf4ar_next\n" ++
   "  slli t0, s6, 3\n" ++
-  "  add t1, s4, t0; ld t2, 0(t1)\n" ++
+  "  add t1, s4, t0; ld t2, 0(t1)          # before_refund increment\n" ++
+  "  add t1, s3, t0; ld t3, 0(t1)          # current normalized regular increment\n" ++
+  "  ld t4, 104(sp); beqz t4, .Lbvf4ar_compute_floor\n" ++
+  "  bltu t2, t3, .Lbvf4ar_compute_floor\n" ++
+  "  sub t5, t2, t3\n" ++
+  "  add t4, t4, t0; ld t4, 0(t4)          # tx_state_gas\n" ++
+  "  beq t5, t4, .Lbvf4ar_next             # OOG path already normalized as before_refund - state\n" ++
+  ".Lbvf4ar_compute_floor:\n" ++
   "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3\n" ++
   "  add t2, t2, t1; bltu t2, t1, .Lbvf4ar_next\n" ++
   "  add t1, s3, t0; ld t3, 0(t1); bgeu t3, t2, .Lbvf4ar_next\n" ++
