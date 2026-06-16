@@ -159,10 +159,9 @@ def bvMaxExecutionRequestSectionBytes : Nat :=
     log-record header plus the 576-byte DepositEvent ABI payload. -/
 def bvDepositLogRecordBytes : Nat := 80 + 576
 
-/-- Protocol target for execution-derived EIP-6110 deposit log-record staging.
-    This is the target later capacity/streaming slices must cover before
-    `parse_deposit_requests`; the current `c1_log_records` arena is still much
-    smaller and is tracked under `evm-asm-vv4hr.4`. -/
+/-- Protocol target for execution-derived EIP-6110 deposit log-record staging
+    before `parse_deposit_requests`. Upstream block-log descriptor/data capture
+    has independent capacity work under `evm-asm-vv4hr.3`. -/
 def bvMaxDepositLogRecordBytes : Nat := 8192 * bvDepositLogRecordBytes
 
 /-- `c1_staging` (system-call payload buffer) byte size: must hold

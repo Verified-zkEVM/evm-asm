@@ -33,7 +33,7 @@ The distinction matters:
 | Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3`. |
 | Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536` | Gap: `evm-asm-vv4hr.3`. |
 | Execution requests hash input | EIP-6110 deposits `8192 * 192`, withdrawals `16 * 76`, consolidations `2 * 116` | `erh_blob = 1572865` | Hash helper covers the deposit body cap. |
-| Execution-derived deposit body staging | Deposit body `8192 * 192 = 1572864`; canonicalized deposit log records `8192 * (80 + 576) = 5373952` before parsing | `c1_dbody = bvMaxDepositRequestBodyBytes = 1572864`, `c1_log_records = 81920` | Body arena covered; log-record staging remains gap `evm-asm-vv4hr.4`. |
+| Execution-derived deposit body staging | Deposit body `8192 * 192 = 1572864`; canonicalized deposit log records `8192 * (80 + 576) = 5373952` before parsing | `c1_dbody = bvMaxDepositRequestBodyBytes = 1572864`, `c1_log_records = bvMaxDepositLogRecordBytes = 5373952` | Covered for deposit-only staging; upstream descriptor/data capture and parser guards remain under `evm-asm-vv4hr.3` / `evm-asm-vv4hr.4`. |
 | System-call payload staging | Witness code plus 100k preloads plus M29 slack | `c1StagingBytes = bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384` | Covered by shared guard for current staging model. |
 | Witness node index | All witness records needed by valid 200M blocks | `MptWitnessIndex` cap `8192` records | Gap: `evm-asm-vv4hr.5`. |
 | Debug/probe output | Every capacity bail is observable without crashing | Fixed verdict/debug layouts | Gap: `evm-asm-vv4hr.6`. |
@@ -51,10 +51,10 @@ Before parsing, the receipt-tail path stages canonicalized log records in the
 format consumed by `parse_deposit_requests`: an 80-byte record header followed
 by the DepositEvent ABI payload. A valid deposit event payload is `576` bytes,
 so full-capacity deposit-only staging is `8192 * (80 + 576) = 5373952` bytes.
-`BlockVerdictParams.lean` names this as `bvMaxDepositLogRecordBytes`. The
-current `c1_log_records = 81920` buffer is therefore the remaining capacity gap
-for the follow-up implementation beads; it covers only the current small staging
-frontier, not the protocol target.
+`BlockVerdictParams.lean` names this as `bvMaxDepositLogRecordBytes`, and
+`c1_log_records` is sized to that target. The remaining follow-up work is not the
+raw staging byte count: it is making upstream block-log descriptor/data capture
+and `parse_deposit_requests` capacity/status handling precise for this target.
 
 This derivation assumes the ZisK input/RAM split noted by the operator: large
 fixture input and witness bytes are not constrained by the guest RAM arena in the
@@ -76,11 +76,11 @@ Every discovered 200M resource gap has a P1 child bead:
   and logs are not capped by 16 records, 128 descriptors, or 64 KiB payload
   arenas.
 - `evm-asm-vv4hr.4`: make execution-derived EIP-6110 deposit request derivation
-  cover the full deposit cap. `c1_dbody` is already sized to
-  `bvMaxDepositRequestBodyBytes = 8192 * 192 = 1572864`; the remaining staging
-  gap is the canonical log-record input before parsing:
-  `bvMaxDepositLogRecordBytes = 8192 * (80 + 576) = 5373952` versus the current
-  `c1_log_records = 81920`.
+  cover the full deposit cap. `c1_dbody` is sized to
+  `bvMaxDepositRequestBodyBytes = 8192 * 192 = 1572864`, and `c1_log_records`
+  is sized to `bvMaxDepositLogRecordBytes = 8192 * (80 + 576) = 5373952`.
+  Remaining children add parser capacity/status safety, request-hash wiring, and
+  max-cap evidence.
 - `evm-asm-vv4hr.5`: extend witness/header/code indexing and step behavior so
   valid large witnesses do not fail through index overflow or
   `EmulationNoCompleted`.
