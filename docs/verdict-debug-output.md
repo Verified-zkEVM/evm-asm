@@ -30,7 +30,8 @@ ABI-stable for EEST triage logs.
 | 624 | 96 | `request_dstatus`, `request_dlen`, `request_dbody_cap`, `request_log_records_cap`, `request_wlen`, `request_clen`, `request_system_body_cap`, `request_er_assembled_len`, `request_er_assembled_cap`, `request_erh_status`, `request_erh_blob_cap`, `request_notx_deposit_len` |
 | 720 | 128 | `mtx_arena_tx_cap`, `mtx_full_200m_tx_cap`, `mtx_u64_arena_bytes`, `mtx_log_window_bytes`, `mtx_skip_list_cap`, `mtx_skip_count`, `mtx_loop_index`, `mtx_sender_count_cap`, `mtx_sender_count`, `mtx_sender_balance_cap`, `mtx_sender_balance_count`, `mtx_committed_chunk_cap`, `mtx_committed_chunk_bytes`, `mtx_nonce_seen_count`, `mtx_nonce_seen_cap`, `mtx_tx_count` |
 | 848 | 136 | `receipt_record_count`, `receipt_record_cap`, `receipt_records_status`, `receipt_append_status`, `block_log_count`, `block_log_desc_cap`, `block_log_data_used`, `block_log_data_cap`, `logs_rlp_arena_used`, `logs_rlp_arena_cap`, `logs_rlp_last_len`, `receipts_rlp_len`, `receipts_rlp_cap`, `record_bloom_bytes_used`, `record_bloom_bytes_cap`, `receipt_logs_status_mirror`, `block_log_overflow_mirror` |
+| 1032 | 96 | `wcidx_build_status`, `wcidx_build_section_len`, `wcidx_build_count`, `wcidx_enabled`, `wclh_lookup_calls`, `wclh_indexed_calls`, `wclh_indexed_hits`, `wclh_indexed_misses`, `wclh_linear_calls`, `wclh_linear_hits`, `wclh_linear_misses`, `wclh_linear_iterations` |
 
-The current final byte is `OUTPUT + 984`. The smoke check emits/links both the
+The current final byte is `OUTPUT + 1128`. The smoke check emits/links both the
 normal probe and the experimental BSR-cap patched probe, then verifies the shell
 formatter reaches the final emitted word.
