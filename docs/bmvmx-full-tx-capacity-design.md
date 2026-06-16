@@ -146,8 +146,11 @@ The follow-up work should land in separate PRs:
   active upsert/lookup and block-verdict wiring.
 - Decouple receipt/log validation capacity from the tx cap and connect it to the
   log/receipt streaming or digest substrate.
-- Remaining full-capacity probes: add one fixture/regression for the observed
-  1,021-tx EEST case and one end-to-end synthetic or generated near-9,523
-  transaction block after the active loop moves from `bvMtxActiveTxCap` to
-  `bvMtxFullTxCap`; the sender nonce and nth-context substrates already have
-  lower-level 9,523 evidence via `.1.3.4` and `.1.5`.
+- Full-capacity evidence wrapper: `scripts/codegen-bmvmx-full-capacity-probes.sh`
+  now resolves both `bvMtxActiveTxCap` and `bvMtxFullTxCap`, scans available
+  EEST fixtures for the observed 1,021-tx frontier, and generates synthetic
+  block-body transaction-count probes for 1,021, 1,024, 1,025, and 9,523
+  transactions. Its output intentionally distinguishes `within-active` from
+  `above-active-within-full`: the sender nonce, sender balance, and nth-context
+  substrates have lower-level 9,523 evidence, but end-to-end stateless execution
+  above `bvMtxActiveTxCap` remains a separate active-loop migration item.
