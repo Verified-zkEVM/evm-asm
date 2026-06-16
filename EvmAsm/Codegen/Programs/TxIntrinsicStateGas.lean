@@ -469,7 +469,18 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++   -- t3 = before_refund[i]
   "  ld t0, 104(sp); add t0, t0, t1; ld t4, 0(t0); sub t3, t3, t4\n" ++  -- t3 -= tx_exec_state_gas[i]
   "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++              -- t3 += tx_total_state_gas[i]
-  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 += 7500*auth_count
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 += 7500*auth_count (dimension reconstruction)
+  -- huo4a fix: take max(dimension, before_refund). When the runtime under-charged the
+  -- per-auth intrinsic (e.g. set_code_to_self_destruct, gas_left>0) the dimension
+  -- reconstruction is the larger, correct value; when before_refund already reflects the
+  -- full charge (e.g. set_code_to_sstore that exhausts gas, gas_left=0) before_refund is
+  -- the larger, correct value (the dimension under-counts because exec_state then holds the
+  -- unspent state reservoir, not the consumed state). #8989 omitted this max and regressed
+  -- set_code_to_sstore[tx_value_1].
+  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t4, 0(t0)\n" ++   -- t4 = before_refund[i] (reload)
+  "  bgeu t3, t4, .Lbvrga_type4_dimmax\n" ++
+  "  mv t3, t4\n" ++
+  ".Lbvrga_type4_dimmax:\n" ++
   "  li t4, 5; divu t5, t3, t4\n" ++                                 -- t5 = combined // 5
   "  la t0, bvgr_refund_counter; add t0, t0, t1; ld t6, 0(t0)\n" ++  -- t6 = refund_counter[i]
   "  bleu t6, t5, .Lbvrga_type4_refmin\n" ++
