@@ -6,6 +6,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.NonstorageEffectLog
 
 namespace EvmAsm.Codegen
 
@@ -247,6 +248,7 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0\n" ++
+  "  la t0, bv_creation_ctx_ptr; sd s0, 0(t0)  # stable across runtime dispatcher\n" ++
   "  mv s1, a1\n" ++
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
@@ -263,6 +265,17 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a2, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
+  -- Successful top-level STOP creation makes the created account alive with
+  -- the transaction value as balance and nonce 1. Record that execution-derived
+  -- effect before BAL all-account non-storage comparisons run.
+  "  beqz a2, .Lbvcr_created_effect_done\n" ++
+  "  la a0, bv_create_addr\n" ++
+  "  la a1, nse_zero_bal\n" ++
+  "  la a2, bv_creation_ctx_ptr; ld a2, 0(a2); addi a2, a2, 96\n" ++
+  "  li a3, 0\n" ++
+  "  li a4, 1\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  ".Lbvcr_created_effect_done:\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++

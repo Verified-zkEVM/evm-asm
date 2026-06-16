@@ -645,6 +645,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_tx_recipient_code_hash:\n  .zero 32\n" ++
   "bv_create_addr:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bv_creation_ctx_ptr:\n  .zero 8\n" ++
+  ".balign 32\n" ++
   "bbcv_sender_addr:\n  .zero 32\n" ++
   "bbcv_create_addr:\n  .zero 32\n" ++
   "bbcv_create2_salt:\n  .zero 32\n" ++
@@ -658,7 +661,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "ac_digest:\n  .zero 32\n" ++
   "bbcv_stop_code_hash:\n" ++
   "  .quad 0x14281e7a9e7836bc, 0x7d818f8229424636, 0x9165d677b4f71266, 0x8ac9bc64e0a996ff\n" ++
-  ".balign 32\n" ++
   "chahsr_state_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "chahsr_acct_struct:\n  .zero 104\n" ++
