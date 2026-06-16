@@ -160,11 +160,12 @@ def stageRuntimePayloadCodeFunction : String :=
   "  addi t3, s2, 440\n" ++
   "  ld t4, 0(t3); sd t4, 352(s5); ld t4, 8(t3); sd t4, 360(s5)\n" ++
   "  ld t4, 16(t3); sd t4, 368(s5); ld t4, 24(t3); sd t4, 376(s5)\n" ++
-  -- ADDRESS (word 0 -> +0): recipient (ctx+72, 20 bytes), low-aligned.
+  -- ADDRESS (word 0 -> +0): recipient (ctx+72, 20-byte BE address), converted
+  -- to the EVM stack-word layout (low limb first) used by env loads and storage logs.
   "  addi t3, s1, 72; mv t4, s5; li t5, 0\n" ++
   ".Lsrpc_ad:\n" ++
   "  li t6, 20; beq t5, t6, .Lsrpc_ad_done\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_ad\n" ++
+  "  li a5, 19; sub a5, a5, t5; add a5, t3, a5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_ad\n" ++
   ".Lsrpc_ad_done:\n" ++
   -- CALLVALUE (word 3 -> +96): 32-byte copy of ctx value (ctx+96).
   "  addi t3, s1, 96\n" ++
@@ -191,7 +192,7 @@ def stageRuntimePayloadCodeFunction : String :=
       +16 first code byte at payload+8               (expect 0x60)
       +24 gas at payload[env_base+448]               (expect 21000 = 0x5208)
       +32 COINBASE low byte at payload[env_base+192] (expect 0xC0)
-      +40 ADDRESS low byte at payload[env_base+0]    (expect 0xAA)
+      +40 ADDRESS low byte at payload[env_base+0]    (expect 0xBB)
       +48 PREVRANDAO low byte at payload[env_base+288] (expect 0x44) -/
 def ziskStageRuntimePayloadCodePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -201,7 +202,7 @@ def ziskStageRuntimePayloadCodePrologue : String :=
   "  sd zero, 0(t0)\n" ++
   "  li t1, 21000; sd t1, 40(t0)\n" ++
   "  sd zero, 48(t0); sd zero, 64(t0); sd zero, 96(t0)\n" ++
-  "  li t1, 0xAA; sb t1, 72(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 72(t0); li t1, 0xBB; sb t1, 91(t0)\n" ++
   -- Synthetic exec payload: coinbase@32 first byte 0xC0, prev_randao@372 first byte 0x44, number@404 = 99.
   "  la t2, srpc_exec\n" ++
   "  li t1, 0xC0; sb t1, 32(t2)\n" ++
@@ -236,7 +237,7 @@ def ziskStageRuntimePayloadCodePrologue : String :=
     storage_end=co+24=32; M29 cur@payload[72], count@[80], hashes@[88]; env_base = 88+64 = 152.
     OUTPUT: +0 srpc_env_base (expect 152); +8 M29 count payload[80] (expect 2);
       +16 M29 cur payload[72] (expect 0x5A); +24 M29 hash0 payload[88] (expect 0x11);
-      +32 ADDRESS low byte payload[152] (expect 0xAA); +40 gas payload[152+448] (expect 21000);
+      +32 ADDRESS low byte payload[152] (expect 0xBB); +40 gas payload[152+448] (expect 21000);
       +48 PREVRANDAO low byte payload[152+288] (expect 0x44). -/
 def ziskStageRuntimePayloadCodeM29Prologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -244,7 +245,7 @@ def ziskStageRuntimePayloadCodeM29Prologue : String :=
   "  sd zero, 0(t0)\n" ++
   "  li t1, 21000; sd t1, 40(t0)\n" ++
   "  sd zero, 48(t0); sd zero, 64(t0); sd zero, 96(t0)\n" ++
-  "  li t1, 0xAA; sb t1, 72(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 72(t0); li t1, 0xBB; sb t1, 91(t0)\n" ++
   "  la t2, srpc_exec\n" ++
   "  li t1, 0xC0; sb t1, 32(t2)\n" ++
   "  li t1, 0x44; sb t1, 372(t2)\n" ++
@@ -266,7 +267,7 @@ def ziskStageRuntimePayloadCodeM29Prologue : String :=
   "  lbu t1, 72(t0); sd t1, 16(s0)\n" ++                          -- M29 cur low byte (expect 0x5A)
   "  lbu t1, 88(t0); sd t1, 24(s0)\n" ++                          -- M29 hash0 (expect 0x11)
   "  li t2, 152; add t2, t0, t2\n" ++
-  "  lbu t1, 0(t2); sd t1, 32(s0)\n" ++                           -- ADDRESS low byte at env_base (expect 0xAA)
+  "  lbu t1, 0(t2); sd t1, 32(s0)\n" ++                           -- ADDRESS low byte at env_base (expect 0xBB)
   "  ld t1, 448(t2); sd t1, 40(s0)\n" ++                          -- gas at env_base+448 (expect 21000)
   "  lbu t1, 288(t2); sd t1, 48(s0)\n" ++                          -- PREVRANDAO low byte (expect 0x44)
   "  j .Lsrpcm29_done\n" ++
@@ -305,14 +306,14 @@ def ziskStageRuntimePayloadCodeM29ProbeUnit : BuildUnit := {
       +16 storage pair value byte at payload[+24+cb+32] = payload[+64] (expect 0x63)
       +24 env_base (expect 152)
       +32 gas at payload[env_base+448]                         (expect 21000)
-      +40 ADDRESS low byte at payload[env_base+0]              (expect 0xAA) -/
+      +40 ADDRESS low byte at payload[env_base+0]              (expect 0xBB) -/
 def ziskStageRuntimePayloadCodeStoragePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la t0, srpcs_ctx\n" ++
   "  sd zero, 0(t0)\n" ++
   "  li t1, 21000; sd t1, 40(t0)\n" ++
   "  sd zero, 48(t0); sd zero, 64(t0); sd zero, 96(t0)\n" ++
-  "  li t1, 0xAA; sb t1, 72(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 72(t0); li t1, 0xBB; sb t1, 91(t0)\n" ++
   "  la t2, srpcs_exec\n" ++
   "  li t1, 0xC0; sb t1, 32(t2)\n" ++
   "  la t3, srpcs_code\n" ++
@@ -366,14 +367,14 @@ def ziskStageRuntimePayloadCodeStorageProbeUnit : BuildUnit := {
       +16 slot_count at payload[+16+co] = payload[+32]     (expect 0)
       +24 env_base (expect 96)
       +32 gas at payload[env_base+448]                     (expect 21000)
-      +40 ADDRESS low byte at payload[env_base+0]          (expect 0xAA) -/
+      +40 ADDRESS low byte at payload[env_base+0]          (expect 0xBB) -/
 def ziskStageRuntimePayloadCodeCalldataPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  la t0, srpcc_ctx\n" ++
   "  sd zero, 0(t0)\n" ++
   "  li t1, 21000; sd t1, 40(t0)\n" ++
   "  sd zero, 48(t0); sd zero, 96(t0)\n" ++
-  "  li t1, 0xAA; sb t1, 72(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 72(t0); li t1, 0xBB; sb t1, 91(t0)\n" ++
   "  li t1, 4; sd t1, 64(t0)\n" ++          -- ctx data len = 4
   "  la t4, srpcc_cd\n" ++
   "  sd t4, 56(t0)\n" ++                    -- ctx data ptr
