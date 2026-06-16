@@ -1252,9 +1252,25 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `bytesRegion_dword_at` (extract the `dw`-th dword cell, partial last chunk OK).
   Composition mirrors `Evm64/Push`: `generic_lbu_spec_within` +
   `extractByte_packBytes`, framed via `cpsTripleWithin_frameR` + `xperm_hyp`.
-  Axiom-clean, 0 sorry. **Next:** the list-decode loop (single-byte items →
-  `decodeItems_singleByte_run`, then varying-size) + the unified decoder's 5-exit
-  reconvergence.
+  Axiom-clean, 0 sorry.
+- ✅ **Single-byte-item list-decode loop** (`SingleByteListLoop.lean`). The first
+  RV64 RLP *list*-decode loop: a 4-instruction back-branch body
+  (`LBU x12,x13,0; ADDI x13,x13,1; ADDI x14,x14,-1; BNE x14,x0,back`) traversing a
+  single-byte-item payload, reading each byte from `bytesRegion` via
+  `bytesRegion_lbu_within` (assume-precondition scope — every byte `< 0x80` assumed,
+  no in-line validation/fail-exit yet). Layers: `sbll_iter_spec_within` (3-instr
+  triple), `sbll_body_spec_within` (2-exit `cpsBranchWithin`), `sbll_loop_succ/n_spec_within`
+  (n-iteration closure by **remaining-count induction with a generalized start
+  index** — keeping `regionBase`/`bs` fixed and re-indexing the per-iteration
+  validity hypotheses, since `bytesRegion_lbu_within` is keyed by the *absolute*
+  byte index, unlike Phase-2's `dwordAddr`-shift), and `sbll_loop_bridge` tying the
+  operational spec to the pure `decodeItems_singleByte_run` (zero-copy: shared
+  `< 0x80` precondition + matching consumed length `bs.length`). Cross-dword
+  cross-check: 10-byte / 2-dword payload → 10 items in `4*10` steps. Reuses
+  Phase-2's `word_ofNat_*`/`cnt_dec_1` counter lemmas. Axiom-clean, 0 sorry.
+  **Next:** in-line `< 0x80` validation (3-exit fail path) discharging the
+  precondition operationally; then varying-size items + the unified decoder's
+  5-exit reconvergence.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
