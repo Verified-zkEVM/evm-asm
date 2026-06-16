@@ -1218,6 +1218,20 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     cross-doubleword length spans (`n ≤ 8` single-doubleword only); Phase-4
     `read_input` pipeline integration.
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
+- ✅ **Multi-dword byte-region memory abstraction** (`EvmAsm/Rv64/MemRegion.lean`,
+  Phase-5 foundation). `bytesRegion (base) (bs : List (BitVec 8))` — a contiguous
+  byte region stored little-endian across consecutive 8-byte dwords (each named
+  `↦ₘ` via `packBytes`), mirroring `Evm64.CodeRegion.evmCodeIs` but at the `Rv64`
+  layer so the RLP decoder can use it. Closes the gap that the existing decoder
+  reads only **within one dword** (`Phase2LongLoopGeneral.hwin` forces a single
+  `dwordAddr`). Lemmas: `bytesRegion_nil`, `bytesRegion_eq_cons` (peel one dword,
+  address `+8` — the workhorse), `bytesRegion_pcFree` (frames). The pure
+  byte-packing primitives (`packBytes`, `extractByte_packBytes`, `packDword`)
+  were **relocated** from `Evm64/CodeRegion.lean` down to `Rv64/ByteOps.lean`
+  (their natural home; one source of truth for both layers). Axiom-clean, 0 sorry.
+  **Next:** `bytesRegion_lbu_within` (read byte `i` across dwords — needs the
+  `alignToDword (alignedBase + i)` arithmetic the loop currently *assumes*), then
+  the list-decode loop + 5-exit reconvergence.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
