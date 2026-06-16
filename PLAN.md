@@ -1014,6 +1014,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   Axiom-clean (classical), 0 sorry. **RLP decodability is now complete: both
   inverses + injectivity + quasi-encoding rejection, to parity with the ACL2
   formalization.**
+- ✅ **Self-delimiting encoding / prefix-unambiguity** (`Properties.lean`).
+  `decode_encode_append` (left inverse with arbitrary trailer), `encode_append_cancel`
+  (`encode i₁ ++ r₁ = encode i₂ ++ r₂ → i₁ = i₂ ∧ r₁ = r₂`), and
+  `encode_prefix_unambiguous` (`encode i₁ <+: encode i₂ → i₁ = i₂`, the ACL2
+  `rlp-encode-tree-unamb-prefix` analogue — no valid encoding is a proper prefix
+  of another). All fall out of the two inverses. Axiom-clean, 0 sorry.
+- ✅ **RLP scalar layer** (`EvmAsm/EL/RLP/Scalar.lean`, ACL2 `rlp-encode-scalar`).
+  `encodeScalar n := encodeBytes (Nat.toBytesBE n)` (nonneg int → minimal
+  big-endian bytes → byte string; nonces/balances/gas/lengths) and `decodeScalar`.
+  `decodeScalar_encodeScalar` (round-trip), `encodeScalar_injective`, and
+  `decodeScalar_eq_some_imp` (right inverse) — all reuse `decode_encode_bytes` +
+  the `Nat.fromBytesBE/toBytesBE` bijection. Axiom-clean, 0 sorry. **Pure-spec RLP
+  is now at full ACL2 parity (tree + scalar, both inverse directions).**
 
 ### EL.2 Byte-Level Infrastructure ✅
 - **File**: `EvmAsm/Rv64/ByteOps.lean`
@@ -1218,6 +1231,57 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     cross-doubleword length spans (`n ≤ 8` single-doubleword only); Phase-4
     `read_input` pipeline integration.
 - Phase 4: `read_input` integration (obtain RLP input pointer + length)
+- ✅ **Multi-dword byte-region memory abstraction** (`EvmAsm/Rv64/MemRegion.lean`,
+  Phase-5 foundation). `bytesRegion (base) (bs : List (BitVec 8))` — a contiguous
+  byte region stored little-endian across consecutive 8-byte dwords (each named
+  `↦ₘ` via `packBytes`), mirroring `Evm64.CodeRegion.evmCodeIs` but at the `Rv64`
+  layer so the RLP decoder can use it. Closes the gap that the existing decoder
+  reads only **within one dword** (`Phase2LongLoopGeneral.hwin` forces a single
+  `dwordAddr`). Lemmas: `bytesRegion_nil`, `bytesRegion_eq_cons` (peel one dword,
+  address `+8` — the workhorse), `bytesRegion_pcFree` (frames). The pure
+  byte-packing primitives (`packBytes`, `extractByte_packBytes`, `packDword`)
+  were **relocated** from `Evm64/CodeRegion.lean` down to `Rv64/ByteOps.lean`
+  (their natural home; one source of truth for both layers). Axiom-clean, 0 sorry.
+- ✅ **`bytesRegion_lbu_within` — read byte `i` across dwords** (`MemRegion.lean`).
+  An `LBU` at `regionBase + i` (`i < bs.length`, base dword-aligned, no overflow)
+  reads `bs[i]` — the multi-dword read the single-`dwordAddr` `hwin` model could
+  not express (cross-check: reads byte 9 of a 10-byte / 2-dword region). New
+  supporting lemmas: `alignToDword_add_ofNat_of_aligned`
+  (`alignToDword (base + i) = base + 8*(i/8)`) and `byteOffset_add_ofNat_of_aligned`
+  (`= i % 8`) — the BitVec masking arithmetic the existing loop *assumes*; plus
+  `bytesRegion_dword_at` (extract the `dw`-th dword cell, partial last chunk OK).
+  Composition mirrors `Evm64/Push`: `generic_lbu_spec_within` +
+  `extractByte_packBytes`, framed via `cpsTripleWithin_frameR` + `xperm_hyp`.
+  Axiom-clean, 0 sorry.
+- ✅ **Single-byte-item list-decode loop** (`SingleByteListLoop.lean`). The first
+  RV64 RLP *list*-decode loop: a 4-instruction back-branch body
+  (`LBU x12,x13,0; ADDI x13,x13,1; ADDI x14,x14,-1; BNE x14,x0,back`) traversing a
+  single-byte-item payload, reading each byte from `bytesRegion` via
+  `bytesRegion_lbu_within` (assume-precondition scope — every byte `< 0x80` assumed,
+  no in-line validation/fail-exit yet). Layers: `sbll_iter_spec_within` (3-instr
+  triple), `sbll_body_spec_within` (2-exit `cpsBranchWithin`), `sbll_loop_succ/n_spec_within`
+  (n-iteration closure by **remaining-count induction with a generalized start
+  index** — keeping `regionBase`/`bs` fixed and re-indexing the per-iteration
+  validity hypotheses, since `bytesRegion_lbu_within` is keyed by the *absolute*
+  byte index, unlike Phase-2's `dwordAddr`-shift), and `sbll_loop_bridge` tying the
+  operational spec to the pure `decodeItems_singleByte_run` (zero-copy: shared
+  `< 0x80` precondition + matching consumed length `bs.length`). Cross-dword
+  cross-check: 10-byte / 2-dword payload → 10 items in `4*10` steps. Reuses
+  Phase-2's `word_ofNat_*`/`cnt_dec_1` counter lemmas. Axiom-clean, 0 sorry.
+- ✅ **In-line `< 0x80` validation — drop the `hsingle` assumption**
+  (`SingleByteListLoopValidated.lean`). The validated loop *proves* every payload
+  byte `< 0x80` in-machine instead of assuming it: it ORs each byte into an
+  accumulator (`x11`) during the scan (a `cpsTripleWithin` closure mirroring the
+  Phase-2 accumulator — `sbll_val_iter/body/loop_succ/n`), then a single post-loop
+  `ANDI x15, x11, 0x80; BNE x15, x0, fail` (accumulate-then-check, avoiding a
+  branching loop closure). `sbll_val_loop_checked_spec_within` is the 2-exit
+  `cpsBranchWithin` (success = `acc &&& 0x80 = 0`, fail = some byte `≥ 0x80`);
+  `sbll_val_loop_bridge` derives `decodeItems_singleByte_run` from the
+  *machine-checked* success condition — **no `hsingle` precondition**. Key new
+  BitVec lemma `orAccList_and_0x80_eq_zero_imp_all_lt` (accumulator bit-7 clear ⇒
+  all bytes `< 0x80`) via `BitVec.msb_eq_false_iff_two_mul_lt`. `OR` cannot
+  overflow ⇒ no `n ≤ 8` bound. Cross-dword cross-check at 10 bytes. Axiom-clean,
+  0 sorry. **Next:** varying-size items + the unified decoder's 5-exit reconvergence.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1

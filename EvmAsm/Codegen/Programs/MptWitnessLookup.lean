@@ -212,7 +212,8 @@ def ziskWitnessLookupByHashProbeUnit : BuildUnit := {
 /-- `zisk_witness_lookup_by_hash_indexed`: same probe contract as
     `zisk_witness_lookup_by_hash`, but first builds the sorted witness index and
     then resolves the hash through the indexed path. OUTPUT+24 records the
-    index-build status (0 = built, 1 = malformed/cap exceeded). -/
+    index-build status (0 = built, 1 = malformed/cap exceeded). OUTPUT+32
+    records the decoded SSZ element count observed by the builder. -/
 def ziskWitnessLookupByHashIndexedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a5, 0x40000000\n" ++
@@ -224,6 +225,10 @@ def ziskWitnessLookupByHashIndexedPrologue : String :=
   "  jal ra, witness_index_build\n" ++
   "  li t0, 0xa0010018\n" ++
   "  sd a0, 0(t0)                # index-build status at OUTPUT + 24\n" ++
+  "  la t0, widx_build_count\n" ++
+  "  ld t1, 0(t0)\n" ++
+  "  li t0, 0xa0010020\n" ++
+  "  sd t1, 0(t0)                # decoded count at OUTPUT + 32\n" ++
   "  bnez a0, .Lwlhi_done\n" ++
   "  mv a0, s2\n" ++
   "  mv a1, s0\n" ++
