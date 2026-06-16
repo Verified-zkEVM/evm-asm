@@ -92,6 +92,79 @@ def captureSystemStorageExecRowsFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret"
 
+
+/-! ## append_modeled_system_storage_tuple_rows
+    Append the explicit EIP-2935/EIP-4788 startup storage descriptors into the
+    system side log consumed by the BAL tuple comparator. These writes are not
+    produced by dispatcher execution, but execution-specs still exposes them as
+    block_access_index=0 storage tuple rows.
+
+    The side log uses the runtime exec-log layout:
+      addr key @0  = 20-byte address reversed into a 32-byte LE stack word
+      slot key @32 = 32-byte storage key reversed to LE
+      original @64 = zero (covered startup descriptor rows are insert-like)
+      current @96 = minimal BE descriptor value expanded/reversed to 32-byte LE
+
+    a0 (output) = 0 appended / 2 side arena overflow. -/
+def appendModeledSystemStorageTupleRowsFunction : String :=
+  "append_modeled_system_storage_tuple_rows:\n" ++
+  "  addi sp, sp, -56\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  la s0, bv_system_storage_log_count; ld s1, 0(s0)\n" ++
+  "  la a0, bsr_addr_2935; la a1, swd_2935_slot; la a2, swd_2935_val; la t0, swd_2935_vlen; ld a3, 0(t0)\n" ++
+  "  jal ra, .Lamsr_append_one; bnez a0, .Lamsr_ret\n" ++
+  "  la a0, bsr_addr_4788; la a1, swd_4788_slot; la a2, swd_4788_val; la t0, swd_4788_vlen; ld a3, 0(t0)\n" ++
+  "  jal ra, .Lamsr_append_one; bnez a0, .Lamsr_ret\n" ++
+  "  la a0, bsr_addr_4788; la a1, swd_4788_root_slot; la a2, swd_4788_root_val; la t0, swd_4788_root_vlen; ld a3, 0(t0)\n" ++
+  "  jal ra, .Lamsr_append_one\n" ++
+  "  j .Lamsr_ret\n" ++
+  "  # a0=addr20 BE, a1=slot32 BE, a2=minimal value BE, a3=value length\n" ++
+  ".Lamsr_append_one:\n" ++
+  "  beqz a3, .Lamsr_one_ok\n" ++
+  "  li t0, " ++ toString bvSystemStorageLogCapacity ++ "; bgeu s1, t0, .Lamsr_one_overflow\n" ++
+  "  slli t0, s1, 7; la s2, bv_system_storage_log; add s2, s2, t0\n" ++
+  "  slli t0, s1, 3; la s3, bv_system_storage_txindex; add s3, s3, t0; sd zero, 0(s3)\n" ++
+  "  mv s4, a0; mv s5, a2\n" ++
+  "  # addr key: reverse 20-byte canonical address, then zero-pad the high 12 bytes\n" ++
+  "  li t0, 0\n" ++
+  ".Lamsr_addr_rev:\n" ++
+  "  li t1, 20; beq t0, t1, .Lamsr_addr_zero\n" ++
+  "  li t2, 19; sub t2, t2, t0; add t2, s4, t2; lbu t3, 0(t2); add t4, s2, t0; sb t3, 0(t4)\n" ++
+  "  addi t0, t0, 1; j .Lamsr_addr_rev\n" ++
+  ".Lamsr_addr_zero:\n" ++
+  "  li t0, 20\n" ++
+  ".Lamsr_addr_zero_loop:\n" ++
+  "  li t1, 32; beq t0, t1, .Lamsr_slot_rev_start\n" ++
+  "  add t2, s2, t0; sb zero, 0(t2); addi t0, t0, 1; j .Lamsr_addr_zero_loop\n" ++
+  "  # slot key: reverse 32-byte canonical key to runtime LE\n" ++
+  ".Lamsr_slot_rev_start:\n" ++
+  "  li t0, 0\n" ++
+  ".Lamsr_slot_rev:\n" ++
+  "  li t1, 32; beq t0, t1, .Lamsr_original_zero\n" ++
+  "  li t2, 31; sub t2, t2, t0; add t2, a1, t2; lbu t3, 0(t2); addi t4, s2, 32; add t4, t4, t0; sb t3, 0(t4)\n" ++
+  "  addi t0, t0, 1; j .Lamsr_slot_rev\n" ++
+  "  # original value: zero for covered startup insert-like descriptor rows\n" ++
+  ".Lamsr_original_zero:\n" ++
+  "  sd zero, 64(s2); sd zero, 72(s2); sd zero, 80(s2); sd zero, 88(s2)\n" ++
+  "  sd zero, 96(s2); sd zero, 104(s2); sd zero, 112(s2); sd zero, 120(s2)\n" ++
+  "  li t0, 0\n" ++
+  ".Lamsr_value_rev:\n" ++
+  "  beq t0, a3, .Lamsr_finish_one\n" ++
+  "  addi t1, a3, -1; sub t1, t1, t0; add t1, s5, t1; lbu t2, 0(t1); addi t3, s2, 96; add t3, t3, t0; sb t2, 0(t3)\n" ++
+  "  addi t0, t0, 1; j .Lamsr_value_rev\n" ++
+  ".Lamsr_finish_one:\n" ++
+  "  addi s1, s1, 1; sd s1, 0(s0)\n" ++
+  ".Lamsr_one_ok:\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lamsr_one_overflow:\n" ++
+  "  li a0, 2; ret\n" ++
+  ".Lamsr_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
+  "  ret"
+
 /-- `zisk_capture_system_storage_exec_rows`: focused side-arena copy probe.
     Copies source rows [1,3), so output checks that two rows were appended,
     both side txindex entries are 0, and the first/last copied dwords match
