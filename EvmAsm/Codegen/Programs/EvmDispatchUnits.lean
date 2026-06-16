@@ -87,7 +87,11 @@ def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
       +136 null-initcode helper status         (expect 3)
       +144 runtime_count after null initcode   (expect 0)
       +152 long-initcode helper status         (expect 3)
-      +160 runtime_count after long initcode   (expect 0) -/
+      +160 runtime_count after long initcode   (expect 0)
+      +168 exec_nonstorage_effect_count        (expect 1)
+      +176 created effect addr[0]              (expect 0xA5)
+      +184 created effect post_balance[0]      (expect 0x42)
+      +192 created effect post_nonce           (expect 1) -/
 def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
   body        := []
   prologueAsm :=
@@ -100,6 +104,8 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "  la t1, crw_stop_initcode; sd t1, 56(t0)\n" ++
     "  li t1, 1; sd t1, 64(t0)\n" ++
     "  li t1, 0x42; sd t1, 96(t0)\n" ++
+    "  la t0, bv_create_addr; li t1, 0xA5; sb t1, 0(t0)\n" ++
+    "  la t0, exec_nonstorage_effect_count; sd zero, 0(t0)\n" ++
     -- Synthetic exec payload: just enough block env for staging.
     "  la t2, crw_exec\n" ++
     "  li t1, 0xC0; sb t1, 32(t2)\n" ++
@@ -120,6 +126,10 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); sd t1, 64(s0)\n" ++
     "  la t0, bv_receipts_enforce_enabled; ld t1, 0(t0); sd t1, 72(s0)\n" ++
     "  la t0, bvgr_tx_exec_state_gas; ld t1, 0(t0); sd t1, 80(s0)\n" ++
+    "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); sd t1, 168(s0)\n" ++
+    "  la t0, exec_nonstorage_effect_log; lbu t1, 0(t0); sd t1, 176(s0)\n" ++
+    "  lbu t1, 64(t0); sd t1, 184(s0)\n" ++
+    "  ld t1, 104(t0); sd t1, 192(s0)\n" ++
     -- Unsupported non-STOP initcode must not populate runtime_count.
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
     "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_bad_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
@@ -174,6 +184,8 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     recordNonstorageEffectFunction ++ "\n" ++
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
+    witnessCodesLookupByHashFunction ++ "\n" ++
+    rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
@@ -193,7 +205,13 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "bv_runtime_calldata_floor:\n  .zero 8\n" ++
     "bv_tx_status_arr:\n  .zero 8192\n" ++
     "bv_tx_is_creation_arr:\n  .zero 8192\n" ++
+    "bv_create_addr:\n  .zero 32\n" ++
+    ".balign 8\n" ++
+    "bv_creation_ctx_ptr:\n  .zero 8\n" ++
     "bv_tx_log_window:\n  .zero 16\n" ++
+    ".balign 32\n" ++
+    "wclh_scratch_hash:\n  .zero 32\n" ++
+    ".balign 8\n" ++
     "bv_last_log_start:\n  .zero 8\n" ++
     "bv_last_log_count:\n  .zero 8\n" ++
     "bv_receipts_completeness_shape:\n  .zero 8\n" ++
