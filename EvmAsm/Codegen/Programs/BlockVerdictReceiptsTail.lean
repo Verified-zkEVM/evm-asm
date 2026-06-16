@@ -58,6 +58,11 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, evm_selfdestruct_staged; ld t0, 0(t0); beqz t0, .Lbv_receipt_sd_skip\n" ++
   "  la t4, bvgr_receipt_gas_increments; ld t5, 0(t4); li t6, 32690; add t5, t5, t6; sd t5, 0(t4); j .Lbv_receipt_sd_skip\n" ++
   ".Lbv_receipt_sd_skip:\n" ++
+  "  la t2, bvgr_arena_tx_count; ld t2, 0(t2); li t3, 1; bne t2, t3, .Lbv_receipt_ecc_skip\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t2, 160(t2); li t3, 4; bne t2, t3, .Lbv_receipt_ecc_skip\n" ++
+  "  la t0, ecc_same_block_hit; ld t0, 0(t0); beqz t0, .Lbv_receipt_ecc_skip\n" ++
+  "  la t4, bvgr_receipt_gas_increments; ld t5, 0(t4); li t6, 32690; add t5, t5, t6; sd t5, 0(t4)\n" ++
+  ".Lbv_receipt_ecc_skip:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
