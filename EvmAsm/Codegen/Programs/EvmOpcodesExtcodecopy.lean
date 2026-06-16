@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.State
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 namespace EvmAsm.Codegen
 
@@ -40,7 +41,7 @@ open EvmAsm.Rv64.Program
     opcode that actually emits code bytes into EVM memory.
 
     Composes K201 `header_extract_state_root` + K28
-    `account_at_address` + K19 `witness_lookup_by_hash` + an
+    `account_at_address` + code-specific K19 `witness_codes_lookup_by_hash` + an
     inline byte-by-byte zero-padded copy loop.
 
     Calling convention (8 args, fits in a0..a7):
@@ -139,7 +140,7 @@ def extcodecopyAtHeaderStateRootFunction : String :=
   "  addi a2, s8, 72            # &acct.code_hash\n" ++
   "  la a3, ecc_match_offset\n" ++
   "  la a4, ecc_match_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
   "  beqz a0, .Lecc_step5\n" ++
   "  li a0, 5                   # integrity violation\n" ++
   "  j .Lecc_ret\n" ++
@@ -196,34 +197,39 @@ def extcodecopyAtHeaderStateRootFunction : String :=
       bytes 16..(16+length) : copied code bytes, zero-padded -/
 def ziskExtcodecopyAtHeaderStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li t1, 0x40000000\n" ++
-  "  ld t2,  8(t1)               # header_rlp_len\n" ++
-  "  ld t3, 16(t1)               # witness_state_len\n" ++
-  "  ld t4, 24(t1)               # witness_codes_len\n" ++
-  "  ld a3, 32(t1)               # code_offset\n" ++
-  "  ld a4, 40(t1)               # length\n" ++
-  "  mv s1, a4                   # save length in callee-saved reg\n" ++
-  "  addi a2, t1, 48             # address ptr\n" ++
-  "  addi a0, t1, 68             # header_rlp ptr\n" ++
-  "  mv a1, t2                   # header_rlp_len\n" ++
-  "  add a6, a0, t2              # witness.state ptr\n" ++
-  "  mv a7, t3                   # witness.state len\n" ++
-  "  add t5, a6, t3              # witness.codes ptr\n" ++
-  "  la t0, eccp_codes_ptr; sd t5, 0(t0)\n" ++
-  "  la t0, eccp_codes_len; sd t4, 0(t0)\n" ++
+  "  li s0, 0x40000000\n" ++
+  "  ld s1,  8(s0)               # header_rlp_len\n" ++
+  "  ld s2, 16(s0)               # witness_state_len\n" ++
+  "  ld s3, 24(s0)               # witness_codes_len\n" ++
+  "  ld s4, 32(s0)               # code_offset\n" ++
+  "  ld s5, 40(s0)               # length\n" ++
+  "  addi s6, s0, 68             # header_rlp ptr\n" ++
+  "  add s7, s6, s1              # witness.state ptr\n" ++
+  "  add s8, s7, s2              # witness.codes ptr\n" ++
+  "  mv a0, s8; mv a1, s3; jal ra, witness_codes_index_build\n" ++
+  "  mv a0, s6                   # header_rlp ptr\n" ++
+  "  mv a1, s1                   # header_rlp_len\n" ++
+  "  addi a2, s0, 48             # address ptr\n" ++
+  "  mv a3, s4                   # code_offset\n" ++
+  "  mv a4, s5                   # length\n" ++
   "  li a5, 0xa0010010           # output buffer at OUTPUT + 16\n" ++
+  "  mv a6, s7                   # witness.state ptr\n" ++
+  "  mv a7, s2                   # witness.state len\n" ++
+  "  la t0, eccp_codes_ptr; sd s8, 0(t0)\n" ++
+  "  la t0, eccp_codes_len; sd s3, 0(t0)\n" ++
   "  jal ra, extcodecopy_at_header_state_root\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  # Write effective length = length on success, else 0.\n" ++
   "  bnez a0, .Lecc_no_len\n" ++
-  "  sd s1, 8(t0)                # success: use saved length\n" ++
+  "  sd s5, 8(t0)                # success: use saved length\n" ++
   "  j .Lecc_pdone\n" ++
   ".Lecc_no_len:\n" ++
   "  sd zero, 8(t0)\n" ++
   "  j .Lecc_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
@@ -244,6 +250,8 @@ def ziskExtcodecopyAtHeaderStateRootDataSection : String :=
   "  .zero 200\n" ++
   ".balign 32\n" ++
   "wlh_scratch_hash:\n" ++
+  "  .zero 32\n" ++
+  "wclh_scratch_hash:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "mnk_dummy_offset:\n" ++
