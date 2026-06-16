@@ -432,7 +432,7 @@ def statelessVerdictV2Function : String :=
   -- which clobbers ALL s-registers (SystemCallStaging:96-99 — resets sp to lp64_sp_top and the
   -- predeploy EVM execution overwrites the s-regs) AND, on an OUT-OF-GAS predeploy, writes far
   -- enough into memory to clobber guest data globals too. s0(SSZ_BASE)/s3(er offset) are needed
-  -- AFTER the derives (deposit extraction, no-tx deposit check, block_access_list_hash,
+  -- AFTER the derives (deposit extraction, block_access_list_hash,
   -- block_verdict). Saving them to data globals (c1_saved_s0/s3) was unsafe — the OOG predeploy
   -- clobbered those globals with 0xb6 (.66 crash) — so they are RE-DERIVED from the stable input
   -- region after the last derive (see below); no save needed.
@@ -560,8 +560,8 @@ def statelessVerdictV2Function : String :=
   "  addi t0, s0, 16; add t0, t0, s3; la t1, c1_er_input; sd t0, 0(t1)\n" ++
   -- For no-tx blocks, execution-derived deposits are necessarily empty: no transaction
   -- can call the deposit contract or emit a deposit log. Use the empty derived body in
-  -- the header rebuild so a forged SSZ deposits body mismatches requests_hash before
-  -- the legacy hv09f no-tx length guard runs. Tx-bearing paths keep the existing SSZ
+  -- the header rebuild so a forged SSZ deposits body mismatches requests_hash through
+  -- the general requests_hash failure path. Tx-bearing paths keep the existing SSZ
   -- deposit prelude until the receipt tail derives deposits from materialized logs.
   "  la t0, svf_tx_count; ld t0, 0(t0); beqz t0, .Lv2_er_empty_deposits\n" ++
   "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
@@ -572,6 +572,7 @@ def statelessVerdictV2Function : String :=
   "  la a0, c1_dbody; li a1, 0\n" ++
   "  la t0, c1_dlen; sd zero, 0(t0)\n" ++
   "  la t0, c1_dstatus; sd zero, 0(t0)\n" ++
+  "  la t0, c1_notx_deposit_body_len; sd zero, 0(t0)\n" ++
   ".Lv2_er_deposits_ready:\n" ++
   "  la t0, dbsr_wbody; mv a2, t0; la t0, dbsr_wlen; ld a3, 0(t0)\n" ++
   "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
@@ -584,25 +585,6 @@ def statelessVerdictV2Function : String :=
   "  jal ra, execution_requests_hash\n" ++
   "  la t0, c1_erh_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lv2_requests_hash_fail\n" ++
-  -- hv09f.1 legacy guard: parse_deposit_requests scans receipts for deposit-contract
-  -- logs; a no-tx block has no transaction calling the deposit contract, hence zero
-  -- deposit logs, so execution_requests.deposits MUST be empty. The header rebuild
-  -- above now uses an empty derived deposit body for tx_count==0, so a fabricated
-  -- non-empty SSZ deposits list with a matching header.requests_hash should already
-  -- fail via the derived requests_hash/header path. Keep this guard until the focused
-  -- no-tx evidence bead retires it explicitly.
-  -- (Withdrawals/consolidations are NOT checked: the 7002/7251 system contracts can
-  -- enqueue those in a no-tx block.) execution_requests_hash already validated the
-  -- offset table (>=12 bytes, monotonic), so reading offset[0]/offset[1] is safe and
-  -- offset[1] >= offset[0]. s0/s3 (NPR base / er offset) were reloaded after the derives (Fix3).
-  "  la t0, svf_tx_count; ld t0, 0(t0); bnez t0, .Lv2_after_notx_deposits\n" ++
-  "  addi a0, s0, 16; add a0, a0, s3; jal ra, bgv_u64le   # offset[0] | offset[1]<<32\n" ++
-  "  srli t0, a0, 32                                       # deposits end (offset[1])\n" ++
-  "  slli t1, a0, 32; srli t1, t1, 32                      # deposits start (offset[0])\n" ++
-  "  sub t2, t0, t1                                        # deposits body length\n" ++
-  "  la t3, c1_notx_deposit_body_len; sd t2, 0(t3)\n" ++
-  "  bnez t2, .Lv2_notx_deposits_fail\n" ++
-  ".Lv2_after_notx_deposits:\n" ++
   "  mv a0, s0; la a1, svf_bal_hash\n" ++
   "  jal ra, block_access_list_hash\n" ++
   "  bnez a0, .Lv2_bal_hash_fail\n" ++
@@ -645,9 +627,6 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_requests_hash_fail:\n" ++
   "  li t0, 24; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
-  "  j .Lv2_zero\n" ++
-  ".Lv2_notx_deposits_fail:\n" ++   -- hv09f.1: no-tx block claims non-empty execution_requests.deposits
-  "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_tx_root_fail:\n" ++
   "  li t0, 32; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
