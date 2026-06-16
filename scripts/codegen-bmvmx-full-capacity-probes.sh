@@ -8,7 +8,7 @@ REPO_ROOT="$(pwd)"
 RUN_DIR="${RUN_DIR:-gen-out/bmvmx-full-capacity-probes}"
 EEST_FIXTURES_DIR="${EEST_FIXTURES_DIR:-gen-out/eest-fixtures}"
 EXPECTED_EEST_TX_COUNT="${EXPECTED_EEST_TX_COUNT:-1021}"
-SYNTHETIC_TX_COUNTS="${SYNTHETIC_TX_COUNTS:-1021 9523}"
+SYNTHETIC_TX_COUNTS="${SYNTHETIC_TX_COUNTS:-1021 1024 1025 9523}"
 REQUIRE_EEST="${REQUIRE_EEST:-0}"
 RUN_SYNTHETIC="${RUN_SYNTHETIC:-1}"
 ZISKEMU="${ZISKEMU:-}"
@@ -16,33 +16,41 @@ ZISKEMU="${ZISKEMU:-}"
 mkdir -p "$RUN_DIR"
 RUN_DIR="$(cd "$RUN_DIR" && pwd)"
 
-current_mtx_cap() {
+mtx_caps() {
   python3 - <<'PY'
 import re
 from pathlib import Path
 
-params = Path("EvmAsm/Codegen/Programs/BlockVerdictParams.lean")
-if params.exists():
-    m = re.search(r"def\s+bvMtxArenaTxCap\s*:\s*Nat\s*:=\s*(\d+)", params.read_text())
-    if m:
-        print(m.group(1))
-        raise SystemExit(0)
+text = Path("EvmAsm/Codegen/Programs/BlockVerdictParams.lean").read_text()
+raw = dict(re.findall(r"def\s+(bvMtx(?:ActiveTxCap|FullTxCap|ArenaTxCap))\s*:\s*Nat\s*:=\s*([^\n]+)", text))
 
-fn = Path("EvmAsm/Codegen/Programs/BlockVerdictFunction.lean")
-text = fn.read_text()
-m = re.search(r"li t1,\s*(\d+);\s*bgtu t0, t1, \.Lbv_mtx_bail", text)
-if not m:
-    raise SystemExit("could not find multi-tx arena cap in BlockVerdictFunction.lean")
-print(m.group(1))
+seen = set()
+def resolve(name):
+    if name in seen:
+        raise SystemExit(f"cycle while resolving {name}")
+    seen.add(name)
+    value = raw.get(name)
+    if value is None:
+        raise SystemExit(f"missing {name} in BlockVerdictParams.lean")
+    value = value.strip()
+    if value.isdigit():
+        return int(value)
+    if value in raw:
+        return resolve(value)
+    raise SystemExit(f"unsupported {name} definition: {value}")
+
+print(resolve("bvMtxActiveTxCap"), resolve("bvMtxFullTxCap"))
 PY
 }
 
 classify_tx_count() {
-  local tx_count="$1" cap="$2"
-  if (( tx_count > cap )); then
-    printf "tx-cap-overflow"
+  local tx_count="$1" active_cap="$2" full_cap="$3"
+  if (( tx_count > full_cap )); then
+    printf "above-full-cap"
+  elif (( tx_count > active_cap )); then
+    printf "above-active-within-full"
   else
-    printf "within-tx-cap"
+    printf "within-active"
   fi
 }
 
@@ -61,7 +69,7 @@ resolve_ziskemu() {
 }
 
 scan_eest_fixtures() {
-  local cap="$1"
+  local active_cap="$1" full_cap="$2"
   local fixtures_dir="$EEST_FIXTURES_DIR"
   [[ "$fixtures_dir" = /* ]] || fixtures_dir="$REPO_ROOT/$fixtures_dir"
   if [[ ! -d "$fixtures_dir" ]]; then
@@ -148,8 +156,8 @@ PY
   local status total max_count fixture block_index test_name
   IFS=$'\t' read -r status total max_count fixture block_index test_name <<< "$scan_out"
   local class
-  class="$(classify_tx_count "$max_count" "$cap")"
-  echo "eest_status=ok max_tx_count=$max_count expected_floor=$EXPECTED_EEST_TX_COUNT capacity_class=$class fixture=$fixture report=$report"
+  class="$(classify_tx_count "$max_count" "$active_cap" "$full_cap")"
+  echo "eest_status=ok max_tx_count=$max_count expected_floor=$EXPECTED_EEST_TX_COUNT capacity_class=$class active_cap=$active_cap full_cap=$full_cap fixture=$fixture report=$report"
   if (( max_count < EXPECTED_EEST_TX_COUNT )); then
     echo "eest_status=below-expected max_tx_count=$max_count expected_floor=$EXPECTED_EEST_TX_COUNT" >&2
     [[ "$REQUIRE_EEST" -eq 0 ]] || return 1
@@ -179,7 +187,7 @@ PY
 }
 
 run_synthetic_probe() {
-  local cap="$1"
+  local active_cap="$1" full_cap="$2"
   [[ "$RUN_SYNTHETIC" -eq 1 ]] || return 0
   resolve_ziskemu
 
@@ -206,18 +214,18 @@ run_synthetic_probe() {
     count_le="$(dd if="$out_file" bs=1 skip=8 count=8 2>/dev/null | xxd -p | tr -d '\n')"
     status="$(python3 -c "import struct; print(struct.unpack('<Q', bytes.fromhex('${status_le:-0000000000000000}'))[0])")"
     count="$(python3 -c "import struct; print(struct.unpack('<Q', bytes.fromhex('${count_le:-0000000000000000}'))[0])")"
-    class="$(classify_tx_count "$tx_count" "$cap")"
+    class="$(classify_tx_count "$tx_count" "$active_cap" "$full_cap")"
     if [[ "$status" == "0" && "$count" == "$tx_count" ]]; then
-      echo "synthetic_status=ok tx_count=$tx_count decoded_count=$count capacity_class=$class resource_status=not-exercised"
+      echo "synthetic_status=ok tx_count=$tx_count decoded_count=$count capacity_class=$class active_cap=$active_cap full_cap=$full_cap resource_status=block-body-count-only"
     else
-      echo "synthetic_status=fail tx_count=$tx_count status=$status decoded_count=$count capacity_class=$class log=$log_file" >&2
+      echo "synthetic_status=fail tx_count=$tx_count status=$status decoded_count=$count capacity_class=$class active_cap=$active_cap full_cap=$full_cap log=$log_file" >&2
       failed=1
     fi
   done
   return "$failed"
 }
 
-cap="$(current_mtx_cap)"
-echo "current_mtx_cap=$cap"
-scan_eest_fixtures "$cap"
-run_synthetic_probe "$cap"
+read -r active_cap full_cap < <(mtx_caps)
+echo "active_mtx_cap=$active_cap full_mtx_cap=$full_cap"
+scan_eest_fixtures "$active_cap" "$full_cap"
+run_synthetic_probe "$active_cap" "$full_cap"

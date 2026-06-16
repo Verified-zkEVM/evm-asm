@@ -86,6 +86,7 @@ MODELED_SYSTEM_ADDRESSES = {
 WITHDRAWAL_REQUEST_ADDRESS = "00000961ef480eb55e80d19ad83579a64c007002"
 BLOCK_STATE_ROOT_WITNESS_CAP = 524288
 BLOCK_STATE_ROOT_BAL_CAP = 100000
+MPT_WITNESS_INDEX_CAP = BLOCK_STATE_ROOT_WITNESS_CAP // 4
 BV_MTX_ARENA_TX_CAP = 1024
 BMV_FULL_TX_CAPACITY = 9523
 BV_MTX_COMMITTED_CHUNK_CAPACITY = 512
@@ -96,7 +97,7 @@ BV_LOGS_RLP_ARENA_BYTES = 65536
 BV_RECEIPTS_RLP_BYTES = 65536
 BV_RECEIPT_LIST_PAYLOAD_BYTES = 32768
 BV_RECEIPT_CONSENSUS_DESC_CAPACITY = 128
-BV_SYSTEM_STORAGE_LOG_CAPACITY = 16384
+BV_SYSTEM_STORAGE_LOG_CAPACITY = 600000
 C1_DEPOSIT_BODY_BYTES = 32768
 C1_LOG_RECORDS_BYTES = 81920
 C1_EXECUTION_REQUESTS_BYTES = 32768
@@ -193,6 +194,8 @@ def summarize(
         "nonce_changes": 0,
         "code_changes": 0,
         "state_nodes": len(stateless_input.witness.state),
+        "widx_cap": MPT_WITNESS_INDEX_CAP,
+        "over_widx_cap": 0,
         "state_witness_bytes": sum(4 + len(node) for node in stateless_input.witness.state),
         "state_max_bytes": max((len(node) for node in stateless_input.witness.state), default=0),
         "bsr_witness_cap": bsr_cap,
@@ -224,6 +227,7 @@ def summarize(
         **request_metrics,
     }
     summary["over_bsr_cap"] = int(summary["state_witness_bytes"] > bsr_cap)
+    summary["over_widx_cap"] = int(summary["state_nodes"] > summary["widx_cap"])
     summary["over_bsr_bal_cap"] = int(summary["bal_rows"] > bsr_bal_cap)
     details: list[dict[str, str]] = []
 
@@ -376,6 +380,8 @@ def main() -> int:
         "nonce_changes",
         "code_changes",
         "state_nodes",
+        "widx_cap",
+        "over_widx_cap",
         "state_witness_bytes",
         "state_max_bytes",
         "bsr_witness_cap",

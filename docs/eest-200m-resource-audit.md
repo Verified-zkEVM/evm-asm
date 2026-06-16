@@ -26,16 +26,16 @@ The distinction matters:
 | Per-slot tuple sequence | One tuple per tx plus seed/system margin | `bsrMaxTuplesPerSlot = 10000` | Covers `9523` minimum-gas txs plus margin. |
 | Witness bytes | Large valid state witnesses under the 200M target | `bsrMaxWitnessBytes = 524288` | Size guard widened, but record count/perf still needs work. |
 | Transaction arrays | `floor(200000000 / 21000) = 9523` txs | Cheap u64/log-window arenas use `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: foundation split landed; algorithmic cap gaps remain under `evm-asm-vv4hr.1`. |
-| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Active sender tables use `bvMtxActiveTxCap = 1024` | Gap: aggregation slices under `evm-asm-vv4hr.1`; related existing P1 `evm-asm-bmvmx.5.5.7.3`. |
+| Sender aggregation | Up to `9523` txs, repeated or distinct senders | Sender count and sender-balance tables derive from `bvMtxFullTxCap = 9523`; active execution loop remains `bvMtxActiveTxCap = 1024` | Partial: aggregation substrates have full-cap probes; end-to-end active-loop migration remains under `evm-asm-vv4hr.1`. |
 | Committed storage threading | All unique `(recipient, slotKey)` keys reachable under 200M | `bvMtxCommittedChunkCapacity = 512` | Gap: `evm-asm-vv4hr.2`. |
-| System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 16384`; some paths are best-effort | Gap: `evm-asm-vv4hr.7`; related ungate beads `evm-asm-hwngs`, `evm-asm-40igg`. |
+| System storage side capture | All modeled system-call SSTORE rows needed by BAL checks | `bvSystemStorageLogCapacity = 600000`, derived as `2 * 30000000 / 100` for withdrawal plus consolidation system calls at the cheapest SSTORE gas floor | Capacity boundary covered by `evm-asm-vv4hr.7.1`; precise tuple binding/evidence remains under `evm-asm-vv4hr.7.2`/`.7.3` and ungate bead `evm-asm-40igg`. |
 | Receipt records | Up to the supported tx count | `bvReceiptRecordCapacity = bvMtxFullTxCap = 9523`; `bvRecordBloomsBytes` and `bvRecordLogsDescBytes` derive from the same cap | Covered for per-tx record/bloom/descriptor storage; log capture and RLP materialization remain separate. |
 | Block log descriptors | All supported execution-derived logs | `bvBlockLogDescCapacity = 128` | Gap: `evm-asm-vv4hr.3.2`. |
 | Log/RLP bytes | Aggregate log payloads and receipt-list RLP for supported blocks | `bvBlockLogDataBytes = 65536`, `bvLogsRlpArenaBytes = 65536`, `bvReceiptsRlpBytes = 65536`, `bvReceiptListPayloadBytes = 32768`, `bvReceiptConsensusDescCapacity = 128` | Gaps: `evm-asm-vv4hr.3.3` and `evm-asm-vv4hr.3.4`. |
 | Execution requests hash input | EIP-6110 deposits `8192 * 192`, withdrawals `16 * 76`, consolidations `2 * 116` | `erh_blob = 1572865` | Hash helper covers the deposit body cap. |
 | Execution-derived deposit body staging | Same deposit body cap when deriving requests from logs | `c1_dbody = 32768`, `c1_log_records = 81920` | Gap: `evm-asm-vv4hr.4`. |
 | System-call payload staging | Witness code plus 100k preloads plus M29 slack | `c1StagingBytes = bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384` | Covered by shared guard for current staging model. |
-| Witness node index | All witness records needed by valid 200M blocks | `MptWitnessIndex` cap `8192` records | Gap: `evm-asm-vv4hr.5`. |
+| Witness node index | All `witness.state` records representable under the 512 KiB accepted witness byte guard | `mptWitnessIndexCapacity = 131072` records; arena `6291456` bytes | Covered for fixed-arena record count; lookup/code/header performance work continues under `evm-asm-vv4hr.5`. |
 | Debug/probe output | Every capacity bail is observable without crashing | Fixed verdict/debug layouts | Gap: `evm-asm-vv4hr.6`. |
 
 ## Follow-Up Beads
@@ -56,13 +56,17 @@ Every discovered 200M resource gap has a P1 child bead:
   cover the full deposit cap instead of the current `c1_dbody` /
   `c1_log_records` staging limits.
 - `evm-asm-vv4hr.5`: extend witness/header/code indexing and step behavior so
-  valid large witnesses do not fail through index overflow or
-  `EmulationNoCompleted`.
+  valid large witnesses do not fail through code/header linear scans or
+  `EmulationNoCompleted`. The `witness.state` NodeDb fixed arena is now sized
+  from the 512 KiB accepted witness byte guard: 524288 / 4 = 131072 records,
+  or 6291456 bytes of RAM at 48 bytes per sorted record.
 - `evm-asm-vv4hr.6`: make verdict debug/probe output report every resource cap
   precisely without truncation, uninitialized reads, or debug-probe exits.
 - `evm-asm-vv4hr.7`: make system-storage side capture precise under full
   resource load and ungate modeled system tuple checks only when capture is
-  complete.
+  complete. Child `evm-asm-vv4hr.7.1` covers the side-capture capacity
+  boundary; `.7.2` binds modeled-system tuple checks to complete capture, and
+  `.7.3` adds full-resource evidence.
 
 Existing related P1s:
 
