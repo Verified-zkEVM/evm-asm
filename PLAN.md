@@ -1311,8 +1311,23 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   split invoking each handler directly (flat arms frame `x12`/`x14`/memory; long
   arms carry them); variable long-step bound discharged by
   `rlpPrefixLong{Bytes,List}LenOfLen_le_8_of_class`. Axiom-clean, 0 sorry.
-  **Next:** the per-item list loop calling the reconverged decoder (advance
-  `x13 += x11`, count items, back-branch) + the mixed-item pure bridge.
+- ✅ **Flat per-item list-loop BODY** (`FlatListLoopBody.lean`). One iteration of
+  the flat-item list-decode loop as a 2-exit `cpsBranchWithin`: `LBU x5,x13,0`
+  (read the prefix from `bytesRegion` via `bytesRegion_lbu_within`) → the flat
+  reconverged decoder (passed as an OPAQUE `cpsTripleWithin` hypothesis,
+  `decoder_base = lbase+4`) → `ADD x13,x13,x11` (advance to the next item) →
+  `ADDI x14,x14,-1` (item counter) → `BNE x14,x0,back` (taken → `lbase`).
+  `fll_body_spec_within` (step bound 15) with bundled post `fll_body_post`;
+  new stride helpers `itemTotalLen`/`itemNextPtr` + `itemNextPtr_eq`
+  (`itemPayloadPtr + itemPayloadLen = v13 + itemTotalLen`, the factored form the
+  closure re-indexes on). The decoder is opaque so its disjointness from the
+  loop's LBU/ADD/ADDI/BNE singletons is taken as hypotheses (the closure
+  discharges them from the concrete decoder layout). `bytesRegion`+`x14` framed
+  through the decoder. Flat-only (long items need the decoder's length-read
+  upgraded to `bytesRegion`). Axiom-clean, 0 sorry. **Next:** the n-iteration
+  closure (induct over item count, re-index by `itemNextPtr`, discharge the
+  decoder hyp per iteration) + the `decodeItems` bridge (reuse the existing
+  `decode_encode` round-trip).
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
