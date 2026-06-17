@@ -512,6 +512,12 @@ def emitSelfdestructData : String :=
   ".balign 32\n" ++
   "rt_deleg_warm_be:\n" ++       -- 5tmlt: BE-20 scratch for the post-reset delegation-target warm
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_from_sw:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_to_sw:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_created_in_tx:\n" ++
   "  .zero 8\n" ++
