@@ -221,7 +221,21 @@ def selfdestructBalanceTransferRuntimeAsm : String :=
   "  sd x0, 0(t0)\n" ++
   "  la t0, sdai_status\n" ++
   "  ld t1, 0(t0)\n" ++
-  "  bnez t1, .L_selfdestruct_transfer_done\n" ++
+  "  beqz t1, .L_selfdestruct_transfer_full\n" ++
+  -- status 4 = beneficiary lookup missed because it is a NEW account. The balance
+  -- move to the new beneficiary is already applied (recomputed state root matches),
+  -- but the spec still emits the EIP-7708 Transfer log to it. The full transfer
+  -- staging below needs the beneficiary RLP (absent for a new account), so instead
+  -- just clear sdai_transfer_status to let selfdestructEip7708LogRuntimeAsm emit the
+  -- log: it reads the transferred amount from the (valid) origin RLP and no-ops on a
+  -- zero balance, so this is correct for both funded and empty new-beneficiary cases.
+  -- status 1/2/3 (no context / header / origin failure) keep skipping (status stays 1).
+  "  li t2, 4\n" ++
+  "  bne t1, t2, .L_selfdestruct_transfer_done\n" ++
+  "  la t0, sdai_transfer_status\n" ++
+  "  sd x0, 0(t0)\n" ++
+  "  j .L_selfdestruct_transfer_done\n" ++
+  ".L_selfdestruct_transfer_full:\n" ++
   "  la t0, sdai_origin_len\n" ++
   "  ld a1, 0(t0)\n" ++
   "  la t0, sdai_beneficiary_len\n" ++
@@ -319,6 +333,19 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi t1, t1, -1\n" ++
   "  addi t2, t2, -1\n" ++
   "  bnez t2, .L_selfdestruct_eip7708_balance_rev\n" ++
+  -- Build stack-word LE forms of the from/to addresses for the EIP-7708 log topics.
+  -- sdai_origin_address / evm_selfdestruct_beneficiary are canonical 20-byte BE, but
+  -- the receipt log encoder byte-reverses each 32B topic slot (like the CALL value-
+  -- transfer log, which passes env.ADDRESS / stack words), so the address must enter
+  -- as [20-byte LE][12 zero] to come out canonical right-aligned BE.
+  "  la t0, sd_eip7708_from_sw\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, sdai_origin_address; addi t1, t1, 19; li t2, 20\n" ++
+  ".L_sd7708_from_le:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sd7708_from_le\n" ++
+  "  la t0, sd_eip7708_to_sw\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, evm_selfdestruct_beneficiary; addi t1, t1, 19; li t2, 20\n" ++
+  ".L_sd7708_to_le:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sd7708_to_le\n" ++
   "  la t0, sdai_origin_address\n" ++
   "  la t1, evm_selfdestruct_beneficiary\n" ++
   "  li t2, 20\n" ++
@@ -342,7 +369,7 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp)\n" ++
   "  sd x12, 8(sp)\n" ++
-  "  la a0, sdai_origin_address\n" ++
+  "  la a0, sd_eip7708_from_sw\n" ++
   "  la a1, evm_selfdestruct_balance_scratch\n" ++
   "  jal ra, eip7708_append_burn_log\n" ++
   "  mv t6, a0\n" ++
@@ -355,8 +382,8 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp)\n" ++
   "  sd x12, 8(sp)\n" ++
-  "  la a0, sdai_origin_address\n" ++
-  "  la a1, evm_selfdestruct_beneficiary\n" ++
+  "  la a0, sd_eip7708_from_sw\n" ++
+  "  la a1, sd_eip7708_to_sw\n" ++
   "  la a2, evm_selfdestruct_balance_scratch\n" ++
   "  jal ra, eip7708_append_transfer_log\n" ++
   "  mv t6, a0\n" ++
@@ -378,6 +405,52 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  li t1, 3\n" ++
   "  sd t1, 0(t0)\n" ++
   ".L_selfdestruct_eip7708_done:\n"
+
+/--
+ednoc / i3djw.3: record the SELFDESTRUCT beneficiary's non-storage balance effect so the
+all-accounts non-storage FORWARD check (`bal_all_accounts_nonstorage_consistent`, bv_fail=44)
+reproduces the BAL's declared beneficiary balance change.
+
+Hooks off `evm_selfdestruct_staged` (NOT `sdai_transfer_status==0`) so it also covers a NEW
+beneficiary, whose account lookup fails (`sdai_status=4`) and skips the runtime transfer staging
+-- yet the post-state recompute still creates it. transferred = origin pre-balance
+(`sdai_origin_rlp`, BE, valid for status 0 or 4); beneficiary pre = its balance if it existed
+(`sdai_status==0`) else 0; post = pre + transferred; nonce unchanged (0/0). Zero transfer or
+self-destruct-to-self records nothing (the balance-0 self-destruct rows that pass via
+conservative-accept stay unaffected). The all-accounts wrapper skips {sender,recipient,coinbase};
+`record_nonstorage_effect`/`account_extract_balance`/`u256_add_be` are dispatcher-linked. Saves/
+restores the dispatcher's x10/x12 around each helper call (mirrors the eip7708 fragment). -/
+def selfdestructBeneficiaryNonstorageAsm : String :=
+  "  la t0, evm_selfdestruct_staged; ld t0, 0(t0); beqz t0, .L_sdbn_done\n" ++
+  "  la t0, sdai_status; ld t0, 0(t0); beqz t0, .L_sdbn_origin_ok\n" ++
+  "  li t1, 4; bne t0, t1, .L_sdbn_done\n" ++
+  ".L_sdbn_origin_ok:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd x10, 96(sp); sd x12, 104(sp)\n" ++
+  "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 64\n" ++
+  "  jal ra, account_extract_balance\n" ++
+  "  ld t0, 64(sp); ld t1, 72(sp); or t0, t0, t1; ld t1, 80(sp); or t0, t0, t1; ld t1, 88(sp); or t0, t0, t1\n" ++
+  "  beqz t0, .L_sdbn_restore\n" ++
+  "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
+  ".L_sdbn_cmp:\n" ++
+  "  beqz t2, .L_sdbn_restore\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L_sdbn_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_cmp\n" ++
+  ".L_sdbn_diff:\n" ++
+  "  la t0, sdai_status; ld t0, 0(t0); bnez t0, .L_sdbn_pre_zero\n" ++
+  "  la a0, sdai_beneficiary_rlp; la t0, sdai_beneficiary_len; ld a1, 0(t0); mv a2, sp\n" ++
+  "  jal ra, account_extract_balance\n" ++
+  "  j .L_sdbn_have_pre\n" ++
+  ".L_sdbn_pre_zero:\n" ++
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  ".L_sdbn_have_pre:\n" ++
+  "  mv a0, sp; addi a1, sp, 64; addi a2, sp, 32\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  la a0, evm_selfdestruct_beneficiary; mv a1, sp; addi a2, sp, 32; li a3, 0; li a4, 0\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  ".L_sdbn_restore:\n" ++
+  "  ld x10, 96(sp); ld x12, 104(sp); addi sp, sp, 112\n" ++
+  ".L_sdbn_done:\n"
 
 /--
 Runtime-layout probe for `selfdestructLoadAccountInputsAsm`.
@@ -544,6 +617,12 @@ def runtimeSelfdestructAccountInputsDataSection : String :=
   "  .zero 32\n" ++
   ".balign 32\n" ++
   "evm_selfdestruct_balance_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_from_sw:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_to_sw:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_created_in_tx:\n" ++
