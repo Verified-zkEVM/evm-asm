@@ -1126,6 +1126,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "sv_pre_rlp_ptr:\n  .zero 8\n" ++
   "sv_pre_rlp_len:\n  .zero 8\n" ++
+  "bv_witness_state_ptr:\n  .zero 8\n" ++
+  "bv_witness_state_len:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.5: mtx-gating for dispatch_tx_runtime_code's witness lookups.
   -- dtrc_use_pre_header: 0 (default) -> use sv_this_rlp (POST header; single-tx path,
   -- conservative, identical to #8686); 1 -> use sv_pre_rlp_* (PRE/parent header; set by

@@ -1056,6 +1056,20 @@ def balCodePreimagesValidFunction : String :=
   "  lbu t0, 0(s9); li t1, 0xef; bne t0, t1, .Lbsbd_no\n" ++
   "  lbu t0, 1(s9); li t1, 0x01; bne t0, t1, .Lbsbd_no\n" ++
   "  lbu t0, 2(s9); bnez t0, .Lbsbd_no\n" ++
+  -- 5tmlt (Part A): on a no-charge (free) resolution, WARM the delegated target (s9+3)
+  -- here, BEFORE the code lookup (which can bail .Lbsbd_no). The spec adds the
+  -- delegated_address to accessed_addresses at the first/free access to the delegated
+  -- account, independent of resolving the target's code. The CHARGE path (s10!=0) keeps
+  -- runtime_access_account_charge's charge-then-insert. Paired with the post-reset
+  -- warming call in emitRuntimeDispatcherSetup (Part B) so the seed lands in the
+  -- EXECUTION phase (the pre-reset resolutions are wiped by runtime_access_seed_initial_accounts).
+  -- runtime_access_account_seed preserves s-regs (s9/s10 intact); a0..a3 reloaded below.
+  "  bnez s10, .Lbsbd_skip_freewarm\n" ++
+  "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
+  ".Lbsbd_skip_freewarm:\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  addi a2, s9, 3             # delegated address ptr\n" ++

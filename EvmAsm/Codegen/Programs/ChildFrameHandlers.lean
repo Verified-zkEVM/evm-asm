@@ -462,7 +462,22 @@ def callDescendFallThrough
   "  mv t2, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  "  beqz t2, .Lcd_descend_" ++ tag ++ "\n" ++
+  -- EIP-7702: a CALL to a delegated account runs the TARGET's code, never the
+  -- 0xef0100||addr delegation marker itself. code_at_header_state_root resolves
+  -- the raw account code, so a same-block-delegated callee whose marker code is
+  -- present at the lookup header (e.g. a self-tx reentry into tx.to == sender,
+  -- staged with its post-state marker) returns status 0 with the 23-byte marker.
+  -- Descending on that runs 0xef (invalid) as code instead of the delegated body
+  -- (5tmlt.3: pointer_to_static_reentry self-tx false-reject). Detect the marker
+  -- (len 23, prefix ef 01 00 — 0xef can't begin real code per EIP-3541) and route
+  -- to the same-block delegation resolver, exactly like the code-lookup MISS path.
+  "  bnez t2, .Lcd_resolve_" ++ tag ++ "\n" ++
+  "  la t3, cahsr_code_length; ld t3, 0(t3); li t4, 23; bne t3, t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  ld t3, 608(x20); la t4, cahsr_code_offset; ld t4, 0(t4); add t3, t3, t4\n" ++
+  "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 2(t3); bnez t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  ".Lcd_resolve_" ++ tag ++ ":\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
   "  la a0, cd_callee_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 1\n" ++

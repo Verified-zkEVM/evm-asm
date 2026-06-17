@@ -92,6 +92,18 @@ def seedTxAccessListFunction : String :=
   "  add t5, t3, t4; sb t6, 0(t5)\n" ++
   "  addi t4, t4, 1; j .Lstal_addr_cp\n" ++
   ".Lstal_addr_done:\n" ++
+  -- w35wj: also seed the access-list ACCOUNT address into the EIP-2929 runtime
+  -- account warm table. execution-specs warms access_list_addresses before
+  -- execution (fork.py:1085-1091), so the first account-touching opcode
+  -- (BALANCE/EXTCODE*/CALL/EIP-7702 delegation access/...) on a listed account is
+  -- charged WARM (100), not COLD (2600). Without this the guest over-charges the
+  -- regular gas by the 2500 cold delta vs the spec on any tx with an access list.
+  -- stal_token holds the 20-byte BE address in bytes 0..19, matching
+  -- runtime_access_account_seed's expectation; the seed preserves s4..s9 (saves
+  -- only s0..s3), so the slot loop below is intact. Idempotent / table-full safe.
+  "  la a0, stal_token; la a1, evm_access_account_table\n" ++
+  "  la a2, evm_access_account_count; li a3, 64\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
   "  # entry field 1 = slots sub-list (list item -> item-start offset).\n" ++
   "  mv a0, s4; mv a1, s5; li a2, 1\n" ++
   "  la a3, stal_soff; la a4, stal_slen\n" ++
