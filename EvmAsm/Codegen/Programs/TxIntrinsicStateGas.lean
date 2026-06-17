@@ -547,17 +547,24 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
 
     The runtime gas-result arena records post-dispatch gas usage, while
     Amsterdam block regular gas for type-4 transactions also includes the
-    per-authorization regular intrinsic cost. For successful type-4 contract
-    execution, the state/regular split above is sufficient for the current
-    supported rows. For failed type-4 execution (REVERT/exceptional status 0),
-    execution-specs still counts `PER_AUTH_BASE_COST * auth_count` in the block
-    regular dimension. This helper raises `regular_inc[i]` to at least
-    `before_refund[i] + 7500 * auth_count` for failed type-4 transactions,
-    except when exact-gas normalization has already produced
-    `before_refund[i] - tx_state_gas[i]` for an OOG path.
+    per-authorization regular intrinsic cost. This helper reconstructs the block
+    regular increment for ALL type-4 rows (the early success skip was removed for
+    jteei):
+
+    - SUCCESSFUL type-4: `regular_inc[i] = max(before_refund[i]
+      + 7500*auth_count - exec_state[i], calldata_floor[i])`, mirroring
+      `block_verdict_receipt_gas_eip8037_adjust` minus the receipt's `+tx_state`
+      and gas-refund step. The generic exact-gas normalization subtracts
+      `max(tx_state_gas, tot_state)`, which over-subtracts AUTH_BASE + the per-auth
+      regular intrinsic for existing-authority delegations (NEW_ACCOUNT refund) ->
+      jteei false-reject (bv_fail=41).
+    - FAILED type-4 (REVERT/exceptional status 0): raises `regular_inc[i]` to at
+      least `before_refund[i] + 7500*auth_count`, except when exact-gas
+      normalization has already produced `before_refund[i] - tx_state_gas[i]` for
+      an OOG path.
 
     Decode failures are non-gating: the caller keeps the previous regular
-    increment. -/
+    increment. (Name retained for stability though it now also covers success.) -/
 def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "block_verdict_failed_type4_auth_regular_adjust:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -579,7 +586,9 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  li s6, 0\n" ++
   ".Lbvf4ar_loop:\n" ++
   "  beq s6, s2, .Lbvf4ar_done\n" ++
-  "  slli t0, s6, 3; add t1, s5, t0; ld t1, 0(t1); bnez t1, .Lbvf4ar_next\n" ++
+  -- jteei: process BOTH successful and failed type-4 txs. The early success skip
+  -- was removed; the status branch below (after auth_count is known) routes
+  -- successful rows to the spec-exact block-regular reconstruction.
   "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le\n" ++
   "  mv s8, a0\n" ++
   "  bltu s8, s7, .Lbvf4ar_next\n" ++
@@ -608,6 +617,29 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvf4ar_next\n" ++
   "  slli t0, s6, 3\n" ++
+  -- jteei: branch on tx status. SUCCESSFUL type-4 txs use the spec-exact block
+  -- regular reconstruction (mirrors block_verdict_receipt_gas_eip8037_adjust,
+  -- minus the receipt's +tx_state and gas-refund step):
+  --   tx_regular_gas = before_refund + 7500*auth_count - exec_state
+  -- The runtime gas pool omits the per-auth regular intrinsic (PER_AUTH_BASE_COST
+  -- =7500/auth) and the auth-state intrinsic, while the generic normalization
+  -- subtracted max(tx_state_gas, tot_state) -> for an existing-authority delegation
+  -- (NEW_ACCOUNT refund) that over-subtracted AUTH_BASE + per-auth regular (jteei:
+  -- pointer_to_static sender_is_auth_signer=False, bv_fail=41, 42690 = 35190+7500).
+  "  add t1, s5, t0; ld t1, 0(t1); beqz t1, .Lbvf4ar_failed\n" ++
+  "  add t1, s4, t0; ld t2, 0(t1)          # before_refund[i]\n" ++
+  "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3; add t2, t2, t1\n" ++
+  "  la t1, bvgr_tx_exec_state_gas; add t1, t1, t0; ld t3, 0(t1)   # exec_state[i]\n" ++
+  "  bltu t2, t3, .Lbvf4ar_succ_floor      # base < exec_state (anomaly): keep base\n" ++
+  "  sub t2, t2, t3                        # before_refund + 7500*auth - exec_state\n" ++
+  ".Lbvf4ar_succ_floor:\n" ++
+  "  la t1, bvgr_calldata_floor; add t1, t1, t0; ld t3, 0(t1)\n" ++
+  "  bgeu t2, t3, .Lbvf4ar_succ_store\n" ++
+  "  mv t2, t3                             # max(.., calldata_floor)\n" ++
+  ".Lbvf4ar_succ_store:\n" ++
+  "  add t1, s3, t0; sd t2, 0(t1)          # regular_inc[i]\n" ++
+  "  j .Lbvf4ar_next\n" ++
+  ".Lbvf4ar_failed:\n" ++
   "  add t1, s4, t0; ld t2, 0(t1)          # before_refund increment\n" ++
   "  add t1, s3, t0; ld t3, 0(t1)          # current normalized regular increment\n" ++
   "  ld t4, 104(sp); beqz t4, .Lbvf4ar_compute_floor\n" ++
