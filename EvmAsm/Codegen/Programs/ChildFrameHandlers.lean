@@ -318,11 +318,17 @@ def callDescendFallThrough
     "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
     "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
     "  beqz t3, .Lcd_nse_done_" ++ tag ++ "\n" ++       -- value == 0: no transfer, skip
-    -- copy the 20-byte callee address (x12+32) into nse_callee_be (survives x12 clobber)
-    "  addi t0, x12, 32\n  la t1, nse_callee_be\n  li t2, 20\n" ++
+    -- r4x4y.1: convert the callee address into nse_callee_be as CANONICAL big-endian.
+    -- The EVM stack word at x12+32 stores the address in word (LE-limb) order, so copy it
+    -- BACKWARD (byte 19 down to 0), mirroring cd_callee_be's code-lookup conversion. The
+    -- prior FORWARD copy left nse_callee_be byte-reversed, so (a) account_at_header_state_root
+    -- looked up the wrong account and (b) the BAL all-accounts non-storage compare
+    -- (i3djw.3 forward/reverse) never matched the recorded address -> block_gas_used_call_new_account
+    -- false-reject bv_fail=45 (the new account looked "omitted" by the BAL).
+    "  addi t0, x12, " ++ toString (32 + 19) ++ "\n  la t1, nse_callee_be\n  li t2, 20\n" ++  -- x12+32+19 (to-word high byte)
     ".Lcd_nse_cpaddr_" ++ tag ++ ":\n" ++
     "  beqz t2, .Lcd_nse_cpaddr_d_" ++ tag ++ "\n" ++
-    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_nse_cpaddr_" ++ tag ++ "\n" ++
+    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_nse_cpaddr_" ++ tag ++ "\n" ++
     ".Lcd_nse_cpaddr_d_" ++ tag ++ ":\n" ++
     -- pre fields: account_at_header_state_root(callee) -> nse_acct (nonce@0, balance@8)
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
