@@ -86,6 +86,7 @@ def seedCalleeStorageFunction : String :=
   "  mv s1, a1                    # witness len\n" ++
   "  mv s2, a2                    # recipient 20B addr ptr\n" ++
   "  la t0, callee_seed_count; sd zero, 0(t0)\n" ++
+  "  la t0, callee_balance_count; sd zero, 0(t0)\n" ++   -- 1ipxd.1: reset per-account SELFBALANCE table
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, csce_acct_n\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lscs_done                # BAL parse error -> seed nothing (conservative)\n" ++
@@ -102,6 +103,28 @@ def seedCalleeStorageFunction : String :=
   "  bnez a0, .Lscs_acct_next\n" ++
   "  la t0, csce_dlen; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lscs_acct_next   # item0 not a 20B address\n" ++
   "  la t0, csce_doff; ld t1, 0(t0); add t1, s3, t1; la t0, csce_addrp; sd t1, 0(t0)   # addr ptr (BE)\n" ++
+  -- 1ipxd.1: pre-resolve this BAL account's balance into callee_balance_table (clean
+  -- pre-execution context; the witness MPT walk returns absent if run mid-EVM-execution
+  -- inside call_frame_descend). Covers the recipient too (it IS a BAL account; the recipient
+  -- skip below is storage-only). Key = canonical-BE 20-byte addr (csce_addrp); value = balance
+  -- stored LE-limb so the descend copies it verbatim to the LE EVM stack (odq06 byte-order).
+  -- Header = svf_parent_rlp (parent/witness root; the single-tx POST header bails). The verdict
+  -- witness.state = s0/s1 (= bv_witness_state). account_at_header_state_root preserves s0-s7.
+  "  la t0, callee_balance_count; ld t1, 0(t0); li t2, 128; bgeu t1, t2, .Lscs_bal_done\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la t0, csce_addrp; ld a2, 0(t0); li a3, 20; mv a4, s0; mv a5, s1; la a6, csce_bal_struct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lscs_bal_done\n" ++                  -- absent/error -> skip (descend default 0)
+  "  la t0, callee_balance_count; ld t1, 0(t0); slli t2, t1, 6; la t3, callee_balance_table; add t3, t3, t2\n" ++
+  -- addr (canonical BE, csce_addrp) -> entry+0..19, zero-pad +20..31
+  "  la t0, csce_addrp; ld t0, 0(t0)\n" ++
+  "  ld t4, 0(t0); sd t4, 0(t3); ld t4, 8(t0); sd t4, 8(t3); lwu t4, 16(t0); sw t4, 16(t3); sw zero, 20(t3); sd zero, 24(t3)\n" ++
+  -- balance: csce_bal_struct+8..40 is BE; byte-reverse the 32 bytes into entry+32 (LE-limb).
+  "  la t4, csce_bal_struct; addi t4, t4, 39; addi t5, t3, 32; li t6, 32\n" ++
+  ".Lscs_bal_rev:\n" ++
+  "  lbu t0, 0(t4); sb t0, 0(t5); addi t4, t4, -1; addi t5, t5, 1; addi t6, t6, -1; bnez t6, .Lscs_bal_rev\n" ++
+  "  la t0, callee_balance_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lscs_bal_done:\n" ++
   -- Skip the recipient (already preloaded BE by dispatch_tx_runtime_code).
   "  li t3, 0\n" ++
   ".Lscs_rcmp:\n" ++
