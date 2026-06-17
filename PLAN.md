@@ -1356,7 +1356,21 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `fll_loop_n_spec_within` (offset-0 entry), and `fll_loop_bridge` (conjoins the
   loop with the pure `decodeItems (2*len+1) … = some (items, [])` via
   `decode_encode_mutual.2` — strict fuel `2*len < nDepth`). Axiom-clean, 0 sorry.
-  **Next:** long-item support (decoder length-read → `bytesRegion`).
+- ✅ **Fully concrete end-to-end flat list decoder** (`FlatListLoopConcrete.lean`).
+  Wires `flat_decoder_spec` into `fll_loop_bridge`: **`flat_list_loop_concrete_bridge`**
+  has NO abstract hypotheses — a real RV64 program (`[LBU] ++ flat_decoder_prog ++
+  [ADD, ADDI, BNE]` at `base`, scaffold bracketing the 16-instr decoder so
+  `joinPC=base+68`, loop exit `base+80`, back-edge `-76`) decodes a non-empty flat
+  `items` list from `bytesRegion` in `15*items.length` steps AND coincides with the
+  pure `decodeItems` round-trip. The loop's `decoderH` is `flat_decoder_spec (base+4)`
+  (exit rewritten `(base+4)+64 → base+68`); scaffold disjointness via
+  `singleton_ofProg`/`ofProg_singleton` + `ofProg_none_range_len` + `bv_omega` (the
+  `crDisjoint` tactic times out on the opaque 16-instr `ofProg`); `hback` via
+  `signExtend13 (-76) = -76` (`decide`) + `bv_omega`. Concrete 2-item `example`.
+  Axiom-clean, 0 sorry. This completes the **flat** RLP list-decoder arc.
+  **Next:** long-item support — the `longBytes`/`longList` classes (5-class
+  `reconverged_all` + e3/e5 handlers + the decoder's memory length-read →
+  `bytesRegion`).
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
