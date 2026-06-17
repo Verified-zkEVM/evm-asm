@@ -509,6 +509,9 @@ def emitSelfdestructData : String :=
   ".balign 32\n" ++
   "evm_selfdestruct_balance_scratch:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "rt_deleg_warm_be:\n" ++       -- 5tmlt: BE-20 scratch for the post-reset delegation-target warm
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_created_in_tx:\n" ++
   "  .zero 8\n" ++
@@ -2241,6 +2244,19 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
   "  sd x5, 608(x20)\n" ++
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
+  -- 5tmlt (Part B): warm tx.to's (env.ADDRESS) EIP-7702 delegation target AFTER the
+  -- reset above. The spec warms the delegated_address at the first/free top-level
+  -- access (interpreter.py:152-153); the guest's pre-reset resolutions of it are wiped
+  -- by runtime_access_seed_initial_accounts, so a later CALL/reentry would re-charge
+  -- the target COLD (+2500, bv_fail=53 pointer_to_static_reentry). Convert env.ADDRESS
+  -- (env+0, LE stack word) to a BE-20 scratch, then resolve with a3=0 (no charge) ->
+  -- the resolver's free-warm (Part A) seeds the target into the now-post-reset table.
+  -- No-op when there's no BAL (standalone: bv_bal_start=0) or env.ADDRESS isn't delegated.
+  "  addi x5, x20, 19; la x6, rt_deleg_warm_be; li x7, 20\n" ++
+  ".Lrt_dwarm_be:\n" ++
+  "  lbu x28, 0(x5); sb x28, 0(x6); addi x5, x5, -1; addi x6, x6, 1; addi x7, x7, -1; bnez x7, .Lrt_dwarm_be\n" ++
+  "  la a0, rt_deleg_warm_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 0\n" ++
+  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
