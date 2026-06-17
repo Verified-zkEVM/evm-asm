@@ -1334,6 +1334,18 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   byte-shape algebra via `encodeBytes`/`encode_list_short`/`classifyPrefix_*_iff`,
   no `bv_decide`). Bridges the machine loop's pointer advance to the pure
   `encode`/`decodeItems` round-trip. Axiom-clean, 0 sorry.
+- ✅ **Concrete flat decoder program** (`FlatDecoderConcrete.lean`). Discharges the
+  list-loop closure's abstract `decoderH` with REAL code: `flat_decoder_prog`
+  (one linear 16-instruction program — the 4-step phase-1 cascade + the three
+  flat-class phase-3 handlers + their reconvergence `JAL`s) and
+  **`flat_decoder_spec`** (`∀` flat prefix, `cpsTripleWithin 11 base (base+64)
+  (CodeReq.ofProg base flat_decoder_prog) …` — exactly the `decoderH` shape).
+  Proved by instantiating `rlp_decode_single_item_reconverged_flat` at the forced
+  offsets (`off1=off2=28, off4=24, joff1=28, joff2=16, joff4=4`) and discharging
+  every side-condition: `htarget*`/`hjoin*` via `rv64_addr`; the six `hd_*`
+  disjointness via `crDisjoint`; the three `hsub_*` subsets via `union_sub` +
+  `ofProg_mono_sub`/`singleton_mono` (`flat_piece`/`flat_jal_piece` helpers). No
+  `bv_decide`. Axiom-clean, 0 sorry.
 - ✅ **Flat list-loop n-closure + bridge** (`FlatListLoop.lean`). The operational
   loop over a list of flat items: `fll_loop_spec_within` (structural induction
   over `items : List RLPItem`, threading the byte offset via
@@ -1344,9 +1356,7 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `fll_loop_n_spec_within` (offset-0 entry), and `fll_loop_bridge` (conjoins the
   loop with the pure `decodeItems (2*len+1) … = some (items, [])` via
   `decode_encode_mutual.2` — strict fuel `2*len < nDepth`). Axiom-clean, 0 sorry.
-  **Next:** the concrete assembled flat-decoder program (discharge the
-  ∀-`decoderH` + its layout disjointness) for a concrete end-to-end loop; then
-  long-item support (decoder length-read → `bytesRegion`).
+  **Next:** long-item support (decoder length-read → `bytesRegion`).
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
