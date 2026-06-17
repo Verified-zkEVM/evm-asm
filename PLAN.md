@@ -1345,9 +1345,18 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   every side-condition: `htarget*`/`hjoin*` via `rv64_addr`; the six `hd_*`
   disjointness via `crDisjoint`; the three `hsub_*` subsets via `union_sub` +
   `ofProg_mono_sub`/`singleton_mono` (`flat_piece`/`flat_jal_piece` helpers). No
-  `bv_decide`. Axiom-clean, 0 sorry. **Next:** the n-iteration closure + bridge
-  (`FlatListLoop.lean`, in-flight) wires `flat_decoder_spec` into
-  `fll_loop_n_spec_within` for a fully concrete end-to-end RV64 list decoder.
+  `bv_decide`. Axiom-clean, 0 sorry.
+- ✅ **Flat list-loop n-closure + bridge** (`FlatListLoop.lean`). The operational
+  loop over a list of flat items: `fll_loop_spec_within` (structural induction
+  over `items : List RLPItem`, threading the byte offset via
+  `bs.drop O = encode.encodeItems items`, applying `fll_body_spec_within` per
+  item and re-indexing the pointer with `encode_head_eq_itemTotalLen`; the
+  decoder is a ∀-hypothesis `decoderH`, discharged per iteration; uniform
+  `15 * items.length` steps with `regOwn`-abstracted scratch in `fll_loop_post`),
+  `fll_loop_n_spec_within` (offset-0 entry), and `fll_loop_bridge` (conjoins the
+  loop with the pure `decodeItems (2*len+1) … = some (items, [])` via
+  `decode_encode_mutual.2` — strict fuel `2*len < nDepth`). Axiom-clean, 0 sorry.
+  **Next:** long-item support (decoder length-read → `bytesRegion`).
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
