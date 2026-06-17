@@ -496,6 +496,25 @@ def callDescendFallThrough
   "  j .dispatch_loop\n" ++
   -- empty code (EOA): the call succeeds, runs nothing → push 1
   ".Lcd_empty_" ++ tag ++ ":\n" ++
+  -- bnctz: a value-bearing CALL (mode 0) to an empty/non-existent callee still pays the
+  -- value-transfer REGULAR gas. Spec system.py:444 charges extra_gas = access + CALL_VALUE(9000);
+  -- message_call_gas then funds the empty callee with the 2300 stipend, which returns unused, so
+  -- the NET regular consumed is 9000 - 2300 = 6700 (access is already charged via
+  -- runtime_access_account_charge; the new-account STATE gas is charged above). The .Lcd_empty
+  -- fast-path takes no child frame, so charge that 6700 net here. Without it, block_inc0 (and the
+  -- receipt = block_regular + tx_state) under-count by 6700 -> block_gas_used_call_new_account
+  -- bv_fail=53. x12 is still the parent stack top (value at x12+valueOff) before the pop below.
+  (if mode == 0 then
+     "  ld t0, " ++ toString valueOff ++ "(x12)\n" ++
+     "  ld t1, " ++ toString (valueOff+8) ++ "(x12)\n  or t0, t0, t1\n" ++
+     "  ld t1, " ++ toString (valueOff+16) ++ "(x12)\n  or t0, t0, t1\n" ++
+     "  ld t1, " ++ toString (valueOff+24) ++ "(x12)\n  or t0, t0, t1\n" ++
+     "  beqz t0, .Lcd_empty_noval_" ++ tag ++ "\n" ++
+     "  li t0, 6700\n" ++
+     "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
+     "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
+     ".Lcd_empty_noval_" ++ tag ++ ":\n"
+   else "") ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  li t0, 1\n" ++
   "  sd t0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
