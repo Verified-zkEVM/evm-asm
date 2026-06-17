@@ -1333,10 +1333,21 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   operational per-item stride equals the pure encoding length (per-class
   byte-shape algebra via `encodeBytes`/`encode_list_short`/`classifyPrefix_*_iff`,
   no `bv_decide`). Bridges the machine loop's pointer advance to the pure
-  `encode`/`decodeItems` round-trip. Axiom-clean, 0 sorry. **Next:** the
-  n-iteration closure (count-induction over a flat-item list, threading the
-  variable byte offset, applying `fll_body_spec_within` per item with the
-  decoder as a ∀-hypothesis) + the `decodeItems` bridge (`decode_encode_mutual.2`).
+  `encode`/`decodeItems` round-trip. Axiom-clean, 0 sorry.
+- ✅ **Concrete flat decoder program** (`FlatDecoderConcrete.lean`). Discharges the
+  list-loop closure's abstract `decoderH` with REAL code: `flat_decoder_prog`
+  (one linear 16-instruction program — the 4-step phase-1 cascade + the three
+  flat-class phase-3 handlers + their reconvergence `JAL`s) and
+  **`flat_decoder_spec`** (`∀` flat prefix, `cpsTripleWithin 11 base (base+64)
+  (CodeReq.ofProg base flat_decoder_prog) …` — exactly the `decoderH` shape).
+  Proved by instantiating `rlp_decode_single_item_reconverged_flat` at the forced
+  offsets (`off1=off2=28, off4=24, joff1=28, joff2=16, joff4=4`) and discharging
+  every side-condition: `htarget*`/`hjoin*` via `rv64_addr`; the six `hd_*`
+  disjointness via `crDisjoint`; the three `hsub_*` subsets via `union_sub` +
+  `ofProg_mono_sub`/`singleton_mono` (`flat_piece`/`flat_jal_piece` helpers). No
+  `bv_decide`. Axiom-clean, 0 sorry. **Next:** the n-iteration closure + bridge
+  (`FlatListLoop.lean`, in-flight) wires `flat_decoder_spec` into
+  `fll_loop_n_spec_within` for a fully concrete end-to-end RV64 list decoder.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
