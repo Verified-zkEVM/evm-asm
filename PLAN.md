@@ -1324,10 +1324,53 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   loop's LBU/ADD/ADDI/BNE singletons is taken as hypotheses (the closure
   discharges them from the concrete decoder layout). `bytesRegion`+`x14` framed
   through the decoder. Flat-only (long items need the decoder's length-read
-  upgraded to `bytesRegion`). Axiom-clean, 0 sorry. **Next:** the n-iteration
-  closure (induct over item count, re-index by `itemNextPtr`, discharge the
-  decoder hyp per iteration) + the `decodeItems` bridge (reuse the existing
-  `decode_encode` round-trip).
+  upgraded to `bytesRegion`). Axiom-clean, 0 sorry.
+- ✅ **Flat-item stride-equivalence** (`FlatListLoop.lean`). The mathematical
+  core the closure needs: `isFlatItem` (`.bytes data` with `data.length ≤ 55`;
+  `.list` with payload `≤ 55`), `classifyPrefix_encode_head_flat` (a flat item's
+  encoding starts with a flat prefix), and **`encode_head_eq_itemTotalLen`**:
+  `itemTotalLen ((encode item)[0]) = ofNat (encode item).length` — the
+  operational per-item stride equals the pure encoding length (per-class
+  byte-shape algebra via `encodeBytes`/`encode_list_short`/`classifyPrefix_*_iff`,
+  no `bv_decide`). Bridges the machine loop's pointer advance to the pure
+  `encode`/`decodeItems` round-trip. Axiom-clean, 0 sorry.
+- ✅ **Concrete flat decoder program** (`FlatDecoderConcrete.lean`). Discharges the
+  list-loop closure's abstract `decoderH` with REAL code: `flat_decoder_prog`
+  (one linear 16-instruction program — the 4-step phase-1 cascade + the three
+  flat-class phase-3 handlers + their reconvergence `JAL`s) and
+  **`flat_decoder_spec`** (`∀` flat prefix, `cpsTripleWithin 11 base (base+64)
+  (CodeReq.ofProg base flat_decoder_prog) …` — exactly the `decoderH` shape).
+  Proved by instantiating `rlp_decode_single_item_reconverged_flat` at the forced
+  offsets (`off1=off2=28, off4=24, joff1=28, joff2=16, joff4=4`) and discharging
+  every side-condition: `htarget*`/`hjoin*` via `rv64_addr`; the six `hd_*`
+  disjointness via `crDisjoint`; the three `hsub_*` subsets via `union_sub` +
+  `ofProg_mono_sub`/`singleton_mono` (`flat_piece`/`flat_jal_piece` helpers). No
+  `bv_decide`. Axiom-clean, 0 sorry.
+- ✅ **Flat list-loop n-closure + bridge** (`FlatListLoop.lean`). The operational
+  loop over a list of flat items: `fll_loop_spec_within` (structural induction
+  over `items : List RLPItem`, threading the byte offset via
+  `bs.drop O = encode.encodeItems items`, applying `fll_body_spec_within` per
+  item and re-indexing the pointer with `encode_head_eq_itemTotalLen`; the
+  decoder is a ∀-hypothesis `decoderH`, discharged per iteration; uniform
+  `15 * items.length` steps with `regOwn`-abstracted scratch in `fll_loop_post`),
+  `fll_loop_n_spec_within` (offset-0 entry), and `fll_loop_bridge` (conjoins the
+  loop with the pure `decodeItems (2*len+1) … = some (items, [])` via
+  `decode_encode_mutual.2` — strict fuel `2*len < nDepth`). Axiom-clean, 0 sorry.
+- ✅ **Fully concrete end-to-end flat list decoder** (`FlatListLoopConcrete.lean`).
+  Wires `flat_decoder_spec` into `fll_loop_bridge`: **`flat_list_loop_concrete_bridge`**
+  has NO abstract hypotheses — a real RV64 program (`[LBU] ++ flat_decoder_prog ++
+  [ADD, ADDI, BNE]` at `base`, scaffold bracketing the 16-instr decoder so
+  `joinPC=base+68`, loop exit `base+80`, back-edge `-76`) decodes a non-empty flat
+  `items` list from `bytesRegion` in `15*items.length` steps AND coincides with the
+  pure `decodeItems` round-trip. The loop's `decoderH` is `flat_decoder_spec (base+4)`
+  (exit rewritten `(base+4)+64 → base+68`); scaffold disjointness via
+  `singleton_ofProg`/`ofProg_singleton` + `ofProg_none_range_len` + `bv_omega` (the
+  `crDisjoint` tactic times out on the opaque 16-instr `ofProg`); `hback` via
+  `signExtend13 (-76) = -76` (`decide`) + `bv_omega`. Concrete 2-item `example`.
+  Axiom-clean, 0 sorry. This completes the **flat** RLP list-decoder arc.
+  **Next:** long-item support — the `longBytes`/`longList` classes (5-class
+  `reconverged_all` + e3/e5 handlers + the decoder's memory length-read →
+  `bytesRegion`).
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
