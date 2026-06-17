@@ -1298,8 +1298,21 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   case split; `singleByte`'s `x13`-free pre is unified by framing `x13`. The
   shared decoder code is a parameter `cr` with per-class sub-CR hypotheses
   (`handlerCR ∪ JAL ⊆ cr`), discharged by the eventual loop caller. Axiom-clean,
-  0 sorry. **Next:** reconverge the 2 long classes (memory + `x12`/`x14` +
-  variable steps), then the per-item list loop calling the reconverged decoder.
+  0 sorry.
+- ✅ **Unified decoder 5-exit reconvergence — ALL classes**
+  (`UnifiedDecodeItemReconvergeAll.lean`). Completes the reconvergence by adding
+  the 2 long classes (`longBytes`/`longList` — `(dwordAddr ↦ₘ wordVal)` + `x12`/`x14`
+  + variable steps). `rlp_decode_single_item_reconverged_all` is a single
+  `cpsTripleWithin 60 base joinPC cr` (60 = `max(3,6,10,9+6·8,11+6·8)+1`, longList
+  binds it) over ALL of `classifyPrefix pfx`, with a uniform post exposing
+  `x10`/`x11`/`x12`/`x13`/`x14`/memory via 5-class match helpers
+  (`itemResidue`/`itemLen`/`itemPtr`/`itemX12`/`itemX14`). Bound-parameterized
+  `reconverge_arm_n` (the flat arm with `11`→`N`); 5-way `classifyPrefix` case
+  split invoking each handler directly (flat arms frame `x12`/`x14`/memory; long
+  arms carry them); variable long-step bound discharged by
+  `rlpPrefixLong{Bytes,List}LenOfLen_le_8_of_class`. Axiom-clean, 0 sorry.
+  **Next:** the per-item list loop calling the reconverged decoder (advance
+  `x13 += x11`, count items, back-branch) + the mixed-item pure bridge.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
