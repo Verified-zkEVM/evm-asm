@@ -1281,7 +1281,53 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   BitVec lemma `orAccList_and_0x80_eq_zero_imp_all_lt` (accumulator bit-7 clear ⇒
   all bytes `< 0x80`) via `BitVec.msb_eq_false_iff_two_mul_lt`. `OR` cannot
   overflow ⇒ no `n ≤ 8` bound. Cross-dword cross-check at 10 bytes. Axiom-clean,
-  0 sorry. **Next:** varying-size items + the unified decoder's 5-exit reconvergence.
+  0 sorry.
+- ✅ **Unified decoder 5-exit reconvergence — flat classes**
+  (`UnifiedDecodeItemReconverge.lean`). The unified single-item decoder
+  (`rlp_decode_single_item_spec_within`) reaches 5 different exit PCs with 5
+  different posts; a per-item list loop needs one common exit + a uniform post.
+  This reconverges the **3 flat classes** (`singleByte`/`shortBytes`/`shortList` —
+  no memory, no `x12`/`x14`): each class handler runs to its exit, then an
+  unconditional `JAL x0` (`jal_x0_spec_gen_within`, 1 step, `emp` pre/post)
+  jumps to a common `joinPC`. `rlp_decode_single_item_reconverged_flat` is one
+  `cpsTripleWithin 11 base joinPC cr` whose uniform post exposes the cascade
+  residue / payload length / payload pointer via `classifyPrefix`-dispatched
+  helpers (`itemCascadeResidue`/`itemPayloadLen`/`itemPayloadPtr`), so a loop can
+  advance uniformly by `x13 += x11`. Generic `reconverge_arm` (handler ∘ JAL ∘
+  `extend_code` to the shared `cr` ∘ `mono_nSteps`) + a 3-way `classifyPrefix`
+  case split; `singleByte`'s `x13`-free pre is unified by framing `x13`. The
+  shared decoder code is a parameter `cr` with per-class sub-CR hypotheses
+  (`handlerCR ∪ JAL ⊆ cr`), discharged by the eventual loop caller. Axiom-clean,
+  0 sorry.
+- ✅ **Unified decoder 5-exit reconvergence — ALL classes**
+  (`UnifiedDecodeItemReconvergeAll.lean`). Completes the reconvergence by adding
+  the 2 long classes (`longBytes`/`longList` — `(dwordAddr ↦ₘ wordVal)` + `x12`/`x14`
+  + variable steps). `rlp_decode_single_item_reconverged_all` is a single
+  `cpsTripleWithin 60 base joinPC cr` (60 = `max(3,6,10,9+6·8,11+6·8)+1`, longList
+  binds it) over ALL of `classifyPrefix pfx`, with a uniform post exposing
+  `x10`/`x11`/`x12`/`x13`/`x14`/memory via 5-class match helpers
+  (`itemResidue`/`itemLen`/`itemPtr`/`itemX12`/`itemX14`). Bound-parameterized
+  `reconverge_arm_n` (the flat arm with `11`→`N`); 5-way `classifyPrefix` case
+  split invoking each handler directly (flat arms frame `x12`/`x14`/memory; long
+  arms carry them); variable long-step bound discharged by
+  `rlpPrefixLong{Bytes,List}LenOfLen_le_8_of_class`. Axiom-clean, 0 sorry.
+- ✅ **Flat per-item list-loop BODY** (`FlatListLoopBody.lean`). One iteration of
+  the flat-item list-decode loop as a 2-exit `cpsBranchWithin`: `LBU x5,x13,0`
+  (read the prefix from `bytesRegion` via `bytesRegion_lbu_within`) → the flat
+  reconverged decoder (passed as an OPAQUE `cpsTripleWithin` hypothesis,
+  `decoder_base = lbase+4`) → `ADD x13,x13,x11` (advance to the next item) →
+  `ADDI x14,x14,-1` (item counter) → `BNE x14,x0,back` (taken → `lbase`).
+  `fll_body_spec_within` (step bound 15) with bundled post `fll_body_post`;
+  new stride helpers `itemTotalLen`/`itemNextPtr` + `itemNextPtr_eq`
+  (`itemPayloadPtr + itemPayloadLen = v13 + itemTotalLen`, the factored form the
+  closure re-indexes on). The decoder is opaque so its disjointness from the
+  loop's LBU/ADD/ADDI/BNE singletons is taken as hypotheses (the closure
+  discharges them from the concrete decoder layout). `bytesRegion`+`x14` framed
+  through the decoder. Flat-only (long items need the decoder's length-read
+  upgraded to `bytesRegion`). Axiom-clean, 0 sorry. **Next:** the n-iteration
+  closure (induct over item count, re-index by `itemNextPtr`, discharge the
+  decoder hyp per iteration) + the `decodeItems` bridge (reuse the existing
+  `decode_encode` round-trip).
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
