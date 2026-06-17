@@ -309,6 +309,17 @@ def callFrameDescendFunction : String :=
   "  ld t0, 472(s3); sd t0, 472(s9)   # eventLogLength\n" ++
   "  sd t0, 480(s9)                    # eventLogCheckpoint = current\n" ++
   "  sd x0, 488(s9)                    # activeMemorySize = 0 (fresh child memory)\n" ++
+  -- 8b2 (1ipxd): inherit the tx/block-constant env fields (txOrigin@128 .. chainId@384,
+  -- a contiguous 288-byte block env+128..415) from the parent. call_frame_set_call_env
+  -- sets only the per-frame fields (ADDRESS@0 / CALLER@64 / CALLVALUE@96 / selfBalance@32
+  -- below), so without this a nested frame's ORIGIN / GASPRICE / COINBASE / TIMESTAMP /
+  -- NUMBER / PREVRANDAO / GASLIMIT / BASEFEE / CHAINID read the BAL-replay-dirtied arena
+  -- (garbage/0); pointer_reentry's re-entered frame SSTOREs ORIGIN()=0 instead of the tx
+  -- sender, so the recipient BAL storage compare false-rejects a valid block. These nine
+  -- fields are tx/block constants (identical in every frame), so a verbatim copy is exact.
+  "  addi t0, s3, 128; addi t1, s9, 128; li t2, 288\n" ++
+  ".Lcfd_envconst:\n" ++
+  "  ld t3, 0(t0); sd t3, 0(t1); addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -8; bnez t2, .Lcfd_envconst\n" ++
   -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
   -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used) into the
   -- child env so a child REVERT / exceptional halt can restore it in frame_return,
