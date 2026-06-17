@@ -509,6 +509,12 @@ def emitSelfdestructData : String :=
   ".balign 32\n" ++
   "evm_selfdestruct_balance_scratch:\n" ++
   "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_from_sw:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_to_sw:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_created_in_tx:\n" ++
   "  .zero 8\n" ++
