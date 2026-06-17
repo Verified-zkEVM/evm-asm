@@ -1324,10 +1324,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   loop's LBU/ADD/ADDI/BNE singletons is taken as hypotheses (the closure
   discharges them from the concrete decoder layout). `bytesRegion`+`x14` framed
   through the decoder. Flat-only (long items need the decoder's length-read
-  upgraded to `bytesRegion`). Axiom-clean, 0 sorry. **Next:** the n-iteration
-  closure (induct over item count, re-index by `itemNextPtr`, discharge the
-  decoder hyp per iteration) + the `decodeItems` bridge (reuse the existing
-  `decode_encode` round-trip).
+  upgraded to `bytesRegion`). Axiom-clean, 0 sorry.
+- ✅ **Flat-item stride-equivalence** (`FlatListLoop.lean`). The mathematical
+  core the closure needs: `isFlatItem` (`.bytes data` with `data.length ≤ 55`;
+  `.list` with payload `≤ 55`), `classifyPrefix_encode_head_flat` (a flat item's
+  encoding starts with a flat prefix), and **`encode_head_eq_itemTotalLen`**:
+  `itemTotalLen ((encode item)[0]) = ofNat (encode item).length` — the
+  operational per-item stride equals the pure encoding length (per-class
+  byte-shape algebra via `encodeBytes`/`encode_list_short`/`classifyPrefix_*_iff`,
+  no `bv_decide`). Bridges the machine loop's pointer advance to the pure
+  `encode`/`decodeItems` round-trip. Axiom-clean, 0 sorry. **Next:** the
+  n-iteration closure (count-induction over a flat-item list, threading the
+  variable byte offset, applying `fll_body_spec_within` per item with the
+  decoder as a ∀-hypothesis) + the `decodeItems` bridge (`decode_encode_mutual.2`).
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
