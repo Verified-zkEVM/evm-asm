@@ -396,6 +396,18 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "csce_addrkey:\n  .zero 32\n" ++
   "csce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (matches the gas-derived bal_recipient_storage_keys cap; the seed loop still skips accounts >128)
+  -- 1ipxd.1: pre-resolved per-account balance table for nested-frame SELFBALANCE.
+  -- seed_callee_storage fills it (clean pre-execution context, where the witness MPT walk
+  -- works — it returns absent mid-EVM-execution); call_frame_descend reads it to stage a
+  -- child frame's env+32. Entry = 64 B: canonical-BE 20-byte address (zero-padded to 32) @0,
+  -- balance @32 in LE-limb (stack-word) order so the descend copies it verbatim to the LE
+  -- EVM stack via h_SELFBALANCE (odq06 byte-order lesson). 128 cap. csce_bal_struct = the
+  -- account_at_header_state_root output (nonce@0 / balance@8..40 BE / sroot / codehash).
+  ".balign 8\n" ++
+  "csce_bal_struct:\n  .zero 104\n" ++
+  "callee_balance_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "callee_balance_table:\n  .zero " ++ toString (128 * 64) ++ "\n" ++
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
