@@ -257,6 +257,32 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   liAmsterdamNewAccountStateGas "t3" ++
   "  add s10, s10, t3\n" ++
   ".Lteer_existing_code_check:\n" ++
+  "  # 5tmlt.3: AUTH_BASE is also refunded when the authority was delegated in a PRIOR\n" ++
+  "  # BLOCK -- its delegation indicator is in the PRE-state, not this block's BAL. Spec\n" ++
+  "  # set_delegation reads authority_code via get_code and refunds when is_valid_delegation.\n" ++
+  "  # Resolve the authority's pre-state code; a 23-byte ef0100 marker => refund AUTH_BASE\n" ++
+  "  # and skip the BAL (prior-tx-same-block) path below to avoid double-counting.\n" ++
+  "  # code_at_header_state_root preserves callee-saved s-regs (s10 refund accumulator).\n" ++
+  "  # SOUNDNESS gate: only trust pre-state code when it equals the LIVE authority code at\n" ++
+  "  # set_delegation time -- i.e. single-tx blocks (no earlier tx in this block can have\n" ++
+  "  # un-delegated the authority, which would make a pre-state marker a stale over-refund\n" ++
+  "  # = under-charge = false-accept). Multi-tx falls to the BAL (prior-tx) path below.\n" ++
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lteer_prestate_no\n" ++
+  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); beqz a3, .Lteer_prestate_no\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_authority\n" ++
+  "  la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lteer_prestate_no\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lteer_prestate_no\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteer_prestate_no\n" ++
+  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteer_prestate_no\n" ++
+  "  lbu t1, 2(t0); bnez t1, .Lteer_prestate_no\n" ++
+  "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
+  "  add s10, s10, t3; j .Lteer_next\n" ++
+  ".Lteer_prestate_no:\n" ++
   "  # The final delegation marker only proves the authority is non-empty after the block.\n" ++
   "  # AUTH_BASE is refunded only when a prior transaction already installed delegation code;\n" ++
   "  # this tx's own set_delegation write is not pre-existing authority_code.\n" ++
