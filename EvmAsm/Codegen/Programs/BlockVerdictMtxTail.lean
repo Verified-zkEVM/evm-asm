@@ -142,6 +142,23 @@ def blockVerdictMtxValidationTail : String :=
   -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
+  -- Pre-scan: type-3 (blob) and type-4 (EIP-7702 auth) txs add a blob-fee / AUTH_BASE
+  -- term to the sender debit that multi_tx_actual_sender_debit does NOT model (the
+  -- single-tx tx_gas_bal_post_verify_runtime adds them separately). For type 0/1/2 the
+  -- debit (receipt_inc*eff_price + value) is exact. So if ANY tx in the block is type >= 3,
+  -- skip the whole B2.3 pass conservatively (a per-sender blob/auth-fee debit term is a
+  -- follow-up). Context/type dispatch failure -> also skip (conservative).
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_b23_tscan:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_tscan_done\n" ++
+  "  la a0, bv_mtx_skip_ctx; la t0, bv_mtx_skip_idx; ld a1, 0(t0); jal ra, multi_tx_nth_context\n" ++
+  "  bnez a0, .Lbv_b23_done\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbv_b23_done\n" ++
+  "  la t0, bv_b23_txtype; ld t0, 0(t0); li t1, 3; bgeu t0, t1, .Lbv_b23_done\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_tscan\n" ++
+  ".Lbv_b23_tscan_done:\n" ++
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
   ".Lbv_b23_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b2_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_done\n" ++

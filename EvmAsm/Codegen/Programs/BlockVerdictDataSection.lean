@@ -1229,6 +1229,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
+  -- B2.3 tx-type pre-scan scratch: type-3 (blob) / type-4 (auth) txs carry extra
+  -- sender-debit terms multi_tx_actual_sender_debit does not yet model, so the B2.3
+  -- exact compare is skipped wholesale when any tx in the block is type >= 3.
+  "bv_b23_txtype:\n  .zero 8\n" ++
+  "bv_b23_innoff:\n  .zero 8\n" ++
   "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
