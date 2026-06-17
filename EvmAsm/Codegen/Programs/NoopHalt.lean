@@ -225,6 +225,22 @@ private def selfdestructTailAsm : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
+  -- SELFDESTRUCT charges COLD_ACCOUNT_ACCESS (2600) for a COLD beneficiary and 0
+  -- when warm (spec amsterdam vm/instructions/system.py:646-650; unlike CALL, it
+  -- adds NO warm-access cost). runtime_access_account_charge only debited the
+  -- 2500 cold delta (its 100 floor presumes a dispatcher account-opcode floor that
+  -- SELFDESTRUCT's 5000 base lacks), so add the missing 100 ONLY on the cold path
+  -- (helper a0==1) to reach the full 2600; a warm beneficiary stays at 0. Without
+  -- this the cold-beneficiary SELFDESTRUCT under-charged regular gas by 100,
+  -- corrupting the type-4 receipt cumulative (bv_fail=53). Check a0 before the
+  -- x10 restore clobbers it.
+  "  beqz a0, .L_selfdestruct_access_floor_done\n" ++
+  "  ld t0, 568(x20)\n" ++
+  "  li t1, 100\n" ++
+  "  bltu t0, t1, .exit_outofgas\n" ++
+  "  sub t0, t0, t1\n" ++
+  "  sd t0, 568(x20)\n" ++
+  ".L_selfdestruct_access_floor_done:\n" ++
   "  ld x10, 0(sp)\n" ++
   "  ld x12, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -235,6 +251,7 @@ private def selfdestructTailAsm : String :=
   "  la x14, evm_selfdestruct_staged\n" ++
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
+  selfdestructBeneficiaryNonstorageAsm ++
   "  addi x12, x12, 32\n" ++
   "  j .exit_selfdestruct"
 

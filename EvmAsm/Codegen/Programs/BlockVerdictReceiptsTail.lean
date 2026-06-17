@@ -47,24 +47,12 @@ def blockVerdictReceiptsTail : String :=
   "  la a5, bvgr_block_gas_increments\n" ++
   "  la a6, bvgr_tx_exec_state_gas\n" ++
   "  jal ra, block_verdict_receipt_gas_eip8037_adjust\n" ++
-  -- NOTE (msdfw): a previous narrow EIP-7702 SELFDESTRUCT receipt correction
-  -- here unconditionally added 32690 to the single-tx type-4 receipt increment
-  -- whenever evm_selfdestruct_staged was set. That was a pre-8977 workaround for
-  -- when block_verdict_receipt_gas_eip8037_adjust under-counted the per-auth
-  -- state component. After PR #8977 the generic type-4 adjust adds the full
-  -- per-authorization state component (42690) on the single-auth path, so the
-  -- runtime regular increment already reconstructs tx_gas_used_after_refund for
-  -- delegated SELFDESTRUCT rows (e.g. set_code_to_self_destruct balance_1: the
-  -- receipt is 128929 + 42690 = 171619, matching execution-specs). The extra
-  -- +32690 double-counted and produced a spurious receipts-root mismatch
-  -- (bv_fail=53). The other set_code_to_self_destruct parametrizations are
-  -- conservative-accept shapes whose verdict does not depend on the receipt
-  -- increment, so dropping this correction is safe.
-  "  la t2, bvgr_arena_tx_count; ld t2, 0(t2); li t3, 1; bne t2, t3, .Lbv_receipt_ecc_skip\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t2, 160(t2); li t3, 4; bne t2, t3, .Lbv_receipt_ecc_skip\n" ++
-  "  la t0, ecc_same_block_hit; ld t0, 0(t0); beqz t0, .Lbv_receipt_ecc_skip\n" ++
-  "  la t4, bvgr_receipt_gas_increments; ld t5, 0(t4); li t6, 32690; add t5, t5, t6; sd t5, 0(t4)\n" ++
-  ".Lbv_receipt_ecc_skip:\n" ++
+  -- huo4a: block_verdict_receipt_gas_eip8037_adjust now computes the type-4
+  -- receipt cumulative_gas SPEC-EXACTLY (= tx_regular_gas + tx_state_gas from the
+  -- verdict-side arrays + PER_AUTH_BASE_COST*auth, then refund + calldata floor),
+  -- so the prior narrow per-shape receipt add-ons here (the SELFDESTRUCT +32690,
+  -- removed in #8988, and the EXTCODECOPY-same-block ecc_same_block_hit +32690)
+  -- are subsumed and removed -- re-adding them would double-count.
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++

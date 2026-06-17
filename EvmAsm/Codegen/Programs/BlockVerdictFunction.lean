@@ -36,6 +36,11 @@ def blockVerdictFunction : String :=
   -- not sv_this_rlp (this block's POST-state header). 8(s0)/16(s0) is the parent header.
   "  ld t0, 8(s0); la t1, sv_pre_rlp_ptr; sd t0, 0(t1)\n" ++
   "  ld t0, 16(s0); la t1, sv_pre_rlp_len; sd t0, 0(t1)\n" ++
+  -- 5tmlt.3: globalize the witness.state ptr/len (params+80/+88) so the EIP-7702
+  -- existing-authority refund can resolve an authority's PRE-state code (prior-block
+  -- delegation) via code_at_header_state_root, mirroring the spec's get_code check.
+  "  ld t0, 80(s0); la t1, bv_witness_state_ptr; sd t0, 0(t1)\n" ++
+  "  ld t0, 88(s0); la t1, bv_witness_state_len; sd t0, 0(t1)\n" ++
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
