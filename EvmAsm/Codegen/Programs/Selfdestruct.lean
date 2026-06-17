@@ -221,7 +221,21 @@ def selfdestructBalanceTransferRuntimeAsm : String :=
   "  sd x0, 0(t0)\n" ++
   "  la t0, sdai_status\n" ++
   "  ld t1, 0(t0)\n" ++
-  "  bnez t1, .L_selfdestruct_transfer_done\n" ++
+  "  beqz t1, .L_selfdestruct_transfer_full\n" ++
+  -- status 4 = beneficiary lookup missed because it is a NEW account. The balance
+  -- move to the new beneficiary is already applied (recomputed state root matches),
+  -- but the spec still emits the EIP-7708 Transfer log to it. The full transfer
+  -- staging below needs the beneficiary RLP (absent for a new account), so instead
+  -- just clear sdai_transfer_status to let selfdestructEip7708LogRuntimeAsm emit the
+  -- log: it reads the transferred amount from the (valid) origin RLP and no-ops on a
+  -- zero balance, so this is correct for both funded and empty new-beneficiary cases.
+  -- status 1/2/3 (no context / header / origin failure) keep skipping (status stays 1).
+  "  li t2, 4\n" ++
+  "  bne t1, t2, .L_selfdestruct_transfer_done\n" ++
+  "  la t0, sdai_transfer_status\n" ++
+  "  sd x0, 0(t0)\n" ++
+  "  j .L_selfdestruct_transfer_done\n" ++
+  ".L_selfdestruct_transfer_full:\n" ++
   "  la t0, sdai_origin_len\n" ++
   "  ld a1, 0(t0)\n" ++
   "  la t0, sdai_beneficiary_len\n" ++
@@ -319,6 +333,19 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi t1, t1, -1\n" ++
   "  addi t2, t2, -1\n" ++
   "  bnez t2, .L_selfdestruct_eip7708_balance_rev\n" ++
+  -- Build stack-word LE forms of the from/to addresses for the EIP-7708 log topics.
+  -- sdai_origin_address / evm_selfdestruct_beneficiary are canonical 20-byte BE, but
+  -- the receipt log encoder byte-reverses each 32B topic slot (like the CALL value-
+  -- transfer log, which passes env.ADDRESS / stack words), so the address must enter
+  -- as [20-byte LE][12 zero] to come out canonical right-aligned BE.
+  "  la t0, sd_eip7708_from_sw\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, sdai_origin_address; addi t1, t1, 19; li t2, 20\n" ++
+  ".L_sd7708_from_le:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sd7708_from_le\n" ++
+  "  la t0, sd_eip7708_to_sw\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, evm_selfdestruct_beneficiary; addi t1, t1, 19; li t2, 20\n" ++
+  ".L_sd7708_to_le:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sd7708_to_le\n" ++
   "  la t0, sdai_origin_address\n" ++
   "  la t1, evm_selfdestruct_beneficiary\n" ++
   "  li t2, 20\n" ++
@@ -342,7 +369,7 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp)\n" ++
   "  sd x12, 8(sp)\n" ++
-  "  la a0, sdai_origin_address\n" ++
+  "  la a0, sd_eip7708_from_sw\n" ++
   "  la a1, evm_selfdestruct_balance_scratch\n" ++
   "  jal ra, eip7708_append_burn_log\n" ++
   "  mv t6, a0\n" ++
@@ -355,8 +382,8 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp)\n" ++
   "  sd x12, 8(sp)\n" ++
-  "  la a0, sdai_origin_address\n" ++
-  "  la a1, evm_selfdestruct_beneficiary\n" ++
+  "  la a0, sd_eip7708_from_sw\n" ++
+  "  la a1, sd_eip7708_to_sw\n" ++
   "  la a2, evm_selfdestruct_balance_scratch\n" ++
   "  jal ra, eip7708_append_transfer_log\n" ++
   "  mv t6, a0\n" ++
@@ -590,6 +617,12 @@ def runtimeSelfdestructAccountInputsDataSection : String :=
   "  .zero 32\n" ++
   ".balign 32\n" ++
   "evm_selfdestruct_balance_scratch:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_from_sw:\n" ++
+  "  .zero 32\n" ++
+  ".balign 32\n" ++
+  "sd_eip7708_to_sw:\n" ++
   "  .zero 32\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_created_in_tx:\n" ++
