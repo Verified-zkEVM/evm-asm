@@ -138,8 +138,9 @@ private theorem classify_list_long {items : List RLPItem}
 /-- The per-item region window obligation holds at any item-start offset: a long
     head's `lenOfLen` length bytes sit inside `encode head`, hence inside the
     region (in bounds via the encoding length, readable via `hwin`); a flat head
-    makes `regionLongWindow` reduce to `True`. -/
-private theorem regionLongWindow_of_split
+    makes `regionLongWindow` reduce to `True`. (Exposed for the length-driven loop
+    closure, which discharges the same per-item window obligation.) -/
+theorem regionLongWindow_of_split
     (regionBase : Word) (bs : List (BitVec 8)) (head : RLPItem) (tail : List RLPItem) (O : Nat)
     (hO : O < bs.length)
     (hbsO : bs[O]'hO = (encode head)[0]'(encode_nonempty head))
