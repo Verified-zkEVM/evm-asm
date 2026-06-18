@@ -1425,10 +1425,20 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     encoding via private `long_lenBytes_in_region` (`(bs.drop (off+1)).take lenOfLen =
     toBytesBE payloadCount`) + step-2 lemmas (`encode_long_lenOfLen_eq_*`, `encode_long_lenBytes_read`,
     `encode_long_length_eq`). Also `flat_or_long` dichotomy. Axiom-clean, 0 sorry.
-  - **Next (step 5b):** unified loop closure + bridge — induct over `items`, apply the step-4 body per
-    item with #9025's region decoder discharging `decoderH`, re-index `x13` via THIS lemma
-    (`encode_head_eq_itemNextPtrRegion`); conjoin the pure `decodeItems` round-trip. Then (6) concrete
-    program + end-to-end.
+  - ✅ **Step 5b — unified loop closure + bridge** (`UnifiedListLoop.lean`). All-class analog of the
+    flat `fll_loop_*`. **`unified_loop_spec_within`**: structural induction over arbitrary `items`,
+    threading the byte offset via `bs.drop O = encode.encodeItems items`, applying the step-4 body per
+    item (the 60-step region decoder supplied as the ∀-hypothesis `UnifiedDecoderH`), re-indexing `x13`
+    via `encode_head_eq_itemNextPtrRegion` (5a) — uniform `64 * items.length` steps, counter on x15,
+    scratch x10/x12/x14 abstracted to `regOwn` in `unified_loop_post`. **`unified_loop_n_spec_within`**
+    (offset-0 entry) and **`unified_loop_bridge`** (conjoins the pure `decodeItems` round-trip via
+    `decode_encode_mutual.2`). Per-head `itemPayloadCount < 256^8` discharged from `hover` (flat ≤55 /
+    long via `encode_long_length_eq`). Axiom-clean, 0 sorry.
+  - **Next (step 6):** concrete unified program + end-to-end — discharge `UnifiedDecoderH` with #9025's
+    region decoder (`rlp_decode_single_item_reconverged_all_region`), assemble the real RV64 program
+    (`[LBU] ++ region_decoder_prog ++ [ADD, ADDI, BNE]`), prove the no-abstract-hypotheses bridge. The
+    analog of the flat `FlatListLoopConcrete.lean` (#9007/#9008) — completes single-level long-item
+    list decoding.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
