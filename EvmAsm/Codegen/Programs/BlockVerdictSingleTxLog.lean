@@ -43,6 +43,11 @@ def blockVerdictSingleTxTopLevelLogFunction : String :=
   "  jal ra, eip7708_append_transfer_log\n" ++
   "  bnez a0, .Lbvestl_ret\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
+  -- bmvmx.5.5.2.2.ln9ly: STAGE the top-level transfer log for re-emit. The append above runs
+  -- BEFORE the contract dispatch and is wiped by the dispatcher's per-tx event-log reset, so set
+  -- bv_pending_tl_flag=1 -- dispatcher_reemit_pending_tl re-emits it (from eip7708_tl_*) as log 0
+  -- after the reset (preserving spec order), then clears the flag. Only set on this success path.
+  "  la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
   ".Lbvestl_ret:\n" ++
   "  ld ra, 0(sp); ld x20, 8(sp)\n" ++
   "  addi sp, sp, 16\n" ++

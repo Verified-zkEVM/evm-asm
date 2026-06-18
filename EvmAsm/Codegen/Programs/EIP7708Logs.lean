@@ -199,6 +199,33 @@ def eip7708SyntheticLogFunctions : String :=
   "  ld s0, 8(sp)\n" ++
   "  ld s1, 16(sp)\n" ++
   "  addi sp, sp, 24\n" ++
+  "  ret\n" ++
+  -- bmvmx.5.5.2.2.ln9ly: re-emit a block_verdict-staged top-level EIP-7708 transfer log AFTER the
+  -- dispatcher's per-tx event-log reset (env.eventLogLengthOff=0), so it survives as log 0 (spec
+  -- order: top-level value move first, then recipient-code logs). Without this, the single-tx
+  -- contract path's pre-dispatch emit (bv_emit_single_tx_tl7708) is wiped by the reset -> receipt
+  -- has 0 logs vs expected 1 -> bv_fail=53 (set_code_to_sstore tx_value_1 false reject). Gated on
+  -- bv_pending_tl_flag (set ONLY by the single-tx contract emit; 0 for simple-transfer, multi-tx,
+  -- system txs, non-block_verdict callers -> no-op). Preserves ALL caller regs (the call site
+  -- mid-setup has a live x5/x6/x7 input cursor + x20=env); clears the flag (one-shot per dispatch).
+  -- checkpoint stays 0 (correct: a top-level transfer reverts with the recipient).
+  "dispatcher_reemit_pending_tl:\n" ++
+  "  addi sp, sp, -144\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd t0, 8(sp); sd t1, 16(sp); sd t2, 24(sp); sd t3, 32(sp); sd t4, 40(sp); sd t5, 48(sp); sd t6, 56(sp)\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
+  "  sd x20, 128(sp)\n" ++
+  "  la t0, bv_pending_tl_flag; ld t0, 0(t0); beqz t0, .Ldrpt_done\n" ++
+  "  la x20, evm_env\n" ++
+  "  la a0, eip7708_tl_from32; la a1, eip7708_tl_to32; la a2, eip7708_tl_val32\n" ++
+  "  jal ra, eip7708_append_transfer_log\n" ++
+  "  la t0, bv_pending_tl_flag; sd x0, 0(t0)\n" ++
+  ".Ldrpt_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld t0, 8(sp); ld t1, 16(sp); ld t2, 24(sp); ld t3, 32(sp); ld t4, 40(sp); ld t5, 48(sp); ld t6, 56(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); ld a2, 80(sp); ld a3, 88(sp); ld a4, 96(sp); ld a5, 104(sp); ld a6, 112(sp); ld a7, 120(sp)\n" ++
+  "  ld x20, 128(sp)\n" ++
+  "  addi sp, sp, 144\n" ++
   "  ret\n"
 
 def eip7708SyntheticLogTopicData : String :=
@@ -220,7 +247,10 @@ def eip7708SyntheticLogTopicData : String :=
   ".balign 8\n" ++
   "eip7708_tl_from32:\n  .zero 32\n" ++
   "eip7708_tl_to32:\n  .zero 32\n" ++
-  "eip7708_tl_val32:\n  .zero 32\n"
+  "eip7708_tl_val32:\n  .zero 32\n" ++
+  -- bmvmx.5.5.2.2.ln9ly: 1 = a single-tx contract-path top-level transfer log is staged for the
+  -- next dispatch to re-emit post-reset (see dispatcher_reemit_pending_tl). Cleared by the dispatcher.
+  "bv_pending_tl_flag:\n  .zero 8\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++
