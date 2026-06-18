@@ -1399,11 +1399,18 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     1/Phase 3 are register-only (reused verbatim); only the phase-2 loop is swapped to the
     step-1 region length-read, `bytesRegion` framed through, and `x13` re-expressed from
     `v13 + 1` to `regionBase + ofNat (off+1)` (item at byte offset `off`). Axiom-clean, 0 sorry.
-  - **Next (step 3b):** region `reconverged_all` — re-dispatch the 5 arms over `bytesRegion`
-    (flat arms reuse existing ones framing `bytesRegion`, long arms use step 3a; region
-    post-helpers `itemLenRegion`/`itemX12Region` reading `bs`; `reconverge_arm_n` reused).
-    Then (4) long loop body (x15 counter), (5) closure+bridge (using step 2's stride),
-    (6) concrete + end-to-end.
+  - ✅ **Step 3b — region all-class decoder** (`UnifiedDecodeItemReconvergeAllRegion.lean`).
+    **`rlp_decode_single_item_reconverged_all_region`**: the 5-class single-item decoder over
+    `bytesRegion regionBase bs` (analog of `rlp_decode_single_item_reconverged_all`). Region
+    post-helpers `itemLenRegion`/`itemX12Region` (read `bs` at `off+1`) + `itemPtrRegion`;
+    `itemResidue`/`itemX14` reused; `rlpDecodeLongHypsRegion` (region window, no `alignToDword`);
+    `reconverge_arm_n` reused unchanged. Flat arms (e1/e2/e4) reuse the existing register-only
+    handlers framing `bytesRegion` (`x13` via `hv13`/`region_succ_ptr`); long arms (e3/e5) use the
+    step-3a region arms (post matches the helpers exactly). The `decoderH` the long loop body
+    consumes. Axiom-clean, 0 sorry.
+  - **Next (step 4):** long loop body — `LBU` + this region decoder + `ADD x13,x13,x11` +
+    `ADDI x15,x15,-1` + `BNE x15,x0,back` (item counter on **x15**; decoder clobbers x14/x12).
+    Then (5) closure + bridge (re-index via step 2's `encode_long_stride`), (6) concrete + end-to-end.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
