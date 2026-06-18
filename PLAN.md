@@ -1457,11 +1457,20 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     the region decoder's `e_target + k` form (syntactic unification, not BitVec defeq) and skip
     `simp only [rlp_phase1_step_code]` in the subset proofs (defeq handles the abbrev); needs
     `set_option maxHeartbeats 800000`/`maxRecDepth 8000`. Axiom-clean, 0 sorry, 0 warnings.
-  - **Next (step 6c, analog of #9008):** `UnifiedListLoopConcrete.lean` — assemble `[LBU] ++
-    unified_decoder_prog ++ [ADD, ADDI, BNE]`, build `UnifiedDecoderH` from `unified_decoder_spec`
-    (decoder_base = lbase+4, joinPC = lbase+4+144, threading the window guard per item), call
-    `unified_loop_bridge` for the no-abstract-hypotheses end-to-end + concrete 2-item `example` —
-    completes single-level long-item list decoding.
+  - ✅ **Step 6c — fully concrete end-to-end** (`UnifiedListLoopConcrete.lean`, analog of #9008).
+    **`unified_list_loop_concrete_bridge`** has NO abstract hypotheses: the real RV64 program `[LBU
+    x5,x13,0] ++ unified_decoder_prog ++ [ADD x13 x13 x11, ADDI x15 x15 -1, BNE x15 x0 -156]` at `lbase`
+    (scaffold bracketing the 36-instr decoder so `joinPC = lbase+148`, exit `lbase+160`, back-edge
+    `-156`) **decodes a non-empty list of ARBITRARY RLP items (all 5 classes, long strings/lists
+    included) from `bytesRegion` in `64*items.length` steps AND coincides with the pure `decodeItems`
+    round-trip**. Discharges `unified_loop_bridge`'s abstract `UnifiedDecoderH` via `unified_decoder_spec
+    (lbase+4)` (`rwa [(lbase+4)+144 = lbase+148]`); back-edge `signExtend13 (-156) = -156` by `decide`;
+    scaffold/decoder disjointness via `dcr_none` (`ofProg_none_range_len`, n=36) + `Disjoint.singleton_
+    ofProg`/`ofProg_singleton`. Concrete 2-item `example`. Built first try, axiom-clean, 0 sorry. **This
+    completes the long-item RLP list-decoder arc — single-level lists of all 5 classes now decode
+    end-to-end in real RISC-V with a kernel-checkable round-trip proof.**
+- **Phase 4 done.** RLP single-level list decoding (flat #9004–#9008 + long-item #9020–#9031) is
+  complete. Remaining for feature-complete RLP:
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
