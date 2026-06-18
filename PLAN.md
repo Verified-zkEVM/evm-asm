@@ -1368,7 +1368,7 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `crDisjoint` tactic times out on the opaque 16-instr `ofProg`); `hback` via
   `signExtend13 (-76) = -76` (`decide`) + `bv_omega`. Concrete 2-item `example`.
   Axiom-clean, 0 sorry. This completes the **flat** RLP list-decoder arc.
-- 🚧 **Long-item-capable list loop** (arc, step 1 of 6). Goal: a list loop that
+- 🚧 **Long-item-capable list loop** (arc, step 2 of 6). Goal: a list loop that
   handles `longBytes`/`longList` (real Ethereum RLP exceeds 55 bytes). Design:
   reuse the 5-class single-item decoder (`rlp_decode_single_item_reconverged_all`,
   already proven), with the list-loop item counter on **x15** (the decoder
@@ -1386,12 +1386,110 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     the single-dword version; only the memory model differs. Frame `x0` on the
     **left** (`frameL`) so `xperm` never commutes a `regIs` rightward past the opaque
     `bytesRegion` atom. Axiom-clean, 0 sorry, no `bv_decide`.
-  - **Next (step 2):** all-class stride-equivalence — fill the long branches of
-    `itemPayloadLen`/`itemPayloadPtr`/`itemTotalLen` and prove `itemTotalLen =
-    (encode item).length` for long items (via `Nat.fromBytesBE (Nat.toBytesBE n) = n`).
-    Then (3) region 5-class decoder, (4) long loop body w/ x15 counter, (5)
-    closure+bridge, (6) concrete + end-to-end.
+  - ✅ **Step 2 — long-item stride foundation** (`LongItemStride.lean`). Pure
+    long analog of `FlatListLoop.lean` §1: `isLongItem`/`itemPayloadCount`/`itemLenOfLen`,
+    `classifyPrefix_encode_head_long`, `encode_long_lenOfLen_eq_{bytes,list}`,
+    `encode_long_length_eq`, `encode_long_lenBytes_read`, and **`encode_long_stride`**
+    (`payloadPtr + payloadCount = v13 + (encode item).length`). NB: the long stride is
+    runtime-read-dependent, so it is NOT a prefix-only `itemTotalLen` (that flat helper's
+    long branch correctly stays `_ => 0`); the unified loop re-indexes via this identity.
+  - ✅ **Step 3a — region long decoder arms** (`Phase1LongFullRegion.lean`).
+    `rlp_phase1_e3_longBytes_full_region_spec_within` / `…_e5_longList_…`: the e3/e5 long
+    arms re-derived over `bytesRegion` (analogs of `Phase1E{3,5}Long*Full.lean`). Phase
+    1/Phase 3 are register-only (reused verbatim); only the phase-2 loop is swapped to the
+    step-1 region length-read, `bytesRegion` framed through, and `x13` re-expressed from
+    `v13 + 1` to `regionBase + ofNat (off+1)` (item at byte offset `off`). Axiom-clean, 0 sorry.
+  - ✅ **Step 3b — region all-class decoder** (`UnifiedDecodeItemReconvergeAllRegion.lean`).
+    **`rlp_decode_single_item_reconverged_all_region`**: the 5-class single-item decoder over
+    `bytesRegion regionBase bs` (analog of `rlp_decode_single_item_reconverged_all`). Region
+    post-helpers `itemLenRegion`/`itemX12Region` (read `bs` at `off+1`) + `itemPtrRegion`;
+    `itemResidue`/`itemX14` reused; `rlpDecodeLongHypsRegion` (region window, no `alignToDword`);
+    `reconverge_arm_n` reused unchanged. Flat arms (e1/e2/e4) reuse the existing register-only
+    handlers framing `bytesRegion` (`x13` via `hv13`/`region_succ_ptr`); long arms (e3/e5) use the
+    step-3a region arms (post matches the helpers exactly). The `decoderH` the long loop body
+    consumes. Axiom-clean, 0 sorry.
+  - ✅ **Step 4 — unified loop body** (`UnifiedListLoopBody.lean`). **`unified_body_spec_within`**:
+    one iteration decoding ANY item (all 5 classes) — `LBU x5,x13,0` + region decoder (opaque
+    `cpsTripleWithin 60`) + `ADD x13,x13,x11` + `ADDI x15,x15,-1` + `BNE x15,x0,back`, as a
+    `cpsBranchWithin 64` (taken → `lbase`, fall → `joinPC+12`). Item counter on **x15** (the decoder
+    clobbers x14/x12); x10/x12/x14 are decoder scratch. `unified_body_post` (+`_unfold`/`_pure`),
+    `itemNextPtrRegion := itemPtrRegion + itemLenRegion` (the `ADD` result). Faithful mirror of
+    `fll_body_spec_within`; the decoder stays opaque (the concrete region decoder discharges it in
+    the end-to-end step). Axiom-clean, 0 sorry.
+  - ✅ **Step 5a — unified stride-equivalence** (`UnifiedItemStride.lean`).
+    **`encode_head_eq_itemNextPtrRegion`**: for ANY item (all 5 classes), the body's per-item advance
+    `itemNextPtrRegion ((encode head)[0]) regionBase off bs` (= `itemPtrRegion + itemLenRegion`, the
+    `ADD x13` result) re-indexes to `regionBase + ofNat (off + (encode head).length)` — the all-class
+    analog of the flat `encode_head_eq_itemTotalLen`. Flat items bridge through `itemTotalLen`
+    (reusing `encode_head_eq_itemTotalLen`); long items tie the runtime-read length bytes back to the
+    encoding via private `long_lenBytes_in_region` (`(bs.drop (off+1)).take lenOfLen =
+    toBytesBE payloadCount`) + step-2 lemmas (`encode_long_lenOfLen_eq_*`, `encode_long_lenBytes_read`,
+    `encode_long_length_eq`). Also `flat_or_long` dichotomy. Axiom-clean, 0 sorry.
+  - ✅ **Step 5b — unified loop closure + bridge** (`UnifiedListLoop.lean`). All-class analog of the
+    flat `fll_loop_*`. **`unified_loop_spec_within`**: structural induction over arbitrary `items`,
+    threading the byte offset via `bs.drop O = encode.encodeItems items`, applying the step-4 body per
+    item (the 60-step region decoder supplied as the ∀-hypothesis `UnifiedDecoderH`), re-indexing `x13`
+    via `encode_head_eq_itemNextPtrRegion` (5a) — uniform `64 * items.length` steps, counter on x15,
+    scratch x10/x12/x14 abstracted to `regOwn` in `unified_loop_post`. **`unified_loop_n_spec_within`**
+    (offset-0 entry) and **`unified_loop_bridge`** (conjoins the pure `decodeItems` round-trip via
+    `decode_encode_mutual.2`). Per-head `itemPayloadCount < 256^8` discharged from `hover` (flat ≤55 /
+    long via `encode_long_length_eq`). Axiom-clean, 0 sorry.
+  - ✅ **Step 6a — dischargeable decoder hypothesis** (`UnifiedListLoop.lean`). Added a per-index
+    `regionLongWindow` guard to `UnifiedDecoderH` (the window-only half of `rlpDecodeLongHypsRegion`: a
+    long prefix's `lenOfLen` length bytes lie within the region) and discharge it in
+    `unified_loop_spec_within` at every item-start offset (private `regionLongWindow_of_split`: flat →
+    `True`; long → the length bytes sit inside `encode head`, in-bounds via `encode_long_length_eq`,
+    readable via `hwin`). Plus local per-structure classification `classify_bytes_long`/
+    `classify_list_long`. Fixes the latent gap where the old guardless `UnifiedDecoderH` was
+    unsatisfiable by any concrete program (a mid-item byte can classify as a long prefix running off
+    the region end). Axiom-clean, 0 sorry.
+  - ✅ **Step 6b — concrete all-class decoder** (`UnifiedDecoderConcrete.lean`, analog of #9007).
+    `unified_decoder_prog : List Instr` — a single 36-instruction program (phase-1 cascade @base..+32,
+    e5 long-list handler+loop+JAL @+32/+44/+68, e1–e4 handlers @+72/+80/+92/+104 with the e3 long-string
+    loop @+116, reconvergence JALs; `joinPC = base+144`; loop back-edge `-20`; cascade offsets
+    `68/68/84/64`, JAL offsets `68/56/4/44/76`). `unified_decoder_spec` proves `cpsTripleWithin 60 base
+    (base+144) (ofProg base unified_decoder_prog) …` for `bs[off]` — exactly the `UnifiedDecoderH` shape
+    — discharging `rlp_decode_single_item_reconverged_all_region`'s ~30 hypotheses: targets/joins via
+    `rv64_addr`, 12 disjointness via `simp [rlp_phase1_step_code]; crDisjoint`, 5 subset embeddings via
+    `union_sub` + `unified_piece`/`unified_jal_piece` (`ofProg_mono_sub`/`ofProg_lookup_addr`), and
+    `rlpDecodeLongHypsRegion` from the passed `regionLongWindow` window + a concrete `-20` back-edge
+    (`signExtend13 (-20) = -20` by `decide`, then `bv_omega`). Key perf lesson: write piece subBases in
+    the region decoder's `e_target + k` form (syntactic unification, not BitVec defeq) and skip
+    `simp only [rlp_phase1_step_code]` in the subset proofs (defeq handles the abbrev); needs
+    `set_option maxHeartbeats 800000`/`maxRecDepth 8000`. Axiom-clean, 0 sorry, 0 warnings.
+  - ✅ **Step 6c — fully concrete end-to-end** (`UnifiedListLoopConcrete.lean`, analog of #9008).
+    **`unified_list_loop_concrete_bridge`** has NO abstract hypotheses: the real RV64 program `[LBU
+    x5,x13,0] ++ unified_decoder_prog ++ [ADD x13 x13 x11, ADDI x15 x15 -1, BNE x15 x0 -156]` at `lbase`
+    (scaffold bracketing the 36-instr decoder so `joinPC = lbase+148`, exit `lbase+160`, back-edge
+    `-156`) **decodes a non-empty list of ARBITRARY RLP items (all 5 classes, long strings/lists
+    included) from `bytesRegion` in `64*items.length` steps AND coincides with the pure `decodeItems`
+    round-trip**. Discharges `unified_loop_bridge`'s abstract `UnifiedDecoderH` via `unified_decoder_spec
+    (lbase+4)` (`rwa [(lbase+4)+144 = lbase+148]`); back-edge `signExtend13 (-156) = -156` by `decide`;
+    scaffold/decoder disjointness via `dcr_none` (`ofProg_none_range_len`, n=36) + `Disjoint.singleton_
+    ofProg`/`ofProg_singleton`. Concrete 2-item `example`. Built first try, axiom-clean, 0 sorry. **This
+    completes the long-item RLP list-decoder arc — single-level lists of all 5 classes now decode
+    end-to-end in real RISC-V with a kernel-checkable round-trip proof.**
+- **Phase 4 done.** RLP single-level list decoding (flat #9004–#9008 + long-item #9020–#9031) is
+  complete. Remaining for feature-complete RLP:
 - Phase 5: Recursive list decode (iterative with explicit stack)
+  - ✅ **Step 1 — descend-one-level kernel** (`NestedDescendOne.lean`). **`list_item_payload_window`**:
+    for a `.list items` item at offset `off`, the single-item decoder's window (`x13 = itemPtrRegion`
+    payload pointer, `x11 = itemLenRegion` payload length) points at EXACTLY the `encode.encodeItems
+    items` payload — `∃ payloadOff, itemPtrRegion = regionBase + ofNat payloadOff ∧ itemLenRegion =
+    ofNat (encodeItems items).length ∧ bs.drop payloadOff = encode.encodeItems items ++ tail` (the
+    third conjunct is precisely the list loop's `hdrop` precondition, so a caller can descend). The
+    all-class analog, for the payload window, of the 5a stride lemma; short-list via
+    `classifyPrefix_shortList_iff` + `encode_list_short`, long-list via `classifyPrefix_encode_head_long`
+    + `encode_list_long` + `take_left'`/`drop_left'` + `fromBytesBE_toBytesBE`. Plus `decode_list_descend`
+    (top-level round-trip) and concrete nested `example`s. Axiom-clean, 0 sorry.
+  - **Next (step 2 — operational descent assembly):** a combined program (header single-item decoder +
+    list loop at the payload offset) decoding a top-level nested list end-to-end, coinciding with
+    `decode` — `cpsTripleWithin_seq` of `unified_decoder_spec` + `unified_loop_spec_within`, with `x15 =
+    items.length` as a precondition (count deferred). Then **step 3+** — a **length-driven** loop (decode
+    until `x13` reaches `payload_end`, no known count; the prerequisite for genuine recursion), then
+    either bounded fixed-depth composition for the STF's block/tx structure or the general explicit-stack
+    recursive decoder. NOTE the impedance mismatch: the existing loop is COUNT-driven (`x15 =
+    items.length`) but real decode is LENGTH-driven — resolving that is step 3's crux.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

@@ -47,6 +47,17 @@ def blockVerdictReceiptsTail : String :=
   "  la a5, bvgr_block_gas_increments\n" ++
   "  la a6, bvgr_tx_exec_state_gas\n" ++
   "  jal ra, block_verdict_receipt_gas_eip8037_adjust\n" ++
+  -- bmvmx.5.5.2.2.12: bvgr_receipt_gas_increments[i] is now the spec-exact per-tx gas_used, so run
+  -- the RELOCATED multi-tx B2.2/B2.3 sender cumulative-balance check here (it was skipped at
+  -- .Lbv_mtx_done because the gas chain hadn't run yet). The B2 code lives in
+  -- blockVerdictMtxValidationTail and returns to .Lbv_mtx_b2_return. Guard: multi-tx only
+  -- (bv_tx_count>=2) AND the gas arena populated (the mtx loop completed, not bailed); otherwise
+  -- fall straight through to receipt materialization. This is the no-skip fix for the bv_fail=57
+  -- type-4 false-rejects (the debit now includes EIP-8037 state gas via the receipt gas).
+  "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 2; bltu t0, t1, .Lbv_mtx_b2_return\n" ++
+  "  la t0, bvgr_arena_status; ld t0, 0(t0); bnez t0, .Lbv_mtx_b2_return\n" ++
+  "  j .Lbv_b2_entry\n" ++
+  ".Lbv_mtx_b2_return:\n" ++
   -- huo4a: block_verdict_receipt_gas_eip8037_adjust now computes the type-4
   -- receipt cumulative_gas SPEC-EXACTLY (= tx_regular_gas + tx_state_gas from the
   -- verdict-side arrays + PER_AUTH_BASE_COST*auth, then refund + calldata floor),
