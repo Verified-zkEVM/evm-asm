@@ -34,8 +34,17 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx. -/
-def nonstorageEffectLogCap : Nat := 64
+/-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx.
+    Raised to 2048 (bmvmx.5.5.7.3): now that aggregation is O(N) (nonstorage_effect_aggregate)
+    and the FORWARD exec-vs-BAL comparator binary-searches the sorted agg (#9018), the only
+    remaining super-linear consumer is bal_all_accounts_nonstorage_covers (O(cap*BAL_accounts)
+    per block). At 2048 that is ~2048*2048*~100 ≈ 4.2e8 steps ≪ the 5e9 step budget, so blocks
+    with up to 2048 non-storage (balance/nonce) effects are now ENFORCED by A2a + B2.3 instead
+    of conservatively skipping on overflow. >2048 still overflows/skips (sound, conservative);
+    the full 200M-gas worst case (~40000) is gated on linearizing _covers (a sorted BAL-address
+    index — see bmvmx.5.5.7.3). The exec_nonstorage_effect_log / exec_nonstorage_effect_agg /
+    nea_sort_a / nea_sort_b buffers are all sized at this cap × 112 B. -/
+def nonstorageEffectLogCap : Nat := 2048
 
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).
