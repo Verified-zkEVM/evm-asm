@@ -1368,7 +1368,7 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `crDisjoint` tactic times out on the opaque 16-instr `ofProg`); `hback` via
   `signExtend13 (-76) = -76` (`decide`) + `bv_omega`. Concrete 2-item `example`.
   Axiom-clean, 0 sorry. This completes the **flat** RLP list-decoder arc.
-- 🚧 **Long-item-capable list loop** (arc, step 1 of 6). Goal: a list loop that
+- 🚧 **Long-item-capable list loop** (arc, step 2 of 6). Goal: a list loop that
   handles `longBytes`/`longList` (real Ethereum RLP exceeds 55 bytes). Design:
   reuse the 5-class single-item decoder (`rlp_decode_single_item_reconverged_all`,
   already proven), with the list-loop item counter on **x15** (the decoder
@@ -1386,11 +1386,17 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     the single-dword version; only the memory model differs. Frame `x0` on the
     **left** (`frameL`) so `xperm` never commutes a `regIs` rightward past the opaque
     `bytesRegion` atom. Axiom-clean, 0 sorry, no `bv_decide`.
-  - **Next (step 2):** all-class stride-equivalence — fill the long branches of
-    `itemPayloadLen`/`itemPayloadPtr`/`itemTotalLen` and prove `itemTotalLen =
-    (encode item).length` for long items (via `Nat.fromBytesBE (Nat.toBytesBE n) = n`).
-    Then (3) region 5-class decoder, (4) long loop body w/ x15 counter, (5)
-    closure+bridge, (6) concrete + end-to-end.
+  - ✅ **Step 2 — long-item stride foundation** (`LongItemStride.lean`). Pure long-class
+    analog of `FlatListLoop.lean` §1: `isLongItem`, `itemPayloadCount`/`itemLenOfLen`,
+    `classifyPrefix_encode_head_long`, `encode_long_lenOfLen_eq_{bytes,list}` (decoder's
+    length-of-length = encoding's), `encode_long_length_eq` (`(encode item).length =
+    1 + lenOfLen + payloadCount`), `encode_long_lenBytes_read` (round-trip via
+    `Nat.fromBytesBE_toBytesBE`), and **`encode_long_stride`** (`payloadPtr + payloadCount
+    = v13 + (encode item).length`) — the identity the unified loop closure re-indexes on.
+    Built entirely on existing spec lemmas; no `bv_decide`; axiom-clean, 0 sorry.
+  - **Next (step 3):** region 5-class decoder (re-derive `reconverged_all`'s long arms over
+    `bytesRegion` using step 1); then (4) long loop body (x15 counter), (5) closure+bridge
+    (using step 2's stride), (6) concrete + end-to-end.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
