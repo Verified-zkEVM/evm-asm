@@ -1504,9 +1504,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `regionLongWindow_of_split` (was private in `UnifiedListLoop.lean`) — both closures discharge the same
     per-item window obligation. Faithful mirror of the count-driven #9028 with termination swapped;
     axiom-clean, 0 sorry.
-  - **Next (step 4 — concrete + genuine descent):** concrete length-driven program; then compose with
-    #9033's window — header single-item decode → `ADD` to set `x15 := payload end` (ptr+len) → run the
-    length-driven loop → genuine one-level descent matching `decode (.list items)`. Then arbitrary depth
+  - ✅ **Step 4a — concrete length-driven loop** (`UnifiedLenLoopConcrete.lean`, length-driven analog of
+    #9032). **`unified_lenloop_concrete_bridge`** has NO abstract hypotheses: the real RV64 program `[LBU
+    x5,x13,0] ++ unified_decoder_prog ++ [ADD x13 x13 x11, BNE x13 x15 -152]` at `lbase` (joinPC=lbase+148,
+    exit lbase+156) decodes a list of arbitrary RLP items from `bytesRegion`, running until `x13` reaches
+    the end pointer `x15 = regionBase + ofNat len`, in `63 * items.length` steps, AND coincides with the
+    pure `decodeItems`. Discharges `UnifiedDecoderH` via `unified_decoder_spec`; `back=-152`
+    (`signExtend13 (-152) = -152` by `decide`); scaffold/decoder disjointness via `dcr_none`
+    (`ofProg_none_range_len`, n=36). **Directly the top-level list decoder** (the end pointer is the known
+    input length). Built first try, axiom-clean, 0 sorry.
+  - **Next (step 4b — genuine top-level descent):** compose the single-item decoder (decode a `.list`
+    header → `x13 = payload ptr`, `x11 = payload len`) + `ADD x15 x13 x11` (set `x15 := endPtr`) + the
+    concrete length-driven loop, bridged by `list_item_payload_window` (#9033), proving a top-level
+    `decode (encode (.list items)) = some (.list items, [])` with the operational program validating the
+    sub-list structure. (Top-level ⇒ payload tail empty ⇒ step-3 closure applies.) **Later** — a
+    tail-general closure (`bs.drop O = encodeItems items ++ tail`; stride/window lemmas only read within
+    each item, so the byte tail is inert) for descent into interior sub-lists, then arbitrary depth
     (bounded composition for the STF block/tx structure, or the explicit-stack generalization).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
