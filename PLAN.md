@@ -1492,13 +1492,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `joinPC+8`. With no counter, `x15` holds `endPtr` (the decoder never touches it, framed through the
     60-step decode). `unified_lenloop_body_post` (+`_unfold`/`_pure`). Faithful mirror of the
     count-driven `unified_body_spec_within` with the guard swapped; built first try, axiom-clean, 0 sorry.
-  - **Next (step 3 — length-driven closure):** induct over `items`, `x13` from `O` to `endOff`, `x15 =
-    endPtr` fixed; prove it decodes `items` and `x13` reaches `endPtr` exactly after the last item. NEW
-    key lemma: `x13 ≠ endPtr` for every intermediate item (address injectivity of `regionBase + ofNat ·`
-    on `[O, endOff]`, from `hover` no-wraparound). Bridge to the length-driven pure `decodeItems`. Then
-    **step 4** — concrete + descent (compose with #9033's window: header decode → set `x15 := payload
-    end` → length-driven loop → genuine one-level descent matching `decode (.list items)`), then arbitrary
-    depth (bounded composition for the STF block/tx structure, or the explicit-stack generalization).
+  - ✅ **Step 3 — length-driven closure + bridge** (`UnifiedLenLoop.lean`). **`unified_lenloop_spec_
+    within`**: induct over `items`, `x13` from `O`, `x15 = endPtr := regionBase + ofNat (O +
+    (encodeItems items).length)` fixed (invariant, threaded unchanged); applies the step-2 body per item,
+    terminating when `x13` reaches `endPtr` exactly after the last item — `63 * items.length` steps, no
+    item count. NEW lemma **`region_offset_ne`** (`regionBase + ofNat a ≠ regionBase + ofNat b` for
+    distinct in-bounds offsets, by `bv_omega`) discharges `itemNextPtrRegion ≠ endPtr` for intermediate
+    items (so the loop continues). **`unified_lenloop_n_spec_within`** (offset-0 entry, `x15 = regionBase
+    + ofNat (encodeItems items).length`) and **`unified_lenloop_bridge`** (conjoins `decodeItems
+    (2*len+1) … = some (items, [])` via `decode_encode_mutual.2`). Also exposed
+    `regionLongWindow_of_split` (was private in `UnifiedListLoop.lean`) — both closures discharge the same
+    per-item window obligation. Faithful mirror of the count-driven #9028 with termination swapped;
+    axiom-clean, 0 sorry.
+  - **Next (step 4 — concrete + genuine descent):** concrete length-driven program; then compose with
+    #9033's window — header single-item decode → `ADD` to set `x15 := payload end` (ptr+len) → run the
+    length-driven loop → genuine one-level descent matching `decode (.list items)`. Then arbitrary depth
+    (bounded composition for the STF block/tx structure, or the explicit-stack generalization).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

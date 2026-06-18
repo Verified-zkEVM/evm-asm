@@ -64,6 +64,7 @@ import EvmAsm.Rv64.RLP.Phase1LongFullRegion
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconvergeAllRegion
 import EvmAsm.Rv64.RLP.UnifiedListLoopBody
 import EvmAsm.Rv64.RLP.UnifiedLenLoopBody
+import EvmAsm.Rv64.RLP.UnifiedLenLoop
 import EvmAsm.Rv64.RLP.UnifiedItemStride
 import EvmAsm.Rv64.RLP.UnifiedListLoop
 import EvmAsm.Rv64.RLP.UnifiedDecoderConcrete
