@@ -109,6 +109,56 @@ def blockVerdictMtxValidationTail : String :=
   "  la a0, bv_mtx_skip_ctx; la a4, bv_fee_egp_scratch; la a5, bv_b2_debit_out\n" ++
   "  jal ra, multi_tx_actual_sender_debit\n" ++
   "  la t0, bv_b2_debit_out; ld t0, 0(t0); bnez t0, .Lbv_b2_next\n" ++
+  -- bmvmx.5.5.2.2.6: multi_tx_actual_sender_debit models only receipt_inc*eff_price + value.
+  -- Add the typed-tx extra sender-debit terms it omits so type-4 (EIP-7702 AUTH_BASE) and
+  -- type-3 (blob data gas) senders are debited EXACTLY (mirrors tx_gas_bal_post_verify_runtime),
+  -- which lets B2.3 enforce those blocks instead of skipping them. tx ptr/len from
+  -- bv_mtx_skip_ctx+8/+16, eff_price in bv_fee_egp_scratch (still live from line above), blob
+  -- price in bsg_blob_price_be. Inconclusive typed decode -> skip this sender (.Lbv_b2_next).
+  "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbv_b2_after_auth\n" ++
+  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_b2_after_auth\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_after_auth\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; li a2, 9; la a3, bv_b23_authoff; la a4, bv_b23_authlen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbv_b2_after_auth\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); la t0, bv_b23_innoff; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, bv_b23_authoff; ld t2, 0(t0); add a0, t1, t2\n" ++
+  "  la t0, bv_b23_authlen; ld a1, 0(t0); la a2, bv_b23_authcount\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_b2_after_auth\n" ++
+  "  la t0, bv_b23_authcount; ld a1, 0(t0); beqz a1, .Lbv_b2_after_auth\n" ++
+  "  li t0, 42690; mul a1, a1, t0\n" ++
+  "  la a0, bv_fee_egp_scratch; la a2, bv_b23_feedebit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  ".Lbv_b2_after_auth:\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_b2_blob_done\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, bv_b23_innoff; ld t3, 0(t3); la t4, bv_mtx_skip_ctx; ld t4, 8(t4); add t3, t4, t3; add a0, t3, t1; mv a1, t2; la a2, bv_b23_blobcount\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_b23_blobcount; ld a1, 0(t0); beqz a1, .Lbv_b2_next\n" ++
+  "  li t2, 6; bgtu a1, t2, .Lbv_b2_next\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, bsg_blob_price_be; la a2, bv_b23_feedebit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  ".Lbv_b2_blob_done:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++
   "  la a0, bv_b2_table; la a1, bv_b2_count; li a2, " ++ toString bvMtxSenderBalanceEntries ++ "; mv a3, t4; la a4, bv_mtx_sender_acct; addi a4, a4, 8; la a5, bv_b2_debit_out; addi a5, a5, 16\n" ++
   "  jal ra, multi_tx_running_sender_balance_step\n" ++
@@ -143,23 +193,9 @@ def blockVerdictMtxValidationTail : String :=
   -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
   "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
-  -- Pre-scan: type-3 (blob) and type-4 (EIP-7702 auth) txs add a blob-fee / AUTH_BASE
-  -- term to the sender debit that multi_tx_actual_sender_debit does NOT model (the
-  -- single-tx tx_gas_bal_post_verify_runtime adds them separately). For type 0/1/2 the
-  -- debit (receipt_inc*eff_price + value) is exact. So if ANY tx in the block is type >= 3,
-  -- skip the whole B2.3 pass conservatively (a per-sender blob/auth-fee debit term is a
-  -- follow-up). Context/type dispatch failure -> also skip (conservative).
-  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
-  ".Lbv_b23_tscan:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_tscan_done\n" ++
-  "  la a0, bv_mtx_skip_ctx; la t0, bv_mtx_skip_idx; ld a1, 0(t0); jal ra, multi_tx_nth_context\n" ++
-  "  bnez a0, .Lbv_b23_done\n" ++
-  "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lbv_b23_done\n" ++
-  "  la t0, bv_b23_txtype; ld t0, 0(t0); li t1, 3; bgeu t0, t1, .Lbv_b23_done\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_tscan\n" ++
-  ".Lbv_b23_tscan_done:\n" ++
+  -- (Type-3/4 txs are now debited exactly by the B2.2 loop's typed-fee addition above; a tx
+  -- whose typed fee was inconclusive was skipped there and is absent from bv_b2_table, so no
+  -- per-block tx-type pre-scan is needed here.)
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
   ".Lbv_b23_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b2_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_done\n" ++
