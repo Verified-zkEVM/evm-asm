@@ -259,8 +259,13 @@ def blockVerdictMtxValidationTail : String :=
   -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
   -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
   -- here, consuming the A1 skip-list. CONSERVATIVE guards (skip -> never false-reject, like the
-  -- gas-path wds guard @1174): (a) effect-log overflow (64-cap dropped records); (b) withdrawals
-  -- (system-level credits land in the BAL but not the tx-execution effect log). Both -> skip.
+  -- gas-path wds guard @1174): (a) effect-log overflow; (b) withdrawals (system-level credits land
+  -- in the BAL but not the tx-execution effect log). Both -> skip. NOTE (bmvmx.5.5.7.3): with
+  -- nonstorageEffectLogCap = 32768 the overflow guard is now UNREACHABLE under the 200M block-gas
+  -- envelope (cheapest record-producing op is a value-CALL at GAS_WARM_ACCESS+GAS_CALL_VALUE=9100
+  -- regular gas, so <= 200M/9100 ~= 21978 < 32768 raw records), so (a) no longer skips any in-scope
+  -- block. The withdrawals guard (b) is a SEPARATE conservative skip class (still open: needs
+  -- withdrawal credits modeled as effects).
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
   -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
