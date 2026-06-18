@@ -1386,11 +1386,24 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     the single-dword version; only the memory model differs. Frame `x0` on the
     **left** (`frameL`) so `xperm` never commutes a `regIs` rightward past the opaque
     `bytesRegion` atom. Axiom-clean, 0 sorry, no `bv_decide`.
-  - **Next (step 2):** all-class stride-equivalence — fill the long branches of
-    `itemPayloadLen`/`itemPayloadPtr`/`itemTotalLen` and prove `itemTotalLen =
-    (encode item).length` for long items (via `Nat.fromBytesBE (Nat.toBytesBE n) = n`).
-    Then (3) region 5-class decoder, (4) long loop body w/ x15 counter, (5)
-    closure+bridge, (6) concrete + end-to-end.
+  - ✅ **Step 2 — long-item stride foundation** (`LongItemStride.lean`, PR #9022). Pure
+    long analog of `FlatListLoop.lean` §1: `isLongItem`/`itemPayloadCount`/`itemLenOfLen`,
+    `classifyPrefix_encode_head_long`, `encode_long_lenOfLen_eq_{bytes,list}`,
+    `encode_long_length_eq`, `encode_long_lenBytes_read`, and **`encode_long_stride`**
+    (`payloadPtr + payloadCount = v13 + (encode item).length`). NB: the long stride is
+    runtime-read-dependent, so it is NOT a prefix-only `itemTotalLen` (that flat helper's
+    long branch correctly stays `_ => 0`); the unified loop re-indexes via this identity.
+  - ✅ **Step 3a — region long decoder arms** (`Phase1LongFullRegion.lean`).
+    `rlp_phase1_e3_longBytes_full_region_spec_within` / `…_e5_longList_…`: the e3/e5 long
+    arms re-derived over `bytesRegion` (analogs of `Phase1E{3,5}Long*Full.lean`). Phase
+    1/Phase 3 are register-only (reused verbatim); only the phase-2 loop is swapped to the
+    step-1 region length-read, `bytesRegion` framed through, and `x13` re-expressed from
+    `v13 + 1` to `regionBase + ofNat (off+1)` (item at byte offset `off`). Axiom-clean, 0 sorry.
+  - **Next (step 3b):** region `reconverged_all` — re-dispatch the 5 arms over `bytesRegion`
+    (flat arms reuse existing ones framing `bytesRegion`, long arms use step 3a; region
+    post-helpers `itemLenRegion`/`itemX12Region` reading `bs`; `reconverge_arm_n` reused).
+    Then (4) long loop body (x15 counter), (5) closure+bridge (using step 2's stride),
+    (6) concrete + end-to-end.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1

@@ -60,6 +60,7 @@ import EvmAsm.Rv64.RLP.SingleByteListLoop
 import EvmAsm.Rv64.RLP.SingleByteListLoopValidated
 import EvmAsm.Rv64.RLP.Phase1E3LongBytesFull
 import EvmAsm.Rv64.RLP.Phase1E5LongListFull
+import EvmAsm.Rv64.RLP.Phase1LongFullRegion
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconvergeAll
