@@ -1472,6 +1472,24 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 - **Phase 4 done.** RLP single-level list decoding (flat #9004–#9008 + long-item #9020–#9031) is
   complete. Remaining for feature-complete RLP:
 - Phase 5: Recursive list decode (iterative with explicit stack)
+  - ✅ **Step 1 — descend-one-level kernel** (`NestedDescendOne.lean`). **`list_item_payload_window`**:
+    for a `.list items` item at offset `off`, the single-item decoder's window (`x13 = itemPtrRegion`
+    payload pointer, `x11 = itemLenRegion` payload length) points at EXACTLY the `encode.encodeItems
+    items` payload — `∃ payloadOff, itemPtrRegion = regionBase + ofNat payloadOff ∧ itemLenRegion =
+    ofNat (encodeItems items).length ∧ bs.drop payloadOff = encode.encodeItems items ++ tail` (the
+    third conjunct is precisely the list loop's `hdrop` precondition, so a caller can descend). The
+    all-class analog, for the payload window, of the 5a stride lemma; short-list via
+    `classifyPrefix_shortList_iff` + `encode_list_short`, long-list via `classifyPrefix_encode_head_long`
+    + `encode_list_long` + `take_left'`/`drop_left'` + `fromBytesBE_toBytesBE`. Plus `decode_list_descend`
+    (top-level round-trip) and concrete nested `example`s. Axiom-clean, 0 sorry.
+  - **Next (step 2 — operational descent assembly):** a combined program (header single-item decoder +
+    list loop at the payload offset) decoding a top-level nested list end-to-end, coinciding with
+    `decode` — `cpsTripleWithin_seq` of `unified_decoder_spec` + `unified_loop_spec_within`, with `x15 =
+    items.length` as a precondition (count deferred). Then **step 3+** — a **length-driven** loop (decode
+    until `x13` reaches `payload_end`, no known count; the prerequisite for genuine recursion), then
+    either bounded fixed-depth composition for the STF's block/tx structure or the general explicit-stack
+    recursive decoder. NOTE the impedance mismatch: the existing loop is COUNT-driven (`x15 =
+    items.length`) but real decode is LENGTH-driven — resolving that is step 3's crux.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
