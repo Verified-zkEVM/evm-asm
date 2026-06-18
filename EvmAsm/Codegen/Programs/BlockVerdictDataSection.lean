@@ -345,7 +345,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- future M29 blockhash table (.3b). dispatch_tx_runtime_code's .Ldtrc_stage guard bails
   -- conservatively for any payload that would still exceed this, so the staging write can
   -- never overflow into the adjacent gas-result / bvcd_* cells.
-  "bv_runtime_payload:\n  .zero 65536\n" ++
+  "bv_runtime_payload:\n  .zero " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: hold storage*64 at the gas-derived bsrAccountSlotCap (6.4MB) + the original 65536 code/calldata/witness/584 headroom (calldata/witness worst case stays bmvmx.1.7.2's payload-cap concern). .data headroom verified ~61MB (dataBase 0xa3000000 -> sszScratchBase 0xbf500000).
   "bv_stop_code:\n  .byte 0x00\n" ++
   ".balign 8\n" ++
   "bv_runtime_gas_left:\n  .zero 8\n" ++
@@ -369,7 +369,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_sc_count:\n  .zero 8\n" ++
   "bvcd_i:\n  .zero 8\n" ++
   "bvcd_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++     -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (bal_recipient_storage_keys caps at the gas-derived bsrAccountSlotCap; the dispatch-tx caller still bails >128 — bvcd_preload stays 128-sized — but the keys the helper writes before that bail must fit)
-  "bvcd_preload:\n  .zero 8192\n" ++   -- bmvmx.1.7.3: up to 128 x 64-byte (key,value) pairs (was 16)
+  "bvcd_preload:\n  .zero " ++ toString (bsrAccountSlotCap * 64) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: bsrAccountSlotCap x 64-byte (key,value) pairs, matching bvcd_keys (was 128*64=8192). The dispatch-tx caller no longer bails >128 storage slots.
   -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
   -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
   balStorageChangeValuesData ++

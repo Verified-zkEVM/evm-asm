@@ -250,20 +250,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  bnez a0, .Ldtrc_zero_storage\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
-  "  li t0, 128; bgtu a0, t0, .Ldtrc_bal_unsupported   # bmvmx.1.7.3: >128 storage slots wouldn't fit bvcd_keys/preload -> bail\n" ++
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t0, .Ldtrc_bal_unsupported   # 4jczt class-B lift: storage_changes capped at the gas-derived bsrAccountSlotCap; bvcd_keys/bvcd_preload sized to match (was 128)\n" ++
   "  la t0, bvcd_sc_count; sd a0, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5 (revert fix): also preload the recipient's storage_READS slots
   -- (accessed-but-not-net-changed). A reverting tx has empty storage_changes (its writes
   -- roll back) but lists the touched slots in storage_reads; without these the SSTORE-clears
   -- find no preloaded slot and undercharge (missing-slot path) -> block_regular undercount
   -- (bv_fail=41). Append the storage_reads keys after the storage_changes keys; cap total at
-  -- 128 (the bvcd_keys/bvcd_preload buffer size).
+  -- bsrAccountSlotCap (the gas-derived bvcd_keys/bvcd_preload buffer size; 4jczt lift, was 128).
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
   "  la t0, bvcd_sc_count; ld t1, 0(t0); slli t2, t1, 5; la a2, bvcd_keys; add a2, a2, t2\n" ++
-  "  li a3, 128; sub a3, a3, t1\n" ++
+  "  li a3, " ++ toString bsrAccountSlotCap ++ "; sub a3, a3, t1\n" ++
   "  jal ra, bal_recipient_storage_reads_keys\n" ++
   "  la t0, bvcd_sc_count; ld t1, 0(t0); add a0, a0, t1   # total = storage_changes + storage_reads\n" ++
-  "  li t0, 128; bgtu a0, t0, .Ldtrc_bal_unsupported\n" ++
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t0, .Ldtrc_bal_unsupported\n" ++
   "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
   ".Ldtrc_zero_storage:\n" ++
   "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
@@ -343,8 +343,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  jal ra, stage_blockhash_m29\n" ++
   -- bmvmx.1.7.2: conservative payload-size guard. stage_runtime_payload_code writes
   -- round8(codelen)+round8(calldata)+storage*64+584 bytes into bv_runtime_payload; if that
-  -- exceeds the buffer (65536) the write would overflow into adjacent .data (gas result +
-  -- bvcd_* scratch). EIP-170 bounds code to 24576 but calldata/storage are unbounded, so bail
+  -- exceeds the buffer (bsrAccountSlotCap*64+65536, the 4jczt-lifted size) the write would
+  -- overflow into adjacent .data (gas result + bvcd_* scratch). EIP-170 bounds code to 24576;
+  -- storage now fits the gas-derived BAL cap, but calldata/witness are still unbounded, so bail
   -- conservatively (route to the safe path) instead of corrupting state.
   "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
@@ -353,7 +354,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, dtrc_hdr_len; ld t2, 0(t0); add t1, t1, t2\n" ++        -- nested-CALL account-witness header bytes
   "  add t1, t1, s1\n" ++                                             -- witness.state bytes
   "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++       -- witness.codes bytes
-  "  addi t1, t1, 584; li t2, 65536; bgtu t1, t2, .Ldtrc_payload_cap_unsupported\n" ++       -- payload > buffer -> conservative bail
+  "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Ldtrc_payload_cap_unsupported\n" ++       -- payload > buffer (4jczt-lifted) -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
