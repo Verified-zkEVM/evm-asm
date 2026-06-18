@@ -167,6 +167,19 @@ theorem frameArray_unions_basr_and_syslog :
     2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) + bvSystemStorageLogBytes
       ≤ frameArrayBytes := by decide
 
+/-- **a1vvy step 3 union-fits gate (load-bearing):** the basr pair + the
+    `bv_system_storage_log` arena + the four Phase-H `baap_storage_*` arenas
+    (`baap_storage_desc` + 3 `* bsrPathBytes` path arenas) all fit within the
+    frame array, so the seven coalesced foreign arenas occupy distinct,
+    non-overlapping, 32-aligned sub-ranges at the front of `call_frame_arena`
+    with a non-negative trailing pad to `frameArrayBytes`. All seven are
+    Phase-H (state-root recompute) scratch, dead during the Phase-D dispatch
+    window when the frame array is live. -/
+theorem frameArray_unions_basr_syslog_baap :
+    2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) + bvSystemStorageLogBytes
+      + bsrMaxBalItems * baapStorageDescBytes + 3 * (bsrMaxBalItems * bsrPathBytes)
+      ≤ frameArrayBytes := by decide
+
 /-- **The fits proof that actually matters (200M layout):** the BAL/state-replay
     arenas (~83 MiB at the 200M capacity) plus the standalone 1025-slot frame
     array (~164 MiB) together stay well inside the `.data`→`.sszscratch` span
