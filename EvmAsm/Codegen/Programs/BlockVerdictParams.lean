@@ -229,10 +229,21 @@ def bvBlockLogPackedUnitBytes : Nat := 32
 def bvBlockLogPackedDescBytes : Nat :=
   bvBlockLogPackedUnitBytes * bvBlockLogFullDescTarget
 
-def bvBlockLogDescCapacity : Nat := 128
+-- vv4hr.3.4.2 (2026-06-18): the active block-log arena is lifted to the full
+-- 200M gas-derived bounds, making the `bv_block_log_overflow -> .Lbv_receipts_accept`
+-- capacity skip (BlockVerdictReceiptsTail ~line 95) and the receipt-logs status-3
+-- skip UNREACHABLE: a 200M block emits at most gas/375 = 533,333 logs (each LOG
+-- costs >= bvBlockLogMinGas) and at most gas/8 = 25,000,000 copied data bytes
+-- (each data byte costs bvBlockLogDataByteGas). block_log_window_snapshot keeps
+-- its verbatim 256 B descriptor copy and the readers their 256 B stride -- this is
+-- a PURE capacity bump (no format change). The ~170 MiB arena fits because a1vvy
+-- (#9041/#9042 + the baap union here) reclaimed the .data headroom via the
+-- call_frame_arena phase-disjoint union. Removes the shared class-D (receipts) and
+-- class-E (deposit-derivation) capacity skip: both now always derive/enforce.
+def bvBlockLogDescCapacity : Nat := bvBlockLogFullDescTarget
 def bvBlockLogDescBytes : Nat := bvBlockLogDescCapacity * 256
 def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 16
-def bvBlockLogDataBytes : Nat := 65536
+def bvBlockLogDataBytes : Nat := bvBlockLogFullDataBytes
 def bvLogsRlpArenaBytes : Nat := 65536
 def bvRecordBloomBytes : Nat := 256
 def bvRecordBloomsBytes : Nat := bvReceiptRecordCapacity * bvRecordBloomBytes
@@ -334,9 +345,11 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvBlockLogFullDescBytes = 136533248
 #guard bvBlockLogFullMetaBytes = 8533328
 #guard bvBlockLogFullDataBytes = 25000000
-#guard bvBlockLogDescBytes = 32768
-#guard bvBlockLogMetaBytes = 2048
-#guard bvBlockLogDataBytes = 65536
+-- vv4hr.3.4.2: active block-log arena lifted to the full 200M gas-derived bounds
+-- (== bvBlockLogFull* above), making bv_block_log_overflow unreachable under 200M.
+#guard bvBlockLogDescBytes = 136533248
+#guard bvBlockLogMetaBytes = 8533328
+#guard bvBlockLogDataBytes = 25000000
 #guard bvLogsRlpArenaBytes = 65536
 #guard bvRecordBloomsBytes = 2437888
 #guard bvRecordLogsDescBytes = 304736

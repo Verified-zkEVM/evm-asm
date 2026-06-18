@@ -845,10 +845,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  "baap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++ "\n" ++
-  "baap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
-  "baap_storage_delete_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
-  "baap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
+  -- a1vvy step 3: baap_storage_desc/paths/delete_paths/values (~22 MiB) are
+  -- UNIONED into call_frame_arena (emitted below) to free the last .data headroom
+  -- for the vv4hr.3.4.2 full log-arena lift. They are Phase-H-only (referenced only
+  -- in BalAccountApplyPostFields / BlockVerdictSysChange / BlockVerdictStateRoot --
+  -- BAL post-field apply + system-change application within the state-root
+  -- recompute) and dead during Phase-D dispatch when call_frame_arena is live.
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
@@ -894,7 +896,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
   -- a1vvy step 2: bv_system_storage_log unioned here too (offset 2*S, 32-aligned).
   "\nbv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++
-  "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - bvSystemStorageLogBytes) ++
+  -- a1vvy step 3: the four baap_storage_* arenas unioned here (Phase-H, 32-aligned).
+  "\nbaap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++
+  "\nbaap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
+  "\nbaap_storage_delete_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
+  "\nbaap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
+  "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - bvSystemStorageLogBytes - (bsrMaxBalItems * baapStorageDescBytes) - 3 * (bsrMaxBalItems * bsrPathBytes)) ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
   ".balign 8\n" ++
   "rb_running_block_bloom:\n  .zero 256\n" ++
