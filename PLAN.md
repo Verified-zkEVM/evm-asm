@@ -1408,9 +1408,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     handlers framing `bytesRegion` (`x13` via `hv13`/`region_succ_ptr`); long arms (e3/e5) use the
     step-3a region arms (post matches the helpers exactly). The `decoderH` the long loop body
     consumes. Axiom-clean, 0 sorry.
-  - **Next (step 4):** long loop body — `LBU` + this region decoder + `ADD x13,x13,x11` +
-    `ADDI x15,x15,-1` + `BNE x15,x0,back` (item counter on **x15**; decoder clobbers x14/x12).
-    Then (5) closure + bridge (re-index via step 2's `encode_long_stride`), (6) concrete + end-to-end.
+  - ✅ **Step 4 — unified loop body** (`UnifiedListLoopBody.lean`). **`unified_body_spec_within`**:
+    one iteration decoding ANY item (all 5 classes) — `LBU x5,x13,0` + region decoder (opaque
+    `cpsTripleWithin 60`) + `ADD x13,x13,x11` + `ADDI x15,x15,-1` + `BNE x15,x0,back`, as a
+    `cpsBranchWithin 64` (taken → `lbase`, fall → `joinPC+12`). Item counter on **x15** (the decoder
+    clobbers x14/x12); x10/x12/x14 are decoder scratch. `unified_body_post` (+`_unfold`/`_pure`),
+    `itemNextPtrRegion := itemPtrRegion + itemLenRegion` (the `ADD` result). Faithful mirror of
+    `fll_body_spec_within`; the decoder stays opaque (the concrete region decoder discharges it in
+    the end-to-end step). Axiom-clean, 0 sorry.
+  - **Next (step 5):** unified loop closure + bridge — induct over `items`, apply this body per item
+    with #9025's region decoder discharging `decoderH`, re-index `itemNextPtrRegion = regionBase +
+    ofNat (off + (encode item).length)` via step 2's `encode_long_stride` (long) /
+    `encode_head_eq_itemTotalLen` (flat); conjoin the pure `decodeItems` round-trip. Then (6)
+    concrete program + end-to-end.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
