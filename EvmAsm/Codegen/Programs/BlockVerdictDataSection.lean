@@ -1198,11 +1198,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- for the multi-tx nonstorage comparators. record_nonstorage_effect APPENDS one record
   -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed
   -- by the 20B BE address (first-seen pre kept, last-seen post overwritten) so the per-
-  -- account comparator sees the block-aggregate {pre, post}. Dedup -> count <= the log cap
-  -- (64), so 64 x 112 B suffices.
+  -- account comparator sees the block-aggregate {pre, post}. Dedup -> count <= the log cap,
+  -- so cap x 112 B suffices. MUST equal nonstorageEffectLogCap * 112 (NonstorageEffectLog.lean):
+  -- the .Lbv_agg_append loop has no separate bounds check, so an undersized buffer here is a
+  -- heap overflow. Currently 256 * 112 = 28672 (raised with the cap, bmvmx.5.5.2.2.9 partial).
   ".balign 8\n" ++
   "exec_nonstorage_effect_agg_count:\n  .zero 8\n" ++
-  "exec_nonstorage_effect_agg:\n  .zero 7168\n" ++
+  "exec_nonstorage_effect_agg:\n  .zero 28672\n" ++
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's

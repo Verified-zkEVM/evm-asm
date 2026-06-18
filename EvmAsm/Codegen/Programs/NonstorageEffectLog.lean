@@ -34,8 +34,14 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx. -/
-def nonstorageEffectLogCap : Nat := 64
+/-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx.
+    Raised 64→256 (bmvmx.5.5.2.2.9 partial): blocks with 64–256 non-storage (balance/nonce)
+    effects no longer overflow → the A2a all-accounts exec-vs-BAL comparator and the B2.3
+    cumulative-balance check ENFORCE them instead of conservatively skipping on overflow.
+    Blocks with >256 such effects still overflow (skip), so the larger A2a/agg work cannot
+    push a near-step-budget huge block past its budget. The exec_nonstorage_effect_log and
+    exec_nonstorage_effect_agg buffers are both sized at this cap × 112 B. -/
+def nonstorageEffectLogCap : Nat := 256
 
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).
