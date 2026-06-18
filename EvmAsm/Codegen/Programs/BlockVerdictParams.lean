@@ -172,10 +172,20 @@ def bvBlockLogMinGas : Nat := 375
     data bytes that fit inside the same block gas target. -/
 def bvBlockLogDataByteGas : Nat := 8
 
-/-- Full descriptor target for the 200M resource work. This is a target for
-    follow-up resizing/chunking, not the active arena used by the guest today. -/
+/-- Worst-case execution-derived log COUNT in a 200M block. Each LOG opcode
+    costs at least `bvBlockLogMinGas` (the zero-topic, zero-data LOG0 base), so
+    the block holds at most `gas_limit / 375 = 533,333` log records. -/
 def bvBlockLogFullDescTarget : Nat :=
   bvResourceBlockGasLimit / bvBlockLogMinGas
+
+/-- FIXED-STRIDE descriptor byte target (the verbatim 256 B copy that
+    `block_log_window_snapshot` performs today, one slot per log). NOTE: this is
+    the INFEASIBLE upper bound -- 533,333 * 256 = ~136.5 MiB of descriptors
+    alone. Combined with `bvBlockLogFullMetaBytes` + `bvBlockLogFullDataBytes`
+    the fixed-stride arena is ~162 MiB, which is 2.76x the measured ~58.7 MiB of
+    `.data` headroom before `.sszscratch` (0xbf500000). Kept only to document why
+    the verbatim-copy layout cannot reach the 200M target; the actual
+    implementation target is `bvBlockLogPackedDescBytes` below. -/
 def bvBlockLogFullDescBytes : Nat := bvBlockLogFullDescTarget * 256
 def bvBlockLogFullMetaBytes : Nat := bvBlockLogFullDescTarget * 16
 
@@ -184,6 +194,40 @@ def bvBlockLogFullMetaBytes : Nat := bvBlockLogFullDescTarget * 16
     target covers every execution-specs-valid mix of LOG base/topic/data gas. -/
 def bvBlockLogFullDataBytes : Nat :=
   bvResourceBlockGasLimit / bvBlockLogDataByteGas
+
+/-- vv4hr.3.4.1 capacity DERIVATION -- the FEASIBLE 200M log-arena target.
+
+    The fixed-256 B stride (`bvBlockLogFullDescBytes`) over-allocates because it
+    reserves room for four 32 B topics in EVERY descriptor even though most logs
+    carry none. The gas schedule charges 375 per log base AND 375 per topic, so
+
+        #logs + #topics  <=  gas_limit / 375  =  533,333   (one "gas unit" each)
+
+    bounds the SUM of records and topics. A packed descriptor needs at most one
+    gas unit's worth of bytes per unit: a log header (address 20 + data
+    offset/len 8 + topic_count/flags) fits in 32 B, and each topic is 32 B. So a
+    packed descriptor arena charged at 32 B per gas unit is a sound upper bound
+    over every LOG0..LOG4 / data mix:
+
+        packed desc <=  32 * (gas_limit / 375)  =  ~16.3 MiB
+
+    With the count-scaled meta table (16 B/log -> ~8.1 MiB) and the gas/8 data
+    bound (~23.8 MiB), the packed arena totals ~48.3 MiB, which DOES fit the
+    ~58.7 MiB `.data` headroom (10+ MiB margin).
+
+    Implementation (vv4hr.3.4.2): `block_log_window_snapshot` must REPACK on copy
+    -- emit a variable-length packed record per log instead of the current
+    verbatim 256 B `slli ..,8` memcpy -- and the descriptor readers
+    (`block_receipt_logs_materialize`, `materialize_log_records`,
+    `parse_deposit_requests`) must walk the packed stride. The runtime
+    dispatcher's `evm_event_logs` 256 B source format is unchanged. Closing this
+    makes `bv_block_log_overflow -> .Lbv_receipts_accept` (BlockVerdictReceiptsTail
+    line ~95) and the receipt-logs status-3 capacity skip UNREACHABLE under 200M,
+    removing the shared class-D (receipts-enforce) and class-E (deposit-derivation)
+    capacity skip. -/
+def bvBlockLogPackedUnitBytes : Nat := 32
+def bvBlockLogPackedDescBytes : Nat :=
+  bvBlockLogPackedUnitBytes * bvBlockLogFullDescTarget
 
 def bvBlockLogDescCapacity : Nat := 128
 def bvBlockLogDescBytes : Nat := bvBlockLogDescCapacity * 256
