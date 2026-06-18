@@ -560,8 +560,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- follow-up tuple-merge comparator.
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
-  ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
+  -- a1vvy step 2: bv_system_storage_log (~77 MiB) is UNIONED into call_frame_arena
+  -- (emitted below) rather than allocated standalone. It is Phase-H-only — built
+  -- and consumed entirely within the block_state_root recompute (the count is
+  -- zeroed @BlockVerdictStateRoot:452, populated by BalAllAccountsTupleSequences /
+  -- BlockVerdictSystemStorageCapture, consumed @BlockVerdictStateRoot:498/541),
+  -- capturing system-contract writes FROM THE BAL, not live execution — so it is
+  -- dead during Phase-D dispatch when call_frame_arena is live. Same disjointness
+  -- as the basr pair. Frees another ~77 MiB of .data headroom.
   ".balign 8\n" ++
   "bv_system_storage_capture_status:\n  .zero 8\n" ++
   "bv_system_storage_capture_start:\n  .zero 8\n" ++
@@ -886,7 +892,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "call_frame_arena:\n" ++
   "basr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
   "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
-  "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)) ++
+  -- a1vvy step 2: bv_system_storage_log unioned here too (offset 2*S, 32-aligned).
+  "\nbv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++
+  "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - bvSystemStorageLogBytes) ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
   ".balign 8\n" ++
   "rb_running_block_bloom:\n  .zero 256\n" ++
