@@ -1482,14 +1482,23 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `classifyPrefix_shortList_iff` + `encode_list_short`, long-list via `classifyPrefix_encode_head_long`
     + `encode_list_long` + `take_left'`/`drop_left'` + `fromBytesBE_toBytesBE`. Plus `decode_list_descend`
     (top-level round-trip) and concrete nested `example`s. Axiom-clean, 0 sorry.
-  - **Next (step 2 — operational descent assembly):** a combined program (header single-item decoder +
-    list loop at the payload offset) decoding a top-level nested list end-to-end, coinciding with
-    `decode` — `cpsTripleWithin_seq` of `unified_decoder_spec` + `unified_loop_spec_within`, with `x15 =
-    items.length` as a precondition (count deferred). Then **step 3+** — a **length-driven** loop (decode
-    until `x13` reaches `payload_end`, no known count; the prerequisite for genuine recursion), then
-    either bounded fixed-depth composition for the STF's block/tx structure or the general explicit-stack
-    recursive decoder. NOTE the impedance mismatch: the existing loop is COUNT-driven (`x15 =
-    items.length`) but real decode is LENGTH-driven — resolving that is step 3's crux.
+  - ✅ **Step 2 — length-driven loop body** (`UnifiedLenLoopBody.lean`). Exploration confirmed the
+    count-driven descent is a dead end (the decoder yields a payload byte-length in `x11`, not an item
+    count; the count is symbolic, unloadable) — so the foundation is a LENGTH-driven loop.
+    **`unified_lenloop_body_spec_within`**: one iteration as `cpsBranchWithin 63` over `LBU x5,x13,0` +
+    opaque region decoder (`cpsTripleWithin 60`) + `ADD x13,x13,x11` + **`BNE x13,x15,back`** — guard
+    compares the advanced pointer to the invariant end pointer `x15 = endPtr` (no counter, one fewer
+    instr than the count-driven body); taken (`itemNextPtrRegion ≠ endPtr`)→`lbase`, fall (`= endPtr`)→
+    `joinPC+8`. With no counter, `x15` holds `endPtr` (the decoder never touches it, framed through the
+    60-step decode). `unified_lenloop_body_post` (+`_unfold`/`_pure`). Faithful mirror of the
+    count-driven `unified_body_spec_within` with the guard swapped; built first try, axiom-clean, 0 sorry.
+  - **Next (step 3 — length-driven closure):** induct over `items`, `x13` from `O` to `endOff`, `x15 =
+    endPtr` fixed; prove it decodes `items` and `x13` reaches `endPtr` exactly after the last item. NEW
+    key lemma: `x13 ≠ endPtr` for every intermediate item (address injectivity of `regionBase + ofNat ·`
+    on `[O, endOff]`, from `hover` no-wraparound). Bridge to the length-driven pure `decodeItems`. Then
+    **step 4** — concrete + descent (compose with #9033's window: header decode → set `x15 := payload
+    end` → length-driven loop → genuine one-level descent matching `decode (.list items)`), then arbitrary
+    depth (bounded composition for the STF block/tx structure, or the explicit-stack generalization).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

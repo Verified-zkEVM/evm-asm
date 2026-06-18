@@ -1954,6 +1954,14 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- .data-baked setup's identical reset (~L974) is unaffected: it reloads x5 right after.
   "  la x28, evm_log_data_used; sd x0, 0(x28)\n" ++     -- reset per-tx full-log-data buffer cursor
   "  la x28, evm_log_data_overflow; sd x0, 0(x28)\n" ++ -- reset per-tx full-log-data overflow flag
+  -- bmvmx.5.5.2.2.ln9ly: re-emit a block_verdict-staged top-level EIP-7708 transfer log HERE --
+  -- after the event-log + full-log-data resets above wiped the pre-dispatch emit, before the
+  -- checkpoint below -- so it lands as log 0 and survives into the receipt (fixes the single-tx
+  -- contract-path bv_fail=53). dispatcher_reemit_pending_tl is gated on bv_pending_tl_flag (no-op
+  -- otherwise) and preserves all caller regs (x5 cursor / x20 env live here); save ra around it.
+  "  addi sp, sp, -16\n  sd ra, 0(sp)\n" ++
+  "  jal ra, dispatcher_reemit_pending_tl\n" ++
+  "  ld ra, 0(sp)\n  addi sp, sp, 16\n" ++
   -- nxio8: per-TRANSACTION dispatch state that previously leaked across calls in a
   -- multi-tx block (the callable dispatcher is invoked once per tx in one guest run):
   --   * evm_refund_acc — EIP-3529 refund counter is per tx (only the baked prologue
