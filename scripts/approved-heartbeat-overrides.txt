@@ -26,6 +26,7 @@
 #
 # Grandfathered numeric overrides (report R-D1; relitigate per their beads):
 EvmAsm/Evm64/Swap/Spec.lean              800000
+EvmAsm/Rv64/RLP/UnifiedDecoderConcrete.lean 800000
 EvmAsm/Rv64/SailEquiv/ALUProofs.lean     4000000
 # Sanctioned non-numeric mentions (docstrings/comments that name "heartbeats"
 # without setting a budget — prose, not overrides):
