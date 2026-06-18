@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
@@ -1199,12 +1200,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed
   -- by the 20B BE address (first-seen pre kept, last-seen post overwritten) so the per-
   -- account comparator sees the block-aggregate {pre, post}. Dedup -> count <= the log cap,
-  -- so cap x 112 B suffices. MUST equal nonstorageEffectLogCap * 112 (NonstorageEffectLog.lean):
+  -- so cap x 112 B suffices. Interpolated as nonstorageEffectLogCap * 112 (NonstorageEffectLog.lean):
   -- the .Lbv_agg_append / nonstorage_effect_aggregate path has no separate bounds check, so an
-  -- undersized buffer is a heap overflow. Currently 2048 * 112 = 229376 (bmvmx.5.5.7.3 cap lift).
+  -- undersized buffer is a heap overflow; tying it to the cap keeps it correct as the cap is lifted.
   ".balign 8\n" ++
   "exec_nonstorage_effect_agg_count:\n  .zero 8\n" ++
-  "exec_nonstorage_effect_agg:\n  .zero 229376\n" ++
+  "exec_nonstorage_effect_agg:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
@@ -1268,6 +1269,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c3cov_acct_len:\n  .zero 8\n" ++
   "c3cov_addr_off:\n  .zero 8\n" ++
   "c3cov_addr_len:\n  .zero 8\n" ++
+  -- bmvmx.5.5.7.3 step c: matched-bitmap for the LINEARIZED bal_all_accounts_nonstorage_covers
+  -- (1 byte per agg entry, indexed by agg index). MUST be >= nonstorageEffectLogCap bytes.
+  "c3cov_covered:\n  .zero " ++ toString nonstorageEffectLogCap ++ "\n" ++
   -- i3djw.4: scratch for bal_all_accounts_code_consistent (FORWARD per-account CODE compare,
   -- with the EIP-7702 delegation skip). bacc_finals is the per-account 88-byte finals scratch
   -- consumed by bal_account_code_consistent; baac_* are the account-iteration scratch. The
