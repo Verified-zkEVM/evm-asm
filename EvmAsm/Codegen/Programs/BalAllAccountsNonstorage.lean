@@ -98,20 +98,31 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   ".Lc3ns_skadv:\n" ++
   "  addi t4, t4, 1; j .Lc3ns_skloop\n" ++
   ".Lc3ns_find:\n" ++
-  "  # --- find this callee's exec effect record by 20-byte address ---\n" ++
-  "  li t4, 0                                 # effect index\n" ++
-  ".Lc3ns_find_loop:\n" ++
-  "  beq t4, s3, .Lc3ns_notfound              # scanned all effects, none match\n" ++
-  "  slli t5, t4, 7; slli t6, t4, 4; sub t5, t5, t6; add t5, s2, t5   # effect[t4] ptr (t4*112)\n" ++
+  "  # --- find this callee's exec effect record by 20-byte address. bmvmx.5.5.7.3: the effect agg\n" ++
+  "  # is now SORTED by address (every caller routes through nonstorage_effect_aggregate), so BINARY\n" ++
+  "  # SEARCH it (O(log agg) per account) instead of the old O(agg) linear scan -- removes the\n" ++
+  "  # O(BAL*agg) barrier blocking the effect-log cap lift. Addresses are 20-byte big-endian; compare\n" ++
+  "  # byte 0 (MSB) first, matching the helper's ascending sort. Mirrors b1_sender_table_find. The\n" ++
+  "  # agg is deduplicated (one record per address) so there is exactly one match. CONTRACT: callers\n" ++
+  "  # MUST pass a sorted (e.g. aggregated) effect array. ---\n" ++
+  "  li t4, 0                                 # lo\n" ++
+  "  mv a3, s3                                # hi = effect count\n" ++
+  ".Lc3ns_bs:\n" ++
+  "  bgeu t4, a3, .Lc3ns_notfound             # lo >= hi -> absent\n" ++
+  "  add a4, t4, a3; srli a4, a4, 1           # mid = (lo+hi)/2\n" ++
+  "  slli t5, a4, 7; slli t6, a4, 4; sub t5, t5, t6; add t5, s2, t5   # &agg[mid] (mid*112)\n" ++
   "  li a6, 0\n" ++
-  ".Lc3ns_find_cmp:\n" ++
-  "  li a7, 20; beq a6, a7, .Lc3ns_found\n" ++
-  "  add a0, s9, a6; lbu a1, 0(a0)\n" ++
-  "  add a0, t5, a6; lbu a2, 0(a0)\n" ++
-  "  bne a1, a2, .Lc3ns_find_adv\n" ++
-  "  addi a6, a6, 1; j .Lc3ns_find_cmp\n" ++
-  ".Lc3ns_find_adv:\n" ++
-  "  addi t4, t4, 1; j .Lc3ns_find_loop\n" ++
+  ".Lc3ns_bscmp:\n" ++
+  "  li a7, 20; beq a6, a7, .Lc3ns_found      # 20 bytes equal -> found (t5 = record)\n" ++
+  "  add a0, t5, a6; lbu a1, 0(a0)            # agg[mid].addr[a6]\n" ++
+  "  add a0, s9, a6; lbu a2, 0(a0)            # target.addr[a6]\n" ++
+  "  bltu a1, a2, .Lc3ns_bslo                 # agg[mid] < target -> upper half\n" ++
+  "  bltu a2, a1, .Lc3ns_bshi                 # agg[mid] > target -> lower half\n" ++
+  "  addi a6, a6, 1; j .Lc3ns_bscmp\n" ++
+  ".Lc3ns_bslo:\n" ++
+  "  addi t4, a4, 1; j .Lc3ns_bs              # lo = mid+1\n" ++
+  ".Lc3ns_bshi:\n" ++
+  "  mv a3, a4; j .Lc3ns_bs                   # hi = mid\n" ++
   ".Lc3ns_found:\n" ++
   "  mv a0, s7; mv a1, s8; mv a2, t5\n" ++
   "  jal ra, bal_account_nonstorage_consistent   # .2: 0 consistent / 1 / 2 -> reject if != 0\n" ++
