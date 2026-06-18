@@ -1443,14 +1443,24 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `classify_list_long`. Fixes the latent gap where the old guardless `UnifiedDecoderH` was
     unsatisfiable by any concrete program (a mid-item byte can classify as a long prefix running off
     the region end). Axiom-clean, 0 sorry.
-  - **Next (step 6b — the big assembly, analog of #9007):** `UnifiedDecoderConcrete.lean` — assemble
-    `unified_decoder_prog : List Instr` (phase-1 cascade + 5 phase-3 handlers + 2 embedded
-    `rlp_phase2_long_loop_body_prog` length-read loops + reconvergence JALs) and prove
-    `unified_decoder_spec` discharging `rlp_decode_single_item_reconverged_all_region`'s ~30 hypotheses
-    via `ofProg` slice lemmas, combining the `regionLongWindow` guard + a `bv_omega` back-edge into
-    `rlpDecodeLongHypsRegion`. Then **6c** (`UnifiedListLoopConcrete.lean`, analog of #9008): assemble
-    `[LBU] ++ unified_decoder_prog ++ [ADD, ADDI, BNE]`, build `UnifiedDecoderH` from
-    `unified_decoder_spec`, call `unified_loop_bridge` for the no-abstract-hypotheses end-to-end —
+  - ✅ **Step 6b — concrete all-class decoder** (`UnifiedDecoderConcrete.lean`, analog of #9007).
+    `unified_decoder_prog : List Instr` — a single 36-instruction program (phase-1 cascade @base..+32,
+    e5 long-list handler+loop+JAL @+32/+44/+68, e1–e4 handlers @+72/+80/+92/+104 with the e3 long-string
+    loop @+116, reconvergence JALs; `joinPC = base+144`; loop back-edge `-20`; cascade offsets
+    `68/68/84/64`, JAL offsets `68/56/4/44/76`). `unified_decoder_spec` proves `cpsTripleWithin 60 base
+    (base+144) (ofProg base unified_decoder_prog) …` for `bs[off]` — exactly the `UnifiedDecoderH` shape
+    — discharging `rlp_decode_single_item_reconverged_all_region`'s ~30 hypotheses: targets/joins via
+    `rv64_addr`, 12 disjointness via `simp [rlp_phase1_step_code]; crDisjoint`, 5 subset embeddings via
+    `union_sub` + `unified_piece`/`unified_jal_piece` (`ofProg_mono_sub`/`ofProg_lookup_addr`), and
+    `rlpDecodeLongHypsRegion` from the passed `regionLongWindow` window + a concrete `-20` back-edge
+    (`signExtend13 (-20) = -20` by `decide`, then `bv_omega`). Key perf lesson: write piece subBases in
+    the region decoder's `e_target + k` form (syntactic unification, not BitVec defeq) and skip
+    `simp only [rlp_phase1_step_code]` in the subset proofs (defeq handles the abbrev); needs
+    `set_option maxHeartbeats 800000`/`maxRecDepth 8000`. Axiom-clean, 0 sorry, 0 warnings.
+  - **Next (step 6c, analog of #9008):** `UnifiedListLoopConcrete.lean` — assemble `[LBU] ++
+    unified_decoder_prog ++ [ADD, ADDI, BNE]`, build `UnifiedDecoderH` from `unified_decoder_spec`
+    (decoder_base = lbase+4, joinPC = lbase+4+144, threading the window guard per item), call
+    `unified_loop_bridge` for the no-abstract-hypotheses end-to-end + concrete 2-item `example` —
     completes single-level long-item list decoding.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
