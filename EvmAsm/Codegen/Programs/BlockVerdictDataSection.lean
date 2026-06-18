@@ -396,6 +396,18 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "csce_addrkey:\n  .zero 32\n" ++
   "csce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (matches the gas-derived bal_recipient_storage_keys cap; the seed loop still skips accounts >128)
+  -- 1ipxd.1: pre-resolved per-account balance table for nested-frame SELFBALANCE.
+  -- seed_callee_storage fills it (clean pre-execution context, where the witness MPT walk
+  -- works — it returns absent mid-EVM-execution); call_frame_descend reads it to stage a
+  -- child frame's env+32. Entry = 64 B: canonical-BE 20-byte address (zero-padded to 32) @0,
+  -- balance @32 in LE-limb (stack-word) order so the descend copies it verbatim to the LE
+  -- EVM stack via h_SELFBALANCE (odq06 byte-order lesson). 128 cap. csce_bal_struct = the
+  -- account_at_header_state_root output (nonce@0 / balance@8..40 BE / sroot / codehash).
+  ".balign 8\n" ++
+  "csce_bal_struct:\n  .zero 104\n" ++
+  "callee_balance_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "callee_balance_table:\n  .zero " ++ toString (128 * 64) ++ "\n" ++
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
@@ -1186,11 +1198,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- for the multi-tx nonstorage comparators. record_nonstorage_effect APPENDS one record
   -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed
   -- by the 20B BE address (first-seen pre kept, last-seen post overwritten) so the per-
-  -- account comparator sees the block-aggregate {pre, post}. Dedup -> count <= the log cap
-  -- (64), so 64 x 112 B suffices.
+  -- account comparator sees the block-aggregate {pre, post}. Dedup -> count <= the log cap,
+  -- so cap x 112 B suffices. MUST equal nonstorageEffectLogCap * 112 (NonstorageEffectLog.lean):
+  -- the .Lbv_agg_append / nonstorage_effect_aggregate path has no separate bounds check, so an
+  -- undersized buffer is a heap overflow. Currently 2048 * 112 = 229376 (bmvmx.5.5.7.3 cap lift).
   ".balign 8\n" ++
   "exec_nonstorage_effect_agg_count:\n  .zero 8\n" ++
-  "exec_nonstorage_effect_agg:\n  .zero 7168\n" ++
+  "exec_nonstorage_effect_agg:\n  .zero 229376\n" ++
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
@@ -1217,6 +1231,19 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_b2_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "bv_b2_debit_out:\n  .zero 48\n" ++
+  -- B2.3 typed-tx fee scratch (bmvmx.5.5.2.2.6): the B2.2 loop adds the type-4 AUTH_BASE
+  -- and type-3 blob-data-gas sender-debit terms that multi_tx_actual_sender_debit omits,
+  -- so type-3/4 senders are debited exactly and B2.3 enforces them. txtype/innoff from
+  -- tx_type_dispatch; authoff/authlen/authcount = auth-list RLP; blobcount = blob hashes;
+  -- feedebit = the u256 fee accumulator added into the sender debit.
+  "bv_b23_txtype:\n  .zero 8\n" ++
+  "bv_b23_innoff:\n  .zero 8\n" ++
+  "bv_b23_authoff:\n  .zero 8\n" ++
+  "bv_b23_authlen:\n  .zero 8\n" ++
+  "bv_b23_authcount:\n  .zero 8\n" ++
+  "bv_b23_blobcount:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_b23_feedebit:\n  .zero 32\n" ++
   "mtxsd_gascost:\n  .zero 32\n" ++
   -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
   -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).

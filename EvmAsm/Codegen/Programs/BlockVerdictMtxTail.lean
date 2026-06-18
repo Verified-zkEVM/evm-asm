@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.NonstorageEffectLog
 
 namespace EvmAsm.Codegen
 
@@ -108,6 +109,56 @@ def blockVerdictMtxValidationTail : String :=
   "  la a0, bv_mtx_skip_ctx; la a4, bv_fee_egp_scratch; la a5, bv_b2_debit_out\n" ++
   "  jal ra, multi_tx_actual_sender_debit\n" ++
   "  la t0, bv_b2_debit_out; ld t0, 0(t0); bnez t0, .Lbv_b2_next\n" ++
+  -- bmvmx.5.5.2.2.6: multi_tx_actual_sender_debit models only receipt_inc*eff_price + value.
+  -- Add the typed-tx extra sender-debit terms it omits so type-4 (EIP-7702 AUTH_BASE) and
+  -- type-3 (blob data gas) senders are debited EXACTLY (mirrors tx_gas_bal_post_verify_runtime),
+  -- which lets B2.3 enforce those blocks instead of skipping them. tx ptr/len from
+  -- bv_mtx_skip_ctx+8/+16, eff_price in bv_fee_egp_scratch (still live from line above), blob
+  -- price in bsg_blob_price_be. Inconclusive typed decode -> skip this sender (.Lbv_b2_next).
+  "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbv_b2_after_auth\n" ++
+  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_b2_after_auth\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_after_auth\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; li a2, 9; la a3, bv_b23_authoff; la a4, bv_b23_authlen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbv_b2_after_auth\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); la t0, bv_b23_innoff; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, bv_b23_authoff; ld t2, 0(t0); add a0, t1, t2\n" ++
+  "  la t0, bv_b23_authlen; ld a1, 0(t0); la a2, bv_b23_authcount\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_b2_after_auth\n" ++
+  "  la t0, bv_b23_authcount; ld a1, 0(t0); beqz a1, .Lbv_b2_after_auth\n" ++
+  "  li t0, 42690; mul a1, a1, t0\n" ++
+  "  la a0, bv_fee_egp_scratch; la a2, bv_b23_feedebit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  ".Lbv_b2_after_auth:\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_b2_blob_done\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, bv_b23_innoff; ld t3, 0(t3); la t4, bv_mtx_skip_ctx; ld t4, 8(t4); add t3, t4, t3; add a0, t3, t1; mv a1, t2; la a2, bv_b23_blobcount\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_b23_blobcount; ld a1, 0(t0); beqz a1, .Lbv_b2_next\n" ++
+  "  li t2, 6; bgtu a1, t2, .Lbv_b2_next\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, bsg_blob_price_be; la a2, bv_b23_feedebit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  ".Lbv_b2_blob_done:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3\n" ++
   "  la a0, bv_b2_table; la a1, bv_b2_count; li a2, " ++ toString bvMtxSenderBalanceEntries ++ "; mv a3, t4; la a4, bv_mtx_sender_acct; addi a4, a4, 8; la a5, bv_b2_debit_out; addi a5, a5, 16\n" ++
   "  jal ra, multi_tx_running_sender_balance_step\n" ++
@@ -116,6 +167,75 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b2_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b2_loop\n" ++
   ".Lbv_b2_done:\n" ++
+  -- bmvmx.5.5.2.2.3 (umbrella-B2.3): compare each distinct sender's running balance
+  -- (pre - Σ actual debit, accumulated in bv_b2_table at +32) against the BAL-declared
+  -- sender FINAL balance. This is the cumulative-balance generalization of the single-tx
+  -- sender-post check (tx_gas_bal_post_verify_runtime, status 40): senders are excluded
+  -- from the A2a all-accounts non-storage comparator (they sit in the A1 skip-list because
+  -- their balance delta is gas/value-coupled, absent from the exec effect log), so this is
+  -- the ONLY check that ties a multi-tx sender's BAL balance delta to the execution gas
+  -- model. A forged sender post balance otherwise survives (the state-root recompute applies
+  -- the BAL delta, so a matching forged header.state_root would pass).
+  --
+  -- The running balance models pre - Σ(receipt_inc*eff_price + tx.value) only; it CANNOT
+  -- see inbound credits, so we CONSERVATIVELY SKIP (skip => never false-reject) any sender
+  -- whose final balance could include a credit the debit model misses:
+  --   * effect-log overflow or any withdrawals present -> skip the whole pass (the exec
+  --     effect log is then incomplete; mirrors the A2a guard below);
+  --   * sender == coinbase / fee_recipient -> the priority-fee credit is applied OUTSIDE the
+  --     EVM frame (process_transaction), absent from both the debit and the effect log;
+  --   * sender present in the exec non-storage effect log -> execution touched its balance
+  --     (value-in via CALL, or value-out it sent) -> potential inbound credit not modeled.
+  -- The remaining PURE-PAYER senders (the common multi-tx EOA case, value=0) must satisfy
+  -- BAL_post == pre - Σdebit EXACTLY; a forged post balance rejects (.Lbv_mtx_sender_balance_fail,
+  -- status 57). The running balance is u256 BE (u256_sub_be) and the BAL post is u256 BE
+  -- right-aligned, so the 4-dword compare is byte-order aligned. Loop cursor lives in
+  -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
+  "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
+  "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
+  -- (Type-3/4 txs are now debited exactly by the B2.2 loop's typed-fee addition above; a tx
+  -- whose typed fee was inconclusive was skipped there and is absent from bv_b2_table, so no
+  -- per-block tx-type pre-scan is needed here.)
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_b23_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b2_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_done\n" ++
+  "  slli t3, t1, 6; la t4, bv_b2_table; add t4, t4, t3\n" ++   -- t4 = &entry (addr@0, running balance@32)
+  -- (a) skip if sender == coinbase (fee_recipient @ bv_exec_p+32)
+  "  la t5, bv_exec_p; ld t5, 0(t5); addi t5, t5, 32; li t6, 0\n" ++
+  ".Lbv_b23_cb:\n" ++
+  "  li a0, 20; beq t6, a0, .Lbv_b23_next\n" ++                 -- 20/20 bytes equal -> sender is coinbase -> skip
+  "  add a0, t4, t6; lbu a0, 0(a0); add a1, t5, t6; lbu a1, 0(a1); bne a0, a1, .Lbv_b23_notcb\n" ++
+  "  addi t6, t6, 1; j .Lbv_b23_cb\n" ++
+  ".Lbv_b23_notcb:\n" ++
+  -- (c) skip if sender appears in the raw exec non-storage effect log (112-byte records, addr@0)
+  "  la t5, exec_nonstorage_effect_count; ld t5, 0(t5); li t6, 0\n" ++   -- t5 = raw count, t6 = k
+  ".Lbv_b23_agg:\n" ++
+  "  bgeu t6, t5, .Lbv_b23_chk\n" ++
+  "  li a0, 112; mul a0, t6, a0; la a1, exec_nonstorage_effect_log; add a1, a1, a0; li a2, 0\n" ++  -- a1 = &log[k]
+  ".Lbv_b23_agg_cmp:\n" ++
+  "  li a3, 20; beq a2, a3, .Lbv_b23_next\n" ++                 -- 20/20 equal -> exec touched sender -> skip
+  "  add a3, t4, a2; lbu a3, 0(a3); add a4, a1, a2; lbu a4, 0(a4); bne a3, a4, .Lbv_b23_agg_adv\n" ++
+  "  addi a2, a2, 1; j .Lbv_b23_agg_cmp\n" ++
+  ".Lbv_b23_agg_adv:\n" ++
+  "  addi t6, t6, 1; j .Lbv_b23_agg\n" ++
+  ".Lbv_b23_chk:\n" ++
+  -- pure-payer sender: look up its BAL AccountChanges and compare the declared post balance.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lbv_b23_next\n" ++                               -- sender absent from BAL -> skip (conservative)
+  "  la t0, bv_b1_acct_ptr; ld a0, 0(t0); la t0, bv_b1_acct_len; ld a1, 0(t0); la a2, bv_b1_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lbv_b23_next\n" ++                               -- parse fail -> skip
+  "  la t0, bv_b1_finals; ld t1, 0(t0); beqz t1, .Lbv_b23_next\n" ++  -- has_balance == 0 -> skip (no declared change)
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_b2_table; add t4, t4, t3; addi t4, t4, 32\n" ++  -- t4 = &running (reload; jals clobbered)
+  "  la t5, bv_b1_finals; addi t5, t5, 8\n" ++                  -- t5 = &BAL post balance (32B BE)
+  "  ld a0, 0(t4); ld a1, 0(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
+  "  ld a0, 8(t4); ld a1, 8(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
+  "  ld a0, 16(t4); ld a1, 16(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
+  "  ld a0, 24(t4); ld a1, 24(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
+  ".Lbv_b23_next:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_loop\n" ++
+  ".Lbv_b23_done:\n" ++
   -- bmvmx.5.5.1.2.1.2: all-accounts STORAGE exec-vs-BAL for the MULTI-TX path,
   -- storage-only slice. Reuse the A1 skip-list so every top-level sender/recipient plus
   -- coinbase is left to the gas/value path, while non-recipient nested-callee storage remains
@@ -143,38 +263,16 @@ def blockVerdictMtxValidationTail : String :=
   -- (system-level credits land in the BAL but not the tx-execution effect log). Both -> skip.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
-  -- the 20B BE address @rec+0: first-seen record copied whole; a later record for the same
-  -- account overwrites only post_balance (+64,32B) + post_nonce (+104,8B). Records append in
-  -- tx/exec order -> kept pre = block-start, kept post = block-final (what the comparator wants;
-  -- BAL final == exec post / net-change post!=pre). The count never resets across the block in
-  -- the real path (only the probe @130 zeroes it). Pure loop (no calls -> counters in t/a regs).
-  "  la t0, exec_nonstorage_effect_agg_count; sd zero, 0(t0)\n" ++
-  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); li t2, 0\n" ++   -- t1 = raw count, t2 = j
-  ".Lbv_agg_loop:\n" ++
-  "  bgeu t2, t1, .Lbv_agg_done\n" ++
-  "  li t3, 112; mul t3, t2, t3; la t4, exec_nonstorage_effect_log; add t4, t4, t3\n" ++   -- t4 = &log[j]
-  "  la t5, exec_nonstorage_effect_agg_count; ld t5, 0(t5); li t6, 0\n" ++   -- t5 = agg_count, t6 = k
-  ".Lbv_agg_scan:\n" ++
-  "  bgeu t6, t5, .Lbv_agg_append\n" ++
-  "  li a0, 112; mul a0, t6, a0; la a1, exec_nonstorage_effect_agg; add a1, a1, a0; li a2, 0\n" ++   -- a1 = &agg[k]
-  ".Lbv_agg_cmp:\n" ++
-  "  li a3, 20; beq a2, a3, .Lbv_agg_update\n" ++
-  "  add a4, t4, a2; lbu a5, 0(a4); add a4, a1, a2; lbu a6, 0(a4); bne a5, a6, .Lbv_agg_scan_adv\n" ++
-  "  addi a2, a2, 1; j .Lbv_agg_cmp\n" ++
-  ".Lbv_agg_scan_adv:\n" ++
-  "  addi t6, t6, 1; j .Lbv_agg_scan\n" ++
-  ".Lbv_agg_update:\n" ++   -- agg[k] = a1: overwrite post_balance (+64,32B) + post_nonce (+104,8B) from log[j]
-  "  ld a2, 64(t4); sd a2, 64(a1); ld a2, 72(t4); sd a2, 72(a1); ld a2, 80(t4); sd a2, 80(a1); ld a2, 88(t4); sd a2, 88(a1); ld a2, 104(t4); sd a2, 104(a1)\n" ++
-  "  j .Lbv_agg_next\n" ++
-  ".Lbv_agg_append:\n" ++   -- copy full 112B log[j] -> agg[agg_count]; agg_count++
-  "  li a0, 112; mul a0, t5, a0; la a1, exec_nonstorage_effect_agg; add a1, a1, a0; li a2, 0\n" ++
-  ".Lbv_agg_copy:\n" ++
-  "  li a3, 112; beq a2, a3, .Lbv_agg_copy_d\n" ++
-  "  add a4, t4, a2; lbu a5, 0(a4); add a4, a1, a2; sb a5, 0(a4); addi a2, a2, 1; j .Lbv_agg_copy\n" ++
-  ".Lbv_agg_copy_d:\n" ++
-  "  addi t5, t5, 1; la a0, exec_nonstorage_effect_agg_count; sd t5, 0(a0)\n" ++
-  ".Lbv_agg_next:\n" ++
-  "  addi t2, t2, 1; j .Lbv_agg_loop\n" ++
+  -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
+  -- exec post / net-change post!=pre). bmvmx.5.5.7.3: this was an inline O(raw*distinct) scan;
+  -- now delegated to the O(20*N) stable-radix-sort + run-compress helper nonstorage_effect_aggregate
+  -- (KAT-validated, zisk_nonstorage_effect_aggregate), so the effect-log cap can be lifted toward
+  -- the 200M worst-case without a step-budget blowup. Same first-pre/last-post semantics; the
+  -- output order differs (sorted vs first-seen) but bal_all_accounts_nonstorage_consistent scans
+  -- the agg by address (order-independent). The helper resets agg_count and preserves s-regs.
+  "  la a0, exec_nonstorage_effect_log; la t0, exec_nonstorage_effect_count; ld a1, 0(t0)\n" ++
+  "  la a2, exec_nonstorage_effect_agg; la a3, exec_nonstorage_effect_agg_count; li a4, " ++ toString nonstorageEffectLogCap ++ "\n" ++
+  "  jal ra, nonstorage_effect_aggregate\n" ++
   ".Lbv_agg_done:\n" ++
   -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
   -- LENIENT mode (c3ns_lenient_notfound=1): a multi-tx block may still have created-account

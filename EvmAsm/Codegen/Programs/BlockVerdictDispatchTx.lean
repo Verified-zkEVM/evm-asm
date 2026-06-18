@@ -86,6 +86,7 @@ def seedCalleeStorageFunction : String :=
   "  mv s1, a1                    # witness len\n" ++
   "  mv s2, a2                    # recipient 20B addr ptr\n" ++
   "  la t0, callee_seed_count; sd zero, 0(t0)\n" ++
+  "  la t0, callee_balance_count; sd zero, 0(t0)\n" ++   -- 1ipxd.1: reset per-account SELFBALANCE table
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, csce_acct_n\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lscs_done                # BAL parse error -> seed nothing (conservative)\n" ++
@@ -102,6 +103,28 @@ def seedCalleeStorageFunction : String :=
   "  bnez a0, .Lscs_acct_next\n" ++
   "  la t0, csce_dlen; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lscs_acct_next   # item0 not a 20B address\n" ++
   "  la t0, csce_doff; ld t1, 0(t0); add t1, s3, t1; la t0, csce_addrp; sd t1, 0(t0)   # addr ptr (BE)\n" ++
+  -- 1ipxd.1: pre-resolve this BAL account's balance into callee_balance_table (clean
+  -- pre-execution context; the witness MPT walk returns absent if run mid-EVM-execution
+  -- inside call_frame_descend). Covers the recipient too (it IS a BAL account; the recipient
+  -- skip below is storage-only). Key = canonical-BE 20-byte addr (csce_addrp); value = balance
+  -- stored LE-limb so the descend copies it verbatim to the LE EVM stack (odq06 byte-order).
+  -- Header = svf_parent_rlp (parent/witness root; the single-tx POST header bails). The verdict
+  -- witness.state = s0/s1 (= bv_witness_state). account_at_header_state_root preserves s0-s7.
+  "  la t0, callee_balance_count; ld t1, 0(t0); li t2, 128; bgeu t1, t2, .Lscs_bal_done\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la t0, csce_addrp; ld a2, 0(t0); li a3, 20; mv a4, s0; mv a5, s1; la a6, csce_bal_struct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lscs_bal_done\n" ++                  -- absent/error -> skip (descend default 0)
+  "  la t0, callee_balance_count; ld t1, 0(t0); slli t2, t1, 6; la t3, callee_balance_table; add t3, t3, t2\n" ++
+  -- addr (canonical BE, csce_addrp) -> entry+0..19, zero-pad +20..31
+  "  la t0, csce_addrp; ld t0, 0(t0)\n" ++
+  "  ld t4, 0(t0); sd t4, 0(t3); ld t4, 8(t0); sd t4, 8(t3); lwu t4, 16(t0); sw t4, 16(t3); sw zero, 20(t3); sd zero, 24(t3)\n" ++
+  -- balance: csce_bal_struct+8..40 is BE; byte-reverse the 32 bytes into entry+32 (LE-limb).
+  "  la t4, csce_bal_struct; addi t4, t4, 39; addi t5, t3, 32; li t6, 32\n" ++
+  ".Lscs_bal_rev:\n" ++
+  "  lbu t0, 0(t4); sb t0, 0(t5); addi t4, t4, -1; addi t5, t5, 1; addi t6, t6, -1; bnez t6, .Lscs_bal_rev\n" ++
+  "  la t0, callee_balance_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lscs_bal_done:\n" ++
   -- Skip the recipient (already preloaded BE by dispatch_tx_runtime_code).
   "  li t3, 0\n" ++
   ".Lscs_rcmp:\n" ++
@@ -419,7 +442,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- INERT until yisv8.2 removes SELFBALANCE(0x47) from the self-contained reject set.
   -- Conservative: a lookup miss/error leaves SELFBALANCE 0. balance_at_header_state_root
   -- preserves s-regs (s0=state ptr, s1=state len, s2=ctx survive); clobbers only dead a/t-regs.
-  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0)\n  la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
+  -- odq06.1: use the PARENT/witness-root header (svf_parent_rlp), NOT dtrc_hdr_ptr (= sv_this_rlp
+  -- POST header for single-tx, whose root is not in the pre-rooted witness -> bails -> SELFBALANCE 0).
+  -- svf_parent_rlp's stateRoot IS the witness root; == sv_pre_rlp so multi-tx is unchanged.
+  "  la t0, svf_parent_rlp; ld a0, 0(t0)\n  la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
   "  mv a3, s0; mv a4, s1\n" ++                   -- witness state ptr/len
   "  la a5, yisv8_self_bal\n" ++
@@ -428,9 +454,16 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1; addi t2, t2, 32\n" ++                   -- t2 = &SELFBALANCE word (env_base+32)
-  "  la t3, yisv8_self_bal\n" ++
-  "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(t2); ld t4, 24(t3); sd t4, 24(t2)\n" ++
+  -- odq06.2: stage SELFBALANCE in stack-word (LE-limb) order, NOT big-endian. h_SELFBALANCE
+  -- (0x47) copies env+32..63 dword-for-dword onto the EVM stack, which is LE-limb (low limb
+  -- first); SSTORE then logs that order and the BAL comparator reverses the BE post-value to
+  -- match. balance_at_header_state_root outputs BE (yisv8_self_bal), so a verbatim copy put the
+  -- balance's low byte in env+63 -> SELFBALANCE pushed a low-word of 0 -> SSTORE logged 0 (bv_fail=34
+  -- self_code_on_set_code balance_1). Byte-reverse the 32-byte BE balance into env+32 so the low
+  -- limb lands at env+32. (CALLVALUE@96 was never SSTORE'd+checked, so its order went unvalidated.)
+  "  la t3, yisv8_self_bal; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
+  ".Ldtrc_selfbal_rev:\n" ++
+  "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_rev\n" ++
   ".Ldtrc_no_selfbal:\n" ++
   -- bmvmx.1.6.4.2.b: seed every non-recipient BAL account's storage into the exec log
   -- so nested callees SLOAD witness values (not 0). Fills callee_seed_table/count, which

@@ -34,8 +34,17 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx. -/
-def nonstorageEffectLogCap : Nat := 64
+/-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx.
+    Raised to 2048 (bmvmx.5.5.7.3): now that aggregation is O(N) (nonstorage_effect_aggregate)
+    and the FORWARD exec-vs-BAL comparator binary-searches the sorted agg (#9018), the only
+    remaining super-linear consumer is bal_all_accounts_nonstorage_covers (O(cap*BAL_accounts)
+    per block). At 2048 that is ~2048*2048*~100 ≈ 4.2e8 steps ≪ the 5e9 step budget, so blocks
+    with up to 2048 non-storage (balance/nonce) effects are now ENFORCED by A2a + B2.3 instead
+    of conservatively skipping on overflow. >2048 still overflows/skips (sound, conservative);
+    the full 200M-gas worst case (~40000) is gated on linearizing _covers (a sorted BAL-address
+    index — see bmvmx.5.5.7.3). The exec_nonstorage_effect_log / exec_nonstorage_effect_agg /
+    nea_sort_a / nea_sort_b buffers are all sized at this cap × 112 B. -/
+def nonstorageEffectLogCap : Nat := 2048
 
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).
@@ -173,6 +182,206 @@ def ziskNonstorageEffectLogProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskNonstorageEffectLogPrologue
   dataAsm     := ziskNonstorageEffectLogDataSection
+}
+
+/-! ## nonstorage_effect_aggregate (bmvmx.5.5.7.3)
+
+    Linear (radix-sort + run-compress) replacement for the O(raw*distinct)
+    `.Lbv_agg_loop` per-account aggregation in blockVerdictMtxValidationTail.
+    Groups 112-byte effect records by their 20-byte address (rec+0), keeping the
+    FIRST-seen record's {addr, pre_balance@32, pre_nonce@96} and the LAST-seen
+    record's {post_balance@64, post_nonce@104} — identical semantics to the inline
+    loop (first-pre / last-post), but O(20*N) instead of O(N^2), so the effect-log
+    cap can be lifted toward the 200M worst-case without a step-budget blowup.
+
+    Determinism: a STABLE LSB-first counting radix sort over address bytes 19..0,
+    so within each equal-address run the original tx/exec order is preserved
+    (run[0] = first-seen, run[last] = last-seen). No hashing => no adversarial
+    collision can weaken the downstream A2a comparator.
+
+    Calling convention:
+      a0 = raw 112-byte record array ptr
+      a1 = raw record count (<= nonstorageEffectLogCap)
+      a2 = output 112-byte aggregate array ptr (capacity a4 entries)
+      a3 = output distinct-count ptr (u64)
+      a4 = output capacity in entries
+    Returns a0 = 0 ok, 1 if count > capacity (caller treats as overflow/skip). -/
+def nonstorageEffectAggregateFunction : String :=
+  "nonstorage_effect_aggregate:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++   -- s0=raw,s1=count,s2=out,s3=outcnt,s4=cap
+  "  bgtu s1, s4, .Lnea_cap\n" ++
+  "  li t0, " ++ toString nonstorageEffectLogCap ++ "; bgtu s1, t0, .Lnea_cap\n" ++
+  "  beqz s1, .Lnea_zero\n" ++
+  "  la s5, nea_sort_a; la s6, nea_sort_b\n" ++
+  -- copy raw records (112B) into sort_a
+  "  li s8, 0\n" ++
+  ".Lnea_copy_loop:\n" ++
+  "  bgeu s8, s1, .Lnea_copy_done\n" ++
+  "  li t0, 112; mul t0, s8, t0; add t1, s0, t0\n" ++
+  "  add t3, s5, t0\n" ++
+  "  li t4, 0\n" ++
+  ".Lnea_copy_bytes:\n" ++
+  "  li t5, 112; beq t4, t5, .Lnea_copy_next\n" ++
+  "  add t5, t1, t4; lbu t6, 0(t5); add t5, t3, t4; sb t6, 0(t5)\n" ++
+  "  addi t4, t4, 1; j .Lnea_copy_bytes\n" ++
+  ".Lnea_copy_next:\n" ++
+  "  addi s8, s8, 1; j .Lnea_copy_loop\n" ++
+  ".Lnea_copy_done:\n" ++
+  -- stable LSB-first radix sort, address byte 19 down to 0.
+  "  li s7, 19\n" ++
+  ".Lnea_pass:\n" ++
+  "  la s10, nea_counts; li t0, 0\n" ++
+  ".Lnea_zero_counts:\n" ++
+  "  li t1, 256; beq t0, t1, .Lnea_count_init\n" ++
+  "  slli t2, t0, 3; add t3, s10, t2; sd zero, 0(t3); addi t0, t0, 1; j .Lnea_zero_counts\n" ++
+  ".Lnea_count_init:\n" ++
+  "  li s8, 0\n" ++
+  ".Lnea_count_loop:\n" ++
+  "  bgeu s8, s1, .Lnea_prefix_init\n" ++
+  "  li t0, 112; mul t0, s8, t0; add t1, s5, t0; add t1, t1, s7; lbu t2, 0(t1)\n" ++
+  "  slli t3, t2, 3; add t4, s10, t3; ld t5, 0(t4); addi t5, t5, 1; sd t5, 0(t4)\n" ++
+  "  addi s8, s8, 1; j .Lnea_count_loop\n" ++
+  ".Lnea_prefix_init:\n" ++
+  "  li t0, 0; li t1, 0\n" ++
+  ".Lnea_prefix_loop:\n" ++
+  "  li t2, 256; beq t0, t2, .Lnea_scatter_init\n" ++
+  "  slli t3, t0, 3; add t4, s10, t3; ld t5, 0(t4); sd t1, 0(t4); add t1, t1, t5\n" ++
+  "  addi t0, t0, 1; j .Lnea_prefix_loop\n" ++
+  ".Lnea_scatter_init:\n" ++
+  "  li s8, 0\n" ++
+  ".Lnea_scatter_loop:\n" ++
+  "  bgeu s8, s1, .Lnea_swap\n" ++
+  "  li t0, 112; mul t0, s8, t0; add t1, s5, t0\n" ++
+  "  add t2, t1, s7; lbu t2, 0(t2)\n" ++
+  "  slli t3, t2, 3; add t4, s10, t3; ld t5, 0(t4); addi t6, t5, 1; sd t6, 0(t4)\n" ++   -- t5 = dst index, counts[byte]++
+  "  li t3, 112; mul t5, t5, t3; add t6, s6, t5\n" ++
+  "  li t3, 0\n" ++
+  ".Lnea_scatter_copy:\n" ++
+  "  li t4, 112; beq t3, t4, .Lnea_scatter_next\n" ++
+  "  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4)\n" ++
+  "  addi t3, t3, 1; j .Lnea_scatter_copy\n" ++
+  ".Lnea_scatter_next:\n" ++
+  "  addi s8, s8, 1; j .Lnea_scatter_loop\n" ++
+  ".Lnea_swap:\n" ++
+  "  mv t0, s5; mv s5, s6; mv s6, t0\n" ++
+  "  beqz s7, .Lnea_runs\n" ++
+  "  addi s7, s7, -1; j .Lnea_pass\n" ++
+  -- compress sorted runs (s5 = final sorted buffer) into the output array.
+  ".Lnea_runs:\n" ++
+  "  li s7, 0\n" ++                                                 -- distinct count
+  "  li s8, 0\n" ++                                                 -- run start index i
+  ".Lnea_run_loop:\n" ++
+  "  bgeu s8, s1, .Lnea_done\n" ++
+  "  li t0, 112; mul t0, s8, t0; add s9, s5, t0\n" ++              -- s9 = &run_start
+  "  addi s10, s8, 1\n" ++                                          -- j = scan index
+  ".Lnea_run_scan:\n" ++
+  "  bgeu s10, s1, .Lnea_run_emit\n" ++
+  "  li t0, 112; mul t0, s10, t0; add t1, s5, t0\n" ++
+  "  li t2, 0\n" ++
+  ".Lnea_run_eqcmp:\n" ++
+  "  li t3, 20; beq t2, t3, .Lnea_run_eq\n" ++
+  "  add t3, s9, t2; lbu t4, 0(t3); add t3, t1, t2; lbu t5, 0(t3); bne t4, t5, .Lnea_run_emit\n" ++
+  "  addi t2, t2, 1; j .Lnea_run_eqcmp\n" ++
+  ".Lnea_run_eq:\n" ++
+  "  addi s10, s10, 1; j .Lnea_run_scan\n" ++
+  ".Lnea_run_emit:\n" ++                                            -- run = [s8, s10); last = s5[s10-1]
+  "  li t0, 112; mul t0, s7, t0; add s11, s2, t0\n" ++             -- s11 = &out[distinct]
+  "  li t2, 0\n" ++
+  ".Lnea_emit_copy:\n" ++
+  "  li t3, 112; beq t2, t3, .Lnea_emit_post\n" ++
+  "  add t3, s9, t2; lbu t4, 0(t3); add t3, s11, t2; sb t4, 0(t3)\n" ++
+  "  addi t2, t2, 1; j .Lnea_emit_copy\n" ++
+  ".Lnea_emit_post:\n" ++                                           -- overwrite post_balance@64 (32B) + post_nonce@104 from last
+  "  addi t0, s10, -1; li t1, 112; mul t1, t0, t1; add t0, s5, t1\n" ++
+  "  ld t1, 64(t0); sd t1, 64(s11); ld t1, 72(t0); sd t1, 72(s11); ld t1, 80(t0); sd t1, 80(s11); ld t1, 88(t0); sd t1, 88(s11); ld t1, 104(t0); sd t1, 104(s11)\n" ++
+  "  addi s7, s7, 1\n" ++
+  "  mv s8, s10; j .Lnea_run_loop\n" ++
+  ".Lnea_done:\n" ++
+  "  sd s7, 0(s3); li a0, 0; j .Lnea_ret\n" ++
+  ".Lnea_zero:\n" ++
+  "  sd zero, 0(s3); li a0, 0; j .Lnea_ret\n" ++
+  ".Lnea_cap:\n" ++
+  "  li a0, 1\n" ++
+  ".Lnea_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret"
+
+/-- Shared sort scratch for `nonstorage_effect_aggregate` (cap x 112 B each). -/
+def nonstorageEffectAggregateScratch : String :=
+  ".balign 8\n" ++
+  "nea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  "nea_sort_b:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  "nea_counts:\n  .zero 2048\n"
+
+/-- `zisk_nonstorage_effect_aggregate`: known-answer probe. Three input records
+    (A=0x11.., B=0x22.., A again) exercise dedup with first-pre / last-post:
+      A: pre_bal 10, post_bal 20, pre_nonce 1, post_nonce 2
+      B: pre_bal 5,  post_bal 8,  pre_nonce 0, post_nonce 1
+      A: pre_bal 99, post_bal 30, pre_nonce 9, post_nonce 3   (dup of A)
+    Expected aggregate (sorted A<B): count=2;
+      A {pre_bal 10, post_bal 30, pre_nonce 1, post_nonce 3};
+      B {pre_bal 5,  post_bal 8,  pre_nonce 0, post_nonce 1}.
+    OUTPUT (0xa0010000): +0 status +8 count +16 A.pre_bal[31] +24 A.post_bal[31]
+      +32 A.pre_nonce +40 A.post_nonce +48 A.addr[0] +56 B.pre_bal[31]
+      +64 B.post_bal[31] +72 B.post_nonce +80 B.addr[0]. -/
+def ziskNonstorageEffectAggregatePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  -- zero the 3-record input (336 B) then fill it.
+  "  la t0, nea_probe_in; li t1, 42\n" ++
+  "1:\n  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, 1b\n" ++
+  -- record 0: addr 0x11*20, pre_bal=10, post_bal=20, pre_nonce=1, post_nonce=2
+  "  la t0, nea_probe_in; li t2, 20\n" ++
+  "2:\n  li t1, 0x11; sb t1, 0(t0); addi t0, t0, 1; addi t2, t2, -1; bnez t2, 2b\n" ++
+  "  la t0, nea_probe_in; li t1, 10; sb t1, 63(t0); li t1, 20; sb t1, 95(t0); li t1, 1; sd t1, 96(t0); li t1, 2; sd t1, 104(t0)\n" ++
+  -- record 1 @112: addr 0x22*20, pre_bal=5, post_bal=8, pre_nonce=0, post_nonce=1
+  "  la t0, nea_probe_in; addi t0, t0, 112; li t2, 20\n" ++
+  "3:\n  li t1, 0x22; sb t1, 0(t0); addi t0, t0, 1; addi t2, t2, -1; bnez t2, 3b\n" ++
+  "  la t0, nea_probe_in; addi t0, t0, 112; li t1, 5; sb t1, 63(t0); li t1, 8; sb t1, 95(t0); sd zero, 96(t0); li t1, 1; sd t1, 104(t0)\n" ++
+  -- record 2 @224: addr 0x11*20 (dup A), pre_bal=99, post_bal=30, pre_nonce=9, post_nonce=3
+  "  la t0, nea_probe_in; addi t0, t0, 224; li t2, 20\n" ++
+  "4:\n  li t1, 0x11; sb t1, 0(t0); addi t0, t0, 1; addi t2, t2, -1; bnez t2, 4b\n" ++
+  "  la t0, nea_probe_in; addi t0, t0, 224; li t1, 99; sb t1, 63(t0); li t1, 30; sb t1, 95(t0); li t1, 9; sd t1, 96(t0); li t1, 3; sd t1, 104(t0)\n" ++
+  -- call aggregate
+  "  la a0, nea_probe_in; li a1, 3; la a2, nea_probe_out; la a3, nea_probe_cnt; li a4, " ++ toString nonstorageEffectLogCap ++ "\n" ++
+  "  jal ra, nonstorage_effect_aggregate\n" ++
+  "  sd a0, 0(s0)\n" ++                                             -- status
+  "  la t0, nea_probe_cnt; ld t1, 0(t0); sd t1, 8(s0)\n" ++         -- distinct count
+  "  la t0, nea_probe_out\n" ++                                     -- out[0] = A
+  "  lbu t1, 63(t0); sd t1, 16(s0)\n" ++                            -- A.pre_bal[31]
+  "  lbu t1, 95(t0); sd t1, 24(s0)\n" ++                            -- A.post_bal[31]
+  "  ld t1, 96(t0); sd t1, 32(s0)\n" ++                             -- A.pre_nonce
+  "  ld t1, 104(t0); sd t1, 40(s0)\n" ++                            -- A.post_nonce
+  "  lbu t1, 0(t0); sd t1, 48(s0)\n" ++                             -- A.addr[0]
+  "  la t0, nea_probe_out; addi t0, t0, 112\n" ++                   -- out[1] = B
+  "  lbu t1, 63(t0); sd t1, 56(s0)\n" ++                            -- B.pre_bal[31]
+  "  lbu t1, 95(t0); sd t1, 64(s0)\n" ++                            -- B.post_bal[31]
+  "  ld t1, 104(t0); sd t1, 72(s0)\n" ++                            -- B.post_nonce
+  "  lbu t1, 0(t0); sd t1, 80(s0)\n" ++                             -- B.addr[0]
+  "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+  "  j .Lnea_probe_done\n" ++
+  nonstorageEffectAggregateFunction ++ "\n" ++
+  ".Lnea_probe_done:"
+
+def ziskNonstorageEffectAggregateDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "nea_probe_in:\n  .zero 336\n" ++
+  "nea_probe_out:\n  .zero 336\n" ++
+  "nea_probe_cnt:\n  .zero 8\n" ++
+  nonstorageEffectAggregateScratch
+
+def ziskNonstorageEffectAggregateProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskNonstorageEffectAggregatePrologue
+  dataAsm     := ziskNonstorageEffectAggregateDataSection
 }
 
 end EvmAsm.Codegen
