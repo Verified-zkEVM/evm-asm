@@ -951,9 +951,19 @@ def blockVerdictFunction : String :=
   "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
   "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bmvmx_coinbase_addr\n  li t2, 20\n" ++
   ".Lbv_i3sk2:\n  beqz t2, .Lbv_i3sk2d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk2\n.Lbv_i3sk2d:\n" ++
+  -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
+  -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
+  -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL
+  -- balance against the FIRST-seen post -> a latent false-reject when one account is touched by
+  -- >1 value effect in the tx. Aggregating to last-post fixes that, matches the multi-tx path,
+  -- and yields a SORTED agg (enables a future binary-search comparator). Behavior-preserving for
+  -- the single-touch common case (0-regress). The helper resets agg_count + preserves s-regs.
+  "  la a0, exec_nonstorage_effect_log; la t0, exec_nonstorage_effect_count; ld a1, 0(t0)\n" ++
+  "  la a2, exec_nonstorage_effect_agg; la a3, exec_nonstorage_effect_agg_count; li a4, " ++ toString nonstorageEffectLogCap ++ "\n" ++
+  "  jal ra, nonstorage_effect_aggregate\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, exec_nonstorage_effect_log\n" ++
-  "  la t0, exec_nonstorage_effect_count; ld a3, 0(t0)\n" ++
+  "  la a2, exec_nonstorage_effect_agg\n" ++
+  "  la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
   "  la a4, i3djw_skip_list; li a5, 3\n" ++
   "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
@@ -964,8 +974,8 @@ def blockVerdictFunction : String :=
   -- Mismatch -> bv_fail_code=45. *** REQUIRES EEST SWEEP *** (changes accept/reject for
   -- value-CALL/CREATE blocks, alongside the forward).
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, exec_nonstorage_effect_log\n" ++
-  "  la t0, exec_nonstorage_effect_count; ld a3, 0(t0)\n" ++
+  "  la a2, exec_nonstorage_effect_agg\n" ++   -- bmvmx.5.5.7.3: same aggregated (sorted, last-post) agg as the forward
+  "  la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
   "  la a4, i3djw_skip_list; li a5, 3\n" ++
   "  jal ra, bal_all_accounts_nonstorage_covers\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_covers_fail\n" ++
