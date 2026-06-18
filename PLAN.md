@@ -1368,14 +1368,24 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `crDisjoint` tactic times out on the opaque 16-instr `ofProg`); `hback` via
   `signExtend13 (-76) = -76` (`decide`) + `bv_omega`. Concrete 2-item `example`.
   Axiom-clean, 0 sorry. This completes the **flat** RLP list-decoder arc.
-- 🚧 **Long-item-capable list loop** (arc, in progress). `longBytes`/`longList`
-  (real Ethereum RLP exceeds 55 bytes). Design: reuse the proven 5-class decoder
-  `rlp_decode_single_item_reconverged_all`, with the list item-counter on **x15**
-  (the decoder clobbers x14 as its length-read counter), the uniform advance
-  `x13 += x11` (decoder leaves x13=payloadPtr, x11=payloadLen), reads over `bytesRegion`.
-  - 🚧 **Step 1 — `bytesRegion` length-read loop** (`Phase2LongLoopRegion.lean`, PR #9020,
-    in flight): the single-dword `Phase2Long*` length-read generalized to a multi-dword
-    `bytesRegion` (cross-dword reads). `rlp_phase2_long_loop_region_{succ,n}_spec_within`.
+- 🚧 **Long-item-capable list loop** (arc, step 2 of 6). Goal: a list loop that
+  handles `longBytes`/`longList` (real Ethereum RLP exceeds 55 bytes). Design:
+  reuse the 5-class single-item decoder (`rlp_decode_single_item_reconverged_all`,
+  already proven), with the list-loop item counter on **x15** (the decoder
+  clobbers x14 as its length-read counter), the uniform advance `x13 += x11`
+  (decoder leaves x13=payloadPtr, x11=payloadLen), and all reads over `bytesRegion`.
+  - ✅ **Step 1 — `bytesRegion` length-read loop** (`Phase2LongLoopRegion.lean`).
+    Region analog of the single-dword `Phase2Long*` stack: `rlpLoopAccRegion` (+
+    `_zero_eq_fromBytesBE`), `rlp_phase2_long_region_iter_spec_within` (one iteration,
+    proved by extracting the containing dword from `bytesRegion` and reusing the
+    single-dword iter — the cross-dword read the `alignToDword`-constrained loop
+    couldn't express), `rlp_phase2_long_region_body_spec_within` (`cpsBranchWithin 6`),
+    `rlp_phase2_long_loop_region_succ_spec_within` (induction over `k+1∈[1,8]`
+    iterations), and `rlp_phase2_long_loop_region_n_spec_within` (from `0`, decoded
+    length `= ofNat (Nat.fromBytesBE ((bs.drop off).take n))`). Same body program as
+    the single-dword version; only the memory model differs. Frame `x0` on the
+    **left** (`frameL`) so `xperm` never commutes a `regIs` rightward past the opaque
+    `bytesRegion` atom. Axiom-clean, 0 sorry, no `bv_decide`.
   - ✅ **Step 2 — long-item stride foundation** (`LongItemStride.lean`). Pure long-class
     analog of `FlatListLoop.lean` §1: `isLongItem`, `itemPayloadCount`/`itemLenOfLen`,
     `classifyPrefix_encode_head_long`, `encode_long_lenOfLen_eq_{bytes,list}` (decoder's
