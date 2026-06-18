@@ -1416,11 +1416,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `itemNextPtrRegion := itemPtrRegion + itemLenRegion` (the `ADD` result). Faithful mirror of
     `fll_body_spec_within`; the decoder stays opaque (the concrete region decoder discharges it in
     the end-to-end step). Axiom-clean, 0 sorry.
-  - **Next (step 5):** unified loop closure + bridge — induct over `items`, apply this body per item
-    with #9025's region decoder discharging `decoderH`, re-index `itemNextPtrRegion = regionBase +
-    ofNat (off + (encode item).length)` via step 2's `encode_long_stride` (long) /
-    `encode_head_eq_itemTotalLen` (flat); conjoin the pure `decodeItems` round-trip. Then (6)
-    concrete program + end-to-end.
+  - ✅ **Step 5a — unified stride-equivalence** (`UnifiedItemStride.lean`).
+    **`encode_head_eq_itemNextPtrRegion`**: for ANY item (all 5 classes), the body's per-item advance
+    `itemNextPtrRegion ((encode head)[0]) regionBase off bs` (= `itemPtrRegion + itemLenRegion`, the
+    `ADD x13` result) re-indexes to `regionBase + ofNat (off + (encode head).length)` — the all-class
+    analog of the flat `encode_head_eq_itemTotalLen`. Flat items bridge through `itemTotalLen`
+    (reusing `encode_head_eq_itemTotalLen`); long items tie the runtime-read length bytes back to the
+    encoding via private `long_lenBytes_in_region` (`(bs.drop (off+1)).take lenOfLen =
+    toBytesBE payloadCount`) + step-2 lemmas (`encode_long_lenOfLen_eq_*`, `encode_long_lenBytes_read`,
+    `encode_long_length_eq`). Also `flat_or_long` dichotomy. Axiom-clean, 0 sorry.
+  - **Next (step 5b):** unified loop closure + bridge — induct over `items`, apply the step-4 body per
+    item with #9025's region decoder discharging `decoderH`, re-index `x13` via THIS lemma
+    (`encode_head_eq_itemNextPtrRegion`); conjoin the pure `decodeItems` round-trip. Then (6) concrete
+    program + end-to-end.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
