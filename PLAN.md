@@ -1368,7 +1368,7 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `crDisjoint` tactic times out on the opaque 16-instr `ofProg`); `hback` via
   `signExtend13 (-76) = -76` (`decide`) + `bv_omega`. Concrete 2-item `example`.
   Axiom-clean, 0 sorry. This completes the **flat** RLP list-decoder arc.
-- 🚧 **Long-item-capable list loop** (arc, step 1 of 6). Goal: a list loop that
+- 🚧 **Long-item-capable list loop** (arc, step 2 of 6). Goal: a list loop that
   handles `longBytes`/`longList` (real Ethereum RLP exceeds 55 bytes). Design:
   reuse the 5-class single-item decoder (`rlp_decode_single_item_reconverged_all`,
   already proven), with the list-loop item counter on **x15** (the decoder
@@ -1386,7 +1386,7 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     the single-dword version; only the memory model differs. Frame `x0` on the
     **left** (`frameL`) so `xperm` never commutes a `regIs` rightward past the opaque
     `bytesRegion` atom. Axiom-clean, 0 sorry, no `bv_decide`.
-  - ✅ **Step 2 — long-item stride foundation** (`LongItemStride.lean`, PR #9022). Pure
+  - ✅ **Step 2 — long-item stride foundation** (`LongItemStride.lean`). Pure
     long analog of `FlatListLoop.lean` §1: `isLongItem`/`itemPayloadCount`/`itemLenOfLen`,
     `classifyPrefix_encode_head_long`, `encode_long_lenOfLen_eq_{bytes,list}`,
     `encode_long_length_eq`, `encode_long_lenBytes_read`, and **`encode_long_stride`**

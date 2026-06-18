@@ -65,6 +65,7 @@ import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconvergeAllRegion
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconvergeAll
+import EvmAsm.Rv64.RLP.LongItemStride
 import EvmAsm.Rv64.RLP.FlatListLoopBody
 import EvmAsm.Rv64.RLP.FlatListLoop
 import EvmAsm.Rv64.RLP.FlatDecoderConcrete
