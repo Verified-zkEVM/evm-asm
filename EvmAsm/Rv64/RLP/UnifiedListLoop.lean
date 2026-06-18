@@ -15,6 +15,13 @@
   `64 * items.length` steps; the per-item byte stride varies by class.
 
   Counter on `x15`; the region decoder clobbers `x10`/`x12`/`x14` (scratch).
+
+  `UnifiedDecoderH` carries a per-index `regionLongWindow` guard (a long prefix's
+  length bytes must lie within the region) — the window-only half of
+  `rlpDecodeLongHypsRegion`. The closure discharges it at every item-start offset
+  (a long head's length bytes sit inside `encode head`), so a concrete decoder can
+  satisfy `UnifiedDecoderH`; without it the hypothesis would be unsatisfiable (a
+  mid-item byte can classify as a long prefix whose length runs off the region).
 -/
 
 import EvmAsm.Rv64.RLP.UnifiedListLoopBody
@@ -56,12 +63,28 @@ private theorem length_le_encodeItems : ∀ (items : List RLPItem),
     have := length_le_encodeItems is
     omega
 
+/-- The per-index region-window obligation: for a long prefix at byte index `i`,
+    its `lenOfLen` length bytes lie within the region (in bounds + readable). This
+    is the region-dependent (window-only) half of `rlpDecodeLongHypsRegion`; the
+    structural back-edge half is baked into the concrete decoder. Trivial for flat
+    prefixes. The loop closure discharges this at every item-start offset (long
+    items' length bytes sit inside `encode head`, hence inside the region). -/
+def regionLongWindow (regionBase : Word) (bs : List (BitVec 8)) (i : Nat) (hi : i < bs.length) : Prop :=
+  match classifyPrefix (bs[i]'hi) with
+  | .longBytes => ∀ j, j < rlpPrefixLongBytesLenOfLen (bs[i]'hi) →
+      (i + 1) + j < bs.length ∧ isValidByteAccess (regionBase + BitVec.ofNat 64 ((i + 1) + j)) = true
+  | .longList  => ∀ j, j < rlpPrefixLongListLenOfLen (bs[i]'hi) →
+      (i + 1) + j < bs.length ∧ isValidByteAccess (regionBase + BitVec.ofNat 64 ((i + 1) + j)) = true
+  | _ => True
+
 /-- The decoder hypothesis the loop closure carries: the 60-step region decoder
-    for ANY byte index `i` and incoming scratch values — exactly the `decoder`
-    field `unified_body_spec_within` consumes. -/
+    for ANY byte index `i` (whose long-form length bytes are in-region, via
+    `regionLongWindow`) and incoming scratch values — exactly the `decoder` field
+    `unified_body_spec_within` consumes. -/
 abbrev UnifiedDecoderH (regionBase decoder_base joinPC : Word) (dcr : CodeReq)
     (bs : List (BitVec 8)) : Prop :=
   ∀ (i : Nat) (hi : i < bs.length) (v10 v11 v12 v14 : Word),
+    regionLongWindow regionBase bs i hi →
     cpsTripleWithin 60 decoder_base joinPC dcr
       ((.x5 ↦ᵣ (bs[i]'hi).zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
        (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 i)) **
@@ -71,6 +94,89 @@ abbrev UnifiedDecoderH (regionBase decoder_base joinPC : Word) (dcr : CodeReq)
        (.x12 ↦ᵣ itemX12Region (bs[i]'hi) bs i v12) **
        (.x13 ↦ᵣ itemPtrRegion (bs[i]'hi) regionBase i) **
        (.x14 ↦ᵣ itemX14 (bs[i]'hi) v14) ** bytesRegion regionBase bs)
+
+/-- A long byte-string's encoding head classifies as `longBytes`. -/
+private theorem classify_bytes_long {data : List Byte} (hlong : 55 < data.length)
+    (hsize : data.length < 256 ^ 8) :
+    classifyPrefix ((encode (.bytes data))[0]'(encode_nonempty _)) = .longBytes := by
+  have hle : (Nat.toBytesBE data.length).length ≤ 8 := Nat.toBytesBE_length_le data.length 8 hsize
+  rcases classifyPrefix_encode_head_long (.bytes data) (by simpa [isLongItem] using hlong)
+    (by simpa [itemPayloadCount] using hsize) with h | h
+  · exact h
+  · exfalso
+    have henc : encode (.bytes data)
+        = [BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)]
+            ++ Nat.toBytesBE data.length ++ data :=
+      encodeBytes_long_of_length data hlong
+    have hb : (encode (.bytes data))[0]'(encode_nonempty _)
+        = BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length) := by simp [henc]
+    have htn : (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length)).toNat
+        = 0xB7 + (Nat.toBytesBE data.length).length := by
+      rw [BitVec.toNat_ofNat, show (2:Nat)^8 = 256 from rfl, Nat.mod_eq_of_lt (by omega)]
+    rw [hb, classifyPrefix_longList_iff, htn] at h; omega
+
+/-- A long list's encoding head classifies as `longList`. -/
+private theorem classify_list_long {items : List RLPItem}
+    (hlong : 55 < (encode.encodeItems items).length)
+    (hsize : (encode.encodeItems items).length < 256 ^ 8) :
+    classifyPrefix ((encode (.list items))[0]'(encode_nonempty _)) = .longList := by
+  have hle : (Nat.toBytesBE (encode.encodeItems items).length).length ≤ 8 :=
+    Nat.toBytesBE_length_le _ 8 hsize
+  rcases classifyPrefix_encode_head_long (.list items) (by simpa [isLongItem] using hlong)
+    (by simpa [itemPayloadCount] using hsize) with h | h
+  · exfalso
+    have henc := encode_list_long items hlong
+    have hb : (encode (.list items))[0]'(encode_nonempty _)
+        = BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length) := by
+      simp [henc]
+    have htn : (BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length)).toNat
+        = 0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length := by
+      rw [BitVec.toNat_ofNat, show (2:Nat)^8 = 256 from rfl, Nat.mod_eq_of_lt (by omega)]
+    rw [hb, classifyPrefix_longBytes_iff, htn] at h; omega
+  · exact h
+
+/-- The per-item region window obligation holds at any item-start offset: a long
+    head's `lenOfLen` length bytes sit inside `encode head`, hence inside the
+    region (in bounds via the encoding length, readable via `hwin`); a flat head
+    makes `regionLongWindow` reduce to `True`. -/
+private theorem regionLongWindow_of_split
+    (regionBase : Word) (bs : List (BitVec 8)) (head : RLPItem) (tail : List RLPItem) (O : Nat)
+    (hO : O < bs.length)
+    (hbsO : bs[O]'hO = (encode head)[0]'(encode_nonempty head))
+    (hsplit : bs.drop O = encode head ++ encode.encodeItems tail)
+    (hsize : itemPayloadCount head < 256 ^ 8)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true) :
+    regionLongWindow regionBase bs O hO := by
+  rcases flat_or_long head with hflat | hlong
+  · rcases classifyPrefix_encode_head_flat head hflat with h | h | h <;>
+      simp only [regionLongWindow, hbsO, h]
+  · have hdroplen : (encode head).length ≤ bs.length - O := by
+      have h := hsplit
+      have : (encode head).length ≤ (bs.drop O).length := by rw [h, List.length_append]; omega
+      rwa [List.length_drop] at this
+    have henclen : (encode head).length = 1 + itemLenOfLen head + itemPayloadCount head :=
+      encode_long_length_eq head hlong
+    cases head with
+    | bytes data =>
+      have hlong' : 55 < data.length := by simpa [isLongItem] using hlong
+      have hcls : classifyPrefix (bs[O]'hO) = .longBytes := by
+        rw [hbsO]; exact classify_bytes_long hlong' (by simpa [itemPayloadCount] using hsize)
+      have hleneq : rlpPrefixLongBytesLenOfLen (bs[O]'hO) = itemLenOfLen (.bytes data) := by
+        rw [hbsO]; exact encode_long_lenOfLen_eq_bytes hlong' (by simpa [itemPayloadCount] using hsize)
+      simp only [regionLongWindow, hcls, hleneq]
+      intro j hj
+      have hbound : (O + 1) + j < bs.length := by omega
+      exact ⟨hbound, hwin _ hbound⟩
+    | list items =>
+      have hlong' : 55 < (encode.encodeItems items).length := by simpa [isLongItem] using hlong
+      have hcls : classifyPrefix (bs[O]'hO) = .longList := by
+        rw [hbsO]; exact classify_list_long hlong' (by simpa [itemPayloadCount] using hsize)
+      have hleneq : rlpPrefixLongListLenOfLen (bs[O]'hO) = itemLenOfLen (.list items) := by
+        rw [hbsO]; exact encode_long_lenOfLen_eq_list hlong' (by simpa [itemPayloadCount] using hsize)
+      simp only [regionLongWindow, hcls, hleneq]
+      intro j hj
+      have hbound : (O + 1) + j < bs.length := by omega
+      exact ⟨hbound, hwin _ hbound⟩
 
 /-- **N-iteration closure.** Decoding a non-empty list of arbitrary RLP items
     from the region suffix at offset `O` runs the loop body once per item — a
@@ -145,11 +251,13 @@ theorem unified_loop_spec_within
       rw [hbsO]; exact encode_head_eq_itemNextPtrRegion head tail regionBase O bs hsplit hsizeHead
     have hoverO : regionBase.toNat + O < 2 ^ 64 := by omega
     have hvalidO : isValidByteAccess (regionBase + BitVec.ofNat 64 O) = true := hwin O hO
+    have hwinO : regionLongWindow regionBase bs O hO :=
+      regionLongWindow_of_split regionBase bs head tail O hO hbsO hsplit hsizeHead hwin
     cases tail with
     | nil =>
       have body := unified_body_spec_within regionBase v5Old v10 v11Old v12Old v14Old
         (BitVec.ofNat 64 1) lbase joinPC decoder_base dcr back bs O halign hO hoverO hvalidO
-        hdec_base (decoderH O hO v10 v11Old v12Old v14Old)
+        hdec_base (decoderH O hO v10 v11Old v12Old v14Old hwinO)
         hback hne_lj hne_lj4 hne_lj8 hd_lbu_dec hd_dec_add hd_dec_addi hd_dec_bne
       simp only [] at body
       rw [show (BitVec.ofNat 64 1 : Word) = BitVec.ofNat 64 (0 + 1) from rfl,
@@ -188,7 +296,7 @@ theorem unified_loop_spec_within
         omega
       have body := unified_body_spec_within regionBase v5Old v10 v11Old v12Old v14Old
         (BitVec.ofNat 64 ((h2 :: t2).length + 1)) lbase joinPC decoder_base dcr back bs O
-        halign hO hoverO hvalidO hdec_base (decoderH O hO v10 v11Old v12Old v14Old)
+        halign hO hoverO hvalidO hdec_base (decoderH O hO v10 v11Old v12Old v14Old hwinO)
         hback hne_lj hne_lj4 hne_lj8 hd_lbu_dec hd_dec_add hd_dec_addi hd_dec_bne
       simp only [] at body
       rw [word_ofNat_succ_dec (h2 :: t2).length] at body

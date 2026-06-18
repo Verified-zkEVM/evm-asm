@@ -1434,11 +1434,24 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (offset-0 entry) and **`unified_loop_bridge`** (conjoins the pure `decodeItems` round-trip via
     `decode_encode_mutual.2`). Per-head `itemPayloadCount < 256^8` discharged from `hover` (flat ≤55 /
     long via `encode_long_length_eq`). Axiom-clean, 0 sorry.
-  - **Next (step 6):** concrete unified program + end-to-end — discharge `UnifiedDecoderH` with #9025's
-    region decoder (`rlp_decode_single_item_reconverged_all_region`), assemble the real RV64 program
-    (`[LBU] ++ region_decoder_prog ++ [ADD, ADDI, BNE]`), prove the no-abstract-hypotheses bridge. The
-    analog of the flat `FlatListLoopConcrete.lean` (#9007/#9008) — completes single-level long-item
-    list decoding.
+  - ✅ **Step 6a — dischargeable decoder hypothesis** (`UnifiedListLoop.lean`). Added a per-index
+    `regionLongWindow` guard to `UnifiedDecoderH` (the window-only half of `rlpDecodeLongHypsRegion`: a
+    long prefix's `lenOfLen` length bytes lie within the region) and discharge it in
+    `unified_loop_spec_within` at every item-start offset (private `regionLongWindow_of_split`: flat →
+    `True`; long → the length bytes sit inside `encode head`, in-bounds via `encode_long_length_eq`,
+    readable via `hwin`). Plus local per-structure classification `classify_bytes_long`/
+    `classify_list_long`. Fixes the latent gap where the old guardless `UnifiedDecoderH` was
+    unsatisfiable by any concrete program (a mid-item byte can classify as a long prefix running off
+    the region end). Axiom-clean, 0 sorry.
+  - **Next (step 6b — the big assembly, analog of #9007):** `UnifiedDecoderConcrete.lean` — assemble
+    `unified_decoder_prog : List Instr` (phase-1 cascade + 5 phase-3 handlers + 2 embedded
+    `rlp_phase2_long_loop_body_prog` length-read loops + reconvergence JALs) and prove
+    `unified_decoder_spec` discharging `rlp_decode_single_item_reconverged_all_region`'s ~30 hypotheses
+    via `ofProg` slice lemmas, combining the `regionLongWindow` guard + a `bv_omega` back-edge into
+    `rlpDecodeLongHypsRegion`. Then **6c** (`UnifiedListLoopConcrete.lean`, analog of #9008): assemble
+    `[LBU] ++ unified_decoder_prog ++ [ADD, ADDI, BNE]`, build `UnifiedDecoderH` from
+    `unified_decoder_spec`, call `unified_loop_bridge` for the no-abstract-hypotheses end-to-end —
+    completes single-level long-item list decoding.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
