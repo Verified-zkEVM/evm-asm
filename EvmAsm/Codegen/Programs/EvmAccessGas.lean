@@ -15,7 +15,20 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-def runtimeAccessAccountCapacity : Nat := 64
+-- EIP-2929 accessed-addresses (warm) table capacity. Real execution-specs keeps
+-- `accessed_addresses` unbounded; the only practical bound is the block gas
+-- limit, since adding a distinct address costs at least the cheapest cold path
+-- (EIP-2930 access-list entry = 2400 gas). A 200M-gas block can therefore touch
+-- at most 200_000_000 / 2400 ≈ 83_334 distinct addresses, so the table must hold
+-- at least that many or a cold access against a full table wrongly OOGs the frame
+-- (`.Lraag_cold` -> `.exit_outofgas`) — the EIP-7251 consolidation
+-- `call_depth_high` false-reject (bead fhsxz.17): a ~1023-deep chain of distinct
+-- relay contracts filled the old 64-entry table at depth ~60 and OOG'd, consuming
+-- the whole forwarded budget. Sized to the project's standard gas-derived account
+-- bound (100_000, matching `bsrAccountSlotCap`/`bsrMaxBalItems`); the linear scan
+-- cost is O(actual distinct count), independent of this capacity, so raising it
+-- only widens the table (100_000 * 32 = ~3.2 MiB) and the OOG threshold.
+def runtimeAccessAccountCapacity : Nat := 100000
 def runtimeAccessAccountRecordSize : Nat := 32
 def runtimeAccessColdDeltaGas : Nat := 2500
 def runtimeAccessAccountOutcomeCapacity : Nat := 64
