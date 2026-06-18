@@ -1368,9 +1368,25 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   `crDisjoint` tactic times out on the opaque 16-instr `ofProg`); `hback` via
   `signExtend13 (-76) = -76` (`decide`) + `bv_omega`. Concrete 2-item `example`.
   Axiom-clean, 0 sorry. This completes the **flat** RLP list-decoder arc.
-  **Next:** long-item support — the `longBytes`/`longList` classes (5-class
-  `reconverged_all` + e3/e5 handlers + the decoder's memory length-read →
-  `bytesRegion`).
+- 🚧 **Long-item-capable list loop** (arc, in progress). `longBytes`/`longList`
+  (real Ethereum RLP exceeds 55 bytes). Design: reuse the proven 5-class decoder
+  `rlp_decode_single_item_reconverged_all`, with the list item-counter on **x15**
+  (the decoder clobbers x14 as its length-read counter), the uniform advance
+  `x13 += x11` (decoder leaves x13=payloadPtr, x11=payloadLen), reads over `bytesRegion`.
+  - 🚧 **Step 1 — `bytesRegion` length-read loop** (`Phase2LongLoopRegion.lean`, PR #9020,
+    in flight): the single-dword `Phase2Long*` length-read generalized to a multi-dword
+    `bytesRegion` (cross-dword reads). `rlp_phase2_long_loop_region_{succ,n}_spec_within`.
+  - ✅ **Step 2 — long-item stride foundation** (`LongItemStride.lean`). Pure long-class
+    analog of `FlatListLoop.lean` §1: `isLongItem`, `itemPayloadCount`/`itemLenOfLen`,
+    `classifyPrefix_encode_head_long`, `encode_long_lenOfLen_eq_{bytes,list}` (decoder's
+    length-of-length = encoding's), `encode_long_length_eq` (`(encode item).length =
+    1 + lenOfLen + payloadCount`), `encode_long_lenBytes_read` (round-trip via
+    `Nat.fromBytesBE_toBytesBE`), and **`encode_long_stride`** (`payloadPtr + payloadCount
+    = v13 + (encode item).length`) — the identity the unified loop closure re-indexes on.
+    Built entirely on existing spec lemmas; no `bv_decide`; axiom-clean, 0 sorry.
+  - **Next (step 3):** region 5-class decoder (re-derive `reconverged_all`'s long arms over
+    `bytesRegion` using step 1); then (4) long loop body (x15 counter), (5) closure+bridge
+    (using step 2's stride), (6) concrete + end-to-end.
 - Phase 5: Recursive list decode (iterative with explicit stack)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
