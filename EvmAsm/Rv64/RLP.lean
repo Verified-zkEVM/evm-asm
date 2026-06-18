@@ -67,6 +67,7 @@ import EvmAsm.Rv64.RLP.UnifiedItemStride
 import EvmAsm.Rv64.RLP.UnifiedListLoop
 import EvmAsm.Rv64.RLP.UnifiedDecoderConcrete
 import EvmAsm.Rv64.RLP.UnifiedListLoopConcrete
+import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconvergeAll
