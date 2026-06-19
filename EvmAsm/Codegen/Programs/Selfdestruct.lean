@@ -422,6 +422,22 @@ conservative-accept stay unaffected). The all-accounts wrapper skips {sender,rec
 restores the dispatcher's x10/x12 around each helper call (mirrors the eip7708 fragment). -/
 def selfdestructBeneficiaryNonstorageAsm : String :=
   "  la t0, evm_selfdestruct_staged; ld t0, 0(t0); beqz t0, .L_sdbn_done\n" ++
+  -- drj99.1: a created-in-this-tx contract that SELFDESTRUCTs is DELETED (EIP-6780). The CREATE deposit
+  -- recorded it (nonce 1, balance = endowment); record its DELETION (balance 0, nonce 0) so the aggregate's
+  -- last-post-wins gives the BAL's deleted final (0/0) -- without this the deposit's nonce=1 lingers and the
+  -- all-accounts non-storage comparator rejects (bv_fail=44 nonce-mismatch, balance 0=0). The origin is NOT
+  -- in the block-pre witness (created this tx), so the witness-present origin-debit path below skips it; this
+  -- record fires on the created_in_tx flag regardless of sdai_status. sdai_origin_address = the
+  -- selfdestructing contract's env ADDRESS (set from env, not the lookup), i.e. the created contract.
+  -- Enables no new behavior (records the deletion that already happens) -> no cascade. a0/a2 alias x10/x12.
+  "  la t0, evm_selfdestruct_created_in_tx; ld t0, 0(t0); beqz t0, .L_sdbn_chk_witness\n" ++
+  "  addi sp, sp, -48\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+  "  sd zero, 16(sp); sd zero, 24(sp); sd zero, 32(sp); sd zero, 40(sp)\n" ++   -- 32B zero balance scratch
+  "  la a0, sdai_origin_address\n  addi a1, sp, 16\n  addi a2, sp, 16\n  li a3, 0\n  li a4, 0\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 48\n" ++
+  "  j .L_sdbn_done\n" ++
+  ".L_sdbn_chk_witness:\n" ++
   "  la t0, sdai_status; ld t0, 0(t0); beqz t0, .L_sdbn_origin_ok\n" ++
   "  li t1, 4; bne t0, t1, .L_sdbn_done\n" ++
   ".L_sdbn_origin_ok:\n" ++
