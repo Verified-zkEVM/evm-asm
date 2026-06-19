@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.CreateRuntime
 import EvmAsm.Codegen.Programs.PrecompileRuntime
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -276,7 +277,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- POST-charge into child_env+624/632, so we preserve the pre-charge reservoir and subtract 183600
     -- from the used snapshot; incorporate_child_on_error then restores the exact pre-charge state and
     -- frame_return can also restore any regular-gas spill.
-    "  li t0, 183600\n" ++
+    liStateGasRuntime "t0" 112 ++   -- drj99.1.2: create_account state gas = 112 * runtime cost (was 183600)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n  mv t4, t2\n" ++
     "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
@@ -295,7 +296,25 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- frame_return restores those globals and restores any regular-gas spill to the parent;
     -- on child success the snapshot is unused and the charge stands.
     "  sd t4, 624(x20)\n" ++
-    "  ld t0, 632(x20)\n  li t1, 183600\n  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++
+    "  ld t0, 632(x20)\n" ++ liStateGasRuntime "t1" 112 ++ "  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++   -- drj99.1.2: refund = same 112*cost
+
+    -- drj99.1 part 2: credit child C's env+32 selfBalance with the endowment so the initcode's
+    -- SELFBALANCE and its outgoing value-CALL debits operate on the real balance. call_frame_descend
+    -- step 8c staged env+32 = C's PRE-state balance (0 for a fresh address; non-zero only if the
+    -- address was pre-funded), so add the endowment on top = the EVM "new account balance". x20 = the
+    -- CHILD env (switched by the descend). env+32 is LE; reverse to BE, u256_add_be the BE endowment
+    -- (create_value_be, still valid — the initcode has not run yet), reverse back. create_creator_newbal
+    -- is the BE scratch (free after the gate's creator-debit). a0-a2 alias x10/x12/x13 -> save/restore.
+    "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
+    ".Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, create_creator_newbal\n  la a1, create_value_be\n  la a2, create_creator_newbal\n" ++
+    "  jal ra, u256_add_be\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+    ".Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  j .dispatch_loop\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++

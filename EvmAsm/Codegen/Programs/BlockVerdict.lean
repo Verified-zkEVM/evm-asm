@@ -75,6 +75,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -92,12 +93,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bsr_fail_code; ld t2, 0(t1); sd t2, 40(t0)\n" ++
   "  la t1, bsr_change_count; ld t2, 0(t1); sd t2, 48(t0)\n" ++
   "  la t1, bsr_wl_v; ld t2, 0(t1); sd t2, 56(t0)\n" ++
-  "  la t1, baacd_fail_code; ld t2, 0(t1); sd t2, 64(t0)\n" ++
-  "  la t1, bacv_fail_code; ld t2, 0(t1); sd t2, 72(t0)\n" ++
-  "  la t1, baap_fail_code; ld t2, 0(t1); sd t2, 80(t0)\n" ++
-  "  la t1, bvgr_block_gas_increments; ld t2, 0(t1); sd t2, 88(t0)\n" ++
-  "  la t1, bvgr_block_gas_increments; ld t2, 8(t1); sd t2, 96(t0)\n" ++
-  "  la t1, bvgr_tx_total_state_gas; ld t2, 0(t1); sd t2, 104(t0)\n" ++
+  "  la t1, dbg_bv44_addr; ld t2, 0(t1); sd t2, 64(t0)\n" ++   -- DIAG: failing bv_fail=44 account addr[12..20] (was baacd_fail_code)
+  "  la t1, dbg_bv44_kind; ld t2, 0(t1); sd t2, 72(t0)\n" ++   -- DIAG: 1=found-inconsistent 2=notfound (was bacv_fail_code)
+  "  la t1, create_address_be; ld t2, 12(t1); sd t2, 80(t0)\n" ++  -- DIAG: created-contract addr[12..20] (compare to dbg_bv44_addr); was baap_fail_code
+  "  la t1, dbg_bv44_balgot; ld t2, 0(t1); sd t2, 88(t0)\n" ++       -- DIAG: exec post low8 (was block_inc0)
+  "  la t1, dbg_bv44_balwant; ld t2, 0(t1); sd t2, 96(t0)\n" ++      -- DIAG: BAL final low8 (was block_inc1)
+  "  la t1, create_sender_be; ld t2, 12(t1); sd t2, 104(t0)\n" ++    -- DIAG: creator P addr[12..20] (was tx_state0)
   "  la t1, bvgr_tx_total_state_gas; ld t2, 8(t1); sd t2, 112(t0)\n" ++
   "  la t1, bv_exact_net_status; ld t2, 0(t1); sd t2, 120(t0)\n" ++
   "  la t1, bv_exact_net_index; ld t2, 0(t1); sd t2, 128(t0)\n" ++
@@ -259,6 +260,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   u256IsZeroFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
+  stateGasPerByteFunction ++ "\n" ++   -- drj99.1.2: EIP-8037 per-block state-gas cost helper
+
   u256EqFunction ++ "\n" ++
   u256LtBeFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++

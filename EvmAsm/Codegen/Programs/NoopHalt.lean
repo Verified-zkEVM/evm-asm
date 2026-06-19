@@ -80,7 +80,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
       -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
       -- the child gas_left). x15 <= MAX_CODE_SIZE (0x8000) so x15*1530 cannot overflow u64.
-      "  li t0, 1530\n  mul t0, x15, t0\n" ++
+      "  la t0, evm_state_gas_per_byte\n  ld t0, 0(t0)\n  mul t0, x15, t0\n" ++  -- drj99.1.2: code-deposit state gas = code_len * runtime cost (was 1530)
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
       "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++                                  -- reservoir short: spill = charge - reservoir; reservoir = 0
@@ -94,27 +94,55 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
-      -- i3djw.2: record the created account's NON-STORAGE effect (pre absent 0/0; post
-      -- nonce=1, balance=endowment). endowment = child env.CALLVALUE (x20+96), which
-      -- call_frame_set_call_env stored as the LE stack value word, so reverse it to BE
-      -- (read x20+127 down to x20+96) for the BE effect-log convention (matching i3djw.1).
+      -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre absent 0/0;
+      -- post nonce=1, balance = C's FINAL balance). The final balance is C's LIVE selfBalance (env+32),
+      -- NOT the CALLVALUE endowment: the initcode may CALL value out, so the created account ends at
+      -- E - net_out. env+32 was credited the endowment at create_frame_descend (drj99.1 part 2) and
+      -- debited by each byte-order-correct outgoing value-CALL (drj99.1 part 4), so it holds the true
+      -- final. env+32 is LE (byte 32 = LSB, like CALLVALUE@96), so reverse x20+63..32 into
+      -- nse_create_post_bal (BE) for the effect-log convention (matching i3djw.1).
       -- x20 = child env here (before frame_return restores the parent). a0/a2/a3 alias
-      -- x10/x12/x13 -> saved/restored around record_nonstorage_effect. INERT until i3djw.3
-      -- wires the comparator (and CREATE is self-contained-rejected until .8c-3).
-      "  la t0, nse_create_post_bal\n  addi t1, x20, 127\n  li t2, 32\n" ++
+      -- x10/x12/x13 -> saved/restored around record_nonstorage_effect.
+      "  la t0, nse_create_post_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
       ".Lrr_crendow_" ++ toString kind ++ ":\n" ++
       "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lrr_crendow_" ++ toString kind ++ "\n" ++
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  la a0, create_address_be\n  la a1, nse_zero_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n  li a4, 1\n" ++
       "  jal ra, record_nonstorage_effect\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-      "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
+      -- drj99.1 part 1: a SUCCESSFUL CREATE deposit must pass success=1 to frame_return so the child
+      -- frame's recorded effects (the created-account nonstorage record just appended, plus state-gas /
+      -- refund / warmth / bloom) are KEPT. a0=0 is frame_return's REVERT signal: it truncated
+      -- exec_nonstorage_effect_count back to the pre-child snapshot, ERASING the created-account record
+      -- (record fired but log_count dropped to 0). The pushed success word is overwritten by the derived
+      -- address below, so a0=1 here is purely the keep-effects signal (not the CREATE result).
+      "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
       ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
       "  beqz t3, .Lrr_craddr_d_" ++ toString kind ++ "\n" ++
       "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, -1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .Lrr_craddr_" ++ toString kind ++ "\n" ++
       ".Lrr_craddr_d_" ++ toString kind ++ ":\n" ++
+      -- drj99.1 part 5a: record the CREATOR's nonstorage effect (balance -endowment, nonce +1) on the
+      -- SUCCESS path. This deposit is reached only when the CREATE succeeded (RETURN of a create_frame); a
+      -- failed CREATE goes through .Lrr_crinv / the REVERT branch and never here, so no failure-rollback is
+      -- needed (unlike recording at the pre-descend creator-debit). frame_return above restored the PARENT
+      -- registers, so x20 = parent (creator) env and env+32 = the creator's selfBalance AFTER the pre-descend
+      -- creator-debit = post_balance (LE). pre = post + endowment (create_value_be, BE). The creator's nonce
+      -- bumps +1 on CREATE/CREATE2 (create_nonce = the per-creator running pre-nonce). create_sender_be =
+      -- creator addr (BE). env+32 is LE -> reverse to BE into nse_create_post_bal (free after C's record);
+      -- pre via u256_add_be into create_creator_newbal (free after the pre-descend debit). a0/a2/a3 alias
+      -- x10/x12/x13 -> save/restore around both helper calls.
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  addi t0, x20, 63\n  la t1, nse_create_post_bal\n  li t2, 32\n" ++
+      ".Lrr_crp_rev_" ++ toString kind ++ ":\n" ++
+      "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lrr_crp_rev_" ++ toString kind ++ "\n" ++
+      "  la a0, nse_create_post_bal\n  la a1, create_value_be\n  la a2, create_creator_newbal\n" ++   -- pre = post + endowment
+      "  jal ra, u256_add_be\n" ++
+      "  la t0, create_nonce\n  ld t0, 0(t0)\n  mv a3, t0\n  addi a4, t0, 1\n" ++                       -- pre_nonce, post_nonce = pre+1
+      "  la a0, create_sender_be\n  la a1, create_creator_newbal\n  la a2, nse_create_post_bal\n" ++   -- a1=pre_bal, a2=post_bal
+      "  jal ra, record_nonstorage_effect\n" ++
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  j .dispatch_loop\n" ++
       ".Lrr_crinv_" ++ toString kind ++ ":\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++

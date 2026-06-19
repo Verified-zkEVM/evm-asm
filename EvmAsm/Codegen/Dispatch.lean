@@ -2805,6 +2805,10 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "evm_state_gas_used:\n" ++
   "  .zero 8\n" ++
+  -- drj99.1.2: EIP-8037 per-block state-gas cost = state_gas_per_byte(header.gas_limit). Set ONCE by the
+  -- block verdict; read by every state-gas charge in place of the legacy constant 1530.
+  "evm_state_gas_per_byte:\n" ++
+  "  .zero 8\n" ++
   ".balign 32\n" ++
   "srfd_zero:\n" ++
   "  .zero 32\n" ++

@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.EIP7708Logs
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
 
@@ -92,7 +93,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- credit_state_gas_refund for SELFDESTRUCT (the charge is permanent within the frame, like the
   -- 25000 it replaces; the frame-entry 624/632 state-gas snapshot already rolls it back if a parent
   -- reverts the frame's effects).
-  "  li t0, 183600\n" ++
+  liStateGasRuntime "t0" 112 ++
   "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
   "  bgeu t2, t0, .L_selfdestruct_csg_res\n" ++
   "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++

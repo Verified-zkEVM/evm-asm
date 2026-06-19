@@ -533,7 +533,7 @@ def eip8037TxStateGasFunction : String :=
   "  beq a3, zero, .Le8037sg_settle\n" ++
   "  li a1, 0                   # error: state_gas_used = 0\n" ++
   "  beq a4, zero, .Le8037sg_settle\n" ++
-  "  li t0, 183600             # STATE_BYTES_PER_NEW_ACCOUNT*COST_PER_STATE_BYTE\n" ++
+  liStateGasRuntime "t0" 112 ++
   "  add a2, a2, t0            # creation revert: state_refund += new_account_refund\n" ++
   ".Le8037sg_settle:\n" ++
   "  add t1, a0, a1            # intrinsic_state_gas + state_gas_used\n" ++

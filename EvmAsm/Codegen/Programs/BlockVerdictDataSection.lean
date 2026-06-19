@@ -1280,6 +1280,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c3ns_addr_off:\n  .zero 8\n" ++
   "c3ns_addr_len:\n  .zero 8\n" ++
   "c3ns_lenient_notfound:\n  .zero 8\n" ++   -- bmvmx.5.5.1 (A2a): 0 strict (single-tx), 1 lenient (multi-tx)
+  "dbg_bv44_addr:\n  .zero 8\n" ++           -- DIAG: failing account addr[12..20] at .Lc3ns_fail
+  "dbg_bv44_kind:\n  .zero 8\n" ++           -- DIAG: 1=found-inconsistent, 2=notfound-declared
+  "dbg_bv44_balgot:\n  .zero 8\n" ++         -- DIAG: exec agg post_balance low8 at .Lc2nsc_bad
+  "dbg_bv44_balwant:\n  .zero 8\n" ++        -- DIAG: BAL final post_balance low8 at .Lc2nsc_bad
   "c2nsc_finals:\n  .zero 88\n" ++
   "c2nsf_off:\n  .zero 8\n" ++
   "c2nsf_len:\n  .zero 8\n" ++

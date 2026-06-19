@@ -62,6 +62,7 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
 
@@ -180,7 +181,7 @@ def sstoreValueTransitionGasAsm : String :=
   "  beqz x9, .Lsstore_gas_done\n" ++
   "  la x15, evm_state_gas_left\n" ++
   "  ld x16, 0(x15)\n" ++
-  "  li x14, 97920\n" ++             -- STATE_BYTES_PER_STORAGE_SET(64) × COST_PER_STATE_BYTE(1530)
+  liStateGasRuntime "x14" 64 ++             -- STATE_BYTES_PER_STORAGE_SET(64) × COST_PER_STATE_BYTE(1530)
   "  bgeu x16, x14, .Lsstore_state_from_reservoir\n" ++
   "  sub x14, x14, x16\n" ++         -- spill = charge - reservoir
   "  sd x0, 0(x15)\n" ++
@@ -195,7 +196,7 @@ def sstoreValueTransitionGasAsm : String :=
   ".Lsstore_state_charged:\n" ++
   "  la x15, evm_state_gas_used\n" ++
   "  ld x16, 0(x15)\n" ++
-  "  li x14, 97920\n" ++
+  liStateGasRuntime "x14" 64 ++
   "  add x16, x16, x14\n" ++
   "  sd x16, 0(x15)\n" ++
   ".Lsstore_gas_done:\n"
@@ -407,7 +408,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x14, srfd_out; ld x15, 32(x14)\n" ++     -- zero-restore credit flag
         "  beqz x15, 11f\n" ++
         "  la x14, evm_state_gas_used; ld x15, 0(x14)\n" ++
-        "  li x16, 97920\n" ++
+        liStateGasRuntime "x16" 64 ++
         "  bleu x15, x16, 10f\n" ++
         "  mv x15, x16\n" ++                            -- applied = min(97920, used)
         "10:\n" ++

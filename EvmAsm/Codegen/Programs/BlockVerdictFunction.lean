@@ -363,6 +363,13 @@ def blockVerdictFunction : String :=
   "  la t2, bv_bal_start; ld t3, 0(t2); sub a1, a1, t3   # bal_len (a1 survives bgv_u64le)\n" ++
   "  la t2, bv_bal_len; sd a1, 0(t2)\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le   # a0 = gas_limit\n" ++
+  -- drj99.1.2: compute the EIP-8037 per-block state-gas cost ONCE from the block gas_limit and store it in
+  -- evm_state_gas_per_byte; every state-gas charge reads that global instead of the legacy constant 1530.
+  -- state_gas_per_byte clobbers t0-t6 + a0; save/restore a0 (= gas_limit, still needed below).
+  "  addi sp, sp, -16\n  sd a0, 0(sp)\n" ++
+  "  jal ra, state_gas_per_byte\n" ++
+  "  la t2, evm_state_gas_per_byte; sd a0, 0(t2)\n" ++
+  "  ld a0, 0(sp)\n  addi sp, sp, 16\n" ++
   "  mv a2, a0                                  # gas_limit\n" ++
   "  la t2, bv_bal_start; ld a0, 0(t2)          # bal_start\n" ++
   "  la t2, bv_bal_len; ld a1, 0(t2)            # bal_len\n" ++
@@ -713,6 +720,7 @@ def blockVerdictFunction : String :=
   -- increment (receipt_inc) is exact; the EIP-7778 block-gas gate is unaffected
   -- (it uses block_inc, which is refund-independent).
   ".Lbv_contract_dispatch:\n" ++
+  "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++   -- DIAGNOSTIC FLIP (drj99.1 measure): single-tx uses PRE header -> dispatch RUNS. REVERT before PR.
   -- evm-asm-ok3nl (EIP-8025 witness validation): the currently-executing frame's
   -- code must be present in witness.codes. The executable spec loads it via
   -- WitnessState.get_code (witness_state.py), whose `self._code_db[code_hash]`

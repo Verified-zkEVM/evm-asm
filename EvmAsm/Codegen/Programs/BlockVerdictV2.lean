@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.ParseDepositRequests
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
 
@@ -230,6 +231,7 @@ def statelessVerdictV2GuestClosure : String :=
   u256IsZeroFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
+  stateGasPerByteFunction ++ "\n" ++   -- drj99.1.2: EIP-8037 per-block state-gas cost helper (main guest)
   u256EqFunction ++ "\n" ++
   u256LtBeFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
