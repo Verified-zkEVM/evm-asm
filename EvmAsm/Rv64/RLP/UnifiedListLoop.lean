@@ -141,10 +141,10 @@ private theorem classify_list_long {items : List RLPItem}
     makes `regionLongWindow` reduce to `True`. (Exposed for the length-driven loop
     closure, which discharges the same per-item window obligation.) -/
 theorem regionLongWindow_of_split
-    (regionBase : Word) (bs : List (BitVec 8)) (head : RLPItem) (tail : List RLPItem) (O : Nat)
+    (regionBase : Word) (bs : List (BitVec 8)) (head : RLPItem) (rest : List Byte) (O : Nat)
     (hO : O < bs.length)
     (hbsO : bs[O]'hO = (encode head)[0]'(encode_nonempty head))
-    (hsplit : bs.drop O = encode head ++ encode.encodeItems tail)
+    (hsplit : bs.drop O = encode head ++ rest)
     (hsize : itemPayloadCount head < 256 ^ 8)
     (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true) :
     regionLongWindow regionBase bs O hO := by
@@ -249,11 +249,14 @@ theorem unified_loop_spec_within
     -- the next-item pointer lands at offset `O + (encode head).length`
     have hnext : itemNextPtrRegion (bs[O]'hO) regionBase O bs
         = regionBase + BitVec.ofNat 64 (O + (encode head).length) := by
-      rw [hbsO]; exact encode_head_eq_itemNextPtrRegion head tail regionBase O bs hsplit hsizeHead
+      rw [hbsO]
+      exact encode_head_eq_itemNextPtrRegion head (encode.encodeItems tail) regionBase O bs
+        hsplit hsizeHead
     have hoverO : regionBase.toNat + O < 2 ^ 64 := by omega
     have hvalidO : isValidByteAccess (regionBase + BitVec.ofNat 64 O) = true := hwin O hO
     have hwinO : regionLongWindow regionBase bs O hO :=
-      regionLongWindow_of_split regionBase bs head tail O hO hbsO hsplit hsizeHead hwin
+      regionLongWindow_of_split regionBase bs head (encode.encodeItems tail) O hO hbsO hsplit
+        hsizeHead hwin
     cases tail with
     | nil =>
       have body := unified_body_spec_within regionBase v5Old v10 v11Old v12Old v14Old

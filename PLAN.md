@@ -1513,14 +1513,39 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (`signExtend13 (-152) = -152` by `decide`); scaffold/decoder disjointness via `dcr_none`
     (`ofProg_none_range_len`, n=36). **Directly the top-level list decoder** (the end pointer is the known
     input length). Built first try, axiom-clean, 0 sorry.
-  - **Next (step 4b — genuine top-level descent):** compose the single-item decoder (decode a `.list`
-    header → `x13 = payload ptr`, `x11 = payload len`) + `ADD x15 x13 x11` (set `x15 := endPtr`) + the
-    concrete length-driven loop, bridged by `list_item_payload_window` (#9033), proving a top-level
-    `decode (encode (.list items)) = some (.list items, [])` with the operational program validating the
-    sub-list structure. (Top-level ⇒ payload tail empty ⇒ step-3 closure applies.) **Later** — a
-    tail-general closure (`bs.drop O = encodeItems items ++ tail`; stride/window lemmas only read within
-    each item, so the byte tail is inert) for descent into interior sub-lists, then arbitrary depth
-    (bounded composition for the STF block/tx structure, or the explicit-stack generalization).
+  - ✅ **Step 4b — genuine top-level descent** (`UnifiedListDescendConcrete.lean`).
+    **`unified_list_descend_concrete_bridge`** has NO abstract hypotheses: the real RV64 program `[LBU
+    x5,x13,0] ++ unified_decoder_prog ++ [ADD x15 x13 x11]` (header, base..base+152) `++ [LBU x5,x13,0] ++
+    unified_decoder_prog ++ [ADD x13 x13 x11, BNE x13 x15 -152]` (loop, base+152..base+308) decodes a
+    *complete RLP list value* `encode (.list items)` from `bytesRegion` — descending the `.list` header
+    (→ `x13 = payloadPtr`, `x11 = payloadLen`), computing `x15 := endPtr = payloadPtr + payloadLen` via
+    `ADD`, then running the concrete length-driven loop over the payload — in `62 + 63 * items.length`
+    steps, AND coincides with the pure `decode (encode (.list items)) = some (.list items, [])`. Bridged
+    by `list_item_payload_window` (#9033) with `tail = []` (top-level ⇒ payload is the exact suffix
+    `bs.drop payloadOff = encode.encodeItems items`); header window via `regionLongWindow_of_split`; loop
+    via `unified_lenloop_spec_within` at offset `payloadOff`. The two decoder copies' cross-disjointness
+    is discharged manually (`ofProg_none_range_len` + `Disjoint.*` + a new `ofProg_disjoint_ofProg`
+    helper) — `crDisjoint` over two `ofProg`s times out. The heavy `unified_lenloop_spec_within`
+    application is extracted into a private `descend_loop_triple` so it elaborates in a clean local
+    context (inside the main theorem's large context it provokes an unbounded `whnf`). Axiom-clean, 0
+    sorry, 0 warnings.
+  - ✅ **Step 5 — tail-general closure + interior descent** (`UnifiedListDescendConcrete.lean` et al.).
+    Generalized `unified_lenloop_spec_within` to `bs.drop O = encode.encodeItems items ++ btail` (the
+    stride/window glue — `encode_head_eq_itemNextPtrRegion`, `regionLongWindow_of_split`, and the private
+    `long_lenBytes_in_region` — now take an arbitrary byte suffix `rest : List Byte`, since they only use
+    that `encode head` is a prefix; the byte tail is inert). Then generalized
+    **`unified_list_descend_concrete_bridge`** itself to take a trailing `tail : List Byte`: the program
+    decodes a `.list` value embedded at the front of `encode (.list items) ++ tail`, stopping at the
+    sub-list boundary and leaving `tail` unread, in `62 + 63 * items.length` steps, coinciding with the
+    pure `decode (encode (.list items) ++ tail) = some (.list items, tail)` (via the existing
+    `decode_encode_append`). The buffer-vs-value first byte is bridged by `List.getElem_append_left`
+    (`(encode (.list items) ++ tail)[0] = (encode (.list items))[0]`). `tail = []` recovers the top-level
+    case. Concrete examples for both `tail = []` and `tail = [0xFF]` (`[0xc2,0x01,0x02,0xFF]` ⇒
+    `(.list …, [0xFF])`). Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. **This is the recursive
+    step toward arbitrary depth** (interior sub-lists with trailing siblings).
+  - **Next (arbitrary depth):** with a tail-tolerant one-level descent in hand, compose descents for
+    nested-of-nested (`.list` whose items include further `.list`s) — bounded composition for the
+    concrete STF block/tx shape, or the explicit-stack generalization.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

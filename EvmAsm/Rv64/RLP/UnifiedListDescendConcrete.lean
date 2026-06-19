@@ -1,0 +1,348 @@
+/-
+  EvmAsm.Rv64.RLP.UnifiedListDescendConcrete
+
+  EL.3 / Phase 5 — the fully CONCRETE top-level RLP list DESCENT. A real RV64
+  program decodes a complete RLP list value `encode (.list items)` by descending
+  through the list header into its payload, coinciding with the pure `decode`.
+  This is the realistic top-level decode (the input IS a list value, e.g. a
+  block). It composes three pieces:
+
+      base        LBU  x5, x13, 0          ; load list prefix bs[0]
+      base+4      < unified_decoder_prog : 36 instr >   → x13 = payloadPtr, x11 = payloadLen
+      base+148    ADD  x15, x13, x11        ; x15 := endPtr = payloadPtr + payloadLen
+      base+152    LBU  x5, x13, 0           ; length-driven loop (lbase = base+152)
+      base+156    < unified_decoder_prog : 36 instr >   (loop decoder)
+      base+300    ADD  x13, x13, x11        ; loop joinPC
+      base+304    BNE  x13, x15, -152       ; loop back to base+152
+      base+308    (exit)
+
+  The descend-one-level window (`list_item_payload_window`) bridges the header
+  output to the loop precondition: for a top-level list the window IS the payload
+  `encode.encodeItems items`. The header is decoded by `unified_decoder_spec`; the
+  end pointer is `ADD x15 x13 x11`; the payload by the length-driven loop.
+-/
+
+import EvmAsm.Rv64.RLP.NestedDescendOne
+import EvmAsm.Rv64.RLP.UnifiedLenLoop
+import EvmAsm.Rv64.RLP.UnifiedDecoderConcrete
+import EvmAsm.Rv64.Tactics.SeqFrame
+import EvmAsm.Rv64.Tactics.ExtractPure
+import EvmAsm.Rv64.Tactics.XPermPure
+
+namespace EvmAsm.Rv64.RLP
+
+open EvmAsm.Rv64
+open EvmAsm.EL.RLP
+open EvmAsm.Rv64.Tactics
+
+/-- `(regionBase + ofNat a) + ofNat b = regionBase + ofNat (a + b)`. -/
+private theorem region_ptr_add (regionBase : Word) (a b : Nat) :
+    (regionBase + BitVec.ofNat 64 a) + BitVec.ofNat 64 b = regionBase + BitVec.ofNat 64 (a + b) := by
+  rw [BitVec.add_assoc]; congr 1; apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.add_mod_mod, Nat.mod_add_mod]
+
+/-- Two programs at non-overlapping address ranges have disjoint code requirements. -/
+private theorem ofProg_disjoint_ofProg (b1 b2 : Word) (p1 p2 : List Instr) (n1 n2 : Nat)
+    (h1 : p1.length = n1) (h2 : p2.length = n2)
+    (hsep : ∀ k1, k1 < n1 → ∀ k2, k2 < n2 →
+      b1 + BitVec.ofNat 64 (4 * k1) ≠ b2 + BitVec.ofNat 64 (4 * k2)) :
+    (CodeReq.ofProg b1 p1).Disjoint (CodeReq.ofProg b2 p2) := by
+  intro a
+  by_cases hin : ∀ k, k < n1 → a ≠ b1 + BitVec.ofNat 64 (4 * k)
+  · exact Or.inl (CodeReq.ofProg_none_range_len b1 p1 n1 a h1 hin)
+  · push Not at hin
+    obtain ⟨k, hk, rfl⟩ := hin
+    exact Or.inr (CodeReq.ofProg_none_range_len b2 p2 n2 _ h2
+      (fun k2 hk2 => hsep k hk k2 hk2))
+
+/-- **The payload loop, isolated.** The length-driven loop at `base + 152` decodes
+    the payload `encode.encodeItems items` (the suffix `bs.drop payloadOff` of the
+    full list encoding) in `63 * items.length` steps. Extracted into its own
+    declaration so the (heavy) `unified_lenloop_spec_within` application elaborates
+    in a clean local context — applying it inside the main descent theorem's large
+    context provokes an unbounded `whnf`. The scratch registers `x5/x10/x11/x12/x14`
+    are arbitrary (the loop only reads `x13`/`x15`). -/
+private theorem descend_loop_triple
+    (base regionBase : Word) (items : List RLPItem) (tail : List Byte) (payloadOff : Nat)
+    (v5' v10' v11' v12' v14' : Word)
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + (encode (.list items) ++ tail).length < 2 ^ 64)
+    (hwin : ∀ i, i < (encode (.list items) ++ tail).length →
+       isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hitems_ne : items ≠ [])
+    (hdpay : (encode (.list items) ++ tail).drop payloadOff = encode.encodeItems items ++ tail) :
+    cpsTripleWithin (63 * items.length) (base + 152) (base + 308)
+      ((((CodeReq.singleton (base + 152) (.LBU .x5 .x13 0)).union
+          (CodeReq.ofProg (base + 156) unified_decoder_prog)).union
+          (CodeReq.singleton (base + 300) (.ADD .x13 .x13 .x11))).union
+          ((CodeReq.singleton (base + 300 + 4) (.BNE .x13 .x15 (-152))).union CodeReq.empty))
+      ((.x5 ↦ᵣ v5') ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10') ** (.x11 ↦ᵣ v11') **
+       (.x12 ↦ᵣ v12') ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 payloadOff)) ** (.x14 ↦ᵣ v14') **
+       (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 (payloadOff + (encode.encodeItems items).length))) **
+       bytesRegion regionBase (encode (.list items) ++ tail))
+      (unified_lenloop_post regionBase (encode (.list items) ++ tail)
+        (regionBase + BitVec.ofNat 64 (payloadOff + (encode.encodeItems items).length))) := by
+  have dcr_none_l : ∀ (a : Word),
+      (∀ k, k < 36 → a ≠ (base + 156) + BitVec.ofNat 64 (4 * k)) →
+      CodeReq.ofProg (base + 156) unified_decoder_prog a = none :=
+    fun a h => CodeReq.ofProg_none_range_len (base + 156) unified_decoder_prog 36 a
+      unified_decoder_prog_length h
+  have decoderH_loop : UnifiedDecoderH regionBase (base + 156) (base + 300)
+      (CodeReq.ofProg (base + 156) unified_decoder_prog) (encode (.list items) ++ tail) := by
+    intro i hi v10'' v11'' v12'' v14'' hwindow
+    have hd := unified_decoder_spec (base + 156) regionBase (encode (.list items) ++ tail) i hi
+      v10'' v11'' v12'' v14'' halign hover hwindow
+    rwa [show (base + 156) + 144 = base + 300 from by bv_omega] at hd
+  have hback_loop : (base + 300 + 4) + signExtend13 (-152 : BitVec 13) = base + 152 := by
+    have h152 : signExtend13 (-152 : BitVec 13) = (-152 : Word) := by decide
+    rw [h152]; bv_omega
+  have t_loop := unified_lenloop_spec_within regionBase (base + 152) (base + 300) (base + 156)
+    (CodeReq.ofProg (base + 156) unified_decoder_prog) (-152) (encode (.list items) ++ tail)
+    halign hover (by bv_omega) decoderH_loop hback_loop (by bv_omega) (by bv_omega)
+    (CodeReq.Disjoint.singleton_ofProg (dcr_none_l (base + 152) (by intro k hk; bv_omega)))
+    (CodeReq.Disjoint.ofProg_singleton (dcr_none_l (base + 300) (by intro k hk; bv_omega)))
+    (CodeReq.Disjoint.ofProg_singleton (dcr_none_l (base + 300 + 4) (by intro k hk; bv_omega)))
+    items payloadOff tail v5' v10' v11' v12' v14'
+    hitems_ne hdpay hwin
+  rwa [show base + 300 + 8 = base + 308 from by bv_omega] at t_loop
+
+set_option maxRecDepth 8000 in
+/-- **Concrete RLP list descent (interior-general).** The program at `base` decodes
+    a complete list value `encode (.list items)` embedded at the front of the buffer
+    `encode (.list items) ++ tail` from `bytesRegion` — descending the header into
+    the payload via the length-driven loop, stopping at the sub-list boundary and
+    leaving `tail` unread — in `62 + 63 * items.length` steps, and the pure decoder
+    recovers exactly `(.list items, tail)`. `tail = []` is the top-level case. No
+    abstract hypotheses remain. -/
+theorem unified_list_descend_concrete_bridge
+    (base regionBase : Word) (items : List RLPItem) (tail : List Byte)
+    (v5Old v10 v11Old v12Old v14Old v15Old : Word)
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + (encode (.list items) ++ tail).length < 2 ^ 64)
+    (hwin : ∀ i, i < (encode (.list items) ++ tail).length →
+       isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hsize : (encode (.list items)).length < 256 ^ 8)
+    (hitems_ne : items ≠ []) :
+    cpsTripleWithin (62 + 63 * items.length) base (base + 308)
+      ((((((CodeReq.singleton base (.LBU .x5 .x13 0)).union
+            (CodeReq.ofProg (base + 4) unified_decoder_prog)).union
+            (CodeReq.singleton (base + 148) (.ADD .x15 .x13 .x11))).union
+            ((((CodeReq.singleton (base + 152) (.LBU .x5 .x13 0)).union
+              (CodeReq.ofProg (base + 156) unified_decoder_prog)).union
+              (CodeReq.singleton (base + 300) (.ADD .x13 .x13 .x11))).union
+              ((CodeReq.singleton (base + 300 + 4) (.BNE .x13 .x15 (-152))).union CodeReq.empty)))))
+      ((.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ regionBase) ** (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ v15Old) **
+       bytesRegion regionBase (encode (.list items) ++ tail))
+      (unified_lenloop_post regionBase (encode (.list items) ++ tail)
+        (regionBase + BitVec.ofNat 64 (encode (.list items)).length))
+    ∧ decode (encode (.list items) ++ tail) = some (.list items, tail) := by
+  refine ⟨?_, decode_encode_append (.list items) tail hsize⟩
+  -- The whole input region `encode (.list items) ++ tail`.
+  have hbs0 : 0 < (encode (.list items) ++ tail).length := by
+    rw [List.length_append]; have := encode_nonempty (RLPItem.list items); omega
+  -- the buffer's first byte is the list value's first byte (the trailer is past it)
+  have hbs_head : (encode (.list items) ++ tail)[0]'hbs0
+      = (encode (.list items))[0]'(encode_nonempty (RLPItem.list items)) :=
+    List.getElem_append_left (encode_nonempty (RLPItem.list items))
+  set bz := ((encode (.list items) ++ tail)[0]'hbs0).zeroExtend 64 with hbz
+  have hsize' : (encode.encodeItems items).length < 256 ^ 8 := by
+    have hle : (encode.encodeItems items).length ≤ (encode (.list items)).length := by
+      by_cases h : (encode.encodeItems items).length ≤ 55
+      · rw [encode_list_short items h]; simp only [List.length_cons]; omega
+      · rw [encode_list_long items (by omega)]
+        simp only [List.length_cons, List.length_append]; omega
+    omega
+  -- the payload window (interior: the trailer `tail` follows the list value)
+  obtain ⟨payloadOff, hptr, hlen, hdpay⟩ :=
+    list_item_payload_window items tail regionBase 0 (encode (.list items) ++ tail) (by simp) hsize'
+  -- align the getElem proof term with the buffer's `bs[0]`
+  rw [show ((encode (.list items))[0]'(encode_nonempty (RLPItem.list items)))
+        = ((encode (.list items) ++ tail)[0]'hbs0) from hbs_head.symm] at hptr hlen
+  -- the header's region window obligation (head = .list items, rest = tail)
+  have hwindow0 : regionLongWindow regionBase (encode (.list items) ++ tail) 0 hbs0 :=
+    regionLongWindow_of_split regionBase (encode (.list items) ++ tail) (.list items) tail 0 hbs0
+      hbs_head (by simp) (by simpa [itemPayloadCount] using hsize') hwin
+  -- payloadOff + payloadLen = list-value length (the trailer cancels)
+  have hpayne : (encode.encodeItems items).length ≠ 0 := by
+    cases items with
+    | nil => exact absurd rfl hitems_ne
+    | cons h t =>
+      have := encode_nonempty h
+      simp only [encode.encodeItems, List.length_append]; omega
+  have hpoff_le : payloadOff + (encode.encodeItems items).length = (encode (.list items)).length := by
+    have e := congrArg List.length hdpay
+    simp only [List.length_drop, List.length_append] at e; omega
+  have hr0 : regionBase + BitVec.ofNat 64 0 = regionBase := by simp
+  have hover0 : regionBase.toNat + 0 < 2 ^ 64 := by omega
+  have hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 0) = true := hwin 0 hbs0
+  have dcr_none4 : ∀ (a : Word),
+      (∀ k, k < 36 → a ≠ (base + 4) + BitVec.ofNat 64 (4 * k)) →
+      CodeReq.ofProg (base + 4) unified_decoder_prog a = none :=
+    fun a h => CodeReq.ofProg_none_range_len (base + 4) unified_decoder_prog 36 a
+      unified_decoder_prog_length h
+  -- t_header : LBU x5,x13,0 ; unified_decoder_prog  (decode the list header)
+  have lbu_raw := bytesRegion_lbu_within .x5 .x13 regionBase v5Old base
+    (encode (.list items) ++ tail) 0 (by decide) halign hbs0 hover0 hvalid0
+  have s_lbu : cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LBU .x5 .x13 0))
+      ((.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 0)) ** (.x14 ↦ᵣ v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase (encode (.list items) ++ tail))
+      ((.x5 ↦ᵣ bz) ** (.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 0)) ** (.x14 ↦ᵣ v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase (encode (.list items) ++ tail)) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR
+        ((.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) ** (.x12 ↦ᵣ v12Old) **
+         (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ v15Old))
+        (by pcFree) lbu_raw)
+  have dec_raw := unified_decoder_spec (base + 4) regionBase (encode (.list items) ++ tail) 0 hbs0
+    v10 v11Old v12Old v14Old halign hover hwindow0
+  rw [show (base + 4) + 144 = base + 148 from by bv_omega] at dec_raw
+  have s_dec : cpsTripleWithin 60 (base + 4) (base + 148)
+      (CodeReq.ofProg (base + 4) unified_decoder_prog)
+      ((.x5 ↦ᵣ bz) ** (.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 0)) ** (.x14 ↦ᵣ v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase (encode (.list items) ++ tail))
+      ((.x5 ↦ᵣ bz) ** (.x0 ↦ᵣ (0:Word)) **
+       (.x10 ↦ᵣ itemResidue ((encode (.list items) ++ tail)[0]'hbs0)) **
+       (.x11 ↦ᵣ itemLenRegion ((encode (.list items) ++ tail)[0]'hbs0)
+          (encode (.list items) ++ tail) 0) **
+       (.x12 ↦ᵣ itemX12Region ((encode (.list items) ++ tail)[0]'hbs0)
+          (encode (.list items) ++ tail) 0 v12Old) **
+       (.x13 ↦ᵣ itemPtrRegion ((encode (.list items) ++ tail)[0]'hbs0) regionBase 0) **
+       (.x14 ↦ᵣ itemX14 ((encode (.list items) ++ tail)[0]'hbs0) v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase (encode (.list items) ++ tail)) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR (.x15 ↦ᵣ v15Old) (by pcFree) dec_raw)
+  have t_header := cpsTripleWithin_seq
+    (CodeReq.Disjoint.singleton_ofProg (dcr_none4 base (by intro k hk; bv_omega))) s_lbu s_dec
+  -- t_add : ADD x15, x13, x11 — compute endPtr = payloadPtr + payloadLen
+  have add_raw := add_spec_gen_within .x15 .x13 .x11
+    (itemPtrRegion ((encode (.list items) ++ tail)[0]'hbs0) regionBase 0)
+    (itemLenRegion ((encode (.list items) ++ tail)[0]'hbs0) (encode (.list items) ++ tail) 0)
+    v15Old (base + 148) (by decide)
+  rw [show (base + 148) + 4 = base + 152 from by bv_omega] at add_raw
+  have s_add : cpsTripleWithin 1 (base + 148) (base + 152)
+      (CodeReq.singleton (base + 148) (.ADD .x15 .x13 .x11))
+      ((.x5 ↦ᵣ bz) ** (.x0 ↦ᵣ (0:Word)) **
+       (.x10 ↦ᵣ itemResidue ((encode (.list items) ++ tail)[0]'hbs0)) **
+       (.x11 ↦ᵣ itemLenRegion ((encode (.list items) ++ tail)[0]'hbs0)
+          (encode (.list items) ++ tail) 0) **
+       (.x12 ↦ᵣ itemX12Region ((encode (.list items) ++ tail)[0]'hbs0)
+          (encode (.list items) ++ tail) 0 v12Old) **
+       (.x13 ↦ᵣ itemPtrRegion ((encode (.list items) ++ tail)[0]'hbs0) regionBase 0) **
+       (.x14 ↦ᵣ itemX14 ((encode (.list items) ++ tail)[0]'hbs0) v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase (encode (.list items) ++ tail))
+      ((.x5 ↦ᵣ bz) ** (.x0 ↦ᵣ (0:Word)) **
+       (.x10 ↦ᵣ itemResidue ((encode (.list items) ++ tail)[0]'hbs0)) **
+       (.x11 ↦ᵣ BitVec.ofNat 64 (encode.encodeItems items).length) **
+       (.x12 ↦ᵣ itemX12Region ((encode (.list items) ++ tail)[0]'hbs0)
+          (encode (.list items) ++ tail) 0 v12Old) **
+       (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 payloadOff)) **
+       (.x14 ↦ᵣ itemX14 ((encode (.list items) ++ tail)[0]'hbs0) v14Old) **
+       (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 (payloadOff + (encode.encodeItems items).length))) **
+       bytesRegion regionBase (encode (.list items) ++ tail)) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by rw [hptr, hlen, region_ptr_add] at hp; xperm_hyp hp)
+      (cpsTripleWithin_frameR
+        ((.x5 ↦ᵣ bz) ** (.x0 ↦ᵣ (0:Word)) **
+         (.x10 ↦ᵣ itemResidue ((encode (.list items) ++ tail)[0]'hbs0)) **
+         (.x12 ↦ᵣ itemX12Region ((encode (.list items) ++ tail)[0]'hbs0)
+            (encode (.list items) ++ tail) 0 v12Old) **
+         (.x14 ↦ᵣ itemX14 ((encode (.list items) ++ tail)[0]'hbs0) v14Old) **
+         bytesRegion regionBase (encode (.list items) ++ tail))
+        (by pcFree) add_raw)
+  have t_ha := cpsTripleWithin_seq
+    (CodeReq.Disjoint.union_left (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.ofProg_singleton (dcr_none4 (base + 148) (by intro k hk; bv_omega))))
+    t_header s_add
+  -- t_loop : the length-driven loop on the payload, at offset payloadOff
+  have dcr_none_l : ∀ (a : Word),
+      (∀ k, k < 36 → a ≠ (base + 156) + BitVec.ofNat 64 (4 * k)) →
+      CodeReq.ofProg (base + 156) unified_decoder_prog a = none :=
+    fun a h => CodeReq.ofProg_none_range_len (base + 156) unified_decoder_prog 36 a
+      unified_decoder_prog_length h
+  have t_loop := descend_loop_triple base regionBase items tail payloadOff bz
+    (itemResidue ((encode (.list items) ++ tail)[0]'hbs0))
+    (BitVec.ofNat 64 (encode.encodeItems items).length)
+    (itemX12Region ((encode (.list items) ++ tail)[0]'hbs0) (encode (.list items) ++ tail) 0 v12Old)
+    (itemX14 ((encode (.list items) ++ tail)[0]'hbs0) v14Old)
+    halign hover hwin hitems_ne hdpay
+  -- the header/ADD code is disjoint from the loop code (non-overlapping ranges)
+  have hd_big :
+      ((((CodeReq.singleton base (.LBU .x5 .x13 0)).union
+          (CodeReq.ofProg (base + 4) unified_decoder_prog)).union
+          (CodeReq.singleton (base + 148) (.ADD .x15 .x13 .x11)))).Disjoint
+        ((((CodeReq.singleton (base + 152) (.LBU .x5 .x13 0)).union
+          (CodeReq.ofProg (base + 156) unified_decoder_prog)).union
+          (CodeReq.singleton (base + 300) (.ADD .x13 .x13 .x11))).union
+          ((CodeReq.singleton (base + 300 + 4) (.BNE .x13 .x15 (-152))).union CodeReq.empty)) :=
+    CodeReq.Disjoint.union_left
+      (CodeReq.Disjoint.union_left
+        -- LBU @ base  ⊥  loop CR
+        (CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.union_right
+            (CodeReq.Disjoint.union_right
+              (CodeReq.Disjoint.singleton (by bv_omega))
+              (CodeReq.Disjoint.singleton_ofProg (dcr_none_l base (by intro k hk; bv_omega))))
+            (CodeReq.Disjoint.singleton (by bv_omega)))
+          (CodeReq.Disjoint.union_right
+            (CodeReq.Disjoint.singleton (by bv_omega)) (CodeReq.Disjoint.empty_right _)))
+        -- ofProg (base+4)  ⊥  loop CR
+        (CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.union_right
+            (CodeReq.Disjoint.union_right
+              (CodeReq.Disjoint.ofProg_singleton (dcr_none4 (base + 152) (by intro k hk; bv_omega)))
+              (ofProg_disjoint_ofProg (base + 4) (base + 156) _ _ 36 36
+                unified_decoder_prog_length unified_decoder_prog_length
+                (by intro k1 hk1 k2 hk2; bv_omega)))
+            (CodeReq.Disjoint.ofProg_singleton (dcr_none4 (base + 300) (by intro k hk; bv_omega))))
+          (CodeReq.Disjoint.union_right
+            (CodeReq.Disjoint.ofProg_singleton (dcr_none4 (base + 300 + 4) (by intro k hk; bv_omega)))
+            (CodeReq.Disjoint.empty_right _))))
+      -- ADD @ base+148  ⊥  loop CR
+      (CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.union_right
+            (CodeReq.Disjoint.singleton (by bv_omega))
+            (CodeReq.Disjoint.singleton_ofProg (dcr_none_l (base + 148) (by intro k hk; bv_omega))))
+          (CodeReq.Disjoint.singleton (by bv_omega)))
+        (CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.singleton (by bv_omega)) (CodeReq.Disjoint.empty_right _)))
+  have composed := cpsTripleWithin_seq hd_big t_ha t_loop
+  rw [hr0, hpoff_le] at composed
+  exact composed
+
+-- Top-level cross-check (`tail = []`): the program at `base = 0x1000` decodes the
+-- complete list value `[0x01, 0x02]` (`encode = [0xc2, 0x01, 0x02]`) from the region
+-- at `0x2000`, descending the `0xc2` header into its 2-byte payload, in
+-- `62 + 63 * 2 = 188` steps — pure `decode` recovers `(.list […], [])`.
+example :=
+  unified_list_descend_concrete_bridge (0x1000 : Word) (0x2000 : Word)
+    [.bytes [(0x01 : Byte)], .bytes [(0x02 : Byte)]] [] 0 0 0 0 0 0
+    (by decide) (by decide)
+    (by intro i hi
+        have hlen : (encode (.list
+            [.bytes [(0x01 : Byte)], .bytes [(0x02 : Byte)]]) ++ ([] : List Byte)).length = 3 := by
+          decide
+        rw [hlen] at hi; interval_cases i <;> decide)
+    (by decide) (by decide)
+
+-- Interior cross-check (`tail = [0xFF]`): the SAME list value embedded in a larger
+-- buffer `[0xc2, 0x01, 0x02, 0xFF]` — the program descends the sub-list, stops at the
+-- boundary leaving the `0xFF` sibling unread, and pure `decode` recovers
+-- `(.list […], [0xFF])`.
+example :=
+  unified_list_descend_concrete_bridge (0x1000 : Word) (0x2000 : Word)
+    [.bytes [(0x01 : Byte)], .bytes [(0x02 : Byte)]] [(0xFF : Byte)] 0 0 0 0 0 0
+    (by decide) (by decide)
+    (by intro i hi
+        have hlen : (encode (.list
+            [.bytes [(0x01 : Byte)], .bytes [(0x02 : Byte)]]) ++ [(0xFF : Byte)]).length = 4 := by
+          decide
+        rw [hlen] at hi; interval_cases i <;> decide)
+    (by decide) (by decide)
+
+end EvmAsm.Rv64.RLP
