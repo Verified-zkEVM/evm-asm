@@ -1598,14 +1598,25 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (`ADDI x14 x11 0` to move the length into the loop's count register, `ADDI x11 x0 0` to zero the
     accumulator). Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `[0x01,0x02,0x03] →
     0x010203` example.
-  - **Next (full scalar field decode → field walk → schema decoders):** compose `unified_decoder_spec` ⨾
-    `unified_field_scalar_read`, coinciding with the pure `decodeScalar (bs.drop O) = some (Nat.fromBytesBE
-    data, rest)` (needs a small `.bytes`-payload-window lemma). Then a per-field walk (decode + value-read +
-    stride) over a fixed schema → concrete STF transaction (9 fields) / header (~19 fields) decoders
-    producing the `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) / zero-length
-    scalars (`n = 0`) need multi-word / byte-copy / branch variants. (The 3-sibling sub-list walk — block's
-    `[header, txs, ommers]` framing via repeated `…_at_regOwn` + `descend_cr_disjoint` — is trivial glue,
-    deferred until the schema decoders need it.)
+  - ✅ **Step 9 — full scalar field decode** (`UnifiedScalarFieldDecode.lean`).
+    **`bytes_item_payload_window`** (the `.bytes` analog of `list_item_payload_window`): for a short `.bytes
+    data` item at offset `O`, the decoder's window (`itemPtrRegion`/`itemLenRegion`) points exactly at
+    `data` (singleByte + shortBytes cases). **`unified_scalar_field_decode`**: composes
+    `unified_list_header_descend` (the general LBU+decoder item-header step) ⨾ `unified_field_scalar_read`,
+    so from `x13 = regionBase + ofNat O` (a `.bytes data` field, `1 ≤ data.length ≤ 8`) the program decodes
+    the header then reads the payload BE, leaving `x11 = Nat.fromBytesBE data` (the field value) and `x13`
+    at the next field (offset `O + (encode (.bytes data)).length`), in `63 + 6*data.length` steps —
+    coinciding with the pure `decodeScalar (bs.drop O) = some (Nat.fromBytesBE data, tail)`. Clobbered
+    scratch (`x5/x10/x12/x14`) is abstracted to `regOwn` in the post (chainable). Two integration details
+    (both already seen in the descents): the value-read's `(base+148)+k` addresses are `rw`-normalized to
+    `base+N`, and the `frameR`'d post is a `(6-group) ** (3-group)` so the `regOwn` conversion is a per-group
+    `sepConj_mono`. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `0x2a → 42` example.
+  - **Next (field walk → schema decoders):** chain `unified_scalar_field_decode` across a fixed schema (each
+    leaves `x13` at the next field — the free stride), threading the `regOwn` scratch (needs a `regOwn`-pre
+    field-decode variant, à la `…_at_regOwn`) and writing each value out → concrete STF transaction (9
+    fields) / header (~19 fields) decoders producing the `BlockInput`. Wide scalars (uint256) / byte-arrays
+    (20/32-byte address/hash) / zero-length scalars (`n = 0`) need multi-word / byte-copy / branch variants.
+    (The 3-sibling block framing walk via `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
