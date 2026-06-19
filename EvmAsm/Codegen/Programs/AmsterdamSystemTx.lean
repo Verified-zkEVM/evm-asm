@@ -29,8 +29,9 @@ def amsterdamBlocksPerYear : Nat := 2628000
 def amsterdamTargetStateGrowthPerYear : Nat := 100 * 1024 ^ 3      -- 107_374_182_400
 def amsterdamCostPerStateByteOffset : Nat := 9578
 def amsterdamCostPerStateByteSignificantBits : Nat := 5
-/-- EIP-8037 `STATE_BYTES_PER_NEW_ACCOUNT` (current = 112; the guest's legacy 120 is stale). -/
-def amsterdamStateBytesPerNewAccountV2 : Nat := 112
+/-- `STATE_BYTES_PER_NEW_ACCOUNT` for the v0.4.0 conformance target = 120 (gas.py:31). (A later eip-8037
+    draft lowers this to 112, but the v0.4.0 fixtures — header.gas_used = 184*1530 = 281520 — use 120.) -/
+def amsterdamStateBytesPerNewAccountV2 : Nat := 120
 
 /-- `state_gas_per_byte(gas_limit)` (EIP-8037). Nat subtraction gives `max(bit_length-bits, 0)` for free. -/
 def amsterdamStateGasPerByte (gasLimit : Nat) : Nat :=
@@ -45,7 +46,9 @@ def amsterdamStateGasPerByte (gasLimit : Nat) : Nat :=
 -- Verify against the spec's documented anchor (1174 at 100M) + the legacy-mismatch (!= 1530).
 #guard amsterdamStateGasPerByte 100000000 = 1174
 #guard amsterdamStateGasPerByte 100000000 ≠ 1530
-#guard amsterdamStateBytesPerNewAccountV2 = 112
+#guard amsterdamStateBytesPerNewAccountV2 = 120
+#guard amsterdamStateBytesPerNewAccountV2 * amsterdamCostPerStateByte = 183600   -- new-account state gas (v0.4.0)
+#guard (120 + 64) * amsterdamCostPerStateByte = 281520  -- new-account + one SSTORE = create_state_gas header.gas_used
 
 /-- Asm helper `state_gas_per_byte` (a0 = block gas_limit -> a0 = cost), mirroring the verified
     `amsterdamStateGasPerByte`. Pure arithmetic, no sub-calls; clobbers t0-t6 + a0. The block verdict
@@ -109,17 +112,14 @@ def amsterdamAuthStateGasPerAuth : Nat :=
 def amsterdamSystemStateGasReservoir : Nat :=
   amsterdamStorageSetStateGas * amsterdamSystemMaxSstoresPerCall
 
-/-- drj99.1.2: emit `reg = bytes * evm_state_gas_per_byte` (the EIP-8037 RUNTIME state-gas cost), replacing
-    the legacy `li reg, bytes*1530`. Uses t0 as a saved/restored scratch (no caller passes t0 as `reg`), so
-    net it only writes `reg` (+ a balanced stack push/pop). evm_state_gas_per_byte is set once per block by
-    the verdict from `state_gas_per_byte(header.gas_limit)`. -/
+/-- Emit `li reg, bytes * COST_PER_STATE_BYTE` (the v0.4.0 state-gas charge). The conformance target
+    (execution-specs tag `tests-zkevm@v0.4.0`) hardcodes `COST_PER_STATE_BYTE = 1530` (a CONSTANT — the
+    scaling `state_gas_per_byte(gas_limit)` formula is a LATER eip-8037 draft and does NOT match the v0.4.0
+    fixtures, whose header.gas_used = block_state = 184*1530 = 281520 is independent of the block gas limit).
+    A previous refactor (drj99.1.2) made this a runtime `evm_state_gas_per_byte` load + multiply; that
+    regressed every state-gas charge for v0.4.0, so it is reverted to the constant. -/
 def liStateGasRuntime (reg : String) (bytes : Nat) : String :=
-  let tmp := if reg == "t0" then "t1" else "t0"   -- scratch != reg, saved/restored so callers are unaffected
-  "  addi sp, sp, -16\n  sd " ++ tmp ++ ", 0(sp)\n" ++
-  "  la " ++ tmp ++ ", evm_state_gas_per_byte\n  ld " ++ tmp ++ ", 0(" ++ tmp ++ ")\n" ++
-  "  li " ++ reg ++ ", " ++ toString bytes ++ "\n" ++
-  "  mul " ++ reg ++ ", " ++ reg ++ ", " ++ tmp ++ "\n" ++
-  "  ld " ++ tmp ++ ", 0(sp)\n  addi sp, sp, 16\n"
+  "  li " ++ reg ++ ", " ++ toString (bytes * amsterdamCostPerStateByte) ++ "\n"
 
 def liAmsterdamStorageSetStateGas (reg : String) : String :=
   liStateGasRuntime reg amsterdamStateBytesPerStorageSet               -- 64 * cost

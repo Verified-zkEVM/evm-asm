@@ -277,7 +277,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- POST-charge into child_env+624/632, so we preserve the pre-charge reservoir and subtract 183600
     -- from the used snapshot; incorporate_child_on_error then restores the exact pre-charge state and
     -- frame_return can also restore any regular-gas spill.
-    liStateGasRuntime "t0" 112 ++   -- drj99.1.2: create_account state gas = 112 * runtime cost (was 183600)
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- create_account state gas = 120 * 1530 = 183600 (v0.4.0)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n  mv t4, t2\n" ++
     "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
@@ -296,7 +296,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- frame_return restores those globals and restores any regular-gas spill to the parent;
     -- on child success the snapshot is unused and the charge stands.
     "  sd t4, 624(x20)\n" ++
-    "  ld t0, 632(x20)\n" ++ liStateGasRuntime "t1" 112 ++ "  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++   -- drj99.1.2: refund = same 112*cost
+    "  ld t0, 632(x20)\n" ++ liStateGasRuntime "t1" amsterdamStateBytesPerNewAccountV2 ++ "  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++   -- refund = same 120*1530
 
     -- drj99.1 part 2: credit child C's env+32 selfBalance with the endowment so the initcode's
     -- SELFBALANCE and its outgoing value-CALL debits operate on the real balance. call_frame_descend

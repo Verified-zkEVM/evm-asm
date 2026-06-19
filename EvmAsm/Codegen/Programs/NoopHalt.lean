@@ -56,6 +56,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- derived address. create_deployed_code_valid/create_record_code_effect preserve
       -- x13 (a3 mem base) and x14/x15 (per #8629); the validity result (a0) is consumed
       -- by bnez before create_record_code_effect clobbers a0.
+      -- drj99.1.7: shared deposit entry. The depth-aware STOP handler (stopHandlerCF) routes a
+      -- CREATE child frame that halts via STOP (initcode runs off the end / explicit 0x00) here
+      -- with x14=x15=0 (STOP = RETURN with empty data -> 0-byte deployed code). Without this, a
+      -- STOP-terminated create deposited nothing -> the created account's nonstorage effect was
+      -- never recorded (bv_fail=44 notfound) and the parent got success=1 instead of the address.
+      (if depthAware then ".Lcreate_deposit_from_halt_" ++ toString kind ++ ":\n" else "") ++
       "  add a0, x13, x14\n  mv a1, x15\n" ++
       "  jal ra, create_deployed_code_valid\n" ++
       "  bnez a0, .Lrr_crinv_" ++ toString kind ++ "\n" ++
@@ -80,7 +86,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
       -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
       -- the child gas_left). x15 <= MAX_CODE_SIZE (0x8000) so x15*1530 cannot overflow u64.
-      "  la t0, evm_state_gas_per_byte\n  ld t0, 0(t0)\n  mul t0, x15, t0\n" ++  -- drj99.1.2: code-deposit state gas = code_len * runtime cost (was 1530)
+      "  li t0, 1530\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE (v0.4.0 constant 1530)
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
       "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++                                  -- reservoir short: spill = charge - reservoir; reservoir = 0

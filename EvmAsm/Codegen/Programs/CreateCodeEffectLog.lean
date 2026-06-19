@@ -52,6 +52,14 @@ def execCodeEffectLogCap : Nat := 131072
     Clobbers t0-t6, a0; preserves s-regs (saved). -/
 def createRecordCodeEffectFunction : String :=
   "create_record_code_effect:\n" ++
+  -- drj99.1.7: an empty deployed code (len 0) is NOT a BAL code change. A CREATE whose initcode
+  -- halts via STOP / RETURN(0,0) deposits 0-byte code; the BAL records `codeChanges: []` for such
+  -- an account (only nonceChanges 0->1). Recording a (has_code_change=1, len 0) effect here adds a
+  -- spurious exec code-effect that the all-accounts code-consistency comparator (bv_fail=46) finds
+  -- unmatched by any BAL codeChange. Record nothing for empty code so the logs agree.
+  "  bnez a2, .Lcrce_nonempty\n" ++
+  "  li a0, 0\n  ret\n" ++
+  ".Lcrce_nonempty:\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   "  mv s0, a0                   # addr ptr (20B BE)\n" ++

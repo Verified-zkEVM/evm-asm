@@ -457,7 +457,7 @@ def callDescendFallThrough
     ".Lcd_nacc_charge_" ++ tag ++ ":\n" ++
     -- charge_state_gas(112 * runtime cost): drain evm_state_gas_left, spill remainder into the frame
     -- gas_left (568(x20)), OOG -> .exit_outofgas when both reservoirs short; state_gas_used += charge.
-    liStateGasRuntime "t0" 112 ++   -- drj99.1.2: new-account state gas = 112 * runtime cost (was 183600)
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- new-account state gas = 120 * 1530 = 183600 (v0.4.0)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
     "  bgeu t2, t0, .Lcd_nacc_res_" ++ tag ++ "\n" ++
     "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
