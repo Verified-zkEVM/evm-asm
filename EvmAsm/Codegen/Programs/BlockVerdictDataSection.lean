@@ -560,8 +560,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- follow-up tuple-merge comparator.
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
-  ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
+  -- a1vvy step 2: bv_system_storage_log (~77 MiB) is UNIONED into call_frame_arena
+  -- (emitted below) rather than allocated standalone. It is Phase-H-only — built
+  -- and consumed entirely within the block_state_root recompute (the count is
+  -- zeroed @BlockVerdictStateRoot:452, populated by BalAllAccountsTupleSequences /
+  -- BlockVerdictSystemStorageCapture, consumed @BlockVerdictStateRoot:498/541),
+  -- capturing system-contract writes FROM THE BAL, not live execution — so it is
+  -- dead during Phase-D dispatch when call_frame_arena is live. Same disjointness
+  -- as the basr pair. Frees another ~77 MiB of .data headroom.
   ".balign 8\n" ++
   "bv_system_storage_capture_status:\n  .zero 8\n" ++
   "bv_system_storage_capture_start:\n  .zero 8\n" ++
@@ -839,10 +845,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  "baap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++ "\n" ++
-  "baap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
-  "baap_storage_delete_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
-  "baap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
+  -- a1vvy step 3: baap_storage_desc/paths/delete_paths/values (~22 MiB) are
+  -- UNIONED into call_frame_arena (emitted below) to free the last .data headroom
+  -- for the vv4hr.3.4.2 full log-arena lift. They are Phase-H-only (referenced only
+  -- in BalAccountApplyPostFields / BlockVerdictSysChange / BlockVerdictStateRoot --
+  -- BAL post-field apply + system-change application within the state-root
+  -- recompute) and dead during Phase-D dispatch when call_frame_arena is live.
   "mdacc_leaf_path:\n  .zero 128\n" ++
   "mdacc_collapsed_path:\n  .zero 128\n" ++
   "bacp_off:\n  .zero 8\n" ++
@@ -865,18 +873,35 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baada_item_len:\n  .zero 8\n" ++
   "basr_records:\n  .zero " ++ toString (bsrMaxStateChanges * bsrAccountRecordBytes) ++
   "\nbasr_paths:\n  .zero " ++ toString (bsrMaxStateChanges * bsrPathBytes) ++
-  "\nbasr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
-  "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
-  -- .61.3.1, re-sized for the 200M block-gas target: the nested call-frame arena
-  -- is now a STANDALONE 1025*frameStride pre-zeroed block. It used to alias
-  -- basr_values+basr_accounts (the #8513 union, forced by the 1G-sized BAL arenas
-  -- leaving no free RAM), but at the 200M capacity that pair is ~49 MiB — smaller
-  -- than the ~164 MiB frame array — while the BAL downsize frees ~333 MiB, so the
-  -- arena gets its own region (and the basr_* execution-dead soundness gate is no
-  -- longer load-bearing). Fit pinned by `frameArray_and_balArenas_fit`
-  -- (CallFrameLayout.lean); ELF ground truth = readelf -lW top RW LOAD < 0xc0000000.
+  -- a1vvy (2026-06-18): REINSTATED #8513 union to reclaim ~49 MiB of .data
+  -- headroom for the 200M log/receipt capacity lifts (vv4hr.3.4.*). basr_values +
+  -- basr_accounts are block_state_root replay scratch, referenced ONLY in
+  -- BalAccountStateRoot/BlockVerdictStateRoot (Phase H: pre-dispatch state-root
+  -- recompute) and dead from the first tx dispatch onward (#8513 gate-verified:
+  -- no post-replay reader; re-confirmed 2026-06-18 — no Phase D/T reference).
+  -- call_frame_arena is referenced ONLY by CallFrameBase/Descend/Return (Phase D
+  -- dispatch). The phases are sequential with disjoint live windows, so the frame
+  -- array reuses the basr pair's space as a union. The size relation FLIPPED vs
+  -- #8513 (frame ~165 MiB > basr pair ~49 MiB at the 200M capacity), so instead of
+  -- the arena aliasing INTO the pair, the pair is coalesced into the FRONT of
+  -- call_frame_arena (both labels point inside the arena; the trailing .zero pads
+  -- to the full frameArrayBytes). basr_values/basr_accounts are reached via
+  -- independent `la`, so relocation is transparent; they stay 32-aligned and keep
+  -- their original contiguous delta. Fit + non-overlap pinned by
+  -- `frameArray_unions_basr_pair` (CallFrameLayout.lean); ELF ground truth =
+  -- readelf -lW top RW LOAD < 0xc0000000.
   "\n.balign 32\n" ++
-  "call_frame_arena:\n  .zero " ++ toString frameArrayBytes ++
+  "call_frame_arena:\n" ++
+  "basr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
+  -- a1vvy step 2: bv_system_storage_log unioned here too (offset 2*S, 32-aligned).
+  "\nbv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++
+  -- a1vvy step 3: the four baap_storage_* arenas unioned here (Phase-H, 32-aligned).
+  "\nbaap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++
+  "\nbaap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
+  "\nbaap_storage_delete_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
+  "\nbaap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
+  "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - bvSystemStorageLogBytes - (bsrMaxBalItems * baapStorageDescBytes) - 3 * (bsrMaxBalItems * bsrPathBytes)) ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
   ".balign 8\n" ++
   "rb_running_block_bloom:\n  .zero 256\n" ++

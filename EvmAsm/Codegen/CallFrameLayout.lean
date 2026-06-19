@@ -96,19 +96,28 @@ def sszScratchBase : Nat := 0xbf500000
 /-- Total bytes the pre-allocated frame array occupies. -/
 def frameArrayBytes : Nat := frameSlotCount * frameStride
 
-/-! ## Placement: standalone block after the BAL-replay arenas (200M layout)
+/-! ## Placement: the frame arena UNIONS the BAL-replay basr pair (a1vvy, 200M)
 
     ziskemu's RAM is 512 MiB (`0xa0000000..0xc0000000`). Under the former
     1G-sized BAL arenas (`bsrMaxBalItems = 500000`, ~416 MiB) there was no free
     window, so the frame arena *aliased* the contiguous, execution-dead
     `basr_values`+`basr_accounts` pair (the #8513 union, 244 MiB ≥ 164 MiB).
     The Amsterdam target is 200M block gas (`bsrMaxBalItems = 100000`), which
-    shrinks the BAL arenas to ~83 MiB — the basr pair (~49 MiB) can no longer
-    host the frame array, and the freed ~333 MiB means it no longer needs to:
-    `call_frame_arena` is a standalone pre-zeroed `.zero frameArrayBytes` block
-    emitted right after `basr_accounts` (`BlockVerdictDataSection.lean`), and
-    the execution-dead soundness gate on `basr_values`/`basr_accounts` is no
-    longer load-bearing. See `docs/call-frame-memory-layout.md` §5. -/
+    shrinks the BAL arenas to ~83 MiB; the union was retired (standalone arena)
+    while the BAL downsize left free RAM. The 200M log/receipt capacity lifts
+    (`vv4hr.3.4.*`) have since consumed that slack (measured `.data` headroom
+    fell to ~59 MiB), so a1vvy REINSTATES the union to reclaim ~49 MiB.
+
+    The size relation flipped: the frame array (`frameArrayBytes` ~165 MiB) is now
+    LARGER than the basr pair (~49 MiB), so the pair is coalesced into the FRONT
+    of `call_frame_arena` (`BlockVerdictDataSection.lean`) rather than the arena
+    aliasing into the pair. Soundness is the same execution-dead disjointness
+    #8513 established and is now load-bearing again: `basr_values`/`basr_accounts`
+    are referenced ONLY in `BalAccountStateRoot`/`BlockVerdictStateRoot` (Phase H,
+    pre-dispatch state-root recompute) with no post-replay reader, while
+    `call_frame_arena` is referenced ONLY by `CallFrameBase`/`Descend`/`Return`
+    (Phase D dispatch) — sequential, disjoint live windows. See
+    `docs/call-frame-memory-layout.md` §5. -/
 
 /-- Total bytes of all 200M-sized BAL/state-replay static arenas
     (`bsr_changes` + `basr_records/paths/values/accounts` +
@@ -136,6 +145,40 @@ theorem frameMeta_within_stride : frameMetaOff + frameMetaBytes ≤ frameStride 
 
 /-- 1025 slots cover depths 0..1024 inclusive. -/
 theorem frameSlotCount_eq : frameSlotCount = 1025 := by decide
+
+/-- **a1vvy union-fits gate (load-bearing):** the coalesced `basr_values` +
+    `basr_accounts` pair fits within the frame array, so placing both at the
+    front of `call_frame_arena` (with a trailing pad to `frameArrayBytes`) keeps
+    every frame slot inside the arena. The two basr arenas occupy distinct,
+    non-overlapping sub-ranges `[0, S)` and `[S, 2S)` where
+    `S = bsrMaxStateChanges * bsrEncodedAccountBytes`. Replaces the retired
+    `frameArray_fits_union` (which had the size relation the other way). -/
+theorem frameArray_unions_basr_pair :
+    2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) ≤ frameArrayBytes := by decide
+
+/-- **a1vvy step 2 union-fits gate (load-bearing):** the basr pair PLUS the
+    Phase-H `bv_system_storage_log` arena (block_state_root system-write capture,
+    dead during Phase-D dispatch) together fit within the frame array, so all
+    three foreign arenas occupy distinct non-overlapping sub-ranges at the front
+    of `call_frame_arena` (`[0,S)`, `[S,2S)`, `[2S, 2S+L)` with
+    `L = bvSystemStorageLogBytes`) and the trailing pad to `frameArrayBytes` stays
+    non-negative. -/
+theorem frameArray_unions_basr_and_syslog :
+    2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) + bvSystemStorageLogBytes
+      ≤ frameArrayBytes := by decide
+
+/-- **a1vvy step 3 union-fits gate (load-bearing):** the basr pair + the
+    `bv_system_storage_log` arena + the four Phase-H `baap_storage_*` arenas
+    (`baap_storage_desc` + 3 `* bsrPathBytes` path arenas) all fit within the
+    frame array, so the seven coalesced foreign arenas occupy distinct,
+    non-overlapping, 32-aligned sub-ranges at the front of `call_frame_arena`
+    with a non-negative trailing pad to `frameArrayBytes`. All seven are
+    Phase-H (state-root recompute) scratch, dead during the Phase-D dispatch
+    window when the frame array is live. -/
+theorem frameArray_unions_basr_syslog_baap :
+    2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) + bvSystemStorageLogBytes
+      + bsrMaxBalItems * baapStorageDescBytes + 3 * (bsrMaxBalItems * bsrPathBytes)
+      ≤ frameArrayBytes := by decide
 
 /-- **The fits proof that actually matters (200M layout):** the BAL/state-replay
     arenas (~83 MiB at the 200M capacity) plus the standalone 1025-slot frame

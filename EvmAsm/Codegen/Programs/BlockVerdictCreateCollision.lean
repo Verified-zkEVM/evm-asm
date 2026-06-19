@@ -38,7 +38,12 @@ def blockVerdictCreateCollisionBranch : String :=
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
-  bvReceiptsShapeSet 6 false ++
+  -- rmqwf (class D): enforce the receipts-root/bloom consensus check for top-level
+  -- CREATE collisions. The collision receipt gas is corrected in blockVerdictReceiptsTail
+  -- (shape==6 AND status==0 -> receipt = regular block_inc). The successful-creation
+  -- shape-6 branch (BlockVerdictCreationStage) stays enforce=false until it has fixture
+  -- coverage (top-level creations currently bail to the class-B dispatch shapes 60/61).
+  bvReceiptsShapeSet 6 true ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_creation_runtime_try:\n" ++
   "  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n" ++

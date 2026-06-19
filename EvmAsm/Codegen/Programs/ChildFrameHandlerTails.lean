@@ -236,16 +236,24 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- here). The created account's env+32 credit (init-code SELFBALANCE) is a follow-up.
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  addi a0, x20, 32\n" ++                            -- a0 = creator LIVE balance (env .selfBalance, BE)
+    -- env+32 (.selfBalance) is LITTLE-ENDIAN (byte 0 = LSB), same convention as CALLVALUE@96;
+    -- u256_sub_be is big-endian (byte 31 = LSB). The prior code fed env+32 STRAIGHT to u256_sub_be
+    -- -> byte-scrambled selfBalance debit (drj99.1 part 4). Reverse env[32..63] (LE) ->
+    -- create_creator_newbal (BE), subtract in place (a0==a2 byte-safe), reverse the result back.
+    "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
+    ".Lcr_sbrev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbrev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la a0, create_creator_newbal\n" ++               -- a0 = creator LIVE balance, now BE
     "  la a1, create_value_be\n" ++                      -- a1 = endowment (BE)
-    "  la a2, create_creator_newbal\n" ++                -- a2 = out (= balance - endowment)
+    "  la a2, create_creator_newbal\n" ++                -- a2 = out (in place = balance - endowment, BE)
     "  jal ra, u256_sub_be\n" ++
     "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  bnez t0, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- underflow -> skip
-    "  la t0, create_creator_newbal\n  addi t1, x20, 32\n" ++
-    "  ld t2, 0(t0)\n  sd t2, 0(t1)\n  ld t2, 8(t0)\n  sd t2, 8(t1)\n" ++
-    "  ld t2, 16(t0)\n  sd t2, 16(t1)\n  ld t2, 24(t0)\n  sd t2, 24(t1)\n" ++
+    -- reverse create_creator_newbal (BE) back into env+32 (LE)
+    "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+    ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full

@@ -26,6 +26,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxDecode2930
@@ -102,7 +103,7 @@ def seedTxAccessListFunction : String :=
   -- runtime_access_account_seed's expectation; the seed preserves s4..s9 (saves
   -- only s0..s3), so the slot loop below is intact. Idempotent / table-full safe.
   "  la a0, stal_token; la a1, evm_access_account_table\n" ++
-  "  la a2, evm_access_account_count; li a3, 64\n" ++
+  "  la a2, evm_access_account_count; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_seed\n" ++
   "  # entry field 1 = slots sub-list (list item -> item-start offset).\n" ++
   "  mv a0, s4; mv a1, s5; li a2, 1\n" ++
