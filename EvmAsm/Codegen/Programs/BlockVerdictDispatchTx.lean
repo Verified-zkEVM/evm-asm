@@ -465,7 +465,16 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t3, yisv8_self_bal; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
   ".Ldtrc_selfbal_rev:\n" ++
   "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_rev\n" ++
+  -- coc3g.1: credit the recipient's live balance with the tx value. The EVM transfers tx.value to the
+  -- recipient BEFORE its code runs, so SELFBALANCE (env+32) = pre-balance + tx.value. env+32 holds the
+  -- pre-balance (just staged, LE); CALLVALUE (env+96 = t2+64) is the tx value (LE, confirmed). 256-bit
+  -- LE add env+32 += env+96 (drop the final carry; a balance never overflows u256). 0-value txs add 0.
+  "  ld t3, 0(t2); ld t4, 64(t2); add t5, t3, t4; sltu t6, t5, t3; sd t5, 0(t2)\n" ++
+  "  ld t3, 8(t2); ld t4, 72(t2); add t5, t3, t4; sltu a0, t5, t3; add t5, t5, t6; sltu a1, t5, t6; or t6, a0, a1; sd t5, 8(t2)\n" ++
+  "  ld t3, 16(t2); ld t4, 80(t2); add t5, t3, t4; sltu a0, t5, t3; add t5, t5, t6; sltu a1, t5, t6; or t6, a0, a1; sd t5, 16(t2)\n" ++
+  "  ld t3, 24(t2); ld t4, 88(t2); add t5, t3, t4; add t5, t5, t6; sd t5, 24(t2)\n" ++
   ".Ldtrc_no_selfbal:\n" ++
+
   -- bmvmx.1.6.4.2.b: seed every non-recipient BAL account's storage into the exec log
   -- so nested callees SLOAD witness values (not 0). Fills callee_seed_table/count, which
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
