@@ -448,6 +448,20 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  jal ra, u256_add_be\n" ++
   "  la a0, evm_selfdestruct_beneficiary; mv a1, sp; addi a2, sp, 32; li a3, 0; li a4, 0\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
+  -- drj99.1 part 5c: record the ORIGIN's debit (balance -> 0, nonce preserved). SELFDESTRUCT moves the
+  -- origin's whole balance to the (different) beneficiary, so the origin's final balance is 0; without a
+  -- matching exec effect the BAL declares the origin's balance->0 with nothing to match -> bv_fail=44 (the
+  -- selfdestruct_* families). We are inside the witness-present (sdai_status 0/4) + origin!=beneficiary +
+  -- origin-balance!=0 path: the origin EXISTED at block-pre (created-in-THIS-tx accounts are absent from the
+  -- block-pre witness and never reach here), so EIP-6780 does NOT delete it -> nonce is PRESERVED. pre_bal =
+  -- origin balance (sp+64, extracted above); post_bal = 0 (sp+8..39); pre_nonce = post_nonce = origin nonce.
+  -- sp+0..63 is free scratch now (beneficiary pre/post already consumed). x10/x12 stay saved at sp+96/104.
+  "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 0\n" ++   -- origin nonce -> sp+0
+  "  jal ra, account_extract_nonce\n" ++
+  "  sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp); sd zero, 32(sp)\n" ++             -- post_balance = 0 (sp+8..39)
+  "  ld a3, 0(sp); ld a4, 0(sp)\n" ++                                                     -- pre_nonce = post_nonce = origin nonce
+  "  la a0, sdai_origin_address; addi a1, sp, 64; addi a2, sp, 8\n" ++                    -- a1 = pre_bal (origin), a2 = post_bal (0)
+  "  jal ra, record_nonstorage_effect\n" ++
   ".L_sdbn_restore:\n" ++
   "  ld x10, 96(sp); ld x12, 104(sp); addi sp, sp, 112\n" ++
   ".L_sdbn_done:\n"
