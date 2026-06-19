@@ -314,6 +314,24 @@ def callDescendFallThrough
       "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
       ".Lcd_sbwb_" ++ tag ++ ":\n" ++
       "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbwb_" ++ tag ++ "\n" ++
+      -- drj99.1 part 5b: record the CALLER's value-CALL debit (balance -= value) so the all-accounts
+      -- non-storage reconciliation matches. The transfer above debited env+32 but never recorded the
+      -- caller's nonstorage effect -> the BAL declares the caller's balance change with no matching exec
+      -- effect -> bv_fail=44 for the caller (call_to_self / call_with_value_to_coinbase etc.). We are on the
+      -- committing path here (value!=0, ctx present, not self-call, no underflow), so the debit really
+      -- happened. pre = post + value (cd_caller_newbal + cd_value_be -> nse_post_bal); post = cd_caller_newbal.
+      -- The caller is a CONTRACT (the gas/value-coupled sender/recipient/coinbase are SKIPPED by the
+      -- all-accounts wrapper) doing a CALL, so its nonce is UNCHANGED -> the BAL declares no nonce change
+      -- (has_nonce=0) and the comparator skips the nonce forward-check, so pre_nonce=post_nonce=0 is safe.
+      -- The aggregate keeps first-pre/last-post, so multiple caller value-CALLs collapse to (start,final).
+      -- a0/a2/a3 alias x10/x12/x13 -> save/restore around both helpers; nse_post_bal is free here (the
+      -- callee-credit below reuses it afterwards).
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++   -- nse_post_bal = post + value = pre
+      "  jal ra, u256_add_be\n" ++
+      "  la a0, cd_caller_be\n  la a1, nse_post_bal\n  la a2, cd_caller_newbal\n  li a3, 0\n  li a4, 0\n" ++
+      "  jal ra, record_nonstorage_effect\n" ++
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       ".Lcd_deb_done_" ++ tag ++ ":\n") ++
     -- i3djw.1: record the value-transfer NON-STORAGE effect for the callee so the
     -- all-accounts non-storage comparator (i3djw.3) can validate it against the BAL.
