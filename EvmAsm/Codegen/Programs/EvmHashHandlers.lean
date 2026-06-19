@@ -58,6 +58,26 @@ def hashHandlers : List OpcodeHandlerSpec :=
         "  jal x1, zkvm_keccak256\n" ++ -- call keccak (clobbers x1, a0, a1, a2)
         "  mv x10, s10\n" ++            -- restore EVM code ptr
         "  mv x12, s11\n" ++            -- restore EVM stack ptr
+        -- zkvm_keccak256 writes a 32-byte BIG-ENDIAN digest (hash[0] = MSB).
+        -- The EVM stack word is little-endian-limb (low limb first), like every
+        -- PUSH/arith result, so byte-reverse the digest in place to match. Without
+        -- this, KECCAK256 results were BE on the stack while everything else was
+        -- LE-limb, so any keccak-then-SSTORE logged a byte-reversed value and the
+        -- exec-vs-BAL storage comparator (which reverses the BE BAL value to LE-limb)
+        -- always mismatched -> bv_fail=34 for every keccak-then-SSTORE contract
+        -- (e.g. precompile call_types storing keccak(returndata)). coc3g.5.
+        "  addi t0, x12, 0\n" ++
+        "  addi t1, x12, 31\n" ++
+        "1:\n" ++
+        "  bgeu t0, t1, 2f\n" ++
+        "  lbu t2, 0(t0)\n" ++
+        "  lbu t3, 0(t1)\n" ++
+        "  sb t3, 0(t0)\n" ++
+        "  sb t2, 0(t1)\n" ++
+        "  addi t0, t0, 1\n" ++
+        "  addi t1, t1, -1\n" ++
+        "  j 1b\n" ++
+        "2:\n" ++
         "  addi x10, x10, 1\n" ++       -- advance PC by 1
         "  j .dispatch_loop") } ]
 
