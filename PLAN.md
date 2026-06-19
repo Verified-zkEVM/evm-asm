@@ -1565,10 +1565,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `base+N` so the `seq` unifies syntactically (avoids a variable-base `whnf` blowup). `crDisjoint`
     across the two decoder copies via the now-public `ofProg_disjoint_ofProg`. Axiom-clean, 0 sorry,
     0 warnings, no heartbeat override. Concrete `[[1,2],3]` example.
-  - **Next (sibling stride + schema decoders):** after descending item k, `itemNextPtrRegion` (the stride,
-    `encode_head_eq_itemNextPtrRegion`) positions at item k+1 — enabling sequential descent into a list's
-    items (block → header, txs, ommers). Then leaf-field reads + concrete STF header/tx schema decoders
-    producing the `BlockInput` the STF consumes.
+  - ✅ **Step 7a — `regOwn`-re-entry descent** (`UnifiedListDescendConcrete.lean`).
+    **`unified_list_descend_concrete_bridge_at_regOwn`**: the offset-general descent restated so its PRE is
+    itself a `unified_lenloop_post` (at `O`) and its POST the next `unified_lenloop_post` (at `O + (encode
+    (.list items)).length`). Since a descent's post abstracts the scratch registers to `regOwn` and leaves
+    `x13`/`x15` at the next sibling, this lets one descent feed DIRECTLY into the next with a syntactic
+    `unified_lenloop_post` match — the chainable building block for sequential sibling descent. Derived
+    from `…_bridge_at` by consuming the 5 owned scratch registers (`x5,x10,x11,x12,x14`) via
+    `cpsTripleWithin_of_forall_regIs_to_regOwn` (the Evm64 SDiv/SMod idiom) — each peel pinned with explicit
+    `(r := …) (P := …)` so `xperm_hyp` resolves the interspersed-register reshape; `rw
+    [unified_lenloop_post_unfold]` unfolds only the pre (post keeps a distinct `endPtr`). Axiom-clean,
+    0 sorry, 0 warnings, no heartbeat override.
+  - **Next (step 7b — two-sibling descent):** compose `…_bridge_at` (item 0) ⨾ `…_at_regOwn` (item 1 at the
+    stride offset `O + (encode (.list A)).length`) for `bs.drop O = encode (.list A) ++ encode (.list B) ++
+    tail` — both intermediate states are `unified_lenloop_post`, so the `seq` matches syntactically. Then
+    N-sibling unrolled walk (block = 3 sub-lists) + leaf-field reads → concrete STF header/tx schema
+    decoders producing the `BlockInput` the STF consumes.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

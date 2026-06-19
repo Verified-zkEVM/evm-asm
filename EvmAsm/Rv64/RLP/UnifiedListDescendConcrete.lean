@@ -416,6 +416,70 @@ theorem unified_list_header_descend
         unified_decoder_prog_length (by intro k hk; bv_omega)))
     s_lbu s_dec
 
+set_option maxRecDepth 8000 in
+/-- **`regOwn`-re-entry descent (chainable).** The offset-general descent restated so
+    its PRE is itself a `unified_lenloop_post` (at `O`) and its POST is the next
+    `unified_lenloop_post` (at `O + (encode (.list items)).length`). A descent's post
+    already abstracts the scratch registers to `regOwn` and leaves `x13`/`x15` at the
+    next sibling, so this lets one descent feed DIRECTLY into the next (sequential
+    sibling descent) with a syntactic `unified_lenloop_post` match. Derived from
+    `…_bridge_at` by consuming the 5 owned scratch registers (`x5,x10,x11,x12,x14`)
+    via `cpsTripleWithin_of_forall_regIs_to_regOwn`. -/
+theorem unified_list_descend_concrete_bridge_at_regOwn
+    (base regionBase : Word) (items : List RLPItem) (bs : List Byte) (O : Nat) (tail : List Byte)
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hsize : (encode (.list items)).length < 256 ^ 8)
+    (hitems_ne : items ≠ [])
+    (hdrop : bs.drop O = encode (.list items) ++ tail) :
+    cpsTripleWithin (62 + 63 * items.length) base (base + 308)
+      ((((((CodeReq.singleton base (.LBU .x5 .x13 0)).union
+            (CodeReq.ofProg (base + 4) unified_decoder_prog)).union
+            (CodeReq.singleton (base + 148) (.ADD .x15 .x13 .x11))).union
+            ((((CodeReq.singleton (base + 152) (.LBU .x5 .x13 0)).union
+              (CodeReq.ofProg (base + 156) unified_decoder_prog)).union
+              (CodeReq.singleton (base + 300) (.ADD .x13 .x13 .x11))).union
+              ((CodeReq.singleton (base + 300 + 4) (.BNE .x13 .x15 (-152))).union CodeReq.empty)))))
+      (unified_lenloop_post regionBase bs (regionBase + BitVec.ofNat 64 O))
+      (unified_lenloop_post regionBase bs
+        (regionBase + BitVec.ofNat 64 (O + (encode (.list items)).length))) := by
+  rw [unified_lenloop_post_unfold]
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x14)
+      (fun v5 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** regOwn .x11 ** regOwn .x12 ** regOwn .x14)
+      (fun v10 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x11)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** regOwn .x12 ** regOwn .x14)
+      (fun v11 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x12)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** regOwn .x14)
+      (fun v12 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x14)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12))
+      (fun v14 => ?_))
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (unified_list_descend_concrete_bridge_at base regionBase items bs O tail
+      v5 v10 v11 v12 v14 (regionBase + BitVec.ofNat 64 O)
+      halign hover hwin hsize hitems_ne hdrop).1
+
 -- Top-level cross-check (`tail = []`): the program at `base = 0x1000` decodes the
 -- complete list value `[0x01, 0x02]` (`encode = [0xc2, 0x01, 0x02]`) from the region
 -- at `0x2000`, descending the `0xc2` header into its 2-byte payload, in
