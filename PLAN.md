@@ -1552,10 +1552,71 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     descent wrapper needed it. `unified_list_descend_concrete_bridge` is now the `O = 0` corollary. This
     is the building block that makes **nested descent composable** (descend a sub-list at its parent's
     payload offset). Axiom-clean, 0 sorry, 0 warnings. Concrete `O = 2` example.
-  - **Next (step 6b — depth-2 composition):** a header-descend primitive (`LBU + decoder` → `x13 =`
-    payload pointer) + compose outer header (O=0) with the offset-general descent at `payloadOff_outer`
-    for `.list (.list innerItems :: rest)`, fully decoding the first sub-list — coinciding with the pure
-    nested `decode`. Then sibling-stride + leaf reads → concrete STF block/header/tx schema decoders.
+  - ✅ **Step 6b — depth-2 nested descent** (`UnifiedListDescendNested.lean`).
+    **`unified_list_header_descend`** (in `UnifiedListDescendConcrete.lean`): the reusable header-descend
+    primitive — `LBU + unified_decoder_prog` at offset `O` leaves `x13 = itemPtrRegion` (payload pointer),
+    `x11 = itemLenRegion` (payload length). **`unified_list_descend_nested_bridge`**: for an outer list
+    whose head is itself a list (`.list (.list innerItems :: rest)`) at the front of `bs = encode (.list
+    (.list innerItems :: rest)) ++ outerTail`, the program descends the outer header (offset 0) to its
+    payload pointer (offset `payloadOff`), then descends the inner `.list innerItems` there via
+    `unified_list_descend_concrete_bridge_at` — in `123 + 63 * innerItems.length` steps — coinciding with
+    the pure nested `decode`. Reading at an OFFSET into the single aligned region (never re-anchoring) is
+    what makes the two levels compose; the inner program's `(base+148)+k` addresses are normalized to
+    `base+N` so the `seq` unifies syntactically (avoids a variable-base `whnf` blowup). `crDisjoint`
+    across the two decoder copies via the now-public `ofProg_disjoint_ofProg`. Axiom-clean, 0 sorry,
+    0 warnings, no heartbeat override. Concrete `[[1,2],3]` example.
+  - ✅ **Step 7a — `regOwn`-re-entry descent** (`UnifiedListDescendConcrete.lean`).
+    **`unified_list_descend_concrete_bridge_at_regOwn`**: the offset-general descent restated so its PRE is
+    itself a `unified_lenloop_post` (at `O`) and its POST the next `unified_lenloop_post` (at `O + (encode
+    (.list items)).length`). Since a descent's post abstracts the scratch registers to `regOwn` and leaves
+    `x13`/`x15` at the next sibling, this lets one descent feed DIRECTLY into the next with a syntactic
+    `unified_lenloop_post` match — the chainable building block for sequential sibling descent. Derived
+    from `…_bridge_at` by consuming the 5 owned scratch registers (`x5,x10,x11,x12,x14`) via
+    `cpsTripleWithin_of_forall_regIs_to_regOwn` (the Evm64 SDiv/SMod idiom) — each peel pinned with explicit
+    `(r := …) (P := …)` so `xperm_hyp` resolves the interspersed-register reshape; `rw
+    [unified_lenloop_post_unfold]` unfolds only the pre (post keeps a distinct `endPtr`). Axiom-clean,
+    0 sorry, 0 warnings, no heartbeat override.
+  - ✅ **Step 7b — two-sibling sequential descent** (`UnifiedListDescendSiblings.lean`).
+    **`unified_list_descend_two_siblings_bridge`**: for `bs.drop O = encode (.list aItems) ++ encode (.list
+    bItems) ++ tail`, the program descends `.list aItems` (at `O`, via `…_bridge_at`) then `.list bItems`
+    (at the stride offset `O + (encode (.list aItems)).length`, via `…_at_regOwn`) in
+    `(62 + 63*aItems.length) + (62 + 63*bItems.length)` steps, coinciding with `decode` of each. The two
+    descents chain with NO glue — both intermediate states are `unified_lenloop_post`, so `cpsTripleWithin_seq`
+    matches syntactically (only B's exit `base+308+308` is `rw`-normalized to `base+616`). Also adds the
+    **reusable `descendCR` / `descendCR_none` / `descend_cr_disjoint`**: a descent CR maps to `none` outside
+    its 77 instruction slots (`b + 4*k`, k<77), so two non-overlapping descents are disjoint — an ~8-line
+    range argument (à la `ofProg_disjoint_ofProg`) instead of a 7×7 `Disjoint.*` cascade; reused by the
+    N-sibling walk. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `[0xc1,0x01,0xc1,0x02]`
+    example.
+  - ✅ **Step 8 — leaf-field scalar value read** (`UnifiedFieldScalarRead.lean`).
+    **`unified_field_scalar_read`**: from the single-item decoder's output convention — `x13 = regionBase +
+    ofNat off` (payload pointer), `x11 = ofNat n` (payload length, `1 ≤ n ≤ 8`) — reads the `n` payload
+    bytes big-endian into `x11 = Nat.fromBytesBE ((bs.drop off).take n)` (the field's scalar value) and
+    advances `x13` to `off + n` (the next field), in `2 + 6*n` steps. The first **value-extraction** step
+    (prior steps gave only framing/pointers). Reuses the Phase-2 region BE loop
+    (`rlp_phase2_long_loop_region_n_spec_within`); the only new code is a 2-instruction impedance glue
+    (`ADDI x14 x11 0` to move the length into the loop's count register, `ADDI x11 x0 0` to zero the
+    accumulator). Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `[0x01,0x02,0x03] →
+    0x010203` example.
+  - ✅ **Step 9 — full scalar field decode** (`UnifiedScalarFieldDecode.lean`).
+    **`bytes_item_payload_window`** (the `.bytes` analog of `list_item_payload_window`): for a short `.bytes
+    data` item at offset `O`, the decoder's window (`itemPtrRegion`/`itemLenRegion`) points exactly at
+    `data` (singleByte + shortBytes cases). **`unified_scalar_field_decode`**: composes
+    `unified_list_header_descend` (the general LBU+decoder item-header step) ⨾ `unified_field_scalar_read`,
+    so from `x13 = regionBase + ofNat O` (a `.bytes data` field, `1 ≤ data.length ≤ 8`) the program decodes
+    the header then reads the payload BE, leaving `x11 = Nat.fromBytesBE data` (the field value) and `x13`
+    at the next field (offset `O + (encode (.bytes data)).length`), in `63 + 6*data.length` steps —
+    coinciding with the pure `decodeScalar (bs.drop O) = some (Nat.fromBytesBE data, tail)`. Clobbered
+    scratch (`x5/x10/x12/x14`) is abstracted to `regOwn` in the post (chainable). Two integration details
+    (both already seen in the descents): the value-read's `(base+148)+k` addresses are `rw`-normalized to
+    `base+N`, and the `frameR`'d post is a `(6-group) ** (3-group)` so the `regOwn` conversion is a per-group
+    `sepConj_mono`. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `0x2a → 42` example.
+  - **Next (field walk → schema decoders):** chain `unified_scalar_field_decode` across a fixed schema (each
+    leaves `x13` at the next field — the free stride), threading the `regOwn` scratch (needs a `regOwn`-pre
+    field-decode variant, à la `…_at_regOwn`) and writing each value out → concrete STF transaction (9
+    fields) / header (~19 fields) decoders producing the `BlockInput`. Wide scalars (uint256) / byte-arrays
+    (20/32-byte address/hash) / zero-length scalars (`n = 0`) need multi-word / byte-copy / branch variants.
+    (The 3-sibling block framing walk via `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

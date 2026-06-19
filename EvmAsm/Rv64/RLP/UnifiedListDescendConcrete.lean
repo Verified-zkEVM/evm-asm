@@ -42,7 +42,7 @@ private theorem region_ptr_add (regionBase : Word) (a b : Nat) :
   simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.add_mod_mod, Nat.mod_add_mod]
 
 /-- Two programs at non-overlapping address ranges have disjoint code requirements. -/
-private theorem ofProg_disjoint_ofProg (b1 b2 : Word) (p1 p2 : List Instr) (n1 n2 : Nat)
+theorem ofProg_disjoint_ofProg (b1 b2 : Word) (p1 p2 : List Instr) (n1 n2 : Nat)
     (h1 : p1.length = n1) (h2 : p2.length = n2)
     (hsep : ∀ k1, k1 < n1 → ∀ k2, k2 < n2 →
       b1 + BitVec.ofNat 64 (4 * k1) ≠ b2 + BitVec.ofNat 64 (4 * k2)) :
@@ -349,6 +349,136 @@ theorem unified_list_descend_concrete_bridge
       show (0 : Nat) + (encode (.list items)).length = (encode (.list items)).length
         from Nat.zero_add _, List.drop_zero] at h
   exact h
+
+/-- **List-header descent primitive.** `LBU x5,x13,0 ++ unified_decoder_prog` at
+    `base` (61 steps, `base .. base+148`): from `x13 = regionBase + ofNat O` pointing
+    at a `.list` value (whose region window `hwindow0` holds), it leaves `x13 =
+    itemPtrRegion` (the payload pointer) and `x11 = itemLenRegion` (the payload
+    length) — the reusable "descend one list level to its payload" step. Composed
+    with `unified_list_descend_concrete_bridge_at` (at the payload offset) it gives
+    nested descent; used directly by the STF schema decoders for each list level. -/
+theorem unified_list_header_descend
+    (base regionBase : Word) (bs : List Byte) (O : Nat) (hO : O < bs.length)
+    (v5Old v10 v11Old v12Old v14Old v15Old : Word)
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (regionBase + BitVec.ofNat 64 O) = true)
+    (hwindow0 : regionLongWindow regionBase bs O hO) :
+    cpsTripleWithin 61 base (base + 148)
+      ((CodeReq.singleton base (.LBU .x5 .x13 0)).union
+        (CodeReq.ofProg (base + 4) unified_decoder_prog))
+      ((.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase bs)
+      ((.x5 ↦ᵣ (bs[O]'hO).zeroExtend 64) ** (.x0 ↦ᵣ (0:Word)) **
+       (.x10 ↦ᵣ itemResidue (bs[O]'hO)) **
+       (.x11 ↦ᵣ itemLenRegion (bs[O]'hO) bs O) **
+       (.x12 ↦ᵣ itemX12Region (bs[O]'hO) bs O v12Old) **
+       (.x13 ↦ᵣ itemPtrRegion (bs[O]'hO) regionBase O) **
+       (.x14 ↦ᵣ itemX14 (bs[O]'hO) v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase bs) := by
+  have hover0 : regionBase.toNat + O < 2 ^ 64 := by omega
+  have lbu_raw := bytesRegion_lbu_within .x5 .x13 regionBase v5Old base
+    bs O (by decide) halign hO hover0 hvalid0
+  have s_lbu : cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LBU .x5 .x13 0))
+      ((.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase bs)
+      ((.x5 ↦ᵣ (bs[O]'hO).zeroExtend 64) ** (.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase bs) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR
+        ((.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) ** (.x12 ↦ᵣ v12Old) **
+         (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ v15Old))
+        (by pcFree) lbu_raw)
+  have dec_raw := unified_decoder_spec (base + 4) regionBase bs O hO
+    v10 v11Old v12Old v14Old halign hover hwindow0
+  rw [show (base + 4) + 144 = base + 148 from by bv_omega] at dec_raw
+  have s_dec : cpsTripleWithin 60 (base + 4) (base + 148)
+      (CodeReq.ofProg (base + 4) unified_decoder_prog)
+      ((.x5 ↦ᵣ (bs[O]'hO).zeroExtend 64) ** (.x0 ↦ᵣ (0:Word)) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11Old) **
+       (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase bs)
+      ((.x5 ↦ᵣ (bs[O]'hO).zeroExtend 64) ** (.x0 ↦ᵣ (0:Word)) **
+       (.x10 ↦ᵣ itemResidue (bs[O]'hO)) **
+       (.x11 ↦ᵣ itemLenRegion (bs[O]'hO) bs O) **
+       (.x12 ↦ᵣ itemX12Region (bs[O]'hO) bs O v12Old) **
+       (.x13 ↦ᵣ itemPtrRegion (bs[O]'hO) regionBase O) **
+       (.x14 ↦ᵣ itemX14 (bs[O]'hO) v14Old) **
+       (.x15 ↦ᵣ v15Old) ** bytesRegion regionBase bs) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR (.x15 ↦ᵣ v15Old) (by pcFree) dec_raw)
+  exact cpsTripleWithin_seq
+    (CodeReq.Disjoint.singleton_ofProg
+      (CodeReq.ofProg_none_range_len (base + 4) unified_decoder_prog 36 base
+        unified_decoder_prog_length (by intro k hk; bv_omega)))
+    s_lbu s_dec
+
+set_option maxRecDepth 8000 in
+/-- **`regOwn`-re-entry descent (chainable).** The offset-general descent restated so
+    its PRE is itself a `unified_lenloop_post` (at `O`) and its POST is the next
+    `unified_lenloop_post` (at `O + (encode (.list items)).length`). A descent's post
+    already abstracts the scratch registers to `regOwn` and leaves `x13`/`x15` at the
+    next sibling, so this lets one descent feed DIRECTLY into the next (sequential
+    sibling descent) with a syntactic `unified_lenloop_post` match. Derived from
+    `…_bridge_at` by consuming the 5 owned scratch registers (`x5,x10,x11,x12,x14`)
+    via `cpsTripleWithin_of_forall_regIs_to_regOwn`. -/
+theorem unified_list_descend_concrete_bridge_at_regOwn
+    (base regionBase : Word) (items : List RLPItem) (bs : List Byte) (O : Nat) (tail : List Byte)
+    (halign : regionBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hsize : (encode (.list items)).length < 256 ^ 8)
+    (hitems_ne : items ≠ [])
+    (hdrop : bs.drop O = encode (.list items) ++ tail) :
+    cpsTripleWithin (62 + 63 * items.length) base (base + 308)
+      ((((((CodeReq.singleton base (.LBU .x5 .x13 0)).union
+            (CodeReq.ofProg (base + 4) unified_decoder_prog)).union
+            (CodeReq.singleton (base + 148) (.ADD .x15 .x13 .x11))).union
+            ((((CodeReq.singleton (base + 152) (.LBU .x5 .x13 0)).union
+              (CodeReq.ofProg (base + 156) unified_decoder_prog)).union
+              (CodeReq.singleton (base + 300) (.ADD .x13 .x13 .x11))).union
+              ((CodeReq.singleton (base + 300 + 4) (.BNE .x13 .x15 (-152))).union CodeReq.empty)))))
+      (unified_lenloop_post regionBase bs (regionBase + BitVec.ofNat 64 O))
+      (unified_lenloop_post regionBase bs
+        (regionBase + BitVec.ofNat 64 (O + (encode (.list items)).length))) := by
+  rw [unified_lenloop_post_unfold]
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x14)
+      (fun v5 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** regOwn .x11 ** regOwn .x12 ** regOwn .x14)
+      (fun v10 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x11)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** regOwn .x12 ** regOwn .x14)
+      (fun v11 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x12)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** regOwn .x14)
+      (fun v12 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x14)
+      (P := (.x0 ↦ᵣ (0:Word)) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        (.x15 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** bytesRegion regionBase bs **
+        (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12))
+      (fun v14 => ?_))
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
+    (unified_list_descend_concrete_bridge_at base regionBase items bs O tail
+      v5 v10 v11 v12 v14 (regionBase + BitVec.ofNat 64 O)
+      halign hover hwin hsize hitems_ne hdrop).1
 
 -- Top-level cross-check (`tail = []`): the program at `base = 0x1000` decodes the
 -- complete list value `[0x01, 0x02]` (`encode = [0xc2, 0x01, 0x02]`) from the region
