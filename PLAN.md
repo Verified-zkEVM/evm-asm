@@ -1552,10 +1552,23 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     descent wrapper needed it. `unified_list_descend_concrete_bridge` is now the `O = 0` corollary. This
     is the building block that makes **nested descent composable** (descend a sub-list at its parent's
     payload offset). Axiom-clean, 0 sorry, 0 warnings. Concrete `O = 2` example.
-  - **Next (step 6b — depth-2 composition):** a header-descend primitive (`LBU + decoder` → `x13 =`
-    payload pointer) + compose outer header (O=0) with the offset-general descent at `payloadOff_outer`
-    for `.list (.list innerItems :: rest)`, fully decoding the first sub-list — coinciding with the pure
-    nested `decode`. Then sibling-stride + leaf reads → concrete STF block/header/tx schema decoders.
+  - ✅ **Step 6b — depth-2 nested descent** (`UnifiedListDescendNested.lean`).
+    **`unified_list_header_descend`** (in `UnifiedListDescendConcrete.lean`): the reusable header-descend
+    primitive — `LBU + unified_decoder_prog` at offset `O` leaves `x13 = itemPtrRegion` (payload pointer),
+    `x11 = itemLenRegion` (payload length). **`unified_list_descend_nested_bridge`**: for an outer list
+    whose head is itself a list (`.list (.list innerItems :: rest)`) at the front of `bs = encode (.list
+    (.list innerItems :: rest)) ++ outerTail`, the program descends the outer header (offset 0) to its
+    payload pointer (offset `payloadOff`), then descends the inner `.list innerItems` there via
+    `unified_list_descend_concrete_bridge_at` — in `123 + 63 * innerItems.length` steps — coinciding with
+    the pure nested `decode`. Reading at an OFFSET into the single aligned region (never re-anchoring) is
+    what makes the two levels compose; the inner program's `(base+148)+k` addresses are normalized to
+    `base+N` so the `seq` unifies syntactically (avoids a variable-base `whnf` blowup). `crDisjoint`
+    across the two decoder copies via the now-public `ofProg_disjoint_ofProg`. Axiom-clean, 0 sorry,
+    0 warnings, no heartbeat override. Concrete `[[1,2],3]` example.
+  - **Next (sibling stride + schema decoders):** after descending item k, `itemNextPtrRegion` (the stride,
+    `encode_head_eq_itemNextPtrRegion`) positions at item k+1 — enabling sequential descent into a list's
+    items (block → header, txs, ommers). Then leaf-field reads + concrete STF header/tx schema decoders
+    producing the `BlockInput` the STF consumes.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
