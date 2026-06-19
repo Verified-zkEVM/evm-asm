@@ -92,7 +92,6 @@ def balAccountNonstorageConsistentFunction : String :=
   ".Lc2nsc_ok:\n" ++
   "  li a0, 0; j .Lc2nsc_ret\n" ++
   ".Lc2nsc_bad:\n" ++
-  "  ld t0, 88(s0); la t1, dbg_bv44_balgot; sd t0, 0(t1); ld t0, 32(s1); la t1, dbg_bv44_balwant; sd t0, 0(t1)\n" ++  -- DIAG: exec post vs BAL final (low8)
   "  li a0, 1; j .Lc2nsc_ret\n" ++
   ".Lc2nsc_parsefail:\n" ++
   "  li a0, 2\n" ++

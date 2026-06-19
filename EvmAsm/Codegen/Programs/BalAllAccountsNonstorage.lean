@@ -126,7 +126,6 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   ".Lc3ns_found:\n" ++
   "  mv a0, s7; mv a1, s8; mv a2, t5\n" ++
   "  jal ra, bal_account_nonstorage_consistent   # .2: 0 consistent / 1 / 2 -> reject if != 0\n" ++
-  "  ld t0, 12(s9); la t1, dbg_bv44_addr; sd t0, 0(t1); li t0, 1; la t1, dbg_bv44_kind; sd t0, 0(t1)\n" ++  -- DIAG: found-inconsistent
   "  bnez a0, .Lc3ns_fail\n" ++
   "  j .Lc3ns_next\n" ++
   ".Lc3ns_notfound:\n" ++
@@ -140,7 +139,6 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   -- (strict), so its behavior is byte-identical. Strengthening this to validate created-
   -- account balances is a follow-up (needs effect-log completeness for created accounts).
   "  la t0, c3ns_lenient_notfound; ld t0, 0(t0); bnez t0, .Lc3ns_next\n" ++
-  "  ld t0, 12(s9); la t1, dbg_bv44_addr; sd t0, 0(t1); li t0, 2; la t1, dbg_bv44_kind; sd t0, 0(t1)\n" ++  -- DIAG: notfound-declared
   "  # no exec effect for this callee: only a problem if the BAL declares a non-storage change\n" ++
   "  mv a0, s7; mv a1, s8; la a2, c2nsc_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
