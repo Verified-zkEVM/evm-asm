@@ -1543,9 +1543,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     case. Concrete examples for both `tail = []` and `tail = [0xFF]` (`[0xc2,0x01,0x02,0xFF]` ⇒
     `(.list …, [0xFF])`). Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. **This is the recursive
     step toward arbitrary depth** (interior sub-lists with trailing siblings).
-  - **Next (arbitrary depth):** with a tail-tolerant one-level descent in hand, compose descents for
-    nested-of-nested (`.list` whose items include further `.list`s) — bounded composition for the
-    concrete STF block/tx shape, or the explicit-stack generalization.
+  - ✅ **Step 6a — offset-general descent** (`UnifiedListDescendConcrete.lean`).
+    **`unified_list_descend_concrete_bridge_at`**: decode a `.list` value sitting at byte offset `O` of a
+    buffer `bs` (`bs.drop O = encode (.list items) ++ tail`), with `x13` entering at `regionBase + ofNat
+    O`, reading at an OFFSET into the single dword-aligned `regionBase` (rather than re-anchoring at the
+    unaligned payload pointer — `bytesRegion` is dword-granular, so re-anchoring/splitting at an arbitrary
+    byte is impossible). The underlying decoder/loop/window helpers were already offset-general; only the
+    descent wrapper needed it. `unified_list_descend_concrete_bridge` is now the `O = 0` corollary. This
+    is the building block that makes **nested descent composable** (descend a sub-list at its parent's
+    payload offset). Axiom-clean, 0 sorry, 0 warnings. Concrete `O = 2` example.
+  - **Next (step 6b — depth-2 composition):** a header-descend primitive (`LBU + decoder` → `x13 =`
+    payload pointer) + compose outer header (O=0) with the offset-general descent at `payloadOff_outer`
+    for `.list (.list innerItems :: rest)`, fully decoding the first sub-list — coinciding with the pure
+    nested `decode`. Then sibling-stride + leaf reads → concrete STF block/header/tx schema decoders.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
