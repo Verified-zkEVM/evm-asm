@@ -106,7 +106,6 @@ private theorem descend_loop_triple
     hitems_ne hdpay hwin
   rwa [show base + 300 + 8 = base + 308 from by bv_omega] at t_loop
 
-set_option maxHeartbeats 2000000 in
 set_option maxRecDepth 8000 in
 /-- **Concrete top-level RLP list descent.** The program at `base` decodes the
     complete list value `encode (.list items)` from `bytesRegion` — descending the
