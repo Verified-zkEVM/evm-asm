@@ -294,16 +294,26 @@ def callDescendFallThrough
       "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_selfchk_" ++ tag ++ "\n" ++
       ".Lcd_notself_" ++ tag ++ ":\n" ++
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-      "  addi a0, x20, 32\n" ++                            -- a0 = caller LIVE balance (env .selfBalance, BE)
+      -- env+32 (.selfBalance) is LITTLE-ENDIAN (stack-word: byte 0 = LSB), the same convention as
+      -- CALLVALUE@96 (which NoopHalt reverses x20+127->+96 to obtain BE); u256_sub_be is big-endian
+      -- (byte 31 = LSB, U256.lean). The prior code fed env+32 STRAIGHT to u256_sub_be -> byte-scrambled
+      -- selfBalance debit (drj99.1 part 4). Reverse env[32..63] (LE) -> cd_caller_newbal (BE), subtract
+      -- in place (a0==a2 is byte-safe: u256_sub_be reads a0[i] then writes a2[i] at the same index),
+      -- then reverse the result back to env+32 (LE).
+      "  addi t0, x20, 63\n  la t1, cd_caller_newbal\n  li t2, 32\n" ++
+      ".Lcd_sbrev_" ++ tag ++ ":\n" ++
+      "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbrev_" ++ tag ++ "\n" ++
+      "  la a0, cd_caller_newbal\n" ++                     -- a0 = caller LIVE balance, now BE
       "  la a1, cd_value_be\n" ++                          -- a1 = transferred value (BE)
-      "  la a2, cd_caller_newbal\n" ++                     -- a2 = out (= balance - value)
+      "  la a2, cd_caller_newbal\n" ++                     -- a2 = out (in place = balance - value, BE)
       "  jal ra, u256_sub_be\n" ++
       "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  bnez t0, .Lcd_deb_done_" ++ tag ++ "\n" ++        -- underflow (live < value): conservative skip
-      "  la t0, cd_caller_newbal\n  addi t1, x20, 32\n" ++
-      "  ld t2, 0(t0)\n  sd t2, 0(t1)\n  ld t2, 8(t0)\n  sd t2, 8(t1)\n" ++
-      "  ld t2, 16(t0)\n  sd t2, 16(t1)\n  ld t2, 24(t0)\n  sd t2, 24(t1)\n" ++
+      -- reverse cd_caller_newbal (BE) back into env+32 (LE)
+      "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+      ".Lcd_sbwb_" ++ tag ++ ":\n" ++
+      "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbwb_" ++ tag ++ "\n" ++
       ".Lcd_deb_done_" ++ tag ++ ":\n") ++
     -- i3djw.1: record the value-transfer NON-STORAGE effect for the callee so the
     -- all-accounts non-storage comparator (i3djw.3) can validate it against the BAL.
