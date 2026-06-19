@@ -260,7 +260,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   u256IsZeroFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
-  stateGasPerByteFunction ++ "\n" ++   -- drj99.1.2: EIP-8037 per-block state-gas cost helper
 
   u256EqFunction ++ "\n" ++
   u256LtBeFunction ++ "\n" ++
