@@ -81,6 +81,22 @@ def stopHandlerCF : OpcodeHandlerSpec :=
       "  la t0, evm_call_depth\n" ++
       "  ld t0, 0(t0)\n" ++
       "  beqz t0, .exit_label\n" ++
+      -- drj99.1.7: a STOP in a CREATE child frame deposits an EMPTY deployed code (STOP = RETURN
+      -- with no data). Route it through the RETURN handler's create-deposit (record code-effect +
+      -- the created account's nonstorage effect + push the derived address), exactly like RETURN
+      -- but with offset/size = 0. A non-create (CALL) frame keeps the plain success=1 frame_return.
+      -- create_frame_flag[depth] is set by create_frame_descend; clear it on the create path (slot
+      -- reuse) to mirror returnRevertTail line .Lrr's clear. x14/x15 set to 0 = empty return data.
+      "  la t1, create_frame_flag\n" ++
+      "  slli t2, t0, 3\n" ++
+      "  add t1, t1, t2\n" ++
+      "  ld t3, 0(t1)\n" ++
+      "  beqz t3, .Lstop_call_frame\n" ++
+      "  sd x0, 0(t1)\n" ++
+      "  li x14, 0\n" ++
+      "  li x15, 0\n" ++
+      "  j .Lcreate_deposit_from_halt_1\n" ++
+      ".Lstop_call_frame:\n" ++
       "  li a0, 1\n" ++
       "  li a1, 0\n" ++
       "  li a2, 0\n" ++

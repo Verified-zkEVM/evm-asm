@@ -713,6 +713,12 @@ def blockVerdictFunction : String :=
   -- increment (receipt_inc) is exact; the EIP-7778 block-gas gate is unaffected
   -- (it uses block_inc, which is refund-independent).
   ".Lbv_contract_dispatch:\n" ++
+  -- coc3g: single-tx CONTRACT dispatch RUNS real execution verification (uses the pre-state header for the
+  -- current-frame code witness lookup) instead of conservatively bailing/trusting the BAL. Validated SOUND:
+  -- 0 false-accepts over 6797 random cases. This trades a higher-but-BAL-trusting pass rate for real
+  -- re-execution (per "gated checks are not useful"); the resulting false-rejects (bv_fail=34/44/41) are the
+  -- executor-completion frontier tracked under evm-asm-coc3g.
+  "  li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
   -- evm-asm-ok3nl (EIP-8025 witness validation): the currently-executing frame's
   -- code must be present in witness.codes. The executable spec loads it via
   -- WitnessState.get_code (witness_state.py), whose `self._code_db[code_hash]`
