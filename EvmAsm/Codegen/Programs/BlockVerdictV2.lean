@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.ParseDepositRequests
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
 

@@ -75,6 +75,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -95,9 +96,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, baacd_fail_code; ld t2, 0(t1); sd t2, 64(t0)\n" ++
   "  la t1, bacv_fail_code; ld t2, 0(t1); sd t2, 72(t0)\n" ++
   "  la t1, baap_fail_code; ld t2, 0(t1); sd t2, 80(t0)\n" ++
-  "  la t1, bvgr_block_gas_increments; ld t2, 0(t1); sd t2, 88(t0)\n" ++
-  "  la t1, bvgr_block_gas_increments; ld t2, 8(t1); sd t2, 96(t0)\n" ++
-  "  la t1, bvgr_tx_total_state_gas; ld t2, 0(t1); sd t2, 104(t0)\n" ++
   "  la t1, bvgr_tx_total_state_gas; ld t2, 8(t1); sd t2, 112(t0)\n" ++
   "  la t1, bv_exact_net_status; ld t2, 0(t1); sd t2, 120(t0)\n" ++
   "  la t1, bv_exact_net_index; ld t2, 0(t1); sd t2, 128(t0)\n" ++
@@ -259,6 +257,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   u256IsZeroFunction ++ "\n" ++
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
+
   u256EqFunction ++ "\n" ++
   u256LtBeFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++

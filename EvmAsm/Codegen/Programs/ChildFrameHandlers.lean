@@ -244,20 +244,19 @@ def callDescendFallThrough
     "  bnez t2, .Lcd_val_" ++ tag ++ "\n" ++
     -- balance_at_header_state_root(caller) -> cd_balance_be. Save x10/x12/x13
     -- (helper clobbers the a-regs that alias them); it preserves x20/x21.
-    "  addi sp, sp, -32\n" ++
-    "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-    "  ld a0, 576(x20)\n" ++
-    "  ld a1, 584(x20)\n" ++
-    "  la a2, cd_caller_be\n" ++
-    "  ld a3, 592(x20)\n" ++
-    "  ld a4, 600(x20)\n" ++
-    "  la a5, cd_balance_be\n" ++
-    "  jal ra, balance_at_header_state_root\n" ++
-    "  mv t2, a0\n" ++
-    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
-    "  addi sp, sp, 32\n" ++
-    "  bnez t2, .Lcd_fail_" ++ tag ++ "\n" ++         -- lookup failed/absent -> balance 0 < value
-    -- compare cd_balance_be vs cd_value_be (32-byte big-endian, MSB first)
+    -- drj99.1: use the caller's LIVE selfBalance (env+32), NOT the PRE-STATE balance_at_header_state_root
+    -- lookup. The pre-state lookup returns 0 for a freshly-CREATEd contract (absent pre-block) -> the gate
+    -- would falsely deem its value-CALL insufficient -> .Lcd_fail -> no transfer -> the created contract's
+    -- balance AND the callee credit are mis-recorded (bv_fail=44/45, initcode_calls_with_value etc.). env+32
+    -- is the authoritative current balance (callee_balance_table + the create endowment-credit + live
+    -- debits), and the .Lcd_notself transfer below ALSO debits env+32, so gate and transfer now agree (the
+    -- prior split was unsound for a 2nd same-frame value-CALL: the pre-state read is stale-high). env+32 is
+    -- LE -> reverse to BE into cd_balance_be. At worst conservative (env+32 missing -> 0 -> false-reject,
+    -- never false-accept). cd_caller_be (built above) still feeds the .Lcd_notself self-call guard.
+    "  addi t0, x20, 63\n  la t1, cd_balance_be\n  li t2, 32\n" ++
+    ".Lcd_livebal_" ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcd_livebal_" ++ tag ++ "\n" ++
+    -- compare cd_balance_be (now the live env+32, BE) vs cd_value_be (32-byte big-endian, MSB first)
     "  la t0, cd_balance_be\n" ++
     "  la t1, cd_value_be\n" ++
     "  li t2, 32\n" ++
@@ -456,9 +455,9 @@ def callDescendFallThrough
     "  la t0, aie_predicate\n  ld t1, 0(t0)\n" ++
     "  beqz t1, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- exists & not empty = alive -> no charge
     ".Lcd_nacc_charge_" ++ tag ++ ":\n" ++
-    -- charge_state_gas(183600): drain evm_state_gas_left, spill remainder into the frame gas_left
-    -- (568(x20)), OOG -> .exit_outofgas when both reservoirs short; state_gas_used += 183600.
-    "  li t0, 183600\n" ++
+    -- charge_state_gas(112 * runtime cost): drain evm_state_gas_left, spill remainder into the frame
+    -- gas_left (568(x20)), OOG -> .exit_outofgas when both reservoirs short; state_gas_used += charge.
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- new-account state gas = 120 * 1530 = 183600 (v0.4.0)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
     "  bgeu t2, t0, .Lcd_nacc_res_" ++ tag ++ "\n" ++
     "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++

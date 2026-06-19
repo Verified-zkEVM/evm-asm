@@ -15,8 +15,17 @@ namespace EvmAsm.Codegen
 /-- execution-specs Amsterdam `SYSTEM_TRANSACTION_GAS`. -/
 def amsterdamSystemTransactionGas : Nat := 30000000
 
-/-- execution-specs Amsterdam `COST_PER_STATE_BYTE`. -/
+/-- execution-specs Amsterdam `COST_PER_STATE_BYTE` — the v0.4.0 conformance target uses a CONSTANT 1530
+    (vm/gas.py:29). (A later eip-8037 draft scales it with the block gas limit; the v0.4.0 fixtures do NOT —
+    header.gas_used is independent of gas_limit. See memory project_v04_state_gas_constant_not_scaling.) -/
 def amsterdamCostPerStateByte : Nat := 1530
+
+/-- `STATE_BYTES_PER_NEW_ACCOUNT` for the v0.4.0 conformance target = 120 (vm/gas.py:31). -/
+def amsterdamStateBytesPerNewAccountV2 : Nat := 120
+
+#guard amsterdamStateBytesPerNewAccountV2 = 120
+#guard amsterdamStateBytesPerNewAccountV2 * amsterdamCostPerStateByte = 183600   -- new-account state gas (v0.4.0)
+#guard (120 + 64) * amsterdamCostPerStateByte = 281520  -- new-account + one SSTORE = create_state_gas header.gas_used
 
 /-- execution-specs Amsterdam `STATE_BYTES_PER_STORAGE_SET`. -/
 def amsterdamStateBytesPerStorageSet : Nat := 64
@@ -51,29 +60,37 @@ def amsterdamAuthStateGasPerAuth : Nat :=
 def amsterdamSystemStateGasReservoir : Nat :=
   amsterdamStorageSetStateGas * amsterdamSystemMaxSstoresPerCall
 
-/-- Assembly `li` helper for the per-storage-set state gas constant. -/
+/-- Emit `li reg, bytes * COST_PER_STATE_BYTE` (the v0.4.0 state-gas charge). The conformance target
+    (execution-specs tag `tests-zkevm@v0.4.0`) hardcodes `COST_PER_STATE_BYTE = 1530` (a CONSTANT — the
+    scaling `state_gas_per_byte(gas_limit)` formula is a LATER eip-8037 draft and does NOT match the v0.4.0
+    fixtures, whose header.gas_used = block_state = 184*1530 = 281520 is independent of the block gas limit).
+    A previous refactor (drj99.1.2) made this a runtime `evm_state_gas_per_byte` load + multiply; that
+    regressed every state-gas charge for v0.4.0, so it is reverted to the constant. -/
+def liStateGasRuntime (reg : String) (bytes : Nat) : String :=
+  "  li " ++ reg ++ ", " ++ toString (bytes * amsterdamCostPerStateByte) ++ "\n"
+
 def liAmsterdamStorageSetStateGas (reg : String) : String :=
-  "  li " ++ reg ++ ", " ++ toString amsterdamStorageSetStateGas ++ "\n"
+  liStateGasRuntime reg amsterdamStateBytesPerStorageSet               -- 64 * cost
 
-/-- Assembly `li` helper for the new-account intrinsic state gas constant. -/
+/-- Assembly helper for the new-account state gas (112 bytes * runtime cost, EIP-8037). -/
 def liAmsterdamNewAccountStateGas (reg : String) : String :=
-  "  li " ++ reg ++ ", " ++ toString amsterdamNewAccountStateGas ++ "\n"
+  liStateGasRuntime reg amsterdamStateBytesPerNewAccountV2             -- 112 * cost (was 120*1530)
 
-/-- Assembly `li` helper for the per-authorization intrinsic state gas constant. -/
+/-- Assembly helper for the per-authorization state gas ((112+23) bytes * runtime cost). -/
 def liAmsterdamAuthStateGas (reg : String) : String :=
-  "  li " ++ reg ++ ", " ++ toString amsterdamAuthStateGas ++ "\n"
+  liStateGasRuntime reg (amsterdamStateBytesPerNewAccountV2 + amsterdamStateBytesPerAuthBase)  -- 135 * cost
 
-/-- Assembly `li` helper for the per-authorization intrinsic state gas constant. -/
+/-- Assembly helper for the per-authorization state gas ((112+23) bytes * runtime cost). -/
 def liAmsterdamAuthStateGasPerAuth (reg : String) : String :=
-  "  li " ++ reg ++ ", " ++ toString amsterdamAuthStateGasPerAuth ++ "\n"
+  liStateGasRuntime reg (amsterdamStateBytesPerNewAccountV2 + amsterdamStateBytesPerAuthBase)  -- 135 * cost
 
 /-- Assembly `li` helper for the system transaction regular gas budget. -/
 def liAmsterdamSystemTransactionGas (reg : String) : String :=
   "  li " ++ reg ++ ", " ++ toString amsterdamSystemTransactionGas ++ "\n"
 
-/-- Assembly `li` helper for the system transaction state-gas reservoir. -/
+/-- Assembly helper for the system transaction state-gas reservoir = (64 bytes/set * 16 sets) * runtime cost. -/
 def liAmsterdamSystemStateGasReservoir (reg : String) : String :=
-  "  li " ++ reg ++ ", " ++ toString amsterdamSystemStateGasReservoir ++ "\n"
+  liStateGasRuntime reg (amsterdamStateBytesPerStorageSet * amsterdamSystemMaxSstoresPerCall)  -- 1024 * cost
 
 #guard amsterdamStorageSetStateGas = 97920
 #guard amsterdamNewAccountStateGas = 183600
