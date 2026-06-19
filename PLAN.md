@@ -1576,10 +1576,21 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `(r := …) (P := …)` so `xperm_hyp` resolves the interspersed-register reshape; `rw
     [unified_lenloop_post_unfold]` unfolds only the pre (post keeps a distinct `endPtr`). Axiom-clean,
     0 sorry, 0 warnings, no heartbeat override.
-  - **Next (step 7b — two-sibling descent):** compose `…_bridge_at` (item 0) ⨾ `…_at_regOwn` (item 1 at the
-    stride offset `O + (encode (.list A)).length`) for `bs.drop O = encode (.list A) ++ encode (.list B) ++
-    tail` — both intermediate states are `unified_lenloop_post`, so the `seq` matches syntactically. Then
-    N-sibling unrolled walk (block = 3 sub-lists) + leaf-field reads → concrete STF header/tx schema
+  - ✅ **Step 7b — two-sibling sequential descent** (`UnifiedListDescendSiblings.lean`).
+    **`unified_list_descend_two_siblings_bridge`**: for `bs.drop O = encode (.list aItems) ++ encode (.list
+    bItems) ++ tail`, the program descends `.list aItems` (at `O`, via `…_bridge_at`) then `.list bItems`
+    (at the stride offset `O + (encode (.list aItems)).length`, via `…_at_regOwn`) in
+    `(62 + 63*aItems.length) + (62 + 63*bItems.length)` steps, coinciding with `decode` of each. The two
+    descents chain with NO glue — both intermediate states are `unified_lenloop_post`, so `cpsTripleWithin_seq`
+    matches syntactically (only B's exit `base+308+308` is `rw`-normalized to `base+616`). Also adds the
+    **reusable `descendCR` / `descendCR_none` / `descend_cr_disjoint`**: a descent CR maps to `none` outside
+    its 77 instruction slots (`b + 4*k`, k<77), so two non-overlapping descents are disjoint — an ~8-line
+    range argument (à la `ofProg_disjoint_ofProg`) instead of a 7×7 `Disjoint.*` cascade; reused by the
+    N-sibling walk. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `[0xc1,0x01,0xc1,0x02]`
+    example.
+  - **Next (N-sibling walk → schema decoders):** repeat `…_at_regOwn` + `descend_cr_disjoint` for the
+    block's 3 fixed sub-lists `[header, txs, ommers]`. Then leaf-field reads (extract a flat field's
+    bytes/scalar at its payload pointer) → concrete STF header (~19 fields) / transaction (9 fields)
     decoders producing the `BlockInput` the STF consumes.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
