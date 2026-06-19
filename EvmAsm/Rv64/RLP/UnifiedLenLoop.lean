@@ -58,9 +58,9 @@ theorem unified_lenloop_spec_within
     (hd_lbu_dec : (CodeReq.singleton lbase (.LBU .x5 .x13 0)).Disjoint dcr)
     (hd_dec_add : dcr.Disjoint (CodeReq.singleton joinPC (.ADD .x13 .x13 .x11)))
     (hd_dec_bne : dcr.Disjoint (CodeReq.singleton (joinPC + 4) (.BNE .x13 .x15 back))) :
-    ∀ (items : List RLPItem) (O : Nat) (v5Old v10 v11Old v12Old v14Old : Word),
+    ∀ (items : List RLPItem) (O : Nat) (btail : List Byte) (v5Old v10 v11Old v12Old v14Old : Word),
       items ≠ [] →
-      bs.drop O = encode.encodeItems items →
+      bs.drop O = encode.encodeItems items ++ btail →
       (∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true) →
       cpsTripleWithin (63 * items.length) lbase (joinPC + 8)
         ((((CodeReq.singleton lbase (.LBU .x5 .x13 0)).union dcr).union
@@ -74,13 +74,15 @@ theorem unified_lenloop_spec_within
           (regionBase + BitVec.ofNat 64 (O + (encode.encodeItems items).length))) := by
   intro items
   induction items with
-  | nil => intro O v5Old v10 v11Old v12Old v14Old hne _ _; exact absurd rfl hne
+  | nil => intro O btail v5Old v10 v11Old v12Old v14Old hne _ _; exact absurd rfl hne
   | cons head tail ih =>
-    intro O v5Old v10 v11Old v12Old v14Old _ hdrop hwin
-    have hsplit : bs.drop O = encode head ++ encode.encodeItems tail := by
-      rw [hdrop]; rfl
+    intro O btail v5Old v10 v11Old v12Old v14Old _ hdrop hwin
+    have hsplit : bs.drop O = encode head ++ (encode.encodeItems tail ++ btail) := by
+      rw [hdrop, show encode.encodeItems (head :: tail)
+            = encode head ++ encode.encodeItems tail from rfl, List.append_assoc]
     have hO : O < bs.length := by
-      have hlen : (bs.drop O).length = (encode head ++ encode.encodeItems tail).length := by
+      have hlen : (bs.drop O).length
+          = (encode head ++ (encode.encodeItems tail ++ btail)).length := by
         rw [hsplit]
       rw [List.length_drop, List.length_append] at hlen
       have := encode_nonempty head; omega
@@ -107,15 +109,19 @@ theorem unified_lenloop_spec_within
         omega
     have hnext : itemNextPtrRegion (bs[O]'hO) regionBase O bs
         = regionBase + BitVec.ofNat 64 (O + (encode head).length) := by
-      rw [hbsO]; exact encode_head_eq_itemNextPtrRegion head tail regionBase O bs hsplit hsizeHead
+      rw [hbsO]
+      exact encode_head_eq_itemNextPtrRegion head (encode.encodeItems tail ++ btail) regionBase O bs
+        hsplit hsizeHead
     have hoverO : regionBase.toNat + O < 2 ^ 64 := by omega
     have hvalidO : isValidByteAccess (regionBase + BitVec.ofNat 64 O) = true := hwin O hO
     have hwinO : regionLongWindow regionBase bs O hO :=
-      regionLongWindow_of_split regionBase bs head tail O hO hbsO hsplit hsizeHead hwin
+      regionLongWindow_of_split regionBase bs head (encode.encodeItems tail ++ btail) O hO hbsO hsplit
+        hsizeHead hwin
     -- the total length of these items is bounded (≤ bs.length, from the drop)
     have htot : O + (encode.encodeItems (head :: tail)).length ≤ bs.length := by
-      have e : (bs.drop O).length = (encode.encodeItems (head :: tail)).length := by rw [hdrop]
-      rw [List.length_drop] at e; omega
+      have e : (bs.drop O).length = (encode.encodeItems (head :: tail) ++ btail).length := by
+        rw [hdrop]
+      rw [List.length_drop, List.length_append] at e; omega
     set endPtr := regionBase + BitVec.ofNat 64 (O + (encode.encodeItems (head :: tail)).length)
       with hep
     cases tail with
@@ -148,7 +154,7 @@ theorem unified_lenloop_spec_within
                     (sepConj_mono_right
                       (fun h' hp' => ((sepConj_pure_right h').1 hp').1)))))))) h hp
     | cons h2 t2 =>
-      have hdrop' : bs.drop (O + (encode head).length) = encode.encodeItems (h2 :: t2) := by
+      have hdrop' : bs.drop (O + (encode head).length) = encode.encodeItems (h2 :: t2) ++ btail := by
         rw [← List.drop_drop, hsplit, List.drop_append_length]
       -- one-step unfold of the cons (avoid `simp` over-expanding recursively).
       have hsplit_len : (encode.encodeItems (head :: h2 :: t2)).length
@@ -202,7 +208,7 @@ theorem unified_lenloop_spec_within
           (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
             (sepConj_mono_right (sepConj_mono_right
               (fun h' hp' => ((sepConj_pure_right h').1 hp').1))))))))) h hp
-      have ihspec := ih (O + (encode head).length) ((bs[O]'hO).zeroExtend 64)
+      have ihspec := ih (O + (encode head).length) btail ((bs[O]'hO).zeroExtend 64)
         (itemResidue (bs[O]'hO)) (itemLenRegion (bs[O]'hO) bs O)
         (itemX12Region (bs[O]'hO) bs O v12Old) (itemX14 (bs[O]'hO) v14Old)
         (by simp) hdrop' hwin
@@ -243,7 +249,7 @@ theorem unified_lenloop_n_spec_within
   have h := unified_lenloop_spec_within regionBase lbase joinPC decoder_base dcr back
     (encode.encodeItems items) halign hover hdec_base decoderH hback
     hne_lj hne_lj4 hd_lbu_dec hd_dec_add hd_dec_bne
-    items 0 v5Old v10 v11Old v12Old v14Old hne (by rw [List.drop_zero]) hwin
+    items 0 [] v5Old v10 v11Old v12Old v14Old hne (by rw [List.drop_zero, List.append_nil]) hwin
   rw [show regionBase + BitVec.ofNat 64 0 = regionBase from by simp,
       show (0 : Nat) + (encode.encodeItems items).length
         = (encode.encodeItems items).length from Nat.zero_add _] at h

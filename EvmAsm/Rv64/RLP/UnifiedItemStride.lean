@@ -40,9 +40,9 @@ theorem flat_or_long (item : RLPItem) : isFlatItem item ∨ isLongItem item := b
 
 /-- The `lenOfLen` length bytes the decoder reads from the region (starting at
     `off+1`) are exactly the encoding's `Nat.toBytesBE payloadCount`. -/
-private theorem long_lenBytes_in_region (head : RLPItem) (tail : List RLPItem)
+private theorem long_lenBytes_in_region (head : RLPItem) (rest : List Byte)
     (bs : List Byte) (off : Nat) (hlong : isLongItem head)
-    (hdrop : bs.drop off = encode head ++ encode.encodeItems tail) :
+    (hdrop : bs.drop off = encode head ++ rest) :
     (bs.drop (off + 1)).take (itemLenOfLen head) = Nat.toBytesBE (itemPayloadCount head) := by
   have hdd : bs.drop (off + 1) = (bs.drop off).drop 1 := by
     rw [List.drop_drop]
@@ -71,9 +71,9 @@ private theorem long_lenBytes_in_region (head : RLPItem) (tail : List RLPItem)
 /-- **Unified stride-equivalence.** For any item whose encoding sits at byte
     offset `off` of the region, the body's per-item advance lands at
     `regionBase + ofNat (off + (encode item).length)`. -/
-theorem encode_head_eq_itemNextPtrRegion (head : RLPItem) (tail : List RLPItem)
+theorem encode_head_eq_itemNextPtrRegion (head : RLPItem) (rest : List Byte)
     (regionBase : Word) (off : Nat) (bs : List Byte)
-    (hdrop : bs.drop off = encode head ++ encode.encodeItems tail)
+    (hdrop : bs.drop off = encode head ++ rest)
     (hsize : itemPayloadCount head < 256 ^ 8) :
     itemNextPtrRegion ((encode head)[0]'(encode_nonempty head)) regionBase off bs
       = regionBase + BitVec.ofNat 64 (off + (encode head).length) := by
@@ -112,7 +112,7 @@ theorem encode_head_eq_itemNextPtrRegion (head : RLPItem) (tail : List RLPItem)
           rw [hb, classifyPrefix_longList_iff, htn] at h; omega
       simp only [itemPtrRegion, itemLenRegion, hcls]
       rw [encode_long_lenOfLen_eq_bytes hlong hsize',
-          long_lenBytes_in_region (.bytes data) tail bs off (by simp [isLongItem]; omega) hdrop,
+          long_lenBytes_in_region (.bytes data) rest bs off (by simp [isLongItem]; omega) hdrop,
           encode_long_lenBytes_read (.bytes data), region_ptr_add',
           encode_long_length_eq (.bytes data) (by simp [isLongItem]; omega)]
       have harg : (off + 1) + itemLenOfLen (.bytes data) + itemPayloadCount (.bytes data)
@@ -139,7 +139,7 @@ theorem encode_head_eq_itemNextPtrRegion (head : RLPItem) (tail : List RLPItem)
         · exact h
       simp only [itemPtrRegion, itemLenRegion, hcls]
       rw [encode_long_lenOfLen_eq_list hlong hsize',
-          long_lenBytes_in_region (.list items) tail bs off (by simp [isLongItem]; omega) hdrop,
+          long_lenBytes_in_region (.list items) rest bs off (by simp [isLongItem]; omega) hdrop,
           encode_long_lenBytes_read (.list items), region_ptr_add',
           encode_long_length_eq (.list items) (by simp [isLongItem]; omega)]
       have harg : (off + 1) + itemLenOfLen (.list items) + itemPayloadCount (.list items)
@@ -156,7 +156,7 @@ example (regionBase : Word) :
         regionBase 0 (encode (.bytes [1, 2, 3]))
       = regionBase + BitVec.ofNat 64 (0 + (encode (.bytes [1, 2, 3])).length) :=
   encode_head_eq_itemNextPtrRegion (.bytes [1, 2, 3]) [] regionBase 0
-    (encode (.bytes [1, 2, 3])) (by simp [encode.encodeItems]) (by decide)
+    (encode (.bytes [1, 2, 3])) (by simp) (by decide)
 
 -- A 56-byte string (long): exercises the runtime-read length path.
 example (regionBase : Word) :
@@ -165,6 +165,6 @@ example (regionBase : Word) :
       = regionBase
           + BitVec.ofNat 64 (0 + (encode (.bytes (List.replicate 56 (0 : Byte)))).length) :=
   encode_head_eq_itemNextPtrRegion (.bytes (List.replicate 56 (0 : Byte))) [] regionBase 0
-    (encode (.bytes (List.replicate 56 (0 : Byte)))) (by simp [encode.encodeItems]) (by decide)
+    (encode (.bytes (List.replicate 56 (0 : Byte)))) (by simp) (by decide)
 
 end EvmAsm.Rv64.RLP
