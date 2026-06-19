@@ -1588,10 +1588,24 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     range argument (à la `ofProg_disjoint_ofProg`) instead of a 7×7 `Disjoint.*` cascade; reused by the
     N-sibling walk. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `[0xc1,0x01,0xc1,0x02]`
     example.
-  - **Next (N-sibling walk → schema decoders):** repeat `…_at_regOwn` + `descend_cr_disjoint` for the
-    block's 3 fixed sub-lists `[header, txs, ommers]`. Then leaf-field reads (extract a flat field's
-    bytes/scalar at its payload pointer) → concrete STF header (~19 fields) / transaction (9 fields)
-    decoders producing the `BlockInput` the STF consumes.
+  - ✅ **Step 8 — leaf-field scalar value read** (`UnifiedFieldScalarRead.lean`).
+    **`unified_field_scalar_read`**: from the single-item decoder's output convention — `x13 = regionBase +
+    ofNat off` (payload pointer), `x11 = ofNat n` (payload length, `1 ≤ n ≤ 8`) — reads the `n` payload
+    bytes big-endian into `x11 = Nat.fromBytesBE ((bs.drop off).take n)` (the field's scalar value) and
+    advances `x13` to `off + n` (the next field), in `2 + 6*n` steps. The first **value-extraction** step
+    (prior steps gave only framing/pointers). Reuses the Phase-2 region BE loop
+    (`rlp_phase2_long_loop_region_n_spec_within`); the only new code is a 2-instruction impedance glue
+    (`ADDI x14 x11 0` to move the length into the loop's count register, `ADDI x11 x0 0` to zero the
+    accumulator). Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `[0x01,0x02,0x03] →
+    0x010203` example.
+  - **Next (full scalar field decode → field walk → schema decoders):** compose `unified_decoder_spec` ⨾
+    `unified_field_scalar_read`, coinciding with the pure `decodeScalar (bs.drop O) = some (Nat.fromBytesBE
+    data, rest)` (needs a small `.bytes`-payload-window lemma). Then a per-field walk (decode + value-read +
+    stride) over a fixed schema → concrete STF transaction (9 fields) / header (~19 fields) decoders
+    producing the `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) / zero-length
+    scalars (`n = 0`) need multi-word / byte-copy / branch variants. (The 3-sibling sub-list walk — block's
+    `[header, txs, ommers]` framing via repeated `…_at_regOwn` + `descend_cr_disjoint` — is trivial glue,
+    deferred until the schema decoders need it.)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
