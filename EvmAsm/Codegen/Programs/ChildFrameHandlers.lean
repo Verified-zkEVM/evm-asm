@@ -193,6 +193,34 @@ def callDescendFallThrough
   -- value-bearing message calls (CALL=0, CALLCODE=2) charge value/balance; the
   -- value-less kinds (STATICCALL=1, DELEGATECALL=3) skip the balance gate.
   let valueBearing := mode == 0 || mode == 2
+  -- fva3w: EIP-7708 value-CALL transfer log emission is DEFERRED (see below); reset the
+  -- per-CALL pending flag so a prior CALL's value transfer does not leak into this one.
+  -- The snippet that emits one pending Transfer(cd_caller_be, cd_callee_be, cd_value_be)
+  -- log into the CURRENT frame's env (env+472 count, via eip7708_append_transfer_log) and
+  -- clears the flag. Used at .Lcd_descend (child env) and .Lcd_empty (parent env).
+  let emitPendingXferLog : String → String := fun site =>
+    "  la t0, cd_xfer_log_pending\n  ld t0, 0(t0)\n  beqz t0, .Lcd_xlog_skip_" ++ site ++ tag ++ "\n" ++
+    "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++   -- one-shot: clear before emit
+    -- build from_sw/to_sw/val_sw on the stack from the canonical-BE globals (mirrors the
+    -- CREATE-endowment emit in ChildFrameHandlerTails): a stack word holds the address in
+    -- the LOW 20 bytes (the synthetic-log materializer reverses the WHOLE 32B slot to BE).
+    "  addi sp, sp, -128\n  sd x10, 96(sp)\n  sd x12, 104(sp)\n  sd x13, 112(sp)\n" ++
+    "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+    "  la t0, cd_caller_be; addi t0, t0, 19; addi t1, sp, 0; li t2, 20\n" ++
+    ".Lcd_xlog_from_" ++ site ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_from_" ++ site ++ tag ++ "\n" ++
+    "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
+    "  la t0, cd_callee_be; addi t0, t0, 19; addi t1, sp, 32; li t2, 20\n" ++
+    ".Lcd_xlog_to_" ++ site ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_to_" ++ site ++ tag ++ "\n" ++
+    "  la t0, cd_value_be; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
+    ".Lcd_xlog_val_" ++ site ++ tag ++ ":\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_val_" ++ site ++ tag ++ "\n" ++
+    "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++
+    "  jal ra, eip7708_append_transfer_log\n" ++
+    "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
+    ".Lcd_xlog_skip_" ++ site ++ tag ++ ":\n"
+  "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++
   "  la x15, evm_precompile_frame\n" ++
   "  sd x0, 0(x15)\n" ++
   "  sd x0, 8(x15)\n" ++
@@ -413,25 +441,28 @@ def callDescendFallThrough
     -- not the high 12. Latent until receipt-consensus enforcement un-gates.)
     -- x12 = parent stack top here (restored after record_nonstorage_effect above); the appender
     -- reads through the a1/a2 pointers into EVM memory, which its own sp frame does not disturb.
-    -- Still inside the value!=0 guard. eip7708_append_transfer_log no-ops on a zero value and
-    -- (on the 1024-descriptor cap) drops without appending; ignore its status (the receipts
-    -- encoder gates conservatively on the descriptor/data overflow flags).
-    -- h2cv5: EIP-7708 self-suppression. The spec emits the transfer log only to a DIFFERENT
-    -- account -- at the value-bearing call only when caller != current_target (amsterdam
-    -- interpreter.py:314). The value DEBIT above already skips self-calls (CALLCODE keeps the
-    -- value in the caller's own context; CALL-to-self is net-zero) via the same
-    -- cd_caller_be == x12+32 comparison; mirror it here so a self value-move does NOT emit a
-    -- spurious transfer log -> extra receipt log -> receipts_root/logs_bloom mismatch.
-    "  la t0, cd_caller_be\n  addi t1, x12, 32\n  li t2, 20\n" ++
+    -- fva3w (EIP-7708 child-revert rollback): do NOT emit the value-CALL transfer log here
+    -- (parent, pre-descent). The spec emits emit_transfer_log INSIDE the child's
+    -- process_message (interpreter.py:307-316), so incorporate_child_on_error discards it
+    -- when the child REVERTs/exceptional-halts. Emitting it at the parent survived a child
+    -- revert -> an extra receipt log -> receipts_root mismatch (bv_fail=53;
+    -- bal_4788/2935_invalid_calldata_size with_value). Instead, record that a (non-self)
+    -- value transfer is pending in cd_xfer_log_pending and emit LATER: at .Lcd_descend in the
+    -- CHILD env (rolled back by frame_return on revert, propagated on success) and at
+    -- .Lcd_empty in the parent env (committed: an empty callee runs nothing, cannot revert).
+    -- Self-suppression (caller==current_target) still applies: spec only logs to a DIFFERENT
+    -- account (interpreter.py:315). For CALL/CALLCODE current_target==callee, so compare
+    -- cd_caller_be vs the LIVE callee. nse_callee_be (built just above from x12+32 as canonical
+    -- 20B BE) is THIS CALL's callee; cd_callee_be is NOT populated until code resolution (later)
+    -- and would be STALE from a prior CALL here (a nested CALL chain then sees caller==stale-
+    -- callee and wrongly suppresses the log). Use nse_callee_be.
+    "  la t0, cd_caller_be\n  la t1, nse_callee_be\n  li t2, 20\n" ++
     ".Lcd_tl_selfchk_" ++ tag ++ ":\n" ++
-    "  beqz t2, .Lcd_nse_done_" ++ tag ++ "\n" ++       -- all 20 bytes equal -> self-call -> suppress log
+    "  beqz t2, .Lcd_nse_done_" ++ tag ++ "\n" ++       -- all 20 bytes equal -> self-call -> no pending log
     "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n  bne t3, t4, .Lcd_tl_notself_" ++ tag ++ "\n" ++
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_tl_selfchk_" ++ tag ++ "\n" ++
     ".Lcd_tl_notself_" ++ tag ++ ":\n" ++
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
-    "  jal ra, eip7708_append_transfer_log\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  la t0, cd_xfer_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n") ++
   -- nxio8.8 (EIP-8037): CALL (mode 0) with value!=0 to a not-alive callee creates the
   -- account -> charge_state_gas(NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530)
@@ -606,6 +637,10 @@ def callDescendFallThrough
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      ".Lcd_empty_noval_" ++ tag ++ ":\n"
    else "") ++
+  -- fva3w: empty callee runs nothing and cannot revert, so the value transfer (and its
+  -- EIP-7708 log) is committed. Emit the deferred log in the PARENT env (x20 unchanged here).
+  -- x12 still = parent stack top; emitPendingXferLog saves/restores it before the pop below.
+  emitPendingXferLog "empty_" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  li t0, 1\n" ++
   "  sd t0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
@@ -646,6 +681,11 @@ def callDescendFallThrough
      "  snez t3, t3\n  sd t3, 88(t2)\n") ++                        -- value_nonzero
   "  la a1, cd_desc\n" ++
   "  jal ra, call_frame_descend\n" ++
+  -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is
+  -- set to the current count). Emit the deferred EIP-7708 value-CALL transfer log HERE so it
+  -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
+  -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
+  emitPendingXferLog "desc_" ++
   "  j .dispatch_loop"
 
 end EvmAsm.Codegen
