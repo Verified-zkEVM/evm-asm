@@ -306,6 +306,16 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  la t0, evm_selfdestruct_log_status\n" ++
   "  li t1, 1\n" ++
   "  sd t1, 0(t0)\n" ++
+  -- coc3g.6 CAUSE 1: a contract CREATEd-in-this-tx is absent from the block-pre witness, so the
+  -- account-transfer stage never ran (sdai_transfer_status=3) and account_extract_balance(origin_rlp)
+  -- would parse the wrong/empty RLP. EIP-7708 still requires the synthetic Transfer/Burn log for the
+  -- live balance moved out of the destroyed child. Branch here: read the child's LIVE balance (its
+  -- latest recorded non-storage post_balance, BE) via nonstorage_effect_latest_balance keyed on
+  -- sdai_origin_address, bypassing the transfer-status gate. Runs BEFORE selfdestructBeneficiaryNonstorageAsm
+  -- records the child's deletion (which resets the latest to 0), so the live balance is present.
+  "  la t0, evm_selfdestruct_created_in_tx\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  bnez t0, .L_selfdestruct_eip7708_created\n" ++
   "  la t0, sdai_transfer_status\n" ++
   "  ld t1, 0(t0)\n" ++
   "  bnez t1, .L_selfdestruct_eip7708_done\n" ++
@@ -322,6 +332,27 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  ld x12, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  bnez t6, .L_selfdestruct_eip7708_balance_fail\n" ++
+  "  j .L_selfdestruct_eip7708_have_balance\n" ++
+  ".L_selfdestruct_eip7708_created:\n" ++
+  -- Stack frame (64B): sp+0 key(32B: 20B BE child addr + 12B zero), sp+32 = x10/x12 save.
+  "  addi sp, sp, -64\n" ++
+  "  sd x10, 32(sp)\n" ++
+  "  sd x12, 40(sp)\n" ++
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  "  la t0, sdai_origin_address; addi t1, sp, 0; li t2, 20\n" ++
+  ".L_sd7708_ck:\n" ++
+  "  beqz t2, .L_sd7708_ck_d\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sd7708_ck\n" ++
+  ".L_sd7708_ck_d:\n" ++
+  -- zero the scratch (miss leaves it untouched -> value 0 -> no-op log), then read the live balance.
+  "  la t0, evm_selfdestruct_balance_scratch; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  mv a0, sp\n" ++
+  "  la a1, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  ld x10, 32(sp)\n" ++
+  "  ld x12, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  ".L_selfdestruct_eip7708_have_balance:\n" ++
   "  la t0, evm_selfdestruct_balance_scratch\n" ++
   "  addi t1, t0, 31\n" ++
   "  li t2, 16\n" ++
