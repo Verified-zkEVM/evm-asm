@@ -81,6 +81,27 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld t1, 0(t0)\n" ++
   "  beqz t1, .L_selfdestruct_surcharge_done\n" ++
   ".L_selfdestruct_charge_new_account:\n" ++
+  -- coc3g.6 (EIP-6780 self-destruct-to-self / created-in-tx beneficiary): the spec gates the
+  -- NEW_ACCOUNT state-gas charge on `not is_account_alive(beneficiary)` (amsterdam
+  -- vm/instructions/system.py selfdestruct: needs_state_gas). `is_account_alive` consults the LIVE
+  -- state, which includes accounts CREATEd earlier in this same tx (tx_state.created_accounts) --
+  -- but `account_exists_at_header_state_root` / `account_is_empty_at_header_state_root` above only
+  -- see the BLOCK-PRE witness, where a same-tx-created contract is ABSENT. So a SELFDESTRUCT whose
+  -- beneficiary is a same-tx-created contract (e.g. selfdestruct-to-self of a freshly CREATEd child,
+  -- bytecode `30ff`) was wrongly classified as new-account and charged STATE_BYTES_PER_NEW_ACCOUNT
+  -- state gas. That spurious charge both over-counts state gas AND (when it drains the reservoir +
+  -- spills into the frame) derails the SD tail so the created-in-tx deletion was never recorded ->
+  -- the exec-vs-BAL non-storage comparator false-rejected (bv_fail=44). Mirror is_account_alive's
+  -- created_accounts membership: if the beneficiary has a code-effect record (the CREATE deposit
+  -- appended one this tx), it is ALIVE -> skip the charge. find_code_effect_by_address clobbers
+  -- t0-t6 + a0(=x10); save x10/x12 (x20=s4 is preserved by the helper, but the call itself does
+  -- not touch it).
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+  "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, evm_selfdestruct_beneficiary\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  mv t1, a0\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  "  bnez t1, .L_selfdestruct_surcharge_done\n" ++   -- beneficiary created this tx (alive) -> no NEW_ACCOUNT state gas
   -- nxio8.8 (EIP-8037 state dimension): SELFDESTRUCT to a new (not-alive) beneficiary with a
   -- non-zero originator balance creates the beneficiary account, costing
   -- StateGasCosts.NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530) = 183600
