@@ -346,6 +346,35 @@ def callFrameDescendFunction : String :=
   ".Lcfd_sb_next:\n" ++
   "  addi t1, t1, 64; addi t0, t0, -1; j .Lcfd_sb_scan\n" ++
   ".Lcfd_sb_done:\n" ++
+  -- coc3g.6.4: LIVE-BALANCE overlay. The pre-state staging above (callee_balance_table) gives the
+  -- child its PRE-BLOCK balance. But a callee that already RECEIVED value earlier in this tx (its
+  -- balance was credited by an earlier value-CALL) must descend with the LIVE balance, else its own
+  -- later value-CALL debits from the stale pre-state -> the recorded final balance is short and the
+  -- exec-vs-BAL non-storage comparator false-rejects (bv_fail=44; frontier/scenarios MCOPY b12:
+  -- dd36afb2 receives +1 then sends 3, true 107+1-3=105, but pre-state-debit gave 107-3=104).
+  -- The authoritative live balance = the most-recent recorded post_balance in the non-storage effect
+  -- log (record_nonstorage_effect captures EVERY value-flow credit/debit), so overlay env+32 with
+  -- nonstorage_effect_latest_balance(child_addr) when present; miss -> keep the pre-state staging.
+  -- The effect log post_balance is 32B BE; env+32 is LE-limb (h_SELFBALANCE copies env+32 verbatim),
+  -- so reverse BE -> LE. Scratch: env+696 (32B addr key: 20B BE + 12B zero) and env+728 (32B BE out);
+  -- the env is frameEnvBytes=768 and its fields end at 688, so +696..+759 is free. a0/a1 are leaf-clobbered
+  -- but s-regs (s3/s7/s8/s9/s10/s11) are preserved; ra saved across the helper.
+  "  sd zero, 696(s9); sd zero, 704(s9); sd zero, 712(s9); sd zero, 720(s9)\n" ++   -- zero the 32B addr key (env+696..+727; all 8-aligned)
+  "  sd zero, 728(s9); sd zero, 736(s9); sd zero, 744(s9); sd zero, 752(s9)\n" ++   -- zero the 32B out buffer (env+728..+759)
+  "  addi t0, s9, 696; addi t1, s9, 19; li t2, 20\n" ++   -- write 20B BE addr into the key (low 20 bytes)
+  ".Lcfd_lbov_rev:\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_rev\n" ++
+  "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
+  "  addi a0, s9, 696; addi a1, s9, 728\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  mv t6, a0\n" ++                              -- 1 = found
+  "  ld ra, 0(sp); addi sp, sp, 8\n" ++
+  "  beqz t6, .Lcfd_lbov_done\n" ++
+  -- reverse the 32B BE post_balance (env+728) -> env+32 (LE).
+  "  addi t0, s9, 728; addi t1, s9, 63; li t2, 32\n" ++
+  ".Lcfd_lbov_wb:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_wb\n" ++
+  ".Lcfd_lbov_done:\n" ++
   -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
   -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used) into the
   -- child env so a child REVERT / exceptional halt can restore it in frame_return,
