@@ -1112,6 +1112,36 @@ def emitStaticViolationExit : String :=
   "  jal ra, frame_return\n" ++
   "  j .dispatch_loop\n"
 
+/-- SELFDESTRUCT (0xff). Unlike the other exceptional exits, SELFDESTRUCT is a
+    SUCCESSFUL frame halt: the EVM stops the current frame, returns empty data to
+    the caller, and KEEPS the frame's state effects (its balance transfer / EIP-6780
+    deletion already recorded into the non-storage / code effect logs). So at child
+    depth (coc3g.6.5) it must `frame_return` with success word a0 = 1 (NOT 0 — a 0
+    success word is frame_return's REVERT signal, which truncates the child's recorded
+    effects back to the pre-child snapshot, erasing the SELFDESTRUCT deletion +
+    beneficiary credit and the child's prior CALL/CREATE effects). The leftover child
+    gas (568(x20)) is forwarded by frame_return's EIP-150 refund (SELFDESTRUCT does not
+    consume the remaining gas). At depth 0, surface the top-level halt kind 5. -/
+def emitSelfdestructExit : String :=
+  ".exit_selfdestruct:\n" ++
+  "  la x18, evm_call_depth\n" ++
+  "  ld x18, 0(x18)\n" ++
+  "  beqz x18, .exit_selfdestruct_top\n" ++
+  "  li a0, 1\n" ++          -- SUCCESS: keep the child frame's recorded effects
+  "  li a1, 0\n" ++
+  "  li a2, 0\n" ++
+  "  jal ra, frame_return\n" ++
+  "  j .dispatch_loop\n" ++
+  ".exit_selfdestruct_top:\n" ++
+  "  li x16, 0xa0010000\n" ++
+  "  sd x0, 0(x16)\n" ++
+  "  sd x0, 8(x16)\n" ++
+  "  sd x0, 16(x16)\n" ++
+  "  sd x0, 24(x16)\n" ++
+  "  li x17, 5\n" ++         -- halt_kind = SELFDESTRUCT
+  "  sd x17, 32(x16)\n" ++
+  "  j .exit_no_epilogue\n"
+
 
 /-- CREATE/CREATE2 child-frame staging helper emitted into the runtime dispatcher.
 
@@ -1509,6 +1539,7 @@ def emitDispatcherEpilogueCore
     createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
+    findCodeEffectByAddressFunction ++ "\n" ++
     createCreatorNonceUseFunction ++ "\n" ++
     zkvmModexpSafeFailWrapper ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
@@ -1570,7 +1601,7 @@ def emitDispatcherEpilogueCore
   emitStaticViolationExit ++
   emitExceptionalExit ".exit_invalid" 4 ++
   emitExceptionalExit ".exit_invalid_op" 3 ++
-  emitExceptionalExit ".exit_selfdestruct" 5 ++
+  emitSelfdestructExit ++
   emitExceptionalExit ".exit_outofgas" 6 ++
   emitExceptionalExit ".exit_stack_underflow" 7 ++
   emitExceptionalExit ".exit_stack_overflow" 8 ++
@@ -2436,6 +2467,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createExecuteInitcodeFrameRuntimeFunction ++ "\n" ++
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
+  findCodeEffectByAddressFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpSafeFailWrapper ++ "\n" ++
   -- Real RIPEMD160 (0x03) software kernel for the guest closures

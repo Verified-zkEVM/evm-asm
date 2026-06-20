@@ -234,6 +234,10 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
 
 /-- Stage the popped SELFDESTRUCT beneficiary for later EIP-6780 state work. -/
 private def selfdestructTailAsm : String :=
+  -- coc3g.6.5: reset the created-in-tx marker at the start of every SELFDESTRUCT (it is set
+  -- below only when the selfdestructing account has a code-effect record from a CREATE earlier
+  -- in THIS tx execution; a stale 1 from a previous selfdestruct would mis-route this one).
+  "  la x14, evm_selfdestruct_created_in_tx\n  sd x0, 0(x14)\n" ++
   "  la x14, evm_selfdestruct_beneficiary\n" ++
   "  mv x15, x14\n" ++
   "  li x16, 4\n" ++
@@ -280,6 +284,32 @@ private def selfdestructTailAsm : String :=
   "  addi sp, sp, 32\n" ++
   selfdestructNewAccountSurchargeAsm ++
   selfdestructLoadAccountInputsAsm ++
+  -- coc3g.6.5: a contract CREATEd earlier in THIS tx that SELFDESTRUCTs is DELETED (EIP-6780).
+  -- Detect that by looking up the selfdestructing account (env.ADDRESS, canonical BE) in
+  -- exec_code_effect_log (the CREATE deposit recorded the deployed code there); on a hit set
+  -- evm_selfdestruct_created_in_tx=1 so the downstream balance-transfer / EIP-7708 log / beneficiary
+  -- nonstorage record (Selfdestruct.lean) take the created-in-tx paths (emit a Burn for self-destruct
+  -- to-self; record the child's deletion to 0/0 + the beneficiary credit). selfdestructLoadAccountInputsAsm
+  -- built sdai_origin_address = env.ADDRESS (BE) only when an account-witness ctx (584(x20)) is present;
+  -- guard on that. find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
+  "  ld t0, 584(x20)\n  beqz t0, .L_selfdestruct_created_in_tx_done\n" ++
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
+  "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, sdai_origin_address\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  mv t1, a0\n" ++                                  -- t1 = code-effect record ptr (or 0)
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  "  beqz t1, .L_selfdestruct_created_in_tx_done\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n  li t2, 1\n  sd t2, 0(t0)\n" ++
+  -- coc3g.6.5: EIP-6780 DELETES the created-in-tx contract, so its deployed code is removed --
+  -- a created-then-destroyed-same-tx account has NET-ZERO code change and the BAL declares no
+  -- codeChange. The CREATE deposit appended a code-effect record (has_code_change=1) to
+  -- exec_code_effect_log; without removing it the code comparator (bv_fail=46) sees an exec code
+  -- change with no matching BAL codeChange. Zero the record's has_code_change field (record+32) so
+  -- both the forward (bal_account_code_consistent: has_code_change=0 + BAL silent -> consistent) and
+  -- the reverse (_covers: has_code_change=0 -> no obligation) treat it as no code change. KEEP code_len
+  -- (record+40) so both comparators' variable-stride walk stays aligned.
+  "  sd x0, 32(t1)\n" ++
+  ".L_selfdestruct_created_in_tx_done:\n" ++
   selfdestructBalanceTransferRuntimeAsm ++
   selfdestructEip7708LogRuntimeAsm ++
   "  la x14, evm_selfdestruct_staged\n" ++

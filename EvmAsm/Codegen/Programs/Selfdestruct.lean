@@ -432,11 +432,79 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   -- selfdestructing contract's env ADDRESS (set from env, not the lookup), i.e. the created contract.
   -- Enables no new behavior (records the deletion that already happens) -> no cascade. a0/a2 alias x10/x12.
   "  la t0, evm_selfdestruct_created_in_tx; ld t0, 0(t0); beqz t0, .L_sdbn_chk_witness\n" ++
-  "  addi sp, sp, -48\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
-  "  sd zero, 16(sp); sd zero, 24(sp); sd zero, 32(sp); sd zero, 40(sp)\n" ++   -- 32B zero balance scratch
-  "  la a0, sdai_origin_address\n  addi a1, sp, 16\n  addi a2, sp, 16\n  li a3, 0\n  li a4, 0\n" ++
+  -- coc3g.6.5: created-in-tx SELFDESTRUCT. The deleted child's whole LIVE balance moves to the
+  -- beneficiary (or is BURNED on self-destruct-to-self). Two exec records are needed:
+  --   (1) the child's DELETION (balance 0, nonce 0) so the aggregate's last-post gives the BAL's
+  --       deleted final (0/0) -- else the CREATE deposit's nonce=1 / CALL credit linger (bv_fail=44
+  --       disc=1 inconsistent); and
+  --   (2) the beneficiary's CREDIT (+ the child's live balance) so the BAL's +balance has a match
+  --       (bv_fail=44 disc=2 NOTFOUND; selfdestruct_same_tx_via_call to_other).
+  -- The child is absent from the block-pre witness, so its live balance = its LATEST recorded
+  -- non-storage post_balance (the CREATE endowment + any CALL credit), read via
+  -- nonstorage_effect_latest_balance BEFORE we record the child's deletion (which would reset the
+  -- latest to 0). transferred==0 or beneficiary==origin (burn) -> no beneficiary record. The
+  -- beneficiary's pre = its latest live balance (other in-tx credits) if present, else its block-pre
+  -- balance (account_at_header_state_root), else 0; post = pre + transferred; nonce unchanged.
+  -- Stack frame (256B): sp+0 key(32B), sp+32 transferred(32B), sp+64 benef pre(32B),
+  -- sp+96 benef post(32B), sp+128 account struct(104B), sp+240/248 = x10/x12 save. a0..a6 alias
+  -- x10/x12/x13 -> saved/restored across the frame.
+  "  addi sp, sp, -256\n  sd x10, 240(sp)\n  sd x12, 248(sp)\n" ++
+  -- child addr key = sdai_origin_address (20B BE) + 12B zero -> sp+0
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  "  la t0, sdai_origin_address; addi t1, sp, 0; li t2, 20\n" ++
+  ".L_sdbn_ctk:\n" ++
+  "  beqz t2, .L_sdbn_ctk_d\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_ctk\n" ++
+  ".L_sdbn_ctk_d:\n" ++
+  -- transferred = child's latest live balance (sp+32); miss -> 0.
+  "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
+  "  mv a0, sp; addi a1, sp, 32\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++   -- a0 = 1 found / 0 miss (out left 0 on miss)
+  -- record the child's DELETION (balance 0, nonce 0) -- reuse sp+0..31 as a zero balance.
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  "  la a0, sdai_origin_address\n  mv a1, sp\n  mv a2, sp\n  li a3, 0\n  li a4, 0\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
-  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 48\n" ++
+  -- transferred != 0 ?  (sp+32..63 BE)
+  "  ld t0, 32(sp); ld t1, 40(sp); or t0, t0, t1; ld t1, 48(sp); or t0, t0, t1; ld t1, 56(sp); or t0, t0, t1\n" ++
+  "  beqz t0, .L_sdbn_ci_restore\n" ++
+  -- beneficiary == origin (self) ? -> burn, no beneficiary credit
+  "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
+  ".L_sdbn_ci_self:\n" ++
+  "  beqz t2, .L_sdbn_ci_restore\n" ++                  -- all equal -> self -> burn -> no credit
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L_sdbn_ci_diff\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_ci_self\n" ++
+  ".L_sdbn_ci_diff:\n" ++
+  -- beneficiary pre balance (sp+64): latest live balance if present, else block-pre, else 0.
+  "  sd zero, 64(sp); sd zero, 72(sp); sd zero, 80(sp); sd zero, 88(sp)\n" ++
+  -- key = beneficiary (20B BE) + 12B zero -> sp+0 (transferred preserved at sp+32, benef pre at sp+64)
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  "  la t0, evm_selfdestruct_beneficiary; addi t1, sp, 0; li t2, 20\n" ++
+  ".L_sdbn_ci_bk:\n" ++
+  "  beqz t2, .L_sdbn_ci_bk_d\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_ci_bk\n" ++
+  ".L_sdbn_ci_bk_d:\n" ++
+  "  mv a0, sp; addi a1, sp, 64\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  bnez a0, .L_sdbn_ci_have_pre\n" ++                 -- found a live balance -> sp+64 has it
+  -- no live record: look up block-pre balance via account_at_header_state_root(beneficiary).
+  -- args: header_ptr=576(x20), header_len=584(x20), addr=evm_selfdestruct_beneficiary(20B),
+  -- state_ptr=592(x20), state_len=600(x20), out=acct@sp+128 (nonce@0, balance@8..40). status!=0 -> pre 0.
+  "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, evm_selfdestruct_beneficiary\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  addi a6, sp, 128\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  beqz a0, .L_sdbn_ci_pre_from_acct\n" ++
+  "  sd zero, 64(sp); sd zero, 72(sp); sd zero, 80(sp); sd zero, 88(sp)\n" ++   -- not found -> pre 0
+  "  j .L_sdbn_ci_have_pre\n" ++
+  ".L_sdbn_ci_pre_from_acct:\n" ++
+  -- acct.balance is at (sp+128)+8 = sp+136 (32B BE); copy into sp+64.
+  "  ld t0, 136(sp); sd t0, 64(sp); ld t0, 144(sp); sd t0, 72(sp); ld t0, 152(sp); sd t0, 80(sp); ld t0, 160(sp); sd t0, 88(sp)\n" ++
+  ".L_sdbn_ci_have_pre:\n" ++
+  -- post = pre (sp+64) + transferred (sp+32) -> sp+96 (32B BE).
+  "  addi a0, sp, 64\n  addi a1, sp, 32\n  addi a2, sp, 96\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  la a0, evm_selfdestruct_beneficiary\n  addi a1, sp, 64\n  addi a2, sp, 96\n  li a3, 0\n  li a4, 0\n" ++  -- pre, post, nonce unchanged
+  "  jal ra, record_nonstorage_effect\n" ++
+  ".L_sdbn_ci_restore:\n" ++
+  "  ld x10, 240(sp)\n  ld x12, 248(sp)\n  addi sp, sp, 256\n" ++
   "  j .L_sdbn_done\n" ++
   ".L_sdbn_chk_witness:\n" ++
   "  la t0, sdai_status; ld t0, 0(t0); beqz t0, .L_sdbn_origin_ok\n" ++
