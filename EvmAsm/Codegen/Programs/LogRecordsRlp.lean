@@ -70,10 +70,10 @@ def logRecordsEncodeRlpFunction : String :=
   ".Llrr_log_loop:\n" ++
   "  beqz s1, .Llrr_finish\n" ++
   -- ---- per-log inner payload: address item then topics list then data ----
-  -- address: descriptor bytes +192..+211 are already canonical BE for the
-  -- top-level runtime payload path; topics below remain stack words and are reversed.
+  -- address: PACKED descriptor bytes +8..+27 are the canonical BE 20-byte address
+  -- (copied verbatim from the source +192); topics below remain stack words (reversed).
   "  la t0, lrr_addr_be\n" ++
-  "  addi t1, s0, 192\n" ++       -- canonical address bytes
+  "  addi t1, s0, 8\n" ++         -- canonical address bytes (packed header +8)
   "  li t2, 0\n" ++
   ".Llrr_addr_copy:\n" ++
   "  li t3, 20; beq t2, t3, .Llrr_addr_done\n" ++
@@ -247,8 +247,12 @@ def logRecordsEncodeRlpFunction : String :=
   "  j .Llrr_data_copy\n" ++
   ".Llrr_data_copied:\n" ++
   "  add s7, s7, s10\n" ++
-  "  addi s0, s0, 256\n" ++
-  "  addi s3, s3, 16\n" ++
+  -- vv4hr.3.4.2 PACK: advance by the variable record length (32 + 32*topic_count)
+  -- and the 24 B meta stride. topic_count is reloaded from the current descriptor
+  -- (s0 has not advanced yet).
+  "  ld t0, 0(s0); slli t0, t0, 5; addi t0, t0, 32   # reclen = 32 + 32*topic_count\n" ++
+  "  add s0, s0, t0             # advance packed descriptor\n" ++
+  "  addi s3, s3, 24            # 24 B meta stride\n" ++
   "  addi s1, s1, -1\n" ++
   "  j .Llrr_log_loop\n" ++
   ".Llrr_finish:\n" ++

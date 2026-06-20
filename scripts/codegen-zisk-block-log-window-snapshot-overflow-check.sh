@@ -46,7 +46,9 @@ with open(in_file, 'wb') as f:
 
 if mode_num == 1:
     # return, count, data_used, overflow, last_start, last_count
-    words = (1, 128, 0, 1, 128, 0)
+    # count/last_start == bvBlockLogDescCapacity (gas/375 = 533333 since #9043;
+    # the probe pre-seeds bv_block_log_count to the capacity to force the count guard).
+    words = (1, 533333, 0, 1, 533333, 0)
 elif mode_num == 2:
     words = (1, 1, 0, 1, 0, 0)
 else:

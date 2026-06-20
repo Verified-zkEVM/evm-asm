@@ -224,6 +224,7 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "bv_block_log_count:\n  .zero 8\n" ++
     "bv_block_log_data_used:\n  .zero 8\n" ++
+    "bv_block_log_desc_used:\n  .zero 8\n" ++
     "bv_block_log_overflow:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "bv_block_log_descs:\n  .zero " ++ toString bvBlockLogDescBytes ++ "\n" ++

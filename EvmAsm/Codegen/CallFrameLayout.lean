@@ -195,4 +195,27 @@ theorem frameArray_and_balArenas_fit :
     standalone frame array (~164 MiB) leave ample room for the rest of `.data`. -/
 theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c500000 := by decide
 
+/-- **vv4hr.3.4.2 PACK:** the active block-log arena = packed descriptors
+    (32 B/gas-unit) + the 24 B/log meta table (with the packed desc byte-offset)
+    + the gas/8 data byte arena. -/
+def packedBlockLogArenaBytes : Nat :=
+  bvBlockLogDescBytes + bvBlockLogMetaBytes + bvBlockLogDataBytes
+
+/-- **Reclaim gate (load-bearing):** packing the block-log descriptor arena
+    (32 B/gas-unit vs the infeasible 256 B/log stride) frees at least 100 MiB of
+    the `.data`→`.sszscratch` window (actual ~115.2 MiB: 170.1 MiB fixed → 54.9 MiB
+    packed). Kernel-checked so the headroom claim cannot silently regress. -/
+theorem packedBlockLog_reclaim :
+    (bvBlockLogFullDescBytes + bvBlockLogFullMetaBytes + bvBlockLogFullDataBytes)
+      - packedBlockLogArenaBytes ≥ 100 * 1024 * 1024 := by decide
+
+/-- **Fits gate (sanity bound):** the BAL/state-replay arenas + the frame array +
+    the PACKED block-log arena together stay inside the `.data`→`.sszscratch`
+    span. (The block-log arena is its own standalone region, NOT part of the
+    call_frame_arena union; the ELF link via `readelf -lW` is the full ground
+    truth, but this kernel bound pins the three giants.) -/
+theorem packedBlockLog_and_layout_fit :
+    balArenaTotalBytes + frameArrayBytes + packedBlockLogArenaBytes
+      ≤ sszScratchBase - dataBase := by decide
+
 end EvmAsm.Codegen
