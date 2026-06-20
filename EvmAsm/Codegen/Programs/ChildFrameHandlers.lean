@@ -320,15 +320,34 @@ def callDescendFallThrough
       -- committing path here (value!=0, ctx present, not self-call, no underflow), so the debit really
       -- happened. pre = post + value (cd_caller_newbal + cd_value_be -> nse_post_bal); post = cd_caller_newbal.
       -- The caller is a CONTRACT (the gas/value-coupled sender/recipient/coinbase are SKIPPED by the
-      -- all-accounts wrapper) doing a CALL, so its nonce is UNCHANGED -> the BAL declares no nonce change
-      -- (has_nonce=0) and the comparator skips the nonce forward-check, so pre_nonce=post_nonce=0 is safe.
+      -- all-accounts wrapper) doing a CALL, so its nonce is UNCHANGED. The record must carry the caller's
+      -- ACTUAL nonce, NOT 0: when this same account is ALSO a value-CALL CALLEE (credit record, which
+      -- records its real nonce from account_at_header_state_root), the aggregate keeps first-pre / LAST-post
+      -- nonce. A debit record recorded LAST with post_nonce=0 would clobber the aggregate's last-post nonce
+      -- to 0, falsely signalling a nonce change (real_nonce -> 0) -> the reverse-nonce check in
+      -- bal_account_nonstorage_consistent fires (BAL declares no nonce change) -> bv_fail=44
+      -- (frontier/scenarios MCOPY b12: dd36afb2 is credited then debits, nonce 1; the debit's post_nonce=0
+      -- made the agg see 1->0). Look up the caller's pre-state nonce (= its current nonce; a plain CALL
+      -- does not bump the caller nonce, only CREATE does) and record pre_nonce=post_nonce=that nonce, so
+      -- the debit and credit records agree and the aggregate's last-post nonce stays the real nonce.
       -- The aggregate keeps first-pre/last-post, so multiple caller value-CALLs collapse to (start,final).
-      -- a0/a2/a3 alias x10/x12/x13 -> save/restore around both helpers; nse_post_bal is free here (the
-      -- callee-credit below reuses it afterwards).
+      -- a0..a6 alias x10/x12/x13 etc. -> save/restore around the helpers; nse_acct is free here (the
+      -- callee-credit below reloads it); nse_post_bal is free here too.
+      -- caller's pre-state account -> nse_acct (nonce@0). On any lookup error use nonce 0 (conservative:
+      -- a wrong-low nonce can only false-REJECT, never false-accept).
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_caller_be\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  la a6, nse_acct\n" ++
+      "  jal ra, account_at_header_state_root\n" ++
+      "  mv t0, a0\n" ++                                    -- status
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+      "  beqz t0, .Lcd_deb_have_nonce_" ++ tag ++ "\n" ++   -- status 0 = found -> nse_acct.nonce valid
+      "  la t0, nse_acct\n  sd zero, 0(t0)\n" ++            -- not found / error -> nonce 0
+      ".Lcd_deb_have_nonce_" ++ tag ++ ":\n" ++
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++   -- nse_post_bal = post + value = pre
       "  jal ra, u256_add_be\n" ++
-      "  la a0, cd_caller_be\n  la a1, nse_post_bal\n  la a2, cd_caller_newbal\n  li a3, 0\n  li a4, 0\n" ++
+      "  la t0, nse_acct\n  ld a3, 0(t0)\n  mv a4, a3\n" ++   -- pre_nonce = post_nonce = caller's real nonce
+      "  la a0, cd_caller_be\n  la a1, nse_post_bal\n  la a2, cd_caller_newbal\n" ++
       "  jal ra, record_nonstorage_effect\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       ".Lcd_deb_done_" ++ tag ++ ":\n") ++
