@@ -229,20 +229,27 @@ def bvBlockLogPackedUnitBytes : Nat := 32
 def bvBlockLogPackedDescBytes : Nat :=
   bvBlockLogPackedUnitBytes * bvBlockLogFullDescTarget
 
--- vv4hr.3.4.2 (2026-06-18): the active block-log arena is lifted to the full
--- 200M gas-derived bounds, making the `bv_block_log_overflow -> .Lbv_receipts_accept`
--- capacity skip (BlockVerdictReceiptsTail ~line 95) and the receipt-logs status-3
--- skip UNREACHABLE: a 200M block emits at most gas/375 = 533,333 logs (each LOG
--- costs >= bvBlockLogMinGas) and at most gas/8 = 25,000,000 copied data bytes
--- (each data byte costs bvBlockLogDataByteGas). block_log_window_snapshot keeps
--- its verbatim 256 B descriptor copy and the readers their 256 B stride -- this is
--- a PURE capacity bump (no format change). The ~170 MiB arena fits because a1vvy
--- (#9041/#9042 + the baap union here) reclaimed the .data headroom via the
--- call_frame_arena phase-disjoint union. Removes the shared class-D (receipts) and
--- class-E (deposit-derivation) capacity skip: both now always derive/enforce.
+-- vv4hr.3.4.2 PACK (2026-06-20): the active block-log DESCRIPTOR arena is the
+-- PACKED layout (32 B per gas unit), not the fixed 256 B/log stride. The gas
+-- schedule charges 375 per log base AND 375 per topic, so `#logs + #topics <=
+-- gas/375 = 533,333`; a packed descriptor is a 32 B header (topic_count @+0,
+-- canonical-BE address 20 B @+8) plus 32 B per ACTUAL topic, so a 32 B/gas-unit
+-- arena (`bvBlockLogPackedDescBytes` = 32*533,333 = ~16.3 MiB) is a sound upper
+-- bound over every LOG0..LOG4/data mix -- vs ~136.5 MiB for the old 256 B stride.
+-- The descriptor records are VARIABLE length, so `block_log_window_snapshot`
+-- repacks on copy and records each log's packed byte-offset in
+-- `bv_block_log_meta[idx].desc_off` (+16; meta widened 16 -> 24 B). The lone
+-- random-access reader (`block_receipt_logs_materialize`) jumps via that desc_off;
+-- the sequential readers (`materialize_log_records`, `log_records_encode_rlp`)
+-- walk `reclen = 32 + 32*topic_count`. The runtime dispatcher's `evm_event_logs`
+-- 256 B SOURCE format is UNCHANGED. The data byte arena (gas/8 = 25,000,000) and
+-- the count cap (533,333) are unchanged, so `bv_block_log_overflow` stays
+-- UNREACHABLE under 200M -- preserving the #9043 class-D (receipts) / class-E
+-- (deposit-derivation) no-skip property -- while reclaiming ~113 MiB of the
+-- .data -> .sszscratch link-time window.
 def bvBlockLogDescCapacity : Nat := bvBlockLogFullDescTarget
-def bvBlockLogDescBytes : Nat := bvBlockLogDescCapacity * 256
-def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 16
+def bvBlockLogDescBytes : Nat := bvBlockLogPackedDescBytes
+def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 24
 def bvBlockLogDataBytes : Nat := bvBlockLogFullDataBytes
 def bvLogsRlpArenaBytes : Nat := 65536
 def bvRecordBloomBytes : Nat := 256
@@ -345,10 +352,11 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvBlockLogFullDescBytes = 136533248
 #guard bvBlockLogFullMetaBytes = 8533328
 #guard bvBlockLogFullDataBytes = 25000000
--- vv4hr.3.4.2: active block-log arena lifted to the full 200M gas-derived bounds
--- (== bvBlockLogFull* above), making bv_block_log_overflow unreachable under 200M.
-#guard bvBlockLogDescBytes = 136533248
-#guard bvBlockLogMetaBytes = 8533328
+-- vv4hr.3.4.2 PACK: active descriptor arena = packed 32 B/gas-unit (~16.3 MiB)
+-- and the meta table widened to 24 B/log (adds the packed desc byte-offset).
+#guard bvBlockLogPackedDescBytes = 17066656
+#guard bvBlockLogDescBytes = 17066656
+#guard bvBlockLogMetaBytes = 12799992
 #guard bvBlockLogDataBytes = 25000000
 #guard bvLogsRlpArenaBytes = 65536
 #guard bvRecordBloomsBytes = 2437888

@@ -217,6 +217,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "brr_tx_window_ptr:\n  .zero 8\n" ++
   "bv_block_log_count:\n  .zero 8\n" ++
   "bv_block_log_data_used:\n  .zero 8\n" ++
+  "bv_block_log_desc_used:\n  .zero 8\n" ++
   "bv_block_log_overflow:\n  .zero 8\n" ++
   "bv_last_log_start:\n  .zero 8\n" ++
   "bv_last_log_count:\n  .zero 8\n" ++

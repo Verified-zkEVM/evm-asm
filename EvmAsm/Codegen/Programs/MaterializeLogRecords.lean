@@ -33,14 +33,16 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
 /-! ## materialize_log_records
-    a0 = descriptor base (evm_event_logs, 256-byte stride)   a1 = log count
-    a2 = evm_log_data base                                    a3 = evm_log_data_meta base
+    a0 = PACKED descriptor base (variable stride 32 + 32*topic_count; vv4hr.3.4.2)
+    address @ +8 (20 B), topic_count @ +0, topic0 @ +32.   a1 = log count
+    a2 = evm_log_data base                                    a3 = meta base (24 B stride)
     a4 = out canonical-record array ptr
     a0 (output) = total bytes written (sum of 80 + roundup8(len) per record).
     Each input log -> one canonical BE record (address+topic0 byte-reversed). -/
@@ -59,7 +61,7 @@ def materializeLogRecordsFunction : String :=
   "  beqz s1, .Lmlr_done\n" ++
   -- zero record[0..32] (address slot, padded) then write BE address (reverse desc+192..+211)
   "  sd zero, 0(s4); sd zero, 8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  addi t0, s0, 211             # src = desc + 192 + 19 (MSByte of the LE 20-byte addr)\n" ++
+  "  addi t0, s0, 27              # src = packed desc + 8 + 19 (last addr byte; +8..+27)\n" ++
   "  mv t1, s4                    # dst = record+0\n" ++
   "  li t2, 20\n" ++
   ".Lmlr_addr:\n" ++
@@ -79,7 +81,7 @@ def materializeLogRecordsFunction : String :=
   -- data: meta[i] = (offset, len) at s3; cap len to 262144 (buffer size) to bound the copy
   "  ld t4, 0(s3)                # offset into evm_log_data\n" ++
   "  ld t5, 8(s3)                # data_len\n" ++
-  "  li t0, 262144\n" ++
+  "  li t0, " ++ toString bvBlockLogDataBytes ++ "\n" ++
   "  bleu t5, t0, .Lmlr_lenok\n" ++
   "  li t5, 0                    # stale/garbage len -> 0 (record skipped by parse's filters)\n" ++
   ".Lmlr_lenok:\n" ++
@@ -93,11 +95,12 @@ def materializeLogRecordsFunction : String :=
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
   "  j .Lmlr_data\n" ++
   ".Lmlr_data_done:\n" ++
-  -- advance: out += 80 + roundup8(len); desc += 256; meta += 16; count -= 1
+  -- advance: out += 80 + roundup8(len); desc += reclen (packed); meta += 24; count -= 1
   "  addi t5, t5, 7; andi t5, t5, -8; addi t5, t5, 80\n" ++
   "  add s4, s4, t5\n" ++
-  "  addi s0, s0, 256\n" ++
-  "  addi s3, s3, 16\n" ++
+  "  ld t0, 0(s0); slli t0, t0, 5; addi t0, t0, 32   # reclen = 32 + 32*topic_count\n" ++
+  "  add s0, s0, t0\n" ++
+  "  addi s3, s3, 24\n" ++
   "  addi s1, s1, -1\n" ++
   "  j .Lmlr_loop\n" ++
   ".Lmlr_done:\n" ++
@@ -130,25 +133,25 @@ def ziskMaterializeLogRecordsPrologue : String :=
   "  addi t1, s0, 32\n  li t2, 32\n  li t3, 32\n" ++   -- t3 = 0x20 counting down
   ".Lmlrp_t0:\n" ++
   "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_t0\n" ++
-  -- address (desc+192..211) = LE bytes 0x14,0x13,...,0x01 (so BE = 01..14)
-  "  addi t1, s0, 192\n  li t2, 20\n  li t3, 20\n" ++
+  -- PACK: address (packed desc+8..27) = LE bytes 0x14,0x13,...,0x01 (so BE = 01..14)
+  "  addi t1, s0, 8\n  li t2, 20\n  li t3, 20\n" ++
   ".Lmlrp_a0:\n" ++
   "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_a0\n" ++
-  -- descriptor 1 at mlr_descs+256
-  "  addi s0, s0, 256\n" ++
+  -- descriptor 1 at mlr_descs+96 (desc0 reclen = 32 + 2*32 = 96)
+  "  addi s0, s0, 96\n" ++
   "  li t0, 1\n  sd t0, 0(s0)\n" ++
   -- topic0 = LE 0x40..0x21 (BE = 21..40)
   "  addi t1, s0, 32\n  li t2, 32\n  li t3, 64\n" ++
   ".Lmlrp_t1:\n" ++
   "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_t1\n" ++
   -- address = LE 0x28..0x15 (BE = 15..28)
-  "  addi t1, s0, 192\n  li t2, 20\n  li t3, 40\n" ++
+  "  addi t1, s0, 8\n  li t2, 20\n  li t3, 40\n" ++
   ".Lmlrp_a1:\n" ++
   "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_a1\n" ++
   -- evm_log_data: bytes "DEPO" = 0x44 0x45 0x50 0x4f at offset 0
   "  la t0, mlr_data\n  li t1, 0x44\n  sb t1, 0(t0)\n  li t1, 0x45\n  sb t1, 1(t0)\n  li t1, 0x50\n  sb t1, 2(t0)\n  li t1, 0x4f\n  sb t1, 3(t0)\n" ++
-  -- meta[0] = (off 0, len 4); meta[1] = (off 0, len 0)
-  "  la t0, mlr_meta\n  sd zero, 0(t0)\n  li t1, 4\n  sd t1, 8(t0)\n  sd zero, 16(t0)\n  sd zero, 24(t0)\n" ++
+  -- meta (24 B stride): meta[0] = (off 0, len 4) @+0; meta[1] = (off 0, len 0) @+24
+  "  la t0, mlr_meta\n  sd zero, 0(t0)\n  li t1, 4\n  sd t1, 8(t0)\n  sd zero, 24(t0)\n  sd zero, 32(t0)\n" ++
   -- materialize_log_records(descs, 2, data, meta, out)
   "  la a0, mlr_descs\n  li a1, 2\n  la a2, mlr_data\n  la a3, mlr_meta\n  la a4, mlr_out\n" ++
   "  jal ra, materialize_log_records\n" ++
@@ -166,7 +169,7 @@ def ziskMaterializeLogRecordsPrologue : String :=
 def ziskMaterializeLogRecordsDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "mlr_descs:\n  .zero 512\n" ++      -- two 256-byte descriptors
+  "mlr_descs:\n  .zero 512\n" ++      -- packed descriptors (desc0 96 B + desc1 64 B)
   ".balign 8\n" ++
   "mlr_data:\n  .zero 256\n" ++
   ".balign 8\n" ++
