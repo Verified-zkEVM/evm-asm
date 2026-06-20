@@ -227,6 +227,24 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, 7f\n" ++
     "6:\n" ++
+    -- coc3g.6 CAUSE 2: mirror spec generic_create (amsterdam vm/instructions/system.py:122
+    -- `evm.accessed_addresses.add(contract_address)`). On the committing CREATE path the derived
+    -- contract address is WARM for the rest of the tx, so a later CALL/SELFDESTRUCT to it pays the
+    -- WARM floor (100), not COLD_ACCOUNT_ACCESS (2600). Without this, a same-tx value-CALL to the
+    -- just-created child charged the 2500 cold delta (verified: selfdestruct_same_tx_via_call
+    -- to_other receipt cumulativeGasUsed over-counted by exactly 2500 -> bv_fail=53). The warm
+    -- table is a single global (evm_access_account_table, capacity 100000, reset only at tx setup),
+    -- so the seed persists across create_frame_descend into the parent's subsequent CALL.
+    -- runtime_access_account_seed inserts WITHOUT charging gas and ignores duplicates; it clobbers
+    -- the a-regs that alias x10/x12/x13, so save/restore them. create_address_be is the canonical
+    -- 20-byte BE address (a0 expects exactly that).
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be\n" ++
+    "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+    "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+    "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+    "  jal ra, runtime_access_account_seed\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- 5em02.2: debit the creator's LIVE balance (env+32 = .selfBalance, big-endian) by the
     -- endowment, so SELFBALANCE reads B-endowment after a CREATE (the transfer was inert ->
     -- false-reject for value-creating contracts). Reached only on the committing path (value
@@ -315,6 +333,45 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- coc3g.6 CAUSE 3: EIP-7708 transfer log for the CREATE endowment value move. Spec
+    -- interpreter.py:307-316 emits Transfer(caller, current_target, value) at EVERY message-call
+    -- frame entry with should_transfer_value and value!=0 and caller!=current_target, AFTER the
+    -- tx-state snapshot and BEFORE the initcode runs. The CREATE child frame moves `endowment` from
+    -- the creator (caller) to the created child (current_target). Without it, the
+    -- selfdestruct_same_tx_via_call transfer_during_create / create_opcode_emits_log receipts were
+    -- missing this log -> bv_fail=53 receipts-root mismatch. Emitted HERE -- after create_frame_descend
+    -- switched x20 to the CHILD env (post-snapshot: descend set the child eventLogCheckpoint@480 to
+    -- the current count) and BEFORE `j .dispatch_loop` runs the initcode -- so the log (a) lands in
+    -- the correct order (before any initcode logs) and (b) is ROLLED BACK by frame_return when the
+    -- child reverts/fails (failed_create_with_value_no_log expects NO log). caller != child always
+    -- (a freshly-derived address), so the only guard is value!=0. The appender reads from=topic1 (a0,
+    -- stack-word LE), to=topic2 (a1, stack-word LE), amount (a2, stack-word LE -> reversed to BE).
+    -- The create_sender_be/create_address_be (canonical 20B BE) + create_value_be (32B BE) globals are
+    -- still valid (descend doesn't clobber them; the initcode hasn't run). Gated on the account-witness
+    -- ctx (env+584) so create_value_be is the valid endowment the gate populated. Stack frame (96B):
+    -- sp+0 from_sw(32), sp+32 to_sw(32), sp+64 val_sw(32 partial)/x10/x12/x13 -- use a 128B frame.
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+    "  beqz t1, .Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- value == 0: no log
+    "  addi sp, sp, -128\n  sd x10, 96(sp)\n  sd x12, 104(sp)\n  sd x13, 112(sp)\n" ++
+    -- from_sw = [reverse(create_sender_be) low 20][12 zero] (sp+0)
+    "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+    "  la t0, create_sender_be; addi t0, t0, 19; addi t1, sp, 0; li t2, 20\n" ++
+    ".Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- to_sw = [reverse(create_address_be) low 20][12 zero] (sp+32)
+    "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
+    "  la t0, create_address_be; addi t0, t0, 19; addi t1, sp, 32; li t2, 20\n" ++
+    ".Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- val_sw = reverse(create_value_be) = LE 32 bytes (sp+64)
+    "  la t0, create_value_be; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
+    ".Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++   -- from = from_sw, to = to_sw, amount = val_sw
+    "  jal ra, eip7708_append_transfer_log\n" ++
+    "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
+    ".Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  j .dispatch_loop\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
