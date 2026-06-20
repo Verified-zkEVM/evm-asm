@@ -1206,7 +1206,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- i3djw.3: skip-list for the all-accounts non-storage comparator (3 x 32B-strided
   -- {recipient, sender, coinbase} addresses, gas/value-coupled, pinned on the gas path).
   ".balign 8\n" ++
-  "i3djw_skip_list:\n  .zero 96\n" ++
+  "i3djw_skip_list:\n  .zero 256\n" ++   -- coc3g.6.5: 3 {recipient,sender,coinbase} + 5 genesis system contracts (8*32)
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
   -- comparators. A multi-tx block's gas/value-coupled accounts are {sender_i,
   -- recipient_i} for every tx i plus the shared {coinbase} -> up to 2N+1 entries

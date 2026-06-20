@@ -957,6 +957,16 @@ def blockVerdictFunction : String :=
   "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
   "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bmvmx_coinbase_addr\n  li t2, 20\n" ++
   ".Lbv_i3sk2:\n  beqz t2, .Lbv_i3sk2d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk2\n.Lbv_i3sk2d:\n" ++
+  -- coc3g.6.5: entries 3..7 = the 5 genesis system/predeploy contracts (EIP-2935 history,
+  -- EIP-4788 beacon-roots, EIP-7002 withdrawal-req, EIP-7251 consolidation-req, EIP-6110 deposit).
+  -- Their code/balance/nonce changes come from the block-level system-call replay / genesis setup
+  -- (validated by the verdict's explicit system replay + the state-root recompute), NOT the per-tx
+  -- exec log, so the exec-vs-BAL non-storage check must skip them. bbcv_sys_2935 starts 5 contiguous
+  -- 20-byte BE address constants. Mirrors bal_all_accounts_storage_consistent's modeled-system skip.
+  "  la t0, i3djw_skip_list; addi t0, t0, 96\n  la t1, bbcv_sys_2935\n  li t4, 5\n" ++
+  ".Lbv_i3sksys_o:\n  li t2, 20\n" ++
+  ".Lbv_i3sksys_i:\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lbv_i3sksys_i\n" ++
+  "  addi t0, t0, 12\n  addi t4, t4, -1\n  bnez t4, .Lbv_i3sksys_o\n" ++
   -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
   -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
   -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL
@@ -970,7 +980,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg\n" ++
   "  la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
-  "  la a4, i3djw_skip_list; li a5, 3\n" ++
+  "  la a4, i3djw_skip_list; li a5, 8\n" ++
   "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
   -- i3djw.3 (REVERSE covers): every exec NON-STORAGE net-change effect must be PRESENT in
@@ -982,7 +992,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg\n" ++   -- bmvmx.5.5.7.3: same aggregated (sorted, last-post) agg as the forward
   "  la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
-  "  la a4, i3djw_skip_list; li a5, 3\n" ++
+  "  la a4, i3djw_skip_list; li a5, 8\n" ++
   "  jal ra, bal_all_accounts_nonstorage_covers\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_covers_fail\n" ++
   -- i3djw.4: all-accounts CODE exec-vs-BAL (FORWARD). Every BAL account that declares a code
