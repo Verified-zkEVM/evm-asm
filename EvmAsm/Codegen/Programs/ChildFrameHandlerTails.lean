@@ -326,6 +326,58 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop"
 
+/-- EIP-7702 delegation access charge for a CALL-family callee (bv_fail=41,
+    bal_7702_delegated_via_call_opcode). After the callee's own EIP-2929 access
+    is charged, execution-specs Amsterdam ALSO charges the delegation TARGET's
+    access when the callee is a `0xef0100||addr` delegation marker
+    (`calculate_delegation_cost`, eoa_delegation.py:126; applied in CALL/CALLCODE/
+    DELEGATECALL/STATICCALL, system.py:444-455 / 567-578):
+      extra_gas += COLD_ACCOUNT_ACCESS (2600) if target ∉ accessed_addresses
+                 += WARM_ACCESS (100)        otherwise
+    and adds the target to accessed_addresses on first touch.
+
+    The callee's BE address is staged at `evm_access_seed_addr` by the caller. We
+    resolve the callee's pre-state code via `code_at_header_state_root` (witness
+    ctx env+576..616, exactly as `callDescendFallThrough`); on a 23-byte
+    `ef 01 00`-prefixed body the trailing 20 bytes ARE the target's canonical BE
+    address, so we charge it through `runtime_access_account_charge` (which debits
+    2500 on cold + inserts, 0 on warm) and then add the missing 100
+    UNCONDITIONALLY — yielding 2600 cold / 100 warm to match the spec exactly
+    (the 100 dispatcher warm-floor that backs the callee's own access has no
+    counterpart for the delegation target, which the spec charges in full).
+
+    Soundness: a non-delegated callee (status != 0, length != 23, or wrong prefix)
+    charges nothing — this can only ADD a required charge, never weaken one.
+    Preserves x10/x12/x13 (the helpers clobber the aliasing a-regs) and the
+    caller's s9/s10/s11 (callee-saved across both helpers); x20/x21 are preserved
+    by both helpers. -/
+def callDelegationAccessChargeAsm (tag : String) : String :=
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+  "  ld a3, 592(x20)\n  ld a4, 600(x20)\n  ld a5, 608(x20)\n  ld a6, 616(x20)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  mv t2, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  -- not found / error -> not delegated -> no charge
+  "  bnez t2, .Lcdac_done_" ++ tag ++ "\n" ++
+  "  la t3, cahsr_code_length; ld t3, 0(t3); li t4, 23; bne t3, t4, .Lcdac_done_" ++ tag ++ "\n" ++
+  "  ld t3, 608(x20); la t4, cahsr_code_offset; ld t4, 0(t4); add t3, t3, t4\n" ++  -- t3 = code ptr
+  "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcdac_done_" ++ tag ++ "\n" ++
+  "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcdac_done_" ++ tag ++ "\n" ++
+  "  lbu t4, 2(t3); bnez t4, .Lcdac_done_" ++ tag ++ "\n" ++
+  -- delegation marker: target = code[3..22] (20-byte canonical BE) at t3+3.
+  -- runtime_access_account_charge reads 20 bytes from a0 (read-only), so pass it
+  -- the in-place marker bytes; it debits 2500 + inserts on cold, 0 on warm.
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  addi a0, t3, 3\n  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  -- add the 100 warm-floor the helper omits, so total = 2600 cold / 100 warm.
+  "  ld t0, 568(x20)\n  li t1, 100\n  bltu t0, t1, .exit_outofgas\n" ++
+  "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
+  ".Lcdac_done_" ++ tag ++ ":\n"
+
 def basicPrecompileCallTail
       (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
       (fallThroughAsm : String) : String :=
@@ -345,6 +397,10 @@ def basicPrecompileCallTail
     "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
     "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
     "  jal ra, runtime_access_account_charge\n" ++
+    -- EIP-7702: when the callee is a delegation marker, ALSO charge the delegation
+    -- target's access (cold 2600 / warm 100). callDelegationAccessChargeAsm
+    -- preserves s9/s10/s11 and x10/x12/x13, so the restore below still holds.
+    callDelegationAccessChargeAsm tag ++
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
