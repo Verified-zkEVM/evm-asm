@@ -2724,7 +2724,11 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "cd_caller_newbal:\n  .zero 32\n" ++
   -- nxio8.8: the CALL callee (`to`) as canonical 20-byte big-endian, for the
   -- EIP-8037 new-account state-gas check (is_account_alive(to)) in callDescendFallThrough.
-  "cd_callee_be:\n  .zero 32\n"
+  "cd_callee_be:\n  .zero 32\n" ++
+  -- fva3w: per-CALL flag set when a non-self value transfer needs an EIP-7708 Transfer log;
+  -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
+  -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
+  "cd_xfer_log_pending:\n  .zero 8\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
