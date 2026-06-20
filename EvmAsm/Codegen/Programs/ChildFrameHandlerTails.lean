@@ -718,7 +718,12 @@ def basicPrecompileCallTail
     ".L" ++ tag ++ "_blake2f:\n" ++
     "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x17, 213\n" ++
-    "  bne x16, x17, 1f\n" ++
+    -- Wrong length raises InvalidParameter (an ExceptionalHalt) BEFORE any gas
+    -- charge: execution-specs zeroes the child frame's gas_left, so the whole
+    -- EIP-150 child allotment is consumed. Burn it like the BLS handlers rather
+    -- than falling through to the regular CALL descent (which would refund the
+    -- forwarded gas and under-count block gas_used by the stipend).
+    "  bne x16, x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
@@ -763,7 +768,12 @@ def basicPrecompileCallTail
     ".L" ++ tag ++ "_kzg_point_eval:\n" ++
     "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x17, 192\n" ++
-    "  bne x16, x17, 1f\n" ++
+    -- Wrong length raises InvalidParameter (an ExceptionalHalt) BEFORE any gas
+    -- charge: execution-specs zeroes the child frame's gas_left, so the whole
+    -- EIP-150 child allotment is consumed. Burn it like the BLS handlers rather
+    -- than falling through to the regular CALL descent (which would refund the
+    -- forwarded gas and under-count block gas_used by the stipend).
+    "  bne x16, x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
