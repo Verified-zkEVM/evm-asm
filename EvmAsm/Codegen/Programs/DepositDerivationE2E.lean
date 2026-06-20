@@ -49,17 +49,16 @@ def ziskDepositDerivationE2EPrologue : String :=
   "  beqz t2, .Ldde_cpdata_d\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldde_cpdata\n" ++
   ".Ldde_cpdata_d:\n" ++
-  -- build descriptor 0 at dde_descs: topic_count=1; topic0(+32)=reverse(pdr_deposit_sig BE)->LE;
-  -- address(+192)=reverse(pdr_deposit_addr BE)->LE (zero the high 12 bytes +212..223 first).
+  -- PACK: descriptor 0 at dde_descs: topic_count=1 @+0; topic0 @+32 = reverse(pdr_deposit_sig);
+  -- address @+8 (packed header) = reverse(pdr_deposit_addr BE)->LE. (dde_descs is .zero.)
   "  la s0, dde_descs\n" ++
   "  li t0, 1\n  sd t0, 0(s0)\n" ++                       -- topic_count = 1
   -- topic0: dde_descs+32+k = pdr_deposit_sig[31-k]  (LE)
   "  la t0, pdr_deposit_sig\n  addi t0, t0, 31\n  addi t1, s0, 32\n  li t2, 32\n" ++
   ".Ldde_sig:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldde_sig\n" ++
-  -- address: zero +192..+223, then dde_descs+192+k = pdr_deposit_addr[19-k] (LE)
-  "  addi t1, s0, 192\n  sd zero, 0(t1); sd zero, 8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
-  "  la t0, pdr_deposit_addr\n  addi t0, t0, 19\n  addi t1, s0, 192\n  li t2, 20\n" ++
+  -- address: dde_descs+8+k = pdr_deposit_addr[19-k] (LE) at the packed header +8
+  "  la t0, pdr_deposit_addr\n  addi t0, t0, 19\n  addi t1, s0, 8\n  li t2, 20\n" ++
   ".Ldde_addr:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldde_addr\n" ++
   -- meta[0] = (offset 0, len 576)

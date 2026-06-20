@@ -266,18 +266,42 @@ def blockLogWindowSnapshotFunction : String :=
   "  la t1, evm_log_data_overflow; ld t1, 0(t1); bnez t1, .Lblws_overflow\n" ++
   "  add t2, s1, s0\n" ++
   "  sd t2, 0(t0)                # commit new block count\n" ++
-  "  la t0, evm_event_logs\n" ++
-  "  la t1, bv_block_log_descs\n" ++
-  "  slli t2, s1, 8\n" ++
-  "  add t1, t1, t2\n" ++
-  "  slli t2, s0, 8              # n * 256 bytes (both regions 8-aligned)\n" ++
-  ".Lblws_dcopy:\n" ++
-  "  ld t3, 0(t0)\n" ++
-  "  sd t3, 0(t1)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, 8\n" ++
-  "  addi t2, t2, -8\n" ++
-  "  bnez t2, .Lblws_dcopy\n" ++
+  -- vv4hr.3.4.2 PACK: repack each source 256 B descriptor into a variable-length
+  -- packed record (32 B header {topic_count@0, BE address 20 B @+8} + 32 B per
+  -- ACTUAL topic). `bv_block_log_desc_used` is the running packed byte cursor that
+  -- persists across per-tx dispatches; each log's packed offset is recorded in
+  -- bv_block_log_meta[base+i].desc_off (+16) so the random-access reader can jump.
+  "  la t0, bv_block_log_desc_used; ld s5, 0(t0)   # s5 = packed byte cursor\n" ++
+  "  li s2, 0                    # i (local index)\n" ++
+  ".Lblws_dpack:\n" ++
+  "  beq s2, s0, .Lblws_dpack_done\n" ++
+  "  la t0, evm_event_logs; slli t1, s2, 8; add t0, t0, t1   # t0 = src desc (i*256)\n" ++
+  "  ld t1, 0(t0)                # t1 = topic_count\n" ++
+  "  li t2, 4; bgtu t1, t2, .Lblws_overflow         # guard topic_count <= 4\n" ++
+  "  slli t2, t1, 5; addi t2, t2, 32                # t2 = reclen = 32 + 32*tc\n" ++
+  "  add t3, s5, t2\n" ++
+  "  li t4, " ++ toString bvBlockLogDescBytes ++ "\n" ++
+  "  bgtu t3, t4, .Lblws_overflow                   # packed byte cap\n" ++
+  -- meta[(base+i)].desc_off = s5  (24 B stride: idx*24 = idx*16 + idx*8)
+  "  add t4, s1, s2; slli t3, t4, 4; slli t5, t4, 3; add t3, t3, t5\n" ++
+  "  la t4, bv_block_log_meta; add t3, t4, t3\n" ++
+  "  sd s5, 16(t3)               # desc_off field\n" ++
+  -- write the packed descriptor at bv_block_log_descs + s5
+  "  la t3, bv_block_log_descs; add t3, t3, s5      # t3 = dest desc\n" ++
+  "  sd t1, 0(t3)                # header: topic_count\n" ++
+  "  addi t4, t0, 192; addi t5, t3, 8; li t6, 20    # copy 20 addr bytes src+192 -> dst+8\n" ++
+  ".Lblws_acopy:\n" ++
+  "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; bnez t6, .Lblws_acopy\n" ++
+  "  beqz t1, .Lblws_dpack_next                     # LOG0: no topics\n" ++
+  "  slli a0, t1, 5                                 # topic bytes = 32*tc\n" ++
+  "  addi t4, t0, 32; addi t5, t3, 32\n" ++
+  ".Lblws_tcopy:\n" ++
+  "  ld a1, 0(t4); sd a1, 0(t5); addi t4, t4, 8; addi t5, t5, 8; addi a0, a0, -8; bnez a0, .Lblws_tcopy\n" ++
+  ".Lblws_dpack_next:\n" ++
+  "  add s5, s5, t2              # desc_used += reclen\n" ++
+  "  addi s2, s2, 1; j .Lblws_dpack\n" ++
+  ".Lblws_dpack_done:\n" ++
+  "  la t0, bv_block_log_desc_used; sd s5, 0(t0)    # persist packed cursor\n" ++
   "  li s2, 0                    # i\n" ++
   ".Lblws_meta_loop:\n" ++
   "  beq s2, s0, .Lblws_ok\n" ++
@@ -291,7 +315,7 @@ def blockLogWindowSnapshotFunction : String :=
   "  li t2, " ++ toString bvBlockLogDataBytes ++ "\n" ++
   "  bgtu t1, t2, .Lblws_overflow\n" ++
   "  add t0, s1, s2\n" ++
-  "  slli t0, t0, 4\n" ++
+  "  slli t1, t0, 3; slli t0, t0, 4; add t0, t0, t1   # (base+i)*24 (24 B meta)\n" ++
   "  la t1, bv_block_log_meta\n" ++
   "  add t1, t1, t0\n" ++
   "  sd s5, 0(t1)                # rebased offset\n" ++
@@ -396,12 +420,13 @@ def ziskBlockLogWindowSnapshotOverflowDataSection : String :=
   ".balign 8\n" ++
   "bv_block_log_count:\n  .zero 8\n" ++
   "bv_block_log_data_used:\n  .zero 8\n" ++
+  "bv_block_log_desc_used:\n  .zero 8\n" ++
   "bv_block_log_overflow:\n  .zero 8\n" ++
   "bv_last_log_start:\n  .zero 8\n" ++
   "bv_last_log_count:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bv_block_log_descs:\n  .zero 256\n" ++
-  "bv_block_log_meta:\n  .zero 16\n" ++
+  "bv_block_log_meta:\n  .zero 24\n" ++
   "bv_block_log_data:\n  .zero 1"
 
 def ziskBlockLogWindowSnapshotOverflowProbeUnit : BuildUnit := {
@@ -446,15 +471,16 @@ def blockReceiptLogsMaterializeFunction : String :=
   "  add s5, s2, t0              # record ptr\n" ++
   "  ld t1, 32(s5)               # log_count\n" ++
   "  beqz t1, .Lbrlm_next\n" ++
-  "  ld t2, 24(s5)               # log_start\n" ++
+  "  ld t2, 24(s5)               # log_start (index)\n" ++
+  -- vv4hr.3.4.2 PACK: descriptors are variable length, so jump to the window's
+  -- first log via the packed byte-offset recorded in meta[log_start].desc_off.
+  "  la a3, bv_block_log_meta\n" ++
+  "  slli t3, t2, 4; slli t4, t2, 3; add t3, t3, t4   # log_start*24\n" ++
+  "  add a3, a3, t3              # a3 = &meta[log_start] (24 B stride)\n" ++
   "  la a0, bv_block_log_descs\n" ++
-  "  slli t3, t2, 8\n" ++
-  "  add a0, a0, t3\n" ++
+  "  ld t3, 16(a3); add a0, a0, t3   # a0 = packed desc base (meta.desc_off)\n" ++
   "  mv a1, t1\n" ++
   "  la a2, bv_block_log_data\n" ++
-  "  la a3, bv_block_log_meta\n" ++
-  "  slli t3, t2, 4\n" ++
-  "  add a3, a3, t3\n" ++
   "  la a4, bv_logs_rlp_arena\n" ++
   "  add a4, a4, s4\n" ++
   "  li a5, " ++ toString bvLogsRlpArenaBytes ++ "\n" ++
@@ -556,7 +582,7 @@ def ziskBlockReceiptLogsMaterializeOverflowDataSection : String :=
   "bv_block_log_overflow:\n  .zero 8\n" ++
   "bv_receipt_logs_status:\n  .zero 8\n" ++
   "bv_block_log_descs:\n  .zero 256\n" ++
-  "bv_block_log_meta:\n  .zero 16\n" ++
+  "bv_block_log_meta:\n  .zero 24\n" ++
   "bv_block_log_data:\n  .zero 1\n" ++
   "bv_record_blooms:\n  .zero 256\n" ++
   "bv_record_logs_desc:\n  .zero 24\n" ++
