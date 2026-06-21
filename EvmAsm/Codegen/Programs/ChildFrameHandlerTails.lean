@@ -357,6 +357,13 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- CHILD env (switched by the descend). env+32 is LE; reverse to BE, u256_add_be the BE endowment
     -- (create_value_be, still valid — the initcode has not run yet), reverse back. create_creator_newbal
     -- is the BE scratch (free after the gate's creator-debit). a0-a2 alias x10/x12/x13 -> save/restore.
+    -- drj99.1 (initcode_calls_with_value bv_fail=44): FIRST capture the child's staged PRE-state
+    -- balance (env+32 BEFORE the endowment credit, = block-pre balance: 0 for a fresh address) into
+    -- nse_create_pre_bal (BE), so the created-account endowment-credit nonstorage record below carries
+    -- the spec-correct pre_balance. env+32 is LE -> reverse to BE. nse_create_pre_bal is free here.
+    "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+    ".Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
     ".Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_rev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -406,6 +413,34 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  jal ra, eip7708_append_transfer_log\n" ++
     "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
     ".Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    -- drj99.1 (initcode_calls_with_value bv_fail=44): record the created account's endowment-credit
+    -- as its FIRST non-storage effect, so the all-accounts comparator's first-pre = block-pre. The
+    -- existing created-account record fires only at the CREATE deposit (RETURN handler, NoopHalt),
+    -- which runs AFTER the initcode. When the initcode itself makes an outgoing value-CALL, that CALL's
+    -- caller-debit record (ChildFrameHandlers .Lcd_deb_done: pre = endowment, post = endowment-out)
+    -- lands BEFORE the deposit record, so nonstorage_effect_aggregate's first-pre for the created
+    -- account = the MID-execution balance (endowment) instead of its block-pre (0). The BAL records
+    -- the created-then-spent account as net-zero (balanceChanges:[]), so the agg first-pre=endowment vs
+    -- BAL block-pre=0 mismatched -> bv_fail=44. Appending (create_address_be, pre=block-pre balance,
+    -- post=endowment, pre_nonce=0, post_nonce=1) HERE -- after create_frame_descend switched x20 to the
+    -- CHILD env (post-snapshot: env+656 already captured the pre-descend count, so frame_return ROLLS
+    -- THIS BACK when the child reverts/fails) and BEFORE the initcode runs -- makes it the first record
+    -- for the created address. pre = nse_create_pre_bal (the staged block-pre balance captured above);
+    -- post = endowment (create_value_be, BE); nonce 0->1 (EIP-161 new-account nonce, matching the
+    -- deposit record and the BAL's postNonce). Gated on the account-witness ctx (env+584, so
+    -- create_value_be is valid) + value!=0 (a zero-endowment CREATE has no caller-debit to precede the
+    -- deposit, and the deposit's pre=0 already gives first-pre=0). On the common CREATE-with-value path
+    -- (initcode does NOT spend the endowment) this record has the same pre(0)/post(endowment) as the
+    -- deposit, so first-pre/last-post are unchanged -- no regression. a0/a2/a3 alias x10/x12/x13 ->
+    -- save/restore around record_nonstorage_effect.
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+    "  beqz t1, .Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- endowment == 0: deposit record suffices
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be\n  la a1, nse_create_pre_bal\n  la a2, create_value_be\n  li a3, 0\n  li a4, 1\n" ++
+    "  jal ra, record_nonstorage_effect\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    ".Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  j .dispatch_loop\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++

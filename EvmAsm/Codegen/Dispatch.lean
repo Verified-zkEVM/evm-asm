@@ -623,7 +623,11 @@ def emitCreateChildFrameData : String :=
   -- (post_balance) and a zero buffer for the absent pre_balance.
   ".balign 32\n" ++
   "nse_create_post_bal:\n  .zero 32\n" ++
-  "nse_zero_bal:\n  .zero 32\n"
+  "nse_zero_bal:\n  .zero 32\n" ++
+  -- drj99.1 (initcode_calls_with_value bv_fail=44): the created account's staged block-pre balance
+  -- (BE), captured at create_frame_descend before the endowment credit, used as the pre_balance of
+  -- the created-account endowment-credit nonstorage record (ChildFrameHandlerTails .Lcr_nse_done).
+  "nse_create_pre_bal:\n  .zero 32\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
