@@ -783,6 +783,16 @@ def blockVerdictFunction : String :=
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n  bnez t0, .Lbv_sender_upfront_fail\n" ++
   ".Lbv_stx_checks_done:\n" ++
   "  jal ra, bv_emit_single_tx_tl7708\n" ++
+  -- fva3w: snapshot the exec effect logs before the contract runtime dispatch. A top-level
+  -- tx that reverts/aborts (INVALID/REVERT/OOG at depth 0) discards its state changes; its
+  -- value-transfer / CREATE effects must be rolled back too (child frames roll back via
+  -- frame_return; the depth-0 .exit_*_top path does not). Truncated after dispatch when the tx
+  -- errored (status 0), exactly as frame_return truncates a reverted child.
+  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0)\n" ++
+  "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
@@ -796,6 +806,18 @@ def blockVerdictFunction : String :=
   -- raw evm_refund_acc read.
   "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a4, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  -- fva3w: the tx errored (a4 == 0 = REVERT / exceptional abort) -> roll back the exec effect
+  -- logs to the pre-tx snapshot, discarding the rolled-back value-transfer / CREATE effects so
+  -- the all-accounts non-storage/code comparators see net-zero for a touched-but-aborted account
+  -- (EIP-7928 records the access in the BAL but the state change is rolled back). Mirrors
+  -- frame_return's reverted-child truncation. a4 != 0 (success) leaves the effects committed.
+  "  bnez a4, .Lbv_tx0_effects_kept\n" ++
+  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
