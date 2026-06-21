@@ -293,6 +293,27 @@ private def selfdestructTailAsm : String :=
   -- built sdai_origin_address = env.ADDRESS (BE) only when an account-witness ctx (584(x20)) is present;
   -- guard on that. find_code_effect_by_address clobbers t0-t6 + a0(=x10) -> save x10/x12.
   "  ld t0, 584(x20)\n  beqz t0, .L_selfdestruct_created_in_tx_done\n" ++
+  -- coc3g.6.2: a contract whose constructor SELFDESTRUCTs (initcode `..ff`) NEVER deposits code,
+  -- so exec_code_effect_log has NO record for it and find_code_effect_by_address below would MISS
+  -- -> created_in_tx stays 0 -> the SD took the witness-present path which BAILS (the child is
+  -- absent from the block-pre witness) -> the beneficiary credit / child deletion were never
+  -- recorded -> bv_fail=44 (selfdestruct_to_*_same_tx with_balance). The spec's authoritative
+  -- created-in-tx signal is `originator in tx_state.created_accounts` (system.py selfdestruct:687),
+  -- which is set at generic_create (account creation), BEFORE the initcode runs -- independent of
+  -- any code deposit. We are running INSIDE the CREATE child frame here (the SD halts the
+  -- constructor), and create_frame_descend set create_frame_flag[current_depth]=1 (cleared only by
+  -- the RETURN/REVERT deposit, NOT this SD path), so the flag at the current depth IS exactly that
+  -- created_accounts membership for the originator. Detect it directly -- this is the precise spec
+  -- signal and needs no code deposit. (The code-effect-log check below still covers a created child
+  -- that DEPLOYED code and is later SELFDESTRUCTed by a CALL from a parent frame, where this flag's
+  -- depth no longer matches.) Soundness: this can only mark the genuinely-created originator as
+  -- created-in-tx (recording MORE exec effects the BAL declares), never a witnessed account.
+  "  la t0, evm_call_depth\n  ld t0, 0(t0)\n" ++
+  "  la t1, create_frame_flag\n  slli t2, t0, 3\n  add t1, t1, t2\n  ld t1, 0(t1)\n" ++
+  "  beqz t1, .L_selfdestruct_ctit_codecheck\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx\n  li t2, 1\n  sd t2, 0(t0)\n" ++
+  "  j .L_selfdestruct_created_in_tx_done\n" ++   -- no code record to clear (constructor never deposited)
+  ".L_selfdestruct_ctit_codecheck:\n" ++
   "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
   "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, sdai_origin_address\n" ++
   "  jal ra, find_code_effect_by_address\n" ++
@@ -316,6 +337,17 @@ private def selfdestructTailAsm : String :=
   "  li x15, 1\n" ++
   "  sd x15, 0(x14)\n" ++
   selfdestructBeneficiaryNonstorageAsm ++
+  -- coc3g.6.2: a CREATE child frame that halts via SELFDESTRUCT (constructor `..ff`) goes to
+  -- .exit_selfdestruct, which (unlike RETURN/REVERT/STOP) does NOT clear create_frame_flag[depth].
+  -- Now that the created-in-tx detection above CONSUMES this flag, a stale 1 left in this depth's
+  -- slot would be inherited by a later CALL frame descending into the same (reused) depth slot --
+  -- if that CALL frame then SELFDESTRUCTs, the stale flag would falsely mark a witnessed account as
+  -- created-in-tx (a potential false-ACCEPT). Clear it here (depth>0 only; the flag table is depth-
+  -- indexed and depth 0 is the top frame, never a CREATE child) to mirror the other halt exits and
+  -- keep the slot clean for reuse. Guarded on depth>0 so a top-level SELFDESTRUCT is untouched.
+  "  la t0, evm_call_depth\n  ld t0, 0(t0)\n  beqz t0, .L_sd_flag_clear_done\n" ++
+  "  la t1, create_frame_flag\n  slli t2, t0, 3\n  add t1, t1, t2\n  sd x0, 0(t1)\n" ++
+  ".L_sd_flag_clear_done:\n" ++
   "  addi x12, x12, 32\n" ++
   "  j .exit_selfdestruct"
 
