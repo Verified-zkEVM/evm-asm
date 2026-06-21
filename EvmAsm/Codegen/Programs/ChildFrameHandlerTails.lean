@@ -88,6 +88,32 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  addi x18, x18, 1\n" ++
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 2b\n" ++
+    -- coc3g.7: pay-before-execute NEW_ACCOUNT state gas, mirroring spec generic_create
+    -- (amsterdam vm/instructions/system.py:88-93 `charge_state_gas(STATE_BYTES_PER_NEW_ACCOUNT
+    -- * COST_PER_STATE_BYTE)` = 120*1530 = 183600), which runs BEFORE the balance/nonce/depth
+    -- bail AND the EIP-684 code-or-nonce collision check. When the reservoir + regular gas_left
+    -- cannot cover that charge the spec raises OutOfGasError: an exceptional halt that burns ALL
+    -- remaining regular gas (interpreter.py: `evm.regular_gas_used += evm.gas_left;
+    -- evm.gas_left = 0`). On the committing path the charge itself is applied later (the
+    -- liStateGasRuntime drain at .5c, which subtracts the same 183600), and on every BAIL path
+    -- (balance/nonce/collision) the spec charges then immediately refunds it (net 0 on
+    -- state_gas_used) -- so the ONLY observable effect of this early charge is the OOG abort.
+    -- Modelling that abort here (route to .exit_outofgas = halt_kind 6 -> dispatcher_tx_gas_settle
+    -- burns all gas) is the missing piece for create_collision_no_log (CREATE/CREATE2): the spec
+    -- OOGs at charge_state_gas before the collision branch, consuming the full gas limit, while
+    -- the guest previously took the cheap collision push-0 path -> under-charged header.gas_used.
+    -- Gated on the account-witness context (env+584) like the balance/collision checks; a
+    -- pure-arithmetic guard that can only ADD a required abort, never weaken one (soundness:
+    -- never admits a block the spec rejects). Clobbers t0/t1; a1 is reloaded by the gate below.
+    "  ld a1, 584(x20)\n" ++
+    "  beqz a1, .Lcr_csg_oog_ok_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- t0 = NEW_ACCOUNT state gas = 120*1530 = 183600
+    "  la t1, evm_state_gas_left; ld t1, 0(t1)\n" ++
+    "  bgeu t1, t0, .Lcr_csg_oog_ok_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- reservoir alone covers it
+    "  sub t0, t0, t1\n" ++                                          -- remaining after draining the reservoir
+    "  ld t1, 568(x20)\n" ++                                         -- regular gas_left
+    "  bltu t1, t0, .exit_outofgas\n" ++                             -- reservoir + gas_left < 183600 -> exceptional halt
+    ".Lcr_csg_oog_ok_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     -- With account-witness context, enforce the executable-spec
     -- insufficient-balance zero-result branch before deriving success.
     "  ld a1, 584(x20)\n" ++
