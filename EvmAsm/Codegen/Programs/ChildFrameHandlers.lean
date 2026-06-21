@@ -290,7 +290,7 @@ def callDescendFallThrough
     "  li t2, 32\n" ++
     ".Lcd_cmp_" ++ tag ++ ":\n" ++
     "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
-    "  bltu t3, t4, .Lcd_fail_" ++ tag ++ "\n" ++     -- balance < value: insufficient
+    "  bltu t3, t4, .Lcd_insuffbal_" ++ tag ++ "\n" ++ -- balance < value: insufficient (charge the value-CALL net gas, then fail)
     "  bltu t4, t3, .Lcd_balok_" ++ tag ++ "\n" ++    -- balance > value: sufficient
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_cmp_" ++ tag ++ "\n" ++
@@ -626,6 +626,29 @@ def callDescendFallThrough
   "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
   "  addi x10, x10, 1\n" ++
   "  j .dispatch_loop\n" ++
+  -- coc3g.7 (bv_fail=41): a value-bearing CALL (mode 0/2) whose caller balance < value
+  -- still pays the value-transfer REGULAR gas, then fails (push 0). The balance gate jumps
+  -- here (NOT to the shared .Lcd_fail_) so this charge does NOT touch the depth-gate or the
+  -- code-resolution-failure (status 2/3/4/5) arrivals, which the spec does NOT bill the
+  -- value-transfer gas. Spec vm/instructions/system.py: charge_gas(extra_gas = access +
+  -- CALL_VALUE(9000)) and charge_gas(message_call_gas.cost) run BEFORE the
+  -- `sender_balance < value` check (system.py:464/477/488); on insufficient balance only the
+  -- sub-call gas (forwarded gas + GAS_CALL_STIPEND(2300)) is returned
+  -- (`evm.gas_left += message_call_gas.sub_call`), so the NET regular consumed for the value
+  -- transfer is 9000 - 2300 = 6700 (access is already charged via runtime_access_account_charge
+  -- before the gate; the value!=0 gate guard guarantees value>0 here so the 6700 is
+  -- unconditional). Without it the reconstructed block_regular_gas under-counts by 6700 ->
+  -- header.gas_used appears to over-claim -> .Lbv_block_gas_used_over_fail (bv_fail=41:
+  -- failed_inner_operation_no_log call_insufficient_balance). The spec's prior
+  -- charge_gas(extra_gas) would have OOG'd if gas_left < 6700, so bailing to .exit_outofgas
+  -- matches the spec. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
+  (if valueBearing then
+     ".Lcd_insuffbal_" ++ tag ++ ":\n" ++
+     "  li t0, 6700\n" ++
+     "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
+     "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
+     "  j .Lcd_fail_" ++ tag ++ "\n"
+   else "") ++
   -- empty code (EOA): the call succeeds, runs nothing → push 1
   ".Lcd_empty_" ++ tag ++ ":\n" ++
   -- bnctz: a value-bearing CALL (mode 0) to an empty/non-existent callee still pays the
