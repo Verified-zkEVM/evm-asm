@@ -370,9 +370,19 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  mv a0, sp\n" ++
   "  la a1, evm_selfdestruct_balance_scratch\n" ++
   "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  mv t5, a0\n" ++                                  -- t5 = 1 found / 0 miss
   "  ld x10, 32(sp)\n" ++
   "  ld x12, 40(sp)\n" ++
   "  addi sp, sp, 64\n" ++
+  -- coc3g.6.2: a constructor-SELFDESTRUCT child deposited no nonstorage effect (no RETURN), so the
+  -- latest-balance lookup MISSES. Its live balance is the child's selfBalance env+32 (the endowment
+  -- credited at create_frame_descend), and x20 IS the child env here. On a miss, read env+32 (LE,
+  -- byte 32 = LSB) into evm_selfdestruct_balance_scratch (BE, byte 31 = LSB) so the burn/transfer
+  -- log amount is the moved balance. (The byte-reverse below then flips it to LE for the log encoder.)
+  "  bnez t5, .L_selfdestruct_eip7708_have_balance\n" ++
+  "  la t0, evm_selfdestruct_balance_scratch; addi t1, x20, 63; li t2, 32\n" ++
+  ".L_sd7708_envbal_rev:\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sd7708_envbal_rev\n" ++
   ".L_selfdestruct_eip7708_have_balance:\n" ++
   "  la t0, evm_selfdestruct_balance_scratch\n" ++
   "  addi t1, t0, 31\n" ++
@@ -512,6 +522,15 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
   "  mv a0, sp; addi a1, sp, 32\n" ++
   "  jal ra, nonstorage_effect_latest_balance\n" ++   -- a0 = 1 found / 0 miss (out left 0 on miss)
+  -- coc3g.6.2: a constructor-SELFDESTRUCT child has no recorded nonstorage effect (no RETURN deposit),
+  -- so the latest-balance lookup misses; its live balance is env+32 (the endowment, LE), and x20 is the
+  -- child env here. On a miss read env+32 (LE) -> sp+32 (BE) so `transferred` = the moved balance and
+  -- the beneficiary credit below records the BAL's declared +balance (else bv_fail=44 NOTFOUND).
+  "  bnez a0, .L_sdbn_ci_have_transferred\n" ++
+  "  addi t0, sp, 32; addi t1, x20, 63; li t2, 32\n" ++
+  ".L_sdbn_envbal_rev:\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .L_sdbn_envbal_rev\n" ++
+  ".L_sdbn_ci_have_transferred:\n" ++
   -- record the child's DELETION (balance 0, nonce 0) -- reuse sp+0..31 as a zero balance.
   "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
   "  la a0, sdai_origin_address\n  mv a1, sp\n  mv a2, sp\n  li a3, 0\n  li a4, 0\n" ++
