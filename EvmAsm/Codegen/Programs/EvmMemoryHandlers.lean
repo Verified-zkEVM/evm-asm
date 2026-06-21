@@ -31,6 +31,7 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     { label   := "h_MLOAD"
       opcodes := [0x51]
       preBody := stackUnderflowGuardAsm 1 ++ "\n" ++
+                 fixedMemoryOffsetHighLimbGuardAsm "x16" ++
                  "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mload" "x15" "x16" "x17" "x18" "x19" "x6" true 32
       body    := EvmAsm.Evm64.evm_mload .x15 .x16 .x17 .x18 .x13
@@ -40,6 +41,7 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     { label   := "h_MSTORE"
       opcodes := [0x52]
       preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 fixedMemoryOffsetHighLimbGuardAsm "x16" ++
                  "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mstore" "x15" "x16" "x17" "x18" "x19" "x6" true 32
       body    := EvmAsm.Evm64.evm_mstore .x15 .x14 .x16 .x17 .x18 .x13
@@ -48,6 +50,7 @@ def memoryHandlers : List OpcodeHandlerSpec :=
     { label   := "h_MSTORE8"
       opcodes := [0x53]
       preBody := stackUnderflowGuardAsm 2 ++ "\n" ++
+                 fixedMemoryOffsetHighLimbGuardAsm "x16" ++
                  "  ld x15, 0(x12)\n" ++
                  updateActiveMemorySizeConstAsm "mstore8" "x15" "x16" "x17" "x18" "x19" "x6" true 1
       body    := EvmAsm.Evm64.evm_mstore8 .x15 .x14 .x18 .x13

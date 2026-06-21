@@ -76,6 +76,25 @@ def updateActiveMemorySizeAsm
   "  sd " ++ roundedReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
   ".Lmemsize_" ++ tag ++ "_done:\n"
 
+/-- Guard the HIGH 192 bits of a 256-bit memory offset (stack word at `0(x12)`,
+    low limb at +0, high limbs at +8/+16/+24) for the fixed-length memory opcodes
+    MLOAD/MSTORE/MSTORE8. The access length is a nonzero constant (1 or 32), so the
+    EVM always touches memory and `offset + length` must fit the memory cost model;
+    any offset >= 2^64 (a nonzero high limb) makes the word count and quadratic
+    memory-expansion cost astronomically large — execution-specs
+    `calculate_gas_extend_memory` then OOGs on `charge_gas`. So route a nonzero high
+    limb straight to `.exit_outofgas` (matching the existing high-limb guards in
+    `returnRevertMemoryGasAsm` / `callMemoryExpansionGasAsm` / `keccakRangeGuardAsm`,
+    which `updateActiveMemorySizeAsm` itself does NOT perform — it only sees the low
+    limb). `tmpReg` is clobbered; must be free before `updateActiveMemorySize*`. -/
+def fixedMemoryOffsetHighLimbGuardAsm (tmpReg : String) : String :=
+  "  ld " ++ tmpReg ++ ", 8(x12)\n" ++
+  "  bnez " ++ tmpReg ++ ", .exit_outofgas\n" ++
+  "  ld " ++ tmpReg ++ ", 16(x12)\n" ++
+  "  bnez " ++ tmpReg ++ ", .exit_outofgas\n" ++
+  "  ld " ++ tmpReg ++ ", 24(x12)\n" ++
+  "  bnez " ++ tmpReg ++ ", .exit_outofgas\n"
+
 /-- `updateActiveMemorySizeAsm` for a constant access length (MLOAD/MSTORE =
     32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first. -/
 def updateActiveMemorySizeConstAsm
