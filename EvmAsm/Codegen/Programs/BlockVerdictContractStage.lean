@@ -174,8 +174,23 @@ def stageRuntimePayloadCodeFunction : String :=
   "  li t6, 32; beq t5, t6, .Lsrpc_cv_done\n" ++
   "  add a5, t3, t5; lbu a6, 0(a5); li a5, 31; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_cv\n" ++
   ".Lsrpc_cv_done:\n" ++
-  -- Trailer (relative to env_base s5): SLOTNUM@+416 (zero), gas@+448,
-  -- validate@+456, is_creation@+464, witness lens@+472/+480/+488 (zero).
+  -- EIP-7843 SLOTNUM (trailer word @env_base+416, low limb): the block-header
+  -- slot_number (SSZ field 23, u64 LE @exec_payload+532) is authenticated as part
+  -- of the reconstructed header hash (BlockHeaderSszToRlp field 23). The
+  -- dispatcher copies this word to evm_env+624, which h_SLOTNUM pushes. Read the
+  -- u64 byte-wise (LBU): exec_payload = SSZ_BASE+60 is mod-8 = 6, so a direct
+  -- 8-byte ld at +532 (mod 8 = 2) would be a misaligned access (traps in the
+  -- verified RV64 subset). slot is u64 -> only limb0 (the +416 dword) is nonzero;
+  -- the upper 3 limbs stay 0 (payload pre-zeroed). LE source -> LE limb0 directly.
+  "  li t3, 0; li t4, 0\n" ++
+  ".Lsrpc_slot:\n" ++
+  "  li t5, 8; beq t4, t5, .Lsrpc_slot_done\n" ++
+  "  add t5, s2, t4; addi t5, t5, 532; lbu t6, 0(t5); slli a5, t4, 3; sll t6, t6, a5; or t3, t3, t6\n" ++
+  "  addi t4, t4, 1; j .Lsrpc_slot\n" ++
+  ".Lsrpc_slot_done:\n" ++
+  "  sd t3, 416(s5)                       # SLOTNUM limb0 = slot_number (u64 LE)\n" ++
+  -- Trailer (relative to env_base s5): gas@+448, validate@+456, is_creation@+464,
+  -- witness lens@+472/+480/+488 (zero).
   "  ld t3, 40(s1); sd t3, 448(s5)        # gas limit (ctx tx gas)\n" ++
   "  li t3, 1; sd t3, 456(s5)             # validate_tx_gas = 1\n" ++
   "  ld t3, 48(s1); sd t3, 464(s5)        # is_creation\n" ++
