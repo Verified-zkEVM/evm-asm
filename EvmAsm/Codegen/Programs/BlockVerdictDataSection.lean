@@ -1119,6 +1119,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
   "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
+  -- coc3g.5: 20-byte EIP-7702 delegated TARGET address scratch. When the recipient's
+  -- resolved code is a 0xef0100||target marker (a prior-block-delegated EOA), the
+  -- dispatch follows the marker to the target's code while keeping env.ADDRESS = the
+  -- delegating EOA (so SSTORE keys the EOA's storage, per interpreter.py message setup).
+  ".balign 8\n" ++
+  "dtrc_deleg_target:\n  .zero 32\n" ++
   -- bmvmx.1.4.4: single-tx EOA settlement scalars precomputed before
   -- block_state_root (additive; no consumer yet -> verdict byte-identical).
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.

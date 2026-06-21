@@ -233,6 +233,40 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
+  -- coc3g.5: EIP-7702 prior-block delegation follow. The DIRECT recipient code lookup
+  -- (this path, taken when the recipient was NOT delegated in THIS block) may return a
+  -- 0xef0100||target marker (23 bytes) — a prior-block-delegated EOA whose pre/post-state
+  -- code is the delegation designator. The spec (interpreter.py process_message) runs the
+  -- DELEGATED TARGET's code while keeping current_target = the delegating EOA, so
+  -- env.ADDRESS (stage_runtime_payload_code ADDRESS@0 = ctx+72 = the EOA) is UNCHANGED and
+  -- SSTORE keys the EOA's own storage; only message.code is re-pointed at the target's
+  -- code. Without this the marker bytes ran as bytecode (no SSTORE), so the EOA's BAL
+  -- storage_change was absent from the exec log -> bv_fail=34. Follow is applied ONLY here
+  -- (not on the same-block-delegation path below, which already resolved the one-hop
+  -- target code): EIP-7702 delegation is single-hop, never recursively chained.
+  "  la t0, cahsr_code_length; ld t2, 0(t0); li t3, 23; bne t2, t3, .Ldtrc_have_code\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
+  "  lbu t2, 0(t4); li t3, 0xef; bne t2, t3, .Ldtrc_have_code\n" ++
+  "  lbu t2, 1(t4); li t3, 0x01; bne t2, t3, .Ldtrc_have_code\n" ++
+  "  lbu t2, 2(t4); bnez t2, .Ldtrc_have_code\n" ++
+  -- Copy the 20-byte target address (marker bytes 3..22) into dtrc_deleg_target.
+  "  la t1, dtrc_deleg_target; addi t5, t4, 3; li t6, 20\n" ++
+  ".Ldtrc_deleg_copy:\n" ++
+  "  beqz t6, .Ldtrc_deleg_copied\n" ++
+  "  lbu t2, 0(t5); sb t2, 0(t1); addi t5, t5, 1; addi t1, t1, 1; addi t6, t6, -1; j .Ldtrc_deleg_copy\n" ++
+  ".Ldtrc_deleg_copied:\n" ++
+  -- Re-resolve the TARGET's code against the same header the recipient resolved under.
+  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++
+  "  la a2, dtrc_deleg_target\n" ++
+  "  mv a3, s0; mv a4, s1\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
+  -- Warm the delegated target (EIP-2929 accessed_addresses.add(delegated_address)).
+  "  la a0, dtrc_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_delegation_code:\n" ++
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
