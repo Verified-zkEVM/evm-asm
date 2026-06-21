@@ -20,14 +20,18 @@ def logTopicCopies (topicCount : Nat) : String :=
     (List.range topicCount).map fun i =>
       let stackOff := 64 + i * 32
       let entryOff := 32 + i * 32
-      "  ld x21, " ++ toString stackOff ++ "(x12)\n" ++
-      "  sd x21, " ++ toString entryOff ++ "(x14)\n" ++
-      "  ld x21, " ++ toString (stackOff + 8) ++ "(x12)\n" ++
-      "  sd x21, " ++ toString (entryOff + 8) ++ "(x14)\n" ++
-      "  ld x21, " ++ toString (stackOff + 16) ++ "(x12)\n" ++
-      "  sd x21, " ++ toString (entryOff + 16) ++ "(x14)\n" ++
-      "  ld x21, " ++ toString (stackOff + 24) ++ "(x12)\n" ++
-      "  sd x21, " ++ toString (entryOff + 24) ++ "(x14)\n"
+      -- x25 (NOT x21) as the copy temp: x21 is the dispatcher's reserved EVM
+      -- code-base register (PC = x10 - x21); clobbering it breaks the code-size
+      -- stop guard / PC / JUMP after a LOG, halting the frame early (a LOG
+      -- followed by any further opcode, e.g. LOG0-then-CALL).
+      "  ld x25, " ++ toString stackOff ++ "(x12)\n" ++
+      "  sd x25, " ++ toString entryOff ++ "(x14)\n" ++
+      "  ld x25, " ++ toString (stackOff + 8) ++ "(x12)\n" ++
+      "  sd x25, " ++ toString (entryOff + 8) ++ "(x14)\n" ++
+      "  ld x25, " ++ toString (stackOff + 16) ++ "(x12)\n" ++
+      "  sd x25, " ++ toString (entryOff + 16) ++ "(x14)\n" ++
+      "  ld x25, " ++ toString (stackOff + 24) ++ "(x12)\n" ++
+      "  sd x25, " ++ toString (entryOff + 24) ++ "(x14)\n"
 
 /-- M26 LOG capture prefix. Appends a bounded 256-byte descriptor:
       +0  topic count (u64)
@@ -72,24 +76,31 @@ def logCapturePreBody (topicCount : Nat) : String :=
   -- canonical 20-byte BE address, so reverse the 20 address bytes here. The
   -- descriptor was pre-zeroed, so the upper 12 bytes of the +192 word stay zero
   -- (matching the canonical low-aligned form the encoder + bloom expect).
+  -- x25 (NOT x21) as the byte/word temp here: x21 is the dispatcher's reserved
+  -- EVM code-base register (PC = x10 - x21, JUMP/JUMPI target = x21 + dest, and
+  -- the code-size stop guard `sub x5,x10,x21`). The handler runs mid-dispatch and
+  -- must preserve x21, or any opcode AFTER a LOG (e.g. LOG0-then-CALL) reads a
+  -- corrupted code base -> the stop guard exits the frame early, dropping the rest
+  -- of the bytecode (contract_log_and_transfer_ordering: CALL never executes, so
+  -- the value transfer's BAL non-storage effect + EIP-7708 log are missing).
   "  addi x22, x20, 19\n" ++        -- src = env+19 (MSB of the LE address)
   "  addi x23, x14, 192\n" ++       -- dst = descriptor+192 (canonical BE)
   "  li x16, 20\n" ++
   "42:\n" ++
-  "  lbu x21, 0(x22)\n" ++
-  "  sb x21, 0(x23)\n" ++
+  "  lbu x25, 0(x22)\n" ++
+  "  sb x25, 0(x23)\n" ++
   "  addi x22, x22, -1\n" ++
   "  addi x23, x23, 1\n" ++
   "  addi x16, x16, -1\n" ++
   "  bnez x16, 42b\n" ++
-  "  ld x21, 64(x20)\n" ++
-  "  sd x21, 224(x14)\n" ++
-  "  ld x21, 72(x20)\n" ++
-  "  sd x21, 232(x14)\n" ++
-  "  ld x21, 80(x20)\n" ++
-  "  sd x21, 240(x14)\n" ++
-  "  ld x21, 88(x20)\n" ++
-  "  sd x21, 248(x14)\n" ++
+  "  ld x25, 64(x20)\n" ++
+  "  sd x25, 224(x14)\n" ++
+  "  ld x25, 72(x20)\n" ++
+  "  sd x25, 232(x14)\n" ++
+  "  ld x25, 80(x20)\n" ++
+  "  sd x25, 240(x14)\n" ++
+  "  ld x25, 88(x20)\n" ++
+  "  sd x25, 248(x14)\n" ++
   "  li x19, 32\n" ++
   "  bgeu x19, x18, 2f\n" ++
   "  mv x18, x19\n" ++
@@ -111,28 +122,29 @@ def logCapturePreBody (topicCount : Nat) : String :=
   -- is reclaimed when the emitting frame ends, so the full data is unreadable at
   -- block-end. evm_log_data_meta[index] = (byte offset into evm_log_data, full len)
   -- is kept parallel to evm_event_logs. Live: x14=descriptor, x15=index,
-  -- x17=mem offset, x13=mem base; scratch x16/x18/x19/x21/x22/x23/x24.
+  -- x17=mem offset, x13=mem base; scratch x16/x18/x19/x25/x22/x23/x24.
+  -- (x25 NOT x21: x21 is the dispatcher's reserved EVM code-base register; see above.)
   "  ld x16, 16(x14)\n" ++           -- x16 = full data size (unclamped, stored at +16)
   "  la x18, evm_log_data_used\n" ++
   "  ld x19, 0(x18)\n" ++            -- x19 = used (dst byte offset into evm_log_data)
-  "  la x21, evm_log_data_meta\n" ++
+  "  la x25, evm_log_data_meta\n" ++
   "  slli x22, x15, 4\n" ++
-  "  add x21, x21, x22\n" ++         -- &meta[index]
-  "  sd x19, 0(x21)\n" ++            -- meta[index].offset = used
-  "  sd x16, 8(x21)\n" ++            -- meta[index].len = full size
+  "  add x25, x25, x22\n" ++         -- &meta[index]
+  "  sd x19, 0(x25)\n" ++            -- meta[index].offset = used
+  "  sd x16, 8(x25)\n" ++            -- meta[index].len = full size
   "  li x22, 262144\n" ++
   "  add x23, x19, x16\n" ++         -- end = used + size
   "  bgtu x23, x22, 5f\n" ++         -- overflow -> set flag, still record descriptor
-  "  la x21, evm_log_data\n" ++
-  "  add x21, x21, x19\n" ++         -- dst = evm_log_data + used
+  "  la x25, evm_log_data\n" ++
+  "  add x25, x25, x19\n" ++         -- dst = evm_log_data + used
   "  add x22, x13, x17\n" ++         -- src = evm_memory + offset
   "  mv x24, x16\n" ++               -- remaining = full size
   "6:\n" ++
   "  beqz x24, 7f\n" ++
   "  lbu x23, 0(x22)\n" ++
-  "  sb x23, 0(x21)\n" ++
+  "  sb x23, 0(x25)\n" ++
   "  addi x22, x22, 1\n" ++
-  "  addi x21, x21, 1\n" ++
+  "  addi x25, x25, 1\n" ++
   "  addi x24, x24, -1\n" ++
   "  j 6b\n" ++
   "7:\n" ++                          -- success: used += round8(size)
@@ -144,9 +156,9 @@ def logCapturePreBody (topicCount : Nat) : String :=
   "  sd x15, 472(x20)\n" ++
   "  j 8f\n" ++
   "5:\n" ++                          -- overflow: flag it; descriptor prefix still recorded
-  "  la x21, evm_log_data_overflow\n" ++
+  "  la x25, evm_log_data_overflow\n" ++
   "  li x22, 1\n" ++
-  "  sd x22, 0(x21)\n" ++
+  "  sd x22, 0(x25)\n" ++
   "  addi x15, x15, 1\n" ++
   "  sd x15, 472(x20)\n" ++
   "  j 8f\n" ++
