@@ -50,7 +50,7 @@ open EvmAsm.Rv64
       +72   u64 current_block_number       (= 0)
       +80   u64 blockhash_count            (= 0)
       +88   13 simple-env words
-      +504  SLOTNUM word                   (= 0)
+      +504  SLOTNUM word                   (EIP-7843 slot_number, exec@532)
       +536  u64 gas_limit                  (= context tx gas limit)
       +544  u64 validate_tx_gas flag       (= 0; see note below)
       +552  u64 is_creation flag           (= 1)
@@ -132,6 +132,20 @@ def stageCreationRuntimePayloadFunction : String :=
   "  addi t1, s1, 96\n" ++
   "  ld t2, 0(t1); sd t2, 96(t6); ld t2, 8(t1); sd t2, 104(t6)\n" ++
   "  ld t2, 16(t1); sd t2, 112(t6); ld t2, 24(t1); sd t2, 120(t6)\n" ++
+  -- EIP-7843 SLOTNUM (trailer word @env_base+416, low limb): block-header
+  -- slot_number (SSZ field 23, u64 LE @exec_payload+532) is authenticated as part
+  -- of the reconstructed header hash. The dispatcher copies this word to
+  -- evm_env+624, which h_SLOTNUM pushes. Read byte-wise (LBU): exec_payload =
+  -- SSZ_BASE+60 is mod-8 = 6, so a direct 8-byte ld at +532 (mod 8 = 2) would be
+  -- misaligned (traps in the verified RV64 subset). slot is u64 -> only limb0
+  -- (+416) is set; upper 3 limbs stay 0 (payload pre-zeroed). LE -> LE limb0.
+  "  li t1, 0; li t2, 0\n" ++
+  ".Lscrp_slot:\n" ++
+  "  li t3, 8; beq t2, t3, .Lscrp_slot_done\n" ++
+  "  add t3, s2, t2; addi t3, t3, 532; lbu t4, 0(t3); slli t5, t2, 3; sll t4, t4, t5; or t1, t1, t4\n" ++
+  "  addi t2, t2, 1; j .Lscrp_slot\n" ++
+  ".Lscrp_slot_done:\n" ++
+  "  sd t1, 416(t6)               # SLOTNUM limb0 = slot_number (u64 LE)\n" ++
   -- Trailer: gas@+448, validate@+456 = 0, is_creation@+464 = 1.
   "  ld t1, 40(s1); sd t1, 448(t6)\n" ++
   "  li t1, 1; sd t1, 464(t6)\n" ++

@@ -76,11 +76,47 @@ def updateActiveMemorySizeAsm
   "  sd " ++ roundedReg ++ ", " ++ toString activeMemorySizeOff ++ "(x20)\n" ++
   ".Lmemsize_" ++ tag ++ "_done:\n"
 
+/-- OOG guard for a memory access whose length is a NONZERO constant
+    (MLOAD/MSTORE = 32, MSTORE8 = 1). For such accesses the EVM always grows
+    memory to `offset + length`, so an `offset` that does not fit in a u64 — or
+    whose low limb `+ length` wraps — has a memory-expansion cost vastly beyond
+    any block gas limit and exceptionally halts (`evm.gas_left = 0`). The low-
+    limb-only memory-gas path (`updateActiveMemorySizeAsm`) would otherwise read
+    a truncated/wrapped offset and charge trivial gas, under-counting gas_used.
+
+    `offsetReg` already holds the low offset limb (loaded by the caller from
+    `0(x12)`); this reads the three high limbs from `8/16/24(x12)` into
+    `scratchReg` and routes any nonzero high limb — or a `low + length`
+    wraparound — to `.exit_outofgas` (halt_kind 6). `offsetReg` is preserved;
+    `scratchReg` is clobbered. Mirrors the high-limb guards already present in
+    `returnRevertMemoryGasAsm` / `callMemoryExpansionGasAsm`. Sound: it can only
+    turn a should-OOG access from a trivial charge into the correct OOG, so it
+    never lowers gas_used (no false-accept). -/
+def memConstOffsetOogGuardAsm
+    (offsetReg scratchReg : String) (length : Nat) : String :=
+  "  ld " ++ scratchReg ++ ", 8(x12)\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  "  ld " ++ scratchReg ++ ", 16(x12)\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  "  ld " ++ scratchReg ++ ", 24(x12)\n" ++
+  "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
+  "  addi " ++ scratchReg ++ ", " ++ offsetReg ++ ", " ++ toString length ++ "\n" ++
+  "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n"
+
 /-- `updateActiveMemorySizeAsm` for a constant access length (MLOAD/MSTORE =
-    32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first. -/
+    32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first.
+
+    For a nonzero `length` it FIRST emits `memConstOffsetOogGuardAsm`, so a
+    256-bit offset that cannot be represented in a u64 (or whose low limb wraps
+    when the length is added) exceptionally halts instead of charging trivial
+    truncated-offset gas. `offsetReg` must already hold the low offset limb and
+    the full 256-bit offset must live at `0(x12)` (as for MLOAD/MSTORE/MSTORE8).
+    `maskReg` doubles as the guard scratch (it is clobbered by the size helper
+    anyway). -/
 def updateActiveMemorySizeConstAsm
     (tag offsetReg tmpLengthReg roundedReg currentReg maskReg gasTmpReg : String)
     (chargeGas : Bool) (length : Nat) : String :=
+  (if length == 0 then "" else memConstOffsetOogGuardAsm offsetReg maskReg length) ++
   "  li " ++ tmpLengthReg ++ ", " ++ toString length ++ "\n" ++
   updateActiveMemorySizeAsm tag offsetReg tmpLengthReg roundedReg currentReg maskReg gasTmpReg chargeGas
 

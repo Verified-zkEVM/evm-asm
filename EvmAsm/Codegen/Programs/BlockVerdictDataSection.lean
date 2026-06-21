@@ -1232,6 +1232,20 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "exec_nonstorage_effect_agg_count:\n  .zero 8\n" ++
   "exec_nonstorage_effect_agg:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  -- fva3w: pre-tx snapshots of the exec effect logs. A top-level tx that REVERTS or
+  -- exceptionally aborts discards ALL its state changes (the spec rolls them back), so the
+  -- value-transfer / CREATE non-storage + code effects recorded during it must be discarded
+  -- too. Child frames already roll back via frame_return; but a top-level abort (INVALID /
+  -- REVERT / OOG at depth 0) takes .exit_*_top with NO frame_return -> the effects survived,
+  -- and the all-accounts non-storage comparator then saw a value change the BAL (correctly,
+  -- net-zero) omitted -> bv_fail=44 (bal_aborted_account_access invalid/revert-call/callcode).
+  -- Snapshot before the tx runtime dispatch; truncate back to it when the tx errored (status 0).
+  ".balign 8\n" ++
+  "bv_tx_effect_snap_ns_count:\n  .zero 8\n" ++
+  "bv_tx_effect_snap_ns_overflow:\n  .zero 8\n" ++
+  "bv_tx_effect_snap_code_count:\n  .zero 8\n" ++
+  "bv_tx_effect_snap_code_next:\n  .zero 8\n" ++
+  "bv_tx_effect_snap_code_overflow:\n  .zero 8\n" ++
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's

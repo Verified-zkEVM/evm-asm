@@ -44,7 +44,7 @@ open EvmAsm.Rv64
       +80   u64 blockhash_count            (= 0)
       +88   13 simple-env words (416 B)    (COINBASE/TIMESTAMP/NUMBER/
                                             GASLIMIT/BASEFEE staged from exec)
-      +504  SLOTNUM word (32 B)            (= 0)
+      +504  SLOTNUM word (32 B)            (EIP-7843 slot_number, exec@532)
       +536  u64 gas_limit                  (= context tx gas limit)
       +544  u64 validate_tx_gas flag       (= 1)
       +552  u64 is_creation flag           (= context is_creation, 0 here)
@@ -145,6 +145,20 @@ def stageRuntimePayloadFunction : String :=
   "  addi a0, a2, 520; jal ra, bgv_u64le\n" ++                       -- a0 = excess_blob_gas (u64)
   "  addi a1, s0, 32; jal ra, amsterdam_blob_gas_price_u256\n" ++    -- price (u256 BE) -> payload+32 (overflow unreachable for valid blocks)
   "  ld a0, 16(sp)\n" ++                                             -- restore ctx ptr for the trailer
+  -- EIP-7843 SLOTNUM (payload word @+504, low limb): block-header slot_number
+  -- (SSZ field 23, u64 LE @exec_payload+532) is authenticated as part of the
+  -- reconstructed header hash. The dispatcher copies payload+504 -> evm_env+624,
+  -- which h_SLOTNUM pushes. Read byte-wise (LBU): exec_payload = SSZ_BASE+60 is
+  -- mod-8 = 6, so a direct 8-byte ld at +532 (mod 8 = 2) would be misaligned
+  -- (traps in the verified RV64 subset). slot is u64 -> only limb0 (+504) is set;
+  -- upper 3 limbs stay 0 (payload pre-zeroed). LE source -> LE limb0 directly.
+  "  li t0, 0; li t1, 0\n" ++
+  ".Lsrp_slot:\n" ++
+  "  li t2, 8; beq t1, t2, .Lsrp_slot_done\n" ++
+  "  add t2, a2, t1; addi t2, t2, 532; lbu t3, 0(t2); slli t4, t1, 3; sll t3, t3, t4; or t0, t0, t3\n" ++
+  "  addi t1, t1, 1; j .Lsrp_slot\n" ++
+  ".Lsrp_slot_done:\n" ++
+  "  sd t0, 504(s0)               # SLOTNUM limb0 = slot_number (u64 LE)\n" ++
   -- Transaction gas / control trailer.
   "  ld t0, 40(a0)                # context tx gas limit\n" ++
   "  sd t0, 536(s0)               # gas_limit\n" ++
