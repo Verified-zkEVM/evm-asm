@@ -672,15 +672,21 @@ def callDescendFallThrough
    else "") ++
   -- empty code (EOA): the call succeeds, runs nothing → push 1
   ".Lcd_empty_" ++ tag ++ ":\n" ++
-  -- bnctz: a value-bearing CALL (mode 0) to an empty/non-existent callee still pays the
+  -- bnctz: a value-bearing CALL/CALLCODE (mode 0/2) to an empty/non-existent callee still pays the
   -- value-transfer REGULAR gas. Spec system.py:444 charges extra_gas = access + CALL_VALUE(9000);
   -- message_call_gas then funds the empty callee with the 2300 stipend, which returns unused, so
   -- the NET regular consumed is 9000 - 2300 = 6700 (access is already charged via
   -- runtime_access_account_charge; the new-account STATE gas is charged above). The .Lcd_empty
   -- fast-path takes no child frame, so charge that 6700 net here. Without it, block_inc0 (and the
   -- receipt = block_regular + tx_state) under-count by 6700 -> block_gas_used_call_new_account
-  -- bv_fail=53. x12 is still the parent stack top (value at x12+valueOff) before the pop below.
-  (if mode == 0 then
+  -- bv_fail=53.
+  -- coc3g.7 (bv_fail=41, bal_nonexistent callcode_positive_value): CALLCODE (mode 2) with value to a
+  -- nonexistent CODE target (`to = current_target`, code from the popped address = empty) also runs
+  -- nothing and pays this 6700 net (spec callcode: transfer_gas_cost = CALL_VALUE(9000), stipend 2300
+  -- refunded). CALLCODE charges NO new-account state gas (its recipient is current_target, always
+  -- alive) so this regular 6700 is the only value cost. STATICCALL/DELEGATECALL are value-less, so
+  -- gate on `valueBearing` (mode 0 OR 2). x12 is still the parent stack top (value at x12+valueOff).
+  (if valueBearing then
      "  ld t0, " ++ toString valueOff ++ "(x12)\n" ++
      "  ld t1, " ++ toString (valueOff+8) ++ "(x12)\n  or t0, t0, t1\n" ++
      "  ld t1, " ++ toString (valueOff+16) ++ "(x12)\n  or t0, t0, t1\n" ++

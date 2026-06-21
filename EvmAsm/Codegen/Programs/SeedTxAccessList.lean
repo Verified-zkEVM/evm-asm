@@ -93,6 +93,19 @@ def seedTxAccessListFunction : String :=
   "  add t5, t3, t4; sb t6, 0(t5)\n" ++
   "  addi t4, t4, 1; j .Lstal_addr_cp\n" ++
   ".Lstal_addr_done:\n" ++
+  -- bal_2930: build the env.ADDRESS-format token (address reversed into bytes 0..L-1
+  -- of a zeroed 32-byte word = the address as a little-endian 256-bit integer) used
+  -- by the storage-key warm set. stal_token holds the address big-endian in bytes
+  -- 0..L-1 (L = stal_alen, normally 20); reverse it: token_le[L-1-i] = token[i].
+  "  la t0, stal_token_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t3, stal_token; la t4, stal_token_le; la t0, stal_alen; ld t2, 0(t0); li t1, 0\n" ++
+  ".Lstal_addr_rev:\n" ++
+  "  beq t1, t2, .Lstal_addr_rev_done\n" ++
+  "  add t5, t3, t1; lbu t6, 0(t5)\n" ++          -- token[i] (big-endian byte i)
+  "  sub t5, t2, t1; addi t5, t5, -1\n" ++         -- L-1-i
+  "  add t5, t4, t5; sb t6, 0(t5)\n" ++            -- token_le[L-1-i] = token[i]
+  "  addi t1, t1, 1; j .Lstal_addr_rev\n" ++
+  ".Lstal_addr_rev_done:\n" ++
   -- w35wj: also seed the access-list ACCOUNT address into the EIP-2929 runtime
   -- account warm table. execution-specs warms access_list_addresses before
   -- execution (fork.py:1085-1091), so the first account-touching opcode
@@ -124,9 +137,25 @@ def seedTxAccessListFunction : String :=
   "  la a3, stal_koff; la a4, stal_klen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lstal_fail\n" ++
-  "  la t0, stal_koff; ld t1, 0(t0); add t1, s6, t1   # slot content ptr (a1)\n" ++
-  "  la a0, stal_token; mv a1, t1\n" ++
+  "  la t0, stal_koff; ld t1, 0(t0); add t1, s6, t1   # slot content ptr (big-endian, <=32B)\n" ++
+  -- bal_2930: build the 32-byte LITTLE-ENDIAN slot key the SLOAD/SSTORE handler uses
+  -- (the EVM stack stores the slot value low-byte-first). The RLP slot is big-endian
+  -- with leading zeros stripped (length stal_klen): slot_le[klen-1-i] = slot_be[i].
+  -- Guard klen > 32 (malformed/adversarial RLP): skip this key (a missed warm seed only
+  -- over-charges, never under-charges) rather than overflow the 32-byte slot buffer.
+  "  la t0, stal_klen; ld t2, 0(t0); li t5, 32; bgtu t2, t5, .Lstal_slot_skip\n" ++
+  "  la t0, stal_slot_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t3, stal_slot_le; li t4, 0\n" ++
+  ".Lstal_slot_rev:\n" ++
+  "  beq t4, t2, .Lstal_slot_rev_done\n" ++
+  "  add t5, t1, t4; lbu t6, 0(t5)\n" ++          -- slot_be[i]
+  "  sub t5, t2, t4; addi t5, t5, -1\n" ++         -- klen-1-i
+  "  add t5, t3, t5; sb t6, 0(t5)\n" ++            -- slot_le[klen-1-i] = slot_be[i]
+  "  addi t4, t4, 1; j .Lstal_slot_rev\n" ++
+  ".Lstal_slot_rev_done:\n" ++
+  "  la a0, stal_token_le; la a1, stal_slot_le\n" ++
   "  jal ra, evm_storage_access_seed_key\n" ++
+  ".Lstal_slot_skip:\n" ++
   "  addi s9, s9, 1; j .Lstal_slot_loop\n" ++
   ".Lstal_entry_next:\n" ++
   "  addi s3, s3, 1; j .Lstal_entry_loop\n" ++
@@ -156,7 +185,17 @@ def seedTxAccessListDataSection : String :=
   "stal_koff:\n  .zero 8\n" ++
   "stal_klen:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "stal_token:\n  .zero 32\n"
+  "stal_token:\n  .zero 32\n" ++
+  -- bal_2930 (bv_fail=41): storage-key warm set keys on env.ADDRESS (the 20-byte
+  -- address as a little-endian 256-bit word: low 20 bytes = address reversed) and
+  -- the slot in EVM stack order (little-endian). The RLP access list gives both
+  -- big-endian, so the storage-key seed needs an LE address token + a 32-byte LE
+  -- slot that MATCH the SLOAD/SSTORE lookup key (the account-warm seed above keeps
+  -- the canonical-BE stal_token, which is the format runtime_access_account_charge
+  -- expects).
+  ".balign 8\n" ++
+  "stal_token_le:\n  .zero 32\n" ++
+  "stal_slot_le:\n  .zero 32\n"
 
 
 /-! ## tx_access_list_span
