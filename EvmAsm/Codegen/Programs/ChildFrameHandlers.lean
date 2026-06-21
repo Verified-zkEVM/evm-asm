@@ -221,6 +221,18 @@ def callDescendFallThrough
     "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
     ".Lcd_xlog_skip_" ++ site ++ tag ++ ":\n"
   "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++
+  -- drj99.1 (failed-inner rollback): DISARM the value-CALL non-storage-effect pre-snapshot at every
+  -- CALL entry. A value-bearing CALL records the caller-debit + callee-credit NON-STORAGE effects in
+  -- the parent BEFORE `jal call_frame_descend`, but the spec (interpreter.py process_message +
+  -- state_tracker.rollback_transaction) DISCARDS the value transfer when the child OOGs / REVERTs /
+  -- exceptional-halts. So the committing record path below snapshots the PRE-recording count into
+  -- cd_nse_presnap_* and ARMS the flag; call_frame_descend then snapshots THAT pre-snap (not the
+  -- post-recording live count) into the child env, so frame_return truncates AWAY the value-CALL
+  -- records on a child failure (matching the rolled-back transfer -> BAL records no net change;
+  -- failed_inner_operation_no_log call_out_of_gas / call_reverted: bv_fail=44). On child SUCCESS the
+  -- records are kept. Disarming here clears a stale arm left by an earlier value-CALL that armed then
+  -- routed to .Lcd_empty/.Lcd_fail (no descend to consume it); create_frame_descend disarms too.
+  "  la t0, cd_nse_presnap_armed; sd x0, 0(t0)\n" ++
   "  la x15, evm_precompile_frame\n" ++
   "  sd x0, 0(x15)\n" ++
   "  sd x0, 8(x15)\n" ++
@@ -295,6 +307,15 @@ def callDescendFallThrough
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_cmp_" ++ tag ++ "\n" ++
     ".Lcd_balok_" ++ tag ++ ":\n" ++
+    -- drj99.1 (failed-inner rollback): snapshot the PRE-recording non-storage effect count/overflow
+    -- and ARM the flag, BEFORE the caller-debit / callee-credit records below. call_frame_descend
+    -- snapshots this pre-snap into the child env (env+656/664) so frame_return rolls these records
+    -- back on a child OOG/REVERT (the spec discards the value transfer). On the value==0 / no-ctx
+    -- skip into .Lcd_balok no records are appended, so pre-snap == live count (harmless); on the
+    -- empty-callee / fail paths the records are kept/irrelevant and the next CALL/CREATE disarms.
+    "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, cd_nse_presnap_count; sd t1, 0(t0)\n" ++
+    "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, cd_nse_presnap_overflow; sd t1, 0(t0)\n" ++
+    "  la t0, cd_nse_presnap_armed; li t1, 1; sd t1, 0(t0)\n" ++
     -- 5em02.1: debit the caller's LIVE balance (env+32 = .selfBalance, big-endian) by the
     -- transferred value so SELFBALANCE reads B-V mid-execution. The transfer was inert, so
     -- SELFBALANCE read the staged pre-state balance -> false-reject for value-moving
