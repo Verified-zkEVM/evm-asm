@@ -2729,6 +2729,10 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- nxio8.8: the CALL callee (`to`) as canonical 20-byte big-endian, for the
   -- EIP-8037 new-account state-gas check (is_account_alive(to)) in callDescendFallThrough.
   "cd_callee_be:\n  .zero 32\n" ++
+  -- coc3g.5/.7: EIP-7702 nested-CALL delegation-follow target (the single-hop delegated
+  -- address extracted from a 0xef0100||addr marker), so the nested CALL runs the TARGET's
+  -- code (mirroring #9078's dtrc-path follow) instead of routing to .Lcd_fail.
+  "cd_deleg_target:\n  .zero 32\n" ++
   -- fva3w: per-CALL flag set when a non-self value transfer needs an EIP-7708 Transfer log;
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.

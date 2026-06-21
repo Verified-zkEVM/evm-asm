@@ -598,6 +598,34 @@ def callDescendFallThrough
   "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
   "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
   "  lbu t4, 2(t3); bnez t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  -- coc3g.7: PRIOR-BLOCK (witness pre-state) EIP-7702 delegation follow on the nested CALL.
+  -- The callee's CURRENT code (resolved via code_at_header_state_root) is a 23-byte
+  -- 0xef0100||target marker -- a delegated EOA whose delegation lives in the WITNESS PRE-STATE
+  -- (not the same-block BAL). The spec (system.py call -> calculate_delegation_cost is SINGLE-HOP
+  -- -> get_code(code_address)) runs the SINGLE-HOP TARGET's code in the callee's storage context,
+  -- never the marker bytes themselves (call_to_delegated_account_with_value: CALL 0x9098.. ->
+  -- delegated to 0x37f5.. = STOP -> succeeds, value transferred + EIP-7708 log emitted; routing to
+  -- .Lcd_fail dropped the value-net REGULAR gas -> bv_fail=41). Extract the 20-byte target (marker
+  -- bytes 3..22) and re-resolve its code against the SAME witness header (env+576/584), exactly like
+  -- #9078's dtrc-path follow. The same-block resolver below only covers in-block (BAL) delegations;
+  -- this handles a target whose delegation lives in the pre-state witness. On a target-code MISS fall
+  -- through to .Lcd_resolve_; env.ADDRESS stays the callee EOA (call_frame_descend keys storage by
+  -- `to`, matching current_target = the EOA). Soundness: descending runs the EXACT code the spec
+  -- runs (single-hop target), recording more exec effects -- it cannot accept a block the spec
+  -- rejects (the BAL comparator independently checks each declared final).
+  "  la t4, cd_deleg_target; addi t5, t3, 3; li t6, 20\n" ++
+  ".Lcd_pdeleg_copy_" ++ tag ++ ":\n" ++
+  "  beqz t6, .Lcd_pdeleg_copied_" ++ tag ++ "\n" ++
+  "  lbu t2, 0(t5); sb t2, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lcd_pdeleg_copy_" ++ tag ++ "\n" ++
+  ".Lcd_pdeleg_copied_" ++ tag ++ ":\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_deleg_target\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n  ld a5, 608(x20)\n  ld a6, 616(x20)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  mv t2, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  "  bnez t2, .Lcd_resolve_" ++ tag ++ "\n" ++   -- target code MISS -> try same-block resolver
+  "  j .Lcd_descend_" ++ tag ++ "\n" ++           -- target code found -> descend on it (cahsr_* now name the target's code)
   ".Lcd_resolve_" ++ tag ++ ":\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
