@@ -379,6 +379,16 @@ def callDescendFallThrough
       "  jal ra, record_nonstorage_effect\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       ".Lcd_deb_done_" ++ tag ++ ":\n") ++
+    -- fva3w.BAL: the callee-credit non-storage effect + the EIP-7708 pending transfer log
+    -- below are CALL (mode 0) ONLY. CALLCODE (mode 2) runs the code at `code_address` but
+    -- keeps execution in the caller's context: the spec sets `to = current_target = caller`
+    -- (system.py:537) and process_message moves ether caller->current_target(=caller), a
+    -- net-zero SELF-transfer, and emits NO transfer log (interpreter.py:307-318: the log
+    -- only fires when caller != current_target). The stack `to` word (x12+32) for CALLCODE is
+    -- the CODE address (e.g. 5fecc07e), which receives nothing — recording a balance credit
+    -- for it was a false non-storage effect (the BAL omits it) -> bv_fail=44
+    -- (bal_callcode_nested_value_transfer, nonexistent_account_access_value_transfer-callcode).
+    (if mode != 0 then "" else
     -- i3djw.1: record the value-transfer NON-STORAGE effect for the callee so the
     -- all-accounts non-storage comparator (i3djw.3) can validate it against the BAL.
     -- The callee receives `value`; record (callee, pre_balance, pre+value, nonce, nonce)
@@ -463,7 +473,7 @@ def callDescendFallThrough
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_tl_selfchk_" ++ tag ++ "\n" ++
     ".Lcd_tl_notself_" ++ tag ++ ":\n" ++
     "  la t0, cd_xfer_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
-    ".Lcd_nse_done_" ++ tag ++ ":\n") ++
+    ".Lcd_nse_done_" ++ tag ++ ":\n")) ++
   -- nxio8.8 (EIP-8037): CALL (mode 0) with value!=0 to a not-alive callee creates the
   -- account -> charge_state_gas(NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530)
   -- = 183600). Spec vm/instructions/system.py:463-464: `if value != 0 and not is_account_alive(to):
