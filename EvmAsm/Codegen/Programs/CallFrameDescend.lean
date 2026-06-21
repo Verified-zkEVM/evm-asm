@@ -400,8 +400,23 @@ def callFrameDescendFunction : String :=
   -- exactly like storage/log cursors above; otherwise the block-verdict reverse
   -- BAL covers checks see stale created-account effects and false-reject valid
   -- reverted-create blocks.
+  -- drj99.1 (failed-inner rollback): the CALL value-transfer non-storage effects (caller-debit +
+  -- callee-credit) are appended by callDescendFallThrough BEFORE this descent, so the LIVE count
+  -- here is already PAST them. On a child OOG/REVERT the spec discards the value transfer, so those
+  -- records must be rolled back too -- snapshot the PRE-recording count (cd_nse_presnap_*) the CALL
+  -- path armed, not the live count. CREATE / other descenders leave cd_nse_presnap_armed=0 and use
+  -- the live count (their effects are recorded inside the child, after this snapshot). Consume the
+  -- one-shot flag so a later non-arming descent does not reuse a stale pre-snap.
+  "  la t1, cd_nse_presnap_armed; ld t2, 0(t1)\n" ++
+  "  beqz t2, .Lcfd_nse_live\n" ++
+  "  sd x0, 0(t1)                              # consume the one-shot armed flag\n" ++
+  "  la t1, cd_nse_presnap_count; ld t0, 0(t1); sd t0, 656(s9)\n" ++
+  "  la t1, cd_nse_presnap_overflow; ld t0, 0(t1); sd t0, 664(s9)\n" ++
+  "  j .Lcfd_nse_snap_done\n" ++
+  ".Lcfd_nse_live:\n" ++
   "  la t1, exec_nonstorage_effect_count; ld t0, 0(t1); sd t0, 656(s9)  # nonstorage effect count snapshot\n" ++
   "  la t1, exec_nonstorage_effect_overflow; ld t0, 0(t1); sd t0, 664(s9)  # nonstorage overflow snapshot\n" ++
+  ".Lcfd_nse_snap_done:\n" ++
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++

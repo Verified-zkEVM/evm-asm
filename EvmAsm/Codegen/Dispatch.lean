@@ -2728,7 +2728,16 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- fva3w: per-CALL flag set when a non-self value transfer needs an EIP-7708 Transfer log;
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
-  "cd_xfer_log_pending:\n  .zero 8\n"
+  "cd_xfer_log_pending:\n  .zero 8\n" ++
+  -- drj99.1 (failed-inner rollback): pre-snapshot of exec_nonstorage_effect_count/overflow taken by
+  -- callDescendFallThrough BEFORE the value-CALL caller-debit/callee-credit records, consumed by
+  -- call_frame_descend so frame_return rolls those records back on a child OOG/REVERT. `armed` is a
+  -- one-shot flag: set on the value-CALL committing path, consumed by call_frame_descend, and
+  -- disarmed at every CALL/CREATE descent entry to clear a stale arm from a non-descending value-CALL.
+  ".balign 8\n" ++
+  "cd_nse_presnap_armed:\n  .zero 8\n" ++
+  "cd_nse_presnap_count:\n  .zero 8\n" ++
+  "cd_nse_presnap_overflow:\n  .zero 8\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
