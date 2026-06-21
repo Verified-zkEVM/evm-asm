@@ -102,21 +102,29 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  addi x18, x18, 1\n" ++
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 10b\n" ++
-    "  mv s9, x13\n" ++
-    "  mv s10, x10\n" ++
-    "  mv s11, x12\n" ++
-    "  ld a0, 576(x20)\n" ++
-    "  ld a1, 584(x20)\n" ++
-    "  la a2, create_sender_be\n" ++
-    "  ld a3, 592(x20)\n" ++
-    "  ld a4, 600(x20)\n" ++
-    "  la a5, create_balance_be\n" ++
-    "  jal x1, balance_at_header_state_root\n" ++
-    "  mv t0, a0\n" ++
-    "  mv x13, s9\n" ++
-    "  mv x10, s10\n" ++
-    "  mv x12, s11\n" ++
-    "  bnez t0, 7f\n" ++
+    -- coc3g.6 / coc3g.7: value-sufficiency gate uses the creator's LIVE balance, NOT the
+    -- witness pre-state balance. The spec's generic_create checks
+    -- `get_account(tx_state, sender).balance < endowment` against the LIVE mutable tx state
+    -- (amsterdam vm/instructions/system.py:108-119), and the endowment DEBIT below
+    -- (.Lcr_deb_done, lines ~256-276) already debits the LIVE balance env+32 (.selfBalance).
+    -- The previous gate compared the witness pre-state balance (balance_at_header_state_root)
+    -- against the endowment, which falsely bailed when the creator is funded THIS tx (e.g. the
+    -- tx.to recipient does CREATE(value): witness balance = 0 but live balance = pre + tx.value).
+    -- That false bail skipped the entire CREATE descend, so a failing initcode (OOG / invalid
+    -- opcode) never burned its child-frame gas allotment -> parent gas_used under-charged
+    -- (create_out_of_gas: recomputed 30111 vs spec 311927, bv_fail=41).
+    -- env+32 (.selfBalance) is LITTLE-ENDIAN (byte 0 = LSB); reverse env[32..63] -> create_balance_be
+    -- (BE, byte 31 = LSB) so the byte-wise compare below (BE vs create_value_be BE) is correct.
+    "  addi x18, x20, 63\n" ++
+    "  la x19, create_balance_be\n" ++
+    "  li x23, 32\n" ++
+    "12:\n" ++
+    "  lbu x24, 0(x18)\n" ++
+    "  sb x24, 0(x19)\n" ++
+    "  addi x18, x18, -1\n" ++
+    "  addi x19, x19, 1\n" ++
+    "  addi x23, x23, -1\n" ++
+    "  bnez x23, 12b\n" ++
     "  la x18, create_balance_be\n" ++
     "  la x19, create_value_be\n" ++
     "  li x23, 32\n" ++
