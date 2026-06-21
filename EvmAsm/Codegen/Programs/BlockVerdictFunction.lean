@@ -955,7 +955,16 @@ def blockVerdictFunction : String :=
   "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
   ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
   "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
-  "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bmvmx_coinbase_addr\n  li t2, 20\n" ++
+  -- coc3g.BAL: seed skip entry 2 = the block coinbase from the ALWAYS-AVAILABLE exec payload
+  -- (bv_exec_p+32 = fee_recipient), NOT bmvmx_coinbase_addr. The latter is populated only when
+  -- the bmvmx single-tx preamble runs, which BAILS (.Lbmvmx_done) for non-legacy txs (type
+  -- 2930/1559/4844/7702) at BlockVerdictFunction:113 -> for an EIP-2930 access-list tx
+  -- bmvmx_coinbase_addr is left zero and the coinbase (which always receives the priority-fee
+  -- balance change) is not skip-listed -> bv_fail=44 (its fee credit has no per-tx exec
+  -- non-storage effect). The coinbase's post-balance is independently pinned by the state-root
+  -- recompute (which APPLIES the BAL deltas and checks the header root; BlockVerdictStateRoot:268),
+  -- so skip-listing it here is sound (same as sender/recipient — gas/value/fee-coupled).
+  "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32\n  li t2, 20\n" ++
   ".Lbv_i3sk2:\n  beqz t2, .Lbv_i3sk2d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk2\n.Lbv_i3sk2d:\n" ++
   -- coc3g.6.5: entries 3..7 = the 5 genesis system/predeploy contracts (EIP-2935 history,
   -- EIP-4788 beacon-roots, EIP-7002 withdrawal-req, EIP-7251 consolidation-req, EIP-6110 deposit).
