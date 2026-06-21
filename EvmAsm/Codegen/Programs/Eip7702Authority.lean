@@ -136,6 +136,94 @@ def eip7702AuthorizationRecoverAddressFunction : String :=
   "  addi sp, sp, 56\n" ++
   "  ret"
 
+/-! ## eip7702_warm_recovered_authorities
+
+    coc3g.5 (multi-hop authority warming). Mirror execution-specs amsterdam
+    `eoa_delegation.validate_authorization`: for every authorization in the type-4
+    tx's authorization_list, warm the RECOVERED authority into the EIP-2929 runtime
+    account warm set (`message.accessed_addresses.add(authority)`), gated EXACTLY on
+    the spec's pre-recovery conditions — and NOTHING more (warming less than the spec
+    over-charges = safe; warming more = under-charge = false-accept, so the gate is
+    tight):
+
+      * `auth.chain_id in (block_env.chain_id, 0)`   (bv_chain_id)
+      * `auth.nonce < U64.MAX_VALUE`                 (skip nonce == 2^64-1)
+      * `recover_authority(auth)` succeeds            (valid secp256k1 signature)
+
+    The spec adds the authority to accessed_addresses BEFORE the
+    `authority_code is valid delegation` and `authority_nonce == auth.nonce` checks,
+    so warming is INDEPENDENT of those — every recovered authority on a chain/nonce-
+    valid auth is warmed even if it ultimately fails to install a delegation.
+
+    Calling convention:
+      a0 = authorization_list RLP ptr   a1 = authorization_list RLP length
+    Clobbers a0..a7, t0..t6; saves the s-registers it uses. Returns nothing
+    (a failed parse leaves the warm set unchanged = conservative over-charge). -/
+def eip7702WarmRecoveredAuthoritiesFunction : String :=
+  "eip7702_warm_recovered_authorities:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0                    # auth_list ptr\n" ++
+  "  mv s1, a1                    # auth_list len\n" ++
+  "  beqz s0, .Le77w_ret\n" ++
+  "  beqz s1, .Le77w_ret\n" ++
+  "  la t0, bv_chain_id; ld s4, 0(t0)   # block chain id\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, e77w_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Le77w_ret\n" ++
+  "  la t0, e77w_count; ld s2, 0(t0)    # auth count\n" ++
+  "  li s3, 0                     # i\n" ++
+  ".Le77w_loop:\n" ++
+  "  beq s3, s2, .Le77w_ret\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s3; la a3, e77w_toff; la a4, e77w_tlen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Le77w_next\n" ++
+  "  la t0, e77w_toff; ld t1, 0(t0); add s5, s0, t1   # tuple ptr\n" ++
+  "  la t0, e77w_tlen; ld t2, 0(t0)                   # tuple len (in t-reg, reload before use)\n" ++
+  -- chain_id (tuple item 0) must be block chain id OR 0
+  "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; li a2, 0; la a3, e77w_chain\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Le77w_next\n" ++
+  "  la t0, e77w_chain; ld t1, 0(t0); beqz t1, .Le77w_chain_ok; bne t1, s4, .Le77w_next\n" ++
+  ".Le77w_chain_ok:\n" ++
+  -- nonce (tuple item 2) must be < U64.MAX_VALUE (skip 2^64-1)
+  "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; li a2, 2; la a3, e77w_nonce\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Le77w_next\n" ++
+  "  la t0, e77w_nonce; ld t1, 0(t0); li t2, -1; beq t1, t2, .Le77w_next\n" ++
+  -- recover the authority (valid signature required); on failure skip (no warm)
+  "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; la a2, e77w_authority; la a3, e77w_scratch\n" ++
+  "  jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Le77w_next\n" ++
+  -- warm the recovered 20-byte authority into the runtime EIP-2929 account warm set
+  "  la a0, e77w_authority; la a1, evm_access_account_table\n" ++
+  "  la a2, evm_access_account_count; li a3, 100000\n" ++
+  "  jal ra, runtime_access_account_seed\n" ++
+  ".Le77w_next:\n" ++
+  "  addi s3, s3, 1; j .Le77w_loop\n" ++
+  ".Le77w_ret:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- Scratch for `eip7702_warm_recovered_authorities`. Used inline by the
+    block-verdict data section (`BlockVerdictDataSection`); kept here for any
+    standalone probe that links the function on its own. -/
+def eip7702WarmRecoveredAuthoritiesDataSection : String :=
+  ".balign 8\n" ++
+  "e77w_count:\n  .zero 8\n" ++
+  "e77w_toff:\n  .zero 8\n" ++
+  "e77w_tlen:\n  .zero 8\n" ++
+  "e77w_chain:\n  .zero 8\n" ++
+  "e77w_nonce:\n  .zero 8\n" ++
+  "e77w_authority:\n  .zero 24\n" ++
+  ".balign 8\n" ++
+  "e77w_scratch:\n  .zero 360\n"
+
 def eip7702AuthorizationRecoverAddressDataSection : String :=
   ".balign 8\n" ++
   "a77ra_cmp:\n  .zero 8\n" ++

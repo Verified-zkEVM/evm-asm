@@ -2427,6 +2427,26 @@ def emitTxAccessListSeedLoop : String :=
   ".Ltx_access_seed_done:\n" ++
   "  mv x10, x21\n"
 
+/-- coc3g.5 multi-hop: seed the EIP-7702 RECOVERED-AUTHORITY warm set from the
+    pending authorization_list span. The span/fn are prepared by
+    `dispatch_tx_runtime_code` and cleared one-shot here; standalone callers leave
+    them zero so this is inert. Runs after callable setup resets
+    `evm_access_account_count` (so the seed persists into execution) and before
+    opcode execution. eip7702_warm_recovered_authorities applies the EXACT spec
+    `validate_authorization` warming gate (chain_id, nonce<MAX, valid signature). -/
+def emitTxAuthListWarmLoop : String :=
+  "  la x5, runtime_tx_auth_list_ptr; ld a0, 0(x5)\n" ++
+  "  la x6, runtime_tx_auth_list_len; ld a1, 0(x6)\n" ++
+  "  la x7, runtime_tx_auth_warm_fn; ld x28, 0(x7)\n" ++
+  "  sd x0, 0(x5); sd x0, 0(x6); sd x0, 0(x7)\n" ++
+  "  beqz x28, .Ltx_auth_warm_done\n" ++
+  "  beqz a0, .Ltx_auth_warm_done\n" ++
+  "  beqz a1, .Ltx_auth_warm_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  "  # warm failure is conservative: a missed authority warm over-charges gas.\n" ++
+  ".Ltx_auth_warm_done:\n" ++
+  "  mv x10, x21\n"
+
 /-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
     opcode-handler calls, so the caller's return address is saved in the
     runtime data section and restored by the callable exit join. -/
@@ -2439,6 +2459,7 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
   emitTxAccessListSeedLoop ++ "\n" ++
+  emitTxAuthListWarmLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
   emitRuntimeDispatcherLoop depthAwareStop
 
@@ -2767,6 +2788,15 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_access_list_len:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_access_list_seed_fn:\n" ++
+  "  .zero 8\n" ++
+  -- coc3g.5 multi-hop: EIP-7702 authorization_list span for the post-reset
+  -- recovered-authority warm seeding (populated by dispatch_tx_runtime_code,
+  -- consumed by emitTxAuthListWarmLoop; zero default keeps standalone callers inert).
+  "runtime_tx_auth_list_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_list_len:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_warm_fn:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++

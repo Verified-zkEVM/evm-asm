@@ -548,6 +548,25 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
   ".Ldtrc_access_done:\n" ++
+  -- coc3g.5 multi-hop: prepare the EIP-7702 authorization_list span so the callable
+  -- setup can warm the recovered authorities after evm_access_account_count is reset
+  -- (the spec validate_authorization adds each recovered authority to accessed_addresses;
+  -- the pre-reset verdict-phase resolutions are wiped, so a CALL into a same-block-
+  -- delegated authority would charge it COLD without this -> bv_fail=53 receipt over-count).
+  -- type-4 only; authorization_list = inner field index 9. Parse failure leaves the
+  -- globals zero (inert -> conservative over-charge, never a false-accept).
+  "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_list_len; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0)\n" ++
+  "  ld t0, 160(s2); li t1, 4; bne t0, t1, .Ldtrc_auth_done\n" ++
+  "  ld a0, 176(s2); ld a1, 184(s2); li a2, 9; la a3, dtrc_auth_off; la a4, dtrc_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Ldtrc_auth_done\n" ++
+  "  ld t0, 176(s2); la t1, dtrc_auth_off; ld t1, 0(t1); add t2, t0, t1\n" ++
+  "  la t0, runtime_tx_auth_list_ptr; sd t2, 0(t0)\n" ++
+  "  la t1, dtrc_auth_len; ld t2, 0(t1); la t0, runtime_tx_auth_list_len; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_warm_fn; la t1, eip7702_warm_recovered_authorities; sd t1, 0(t0)\n" ++
+  ".Ldtrc_auth_done:\n" ++
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  la t4, bv_bal_start; ld t5, 0(t4); la t4, runtime_current_bal_ptr; sd t5, 0(t4)\n" ++

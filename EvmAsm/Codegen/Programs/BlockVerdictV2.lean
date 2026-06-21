@@ -493,6 +493,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
+  eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
