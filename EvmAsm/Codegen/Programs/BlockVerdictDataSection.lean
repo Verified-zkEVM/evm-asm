@@ -478,6 +478,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_acct_ptr:\n  .zero 8\n" ++
   "teer_acct_len:\n  .zero 8\n" ++
   "teer_finals:\n  .zero 88\n" ++
+  -- coc3g.5 multi-hop: eip7702_warm_recovered_authorities private scratch.
+  ".balign 8\n" ++
+  "e77w_count:\n  .zero 8\n" ++
+  "e77w_toff:\n  .zero 8\n" ++
+  "e77w_tlen:\n  .zero 8\n" ++
+  "e77w_chain:\n  .zero 8\n" ++
+  "e77w_nonce:\n  .zero 8\n" ++
+  "e77w_authority:\n  .zero 24\n" ++
+  ".balign 8\n" ++
+  "e77w_scratch:\n  .zero 360\n" ++
   "a77ra_cmp:\n  .zero 8\n" ++
   "a77ra_secp256k1_n:\n" ++
   "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
@@ -1047,6 +1057,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bfa_out_len:\n  .zero 8\n" ++
   "bfa_addr_hit:\n  .zero 20\n" ++
   "bfa_addr_miss:\n  .zero 20\n" ++
+  -- coc3g.5 multi-hop: bal_same_block_delegation_code_resolve target-same-block-code
+  -- fallback scratch (the single-hop target account record found in the BAL when the
+  -- target's code is ALSO same-block-installed, not in the pre-state witness).
+  ".balign 8\n" ++
+  "bsbd_tgt_ptr:\n  .zero 8\n" ++
+  "bsbd_tgt_len:\n  .zero 8\n" ++
   -- bal_recipient_storage_keys private scratch:
   ".balign 8\n" ++
   "brsk_off:\n  .zero 8\n" ++
@@ -1183,6 +1199,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "dtrc_use_pre_header:\n  .zero 8\n" ++
   "dtrc_hdr_ptr:\n  .zero 8\n" ++
   "dtrc_hdr_len:\n  .zero 8\n" ++
+  -- coc3g.5 multi-hop: scratch for locating the type-4 authorization_list span.
+  "dtrc_auth_off:\n  .zero 8\n" ++
+  "dtrc_auth_len:\n  .zero 8\n" ++
   -- bmvmx.1.4.2 compare: validate the coinbase credit against the BAL (additive; match flag only).
   ".balign 8\n" ++
   "bmvmx_coinbase_addr:\n  .zero 20\n" ++

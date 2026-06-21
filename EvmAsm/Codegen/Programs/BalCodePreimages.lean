@@ -1076,9 +1076,56 @@ def balCodePreimagesValidFunction : String :=
   "  mv a3, s1; mv a4, s2\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++
+  "  bnez a0, .Lbsbd_target_sameblock\n" ++
   "  beqz s10, .Lbsbd_ret\n" ++
   "  sd s4, 96(sp); ld x20, 40(sp)   # restore caller env base only while charging gas\n" ++
+  "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
+  "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
+  "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
+  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
+  "  ld s4, 96(sp)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbsbd_ret\n" ++
+  -- coc3g.5 (multi-hop chain/loop): the single-hop delegated target's code is NOT in
+  -- the pre-state witness because the target is ITSELF a same-block-delegated authority
+  -- (its 0xef0100||addr marker was installed THIS block by another authorization, e.g.
+  -- 0xc0f6dc9e -> 0x95d1be95 where 0x95d1be95's code is also a same-block marker). The
+  -- spec's calculate_delegation_cost / get_code(code_address) is SINGLE-HOP: it returns
+  -- whatever code the target has in tx_state (here a marker), and the CALL runs THOSE
+  -- bytes raw -> the 0xef byte is an invalid opcode -> the child frame halts
+  -- exceptionally -> the CALL returns 0 -> SSTORE writes 0 (bal_7702_multi_hop_delegation_chain
+  -- chain/loop: guest descended on empty pre-state -> CALL returned 1 -> SSTORE wrote 1
+  -- -> bal_storage_matches_exec_log bv_fail=34). Locate the target's same-block final code
+  -- in the BAL and point cahsr_code_* at it so the descend runs the marker bytes (-> invalid
+  -- opcode -> 0). Soundness: descending runs the EXACT single-hop code the spec runs;
+  -- the BAL comparator independently checks each declared final, so this can only fix a
+  -- false-REJECT. s9 (target marker ptr), s10 (charge flag) are callee-saved by both helpers;
+  -- x20 (env) is preserved here (the buggy 40(sp) reload above is on the pre-state-hit path).
+  ".Lbsbd_target_sameblock:\n" ++
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  addi a2, s9, 3             # single-hop target address ptr\n" ++
+  "  la a3, bsbd_tgt_ptr; la a4, bsbd_tgt_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lbsbd_no\n" ++                          -- target not a BAL account / parse error
+  "  la t0, bsbd_tgt_ptr; ld a0, 0(t0); la t0, bsbd_tgt_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lbsbd_no\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++   -- target has no same-block code
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_no\n" ++   -- empty code -> EOA, not a code descent
+  -- cahsr_code_length = target final code length; cahsr_code_offset = absolute code bytes
+  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus svf_codes_ptr (608(x20), the descend base).
+  "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
+  "  la t0, bsbd_tgt_ptr; ld t3, 0(t0); la t0, bacc_finals; ld t4, 64(t0); add t3, t3, t4\n" ++
+  "  la t0, svf_codes_ptr; ld t5, 0(t0); sub t3, t3, t5\n" ++
+  "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
+  "  beqz s10, .Lbsbd_ret\n" ++                         -- free (no-charge) resolution: done
+  -- Charge the single-hop delegation access (100 floor + cold delta if target is cold in the
+  -- runtime warm set). x20(=s4) inside this fn is bv_bal_len, NOT the env; reload the saved
+  -- caller env from 40(sp) (the prologue's saved s4=x20) while charging, exactly like the
+  -- pre-state-hit charge path, then restore bv_bal_len into s4.
+  "  sd s4, 96(sp); ld x20, 40(sp)\n" ++
   "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
