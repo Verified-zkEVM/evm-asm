@@ -114,7 +114,11 @@ def accountTupleSequencesConsistentFunction : String :=
   ".Latsc_vrb:\n  beqz t4, .Latsc_vrn\n  lbu t5, 0(t2); lbu t6, 0(t3); sb t6, 0(t2); sb t5, 0(t3); addi t2, t2, 1; addi t3, t3, -1; addi t4, t4, -1; j .Latsc_vrb\n" ++
   ".Latsc_vrn:\n  addi t1, t1, 40; addi t0, t0, -1; j .Latsc_vr\n" ++
   ".Latsc_vrd:\n" ++
-  "  # exec net-change tuple sequence for this slot: captured system rows first, then user rows.\n" ++
+  "  # exec net-change tuple sequence for this slot: begin-system (idx0) then user (1..N) then end-system (idxN+1).\n" ++
+  -- lv44p.2.2: point system_user_exec_log_slot_tuples at the REAL per-row system
+  -- block_access_index array so end-of-block (EIP-7002/7251) rows order after the
+  -- user txs (index N+1) instead of being mis-stamped 0 and placed first.
+  "  la t0, sust_sys_txindex_ptr; la t1, bv_system_storage_txindex; sd t1, 0(t0)\n" ++
   "  mv a0, s2; la a1, atsc_key_le; la a2, bv_system_storage_log; la t0, bv_system_storage_log_count; ld a3, 0(t0); mv a4, s3; mv a5, s4; mv a6, s5; la a7, atsc_execbuf\n" ++
   "  jal ra, system_user_exec_log_slot_tuples\n" ++
   "  mv t6, a0                                            # exec_count\n" ++
