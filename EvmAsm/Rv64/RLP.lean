@@ -102,6 +102,7 @@ import EvmAsm.Rv64.RLP.SchemaFold
 import EvmAsm.Rv64.RLP.SchemaFoldConcat
 import EvmAsm.Rv64.RLP.SchemaListWalk
 import EvmAsm.Rv64.RLP.SchemaListWalkShort
+import EvmAsm.Rv64.RLP.SchemaListDecodeExample
 import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
