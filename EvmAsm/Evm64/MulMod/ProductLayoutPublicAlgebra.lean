@@ -46,6 +46,66 @@ theorem mulModAddPartialHiCarry_eq_add (hi lo a b : Word) :
       (carryOrEqAdd (x := hi) (y := mulModAddPartialHiProduct a b)
         (cin := mulModAddPartialLoCarry lo a b) h_carry)
 
+
+private theorem mulhuToNatLe (a b : Word) : (rv64_mulhu a b).toNat ≤ 2^64 - 2 := by
+  rw [EvmWord.rv64_mulhu_toNat]
+  have h1 : a.toNat ≤ 2^64 - 1 := by
+    have := a.isLt
+    omega
+  have h2 : b.toNat ≤ 2^64 - 1 := by
+    have := b.isLt
+    omega
+  have h3 : a.toNat * b.toNat ≤ (2^64 - 1) * (2^64 - 1) := Nat.mul_le_mul h1 h2
+  suffices (2^64 - 1) * (2^64 - 1) / 2^64 = 2^64 - 2 by
+    exact Nat.le_trans (Nat.div_le_div_right h3) (Nat.le_of_eq this)
+  norm_num
+
+/-- The two-step high carry of an add-partial is the same carry bit as adding
+    the high product and incoming low carry before checking overflow. -/
+theorem mulModAddPartialHiCarry_eq_singleCarry (hi lo a b : Word) :
+    mulModAddPartialHiCarry hi lo a b =
+      if BitVec.ult (hi + (mulModAddPartialHiProduct a b + mulModAddPartialLoCarry lo a b))
+          (mulModAddPartialHiProduct a b + mulModAddPartialLoCarry lo a b) then
+        (1 : Word)
+      else
+        0 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [mulModAddPartialHiCarry_eq_add]
+  rw [BitVec.toNat_add]
+  simp only [mulModAddPartialHiBaseCarry, mulModAddPartialHiCarryFromLo,
+    mulModAddPartialHiValue, mulModAddPartialHiBaseValue, mulModAddPartialHiProduct]
+  have h_carry : (mulModAddPartialLoCarry lo a b).toNat ≤ 1 := by
+    unfold mulModAddPartialLoCarry
+    split <;> decide
+  have h_prod : (rv64_mulhu a b).toNat ≤ 2^64 - 2 := mulhuToNatLe a b
+  have h_sum_lt : (rv64_mulhu a b + mulModAddPartialLoCarry lo a b).toNat =
+      (rv64_mulhu a b).toNat + (mulModAddPartialLoCarry lo a b).toNat := by
+    rw [BitVec.toNat_add]
+    rw [Nat.mod_eq_of_lt]
+    omega
+  change ((if BitVec.ult (hi + rv64_mulhu a b) (rv64_mulhu a b) then (1 : Word) else 0).toNat +
+        (if BitVec.ult ((hi + rv64_mulhu a b) + mulModAddPartialLoCarry lo a b)
+          (mulModAddPartialLoCarry lo a b) then (1 : Word) else 0).toNat) % 2 ^ 64 =
+    (if BitVec.ult (hi + (rv64_mulhu a b + mulModAddPartialLoCarry lo a b))
+      (rv64_mulhu a b + mulModAddPartialLoCarry lo a b) then (1 : Word) else 0).toNat
+  rw [EvmWord.carry_toNat (x := hi) (y := rv64_mulhu a b)]
+  rw [EvmWord.carry_toNat (x := hi + rv64_mulhu a b) (y := mulModAddPartialLoCarry lo a b)]
+  rw [EvmWord.carry_toNat (x := hi) (y := rv64_mulhu a b + mulModAddPartialLoCarry lo a b)]
+  rw [BitVec.toNat_add, h_sum_lt]
+  have hhi := hi.isLt
+  omega
+
+theorem mulModAddPartialLoCarry_zero (a b : Word) :
+    mulModAddPartialLoCarry 0 a b = 0 := by
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  simp [BitVec.ult]
+
+theorem mulModAddPartialHiCarry_zero_zero (a b : Word) :
+    mulModAddPartialHiCarry 0 0 a b = 0 := by
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  simp [BitVec.ult]
+
 theorem mulModProductLayoutCall00P96_eq_mul_limb0 (a b : EvmWord) :
     mulModProductLayoutCall00P96 a b = (a * b).getLimbN 0 := by
   rw [← EvmWord.getLimb_as_getLimbN_0, ← productLimb_zero_eq_mul_getLimb]
