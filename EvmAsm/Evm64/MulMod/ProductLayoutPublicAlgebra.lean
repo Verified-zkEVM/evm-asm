@@ -1139,4 +1139,24 @@ theorem mulModProductLayoutColumn4Value_eq_expandedValue (a b : EvmWord) :
   unfold mulModProductLayoutColumn4ExpandedValue mulModProductLayoutColumn4PrefixCarry
   ac_rfl
 
+theorem mulModProductLayoutColumn4Value_eq_productLimb_four_of_expandedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Value a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Value_eq_expandedValue, h_col]
+
+theorem mulModProductLayoutColumn4Value_eq_mulHigh_getLimbN_zero_of_expandedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Value a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutColumn4Value_eq_mulHigh_getLimbN_zero_of_productLimb_four
+    (mulModProductLayoutColumn4Value_eq_productLimb_four_of_expandedValue h_col)
+
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_expandedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_column4Value
+    (mulModProductLayoutColumn4Value_eq_mulHigh_getLimbN_zero_of_expandedValue h_col)
+
 end EvmAsm.Evm64
