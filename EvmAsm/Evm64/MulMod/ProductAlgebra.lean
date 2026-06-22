@@ -279,6 +279,22 @@ private theorem productLimb_low_eq_getLimb (a b : EvmWord) (i : Fin 4) :
   simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
     EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
 
+@[simp] theorem productOffsetValues_get_four (a b : EvmWord) :
+    (productOffsetValues a b)[4] = ((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0) := by
+  simp [productOffsetValues, productOffsetIndices, EvmWord.getLimb_as_getLimbN_0]
+
+@[simp] theorem productOffsetValues_get_five (a b : EvmWord) :
+    (productOffsetValues a b)[5] = ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1) := by
+  simp [productOffsetValues, productOffsetIndices, EvmWord.getLimb_as_getLimbN_1]
+
+@[simp] theorem productOffsetValues_get_six (a b : EvmWord) :
+    (productOffsetValues a b)[6] = ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2) := by
+  simp [productOffsetValues, productOffsetIndices, EvmWord.getLimb_as_getLimbN_2]
+
+@[simp] theorem productOffsetValues_get_seven (a b : EvmWord) :
+    (productOffsetValues a b)[7] = ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3) := by
+  simp [productOffsetValues, productOffsetIndices, EvmWord.getLimb_as_getLimbN_3]
+
 @[simp] theorem productOffsetValues_offsets (a b : EvmWord) :
     (productOffsetValues a b).map Prod.fst = mulmodProductOffsets := by
   simp [productOffsetValues, productOffsetIndices, mulmodProductOffsets]
