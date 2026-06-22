@@ -17,4 +17,6 @@ import EvmAsm.Evm64.MulMod.ProductAlgebra
 import EvmAsm.Evm64.MulMod.LimbSpec
 import EvmAsm.Evm64.MulMod.AddrNorm
 import EvmAsm.Evm64.MulMod.Compose.Base
+import EvmAsm.Evm64.MulMod.Compose.ProductCore
+import EvmAsm.Evm64.MulMod.Compose.ProductSuffix
 import EvmAsm.Evm64.MulMod.Spec

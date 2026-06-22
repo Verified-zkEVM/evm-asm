@@ -413,6 +413,119 @@ def evmMulModAddPartialCorePost (sp : Word)
   ((sp + signExtend12 loOff) ↦ₘ mulModAddPartialLoValue lo a b) **
   ((sp + signExtend12 hiOff) ↦ₘ mulModAddPartialHiValue hi lo a b)
 
+@[irreducible]
+def evmMulModAddPartialCoreFullPre (sp : Word)
+    (aOff bOff loOff hiOff : BitVec 12) (a b lo hi : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    Assertion :=
+  (.x12 ↦ᵣ sp) **
+  (.x5 ↦ᵣ x5Old) **
+  (.x6 ↦ᵣ x6Old) **
+  (.x7 ↦ᵣ x7Old) **
+  (.x8 ↦ᵣ x8Old) **
+  (.x9 ↦ᵣ x9Old) **
+  (.x10 ↦ᵣ x10Old) **
+  (.x11 ↦ᵣ x11Old) **
+  (.x13 ↦ᵣ x13Old) **
+  (.x14 ↦ᵣ x14Old) **
+  ((sp + signExtend12 aOff) ↦ₘ a) **
+  ((sp + signExtend12 bOff) ↦ₘ b) **
+  ((sp + signExtend12 loOff) ↦ₘ lo) **
+  ((sp + signExtend12 hiOff) ↦ₘ hi)
+
+abbrev evm_mulmod_product_add_partial_core_finish_code (base : Word)
+    (aOff bOff loOff hiOff : BitVec 12) : CodeReq :=
+  CodeReq.ofProg base
+    (LD .x5 .x12 aOff ;;
+     LD .x6 .x12 bOff ;;
+     single (.MUL .x7 .x5 .x6) ;;
+     single (.MULHU .x8 .x5 .x6) ;;
+     LD .x9 .x12 loOff ;;
+     ADD .x9 .x9 .x7 ;;
+     SLTU .x10 .x9 .x7 ;;
+     SD .x12 .x9 loOff ;;
+     LD .x9 .x12 hiOff ;;
+     ADD .x11 .x9 .x8 ;;
+     SLTU .x13 .x11 .x8 ;;
+     ADD .x11 .x11 .x10 ;;
+     SLTU .x14 .x11 .x10 ;;
+     OR' .x10 .x13 .x14 ;;
+     SD .x12 .x11 hiOff)
+
+/-- Core `evm_mulmod_product_add_partial` block through the high-limb store,
+    leaving the merged carry ready for the carry-tail suffix. -/
+theorem evm_mulmod_product_add_partial_core_finish_spec_within
+    (sp base : Word) (aOff bOff loOff hiOff : BitVec 12)
+    (a b lo hi : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin 15 base (base + 60)
+      (evm_mulmod_product_add_partial_core_finish_code base aOff bOff loOff hiOff)
+      (evmMulModAddPartialCoreFullPre sp aOff bOff loOff hiOff a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
+      (evmMulModAddPartialCorePost sp aOff bOff loOff hiOff a b lo hi) := by
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct
+  unfold mulModAddPartialLoProduct
+  have I0 := ld_spec_gen_within .x5 .x12 sp x5Old a aOff base (by nofun)
+  have I1 := ld_spec_gen_within .x6 .x12 sp x6Old b bOff (base + 4) (by nofun)
+  have I2 := mul_spec_gen_within .x7 .x5 .x6 x7Old a b (base + 8) (by nofun)
+  have I3 := mulhu_spec_gen_within .x8 .x5 .x6 x8Old a b (base + 12) (by nofun)
+  have I4 := ld_spec_gen_within .x9 .x12 sp x9Old lo loOff (base + 16) (by nofun)
+  have I5 := add_spec_gen_rd_eq_rs1_within .x9 .x7 lo (a * b) (base + 20) (by nofun)
+  have I6 := sltu_spec_gen_within .x10 .x9 .x7 x10Old (lo + a * b) (a * b)
+    (base + 24) (by nofun)
+  have I7 := sd_spec_gen_within .x12 .x9 sp (lo + a * b) lo loOff (base + 28)
+  have I8 := ld_spec_gen_within .x9 .x12 sp (lo + a * b) hi hiOff (base + 32) (by nofun)
+  have I9 := add_spec_gen_within .x11 .x9 .x8 hi (rv64_mulhu a b) x11Old
+    (base + 36) (by nofun)
+  have I10 := sltu_spec_gen_within .x13 .x11 .x8 x13Old (hi + rv64_mulhu a b)
+    (rv64_mulhu a b) (base + 40) (by nofun)
+  have I11 := add_spec_gen_rd_eq_rs1_within .x11 .x10 (hi + rv64_mulhu a b)
+    (if BitVec.ult (lo + a * b) (a * b) then 1 else 0) (base + 44) (by nofun)
+  have I12 := sltu_spec_gen_within .x14 .x11 .x10 x14Old
+    ((hi + rv64_mulhu a b) + if BitVec.ult (lo + a * b) (a * b) then 1 else 0)
+    (if BitVec.ult (lo + a * b) (a * b) then 1 else 0) (base + 48) (by nofun)
+  have I13 := or_spec_gen_within .x10 .x13 .x14
+    (if BitVec.ult (lo + a * b) (a * b) then 1 else 0)
+    (if BitVec.ult (hi + rv64_mulhu a b) (rv64_mulhu a b) then 1 else 0)
+    (if BitVec.ult
+      ((hi + rv64_mulhu a b) + if BitVec.ult (lo + a * b) (a * b) then 1 else 0)
+      (if BitVec.ult (lo + a * b) (a * b) then 1 else 0) then 1 else 0)
+    (base + 52) (by nofun)
+  have I14 := sd_spec_gen_within .x12 .x11 sp
+    ((hi + rv64_mulhu a b) + if BitVec.ult (lo + a * b) (a * b) then 1 else 0)
+    hi hiOff (base + 56)
+  runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 I12 I13 I14
+
+/-- Final product partial with no carry-tail suffix. This is the last
+    `evm_mulmod_product_add_partial` call in the 4x4 schoolbook product layout. -/
+theorem evm_mulmod_product_add_partial_144_152_nil_spec_within
+    (sp base : Word) (a b lo hi : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin 15 base (base + 60)
+      (CodeReq.ofProg base
+        (evm_mulmod_product_add_partial
+          (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) []))
+      (evmMulModAddPartialCoreFullPre sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
+      (evmMulModAddPartialCorePost sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi) := by
+  change cpsTripleWithin 15 base (base + 60)
+      (evm_mulmod_product_add_partial_core_finish_code base
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12))
+      (evmMulModAddPartialCoreFullPre sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
+      (evmMulModAddPartialCorePost sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi)
+  exact evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+
 abbrev evm_mulmod_product_add_partial_finish_code (base : Word) (hiOff : BitVec 12) : CodeReq :=
   CodeReq.ofProg base (OR' .x10 .x13 .x14 ;; SD .x12 .x11 hiOff)
 
@@ -638,5 +751,79 @@ theorem evm_mulmod_product_propagate_carry_112_120_128_136_144_152_spec_within
   have I22 := sltu_spec_gen_rd_eq_rs2_within .x10 .x9 (p7 + (if BitVec.ult (p6 + (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p6 + (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0) (base + 88) (by nofun)
   have I23 := sd_spec_gen_within .x12 .x9 sp (p7 + (if BitVec.ult (p6 + (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0)) p7 152 (base + 92)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 I12 I13 I14 I15 I16 I17 I18 I19 I20 I21 I22 I23
+
+
+-- ============================================================================
+-- evm_mulmod_reduce512_init
+-- ============================================================================
+
+abbrev evm_mulmod_reduce512_init_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_mulmod_reduce512_init
+
+/-- Initialize the 512-bit reduction accumulator: clear the four remainder
+    limbs, point `x16` at the high product limb, and set the outer limb counter
+    in `x18` to 8. -/
+theorem evm_mulmod_reduce512_init_spec_within (sp base : Word)
+    (v16Old v18Old r0 r1 r2 r3 : Word) :
+    cpsTripleWithin 6 base (base + 24) (evm_mulmod_reduce512_init_code base)
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3))
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ (sp + signExtend12 (152 : BitVec 12))) **
+       (.x18 ↦ᵣ (signExtend12 (8 : BitVec 12))) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  have I0 := sd_x0_spec_gen_within .x12 sp r0 224 base
+  have I1 := sd_x0_spec_gen_within .x12 sp r1 232 (base + 4)
+  have I2 := sd_x0_spec_gen_within .x12 sp r2 240 (base + 8)
+  have I3 := sd_x0_spec_gen_within .x12 sp r3 248 (base + 12)
+  have I4 := addi_spec_gen_within .x16 .x12 v16Old sp 152 (base + 16) (by nofun)
+  have I5 := addi_x0_spec_gen_within .x18 v18Old 8 (base + 20) (by nofun)
+  runBlock I0 I1 I2 I3 I4 I5
+
+
+-- ============================================================================
+-- evm_mulmod_reduce512_write_result
+-- ============================================================================
+
+abbrev evm_mulmod_reduce512_write_result_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_mulmod_reduce512_write_result
+
+/-- Copy the finalized 256-bit remainder from the reducer accumulator window
+    into the EVM result slots. -/
+theorem evm_mulmod_reduce512_write_result_spec_within (sp base : Word)
+    (v5Old r0 r1 r2 r3 m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 8 base (base + 32) (evm_mulmod_reduce512_write_result_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5Old) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ m3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ r3)) := by
+  have I0 := ld_spec_gen_within .x5 .x12 sp v5Old r0 224 base (by nofun)
+  have I1 := sd_spec_gen_within .x12 .x5 sp r0 m0 64 (base + 4)
+  have I2 := ld_spec_gen_within .x5 .x12 sp r0 r1 232 (base + 8) (by nofun)
+  have I3 := sd_spec_gen_within .x12 .x5 sp r1 m1 72 (base + 12)
+  have I4 := ld_spec_gen_within .x5 .x12 sp r1 r2 240 (base + 16) (by nofun)
+  have I5 := sd_spec_gen_within .x12 .x5 sp r2 m2 80 (base + 20)
+  have I6 := ld_spec_gen_within .x5 .x12 sp r2 r3 248 (base + 24) (by nofun)
+  have I7 := sd_spec_gen_within .x12 .x5 sp r3 m3 88 (base + 28)
+  runBlock I0 I1 I2 I3 I4 I5 I6 I7
 
 end EvmAsm.Evm64
