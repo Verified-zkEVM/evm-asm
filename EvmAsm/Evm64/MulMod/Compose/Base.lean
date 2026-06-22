@@ -1,14 +1,9 @@
 /-
   EvmAsm.Evm64.MulMod.Compose.Base
 
-  Shared composition infrastructure for MULMOD: `mulmodCode` (the union
-  of all sub-block `CodeReq`s), subsumption helpers tying sub-block codes
-  back to `mulmodCode`, and shared length lemmas.
-
-  Skeleton placeholder for GH #91 (beads slice evm-asm-w1s0). Concrete
-  definitions will be added once `evm_mulmod` is laid out (slice
-  evm-asm-m4wu) and the per-block specs from `LimbSpec.lean` start
-  composing.
+  Shared composition infrastructure for MULMOD: `evm_mulmod_program_code`
+  (the `CodeReq.ofProg` handle for the assembled top-level `evm_mulmod`) and
+  sub-block subsumption/lift helpers used by the later stack-spec composition.
 -/
 
 import EvmAsm.Evm64.MulMod.LimbSpec
@@ -19,7 +14,142 @@ namespace EvmAsm.Evm64.MulMod.Compose
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64
 
--- Composition helpers (skipBlock subsumptions, length lemmas, etc.)
--- land alongside the Compose/<Phase>.lean files in later slices.
+/-- `CodeReq.ofProg` handle for the assembled top-level `evm_mulmod` program. -/
+abbrev evm_mulmod_program_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_mulmod
+
+local macro "evm_mulmod_slice_rfl" : tactic =>
+  `(tactic|
+    first
+      | rfl
+      | (unfold evm_mulmod evm_mulmod_nonzero_or_zero_prefix
+            evm_mulmod_reduce_zero_path evm_mulmod_epilogue
+            evm_mulmod_zero_path_skip_nonzero LD OR' BNE SD ADDI JAL single seq
+         rfl))
+
+/-- The zero/nonzero modulus prefix block (8 instrs at offset 0) is subsumed by
+    the top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_nonzero_or_zero_prefix_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg base evm_mulmod_nonzero_or_zero_prefix) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base base evm_mulmod
+    evm_mulmod_nonzero_or_zero_prefix 0 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length, evm_mulmod_nonzero_or_zero_prefix_length]; decide
+  · rw [evm_mulmod_length]; decide
+
+/-- The zero-result path block (4 instrs at offset 32) is subsumed by the
+    top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_reduce_zero_path_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 32) evm_mulmod_reduce_zero_path) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 32) evm_mulmod
+    evm_mulmod_reduce_zero_path 8 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length, evm_mulmod_reduce_zero_path_length]; decide
+  · rw [evm_mulmod_length]; decide
+
+/-- The zero-path epilogue block (1 instr at offset 48) is subsumed by the
+    top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_epilogue_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 48) evm_mulmod_epilogue) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 48) evm_mulmod
+    evm_mulmod_epilogue 12 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length, evm_mulmod_epilogue_length]; decide
+  · rw [evm_mulmod_length]; decide
+
+/-- The jump over the nonzero path (1 instr at offset 52) is subsumed by the
+    top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_zero_path_skip_nonzero_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 52) evm_mulmod_zero_path_skip_nonzero) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 52) evm_mulmod
+    evm_mulmod_zero_path_skip_nonzero 13 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length, evm_mulmod_zero_path_skip_nonzero_length]; decide
+  · rw [evm_mulmod_length]; decide
+
+/-- Prefix branch spec lifted from its sub-block `CodeReq.ofProg` handle onto
+    `evm_mulmod_program_code`. -/
+theorem evm_mulmod_nonzero_or_zero_prefix_evm_mulmod_spec_within
+    (sp v5Old v6Old n0 n1 n2 n3 : Word) (base : Word) :
+    let orAll := n0 ||| n1 ||| n2 ||| n3
+    cpsBranchWithin 8 base (evm_mulmod_program_code base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ n3))
+      ((base + 28) + signExtend13 (28 : BitVec 13))
+        ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ n0) **
+         ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ n1) **
+         ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ n2) **
+         ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ n3) **
+         ⌜orAll ≠ 0⌝)
+      (base + 32)
+        ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ n0) **
+         ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ n1) **
+         ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ n2) **
+         ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ n3) **
+         ⌜orAll = 0⌝) := by
+  intro orAll
+  exact cpsBranchWithin_extend_code
+    (h := evm_mulmod_nonzero_or_zero_prefix_spec_within sp v5Old v6Old n0 n1 n2 n3 base)
+    (hmono := evm_mulmod_program_code_nonzero_or_zero_prefix_sub base)
+
+/-- Zero-result path spec lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_reduce_zero_path_evm_mulmod_spec_within
+    (sp m0 m1 m2 m3 : Word) (base : Word) :
+    cpsTripleWithin 4 (base + 32) ((base + 32) + 16) (evm_mulmod_program_code base)
+      ((.x12 ↦ᵣ sp) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ m3))
+      ((.x12 ↦ᵣ sp) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ (0 : Word))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_reduce_zero_path_ofProg_spec_within sp m0 m1 m2 m3 (base + 32))
+    (hmono := evm_mulmod_program_code_reduce_zero_path_sub base)
+
+/-- Zero-path epilogue spec lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_epilogue_evm_mulmod_spec_within
+    (sp : Word) (base : Word) :
+    cpsTripleWithin 1 (base + 48) ((base + 48) + 4) (evm_mulmod_program_code base)
+      (.x12 ↦ᵣ sp)
+      (.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_epilogue_spec_within sp (base + 48))
+    (hmono := evm_mulmod_program_code_epilogue_sub base)
+
+/-- Zero-path skip spec lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_zero_path_skip_nonzero_evm_mulmod_spec_within
+    (base : Word) :
+    cpsTripleWithin 1 (base + 52) ((base + 52) + signExtend21 (2100 : BitVec 21))
+      (evm_mulmod_program_code base)
+      empAssertion
+      empAssertion :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_zero_path_skip_nonzero_spec_within (base + 52))
+    (hmono := evm_mulmod_program_code_zero_path_skip_nonzero_sub base)
 
 end EvmAsm.Evm64.MulMod.Compose
