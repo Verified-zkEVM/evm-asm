@@ -49,6 +49,7 @@ import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 import EvmAsm.Evm64.SDiv.Spec
+import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
@@ -140,9 +141,12 @@ def registry : List OpcodeEntry := [
        "require b.getLimbN 3 = 0); n=4 path not covered. Executable evm_mod " ++
        "uses divK_div128_v4 (PR #4992). Full-domain unconditional closure " ++
        "tracked by bead evm-asm-9iqmw / gh-61"),
-  entry "SMOD" .partly none "smod_correct proven; no top-level Hoare triple",
-  entry "ADDMOD" .partly (some "evm_addmod_b0_n0_spec_within")
-      "addmod_correct proven; only b=0 stack-spec done",
+  entry "SMOD" .conditional
+      (some "evm_smod_stack_spec_within")
+      ("all-case v4 wrapper result-stack spec; zero divisor discharged, " ++
+       "nonzero path still parameterized by unsigned-MOD callable h_stack"),
+  entry "ADDMOD" .partly (some "evm_addmod_n0_spec_within")
+      "addmod_correct proven; zero-modulus stack spec done for arbitrary b",
   entry "MULMOD" .partly none "mulmod_correct proven; no top-level Hoare triple",
   entry "EXP" .partly none "exp_correct proven; program in active development",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
@@ -268,8 +272,8 @@ def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
 theorem provenCount_eq      : provenCount      = 42 := by decide
-theorem partialCount_eq     : partialCount     = 6  := by decide
-theorem conditionalCount_eq : conditionalCount = 2  := by decide
+theorem partialCount_eq     : partialCount     = 5  := by decide
+theorem conditionalCount_eq : conditionalCount = 3  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
@@ -302,8 +306,8 @@ def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
 theorem provenBytes_eq      : provenBytes      = 72  := by decide
-theorem partialBytes_eq     : partialBytes     = 36  := by decide
-theorem conditionalBytes_eq : conditionalBytes = 2   := by decide
+theorem partialBytes_eq     : partialBytes     = 35  := by decide
+theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
@@ -325,7 +329,9 @@ private noncomputable abbrev _div_witness        := @EvmAsm.Evm64.evm_div_stack_
 private noncomputable abbrev _sdiv_witness       :=
   @EvmAsm.Evm64.evm_sdiv_exact_callable_return_stack_spec_within
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_stack_spec
-private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_b0_n0_spec_within
+private noncomputable abbrev _smod_witness       :=
+  @EvmAsm.Evm64.evm_smod_stack_spec_within
+private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_n0_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within
