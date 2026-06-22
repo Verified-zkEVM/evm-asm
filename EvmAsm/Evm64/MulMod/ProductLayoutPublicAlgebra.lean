@@ -1009,6 +1009,34 @@ theorem mulModProductLayoutCall09P128_eq_highCarry (a b : EvmWord) :
     a.getLimbN 2 * b.getLimbN 2 +
     a.getLimbN 1 * b.getLimbN 3
 
+/-- Column-4 low-feed value with the final low-column-3 sum replaced by
+    the already proven low product limb 3. -/
+@[irreducible] def mulModProductLayoutColumn4Limb3FeedValue (a b : EvmWord) : Word :=
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult (mulModProductLayoutCall04P112 a b + a.getLimbN 0 * b.getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed05 := mulModProductLayoutCall04P120 a b + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  mulModProductLayoutColumn4PrefixCarry a b +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
 theorem mulModProductLayoutCall12P128_eq_expanded (a b : EvmWord) :
     mulModProductLayoutCall12P128 a b =
       mulModProductLayoutCall09P128 a b +
@@ -1170,6 +1198,20 @@ theorem mulModProductLayoutColumn4ExpandedValue_eq_lowFeedValue (a b : EvmWord) 
     mulModProductLayoutColumn4ExpandedValue a b =
       mulModProductLayoutColumn4LowFeedValue a b := by
   unfold mulModProductLayoutColumn4ExpandedValue mulModProductLayoutColumn4LowFeedValue
+  rw [mulModProductLayoutCall08P120_eq_add]
+  rw [mulModProductLayoutCall07P120_eq_add]
+  rw [mulModProductLayoutCall06P120_eq_add]
+  rw [mulModProductLayoutCall05P120_eq_add]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue
+    mulModAddPartialLoProduct
+  rfl
+
+theorem mulModProductLayoutColumn4LowFeedValue_eq_limb3FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4LowFeedValue a b =
+      mulModProductLayoutColumn4Limb3FeedValue a b := by
+  unfold mulModProductLayoutColumn4LowFeedValue mulModProductLayoutColumn4Limb3FeedValue
+  rw [← mulModProductLayoutCall09P120_eq_mul_limb3]
+  rw [mulModProductLayoutCall09P120_eq_add]
   rw [mulModProductLayoutCall08P120_eq_add]
   rw [mulModProductLayoutCall07P120_eq_add]
   rw [mulModProductLayoutCall06P120_eq_add]
