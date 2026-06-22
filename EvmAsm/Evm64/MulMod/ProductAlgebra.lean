@@ -187,6 +187,22 @@ private theorem productLimb_high_eq_mulHigh_getLimb (a b : EvmWord) (i : Fin 4) 
     productLimb_five_eq_mulHigh_getLimbN_one, productLimb_six_eq_mulHigh_getLimbN_two,
     productLimb_seven_eq_mulHigh_getLimbN_three]
 
+@[simp] theorem productHighLimbs_get_zero (a b : EvmWord) :
+    (productHighLimbs a b)[0] = (EvmWord.mulHigh a b).getLimbN 0 := by
+  simp [productHighLimbs, EvmWord.getLimb_as_getLimbN_0]
+
+@[simp] theorem productHighLimbs_get_one (a b : EvmWord) :
+    (productHighLimbs a b)[1] = (EvmWord.mulHigh a b).getLimbN 1 := by
+  simp [productHighLimbs, EvmWord.getLimb_as_getLimbN_1]
+
+@[simp] theorem productHighLimbs_get_two (a b : EvmWord) :
+    (productHighLimbs a b)[2] = (EvmWord.mulHigh a b).getLimbN 2 := by
+  simp [productHighLimbs, EvmWord.getLimb_as_getLimbN_2]
+
+@[simp] theorem productHighLimbs_get_three (a b : EvmWord) :
+    (productHighLimbs a b)[3] = (EvmWord.mulHigh a b).getLimbN 3 := by
+  simp [productHighLimbs, EvmWord.getLimb_as_getLimbN_3]
+
 /-- Low limbs of the 512-bit product agree with the corresponding limbs of the
     truncated 256-bit EVM multiplication. -/
 private theorem productLimb_low_eq_getLimb (a b : EvmWord) (i : Fin 4) :
