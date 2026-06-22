@@ -1667,12 +1667,27 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     re-associating the `x13` offset (`O + (lenH + lenT)` → `(O + lenH) + lenT`) before xperm. Built in two
     tries. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Example: the 3-field schema as an
     instance.
-  - **Next (heterogeneous schema → STF decoders):** the scalar-only N-walk handles runs of u64 scalars, but
-    real schemas interleave **u256/hash (32-byte)**, **address (20-byte)** and **variable-length** fields,
-    which need a byte-array copy loop (LBU/SB) rather than the ≤8-byte BE numeric read, plus an n=0 (empty
-    `.bytes` → 0) scalar variant. Build the byte-copy loop + address/hash field units, then a heterogeneous
-    schema walk (scalar | address | hash units), then instantiate to the legacy-tx (9-field) / header
-    decoders producing the `BlockInput`. Earlier note (still applies): chain N `regOwn`-pre decode-and-store
+  - ✅ **Step 15 — byte-store algebra** (`MemRegionWrite.lean`). The write-side algebra for a packed dword:
+    **`packBytes_set`** (`replaceByte (packBytes chunk) k b = packBytes (chunk.set k b)`), plus
+    `extractByte_replaceByte_diff`, `extractByte_packBytes_total`, `eq_of_forall_extractByte` (dword byte-wise
+    extensionality), `getByteAt_set`. The algebraic core of writing into a `bytesRegion` — write analog of the
+    read-side `extractByte_packBytes`. Axiom-clean, 0 sorry, 0 warnings.
+  - ✅ **Step 16 — SB into bytesRegion** (`MemRegionStore.lean`). **`bytesRegion_sb_within`**: `SB` of the low
+    byte of `rs2` at `regionBase + i` turns `bytesRegion regionBase bs` into `bytesRegion regionBase (bs.set i
+    (v_data.truncate 8))` — the writable destination a byte-copy loop needs (write analog of
+    `bytesRegion_lbu_within`). Structural core **`bytesRegion_dword_at_set`**: one induction framing the
+    `i`-th dword for BOTH `bs` and `bs.set i b` with the SAME `front`/`rest` (sidesteps the existential
+    mismatch of `bytesRegion_dword_at`), so the `SB` lands exactly on `bs.set i b` via `packBytes_set`. Uses
+    `List.take_set`/`drop_set`. The byte-copy MEMORY MODEL is now complete (read + write). Axiom-clean, 0
+    sorry, 0 warnings.
+  - **Next (byte-copy loop → address/hash field units → heterogeneous schema):** with read
+    (`bytesRegion_lbu_within`) and write (`bytesRegion_sb_within`) in hand, build the counted **LBU+SB copy
+    loop** (6-instr body `LBU x12,x13,0; SB x12,x14,0; ADDI x13,x13,1; ADDI x14,x14,1; ADDI x15,x15,-1;
+    BNE x15,x0,back`, inductive closure over N like `rlp_phase2_long_loop_succ_spec_within`) copying N bytes
+    src→dst region. Then address/hash field units (decode header → copy 20/32 payload bytes to the output
+    slot), then a heterogeneous schema walk (scalar | address | hash units), then concrete legacy-tx (9-field)
+    / header decoders producing the `BlockInput`. Also still needed: n=0 (empty `.bytes` → 0) scalar variant
+    (branch-to-skip-loop). Earlier note (still applies): chain N `regOwn`-pre decode-and-store
     units across a
     fixed `(offset, fieldData)` schema (recursion/fold over the list, list-induction on the CodeReq unions
     and frame bookkeeping) → concrete STF transaction (9 fields) / header (~19 fields) decoders producing the
