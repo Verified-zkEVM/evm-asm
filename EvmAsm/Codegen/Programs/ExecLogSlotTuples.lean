@@ -57,6 +57,16 @@ def execLogSlotTuplesFunction : String :=
   "  li s6, 0                     # entry index i\n" ++
   ".Lels_loop:\n" ++
   "  beq s6, s3, .Lels_finalize\n" ++
+  -- lv44p.2.2 txindex window filter: when els_txfilter_hi != 0, process entry i only
+  -- if els_txfilter_lo <= txindex[i] < els_txfilter_hi (else skip). Default 0/0 leaves
+  -- every entry in (backward-compatible with all existing callers). Used by
+  -- system_user_exec_log_slot_tuples to split begin-of-block (block_access_index 0)
+  -- from end-of-block (N+1) system rows so each lands in the correct ordered segment.\n" ++
+  "  la t0, els_txfilter_hi; ld t0, 0(t0); beqz t0, .Lels_nofilter\n" ++
+  "  slli t6, s6, 3; add t6, s4, t6; ld t6, 0(t6)        # txindex[i]\n" ++
+  "  la t0, els_txfilter_lo; ld t0, 0(t0); bltu t6, t0, .Lels_next   # txindex < lo -> skip\n" ++
+  "  la t0, els_txfilter_hi; ld t0, 0(t0); bgeu t6, t0, .Lels_next   # txindex >= hi -> skip\n" ++
+  ".Lels_nofilter:\n" ++
   "  slli t0, s6, 7; add t1, s2, t0   # entry ptr\n" ++
   "  # match addrHash (entry@0 vs s0)\n" ++
   "  ld t2, 0(t1);  ld t3, 0(s0);  bne t2, t3, .Lels_next\n" ++
@@ -139,7 +149,10 @@ def execLogSlotTuplesData : String :=
   "els_groupval:\n  .zero 32\n" ++
   "els_grouptx:\n  .zero 8\n" ++
   "els_haverun:\n  .zero 8\n" ++
-  "els_havegrp:\n  .zero 8\n"
+  "els_havegrp:\n  .zero 8\n" ++
+  -- lv44p.2.2: txindex window [lo, hi) filter. Default 0/0 (hi==0) = no filter.
+  "els_txfilter_lo:\n  .zero 8\n" ++
+  "els_txfilter_hi:\n  .zero 8\n"
 
 /-- `zisk_exec_log_slot_tuples`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
