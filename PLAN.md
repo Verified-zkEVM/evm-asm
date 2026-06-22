@@ -1654,13 +1654,26 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     — a single unit ⊥ the whole rest-of-walk CodeReq, by induction on the field list (each step a
     `scalarFieldUnitCR_disjoint`), which discharges the recursive walk's `cpsTripleWithin_seq` obligation in
     one application. Built first try. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override.
-  - **Next (recursive N-field walk theorem):** define `nFieldOutOwn`/`nFieldOutVal` (the `**`-folds of the
-    output cells, bottoming out at `empAssertion`) and prove **`unified_n_scalar_field_walk`** by induction on
-    the field list: nil = `cpsTripleWithin_refl` (weaken `x11` to `regOwn`); cons = the `regOwn`+`memOwn` unit
-    ⨾ the IH, framing the rest-cells through the unit and the written cell through the IH, disjointness via
-    `scalarFieldUnitCR_disjoint_walkCR`. The crux risk is `xperm_hyp` reconciling the intermediate state with
-    the opaque fold conjunct (keep `nFieldOutOwn`/`Val` non-reducible so they stay single atoms). Then chain N
-    `regOwn`-pre decode-and-store units across a
+  - ✅ **Step 14 — recursive N-field scalar walk** (`UnifiedNScalarFieldWalk.lean`).
+    **`unified_n_scalar_field_walk`**: decode-and-store an arbitrary LIST `fields : List (BitVec 12 × List
+    Byte)` of consecutive scalar fields, each to its own output slot, through one output pointer — the
+    keystone generalizing the hand-unrolled 3-field walk to any N. Output cells: pre = `nFieldOutOwn` (a
+    `**`-fold of `memOwn` slots), post = `nFieldOutVal` (a fold of `↦ₘ` value slots); `x13` advances past the
+    whole `flatMap`-concatenation. Proved by induction on the list: nil = `cpsTripleWithin_refl` (one `x11`
+    `regIs→regOwn` weakening via a `sepConj_mono` chain); cons = the `regOwn`+`memOwn` unit ⨾ IH, framing the
+    tail cells (`nFieldOutOwn rest`, `pcFree` by `nFieldOutOwn_pcFree`) through the head and the head's
+    written cell through the tail, disjointness via `scalarFieldUnitCR_disjoint_walkCR`. The opaque folds
+    stayed single atoms so `xperm_hyp` reconciled the intermediate/goal states; the only manual step was
+    re-associating the `x13` offset (`O + (lenH + lenT)` → `(O + lenH) + lenT`) before xperm. Built in two
+    tries. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Example: the 3-field schema as an
+    instance.
+  - **Next (heterogeneous schema → STF decoders):** the scalar-only N-walk handles runs of u64 scalars, but
+    real schemas interleave **u256/hash (32-byte)**, **address (20-byte)** and **variable-length** fields,
+    which need a byte-array copy loop (LBU/SB) rather than the ≤8-byte BE numeric read, plus an n=0 (empty
+    `.bytes` → 0) scalar variant. Build the byte-copy loop + address/hash field units, then a heterogeneous
+    schema walk (scalar | address | hash units), then instantiate to the legacy-tx (9-field) / header
+    decoders producing the `BlockInput`. Earlier note (still applies): chain N `regOwn`-pre decode-and-store
+    units across a
     fixed `(offset, fieldData)` schema (recursion/fold over the list, list-induction on the CodeReq unions
     and frame bookkeeping) → concrete STF transaction (9 fields) / header (~19 fields) decoders producing the
     `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) / zero-length scalars
