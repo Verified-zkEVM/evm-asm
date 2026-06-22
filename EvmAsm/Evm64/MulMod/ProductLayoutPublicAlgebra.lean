@@ -123,6 +123,13 @@ theorem mulModCarryStepCarry_zero_zero :
   unfold mulModCarryStepCarry
   decide
 
+theorem mulModAddPartialHiCarry_bvzero_zero (a b : Word) :
+    mulModAddPartialHiCarry (0#64) (0#64) a b = 0 := by
+  unfold mulModAddPartialHiCarry mulModAddPartialHiBaseCarry mulModAddPartialHiCarryFromLo
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseValue mulModAddPartialLoCarry
+  unfold mulModAddPartialLoValue mulModAddPartialLoProduct mulModAddPartialHiProduct
+  simp [BitVec.ult]
+
 theorem mulModProductLayoutCall00Carry104_zero (a b : EvmWord) :
     mulModProductLayoutCall00Carry104 a b = 0 := by
   unfold mulModProductLayoutCall00Carry104
@@ -178,6 +185,31 @@ theorem mulModProductLayoutCall02Carry112_eq_singleCarry_right (a b : EvmWord) :
         0 := by
   unfold mulModProductLayoutCall02Carry112
   rw [mulModAddPartialHiCarry_eq_singleCarry_right]
+
+theorem mulModProductLayoutCall02P112_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall02P112 a b =
+      rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+        rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+            (a.getLimbN 0 * b.getLimbN 1) then
+            (1 : Word)
+          else
+            0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+            (1 : Word)
+          else
+            0) := by
+  simp [mulModProductLayoutCall02P112, mulModProductLayoutCall01P112,
+    mulModProductLayoutCall01P104, mulModProductLayoutCall00P104,
+    mulModProductLayoutCall00P112, mulModProductLayoutCall00Carry104,
+    mulModAddPartialHiCarry_bvzero_zero,
+    mulModAddPartialLoValue, mulModAddPartialHiValue,
+    mulModAddPartialLoProduct, mulModAddPartialHiProduct,
+    mulModAddPartialHiBaseValue, mulModAddPartialLoCarry,
+    mulModCarryStepValue, BitVec.ult]
+  ac_rfl
 
 theorem mulModProductLayoutCall02P120_eq_carry112 (a b : EvmWord) :
     mulModProductLayoutCall02P120 a b = mulModProductLayoutCall02Carry112 a b := by
