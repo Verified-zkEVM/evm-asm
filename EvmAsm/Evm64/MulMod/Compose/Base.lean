@@ -25,7 +25,8 @@ local macro "evm_mulmod_slice_rfl" : tactic =>
       | (unfold evm_mulmod evm_mulmod_nonzero_or_zero_prefix
             evm_mulmod_reduce_zero_path evm_mulmod_epilogue
             evm_mulmod_zero_path_skip_nonzero evm_mulmod_product_layout
-            evm_mulmod_product_zero LD OR' BNE SD ADDI JAL single seq
+            evm_mulmod_product_zero evm_mulmod_reduce512
+            evm_mulmod_reduce512_init LD OR' BNE SD ADDI JAL single seq
          rfl))
 
 /-- The zero/nonzero modulus prefix block (8 instrs at offset 0) is subsumed by
@@ -96,6 +97,20 @@ theorem evm_mulmod_program_code_product_zero_sub
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length, evm_mulmod_product_zero_length]; decide
+  · rw [evm_mulmod_length]; decide
+
+/-- The reducer initialization block at offset 1816 is subsumed by the top-level
+    `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_reduce512_init_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 1816) evm_mulmod_reduce512_init) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 1816) evm_mulmod
+    evm_mulmod_reduce512_init 454 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length, evm_mulmod_reduce512_init_length]; decide
   · rw [evm_mulmod_length]; decide
 
 /-- Prefix branch spec lifted from its sub-block `CodeReq.ofProg` handle onto
@@ -193,5 +208,27 @@ theorem evm_mulmod_product_zero_evm_mulmod_spec_within (sp : Word) (base : Word)
     (h := evm_mulmod_product_zero_spec_within sp (base + 56)
       a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 p0 p1 p2 p3 p4 p5 p6 p7)
     (hmono := evm_mulmod_program_code_product_zero_sub base)
+
+
+/-- Reducer-initialization spec lifted onto `evm_mulmod_program_code` at the
+    start of the 512-bit reduction path. -/
+theorem evm_mulmod_reduce512_init_evm_mulmod_spec_within (sp : Word) (base : Word)
+    (v16Old v18Old r0 r1 r2 r3 : Word) :
+    cpsTripleWithin 6 (base + 1816) ((base + 1816) + 24) (evm_mulmod_program_code base)
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3))
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ (sp + signExtend12 (152 : BitVec 12))) **
+       (.x18 ↦ᵣ (signExtend12 (8 : BitVec 12))) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ (0 : Word))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_reduce512_init_spec_within sp (base + 1816)
+      v16Old v18Old r0 r1 r2 r3)
+    (hmono := evm_mulmod_program_code_reduce512_init_sub base)
 
 end EvmAsm.Evm64.MulMod.Compose

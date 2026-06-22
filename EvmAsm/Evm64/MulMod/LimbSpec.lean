@@ -639,4 +639,37 @@ theorem evm_mulmod_product_propagate_carry_112_120_128_136_144_152_spec_within
   have I23 := sd_spec_gen_within .x12 .x9 sp (p7 + (if BitVec.ult (p6 + (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p5 + (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0)) (if BitVec.ult (p4 + (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0)) (if BitVec.ult (p3 + (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0)) (if BitVec.ult (p2 + (carry)) (carry) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0) then 1 else 0)) p7 152 (base + 92)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 I12 I13 I14 I15 I16 I17 I18 I19 I20 I21 I22 I23
 
+
+-- ============================================================================
+-- evm_mulmod_reduce512_init
+-- ============================================================================
+
+abbrev evm_mulmod_reduce512_init_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_mulmod_reduce512_init
+
+/-- Initialize the 512-bit reduction accumulator: clear the four remainder
+    limbs, point `x16` at the high product limb, and set the outer limb counter
+    in `x18` to 8. -/
+theorem evm_mulmod_reduce512_init_spec_within (sp base : Word)
+    (v16Old v18Old r0 r1 r2 r3 : Word) :
+    cpsTripleWithin 6 base (base + 24) (evm_mulmod_reduce512_init_code base)
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3))
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ (sp + signExtend12 (152 : BitVec 12))) **
+       (.x18 ↦ᵣ (signExtend12 (8 : BitVec 12))) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  have I0 := sd_x0_spec_gen_within .x12 sp r0 224 base
+  have I1 := sd_x0_spec_gen_within .x12 sp r1 232 (base + 4)
+  have I2 := sd_x0_spec_gen_within .x12 sp r2 240 (base + 8)
+  have I3 := sd_x0_spec_gen_within .x12 sp r3 248 (base + 12)
+  have I4 := addi_spec_gen_within .x16 .x12 v16Old sp 152 (base + 16) (by nofun)
+  have I5 := addi_x0_spec_gen_within .x18 v18Old 8 (base + 20) (by nofun)
+  runBlock I0 I1 I2 I3 I4 I5
+
 end EvmAsm.Evm64
