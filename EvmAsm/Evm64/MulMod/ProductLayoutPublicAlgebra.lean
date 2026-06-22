@@ -95,6 +95,18 @@ theorem mulModAddPartialHiCarry_eq_singleCarry (hi lo a b : Word) :
   have hhi := hi.isLt
   omega
 
+/-- Variant of `mulModAddPartialHiCarry_eq_singleCarry` with the incoming high
+    limb on the right, matching the product-algebra expansions. -/
+theorem mulModAddPartialHiCarry_eq_singleCarry_right (hi lo a b : Word) :
+    mulModAddPartialHiCarry hi lo a b =
+      if BitVec.ult ((mulModAddPartialHiProduct a b + mulModAddPartialLoCarry lo a b) + hi)
+          (mulModAddPartialHiProduct a b + mulModAddPartialLoCarry lo a b) then
+        (1 : Word)
+      else
+        0 := by
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  rw [BitVec.add_comm hi]
+
 theorem mulModAddPartialLoCarry_zero (a b : Word) :
     mulModAddPartialLoCarry 0 a b = 0 := by
   unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
@@ -133,6 +145,39 @@ theorem mulModProductLayoutCall00P120_zero (a b : EvmWord) :
   unfold mulModProductLayoutCall00P120 mulModCarryStepValue
   rw [mulModProductLayoutCall00Carry112_zero]
   rfl
+
+theorem mulModProductLayoutCall00P104_eq_mulhu (a b : EvmWord) :
+    mulModProductLayoutCall00P104 a b = rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) := by
+  unfold mulModProductLayoutCall00P104 mulModAddPartialHiValue mulModAddPartialHiBaseValue
+  rw [mulModAddPartialLoCarry_zero]
+  simp [mulModAddPartialHiProduct]
+
+theorem mulModProductLayoutCall01Carry112_zero (a b : EvmWord) :
+    mulModProductLayoutCall01Carry112 a b = 0 := by
+  unfold mulModProductLayoutCall01Carry112
+  rw [mulModAddPartialHiCarry_eq_singleCarry, mulModProductLayoutCall00P112_zero,
+    mulModProductLayoutCall00P104_eq_mulhu]
+  simp [mulModAddPartialHiProduct, BitVec.ult_eq_decide]
+
+theorem mulModProductLayoutCall01P120_zero (a b : EvmWord) :
+    mulModProductLayoutCall01P120 a b = 0 := by
+  unfold mulModProductLayoutCall01P120 mulModCarryStepValue
+  rw [mulModProductLayoutCall01Carry112_zero, mulModProductLayoutCall00P120_zero]
+  rfl
+
+theorem mulModProductLayoutCall02Carry112_eq_singleCarry_right (a b : EvmWord) :
+    mulModProductLayoutCall02Carry112 a b =
+      if BitVec.ult ((mulModAddPartialHiProduct (a.getLimbN 0) (b.getLimbN 1) +
+            mulModAddPartialLoCarry (mulModProductLayoutCall01P104 a b)
+              (a.getLimbN 0) (b.getLimbN 1)) + mulModProductLayoutCall01P112 a b)
+          (mulModAddPartialHiProduct (a.getLimbN 0) (b.getLimbN 1) +
+            mulModAddPartialLoCarry (mulModProductLayoutCall01P104 a b)
+              (a.getLimbN 0) (b.getLimbN 1)) then
+        (1 : Word)
+      else
+        0 := by
+  unfold mulModProductLayoutCall02Carry112
+  rw [mulModAddPartialHiCarry_eq_singleCarry_right]
 
 theorem mulModProductLayoutCall00P96_eq_mul_limb0 (a b : EvmWord) :
     mulModProductLayoutCall00P96 a b = (a * b).getLimbN 0 := by
