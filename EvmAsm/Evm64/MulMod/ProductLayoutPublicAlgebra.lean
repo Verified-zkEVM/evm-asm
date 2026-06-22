@@ -274,6 +274,47 @@ theorem mulModProductLayoutCall05P112_eq_add (a b : EvmWord) :
   unfold mulModProductLayoutCall05P112 mulModAddPartialLoValue
   ac_rfl
 
+theorem mulModProductLayoutCall03P112_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall03P112 a b =
+      rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+        rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+            (a.getLimbN 0 * b.getLimbN 1) then
+            (1 : Word)
+          else
+            0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+            (1 : Word)
+          else
+            0) +
+        a.getLimbN 2 * b.getLimbN 0 := by
+  rw [mulModProductLayoutCall03P112_eq_add]
+  rw [mulModProductLayoutCall02P112_eq_expanded]
+  simp only [mulModAddPartialLoProduct]
+
+theorem mulModProductLayoutCall04P112_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall04P112 a b =
+      rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+        rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+            (a.getLimbN 0 * b.getLimbN 1) then
+            (1 : Word)
+          else
+            0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+            (1 : Word)
+          else
+            0) +
+        a.getLimbN 2 * b.getLimbN 0 +
+        a.getLimbN 1 * b.getLimbN 1 := by
+  rw [mulModProductLayoutCall04P112_eq_add]
+  rw [mulModProductLayoutCall03P112_eq_expanded]
+  simp only [mulModAddPartialLoProduct]
+
 theorem mulModProductLayoutCall03P120_eq_add (a b : EvmWord) :
     mulModProductLayoutCall03P120 a b =
       mulModProductLayoutCall02P120 a b +
