@@ -677,4 +677,14 @@ theorem mulModProductLayoutCall05P112_eq_mul_limb2 (a b : EvmWord) :
     mulModCarryStepValue, BitVec.ult]
   ac_rfl
 
+theorem mulModProductLayoutCall12P128_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall12P128 a b =
+      mulModProductLayoutCall09P128 a b +
+        a.getLimbN 3 * b.getLimbN 1 +
+        a.getLimbN 2 * b.getLimbN 2 +
+        a.getLimbN 1 * b.getLimbN 3 := by
+  unfold mulModProductLayoutCall12P128 mulModProductLayoutCall11P128
+    mulModProductLayoutCall10P128
+  simp only [mulModAddPartialLoValue, mulModAddPartialLoProduct]
+
 end EvmAsm.Evm64
