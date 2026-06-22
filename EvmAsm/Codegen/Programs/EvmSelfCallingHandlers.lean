@@ -46,7 +46,14 @@ private def evmAddmodRuntimeTail : HandlerTail :=
     "  bne x5, x0, .Laddmod_sub_n\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_done\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  bltu x6, x7, .Laddmod_done\n.Laddmod_sub_n:\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  sub x5, x6, x7\n  sltu x11, x6, x7\n  sd x5, 0(x12)\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 8(x12)\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 16(x12)\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  sub x5, x6, x7\n  sub x5, x5, x11\n  sd x5, 24(x12)\n  j .Laddmod_done\n.Laddmod_no_carry:\n  jal x1, .Laddmod_mod_callable\n  j .Laddmod_done\n.Laddmod_zero:",
     emitProgram EvmAsm.Evm64.evm_addmod_phase2_zero_path,
     emitProgram EvmAsm.Evm64.evm_addmod_epilogue,
-    ".Laddmod_done:\n  mv x10, x14\n  addi x10, x10, 1\n  j .dispatch_loop\n.Laddmod_mod_callable:",
+    -- The carry/no-carry paths `jal x1, .Laddmod_mod_callable` into
+    -- `evm_mod_callable_v4` (the verified DIV/MOD core), which uses `x2` (= `sp`)
+    -- as a general-purpose register. Restore the LP64 helper-call stack pointer
+    -- before resuming `.dispatch_loop`, else the next helper-call prologue
+    -- (`sd ra, 0(sp)`) faults on a garbage `sp` (ziskemu `mem.rs:593`). Same
+    -- `sp`-restore as `divModTail` / `expTail`. (Harmless on the zero path,
+    -- which never calls MOD.)
+    ".Laddmod_done:\n  mv x10, x14\n  la sp, lp64_sp_top\n  addi x10, x10, 1\n  j .dispatch_loop\n.Laddmod_mod_callable:",
     emitProgram EvmAsm.Evm64.evm_mod_callable_v4]
 
 /-- Runtime ADDMOD handler assembly. Supports the no-carry lane by reusing

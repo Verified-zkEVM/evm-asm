@@ -16,8 +16,15 @@ namespace EvmAsm.Codegen
     `JAL .x1` into `evm_div_callable_v4` / `evm_mod_callable_v4`
     clobbers `x1` mid-body; `x1` no longer holds the dispatcher's
     continuation by the time control reaches this tail. -/
+-- Like h_DIV/h_MOD, `evm_sdiv` / `evm_smod` run the verified DIV/MOD core
+-- (`evm_div_callable_v4` / `evm_mod_callable_v4`), which uses `x2` (= `sp`) as a
+-- general-purpose working register. In the dispatcher `sp` is the LP64
+-- helper-call stack pointer (`lp64_sp_top`), so restore it before resuming
+-- `.dispatch_loop` or the next helper-call prologue (`sd ra, 0(sp)`) faults on a
+-- garbage `sp` (ziskemu `mem.rs:593` invalid addr). Mirrors `divModTail` /
+-- `expTail`.
 private def signedDivModTail : HandlerTail :=
-  .custom "  mv x10, x14\n  addi x10, x10, 1\n  j .dispatch_loop"
+  .custom "  mv x10, x14\n  la sp, lp64_sp_top\n  addi x10, x10, 1\n  j .dispatch_loop"
 
 /-- M9 signed division handlers: SDIV (0x05) and SMOD (0x07).
 
