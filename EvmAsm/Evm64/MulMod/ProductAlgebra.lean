@@ -59,6 +59,14 @@ def productHighLimbs (a b : EvmWord) : List Word :=
     productOffsetIndices.length = 8 := by
   rfl
 
+/-- Runtime product-window offsets paired with the corresponding algebraic limb value. -/
+def productOffsetValues (a b : EvmWord) : List (BitVec 12 × Word) :=
+  productOffsetIndices.map (fun offsetIndex => (offsetIndex.1, productLimb a b offsetIndex.2))
+
+@[simp] theorem productOffsetValues_length (a b : EvmWord) :
+    (productOffsetValues a b).length = 8 := by
+  rfl
+
 @[simp] theorem productLowLimbs_length (a b : EvmWord) :
     (productLowLimbs a b).length = 4 := by
   rfl
@@ -200,6 +208,42 @@ private theorem productLimb_low_eq_getLimb (a b : EvmWord) (i : Fin 4) :
   simp only [productLowLimbs_eq, productLimb_zero_eq_mul_getLimb,
     productLimb_one_eq_mul_getLimb, productLimb_two_eq_mul_getLimb,
     productLimb_three_eq_mul_getLimb]
+
+/-- The full product window splits into the low EVM multiplication word followed by
+    the high multiplication word. -/
+@[simp] theorem productLimbs_eq_mul_split_getLimbs (a b : EvmWord) :
+    productLimbs a b =
+      [(a * b).getLimb 0, (a * b).getLimb 1,
+       (a * b).getLimb 2, (a * b).getLimb 3,
+       (EvmWord.mulHigh a b).getLimb 0, (EvmWord.mulHigh a b).getLimb 1,
+       (EvmWord.mulHigh a b).getLimb 2, (EvmWord.mulHigh a b).getLimb 3] := by
+  simp only [productLimbs, productLimb_zero_eq_mul_getLimb,
+    productLimb_one_eq_mul_getLimb, productLimb_two_eq_mul_getLimb,
+    productLimb_three_eq_mul_getLimb, productLimb_four_eq_mulHigh_getLimb_zero,
+    productLimb_five_eq_mulHigh_getLimb_one, productLimb_six_eq_mulHigh_getLimb_two,
+    productLimb_seven_eq_mulHigh_getLimb_three]
+
+/-- Product-window offsets mapped to the low/high split expected by the folded
+    `evm_mulmod_product_layout` postcondition. -/
+@[simp] theorem productOffsetValues_eq_mul_split_getLimbs (a b : EvmWord) :
+    productOffsetValues a b =
+      [((96 : BitVec 12), (a * b).getLimb 0),
+       ((104 : BitVec 12), (a * b).getLimb 1),
+       ((112 : BitVec 12), (a * b).getLimb 2),
+       ((120 : BitVec 12), (a * b).getLimb 3),
+       ((128 : BitVec 12), (EvmWord.mulHigh a b).getLimb 0),
+       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimb 1),
+       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimb 2),
+       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimb 3)] := by
+  simp [productOffsetValues, productOffsetIndices, productLimb_zero_eq_mul_getLimb,
+    productLimb_one_eq_mul_getLimb, productLimb_two_eq_mul_getLimb,
+    productLimb_three_eq_mul_getLimb, productLimb_four_eq_mulHigh_getLimb_zero,
+    productLimb_five_eq_mulHigh_getLimb_one, productLimb_six_eq_mulHigh_getLimb_two,
+    productLimb_seven_eq_mulHigh_getLimb_three]
+
+@[simp] theorem productOffsetValues_offsets (a b : EvmWord) :
+    (productOffsetValues a b).map Prod.fst = mulmodProductOffsets := by
+  simp [productOffsetValues, productOffsetIndices, mulmodProductOffsets]
 
 @[simp] theorem productLimb_zero_eq_mul_correct_limb0 (a b : EvmWord) :
     productLimb a b 0 = a.getLimb 0 * b.getLimb 0 := by
