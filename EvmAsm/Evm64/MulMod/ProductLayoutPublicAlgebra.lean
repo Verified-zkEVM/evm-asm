@@ -677,6 +677,28 @@ theorem mulModProductLayoutCall05P112_eq_mul_limb2 (a b : EvmWord) :
     mulModCarryStepValue, BitVec.ult]
   ac_rfl
 
+theorem mulModProductLayoutCall09P128_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall09P128 a b =
+      mulModProductLayoutCall05P128 a b +
+        (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+          (if BitVec.ult (mulModProductLayoutCall05P120 a b + a.getLimbN 3 * b.getLimbN 0)
+              (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+        (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+          (if BitVec.ult (mulModProductLayoutCall06P120 a b + a.getLimbN 2 * b.getLimbN 1)
+              (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+        (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+          (if BitVec.ult (mulModProductLayoutCall07P120 a b + a.getLimbN 1 * b.getLimbN 2)
+              (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+        (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+          (if BitVec.ult (mulModProductLayoutCall08P120 a b + a.getLimbN 0 * b.getLimbN 3)
+              (a.getLimbN 0 * b.getLimbN 3) then (1 : Word) else 0)) := by
+  unfold mulModProductLayoutCall09P128 mulModProductLayoutCall08P128
+    mulModProductLayoutCall07P128 mulModProductLayoutCall06P128
+  simp only [mulModAddPartialHiValue, mulModAddPartialHiBaseValue,
+    mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoValue, mulModAddPartialLoProduct]
+  ac_rfl
+
 theorem mulModProductLayoutCall12P128_eq_expanded (a b : EvmWord) :
     mulModProductLayoutCall12P128 a b =
       mulModProductLayoutCall09P128 a b +
