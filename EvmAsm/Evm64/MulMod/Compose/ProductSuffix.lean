@@ -440,4 +440,39 @@ theorem evm_mulmod_product_fifteenth_carry_evm_mulmod_spec_within
       sp (base + 1740) (152 : BitVec 12) carry p7 v9)
     (hmono := evm_mulmod_program_code_product_fifteenth_carry_sub base)
 
+/-- The finish suffix of the final product partial at offset 1808 is subsumed by
+    the top-level `evm_mulmod_program_code`. The final partial has no carry tail,
+    so this suffix reaches the reducer start at offset 1816. -/
+theorem evm_mulmod_program_code_product_sixteenth_finish_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 1808)
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (152 : BitVec 12))) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 1808) evm_mulmod
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (152 : BitVec 12)) 452 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length]
+    decide
+  · rw [evm_mulmod_length]
+    decide
+
+/-- Final product-partial finish suffix lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_product_sixteenth_finish_evm_mulmod_spec_within
+    (sp : Word) (base : Word)
+    (loCarry hiBaseCarry hiCarryFromLo hiVal hiOld : Word) :
+    cpsTripleWithin 2 (base + 1808) ((base + 1808) + 8) (evm_mulmod_program_code base)
+      ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
+       (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ hiOld))
+      (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ hiVal)) **
+       (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
+       (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1808)
+      (152 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+    (hmono := evm_mulmod_program_code_product_sixteenth_finish_sub base)
+
 end EvmAsm.Evm64.MulMod.Compose
