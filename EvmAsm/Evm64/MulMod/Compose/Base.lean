@@ -25,9 +25,10 @@ local macro "evm_mulmod_slice_rfl" : tactic =>
       | (unfold evm_mulmod evm_mulmod_nonzero_or_zero_prefix
             evm_mulmod_reduce_zero_path evm_mulmod_epilogue
             evm_mulmod_zero_path_skip_nonzero evm_mulmod_product_layout
-            evm_mulmod_product_zero evm_mulmod_reduce512 evm_mulmod_reduce512_loop
+            evm_mulmod_product_zero evm_mulmod_product_add_partial
+            evm_mulmod_product_propagate_carry evm_mulmod_reduce512 evm_mulmod_reduce512_loop
             evm_mulmod_reduce512_write_result evm_mulmod_reduce512_init
-            LD OR' BNE SD ADDI JAL single seq
+            LD OR' BNE SD ADDI JAL MUL MULHU ADD SLTU single seq
          rfl))
 
 private theorem append_assoc_seven {α : Type} (a b c d e f g r : List α) :
@@ -109,6 +110,23 @@ theorem evm_mulmod_program_code_product_zero_sub
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length, evm_mulmod_product_zero_length]; decide
   · rw [evm_mulmod_length]; decide
+
+/-- The finish suffix of the first product partial at offset 140 is subsumed by
+    the top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_product_first_finish_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 140)
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (104 : BitVec 12))) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 140) evm_mulmod
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (104 : BitVec 12)) 35 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length]
+    decide
+  · rw [evm_mulmod_length]
+    decide
 
 /-- The reducer initialization block at offset 1816 is subsumed by the top-level
     `evm_mulmod_program_code`. -/
@@ -376,5 +394,23 @@ theorem evm_mulmod_reduce512_epilogue_evm_mulmod_spec_within
   cpsTripleWithin_extend_code
     (h := evm_mulmod_epilogue_spec_within sp (base + 2148))
     (hmono := evm_mulmod_program_code_reduce512_epilogue_sub base)
+
+
+/-- First product-partial finish suffix lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_product_first_finish_evm_mulmod_spec_within
+    (sp : Word) (base : Word)
+    (loCarry hiBaseCarry hiCarryFromLo hiVal hiOld : Word) :
+    cpsTripleWithin 2 (base + 140) ((base + 140) + 8) (evm_mulmod_program_code base)
+      ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
+       (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ hiOld))
+      (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
+        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ hiVal)) **
+       (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
+       (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 140)
+      (104 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+    (hmono := evm_mulmod_program_code_product_first_finish_sub base)
 
 end EvmAsm.Evm64.MulMod.Compose
