@@ -672,4 +672,45 @@ theorem evm_mulmod_reduce512_init_spec_within (sp base : Word)
   have I5 := addi_x0_spec_gen_within .x18 v18Old 8 (base + 20) (by nofun)
   runBlock I0 I1 I2 I3 I4 I5
 
+
+-- ============================================================================
+-- evm_mulmod_reduce512_write_result
+-- ============================================================================
+
+abbrev evm_mulmod_reduce512_write_result_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_mulmod_reduce512_write_result
+
+/-- Copy the finalized 256-bit remainder from the reducer accumulator window
+    into the EVM result slots. -/
+theorem evm_mulmod_reduce512_write_result_spec_within (sp base : Word)
+    (v5Old r0 r1 r2 r3 m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 8 base (base + 32) (evm_mulmod_reduce512_write_result_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5Old) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ m3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ r3)) := by
+  have I0 := ld_spec_gen_within .x5 .x12 sp v5Old r0 224 base (by nofun)
+  have I1 := sd_spec_gen_within .x12 .x5 sp r0 m0 64 (base + 4)
+  have I2 := ld_spec_gen_within .x5 .x12 sp r0 r1 232 (base + 8) (by nofun)
+  have I3 := sd_spec_gen_within .x12 .x5 sp r1 m1 72 (base + 12)
+  have I4 := ld_spec_gen_within .x5 .x12 sp r1 r2 240 (base + 16) (by nofun)
+  have I5 := sd_spec_gen_within .x12 .x5 sp r2 m2 80 (base + 20)
+  have I6 := ld_spec_gen_within .x5 .x12 sp r2 r3 248 (base + 24) (by nofun)
+  have I7 := sd_spec_gen_within .x12 .x5 sp r3 m3 88 (base + 28)
+  runBlock I0 I1 I2 I3 I4 I5 I6 I7
+
 end EvmAsm.Evm64
