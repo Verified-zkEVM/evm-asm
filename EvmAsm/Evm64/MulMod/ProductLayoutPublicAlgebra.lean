@@ -221,6 +221,27 @@ theorem mulModProductLayoutCall05Carry120_eq_add (a b : EvmWord) :
   unfold mulModProductLayoutCall05Carry120
   exact mulModAddPartialHiCarry_eq_add _ _ _ _
 
+theorem mulModProductLayoutCall03P112_eq_add (a b : EvmWord) :
+    mulModProductLayoutCall03P112 a b =
+      mulModProductLayoutCall02P112 a b +
+        mulModAddPartialLoProduct (a.getLimbN 2) (b.getLimbN 0) := by
+  unfold mulModProductLayoutCall03P112 mulModAddPartialLoValue
+  ac_rfl
+
+theorem mulModProductLayoutCall04P112_eq_add (a b : EvmWord) :
+    mulModProductLayoutCall04P112 a b =
+      mulModProductLayoutCall03P112 a b +
+        mulModAddPartialLoProduct (a.getLimbN 1) (b.getLimbN 1) := by
+  unfold mulModProductLayoutCall04P112 mulModAddPartialLoValue
+  ac_rfl
+
+theorem mulModProductLayoutCall05P112_eq_add (a b : EvmWord) :
+    mulModProductLayoutCall05P112 a b =
+      mulModProductLayoutCall04P112 a b +
+        mulModAddPartialLoProduct (a.getLimbN 0) (b.getLimbN 2) := by
+  unfold mulModProductLayoutCall05P112 mulModAddPartialLoValue
+  ac_rfl
+
 theorem mulModProductLayoutCall03P120_eq_add (a b : EvmWord) :
     mulModProductLayoutCall03P120 a b =
       mulModProductLayoutCall02P120 a b +
@@ -275,6 +296,30 @@ theorem mulModProductLayoutCall09P120_eq_add (a b : EvmWord) :
         mulModAddPartialLoProduct (a.getLimbN 0) (b.getLimbN 3) := by
   unfold mulModProductLayoutCall09P120 mulModAddPartialLoValue
   ac_rfl
+
+theorem mulModProductLayoutCall09P120_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall09P120 a b =
+      mulModProductLayoutCall02P120 a b +
+        (mulModAddPartialHiProduct (a.getLimbN 2) (b.getLimbN 0) +
+          mulModAddPartialLoCarry (mulModProductLayoutCall02P112 a b)
+            (a.getLimbN 2) (b.getLimbN 0)) +
+        (mulModAddPartialHiProduct (a.getLimbN 1) (b.getLimbN 1) +
+          mulModAddPartialLoCarry (mulModProductLayoutCall03P112 a b)
+            (a.getLimbN 1) (b.getLimbN 1)) +
+        (mulModAddPartialHiProduct (a.getLimbN 0) (b.getLimbN 2) +
+          mulModAddPartialLoCarry (mulModProductLayoutCall04P112 a b)
+            (a.getLimbN 0) (b.getLimbN 2)) +
+        mulModAddPartialLoProduct (a.getLimbN 3) (b.getLimbN 0) +
+        mulModAddPartialLoProduct (a.getLimbN 2) (b.getLimbN 1) +
+        mulModAddPartialLoProduct (a.getLimbN 1) (b.getLimbN 2) +
+        mulModAddPartialLoProduct (a.getLimbN 0) (b.getLimbN 3) := by
+  rw [mulModProductLayoutCall09P120_eq_add]
+  rw [mulModProductLayoutCall08P120_eq_add]
+  rw [mulModProductLayoutCall07P120_eq_add]
+  rw [mulModProductLayoutCall06P120_eq_add]
+  rw [mulModProductLayoutCall05P120_eq_add]
+  rw [mulModProductLayoutCall04P120_eq_add]
+  rw [mulModProductLayoutCall03P120_eq_add]
 
 theorem mulModProductLayoutCall00P96_eq_mul_limb0 (a b : EvmWord) :
     mulModProductLayoutCall00P96 a b = (a * b).getLimbN 0 := by
