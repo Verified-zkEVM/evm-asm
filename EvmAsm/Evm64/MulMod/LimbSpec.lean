@@ -500,6 +500,32 @@ theorem evm_mulmod_product_add_partial_core_finish_spec_within
     hi hiOff (base + 56)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 I12 I13 I14
 
+/-- Final product partial with no carry-tail suffix. This is the last
+    `evm_mulmod_product_add_partial` call in the 4x4 schoolbook product layout. -/
+theorem evm_mulmod_product_add_partial_144_152_nil_spec_within
+    (sp base : Word) (a b lo hi : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin 15 base (base + 60)
+      (CodeReq.ofProg base
+        (evm_mulmod_product_add_partial
+          (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) []))
+      (evmMulModAddPartialCoreFullPre sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
+      (evmMulModAddPartialCorePost sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi) := by
+  change cpsTripleWithin 15 base (base + 60)
+      (evm_mulmod_product_add_partial_core_finish_code base
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12))
+      (evmMulModAddPartialCoreFullPre sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
+      (evmMulModAddPartialCorePost sp
+        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi)
+  exact evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+
 abbrev evm_mulmod_product_add_partial_finish_code (base : Word) (hiOff : BitVec 12) : CodeReq :=
   CodeReq.ofProg base (OR' .x10 .x13 .x14 ;; SD .x12 .x11 hiOff)
 
