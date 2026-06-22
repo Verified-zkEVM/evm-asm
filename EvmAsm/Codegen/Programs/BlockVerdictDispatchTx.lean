@@ -79,9 +79,9 @@ open EvmAsm.Rv64
     original==current==value (no net change), matching the recipient preload. -/
 def seedCalleeStorageFunction : String :=
   "seed_callee_storage:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -56\n" ++
   "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++   -- lv44p: s4 holds the changes-slot count across the reads-keys call
   "  mv s0, a0                    # witness ptr\n" ++
   "  mv s1, a1                    # witness len\n" ++
   "  mv s2, a2                    # recipient 20B addr ptr\n" ++
@@ -138,7 +138,25 @@ def seedCalleeStorageFunction : String :=
   "  jal ra, bal_addr_to_exec_log_key                # csce_addrkey = LE callee exec-log key\n" ++
   "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0); la a2, csce_keys\n" ++
   "  jal ra, bal_recipient_storage_keys              # csce_keys[] (own buffer, 128 cap)\n" ++
-  "  li t0, 128; bgtu a0, t0, .Lscs_acct_next        # bmvmx.1.7.3: >128 slots wouldn't fit csce_keys -> skip this account (seed nothing)\n" ++
+  "  li t0, 128; bgtu a0, t0, .Lscs_acct_next        # bmvmx.1.7.3: >128 changes wouldn't fit csce_keys -> skip this account (seed nothing)\n" ++
+  -- lv44p / coc3g.5: ALSO enumerate the account's storage_READS keys (AccountChanges item 2) and
+  -- seed them from the witness pre-state. A user contract that CALLs the EIP-2935 / EIP-4788
+  -- predeploy READS a slot the begin-of-block system tx wrote in a PRIOR block (e.g. BLOCKHASH /
+  -- parent-beacon-root): that slot is a storage_READ (not a storage_change) in THIS block's BAL, so
+  -- a changes-only seed left it cold -> the nested SLOAD returned 0 -> the recipient SSTORE'd 0 ->
+  -- bv_fail=34. The read value lives in the parent-state witness (the prior block's begin-of-block
+  -- write is committed to the parent state root that roots the witness), so slot_at_header_state_root
+  -- (dtrc_hdr_ptr = sv_pre_rlp under the coc3g flip) reads the AUTHENTICATED value. Mirrors the
+  -- end-of-block stage_predeploy_storage_preload's Fix2 (which also appends reads keys). A slot that
+  -- is BOTH read and changed (changes seeded first) is harmless: the seed only supplies the cold
+  -- value, and the runtime SSTORE/last-write-wins overlay overrides it.
+  "  mv s4, a0                                        # s4 = changes-slot count\n" ++
+  "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0)\n" ++
+  "  slli t0, s4, 5; la t1, csce_keys; add a2, t1, t0  # a2 = &csce_keys[changes_count]\n" ++
+  "  li t0, 128; sub a3, t0, s4                       # remaining capacity to 128\n" ++
+  "  jal ra, bal_recipient_storage_reads_keys         # append storage_reads keys after the changes keys\n" ++
+  "  add a0, a0, s4                                   # total = changes + reads\n" ++
+  "  li t0, 128; bgtu a0, t0, .Lscs_acct_next        # combined > 128 -> skip this account (reads wrote nothing)\n" ++
   "  la t0, csce_key_n; sd a0, 0(t0)\n" ++
   "  la t0, csce_key_i; sd zero, 0(t0)\n" ++
   ".Lscs_slot_loop:\n" ++
@@ -165,14 +183,14 @@ def seedCalleeStorageFunction : String :=
   ".Lscs_krev:\n" ++
   "  li t0, 32; beq t6, t0, .Lscs_krevd\n" ++
   "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE key byte i
-  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry slotKey byte (31-i)
+  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry slotKey byte 32+(31-i)=63-i (entry[32..63])
   "  addi t6, t6, 1; j .Lscs_krev\n" ++
   ".Lscs_krevd:\n" ++
   "  la t5, sahsr_u256; li t6, 0\n" ++
   ".Lscs_vrev:\n" ++
   "  li t0, 32; beq t6, t0, .Lscs_vrevd\n" ++
   "  add t0, t5, t6; lbu t1, 0(t0)\n" ++                              -- BE value byte i
-  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry value byte 32+(31-i)=63-i
+  "  li t0, 95; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++    -- -> entry value byte 64+(31-i)=95-i (entry[64..95])
   "  addi t6, t6, 1; j .Lscs_vrev\n" ++
   ".Lscs_vrevd:\n" ++
   "  j .Lscs_slot_commit\n" ++
@@ -187,7 +205,7 @@ def seedCalleeStorageFunction : String :=
   ".Lscs_kzrev:\n" ++
   "  li t0, 32; beq t6, t0, .Lscs_kzrevd\n" ++
   "  add t0, t5, t6; lbu t1, 0(t0)\n" ++
-  "  li t0, 31; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++
+  "  li t0, 63; sub t0, t0, t6; add t0, t4, t0; sb t1, 0(t0)\n" ++   -- -> entry slotKey byte 32+(31-i)=63-i (entry[32..63])
   "  addi t6, t6, 1; j .Lscs_kzrev\n" ++
   ".Lscs_kzrevd:\n" ++
   "  sd zero, 64(t4); sd zero, 72(t4); sd zero, 80(t4); sd zero, 88(t4)\n" ++
@@ -199,8 +217,8 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_acct_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lscs_acct_loop\n" ++
   ".Lscs_done:\n" ++
   "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 56\n" ++
   "  ret"
 
 def dispatchTxRuntimeCodeFunction : String :=
