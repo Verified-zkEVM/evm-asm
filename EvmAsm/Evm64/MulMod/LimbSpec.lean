@@ -316,6 +316,97 @@ theorem evm_mulmod_product_zero_spec_within (sp : Word) (base : Word)
   runBlock I0 I1 I2 I3 I4 I5 I6 I7
 
 -- ============================================================================
+-- evm_mulmod_product_layout
+-- ============================================================================
+
+abbrev evm_mulmod_product_layout_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_mulmod_product_layout
+
+/-- Folded precondition for `evm_mulmod_product_layout`.
+
+    The layout preserves the three input stack words `[a, b, n]` and may
+    overwrite the eight-limb product window at `sp+96..152`. -/
+@[irreducible]
+def evmMulModProductLayoutPre (sp : Word) (a b n : EvmWord)
+    (p0 p1 p2 p3 p4 p5 p6 p7 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) **
+  (sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+  ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
+  ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
+  ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
+  ((sp + 64) ↦ₘ n.getLimbN 0) ** ((sp + 72) ↦ₘ n.getLimbN 1) **
+  ((sp + 80) ↦ₘ n.getLimbN 2) ** ((sp + 88) ↦ₘ n.getLimbN 3) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
+  ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
+  ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+  ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+  ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)
+
+/-- Folded public postcondition for `evm_mulmod_product_layout`.
+
+    The first four product-window limbs are the low 256 bits of `a * b`; the
+    last four are the high 256 bits of the full 512-bit product. -/
+@[irreducible]
+def evmMulModProductLayoutPost (sp : Word) (a b n : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ sp) **
+  (sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+  ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
+  ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
+  ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
+  ((sp + 64) ↦ₘ n.getLimbN 0) ** ((sp + 72) ↦ₘ n.getLimbN 1) **
+  ((sp + 80) ↦ₘ n.getLimbN 2) ** ((sp + 88) ↦ₘ n.getLimbN 3) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ (a * b).getLimbN 0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ (a * b).getLimbN 1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ (a * b).getLimbN 2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ (a * b).getLimbN 3) **
+  ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 0) **
+  ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 1) **
+  ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 2) **
+  ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 3)
+
+theorem evmMulModProductLayoutPre_unfold (sp : Word) (a b n : EvmWord)
+    (p0 p1 p2 p3 p4 p5 p6 p7 : Word) :
+    evmMulModProductLayoutPre sp a b n p0 p1 p2 p3 p4 p5 p6 p7 =
+      ((.x12 ↦ᵣ sp) **
+       (sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
+       ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
+       ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
+       ((sp + 64) ↦ₘ n.getLimbN 0) ** ((sp + 72) ↦ₘ n.getLimbN 1) **
+       ((sp + 80) ↦ₘ n.getLimbN 2) ** ((sp + 88) ↦ₘ n.getLimbN 3) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)) := by
+  delta evmMulModProductLayoutPre; rfl
+
+theorem evmMulModProductLayoutPost_unfold (sp : Word) (a b n : EvmWord) :
+    evmMulModProductLayoutPost sp a b n =
+      ((.x12 ↦ᵣ sp) **
+       (sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
+       ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
+       ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
+       ((sp + 64) ↦ₘ n.getLimbN 0) ** ((sp + 72) ↦ₘ n.getLimbN 1) **
+       ((sp + 80) ↦ₘ n.getLimbN 2) ** ((sp + 88) ↦ₘ n.getLimbN 3) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ (a * b).getLimbN 0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ (a * b).getLimbN 1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ (a * b).getLimbN 2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ (a * b).getLimbN 3) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 0) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 1) **
+       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 2) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ (EvmWord.mulHigh a b).getLimbN 3)) := by
+  delta evmMulModProductLayoutPost; rfl
+
+-- ============================================================================
 -- evm_mulmod_product_propagate_carry
 -- ============================================================================
 
