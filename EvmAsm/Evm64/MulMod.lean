@@ -17,6 +17,7 @@ import EvmAsm.Evm64.MulMod.ProductAlgebra
 import EvmAsm.Evm64.MulMod.LimbSpec
 import EvmAsm.Evm64.MulMod.AddPartialSpecs
 import EvmAsm.Evm64.MulMod.AddPartialTable
+import EvmAsm.Evm64.MulMod.ProductLayoutLifts
 import EvmAsm.Evm64.MulMod.AddrNorm
 import EvmAsm.Evm64.MulMod.Compose.Base
 import EvmAsm.Evm64.MulMod.Compose.ProductCore
