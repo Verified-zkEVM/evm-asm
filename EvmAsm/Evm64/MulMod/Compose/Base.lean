@@ -35,6 +35,11 @@ private theorem append_assoc_seven {α : Type} (a b c d e f g r : List α) :
       a ++ (b ++ (c ++ (d ++ (e ++ (f ++ (g ++ r)))))) := by
   repeat rw [List.append_assoc]
 
+private theorem append_assoc_eight {α : Type} (a b c d e f g h r : List α) :
+    (a ++ (b ++ (c ++ (d ++ (e ++ (f ++ (g ++ h))))))) ++ r =
+      a ++ (b ++ (c ++ (d ++ (e ++ (f ++ (g ++ (h ++ r))))))) := by
+  repeat rw [List.append_assoc]
+
 /-- The zero/nonzero modulus prefix block (8 instrs at offset 0) is subsumed by
     the top-level `evm_mulmod_program_code`. -/
 theorem evm_mulmod_program_code_nonzero_or_zero_prefix_sub
@@ -157,6 +162,55 @@ theorem evm_mulmod_program_code_reduce512_write_result_sub
             evm_mulmod_zero_path_skip_nonzero evm_mulmod_product_layout
             evm_mulmod_reduce512_init evm_mulmod_reduce512_loop
             (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue)
+  rw [← hfull]
+  rw [← haddr] at h
+  exact CodeReq.ofProg_mono_subrange base pre mid suf (by
+    have hlen : List.length (pre ++ mid ++ suf) = List.length evm_mulmod := by
+      rw [hfull]
+    change 4 * List.length (pre ++ mid ++ suf) < 2 ^ 64
+    rw [hlen, evm_mulmod_length]
+    decide) a i h
+
+/-- The final reducer epilogue at offset 2148 is subsumed by the top-level
+    `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_reduce512_epilogue_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 2148) evm_mulmod_epilogue) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  intro a i h
+  unfold evm_mulmod_program_code
+  let pre : Program :=
+    evm_mulmod_nonzero_or_zero_prefix ;;
+    evm_mulmod_reduce_zero_path ;;
+    evm_mulmod_epilogue ;;
+    evm_mulmod_zero_path_skip_nonzero ;;
+    evm_mulmod_product_layout ;;
+    evm_mulmod_reduce512_init ;;
+    evm_mulmod_reduce512_loop ;;
+    evm_mulmod_reduce512_write_result
+  let mid : Program := evm_mulmod_epilogue
+  let suf : Program := []
+  have hpre_len : pre.length = 537 := by
+    unfold pre
+    simp only [seq, Program.length_append,
+      evm_mulmod_nonzero_or_zero_prefix_length, evm_mulmod_reduce_zero_path_length,
+      evm_mulmod_epilogue_length, evm_mulmod_zero_path_skip_nonzero_length,
+      evm_mulmod_product_layout_length, evm_mulmod_reduce512_init_length,
+      evm_mulmod_reduce512_loop_length, evm_mulmod_reduce512_write_result_length]
+  have haddr : base + BitVec.ofNat 64 (4 * pre.length) = base + 2148 := by
+    rw [hpre_len]
+    bv_omega
+  have hfull : pre ++ mid ++ suf = evm_mulmod := by
+    calc
+      pre ++ mid ++ suf = pre ++ (mid ++ suf) := List.append_assoc pre mid suf
+      _ = evm_mulmod := by
+        unfold pre mid suf evm_mulmod evm_mulmod_reduce512
+        simpa only [seq, List.append_nil] using
+          append_assoc_eight evm_mulmod_nonzero_or_zero_prefix
+            evm_mulmod_reduce_zero_path evm_mulmod_epilogue
+            evm_mulmod_zero_path_skip_nonzero evm_mulmod_product_layout
+            evm_mulmod_reduce512_init evm_mulmod_reduce512_loop
+            evm_mulmod_reduce512_write_result evm_mulmod_epilogue
   rw [← hfull]
   rw [← haddr] at h
   exact CodeReq.ofProg_mono_subrange base pre mid suf (by
@@ -311,5 +365,16 @@ theorem evm_mulmod_reduce512_write_result_evm_mulmod_spec_within (sp : Word) (ba
     (h := evm_mulmod_reduce512_write_result_spec_within sp (base + 2116)
       v5Old r0 r1 r2 r3 m0 m1 m2 m3)
     (hmono := evm_mulmod_program_code_reduce512_write_result_sub base)
+
+
+/-- Final reducer epilogue spec lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_reduce512_epilogue_evm_mulmod_spec_within
+    (sp : Word) (base : Word) :
+    cpsTripleWithin 1 (base + 2148) ((base + 2148) + 4) (evm_mulmod_program_code base)
+      (.x12 ↦ᵣ sp)
+      (.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_epilogue_spec_within sp (base + 2148))
+    (hmono := evm_mulmod_program_code_reduce512_epilogue_sub base)
 
 end EvmAsm.Evm64.MulMod.Compose
