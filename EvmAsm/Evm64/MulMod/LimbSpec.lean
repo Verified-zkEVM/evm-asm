@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Evm64.MulMod.Program
+import EvmAsm.Evm64.MulMod.ProductAlgebra
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.XSimp
