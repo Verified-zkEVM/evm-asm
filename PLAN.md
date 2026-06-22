@@ -1611,12 +1611,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (both already seen in the descents): the value-read's `(base+148)+k` addresses are `rw`-normalized to
     `base+N`, and the `frameR`'d post is a `(6-group) ** (3-group)` so the `regOwn` conversion is a per-group
     `sepConj_mono`. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Concrete `0x2a → 42` example.
-  - **Next (field walk → schema decoders):** chain `unified_scalar_field_decode` across a fixed schema (each
-    leaves `x13` at the next field — the free stride), threading the `regOwn` scratch (needs a `regOwn`-pre
-    field-decode variant, à la `…_at_regOwn`) and writing each value out → concrete STF transaction (9
-    fields) / header (~19 fields) decoders producing the `BlockInput`. Wide scalars (uint256) / byte-arrays
-    (20/32-byte address/hash) / zero-length scalars (`n = 0`) need multi-word / byte-copy / branch variants.
-    (The 3-sibling block framing walk via `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
+  - ✅ **Step 10 — decode-and-store a scalar field** (`UnifiedScalarFieldStore.lean`).
+    **`unified_scalar_field_decode_and_store`**: composes `unified_scalar_field_decode` ⨾ a single `SD rOut,
+    x11, offset`, so the decoded field value `Nat.fromBytesBE data` is **persisted** to the output cell
+    `outBase + offset` (u64 LE — matching the STF struct's scalar slots) while `x13` advances to the next
+    field, in `64 + 6*data.length` steps. The **persistence** step a multi-field walk needs (the next field's
+    decode clobbers `x11`). The output pointer/cell are framed alongside the decode (no `rOut` distinctness
+    hyps — a clashing reg just makes the pre vacuous), and the store CR (`SD@base+180`) is disjoint from the
+    decoder/read CR (`base .. base+176`). Rides the pure `decodeScalar` fact along. Axiom-clean, 0 sorry, 0
+    warnings, no heartbeat override. Concrete `0x2a → 42` store-to-`0x3000` example. Built first try (1.6s).
+  - **Next (regOwn-pre + walk → schema decoders):** make a `regOwn`-pre variant of the decode-and-store unit
+    (peel `x5/x10/x12/x14` per `cpsTripleWithin_of_forall_regIs_to_regOwn`, à la `…_at_regOwn`) and
+    `cpsTripleWithin_seq` two of them — the first end-to-end multi-field walk, each value in its own slot.
+    Then chain N units across a fixed schema → concrete STF transaction (9 fields) / header (~19 fields)
+    decoders producing the `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) /
+    zero-length scalars (`n = 0`) need multi-word / byte-copy / branch variants. (The 3-sibling block framing
+    walk via `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
