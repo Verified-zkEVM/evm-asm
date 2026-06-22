@@ -41,20 +41,21 @@ open EvmAsm.Rv64
     Direction: execution ⊆ BAL (the converse of bal_storage_matches_exec_log). -/
 def balStorageCoversExecLogFunction : String :=
   "bal_storage_covers_exec_log:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
   "  mv s0, a0                    # account addr ptr (addrHash)\n" ++
   "  mv s1, a3                    # log base\n" ++
   "  mv s2, a4                    # log length\n" ++
   -- Parse the BAL storage_changes into (keys, post-values), both big-endian.
   "  mv a0, a1; mv a1, a2; la a2, bsce_keys; la a3, bsce_vals\n" ++
   "  jal ra, bal_storage_change_values\n" ++
+  "  li s8, 0                     # lv44p: phase marker (0 = user reverse pass; set AFTER the call, which does not preserve s8)\n" ++
   "  mv s3, a0                    # BAL change count\n" ++
   "  mv s4, zero                  # i (exec entry index)\n" ++
   ".Lbsce_loop:\n" ++
-  "  beq s4, s2, .Lbsce_covered\n" ++
+  "  beq s4, s2, .Lbsce_sys_phase\n" ++   -- lv44p: after the user log, run the captured-system-log reverse pass
   "  slli t0, s4, 7; add s5, s1, t0       # entry_i ptr\n" ++
   -- recipient entries only: addrHash (entry+0..32) == s0.
   "  ld t1, 0(s5);  ld t2, 0(s0);  bne t1, t2, .Lbsce_next\n" ++
@@ -64,7 +65,7 @@ def balStorageCoversExecLogFunction : String :=
   -- last write for this (addr, slot)? scan entries j>i for a later same-slot write.
   "  addi s6, s4, 1\n" ++
   ".Lbsce_later:\n" ++
-  "  beq s6, s2, .Lbsce_is_last\n" ++
+  "  beq s6, s2, .Lbsce_user_islast_chk\n" ++
   "  slli t0, s6, 7; add t3, s1, t0       # entry_j ptr\n" ++
   "  ld t1, 0(t3);  ld t2, 0(s0);  bne t1, t2, .Lbsce_later_next\n" ++
   "  ld t1, 8(t3);  ld t2, 8(s0);  bne t1, t2, .Lbsce_later_next\n" ++
@@ -74,9 +75,33 @@ def balStorageCoversExecLogFunction : String :=
   "  ld t1, 40(t3); ld t2, 40(s5); bne t1, t2, .Lbsce_later_next\n" ++
   "  ld t1, 48(t3); ld t2, 48(s5); bne t1, t2, .Lbsce_later_next\n" ++
   "  ld t1, 56(t3); ld t2, 56(s5); bne t1, t2, .Lbsce_later_next\n" ++
-  "  j .Lbsce_next                        # later write exists -> entry_i not last\n" ++
+  "  j .Lbsce_next                        # later user write exists -> entry_i not last\n" ++
   ".Lbsce_later_next:\n" ++
   "  addi s6, s6, 1; j .Lbsce_later\n" ++
+  ".Lbsce_user_islast_chk:\n" ++
+  -- lv44p: a per-tx exec entry that is the last in the USER log is NOT the genuine
+  -- final write if a captured system-call SSTORE (bv_system_storage_log) later wrote
+  -- the same (addr, slot) (the end-of-block EIP-7002/7251 system tx runs after all
+  -- user txs). Such an entry is superseded -> its (stale) value must NOT drive a BAL
+  -- coverage requirement (that is the bv34/37 false-reject). The system row's own
+  -- (original,current) net change is required by the system reverse pass below, so
+  -- anti-omission stays intact. If the (addr,slot) is absent from the system log this
+  -- entry is the genuine last write and proceeds normally. (Probe: count 0 -> inert.)
+  "  la t0, bv_system_storage_log_count; ld t4, 0(t0); beqz t4, .Lbsce_is_last\n" ++
+  "  la t6, bv_system_storage_log; slli t0, t4, 7; add t6, t6, t0   # past last system row\n" ++
+  ".Lbsce_user_sys_chk:\n" ++
+  "  addi t6, t6, -128\n" ++
+  "  ld t1, 0(t6);  ld t2, 0(s0);  bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  ld t1, 8(t6);  ld t2, 8(s0);  bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  ld t1, 16(t6); ld t2, 16(s0); bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  ld t1, 24(t6); ld t2, 24(s0); bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  ld t1, 32(t6); ld t2, 32(s5); bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  ld t1, 40(t6); ld t2, 40(s5); bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  ld t1, 48(t6); ld t2, 48(s5); bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  ld t1, 56(t6); ld t2, 56(s5); bne t1, t2, .Lbsce_user_sys_next\n" ++
+  "  j .Lbsce_next                        # system superseded this (addr,slot) -> skip user entry\n" ++
+  ".Lbsce_user_sys_next:\n" ++
+  "  addi t4, t4, -1; bnez t4, .Lbsce_user_sys_chk\n" ++
   ".Lbsce_is_last:\n" ++
   -- net change? current (entry+96..128) != original (entry+64..96).
   "  ld t1, 96(s5);  ld t2, 64(s5); bne t1, t2, .Lbsce_netchange\n" ++
@@ -113,11 +138,59 @@ def balStorageCoversExecLogFunction : String :=
   "  ld t1, 8(t5);  ld t2, 8(t6);  bne t1, t2, .Lbsce_mismatch\n" ++
   "  ld t1, 16(t5); ld t2, 16(t6); bne t1, t2, .Lbsce_mismatch\n" ++
   "  ld t1, 24(t5); ld t2, 24(t6); bne t1, t2, .Lbsce_mismatch\n" ++
-  "  j .Lbsce_next                        # this net change is claimed -> next entry\n" ++
+  "  j .Lbsce_after_cover                 # this net change is claimed -> continue active phase\n" ++
   ".Lbsce_ksearch_next:\n" ++
   "  addi s7, s7, 1; j .Lbsce_ksearch\n" ++
+  ".Lbsce_after_cover:\n" ++
+  -- lv44p: dispatch back to whichever phase invoked the netchange coverage check.
+  -- s8 = 0 user phase, 1 system phase (set on entry to each phase).
+  "  bnez s8, .Lbsce_sys_next\n" ++
   ".Lbsce_next:\n" ++
   "  addi s4, s4, 1; j .Lbsce_loop\n" ++
+  -- lv44p: SYSTEM reverse pass. Every captured system-call SSTORE that is the genuine
+  -- last write for its (addr,slot) AND a net change (current@96 != original@64 — the
+  -- value the dispatcher read at the start of the system tx vs after it) must be CLAIMED
+  -- by the BAL with the matching final value, or the prover OMITTED a system storage
+  -- update (the state-root recompute APPLIES only declared storage, so a forged matching
+  -- root would otherwise hide the omission -> false-accept). Mirrors the user pass; the
+  -- captured rows are the ACTUAL end-of-block system replay, so this only ADDS coverage
+  -- requirements (never weakens). Probe: bv_system_storage_log_count = 0 -> inert.
+  ".Lbsce_sys_phase:\n" ++
+  "  li s8, 1                     # system phase marker\n" ++
+  "  la t0, bv_system_storage_log_count; ld t0, 0(t0); la t1, bsce_sys_count; sd t0, 0(t1)\n" ++
+  "  beqz t0, .Lbsce_covered\n" ++
+  "  mv s4, zero                  # j (system entry index, reuse s4)\n" ++
+  ".Lbsce_sys_loop:\n" ++
+  "  la t0, bsce_sys_count; ld t0, 0(t0); beq s4, t0, .Lbsce_covered\n" ++
+  "  slli t0, s4, 7; la t1, bv_system_storage_log; add s5, t1, t0   # system entry_j ptr\n" ++
+  "  ld t1, 0(s5);  ld t2, 0(s0);  bne t1, t2, .Lbsce_sys_next\n" ++
+  "  ld t1, 8(s5);  ld t2, 8(s0);  bne t1, t2, .Lbsce_sys_next\n" ++
+  "  ld t1, 16(s5); ld t2, 16(s0); bne t1, t2, .Lbsce_sys_next\n" ++
+  "  ld t1, 24(s5); ld t2, 24(s0); bne t1, t2, .Lbsce_sys_next\n" ++
+  -- last SYSTEM write for this (addr, slot)? scan later system entries.
+  "  addi s6, s4, 1\n" ++
+  ".Lbsce_sys_later:\n" ++
+  "  la t0, bsce_sys_count; ld t0, 0(t0); beq s6, t0, .Lbsce_sys_islast\n" ++
+  "  slli t0, s6, 7; la t1, bv_system_storage_log; add t3, t1, t0\n" ++
+  "  ld t1, 0(t3);  ld t2, 0(s0);  bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  ld t1, 8(t3);  ld t2, 8(s0);  bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  ld t1, 16(t3); ld t2, 16(s0); bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  ld t1, 24(t3); ld t2, 24(s0); bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  ld t1, 32(t3); ld t2, 32(s5); bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  ld t1, 40(t3); ld t2, 40(s5); bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  ld t1, 48(t3); ld t2, 48(s5); bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  ld t1, 56(t3); ld t2, 56(s5); bne t1, t2, .Lbsce_sys_later_next\n" ++
+  "  j .Lbsce_sys_next                    # later system write exists -> not last\n" ++
+  ".Lbsce_sys_later_next:\n" ++
+  "  addi s6, s6, 1; j .Lbsce_sys_later\n" ++
+  ".Lbsce_sys_islast:\n" ++
+  -- net change? current (entry+96..128) != original (entry+64..96).
+  "  ld t1, 96(s5);  ld t2, 64(s5); bne t1, t2, .Lbsce_netchange\n" ++
+  "  ld t1, 104(s5); ld t2, 72(s5); bne t1, t2, .Lbsce_netchange\n" ++
+  "  ld t1, 112(s5); ld t2, 80(s5); bne t1, t2, .Lbsce_netchange\n" ++
+  "  ld t1, 120(s5); ld t2, 88(s5); bne t1, t2, .Lbsce_netchange\n" ++
+  ".Lbsce_sys_next:\n" ++
+  "  addi s4, s4, 1; j .Lbsce_sys_loop\n" ++
   ".Lbsce_covered:\n" ++
   "  li a0, 0\n" ++
   "  j .Lbsce_ret\n" ++
@@ -126,8 +199,8 @@ def balStorageCoversExecLogFunction : String :=
   ".Lbsce_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret"
 
 /-- Scratch for `bal_storage_covers_exec_log` (BAL parse output + reversed exec slot/value). -/
@@ -136,7 +209,8 @@ def balStorageCoversExecLogData : String :=
   "bsce_keys:\n  .zero 4096\n" ++
   "bsce_vals:\n  .zero 4096\n" ++
   "bsce_slotrev:\n  .zero 32\n" ++
-  "bsce_currev:\n  .zero 32\n"
+  "bsce_currev:\n  .zero 32\n" ++
+  "bsce_sys_count:\n  .zero 8\n"
 
 /-- `zisk_bal_storage_covers_exec_log`: probe over a synthetic exec log + one BAL.
     BAL AccountChanges (same encoding as the 1.6.1/1.6.2 probes): slot 7 -> 0x22,
@@ -221,7 +295,13 @@ def ziskBalStorageCoversExecLogDataSection : String :=
   "bsce_addr:\n  .zero 32\n" ++
   "bsce_acct:\n  .zero 128\n" ++
   balStorageChangeValuesData ++
-  balStorageCoversExecLogData
+  balStorageCoversExecLogData ++
+  -- lv44p: empty captured-system-log stub so the focused probe links the function's
+  -- bv_system_storage_log scan (count 0 -> inert; the verdict links the real globals).
+  ".balign 8\n" ++
+  "bv_system_storage_log_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_system_storage_log:\n  .zero 128\n"
 
 def ziskBalStorageCoversExecLogProbeUnit : BuildUnit := {
   body        := NOP
