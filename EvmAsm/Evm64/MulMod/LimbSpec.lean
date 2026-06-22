@@ -843,6 +843,414 @@ theorem evm_mulmod_product_propagate_carry_112_120_128_136_144_152_spec_within
   runBlock I0 I1 I2 I3 I4 I5 I6 I7 I8 I9 I10 I11 I12 I13 I14 I15 I16 I17 I18 I19 I20 I21 I22 I23
 
 
+
+-- ============================================================================
+-- Concrete add-partial calls with multi-limb carry suffixes
+-- ============================================================================
+
+/-- Product-layout call `evm_mulmod_product_add_partial 24 40 128 136 [144, 152]`. -/
+theorem evm_mulmod_product_add_partial_24_40_128_136_144_152_spec_within
+    (sp base : Word) (a b lo hi p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (15 + 8) base (base + 60 + 32)
+      ((evm_mulmod_product_add_partial_core_finish_code base
+          (24 : BitVec 12) (40 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12)).union
+        (evm_mulmod_product_propagate_carry_code (base + 60) [144, 152]))
+      (evmMulModAddPartialCoreFullPre sp
+        (24 : BitVec 12) (40 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old **
+       (((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b))) **
+        (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b))) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p6 (mulModAddPartialHiCarry hi lo a b)) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p7
+            (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b)))) **
+       (.x5 ↦ᵣ a) **
+       (.x6 ↦ᵣ b) **
+       (.x7 ↦ᵣ mulModAddPartialLoProduct a b) **
+       (.x8 ↦ᵣ mulModAddPartialHiProduct a b) **
+       (.x11 ↦ᵣ mulModAddPartialHiValue hi lo a b) **
+       (.x13 ↦ᵣ mulModAddPartialHiBaseCarry hi a b) **
+       (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo hi lo a b) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ a) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ b) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModAddPartialLoValue lo a b) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ mulModAddPartialHiValue hi lo a b)) := by
+  have core := evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (24 : BitVec 12) (40 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  have carry := evm_mulmod_product_propagate_carry_144_152_spec_within sp (base + 60)
+    (mulModAddPartialHiCarry hi lo a b) hi p6 p7
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost at core
+  unfold evmMulModAddPartialCoreFullPre
+  unfold mulModCarryStepValue mulModCarryStepCarry at carry ⊢
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo at core carry ⊢
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry at core carry ⊢
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry at core carry ⊢
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct at core carry ⊢
+  unfold mulModAddPartialLoProduct at core carry ⊢
+  have coreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+      ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+    (by pcFree) core
+  seqFrame coreF carry
+
+/-- Product-layout call `evm_mulmod_product_add_partial 16 48 128 136 [144, 152]`. -/
+theorem evm_mulmod_product_add_partial_16_48_128_136_144_152_spec_within
+    (sp base : Word) (a b lo hi p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (15 + 8) base (base + 60 + 32)
+      ((evm_mulmod_product_add_partial_core_finish_code base
+          (16 : BitVec 12) (48 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12)).union
+        (evm_mulmod_product_propagate_carry_code (base + 60) [144, 152]))
+      (evmMulModAddPartialCoreFullPre sp
+        (16 : BitVec 12) (48 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old **
+       (((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b))) **
+        (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b))) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p6 (mulModAddPartialHiCarry hi lo a b)) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p7
+            (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b)))) **
+       (.x5 ↦ᵣ a) **
+       (.x6 ↦ᵣ b) **
+       (.x7 ↦ᵣ mulModAddPartialLoProduct a b) **
+       (.x8 ↦ᵣ mulModAddPartialHiProduct a b) **
+       (.x11 ↦ᵣ mulModAddPartialHiValue hi lo a b) **
+       (.x13 ↦ᵣ mulModAddPartialHiBaseCarry hi a b) **
+       (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo hi lo a b) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ a) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ b) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModAddPartialLoValue lo a b) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ mulModAddPartialHiValue hi lo a b)) := by
+  have core := evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (16 : BitVec 12) (48 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  have carry := evm_mulmod_product_propagate_carry_144_152_spec_within sp (base + 60)
+    (mulModAddPartialHiCarry hi lo a b) hi p6 p7
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost at core
+  unfold evmMulModAddPartialCoreFullPre
+  unfold mulModCarryStepValue mulModCarryStepCarry at carry ⊢
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo at core carry ⊢
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry at core carry ⊢
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry at core carry ⊢
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct at core carry ⊢
+  unfold mulModAddPartialLoProduct at core carry ⊢
+  have coreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+      ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+    (by pcFree) core
+  seqFrame coreF carry
+
+/-- Product-layout call `evm_mulmod_product_add_partial 8 56 128 136 [144, 152]`. -/
+theorem evm_mulmod_product_add_partial_8_56_128_136_144_152_spec_within
+    (sp base : Word) (a b lo hi p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (15 + 8) base (base + 60 + 32)
+      ((evm_mulmod_product_add_partial_core_finish_code base
+          (8 : BitVec 12) (56 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12)).union
+        (evm_mulmod_product_propagate_carry_code (base + 60) [144, 152]))
+      (evmMulModAddPartialCoreFullPre sp
+        (8 : BitVec 12) (56 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old **
+       (((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b))) **
+        (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b))) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p6 (mulModAddPartialHiCarry hi lo a b)) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p7
+            (mulModCarryStepCarry p6 (mulModAddPartialHiCarry hi lo a b)))) **
+       (.x5 ↦ᵣ a) **
+       (.x6 ↦ᵣ b) **
+       (.x7 ↦ᵣ mulModAddPartialLoProduct a b) **
+       (.x8 ↦ᵣ mulModAddPartialHiProduct a b) **
+       (.x11 ↦ᵣ mulModAddPartialHiValue hi lo a b) **
+       (.x13 ↦ᵣ mulModAddPartialHiBaseCarry hi a b) **
+       (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo hi lo a b) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ a) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ b) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModAddPartialLoValue lo a b) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ mulModAddPartialHiValue hi lo a b)) := by
+  have core := evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (8 : BitVec 12) (56 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  have carry := evm_mulmod_product_propagate_carry_144_152_spec_within sp (base + 60)
+    (mulModAddPartialHiCarry hi lo a b) hi p6 p7
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost at core
+  unfold evmMulModAddPartialCoreFullPre
+  unfold mulModCarryStepValue mulModCarryStepCarry at carry ⊢
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo at core carry ⊢
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry at core carry ⊢
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry at core carry ⊢
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct at core carry ⊢
+  unfold mulModAddPartialLoProduct at core carry ⊢
+  have coreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+      ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+    (by pcFree) core
+  seqFrame coreF carry
+
+/-- Product-layout call `evm_mulmod_product_add_partial 24 32 120 128 [136, 144, 152]`. -/
+theorem evm_mulmod_product_add_partial_24_32_120_128_136_144_152_spec_within
+    (sp base : Word) (a b lo hi p5 p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (15 + 12) base (base + 60 + 48)
+      ((evm_mulmod_product_add_partial_core_finish_code base
+          (24 : BitVec 12) (32 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)).union
+        (evm_mulmod_product_propagate_carry_code (base + 60) [136, 144, 152]))
+      (evmMulModAddPartialCoreFullPre sp
+        (24 : BitVec 12) (32 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old **
+       (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p5 (mulModAddPartialHiCarry hi lo a b)) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p7
+            (mulModCarryStepCarry p6
+              (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))))) **
+       (.x5 ↦ᵣ a) **
+       (.x6 ↦ᵣ b) **
+       (.x7 ↦ᵣ mulModAddPartialLoProduct a b) **
+       (.x8 ↦ᵣ mulModAddPartialHiProduct a b) **
+       (.x11 ↦ᵣ mulModAddPartialHiValue hi lo a b) **
+       (.x13 ↦ᵣ mulModAddPartialHiBaseCarry hi a b) **
+       (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo hi lo a b) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ a) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ b) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ mulModAddPartialLoValue lo a b) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModAddPartialHiValue hi lo a b)) := by
+  have core := evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (24 : BitVec 12) (32 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  have carry := evm_mulmod_product_propagate_carry_136_144_152_spec_within sp (base + 60)
+    (mulModAddPartialHiCarry hi lo a b) hi p5 p6 p7
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost at core
+  unfold evmMulModAddPartialCoreFullPre
+  unfold mulModCarryStepValue mulModCarryStepCarry at carry ⊢
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo at core carry ⊢
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry at core carry ⊢
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry at core carry ⊢
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct at core carry ⊢
+  unfold mulModAddPartialLoProduct at core carry ⊢
+  have coreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+      ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+      ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+    (by pcFree) core
+  seqFrame coreF carry
+
+/-- Product-layout call `evm_mulmod_product_add_partial 16 40 120 128 [136, 144, 152]`. -/
+theorem evm_mulmod_product_add_partial_16_40_120_128_136_144_152_spec_within
+    (sp base : Word) (a b lo hi p5 p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (15 + 12) base (base + 60 + 48)
+      ((evm_mulmod_product_add_partial_core_finish_code base
+          (16 : BitVec 12) (40 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)).union
+        (evm_mulmod_product_propagate_carry_code (base + 60) [136, 144, 152]))
+      (evmMulModAddPartialCoreFullPre sp
+        (16 : BitVec 12) (40 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old **
+       (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p5 (mulModAddPartialHiCarry hi lo a b)) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p7
+            (mulModCarryStepCarry p6
+              (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))))) **
+       (.x5 ↦ᵣ a) **
+       (.x6 ↦ᵣ b) **
+       (.x7 ↦ᵣ mulModAddPartialLoProduct a b) **
+       (.x8 ↦ᵣ mulModAddPartialHiProduct a b) **
+       (.x11 ↦ᵣ mulModAddPartialHiValue hi lo a b) **
+       (.x13 ↦ᵣ mulModAddPartialHiBaseCarry hi a b) **
+       (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo hi lo a b) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ a) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ b) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ mulModAddPartialLoValue lo a b) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModAddPartialHiValue hi lo a b)) := by
+  have core := evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (16 : BitVec 12) (40 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  have carry := evm_mulmod_product_propagate_carry_136_144_152_spec_within sp (base + 60)
+    (mulModAddPartialHiCarry hi lo a b) hi p5 p6 p7
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost at core
+  unfold evmMulModAddPartialCoreFullPre
+  unfold mulModCarryStepValue mulModCarryStepCarry at carry ⊢
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo at core carry ⊢
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry at core carry ⊢
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry at core carry ⊢
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct at core carry ⊢
+  unfold mulModAddPartialLoProduct at core carry ⊢
+  have coreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+      ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+      ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+    (by pcFree) core
+  seqFrame coreF carry
+
+/-- Product-layout call `evm_mulmod_product_add_partial 8 48 120 128 [136, 144, 152]`. -/
+theorem evm_mulmod_product_add_partial_8_48_120_128_136_144_152_spec_within
+    (sp base : Word) (a b lo hi p5 p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (15 + 12) base (base + 60 + 48)
+      ((evm_mulmod_product_add_partial_core_finish_code base
+          (8 : BitVec 12) (48 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)).union
+        (evm_mulmod_product_propagate_carry_code (base + 60) [136, 144, 152]))
+      (evmMulModAddPartialCoreFullPre sp
+        (8 : BitVec 12) (48 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old **
+       (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p5 (mulModAddPartialHiCarry hi lo a b)) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p7
+            (mulModCarryStepCarry p6
+              (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))))) **
+       (.x5 ↦ᵣ a) **
+       (.x6 ↦ᵣ b) **
+       (.x7 ↦ᵣ mulModAddPartialLoProduct a b) **
+       (.x8 ↦ᵣ mulModAddPartialHiProduct a b) **
+       (.x11 ↦ᵣ mulModAddPartialHiValue hi lo a b) **
+       (.x13 ↦ᵣ mulModAddPartialHiBaseCarry hi a b) **
+       (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo hi lo a b) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ a) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ b) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ mulModAddPartialLoValue lo a b) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModAddPartialHiValue hi lo a b)) := by
+  have core := evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (8 : BitVec 12) (48 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  have carry := evm_mulmod_product_propagate_carry_136_144_152_spec_within sp (base + 60)
+    (mulModAddPartialHiCarry hi lo a b) hi p5 p6 p7
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost at core
+  unfold evmMulModAddPartialCoreFullPre
+  unfold mulModCarryStepValue mulModCarryStepCarry at carry ⊢
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo at core carry ⊢
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry at core carry ⊢
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry at core carry ⊢
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct at core carry ⊢
+  unfold mulModAddPartialLoProduct at core carry ⊢
+  have coreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+      ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+      ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+    (by pcFree) core
+  seqFrame coreF carry
+
+/-- Product-layout call `evm_mulmod_product_add_partial 0 56 120 128 [136, 144, 152]`. -/
+theorem evm_mulmod_product_add_partial_0_56_120_128_136_144_152_spec_within
+    (sp base : Word) (a b lo hi p5 p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (15 + 12) base (base + 60 + 48)
+      ((evm_mulmod_product_add_partial_core_finish_code base
+          (0 : BitVec 12) (56 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)).union
+        (evm_mulmod_product_propagate_carry_code (base + 60) [136, 144, 152]))
+      (evmMulModAddPartialCoreFullPre sp
+        (0 : BitVec 12) (56 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old **
+       (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b)))) **
+        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p5 (mulModAddPartialHiCarry hi lo a b)) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p6
+            (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue p7
+            (mulModCarryStepCarry p6
+              (mulModCarryStepCarry p5 (mulModAddPartialHiCarry hi lo a b))))) **
+       (.x5 ↦ᵣ a) **
+       (.x6 ↦ᵣ b) **
+       (.x7 ↦ᵣ mulModAddPartialLoProduct a b) **
+       (.x8 ↦ᵣ mulModAddPartialHiProduct a b) **
+       (.x11 ↦ᵣ mulModAddPartialHiValue hi lo a b) **
+       (.x13 ↦ᵣ mulModAddPartialHiBaseCarry hi a b) **
+       (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo hi lo a b) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ a) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ b) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ mulModAddPartialLoValue lo a b) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModAddPartialHiValue hi lo a b)) := by
+  have core := evm_mulmod_product_add_partial_core_finish_spec_within sp base
+    (0 : BitVec 12) (56 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  have carry := evm_mulmod_product_propagate_carry_136_144_152_spec_within sp (base + 60)
+    (mulModAddPartialHiCarry hi lo a b) hi p5 p6 p7
+  unfold evmMulModAddPartialCoreFullPre evmMulModAddPartialCorePost at core
+  unfold evmMulModAddPartialCoreFullPre
+  unfold mulModCarryStepValue mulModCarryStepCarry at carry ⊢
+  unfold mulModAddPartialHiCarry mulModAddPartialHiCarryFromLo at core carry ⊢
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseCarry at core carry ⊢
+  unfold mulModAddPartialHiBaseValue mulModAddPartialLoCarry at core carry ⊢
+  unfold mulModAddPartialLoValue mulModAddPartialHiProduct at core carry ⊢
+  unfold mulModAddPartialLoProduct at core carry ⊢
+  have coreF := cpsTripleWithin_frameR
+    (((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+      ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+      ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+    (by pcFree) core
+  seqFrame coreF carry
+
 -- ============================================================================
 -- evm_mulmod_reduce512_init
 -- ============================================================================
