@@ -24,7 +24,8 @@ local macro "evm_mulmod_slice_rfl" : tactic =>
       | rfl
       | (unfold evm_mulmod evm_mulmod_nonzero_or_zero_prefix
             evm_mulmod_reduce_zero_path evm_mulmod_epilogue
-            evm_mulmod_zero_path_skip_nonzero LD OR' BNE SD ADDI JAL single seq
+            evm_mulmod_zero_path_skip_nonzero evm_mulmod_product_layout
+            evm_mulmod_product_zero LD OR' BNE SD ADDI JAL single seq
          rfl))
 
 /-- The zero/nonzero modulus prefix block (8 instrs at offset 0) is subsumed by
@@ -81,6 +82,20 @@ theorem evm_mulmod_program_code_zero_path_skip_nonzero_sub
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length, evm_mulmod_zero_path_skip_nonzero_length]; decide
+  · rw [evm_mulmod_length]; decide
+
+/-- The first nonzero-path block, which zeroes the product window at offset 56,
+    is subsumed by the top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_product_zero_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 56) evm_mulmod_product_zero) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 56) evm_mulmod
+    evm_mulmod_product_zero 14 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length, evm_mulmod_product_zero_length]; decide
   · rw [evm_mulmod_length]; decide
 
 /-- Prefix branch spec lifted from its sub-block `CodeReq.ofProg` handle onto
@@ -151,5 +166,32 @@ theorem evm_mulmod_zero_path_skip_nonzero_evm_mulmod_spec_within
   cpsTripleWithin_extend_code
     (h := evm_mulmod_zero_path_skip_nonzero_spec_within (base + 52))
     (hmono := evm_mulmod_program_code_zero_path_skip_nonzero_sub base)
+
+
+/-- Product-window zeroing spec lifted onto `evm_mulmod_program_code` at the
+    start of the nonzero path. -/
+theorem evm_mulmod_product_zero_evm_mulmod_spec_within (sp : Word) (base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 : Word)
+    (p0 p1 p2 p3 p4 p5 p6 p7 : Word) :
+    cpsTripleWithin 8 (base + 56) ((base + 56) + 32) (evm_mulmod_program_code base)
+      ((.x12 ↦ᵣ sp) **
+       (sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) ** ((sp + 48) ↦ₘ b2) **
+       ((sp + 56) ↦ₘ b3) **
+       ((sp + 64) ↦ₘ n0) ** ((sp + 72) ↦ₘ n1) ** ((sp + 80) ↦ₘ n2) **
+       ((sp + 88) ↦ₘ n3) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+      (evmMulModProductZeroPost sp a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_product_zero_spec_within sp (base + 56)
+      a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 p0 p1 p2 p3 p4 p5 p6 p7)
+    (hmono := evm_mulmod_program_code_product_zero_sub base)
 
 end EvmAsm.Evm64.MulMod.Compose
