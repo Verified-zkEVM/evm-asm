@@ -82,6 +82,7 @@ import EvmAsm.Rv64.RLP.ScalarFieldWalkInfra
 import EvmAsm.Rv64.RLP.UnifiedNScalarFieldWalk
 import EvmAsm.Rv64.RLP.ByteCopyIter
 import EvmAsm.Rv64.RLP.ByteCopyChainInfra
+import EvmAsm.Rv64.RLP.ByteCopyChain
 import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
