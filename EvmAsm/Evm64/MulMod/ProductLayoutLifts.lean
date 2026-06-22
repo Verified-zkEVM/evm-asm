@@ -328,4 +328,152 @@ abbrev evm_mulmod_product_layout_call05_spec_within :=
       (h := evm_mulmod_product_add_partial_layout_call05_spec_within sp (base + 716) a b lo hi p4 p5 p6 p7 x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (hmono := evm_mulmod_product_layout_call05_code_sub base)
 
+/-- Stack cells in the product-layout prefix that layout call00 does not touch.
+
+    Call00 only reads `a[0]`, `b[0]`, and the product window. The remaining
+    input limbs are framed through it for the first prefix composition step. -/
+@[irreducible]
+def evmMulModProductLayoutCall00Frame (sp : Word) (a b n : EvmWord) : Assertion :=
+  ((sp + 8) ↦ₘ a.getLimbN 1) **
+  ((sp + 16) ↦ₘ a.getLimbN 2) **
+  ((sp + 24) ↦ₘ a.getLimbN 3) **
+  ((sp + 40) ↦ₘ b.getLimbN 1) **
+  ((sp + 48) ↦ₘ b.getLimbN 2) **
+  ((sp + 56) ↦ₘ b.getLimbN 3) **
+  ((sp + 64) ↦ₘ n.getLimbN 0) **
+  ((sp + 72) ↦ₘ n.getLimbN 1) **
+  ((sp + 80) ↦ₘ n.getLimbN 2) **
+  ((sp + 88) ↦ₘ n.getLimbN 3)
+
+theorem evmMulModProductLayoutCall00Frame_unfold (sp : Word) (a b n : EvmWord) :
+    evmMulModProductLayoutCall00Frame sp a b n =
+      (((sp + 8) ↦ₘ a.getLimbN 1) **
+       ((sp + 16) ↦ₘ a.getLimbN 2) **
+       ((sp + 24) ↦ₘ a.getLimbN 3) **
+       ((sp + 40) ↦ₘ b.getLimbN 1) **
+       ((sp + 48) ↦ₘ b.getLimbN 2) **
+       ((sp + 56) ↦ₘ b.getLimbN 3) **
+       ((sp + 64) ↦ₘ n.getLimbN 0) **
+       ((sp + 72) ↦ₘ n.getLimbN 1) **
+       ((sp + 80) ↦ₘ n.getLimbN 2) **
+       ((sp + 88) ↦ₘ n.getLimbN 3)) := by
+  delta evmMulModProductLayoutCall00Frame; rfl
+
+/-- First product-layout prefix composition: zero the product window, then add
+    the `(a[0] * b[0])` partial product. -/
+theorem evm_mulmod_product_layout_zero_call00_spec_within
+    (sp base : Word) (a b n : EvmWord)
+    (p0 p1 p2 p3 p4 p5 p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin (8 + (15 + 24)) base (base + 188) (evm_mulmod_product_layout_code base)
+      (evmMulModProductLayoutPre sp a b n p0 p1 p2 p3 p4 p5 p6 p7 **
+       ((.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) **
+        (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) **
+        (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old)))
+      (((.x12 ↦ᵣ sp) **
+        (.x10 ↦ᵣ mulModCarryStepCarry (0 : Word)
+          (mulModCarryStepCarry (0 : Word)
+            (mulModCarryStepCarry (0 : Word)
+              (mulModCarryStepCarry (0 : Word)
+                (mulModCarryStepCarry (0 : Word)
+                  (mulModCarryStepCarry (0 : Word)
+                    (mulModAddPartialHiCarry (0 : Word) (0 : Word)
+                      (a.getLimbN 0) (b.getLimbN 0)))))))) **
+        (.x9 ↦ᵣ mulModCarryStepValue (0 : Word)
+          (mulModCarryStepCarry (0 : Word)
+            (mulModCarryStepCarry (0 : Word)
+              (mulModCarryStepCarry (0 : Word)
+                (mulModCarryStepCarry (0 : Word)
+                  (mulModCarryStepCarry (0 : Word)
+                    (mulModAddPartialHiCarry (0 : Word) (0 : Word)
+                      (a.getLimbN 0) (b.getLimbN 0)))))))) **
+        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue (0 : Word)
+            (mulModAddPartialHiCarry (0 : Word) (0 : Word) (a.getLimbN 0) (b.getLimbN 0))) **
+        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue (0 : Word)
+            (mulModCarryStepCarry (0 : Word)
+              (mulModAddPartialHiCarry (0 : Word) (0 : Word) (a.getLimbN 0) (b.getLimbN 0)))) **
+        ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue (0 : Word)
+            (mulModCarryStepCarry (0 : Word)
+              (mulModCarryStepCarry (0 : Word)
+                (mulModAddPartialHiCarry (0 : Word) (0 : Word) (a.getLimbN 0) (b.getLimbN 0))))) **
+        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue (0 : Word)
+            (mulModCarryStepCarry (0 : Word)
+              (mulModCarryStepCarry (0 : Word)
+                (mulModCarryStepCarry (0 : Word)
+                  (mulModAddPartialHiCarry (0 : Word) (0 : Word) (a.getLimbN 0) (b.getLimbN 0)))))) **
+        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue (0 : Word)
+            (mulModCarryStepCarry (0 : Word)
+              (mulModCarryStepCarry (0 : Word)
+                (mulModCarryStepCarry (0 : Word)
+                  (mulModCarryStepCarry (0 : Word)
+                    (mulModAddPartialHiCarry (0 : Word) (0 : Word)
+                      (a.getLimbN 0) (b.getLimbN 0))))))) **
+        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+          mulModCarryStepValue (0 : Word)
+            (mulModCarryStepCarry (0 : Word)
+              (mulModCarryStepCarry (0 : Word)
+                (mulModCarryStepCarry (0 : Word)
+                  (mulModCarryStepCarry (0 : Word)
+                    (mulModCarryStepCarry (0 : Word)
+                      (mulModAddPartialHiCarry (0 : Word) (0 : Word)
+                        (a.getLimbN 0) (b.getLimbN 0)))))))) **
+        (.x5 ↦ᵣ a.getLimbN 0) **
+        (.x6 ↦ᵣ b.getLimbN 0) **
+        (.x7 ↦ᵣ mulModAddPartialLoProduct (a.getLimbN 0) (b.getLimbN 0)) **
+        (.x8 ↦ᵣ mulModAddPartialHiProduct (a.getLimbN 0) (b.getLimbN 0)) **
+        (.x11 ↦ᵣ mulModAddPartialHiValue (0 : Word) (0 : Word) (a.getLimbN 0) (b.getLimbN 0)) **
+        (.x13 ↦ᵣ mulModAddPartialHiBaseCarry (0 : Word) (a.getLimbN 0) (b.getLimbN 0)) **
+        (.x14 ↦ᵣ mulModAddPartialHiCarryFromLo (0 : Word) (0 : Word)
+          (a.getLimbN 0) (b.getLimbN 0)) **
+        (sp ↦ₘ a.getLimbN 0) **
+        ((sp + 32) ↦ₘ b.getLimbN 0) **
+        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ
+          mulModAddPartialLoValue (0 : Word) (a.getLimbN 0) (b.getLimbN 0)) **
+        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ
+          mulModAddPartialHiValue (0 : Word) (0 : Word) (a.getLimbN 0) (b.getLimbN 0))) **
+       evmMulModProductLayoutCall00Frame sp a b n) := by
+  simp only [evmMulModProductLayoutPre_unfold, evmMulModProductLayoutCall00Frame_unfold]
+  have hZero := evm_mulmod_product_layout_zero_spec_within sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (n.getLimbN 0) (n.getLimbN 1) (n.getLimbN 2) (n.getLimbN 3)
+    p0 p1 p2 p3 p4 p5 p6 p7
+  unfold evmMulModProductZeroPost at hZero
+  have hZeroF := cpsTripleWithin_frameR
+    (((.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) **
+      (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) **
+      (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old)))
+    (by pcFree) hZero
+  have hCall := evm_mulmod_product_layout_call00_spec_within sp base
+    (a.getLimbN 0) (b.getLimbN 0) (0 : Word) (0 : Word)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old
+  unfold evmMulModAddPartialCoreFullPre at hCall
+  rw [signExtend12_0, signExtend12_32] at hCall
+  rw [show sp + (0 : Word) = sp by bv_omega] at hCall
+  have hCallF := cpsTripleWithin_frameR
+    ((((sp + 8) ↦ₘ a.getLimbN 1) **
+      ((sp + 16) ↦ₘ a.getLimbN 2) **
+      ((sp + 24) ↦ₘ a.getLimbN 3) **
+      ((sp + 40) ↦ₘ b.getLimbN 1) **
+      ((sp + 48) ↦ₘ b.getLimbN 2) **
+      ((sp + 56) ↦ₘ b.getLimbN 3) **
+      ((sp + 64) ↦ₘ n.getLimbN 0) **
+      ((sp + 72) ↦ₘ n.getLimbN 1) **
+      ((sp + 80) ↦ₘ n.getLimbN 2) **
+      ((sp + 88) ↦ₘ n.getLimbN 3)))
+    (by pcFree) hCall
+  have hComp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hZeroF hCallF
+  rw [show base + 32 + 60 + 96 = base + 188 by bv_omega] at hComp
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq)
+    hComp
+
+
 end EvmAsm.Evm64
