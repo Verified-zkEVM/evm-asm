@@ -93,6 +93,7 @@ import EvmAsm.Rv64.RLP.ScalarSpillChain
 import EvmAsm.Rv64.RLP.UnifiedFieldScalarStoreRegion
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegion
 import EvmAsm.Rv64.RLP.FieldUnitDisjoint
+import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegionRegOwn
 import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
