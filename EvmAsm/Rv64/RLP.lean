@@ -76,6 +76,13 @@ import EvmAsm.Rv64.RLP.UnifiedListDescendSiblings
 import EvmAsm.Rv64.RLP.UnifiedFieldScalarRead
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldDecode
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldStore
+import EvmAsm.Rv64.RLP.UnifiedTwoScalarFieldWalk
+import EvmAsm.Rv64.RLP.ScalarFieldWalkChain
+import EvmAsm.Rv64.RLP.ScalarFieldWalkInfra
+import EvmAsm.Rv64.RLP.UnifiedNScalarFieldWalk
+import EvmAsm.Rv64.RLP.ByteCopyIter
+import EvmAsm.Rv64.RLP.ByteCopyChainInfra
+import EvmAsm.Rv64.RLP.ByteCopyChain
 import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
