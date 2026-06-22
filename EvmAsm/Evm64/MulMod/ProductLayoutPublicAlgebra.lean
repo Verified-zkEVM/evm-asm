@@ -352,6 +352,84 @@ theorem mulModProductLayoutCall04P112_eq_expanded (a b : EvmWord) :
   rw [mulModProductLayoutCall03P112_eq_expanded]
   simp only [mulModAddPartialLoProduct]
 
+theorem mulModProductLayoutCall03LoCarry_eq_expanded (a b : EvmWord) :
+    mulModAddPartialLoCarry (mulModProductLayoutCall02P112 a b)
+        (a.getLimbN 2) (b.getLimbN 0) =
+      if BitVec.ult
+          ((rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+              rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+              (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+                    a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+                  (a.getLimbN 0 * b.getLimbN 1) then
+                  (1 : Word)
+                else
+                  0) +
+              (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+                    a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+                  (1 : Word)
+                else
+                  0)) +
+            a.getLimbN 2 * b.getLimbN 0)
+          (a.getLimbN 2 * b.getLimbN 0) then
+        (1 : Word)
+      else
+        0 := by
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [mulModProductLayoutCall02P112_eq_expanded]
+
+theorem mulModProductLayoutCall04LoCarry_eq_expanded (a b : EvmWord) :
+    mulModAddPartialLoCarry (mulModProductLayoutCall03P112 a b)
+        (a.getLimbN 1) (b.getLimbN 1) =
+      if BitVec.ult
+          ((rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+              rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+              (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+                    a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+                  (a.getLimbN 0 * b.getLimbN 1) then
+                  (1 : Word)
+                else
+                  0) +
+              (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+                    a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+                  (1 : Word)
+                else
+                  0) +
+              a.getLimbN 2 * b.getLimbN 0) +
+            a.getLimbN 1 * b.getLimbN 1)
+          (a.getLimbN 1 * b.getLimbN 1) then
+        (1 : Word)
+      else
+        0 := by
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [mulModProductLayoutCall03P112_eq_expanded]
+
+theorem mulModProductLayoutCall05LoCarry_eq_expanded (a b : EvmWord) :
+    mulModAddPartialLoCarry (mulModProductLayoutCall04P112 a b)
+        (a.getLimbN 0) (b.getLimbN 2) =
+      if BitVec.ult
+          ((rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+              rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+              (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+                    a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+                  (a.getLimbN 0 * b.getLimbN 1) then
+                  (1 : Word)
+                else
+                  0) +
+              (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+                    a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+                  (1 : Word)
+                else
+                  0) +
+              a.getLimbN 2 * b.getLimbN 0 +
+              a.getLimbN 1 * b.getLimbN 1) +
+            a.getLimbN 0 * b.getLimbN 2)
+          (a.getLimbN 0 * b.getLimbN 2) then
+        (1 : Word)
+      else
+        0 := by
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [mulModProductLayoutCall04P112_eq_expanded]
+
 theorem mulModProductLayoutCall03P120_eq_add (a b : EvmWord) :
     mulModProductLayoutCall03P120 a b =
       mulModProductLayoutCall02P120 a b +
