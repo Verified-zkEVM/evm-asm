@@ -696,6 +696,55 @@ def callDescendFallThrough
      "  li t0, 6700\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
+     -- bbow4.2.2 (bv41): the NEW_ACCOUNT state-gas charge (nxio8.8, below) lives in the
+     -- descend tail, which this insufficient-balance early-exit BYPASSES. Spec
+     -- system.py:463-465 charges `if value != 0 and not is_account_alive(to):
+     -- charge_state_gas(NEW_ACCOUNT)` BEFORE the balance check, so it stands even when the
+     -- value-CALL fails on insufficient balance. Mirror the nxio8.8 charge here (mode 0 only;
+     -- CALLCODE mode 2 recipient = current_target, always alive). value>0 is guaranteed
+     -- (insuffbal => caller balance < value, balance>=0). x12 is still the parent stack top
+     -- (callee at x12+32); x20 the parent env (witness ctx env+576..616). Without it
+     -- bvgr_tx_exec_state_gas under-counts by 183600 -> block_state under-count -> bv41.
+     (if mode != 0 then "" else
+       "  ld t3, 584(x20)\n  beqz t3, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++   -- no witness ctx -> conservative skip
+       "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+       ".Lcd_ibnacc_addr_" ++ tag ++ ":\n" ++
+       "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
+       "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
+       -- created this tx -> alive -> no charge
+       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+       "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, cd_callee_be\n" ++
+       "  jal ra, find_code_effect_by_address\n  mv t6, a0\n" ++
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++
+       -- account_exists_at_header_state_root(callee)
+       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+       "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
+       "  jal ra, account_exists_at_header_state_root\n  mv t6, a0\n" ++
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++           -- lookup err -> conservative skip
+       "  la t0, aex_predicate\n  ld t1, 0(t0)\n" ++
+       "  beqz t1, .Lcd_ibnacc_charge_" ++ tag ++ "\n" ++         -- not exists -> not alive -> charge
+       -- exists: account_is_empty_at_header_state_root(callee)
+       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+       "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
+       "  jal ra, account_is_empty_at_header_state_root\n  mv t6, a0\n" ++
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++           -- lookup err -> skip
+       "  la t0, aie_predicate\n  ld t1, 0(t0)\n" ++
+       "  beqz t1, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++           -- exists & not empty = alive -> no charge
+       ".Lcd_ibnacc_charge_" ++ tag ++ ":\n" ++
+       liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- NEW_ACCOUNT state gas = 120*1530 = 183600
+       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+       "  bgeu t2, t0, .Lcd_ibnacc_res_" ++ tag ++ "\n" ++
+       "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+       "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+       "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcd_ibnacc_used_" ++ tag ++ "\n" ++
+       ".Lcd_ibnacc_res_" ++ tag ++ ":\n" ++
+       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
+       ".Lcd_ibnacc_used_" ++ tag ++ ":\n" ++
+       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+       ".Lcd_ibnacc_done_" ++ tag ++ ":\n") ++
      "  j .Lcd_fail_" ++ tag ++ "\n"
    else "") ++
   -- empty code (EOA): the call succeeds, runs nothing → push 1
