@@ -91,11 +91,38 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- bytecode `30ff`) was wrongly classified as new-account and charged STATE_BYTES_PER_NEW_ACCOUNT
   -- state gas. That spurious charge both over-counts state gas AND (when it drains the reservoir +
   -- spills into the frame) derails the SD tail so the created-in-tx deletion was never recorded ->
-  -- the exec-vs-BAL non-storage comparator false-rejected (bv_fail=44). Mirror is_account_alive's
-  -- created_accounts membership: if the beneficiary has a code-effect record (the CREATE deposit
-  -- appended one this tx), it is ALIVE -> skip the charge. find_code_effect_by_address clobbers
-  -- t0-t6 + a0(=x10); save x10/x12 (x20=s4 is preserved by the helper, but the call itself does
-  -- not touch it).
+  -- the exec-vs-BAL non-storage comparator false-rejected (bv_fail=44).
+  --
+  -- coc3g.6 part 2 (the constructor self-destruct-to-self case, selfdestruct_to_self_same_tx
+  -- with_balance bv_fail=41): a contract that SELFDESTRUCTs IN ITS OWN CONSTRUCTOR (initcode
+  -- `30ff` = ADDRESS;SELFDESTRUCT) with beneficiary==self deposits NO code, so the
+  -- find_code_effect_by_address skip below MISSES and the charge wrongly fires. The
+  -- authoritative created_accounts signal here is identical to NoopHalt's constructor-SD detection:
+  -- we are executing INSIDE the CREATE child frame (create_frame_descend set
+  -- create_frame_flag[current_depth]=1, not yet cleared), so that flag IS the originator's
+  -- created_accounts membership. For SELFDESTRUCT the originator == evm.message.current_target ==
+  -- env.ADDRESS; the to_self case is beneficiary==env.ADDRESS, so is_account_alive(beneficiary)
+  -- is then is_account_alive(originator)=True (just created) -> needs_state_gas=False -> skip.
+  -- Soundness: gated on beneficiary==self AND create_frame_flag[depth]=1, so it can only suppress
+  -- the charge for a genuinely same-tx-created self-beneficiary (the spec's exact alive case),
+  -- never for a witnessed/pre-existing account. Compute self (origin) as a 20B BE from x20 env
+  -- ADDRESS into runtimeAccessSeedScratchLabel and compare to evm_selfdestruct_beneficiary.
+  "  la t0, create_frame_flag\n" ++
+  "  la t1, evm_call_depth; ld t1, 0(t1); slli t1, t1, 3; add t0, t0, t1; ld t0, 0(t0)\n" ++
+  "  beqz t0, .L_selfdestruct_csg_not_ctit\n" ++
+  "  mv t0, x20\n" ++
+  "  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+  runtimeAccessWordToBe20Asm "selfdestruct_csg_self" "t0" "t1" "t2" "t3" ++
+  "  la t0, " ++ runtimeAccessSeedScratchLabel ++ "\n  la t1, evm_selfdestruct_beneficiary\n  li t2, 20\n" ++
+  ".L_selfdestruct_csg_self_cmp:\n" ++
+  "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n  bne t3, t4, .L_selfdestruct_csg_not_ctit\n" ++
+  "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .L_selfdestruct_csg_self_cmp\n" ++
+  "  j .L_selfdestruct_surcharge_done\n" ++   -- beneficiary==self AND created-in-tx (alive) -> no NEW_ACCOUNT state gas
+  ".L_selfdestruct_csg_not_ctit:\n" ++
+  -- Mirror is_account_alive's created_accounts membership for the DEPLOYED-code case: if the
+  -- beneficiary has a code-effect record (the CREATE deposit appended one this tx), it is ALIVE ->
+  -- skip the charge. find_code_effect_by_address clobbers t0-t6 + a0(=x10); save x10/x12 (x20=s4 is
+  -- preserved by the helper, but the call itself does not touch it).
   "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
   "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, evm_selfdestruct_beneficiary\n" ++
   "  jal ra, find_code_effect_by_address\n" ++
