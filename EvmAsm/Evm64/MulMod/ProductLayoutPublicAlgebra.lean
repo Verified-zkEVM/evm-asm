@@ -557,6 +557,42 @@ theorem mulModProductLayoutCall09P120_eq_expanded_lowCarries (a b : EvmWord) :
   unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
   ac_rfl
 
+theorem mulModProductLayoutCall09P120_eq_layoutCarryChain (a b : EvmWord) :
+    let a0 := a.getLimbN 0; let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2; let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0; let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2; let b3 := b.getLimbN 3
+    let c0_hi_a0b0 := rv64_mulhu a0 b0
+    let c0_lo_a1b0 := a1 * b0
+    let c0_r1 := c0_hi_a0b0 + c0_lo_a1b0
+    let c0_c1 := if BitVec.ult c0_r1 c0_lo_a1b0 then (1 : Word) else 0
+    let c1_lo := a0 * b1
+    let c1_hi := rv64_mulhu a0 b1
+    let c1_r1 := c0_r1 + c1_lo
+    let c1_c1 := if BitVec.ult c1_r1 c1_lo then (1 : Word) else 0
+    let c0_hi_a1b0 := rv64_mulhu a1 b0
+    let p112 := c1_hi + c0_hi_a1b0 + c1_c1 + c0_c1
+    let call02P120 := if BitVec.ult (c1_hi + c1_c1 + (c0_hi_a1b0 + c0_c1))
+        (c1_hi + c1_c1) then (1 : Word) else 0
+    let p112a := p112 + a2 * b0
+    let carry03 := if BitVec.ult p112a (a2 * b0) then (1 : Word) else 0
+    let p112b := p112a + a1 * b1
+    let carry04 := if BitVec.ult p112b (a1 * b1) then (1 : Word) else 0
+    let p112c := p112b + a0 * b2
+    let carry05 := if BitVec.ult p112c (a0 * b2) then (1 : Word) else 0
+    mulModProductLayoutCall09P120 a b =
+      call02P120 + (rv64_mulhu a2 b0 + carry03) +
+        (rv64_mulhu a1 b1 + carry04) +
+        (rv64_mulhu a0 b2 + carry05) +
+        a3 * b0 + a2 * b1 + a1 * b2 + a0 * b3 := by
+  simp only
+  rw [mulModProductLayoutCall09P120_eq_expanded_lowCarries]
+  rw [mulModProductLayoutCall02P120_eq_expanded]
+  rw [mulModProductLayoutCall02P112_eq_expanded]
+  rw [mulModProductLayoutCall03P112_eq_expanded]
+  rw [mulModProductLayoutCall04P112_eq_expanded]
+  simp only [mulModAddPartialHiProduct]
+
 theorem mulModProductLayoutCall00P96_eq_mul_limb0 (a b : EvmWord) :
     mulModProductLayoutCall00P96 a b = (a * b).getLimbN 0 := by
   rw [← EvmWord.getLimb_as_getLimbN_0, ← productLimb_zero_eq_mul_getLimb]
