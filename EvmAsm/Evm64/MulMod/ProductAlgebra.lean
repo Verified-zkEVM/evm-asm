@@ -179,6 +179,14 @@ private theorem productLimb_high_eq_mulHigh_getLimb (a b : EvmWord) (i : Fin 4) 
     productLimb_five_eq_mulHigh_getLimb_one, productLimb_six_eq_mulHigh_getLimb_two,
     productLimb_seven_eq_mulHigh_getLimb_three]
 
+@[simp] theorem productHighLimbs_eq_mulHigh_getLimbNs (a b : EvmWord) :
+    productHighLimbs a b =
+      [(EvmWord.mulHigh a b).getLimbN 0, (EvmWord.mulHigh a b).getLimbN 1,
+       (EvmWord.mulHigh a b).getLimbN 2, (EvmWord.mulHigh a b).getLimbN 3] := by
+  simp only [productHighLimbs_eq, productLimb_four_eq_mulHigh_getLimbN_zero,
+    productLimb_five_eq_mulHigh_getLimbN_one, productLimb_six_eq_mulHigh_getLimbN_two,
+    productLimb_seven_eq_mulHigh_getLimbN_three]
+
 /-- Low limbs of the 512-bit product agree with the corresponding limbs of the
     truncated 256-bit EVM multiplication. -/
 private theorem productLimb_low_eq_getLimb (a b : EvmWord) (i : Fin 4) :
@@ -256,6 +264,20 @@ private theorem productLimb_low_eq_getLimb (a b : EvmWord) (i : Fin 4) :
     productLimb_three_eq_mul_getLimb, productLimb_four_eq_mulHigh_getLimb_zero,
     productLimb_five_eq_mulHigh_getLimb_one, productLimb_six_eq_mulHigh_getLimb_two,
     productLimb_seven_eq_mulHigh_getLimb_three]
+
+@[simp] theorem productOffsetValues_eq_mul_split_getLimbNs (a b : EvmWord) :
+    productOffsetValues a b =
+      [((96 : BitVec 12), (a * b).getLimbN 0),
+       ((104 : BitVec 12), (a * b).getLimbN 1),
+       ((112 : BitVec 12), (a * b).getLimbN 2),
+       ((120 : BitVec 12), (a * b).getLimbN 3),
+       ((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
+       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
+       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
+       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
+  rw [productOffsetValues_eq_mul_split_getLimbs]
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
 
 @[simp] theorem productOffsetValues_offsets (a b : EvmWord) :
     (productOffsetValues a b).map Prod.fst = mulmodProductOffsets := by
