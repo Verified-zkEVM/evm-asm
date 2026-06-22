@@ -32,6 +32,23 @@ private theorem carryOrEqAdd {x y cin : Word} (hcin : cin.toNat ≤ 1) :
   have hmod : (x.toNat + y.toNat) % 2^64 < 2^64 := Nat.mod_lt _ (by omega)
   omega
 
+private theorem carryAddAssocLeft (x y z : Word) :
+    (if BitVec.ult (x + y) x then (1 : Word) else 0) +
+        (if BitVec.ult ((x + y) + z) z then (1 : Word) else 0) =
+      (if BitVec.ult (y + z) z then (1 : Word) else 0) +
+        (if BitVec.ult ((y + z) + x) x then (1 : Word) else 0) := by
+  rw [show (if BitVec.ult (x + y) x then (1 : Word) else 0) =
+      (if BitVec.ult (y + x) x then (1 : Word) else 0) by rw [BitVec.add_comm x y]]
+  rw [show ((x + y) + z) = ((y + x) + z) by rw [BitVec.add_comm x y]]
+  apply BitVec.eq_of_toNat_eq
+  repeat rw [BitVec.toNat_add]
+  repeat rw [EvmWord.carry_toNat]
+  repeat rw [BitVec.toNat_add]
+  have hx := x.isLt
+  have hy := y.isLt
+  have hz := z.isLt
+  omega
+
 /-- The RV64 `OR` used to combine the two carry bits of an add-partial high limb
     agrees with ordinary Word addition. -/
 theorem mulModAddPartialHiCarry_eq_add (hi lo a b : Word) :
@@ -592,6 +609,36 @@ theorem mulModProductLayoutCall09P120_eq_layoutCarryChain (a b : EvmWord) :
   rw [mulModProductLayoutCall03P112_eq_expanded]
   rw [mulModProductLayoutCall04P112_eq_expanded]
   simp only [mulModAddPartialHiProduct]
+
+theorem mulModProductLayoutCall09P120_eq_mul_limb3 (a b : EvmWord) :
+    mulModProductLayoutCall09P120 a b = (a * b).getLimbN 3 := by
+  rw [← EvmWord.getLimb_as_getLimbN_3, ← productLimb_three_eq_mul_getLimb]
+  rw [productLimb_three_eq_mul_correct_limb3]
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
+  rw [mulModProductLayoutCall09P120_eq_layoutCarryChain]
+  set ca : Word := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+      (a.getLimbN 0 * b.getLimbN 1) then (1 : Word) else 0
+  set cb : Word := if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+      a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+    (1 : Word) else 0
+  set A : Word := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) + ca
+  set B : Word := rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) + cb
+  set P : Word := rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+    rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) + ca + cb
+  set Z : Word := a.getLimbN 2 * b.getLimbN 0
+  have hP : P = A + B := by
+    subst P; subst A; subst B; ac_rfl
+  rw [hP]
+  rw [show (if BitVec.ult (A + B) A then (1 : Word) else 0) +
+      (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+        (if BitVec.ult ((A + B) + Z) Z then (1 : Word) else 0)) =
+      ((if BitVec.ult (A + B) A then (1 : Word) else 0) +
+        (if BitVec.ult ((A + B) + Z) Z then (1 : Word) else 0)) +
+        rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) by ac_rfl]
+  rw [carryAddAssocLeft A B Z]
+  ac_rfl
 
 theorem mulModProductLayoutCall00P96_eq_mul_limb0 (a b : EvmWord) :
     mulModProductLayoutCall00P96 a b = (a * b).getLimbN 0 := by
