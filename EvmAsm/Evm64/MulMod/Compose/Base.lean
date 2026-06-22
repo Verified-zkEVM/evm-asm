@@ -315,6 +315,40 @@ theorem evm_mulmod_program_code_product_sixth_carry_sub
   · rw [evm_mulmod_length]
     decide
 
+/-- The finish suffix of the seventh product partial at offset 948 is subsumed by
+    the top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_product_seventh_finish_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 948)
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (128 : BitVec 12))) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 948) evm_mulmod
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (128 : BitVec 12)) 237 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length]
+    decide
+  · rw [evm_mulmod_length]
+    decide
+
+/-- The carry-propagation suffix of the seventh product partial at offset 956 is
+    subsumed by the top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_product_seventh_carry_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 956)
+        (evm_mulmod_product_propagate_carry [136, 144, 152])) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 956) evm_mulmod
+    (evm_mulmod_product_propagate_carry [136, 144, 152]) 239 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length]
+    decide
+  · rw [evm_mulmod_length]
+    decide
+
 /-- The reducer initialization block at offset 1816 is subsumed by the top-level
     `evm_mulmod_program_code`. -/
 theorem evm_mulmod_program_code_reduce512_init_sub
@@ -885,6 +919,48 @@ theorem evm_mulmod_product_sixth_carry_evm_mulmod_spec_within
     (h := evm_mulmod_product_propagate_carry_128_136_144_152_spec_within
       sp (base + 832) carry v9 p4 p5 p6 p7)
     (hmono := evm_mulmod_program_code_product_sixth_carry_sub base)
+
+/-- Seventh product-partial finish suffix lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_product_seventh_finish_evm_mulmod_spec_within
+    (sp : Word) (base : Word)
+    (loCarry hiBaseCarry hiCarryFromLo hiVal hiOld : Word) :
+    cpsTripleWithin 2 (base + 948) ((base + 948) + 8) (evm_mulmod_program_code base)
+      ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
+       (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ hiOld))
+      (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
+        ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ hiVal)) **
+       (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
+       (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 948)
+      (128 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+    (hmono := evm_mulmod_program_code_product_seventh_finish_sub base)
+
+/-- Seventh product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_product_seventh_carry_evm_mulmod_spec_within
+    (sp : Word) (base : Word)
+    (carry v9 p5 p6 p7 : Word) :
+    cpsTripleWithin 12 (base + 956) ((base + 956) + 48) (evm_mulmod_program_code base)
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+      ((.x12 ↦ᵣ sp) **
+       (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6 (mulModCarryStepCarry p5 carry))) **
+       (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6 (mulModCarryStepCarry p5 carry))) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ mulModCarryStepValue p5 carry) **
+       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+         mulModCarryStepValue p6 (mulModCarryStepCarry p5 carry)) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+         mulModCarryStepValue p7
+           (mulModCarryStepCarry p6 (mulModCarryStepCarry p5 carry)))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_product_propagate_carry_136_144_152_spec_within
+      sp (base + 956) carry v9 p5 p6 p7)
+    (hmono := evm_mulmod_program_code_product_seventh_carry_sub base)
 
 /-- First product-partial finish suffix lifted onto `evm_mulmod_program_code`. -/
 theorem evm_mulmod_product_first_finish_evm_mulmod_spec_within
