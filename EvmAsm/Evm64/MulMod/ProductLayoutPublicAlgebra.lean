@@ -954,6 +954,19 @@ theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_column4Value
     mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
   rw [mulModProductLayoutCall12P128_eq_column4Value, h_col]
 
+theorem mulModProductLayoutColumn4Value_eq_mulHigh_getLimbN_zero_of_productLimb_four
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Value a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Value a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  rw [h_col, productLimb_four_eq_mulHigh_getLimbN_zero]
+
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_productLimb_four
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Value a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_column4Value
+    (mulModProductLayoutColumn4Value_eq_mulHigh_getLimbN_zero_of_productLimb_four h_col)
+
 theorem mulModProductLayoutCall12P128_eq_highCarry (a b : EvmWord) :
     mulModProductLayoutCall12P128 a b =
       ((((if BitVec.ult (mulModProductLayoutCall02P120 a b +
