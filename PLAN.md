@@ -1620,13 +1620,25 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     hyps — a clashing reg just makes the pre vacuous), and the store CR (`SD@base+180`) is disjoint from the
     decoder/read CR (`base .. base+176`). Rides the pure `decodeScalar` fact along. Axiom-clean, 0 sorry, 0
     warnings, no heartbeat override. Concrete `0x2a → 42` store-to-`0x3000` example. Built first try (1.6s).
-  - **Next (regOwn-pre + walk → schema decoders):** make a `regOwn`-pre variant of the decode-and-store unit
-    (peel `x5/x10/x12/x14` per `cpsTripleWithin_of_forall_regIs_to_regOwn`, à la `…_at_regOwn`) and
-    `cpsTripleWithin_seq` two of them — the first end-to-end multi-field walk, each value in its own slot.
-    Then chain N units across a fixed schema → concrete STF transaction (9 fields) / header (~19 fields)
-    decoders producing the `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) /
-    zero-length scalars (`n = 0`) need multi-word / byte-copy / branch variants. (The 3-sibling block framing
-    walk via `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
+  - ✅ **Step 11 — first multi-field walk** (`UnifiedTwoScalarFieldWalk.lean`).
+    **`unified_scalar_field_decode_and_store_at_regOwn`**: the decode-and-store unit restated with its four
+    clobbered scratch registers (`x5/x10/x12/x14`) abstracted to `regOwn` in the pre (`x11`/`x15` stay
+    concrete — the prior unit supplies them), via four nested `cpsTripleWithin_of_forall_regIs_to_regOwn`,
+    so it's callable after a prior field has run. **`unified_two_scalar_field_walk`**: `cpsTripleWithin_seq`
+    of a concrete unit (field A → slot `offA`) ⨾ the `regOwn` variant (field B → slot `offB`) through one
+    output pointer `rOut` — the first end-to-end multi-field walk. A's advanced `x13` feeds B's payload
+    pointer with no glue; A's written cell is framed through B and B's cell through A, so both slots end up
+    written; rides the two pure `decodeScalar` peels (`hdropB` via `← drop_drop`/`drop_append_length`). The
+    36-leaf unit-A ⊥ unit-B disjointness is one explicit nested `union_left`/`union_right` term (a local
+    `sDisj` helper shares the 4 singleton A-leaves; `ofProg_disjoint_range_len` for the ofProg pairs; per-leaf
+    explicit lengths to avoid `first`-backtracking whnf-loops). Axiom-clean, 0 sorry, 0 warnings, no heartbeat
+    override. Concrete two-byte example: `42 → 0x3000`, `7 → 0x3008`.
+  - **Next (N-field schema chain → STF decoders):** chain N `regOwn`-pre decode-and-store units across a
+    fixed `(offset, fieldData)` schema (recursion/fold over the list, list-induction on the CodeReq unions
+    and frame bookkeeping) → concrete STF transaction (9 fields) / header (~19 fields) decoders producing the
+    `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) / zero-length scalars
+    (`n = 0`) need multi-word / byte-copy / branch variants. (The 3-sibling block framing walk via
+    `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
