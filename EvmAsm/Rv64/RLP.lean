@@ -86,6 +86,12 @@ import EvmAsm.Rv64.RLP.ByteCopyChainInfra
 import EvmAsm.Rv64.RLP.ByteCopyChain
 import EvmAsm.Rv64.RLP.ByteCopyChainGen
 import EvmAsm.Rv64.RLP.UnifiedFieldBytesCopy
+import EvmAsm.Rv64.RLP.UnifiedBytesFieldDecode
+import EvmAsm.Rv64.RLP.UnifiedBytesFieldRegOwn
+import EvmAsm.Rv64.RLP.ScalarSpillIter
+import EvmAsm.Rv64.RLP.ScalarSpillChain
+import EvmAsm.Rv64.RLP.UnifiedFieldScalarStoreRegion
+import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegion
 import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
