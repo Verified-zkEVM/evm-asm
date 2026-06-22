@@ -20,11 +20,15 @@ open EvmAsm.Rv64
     a3 = side storage log base
     a4 = side txindex base
     a5 = side count ptr
+    a6 = block_access_index to stamp into the side txindex for every copied row
     a0 (output) = 0 copied / 1 malformed end<start / 2 side arena overflow.
 
-    Copies rows in [start,end) into the side arena and writes txindex=0 for
+    Copies rows in [start,end) into the side arena and writes txindex=a6 for
     every copied row. The caller keeps restoring the regular log count, so this
     side arena is the only durable record of system-call storage writes.
+    lv44p.2.2: end-of-block system calls (EIP-7002/7251) run at block_access_index
+    N+1, so the caller passes N+1 here; the tuple comparator then orders these
+    end-of-block rows AFTER the user transactions instead of mis-stamping them 0.
 
     Debug globals record the last attempted range and count calculation so
     non-fatal request-derivation callers can expose why side capture was
@@ -42,6 +46,7 @@ def captureSystemStorageExecRowsFunction : String :=
   "  mv s3, a3                    # side log base\n" ++
   "  mv s4, a4                    # side txindex base\n" ++
   "  mv s5, a5                    # side count ptr\n" ++
+  "  la t0, cssc_stamp_txindex; sd a6, 0(t0)   # lv44p.2.2: block_access_index to stamp\n" ++
   "  la t0, bv_system_storage_capture_start; sd s0, 0(t0)\n" ++
   "  la t0, bv_system_storage_capture_end; sd s1, 0(t0)\n" ++
   "  la t0, bv_system_storage_capture_status; sd zero, 0(t0)\n" ++
@@ -62,7 +67,7 @@ def captureSystemStorageExecRowsFunction : String :=
   "  add t4, s0, t3; slli t4, t4, 7; add t4, s2, t4   # src row\n" ++
   "  ld t0, 0(s5); add t0, t0, t3\n" ++
   "  slli t5, t0, 7; add t5, s3, t5                   # dst row\n" ++
-  "  slli t6, t0, 3; add t6, s4, t6; sd zero, 0(t6)    # side txindex = 0\n" ++
+  "  slli t6, t0, 3; add t6, s4, t6; la t1, cssc_stamp_txindex; ld t1, 0(t1); sd t1, 0(t6)   # side txindex = a6 (block_access_index)\n" ++
   "  ld t6, 0(t4); sd t6, 0(t5); ld t6, 8(t4); sd t6, 8(t5)\n" ++
   "  ld t6, 16(t4); sd t6, 16(t5); ld t6, 24(t4); sd t6, 24(t5)\n" ++
   "  ld t6, 32(t4); sd t6, 32(t5); ld t6, 40(t4); sd t6, 40(t5)\n" ++
@@ -177,6 +182,7 @@ def ziskCaptureSystemStorageExecRowsPrologue : String :=
   "  addi t0, t0, 128; li t1, 0x2222; sd t1, 0(t0); li t1, 0x222f; sd t1, 120(t0)\n" ++
   "  addi t0, t0, 128; li t1, 0x3333; sd t1, 0(t0); li t1, 0x333f; sd t1, 120(t0)\n" ++
   "  li a0, 1; li a1, 3; la a2, cssc_src; la a3, cssc_side_log; la a4, cssc_side_txindex; la a5, cssc_side_count\n" ++
+  "  li a6, 0\n" ++   -- lv44p.2.2 probe: stamp txindex 0 (probe asserts side txindex==0)
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
@@ -184,11 +190,13 @@ def ziskCaptureSystemStorageExecRowsPrologue : String :=
   "  la t1, cssc_side_txindex; ld t2, 0(t1); sd t2, 16(t0); ld t2, 8(t1); sd t2, 24(t0)\n" ++
   "  la t1, cssc_side_log; ld t2, 0(t1); sd t2, 32(t0); ld t2, 248(t1); sd t2, 40(t0)\n" ++
   "  li a0, 3; li a1, 1; la a2, cssc_src; la a3, cssc_side_log; la a4, cssc_side_txindex; la a5, cssc_side_count\n" ++
+  "  li a6, 0\n" ++   -- lv44p.2.2 probe: stamp txindex 0 (probe asserts side txindex==0)
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 48(t0)\n" ++
   "  li t1, " ++ toString (bvSystemStorageLogCapacity - 1) ++ "; la t2, cssc_side_count; sd t1, 0(t2)\n" ++
   "  li a0, 1; li a1, 2; la a2, cssc_src; li a3, 0xa1000000; li a4, 0xa0800000; la a5, cssc_side_count\n" ++
+  "  li a6, 0\n" ++   -- lv44p.2.2 probe: stamp txindex 0 (probe asserts side txindex==0)
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 56(t0)\n" ++
@@ -196,6 +204,7 @@ def ziskCaptureSystemStorageExecRowsPrologue : String :=
   "  li t3, 0xa1000000; li t4, " ++ toString ((bvSystemStorageLogCapacity - 1) * 128) ++ "; add t3, t3, t4; ld t5, 0(t3); sd t5, 72(t0)\n" ++
   "  li t1, " ++ toString bvSystemStorageLogCapacity ++ "; la t2, cssc_side_count; sd t1, 0(t2)\n" ++
   "  li a0, 1; li a1, 2; la a2, cssc_src; li a3, 0xa1000000; li a4, 0xa0800000; la a5, cssc_side_count\n" ++
+  "  li a6, 0\n" ++   -- lv44p.2.2 probe: stamp txindex 0 (probe asserts side txindex==0)
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 80(t0)\n" ++
@@ -223,7 +232,8 @@ def ziskCaptureSystemStorageExecRowsDataSection : String :=
   "bv_system_storage_capture_end:\n  .zero 8\n" ++
   "bv_system_storage_capture_rows:\n  .zero 8\n" ++
   "bv_system_storage_capture_old_count:\n  .zero 8\n" ++
-  "bv_system_storage_capture_new_count:\n  .zero 8\n"
+  "bv_system_storage_capture_new_count:\n  .zero 8\n" ++
+  "cssc_stamp_txindex:\n  .zero 8\n"
 
 def ziskCaptureSystemStorageExecRowsProbeUnit : BuildUnit := {
   body        := NOP
