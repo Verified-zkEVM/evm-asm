@@ -128,6 +128,23 @@ theorem evm_mulmod_program_code_product_first_finish_sub
   · rw [evm_mulmod_length]
     decide
 
+/-- The carry-propagation suffix of the first product partial at offset 148 is
+    subsumed by the top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_product_first_carry_sub
+    (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 148)
+        (evm_mulmod_product_propagate_carry [112, 120, 128, 136, 144, 152])) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  unfold evm_mulmod_program_code
+  refine CodeReq.ofProg_mono_sub base (base + 148) evm_mulmod
+    (evm_mulmod_product_propagate_carry [112, 120, 128, 136, 144, 152]) 37 ?_ ?_ ?_ ?_
+  · bv_omega
+  · evm_mulmod_slice_rfl
+  · rw [evm_mulmod_length]
+    decide
+  · rw [evm_mulmod_length]
+    decide
+
 /-- The reducer initialization block at offset 1816 is subsumed by the top-level
     `evm_mulmod_program_code`. -/
 theorem evm_mulmod_program_code_reduce512_init_sub
@@ -395,6 +412,53 @@ theorem evm_mulmod_reduce512_epilogue_evm_mulmod_spec_within
     (h := evm_mulmod_epilogue_spec_within sp (base + 2148))
     (hmono := evm_mulmod_program_code_reduce512_epilogue_sub base)
 
+
+/-- First product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
+theorem evm_mulmod_product_first_carry_evm_mulmod_spec_within
+    (sp : Word) (base : Word)
+    (carry v9 p2 p3 p4 p5 p6 p7 : Word) :
+    cpsTripleWithin 24 (base + 148) ((base + 148) + 96) (evm_mulmod_program_code base)
+      ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
+       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+      ((.x12 ↦ᵣ sp) **
+       (.x10 ↦ᵣ mulModCarryStepCarry p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5
+              (mulModCarryStepCarry p4
+                (mulModCarryStepCarry p3 (mulModCarryStepCarry p2 carry)))))) **
+       (.x9 ↦ᵣ mulModCarryStepValue p7
+          (mulModCarryStepCarry p6
+            (mulModCarryStepCarry p5
+              (mulModCarryStepCarry p4
+                (mulModCarryStepCarry p3 (mulModCarryStepCarry p2 carry)))))) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ mulModCarryStepValue p2 carry) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ
+         mulModCarryStepValue p3 (mulModCarryStepCarry p2 carry)) **
+       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ
+         mulModCarryStepValue p4 (mulModCarryStepCarry p3 (mulModCarryStepCarry p2 carry))) **
+       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ
+         mulModCarryStepValue p5
+           (mulModCarryStepCarry p4 (mulModCarryStepCarry p3 (mulModCarryStepCarry p2 carry)))) **
+       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+         mulModCarryStepValue p6
+           (mulModCarryStepCarry p5
+             (mulModCarryStepCarry p4 (mulModCarryStepCarry p3
+               (mulModCarryStepCarry p2 carry))))) **
+       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+         mulModCarryStepValue p7
+           (mulModCarryStepCarry p6
+             (mulModCarryStepCarry p5
+               (mulModCarryStepCarry p4
+                 (mulModCarryStepCarry p3 (mulModCarryStepCarry p2 carry))))))) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_product_propagate_carry_112_120_128_136_144_152_spec_within
+      sp (base + 148) carry v9 p2 p3 p4 p5 p6 p7)
+    (hmono := evm_mulmod_program_code_product_first_carry_sub base)
 
 /-- First product-partial finish suffix lifted onto `evm_mulmod_program_code`. -/
 theorem evm_mulmod_product_first_finish_evm_mulmod_spec_within
