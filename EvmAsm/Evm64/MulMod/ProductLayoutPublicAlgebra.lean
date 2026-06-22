@@ -739,6 +739,22 @@ theorem mulModProductLayoutCall03P128_eq_expanded (a b : EvmWord) :
     mulModAddPartialLoValue, mulModAddPartialLoProduct]
   rfl
 
+theorem mulModProductLayoutCall03P128_eq_highCarry (a b : EvmWord) :
+    mulModProductLayoutCall03P128 a b =
+        (if BitVec.ult (mulModProductLayoutCall02P120 a b +
+            (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+              (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                  (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+            (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+              (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                  (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+          (1 : Word)
+        else
+          0) := by
+  rw [mulModProductLayoutCall03P128_eq_expanded]
+  rw [mulModProductLayoutCall02P128_zero]
+  simp
+
 theorem mulModProductLayoutCall04P128_eq_expanded (a b : EvmWord) :
     mulModProductLayoutCall04P128 a b =
       mulModProductLayoutCall03P128 a b +
