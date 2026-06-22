@@ -162,6 +162,10 @@ def accountTupleSequencesConsistentData : String :=
 def accountTupleSequencesConsistentEmptySystemData : String :=
   ".balign 8\n" ++
   "bv_system_storage_log_count:\n  .zero 8\n" ++
+  -- lv44p.2.2: the consistency fn now points sust_sys_txindex_ptr at this array.
+  -- The standalone probe runs an empty system log (count 0), so it is never read,
+  -- but the symbol must resolve at link time.
+  "bv_system_storage_txindex:\n  .zero 16\n" ++
   ".balign 32\n" ++
   "bv_system_storage_log:\n  .zero 128\n"
 
