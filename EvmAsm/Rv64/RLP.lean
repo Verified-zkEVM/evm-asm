@@ -97,6 +97,7 @@ import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegionRegOwn
 import EvmAsm.Rv64.RLP.UnifiedHeteroFieldWalk
 import EvmAsm.Rv64.RLP.UnifiedThreeFieldWalk
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegionCanonical
+import EvmAsm.Rv64.RLP.UnifiedFieldUnitFullyCanonical
 import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
