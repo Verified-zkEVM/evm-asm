@@ -31,6 +31,7 @@ import EvmAsm.Rv64.Tactics.XCancelStruct
 import EvmAsm.Rv64.Tactics.SymStep
 import EvmAsm.Rv64.RLP
 import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.MemRegionWrite
 -- The `*Attr` files are imported by their non-Attr counterparts.
 import EvmAsm.Rv64.RegOps
 import EvmAsm.Rv64.AddrNorm
