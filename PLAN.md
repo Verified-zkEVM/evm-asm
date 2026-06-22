@@ -1645,10 +1645,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     via `append_assoc` + `← drop_drop`/`drop_append_length`). The concrete inductive step toward N. Built
     first try. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Three-byte example: `42/7/9 →
     0x3000/0x3008/0x3010`.
-  - **Next (recursive N-field walk → STF decoders):** with the per-pair disjointness now a one-liner, define
-    the N-field walk by recursion over a list of field descriptors `(offset, data)` and prove by induction
-    (inductive step = one `regOwn` unit ⨾ the rest; the output cells become an opaque `**`-fold framed
-    through each step). Then chain N `regOwn`-pre decode-and-store units across a
+  - ✅ **Step 13 — recursive N-field walk infrastructure** (`ScalarFieldWalkInfra.lean`).
+    Three pieces that unblock the recursive walk: **`unified_scalar_field_decode_and_store_at_regOwn_memOwn`**
+    — the atomic unit with BOTH `regOwn` scratch AND a `memOwn` output cell (one extra
+    `cpsTripleWithin_of_forall_memIs_to_memOwn` peel over the step-11 regOwn variant), so the walk's pre is a
+    fold of `memOwn` slots; **`nFieldWalkCR base rOut fields`** — the recursive CodeReq of the unrolled
+    N-unit program (unit `i` = `scalarFieldUnitCR` at `base + 184*i`); **`scalarFieldUnitCR_disjoint_walkCR`**
+    — a single unit ⊥ the whole rest-of-walk CodeReq, by induction on the field list (each step a
+    `scalarFieldUnitCR_disjoint`), which discharges the recursive walk's `cpsTripleWithin_seq` obligation in
+    one application. Built first try. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override.
+  - **Next (recursive N-field walk theorem):** define `nFieldOutOwn`/`nFieldOutVal` (the `**`-folds of the
+    output cells, bottoming out at `empAssertion`) and prove **`unified_n_scalar_field_walk`** by induction on
+    the field list: nil = `cpsTripleWithin_refl` (weaken `x11` to `regOwn`); cons = the `regOwn`+`memOwn` unit
+    ⨾ the IH, framing the rest-cells through the unit and the written cell through the IH, disjointness via
+    `scalarFieldUnitCR_disjoint_walkCR`. The crux risk is `xperm_hyp` reconciling the intermediate state with
+    the opaque fold conjunct (keep `nFieldOutOwn`/`Val` non-reducible so they stay single atoms). Then chain N
+    `regOwn`-pre decode-and-store units across a
     fixed `(offset, fieldData)` schema (recursion/fold over the list, list-induction on the CodeReq unions
     and frame bookkeeping) → concrete STF transaction (9 fields) / header (~19 fields) decoders producing the
     `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) / zero-length scalars
