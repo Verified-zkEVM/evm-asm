@@ -145,8 +145,8 @@ def registry : List OpcodeEntry := [
       (some "evm_smod_stack_spec_within")
       ("all-case v4 wrapper result-stack spec; zero divisor discharged, " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
-  entry "ADDMOD" .partly (some "evm_addmod_b0_n0_spec_within")
-      "addmod_correct proven; only b=0 stack-spec done",
+  entry "ADDMOD" .partly (some "evm_addmod_n0_spec_within")
+      "addmod_correct proven; zero-modulus stack spec done for arbitrary b",
   entry "MULMOD" .partly none "mulmod_correct proven; no top-level Hoare triple",
   entry "EXP" .partly none "exp_correct proven; program in active development",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
@@ -331,7 +331,7 @@ private noncomputable abbrev _sdiv_witness       :=
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_stack_spec
 private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
-private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_b0_n0_spec_within
+private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_n0_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within
