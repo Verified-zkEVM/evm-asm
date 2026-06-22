@@ -106,6 +106,34 @@ theorem mulModAddPartialHiCarry_zero_zero (a b : Word) :
   unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
   simp [BitVec.ult]
 
+theorem mulModCarryStepCarry_zero_zero :
+    mulModCarryStepCarry 0 0 = (0 : Word) := by
+  unfold mulModCarryStepCarry
+  decide
+
+theorem mulModProductLayoutCall00Carry104_zero (a b : EvmWord) :
+    mulModProductLayoutCall00Carry104 a b = 0 := by
+  unfold mulModProductLayoutCall00Carry104
+  exact mulModAddPartialHiCarry_zero_zero (a.getLimbN 0) (b.getLimbN 0)
+
+theorem mulModProductLayoutCall00Carry112_zero (a b : EvmWord) :
+    mulModProductLayoutCall00Carry112 a b = 0 := by
+  unfold mulModProductLayoutCall00Carry112
+  rw [mulModProductLayoutCall00Carry104_zero]
+  exact mulModCarryStepCarry_zero_zero
+
+theorem mulModProductLayoutCall00P112_zero (a b : EvmWord) :
+    mulModProductLayoutCall00P112 a b = 0 := by
+  unfold mulModProductLayoutCall00P112 mulModCarryStepValue
+  rw [mulModProductLayoutCall00Carry104_zero]
+  rfl
+
+theorem mulModProductLayoutCall00P120_zero (a b : EvmWord) :
+    mulModProductLayoutCall00P120 a b = 0 := by
+  unfold mulModProductLayoutCall00P120 mulModCarryStepValue
+  rw [mulModProductLayoutCall00Carry112_zero]
+  rfl
+
 theorem mulModProductLayoutCall00P96_eq_mul_limb0 (a b : EvmWord) :
     mulModProductLayoutCall00P96 a b = (a * b).getLimbN 0 := by
   rw [← EvmWord.getLimb_as_getLimbN_0, ← productLimb_zero_eq_mul_getLimb]
