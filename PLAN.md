@@ -1680,14 +1680,37 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     mismatch of `bytesRegion_dword_at`), so the `SB` lands exactly on `bs.set i b` via `packBytes_set`. Uses
     `List.take_set`/`drop_set`. The byte-copy MEMORY MODEL is now complete (read + write). Axiom-clean, 0
     sorry, 0 warnings.
-  - **Next (byte-copy loop → address/hash field units → heterogeneous schema):** with read
-    (`bytesRegion_lbu_within`) and write (`bytesRegion_sb_within`) in hand, build the counted **LBU+SB copy
-    loop** (6-instr body `LBU x12,x13,0; SB x12,x14,0; ADDI x13,x13,1; ADDI x14,x14,1; ADDI x15,x15,-1;
-    BNE x15,x0,back`, inductive closure over N like `rlp_phase2_long_loop_succ_spec_within`) copying N bytes
-    src→dst region. Then address/hash field units (decode header → copy 20/32 payload bytes to the output
-    slot), then a heterogeneous schema walk (scalar | address | hash units), then concrete legacy-tx (9-field)
-    / header decoders producing the `BlockInput`. Also still needed: n=0 (empty `.bytes` → 0) scalar variant
-    (branch-to-skip-loop). Earlier note (still applies): chain N `regOwn`-pre decode-and-store
+  - ⚠️ **Design correction (the byte-copy loop is UNROLLED, with independent indices).** Two refinements to
+    the original "counted LBU+SB loop" plan: (1) field sizes are fixed (20/32 bytes), so the copy is an
+    **unrolled chain** of N blocks (no hardware back-branch / `cpsBranchWithin` — a tight loop is a future
+    code-size optimization); (2) a field copy needs **independent** src/dst byte indices — the input-buffer
+    payload position `si0` is unrelated to the output-struct field offset `di0` and can be smaller than it
+    (e.g. legacy-tx `value` at struct offset 76), so the destination is the WHOLE dword-aligned output-struct
+    `bytesRegion` (only its base aligned; `di0` arbitrary/unaligned). The first (coupled `src = off + dst`)
+    copy_iter/chain were superseded by general (independent-index) versions.
+  - ✅ **Step 17 — copy-loop iteration** (`ByteCopyIter.lean`, coupled) — one LBU-read + SB-write + 3 pointer
+    ADDIs; **step 20** (`ByteCopyIterGen.lean`) generalizes it to independent `si`/`di`.
+  - ✅ **Step 18 — copy-chain infrastructure** (`ByteCopyChainInfra.lean`): `copyIterCR`, range-based
+    `copyIterCR_disjoint`/`copyIterCR_disjoint_chainCR`, `byteCopyChainCR`, `copyRange`.
+  - ✅ **Step 19/21 — copy-chain spec** (`ByteCopyChain.lean` coupled / `ByteCopyChainGen.lean` general):
+    `rlp_copy_chain_gen_spec` copies N bytes `src[si0..]` → `dst[di0..]` by induction on N (dst region
+    evolving via `bytesRegion_sb_within`), result `copyRangeGen dstBytes srcBytes si0 di0 N`.
+  - ✅ **Step 22 — leaf byte-array field copy** (`UnifiedFieldBytesCopy.lean`). **`unified_field_bytes_copy`**:
+    from `x13 = regionBase + ofNat off` (decoded payload ptr), `ADDI x14, rOut, fieldImm` sets the dst pointer
+    (`signExtend12 fieldImm = ofNat di0`, caller discharges by `decide`), then the general copy chain writes
+    `output[di0..di0+N) := src[off..off+N)`. The byte-array analog of `unified_field_scalar_read`. Plus
+    `singleton_disjoint_byteCopyChainCR`. (CI lesson: macOS `sed \b` silently fails for import insertion —
+    use Edit; `check-unimported.sh` / `check-heartbeats-approved.sh` need bash 4+, can't run on local 3.2.)
+  - **Next (byte-array field unit → heterogeneous schema → concrete decoders):** the FULL byte-array field
+    unit `unified_bytes_field_decode_and_copy` = `unified_list_header_descend` (header → x13 = payload ptr,
+    x11 = length) ⨾ `unified_field_bytes_copy`, with the output region framed through the header descend and
+    the header-leftover regs (`x5/x10/x11`) framed through the copy. Connect `itemPtrRegion`/`itemLenRegion`
+    to concrete `(payloadOff, data.length)` via `bytes_item_payload_window` (mirroring
+    `unified_scalar_field_decode`), and `copyRangeGen outBytes bs payloadOff di0 N` to "`data` written at
+    `di0`" via the payload window (`bs[payloadOff..] = data`); establish `decode (bs.drop O) = some (.bytes
+    data, tail)`. Then a **heterogeneous schema walk** (scalar | address | hash units) and concrete legacy-tx
+    (9-field) / header decoders producing the `BlockInput`. Also still needed: n=0 (empty `.bytes` → 0) scalar
+    variant (branch-to-skip-loop). Earlier note (still applies): chain N `regOwn`-pre decode-and-store
     units across a
     fixed `(offset, fieldData)` schema (recursion/fold over the list, list-induction on the CodeReq unions
     and frame bookkeeping) → concrete STF transaction (9 fields) / header (~19 fields) decoders producing the
