@@ -586,6 +586,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_system_storage_capture_rows:\n  .zero 8\n" ++
   "bv_system_storage_capture_old_count:\n  .zero 8\n" ++
   "bv_system_storage_capture_new_count:\n  .zero 8\n" ++
+  "cssc_stamp_txindex:\n  .zero 8\n" ++       -- lv44p.2.2: block_access_index stamped into captured system rows
   "c1_wcode_ptr:\n  .zero 8\n" ++
   "c1_wcode_len:\n  .zero 8\n" ++
   "c1_er_input:\n  .zero 8\n" ++
