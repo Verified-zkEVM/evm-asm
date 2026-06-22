@@ -155,6 +155,22 @@ private theorem productLimb_high_eq_mulHigh_getLimb (a b : EvmWord) (i : Fin 4) 
     productLimb a b 7 = (EvmWord.mulHigh a b).getLimb 3 := by
   exact productLimb_high_eq_mulHigh_getLimb a b 3
 
+@[simp] theorem productLimb_four_eq_mulHigh_getLimbN_zero (a b : EvmWord) :
+    productLimb a b 4 = (EvmWord.mulHigh a b).getLimbN 0 := by
+  rw [productLimb_four_eq_mulHigh_getLimb_zero, EvmWord.getLimb_as_getLimbN_0]
+
+@[simp] theorem productLimb_five_eq_mulHigh_getLimbN_one (a b : EvmWord) :
+    productLimb a b 5 = (EvmWord.mulHigh a b).getLimbN 1 := by
+  rw [productLimb_five_eq_mulHigh_getLimb_one, EvmWord.getLimb_as_getLimbN_1]
+
+@[simp] theorem productLimb_six_eq_mulHigh_getLimbN_two (a b : EvmWord) :
+    productLimb a b 6 = (EvmWord.mulHigh a b).getLimbN 2 := by
+  rw [productLimb_six_eq_mulHigh_getLimb_two, EvmWord.getLimb_as_getLimbN_2]
+
+@[simp] theorem productLimb_seven_eq_mulHigh_getLimbN_three (a b : EvmWord) :
+    productLimb a b 7 = (EvmWord.mulHigh a b).getLimbN 3 := by
+  rw [productLimb_seven_eq_mulHigh_getLimb_three, EvmWord.getLimb_as_getLimbN_3]
+
 @[simp] theorem productHighLimbs_eq_mulHigh_getLimbs (a b : EvmWord) :
     productHighLimbs a b =
       [(EvmWord.mulHigh a b).getLimb 0, (EvmWord.mulHigh a b).getLimb 1,
