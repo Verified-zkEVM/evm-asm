@@ -528,6 +528,35 @@ theorem mulModProductLayoutCall09P120_eq_expanded_raw (a b : EvmWord) :
   rw [mulModProductLayoutCall09P120_eq_expanded]
   simp only [mulModAddPartialLoProduct]
 
+theorem mulModProductLayoutCall09P120_eq_expanded_lowCarries (a b : EvmWord) :
+    mulModProductLayoutCall09P120 a b =
+      mulModProductLayoutCall02P120 a b +
+        (mulModAddPartialHiProduct (a.getLimbN 2) (b.getLimbN 0) +
+          (if BitVec.ult (mulModProductLayoutCall02P112 a b +
+                a.getLimbN 2 * b.getLimbN 0) (a.getLimbN 2 * b.getLimbN 0) then
+              (1 : Word)
+            else
+              0)) +
+        (mulModAddPartialHiProduct (a.getLimbN 1) (b.getLimbN 1) +
+          (if BitVec.ult (mulModProductLayoutCall03P112 a b +
+                a.getLimbN 1 * b.getLimbN 1) (a.getLimbN 1 * b.getLimbN 1) then
+              (1 : Word)
+            else
+              0)) +
+        (mulModAddPartialHiProduct (a.getLimbN 0) (b.getLimbN 2) +
+          (if BitVec.ult (mulModProductLayoutCall04P112 a b +
+                a.getLimbN 0 * b.getLimbN 2) (a.getLimbN 0 * b.getLimbN 2) then
+              (1 : Word)
+            else
+              0)) +
+        a.getLimbN 3 * b.getLimbN 0 +
+        a.getLimbN 2 * b.getLimbN 1 +
+        a.getLimbN 1 * b.getLimbN 2 +
+        a.getLimbN 0 * b.getLimbN 3 := by
+  rw [mulModProductLayoutCall09P120_eq_expanded_raw]
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  ac_rfl
+
 theorem mulModProductLayoutCall00P96_eq_mul_limb0 (a b : EvmWord) :
     mulModProductLayoutCall00P96 a b = (a * b).getLimbN 0 := by
   rw [← EvmWord.getLimb_as_getLimbN_0, ← productLimb_zero_eq_mul_getLimb]
