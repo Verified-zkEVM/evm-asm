@@ -1729,13 +1729,23 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     field-type decoders together. Disjointness via a clean global range split (`a < base+280` ⇒ unit B `none`,
     else unit A `none`, reusing `spillChainCR_none`/`byteCopyChainCR_none`), avoiding leaf×leaf blowup. Plus
     `spillRange_length`.
-  - **Next (N-field heterogeneous walk → concrete decoders):** generalize step 27 to an N-field schema mixing
-    scalar | byte-array units over one shared output region (recursion/fold over a `(fieldKind, offset, di)`
-    list; the global-range-split disjointness generalizes cleanly since each unit occupies a contiguous code
-    range). Then concrete legacy-tx (9-field) / block-header (~19-field) decoders producing the `BlockInput`,
-    and Phase 6 (`read_input → decode → write_output`). Still-needed field variants: n=0 empty `.bytes` → 0
-    scalar (branch-to-skip-loop), wide scalars (uint256, multi-word). (The 3-sibling block framing walk via
-    `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
+  - ✅ **Step 28 — three-field heterogeneous walk** (`UnifiedThreeFieldWalk.lean`): scalar ⨾ scalar ⨾
+    byte-array, integration test for the regOwn scalar variant + range disjointness.
+  - ✅ **Step 29 — reusable code-range disjointness** (`FieldUnitDisjoint.lean`): `codeReq_disjoint_of_ranges`
+    + per-unit `scalarRegionUnitCR`/`bytesUnitCR` + `…_none_above/_below`.
+  - ✅ **Step 30 — canonical units** (`UnifiedScalarFieldRegionCanonical.lean`): `x5,x10,x11,x12,x15` all
+    `regOwn` (peel `x15`; the bytes→scalar boundary fix).
+  - ✅ **Step 31 — fully-canonical units** (`UnifiedFieldUnitFullyCanonical.lean`): `x14` also `regOwn` — a
+    fully uniform scratch interface (pre/post differ only in `x13` + output region).
+  - ✅ **Step 32 — N-field heterogeneous fold** (`SchemaFold.lean`). **`schema_walk`**: decode an arbitrary
+    `List FieldSpec` (scalar | byte-array, any order) into one shared output region. Definitions
+    (`fieldSize/Steps/Enc/CR/Update`, `schemaSize/Steps/Enc/Out/CR`, `schemaINV`, `SchemaValid`,
+    `schemaDecodes`), length preservation, `schemaCR_none_above/_below`/`…_disjoint…`, a kind-generic
+    `field_step`, and the list-induction fold. The generic engine: concrete decoders are now instantiations.
+  - **Next (concrete decoders → Phase 6):** instantiate `schema_walk` for the legacy-tx (9-field) and
+    block-header (~19-field) schemas → `BlockInput`, then Phase 6 (`read_input → decode → write_output`).
+    Still-needed field variants: n=0 empty `.bytes` → 0 scalar (branch-to-skip-loop), wide scalars
+    (uint256, multi-word). (The 3-sibling block framing walk is trivial glue, deferred.)
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
