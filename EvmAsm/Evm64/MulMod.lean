@@ -19,6 +19,17 @@ import EvmAsm.Evm64.MulMod.AddPartialSpecs
 import EvmAsm.Evm64.MulMod.AddPartialTable
 import EvmAsm.Evm64.MulMod.ProductLayoutLifts
 import EvmAsm.Evm64.MulMod.ProductLayoutCall05
+import EvmAsm.Evm64.MulMod.ProductLayoutCall06
+import EvmAsm.Evm64.MulMod.ProductLayoutCall07
+import EvmAsm.Evm64.MulMod.ProductLayoutCall08
+import EvmAsm.Evm64.MulMod.ProductLayoutCall09
+import EvmAsm.Evm64.MulMod.ProductLayoutCall10
+import EvmAsm.Evm64.MulMod.ProductLayoutCall11
+import EvmAsm.Evm64.MulMod.ProductLayoutCall12
+import EvmAsm.Evm64.MulMod.ProductLayoutCall13
+import EvmAsm.Evm64.MulMod.ProductLayoutCall14
+import EvmAsm.Evm64.MulMod.ProductLayoutCall15
+import EvmAsm.Evm64.MulMod.ProductLayoutPublicAlgebra
 import EvmAsm.Evm64.MulMod.AddrNorm
 import EvmAsm.Evm64.MulMod.Compose.Base
 import EvmAsm.Evm64.MulMod.Compose.ProductCore
