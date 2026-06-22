@@ -1633,7 +1633,22 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `sDisj` helper shares the 4 singleton A-leaves; `ofProg_disjoint_range_len` for the ofProg pairs; per-leaf
     explicit lengths to avoid `first`-backtracking whnf-loops). Axiom-clean, 0 sorry, 0 warnings, no heartbeat
     override. Concrete two-byte example: `42 → 0x3000`, `7 → 0x3008`.
-  - **Next (N-field schema chain → STF decoders):** chain N `regOwn`-pre decode-and-store units across a
+  - ✅ **Step 12 — reusable field-unit CR + three-field walk** (`ScalarFieldWalkChain.lean`).
+    **`scalarFieldUnitCR base rOut offset`**: the decode-and-store unit's 46-slot CodeReq named for reuse
+    (defeq to the units' inline CR). **`scalarFieldUnitCR_none`** / **`scalarFieldUnitCR_disjoint`**: a
+    range-based disjointness lemma (à la `descend_cr_disjoint` / `descendCR_none`) — two units whose 184-byte
+    code ranges don't overlap (`base2 ≥ base1 + 184`) have disjoint CodeReqs, proved ONCE. This replaces the
+    36-leaf-per-pair blowup: chaining is now `union_left`/`union_right` + one lemma application per pair.
+    **`unified_three_scalar_field_walk`**: composes `unified_two_scalar_field_walk` (A, B) ⨾ one more `regOwn`
+    unit (C), each prior cell framed through the later units, unit-AB ⊥ unit-C via two
+    `scalarFieldUnitCR_disjoint` applications; carries all three `decodeScalar` peels (offset/drop bookkeeping
+    via `append_assoc` + `← drop_drop`/`drop_append_length`). The concrete inductive step toward N. Built
+    first try. Axiom-clean, 0 sorry, 0 warnings, no heartbeat override. Three-byte example: `42/7/9 →
+    0x3000/0x3008/0x3010`.
+  - **Next (recursive N-field walk → STF decoders):** with the per-pair disjointness now a one-liner, define
+    the N-field walk by recursion over a list of field descriptors `(offset, data)` and prove by induction
+    (inductive step = one `regOwn` unit ⨾ the rest; the output cells become an opaque `**`-fold framed
+    through each step). Then chain N `regOwn`-pre decode-and-store units across a
     fixed `(offset, fieldData)` schema (recursion/fold over the list, list-induction on the CodeReq unions
     and frame bookkeeping) → concrete STF transaction (9 fields) / header (~19 fields) decoders producing the
     `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) / zero-length scalars
