@@ -203,7 +203,13 @@ def ziskBalAllAccountsStorageConsistentDataSection : String :=
   balStorageChangeValuesData ++
   balStorageMatchesExecLogData ++
   balStorageCoversExecLogData ++
-  ziskBalAccountIsModeledSystemDataSection   -- .57.11.6.5.1: bams_* for the modeled-system skip
+  ziskBalAccountIsModeledSystemDataSection ++   -- .57.11.6.5.1: bams_* for the modeled-system skip
+  -- lv44p: empty captured-system-log stub so the focused probe links the bsme/bsce
+  -- bv_system_storage_log scan (count 0 -> inert; the verdict links the real globals).
+  ".balign 8\n" ++
+  "bv_system_storage_log_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_system_storage_log:\n  .zero 128\n"
 
 def ziskBalAllAccountsStorageConsistentProbeUnit : BuildUnit := {
   body        := NOP
