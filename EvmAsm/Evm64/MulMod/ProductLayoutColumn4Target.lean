@@ -207,6 +207,18 @@ theorem mulModProductLayoutColumn4Call08P120FeedValue_toNat_eq_schoolbook_limb4
   rw [mulModProductLayoutCall09P128_toNat_eq_limb3Carry]
   omega
 
+/-- The call08 feed cell is the fourth schoolbook product limb. -/
+theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four
+    (a b : EvmWord) :
+    mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [mulModProductLayoutColumn4Call08P120FeedValue_toNat_eq_schoolbook_limb4]
+  simp only [productLimb, productNat, BitVec.toNat_ofNat, Nat.reduceMul]
+  rw [EvmWord.toNat_eq_limb_sum a, EvmWord.toNat_eq_limb_sum b]
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
+  rw [mulModProductLayoutSchoolbookLimb4]
+
 /-- The folded call08-feed target is exactly the existing expanded column-four target. -/
 theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four_iff_expandedValue
     (a b : EvmWord) :
@@ -233,6 +245,12 @@ theorem mulModProductLayoutCall12P128_eq_productLimb_four_iff_call08P120FeedValu
     mulModProductLayoutColumn4Value_eq_expandedValue,
     mulModProductLayoutColumn4Call08P120FeedValue_eq_expandedValue]
 
+/-- The concrete call12 P128 cell is the fourth schoolbook product limb. -/
+theorem mulModProductLayoutCall12P128_eq_productLimb_four (a b : EvmWord) :
+    mulModProductLayoutCall12P128 a b = productLimb a b 4 := by
+  exact (mulModProductLayoutCall12P128_eq_productLimb_four_iff_call08P120FeedValue
+    a b).2 (mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four a b)
+
 /-- The concrete call12 high-limb target is equivalent to the folded
     call08-feed product-limb-4 obligation. -/
 theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_iff_call08P120FeedValue
@@ -241,6 +259,12 @@ theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_iff_call08P120Fee
       (mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) := by
   rw [← productLimb_four_eq_mulHigh_getLimbN_zero]
   exact mulModProductLayoutCall12P128_eq_productLimb_four_iff_call08P120FeedValue a b
+
+/-- The concrete call12 P128 cell is the low limb of the high 256-bit product. -/
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero (a b : EvmWord) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact (mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_iff_call08P120FeedValue
+    a b).2 (mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four a b)
 
 /-- The folded call08-feed product-limb-4 target is the same as the direct
     mulHigh limb0 target. -/
