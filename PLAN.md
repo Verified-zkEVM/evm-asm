@@ -1864,7 +1864,13 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     composes the `read_input` Phase-4 wrapper (`rlp_phase4_read_input_len_spec_within_exact`) with
     `LD x13, x12, ptr_ptr_off`, loading the returned `inputBufBase` into `x13` (the decoder's input
     pointer). Out-cells end `(buf_base, input.length)`, `x13 = buf_base`; `inputBufBaseIs`/`privateInputIs`
-    preserved. Next: compose with `decode_encoded_short_list_schema_values` (read ⨾ decode).
+    preserved.
+  - ✅ **Step 55 — read ⨾ decode** (`Phase6ReadDecode.lean`, `rlp_phase6_read_and_decode`): composes the
+    hand-off with `decode_encoded_short_list_schema_values`. From the host-ABI input contract
+    (`inputBufBaseIs buf_base`, `privateInputIs input`, `bytesRegion buf_base input` at the aligned/readable
+    buffer) with `input = encode (.list (schemaItems specs)) ++ tail`, the `read_input` syscall + `LD` +
+    decoder run end to end: the record is decoded into `bytesRegion outBase (schemaOut out specs)` with
+    `schemaScalarValues` recovered. Next: `write_output` wrapper + `decode ⨾ write_output`.
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
   C ABI.
