@@ -492,6 +492,22 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   hub that re-exports the three sub-files, so every downstream
   `import EvmAsm.Evm64.DivMod.LoopDefs` works unchanged. Follow-on work
   on `LimbSpec.lean` (still 2,992 lines) pending.
+- **n=1 single-limb DIV/MOD fast path** (`Evm64/DivMod/FastN1Program.lean`,
+  issue #9303): `evm_div_v6` / `evm_mod_v6` prepend a runtime dispatch that
+  routes single-limb divisors (`b1=b2=b3=0, b0≠0`) to a lightweight path —
+  normalize one limb, then 4 exact per-limb 128/64 divides through the fast
+  path's own `divK_div128_v5` copy, threading the remainder with a single
+  MUL/SUB (no 4-limb mul-sub correction loop). n≥2 and b=0 fall through to the
+  reused, untouched `evm_div_v5`/`evm_mod_v5`. **Status: executable + `#guard`
+  functional tests landed** (`FastN1ProgramTest.lean`, both normalization
+  paths + dispatch routing validated end-to-end; ~700→~420 step est).
+  **Stack-level proof TODO** — composition reuse must first pin the consistent
+  (spec, executable, code-bundle) triple: the proven `evm_div_stack_spec` is
+  over `divCode` (v1 `divK_div128` block), while executables use v4/v5 div128
+  and `divCode_v5` is currently unused by any spec (v1→v4→v5 migration
+  artifact). Then: dispatch `cpsBranchWithin`, fast-path body
+  `cpsTripleWithin` (micro-decomposed under the WHNF atom ceiling), reuse the
+  n1 exactness math (`fullDivN1R*`), and merge arms on `divStackDispatchPost`.
 - **File-size guardrail** (`scripts/check-file-size.sh`, issue #314): CI step
   enforcing per-file line caps (1200 for `Compose/**`, 1500 elsewhere; `Program.lean`
   exempt). Files may opt out with a `-- file-size-exception: <reason>` comment in
