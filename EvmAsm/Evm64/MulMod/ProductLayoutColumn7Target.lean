@@ -799,6 +799,58 @@ def mulModProductLayoutColumn7Value (a b : EvmWord) : Word :=
   mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
     (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3)
 
+
+/-- The folded column-seven target is the schoolbook limb-seven value. -/
+theorem mulModProductLayoutColumn7Value_toNat_eq_schoolbook_limb7 (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let d5 := a2.toNat * b3.toNat + a3.toNat * b2.toNat
+    let d6 := a3.toNat * b3.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    let c6 := (d5 + c5) / 2 ^ 64
+    (mulModProductLayoutColumn7Value a b).toNat = (d6 + c6) / 2 ^ 64 % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutColumn7Value
+  simp only [mulModAddPartialHiValue_toNat_forColumn7,
+    mulModProductLayoutCall14P152_toNat_eq_c6_high,
+    mulModProductLayoutCall14P144_toNat_eq_c6_carry]
+  have h33 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 3)
+  norm_num at h33 ⊢
+  omega
+
+/-- The folded column-seven target is the seventh schoolbook product limb. -/
+theorem mulModProductLayoutColumn7Value_eq_productLimb_seven (a b : EvmWord) :
+    mulModProductLayoutColumn7Value a b = productLimb a b 7 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [mulModProductLayoutColumn7Value_toNat_eq_schoolbook_limb7]
+  simp only [productLimb, productNat, BitVec.toNat_ofNat, Nat.reduceMul]
+  rw [EvmWord.toNat_eq_limb_sum a, EvmWord.toNat_eq_limb_sum b]
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
+  rw [mulModProductLayoutSchoolbookLimb7]
+
+/-- The folded column-seven target is the fourth high product limb. -/
+theorem mulModProductLayoutColumn7Value_eq_mulHigh_getLimbN_three (a b : EvmWord) :
+    mulModProductLayoutColumn7Value a b = (EvmWord.mulHigh a b).getLimbN 3 := by
+  rw [← productLimb_seven_eq_mulHigh_getLimbN_three]
+  exact mulModProductLayoutColumn7Value_eq_productLimb_seven a b
+
 /-- The concrete call15 P152 cell is the folded column-seven target. -/
 theorem mulModProductLayoutCall15P152Value_eq_column7Value (a b : EvmWord) :
     mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
@@ -815,6 +867,15 @@ theorem mulModProductLayoutCall15P152Value_eq_productLimb_seven_iff_column7Value
         productLimb a b 7) ↔
       (mulModProductLayoutColumn7Value a b = productLimb a b 7) := by
   rfl
+
+
+/-- The concrete call15 P152 cell is the seventh schoolbook product limb. -/
+theorem mulModProductLayoutCall15P152Value_eq_productLimb_seven (a b : EvmWord) :
+    mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
+      (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3) =
+        productLimb a b 7 := by
+  rw [mulModProductLayoutCall15P152Value_eq_column7Value]
+  exact mulModProductLayoutColumn7Value_eq_productLimb_seven a b
 
 /-- The concrete call15 high-limb target is equivalent to the folded
     column-seven product-limb obligation. -/
@@ -843,6 +904,15 @@ theorem mulModProductLayoutColumn7Value_eq_mulHigh_getLimbN_three_of_productLimb
       (EvmWord.mulHigh a b).getLimbN 3 := by
   exact (mulModProductLayoutColumn7Value_eq_mulHigh_getLimbN_three_iff_productLimb_seven
     a b).2 h_col
+
+
+/-- The concrete call15 P152 cell is the fourth high product limb. -/
+theorem mulModProductLayoutCall15P152Value_eq_mulHigh_getLimbN_three (a b : EvmWord) :
+    mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
+      (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3) =
+        (EvmWord.mulHigh a b).getLimbN 3 := by
+  rw [← productLimb_seven_eq_mulHigh_getLimbN_three]
+  exact mulModProductLayoutCall15P152Value_eq_productLimb_seven a b
 
 theorem mulModProductLayoutCall15P152Value_eq_mulHigh_getLimbN_three_of_column7Value_mulHigh
     {a b : EvmWord}
