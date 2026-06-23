@@ -18,6 +18,7 @@ import EvmAsm.Evm64.MulMod.ReduceSemantics
 import EvmAsm.Evm64.MulMod.ReduceShift
 import EvmAsm.Evm64.MulMod.ReduceCompare
 import EvmAsm.Evm64.MulMod.ReduceInnerStepPrefix
+import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
 import EvmAsm.Evm64.MulMod.LimbSpec
 import EvmAsm.Evm64.MulMod.AddPartialSpecs
 import EvmAsm.Evm64.MulMod.AddPartialTable
