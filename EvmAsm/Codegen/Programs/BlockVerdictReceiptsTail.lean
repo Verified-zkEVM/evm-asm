@@ -92,23 +92,28 @@ def blockVerdictReceiptsTail : String :=
   "  add t4, t1, t3; bltu t4, t1, .Lbv_bbow426_done\n" ++
   "  sd t4, 0(t0)\n" ++
   ".Lbv_bbow426_done:\n" ++
-  -- rmqwf (class D): top-level CREATE-collision receipt gas correction. The collision
-  -- branch (BlockVerdictCreateCollision) hardcodes bv_runtime_gas_left=0 (it bypasses
-  -- dispatcher_tx_gas_settle since no initcode executes), so tx_gas_result_increments
-  -- computes before_refund = tx.gas - 0, WRONGLY folding the intrinsic state reservation
-  -- into the receipt increment. Per amsterdam fork.py:1122-1138 an error tx returns the
-  -- state dimension (state_gas_left += state_gas_used + new_account_refund), so the spec
-  -- receipt = tx.gas - gas_left - state_gas_left = the REGULAR gas only. blockVerdictExactGasCheck
-  -- already normalized bvgr_block_gas_increments[0] to that regular dimension (it subtracts
-  -- the peeled state gas + applies the calldata floor), and for an error tx refund=0 so
-  -- receipt == block_inc. Mirror it. Gate: shape==6 (the single-tx top-level-creation
-  -- classification, set ONLY by CreateCollision/CreationStage) AND bv_tx_status_arr[0]==0
-  -- (error) -> the collision uniquely (successful creation has status=1; non-collision CREATE
-  -- errors route to the runtime path with a correct settle-derived gas_left). No other shape/
-  -- status is touched.
+  -- rmqwf/coc3g.16: top-level CREATE receipt gas correction. Shape 6 is the
+  -- single-tx top-level-creation classification set only by CreateCollision and
+  -- CreationStage. Both successful and collision creation can be header/state-gas
+  -- dominated. Failed/collision creation receipts use the regular tx dimension;
+  -- successful creation receipts include both the regular intrinsic dimension
+  -- and the EIP-8037 state dimension. The gas gate computed the regular
+  -- intrinsic/floor values for this single tx, and the exact-gas path computed
+  -- bvgr_tx_total_state_gas, so reconstruct the consensus receipt increment
+  -- here before materializing the receipt record.
   "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 6; bne t0, t1, .Lbv_rmqwf_collision_done\n" ++
-  "  la t0, bv_tx_status_arr; ld t0, 0(t0); bnez t0, .Lbv_rmqwf_collision_done\n" ++
+  "  la t0, bv_tx_status_arr; ld t0, 0(t0); bnez t0, .Lbv_rmqwf_shape6_success\n" ++
   "  la t0, bvgr_block_gas_increments; ld t1, 0(t0)\n" ++
+  "  j .Lbv_rmqwf_shape6_floor_max\n" ++
+  ".Lbv_rmqwf_shape6_success:\n" ++
+  "  la t0, bsg_intrinsic_gas; ld t1, 0(t0)\n" ++
+  ".Lbv_rmqwf_shape6_floor_max:\n" ++
+  "  la t0, bsg_floor_gas; ld t2, 0(t0); bgeu t1, t2, .Lbv_rmqwf_shape6_floor_done\n" ++
+  "  mv t1, t2\n" ++
+  ".Lbv_rmqwf_shape6_floor_done:\n" ++
+  "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_rmqwf_shape6_store\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t2, 0(t0); add t1, t1, t2; bltu t1, t2, .Lbv_rmqwf_collision_done\n" ++
+  ".Lbv_rmqwf_shape6_store:\n" ++
   "  la t0, bvgr_receipt_gas_increments; sd t1, 0(t0)\n" ++
   ".Lbv_rmqwf_collision_done:\n" ++
   -- bmvmx.5.5.2.2.12: bvgr_receipt_gas_increments[i] is now the spec-exact per-tx gas_used, so run
