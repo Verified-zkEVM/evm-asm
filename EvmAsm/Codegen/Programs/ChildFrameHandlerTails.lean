@@ -104,7 +104,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the guest previously took the cheap collision push-0 path -> under-charged header.gas_used.
     -- Gated on the account-witness context (env+584) like the balance/collision checks; a
     -- pure-arithmetic guard that can only ADD a required abort, never weaken one (soundness:
-    -- never admits a block the spec rejects). Clobbers t0/t1; a1 is reloaded by the gate below.
+    -- never accepts a block the spec rejects). Clobbers t0/t1; a1 is reloaded by the gate below.
     "  ld a1, 584(x20)\n" ++
     "  beqz a1, .Lcr_csg_oog_ok_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- t0 = NEW_ACCOUNT state gas = 120*1530 = 183600
@@ -259,7 +259,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez t0, 7f\n" ++
     "  la x18, hcon_predicate\n" ++
     "  ld x18, 0(x18)\n" ++
-    "  bnez x18, 7f\n" ++
+    "  bnez x18, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "6:\n" ++
     -- coc3g.6 CAUSE 2: mirror spec generic_create (amsterdam vm/instructions/system.py:122
     -- `evm.accessed_addresses.add(contract_address)`). On the committing CREATE path the derived
@@ -442,6 +442,28 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  j .dispatch_loop\n" ++
+    -- bbow4.4: EIP-684 CREATE/CREATE2 address collision consumes the child
+    -- create-message gas allocation, while the pre-execute NEW_ACCOUNT state-gas
+    -- charge is immediately refunded. The shared `7f` zero-result path kept all
+    -- parent gas except CREATE static/base costs, so exact block gas under-counted
+    -- the burned 63/64 child allotment. Compute:
+    --   spill = max(0, NEW_ACCOUNT - state_gas_left)
+    --   gas_after_state = gas_left - spill
+    --   final_parent_gas = spill + floor(gas_after_state / 64)
+    -- without mutating state-gas globals; collision has net-zero state gas.
+    ".Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
+    "  la t1, evm_state_gas_left\n  ld t1, 0(t1)\n" ++
+    "  li t2, 0\n" ++
+    "  bgeu t1, t0, .Lcr_col_spill_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  sub t2, t0, t1\n" ++
+    ".Lcr_col_spill_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  ld t3, 568(x20)\n" ++
+    "  bltu t3, t2, .exit_outofgas\n" ++
+    "  sub t3, t3, t2\n" ++
+    "  srli t3, t3, 6\n" ++
+    "  add t3, t3, t2\n" ++
+    "  sd t3, 568(x20)\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  sd x0, 0(x12)\n" ++
