@@ -2800,6 +2800,14 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
+  -- lv44p.1: 32-byte zero-pad staging window for CALLDATALOAD (h_CALLDATALOAD
+  -- preBody). The verified mload body reads a raw 32-byte window with no
+  -- out-of-bounds guard; the handler stages a zero-padded copy here so reads
+  -- past env.callDataLen yield the EVM-mandated zero pad instead of adjacent
+  -- memory. Used transiently within one opcode dispatch (no re-entrancy: the
+  -- dispatcher runs one opcode at a time), so a single static buffer is sound.
+  "bv_cdl_stage:\n  .zero 32\n" ++
+  ".balign 8\n" ++
   "txal_type:\n  .zero 8\n" ++
   "txal_inner_off:\n  .zero 8\n" ++
   "txal_span_ptr:\n  .zero 8\n" ++
