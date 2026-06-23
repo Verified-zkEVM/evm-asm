@@ -2289,6 +2289,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- EIP-7702 validate_authorization refunds state gas into the message reservoir
+  -- when the recovered authority already exists (and, separately, for existing
+  -- delegation code). Transaction-aware callers compute the exact BAL/pre-state
+  -- refund and stage it in runtime_tx_auth_state_refund before this setup runs.
+  "  la x11, runtime_tx_auth_state_refund\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_auth_state_refund_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
@@ -2807,6 +2819,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_list_len:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_warm_fn:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
