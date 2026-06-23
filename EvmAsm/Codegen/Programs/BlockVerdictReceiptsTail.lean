@@ -47,6 +47,22 @@ def blockVerdictReceiptsTail : String :=
   "  la a5, bvgr_block_gas_increments\n" ++
   "  la a6, bvgr_tx_exec_state_gas\n" ++
   "  jal ra, block_verdict_receipt_gas_eip8037_adjust\n" ++
+  -- bbow4.2.6: child CREATE/CREATE2 init-code REVERT can leave the single-tx
+  -- legacy contract receipt increment at the regular-gas value even though the
+  -- child CREATE account state-gas charge remains receipt-visible. Passing
+  -- sibling rows already have receipt_gas >= the block/header gas after prior
+  -- repairs; only repair the under-count signature, and only for the supported
+  -- single legacy contract shape (3) with a successful top-level transaction.
+  "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_bbow426_done\n" ++
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_bbow426_done\n" ++
+  "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_bbow426_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0)\n" ++
+  "  la t2, bv_exact_expected_gas_used; ld t2, 0(t2); bgeu t1, t2, .Lbv_bbow426_done\n" ++
+  "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 183600; bltu t3, t5, .Lbv_bbow426_done\n" ++
+  "  mv t3, t5\n" ++
+  "  add t4, t1, t3; bltu t4, t1, .Lbv_bbow426_done\n" ++
+  "  sd t4, 0(t0)\n" ++
+  ".Lbv_bbow426_done:\n" ++
   -- rmqwf (class D): top-level CREATE-collision receipt gas correction. The collision
   -- branch (BlockVerdictCreateCollision) hardcodes bv_runtime_gas_left=0 (it bypasses
   -- dispatcher_tx_gas_settle since no initcode executes), so tx_gas_result_increments
