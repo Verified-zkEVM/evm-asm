@@ -91,6 +91,120 @@ private theorem mulModProductLayoutCall05P136_zero (a b : EvmWord) :
   rw [mulModProductLayoutCall04P136_zero, mulModProductLayoutCall05Carry128_zero]
   rfl
 
+private theorem mulModAddPartialLoValue_toNat (lo x y : Word) :
+    (mulModAddPartialLoValue lo x y).toNat = (lo.toNat + (x * y).toNat) % 2 ^ 64 := by
+  unfold mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [BitVec.toNat_add]
+
+private theorem mulModAddPartialHiValue_toNat (hi lo x y : Word) :
+    (mulModAddPartialHiValue hi lo x y).toNat =
+      (hi.toNat + ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+        2 ^ 64) % 2 ^ 64 := by
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseValue mulModAddPartialHiProduct
+  rw [BitVec.toNat_add]
+  rw [BitVec.toNat_add]
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+  omega
+
+private theorem mulModAddPartialHiCarry_toNat (hi lo x y : Word) :
+    (mulModAddPartialHiCarry hi lo x y).toNat =
+      (hi.toNat + ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+        2 ^ 64) / 2 ^ 64 := by
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+  rw [BitVec.toNat_add]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue
+    mulModAddPartialLoProduct
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+
+private theorem mulModProductLayoutCall06P120_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall06P120 a b).toNat =
+      ((mulModProductLayoutCall05P120 a b).toNat +
+        (a.getLimbN 3 * b.getLimbN 0).toNat) % 2 ^ 64 := by
+  unfold mulModProductLayoutCall06P120
+  exact mulModAddPartialLoValue_toNat _ _ _
+
+private theorem mulModProductLayoutCall07P120_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall07P120 a b).toNat =
+      ((mulModProductLayoutCall06P120 a b).toNat +
+        (a.getLimbN 2 * b.getLimbN 1).toNat) % 2 ^ 64 := by
+  unfold mulModProductLayoutCall07P120
+  exact mulModAddPartialLoValue_toNat _ _ _
+
+private theorem mulModProductLayoutCall08P120_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall08P120 a b).toNat =
+      ((mulModProductLayoutCall07P120 a b).toNat +
+        (a.getLimbN 1 * b.getLimbN 2).toNat) % 2 ^ 64 := by
+  unfold mulModProductLayoutCall08P120
+  exact mulModAddPartialLoValue_toNat _ _ _
+
+private theorem mulModProductLayoutCall06P128_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall06P128 a b).toNat =
+      ((mulModProductLayoutCall05P128 a b).toNat +
+        ((rv64_mulhu (a.getLimbN 3) (b.getLimbN 0)).toNat +
+          ((mulModProductLayoutCall05P120 a b).toNat +
+            (a.getLimbN 3 * b.getLimbN 0).toNat) / 2 ^ 64) % 2 ^ 64) %
+        2 ^ 64 := by
+  unfold mulModProductLayoutCall06P128
+  exact mulModAddPartialHiValue_toNat _ _ _ _
+
+private theorem mulModProductLayoutCall07P128_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall07P128 a b).toNat =
+      ((mulModProductLayoutCall06P128 a b).toNat +
+        ((rv64_mulhu (a.getLimbN 2) (b.getLimbN 1)).toNat +
+          ((mulModProductLayoutCall06P120 a b).toNat +
+            (a.getLimbN 2 * b.getLimbN 1).toNat) / 2 ^ 64) % 2 ^ 64) %
+        2 ^ 64 := by
+  unfold mulModProductLayoutCall07P128
+  exact mulModAddPartialHiValue_toNat _ _ _ _
+
+private theorem mulModProductLayoutCall08P128_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall08P128 a b).toNat =
+      ((mulModProductLayoutCall07P128 a b).toNat +
+        ((rv64_mulhu (a.getLimbN 1) (b.getLimbN 2)).toNat +
+          ((mulModProductLayoutCall07P120 a b).toNat +
+            (a.getLimbN 1 * b.getLimbN 2).toNat) / 2 ^ 64) % 2 ^ 64) %
+        2 ^ 64 := by
+  unfold mulModProductLayoutCall08P128
+  exact mulModAddPartialHiValue_toNat _ _ _ _
+
+private theorem mulModProductLayoutCall06Carry128_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall06Carry128 a b).toNat =
+      ((mulModProductLayoutCall05P128 a b).toNat +
+        ((rv64_mulhu (a.getLimbN 3) (b.getLimbN 0)).toNat +
+          ((mulModProductLayoutCall05P120 a b).toNat +
+            (a.getLimbN 3 * b.getLimbN 0).toNat) / 2 ^ 64) % 2 ^ 64) / 2 ^ 64 := by
+  unfold mulModProductLayoutCall06Carry128
+  exact mulModAddPartialHiCarry_toNat _ _ _ _
+
+private theorem mulModProductLayoutCall07Carry128_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall07Carry128 a b).toNat =
+      ((mulModProductLayoutCall06P128 a b).toNat +
+        ((rv64_mulhu (a.getLimbN 2) (b.getLimbN 1)).toNat +
+          ((mulModProductLayoutCall06P120 a b).toNat +
+            (a.getLimbN 2 * b.getLimbN 1).toNat) / 2 ^ 64) % 2 ^ 64) / 2 ^ 64 := by
+  unfold mulModProductLayoutCall07Carry128
+  exact mulModAddPartialHiCarry_toNat _ _ _ _
+
+private theorem mulModProductLayoutCall08Carry128_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall08Carry128 a b).toNat =
+      ((mulModProductLayoutCall07P128 a b).toNat +
+        ((rv64_mulhu (a.getLimbN 1) (b.getLimbN 2)).toNat +
+          ((mulModProductLayoutCall07P120 a b).toNat +
+            (a.getLimbN 1 * b.getLimbN 2).toNat) / 2 ^ 64) % 2 ^ 64) / 2 ^ 64 := by
+  unfold mulModProductLayoutCall08Carry128
+  exact mulModAddPartialHiCarry_toNat _ _ _ _
+
+private theorem mulModProductLayoutCall09Carry128_toNat (a b : EvmWord) :
+    (mulModProductLayoutCall09Carry128 a b).toNat =
+      ((mulModProductLayoutCall08P128 a b).toNat +
+        ((rv64_mulhu (a.getLimbN 0) (b.getLimbN 3)).toNat +
+          ((mulModProductLayoutCall08P120 a b).toNat +
+            (a.getLimbN 0 * b.getLimbN 3).toNat) / 2 ^ 64) % 2 ^ 64) / 2 ^ 64 := by
+  unfold mulModProductLayoutCall09Carry128
+  exact mulModAddPartialHiCarry_toNat _ _ _ _
+
 private theorem mulModProductLayoutCarryTelescoping5
     (d0 d1 d2 d3 d4 c1 c2 c3 c4 c5 w : Nat)
     (h0 : w * c1 + d0 % w = d0)
@@ -221,6 +335,7 @@ private theorem mulModProductLayoutCarryChainHigh4CarryEq
   subst w
   norm_num at h30 h21 h12 h03 ⊢
   omega
+
 
 
 theorem mulModProductLayoutSchoolbookLimb5
