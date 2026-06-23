@@ -689,4 +689,332 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_ge_spec_within
       exact (sepConj_pure_right h).2 ⟨hp, mulModReduceRemGE_of_limb0_ge r n h3_eq h2_eq h1_eq hge⟩)
     (evm_mulmod_reduce512_inner_step_compare_limb0_ge_raw_spec_within sp base r n hge)
 
+
+/-- The high-limb gt path code is a prefix of the full compare ladder. -/
+theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_code_eq_ofProg (base : Word) :
+    evm_mulmod_reduce512_inner_step_compare_limb3_gt_code base =
+      CodeReq.ofProg (base + 84)
+        [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13))] := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_compare_limb3_gt_code
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 84 : Word) + 4 = base + 88 by bv_addr]
+  rw [show (base + 88 : Word) + 4 = base + 92 by bv_addr]
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_compare_limb3_gt_code base a = some i →
+      evm_mulmod_reduce512_inner_step_compare_code base a = some i := by
+  rw [evm_mulmod_reduce512_inner_step_compare_limb3_gt_code_eq_ofProg base]
+  unfold evm_mulmod_reduce512_inner_step_compare_code
+  refine CodeReq.ofProg_mono_sub (base + 84) (base + 84)
+    evm_mulmod_reduce512_inner_step_compare
+    [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13))]
+    0 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 0) = (0 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+/-- The high-limb lt/equality path code is a prefix of the full compare ladder. -/
+theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_eq_ofProg (base : Word) :
+    evm_mulmod_reduce512_inner_step_compare_limb3_lt_code base =
+      CodeReq.ofProg (base + 84)
+        [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13)),
+          (.BLTU .x6 .x7 (152 : BitVec 13))] := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_compare_limb3_lt_code
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 84 : Word) + 4 = base + 88 by bv_addr]
+  rw [show (base + 88 : Word) + 4 = base + 92 by bv_addr]
+  rw [show (base + 92 : Word) + 4 = base + 96 by bv_addr]
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_compare_limb3_lt_code base a = some i →
+      evm_mulmod_reduce512_inner_step_compare_code base a = some i := by
+  rw [evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_eq_ofProg base]
+  unfold evm_mulmod_reduce512_inner_step_compare_code
+  refine CodeReq.ofProg_mono_sub (base + 84) (base + 84)
+    evm_mulmod_reduce512_inner_step_compare
+    [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13)),
+      (.BLTU .x6 .x7 (152 : BitVec 13))]
+    0 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 0) = (0 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+/-- The limb2 gt path code is a subrange of the full compare ladder. -/
+theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_code_eq_ofProg (base : Word) :
+    evm_mulmod_reduce512_inner_step_compare_limb2_gt_code base =
+      CodeReq.ofProg (base + 100)
+        [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13))] := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_compare_limb2_gt_code
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 100 : Word) + 4 = base + 104 by bv_addr]
+  rw [show (base + 104 : Word) + 4 = base + 108 by bv_addr]
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_compare_limb2_gt_code base a = some i →
+      evm_mulmod_reduce512_inner_step_compare_code base a = some i := by
+  rw [evm_mulmod_reduce512_inner_step_compare_limb2_gt_code_eq_ofProg base]
+  unfold evm_mulmod_reduce512_inner_step_compare_code
+  refine CodeReq.ofProg_mono_sub (base + 84) (base + 100)
+    evm_mulmod_reduce512_inner_step_compare
+    [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13))]
+    4 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 4) = (16 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+/-- The limb2 lt/equality path code is a subrange of the full compare ladder. -/
+theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_eq_ofProg (base : Word) :
+    evm_mulmod_reduce512_inner_step_compare_limb2_lt_code base =
+      CodeReq.ofProg (base + 100)
+        [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13)),
+          (.BLTU .x6 .x7 (136 : BitVec 13))] := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_compare_limb2_lt_code
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 100 : Word) + 4 = base + 104 by bv_addr]
+  rw [show (base + 104 : Word) + 4 = base + 108 by bv_addr]
+  rw [show (base + 108 : Word) + 4 = base + 112 by bv_addr]
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_compare_limb2_lt_code base a = some i →
+      evm_mulmod_reduce512_inner_step_compare_code base a = some i := by
+  rw [evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_eq_ofProg base]
+  unfold evm_mulmod_reduce512_inner_step_compare_code
+  refine CodeReq.ofProg_mono_sub (base + 84) (base + 100)
+    evm_mulmod_reduce512_inner_step_compare
+    [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13)),
+      (.BLTU .x6 .x7 (136 : BitVec 13))]
+    4 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 4) = (16 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+/-- The limb1 gt path code is a subrange of the full compare ladder. -/
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_code_eq_ofProg (base : Word) :
+    evm_mulmod_reduce512_inner_step_compare_limb1_gt_code base =
+      CodeReq.ofProg (base + 116)
+        [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13))] := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_compare_limb1_gt_code
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 116 : Word) + 4 = base + 120 by bv_addr]
+  rw [show (base + 120 : Word) + 4 = base + 124 by bv_addr]
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_compare_limb1_gt_code base a = some i →
+      evm_mulmod_reduce512_inner_step_compare_code base a = some i := by
+  rw [evm_mulmod_reduce512_inner_step_compare_limb1_gt_code_eq_ofProg base]
+  unfold evm_mulmod_reduce512_inner_step_compare_code
+  refine CodeReq.ofProg_mono_sub (base + 84) (base + 116)
+    evm_mulmod_reduce512_inner_step_compare
+    [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13))]
+    8 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 8) = (32 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+/-- The limb1 lt/equality path code is a subrange of the full compare ladder. -/
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_eq_ofProg (base : Word) :
+    evm_mulmod_reduce512_inner_step_compare_limb1_lt_code base =
+      CodeReq.ofProg (base + 116)
+        [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13)),
+          (.BLTU .x6 .x7 (120 : BitVec 13))] := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 116 : Word) + 4 = base + 120 by bv_addr]
+  rw [show (base + 120 : Word) + 4 = base + 124 by bv_addr]
+  rw [show (base + 124 : Word) + 4 = base + 128 by bv_addr]
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_compare_limb1_lt_code base a = some i →
+      evm_mulmod_reduce512_inner_step_compare_code base a = some i := by
+  rw [evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_eq_ofProg base]
+  unfold evm_mulmod_reduce512_inner_step_compare_code
+  refine CodeReq.ofProg_mono_sub (base + 84) (base + 116)
+    evm_mulmod_reduce512_inner_step_compare
+    [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13)),
+      (.BLTU .x6 .x7 (120 : BitVec 13))]
+    8 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 8) = (32 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+/-- The limb0 path code is a suffix subrange of the full compare ladder. -/
+theorem evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_eq_ofProg (base : Word) :
+    evm_mulmod_reduce512_inner_step_compare_limb0_lt_code base =
+      CodeReq.ofProg (base + 132)
+        [(.LD .x6 .x12 224), (.LD .x7 .x12 64), (.BLTU .x6 .x7 (108 : BitVec 13))] := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_compare_limb0_lt_code
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 132 : Word) + 4 = base + 136 by bv_addr]
+  rw [show (base + 136 : Word) + 4 = base + 140 by bv_addr]
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_compare_limb0_lt_code base a = some i →
+      evm_mulmod_reduce512_inner_step_compare_code base a = some i := by
+  rw [evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_eq_ofProg base]
+  unfold evm_mulmod_reduce512_inner_step_compare_code
+  refine CodeReq.ofProg_mono_sub (base + 84) (base + 132)
+    evm_mulmod_reduce512_inner_step_compare
+    [(.LD .x6 .x12 224), (.LD .x7 .x12 64), (.BLTU .x6 .x7 (108 : BitVec 13))]
+    12 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 12) = (48 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_full_code_spec_within
+    (sp base x6Old x7Old : Word) (r n : EvmWord)
+    (hgt : BitVec.ult (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3)) :
+    cpsTripleWithin 3 (base + 84) (base + 144)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceComparePre sp x6Old x7Old r n)
+      (mulModReduceCompareLimb3GtPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb3_gt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb3_gt_spec_within sp base x6Old x7Old r n hgt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_full_code_spec_within
+    (sp base x6Old x7Old : Word) (r n : EvmWord)
+    (hlt : BitVec.ult (EvmWord.getLimbN r 3) (EvmWord.getLimbN n 3)) :
+    cpsTripleWithin 4 (base + 84) (base + 248)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceComparePre sp x6Old x7Old r n)
+      (mulModReduceCompareLimb3LtPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb3_lt_spec_within sp base x6Old x7Old r n hlt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb3_eq_full_code_spec_within
+    (sp base x6Old x7Old : Word) (r n : EvmWord)
+    (h_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3) :
+    cpsTripleWithin 4 (base + 84) (base + 100)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceComparePre sp x6Old x7Old r n)
+      (mulModReduceCompareLimb3EqPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb3_eq_spec_within sp base x6Old x7Old r n h_eq)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (hgt : BitVec.ult (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2)) :
+    cpsTripleWithin 3 (base + 100) (base + 144)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb3EqPost sp r n)
+      (mulModReduceCompareLimb2GtPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb2_gt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb2_gt_spec_within sp base r n h3_eq hgt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (hlt : BitVec.ult (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2)) :
+    cpsTripleWithin 4 (base + 100) (base + 248)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb3EqPost sp r n)
+      (mulModReduceCompareLimb2LtPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb2_lt_spec_within sp base r n h3_eq hlt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb2_eq_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2) :
+    cpsTripleWithin 4 (base + 100) (base + 116)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb3EqPost sp r n)
+      (mulModReduceCompareLimb2EqPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb2_eq_spec_within sp base r n h3_eq h2_eq)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (hgt : BitVec.ult (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1)) :
+    cpsTripleWithin 3 (base + 116) (base + 144)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb2EqPost sp r n)
+      (mulModReduceCompareLimb1GtPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb1_gt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb1_gt_spec_within sp base r n h3_eq h2_eq hgt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (hlt : BitVec.ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1)) :
+    cpsTripleWithin 4 (base + 116) (base + 248)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb2EqPost sp r n)
+      (mulModReduceCompareLimb1LtPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb1_lt_spec_within sp base r n h3_eq h2_eq hlt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_eq_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (h1_eq : EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1) :
+    cpsTripleWithin 4 (base + 116) (base + 132)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb2EqPost sp r n)
+      (mulModReduceCompareLimb1EqPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb1_eq_spec_within sp base r n h3_eq h2_eq h1_eq)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb0_lt_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (h1_eq : EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1)
+    (hlt : BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0)) :
+    cpsTripleWithin 3 (base + 132) (base + 248)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb1EqPost sp r n)
+      (mulModReduceCompareLimb0LtPost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb0_lt_spec_within sp base r n h3_eq h2_eq h1_eq hlt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb0_ge_full_code_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (h1_eq : EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1)
+    (hge : ¬ BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0)) :
+    cpsTripleWithin 3 (base + 132) (base + 144)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceCompareLimb1EqPost sp r n)
+      (mulModReduceCompareLimb0GePost sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_compare_limb0_ge_spec_within sp base r n h3_eq h2_eq h1_eq hge)
+
 end EvmAsm.Evm64
