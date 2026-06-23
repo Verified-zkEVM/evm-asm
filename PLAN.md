@@ -1765,13 +1765,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
   - **🎯 RLP decoder core COMPLETE & validated.** The generic engine decodes any short/long-list RLP value
     of mixed scalar|byte-array fields (any order) into a unified output `bytesRegion`, coinciding
     field-by-field with the pure spec (`schemaDecodes`).
-  - **Next (concrete STF decoders → Phase 6 — needs maintainer input):** instantiate `long_list_schema_walk`
-    for the legacy-tx (9-field) / block-header (~19-field) schemas → `BlockInput`. This needs the **target
-    struct layout** (`BlockInput` field offsets) and the exact field schemas (which fields are scalar vs
-    address/hash, their output offsets). Then Phase 6 (`read_input → decode → write_output`) per the host-I/O
-    ABI. Optional field variants still open: n=0 empty `.bytes` → 0 scalar (branch-to-skip-loop), wide
-    scalars (uint256, multi-word); the per-field `schemaDecodes` → list-level `decode (.list …)` pure-spec
-    bridge would close the operational↔spec loop at the list level.
+  - **🎯 Target = legacy transaction (9 fields).** The generic engine is done; the field-type primitives
+    are being lifted so a real `LegacyTransaction` (heavy `u256`, empty `to`/zero scalars, variable `data`)
+    becomes decodable. Roadmap (one PR each): `n=0` empty scalar → `u256` wide scalar → assemble legacy-tx
+    schema (`data ≤ 55` v1) → long byte arrays `> 55`.
+  - ✅ **Step 41 — `n=0` empty scalar field** (`UnifiedScalarFieldZero.lean`,
+    `unified_scalar_field_decode_and_store_zero`): a scalar `0` is the empty string `[0x80]`; the header
+    descent already lands `x13` at the next field (empty payload), so the unit is just descend ⨾
+    `SD rOut, x0, offset` (store 0, no read loop). Coincides with `decodeScalar (bs.drop O) = some (0, tail)`.
+    Removes the `1 ≤ data.length` floor for zero-valued fields.
+  - **Next:** `u256` wide scalar (lift `n ≤ 8` to `n ≤ 32` via the byte-copy chain + a scalar-value
+    coincidence under minimal encoding), then assemble the legacy-tx schema. Still open: wide-scalar
+    multi-word packing, long byte arrays `> 55` (header bloom). Concrete output slot layout settled at the
+    assembly step (`EvmAsm/EL/Transaction.lean`, `EvmAsm/Stateless/Transaction/Decode.lean` are the refs).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
