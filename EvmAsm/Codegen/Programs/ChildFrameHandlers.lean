@@ -448,7 +448,18 @@ def callDescendFallThrough
     ".Lcd_nse_zero_pre_" ++ tag ++ ":\n" ++
     "  la t0, nse_acct\n  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
     ".Lcd_nse_have_pre_" ++ tag ++ ":\n" ++
-    -- post_balance = pre_balance (nse_acct+8) + value (cd_value_be, populated above)
+    -- sr5m3.1: overlay the callee credit's pre_balance with the latest same-transaction
+    -- non-storage effect when one exists. Header pre-state alone is stale for a pre-existing
+    -- account that already moved value in this transaction, e.g. CALL target runs
+    -- SELFDESTRUCT first (recording target balance 1 -> 0) and is then called with value 1;
+    -- the second CALL credit must record 0 -> 1, not header 1 -> 2. The nonce still comes
+    -- from header pre-state because value transfer does not bump it. The helper overwrites
+    -- nse_acct+8 only on a hit; miss keeps the header/zero pre_balance above.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n" ++
+    "  jal ra, nonstorage_effect_latest_balance\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
     "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
     "  jal ra, u256_add_be\n" ++
