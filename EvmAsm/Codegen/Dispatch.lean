@@ -971,6 +971,16 @@ def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String 
     "  la t0, evm_call_depth\n" ++
     "  ld t0, 0(t0)\n" ++
     "  beqz t0, .exit_label\n" ++
+    "  la t1, create_frame_flag\n" ++
+    "  slli t2, t0, 3\n" ++
+    "  add t1, t1, t2\n" ++
+    "  ld t3, 0(t1)\n" ++
+    "  beqz t3, 2f\n" ++
+    "  sd x0, 0(t1)\n" ++
+    "  li x14, 0\n" ++
+    "  li x15, 0\n" ++
+    "  j .Lcreate_deposit_from_halt_1\n" ++
+    "2:\n" ++
     "  li a0, 1\n" ++
     "  li a1, 0\n" ++
     "  li a2, 0\n" ++
