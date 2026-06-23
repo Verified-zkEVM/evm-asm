@@ -350,8 +350,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- create_account state gas = 120 * 1530 = 183600 (v0.4.0)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n  mv t4, t2\n" ++
     "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
-    "  ld t2, 568(x20)\n  bltu t2, t3, 7f\n" ++
+    "  sub t3, t0, t2\n  ld t2, 568(x20)\n  bltu t2, t3, 7f\n  sd x0, 0(t1)\n" ++
     "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++

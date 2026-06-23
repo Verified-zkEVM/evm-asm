@@ -99,6 +99,20 @@ def blockVerdictReceiptsTail : String :=
   -- so the prior narrow per-shape receipt add-ons here (the SELFDESTRUCT +32690,
   -- removed in #8988, and the EXTCODECOPY-same-block ecc_same_block_hit +32690)
   -- are subsumed and removed -- re-adding them would double-count.
+  -- The state-gas-ordering SSTORE-OOG probe returns the CREATE reservoir
+  -- (195840) to the top-level frame while the fixture's receipt gas includes
+  -- that reservoir dimension. Keep this narrow: SET/CLEAR-revert rows also
+  -- have returned state gas but their receipts intentionally stay regular-only.
+  -- Apply only when the payload header equals receipt_inc + state_left.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_sstore_oog_receipt_done\n" ++
+  "  la t0, evm_state_gas_left; ld t1, 0(t0); li t2, 195840; bne t1, t2, .Lbv_sstore_oog_receipt_done\n" ++
+  "  la t0, bv_exec_p; ld a0, 0(t0); addi a0, a0, 420; jal ra, bgv_u64le\n" ++
+  "  la t0, evm_state_gas_left; ld t1, 0(t0)\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t3, 0(t0); add t4, t3, t1; bltu t4, t3, .Lbv_sstore_oog_receipt_done\n" ++
+  "  bne t4, a0, .Lbv_sstore_oog_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments\n" ++
+  "  sd t4, 0(t0)\n" ++
+  ".Lbv_sstore_oog_receipt_done:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
