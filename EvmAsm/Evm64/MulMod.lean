@@ -33,6 +33,7 @@ import EvmAsm.Evm64.MulMod.ProductLayoutPublicAlgebra
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn4Call02Feed
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn4Target
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn5Target
+import EvmAsm.Evm64.MulMod.ProductLayoutColumn6Target
 import EvmAsm.Evm64.MulMod.AddrNorm
 import EvmAsm.Evm64.MulMod.Compose.Base
 import EvmAsm.Evm64.MulMod.Compose.ProductCore
