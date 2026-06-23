@@ -48,4 +48,26 @@ theorem mulModProductLayoutCall09P128_toNat_eq_c4_from_chain (a b : EvmWord) :
     norm_num at h00 h10 h20 h30 h01 h11 h21 h02 h12 h03 ⊢
     omega
 
+
+/-- Public spelling of the call09 offset-128 limb-3 carry theorem. -/
+theorem mulModProductLayoutCall09P128_toNat_eq_limb3Carry (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat + a3.toNat * b0.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    (mulModProductLayoutCall09P128 a b).toNat = c4 % 2 ^ 64 := by
+  exact mulModProductLayoutCall09P128_toNat_eq_c4_from_chain a b
+
 end EvmAsm.Evm64
