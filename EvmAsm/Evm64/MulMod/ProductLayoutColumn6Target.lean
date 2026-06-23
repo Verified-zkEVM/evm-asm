@@ -188,6 +188,301 @@ theorem mulModProductLayoutSchoolbookLimb6
     rw [Nat.add_mul_div_right _ _ h_w]
     ring]
 
+
+private theorem mulModCarryStepCarry_twoBits_zero_forColumn6 (p q : Bool) :
+    mulModCarryStepCarry (if p then (1 : Word) else 0) (if q then (1 : Word) else 0) =
+      0 := by
+  cases p <;> cases q <;> decide
+
+private theorem mulModCarryStepCarry_twoPlusOneBits_zero_forColumn6 (p q r : Bool) :
+    mulModCarryStepCarry ((if p then (1 : Word) else 0) + (if q then (1 : Word) else 0))
+      (if r then (1 : Word) else 0) = 0 := by
+  cases p <;> cases q <;> cases r <;> decide
+
+private theorem mulModProductLayoutCall00Carry128_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall00Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall00Carry128
+  rw [mulModProductLayoutCall00Carry120_zero]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall00P136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall00P136 a b = 0 := by
+  unfold mulModProductLayoutCall00P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall00Carry128_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall00Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall00Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall00Carry136
+  rw [mulModProductLayoutCall00Carry128_zero_forColumn6]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall00P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall00P144 a b = 0 := by
+  unfold mulModProductLayoutCall00P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall00Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall01Carry128_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall01Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall01Carry128
+  rw [mulModProductLayoutCall00P128_zero, mulModProductLayoutCall01Carry120_zero]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall01P136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall01P136 a b = 0 := by
+  unfold mulModProductLayoutCall01P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall00P136_zero_forColumn6, mulModProductLayoutCall01Carry128_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall01Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall01Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall01Carry136
+  rw [mulModProductLayoutCall00P136_zero_forColumn6, mulModProductLayoutCall01Carry128_zero_forColumn6]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall01P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall01P144 a b = 0 := by
+  unfold mulModProductLayoutCall01P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall00P144_zero_forColumn6, mulModProductLayoutCall01Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall02Carry128_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall02Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall02Carry128
+  rw [mulModProductLayoutCall01P128_zero, mulModProductLayoutCall02Carry120_zero]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall02P136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall02P136 a b = 0 := by
+  unfold mulModProductLayoutCall02P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall01P136_zero_forColumn6, mulModProductLayoutCall02Carry128_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall02Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall02Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall02Carry136
+  rw [mulModProductLayoutCall01P136_zero_forColumn6, mulModProductLayoutCall02Carry128_zero_forColumn6]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall02P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall02P144 a b = 0 := by
+  unfold mulModProductLayoutCall02P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall01P144_zero_forColumn6, mulModProductLayoutCall02Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall03Carry128_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall03Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall03Carry128
+  rw [mulModProductLayoutCall02P128_zero]
+  unfold mulModCarryStepCarry
+  simp [BitVec.ult]
+
+private theorem mulModProductLayoutCall03P136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall03P136 a b = 0 := by
+  unfold mulModProductLayoutCall03P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall02P136_zero_forColumn6, mulModProductLayoutCall03Carry128_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall03Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall03Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall03Carry136
+  rw [mulModProductLayoutCall02P136_zero_forColumn6, mulModProductLayoutCall03Carry128_zero_forColumn6]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall03P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall03P144 a b = 0 := by
+  unfold mulModProductLayoutCall03P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall02P144_zero_forColumn6, mulModProductLayoutCall03Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall04Carry128_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall04Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall04Carry128
+  rw [mulModProductLayoutCall03P128_eq_highCarry]
+  unfold mulModProductLayoutCall04Carry120
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  simp only [mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoValue, mulModAddPartialLoProduct]
+  exact mulModCarryStepCarry_twoBits_zero_forColumn6 _ _
+
+private theorem mulModProductLayoutCall04P136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall04P136 a b = 0 := by
+  unfold mulModProductLayoutCall04P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall03P136_zero_forColumn6, mulModProductLayoutCall04Carry128_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall04Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall04Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall04Carry136
+  rw [mulModProductLayoutCall03P136_zero_forColumn6, mulModProductLayoutCall04Carry128_zero_forColumn6]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall04P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall04P144 a b = 0 := by
+  unfold mulModProductLayoutCall04P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall03P144_zero_forColumn6, mulModProductLayoutCall04Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall05Carry128_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall05Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall05Carry128
+  rw [mulModProductLayoutCall04P128_eq_highCarry]
+  unfold mulModProductLayoutCall05Carry120
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  simp only [mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoValue, mulModAddPartialLoProduct]
+  exact mulModCarryStepCarry_twoPlusOneBits_zero_forColumn6 _ _ _
+
+private theorem mulModProductLayoutCall05P136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall05P136 a b = 0 := by
+  unfold mulModProductLayoutCall05P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall04P136_zero_forColumn6, mulModProductLayoutCall05Carry128_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall05Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall05Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall05Carry136
+  rw [mulModProductLayoutCall04P136_zero_forColumn6, mulModProductLayoutCall05Carry128_zero_forColumn6]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall05P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall05P144 a b = 0 := by
+  unfold mulModProductLayoutCall05P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall04P144_zero_forColumn6, mulModProductLayoutCall05Carry136_zero_forColumn6]
+  rfl
+
+
+private theorem mulModAddPartialHiCarry_toNat_forColumn6 (hi lo x y : Word) :
+    (mulModAddPartialHiCarry hi lo x y).toNat =
+      (hi.toNat + ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+        2 ^ 64) / 2 ^ 64 := by
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+  rw [BitVec.toNat_add]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue
+    mulModAddPartialLoProduct
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+
+private theorem mulModAddPartialHiCarry_toNat_le_one_forColumn6 (hi lo x y : Word) :
+    (mulModAddPartialHiCarry hi lo x y).toNat ≤ 1 := by
+  rw [mulModAddPartialHiCarry_toNat_forColumn6]
+  have h_hi := hi.isLt
+  have h_term : ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+      2 ^ 64 < 2 ^ 64 := Nat.mod_lt _ (by norm_num)
+  omega
+
+private theorem mulModCarryStepCarry_zero_of_small_forColumn6
+    (limb carry : Word) (h_limb : limb.toNat ≤ 3) (h_carry : carry.toNat ≤ 1) :
+    mulModCarryStepCarry limb carry = 0 := by
+  apply BitVec.eq_of_toNat_eq
+  change (mulModCarryStepCarry limb carry).toNat = 0
+  unfold mulModCarryStepCarry
+  rw [mulModProductLayoutCarryRight_toNat]
+  omega
+
+private theorem mulModProductLayoutCall06Carry128_toNat_le_one_forColumn6 (a b : EvmWord) :
+    (mulModProductLayoutCall06Carry128 a b).toNat ≤ 1 := by
+  unfold mulModProductLayoutCall06Carry128
+  exact mulModAddPartialHiCarry_toNat_le_one_forColumn6 _ _ _ _
+
+private theorem mulModProductLayoutCall07Carry128_toNat_le_one_forColumn6 (a b : EvmWord) :
+    (mulModProductLayoutCall07Carry128 a b).toNat ≤ 1 := by
+  unfold mulModProductLayoutCall07Carry128
+  exact mulModAddPartialHiCarry_toNat_le_one_forColumn6 _ _ _ _
+
+private theorem mulModProductLayoutCall08Carry128_toNat_le_one_forColumn6 (a b : EvmWord) :
+    (mulModProductLayoutCall08Carry128 a b).toNat ≤ 1 := by
+  unfold mulModProductLayoutCall08Carry128
+  exact mulModAddPartialHiCarry_toNat_le_one_forColumn6 _ _ _ _
+
+private theorem mulModProductLayoutCall09Carry128_toNat_le_one_forColumn6 (a b : EvmWord) :
+    (mulModProductLayoutCall09Carry128 a b).toNat ≤ 1 := by
+  unfold mulModProductLayoutCall09Carry128
+  exact mulModAddPartialHiCarry_toNat_le_one_forColumn6 _ _ _ _
+
+private theorem mulModProductLayoutCall06P136_toNat_le_one_forColumn6 (a b : EvmWord) :
+    (mulModProductLayoutCall06P136 a b).toNat ≤ 1 := by
+  unfold mulModProductLayoutCall06P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall05P136_zero_forColumn6]
+  simpa using mulModProductLayoutCall06Carry128_toNat_le_one_forColumn6 a b
+
+private theorem mulModProductLayoutCall06Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall06Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall06Carry136
+  exact mulModCarryStepCarry_zero_of_small_forColumn6 _ _
+    (by rw [mulModProductLayoutCall05P136_zero_forColumn6]; decide)
+    (mulModProductLayoutCall06Carry128_toNat_le_one_forColumn6 a b)
+
+private theorem mulModProductLayoutCall06P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall06P144 a b = 0 := by
+  unfold mulModProductLayoutCall06P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall05P144_zero_forColumn6, mulModProductLayoutCall06Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall07P136_toNat_le_two_forColumn6 (a b : EvmWord) :
+    (mulModProductLayoutCall07P136 a b).toNat ≤ 2 := by
+  unfold mulModProductLayoutCall07P136 mulModCarryStepValue
+  rw [BitVec.toNat_add]
+  have h6 := mulModProductLayoutCall06P136_toNat_le_one_forColumn6 a b
+  have h7 := mulModProductLayoutCall07Carry128_toNat_le_one_forColumn6 a b
+  omega
+
+private theorem mulModProductLayoutCall07Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall07Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall07Carry136
+  exact mulModCarryStepCarry_zero_of_small_forColumn6 _ _
+    (by exact Nat.le_trans (mulModProductLayoutCall06P136_toNat_le_one_forColumn6 a b) (by decide))
+    (mulModProductLayoutCall07Carry128_toNat_le_one_forColumn6 a b)
+
+private theorem mulModProductLayoutCall07P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall07P144 a b = 0 := by
+  unfold mulModProductLayoutCall07P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall06P144_zero_forColumn6, mulModProductLayoutCall07Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall08P136_toNat_le_three_forColumn6 (a b : EvmWord) :
+    (mulModProductLayoutCall08P136 a b).toNat ≤ 3 := by
+  unfold mulModProductLayoutCall08P136 mulModCarryStepValue
+  rw [BitVec.toNat_add]
+  have h7 := mulModProductLayoutCall07P136_toNat_le_two_forColumn6 a b
+  have h8 := mulModProductLayoutCall08Carry128_toNat_le_one_forColumn6 a b
+  omega
+
+private theorem mulModProductLayoutCall08Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall08Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall08Carry136
+  exact mulModCarryStepCarry_zero_of_small_forColumn6 _ _
+    (by exact Nat.le_trans (mulModProductLayoutCall07P136_toNat_le_two_forColumn6 a b) (by decide))
+    (mulModProductLayoutCall08Carry128_toNat_le_one_forColumn6 a b)
+
+private theorem mulModProductLayoutCall08P144_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall08P144 a b = 0 := by
+  unfold mulModProductLayoutCall08P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall07P144_zero_forColumn6, mulModProductLayoutCall08Carry136_zero_forColumn6]
+  rfl
+
+private theorem mulModProductLayoutCall09Carry136_zero_forColumn6 (a b : EvmWord) :
+    mulModProductLayoutCall09Carry136 a b = 0 := by
+  unfold mulModProductLayoutCall09Carry136
+  exact mulModCarryStepCarry_zero_of_small_forColumn6 _ _
+    (mulModProductLayoutCall08P136_toNat_le_three_forColumn6 a b)
+    (mulModProductLayoutCall09Carry128_toNat_le_one_forColumn6 a b)
+
+/-- The offset-144 product-layout cell is still zero before the column-4
+    add-partial calls propagate into it. -/
+theorem mulModProductLayoutCall09P144_zero (a b : EvmWord) :
+    mulModProductLayoutCall09P144 a b = 0 := by
+  unfold mulModProductLayoutCall09P144 mulModCarryStepValue
+  rw [mulModProductLayoutCall08P144_zero_forColumn6, mulModProductLayoutCall09Carry136_zero_forColumn6]
+  rfl
+
+/-- Nat view of `mulModProductLayoutCall09P144_zero`. -/
+theorem mulModProductLayoutCall09P144_toNat_zero (a b : EvmWord) :
+    (mulModProductLayoutCall09P144 a b).toNat = 0 := by
+  rw [mulModProductLayoutCall09P144_zero]
+  rfl
+
 /-- The finalized product-layout column-six cell at offset 144. -/
 def mulModProductLayoutColumn6Value (a b : EvmWord) : Word :=
   mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
