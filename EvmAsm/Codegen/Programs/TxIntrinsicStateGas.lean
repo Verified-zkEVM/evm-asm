@@ -477,6 +477,9 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvrga_next\n" ++
+  -- bbow4.7: full-gas-consumption type-4 rows can be floor-dominated. When
+  -- before_refund is still within the calldata floor plus the missing auth-base
+  -- margin, the consensus receipt gas is before_refund, not before_refund+auth.
   -- huo4a: compute the type-4 receipt cumulative_gas SPEC-EXACTLY as the two
   -- EIP-8037 block dimensions, replacing the prior per-shape +42690/+35190/2500
   -- reconstruction. The runtime's regular pool omits the EIP-7702 per-auth
@@ -492,6 +495,10 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- EIP-7623 calldata floor (amsterdam fork.py:1132-1144). All inputs are verdict-
   -- side arrays; no runtime change (the EIP-8037 2D-gas runtime stays as-is, 249/250).
   "  slli t1, s6, 3\n" ++
+  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++
+  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0)\n" ++
+  "  la t0, bvrga_auth_count; ld t5, 0(t0); li t6, 7500; mul t5, t5, t6; add t5, t4, t5\n" ++
+  "  bleu t3, t5, .Lbvrga_type4_store_before_refund\n" ++
   -- huo4a: dimension reconstruction = before_refund + tx_total_state_gas + 7500*auth_count,
   -- THEN subtract tx_exec_state_gas. Add-before-subtract + saturate avoids the unsigned
   -- UNDERFLOW that bit reverted txs (jouwf): a reverted SSTORE leaves bvgr_tx_exec_state_gas
@@ -533,6 +540,9 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   ".Lbvrga_type4_store_final:\n" ++
   "  add t2, s3, t1; sd t3, 0(t2)\n" ++                              -- bvgr_receipt_gas_increments[i] = receipt
   "  j .Lbvrga_next\n" ++
+  ".Lbvrga_type4_store_before_refund:\n" ++
+  "  add t2, s3, t1; sd t3, 0(t2)\n" ++
+  "  j .Lbvrga_next\n" ++
   ".Lbvrga_next:\n" ++
   "  addi s6, s6, 1; j .Lbvrga_loop\n" ++
   ".Lbvrga_done:\n" ++
@@ -551,17 +561,20 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
     regular increment for ALL type-4 rows (the early success skip was removed for
     jteei):
 
-    - SUCCESSFUL type-4: `regular_inc[i] = max(before_refund[i]
-      + 7500*auth_count - exec_state[i], calldata_floor[i])`, mirroring
-      `block_verdict_receipt_gas_eip8037_adjust` minus the receipt's `+tx_state`
-      and gas-refund step. The generic exact-gas normalization subtracts
-      `max(tx_state_gas, tot_state)`, which over-subtracts AUTH_BASE + the per-auth
-      regular intrinsic for existing-authority delegations (NEW_ACCOUNT refund) ->
-      jteei false-reject (bv_fail=41).
-    - FAILED type-4 (REVERT/exceptional status 0): raises `regular_inc[i]` to at
-      least `before_refund[i] + 7500*auth_count`, except when exact-gas
-      normalization has already produced `before_refund[i] - tx_state_gas[i]` for
-      an OOG path.
+    - SUCCESSFUL type-4: if `before_refund[i]` is already the calldata floor,
+      keep the floor. Otherwise repair missing per-authorization
+      regular intrinsic as `regular_inc[i] = max(before_refund[i]
+      + 7500*auth_count - exec_state[i], calldata_floor[i])`. The floor guard
+      avoids over-counting full-gas-consumption rows where EIP-7623/7976 floor is
+      the consensus gas-used value; the repair remains for non-floor-dominated
+      rows where generic normalization over-subtracts AUTH_BASE + the per-auth
+      regular intrinsic for existing-authority delegations (jteei).
+    - FAILED type-4 (REVERT/exceptional status 0): if `before_refund[i]` is
+      within the calldata floor plus the missing auth-base margin, keep the
+      floor. Otherwise raises
+      `regular_inc[i]` to at least `before_refund[i] + 7500*auth_count`, except
+      when exact-gas normalization has already produced
+      `before_refund[i] - tx_state_gas[i]` for an OOG path.
 
     Decode failures are non-gating: the caller keeps the previous regular
     increment. (Name retained for stability though it now also covers success.) -/
@@ -617,7 +630,7 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvf4ar_next\n" ++
   "  slli t0, s6, 3\n" ++
-  -- jteei: branch on tx status. SUCCESSFUL type-4 txs use the spec-exact block
+  -- jteei: branch on tx status. SUCCESSFUL type-4 txs normally use the block
   -- regular reconstruction (mirrors block_verdict_receipt_gas_eip8037_adjust,
   -- minus the receipt's +tx_state and gas-refund step):
   --   tx_regular_gas = before_refund + 7500*auth_count - exec_state
@@ -626,8 +639,13 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   -- subtracted max(tx_state_gas, tot_state) -> for an existing-authority delegation
   -- (NEW_ACCOUNT refund) that over-subtracted AUTH_BASE + per-auth regular (jteei:
   -- pointer_to_static sender_is_auth_signer=False, bv_fail=41, 42690 = 35190+7500).
+  -- bbow4.7: when before_refund is within the calldata floor plus the missing
+  -- auth-base margin, the floor is the consensus block-regular value; do not let
+  -- the auth repair raise it.
   "  add t1, s5, t0; ld t1, 0(t1); beqz t1, .Lbvf4ar_failed\n" ++
   "  add t1, s4, t0; ld t2, 0(t1)          # before_refund[i]\n" ++
+  "  la t1, bvgr_calldata_floor; add t1, t1, t0; ld t3, 0(t1)\n" ++
+  "  beq t2, t3, .Lbvf4ar_succ_store       # floor-dominated success: restore floor\n" ++
   "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3; add t2, t2, t1\n" ++
   "  la t1, bvgr_tx_exec_state_gas; add t1, t1, t0; ld t3, 0(t1)   # exec_state[i]\n" ++
   "  bltu t2, t3, .Lbvf4ar_succ_floor      # base < exec_state (anomaly): keep base\n" ++
@@ -641,6 +659,9 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  j .Lbvf4ar_next\n" ++
   ".Lbvf4ar_failed:\n" ++
   "  add t1, s4, t0; ld t2, 0(t1)          # before_refund increment\n" ++
+  "  la t1, bvgr_calldata_floor; add t1, t1, t0; ld t4, 0(t1)\n" ++
+  "  la t1, bvrga_auth_count; ld t5, 0(t1); li t6, 7500; mul t5, t5, t6; add t5, t4, t5\n" ++
+  "  bleu t2, t5, .Lbvf4ar_failed_floor_store # floor-dominated failed tx: keep floor\n" ++
   "  add t1, s3, t0; ld t3, 0(t1)          # current normalized regular increment\n" ++
   "  ld t4, 104(sp); beqz t4, .Lbvf4ar_compute_floor\n" ++
   "  bltu t2, t3, .Lbvf4ar_compute_floor\n" ++
@@ -652,6 +673,9 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  add t2, t2, t1; bltu t2, t1, .Lbvf4ar_next\n" ++
   "  add t1, s3, t0; ld t3, 0(t1); bgeu t3, t2, .Lbvf4ar_next\n" ++
   "  sd t2, 0(t1)\n" ++
+  "  j .Lbvf4ar_next\n" ++
+  ".Lbvf4ar_failed_floor_store:\n" ++
+  "  add t1, s3, t0; sd t4, 0(t1)\n" ++
   ".Lbvf4ar_next:\n" ++
   "  addi s6, s6, 1; j .Lbvf4ar_loop\n" ++
   ".Lbvf4ar_done:\n" ++
