@@ -102,6 +102,7 @@ def blockVerdictExactGasCheck : String :=
   "  la t0, bvgr_tx_state_gas; ld t0, 0(t0); bnez t0, .Lbv_call_nacc_regular_done\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); li t1, 183600; bne t0, t1, .Lbv_call_nacc_regular_done\n" ++
   "  la t0, bvgr_before_refund; ld t1, 0(t0); li t2, 2299; add t1, t1, t2; bltu t1, t2, .Lbv_call_nacc_regular_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); bne t1, t2, .Lbv_call_nacc_regular_done\n" ++
   "  la t0, bvgr_block_gas_increments; ld t2, 0(t0); bgeu t2, t1, .Lbv_call_nacc_regular_done\n" ++
   "  sd t1, 0(t0)\n" ++
   ".Lbv_call_nacc_regular_done:\n" ++
