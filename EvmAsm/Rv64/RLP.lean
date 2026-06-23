@@ -101,6 +101,7 @@ import EvmAsm.Rv64.RLP.UnifiedThreeFieldWalk
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegionCanonical
 import EvmAsm.Rv64.RLP.UnifiedFieldUnitFullyCanonical
 import EvmAsm.Rv64.RLP.SchemaFold
+import EvmAsm.Rv64.RLP.SchemaScalarValues
 import EvmAsm.Rv64.RLP.SchemaFoldConcat
 import EvmAsm.Rv64.RLP.SchemaListWalk
 import EvmAsm.Rv64.RLP.SchemaListWalkShort

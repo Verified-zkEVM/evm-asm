@@ -1782,10 +1782,19 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     natural with no minimality check — so `decodeScalar (bs.drop O) = some (Nat.fromBytesBE data, tail)`
     follows directly from the copy unit's `decode` coincidence. Output holds the field's minimal BE bytes;
     fixed 32-byte zero-padding (if a struct wants it) is a presentation step at assembly.
-  - **Next:** assemble the legacy-tx (9-field) schema from the `n=0`, `u256`, address(20), and bytes
-    primitives (`data ≤ 55` v1), settling the output slot layout (`EvmAsm/EL/Transaction.lean`,
-    `EvmAsm/Stateless/Transaction/Decode.lean`). Then long byte arrays `> 55` to lift the `data` cap (also
-    unlocks the header bloom). Open: wide-scalar fixed-width 32-byte packing if a target struct needs it.
+  - ✅ **Step 43 — scalar-value view of a schema decode** (`SchemaScalarValues.lean`): adds the missing
+    forward bridge `decodeScalar_of_decode_bytes` (a byte-string decode determines its payload's BE value —
+    `decodeScalar` applies no minimality check) and lifts it over a whole schema:
+    `schemaDecodes ⇒ schemaScalarValues`, recovering EVERY field's numeric value whether it was decoded as a
+    scalar or a byte array. Spec keystone letting the all-byte-array `schema_walk` act as a `u256`-field
+    decoder (a legacy tx's `nonce/value/v/r/s` ride the byte-array path per step 42).
+  - **🔀 Output-layout fork (needs maintainer input).** The remaining assembly forks on how decoded fields
+    are laid out: (a) **contiguous variable-width** (each field's minimal BE payload concatenated — what
+    `schema_walk` already produces; cheap), or (b) **fixed-width 32-byte slots** (canonical EVM words;
+    needs a new zero-pad-with-runtime-offset primitive). The choice should match the target tx-struct ABI
+    (`EvmAsm/EL/Transaction.lean`, `EvmAsm/Stateless/Transaction/Decode.lean`). Also still needs: engine
+    field-kinds so `n=0`/empty fields integrate into `schema_walk` (currently `SchemaValid` requires
+    `1 ≤ data.length`); long byte arrays `> 55` (calldata, header bloom).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
