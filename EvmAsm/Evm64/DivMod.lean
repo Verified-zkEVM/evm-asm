@@ -77,6 +77,7 @@ import EvmAsm.Evm64.DivMod.Compose.DigitV6
 import EvmAsm.Evm64.DivMod.Compose.DigitOwnV6
 import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
 import EvmAsm.Evm64.DivMod.Compose.BodyV6
+import EvmAsm.Evm64.DivMod.Compose.DispatchV6
 import EvmAsm.Evm64.DivMod.FastN1ProgramTest
 import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
