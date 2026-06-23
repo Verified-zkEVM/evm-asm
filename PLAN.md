@@ -1788,13 +1788,21 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `schemaDecodes ⇒ schemaScalarValues`, recovering EVERY field's numeric value whether it was decoded as a
     scalar or a byte array. Spec keystone letting the all-byte-array `schema_walk` act as a `u256`-field
     decoder (a legacy tx's `nonce/value/v/r/s` ride the byte-array path per step 42).
-  - **🔀 Output-layout fork (needs maintainer input).** The remaining assembly forks on how decoded fields
-    are laid out: (a) **contiguous variable-width** (each field's minimal BE payload concatenated — what
-    `schema_walk` already produces; cheap), or (b) **fixed-width 32-byte slots** (canonical EVM words;
-    needs a new zero-pad-with-runtime-offset primitive). The choice should match the target tx-struct ABI
-    (`EvmAsm/EL/Transaction.lean`, `EvmAsm/Stateless/Transaction/Decode.lean`). Also still needs: engine
-    field-kinds so `n=0`/empty fields integrate into `schema_walk` (currently `SchemaValid` requires
-    `1 ≤ data.length`); long byte arrays `> 55` (calldata, header bloom).
+  - ✅ **Step 44 — long byte arrays `> 55`** (`UnifiedLongBytesField.lean`,
+    `unified_long_bytes_field_decode_and_copy` + `bytes_item_payload_window_long`): RLP long-string form
+    (`0xB8..0xBF`). The single-item decoder already handles the long header (`itemPtrRegion`/`itemLenRegion`
+    `longBytes` branches) and the byte-copy leaf is length-generic, so the only new ingredient is the long
+    payload-window lemma (payload pointer `= regionBase + ofNat(off+1+lenOfLen)`, recovered length
+    `= data.length`, region `= data ++ tail`); composition then mirrors the short unit. Covers calldata and
+    the 256-byte `logsBloom`. (No concrete `example`: `Nat.toBytesBE` doesn't reduce under `decide`.)
+  - **🔀 Output-layout fork (needs maintainer input).** All four field-type primitives now exist (`n=0`,
+    `u256`, address/hash bytes, long bytes) plus the scalar-value view. The remaining ASSEMBLY forks on how
+    decoded fields are laid out: (a) **contiguous variable-width** (each field's minimal BE payload
+    concatenated — what `schema_walk` already produces; cheap), or (b) **fixed-width 32-byte slots**
+    (canonical EVM words; needs a new zero-pad-with-runtime-offset primitive). The choice should match the
+    target tx-struct ABI (`EvmAsm/EL/Transaction.lean`, `EvmAsm/Stateless/Transaction/Decode.lean`). Also
+    still needs: engine field-kinds so `n=0`/empty + wide-scalar fields integrate into `schema_walk`
+    (currently `SchemaValid` requires `1 ≤ data.length` and `≤ 8` for scalar kind).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
