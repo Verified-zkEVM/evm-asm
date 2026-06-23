@@ -317,4 +317,76 @@ theorem divK_fastDigit_post_own_spec_within (uLoOff qOff : BitVec 12)
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
     (divK_fastDigit_post_spec_within uLoOff qOff sp q uLo d v5 v7 v10 qm base)
 
+/-- **Full digit step** `loads ;; (JAL + own div128_v5) ;; post`, from `base` to
+    `base + 40`. Stores the exact quotient digit `q = div128V5CodeQuot uHi uLo d`
+    at `qOff` and the threaded remainder `u[j] := uLo -₆₄ q·d` (= next iteration's
+    `uHi`) at `uLoOff`. Clobbered registers and div128 scratch are owned. -/
+theorem divK_fastDigit_full_spec_within
+    (sp uHi uLo d : Word) (uHiOff uLoOff qOff : BitVec 12) (callOff : BitVec 21)
+    (base divBase : Word)
+    (v2 v5 v6 v7 v9 v10 v11 qm retMem dMem dloMem un0Mem scratchMem : Word)
+    (htarget : (base + 12) + signExtend21 callOff = divBase + div128Off)
+    (halign : ((base + 16) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 16)
+    (hdisj_loads : (divK_fastDigit_loads_code uHiOff uLoOff base).Disjoint
+      ((CodeReq.singleton (base + 12) (.JAL .x2 callOff)).union
+        (CodeReq.ofProg (divBase + div128Off) divK_div128_v5)))
+    (hdisj_jal : (CodeReq.singleton (base + 12) (.JAL .x2 callOff)).Disjoint
+      (CodeReq.ofProg (divBase + div128Off) divK_div128_v5))
+    (hdisj_post : ((divK_fastDigit_loads_code uHiOff uLoOff base).union
+      ((CodeReq.singleton (base + 12) (.JAL .x2 callOff)).union
+        (CodeReq.ofProg (divBase + div128Off) divK_div128_v5))).Disjoint
+      (divK_fastDigit_post_code uLoOff qOff (base + 16))) :
+    cpsTripleWithin 93 base (base + 40)
+      (((divK_fastDigit_loads_code uHiOff uLoOff base).union
+        ((CodeReq.singleton (base + 12) (.JAL .x2 callOff)).union
+          (CodeReq.ofProg (divBase + div128Off) divK_div128_v5))).union
+        (divK_fastDigit_post_code uLoOff qOff (base + 16)))
+      (((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x9 ↦ᵣ v9) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+        ((sp + signExtend12 uHiOff) ↦ₘ uHi) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+        ((sp + signExtend12 3984) ↦ₘ d) **
+        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ un0Mem) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem)) **
+       ((sp + signExtend12 qOff) ↦ₘ qm))
+      (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ (div128V5CodeQuot uHi uLo d)) **
+        (.x5 ↦ᵣ (uLo - div128V5CodeQuot uHi uLo d * d)) ** (.x10 ↦ᵣ d) **
+        (.x7 ↦ᵣ (div128V5CodeQuot uHi uLo d * d)) **
+        ((sp + signExtend12 qOff) ↦ₘ (div128V5CodeQuot uHi uLo d)) **
+        ((sp + signExtend12 uLoOff) ↦ₘ (uLo - div128V5CodeQuot uHi uLo d * d)) **
+        ((sp + signExtend12 3984) ↦ₘ d)) **
+       ((.x2 ↦ᵣ (base + 16)) ** regOwn .x6 ** regOwn .x9 ** (.x0 ↦ᵣ (0 : Word)) **
+        memOwn (sp + signExtend12 3968) ** memOwn (sp + signExtend12 3960) **
+        memOwn (sp + signExtend12 3952) ** memOwn (sp + signExtend12 3944) **
+        memOwn (sp + signExtend12 3936) ** ((sp + signExtend12 uHiOff) ↦ₘ uHi))) := by
+  have LC := divK_fastDigit_loadsCall_spec_within sp uHi uLo d uHiOff uLoOff callOff
+    base divBase v2 v5 v6 v7 v9 v10 v11 retMem dMem dloMem un0Mem scratchMem
+    htarget halign hdisj_loads hdisj_jal
+  -- Weaken the div128 post to the owned digit-threading form.
+  have LC' := cpsTripleWithin_weaken (fun _ hp => hp)
+    (sepConj_mono (div128V5SpecPost_to_owned sp (base + 16) d uLo uHi scratchMem)
+      (fun _ x => x)) LC
+  -- Frame in the q[j] output cell that the post block writes.
+  have LCf := cpsTripleWithin_frameR (((sp + signExtend12 qOff) ↦ₘ qm)) (by pcFree) LC'
+  have P := divK_fastDigit_post_own_spec_within uLoOff qOff sp
+    (div128V5CodeQuot uHi uLo d) uLo d qm (base + 16)
+  -- Frame the post block with the div128 pass-through atoms (all owned/clean).
+  have Pf := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ (base + 16)) ** regOwn .x6 ** regOwn .x9 ** (.x0 ↦ᵣ (0 : Word)) **
+     memOwn (sp + signExtend12 3968) ** memOwn (sp + signExtend12 3960) **
+     memOwn (sp + signExtend12 3952) ** memOwn (sp + signExtend12 3944) **
+     memOwn (sp + signExtend12 3936) ** ((sp + signExtend12 uHiOff) ↦ₘ uHi))
+    (by pcFree) P
+  set fullCr := ((divK_fastDigit_loads_code uHiOff uLoOff base).union
+    ((CodeReq.singleton (base + 12) (.JAL .x2 callOff)).union
+      (CodeReq.ofProg (divBase + div128Off) divK_div128_v5))).union
+      (divK_fastDigit_post_code uLoOff qOff (base + 16)) with hFull
+  have LCe := cpsTripleWithin_extend_code (cr' := fullCr)
+    (hmono := fun a i h => CodeReq.union_mono_left a i h) LCf
+  have Pe := cpsTripleWithin_extend_code (cr' := fullCr)
+    (hmono := CodeReq.mono_union_right hdisj_post (fun a i h => h)) Pf
+  have full := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) LCe Pe
+  rw [show (base + 16 + 24 : Word) = base + 40 from by bv_omega] at full
+  exact full
+
 end EvmAsm.Evm64
