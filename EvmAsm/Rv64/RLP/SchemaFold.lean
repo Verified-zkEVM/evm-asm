@@ -14,6 +14,7 @@
 -/
 
 import EvmAsm.Rv64.RLP.UnifiedFieldUnitFullyCanonical
+import EvmAsm.Rv64.RLP.UnifiedLongBytesFieldCanonical
 import EvmAsm.Rv64.RLP.UnifiedHeteroFieldWalk
 
 namespace EvmAsm.Rv64.RLP
@@ -92,7 +93,7 @@ def SchemaValid (bs : List Byte) (outLen : Nat) : Nat → List FieldSpec → Pro
   | O, f :: rest =>
     1 ≤ f.data.length ∧
     (if f.isScalar then f.data.length ≤ 8
-     else f.data.length ≤ 55 ∧ (encode (.bytes f.data)).length < 256 ^ 8) ∧
+     else (encode (.bytes f.data)).length < 256 ^ 8) ∧
     signExtend12 f.imm = BitVec.ofNat 64 f.di ∧
     f.di + fieldWriteLen f ≤ outLen ∧
     bs.drop O = encode (.bytes f.data) ++ bs.drop (O + fieldEnc f) ∧
@@ -227,7 +228,7 @@ theorem field_step (regionBase outBase : Word) (rOut : Reg) (bs : List Byte) (ou
     (hdval : ∀ i, i < out.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
     (hl1 : 1 ≤ f.data.length)
     (hkind : if f.isScalar then f.data.length ≤ 8
-      else f.data.length ≤ 55 ∧ (encode (.bytes f.data)).length < 256 ^ 8)
+      else (encode (.bytes f.data)).length < 256 ^ 8)
     (himm : signExtend12 f.imm = BitVec.ofNat 64 f.di)
     (hdst : f.di + fieldWriteLen f ≤ out.length)
     (hcode : base.toNat + fieldSize f < 2 ^ 64)
@@ -256,20 +257,34 @@ theorem field_step (regionBase outBase : Word) (rOut : Reg) (bs : List Byte) (ou
         halign hover hwin hdropf hdalign hdst hdov hdval himm hcs).2
   · simp only [fieldSteps, fieldSize, fieldCR, fieldUpdate, fieldWriteLen, fieldEnc, schemaINV, hs]
       at hkind hdst ⊢
-    obtain ⟨hlen55, hsize⟩ := hkind
+    have hsize := hkind
     have hcb : base.toNat + (148 + 4 + 20 * f.data.length) < 2 ^ 64 := by
       have : base.toNat + (152 + 20 * f.data.length) < 2 ^ 64 := by simpa [fieldSize, hs] using hcode
       omega
-    refine ⟨?_, ?_⟩
-    · have ht := (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
-        f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hlen55 hsize
-        halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).1
-      rw [show base + 148 + 4 + BitVec.ofNat 64 (20 * f.data.length)
-        = base + BitVec.ofNat 64 (152 + 20 * f.data.length) from by bv_omega] at ht
-      exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
-    · exact (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
-        f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hlen55 hsize
-        halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).2
+    have hexit : base + 148 + 4 + BitVec.ofNat 64 (20 * f.data.length)
+        = base + BitVec.ofNat 64 (152 + 20 * f.data.length) := by bv_omega
+    -- Dispatch on the byte-array length: short (`≤ 55`) vs long (`> 55`) form. Both units have
+    -- the identical triple shape, so the conclusion is uniform.
+    by_cases hL : f.data.length ≤ 55
+    · refine ⟨?_, ?_⟩
+      · have ht := (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+          f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hL hsize
+          halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).1
+        rw [hexit] at ht
+        exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
+      · exact (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+          f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hL hsize
+          halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).2
+    · have hlong : 55 < f.data.length := Nat.lt_of_not_le hL
+      refine ⟨?_, ?_⟩
+      · have ht := (unified_long_bytes_field_decode_and_copy_fully_canonical base regionBase rOut
+          outBase f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hlong
+          hsize halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).1
+        rw [hexit] at ht
+        exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
+      · exact (unified_long_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+          f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hlong hsize
+          halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).2
 
 set_option maxRecDepth 8000 in
 /-- **N-field heterogeneous fold.** Decode an arbitrary schema (`List FieldSpec`, scalar |

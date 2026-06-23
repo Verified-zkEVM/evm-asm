@@ -1809,10 +1809,17 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     mechanically). Endpoint `unified_long_bytes_field_decode_and_copy_fully_canonical` has the uniform
     all-`regOwn` interface `schema_walk` consumes — the prerequisite for integrating `> 55`-byte fields into
     the schema engine.
-  - **Next (engine long-bytes integration):** since short and long byte units share `fieldSize`/`fieldCR`/
-    `fieldUpdate`, drop the `≤ 55` cap from `field_step` (dispatch short/long on `data.length`) and relax the
-    `SchemaValid`/`fieldCoreValid` bytes condition — lets `schema_walk` decode arbitrarily-long byte fields
-    (calldata, header bloom) with no `FieldSpec`/CR change.
+  - ✅ **Step 46 — long bytes integrated into the schema engine** (`SchemaFold`/`SchemaFoldConcat`):
+    `field_step` now dispatches short (`≤ 55`) vs long (`> 55`) byte-array units on `data.length` (both share
+    `fieldSize`/`fieldCR`/`fieldUpdate`, so the conclusion is uniform), and the `SchemaValid`/`fieldCoreValid`
+    bytes condition drops the `≤ 55` cap (keeps `1 ≤ len` and `(encode …).length < 256^8`). `schema_walk` /
+    `long_list_schema_walk` now decode arbitrarily-long byte fields (calldata, the 256-byte `logsBloom`) with
+    NO `FieldSpec` or CR change — all downstream decoders/examples rebuild unchanged.
+  - **🔀 Remaining (gated on output-layout input).** The schema engine now decodes every field type a real
+    tx/header contains EXCEPT `n=0`/empty fields (still `1 ≤ data.length`; needs an empty field-kind). The
+    final named-struct assembly (legacy-tx 9-field → tx struct) forks on the output-layout choice
+    (contiguous variable-width vs fixed 32-byte slots). Still open: empty-field engine integration; wide
+    32-byte zero-padding if a struct needs fixed slots.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

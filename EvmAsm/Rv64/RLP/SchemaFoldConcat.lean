@@ -25,7 +25,7 @@ def schemaEncBytes : List FieldSpec → List Byte
 def fieldCoreValid (outLen : Nat) (f : FieldSpec) : Prop :=
   1 ≤ f.data.length ∧
   (if f.isScalar then f.data.length ≤ 8
-   else f.data.length ≤ 55 ∧ (encode (.bytes f.data)).length < 256 ^ 8) ∧
+   else (encode (.bytes f.data)).length < 256 ^ 8) ∧
   signExtend12 f.imm = BitVec.ofNat 64 f.di ∧
   f.di + fieldWriteLen f ≤ outLen
 
