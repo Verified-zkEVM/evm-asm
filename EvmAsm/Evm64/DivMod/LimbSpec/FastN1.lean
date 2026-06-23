@@ -172,4 +172,57 @@ theorem divK_fastDigit_call_spec_within
     (fun h hp => by xperm_hyp hp) Jf De
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq) full
 
+/-- Digit step through the div128 return: 3 loads ;; (JAL + div128_v5 copy).
+    From `base` to `base + 16` (the post-call PC), ending in `div128V5SpecPost`
+    with the window mem cells `u[j+1]`, `u[j]`, `b0'` framed through. -/
+theorem divK_fastDigit_loadsCall_spec_within
+    (sp uHi uLo d : Word) (uHiOff uLoOff : BitVec 12) (callOff : BitVec 21)
+    (base divBase : Word)
+    (v2 v5 v6 v7 v9 v10 v11 retMem dMem dloMem un0Mem scratchMem : Word)
+    (htarget : (base + 12) + signExtend21 callOff = divBase + div128Off)
+    (halign : ((base + 16) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + 16)
+    (hdisj_loads : (divK_fastDigit_loads_code uHiOff uLoOff base).Disjoint
+      ((CodeReq.singleton (base + 12) (.JAL .x2 callOff)).union
+        (CodeReq.ofProg (divBase + div128Off) divK_div128_v5)))
+    (hdisj_jal : (CodeReq.singleton (base + 12) (.JAL .x2 callOff)).Disjoint
+      (CodeReq.ofProg (divBase + div128Off) divK_div128_v5)) :
+    cpsTripleWithin 87 base (base + 16)
+      ((divK_fastDigit_loads_code uHiOff uLoOff base).union
+        ((CodeReq.singleton (base + 12) (.JAL .x2 callOff)).union
+          (CodeReq.ofProg (divBase + div128Off) divK_div128_v5)))
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x9 ↦ᵣ v9) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + signExtend12 uHiOff) ↦ₘ uHi) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+       ((sp + signExtend12 3984) ↦ₘ d) **
+       (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem))
+      (div128V5SpecPost sp (base + 16) d uLo uHi scratchMem **
+       ((sp + signExtend12 uHiOff) ↦ₘ uHi) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+       ((sp + signExtend12 3984) ↦ₘ d)) := by
+  have L := divK_fastDigit_loads_spec_within uHiOff uLoOff sp uHi uLo d v5 v7 v10 base
+  have C := divK_fastDigit_call_spec_within sp uLo uHi d (base + 16) (base + 12) divBase
+    callOff v2 v6 v9 v11 retMem dMem dloMem un0Mem scratchMem htarget (by bv_omega) halign hdisj_jal
+  -- Frame L with the registers/scratch that the call needs.
+  have Lf := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ v2) ** (.x6 ↦ᵣ v6) ** (.x9 ↦ᵣ v9) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ un0Mem) **
+     (sp + signExtend12 3936 ↦ₘ scratchMem))
+    (by pcFree) L
+  -- Frame C with the window mem cells that loads established.
+  have Cf := cpsTripleWithin_frameR
+    (((sp + signExtend12 uHiOff) ↦ₘ uHi) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+     ((sp + signExtend12 3984) ↦ₘ d))
+    (by pcFree) C
+  set fullCr := (divK_fastDigit_loads_code uHiOff uLoOff base).union
+    ((CodeReq.singleton (base + 12) (.JAL .x2 callOff)).union
+      (CodeReq.ofProg (divBase + div128Off) divK_div128_v5)) with hFull
+  have Le := cpsTripleWithin_extend_code (cr' := fullCr)
+    (hmono := fun a i h => CodeReq.union_mono_left a i h) Lf
+  have Ce := cpsTripleWithin_extend_code (cr' := fullCr)
+    (hmono := CodeReq.mono_union_right hdisj_loads (fun a i h => h)) Cf
+  have full := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) Le Ce
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq) full
+
 end EvmAsm.Evm64
