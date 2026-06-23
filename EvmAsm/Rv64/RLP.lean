@@ -106,6 +106,7 @@ import EvmAsm.Rv64.RLP.SchemaListWalkLong
 import EvmAsm.Rv64.RLP.SchemaListDecodeExample
 import EvmAsm.Rv64.RLP.SchemaListEncode
 import EvmAsm.Rv64.RLP.SchemaDecodeEncoded
+import EvmAsm.Rv64.RLP.SchemaDecodeEncodedExample
 import EvmAsm.Rv64.RLP.NestedDescendOne
 import EvmAsm.Rv64.RLP.UnifiedDecodeItem
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemReconverge
