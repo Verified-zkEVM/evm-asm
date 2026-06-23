@@ -110,6 +110,35 @@ def balStorageCoversExecLogFunction : String :=
   "  ld t1, 120(s5); ld t2, 88(s5); bne t1, t2, .Lbsce_netchange\n" ++
   "  j .Lbsce_next                        # no net change -> not required in the BAL\n" ++
   ".Lbsce_netchange:\n" ++
+  -- A contract created and SELFDESTRUCTed in the same transaction does not commit
+  -- constructor storage writes. The raw exec log still records them, but EIP-7928
+  -- exposes those touched slots as storage_reads, not storage_changes. Restrict the
+  -- demotion to the user pass and require execution evidence: a nonstorage-effect
+  -- row for this account whose final balance and nonce are both zero.
+  "  bnez s8, .Lbsce_require_storage_change\n" ++
+  "  la t0, exec_nonstorage_effect_count; ld t4, 0(t0); beqz t4, .Lbsce_require_storage_change\n" ++
+  "  la t5, exec_nonstorage_effect_log\n" ++
+  "  mv t0, zero\n" ++
+  ".Lbsce_deleted_scan:\n" ++
+  "  beq t0, t4, .Lbsce_require_storage_change\n" ++
+  "  li t1, 112; mul t2, t0, t1; add t3, t5, t2\n" ++
+  "  li t1, 0\n" ++
+  ".Lbsce_deleted_addr_cmp:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbsce_deleted_addr_match\n" ++
+  "  add t6, t3, t1; lbu t6, 0(t6)\n" ++
+  "  li t2, 19; sub t2, t2, t1; add t2, s0, t2; lbu t2, 0(t2)\n" ++
+  "  bne t6, t2, .Lbsce_deleted_next\n" ++
+  "  addi t1, t1, 1; j .Lbsce_deleted_addr_cmp\n" ++
+  ".Lbsce_deleted_addr_match:\n" ++
+  "  ld t1, 64(t3); ld t2, 72(t3); or t1, t1, t2\n" ++
+  "  ld t2, 80(t3); or t1, t1, t2\n" ++
+  "  ld t2, 88(t3); or t1, t1, t2\n" ++
+  "  bnez t1, .Lbsce_deleted_next\n" ++
+  "  ld t1, 104(t3); bnez t1, .Lbsce_deleted_next\n" ++
+  "  j .Lbsce_next                        # same-tx-deleted account: storage writes demoted to reads\n" ++
+  ".Lbsce_deleted_next:\n" ++
+  "  addi t0, t0, 1; j .Lbsce_deleted_scan\n" ++
+  ".Lbsce_require_storage_change:\n" ++
   -- The exec slot/current are stack-word order (LE u64 limbs); the BAL keys/vals
   -- are big-endian (RLP). Byte-reverse the exec slot (32..64) and current (96..128)
   -- into bsce_slotrev / bsce_currev (big-endian) to match the BAL side.
@@ -301,7 +330,11 @@ def ziskBalStorageCoversExecLogDataSection : String :=
   ".balign 8\n" ++
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero 128\n"
+  "bv_system_storage_log:\n  .zero 128\n" ++
+  ".balign 8\n" ++
+  "exec_nonstorage_effect_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "exec_nonstorage_effect_log:\n  .zero 112\n"
 
 def ziskBalStorageCoversExecLogProbeUnit : BuildUnit := {
   body        := NOP
