@@ -409,4 +409,179 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_eq_spec_within
       exact (sepConj_pure_right h).2 ⟨hp, ⟨h3_eq, h2_eq⟩⟩)
     (evm_mulmod_reduce512_inner_step_compare_limb2_eq_raw_spec_within sp base r n h2_eq)
 
+
+/-- Explicit code requirement for the limb1 `n1 < r1` subtract path. -/
+def evm_mulmod_reduce512_inner_step_compare_limb1_gt_code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton (base + 116) (.LD .x6 .x12 232))
+    (CodeReq.union (CodeReq.singleton (base + 120) (.LD .x7 .x12 72))
+      (CodeReq.singleton (base + 124) (.BLTU .x7 .x6 (20 : BitVec 13))))
+
+/-- Explicit code requirement for the limb1 `r1 < n1` no-sub path. -/
+def evm_mulmod_reduce512_inner_step_compare_limb1_lt_code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton (base + 116) (.LD .x6 .x12 232))
+    (CodeReq.union (CodeReq.singleton (base + 120) (.LD .x7 .x12 72))
+      (CodeReq.union (CodeReq.singleton (base + 124) (.BLTU .x7 .x6 (20 : BitVec 13)))
+        (CodeReq.singleton (base + 128) (.BLTU .x6 .x7 (120 : BitVec 13)))))
+
+/-- Raw post after loading limb1 comparison operands. -/
+def mulModReduceCompareLimb1FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 1) ** (.x7 ↦ᵣ EvmWord.getLimbN n 1) **
+  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
+
+def mulModReduceCompareLimb1GtPost (sp : Word) (r n : EvmWord) : Assertion :=
+  mulModReduceCompareLimb1FallthroughRawPost sp r n ** ⌜mulModReduceRemGE r n⌝
+
+def mulModReduceCompareLimb1LtPost (sp : Word) (r n : EvmWord) : Assertion :=
+  mulModReduceCompareLimb1FallthroughRawPost sp r n ** ⌜mulModReduceRemLT r n⌝
+
+def mulModReduceCompareLimb1EqPost (sp : Word) (r n : EvmWord) : Assertion :=
+  mulModReduceCompareLimb1FallthroughRawPost sp r n **
+  ⌜EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3 ∧
+    EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2 ∧
+    EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1⌝
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_raw_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (hgt : BitVec.ult (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1)) :
+    cpsTripleWithin 3 (base + 116) (base + 144)
+      (evm_mulmod_reduce512_inner_step_compare_limb1_gt_code base)
+      (mulModReduceCompareLimb2FallthroughRawPost sp r n)
+      (mulModReduceCompareLimb1FallthroughRawPost sp r n) := by
+  unfold mulModReduceCompareLimb2FallthroughRawPost
+  unfold evm_mulmod_reduce512_inner_step_compare_limb1_gt_code
+  unfold mulModReduceCompareLimb1FallthroughRawPost
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
+  have Braw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
+    (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
+  have B := cpsBranchWithin_takenStripPure2 Braw (fun hp hQf => by
+    extract_pure hQf
+    obtain ⟨h_not, _⟩ := hQf
+    exact h_not hgt)
+  rw [show (base + 124 : Word) + signExtend13 (20 : BitVec 13) = base + 144 by rv64_addr] at B
+  runBlock L0 L1 B
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (hgt : BitVec.ult (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1)) :
+    cpsTripleWithin 3 (base + 116) (base + 144)
+      (evm_mulmod_reduce512_inner_step_compare_limb1_gt_code base)
+      (mulModReduceCompareLimb2EqPost sp r n)
+      (mulModReduceCompareLimb1GtPost sp r n) := by
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      unfold mulModReduceCompareLimb2EqPost at hp
+      exact ((sepConj_pure_right h).1 hp).1)
+    (fun h hp => by
+      unfold mulModReduceCompareLimb1GtPost
+      exact (sepConj_pure_right h).2 ⟨hp, mulModReduceRemGE_of_limb1_gt r n h3_eq h2_eq hgt⟩)
+    (evm_mulmod_reduce512_inner_step_compare_limb1_gt_raw_spec_within sp base r n hgt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_raw_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (hlt : BitVec.ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1)) :
+    cpsTripleWithin 4 (base + 116) (base + 248)
+      (evm_mulmod_reduce512_inner_step_compare_limb1_lt_code base)
+      (mulModReduceCompareLimb2FallthroughRawPost sp r n)
+      (mulModReduceCompareLimb1FallthroughRawPost sp r n) := by
+  unfold mulModReduceCompareLimb2FallthroughRawPost
+  unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
+  unfold mulModReduceCompareLimb1FallthroughRawPost
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
+  have B0raw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
+    (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
+  have B0 := cpsBranchWithin_ntakenStripPure2 B0raw (fun hp hQt => by
+    extract_pure hQt
+    obtain ⟨h_gt, _⟩ := hQt
+    have h_gt_nat := EvmWord.ult_iff.mp h_gt
+    have h_lt_nat := EvmWord.ult_iff.mp hlt
+    omega)
+  rw [show (base + 124 : Word) + 4 = base + 128 by bv_addr] at B0
+  have B1raw := bltu_spec_gen_within .x6 .x7 (120 : BitVec 13)
+    (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1) (base + 128)
+  have B1 := cpsBranchWithin_takenStripPure2 B1raw (fun hp hQf => by
+    extract_pure hQf
+    obtain ⟨h_not, _⟩ := hQf
+    exact h_not hlt)
+  rw [show (base + 128 : Word) + signExtend13 (120 : BitVec 13) = base + 248 by rv64_addr] at B1
+  runBlock L0 L1 B0 B1
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (hlt : BitVec.ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1)) :
+    cpsTripleWithin 4 (base + 116) (base + 248)
+      (evm_mulmod_reduce512_inner_step_compare_limb1_lt_code base)
+      (mulModReduceCompareLimb2EqPost sp r n)
+      (mulModReduceCompareLimb1LtPost sp r n) := by
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      unfold mulModReduceCompareLimb2EqPost at hp
+      exact ((sepConj_pure_right h).1 hp).1)
+    (fun h hp => by
+      unfold mulModReduceCompareLimb1LtPost
+      exact (sepConj_pure_right h).2 ⟨hp, mulModReduceRemLT_of_limb1_lt r n h3_eq h2_eq hlt⟩)
+    (evm_mulmod_reduce512_inner_step_compare_limb1_lt_raw_spec_within sp base r n hlt)
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_eq_raw_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h_eq : EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1) :
+    cpsTripleWithin 4 (base + 116) (base + 132)
+      (evm_mulmod_reduce512_inner_step_compare_limb1_lt_code base)
+      (mulModReduceCompareLimb2FallthroughRawPost sp r n)
+      (mulModReduceCompareLimb1FallthroughRawPost sp r n) := by
+  unfold mulModReduceCompareLimb2FallthroughRawPost
+  unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
+  unfold mulModReduceCompareLimb1FallthroughRawPost
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
+  have B0raw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
+    (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
+  have B0 := cpsBranchWithin_ntakenStripPure2 B0raw (fun hp hQt => by
+    extract_pure hQt
+    obtain ⟨h_gt, _⟩ := hQt
+    rw [← h_eq] at h_gt
+    have h_gt_nat := EvmWord.ult_iff.mp h_gt
+    omega)
+  rw [show (base + 124 : Word) + 4 = base + 128 by bv_addr] at B0
+  have B1raw := bltu_spec_gen_within .x6 .x7 (120 : BitVec 13)
+    (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1) (base + 128)
+  have B1 := cpsBranchWithin_ntakenStripPure2 B1raw (fun hp hQt => by
+    extract_pure hQt
+    obtain ⟨h_lt, _⟩ := hQt
+    rw [h_eq] at h_lt
+    have h_lt_nat := EvmWord.ult_iff.mp h_lt
+    omega)
+  rw [show (base + 128 : Word) + 4 = base + 132 by bv_addr] at B1
+  runBlock L0 L1 B0 B1
+
+theorem evm_mulmod_reduce512_inner_step_compare_limb1_eq_spec_within
+    (sp base : Word) (r n : EvmWord)
+    (h3_eq : EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3)
+    (h2_eq : EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2)
+    (h1_eq : EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1) :
+    cpsTripleWithin 4 (base + 116) (base + 132)
+      (evm_mulmod_reduce512_inner_step_compare_limb1_lt_code base)
+      (mulModReduceCompareLimb2EqPost sp r n)
+      (mulModReduceCompareLimb1EqPost sp r n) := by
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      unfold mulModReduceCompareLimb2EqPost at hp
+      exact ((sepConj_pure_right h).1 hp).1)
+    (fun h hp => by
+      unfold mulModReduceCompareLimb1EqPost
+      exact (sepConj_pure_right h).2 ⟨hp, ⟨h3_eq, h2_eq, h1_eq⟩⟩)
+    (evm_mulmod_reduce512_inner_step_compare_limb1_eq_raw_spec_within sp base r n h1_eq)
+
 end EvmAsm.Evm64
