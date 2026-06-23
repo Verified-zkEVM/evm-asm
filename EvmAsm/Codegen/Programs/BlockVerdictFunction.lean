@@ -793,6 +793,12 @@ def blockVerdictFunction : String :=
   "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
+  -- bbow4.2: snapshot the STORAGE exec-log count (evm_env+448 = persistentLogLength) too, to
+  -- mark where this tx's storage rows begin. A top-level tx that REVERTs/OOG-HALTs at depth 0
+  -- discards its SSTORE writes; on error (below) we net-zero its rows so the all-accounts
+  -- storage comparators see no change for a touched-but-aborted account (EIP-7928 records the
+  -- access in the BAL but the write is rolled back) while the rows stay for the reads check.
+  "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
@@ -817,6 +823,22 @@ def blockVerdictFunction : String :=
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  -- bbow4.2: NET-ZERO the aborted tx's storage exec-log rows (set current := original for each
+  -- row in [snap_count, count)). The tx's SSTORE writes are reverted, so the change comparators
+  -- (bal_all_accounts_storage_consistent fwd / bal_storage_covers_exec_log rev) see net-zero;
+  -- but the rows STAY so the slots remain "accessed" for the recipient storage_reads check
+  -- (bal_storage_reads_in_exec_log, bv_fail=38). Truncating the rows instead would drop the
+  -- aborted tx's READ slots -> bv38. Rows: addrHash@0, slotKey@32, original@64, current@96
+  -- (128 B stride at 0xa0630000). We do NOT change evm_env+448 (keep every row).
+  "  la t0, bv_tx_effect_snap_storage_count; ld t0, 0(t0)\n" ++          -- t0 = i = pre-tx row count
+  "  la t1, evm_env; ld t1, 448(t1)\n" ++                                -- t1 = post-dispatch row count
+  "  li t2, 0xa0630000\n" ++                                            -- t2 = storage exec-log base
+  ".Lbv_tx0_storage_revert:\n" ++
+  "  bgeu t0, t1, .Lbv_tx0_effects_kept\n" ++
+  "  slli t3, t0, 7; add t3, t2, t3\n" ++                               -- t3 = &row[i] = base + i*128
+  "  ld t4, 64(t3); sd t4, 96(t3); ld t4, 72(t3); sd t4, 104(t3)\n" ++  -- current := original (32 B)
+  "  ld t4, 80(t3); sd t4, 112(t3); ld t4, 88(t3); sd t4, 120(t3)\n" ++
+  "  addi t0, t0, 1; j .Lbv_tx0_storage_revert\n" ++
   ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
@@ -998,6 +1020,12 @@ def blockVerdictFunction : String :=
   ".Lbv_i3sksys_o:\n  li t2, 20\n" ++
   ".Lbv_i3sksys_i:\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lbv_i3sksys_i\n" ++
   "  addi t0, t0, 12\n  addi t4, t4, -1\n  bnez t4, .Lbv_i3sksys_o\n" ++
+  -- bbow4.2.5.7: EIP-7702 authorization nonce bumps are consensus state changes
+  -- made by set_delegation before runtime execution, not CALL/CREATE effects. Append
+  -- them to the non-storage effect log before aggregating it for BAL reconciliation.
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
+  "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
+  "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
   -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
   -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL
