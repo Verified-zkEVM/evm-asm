@@ -1857,7 +1857,20 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     with the pure RLP spec. A concrete legacy-tx/header decoder is now a direct caller instantiation
     (output layout = caller-chosen field offsets). Remaining beyond the decoder: Phase 6 host-I/O pipeline
     (`read_input → decode → write_output`).
-- Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
+- **Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)** — IN PROGRESS.
+  Generic decode-to-output demo (input-buffer contract = host-ABI precondition `bytesRegion inputBufBase
+  privateInput`). Roadmap: read-input hand-off → read⨾decode → write_output + decode⨾write → full pipeline.
+  - ✅ **Step 54 — read-input pointer hand-off** (`Phase6ReadDecode.lean`, `rlp_phase6_read_input_ptr`):
+    composes the `read_input` Phase-4 wrapper (`rlp_phase4_read_input_len_spec_within_exact`) with
+    `LD x13, x12, ptr_ptr_off`, loading the returned `inputBufBase` into `x13` (the decoder's input
+    pointer). Out-cells end `(buf_base, input.length)`, `x13 = buf_base`; `inputBufBaseIs`/`privateInputIs`
+    preserved.
+  - ✅ **Step 55 — read ⨾ decode** (`Phase6ReadDecode.lean`, `rlp_phase6_read_and_decode`): composes the
+    hand-off with `decode_encoded_short_list_schema_values`. From the host-ABI input contract
+    (`inputBufBaseIs buf_base`, `privateInputIs input`, `bytesRegion buf_base input` at the aligned/readable
+    buffer) with `input = encode (.list (schemaItems specs)) ++ tail`, the `read_input` syscall + `LD` +
+    decoder run end to end: the record is decoded into `bytesRegion outBase (schemaOut out specs)` with
+    `schemaScalarValues` recovered. Next: `write_output` wrapper + `decode ⨾ write_output`.
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
   C ABI.
