@@ -496,6 +496,8 @@ def statelessVerdictV2Function : String :=
   "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
   ".Lc1_w_copyd:\n" ++
   "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
+  -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
+  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
@@ -539,6 +541,8 @@ def statelessVerdictV2Function : String :=
   "  beqz t3, .Lc1_c_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_copy\n" ++
   ".Lc1_c_copyd:\n" ++
   "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
+  -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
+  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
