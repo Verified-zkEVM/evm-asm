@@ -1815,11 +1815,16 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     bytes condition drops the `≤ 55` cap (keeps `1 ≤ len` and `(encode …).length < 256^8`). `schema_walk` /
     `long_list_schema_walk` now decode arbitrarily-long byte fields (calldata, the 256-byte `logsBloom`) with
     NO `FieldSpec` or CR change — all downstream decoders/examples rebuild unchanged.
-  - **🔀 Remaining (gated on output-layout input).** The schema engine now decodes every field type a real
-    tx/header contains EXCEPT `n=0`/empty fields (still `1 ≤ data.length`; needs an empty field-kind). The
-    final named-struct assembly (legacy-tx 9-field → tx struct) forks on the output-layout choice
-    (contiguous variable-width vs fixed 32-byte slots). Still open: empty-field engine integration; wide
-    32-byte zero-padding if a struct needs fixed slots.
+  - ✅ **Step 47 — end-user decode-to-field-VALUES API** (`SchemaDecodeValues.lean`):
+    `decode_encoded_{short,long}_list_schema_values` — the encoded-list decoders wrapped with
+    `schemaDecodes_imp_scalarValues`, so the conclusion is `schemaScalarValues` (every field's big-endian
+    value at its input offset, uniformly). The one-shot API behind the concrete tx/header decoders: RLP
+    bytes in → operational decode + all field values out, verified.
+  - **🔀 Remaining.** The engine decodes every field type a real tx/header contains EXCEPT `n=0`/empty
+    fields (still `1 ≤ data.length`; needs an empty field-kind — distinct `fieldSize`/CR, an invasive
+    `FieldSpec`-kind extension). The named-struct assembly (legacy-tx 9-field → tx struct) is a direct
+    instantiation of the value API (contiguous output via parameterized field offsets; fixed 32-byte slots
+    would need a zero-pad primitive). Next: the legacy-tx schema instantiation, then empty-field integration.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
