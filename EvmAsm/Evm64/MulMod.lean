@@ -41,6 +41,7 @@ import EvmAsm.Evm64.MulMod.ProductLayoutHighTargets
 import EvmAsm.Evm64.MulMod.ProductLayoutSpec
 import EvmAsm.Evm64.MulMod.AddrNorm
 import EvmAsm.Evm64.MulMod.Compose.Base
+import EvmAsm.Evm64.MulMod.Compose.Reducer
 import EvmAsm.Evm64.MulMod.Compose.ProductCore
 import EvmAsm.Evm64.MulMod.Compose.ProductSuffix
 import EvmAsm.Evm64.MulMod.Spec
