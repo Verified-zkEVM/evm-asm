@@ -756,6 +756,57 @@ def mulModProductLayoutColumn6Value (a b : EvmWord) : Word :=
   mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
     (a.getLimbN 3) (b.getLimbN 3)
 
+
+/-- The folded column-six target is the schoolbook limb-six value. -/
+theorem mulModProductLayoutColumn6Value_toNat_eq_schoolbook_limb6 (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let d5 := a2.toNat * b3.toNat + a3.toNat * b2.toNat
+    let d6 := a3.toNat * b3.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    let c6 := (d5 + c5) / 2 ^ 64
+    (mulModProductLayoutColumn6Value a b).toNat = (d6 + c6) % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutColumn6Value
+  simp only [mulModAddPartialLoValue_toNat_forColumn6,
+    mulModProductLayoutCall14P144_toNat_eq_c6_carry]
+  have h33 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 3)
+  norm_num at h33 ⊢
+  omega
+
+/-- The folded column-six target is the sixth schoolbook product limb. -/
+theorem mulModProductLayoutColumn6Value_eq_productLimb_six (a b : EvmWord) :
+    mulModProductLayoutColumn6Value a b = productLimb a b 6 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [mulModProductLayoutColumn6Value_toNat_eq_schoolbook_limb6]
+  simp only [productLimb, productNat, BitVec.toNat_ofNat, Nat.reduceMul]
+  rw [EvmWord.toNat_eq_limb_sum a, EvmWord.toNat_eq_limb_sum b]
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
+  rw [mulModProductLayoutSchoolbookLimb6]
+
+/-- The folded column-six target is the third high product limb. -/
+theorem mulModProductLayoutColumn6Value_eq_mulHigh_getLimbN_two (a b : EvmWord) :
+    mulModProductLayoutColumn6Value a b = (EvmWord.mulHigh a b).getLimbN 2 := by
+  rw [← productLimb_six_eq_mulHigh_getLimbN_two]
+  exact mulModProductLayoutColumn6Value_eq_productLimb_six a b
+
 /-- The concrete call15 P144 cell is the folded column-six target. -/
 theorem mulModProductLayoutCall15P144Value_eq_column6Value (a b : EvmWord) :
     mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
@@ -772,6 +823,13 @@ theorem mulModProductLayoutCall15P144Value_eq_productLimb_six_iff_column6Value
       (mulModProductLayoutColumn6Value a b = productLimb a b 6) := by
   rfl
 
+/-- The concrete call15 P144 cell is the sixth schoolbook product limb. -/
+theorem mulModProductLayoutCall15P144Value_eq_productLimb_six (a b : EvmWord) :
+    mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
+      (a.getLimbN 3) (b.getLimbN 3) = productLimb a b 6 := by
+  rw [mulModProductLayoutCall15P144Value_eq_column6Value]
+  exact mulModProductLayoutColumn6Value_eq_productLimb_six a b
+
 /-- The concrete call15 high-limb target is equivalent to the folded
     column-six product-limb obligation. -/
 theorem mulModProductLayoutCall15P144Value_eq_mulHigh_getLimbN_two_iff_column6Value
@@ -782,6 +840,13 @@ theorem mulModProductLayoutCall15P144Value_eq_mulHigh_getLimbN_two_iff_column6Va
       (mulModProductLayoutColumn6Value a b = productLimb a b 6) := by
   rw [← productLimb_six_eq_mulHigh_getLimbN_two]
   exact mulModProductLayoutCall15P144Value_eq_productLimb_six_iff_column6Value a b
+
+/-- The concrete call15 P144 cell is the third high product limb. -/
+theorem mulModProductLayoutCall15P144Value_eq_mulHigh_getLimbN_two (a b : EvmWord) :
+    mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
+      (a.getLimbN 3) (b.getLimbN 3) = (EvmWord.mulHigh a b).getLimbN 2 := by
+  rw [mulModProductLayoutCall15P144Value_eq_column6Value]
+  exact mulModProductLayoutColumn6Value_eq_mulHigh_getLimbN_two a b
 
 /-- The folded column-six product-limb target is the same as the direct
     mulHigh limb2 target. -/
