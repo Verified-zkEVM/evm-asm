@@ -1829,9 +1829,13 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `0x80` (`x13 → next`, `x11 = 0`) ⨾ scalar store-region leaf spilling `0` (`spillRange out 0 di 8`).
     `fieldSize = 248` (32 B shorter than the non-empty scalar unit; no read loop). Coincides with
     `decodeScalar (bs.drop O) = some (0, tail)`.
-  - **Next:** empty-scalar canonical chain (→ `schemaINV` interface) + `emptyScalarUnitCR`; empty-bytes
-    region unit + canonical; then engine integration (data-dependent `fieldSize`/`fieldCR`/`fieldSteps`,
-    `field_step` dispatch, `SchemaValid` relax).
+  - ✅ **Step 50 — empty-scalar canonical chain + `emptyScalarUnitCR`** (`UnifiedEmptyScalarFieldCanonical.lean`
+    + `FieldUnitDisjoint.lean`): the `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain (mirrors
+    the non-empty scalar chain — identical pre/post shape) to the uniform `regOwn` interface with CR
+    `emptyScalarUnitCR`, plus the CR def + `empty_scalar_unit_cr_none_{above,below}` (range `[base, base+248)`).
+    The empty-scalar unit is now fold-ready.
+  - **Next:** empty-bytes region unit + canonical; then engine integration (data-dependent `fieldSize`/
+    `fieldCR`/`fieldSteps` for the scalar kind, `field_step` dispatch, `SchemaValid`/`fieldCoreValid` relax).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
