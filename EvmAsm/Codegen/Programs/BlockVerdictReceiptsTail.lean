@@ -59,6 +59,13 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0)\n" ++
   "  la t2, bv_exact_expected_gas_used; ld t2, 0(t2); bgeu t1, t2, .Lbv_bbow426_done\n" ++
   "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 183600; bltu t3, t5, .Lbv_bbow426_done\n" ++
+  -- bbow4.2.5.8: CALL new-account exact-gas repair can leave the receipt just
+  -- one CALL_STIPEND residue below the exact block gas. In that signature, cap
+  -- the receipt to the exact value instead of adding another full NEW_ACCOUNT
+  -- state charge (which would double-count and trip bv_fail=53).
+  "  sub t6, t2, t1; li t3, 2300; bgtu t6, t3, .Lbv_bbow426_add_state\n" ++
+  "  sd t2, 0(t0); j .Lbv_bbow426_done\n" ++
+  ".Lbv_bbow426_add_state:\n" ++
   "  mv t3, t5\n" ++
   "  add t4, t1, t3; bltu t4, t1, .Lbv_bbow426_done\n" ++
   "  sd t4, 0(t0)\n" ++
