@@ -1680,21 +1680,206 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     mismatch of `bytesRegion_dword_at`), so the `SB` lands exactly on `bs.set i b` via `packBytes_set`. Uses
     `List.take_set`/`drop_set`. The byte-copy MEMORY MODEL is now complete (read + write). Axiom-clean, 0
     sorry, 0 warnings.
-  - **Next (byte-copy loop → address/hash field units → heterogeneous schema):** with read
-    (`bytesRegion_lbu_within`) and write (`bytesRegion_sb_within`) in hand, build the counted **LBU+SB copy
-    loop** (6-instr body `LBU x12,x13,0; SB x12,x14,0; ADDI x13,x13,1; ADDI x14,x14,1; ADDI x15,x15,-1;
-    BNE x15,x0,back`, inductive closure over N like `rlp_phase2_long_loop_succ_spec_within`) copying N bytes
-    src→dst region. Then address/hash field units (decode header → copy 20/32 payload bytes to the output
-    slot), then a heterogeneous schema walk (scalar | address | hash units), then concrete legacy-tx (9-field)
-    / header decoders producing the `BlockInput`. Also still needed: n=0 (empty `.bytes` → 0) scalar variant
-    (branch-to-skip-loop). Earlier note (still applies): chain N `regOwn`-pre decode-and-store
-    units across a
-    fixed `(offset, fieldData)` schema (recursion/fold over the list, list-induction on the CodeReq unions
-    and frame bookkeeping) → concrete STF transaction (9 fields) / header (~19 fields) decoders producing the
-    `BlockInput`. Wide scalars (uint256) / byte-arrays (20/32-byte address/hash) / zero-length scalars
-    (`n = 0`) need multi-word / byte-copy / branch variants. (The 3-sibling block framing walk via
-    `…_at_regOwn` + `descend_cr_disjoint` is trivial glue, deferred.)
-- Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
+  - ⚠️ **Design correction (the byte-copy loop is UNROLLED, with independent indices).** Two refinements to
+    the original "counted LBU+SB loop" plan: (1) field sizes are fixed (20/32 bytes), so the copy is an
+    **unrolled chain** of N blocks (no hardware back-branch / `cpsBranchWithin` — a tight loop is a future
+    code-size optimization); (2) a field copy needs **independent** src/dst byte indices — the input-buffer
+    payload position `si0` is unrelated to the output-struct field offset `di0` and can be smaller than it
+    (e.g. legacy-tx `value` at struct offset 76), so the destination is the WHOLE dword-aligned output-struct
+    `bytesRegion` (only its base aligned; `di0` arbitrary/unaligned). The first (coupled `src = off + dst`)
+    copy_iter/chain were superseded by general (independent-index) versions.
+  - ✅ **Step 17 — copy-loop iteration** (`ByteCopyIter.lean`, coupled) — one LBU-read + SB-write + 3 pointer
+    ADDIs; **step 20** (`ByteCopyIterGen.lean`) generalizes it to independent `si`/`di`.
+  - ✅ **Step 18 — copy-chain infrastructure** (`ByteCopyChainInfra.lean`): `copyIterCR`, range-based
+    `copyIterCR_disjoint`/`copyIterCR_disjoint_chainCR`, `byteCopyChainCR`, `copyRange`.
+  - ✅ **Step 19/21 — copy-chain spec** (`ByteCopyChain.lean` coupled / `ByteCopyChainGen.lean` general):
+    `rlp_copy_chain_gen_spec` copies N bytes `src[si0..]` → `dst[di0..]` by induction on N (dst region
+    evolving via `bytesRegion_sb_within`), result `copyRangeGen dstBytes srcBytes si0 di0 N`.
+  - ✅ **Step 22 — leaf byte-array field copy** (`UnifiedFieldBytesCopy.lean`). **`unified_field_bytes_copy`**:
+    from `x13 = regionBase + ofNat off` (decoded payload ptr), `ADDI x14, rOut, fieldImm` sets the dst pointer
+    (`signExtend12 fieldImm = ofNat di0`, caller discharges by `decide`), then the general copy chain writes
+    `output[di0..di0+N) := src[off..off+N)`. The byte-array analog of `unified_field_scalar_read`. Plus
+    `singleton_disjoint_byteCopyChainCR`. (CI lesson: macOS `sed \b` silently fails for import insertion —
+    use Edit; `check-unimported.sh` / `check-heartbeats-approved.sh` need bash 4+, can't run on local 3.2.)
+  - ✅ **Step 23 — full byte-array field decode-and-copy** (`UnifiedBytesFieldDecode.lean`).
+    **`unified_bytes_field_decode_and_copy`** = `unified_list_header_descend` (header → x13 = payload ptr,
+    x11 = length) ⨾ `unified_field_bytes_copy`, output region framed through the descend, header-leftover
+    regs framed through the copy; `bytes_item_payload_window` connects `itemPtrRegion`/`itemLenRegion` to
+    `(payloadOff, data.length)`, `copyRangeGen_congr` rewrites the `bs`-window copy to `data` at `di0`.
+    Coincides with `decode (bs.drop O) = some (.bytes data, tail)`. Plus `byteCopyChainCR_none`.
+  - ✅ **Step 24 — scalar register-spill into region** (`ScalarSpillIter.lean` / `ScalarSpillChain.lean` /
+    `UnifiedFieldScalarStoreRegion.lean`). One spill block `SB x14,x11,0 ⨾ SRLI x11,8 ⨾ ADDI x14,1` writes a
+    LE byte; `spillChainCR`/`rlp_spill_chain_spec` unroll N blocks (`spillRange`); `unified_field_scalar_store_region`
+    sets up `x14 := outBase+di0` then spills the value into the shared output `bytesRegion` (scalar analog of
+    `unified_field_bytes_copy`). Plus `singleton_disjoint_spillChainCR`.
+  - ✅ **Step 25 — full scalar field decode-and-store into region** (`UnifiedScalarFieldRegion.lean`).
+    **`unified_scalar_field_decode_and_store_region`** = `unified_scalar_field_decode` (→ x11 = value) ⨾
+    `unified_field_scalar_store_region` (peel `regOwn x14`); spills the u64 LE into the output region at `di0`.
+    Coincides with `decodeScalar`. Plus `spillChainCR_none`. (Scalar and byte-array fields now share ONE
+    whole-struct output `bytesRegion` — only `outBase` aligned.)
+  - ✅ **Step 26 — `regOwn`-pre byte-array variant** (`UnifiedBytesFieldRegOwn.lean`).
+    **`unified_bytes_field_decode_and_copy_at_regOwn`**: the byte-array unit with `x5/x10/x11/x12` peeled to
+    `regOwn` (via `cpsTripleWithin_of_forall_regIs_to_regOwn`), so it is callable after a prior field clobbered
+    the scratch — the chaining prerequisite, mirroring `unified_scalar_field_decode_and_store_at_regOwn`.
+  - ✅ **Step 27 — heterogeneous two-field walk** (`UnifiedHeteroFieldWalk.lean`). **`unified_hetero_field_walk`**:
+    scalar field A (`unified_scalar_field_decode_and_store_region`, concrete pre) ⨾ byte-array field B
+    (`unified_bytes_field_decode_and_copy_at_regOwn`, `regOwn` pre), through ONE shared output `bytesRegion`
+    threaded directly (A's `spillRange` is B's input region → final `copyRangeGen (spillRange …) …`), A's `x13`
+    feeding B's pointer with no glue. The first mixed scalar+byte-array RLP decode — keystone tying the two
+    field-type decoders together. Disjointness via a clean global range split (`a < base+280` ⇒ unit B `none`,
+    else unit A `none`, reusing `spillChainCR_none`/`byteCopyChainCR_none`), avoiding leaf×leaf blowup. Plus
+    `spillRange_length`.
+  - ✅ **Step 28 — three-field heterogeneous walk** (`UnifiedThreeFieldWalk.lean`): scalar ⨾ scalar ⨾
+    byte-array, integration test for the regOwn scalar variant + range disjointness.
+  - ✅ **Step 29 — reusable code-range disjointness** (`FieldUnitDisjoint.lean`): `codeReq_disjoint_of_ranges`
+    + per-unit `scalarRegionUnitCR`/`bytesUnitCR` + `…_none_above/_below`.
+  - ✅ **Step 30 — canonical units** (`UnifiedScalarFieldRegionCanonical.lean`): `x5,x10,x11,x12,x15` all
+    `regOwn` (peel `x15`; the bytes→scalar boundary fix).
+  - ✅ **Step 31 — fully-canonical units** (`UnifiedFieldUnitFullyCanonical.lean`): `x14` also `regOwn` — a
+    fully uniform scratch interface (pre/post differ only in `x13` + output region).
+  - ✅ **Step 32 — N-field heterogeneous fold** (`SchemaFold.lean`). **`schema_walk`**: decode an arbitrary
+    `List FieldSpec` (scalar | byte-array, any order) into one shared output region. Definitions
+    (`fieldSize/Steps/Enc/CR/Update`, `schemaSize/Steps/Enc/Out/CR`, `schemaINV`, `SchemaValid`,
+    `schemaDecodes`), length preservation, `schemaCR_none_above/_below`/`…_disjoint…`, a kind-generic
+    `field_step`, and the list-induction fold. The generic engine: concrete decoders are now instantiations.
+  - ✅ **Step 33 — canonical units** (`UnifiedScalarFieldRegionCanonical.lean`): scalar + byte-array
+    units with `x5,x10,x11,x12,x15` all `regOwn` (peel `x15`; fixes the byte-array→scalar boundary).
+  - ✅ **Step 34 — fully-canonical units** (`UnifiedFieldUnitFullyCanonical.lean`): `x14` also `regOwn`
+    — a fully uniform scratch interface (pre/post differ only in `x13` + output region).
+  - ✅ **Step 35 — N-field heterogeneous fold** (`SchemaFold.lean`, `schema_walk`): decode an arbitrary
+    `List FieldSpec` into one shared output region; the generic engine (see step 32 entry for contents).
+  - ✅ **Step 36 — concat instantiation helper** (`SchemaFoldConcat.lean`): `schemaValid_of_concat` derives
+    `SchemaValid` from one `bs.drop O = schemaEncBytes specs ++ tail` fact + per-field core validity; plus a
+    concrete 3-field cross-check.
+  - ✅ **Step 37 — RLP-list schema decoder** (`SchemaListWalk.lean`, `list_schema_walk`): descend one list
+    level (`unified_list_header_descend`) ⨾ `schema_walk` — the shape every tx/header takes. The descend's
+    post matches `schemaINV`'s order, so the bridge is a positional scratch weaken + `x13` rewrite (`hptr`).
+  - ✅ **Step 38 — short-list convenience** (`SchemaListWalkShort.lean`, `short_list_schema_walk`): for a
+    short list (`0xc0..0xf7`) the payload is at `O+1` and `regionLongWindow` is vacuous — discharged from
+    `classifyPrefix (bs[O]) = .shortList`.
+  - ✅ **Step 39 — long-list variant** (`SchemaListWalkLong.lean`, `long_list_schema_walk`): the real
+    tx/header form (`0xf8..0xff`); payload at `(O+1)+lenOfLen`, window discharged from `hwin` + a
+    "length bytes fit" bound.
+  - ✅ **Step 40 — concrete end-to-end cross-check** (`SchemaListDecodeExample.lean`): decodes the short RLP
+    list `[0xc4,0x2a,0x82,0x01,0x02]` through the full pipeline with zero bespoke proof.
+  - **🎯 RLP decoder core COMPLETE & validated.** The generic engine decodes any short/long-list RLP value
+    of mixed scalar|byte-array fields (any order) into a unified output `bytesRegion`, coinciding
+    field-by-field with the pure spec (`schemaDecodes`).
+  - **🎯 Target = legacy transaction (9 fields).** The generic engine is done; the field-type primitives
+    are being lifted so a real `LegacyTransaction` (heavy `u256`, empty `to`/zero scalars, variable `data`)
+    becomes decodable. Roadmap (one PR each): `n=0` empty scalar → `u256` wide scalar → assemble legacy-tx
+    schema (`data ≤ 55` v1) → long byte arrays `> 55`.
+  - ✅ **Step 41 — `n=0` empty scalar field** (`UnifiedScalarFieldZero.lean`,
+    `unified_scalar_field_decode_and_store_zero`): a scalar `0` is the empty string `[0x80]`; the header
+    descent already lands `x13` at the next field (empty payload), so the unit is just descend ⨾
+    `SD rOut, x0, offset` (store 0, no read loop). Coincides with `decodeScalar (bs.drop O) = some (0, tail)`.
+    Removes the `1 ≤ data.length` floor for zero-valued fields.
+  - ✅ **Step 42 — `u256` wide scalar field** (`UnifiedWideScalarField.lean`,
+    `unified_wide_scalar_field_decode_and_copy`): lifts the scalar ceiling from 8 to 32 bytes with NO
+    multi-limb arithmetic. A `u256` payload is `≤ 32` bytes, so it rides the byte-array copy unit (proven
+    `≤ 55`): copy the raw big-endian payload into the output region (contiguous, advancing `x14`). The
+    scalar VALUE coincidence is free — `decodeScalar` reads the decoded item's bytes as a big-endian
+    natural with no minimality check — so `decodeScalar (bs.drop O) = some (Nat.fromBytesBE data, tail)`
+    follows directly from the copy unit's `decode` coincidence. Output holds the field's minimal BE bytes;
+    fixed 32-byte zero-padding (if a struct wants it) is a presentation step at assembly.
+  - ✅ **Step 43 — scalar-value view of a schema decode** (`SchemaScalarValues.lean`): adds the missing
+    forward bridge `decodeScalar_of_decode_bytes` (a byte-string decode determines its payload's BE value —
+    `decodeScalar` applies no minimality check) and lifts it over a whole schema:
+    `schemaDecodes ⇒ schemaScalarValues`, recovering EVERY field's numeric value whether it was decoded as a
+    scalar or a byte array. Spec keystone letting the all-byte-array `schema_walk` act as a `u256`-field
+    decoder (a legacy tx's `nonce/value/v/r/s` ride the byte-array path per step 42).
+  - ✅ **Step 44 — long byte arrays `> 55`** (`UnifiedLongBytesField.lean`,
+    `unified_long_bytes_field_decode_and_copy` + `bytes_item_payload_window_long`): RLP long-string form
+    (`0xB8..0xBF`). The single-item decoder already handles the long header (`itemPtrRegion`/`itemLenRegion`
+    `longBytes` branches) and the byte-copy leaf is length-generic, so the only new ingredient is the long
+    payload-window lemma (payload pointer `= regionBase + ofNat(off+1+lenOfLen)`, recovered length
+    `= data.length`, region `= data ++ tail`); composition then mirrors the short unit. Covers calldata and
+    the 256-byte `logsBloom`. (No concrete `example`: `Nat.toBytesBE` doesn't reduce under `decide`.)
+  - **🔀 Output-layout fork (needs maintainer input).** All four field-type primitives now exist (`n=0`,
+    `u256`, address/hash bytes, long bytes) plus the scalar-value view. The remaining ASSEMBLY forks on how
+    decoded fields are laid out: (a) **contiguous variable-width** (each field's minimal BE payload
+    concatenated — what `schema_walk` already produces; cheap), or (b) **fixed-width 32-byte slots**
+    (canonical EVM words; needs a new zero-pad-with-runtime-offset primitive). The choice should match the
+    target tx-struct ABI (`EvmAsm/EL/Transaction.lean`, `EvmAsm/Stateless/Transaction/Decode.lean`). Also
+    still needs: engine field-kinds so `n=0`/empty + wide-scalar fields integrate into `schema_walk`
+    (currently `SchemaValid` requires `1 ≤ data.length` and `≤ 8` for scalar kind).
+  - ✅ **Step 45 — fully-canonical long byte-array unit** (`UnifiedLongBytesFieldCanonical.lean`):
+    the `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain for the `> 55`-byte unit, paralleling
+    the short chain (the long unit has the identical scratch pre/post/CR/step shape, so each layer mirrors
+    mechanically). Endpoint `unified_long_bytes_field_decode_and_copy_fully_canonical` has the uniform
+    all-`regOwn` interface `schema_walk` consumes — the prerequisite for integrating `> 55`-byte fields into
+    the schema engine.
+  - ✅ **Step 46 — long bytes integrated into the schema engine** (`SchemaFold`/`SchemaFoldConcat`):
+    `field_step` now dispatches short (`≤ 55`) vs long (`> 55`) byte-array units on `data.length` (both share
+    `fieldSize`/`fieldCR`/`fieldUpdate`, so the conclusion is uniform), and the `SchemaValid`/`fieldCoreValid`
+    bytes condition drops the `≤ 55` cap (keeps `1 ≤ len` and `(encode …).length < 256^8`). `schema_walk` /
+    `long_list_schema_walk` now decode arbitrarily-long byte fields (calldata, the 256-byte `logsBloom`) with
+    NO `FieldSpec` or CR change — all downstream decoders/examples rebuild unchanged.
+  - ✅ **Step 47 — end-user decode-to-field-VALUES API** (`SchemaDecodeValues.lean`):
+    `decode_encoded_{short,long}_list_schema_values` — the encoded-list decoders wrapped with
+    `schemaDecodes_imp_scalarValues`, so the conclusion is `schemaScalarValues` (every field's big-endian
+    value at its input offset, uniformly). The one-shot API behind the concrete tx/header decoders: RLP
+    bytes in → operational decode + all field values out, verified.
+  - **🚧 Empty (`n=0`) field support (in progress).** Closing the last gap so the engine decodes every
+    valid RLP field (zero scalars, empty `to`). Minimal-disruption design: keep `FieldSpec.isScalar : Bool`,
+    detect empty by `data = []`, dispatch data-dependently — only `SchemaFold`/`SchemaFoldConcat`/
+    `FieldUnitDisjoint` change; downstream rebuilds unchanged.
+  - ✅ **Step 49 — empty-scalar region unit** (`UnifiedEmptyScalarField.lean`,
+    `unified_empty_scalar_field_decode_and_store_region`): region analog of the cell-based n=0 unit — descend
+    `0x80` (`x13 → next`, `x11 = 0`) ⨾ scalar store-region leaf spilling `0` (`spillRange out 0 di 8`).
+    `fieldSize = 248` (32 B shorter than the non-empty scalar unit; no read loop). Coincides with
+    `decodeScalar (bs.drop O) = some (0, tail)`.
+  - ✅ **Step 50 — empty-scalar canonical chain + `emptyScalarUnitCR`** (`UnifiedEmptyScalarFieldCanonical.lean`
+    + `FieldUnitDisjoint.lean`): the `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain (mirrors
+    the non-empty scalar chain — identical pre/post shape) to the uniform `regOwn` interface with CR
+    `emptyScalarUnitCR`, plus the CR def + `empty_scalar_unit_cr_none_{above,below}` (range `[base, base+248)`).
+    The empty-scalar unit is now fold-ready.
+  - ✅ **Step 51 — empty-bytes region unit** (`UnifiedEmptyBytesField.lean`,
+    `unified_empty_bytes_field_decode_and_copy`): descend `0x80` ⨾ byte-copy leaf with `N = 0` (copies
+    nothing; `copyRangeGen out [] 0 di 0 = out`). Same statement shape as the non-empty bytes unit at
+    `data = []`; `fieldSize = 152`. Coincides with `decode (bs.drop O) = some (.bytes [], tail)`.
+  - ✅ **Step 52 — empty-bytes canonical chain** (`UnifiedEmptyBytesFieldCanonical.lean`): the
+    `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain (mirrors the non-empty bytes chain;
+    reuses `bytesUnitCR … 0`, no new CR) to the uniform `regOwn` interface. Both empty units are now
+    fold-ready.
+  - ✅ **Step 53 — empty fields integrated into the schema engine** (`SchemaFold`/`SchemaFoldConcat`
+    + `SchemaEmptyFieldExample.lean`): `fieldSize`/`fieldCR`/`fieldSteps` are now data-dependent for the
+    scalar kind (empty → 248/`emptyScalarUnitCR`; non-empty → 280/`scalarRegionUnitCR`); `field_step`
+    dispatches 4 ways (empty-scalar / scalar / empty-bytes / short|long bytes); `SchemaValid` &
+    `fieldCoreValid` drop the `1 ≤ data.length` floor (non-empty branches re-derive `1 ≤ len` from
+    `data ≠ []`); `fieldCR_none_{above,below}` gain the empty-scalar case. No `FieldSpec` structural change;
+    all ~10 downstream walk/decoder/example files rebuilt unchanged. Concrete cross-check: a record whose
+    first field is a zero scalar (`[0xc2,0x80,0x2a]`) decodes to values `0` and `42`.
+  - **🎉 RLP decoder COMPLETE.** `schema_walk` / the end-user `decode_encoded_{short,long}_list_schema_values`
+    APIs now decode EVERY valid RLP field type a transaction/header contains — `u64`/`u256` scalars,
+    zero/empty scalars, 20-byte addresses, 32-byte hashes, arbitrarily-long byte arrays (calldata, the
+    256-byte bloom), and empty `to` — into a shared output region, recovering every field's value, coinciding
+    with the pure RLP spec. A concrete legacy-tx/header decoder is now a direct caller instantiation
+    (output layout = caller-chosen field offsets). Remaining beyond the decoder: Phase 6 host-I/O pipeline
+    (`read_input → decode → write_output`).
+- **Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)** — IN PROGRESS.
+  Generic decode-to-output demo (input-buffer contract = host-ABI precondition `bytesRegion inputBufBase
+  privateInput`). Roadmap: read-input hand-off → read⨾decode → write_output + decode⨾write → full pipeline.
+  - ✅ **Step 54 — read-input pointer hand-off** (`Phase6ReadDecode.lean`, `rlp_phase6_read_input_ptr`):
+    composes the `read_input` Phase-4 wrapper (`rlp_phase4_read_input_len_spec_within_exact`) with
+    `LD x13, x12, ptr_ptr_off`, loading the returned `inputBufBase` into `x13` (the decoder's input
+    pointer). Out-cells end `(buf_base, input.length)`, `x13 = buf_base`; `inputBufBaseIs`/`privateInputIs`
+    preserved.
+  - ✅ **Step 55 — read ⨾ decode** (`Phase6ReadDecode.lean`, `rlp_phase6_read_and_decode`): composes the
+    hand-off with `decode_encoded_short_list_schema_values`. From the host-ABI input contract
+    (`inputBufBaseIs buf_base`, `privateInputIs input`, `bytesRegion buf_base input` at the aligned/readable
+    buffer) with `input = encode (.list (schemaItems specs)) ++ tail`, the `read_input` syscall + `LD` +
+    decoder run end to end: the record is decoded into `bytesRegion outBase (schemaOut out specs)` with
+    `schemaScalarValues` recovered.
+  - ✅ **Step 56 — `readBytes`↔`bytesRegion` bridge** (`Phase6WriteOutput.lean`,
+    `getByte_of_bytesRegion` + `readBytes_of_bytesRegion`): the keystone of the write-half — when
+    `bytesRegion base bs` holds, `readBytes base bs.length = bs` (reconciles byte-granular `readBytes` with
+    the dword-packed region via `bytesRegion_dword_at` + `extractByte_packBytes` + an offset induction).
+    Connects the decoder's `bytesRegion` output to what `write_output` (which uses `readBytes`) emits.
+  - **Next (write-half remaining):** a `publicValues`-update `holdsFor` framing lemma (mirroring
+    `holdsFor_sepConj_memIs_setMem`) → CPS-level `write_output` ECALL spec (mirror
+    `ecall_read_input_spec_gen_within`, folding in the bridge) → `write_output` wrapper → `decode ⨾
+    write_output` → full `read ⨾ decode ⨾ write` pipeline + concrete example.
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
   C ABI.
