@@ -1,4 +1,5 @@
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn4Call02Feed
+import EvmAsm.Evm64.MulMod.ProductLayoutCall09Carry
 
 namespace EvmAsm.Evm64
 
@@ -178,6 +179,32 @@ theorem mulModProductLayoutColumn4Call08P120FeedValue_toNat_eq_call09P128_plus_d
       ← mulModProductLayoutCall12P128_eq_column4Value]
   rw [h_feed, mulModProductLayoutCall12P128_eq_expanded]
   simp only [BitVec.toNat_add, EvmWord.mul_toNat]
+  omega
+
+/-- The call08 feed cell is the schoolbook fourth-limb value. -/
+theorem mulModProductLayoutColumn4Call08P120FeedValue_toNat_eq_schoolbook_limb4
+    (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat + a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    (mulModProductLayoutColumn4Call08P120FeedValue a b).toNat = (d4 + c4) % 2 ^ 64 := by
+  dsimp only
+  rw [mulModProductLayoutColumn4Call08P120FeedValue_toNat_eq_call09P128_plus_d4]
+  rw [mulModProductLayoutCall09P128_toNat_eq_limb3Carry]
   omega
 
 /-- The folded call08-feed target is exactly the existing expanded column-four target. -/
