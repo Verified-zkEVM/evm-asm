@@ -73,4 +73,60 @@ theorem divK_fastSetup_b0prime_spec_within (sp : Word) (base : Word)
   have I2 := sd_spec_gen_within .x12 .x5 sp result m3984 3984 (base + 8)
   runBlock I0 I1 I2
 
+-- ============================================================================
+-- Digit step: load window/divisor, (call div128), recover threaded remainder
+-- ============================================================================
+
+abbrev divK_fastDigit_loads_code (uHiOff uLoOff : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.ofProg base [.LD .x7 .x12 uHiOff, .LD .x5 .x12 uLoOff, .LD .x10 .x12 3984]
+
+/-- Digit-step argument loads (3 instructions): `x7 = uHi = u[j+1]` (the running
+    remainder), `x5 = uLo = u[j]`, `x10 = d = b0'`. Establishes the
+    `div128_v5_spec` input registers. -/
+theorem divK_fastDigit_loads_spec_within (uHiOff uLoOff : BitVec 12)
+    (sp uHi uLo d v5 v7 v10 : Word) (base : Word) :
+    let cr := divK_fastDigit_loads_code uHiOff uLoOff base
+    cpsTripleWithin 3 base (base + 12) cr
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ v7) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 uHiOff) ↦ₘ uHi) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+       ((sp + signExtend12 3984) ↦ₘ d))
+      ((.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ uHi) ** (.x5 ↦ᵣ uLo) ** (.x10 ↦ᵣ d) **
+       ((sp + signExtend12 uHiOff) ↦ₘ uHi) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+       ((sp + signExtend12 3984) ↦ₘ d)) := by
+  intro cr
+  have I0 := ld_spec_gen_within .x7 .x12 sp v7 uHi uHiOff base (by nofun)
+  have I1 := ld_spec_gen_within .x5 .x12 sp v5 uLo uLoOff (base + 4) (by nofun)
+  have I2 := ld_spec_gen_within .x10 .x12 sp v10 d 3984 (base + 8) (by nofun)
+  runBlock I0 I1 I2
+
+abbrev divK_fastDigit_post_code (uLoOff qOff : BitVec 12) (base : Word) : CodeReq :=
+  CodeReq.ofProg base
+    [.SD .x12 .x11 qOff, .LD .x5 .x12 uLoOff, .LD .x10 .x12 3984,
+     .MUL .x7 .x11 .x10, .SUB .x5 .x5 .x7, .SD .x12 .x5 uLoOff]
+
+/-- Digit-step post-call block (6 instructions): store the exact quotient digit
+    `q[j] = x11` to `qOff`; recover the threaded remainder
+    `u[j] := u[j] -₆₄ q·b0'` (`b0'` reloaded from `sp + 3984`) and store it to
+    `uLoOff`. Valid since the true 128-bit remainder is `< b0' < 2^64`, so its
+    low 64 bits are exact. -/
+theorem divK_fastDigit_post_spec_within (uLoOff qOff : BitVec 12)
+    (sp q uLo d v5 v7 v10 qm : Word) (base : Word) :
+    let cr := divK_fastDigit_post_code uLoOff qOff base
+    cpsTripleWithin 6 base (base + 24) cr
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x7 ↦ᵣ v7) **
+       ((sp + signExtend12 qOff) ↦ₘ qm) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+       ((sp + signExtend12 3984) ↦ₘ d))
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q) ** (.x5 ↦ᵣ (uLo - q * d)) ** (.x10 ↦ᵣ d) **
+       (.x7 ↦ᵣ (q * d)) **
+       ((sp + signExtend12 qOff) ↦ₘ q) ** ((sp + signExtend12 uLoOff) ↦ₘ (uLo - q * d)) **
+       ((sp + signExtend12 3984) ↦ₘ d)) := by
+  intro cr
+  have I0 := sd_spec_gen_within .x12 .x11 sp q qm qOff base
+  have I1 := ld_spec_gen_within .x5 .x12 sp v5 uLo uLoOff (base + 4) (by nofun)
+  have I2 := ld_spec_gen_within .x10 .x12 sp v10 d 3984 (base + 8) (by nofun)
+  have I3 := mul_spec_gen_within .x7 .x11 .x10 v7 q d (base + 12) (by nofun)
+  have I4 := sub_spec_gen_rd_eq_rs1_within .x5 .x7 uLo (q * d) (base + 16) (by nofun)
+  have I5 := sd_spec_gen_within .x12 .x5 sp (uLo - q * d) uLo uLoOff (base + 20)
+  runBlock I0 I1 I2 I3 I4 I5
+
 end EvmAsm.Evm64
