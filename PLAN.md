@@ -1742,10 +1742,36 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (`fieldSize/Steps/Enc/CR/Update`, `schemaSize/Steps/Enc/Out/CR`, `schemaINV`, `SchemaValid`,
     `schemaDecodes`), length preservation, `schemaCR_none_above/_below`/`…_disjoint…`, a kind-generic
     `field_step`, and the list-induction fold. The generic engine: concrete decoders are now instantiations.
-  - **Next (concrete decoders → Phase 6):** instantiate `schema_walk` for the legacy-tx (9-field) and
-    block-header (~19-field) schemas → `BlockInput`, then Phase 6 (`read_input → decode → write_output`).
-    Still-needed field variants: n=0 empty `.bytes` → 0 scalar (branch-to-skip-loop), wide scalars
-    (uint256, multi-word). (The 3-sibling block framing walk is trivial glue, deferred.)
+  - ✅ **Step 33 — canonical units** (`UnifiedScalarFieldRegionCanonical.lean`): scalar + byte-array
+    units with `x5,x10,x11,x12,x15` all `regOwn` (peel `x15`; fixes the byte-array→scalar boundary).
+  - ✅ **Step 34 — fully-canonical units** (`UnifiedFieldUnitFullyCanonical.lean`): `x14` also `regOwn`
+    — a fully uniform scratch interface (pre/post differ only in `x13` + output region).
+  - ✅ **Step 35 — N-field heterogeneous fold** (`SchemaFold.lean`, `schema_walk`): decode an arbitrary
+    `List FieldSpec` into one shared output region; the generic engine (see step 32 entry for contents).
+  - ✅ **Step 36 — concat instantiation helper** (`SchemaFoldConcat.lean`): `schemaValid_of_concat` derives
+    `SchemaValid` from one `bs.drop O = schemaEncBytes specs ++ tail` fact + per-field core validity; plus a
+    concrete 3-field cross-check.
+  - ✅ **Step 37 — RLP-list schema decoder** (`SchemaListWalk.lean`, `list_schema_walk`): descend one list
+    level (`unified_list_header_descend`) ⨾ `schema_walk` — the shape every tx/header takes. The descend's
+    post matches `schemaINV`'s order, so the bridge is a positional scratch weaken + `x13` rewrite (`hptr`).
+  - ✅ **Step 38 — short-list convenience** (`SchemaListWalkShort.lean`, `short_list_schema_walk`): for a
+    short list (`0xc0..0xf7`) the payload is at `O+1` and `regionLongWindow` is vacuous — discharged from
+    `classifyPrefix (bs[O]) = .shortList`.
+  - ✅ **Step 39 — long-list variant** (`SchemaListWalkLong.lean`, `long_list_schema_walk`): the real
+    tx/header form (`0xf8..0xff`); payload at `(O+1)+lenOfLen`, window discharged from `hwin` + a
+    "length bytes fit" bound.
+  - ✅ **Step 40 — concrete end-to-end cross-check** (`SchemaListDecodeExample.lean`): decodes the short RLP
+    list `[0xc4,0x2a,0x82,0x01,0x02]` through the full pipeline with zero bespoke proof.
+  - **🎯 RLP decoder core COMPLETE & validated.** The generic engine decodes any short/long-list RLP value
+    of mixed scalar|byte-array fields (any order) into a unified output `bytesRegion`, coinciding
+    field-by-field with the pure spec (`schemaDecodes`).
+  - **Next (concrete STF decoders → Phase 6 — needs maintainer input):** instantiate `long_list_schema_walk`
+    for the legacy-tx (9-field) / block-header (~19-field) schemas → `BlockInput`. This needs the **target
+    struct layout** (`BlockInput` field offsets) and the exact field schemas (which fields are scalar vs
+    address/hash, their output offsets). Then Phase 6 (`read_input → decode → write_output`) per the host-I/O
+    ABI. Optional field variants still open: n=0 empty `.bytes` → 0 scalar (branch-to-skip-loop), wide
+    scalars (uint256, multi-word); the per-field `schemaDecodes` → list-level `decode (.list …)` pure-spec
+    bridge would close the operational↔spec loop at the list level.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
