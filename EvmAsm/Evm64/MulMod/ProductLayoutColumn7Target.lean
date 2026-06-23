@@ -6,6 +6,39 @@ open EvmAsm.Rv64
 open EvmAsm.Evm64.MulMod.ProductAlgebra
 
 
+private theorem mulModCarryStepValue_toNat_forColumn7 (limb carry : Word) :
+    (mulModCarryStepValue limb carry).toNat = (limb.toNat + carry.toNat) % 2 ^ 64 := by
+  unfold mulModCarryStepValue
+  rw [BitVec.toNat_add]
+
+private theorem mulModAddPartialLoValue_toNat_forColumn7 (lo x y : Word) :
+    (mulModAddPartialLoValue lo x y).toNat = (lo.toNat + (x * y).toNat) % 2 ^ 64 := by
+  unfold mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [BitVec.toNat_add]
+
+private theorem mulModAddPartialHiValue_toNat_forColumn7 (hi lo x y : Word) :
+    (mulModAddPartialHiValue hi lo x y).toNat =
+      (hi.toNat + ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+        2 ^ 64) % 2 ^ 64 := by
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseValue mulModAddPartialHiProduct
+  rw [BitVec.toNat_add]
+  rw [BitVec.toNat_add]
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+  omega
+
+private theorem mulModAddPartialHiCarry_toNat_forColumn7 (hi lo x y : Word) :
+    (mulModAddPartialHiCarry hi lo x y).toNat =
+      (hi.toNat + ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+        2 ^ 64) / 2 ^ 64 := by
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+  rw [BitVec.toNat_add]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue
+    mulModAddPartialLoProduct
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+
+
 private theorem mulModAddPartialHiCarry_toNat_le_one_forColumn7 (hi lo x y : Word) :
     (mulModAddPartialHiCarry hi lo x y).toNat ≤ 1 := by
   rw [mulModAddPartialHiCarry_eq_singleCarry]
@@ -481,10 +514,342 @@ theorem mulModProductLayoutCall12P152_toNat_zero (a b : EvmWord) :
   rw [mulModProductLayoutCall12P152_zero]
   rfl
 
+
+
+private theorem mulModProductLayoutCarryTelescoping5ForLimb7
+    (d0 d1 d2 d3 d4 c1 c2 c3 c4 c5 w : Nat)
+    (h0 : w * c1 + d0 % w = d0)
+    (h1 : w * c2 + (d1 + c1) % w = d1 + c1)
+    (h2 : w * c3 + (d2 + c2) % w = d2 + c2)
+    (h3 : w * c4 + (d3 + c3) % w = d3 + c3)
+    (h4 : w * c5 + (d4 + c4) % w = d4 + c4) :
+    d0 + d1 * w + d2 * w ^ 2 + d3 * w ^ 3 + d4 * w ^ 4 =
+      d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+        (d3 + c3) % w * w ^ 3 + (d4 + c4) % w * w ^ 4 + c5 * w ^ 5 := by
+  have h_d1 : d1 + c1 = (d1 + c1) % w + w * c2 := by
+    linarith [h1]
+  have h_d2 : d2 + c2 = (d2 + c2) % w + w * c3 := by
+    linarith [h2]
+  have h_d3 : d3 + c3 = (d3 + c3) % w + w * c4 := by
+    linarith [h3]
+  have h_d4 : d4 + c4 = (d4 + c4) % w + w * c5 := by
+    linarith [h4]
+  calc
+    d0 + d1 * w + d2 * w ^ 2 + d3 * w ^ 3 + d4 * w ^ 4
+        = (d0 % w + w * c1) + d1 * w + d2 * w ^ 2 + d3 * w ^ 3 +
+            d4 * w ^ 4 := by
+          linarith [h0]
+    _ = d0 % w + (d1 + c1) * w + d2 * w ^ 2 + d3 * w ^ 3 +
+          d4 * w ^ 4 := by
+          ring
+    _ = d0 % w + ((d1 + c1) % w + w * c2) * w + d2 * w ^ 2 +
+          d3 * w ^ 3 + d4 * w ^ 4 := by
+          rw [← h_d1]
+    _ = d0 % w + (d1 + c1) % w * w + (d2 + c2) * w ^ 2 +
+          d3 * w ^ 3 + d4 * w ^ 4 := by
+          ring
+    _ = d0 % w + (d1 + c1) % w * w + ((d2 + c2) % w + w * c3) * w ^ 2 +
+          d3 * w ^ 3 + d4 * w ^ 4 := by
+          rw [← h_d2]
+    _ = d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+          (d3 + c3) * w ^ 3 + d4 * w ^ 4 := by
+          ring
+    _ = d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+          ((d3 + c3) % w + w * c4) * w ^ 3 + d4 * w ^ 4 := by
+          rw [← h_d3]
+    _ = d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+          (d3 + c3) % w * w ^ 3 + (d4 + c4) * w ^ 4 := by
+          ring
+    _ = d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+          (d3 + c3) % w * w ^ 3 + ((d4 + c4) % w + w * c5) * w ^ 4 := by
+          rw [← h_d4]
+    _ = d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+          (d3 + c3) % w * w ^ 3 + (d4 + c4) % w * w ^ 4 + c5 * w ^ 5 := by
+          ring
+
+private theorem mulModProductLayoutGeoSeriesIdentity5ForLimb7 (w : Nat) (h_w : 0 < w) :
+    (w - 1) + (w - 1) * w + (w - 1) * w ^ 2 + (w - 1) * w ^ 3 +
+        (w - 1) * w ^ 4 + 1 = w ^ 5 := by
+  obtain ⟨n, rfl⟩ : ∃ n, w = n + 1 := ⟨w - 1, by omega⟩
+  simp only [Nat.add_sub_cancel]
+  ring
+
+private theorem mulModProductLayoutLowPartBound5ForLimb7
+    (d0 d1c1 d2c2 d3c3 d4c4 w : Nat) (h_w : 0 < w)
+    (h0 : d0 % w < w) (h1 : d1c1 % w < w) (h2 : d2c2 % w < w)
+    (h3 : d3c3 % w < w) (h4 : d4c4 % w < w) :
+    d0 % w + d1c1 % w * w + d2c2 % w * w ^ 2 + d3c3 % w * w ^ 3 +
+        d4c4 % w * w ^ 4 < w ^ 5 := by
+  have h_bound0 : d0 % w ≤ w - 1 := by
+    omega
+  have h_bound1 : d1c1 % w * w ≤ (w - 1) * w :=
+    Nat.mul_le_mul_right w (by omega)
+  have h_bound2 : d2c2 % w * w ^ 2 ≤ (w - 1) * w ^ 2 :=
+    Nat.mul_le_mul_right (w ^ 2) (by omega)
+  have h_bound3 : d3c3 % w * w ^ 3 ≤ (w - 1) * w ^ 3 :=
+    Nat.mul_le_mul_right (w ^ 3) (by omega)
+  have h_bound4 : d4c4 % w * w ^ 4 ≤ (w - 1) * w ^ 4 :=
+    Nat.mul_le_mul_right (w ^ 4) (by omega)
+  have h_geo := mulModProductLayoutGeoSeriesIdentity5ForLimb7 w h_w
+  linarith [h_bound0, h_bound1, h_bound2, h_bound3, h_bound4, h_geo]
+
+private theorem mulModProductLayoutProductExpansion5ForLimb7
+    (a0 a1 a2 a3 b0 b1 b2 b3 w : Nat) :
+    (a0 + a1 * w + a2 * w ^ 2 + a3 * w ^ 3) *
+        (b0 + b1 * w + b2 * w ^ 2 + b3 * w ^ 3) =
+      a0 * b0 + (a0 * b1 + a1 * b0) * w +
+        (a0 * b2 + a1 * b1 + a2 * b0) * w ^ 2 +
+        (a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0) * w ^ 3 +
+        (a1 * b3 + a2 * b2 + a3 * b1) * w ^ 4 +
+        (a2 * b3 + a3 * b2) * w ^ 5 + a3 * b3 * w ^ 6 := by
+  ring
+
+/-- Schoolbook multiplication identifies product limb seven with the carried
+    high word of column six. -/
+theorem mulModProductLayoutSchoolbookLimb7
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Nat) :
+    let product :=
+      (a0 + a1 * 2 ^ 64 + a2 * 2 ^ 128 + a3 * 2 ^ 192) *
+        (b0 + b1 * 2 ^ 64 + b2 * 2 ^ 128 + b3 * 2 ^ 192)
+    let d0 := a0 * b0
+    let d1 := a0 * b1 + a1 * b0
+    let d2 := a0 * b2 + a1 * b1 + a2 * b0
+    let d3 := a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0
+    let d4 := a1 * b3 + a2 * b2 + a3 * b1
+    let d5 := a2 * b3 + a3 * b2
+    let d6 := a3 * b3
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    let c6 := (d5 + c5) / 2 ^ 64
+    product / 2 ^ 448 % 2 ^ 64 = (d6 + c6) / 2 ^ 64 % 2 ^ 64 := by
+  dsimp only
+  set w := (2 : Nat) ^ 64
+  have h128 : (2 : Nat) ^ 128 = w ^ 2 := by
+    norm_num [w]
+  have h192 : (2 : Nat) ^ 192 = w ^ 3 := by
+    norm_num [w]
+  have h448 : (2 : Nat) ^ 448 = w ^ 7 := by
+    rw [show w = (2 : Nat) ^ 64 by rfl, ← Nat.pow_mul]
+  rw [h128, h192, h448]
+  set d0 := a0 * b0
+  set d1 := a0 * b1 + a1 * b0
+  set d2 := a0 * b2 + a1 * b1 + a2 * b0
+  set d3 := a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0
+  set d4 := a1 * b3 + a2 * b2 + a3 * b1
+  set d5 := a2 * b3 + a3 * b2
+  set d6 := a3 * b3
+  set c1 := d0 / w
+  set c2 := (d1 + c1) / w
+  set c3 := (d2 + c2) / w
+  set c4 := (d3 + c3) / w
+  set c5 := (d4 + c4) / w
+  set c6 := (d5 + c5) / w
+  set product :=
+    (a0 + a1 * w + a2 * w ^ 2 + a3 * w ^ 3) *
+      (b0 + b1 * w + b2 * w ^ 2 + b3 * w ^ 3)
+  have h_product :
+      product = d0 + d1 * w + d2 * w ^ 2 + d3 * w ^ 3 +
+        d4 * w ^ 4 + d5 * w ^ 5 + d6 * w ^ 6 := by
+    simp only [product, d0, d1, d2, d3, d4, d5, d6]
+    exact mulModProductLayoutProductExpansion5ForLimb7 a0 a1 a2 a3 b0 b1 b2 b3 w
+  have h_w : (0 : Nat) < w := by
+    positivity
+  have h_tel :
+      d0 + d1 * w + d2 * w ^ 2 + d3 * w ^ 3 + d4 * w ^ 4 =
+        d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+          (d3 + c3) % w * w ^ 3 + (d4 + c4) % w * w ^ 4 + c5 * w ^ 5 :=
+    mulModProductLayoutCarryTelescoping5ForLimb7 d0 d1 d2 d3 d4 c1 c2 c3 c4 c5 w
+      (Nat.div_add_mod d0 w)
+      (Nat.div_add_mod (d1 + c1) w)
+      (Nat.div_add_mod (d2 + c2) w)
+      (Nat.div_add_mod (d3 + c3) w)
+      (Nat.div_add_mod (d4 + c4) w)
+  have h_low :
+      d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+          (d3 + c3) % w * w ^ 3 + (d4 + c4) % w * w ^ 4 < w ^ 5 :=
+    mulModProductLayoutLowPartBound5ForLimb7 d0 (d1 + c1) (d2 + c2) (d3 + c3)
+      (d4 + c4) w h_w
+      (Nat.mod_lt d0 h_w)
+      (Nat.mod_lt (d1 + c1) h_w)
+      (Nat.mod_lt (d2 + c2) h_w)
+      (Nat.mod_lt (d3 + c3) h_w)
+      (Nat.mod_lt (d4 + c4) h_w)
+  set low :=
+    d0 % w + (d1 + c1) % w * w + (d2 + c2) % w * w ^ 2 +
+      (d3 + c3) % w * w ^ 3 + (d4 + c4) % w * w ^ 4
+  have h_product_folded :
+      product = low + ((d5 + c5) + d6 * w) * w ^ 5 := by
+    rw [h_product, h_tel]
+    ring
+  set high := (d5 + c5) + d6 * w
+  have h_div5 : product / w ^ 5 = high := by
+    rw [h_product_folded,
+      Nat.add_mul_div_right _ _ (by positivity : (0 : Nat) < w ^ 5),
+      Nat.div_eq_of_lt h_low, Nat.zero_add]
+  have h_pow7 : w ^ 7 = w ^ 5 * w ^ 2 := by
+    ring
+  rw [h_pow7, ← Nat.div_div_eq_div_mul, h_div5]
+  subst high
+  subst c6
+  rw [show w ^ 2 = w * w by ring, ← Nat.div_div_eq_div_mul]
+  rw [show ((d5 + c5) + d6 * w) / w = d6 + (d5 + c5) / w by
+    rw [Nat.add_mul_div_right _ _ h_w]
+    ring]
+
+private theorem mulModProductLayoutCarryHighFromOneWordAccumulatorTwoProductsModCarries
+    (lo hi mu20 lo20 mu11 lo11 : Nat)
+    (hlo : lo < 2 ^ 64) (hhi : hi < 2 ^ 64)
+    (hp20 : mu20 * 2 ^ 64 + lo20 ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1))
+    (hp11 : mu11 * 2 ^ 64 + lo11 ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1)) :
+    let w := 2 ^ 64
+    let lo1 := (lo + lo20) % w
+    let hi1 := (hi + (mu20 + (lo + lo20) / w) % w) % w
+    let c1 := (hi + (mu20 + (lo + lo20) / w) % w) / w
+    let c2 := (hi1 + (mu11 + (lo1 + lo11) / w) % w) / w
+    (c1 % w + c2) % w =
+      ((mu11 * w + lo11 + (mu20 * w + lo20) + (hi * w + lo)) / w / w) % w := by
+  intro w lo1 hi1 c1 c2
+  have h20 : mu20 + (lo + lo20) / 2 ^ 64 < 2 ^ 64 := by
+    norm_num at hlo hp20 ⊢
+    omega
+  have h11 : mu11 + ((lo + lo20) % 2 ^ 64 + lo11) / 2 ^ 64 < 2 ^ 64 := by
+    have h_lo1 : (lo + lo20) % 2 ^ 64 < 2 ^ 64 := Nat.mod_lt _ (by norm_num)
+    norm_num at h_lo1 hp11 ⊢
+    omega
+  have h_c1 : c1 < w := by
+    subst c1
+    subst w
+    have h_term : (mu20 + (lo + lo20) / 2 ^ 64) % 2 ^ 64 < 2 ^ 64 :=
+      Nat.mod_lt _ (by norm_num)
+    norm_num at hhi h_term ⊢
+    omega
+  rw [Nat.mod_eq_of_lt h_c1]
+  subst c2
+  subst hi1
+  subst lo1
+  subst c1
+  subst w
+  norm_num at hlo hhi h20 h11 ⊢
+  omega
+
+/-- The fourteenth call's offset-152 cell is the high word of the column-six carry. -/
+theorem mulModProductLayoutCall14P152_toNat_eq_c6_high (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let d5 := a2.toNat * b3.toNat + a3.toNat * b2.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    let c6 := (d5 + c5) / 2 ^ 64
+    (mulModProductLayoutCall14P152 a b).toNat = (c6 / 2 ^ 64) % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutCall14P152 mulModProductLayoutCall13P152
+  simp only [mulModCarryStepValue_toNat_forColumn7, mulModProductLayoutCall12P152_toNat_zero,
+    mulModProductLayoutCall13Carry144, mulModProductLayoutCall14Carry144,
+    mulModAddPartialHiCarry_toNat_forColumn7, mulModProductLayoutCall13P144,
+    mulModProductLayoutCall13P136, mulModAddPartialHiValue_toNat_forColumn7,
+    mulModAddPartialLoValue_toNat_forColumn7, mulModProductLayoutCall12P144_toNat_eq_c5_high,
+    mulModProductLayoutCall12P136_toNat_eq_c5, Nat.zero_add]
+  rw [mulModProductLayoutCarryHighFromOneWordAccumulatorTwoProductsModCarries]
+  · have h32 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 2)
+    have h23 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 3)
+    have h00 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 0)
+    have h10 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 0)
+    have h20 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 0)
+    have h30 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 0)
+    have h01 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 1)
+    have h11 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 1)
+    have h21 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 1)
+    have h02 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 2)
+    have h12 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 2)
+    have h03 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 3)
+    have h31 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 1)
+    have h22 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 2)
+    have h13 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 3)
+    norm_num at h32 h23 h00 h10 h20 h30 h01 h11 h21 h02 h12 h03 h31 h22 h13 ⊢
+    omega
+  · exact Nat.mod_lt _ (by norm_num)
+  · exact Nat.mod_lt _ (by norm_num)
+  · have h32 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 2)
+    rw [h32]
+    exact Nat.mul_le_mul (by omega) (by omega)
+  · have h23 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 3)
+    rw [h23]
+    exact Nat.mul_le_mul (by omega) (by omega)
+
 /-- The finalized product-layout column-seven cell at offset 152. -/
 def mulModProductLayoutColumn7Value (a b : EvmWord) : Word :=
   mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
     (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3)
+
+
+/-- The folded column-seven target is the schoolbook limb-seven value. -/
+theorem mulModProductLayoutColumn7Value_toNat_eq_schoolbook_limb7 (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let d5 := a2.toNat * b3.toNat + a3.toNat * b2.toNat
+    let d6 := a3.toNat * b3.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    let c6 := (d5 + c5) / 2 ^ 64
+    (mulModProductLayoutColumn7Value a b).toNat = (d6 + c6) / 2 ^ 64 % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutColumn7Value
+  simp only [mulModAddPartialHiValue_toNat_forColumn7,
+    mulModProductLayoutCall14P152_toNat_eq_c6_high,
+    mulModProductLayoutCall14P144_toNat_eq_c6_carry]
+  have h33 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 3)
+  norm_num at h33 ⊢
+  omega
+
+/-- The folded column-seven target is the seventh schoolbook product limb. -/
+theorem mulModProductLayoutColumn7Value_eq_productLimb_seven (a b : EvmWord) :
+    mulModProductLayoutColumn7Value a b = productLimb a b 7 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [mulModProductLayoutColumn7Value_toNat_eq_schoolbook_limb7]
+  simp only [productLimb, productNat, BitVec.toNat_ofNat, Nat.reduceMul]
+  rw [EvmWord.toNat_eq_limb_sum a, EvmWord.toNat_eq_limb_sum b]
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
+  rw [mulModProductLayoutSchoolbookLimb7]
+
+/-- The folded column-seven target is the fourth high product limb. -/
+theorem mulModProductLayoutColumn7Value_eq_mulHigh_getLimbN_three (a b : EvmWord) :
+    mulModProductLayoutColumn7Value a b = (EvmWord.mulHigh a b).getLimbN 3 := by
+  rw [← productLimb_seven_eq_mulHigh_getLimbN_three]
+  exact mulModProductLayoutColumn7Value_eq_productLimb_seven a b
 
 /-- The concrete call15 P152 cell is the folded column-seven target. -/
 theorem mulModProductLayoutCall15P152Value_eq_column7Value (a b : EvmWord) :
@@ -502,6 +867,15 @@ theorem mulModProductLayoutCall15P152Value_eq_productLimb_seven_iff_column7Value
         productLimb a b 7) ↔
       (mulModProductLayoutColumn7Value a b = productLimb a b 7) := by
   rfl
+
+
+/-- The concrete call15 P152 cell is the seventh schoolbook product limb. -/
+theorem mulModProductLayoutCall15P152Value_eq_productLimb_seven (a b : EvmWord) :
+    mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
+      (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3) =
+        productLimb a b 7 := by
+  rw [mulModProductLayoutCall15P152Value_eq_column7Value]
+  exact mulModProductLayoutColumn7Value_eq_productLimb_seven a b
 
 /-- The concrete call15 high-limb target is equivalent to the folded
     column-seven product-limb obligation. -/
@@ -530,6 +904,15 @@ theorem mulModProductLayoutColumn7Value_eq_mulHigh_getLimbN_three_of_productLimb
       (EvmWord.mulHigh a b).getLimbN 3 := by
   exact (mulModProductLayoutColumn7Value_eq_mulHigh_getLimbN_three_iff_productLimb_seven
     a b).2 h_col
+
+
+/-- The concrete call15 P152 cell is the fourth high product limb. -/
+theorem mulModProductLayoutCall15P152Value_eq_mulHigh_getLimbN_three (a b : EvmWord) :
+    mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
+      (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3) =
+        (EvmWord.mulHigh a b).getLimbN 3 := by
+  rw [← productLimb_seven_eq_mulHigh_getLimbN_three]
+  exact mulModProductLayoutCall15P152Value_eq_productLimb_seven a b
 
 theorem mulModProductLayoutCall15P152Value_eq_mulHigh_getLimbN_three_of_column7Value_mulHigh
     {a b : EvmWord}
