@@ -77,6 +77,8 @@ import EvmAsm.Rv64.RLP.UnifiedFieldScalarRead
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldDecode
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldStore
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldZero
+import EvmAsm.Rv64.RLP.UnifiedEmptyScalarField
+import EvmAsm.Rv64.RLP.UnifiedEmptyScalarFieldCanonical
 import EvmAsm.Rv64.RLP.UnifiedTwoScalarFieldWalk
 import EvmAsm.Rv64.RLP.ScalarFieldWalkChain
 import EvmAsm.Rv64.RLP.ScalarFieldWalkInfra
@@ -89,6 +91,8 @@ import EvmAsm.Rv64.RLP.ByteCopyChainGen
 import EvmAsm.Rv64.RLP.UnifiedFieldBytesCopy
 import EvmAsm.Rv64.RLP.UnifiedBytesFieldDecode
 import EvmAsm.Rv64.RLP.UnifiedBytesFieldRegOwn
+import EvmAsm.Rv64.RLP.UnifiedEmptyBytesField
+import EvmAsm.Rv64.RLP.UnifiedEmptyBytesFieldCanonical
 import EvmAsm.Rv64.RLP.UnifiedWideScalarField
 import EvmAsm.Rv64.RLP.UnifiedLongBytesField
 import EvmAsm.Rv64.RLP.UnifiedLongBytesFieldCanonical
@@ -115,6 +119,7 @@ import EvmAsm.Rv64.RLP.SchemaDecodeEncoded
 import EvmAsm.Rv64.RLP.SchemaDecodeEncodedExample
 import EvmAsm.Rv64.RLP.SchemaDecodeValues
 import EvmAsm.Rv64.RLP.SchemaDecodeValuesExample
+import EvmAsm.Rv64.RLP.SchemaEmptyFieldExample
 import EvmAsm.Rv64.RLP.SchemaListEncodeLong
 import EvmAsm.Rv64.RLP.SchemaDecodeEncodedLong
 import EvmAsm.Rv64.RLP.NestedDescendOne

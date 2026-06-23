@@ -31,6 +31,7 @@ import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.Eip7702Authority
+import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 
 namespace EvmAsm.Codegen
 
@@ -237,7 +238,8 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lteer_next\n" ++
   "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_next\n" ++
-  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_next\n" ++
+  "  ld t2, 72(t0); beqz t2, .Lteer_marker_match\n" ++
+  "  li t3, 23; bne t2, t3, .Lteer_next\n" ++
   "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
   "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_next\n" ++
   "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_next\n" ++
@@ -507,7 +509,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- base the dimension is invalid (reverted), so saturate to 0 and let the max below recover
   -- before_refund.
   "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++   -- t3 = before_refund[i]
-  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++              -- t3 += tx_total_state_gas[i]
+  "  add t0, s4, t1; ld t4, 0(t0); mv t6, t4; add t3, t3, t4\n" ++   -- t3 += tx_total_state_gas[i], keep total in t6
   "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 = before_refund + tot + 7500*auth
   "  ld t0, 104(sp); add t0, t0, t1; ld t4, 0(t0)\n" ++              -- t4 = tx_exec_state_gas[i]
   -- For legitimate txs base = before_refund+tot+7500 >= exec_state (before_refund already
@@ -516,6 +518,16 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- (state_used=0), so the correct exec_state contribution is 0 -> keep base, skip the
   -- subtraction (verified: set_code_to_sstore revert receipt = before_refund 33221 + tot
   -- 35190 + 7500 = 75911 = spec). This also avoids the unsigned underflow (jouwf).
+  -- bbow4.2.5.7: when the executed type-4 auth state gas equals the net tx state
+  -- gas (no existing-authority state refund), receipts must include that state
+  -- dimension. Subtract exec_state only when it is strictly larger than the net
+  -- state dimension, i.e. when the runtime pool included state that the refund
+  -- path removed from tx_total_state_gas.
+  "  la t0, bvgr_before_refund; add t0, t0, t1; ld t5, 0(t0)\n" ++
+  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld a0, 0(t0); bne t5, a0, .Lbvrga_type4_subchk\n" ++
+  "  li a0, 21000; bne t5, a0, .Lbvrga_type4_subchk\n" ++
+  "  bleu t4, t6, .Lbvrga_type4_dimmaxchk\n" ++                       -- floor-only auth tx: keep state in receipt
+  ".Lbvrga_type4_subchk:\n" ++
   "  bltu t3, t4, .Lbvrga_type4_dimmaxchk\n" ++                       -- exec_state > base (revert): keep base
   "  sub t3, t3, t4\n" ++                                            -- t3 -= exec_state (no underflow)
   ".Lbvrga_type4_dimmaxchk:\n" ++
@@ -541,6 +553,15 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  add t2, s3, t1; sd t3, 0(t2)\n" ++                              -- bvgr_receipt_gas_increments[i] = receipt
   "  j .Lbvrga_next\n" ++
   ".Lbvrga_type4_store_before_refund:\n" ++
+  -- bbow4.2.5.7: successful authorization-only transactions can land here
+  -- because before_refund equals the 21000 calldata floor while the dispatcher
+  -- omitted both PER_AUTH_BASE_COST and the EIP-8037 state dimension from the
+  -- receipt increment. Add those verdict-side dimensions before storing.
+  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  li t4, 21000; bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
+  "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++
+  ".Lbvrga_type4_store_before_refund_raw:\n" ++
   "  add t2, s3, t1; sd t3, 0(t2)\n" ++
   "  j .Lbvrga_next\n" ++
   ".Lbvrga_next:\n" ++
@@ -645,7 +666,12 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  add t1, s5, t0; ld t1, 0(t1); beqz t1, .Lbvf4ar_failed\n" ++
   "  add t1, s4, t0; ld t2, 0(t1)          # before_refund[i]\n" ++
   "  la t1, bvgr_calldata_floor; add t1, t1, t0; ld t3, 0(t1)\n" ++
-  "  beq t2, t3, .Lbvf4ar_succ_store       # floor-dominated success: restore floor\n" ++
+  "  bne t2, t3, .Lbvf4ar_succ_not_floor\n" ++
+  "  ld t1, 104(sp); beqz t1, .Lbvf4ar_succ_store\n" ++
+  "  add t1, t1, t0; ld t1, 0(t1); bnez t1, .Lbvf4ar_succ_store\n" ++
+  "  la t1, bvrga_auth_count; ld t1, 0(t1); beqz t1, .Lbvf4ar_succ_store\n" ++
+  "  li t3, 7500; mul t1, t1, t3; add t2, t2, t1; j .Lbvf4ar_succ_store\n" ++
+  ".Lbvf4ar_succ_not_floor:\n" ++
   "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3; add t2, t2, t1\n" ++
   "  la t1, bvgr_tx_exec_state_gas; add t1, t1, t0; ld t3, 0(t1)   # exec_state[i]\n" ++
   "  bltu t2, t3, .Lbvf4ar_succ_floor      # base < exec_state (anomaly): keep base\n" ++
@@ -778,6 +804,144 @@ def blockVerdictTxStateGasArrayFunction : String :=
   "  addi sp, sp, 112\n" ++
   "  ret"
 
+/-! ## block_verdict_eip7702_auth_nonstorage_effects
+
+    EIP-7702 set_delegation increments each successfully authorized authority's
+    nonce before message execution. That nonce change is not produced by CALL /
+    CREATE execution, so append a nonce-only non-storage effect for every auth
+    tuple whose recovered authority is present in the BAL and whose pre-state
+    nonce matches the signed nonce. Code changes remain covered by the existing
+    7702 code-comparator exception; this helper supplies only the balance/nonce
+    effect used by the all-accounts non-storage comparators. -/
+def eip7702AuthNonstorageEffectsFunction : String :=
+  "eip7702_auth_nonstorage_effects:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  mv s0, a0                   # tx ptr\n" ++
+  "  mv s1, a1                   # tx len\n" ++
+  "  mv s2, a2                   # BAL ptr\n" ++
+  "  mv s3, a3                   # BAL len\n" ++
+  "  mv s4, a4                   # chain id\n" ++
+  "  beqz s2, .Lteanse_done\n" ++
+  "  mv a0, s0; mv a1, s1; la a2, teer_type; la a3, teer_inner_off\n" ++
+  "  jal ra, tx_type_dispatch\n" ++
+  "  bnez a0, .Lteanse_done\n" ++
+  "  la t0, teer_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lteanse_done\n" ++
+  "  la t0, teer_inner_off; ld t1, 0(t0); bgtu t1, s1, .Lteanse_done; add s5, s0, t1; sub s6, s1, t1\n" ++
+  "  mv a0, s5; mv a1, s6; li a2, 9; la a3, teer_auth_off; la a4, teer_auth_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteanse_done\n" ++
+  "  la t0, teer_auth_off; ld t1, 0(t0); add s5, s5, t1\n" ++
+  "  la t0, teer_auth_len; ld s6, 0(t0)\n" ++
+  "  mv a0, s5; mv a1, s6; la a2, teer_auth_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lteanse_done\n" ++
+  "  la t0, teer_auth_count; ld s7, 0(t0); li s8, 0\n" ++
+  ".Lteanse_loop:\n" ++
+  "  beq s8, s7, .Lteanse_done\n" ++
+  "  mv a0, s5; mv a1, s6; mv a2, s8; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteanse_next\n" ++
+  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
+  "  la t0, teer_tuple_len; ld s10, 0(t0)\n" ++
+  "  mv a0, s9; mv a1, s10; li a2, 0; la a3, teer_auth_chain\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteanse_next\n" ++
+  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteanse_chain_ok; bne t1, s4, .Lteanse_next\n" ++
+  ".Lteanse_chain_ok:\n" ++
+  "  mv a0, s9; mv a1, s10; li a2, 2; la a3, teer_auth_nonce\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
+  "  bnez a0, .Lteanse_next\n" ++
+  "  la t0, teer_auth_nonce; ld s11, 0(t0); li t2, -1; beq s11, t2, .Lteanse_next\n" ++
+  "  mv a0, s9; mv a1, s10; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lteanse_next\n" ++
+  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteanse_next\n" ++
+  "  mv a0, s9; mv a1, s10; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
+  "  jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lteanse_next\n" ++
+  "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lteanse_next\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lteanse_next\n" ++
+  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteanse_next\n" ++
+  "  ld t1, 48(t0); addi t2, s11, 1; bltu t1, t2, .Lteanse_next\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  beqz a0, .Lteanse_have_pre\n" ++
+  "  li t0, 1; bne a0, t0, .Lteanse_next\n" ++
+  "  bnez s11, .Lteanse_next\n" ++
+  "  la t0, teer_pre_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
+  "  j .Lteanse_record\n" ++
+  ".Lteanse_have_pre:\n" ++
+  "  la t0, teer_pre_acct; ld t1, 0(t0); bne t1, s11, .Lteanse_next\n" ++
+  ".Lteanse_record:\n" ++
+  "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8; mv a2, a1; mv a3, s11; addi a4, s11, 1\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteanse_next\n" ++
+  "  ld t1, 72(t0); bnez t1, .Lteanse_next\n" ++
+  "  la t0, exec_code_effect_next; ld t1, 0(t0); addi t2, t1, 48; li t3, " ++ toString execCodeEffectLogCap ++ "; bgtu t2, t3, .Lteanse_code_overflow\n" ++
+  "  la t3, exec_code_effect_log; add t3, t3, t1\n" ++
+  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
+  "  la t4, teer_authority; mv t5, t3; li t6, 20\n" ++
+  ".Lteanse_code_addr:\n" ++
+  "  beqz t6, .Lteanse_code_addr_done\n" ++
+  "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lteanse_code_addr\n" ++
+  ".Lteanse_code_addr_done:\n" ++
+  "  li t4, 1; sd t4, 32(t3); sd zero, 40(t3)\n" ++
+  "  la t0, exec_code_effect_count; ld t4, 0(t0); addi t4, t4, 1; sd t4, 0(t0)\n" ++
+  "  la t0, exec_code_effect_next; sd t2, 0(t0); j .Lteanse_next\n" ++
+  ".Lteanse_code_overflow:\n" ++
+  "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lteanse_next:\n" ++
+  "  addi s8, s8, 1; j .Lteanse_loop\n" ++
+  ".Lteanse_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret"
+
+def blockVerdictEip7702AuthNonstorageEffectsArrayFunction : String :=
+  "block_verdict_eip7702_auth_nonstorage_effects_array:\n" ++
+  "  addi sp, sp, -88\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s8, a5\n" ++
+  "  li t0, 4; bltu s1, t0, .Lbv7702nse_ok\n" ++
+  "  mv a0, s0; jal ra, bgv_u32le; andi t0, a0, 3; bnez t0, .Lbv7702nse_ok; bgtu a0, s1, .Lbv7702nse_ok\n" ++
+  "  srli s5, a0, 2; bne s5, s2, .Lbv7702nse_ok; li s6, 0\n" ++
+  ".Lbv7702nse_loop:\n" ++
+  "  beq s6, s5, .Lbv7702nse_ok\n" ++
+  "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le; mv s7, a0\n" ++
+  "  slli t0, s5, 2; bltu s7, t0, .Lbv7702nse_next; bgtu s7, s1, .Lbv7702nse_next\n" ++
+  "  addi t0, s6, 1; beq t0, s5, .Lbv7702nse_last\n" ++
+  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le; j .Lbv7702nse_have\n" ++
+  ".Lbv7702nse_last:\n" ++
+  "  mv a0, s1\n" ++
+  ".Lbv7702nse_have:\n" ++
+  "  bltu a0, s7, .Lbv7702nse_next; bgtu a0, s1, .Lbv7702nse_next\n" ++
+  "  add a1, s0, s7; sub a1, a0, s7; add a0, s0, s7; mv a2, s3; mv a3, s4; mv a4, s8\n" ++
+  "  jal ra, eip7702_auth_nonstorage_effects\n" ++
+  ".Lbv7702nse_next:\n" ++
+  "  addi s6, s6, 1; j .Lbv7702nse_loop\n" ++
+  ".Lbv7702nse_ok:\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 88\n" ++
+  "  ret"
+
 /-- `zisk_block_verdict_tx_state_gas_array`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : tx-section byte length
@@ -861,6 +1025,7 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "teer_acct_ptr:\n  .zero 8\n" ++
   "teer_acct_len:\n  .zero 8\n" ++
   "teer_finals:\n  .zero 88\n" ++
+  "teer_pre_acct:\n  .zero 104\n" ++
   ziskEip7702AuthorizationRecoverAddressDataSection ++ "\n" ++
   "c2nsf_off:\n  .zero 8\n" ++
   "c2nsf_len:\n  .zero 8\n" ++

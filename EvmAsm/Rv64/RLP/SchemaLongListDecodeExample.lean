@@ -37,7 +37,7 @@ example :=
     egLongSpecs (List.replicate 64 (0 : Byte)) 64 0 0 0 0 0 0 (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by simp) (by decide) (by decide)
     (schemaValid_of_concat egLongBs 64 [] egLongSpecs 2
-      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide, by decide⟩)
+      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
       (by decide))
     (by decide)
 
