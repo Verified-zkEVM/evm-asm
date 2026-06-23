@@ -77,6 +77,7 @@ import EvmAsm.Rv64.RLP.UnifiedFieldScalarRead
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldDecode
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldStore
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldZero
+import EvmAsm.Rv64.RLP.UnifiedEmptyScalarField
 import EvmAsm.Rv64.RLP.UnifiedTwoScalarFieldWalk
 import EvmAsm.Rv64.RLP.ScalarFieldWalkChain
 import EvmAsm.Rv64.RLP.ScalarFieldWalkInfra

@@ -1820,11 +1820,18 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `schemaDecodes_imp_scalarValues`, so the conclusion is `schemaScalarValues` (every field's big-endian
     value at its input offset, uniformly). The one-shot API behind the concrete tx/header decoders: RLP
     bytes in → operational decode + all field values out, verified.
-  - **🔀 Remaining.** The engine decodes every field type a real tx/header contains EXCEPT `n=0`/empty
-    fields (still `1 ≤ data.length`; needs an empty field-kind — distinct `fieldSize`/CR, an invasive
-    `FieldSpec`-kind extension). The named-struct assembly (legacy-tx 9-field → tx struct) is a direct
-    instantiation of the value API (contiguous output via parameterized field offsets; fixed 32-byte slots
-    would need a zero-pad primitive). Next: the legacy-tx schema instantiation, then empty-field integration.
+  - **🚧 Empty (`n=0`) field support (in progress).** Closing the last gap so the engine decodes every
+    valid RLP field (zero scalars, empty `to`). Minimal-disruption design: keep `FieldSpec.isScalar : Bool`,
+    detect empty by `data = []`, dispatch data-dependently — only `SchemaFold`/`SchemaFoldConcat`/
+    `FieldUnitDisjoint` change; downstream rebuilds unchanged.
+  - ✅ **Step 49 — empty-scalar region unit** (`UnifiedEmptyScalarField.lean`,
+    `unified_empty_scalar_field_decode_and_store_region`): region analog of the cell-based n=0 unit — descend
+    `0x80` (`x13 → next`, `x11 = 0`) ⨾ scalar store-region leaf spilling `0` (`spillRange out 0 di 8`).
+    `fieldSize = 248` (32 B shorter than the non-empty scalar unit; no read loop). Coincides with
+    `decodeScalar (bs.drop O) = some (0, tail)`.
+  - **Next:** empty-scalar canonical chain (→ `schemaINV` interface) + `emptyScalarUnitCR`; empty-bytes
+    region unit + canonical; then engine integration (data-dependent `fieldSize`/`fieldCR`/`fieldSteps`,
+    `field_step` dispatch, `SchemaValid` relax).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
