@@ -57,6 +57,18 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_bbow426_done\n" ++
   "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_bbow426_done\n" ++
   "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0)\n" ++
+  -- bbow4.2.5.2 follow-up: the same successful non-creation code-deposit OOG
+  -- shape fixed in the exact block-gas check keeps receipts one executed-state
+  -- slice too high. Consensus receipt gas is `receipt_inc - tx_exec_state_gas`,
+  -- while header.gas_used remains the lower block regular dimension.
+  "  la t3, bv_tx_is_creation_arr; ld t3, 0(t3); bnez t3, .Lbv_code_deposit_oog_receipt_done\n" ++
+  "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 97920; bne t3, t5, .Lbv_code_deposit_oog_receipt_done\n" ++
+  "  la t4, bvgr_tx_total_state_gas; ld t4, 0(t4); bne t4, t3, .Lbv_code_deposit_oog_receipt_done\n" ++
+  "  la t4, bvgr_block_gas_increments; ld t4, 0(t4); add t5, t4, t3; bltu t5, t4, .Lbv_code_deposit_oog_receipt_done\n" ++
+  "  bltu t1, t3, .Lbv_code_deposit_oog_receipt_done\n" ++
+  "  sub t6, t1, t3; bne t6, t5, .Lbv_code_deposit_oog_receipt_done\n" ++
+  "  sd t6, 0(t0); mv t1, t6\n" ++
+  ".Lbv_code_deposit_oog_receipt_done:\n" ++
   "  la t2, bv_exact_expected_gas_used; ld t2, 0(t2); bgeu t1, t2, .Lbv_bbow426_done\n" ++
   "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 183600; bltu t3, t5, .Lbv_bbow426_done\n" ++
   "  mv t3, t5\n" ++
