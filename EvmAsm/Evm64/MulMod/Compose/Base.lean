@@ -7,6 +7,7 @@
 -/
 
 import EvmAsm.Evm64.MulMod.LimbSpec
+import EvmAsm.Evm64.MulMod.ProductLayoutSpec
 import EvmAsm.Evm64.MulMod.AddrNorm
 
 namespace EvmAsm.Evm64.MulMod.Compose
@@ -39,6 +40,11 @@ private theorem append_assoc_seven {α : Type} (a b c d e f g r : List α) :
 private theorem append_assoc_eight {α : Type} (a b c d e f g h r : List α) :
     (a ++ (b ++ (c ++ (d ++ (e ++ (f ++ (g ++ h))))))) ++ r =
       a ++ (b ++ (c ++ (d ++ (e ++ (f ++ (g ++ (h ++ r))))))) := by
+  repeat rw [List.append_assoc]
+
+private theorem append_assoc_product_layout {α : Type} (a b c d e f : List α) :
+    (a ++ (b ++ (c ++ d))) ++ (e ++ f) =
+      a ++ (b ++ (c ++ (d ++ (e ++ f)))) := by
   repeat rw [List.append_assoc]
 
 /-- The zero/nonzero modulus prefix block (8 instrs at offset 0) is subsumed by
@@ -110,6 +116,46 @@ theorem evm_mulmod_program_code_product_zero_sub
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length, evm_mulmod_product_zero_length]; decide
   · rw [evm_mulmod_length]; decide
+
+/-- The full product-layout block (440 instrs at offset 56) is subsumed by the
+    top-level `evm_mulmod_program_code`. -/
+theorem evm_mulmod_program_code_product_layout_sub
+    (base : Word) :
+    ∀ a i, (evm_mulmod_product_layout_code (base + 56)) a = some i →
+      (evm_mulmod_program_code base) a = some i := by
+  intro a i h
+  dsimp [evm_mulmod_product_layout_code, evm_mulmod_program_code] at h ⊢
+  let pre : Program :=
+    evm_mulmod_nonzero_or_zero_prefix ;;
+    evm_mulmod_reduce_zero_path ;;
+    evm_mulmod_epilogue ;;
+    evm_mulmod_zero_path_skip_nonzero
+  let mid : Program := evm_mulmod_product_layout
+  let suf : Program := evm_mulmod_reduce512
+  have hpre_len : pre.length = 14 := by
+    unfold pre
+    simp only [seq, Program.length_append, evm_mulmod_nonzero_or_zero_prefix_length,
+      evm_mulmod_reduce_zero_path_length, evm_mulmod_epilogue_length,
+      evm_mulmod_zero_path_skip_nonzero_length]
+  have haddr : base + 56#64 = base + BitVec.ofNat 64 (4 * pre.length) := by
+    rw [hpre_len]
+  have hfull : pre ++ mid ++ suf = evm_mulmod := by
+    calc
+      pre ++ mid ++ suf = pre ++ (mid ++ suf) := List.append_assoc pre mid suf
+      _ = evm_mulmod := by
+        unfold pre mid suf evm_mulmod
+        simpa only [seq] using append_assoc_product_layout
+          evm_mulmod_nonzero_or_zero_prefix evm_mulmod_reduce_zero_path
+          evm_mulmod_epilogue evm_mulmod_zero_path_skip_nonzero
+          evm_mulmod_product_layout evm_mulmod_reduce512
+  rw [← hfull]
+  rw [haddr] at h
+  exact CodeReq.ofProg_mono_subrange base pre mid suf (by
+    have hlen : List.length (pre ++ mid ++ suf) = List.length evm_mulmod := by
+      rw [hfull]
+    change 4 * List.length (pre ++ mid ++ suf) < 2 ^ 64
+    rw [hlen, evm_mulmod_length]
+    decide) a i h
 
 /-- The finish suffix of the first product partial at offset 140 is subsumed by
     the top-level `evm_mulmod_program_code`. -/
@@ -622,6 +668,25 @@ theorem evm_mulmod_product_zero_evm_mulmod_spec_within (sp : Word) (base : Word)
     (h := evm_mulmod_product_zero_spec_within sp (base + 56)
       a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 p0 p1 p2 p3 p4 p5 p6 p7)
     (hmono := evm_mulmod_program_code_product_zero_sub base)
+
+
+/-- Full product-layout spec lifted onto `evm_mulmod_program_code` at the start
+    of the nonzero path. -/
+theorem evm_mulmod_product_layout_evm_mulmod_spec_within
+    (sp base : Word) (a b n : EvmWord)
+    (p0 p1 p2 p3 p4 p5 p6 p7 : Word)
+    (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
+    cpsTripleWithin 440 (base + 56) ((base + 56) + 1760) (evm_mulmod_program_code base)
+      (evmMulModProductLayoutPre sp a b n p0 p1 p2 p3 p4 p5 p6 p7 **
+       ((.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) **
+        (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) **
+        (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old)))
+      (evmMulModProductLayoutPost sp a b n ** evmMulModProductLayoutScratchPost) :=
+  cpsTripleWithin_extend_code
+    (h := evm_mulmod_product_layout_spec_within sp (base + 56) a b n
+      p0 p1 p2 p3 p4 p5 p6 p7
+      x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
+    (hmono := evm_mulmod_program_code_product_layout_sub base)
 
 
 /-- Reducer-initialization spec lifted onto `evm_mulmod_program_code` at the
