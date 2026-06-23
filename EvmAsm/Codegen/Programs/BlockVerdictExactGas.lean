@@ -60,6 +60,18 @@ def blockVerdictExactGasCheck : String :=
   "  jal ra, block_verdict_failed_type4_auth_regular_adjust\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
   "  la t2, bv_exact_header_gas_used; sd a0, 0(t2)\n" ++
+  -- Single-tx runtime dispatch stores settlement-effective gas_left
+  -- (`regular_left + state_gas_left`) in the gas-result arena because receipts
+  -- use `tx.gas - gas_left - state_gas_left`. The block header's regular-gas
+  -- dimension is `tx.gas - regular_left` only on rows whose header equals the
+  -- settlement increment plus final state reservoir. Other returned-reservoir
+  -- rows (for example SET/CLEAR revert) already have a regular-only header.
+  "  la t2, bvgr_arena_tx_count; ld t2, 0(t2); li t3, 1; bne t2, t3, .Lbv_regular_state_left_done\n" ++
+  "  la t2, evm_state_gas_left; ld t3, 0(t2); li t6, 195840; bne t3, t6, .Lbv_regular_state_left_done\n" ++
+  "  la t2, bvgr_block_gas_increments; ld t4, 0(t2); add t5, t4, t3; bltu t5, t4, .Lbv_block_gas_used_over_fail\n" ++
+  "  la t6, bv_exact_header_gas_used; ld t6, 0(t6); bne t5, t6, .Lbv_regular_state_left_done\n" ++
+  "  sd t5, 0(t2)\n" ++
+  ".Lbv_regular_state_left_done:\n" ++
   "  mv t1, a0                                            # stash gas_used (bgv_u64le clobbers t6)\n" ++
   "  la a0, bvgr_block_gas_increments\n" ++
   "  la a1, bvgr_tx_total_state_gas\n" ++
