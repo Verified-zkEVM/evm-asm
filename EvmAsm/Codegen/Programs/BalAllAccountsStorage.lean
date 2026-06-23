@@ -209,7 +209,11 @@ def ziskBalAllAccountsStorageConsistentDataSection : String :=
   ".balign 8\n" ++
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero 128\n"
+  "bv_system_storage_log:\n  .zero 128\n" ++
+  ".balign 8\n" ++
+  "exec_nonstorage_effect_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "exec_nonstorage_effect_log:\n  .zero 112\n"
 
 def ziskBalAllAccountsStorageConsistentProbeUnit : BuildUnit := {
   body        := NOP
