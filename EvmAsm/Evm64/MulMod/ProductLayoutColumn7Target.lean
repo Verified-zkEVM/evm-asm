@@ -6,6 +6,39 @@ open EvmAsm.Rv64
 open EvmAsm.Evm64.MulMod.ProductAlgebra
 
 
+private theorem mulModCarryStepValue_toNat_forColumn7 (limb carry : Word) :
+    (mulModCarryStepValue limb carry).toNat = (limb.toNat + carry.toNat) % 2 ^ 64 := by
+  unfold mulModCarryStepValue
+  rw [BitVec.toNat_add]
+
+private theorem mulModAddPartialLoValue_toNat_forColumn7 (lo x y : Word) :
+    (mulModAddPartialLoValue lo x y).toNat = (lo.toNat + (x * y).toNat) % 2 ^ 64 := by
+  unfold mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [BitVec.toNat_add]
+
+private theorem mulModAddPartialHiValue_toNat_forColumn7 (hi lo x y : Word) :
+    (mulModAddPartialHiValue hi lo x y).toNat =
+      (hi.toNat + ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+        2 ^ 64) % 2 ^ 64 := by
+  unfold mulModAddPartialHiValue mulModAddPartialHiBaseValue mulModAddPartialHiProduct
+  rw [BitVec.toNat_add]
+  rw [BitVec.toNat_add]
+  unfold mulModAddPartialLoCarry mulModAddPartialLoValue mulModAddPartialLoProduct
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+  omega
+
+private theorem mulModAddPartialHiCarry_toNat_forColumn7 (hi lo x y : Word) :
+    (mulModAddPartialHiCarry hi lo x y).toNat =
+      (hi.toNat + ((rv64_mulhu x y).toNat + (lo.toNat + (x * y).toNat) / 2 ^ 64) %
+        2 ^ 64) / 2 ^ 64 := by
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+  rw [BitVec.toNat_add]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue
+    mulModAddPartialLoProduct
+  rw [mulModProductLayoutCarryRightEqTrue_toNat]
+
+
 private theorem mulModAddPartialHiCarry_toNat_le_one_forColumn7 (hi lo x y : Word) :
     (mulModAddPartialHiCarry hi lo x y).toNat ≤ 1 := by
   rw [mulModAddPartialHiCarry_eq_singleCarry]
@@ -480,6 +513,102 @@ theorem mulModProductLayoutCall12P152_toNat_zero (a b : EvmWord) :
     (mulModProductLayoutCall12P152 a b).toNat = 0 := by
   rw [mulModProductLayoutCall12P152_zero]
   rfl
+
+
+private theorem mulModProductLayoutCarryHighFromOneWordAccumulatorTwoProductsModCarries
+    (lo hi mu20 lo20 mu11 lo11 : Nat)
+    (hlo : lo < 2 ^ 64) (hhi : hi < 2 ^ 64)
+    (hp20 : mu20 * 2 ^ 64 + lo20 ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1))
+    (hp11 : mu11 * 2 ^ 64 + lo11 ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1)) :
+    let w := 2 ^ 64
+    let lo1 := (lo + lo20) % w
+    let hi1 := (hi + (mu20 + (lo + lo20) / w) % w) % w
+    let c1 := (hi + (mu20 + (lo + lo20) / w) % w) / w
+    let c2 := (hi1 + (mu11 + (lo1 + lo11) / w) % w) / w
+    (c1 % w + c2) % w =
+      ((mu11 * w + lo11 + (mu20 * w + lo20) + (hi * w + lo)) / w / w) % w := by
+  intro w lo1 hi1 c1 c2
+  have h20 : mu20 + (lo + lo20) / 2 ^ 64 < 2 ^ 64 := by
+    norm_num at hlo hp20 ⊢
+    omega
+  have h11 : mu11 + ((lo + lo20) % 2 ^ 64 + lo11) / 2 ^ 64 < 2 ^ 64 := by
+    have h_lo1 : (lo + lo20) % 2 ^ 64 < 2 ^ 64 := Nat.mod_lt _ (by norm_num)
+    norm_num at h_lo1 hp11 ⊢
+    omega
+  have h_c1 : c1 < w := by
+    subst c1
+    subst w
+    have h_term : (mu20 + (lo + lo20) / 2 ^ 64) % 2 ^ 64 < 2 ^ 64 :=
+      Nat.mod_lt _ (by norm_num)
+    norm_num at hhi h_term ⊢
+    omega
+  rw [Nat.mod_eq_of_lt h_c1]
+  subst c2
+  subst hi1
+  subst lo1
+  subst c1
+  subst w
+  norm_num at hlo hhi h20 h11 ⊢
+  omega
+
+/-- The fourteenth call's offset-152 cell is the high word of the column-six carry. -/
+theorem mulModProductLayoutCall14P152_toNat_eq_c6_high (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let d5 := a2.toNat * b3.toNat + a3.toNat * b2.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    let c6 := (d5 + c5) / 2 ^ 64
+    (mulModProductLayoutCall14P152 a b).toNat = (c6 / 2 ^ 64) % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutCall14P152 mulModProductLayoutCall13P152
+  simp only [mulModCarryStepValue_toNat_forColumn7, mulModProductLayoutCall12P152_toNat_zero,
+    mulModProductLayoutCall13Carry144, mulModProductLayoutCall14Carry144,
+    mulModAddPartialHiCarry_toNat_forColumn7, mulModProductLayoutCall13P144,
+    mulModProductLayoutCall13P136, mulModAddPartialHiValue_toNat_forColumn7,
+    mulModAddPartialLoValue_toNat_forColumn7, mulModProductLayoutCall12P144_toNat_eq_c5_high,
+    mulModProductLayoutCall12P136_toNat_eq_c5, Nat.zero_add]
+  rw [mulModProductLayoutCarryHighFromOneWordAccumulatorTwoProductsModCarries]
+  · have h32 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 2)
+    have h23 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 3)
+    have h00 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 0)
+    have h10 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 0)
+    have h20 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 0)
+    have h30 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 0)
+    have h01 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 1)
+    have h11 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 1)
+    have h21 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 1)
+    have h02 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 2)
+    have h12 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 2)
+    have h03 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 3)
+    have h31 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 1)
+    have h22 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 2)
+    have h13 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 3)
+    norm_num at h32 h23 h00 h10 h20 h30 h01 h11 h21 h02 h12 h03 h31 h22 h13 ⊢
+    omega
+  · exact Nat.mod_lt _ (by norm_num)
+  · exact Nat.mod_lt _ (by norm_num)
+  · have h32 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 2)
+    rw [h32]
+    exact Nat.mul_le_mul (by omega) (by omega)
+  · have h23 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 3)
+    rw [h23]
+    exact Nat.mul_le_mul (by omega) (by omega)
 
 /-- The finalized product-layout column-seven cell at offset 152. -/
 def mulModProductLayoutColumn7Value (a b : EvmWord) : Word :=
