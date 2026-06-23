@@ -6,6 +6,91 @@ namespace EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.Evm64.MulMod.ProductAlgebra
 
+private theorem mulModCarryStepCarry_twoBits_zero (p q : Bool) :
+    mulModCarryStepCarry (if p then (1 : Word) else 0) (if q then (1 : Word) else 0) =
+      0 := by
+  cases p <;> cases q <;> decide
+
+private theorem mulModCarryStepCarry_twoPlusOneBits_zero (p q r : Bool) :
+    mulModCarryStepCarry ((if p then (1 : Word) else 0) + (if q then (1 : Word) else 0))
+      (if r then (1 : Word) else 0) = 0 := by
+  cases p <;> cases q <;> cases r <;> decide
+
+private theorem mulModProductLayoutCall00P136_zero (a b : EvmWord) :
+    mulModProductLayoutCall00P136 a b = 0 := by
+  unfold mulModProductLayoutCall00P136 mulModCarryStepValue
+  unfold mulModProductLayoutCall00Carry128 mulModCarryStepCarry
+  simp [mulModProductLayoutCall00Carry120_zero, BitVec.ult]
+
+private theorem mulModProductLayoutCall01Carry128_zero (a b : EvmWord) :
+    mulModProductLayoutCall01Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall01Carry128
+  rw [mulModProductLayoutCall00P128_zero, mulModProductLayoutCall01Carry120_zero]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall01P136_zero (a b : EvmWord) :
+    mulModProductLayoutCall01P136 a b = 0 := by
+  unfold mulModProductLayoutCall01P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall00P136_zero, mulModProductLayoutCall01Carry128_zero]
+  rfl
+
+private theorem mulModProductLayoutCall02Carry128_zero (a b : EvmWord) :
+    mulModProductLayoutCall02Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall02Carry128
+  rw [mulModProductLayoutCall01P128_zero, mulModProductLayoutCall02Carry120_zero]
+  exact mulModCarryStepCarry_zero_zero
+
+private theorem mulModProductLayoutCall02P136_zero (a b : EvmWord) :
+    mulModProductLayoutCall02P136 a b = 0 := by
+  unfold mulModProductLayoutCall02P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall01P136_zero, mulModProductLayoutCall02Carry128_zero]
+  rfl
+
+private theorem mulModProductLayoutCall03Carry128_zero (a b : EvmWord) :
+    mulModProductLayoutCall03Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall03Carry128
+  rw [mulModProductLayoutCall02P128_zero]
+  unfold mulModCarryStepCarry
+  simp [BitVec.ult]
+
+private theorem mulModProductLayoutCall03P136_zero (a b : EvmWord) :
+    mulModProductLayoutCall03P136 a b = 0 := by
+  unfold mulModProductLayoutCall03P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall02P136_zero, mulModProductLayoutCall03Carry128_zero]
+  rfl
+
+private theorem mulModProductLayoutCall04Carry128_zero (a b : EvmWord) :
+    mulModProductLayoutCall04Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall04Carry128
+  rw [mulModProductLayoutCall03P128_eq_highCarry]
+  unfold mulModProductLayoutCall04Carry120
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  simp only [mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoValue, mulModAddPartialLoProduct]
+  exact mulModCarryStepCarry_twoBits_zero _ _
+
+private theorem mulModProductLayoutCall04P136_zero (a b : EvmWord) :
+    mulModProductLayoutCall04P136 a b = 0 := by
+  unfold mulModProductLayoutCall04P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall03P136_zero, mulModProductLayoutCall04Carry128_zero]
+  rfl
+
+private theorem mulModProductLayoutCall05Carry128_zero (a b : EvmWord) :
+    mulModProductLayoutCall05Carry128 a b = 0 := by
+  unfold mulModProductLayoutCall05Carry128
+  rw [mulModProductLayoutCall04P128_eq_highCarry]
+  unfold mulModProductLayoutCall05Carry120
+  rw [mulModAddPartialHiCarry_eq_singleCarry]
+  simp only [mulModAddPartialHiProduct, mulModAddPartialLoCarry,
+    mulModAddPartialLoValue, mulModAddPartialLoProduct]
+  exact mulModCarryStepCarry_twoPlusOneBits_zero _ _ _
+
+private theorem mulModProductLayoutCall05P136_zero (a b : EvmWord) :
+    mulModProductLayoutCall05P136 a b = 0 := by
+  unfold mulModProductLayoutCall05P136 mulModCarryStepValue
+  rw [mulModProductLayoutCall04P136_zero, mulModProductLayoutCall05Carry128_zero]
+  rfl
+
 private theorem mulModProductLayoutCarryTelescoping5
     (d0 d1 d2 d3 d4 c1 c2 c3 c4 c5 w : Nat)
     (h0 : w * c1 + d0 % w = d0)
@@ -136,6 +221,7 @@ private theorem mulModProductLayoutCarryChainHigh4CarryEq
   subst w
   norm_num at h30 h21 h12 h03 ⊢
   omega
+
 
 theorem mulModProductLayoutSchoolbookLimb5
     (a0 a1 a2 a3 b0 b1 b2 b3 : Nat) :
