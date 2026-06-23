@@ -695,6 +695,62 @@ theorem mulModProductLayoutCall12P144_toNat_eq_c5_high (a b : EvmWord) :
     rw [h13]
     exact Nat.mul_le_mul (by omega) (by omega)
 
+
+/-- The fourteenth call's offset-144 cell is the carry into column six. -/
+theorem mulModProductLayoutCall14P144_toNat_eq_c6_carry (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let d5 := a2.toNat * b3.toNat + a3.toNat * b2.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    let c6 := (d5 + c5) / 2 ^ 64
+    (mulModProductLayoutCall14P144 a b).toNat = c6 % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutCall14P144 mulModProductLayoutCall13P144
+    mulModProductLayoutCall13P136
+  simp only [mulModAddPartialHiValue_toNat_forColumn6, mulModAddPartialLoValue_toNat_forColumn6,
+    mulModProductLayoutCall12P144_toNat_eq_c5_high, mulModProductLayoutCall12P136_toNat_eq_c5]
+  have h32 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 2)
+  have h23 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 3)
+  have h00 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 0)
+  have h10 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 0)
+  have h20 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 0)
+  have h30 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 0)
+  have h01 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 1)
+  have h11 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 1)
+  have h21 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 1)
+  have h02 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 2)
+  have h12 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 2)
+  have h03 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 3)
+  have h31 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 1)
+  have h22 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 2)
+  have h13 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 3)
+  have ha0 := (a.getLimbN 0).isLt
+  have ha1 := (a.getLimbN 1).isLt
+  have ha2 := (a.getLimbN 2).isLt
+  have ha3 := (a.getLimbN 3).isLt
+  have hb0 := (b.getLimbN 0).isLt
+  have hb1 := (b.getLimbN 1).isLt
+  have hb2 := (b.getLimbN 2).isLt
+  have hb3 := (b.getLimbN 3).isLt
+  norm_num at h32 h23 h00 h10 h20 h30 h01 h11 h21 h02 h12 h03 h31 h22 h13 ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 ⊢
+  omega
+
 /-- The finalized product-layout column-six cell at offset 144. -/
 def mulModProductLayoutColumn6Value (a b : EvmWord) : Word :=
   mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
