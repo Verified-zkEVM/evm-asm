@@ -261,7 +261,6 @@ theorem divK_dispatchN1_orReduce_spec_within (sp : Word) (base : Word)
 -- Weaken the div128 spec post to the digit-threading (ownership) form
 -- ============================================================================
 
-set_option maxHeartbeats 1000000 in
 /-- Weaken `div128V5SpecPost` to the digit-threading form: keep `x12 = sp`,
     `x2 = retAddr`, `x11 = div128V5CodeQuot uHi uLo d` (the exact quotient — the
     spec post's `x11` is this by construction), `x0 = 0`; weaken the clobbered
