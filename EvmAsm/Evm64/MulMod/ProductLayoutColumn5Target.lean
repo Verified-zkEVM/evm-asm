@@ -94,6 +94,49 @@ private theorem mulModProductLayoutProductExpansion5
         (a2 * b3 + a3 * b2) * w ^ 5 + a3 * b3 * w ^ 6 := by
   ring
 
+private theorem mulModProductLayoutCarryChainHigh4CarryEq
+    (hi feed lo30 mu30 lo21 mu21 lo12 mu12 lo03 mu03 : Nat)
+    (h30 : mu30 + (feed + lo30) / 2 ^ 64 < 2 ^ 64)
+    (h21 : mu21 + ((feed + lo30) % 2 ^ 64 + lo21) / 2 ^ 64 < 2 ^ 64)
+    (h12 : mu12 + (((feed + lo30) % 2 ^ 64 + lo21) % 2 ^ 64 + lo12) /
+        2 ^ 64 < 2 ^ 64)
+    (h03 : mu03 + ((((feed + lo30) % 2 ^ 64 + lo21) % 2 ^ 64 + lo12) %
+        2 ^ 64 + lo03) / 2 ^ 64 < 2 ^ 64) :
+    let w := 2 ^ 64
+    let feed06 := (feed + lo30) % w
+    let feed07 := (feed06 + lo21) % w
+    let feed08 := (feed07 + lo12) % w
+    let high05 := hi
+    let high06 := (high05 + (mu30 + (feed + lo30) / w) % w) % w
+    let carry06 := (high05 + (mu30 + (feed + lo30) / w) % w) / w
+    let high07 := (high06 + (mu21 + (feed06 + lo21) / w) % w) % w
+    let carry07 := (high06 + (mu21 + (feed06 + lo21) / w) % w) / w
+    let high08 := (high07 + (mu12 + (feed07 + lo12) / w) % w) % w
+    let carry08 := (high07 + (mu12 + (feed07 + lo12) / w) % w) / w
+    let carry09 := (high08 + (mu03 + (feed08 + lo03) / w) % w) / w
+    ((carry06 + carry07) % w + carry08 + carry09) % w =
+      ((hi + mu30 + mu21 + mu12 + mu03 +
+        (feed + lo30 + lo21 + lo12 + lo03) / w) / w) % w := by
+  intro w feed06 feed07 feed08 high05 high06 carry06 high07 carry07 high08 carry08
+    carry09
+  have hq := mulModProductLayoutCarryChainQuot4 feed lo30 lo21 lo12 lo03
+  dsimp only at hq
+  rw [hq]
+  subst carry09
+  subst carry08
+  subst high08
+  subst carry07
+  subst high07
+  subst carry06
+  subst high06
+  subst high05
+  subst feed08
+  subst feed07
+  subst feed06
+  subst w
+  norm_num at h30 h21 h12 h03 ⊢
+  omega
+
 theorem mulModProductLayoutSchoolbookLimb5
     (a0 a1 a2 a3 b0 b1 b2 b3 : Nat) :
     let product :=
