@@ -461,4 +461,74 @@ theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_limb2FeedValue
   exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call05P112FeedValue
     (mulModProductLayoutColumn4Call05P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
 
+theorem mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03P112FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_call05P112FeedValue
+    (mulModProductLayoutColumn4Call05P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02P112FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_call03P112FeedValue
+    (mulModProductLayoutColumn4Call03P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call02FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_call02P112FeedValue
+    (mulModProductLayoutColumn4Call02P112FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call03FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_call02FeedValue
+    (mulModProductLayoutColumn4Call02FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call04FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_call03FeedValue
+    (mulModProductLayoutColumn4Call03FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4PrefixFeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_call04FeedValue
+    (mulModProductLayoutColumn4Call04FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Limb3FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_prefixFeedValue
+    (mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4LowFeedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4LowFeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4LowFeedValue_eq_productLimb_four_of_limb3FeedValue
+    (mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_lowFeedValue
+    (mulModProductLayoutColumn4LowFeedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
+theorem mulModProductLayoutColumn4Value_eq_productLimb_four_of_limb2FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Limb2FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Value a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Value_eq_productLimb_four_of_expandedValue
+    (mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_limb2FeedValue h_col)
+
 end EvmAsm.Evm64
