@@ -628,6 +628,23 @@ theorem mulModProductLayoutColumn5Value_toNat_eq_schoolbook_limb5 (a b : EvmWord
   omega
 
 
+/-- The folded column-five target is the fifth schoolbook product limb. -/
+theorem mulModProductLayoutColumn5Value_eq_productLimb_five (a b : EvmWord) :
+    mulModProductLayoutColumn5Value a b = productLimb a b 5 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [mulModProductLayoutColumn5Value_toNat_eq_schoolbook_limb5]
+  simp only [productLimb, productNat, BitVec.toNat_ofNat, Nat.reduceMul]
+  rw [EvmWord.toNat_eq_limb_sum a, EvmWord.toNat_eq_limb_sum b]
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
+  rw [mulModProductLayoutSchoolbookLimb5]
+
+/-- The folded column-five target is the second high product limb. -/
+theorem mulModProductLayoutColumn5Value_eq_mulHigh_getLimbN_one (a b : EvmWord) :
+    mulModProductLayoutColumn5Value a b = (EvmWord.mulHigh a b).getLimbN 1 := by
+  rw [← productLimb_five_eq_mulHigh_getLimbN_one]
+  exact mulModProductLayoutColumn5Value_eq_productLimb_five a b
+
 /-- The concrete call14 P136 cell is the folded column-five target. -/
 theorem mulModProductLayoutCall14P136_eq_column5Value (a b : EvmWord) :
     mulModProductLayoutCall14P136 a b = mulModProductLayoutColumn5Value a b := by
@@ -649,6 +666,18 @@ theorem mulModProductLayoutCall14P136_eq_mulHigh_getLimbN_one_iff_column5Value
       (mulModProductLayoutColumn5Value a b = productLimb a b 5) := by
   rw [← productLimb_five_eq_mulHigh_getLimbN_one]
   exact mulModProductLayoutCall14P136_eq_productLimb_five_iff_column5Value a b
+
+/-- The concrete call14 P136 cell is the fifth schoolbook product limb. -/
+theorem mulModProductLayoutCall14P136_eq_productLimb_five (a b : EvmWord) :
+    mulModProductLayoutCall14P136 a b = productLimb a b 5 := by
+  exact (mulModProductLayoutCall14P136_eq_productLimb_five_iff_column5Value a b).2
+    (mulModProductLayoutColumn5Value_eq_productLimb_five a b)
+
+/-- The concrete call14 P136 cell is the second high product limb. -/
+theorem mulModProductLayoutCall14P136_eq_mulHigh_getLimbN_one (a b : EvmWord) :
+    mulModProductLayoutCall14P136 a b = (EvmWord.mulHigh a b).getLimbN 1 := by
+  exact (mulModProductLayoutCall14P136_eq_mulHigh_getLimbN_one_iff_column5Value a b).2
+    (mulModProductLayoutColumn5Value_eq_productLimb_five a b)
 
 /-- The folded column-five product-limb target is the same as the direct
     mulHigh limb1 target. -/
