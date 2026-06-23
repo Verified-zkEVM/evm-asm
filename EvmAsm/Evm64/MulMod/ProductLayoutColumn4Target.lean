@@ -40,4 +40,38 @@ theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_iff_call08P120Fee
   rw [← productLimb_four_eq_mulHigh_getLimbN_zero]
   exact mulModProductLayoutCall12P128_eq_productLimb_four_iff_call08P120FeedValue a b
 
+/-- The folded call08-feed product-limb-4 target is the same as the direct
+    mulHigh limb0 target. -/
+theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_mulHigh_getLimbN_zero_iff_productLimb_four
+    (a b : EvmWord) :
+    (mulModProductLayoutColumn4Call08P120FeedValue a b =
+        (EvmWord.mulHigh a b).getLimbN 0) ↔
+      (mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) := by
+  rw [← productLimb_four_eq_mulHigh_getLimbN_zero]
+
+theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_mulHigh_getLimbN_zero_of_productLimb_four
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call08P120FeedValue a b =
+      (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact (mulModProductLayoutColumn4Call08P120FeedValue_eq_mulHigh_getLimbN_zero_iff_productLimb_four
+    a b).2 h_col
+
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call08P120FeedValue_mulHigh
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b =
+      (EvmWord.mulHigh a b).getLimbN 0) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  rw [mulModProductLayoutCall12P128_eq_column4Value,
+    mulModProductLayoutColumn4Value_eq_expandedValue,
+    ← mulModProductLayoutColumn4Call08P120FeedValue_eq_expandedValue,
+    h_col]
+
+theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four_of_call12P128_mulHigh
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0) :
+    mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4 := by
+  exact (mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_iff_call08P120FeedValue
+    a b).1 h_col
+
 end EvmAsm.Evm64
