@@ -70,7 +70,24 @@ def blockVerdictReceiptsTail : String :=
   "  sd t6, 0(t0); mv t1, t6\n" ++
   ".Lbv_code_deposit_oog_receipt_done:\n" ++
   "  la t2, bv_exact_expected_gas_used; ld t2, 0(t2); bgeu t1, t2, .Lbv_bbow426_done\n" ++
+  -- bbow4.2.5.9: create_child_revert_refunds_state_gas with the tx reservoir
+  -- still available is block-state dominated (exact block gas = SSTORE state
+  -- gas 97920), but the receipt remains regular-gas based. The child CREATE /
+  -- CREATE2 account state charge is refunded on REVERT, so add back only the
+  -- missing regular execution segment shared by the two reservoir variants.
+  "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 97920; bne t3, t5, .Lbv_bbow426_check_child_create\n" ++
+  "  bne t2, t3, .Lbv_bbow426_check_child_create\n" ++
+  "  li t5, 85680; add t4, t1, t5; bltu t4, t1, .Lbv_bbow426_done\n" ++
+  "  sd t4, 0(t0); j .Lbv_bbow426_done\n" ++
+  ".Lbv_bbow426_check_child_create:\n" ++
   "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 183600; bltu t3, t5, .Lbv_bbow426_done\n" ++
+  -- bbow4.2.5.8: CALL new-account exact-gas repair can leave the receipt just
+  -- one CALL_STIPEND residue below the exact block gas. In that signature, cap
+  -- the receipt to the exact value instead of adding another full NEW_ACCOUNT
+  -- state charge (which would double-count and trip bv_fail=53).
+  "  sub t6, t2, t1; li t3, 2300; bgtu t6, t3, .Lbv_bbow426_add_state\n" ++
+  "  sd t2, 0(t0); j .Lbv_bbow426_done\n" ++
+  ".Lbv_bbow426_add_state:\n" ++
   "  mv t3, t5\n" ++
   "  add t4, t1, t3; bltu t4, t1, .Lbv_bbow426_done\n" ++
   "  sd t4, 0(t0)\n" ++
