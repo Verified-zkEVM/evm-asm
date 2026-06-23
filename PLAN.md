@@ -1834,8 +1834,12 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     the non-empty scalar chain — identical pre/post shape) to the uniform `regOwn` interface with CR
     `emptyScalarUnitCR`, plus the CR def + `empty_scalar_unit_cr_none_{above,below}` (range `[base, base+248)`).
     The empty-scalar unit is now fold-ready.
-  - **Next:** empty-bytes region unit + canonical; then engine integration (data-dependent `fieldSize`/
-    `fieldCR`/`fieldSteps` for the scalar kind, `field_step` dispatch, `SchemaValid`/`fieldCoreValid` relax).
+  - ✅ **Step 51 — empty-bytes region unit** (`UnifiedEmptyBytesField.lean`,
+    `unified_empty_bytes_field_decode_and_copy`): descend `0x80` ⨾ byte-copy leaf with `N = 0` (copies
+    nothing; `copyRangeGen out [] 0 di 0 = out`). Same statement shape as the non-empty bytes unit at
+    `data = []`; `fieldSize = 152`. Coincides with `decode (bs.drop O) = some (.bytes [], tail)`.
+  - **Next:** empty-bytes canonical chain (→ fold-ready); then engine integration (data-dependent
+    `fieldSize`/`fieldCR`/`fieldSteps` for the scalar kind, `field_step` dispatch, `SchemaValid` relax).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
