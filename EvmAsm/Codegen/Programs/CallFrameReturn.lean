@@ -102,8 +102,15 @@ def frameReturnFunction : String :=
   ".Lfr_sgas_add_spill:\n" ++
   "  add s7, s7, t2\n" ++
   ".Lfr_sgas_no_spill:\n" ++
-  "  ld t0, 624(x20); la t1, evm_state_gas_left; sd t0, 0(t1)\n" ++
-  "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  "  ld t0, 632(x20)                 # used0\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1)  # used\n" ++
+  "  la t1, evm_state_gas_left; ld t3, 0(t1)  # child_left\n" ++
+  "  bleu t2, t0, .Lfr_sgas_restore_left_done\n" ++
+  "  sub t2, t2, t0                 # child_used_delta\n" ++
+  "  add t3, t3, t2                 # child_left + child_used_delta\n" ++
+  ".Lfr_sgas_restore_left_done:\n" ++
+  "  la t1, evm_state_gas_left; sd t3, 0(t1)\n" ++
+  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
   -- nxio8.4.2: discard the reverted child's EIP-3529 refund additions by restoring
   -- evm_refund_acc to the pre-child snapshot (incorporate_child_on_error does not
   -- add child.refund_counter). Success leaves it (the SSTORE refunds stay).
