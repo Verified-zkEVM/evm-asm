@@ -1803,6 +1803,16 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     target tx-struct ABI (`EvmAsm/EL/Transaction.lean`, `EvmAsm/Stateless/Transaction/Decode.lean`). Also
     still needs: engine field-kinds so `n=0`/empty + wide-scalar fields integrate into `schema_walk`
     (currently `SchemaValid` requires `1 ≤ data.length` and `≤ 8` for scalar kind).
+  - ✅ **Step 45 — fully-canonical long byte-array unit** (`UnifiedLongBytesFieldCanonical.lean`):
+    the `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain for the `> 55`-byte unit, paralleling
+    the short chain (the long unit has the identical scratch pre/post/CR/step shape, so each layer mirrors
+    mechanically). Endpoint `unified_long_bytes_field_decode_and_copy_fully_canonical` has the uniform
+    all-`regOwn` interface `schema_walk` consumes — the prerequisite for integrating `> 55`-byte fields into
+    the schema engine.
+  - **Next (engine long-bytes integration):** since short and long byte units share `fieldSize`/`fieldCR`/
+    `fieldUpdate`, drop the `≤ 55` cap from `field_step` (dispatch short/long on `data.length`) and relax the
+    `SchemaValid`/`fieldCoreValid` bytes condition — lets `schema_walk` decode arbitrarily-long byte fields
+    (calldata, header bloom) with no `FieldSpec`/CR change.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

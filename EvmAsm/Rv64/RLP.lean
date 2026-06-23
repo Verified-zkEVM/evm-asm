@@ -91,6 +91,7 @@ import EvmAsm.Rv64.RLP.UnifiedBytesFieldDecode
 import EvmAsm.Rv64.RLP.UnifiedBytesFieldRegOwn
 import EvmAsm.Rv64.RLP.UnifiedWideScalarField
 import EvmAsm.Rv64.RLP.UnifiedLongBytesField
+import EvmAsm.Rv64.RLP.UnifiedLongBytesFieldCanonical
 import EvmAsm.Rv64.RLP.ScalarSpillIter
 import EvmAsm.Rv64.RLP.ScalarSpillChain
 import EvmAsm.Rv64.RLP.UnifiedFieldScalarStoreRegion
