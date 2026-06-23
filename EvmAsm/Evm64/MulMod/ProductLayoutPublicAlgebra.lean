@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Evm64.MulMod.ProductLayoutCall15
+import EvmAsm.Evm64.MulMod.ProductLayoutCarryChain
 import EvmAsm.Evm64.MulMod.ProductAlgebra
 
 namespace EvmAsm.Evm64
