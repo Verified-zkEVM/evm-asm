@@ -1838,8 +1838,15 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `unified_empty_bytes_field_decode_and_copy`): descend `0x80` ⨾ byte-copy leaf with `N = 0` (copies
     nothing; `copyRangeGen out [] 0 di 0 = out`). Same statement shape as the non-empty bytes unit at
     `data = []`; `fieldSize = 152`. Coincides with `decode (bs.drop O) = some (.bytes [], tail)`.
-  - **Next:** empty-bytes canonical chain (→ fold-ready); then engine integration (data-dependent
-    `fieldSize`/`fieldCR`/`fieldSteps` for the scalar kind, `field_step` dispatch, `SchemaValid` relax).
+  - ✅ **Step 52 — empty-bytes canonical chain** (`UnifiedEmptyBytesFieldCanonical.lean`): the
+    `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain (mirrors the non-empty bytes chain;
+    reuses `bytesUnitCR … 0`, no new CR) to the uniform `regOwn` interface. Both empty units are now
+    fold-ready.
+  - **Next (final step):** engine integration in `SchemaFold`/`SchemaFoldConcat` — data-dependent
+    `fieldSize`/`fieldCR`/`fieldSteps` for the scalar kind (empty → 248/`emptyScalarUnitCR`), `field_step`
+    dispatch (scalar `data=[]` → empty-scalar unit; bytes `data=[]` → empty-bytes unit), drop the
+    `1 ≤ data.length` floor in `SchemaValid`/`fieldCoreValid`, extend `fieldCR_none_{above,below}`. After
+    this `schema_walk` decodes every valid RLP field.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
