@@ -1870,7 +1870,16 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     (`inputBufBaseIs buf_base`, `privateInputIs input`, `bytesRegion buf_base input` at the aligned/readable
     buffer) with `input = encode (.list (schemaItems specs)) ++ tail`, the `read_input` syscall + `LD` +
     decoder run end to end: the record is decoded into `bytesRegion outBase (schemaOut out specs)` with
-    `schemaScalarValues` recovered. Next: `write_output` wrapper + `decode ⨾ write_output`.
+    `schemaScalarValues` recovered.
+  - ✅ **Step 56 — `readBytes`↔`bytesRegion` bridge** (`Phase6WriteOutput.lean`,
+    `getByte_of_bytesRegion` + `readBytes_of_bytesRegion`): the keystone of the write-half — when
+    `bytesRegion base bs` holds, `readBytes base bs.length = bs` (reconciles byte-granular `readBytes` with
+    the dword-packed region via `bytesRegion_dword_at` + `extractByte_packBytes` + an offset induction).
+    Connects the decoder's `bytesRegion` output to what `write_output` (which uses `readBytes`) emits.
+  - **Next (write-half remaining):** a `publicValues`-update `holdsFor` framing lemma (mirroring
+    `holdsFor_sepConj_memIs_setMem`) → CPS-level `write_output` ECALL spec (mirror
+    `ecall_read_input_spec_gen_within`, folding in the bridge) → `write_output` wrapper → `decode ⨾
+    write_output` → full `read ⨾ decode ⨾ write` pipeline + concrete example.
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
   C ABI.
