@@ -285,4 +285,36 @@ theorem div128V5SpecPost_to_owned (sp retAddr d uLo uHi scratchMem : Word) :
             (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
               (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))))))) h hp
 
+/-- Post-call block with the clobbered input registers `x5/x10/x7` exposed as
+    ownership (the form produced by `div128V5SpecPost_to_owned`). Derived from
+    `divK_fastDigit_post_spec_within` by ∀-regIs→regOwn lifting, peeling one
+    register at a time (reassociating the precondition between peels). -/
+theorem divK_fastDigit_post_own_spec_within (uLoOff qOff : BitVec 12)
+    (sp q uLo d qm : Word) (base : Word) :
+    cpsTripleWithin 6 base (base + 24) (divK_fastDigit_post_code uLoOff qOff base)
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q) **
+       ((sp + signExtend12 qOff) ↦ₘ qm) ** ((sp + signExtend12 uLoOff) ↦ₘ uLo) **
+       ((sp + signExtend12 3984) ↦ₘ d) ** regOwn .x5 ** regOwn .x10 ** regOwn .x7)
+      ((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q) ** (.x5 ↦ᵣ (uLo - q * d)) ** (.x10 ↦ᵣ d) **
+       (.x7 ↦ᵣ (q * d)) **
+       ((sp + signExtend12 qOff) ↦ₘ q) ** ((sp + signExtend12 uLoOff) ↦ₘ (uLo - q * d)) **
+       ((sp + signExtend12 3984) ↦ₘ d)) := by
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q) ** ((sp + signExtend12 qOff) ↦ₘ qm) **
+        ((sp + signExtend12 uLoOff) ↦ₘ uLo) ** ((sp + signExtend12 3984) ↦ₘ d) **
+        regOwn .x5 ** regOwn .x10) (r := .x7) (fun v7 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q) ** ((sp + signExtend12 qOff) ↦ₘ qm) **
+        ((sp + signExtend12 uLoOff) ↦ₘ uLo) ** ((sp + signExtend12 3984) ↦ₘ d) **
+        regOwn .x5 ** (.x7 ↦ᵣ v7)) (r := .x10) (fun v10 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ q) ** ((sp + signExtend12 qOff) ↦ₘ qm) **
+        ((sp + signExtend12 uLoOff) ↦ₘ uLo) ** ((sp + signExtend12 3984) ↦ₘ d) **
+        (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10)) (r := .x5) (fun v5 => ?_))
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (divK_fastDigit_post_spec_within uLoOff qOff sp q uLo d v5 v7 v10 qm base)
+
 end EvmAsm.Evm64
