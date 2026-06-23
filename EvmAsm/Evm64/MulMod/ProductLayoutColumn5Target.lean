@@ -336,6 +336,45 @@ private theorem mulModProductLayoutCarryChainHigh4CarryEq
   norm_num at h30 h21 h12 h03 ⊢
   omega
 
+private theorem mulModProductLayoutCarryChainHigh4CarryExpanded
+    (hi feed lo30 mu30 lo21 mu21 lo12 mu12 lo03 mu03 : Nat)
+    (h30 : mu30 + (feed + lo30) / 2 ^ 64 < 2 ^ 64)
+    (h21 : mu21 + ((feed + lo30) % 2 ^ 64 + lo21) / 2 ^ 64 < 2 ^ 64)
+    (h12 : mu12 + (((feed + lo30) % 2 ^ 64 + lo21) % 2 ^ 64 + lo12) /
+        2 ^ 64 < 2 ^ 64)
+    (h03 : mu03 + ((((feed + lo30) % 2 ^ 64 + lo21) % 2 ^ 64 + lo12) %
+        2 ^ 64 + lo03) / 2 ^ 64 < 2 ^ 64) :
+    let w := 2 ^ 64
+    let feed06 := (feed + lo30) % w
+    let high06 := (hi + (mu30 + (feed + lo30) / w) % w) % w
+    let carry06 := (hi + (mu30 + (feed + lo30) / w) % w) / w
+    let feed07 := (feed06 + lo21) % w
+    let high07 := (high06 + (mu21 + (feed06 + lo21) / w) % w) % w
+    let carry07 := (high06 + (mu21 + (feed06 + lo21) / w) % w) / w
+    let feed08 := (feed07 + lo12) % w
+    let high08 := (high07 + (mu12 + (feed07 + lo12) / w) % w) % w
+    let carry08 := (high07 + (mu12 + (feed07 + lo12) / w) % w) / w
+    let carry09 := (high08 + (mu03 + (feed08 + lo03) / w) % w) / w
+    ((((0 + carry06) % w + carry07) % w + carry08) % w + carry09) % w =
+      ((hi + mu30 + mu21 + mu12 + mu03 +
+        (feed + lo30 + lo21 + lo12 + lo03) / w) / w) % w := by
+  intro w feed06 high06 carry06 feed07 high07 carry07 feed08 high08 carry08 carry09
+  have h_eq :=
+    mulModProductLayoutCarryChainHigh4CarryEq hi feed lo30 mu30 lo21 mu21 lo12 mu12
+      lo03 mu03 h30 h21 h12 h03
+  dsimp only at h_eq
+  subst carry09
+  subst carry08
+  subst high08
+  subst feed08
+  subst carry07
+  subst high07
+  subst feed07
+  subst carry06
+  subst high06
+  subst feed06
+  subst w
+  simpa [Nat.zero_add, Nat.add_assoc] using h_eq
 
 
 theorem mulModProductLayoutSchoolbookLimb5
