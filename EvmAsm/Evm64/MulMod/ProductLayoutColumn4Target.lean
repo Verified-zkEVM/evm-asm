@@ -158,6 +158,28 @@ theorem mulModProductLayoutSchoolbookLimb4
   rw [h_div, show high = (d4 + c4) + (d5 + d6 * w) * w from by ring,
     Nat.add_mul_mod_self_right]
 
+theorem mulModProductLayoutColumn4Call08P120FeedValue_toNat_eq_call09P128_plus_d4
+    (a b : EvmWord) :
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    (mulModProductLayoutColumn4Call08P120FeedValue a b).toNat =
+      ((mulModProductLayoutCall09P128 a b).toNat + d4) % 2 ^ 64 := by
+  dsimp only
+  have h_feed :
+      mulModProductLayoutColumn4Call08P120FeedValue a b =
+        mulModProductLayoutCall12P128 a b := by
+    rw [mulModProductLayoutColumn4Call08P120FeedValue_eq_expandedValue,
+      ← mulModProductLayoutColumn4Value_eq_expandedValue,
+      ← mulModProductLayoutCall12P128_eq_column4Value]
+  rw [h_feed, mulModProductLayoutCall12P128_eq_expanded]
+  simp only [BitVec.toNat_add, EvmWord.mul_toNat]
+  omega
+
 /-- The folded call08-feed target is exactly the existing expanded column-four target. -/
 theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four_iff_expandedValue
     (a b : EvmWord) :
