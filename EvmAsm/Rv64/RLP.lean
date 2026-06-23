@@ -89,6 +89,7 @@ import EvmAsm.Rv64.RLP.ByteCopyChainGen
 import EvmAsm.Rv64.RLP.UnifiedFieldBytesCopy
 import EvmAsm.Rv64.RLP.UnifiedBytesFieldDecode
 import EvmAsm.Rv64.RLP.UnifiedBytesFieldRegOwn
+import EvmAsm.Rv64.RLP.UnifiedWideScalarField
 import EvmAsm.Rv64.RLP.ScalarSpillIter
 import EvmAsm.Rv64.RLP.ScalarSpillChain
 import EvmAsm.Rv64.RLP.UnifiedFieldScalarStoreRegion

@@ -1774,10 +1774,18 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     descent already lands `x13` at the next field (empty payload), so the unit is just descend ⨾
     `SD rOut, x0, offset` (store 0, no read loop). Coincides with `decodeScalar (bs.drop O) = some (0, tail)`.
     Removes the `1 ≤ data.length` floor for zero-valued fields.
-  - **Next:** `u256` wide scalar (lift `n ≤ 8` to `n ≤ 32` via the byte-copy chain + a scalar-value
-    coincidence under minimal encoding), then assemble the legacy-tx schema. Still open: wide-scalar
-    multi-word packing, long byte arrays `> 55` (header bloom). Concrete output slot layout settled at the
-    assembly step (`EvmAsm/EL/Transaction.lean`, `EvmAsm/Stateless/Transaction/Decode.lean` are the refs).
+  - ✅ **Step 42 — `u256` wide scalar field** (`UnifiedWideScalarField.lean`,
+    `unified_wide_scalar_field_decode_and_copy`): lifts the scalar ceiling from 8 to 32 bytes with NO
+    multi-limb arithmetic. A `u256` payload is `≤ 32` bytes, so it rides the byte-array copy unit (proven
+    `≤ 55`): copy the raw big-endian payload into the output region (contiguous, advancing `x14`). The
+    scalar VALUE coincidence is free — `decodeScalar` reads the decoded item's bytes as a big-endian
+    natural with no minimality check — so `decodeScalar (bs.drop O) = some (Nat.fromBytesBE data, tail)`
+    follows directly from the copy unit's `decode` coincidence. Output holds the field's minimal BE bytes;
+    fixed 32-byte zero-padding (if a struct wants it) is a presentation step at assembly.
+  - **Next:** assemble the legacy-tx (9-field) schema from the `n=0`, `u256`, address(20), and bytes
+    primitives (`data ≤ 55` v1), settling the output slot layout (`EvmAsm/EL/Transaction.lean`,
+    `EvmAsm/Stateless/Transaction/Decode.lean`). Then long byte arrays `> 55` to lift the `data` cap (also
+    unlocks the header bloom). Open: wide-scalar fixed-width 32-byte packing if a target struct needs it.
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
