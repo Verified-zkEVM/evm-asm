@@ -104,7 +104,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the guest previously took the cheap collision push-0 path -> under-charged header.gas_used.
     -- Gated on the account-witness context (env+584) like the balance/collision checks; a
     -- pure-arithmetic guard that can only ADD a required abort, never weaken one (soundness:
-    -- never admits a block the spec rejects). Clobbers t0/t1; a1 is reloaded by the gate below.
+    -- never accepts a block the spec rejects). Clobbers t0/t1; a1 is reloaded by the gate below.
     "  ld a1, 584(x20)\n" ++
     "  beqz a1, .Lcr_csg_oog_ok_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- t0 = NEW_ACCOUNT state gas = 120*1530 = 183600
@@ -259,7 +259,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  bnez t0, 7f\n" ++
     "  la x18, hcon_predicate\n" ++
     "  ld x18, 0(x18)\n" ++
-    "  bnez x18, 7f\n" ++
+    "  bnez x18, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "6:\n" ++
     -- coc3g.6 CAUSE 2: mirror spec generic_create (amsterdam vm/instructions/system.py:122
     -- `evm.accessed_addresses.add(contract_address)`). On the committing CREATE path the derived
@@ -308,6 +308,24 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    -- bbow4.2.5.1: a zero-endowment CREATE still increments the creator's
+    -- nonce even when the child later REVERTs / exceptionally halts. The
+    -- deposit-time creator record only runs on successful CREATE, and records
+    -- appended after create_frame_descend are rolled back by frame_return on
+    -- child failure. Emit the zero-value nonce-only effect in the parent before
+    -- descent so the all-accounts non-storage check can match the BAL.
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+    "  bnez t1, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+    ".Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n" ++
+    "  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n" ++
+    "  jal ra, record_nonstorage_effect\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    ".Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full
     -- dispatch loop (create_frame_descend, .5a, reusing call_frame_descend), REPLACING the
@@ -442,6 +460,31 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  j .dispatch_loop\n" ++
+    -- bbow4.4: EIP-684 CREATE/CREATE2 address collision consumes the child
+    -- create-message gas allocation, while the pre-execute NEW_ACCOUNT state-gas
+    -- charge is immediately refunded. The shared `7f` zero-result path kept all
+    -- parent gas except CREATE static/base costs, so exact block gas under-counted
+    -- the burned 63/64 child allotment. Compute:
+    --   spill = max(0, NEW_ACCOUNT - state_gas_left)
+    --   gas_after_state = gas_left - spill
+    --   final_parent_gas = spill + floor(gas_after_state / 64)
+    -- without mutating state-gas globals; collision has net-zero state gas.
+    ".Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n.Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
+    "  la t1, evm_state_gas_left\n  ld t1, 0(t1)\n" ++
+    "  li t2, 0\n" ++
+    "  bgeu t1, t0, .Lcr_col_spill_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  sub t2, t0, t1\n" ++
+    ".Lcr_col_spill_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  ld t3, 568(x20)\n" ++
+    "  bltu t3, t2, .exit_outofgas\n" ++
+    "  sub t3, t3, t2\n" ++
+    "  srli t3, t3, 6\n" ++
+    "  add t3, t3, t2\n" ++
+    "  sd t3, 568(x20)\n" ++
     "7:\n" ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  sd x0, 0(x12)\n" ++
