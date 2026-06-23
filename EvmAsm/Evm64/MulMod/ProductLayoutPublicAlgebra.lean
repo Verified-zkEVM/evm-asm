@@ -1085,6 +1085,49 @@ theorem mulModProductLayoutCall09P128_eq_highCarry (a b : EvmWord) :
     a.getLimbN 2 * b.getLimbN 2 +
     a.getLimbN 1 * b.getLimbN 3
 
+/-- Column-4 prefix-feed value with the call04 high feed expanded into
+    the preceding call03 feed plus the `a1*b1` high/carry contribution. -/
+@[irreducible] def mulModProductLayoutColumn4Call04FeedValue (a b : EvmWord) : Word :=
+  let hi11 := rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)
+  let carry11 := if BitVec.ult (mulModProductLayoutCall03P112 a b + a.getLimbN 1 * b.getLimbN 1)
+      (a.getLimbN 1 * b.getLimbN 1) then (1 : Word) else 0
+  let hi02 := rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)
+  let carry02 := if BitVec.ult (mulModProductLayoutCall04P112 a b + a.getLimbN 0 * b.getLimbN 2)
+      (a.getLimbN 0 * b.getLimbN 2) then (1 : Word) else 0
+  let feed04 := mulModProductLayoutCall03P120 a b + (hi11 + carry11)
+  let feed05 := feed04 + (hi02 + carry02)
+  let feed06 := feed05 + a.getLimbN 3 * b.getLimbN 0
+  let feed07 := feed06 + a.getLimbN 2 * b.getLimbN 1
+  (((if BitVec.ult (mulModProductLayoutCall02P120 a b +
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)))
+          (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0) +
+            (if BitVec.ult (mulModProductLayoutCall02P112 a b + a.getLimbN 2 * b.getLimbN 0)
+                (a.getLimbN 2 * b.getLimbN 0) then (1 : Word) else 0)) then
+        (1 : Word)
+      else
+        0) +
+      (if BitVec.ult feed04 (hi11 + carry11) then (1 : Word) else 0)) +
+      (if BitVec.ult feed05 (hi02 + carry02) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 3) (b.getLimbN 0) +
+      (if BitVec.ult (feed05 + a.getLimbN 3 * b.getLimbN 0)
+          (a.getLimbN 3 * b.getLimbN 0) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 2) (b.getLimbN 1) +
+      (if BitVec.ult (feed06 + a.getLimbN 2 * b.getLimbN 1)
+          (a.getLimbN 2 * b.getLimbN 1) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 1) (b.getLimbN 2) +
+      (if BitVec.ult (feed07 + a.getLimbN 1 * b.getLimbN 2)
+          (a.getLimbN 1 * b.getLimbN 2) then (1 : Word) else 0)) +
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 3) +
+      (if BitVec.ult ((a * b).getLimbN 3) (a.getLimbN 0 * b.getLimbN 3) then
+        (1 : Word)
+      else
+        0)) +
+    a.getLimbN 3 * b.getLimbN 1 +
+    a.getLimbN 2 * b.getLimbN 2 +
+    a.getLimbN 1 * b.getLimbN 3
+
 theorem mulModProductLayoutCall12P128_eq_expanded (a b : EvmWord) :
     mulModProductLayoutCall12P128 a b =
       mulModProductLayoutCall09P128 a b +
@@ -1275,6 +1318,15 @@ theorem mulModProductLayoutColumn4Limb3FeedValue_eq_prefixFeedValue (a b : EvmWo
     mulModProductLayoutColumn4PrefixCarry
   rfl
 
+theorem mulModProductLayoutColumn4PrefixFeedValue_eq_call04FeedValue (a b : EvmWord) :
+    mulModProductLayoutColumn4PrefixFeedValue a b =
+      mulModProductLayoutColumn4Call04FeedValue a b := by
+  unfold mulModProductLayoutColumn4PrefixFeedValue mulModProductLayoutColumn4Call04FeedValue
+  rw [mulModProductLayoutCall04P120_eq_add]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry mulModAddPartialLoValue
+    mulModAddPartialLoProduct
+  rfl
+
 theorem mulModProductLayoutColumn4Value_eq_productLimb_four_of_expandedValue
     {a b : EvmWord}
     (h_col : mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4) :
@@ -1354,5 +1406,25 @@ theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_prefixFeedValu
     mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
   exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_limb3FeedValue
     (mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_prefixFeedValue h_col)
+
+theorem mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_call04FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4PrefixFeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4PrefixFeedValue_eq_call04FeedValue, h_col]
+
+theorem mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_call04FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Limb3FeedValue a b = productLimb a b 4 := by
+  exact mulModProductLayoutColumn4Limb3FeedValue_eq_productLimb_four_of_prefixFeedValue
+    (mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_call04FeedValue h_col)
+
+theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call04FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call04FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = (EvmWord.mulHigh a b).getLimbN 0 := by
+  exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_prefixFeedValue
+    (mulModProductLayoutColumn4PrefixFeedValue_eq_productLimb_four_of_call04FeedValue h_col)
 
 end EvmAsm.Evm64
