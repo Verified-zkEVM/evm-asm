@@ -9,6 +9,7 @@
 
 import EvmAsm.Evm64.DivMod.FastN1Program
 import EvmAsm.Evm64.DivMod.Compose.Div128V5
+import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
@@ -255,5 +256,33 @@ theorem divK_dispatchN1_orReduce_spec_within (sp : Word) (base : Word)
   have I3 := ld_spec_gen_within .x10 .x12 sp b2 b3 56 (base + 12) (by nofun)
   have I4 := or_spec_gen_rd_eq_rs1_within .x5 .x10 (b1 ||| b2) b3 (base + 16) (by nofun)
   runBlock I0 I1 I2 I3 I4
+
+-- ============================================================================
+-- Weaken the div128 spec post to the digit-threading (ownership) form
+-- ============================================================================
+
+set_option maxHeartbeats 1000000 in
+/-- Weaken `div128V5SpecPost` to the digit-threading form: keep `x12 = sp`,
+    `x2 = retAddr`, `x11 = div128V5CodeQuot uHi uLo d` (the exact quotient — the
+    spec post's `x11` is this by construction), `x0 = 0`; weaken the clobbered
+    registers `x5/x6/x7/x9/x10` and the five div128 scratch cells to ownership.
+    Reusable for threading each digit's call result. -/
+theorem div128V5SpecPost_to_owned (sp retAddr d uLo uHi scratchMem : Word) :
+    ∀ h, (div128V5SpecPost sp retAddr d uLo uHi scratchMem) h →
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ retAddr) ** regOwn .x10 ** regOwn .x5 ** regOwn .x7 **
+       regOwn .x6 ** regOwn .x9 ** (.x11 ↦ᵣ div128V5CodeQuot uHi uLo d) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       memOwn (sp + signExtend12 3968) ** memOwn (sp + signExtend12 3960) **
+       memOwn (sp + signExtend12 3952) ** memOwn (sp + signExtend12 3944) **
+       memOwn (sp + signExtend12 3936)) h := by
+  intro h hp
+  unfold div128V5SpecPost at hp
+  exact sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
+    (sepConj_mono (regIs_implies_regOwn .x10) (sepConj_mono (regIs_implies_regOwn .x5)
+      (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x6)
+        (sepConj_mono (regIs_implies_regOwn .x9) (sepConj_mono (fun _ x => x)
+          (sepConj_mono (fun _ x => x) (sepConj_mono memIs_implies_memOwn
+            (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+              (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))))))) h hp
 
 end EvmAsm.Evm64
