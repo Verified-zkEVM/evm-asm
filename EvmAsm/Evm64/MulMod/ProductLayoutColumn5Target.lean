@@ -473,6 +473,41 @@ theorem mulModProductLayoutCall09P136_toNat_eq_limb3CarryHigh (a b : EvmWord) :
     omega
 
 
+/-- The twelfth call's offset-136 cell is the low word of the column-4 carry. -/
+theorem mulModProductLayoutCall12P136_toNat_eq_c5 (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    (mulModProductLayoutCall12P136 a b).toNat = c5 % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutCall12P136 mulModProductLayoutCall11P136
+    mulModProductLayoutCall10P136 mulModProductLayoutCall11P128
+    mulModProductLayoutCall10P128
+  simp only [mulModAddPartialHiValue_toNat, mulModAddPartialLoValue_toNat,
+    mulModProductLayoutCall09P136_toNat_eq_limb3CarryHigh,
+    mulModProductLayoutCall09P128_toNat_eq_limb3Carry]
+  rw [mulModProductLayoutCarryLowAfterThreeAdditions]
+  have h31 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 1)
+  have h22 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 2)
+  have h13 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 3)
+  omega
+
 theorem mulModProductLayoutSchoolbookLimb5
     (a0 a1 a2 a3 b0 b1 b2 b3 : Nat) :
     let product :=
@@ -559,6 +594,39 @@ theorem mulModProductLayoutSchoolbookLimb5
 /-- The finalized product-layout column-five cell. -/
 def mulModProductLayoutColumn5Value (a b : EvmWord) : Word :=
   mulModProductLayoutCall14P136 a b
+
+/-- The folded column-five target is the schoolbook limb-five value. -/
+theorem mulModProductLayoutColumn5Value_toNat_eq_schoolbook_limb5 (a b : EvmWord) :
+    let a0 := a.getLimbN 0
+    let a1 := a.getLimbN 1
+    let a2 := a.getLimbN 2
+    let a3 := a.getLimbN 3
+    let b0 := b.getLimbN 0
+    let b1 := b.getLimbN 1
+    let b2 := b.getLimbN 2
+    let b3 := b.getLimbN 3
+    let d0 := a0.toNat * b0.toNat
+    let d1 := a0.toNat * b1.toNat + a1.toNat * b0.toNat
+    let d2 := a0.toNat * b2.toNat + a1.toNat * b1.toNat + a2.toNat * b0.toNat
+    let d3 := a0.toNat * b3.toNat + a1.toNat * b2.toNat + a2.toNat * b1.toNat +
+      a3.toNat * b0.toNat
+    let d4 := a1.toNat * b3.toNat + a2.toNat * b2.toNat + a3.toNat * b1.toNat
+    let d5 := a2.toNat * b3.toNat + a3.toNat * b2.toNat
+    let c1 := d0 / 2 ^ 64
+    let c2 := (d1 + c1) / 2 ^ 64
+    let c3 := (d2 + c2) / 2 ^ 64
+    let c4 := (d3 + c3) / 2 ^ 64
+    let c5 := (d4 + c4) / 2 ^ 64
+    (mulModProductLayoutColumn5Value a b).toNat = (d5 + c5) % 2 ^ 64 := by
+  dsimp only
+  unfold mulModProductLayoutColumn5Value mulModProductLayoutCall14P136
+    mulModProductLayoutCall13P136
+  simp only [mulModAddPartialLoValue_toNat, mulModProductLayoutCall12P136_toNat_eq_c5]
+  have h32 := EvmWord.mul_full_product (a.getLimbN 3) (b.getLimbN 2)
+  have h23 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 3)
+  norm_num at h32 h23 ⊢
+  omega
+
 
 /-- The concrete call14 P136 cell is the folded column-five target. -/
 theorem mulModProductLayoutCall14P136_eq_column5Value (a b : EvmWord) :

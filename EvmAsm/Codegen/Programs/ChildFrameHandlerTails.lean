@@ -308,6 +308,24 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    -- bbow4.2.5.1: a zero-endowment CREATE still increments the creator's
+    -- nonce even when the child later REVERTs / exceptionally halts. The
+    -- deposit-time creator record only runs on successful CREATE, and records
+    -- appended after create_frame_descend are rolled back by frame_return on
+    -- child failure. Emit the zero-value nonce-only effect in the parent before
+    -- descent so the all-accounts non-storage check can match the BAL.
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+    "  bnez t1, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+    ".Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n" ++
+    "  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n" ++
+    "  jal ra, record_nonstorage_effect\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    ".Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full
     -- dispatch loop (create_frame_descend, .5a, reusing call_frame_descend), REPLACING the
@@ -452,6 +470,9 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     --   final_parent_gas = spill + floor(gas_after_state / 64)
     -- without mutating state-gas globals; collision has net-zero state gas.
     ".Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  ld t3, 584(x20)\n  beqz t3, .Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n.Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
     "  la t1, evm_state_gas_left\n  ld t1, 0(t1)\n" ++
     "  li t2, 0\n" ++
