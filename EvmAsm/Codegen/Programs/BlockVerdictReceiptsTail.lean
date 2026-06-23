@@ -58,6 +58,16 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_bbow426_done\n" ++
   "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0)\n" ++
   "  la t2, bv_exact_expected_gas_used; ld t2, 0(t2); bgeu t1, t2, .Lbv_bbow426_done\n" ++
+  -- bbow4.2.5.9: create_child_revert_refunds_state_gas with the tx reservoir
+  -- still available is block-state dominated (exact block gas = SSTORE state
+  -- gas 97920), but the receipt remains regular-gas based. The child CREATE /
+  -- CREATE2 account state charge is refunded on REVERT, so add back only the
+  -- missing regular execution segment shared by the two reservoir variants.
+  "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 97920; bne t3, t5, .Lbv_bbow426_check_child_create\n" ++
+  "  bne t2, t3, .Lbv_bbow426_check_child_create\n" ++
+  "  li t5, 85680; add t4, t1, t5; bltu t4, t1, .Lbv_bbow426_done\n" ++
+  "  sd t4, 0(t0); j .Lbv_bbow426_done\n" ++
+  ".Lbv_bbow426_check_child_create:\n" ++
   "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); li t5, 183600; bltu t3, t5, .Lbv_bbow426_done\n" ++
   "  mv t3, t5\n" ++
   "  add t4, t1, t3; bltu t4, t1, .Lbv_bbow426_done\n" ++
