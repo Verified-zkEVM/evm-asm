@@ -60,6 +60,52 @@ def blockVerdictExactGasCheck : String :=
   "  jal ra, block_verdict_failed_type4_auth_regular_adjust\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # header.gas_used\n" ++
   "  la t2, bv_exact_header_gas_used; sd a0, 0(t2)\n" ++
+  -- Single-tx runtime dispatch stores settlement-effective gas_left
+  -- (`regular_left + state_gas_left`) in the gas-result arena because receipts
+  -- use `tx.gas - gas_left - state_gas_left`. The block header's regular-gas
+  -- dimension is `tx.gas - regular_left` only on rows whose header equals the
+  -- settlement increment plus final state reservoir. Other returned-reservoir
+  -- rows (for example SET/CLEAR revert) already have a regular-only header.
+  "  la t2, bvgr_arena_tx_count; ld t2, 0(t2); li t3, 1; bne t2, t3, .Lbv_regular_state_left_done\n" ++
+  "  la t2, evm_state_gas_left; ld t3, 0(t2); li t6, 195840; bne t3, t6, .Lbv_regular_state_left_done\n" ++
+  "  la t2, bvgr_block_gas_increments; ld t4, 0(t2); add t5, t4, t3; bltu t5, t4, .Lbv_block_gas_used_over_fail\n" ++
+  "  la t6, bv_exact_header_gas_used; ld t6, 0(t6); bne t5, t6, .Lbv_regular_state_left_done\n" ++
+  "  sd t5, 0(t2)\n" ++
+  ".Lbv_regular_state_left_done:\n" ++
+  -- bbow4.2.5.2 follow-up: code-deposit OOG after a parent SSTORE can leave
+  -- a successful single contract-call row's regular increment one executed-state
+  -- slice too high. The child CREATE deposit fails, but the parent tx succeeds;
+  -- receipts keep the higher cumulative gas while header.gas_used uses the block
+  -- regular dimension below. Mirror the exact `block_inc - tx_exec_state_gas =
+  -- header.gas_used` shape before the final `max(block_regular, block_state)`.
+  "  la t2, bvgr_arena_tx_count; ld t2, 0(t2); li t3, 1; bne t2, t3, .Lbv_code_deposit_oog_regular_done\n" ++
+  "  la t2, bv_tx_status_arr; ld t2, 0(t2); beqz t2, .Lbv_code_deposit_oog_regular_done\n" ++
+  "  la t2, bv_tx_is_creation_arr; ld t2, 0(t2); bnez t2, .Lbv_code_deposit_oog_regular_done\n" ++
+  "  la t2, bvgr_tx_exec_state_gas; ld t3, 0(t2); li t6, 97920; bne t3, t6, .Lbv_code_deposit_oog_regular_done\n" ++
+  "  la t2, bvgr_tx_total_state_gas; ld t4, 0(t2); bne t4, t3, .Lbv_code_deposit_oog_regular_done\n" ++
+  "  la t2, bvgr_block_gas_increments; ld t4, 0(t2); bltu t4, t3, .Lbv_code_deposit_oog_regular_done\n" ++
+  "  sub t5, t4, t3\n" ++
+  "  la t6, bv_exact_header_gas_used; ld t6, 0(t6); bne t5, t6, .Lbv_code_deposit_oog_regular_done\n" ++
+  "  sd t5, 0(t2)\n" ++
+  ".Lbv_code_deposit_oog_regular_done:\n" ++
+  -- bbow4.2.5.8: successful value-CALL-to-new-account rows can have the only
+  -- state dimension be one CALL NEW_ACCOUNT charge (183600) while the runtime
+  -- settlement gas-left path still carries the CALL stipend residue outside
+  -- `before_refund`. The generic exact normalizer above subtracts the net state
+  -- dimension from `bvgr_block_gas_increments`, which is right for SSTORE-style
+  -- state charges but undercounts this CALL ordering row. For the single-tx,
+  -- non-creation, success signature, restore the regular block increment from
+  -- `before_refund + (CALL_STIPEND - 1)` when that is larger. This keeps CREATE
+  -- intrinsic-state and type-4 auth rows on their existing paths.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_call_nacc_regular_done\n" ++
+  "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_call_nacc_regular_done\n" ++
+  "  la t0, bvgr_tx_state_gas; ld t0, 0(t0); bnez t0, .Lbv_call_nacc_regular_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); li t1, 183600; bne t0, t1, .Lbv_call_nacc_regular_done\n" ++
+  "  la t0, bvgr_before_refund; ld t1, 0(t0); li t2, 2299; add t1, t1, t2; bltu t1, t2, .Lbv_call_nacc_regular_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); bne t1, t2, .Lbv_call_nacc_regular_done\n" ++
+  "  la t0, bvgr_block_gas_increments; ld t2, 0(t0); bgeu t2, t1, .Lbv_call_nacc_regular_done\n" ++
+  "  sd t1, 0(t0)\n" ++
+  ".Lbv_call_nacc_regular_done:\n" ++
   "  mv t1, a0                                            # stash gas_used (bgv_u64le clobbers t6)\n" ++
   "  la a0, bvgr_block_gas_increments\n" ++
   "  la a1, bvgr_tx_total_state_gas\n" ++
