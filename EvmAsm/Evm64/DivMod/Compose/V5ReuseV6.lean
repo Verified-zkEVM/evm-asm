@@ -15,6 +15,7 @@
 import EvmAsm.Evm64.DivMod.Compose.V5Code2
 import EvmAsm.Evm64.DivMod.Compose.Base
 import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
+import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 
 namespace EvmAsm.Rv64
 
@@ -136,5 +137,29 @@ theorem divCode_v5_sub_divCodeV6 {base : Word} :
     · exact fast_disjoint_divCode_v5 _ _ 396 (by bv_omega) (by decide)
     · exact fast_disjoint_divCode_v5 _ _ 436 (by bv_omega) (by decide)
     · exact fast_disjoint_divCode_v5 _ _ 476 (by bv_omega) (by decide)
+
+/-- The reused, unconditional v5 DIV stack spec, lifted from `divCode_v5
+    (base+v6V5Off)` onto `divCodeV6 base` (the n≥2 / b=0 arm of `evm_div_v6`).
+    Entry `base+v6V5Off`, exit `base+v6ExitOff`. -/
+theorem evm_div_v5_unconditional_over_divCodeV6
+    (sp base : Word) (a b : EvmWord) (raVal v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (halign : (((base + v6V5Off) + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      (base + v6V5Off) + div128CallRetOff) :
+    cpsTripleWithin unifiedDivBound (base + v6V5Off) (base + v6ExitOff) (divCodeV6 base)
+      (divModStackDispatchPreNoX1 sp a b
+        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostV5 sp a b) := by
+  have h := evm_div_stack_spec_unconditional sp (base + v6V5Off) a b raVal v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem halign
+  rw [show ((base + v6V5Off) + nopOff : Word) = base + v6ExitOff from by
+    simp only [v6V5Off, nopOff, v6ExitOff]; bv_omega] at h
+  exact cpsTripleWithin_extend_code (hmono := fun a i hh => divCode_v5_sub_divCodeV6 a i hh) h
 
 end EvmAsm.Evm64
