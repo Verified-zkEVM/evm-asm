@@ -151,6 +151,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  j .dispatch_loop\n" ++
       ".Lrr_crinv_" ++ toString kind ++ ":\n" ++
+      -- bbow4.2.5.1: invalid deployed code / code-deposit OOG is an
+      -- exceptional CREATE failure. execution-specs process_create_message
+      -- restores the child state snapshot and sets child gas_left = 0 before
+      -- incorporate_child_on_error, so the parent does not get the forwarded
+      -- gas back through frame_return.
+      "  sd x0, 568(x20)\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       "  j .dispatch_loop\n") ++
