@@ -236,6 +236,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  bnez a0, .Lbv_mtx_tl7708_skip\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_tl7708_skip:\n" ++
+  -- bbow4.8: snapshot per-tx exec effect logs before the multi-tx runtime
+  -- dispatch. A top-level tx that reverts/aborts discards its value-transfer /
+  -- CREATE effects; child frames roll themselves back via frame_return, but the
+  -- depth-0 tx exit path needs the same truncation as the single-tx path.
+  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0)\n" ++
+  "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
@@ -255,6 +264,13 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  "  bnez a4, .Lbv_mtx_effects_kept\n" ++
+  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_effects_kept:\n" ++
   -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
   -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
   -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
