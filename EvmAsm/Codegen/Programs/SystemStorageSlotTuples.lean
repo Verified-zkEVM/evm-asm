@@ -24,9 +24,22 @@ open EvmAsm.Rv64
     a0 (output) = total tuple count. If total exceeds bsrMaxTuplesPerSlot,
     output writes are suppressed and the caller must reject conservatively.
 
-    Captured system rows all belong to block_access_index 0, so this helper uses
-    a zero-filled txindex arena for the system-side call. User rows keep their
-    existing txindex arena and are appended after the system tuples. -/
+    lv44p.2.2: system rows are NOT all block_access_index 0. Begin-of-block system
+    calls (EIP-2935/4788) run at index 0; END-of-block calls (EIP-7002/7251) run at
+    index N+1, AFTER every user transaction. Both live in the same system log
+    (`bv_system_storage_log`) with their real per-row index in the txindex array. To
+    reconstruct the spec's ordered net-change sequence this helper runs THREE
+    `exec_log_slot_tuples` passes with a txindex window filter and concatenates them
+    in block_access_index order: begin-system (window [0,1)), then user (1..N), then
+    end-system (window [1, 2^64)). Each pass independently re-seeds its running value
+    from the FIRST matching row's `original`, which equals the running value at that
+    point (original = the pre-write value, accumulated across prior segments), so the
+    split passes preserve net-change continuity exactly without shared state.
+
+    The caller sets `sust_sys_txindex_ptr` to the real system txindex array
+    (`bv_system_storage_txindex`); a 0 ptr falls back to the all-zero array (so the
+    standalone probe / legacy callers see every system row at index 0 = begin-only,
+    byte-identical to the prior system-first behaviour). -/
 def systemUserExecLogSlotTuplesFunction : String :=
   "system_user_exec_log_slot_tuples:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -41,15 +54,32 @@ def systemUserExecLogSlotTuplesFunction : String :=
   "  mv s5, a5                    # user row count\n" ++
   "  mv s6, a6                    # user txindex base\n" ++
   "  mv s7, a7                    # out buffer\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; la a4, sust_zero_txindex; la a5, sust_sysbuf\n" ++
+  -- resolve the system txindex array (caller-set ptr, 0 => all-zero array)
+  "  la t0, sust_sys_txindex_ptr; ld t0, 0(t0); bnez t0, .Lsust_systx_set; la t0, sust_zero_txindex\n" ++
+  ".Lsust_systx_set:\n" ++
+  "  la t1, sust_systx; sd t0, 0(t1)\n" ++
+  -- PASS 1: begin-of-block system rows (block_access_index 0): txindex window [0,1)
+  "  la t1, els_txfilter_lo; sd zero, 0(t1); la t1, els_txfilter_hi; li t2, 1; sd t2, 0(t1)\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; la t0, sust_systx; ld a4, 0(t0); la a5, sust_sysbuf\n" ++
   "  jal ra, exec_log_slot_tuples\n" ++
-  "  mv s8, a0                    # system tuple count\n" ++
+  "  mv s8, a0                    # begin-system tuple count\n" ++
+  -- PASS 2: user rows (block_access_index 1..N): no txindex filter
+  "  la t1, els_txfilter_hi; sd zero, 0(t1)\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s4; mv a3, s5; mv a4, s6; la a5, sust_userbuf\n" ++
   "  jal ra, exec_log_slot_tuples\n" ++
   "  mv s9, a0                    # user tuple count\n" ++
-  "  add t0, s8, s9\n" ++
-  "  li t1, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu t0, t1, .Lsust_ret_total\n" ++
-  "  li t2, 0                     # copy system tuples\n" ++
+  -- PASS 3: end-of-block system rows (block_access_index >= 1, i.e. N+1): window [1, 2^64)
+  "  la t1, els_txfilter_lo; li t2, 1; sd t2, 0(t1); la t1, els_txfilter_hi; li t2, -1; sd t2, 0(t1)\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; la t0, sust_systx; ld a4, 0(t0); la a5, sust_endbuf\n" ++
+  "  jal ra, exec_log_slot_tuples\n" ++
+  "  la t0, sust_endcount; sd a0, 0(t0)        # end-system tuple count\n" ++
+  -- clear the txindex filter so other exec_log_slot_tuples callers are unaffected
+  "  la t1, els_txfilter_lo; sd zero, 0(t1); la t1, els_txfilter_hi; sd zero, 0(t1)\n" ++
+  -- total = begin + user + end; bail (return true count) if it would overflow out
+  "  la t0, sust_endcount; ld t0, 0(t0); add t6, s8, s9; add t6, t6, t0\n" ++
+  "  li t1, " ++ toString bsrMaxTuplesPerSlot ++ "; bgtu t6, t1, .Lsust_ret_total\n" ++
+  -- segment 1: sust_sysbuf[0..s8) -> out[0..s8)
+  "  li t2, 0\n" ++
   ".Lsust_copy_sys:\n" ++
   "  beq t2, s8, .Lsust_copy_user_start\n" ++
   "  slli t3, t2, 5; slli t4, t2, 3; add t3, t3, t4\n" ++
@@ -60,15 +90,25 @@ def systemUserExecLogSlotTuplesFunction : String :=
   ".Lsust_copy_user_start:\n" ++
   "  li t2, 0\n" ++
   ".Lsust_copy_user:\n" ++
-  "  beq t2, s9, .Lsust_ret_total\n" ++
+  "  beq t2, s9, .Lsust_copy_end_start\n" ++
   "  add t3, s8, t2; slli t4, t3, 5; slli t3, t3, 3; add t4, t4, t3\n" ++
   "  slli t3, t2, 5; slli t5, t2, 3; add t3, t3, t5\n" ++
   "  la t5, sust_userbuf; add t5, t5, t3; add t6, s7, t4\n" ++
   "  ld t0, 0(t5); sd t0, 0(t6); ld t0, 8(t5); sd t0, 8(t6)\n" ++
   "  ld t0, 16(t5); sd t0, 16(t6); ld t0, 24(t5); sd t0, 24(t6); ld t0, 32(t5); sd t0, 32(t6)\n" ++
   "  addi t2, t2, 1; j .Lsust_copy_user\n" ++
+  ".Lsust_copy_end_start:\n" ++
+  "  li t2, 0\n" ++
+  ".Lsust_copy_end:\n" ++
+  "  la t0, sust_endcount; ld t0, 0(t0); beq t2, t0, .Lsust_ret_total\n" ++
+  "  add t3, s8, s9; add t3, t3, t2; slli t4, t3, 5; slli t3, t3, 3; add t4, t4, t3\n" ++
+  "  slli t3, t2, 5; slli t5, t2, 3; add t3, t3, t5\n" ++
+  "  la t5, sust_endbuf; add t5, t5, t3; add t6, s7, t4\n" ++
+  "  ld t0, 0(t5); sd t0, 0(t6); ld t0, 8(t5); sd t0, 8(t6)\n" ++
+  "  ld t0, 16(t5); sd t0, 16(t6); ld t0, 24(t5); sd t0, 24(t6); ld t0, 32(t5); sd t0, 32(t6)\n" ++
+  "  addi t2, t2, 1; j .Lsust_copy_end\n" ++
   ".Lsust_ret_total:\n" ++
-  "  add a0, s8, s9\n" ++
+  "  la t0, sust_endcount; ld t0, 0(t0); add a0, s8, s9; add a0, a0, t0\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp)\n" ++
@@ -78,9 +118,15 @@ def systemUserExecLogSlotTuplesFunction : String :=
 def systemUserExecLogSlotTuplesData : String :=
   ".balign 8\n" ++
   "sust_zero_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
+  -- lv44p.2.2: caller-set real system txindex array (0 => sust_zero_txindex), and the
+  -- resolved ptr + end-of-block tuple count used by the three-pass reconstruction.
+  "sust_sys_txindex_ptr:\n  .zero 8\n" ++
+  "sust_systx:\n  .zero 8\n" ++
+  "sust_endcount:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "sust_sysbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
   "sust_userbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
+  "sust_endbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
   "sust_out:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n"
 
 def ziskSystemUserExecLogSlotTuplesPrologue : String :=
