@@ -562,6 +562,30 @@ def callDescendFallThrough
     ".Lcd_nacc_used_" ++ tag ++ ":\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcd_nacc_done_" ++ tag ++ ":\n") ++
+  -- bbow4.1.1: EIP-150 value-transfer gas check. Spec system.py:436/554
+  -- `check_gas(access_gas + transfer_gas + extend_memory)` raises OutOfGasError (an
+  -- exceptional halt that burns ALL remaining gas) when a value-bearing CALL/CALLCODE
+  -- cannot afford GAS_CALL_VALUE (9000) — BEFORE the STATE ACCESS / delegation
+  -- resolution that follows. The callee's own access and (for a 7702 marker) the
+  -- delegation-target access are already charged (basicPrecompileCallTail +
+  -- callDelegationAccessChargeAsm), so the residual the spec still requires here is the
+  -- transfer (9000) (+ memory, charged earlier). Without this guard a value-bearing
+  -- 7702-delegated call whose target code is ABSENT from the witness (the spec OOG'd
+  -- before accessing it, so it was never witnessed) fell through code resolution to
+  -- .Lcd_fail — pushing 0 and CONTINUING the tx — instead of OOGing, under-counting
+  -- block_regular_gas by the net transfer (6700) → header.gas_used appeared to
+  -- over-claim → bv_fail=41/44/45 (bal_call*_7702_delegation_and_oog). value-bearing
+  -- only (STATICCALL/DELEGATECALL carry no value). SOUND: OOG when gas < transfer is
+  -- exactly the spec's check_gas, and can only false-REJECT, never false-accept.
+  (if valueBearing then
+     "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+     "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  beqz t3, .Lcd_xfergas_ok_" ++ tag ++ "\n" ++   -- value == 0: no transfer
+     "  ld t3, 568(x20)\n  li t4, 9000\n  bltu t3, t4, .exit_outofgas\n" ++
+     ".Lcd_xfergas_ok_" ++ tag ++ ":\n"
+   else "") ++
   -- resolve callee code (save x10/x12/x13 — code_at_header_state_root clobbers a-regs)
   -- `account_at_address` expects a canonical 20-byte big-endian address, while
   -- the EVM stack word stores the low 20 address bytes in word order. Mirror the
