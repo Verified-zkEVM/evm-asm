@@ -91,6 +91,44 @@ theorem scalar_region_unit_cr_none_below (base : Word) (rOut : Reg) (fieldImm : 
   simp only [scalarRegionUnitCR, CodeReq.union, hl1, hl2, hl3, hl4, hl5, hl6, hl7]
 
 -- ---------------------------------------------------------------------------
+-- Empty (n=0) scalar unit: CR is `none` outside `[base, base+248)`.
+-- ---------------------------------------------------------------------------
+
+/-- The empty (`n=0`) scalar-into-region unit's CodeReq: descend (`base .. base+148`) ⨾
+    `ADDI x14, rOut, fieldImm` + 8-iteration spill chain (no read loop). -/
+def emptyScalarUnitCR (base : Word) (rOut : Reg) (fieldImm : BitVec 12) : CodeReq :=
+  ((CodeReq.singleton base (.LBU .x5 .x13 0)).union
+      (CodeReq.ofProg (base + 4) unified_decoder_prog)).union
+    ((CodeReq.singleton (base + 148) (.ADDI .x14 rOut fieldImm)).union
+      (spillChainCR (base + 148 + 4) 8))
+
+/-- The empty-scalar unit misses every address at or above `base + 248`. -/
+theorem empty_scalar_unit_cr_none_above (base : Word) (rOut : Reg) (fieldImm : BitVec 12)
+    (a : Word) (hcode : base.toNat + 248 < 2 ^ 64) (h : base.toNat + 248 ≤ a.toNat) :
+    emptyScalarUnitCR base rOut fieldImm a = none := by
+  have hl1 : CodeReq.singleton base (.LBU .x5 .x13 0) a = none := CodeReq.singleton_miss (by bv_omega)
+  have hl2 : CodeReq.ofProg (base + 4) unified_decoder_prog a = none :=
+    CodeReq.ofProg_none_range_len _ _ 36 a unified_decoder_prog_length (fun k hk => by bv_omega)
+  have hl3 : CodeReq.singleton (base + 148) (.ADDI .x14 rOut fieldImm) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have hl4 : spillChainCR (base + 148 + 4) 8 a = none :=
+    spillChainCR_none _ a 8 (fun j hj => by bv_omega)
+  simp only [emptyScalarUnitCR, CodeReq.union, hl1, hl2, hl3, hl4]
+
+/-- The empty-scalar unit misses every address below `base`. -/
+theorem empty_scalar_unit_cr_none_below (base : Word) (rOut : Reg) (fieldImm : BitVec 12)
+    (a : Word) (hcode : base.toNat + 248 < 2 ^ 64) (h : a.toNat < base.toNat) :
+    emptyScalarUnitCR base rOut fieldImm a = none := by
+  have hl1 : CodeReq.singleton base (.LBU .x5 .x13 0) a = none := CodeReq.singleton_miss (by bv_omega)
+  have hl2 : CodeReq.ofProg (base + 4) unified_decoder_prog a = none :=
+    CodeReq.ofProg_none_range_len _ _ 36 a unified_decoder_prog_length (fun k hk => by bv_omega)
+  have hl3 : CodeReq.singleton (base + 148) (.ADDI .x14 rOut fieldImm) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have hl4 : spillChainCR (base + 148 + 4) 8 a = none :=
+    spillChainCR_none _ a 8 (fun j hj => by bv_omega)
+  simp only [emptyScalarUnitCR, CodeReq.union, hl1, hl2, hl3, hl4]
+
+-- ---------------------------------------------------------------------------
 -- Byte-array unit: CR is `none` outside `[base, base + (152 + 20·len))`.
 -- ---------------------------------------------------------------------------
 
