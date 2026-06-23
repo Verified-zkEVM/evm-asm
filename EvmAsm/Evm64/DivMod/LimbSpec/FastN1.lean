@@ -225,4 +225,35 @@ theorem divK_fastDigit_loadsCall_spec_within
   have full := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) Le Ce
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq) full
 
+-- ============================================================================
+-- Dispatch prologue: OR-reduce b1|b2|b3 (the n≥2 detector)
+-- ============================================================================
+
+abbrev divK_dispatchN1_orReduce_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base
+    [.LD .x5 .x12 40, .LD .x10 .x12 48, .OR .x5 .x5 .x10,
+     .LD .x10 .x12 56, .OR .x5 .x5 .x10]
+
+/-- Dispatch OR-reduce (the 5 instructions before the `BNE` n≥2 test): load the
+    upper divisor limbs `b1, b2, b3` and reduce `x5 = b1 ||| b2 ||| b3`
+    (zero iff the divisor is single-limb). Mirror of the `divK_phaseA`
+    OR-reduce. Exits at `base + 20` (the `BNE`). -/
+theorem divK_dispatchN1_orReduce_spec_within (sp : Word) (base : Word)
+    (b1 b2 b3 v5 v10 : Word) :
+    let cr := divK_dispatchN1_orReduce_code base
+    cpsTripleWithin 5 base (base + 20) cr
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 40) ↦ₘ b1) ** ((sp + signExtend12 48) ↦ₘ b2) **
+       ((sp + signExtend12 56) ↦ₘ b3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ (b1 ||| b2 ||| b3)) ** (.x10 ↦ᵣ b3) **
+       ((sp + signExtend12 40) ↦ₘ b1) ** ((sp + signExtend12 48) ↦ₘ b2) **
+       ((sp + signExtend12 56) ↦ₘ b3)) := by
+  intro cr
+  have I0 := ld_spec_gen_within .x5 .x12 sp v5 b1 40 base (by nofun)
+  have I1 := ld_spec_gen_within .x10 .x12 sp v10 b2 48 (base + 4) (by nofun)
+  have I2 := or_spec_gen_rd_eq_rs1_within .x5 .x10 b1 b2 (base + 8) (by nofun)
+  have I3 := ld_spec_gen_within .x10 .x12 sp b2 b3 56 (base + 12) (by nofun)
+  have I4 := or_spec_gen_rd_eq_rs1_within .x5 .x10 (b1 ||| b2) b3 (base + 16) (by nofun)
+  runBlock I0 I1 I2 I3 I4
+
 end EvmAsm.Evm64
