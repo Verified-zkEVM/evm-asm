@@ -129,4 +129,47 @@ theorem divK_fastDigit_post_spec_within (uLoOff qOff : BitVec 12)
   have I5 := sd_spec_gen_within .x12 .x5 sp (uLo - q * d) uLo uLoOff (base + 20)
   runBlock I0 I1 I2 I3 I4 I5
 
+/-- Digit-step call: `JAL x2 callOff` (at `jalPc`) into the fast path's own
+    `divK_div128_v5` copy (at `divBase + div128Off`), returning to `retAddr`
+    with `x11 = q = div128 quotient`. Adapts `divK_trial_call_path_spec_within`
+    to a self-contained copy. Steps: 1 (JAL) + 83 (div128). -/
+theorem divK_fastDigit_call_spec_within
+    (sp uLo uHi d retAddr jalPc divBase : Word) (callOff : BitVec 21)
+    (v2Old v6Old v9Old v11Old retMem dMem dloMem un0Mem scratchMem : Word)
+    (htarget : jalPc + signExtend21 callOff = divBase + div128Off)
+    (hret : jalPc + 4 = retAddr)
+    (halign : (retAddr + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = retAddr)
+    (hdisj : (CodeReq.singleton jalPc (.JAL .x2 callOff)).Disjoint
+              (CodeReq.ofProg (divBase + div128Off) divK_div128_v5)) :
+    cpsTripleWithin 84 jalPc retAddr
+      ((CodeReq.singleton jalPc (.JAL .x2 callOff)).union
+        (CodeReq.ofProg (divBase + div128Off) divK_div128_v5))
+      ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2Old) ** (.x10 ↦ᵣ d) ** (.x5 ↦ᵣ uLo) **
+       (.x7 ↦ᵣ uHi) ** (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ un0Mem) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem))
+      (div128V5SpecPost sp retAddr d uLo uHi scratchMem) := by
+  set unionCr := (CodeReq.singleton jalPc (.JAL .x2 callOff)).union
+    (CodeReq.ofProg (divBase + div128Off) divK_div128_v5) with hUnion
+  have J := jal_spec_within .x2 v2Old callOff jalPc (by nofun)
+  rw [htarget, hret] at J
+  have Je := cpsTripleWithin_extend_code (cr' := unionCr)
+    (hmono := fun a i h => CodeReq.union_mono_left a i h) J
+  have D := div128_v5_spec sp retAddr d uLo uHi divBase v9Old v6Old v11Old
+    retMem dMem dloMem un0Mem scratchMem halign
+  have De := cpsTripleWithin_extend_code (cr' := unionCr)
+    (hmono := CodeReq.mono_union_right hdisj (fun a i h => h)) D
+  have Jf := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ d) ** (.x5 ↦ᵣ uLo) ** (.x7 ↦ᵣ uHi) **
+     (.x6 ↦ᵣ v6Old) ** (.x9 ↦ᵣ v9Old) ** (.x11 ↦ᵣ v11Old) ** (.x0 ↦ᵣ (0 : Word)) **
+     (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ un0Mem) **
+     (sp + signExtend12 3936 ↦ₘ scratchMem))
+    (by pcFree) Je
+  have full := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) Jf De
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq) full
+
 end EvmAsm.Evm64
