@@ -72,6 +72,7 @@ import EvmAsm.Evm64.DivMod.Compose.CLZV5Mod
 import EvmAsm.Evm64.DivMod.Compose.CLZV6
 import EvmAsm.Evm64.DivMod.Compose.NormAV6
 import EvmAsm.Evm64.DivMod.Compose.EpilogueV6
+import EvmAsm.Evm64.DivMod.Compose.FastSetupV6
 import EvmAsm.Evm64.DivMod.FastN1ProgramTest
 import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
