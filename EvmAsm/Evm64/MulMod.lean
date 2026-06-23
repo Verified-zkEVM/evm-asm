@@ -31,6 +31,7 @@ import EvmAsm.Evm64.MulMod.ProductLayoutCall14
 import EvmAsm.Evm64.MulMod.ProductLayoutCall15
 import EvmAsm.Evm64.MulMod.ProductLayoutPublicAlgebra
 import EvmAsm.Evm64.MulMod.ProductLayoutCall05Carry
+import EvmAsm.Evm64.MulMod.ProductLayoutCall09Carry
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn4Call02Feed
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn4Target
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn5Target
