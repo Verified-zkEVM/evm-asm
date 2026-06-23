@@ -136,3 +136,4 @@ import EvmAsm.Rv64.RLP.Phase1E5LongListFromBytesBE
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3LongString
 import EvmAsm.Rv64.RLP.Phase1ToPhase3SingleByte
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3ShortString
+import EvmAsm.Rv64.RLP.Phase6ReadDecode
