@@ -35,6 +35,12 @@ theorem mulModProductLayoutCarryRightEqTrue_toNat (x y : Word) :
       (x.toNat + y.toNat) / 2 ^ 64 := by
   simpa [BitVec.ult] using EvmWord.carry_toNat (x := x) (y := y)
 
+/-- Carry out of a two-word addition in `BitVec.ult` spelling. -/
+theorem mulModProductLayoutCarryRightBitVecUltEqTrue_toNat (x y : Word) :
+    (if BitVec.ult (x + y) y = true then (1 : Word) else 0).toNat =
+      (x.toNat + y.toNat) / 2 ^ 64 := by
+  simpa only [BitVec.ult] using mulModProductLayoutCarryRightEqTrue_toNat x y
+
 /-- The second call's offset-120 carry bit as a Nat quotient. -/
 theorem mulModProductLayoutCall02P120_toNat_eq_column1CarryLow (a b : EvmWord) :
     let a0 := a.getLimbN 0; let a1 := a.getLimbN 1;
@@ -70,6 +76,137 @@ theorem mulModProductLayoutCall02P120_toNat_eq_column1CarryLowWords (a b : EvmWo
   rw [mulModProductLayoutCall02P120_eq_expanded]
   simp only [mulModProductLayoutCarryEqTrue_toNat,
     mulModProductLayoutCarryRightEqTrue_toNat, BitVec.toNat_add]
+
+
+
+/-- The second call's offset-112 cell is the low word of the column-1 quotient. -/
+theorem mulModProductLayoutCall02P112_toNat_eq_column1CarryLowWord (a b : EvmWord) :
+    let mu00 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0)).toNat
+    let lo10 := (a.getLimbN 1 * b.getLimbN 0).toNat
+    let lo01 := (a.getLimbN 0 * b.getLimbN 1).toNat
+    let mu10 := (rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)).toNat
+    let mu01 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)).toNat
+    (mulModProductLayoutCall02P112 a b).toNat =
+      ((mu01 * 2 ^ 64 + lo01 + (mu10 * 2 ^ 64 + lo10) + mu00) / 2 ^ 64) %
+        2 ^ 64 := by
+  dsimp only
+  rw [mulModProductLayoutCall02P112_eq_expanded]
+  simp only [mulModProductLayoutCarryRightEqTrue_toNat, BitVec.toNat_add]
+  have h01 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 1)
+  have h10 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 0)
+  omega
+
+/-- The second call's offset-120 cell is the high word of the column-1 quotient. -/
+theorem mulModProductLayoutCall02P120_toNat_eq_column1CarryHighWord (a b : EvmWord) :
+    let mu00 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0)).toNat
+    let lo10 := (a.getLimbN 1 * b.getLimbN 0).toNat
+    let lo01 := (a.getLimbN 0 * b.getLimbN 1).toNat
+    let mu10 := (rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)).toNat
+    let mu01 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)).toNat
+    (mulModProductLayoutCall02P120 a b).toNat =
+      ((mu01 * 2 ^ 64 + lo01 + (mu10 * 2 ^ 64 + lo10) + mu00) / 2 ^ 64) /
+        2 ^ 64 % 2 ^ 64 := by
+  dsimp only
+  rw [mulModProductLayoutCall02P120_toNat_eq_column1CarryLowWords]
+  have h_mu00 : (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0)).toNat < 2 ^ 64 :=
+    (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0)).isLt
+  have h_lo10 : (a.getLimbN 1 * b.getLimbN 0).toNat < 2 ^ 64 :=
+    (a.getLimbN 1 * b.getLimbN 0).isLt
+  have h_lo01 : (a.getLimbN 0 * b.getLimbN 1).toNat < 2 ^ 64 :=
+    (a.getLimbN 0 * b.getLimbN 1).isLt
+  have h10 : (rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)).toNat * 2 ^ 64 +
+      (a.getLimbN 1 * b.getLimbN 0).toNat ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1) := by
+    rw [EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 0)]
+    exact Nat.mul_le_mul (by have := (a.getLimbN 1).isLt; omega)
+      (by have := (b.getLimbN 0).isLt; omega)
+  have h01 : (rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)).toNat * 2 ^ 64 +
+      (a.getLimbN 0 * b.getLimbN 1).toNat ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1) := by
+    rw [EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 1)]
+    exact Nat.mul_le_mul (by have := (a.getLimbN 0).isLt; omega)
+      (by have := (b.getLimbN 1).isLt; omega)
+  omega
+
+
+/-- The third call's offset-112 cell after adding the `a2*b0` low word. -/
+theorem mulModProductLayoutCall03P112_toNat_eq_column2Add20LowWord (a b : EvmWord) :
+    let mu00 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0)).toNat
+    let lo10 := (a.getLimbN 1 * b.getLimbN 0).toNat
+    let lo20 := (a.getLimbN 2 * b.getLimbN 0).toNat
+    let mu10 := (rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)).toNat
+    let lo01 := (a.getLimbN 0 * b.getLimbN 1).toNat
+    let mu01 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)).toNat
+    (mulModProductLayoutCall03P112 a b).toNat =
+      (mu10 + (mu00 + lo10) / 2 ^ 64 + lo20 +
+        (mu01 + ((mu00 + lo10) % 2 ^ 64 + lo01) / 2 ^ 64)) % 2 ^ 64 := by
+  dsimp only
+  rw [mulModProductLayoutCall03P112_eq_add]
+  unfold mulModAddPartialLoProduct
+  rw [BitVec.toNat_add]
+  rw [mulModProductLayoutCall02P112_toNat_eq_column1CarryLowWord]
+  have h10 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 0)
+  have h01 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 1)
+  omega
+
+/-- The fourth call's offset-112 cell after adding the `a1*b1` low word. -/
+theorem mulModProductLayoutCall04P112_toNat_eq_column2Add11LowWord (a b : EvmWord) :
+    let mu00 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0)).toNat
+    let lo10 := (a.getLimbN 1 * b.getLimbN 0).toNat
+    let lo20 := (a.getLimbN 2 * b.getLimbN 0).toNat
+    let mu10 := (rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)).toNat
+    let lo01 := (a.getLimbN 0 * b.getLimbN 1).toNat
+    let mu01 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)).toNat
+    let lo11 := (a.getLimbN 1 * b.getLimbN 1).toNat
+    (mulModProductLayoutCall04P112 a b).toNat =
+      ((mu10 + (mu00 + lo10) / 2 ^ 64 + lo20 +
+          (mu01 + ((mu00 + lo10) % 2 ^ 64 + lo01) / 2 ^ 64)) % 2 ^ 64 +
+        lo11) % 2 ^ 64 := by
+  dsimp only
+  rw [mulModProductLayoutCall04P112_eq_add]
+  unfold mulModAddPartialLoProduct
+  rw [BitVec.toNat_add]
+  rw [mulModProductLayoutCall03P112_toNat_eq_column2Add20LowWord]
+
+
+/-- The fifth call's offset-120 cell is the low word of the column-2 carry. -/
+theorem mulModProductLayoutCall05P120_toNat_eq_limb2CarryLow (a b : EvmWord) :
+    let mu00 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0)).toNat
+    let lo00 := (a.getLimbN 0 * b.getLimbN 0).toNat
+    let lo10 := (a.getLimbN 1 * b.getLimbN 0).toNat
+    let mu10 := (rv64_mulhu (a.getLimbN 1) (b.getLimbN 0)).toNat
+    let lo20 := (a.getLimbN 2 * b.getLimbN 0).toNat
+    let mu20 := (rv64_mulhu (a.getLimbN 2) (b.getLimbN 0)).toNat
+    let lo01 := (a.getLimbN 0 * b.getLimbN 1).toNat
+    let mu01 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 1)).toNat
+    let lo11 := (a.getLimbN 1 * b.getLimbN 1).toNat
+    let mu11 := (rv64_mulhu (a.getLimbN 1) (b.getLimbN 1)).toNat
+    let lo02 := (a.getLimbN 0 * b.getLimbN 2).toNat
+    let mu02 := (rv64_mulhu (a.getLimbN 0) (b.getLimbN 2)).toNat
+    (mulModProductLayoutCall05P120 a b).toNat =
+      (mu02 * 2 ^ 64 + lo02 + (mu11 * 2 ^ 64 + lo11) +
+        (mu20 * 2 ^ 64 + lo20) +
+        (mu01 * 2 ^ 64 + lo01 + (mu10 * 2 ^ 64 + lo10) +
+          (mu00 * 2 ^ 64 + lo00) / 2 ^ 64) / 2 ^ 64) /
+        2 ^ 64 % 2 ^ 64 := by
+  dsimp only
+  rw [mulModProductLayoutCall05P120_eq_add]
+  rw [mulModProductLayoutCall04P120_eq_add]
+  rw [mulModProductLayoutCall03P120_eq_add]
+  unfold mulModAddPartialHiProduct mulModAddPartialLoCarry
+    mulModAddPartialLoValue mulModAddPartialLoProduct
+  simp only [BitVec.toNat_add, mulModProductLayoutCarryRight_toNat,
+    mulModProductLayoutCall02P112_toNat_eq_column1CarryLowWord,
+    mulModProductLayoutCall02P120_toNat_eq_column1CarryHighWord,
+    mulModProductLayoutCall03P112_toNat_eq_column2Add20LowWord,
+    mulModProductLayoutCall04P112_toNat_eq_column2Add11LowWord]
+  have h00 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 0)
+  have h10 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 0)
+  have h20 := EvmWord.mul_full_product (a.getLimbN 2) (b.getLimbN 0)
+  have h01 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 1)
+  have h11 := EvmWord.mul_full_product (a.getLimbN 1) (b.getLimbN 1)
+  have h02 := EvmWord.mul_full_product (a.getLimbN 0) (b.getLimbN 2)
+  omega
+
+
 
 
 
