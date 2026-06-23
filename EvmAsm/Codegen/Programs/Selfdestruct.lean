@@ -608,8 +608,8 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  la t0, sdai_status; ld t0, 0(t0); beqz t0, .L_sdbn_origin_ok\n" ++
   "  li t1, 4; bne t0, t1, .L_sdbn_done\n" ++
   ".L_sdbn_origin_ok:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd x10, 96(sp); sd x12, 104(sp)\n" ++
+  "  addi sp, sp, -144\n" ++
+  "  sd x10, 128(sp); sd x12, 136(sp)\n" ++
   "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 64\n" ++
   "  jal ra, account_extract_balance\n" ++
   "  ld t0, 64(sp); ld t1, 72(sp); or t0, t0, t1; ld t1, 80(sp); or t0, t0, t1; ld t1, 88(sp); or t0, t0, t1\n" ++
@@ -627,6 +627,19 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   ".L_sdbn_pre_zero:\n" ++
   "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
   ".L_sdbn_have_pre:\n" ++
+  -- sr5m3.2: pre-existing SELFDESTRUCT can credit the same beneficiary multiple times
+  -- in one transaction. Header/pre-witness balance is stale after the first credit, so
+  -- prefer the latest non-storage post_balance for the beneficiary when present. This
+  -- keeps the second SELFDESTRUCT credit's post balance at live_pre + origin_balance.
+  -- Stack use: sp+0 beneficiary pre, sp+32 post, sp+64 origin balance, sp+96 key.
+  "  sd zero, 96(sp); sd zero, 104(sp); sd zero, 112(sp); sd zero, 120(sp)\n" ++
+  "  la t0, evm_selfdestruct_beneficiary; addi t1, sp, 96; li t2, 20\n" ++
+  ".L_sdbn_live_bk:\n" ++
+  "  beqz t2, .L_sdbn_live_bk_d\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_live_bk\n" ++
+  ".L_sdbn_live_bk_d:\n" ++
+  "  addi a0, sp, 96; mv a1, sp\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
   "  mv a0, sp; addi a1, sp, 64; addi a2, sp, 32\n" ++
   "  jal ra, u256_add_be\n" ++
   "  la a0, evm_selfdestruct_beneficiary; mv a1, sp; addi a2, sp, 32; li a3, 0; li a4, 0\n" ++
@@ -646,7 +659,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  la a0, sdai_origin_address; addi a1, sp, 64; addi a2, sp, 8\n" ++                    -- a1 = pre_bal (origin), a2 = post_bal (0)
   "  jal ra, record_nonstorage_effect\n" ++
   ".L_sdbn_restore:\n" ++
-  "  ld x10, 96(sp); ld x12, 104(sp); addi sp, sp, 112\n" ++
+  "  ld x10, 128(sp); ld x12, 136(sp); addi sp, sp, 144\n" ++
   ".L_sdbn_done:\n"
 
 /--
