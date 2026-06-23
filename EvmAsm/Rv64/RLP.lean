@@ -119,6 +119,7 @@ import EvmAsm.Rv64.RLP.SchemaDecodeEncoded
 import EvmAsm.Rv64.RLP.SchemaDecodeEncodedExample
 import EvmAsm.Rv64.RLP.SchemaDecodeValues
 import EvmAsm.Rv64.RLP.SchemaDecodeValuesExample
+import EvmAsm.Rv64.RLP.SchemaEmptyFieldExample
 import EvmAsm.Rv64.RLP.SchemaListEncodeLong
 import EvmAsm.Rv64.RLP.SchemaDecodeEncodedLong
 import EvmAsm.Rv64.RLP.NestedDescendOne

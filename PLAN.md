@@ -1842,11 +1842,21 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain (mirrors the non-empty bytes chain;
     reuses `bytesUnitCR … 0`, no new CR) to the uniform `regOwn` interface. Both empty units are now
     fold-ready.
-  - **Next (final step):** engine integration in `SchemaFold`/`SchemaFoldConcat` — data-dependent
-    `fieldSize`/`fieldCR`/`fieldSteps` for the scalar kind (empty → 248/`emptyScalarUnitCR`), `field_step`
-    dispatch (scalar `data=[]` → empty-scalar unit; bytes `data=[]` → empty-bytes unit), drop the
-    `1 ≤ data.length` floor in `SchemaValid`/`fieldCoreValid`, extend `fieldCR_none_{above,below}`. After
-    this `schema_walk` decodes every valid RLP field.
+  - ✅ **Step 53 — empty fields integrated into the schema engine** (`SchemaFold`/`SchemaFoldConcat`
+    + `SchemaEmptyFieldExample.lean`): `fieldSize`/`fieldCR`/`fieldSteps` are now data-dependent for the
+    scalar kind (empty → 248/`emptyScalarUnitCR`; non-empty → 280/`scalarRegionUnitCR`); `field_step`
+    dispatches 4 ways (empty-scalar / scalar / empty-bytes / short|long bytes); `SchemaValid` &
+    `fieldCoreValid` drop the `1 ≤ data.length` floor (non-empty branches re-derive `1 ≤ len` from
+    `data ≠ []`); `fieldCR_none_{above,below}` gain the empty-scalar case. No `FieldSpec` structural change;
+    all ~10 downstream walk/decoder/example files rebuilt unchanged. Concrete cross-check: a record whose
+    first field is a zero scalar (`[0xc2,0x80,0x2a]`) decodes to values `0` and `42`.
+  - **🎉 RLP decoder COMPLETE.** `schema_walk` / the end-user `decode_encoded_{short,long}_list_schema_values`
+    APIs now decode EVERY valid RLP field type a transaction/header contains — `u64`/`u256` scalars,
+    zero/empty scalars, 20-byte addresses, 32-byte hashes, arbitrarily-long byte arrays (calldata, the
+    256-byte bloom), and empty `to` — into a shared output region, recovering every field's value, coinciding
+    with the pure RLP spec. A concrete legacy-tx/header decoder is now a direct caller instantiation
+    (output layout = caller-chosen field offsets). Remaining beyond the decoder: Phase 6 host-I/O pipeline
+    (`read_input → decode → write_output`).
 - Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

@@ -31,7 +31,7 @@ example :=
     egListSpecs (List.replicate 24 (0 : Byte)) 24 0 0 0 0 0 0 (by decide) (by decide) (by decide)
     (by decide) (by decide) (by simp) (by decide) (by decide)
     (schemaValid_of_concat egListBs 24 [] egListSpecs 1
-      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide, by decide⟩)
+      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
       (by decide))
     (by decide)
 
