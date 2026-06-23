@@ -51,4 +51,26 @@ theorem divK_fastDenorm_spec_within (sp : Word) (base : Word)
   have I6 := sd_x0_spec_gen_within .x12 sp u3m 4032 (base + 24)
   runBlock I0 I1 I2 I3 I4 I5 I6
 
+abbrev divK_fastSetup_b0prime_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base [.LD .x5 .x12 32, .SLL .x5 .x5 .x6, .SD .x12 .x5 3984]
+
+/-- `divK_fastSetup` divisor-normalization block (the 3 instructions after the
+    antiShift setup, which is `divK_phaseC2_body`): load `b0` from `sp + 32`,
+    compute `b0' = b0 <<< s` (`s` = CLZ shift in `x6`), and store `b0'` at
+    `sp + 3984`. Mirror of `divK_normB_last`. -/
+theorem divK_fastSetup_b0prime_spec_within (sp : Word) (base : Word)
+    (s b0 v5 m3984 : Word) :
+    let result := b0 <<< (s.toNat % 64)
+    let cr := divK_fastSetup_b0prime_code base
+    cpsTripleWithin 3 base (base + 12) cr
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ s) **
+       ((sp + signExtend12 32) ↦ₘ b0) ** ((sp + signExtend12 3984) ↦ₘ m3984))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ result) ** (.x6 ↦ᵣ s) **
+       ((sp + signExtend12 32) ↦ₘ b0) ** ((sp + signExtend12 3984) ↦ₘ result)) := by
+  intro result cr
+  have I0 := ld_spec_gen_within .x5 .x12 sp v5 b0 32 base (by nofun)
+  have I1 := sll_spec_gen_rd_eq_rs1_within .x5 .x6 b0 s (base + 4) (by nofun)
+  have I2 := sd_spec_gen_within .x12 .x5 sp result m3984 3984 (base + 8)
+  runBlock I0 I1 I2
+
 end EvmAsm.Evm64
