@@ -252,4 +252,119 @@ theorem divK_clzSetupNormADigits_shiftNz_spec_within_v6
       simp only [v6nU4, v6nU3, v6nU2, v6nU1, v6nU0, v6nD, v6nX10]
       xperm_hyp hp) hcsnf hdcf
 
+/-- `divK_div_epilogue_spec_within_v6` with the clobbered input `x6` exposed as
+    `regOwn` (the form the digit chain leaves it in). -/
+theorem divK_div_epilogue_own_spec_within_v6 (sp : Word) (base : Word)
+    (q0 q1 q2 q3 v5 v7 v10 m0 m8 m16 m24 : Word) :
+    cpsTripleWithin 10 (base + v6EpilogueOff) (base + v6ExitOff) (divCodeV6 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** regOwn .x6 ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+       ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      ((.x12 ↦ᵣ (sp + 32)) ** (.x5 ↦ᵣ q0) ** (.x6 ↦ᵣ q1) ** (.x7 ↦ᵣ q2) ** (.x10 ↦ᵣ q3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + 32) ↦ₘ q0) ** ((sp + 40) ↦ₘ q1) **
+       ((sp + 48) ↦ₘ q2) ** ((sp + 56) ↦ₘ q3)) := by
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) **
+        ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+        ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+        ((sp + 32) ↦ₘ m0) ** ((sp + 40) ↦ₘ m8) **
+        ((sp + 48) ↦ₘ m16) ** ((sp + 56) ↦ₘ m24))
+      (r := .x6) (fun v6 => ?_))
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (divK_div_epilogue_spec_within_v6 sp base q0 q1 q2 q3 v5 v6 v7 v10 m0 m8 m16 m24)
+
+/-- **Full DIV fast-path body, shift≠0 lane**: clz ;; fastSetup ;; normA ;;
+    digitChain ;; epilogue, `v6ClzOff` → `v6ExitOff` (434 steps). Divides the
+    4-limb dividend `a[0..3]` by the single-limb divisor `b0`, landing the
+    quotient digits `q[3..0]` in `x10/x7/x6/x5` and at `sp+32..56`. The quotient
+    digits are `v6chainQ{0,1,2,3}` of the normalized window. -/
+theorem divK_fastBody_shiftNz_spec_within_v6
+    (sp b0 a0 a1 a2 a3 v6Old v7Old v2Old v10 v9d v11d : Word)
+    (qm3 qm2 qm1 qm0 m3992 m3984 retMem dMem dloMem un0Mem scratchMem m40 m48 m56 : Word)
+    (u0Old u1Old u2Old u3Old u4Old : Word) (base : Word)
+    (hs_ne_0 : (clzResult b0).1 ≠ (0 : Word))
+    (halign3 : ((base + v6Digit3Off + 16) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)
+      = base + v6Digit3Off + 16)
+    (halign2 : ((base + v6Digit2Off + 16) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)
+      = base + v6Digit2Off + 16)
+    (halign1 : ((base + v6Digit1Off + 16) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)
+      = base + v6Digit1Off + 16)
+    (halign0 : ((base + v6Digit0Off + 16) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)
+      = base + v6Digit0Off + 16) :
+    cpsTripleWithin 434 (base + v6ClzOff) (base + v6ExitOff) (divCodeV6 base)
+      (((((.x5 ↦ᵣ b0) ** (.x6 ↦ᵣ v6Old) ** (.x7 ↦ᵣ v7Old) ** (.x0 ↦ᵣ (0 : Word))) **
+         ((.x12 ↦ᵣ sp) ** (.x2 ↦ᵣ v2Old) ** ((sp + signExtend12 32) ↦ₘ b0) **
+          ((sp + signExtend12 3992) ↦ₘ m3992) ** ((sp + signExtend12 3984) ↦ₘ m3984))) **
+        ((.x10 ↦ᵣ v10) ** ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+         ((sp + signExtend12 4024) ↦ₘ u4Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+         ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+         ((sp + signExtend12 4056) ↦ₘ u0Old))) **
+       ((.x9 ↦ᵣ v9d) ** (.x11 ↦ᵣ v11d) **
+        (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+        (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ un0Mem) **
+        (sp + signExtend12 3936 ↦ₘ scratchMem) **
+        ((sp + signExtend12 4064) ↦ₘ qm3) ** ((sp + signExtend12 4072) ↦ₘ qm2) **
+        ((sp + signExtend12 4080) ↦ₘ qm1) ** ((sp + signExtend12 4088) ↦ₘ qm0) **
+        ((sp + 40) ↦ₘ m40) ** ((sp + 48) ↦ₘ m48) ** ((sp + 56) ↦ₘ m56)))
+      (((.x12 ↦ᵣ (sp + 32)) **
+        (.x5 ↦ᵣ (v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))) **
+        (.x6 ↦ᵣ (v6chainQ1 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nD b0))) **
+        (.x7 ↦ᵣ (v6chainQ2 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nD b0))) **
+        (.x10 ↦ᵣ (v6chainQ3 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nD b0))) **
+        ((sp + signExtend12 4088) ↦ₘ (v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))) **
+        ((sp + signExtend12 4080) ↦ₘ (v6chainQ1 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nD b0))) **
+        ((sp + signExtend12 4072) ↦ₘ (v6chainQ2 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nD b0))) **
+        ((sp + signExtend12 4064) ↦ₘ (v6chainQ3 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nD b0))) **
+        ((sp + 32) ↦ₘ (v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))) **
+        ((sp + 40) ↦ₘ (v6chainQ1 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nD b0))) **
+        ((sp + 48) ↦ₘ (v6chainQ2 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nD b0))) **
+        ((sp + 56) ↦ₘ (v6chainQ3 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nD b0)))) **
+       ((.x11 ↦ᵣ (v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))) **
+        (.x2 ↦ᵣ (base + v6Digit0Off + 16)) ** regOwn .x9 ** (.x0 ↦ᵣ (0 : Word)) **
+        memOwn (sp + signExtend12 3968) ** memOwn (sp + signExtend12 3960) **
+        memOwn (sp + signExtend12 3952) ** memOwn (sp + signExtend12 3944) **
+        memOwn (sp + signExtend12 3936) **
+        ((sp + signExtend12 4056) ↦ₘ (v6chainR0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))) **
+        ((sp + signExtend12 3984) ↦ₘ (v6nD b0)) **
+        ((sp + signExtend12 4048) ↦ₘ (v6chainR1 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nD b0))) **
+        ((sp + signExtend12 4024) ↦ₘ (v6nU4 a3 b0)) **
+        ((sp + signExtend12 4032) ↦ₘ (v6chainR3 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nD b0))) **
+        ((sp + signExtend12 4040) ↦ₘ (v6chainR2 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nD b0))) **
+        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+        ((sp + signExtend12 3992) ↦ₘ ((clzResult b0).1)))) := by
+  have hbulk := divK_clzSetupNormADigits_shiftNz_spec_within_v6 sp b0 a0 a1 a2 a3 v6Old v7Old
+    v2Old v10 v9d v11d qm3 qm2 qm1 qm0 m3992 m3984 retMem dMem dloMem un0Mem scratchMem
+    m40 m48 m56 u0Old u1Old u2Old u3Old u4Old base hs_ne_0 halign3 halign2 halign1 halign0
+  have hep := divK_div_epilogue_own_spec_within_v6 sp base
+    (v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))
+    (v6chainQ1 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nD b0))
+    (v6chainQ2 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nD b0))
+    (v6chainQ3 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nD b0))
+    (v6chainR0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))
+    (v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0) * (v6nD b0))
+    (v6nD b0) b0 m40 m48 m56
+  have hepf := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ (v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))) **
+     (.x2 ↦ᵣ (base + v6Digit0Off + 16)) ** regOwn .x9 ** (.x0 ↦ᵣ (0 : Word)) **
+     memOwn (sp + signExtend12 3968) ** memOwn (sp + signExtend12 3960) **
+     memOwn (sp + signExtend12 3952) ** memOwn (sp + signExtend12 3944) **
+     memOwn (sp + signExtend12 3936) **
+     ((sp + signExtend12 4056) ↦ₘ (v6chainR0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0))) **
+     ((sp + signExtend12 3984) ↦ₘ (v6nD b0)) **
+     ((sp + signExtend12 4048) ↦ₘ (v6chainR1 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nD b0))) **
+     ((sp + signExtend12 4024) ↦ₘ (v6nU4 a3 b0)) **
+     ((sp + signExtend12 4032) ↦ₘ (v6chainR3 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nD b0))) **
+     ((sp + signExtend12 4040) ↦ₘ (v6chainR2 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nD b0))) **
+     ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 3992) ↦ₘ ((clzResult b0).1)))
+    (by pcFree) hep
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by simp only [EvmAsm.Rv64.AddrNorm.se12_32] at hp; xperm_hyp hp) hbulk hepf
+
 end EvmAsm.Evm64
