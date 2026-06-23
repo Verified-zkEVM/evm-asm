@@ -74,6 +74,14 @@ def evm_mulmod_reduce512_inner_step_subtract_limb2 : Program :=
   OR' .x11 .x10 .x13 ;;
   SD .x12 .x5 240
 
+/-- The high limb subtract/store block, consuming the limb2 borrow. -/
+def evm_mulmod_reduce512_inner_step_subtract_limb3 : Program :=
+  LD .x6 .x12 248 ;;
+  LD .x7 .x12 88 ;;
+  SUB .x5 .x6 .x7 ;;
+  SUB .x5 .x5 .x11 ;;
+  SD .x12 .x5 248
+
 abbrev evm_mulmod_reduce512_inner_step_subtract_store_code (base : Word) : CodeReq :=
   CodeReq.ofProg (base + 144) evm_mulmod_reduce512_inner_step_subtract_store
 
@@ -85,6 +93,9 @@ abbrev evm_mulmod_reduce512_inner_step_subtract_limb1_code (base : Word) : CodeR
 
 abbrev evm_mulmod_reduce512_inner_step_subtract_limb2_code (base : Word) : CodeReq :=
   CodeReq.ofProg (base + 196) evm_mulmod_reduce512_inner_step_subtract_limb2
+
+abbrev evm_mulmod_reduce512_inner_step_subtract_limb3_code (base : Word) : CodeReq :=
+  CodeReq.ofProg (base + 228) evm_mulmod_reduce512_inner_step_subtract_limb3
 
 /-- Folded final memory state after the reducer subtract-store subpath. -/
 @[irreducible]
@@ -164,6 +175,25 @@ def mulModReduceSubtractLimb2Post (sp : Word) (r n : EvmWord) : Assertion :=
   ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
   ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
   ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
+
+/-- Folded postcondition after subtracting and storing the high limb. -/
+@[irreducible]
+def mulModReduceSubtractLimb3Post (sp : Word) (r n : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ sp) **
+  (.x5 ↦ᵣ mulModReduceSubLimb3 r n) **
+  (.x6 ↦ᵣ EvmWord.getLimbN r 3) **
+  (.x7 ↦ᵣ EvmWord.getLimbN n 3) **
+  (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
+  (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
+  (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
+  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
+  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ mulModReduceSubLimb3 r n) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -456,5 +486,232 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb2_spec_within
       unfold mulModReduceSubtractLimb2Frame mulModReduceSubtractLimb2CorePost at hp
       xperm_hyp hp)
     hfr
+
+
+/-- The high-limb subtract block as explicit singleton code entries for `runBlock`. -/
+theorem evm_mulmod_reduce512_inner_step_subtract_limb3_code_eq_singletons (base : Word) :
+    evm_mulmod_reduce512_inner_step_subtract_limb3_code base =
+      (CodeReq.singleton (base + 228) (.LD .x6 .x12 248)).union
+        ((CodeReq.singleton (base + 232) (.LD .x7 .x12 88)).union
+          ((CodeReq.singleton (base + 236) (.SUB .x5 .x6 .x7)).union
+            ((CodeReq.singleton (base + 240) (.SUB .x5 .x5 .x11)).union
+              (CodeReq.singleton (base + 244) (.SD .x12 .x5 248))))) := by
+  funext a
+  unfold evm_mulmod_reduce512_inner_step_subtract_limb3_code
+  unfold evm_mulmod_reduce512_inner_step_subtract_limb3
+  change CodeReq.ofProg (base + 228)
+      [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.SUB .x5 .x6 .x7),
+       (.SUB .x5 .x5 .x11), (.SD .x12 .x5 248)] a =
+    ((CodeReq.singleton (base + 228) (.LD .x6 .x12 248)).union
+      ((CodeReq.singleton (base + 232) (.LD .x7 .x12 88)).union
+        ((CodeReq.singleton (base + 236) (.SUB .x5 .x6 .x7)).union
+          ((CodeReq.singleton (base + 240) (.SUB .x5 .x5 .x11)).union
+            (CodeReq.singleton (base + 244) (.SD .x12 .x5 248)))))) a
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 228 : Word) + 4 = base + 232 by bv_addr]
+  rw [show (base + 232 : Word) + 4 = base + 236 by bv_addr]
+  rw [show (base + 236 : Word) + 4 = base + 240 by bv_addr]
+  rw [show (base + 240 : Word) + 4 = base + 244 by bv_addr]
+
+/-- Untouched resources around the high-limb subtract/store block. -/
+@[irreducible]
+def mulModReduceSubtractLimb3Frame (sp : Word) (r n : EvmWord) : Assertion :=
+  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2)
+
+/-- Core postcondition for the resources touched by the high-limb block. -/
+@[irreducible]
+def mulModReduceSubtractLimb3CorePost (sp : Word) (r n : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ sp) **
+  (.x5 ↦ᵣ mulModReduceSubLimb3 r n) **
+  (.x6 ↦ᵣ EvmWord.getLimbN r 3) **
+  (.x7 ↦ᵣ EvmWord.getLimbN n 3) **
+  (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
+  (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
+  (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
+  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ mulModReduceSubLimb3 r n) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb3_core_spec_within
+    (sp base v5 v6 v7 : Word) (r n : EvmWord) :
+    cpsTripleWithin 5 (base + 228) (base + 248)
+      (evm_mulmod_reduce512_inner_step_subtract_limb3_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
+       (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
+       (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3))
+      (mulModReduceSubtractLimb3CorePost sp r n) := by
+  rw [evm_mulmod_reduce512_inner_step_subtract_limb3_code_eq_singletons base]
+  unfold mulModReduceSubtractLimb3CorePost
+  unfold mulModReduceSubLimb3 mulModReduceSubTemp3
+  runBlock
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb3_spec_within
+    (sp base : Word) (r n : EvmWord) :
+    cpsTripleWithin 5 (base + 228) (base + 248)
+      (evm_mulmod_reduce512_inner_step_subtract_limb3_code base)
+      (mulModReduceSubtractLimb2Post sp r n)
+      (mulModReduceSubtractLimb3Post sp r n) := by
+  have hcore := evm_mulmod_reduce512_inner_step_subtract_limb3_core_spec_within
+    sp base (mulModReduceSubLimb2 r n) (EvmWord.getLimbN r 2)
+    (EvmWord.getLimbN n 2) r n
+  have hfr := cpsTripleWithin_frameR
+    (mulModReduceSubtractLimb3Frame sp r n)
+    (by unfold mulModReduceSubtractLimb3Frame; pcFree) hcore
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      unfold mulModReduceSubtractLimb3Frame
+      unfold mulModReduceSubtractLimb2Post at hp
+      xperm_hyp hp)
+    (fun _ hp => by
+      unfold mulModReduceSubtractLimb3Post
+      unfold mulModReduceSubtractLimb3Frame mulModReduceSubtractLimb3CorePost at hp
+      xperm_hyp hp)
+    hfr
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb0_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_subtract_limb0_code base a = some i →
+      evm_mulmod_reduce512_inner_step_subtract_store_code base a = some i := by
+  unfold evm_mulmod_reduce512_inner_step_subtract_limb0_code
+  unfold evm_mulmod_reduce512_inner_step_subtract_store_code
+  refine CodeReq.ofProg_mono_sub (base + 144) (base + 144)
+    evm_mulmod_reduce512_inner_step_subtract_store
+    evm_mulmod_reduce512_inner_step_subtract_limb0 0 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 0) = (0 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb1_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_subtract_limb1_code base a = some i →
+      evm_mulmod_reduce512_inner_step_subtract_store_code base a = some i := by
+  unfold evm_mulmod_reduce512_inner_step_subtract_limb1_code
+  unfold evm_mulmod_reduce512_inner_step_subtract_store_code
+  refine CodeReq.ofProg_mono_sub (base + 144) (base + 164)
+    evm_mulmod_reduce512_inner_step_subtract_store
+    evm_mulmod_reduce512_inner_step_subtract_limb1 5 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 5) = (20 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb2_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_subtract_limb2_code base a = some i →
+      evm_mulmod_reduce512_inner_step_subtract_store_code base a = some i := by
+  unfold evm_mulmod_reduce512_inner_step_subtract_limb2_code
+  unfold evm_mulmod_reduce512_inner_step_subtract_store_code
+  refine CodeReq.ofProg_mono_sub (base + 144) (base + 196)
+    evm_mulmod_reduce512_inner_step_subtract_store
+    evm_mulmod_reduce512_inner_step_subtract_limb2 13 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 13) = (52 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb3_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_subtract_limb3_code base a = some i →
+      evm_mulmod_reduce512_inner_step_subtract_store_code base a = some i := by
+  unfold evm_mulmod_reduce512_inner_step_subtract_limb3_code
+  unfold evm_mulmod_reduce512_inner_step_subtract_store_code
+  refine CodeReq.ofProg_mono_sub (base + 144) (base + 228)
+    evm_mulmod_reduce512_inner_step_subtract_store
+    evm_mulmod_reduce512_inner_step_subtract_limb3 21 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 21) = (84 : Word) by decide]
+    bv_addr
+  · rfl
+  · decide
+  · decide
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb0_full_code_spec_within
+    (sp base v5 v6 v7 v10 v11 v13 : Word) (r n : EvmWord) :
+    cpsTripleWithin 5 (base + 144) (base + 164)
+      (evm_mulmod_reduce512_inner_step_subtract_store_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x13 ↦ᵣ v13) **
+       mulModReduceCompareMem sp r n)
+      (mulModReduceSubtractLimb0Post sp v10 v13 r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_subtract_limb0_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_subtract_limb0_spec_within
+      sp base v5 v6 v7 v10 v11 v13 r n)
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb1_full_code_spec_within
+    (sp base v10 v13 : Word) (r n : EvmWord) :
+    cpsTripleWithin 8 (base + 164) (base + 196)
+      (evm_mulmod_reduce512_inner_step_subtract_store_code base)
+      (mulModReduceSubtractLimb0Post sp v10 v13 r n)
+      (mulModReduceSubtractLimb1Post sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_subtract_limb1_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_subtract_limb1_spec_within sp base v10 v13 r n)
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb2_full_code_spec_within
+    (sp base : Word) (r n : EvmWord) :
+    cpsTripleWithin 8 (base + 196) (base + 228)
+      (evm_mulmod_reduce512_inner_step_subtract_store_code base)
+      (mulModReduceSubtractLimb1Post sp r n)
+      (mulModReduceSubtractLimb2Post sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_subtract_limb2_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_subtract_limb2_spec_within sp base r n)
+
+theorem evm_mulmod_reduce512_inner_step_subtract_limb3_full_code_spec_within
+    (sp base : Word) (r n : EvmWord) :
+    cpsTripleWithin 5 (base + 228) (base + 248)
+      (evm_mulmod_reduce512_inner_step_subtract_store_code base)
+      (mulModReduceSubtractLimb2Post sp r n)
+      (mulModReduceSubtractLimb3Post sp r n) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_inner_step_subtract_limb3_code_sub base)
+    (h := evm_mulmod_reduce512_inner_step_subtract_limb3_spec_within sp base r n)
+
+theorem mulModReduceSubtractPost_of_limb3Post (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceSubtractLimb3Post sp r n h → mulModReduceSubtractPost sp r n h := by
+  intro h hp
+  unfold mulModReduceSubtractPost mulModReduceSubtractMem
+  unfold mulModReduceSubtractLimb3Post at hp
+  rw [mulModReduceSub_getLimbN_zero, mulModReduceSub_getLimbN_one,
+    mulModReduceSub_getLimbN_two, mulModReduceSub_getLimbN_three]
+  xperm_hyp hp
+
+theorem evm_mulmod_reduce512_inner_step_subtract_store_spec_within
+    (sp base v5 v6 v7 v10 v11 v13 : Word) (r n : EvmWord) :
+    cpsTripleWithin 26 (base + 144) (base + 248)
+      (evm_mulmod_reduce512_inner_step_subtract_store_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x13 ↦ᵣ v13) **
+       mulModReduceCompareMem sp r n)
+      (mulModReduceSubtractPost sp r n) := by
+  have h0 := evm_mulmod_reduce512_inner_step_subtract_limb0_full_code_spec_within
+    sp base v5 v6 v7 v10 v11 v13 r n
+  have h1 := evm_mulmod_reduce512_inner_step_subtract_limb1_full_code_spec_within
+    sp base v10 v13 r n
+  have h2 := evm_mulmod_reduce512_inner_step_subtract_limb2_full_code_spec_within
+    sp base r n
+  have h3 := evm_mulmod_reduce512_inner_step_subtract_limb3_full_code_spec_within
+    sp base r n
+  have h01 := cpsTripleWithin_seq_same_cr h0 h1
+  have h012 := cpsTripleWithin_seq_same_cr h01 h2
+  have h0123 := cpsTripleWithin_seq_same_cr h012 h3
+  change cpsTripleWithin (5 + 8 + 8 + 5) (base + 144) (base + 248)
+    (evm_mulmod_reduce512_inner_step_subtract_store_code base)
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+     (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x13 ↦ᵣ v13) **
+     mulModReduceCompareMem sp r n)
+    (mulModReduceSubtractPost sp r n)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (mulModReduceSubtractPost_of_limb3Post sp r n)
+    h0123
 
 end EvmAsm.Evm64
