@@ -1119,4 +1119,17 @@ theorem mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call08P120Feed
   exact mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_expandedValue
     (mulModProductLayoutColumn4ExpandedValue_eq_productLimb_four_of_call08P120FeedValue h_col)
 
+theorem mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four_of_expandedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4ExpandedValue a b = productLimb a b 4) :
+    mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4 := by
+  rw [mulModProductLayoutColumn4Call08P120FeedValue_eq_expandedValue, h_col]
+
+theorem mulModProductLayoutCall12P128_eq_productLimb_four_of_call08P120FeedValue
+    {a b : EvmWord}
+    (h_col : mulModProductLayoutColumn4Call08P120FeedValue a b = productLimb a b 4) :
+    mulModProductLayoutCall12P128 a b = productLimb a b 4 := by
+  rw [mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero_of_call08P120FeedValue h_col]
+  rw [← productLimb_four_eq_mulHigh_getLimbN_zero]
+
 end EvmAsm.Evm64
