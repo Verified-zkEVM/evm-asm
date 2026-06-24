@@ -119,7 +119,7 @@ def childFrameHandlers
     , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 callFallThrough) }
   , { label := "h_CALLCODE"
     , opcodes := [0xf2]
-    , preBody := stackUnderflowGuardAsm 7 ++ "\n" ++ staticContextValueTransferGuardAsm 64
+    , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
     , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 callcodeFallThrough) }
   , { label := "h_DELEGATECALL"
@@ -193,6 +193,9 @@ def callDescendFallThrough
   -- value-bearing message calls (CALL=0, CALLCODE=2) charge value/balance; the
   -- value-less kinds (STATICCALL=1, DELEGATECALL=3) skip the balance gate.
   let valueBearing := mode == 0 || mode == 2
+  -- EIP-214 forbids CALL with nonzero value in a static context. CALLCODE is
+  -- value-bearing for balance/gas accounting but is not write-protected here.
+  let staticValueForbidden := mode == 0
   -- fva3w: EIP-7708 value-CALL transfer log emission is DEFERRED (see below); reset the
   -- per-CALL pending flag so a prior CALL's value transfer does not leak into this one.
   -- The snippet that emits one pending Transfer(cd_caller_be, cd_callee_be, cd_value_be)
@@ -249,9 +252,9 @@ def callDescendFallThrough
   "  ld t0, 0(t0)\n" ++
   "  li t1, 1024\n" ++
   "  bgeu t0, t1, .Lcd_fail_" ++ tag ++ "\n" ++
-  -- Static-context value transfer gate. STATICCALL itself is value-less, but
-  -- CALL/CALLCODE with a nonzero value is state-changing and must exceptional-fail.
-  (if !valueBearing then "" else
+  -- Static-context value transfer gate. STATICCALL itself is value-less; only
+  -- CALL with a nonzero value exceptional-fails in a static context.
+  (if !staticValueForbidden then "" else
     "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
     "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
     "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
