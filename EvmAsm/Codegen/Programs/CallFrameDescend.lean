@@ -415,6 +415,10 @@ def callFrameDescendFunction : String :=
   -- The warm-set is append-only; truncating the count on revert reverts the
   -- additions (the gas already charged stays — regular gas is spent on revert).
   "  la t1, evm_storage_access_count; ld t0, 0(t1); sd t0, 648(s9)  # warmth count snapshot\n" ++
+  -- account_warm_status_reverted_by_subcall: snapshot EIP-2929 accessed_addresses
+  -- alongside accessed_storage_keys. A child REVERT rolls back accounts it warmed,
+  -- so the parent's later BALANCE/EXT*/CALL access must be cold again.
+  "  la t1, evm_access_account_count; ld t0, 0(t1); sd t0, 720(s9)  # account-warmth count snapshot\n" ++
   -- i3djw/reverted-CREATE rollback: CREATE deposit appends to global code and
   -- non-storage effect logs. A later child REVERT must discard those records,
   -- exactly like storage/log cursors above; otherwise the block-verdict reverse
@@ -440,6 +444,7 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   -- 3hlnt.2.2: snapshot the hot running block bloom into the child-depth
   -- checkpoint slab. The consensus receipt/log-bloom path still comes from
   -- descriptors; this only gives the hot accumulator the same rollback shape

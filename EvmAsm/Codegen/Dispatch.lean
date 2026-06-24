@@ -60,6 +60,8 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+def selfdestructDestroyedAddressCap : Nat := 32768
+
 /-- Protocol EVM stack depth in 256-bit words. The dispatcher stack arena
     is static, so this is the capacity that valid bytecode may rely on. -/
 def evmStackWordCapacity : Nat := 1024
@@ -526,7 +528,15 @@ def emitSelfdestructData : String :=
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
-  "  .zero 8\n"
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_destroyed_count:\n" ++
+  "  .zero 8\n" ++
+  "evm_selfdestruct_destroyed_overflow:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "evm_selfdestruct_destroyed_table:\n" ++
+  "  .zero " ++ toString (selfdestructDestroyedAddressCap * 32) ++ "\n"
 
 /-- Zero-padded component and output buffers for the runtime MODEXP backend
     path. EIP-7823 caps each component at 1024 bytes before the backend call. -/
@@ -1026,6 +1036,9 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++   -- reset per-tx SELFDESTRUCT execution flag
+  "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++   -- i3djw/.8c: reset the per-created-account code-effect log per tx
@@ -2006,6 +2019,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- otherwise) and preserves all caller regs (x5 cursor / x20 env live here); save ra around it.
   "  addi sp, sp, -16\n  sd ra, 0(sp)\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
+  "  jal ra, dispatcher_seed_pending_upfront_balance\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 16\n" ++
   -- nxio8: per-TRANSACTION dispatch state that previously leaked across calls in a
   -- multi-tx block (the callable dispatcher is invoked once per tx in one guest run):
@@ -2785,6 +2799,11 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
+  -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
+  -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
+  -- deferred Transfer log so receipt order is Transfer then Burn.
+  "cd_burn_log_pending:\n  .zero 8\n" ++
+  "cd_destroyed_empty_hits:\n  .zero 8\n" ++
   -- drj99.1 (failed-inner rollback): pre-snapshot of exec_nonstorage_effect_count/overflow taken by
   -- callDescendFallThrough BEFORE the value-CALL caller-debit/callee-credit records, consumed by
   -- call_frame_descend so frame_return rolls those records back on a child OOG/REVERT. `armed` is a

@@ -489,20 +489,24 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t4, 16(t3); sd t4, 16(t2); ld t4, 24(t3); sd t4, 24(t2)\n" ++
   ".Ldtrc_no_gasprice:\n" ++
   -- yisv8.1: SELFBALANCE (word 1 -> env_base+32) = the recipient's own balance from the
-  -- witness (balance_at_header_state_root over env.ADDRESS=recipient, ctx+72), copied
+  -- witness (account_at_header_state_root over env.ADDRESS=recipient, ctx+72), copied
   -- verbatim (BE) into the env word — mirroring the CALLVALUE/GASPRICE u256 staging (the
   -- ACTIVE CALLVALUE proves the contract-recipient path's u256 env words are BE-direct).
   -- INERT until yisv8.2 removes SELFBALANCE(0x47) from the self-contained reject set.
-  -- Conservative: a lookup miss/error leaves SELFBALANCE 0. balance_at_header_state_root
+  -- Conservative: a lookup miss/error leaves SELFBALANCE 0. account_at_header_state_root
   -- preserves s-regs (s0=state ptr, s1=state len, s2=ctx survive); clobbers only dead a/t-regs.
+  -- Use the raw account lookup here instead of balance_at_header_state_root: the BALANCE helper
+  -- intentionally overlays the live nonstorage-effect log, but at top-level dispatch time that
+  -- log may already contain transaction settlement effects. SELFBALANCE staging needs the
+  -- execution-start account balance, then credits only tx.value below.
   -- odq06.1: use the PARENT/witness-root header (svf_parent_rlp), NOT dtrc_hdr_ptr (= sv_this_rlp
   -- POST header for single-tx, whose root is not in the pre-rooted witness -> bails -> SELFBALANCE 0).
   -- svf_parent_rlp's stateRoot IS the witness root; == sv_pre_rlp so multi-tx is unchanged.
   "  la t0, svf_parent_rlp; ld a0, 0(t0)\n  la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
-  "  mv a3, s0; mv a4, s1\n" ++                   -- witness state ptr/len
-  "  la a5, yisv8_self_bal\n" ++
-  "  jal ra, balance_at_header_state_root\n" ++
+  "  li a3, 20; mv a4, s0; mv a5, s1\n" ++       -- addr len + witness state ptr/len
+  "  la a6, csce_bal_struct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Ldtrc_no_selfbal\n" ++             -- lookup miss/error -> leave SELFBALANCE 0
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
@@ -510,11 +514,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- odq06.2: stage SELFBALANCE in stack-word (LE-limb) order, NOT big-endian. h_SELFBALANCE
   -- (0x47) copies env+32..63 dword-for-dword onto the EVM stack, which is LE-limb (low limb
   -- first); SSTORE then logs that order and the BAL comparator reverses the BE post-value to
-  -- match. balance_at_header_state_root outputs BE (yisv8_self_bal), so a verbatim copy put the
+  -- match. account_at_header_state_root outputs BE balance at account+8 (csce_bal_struct+8), so a verbatim copy put the
   -- balance's low byte in env+63 -> SELFBALANCE pushed a low-word of 0 -> SSTORE logged 0 (bv_fail=34
   -- self_code_on_set_code balance_1). Byte-reverse the 32-byte BE balance into env+32 so the low
   -- limb lands at env+32. (CALLVALUE@96 was never SSTORE'd+checked, so its order went unvalidated.)
-  "  la t3, yisv8_self_bal; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
+  "  la t3, csce_bal_struct; addi t3, t3, 39; mv t4, t2; li t5, 32\n" ++
   ".Ldtrc_selfbal_rev:\n" ++
   "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_rev\n" ++
   ".Ldtrc_no_selfbal:\n" ++
@@ -612,6 +616,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
   "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
+  -- The callable staged payload carries the account-witness header length in
+  -- the trailer word that overlaps env.eventLogLength in the live env layout.
+  -- If execution produced no log data and the live count is exactly that header
+  -- length, normalize it back to the empty receipt-log window before materializing
+  -- receipts. Real LOG/EIP-7708 paths either advance the count or capture data.
+  "  la t0, evm_log_data_used; ld t0, 0(t0); bnez t0, .Ldtrc_log_count_ready\n" ++
+  "  la t0, evm_env; ld t1, 472(t0); la t2, dtrc_hdr_len; ld t2, 0(t2); bne t1, t2, .Ldtrc_log_count_ready\n" ++
+  "  sd x0, 472(t0); sd x0, 480(t0)\n" ++
+  ".Ldtrc_log_count_ready:\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
   -- BEFORE the next dispatch overwrites the capture buffers; the caller stores
   -- the bv_last_log_* window into its per-tx slot.

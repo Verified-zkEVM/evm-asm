@@ -87,7 +87,8 @@ def bvMtxLogWindowBytes : Nat := bvMtxFullTxCap * 16
     transaction plus the shared coinbase account. It is sized to the full 200M
     tx-count target so the post-loop BAL comparators do not inherit the active
     execution-loop cap. -/
-def bvMtxSkipListEntries : Nat := bvMtxFullTxCap * 2 + 1
+def bvMtxSystemSkipEntries : Nat := 6
+def bvMtxSkipListEntries : Nat := bvMtxFullTxCap * 2 + 1 + bvMtxSystemSkipEntries
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 /-- Sender-balance aggregation shares the full sender table capacity so the
     B2 running-balance check does not inherit the active execution-loop cap. -/
@@ -316,8 +317,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 
 #guard bvMtxSenderBalanceEntries = bvMtxFullTxCap
 #guard bvMtxSenderBalanceTableBytes = bvMtxFullTxCap * 64
-#guard bvMtxSkipListEntries = 19047
-#guard bvMtxSkipListBytes = 609504
+#guard bvMtxSkipListEntries = 19053
+#guard bvMtxSkipListBytes = 609696
 #guard bvMtxSenderCountEntries = 9523
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736

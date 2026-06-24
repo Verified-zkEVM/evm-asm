@@ -107,6 +107,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "swd_2935_vlen:\n  .zero 8\n" ++
   "swd_4788_vlen:\n  .zero 8\n" ++
   "swd_4788_root_vlen:\n  .zero 8\n" ++
+  "bv_eip4788_current_fast_seen:\n  .zero 8\n" ++
   "swd_ts_be8:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bsr_root_p:\n  .zero 8\n" ++
@@ -661,6 +662,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0x00, 0x00, 0x00, 0x00, 0x21, 0x9a, 0xb5, 0x40\n" ++
   "  .byte 0x35, 0x6c, 0xbb, 0x83, 0x9c, 0xbe, 0x05, 0x30\n" ++
   "  .byte 0x3d, 0x77, 0x05, 0xfa\n" ++
+  "bbcv_sys_system:\n" ++
+  "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+  "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
+  "  .byte 0xff, 0xff, 0xff, 0xfe\n" ++
   ".balign 32\n" ++
   "bbcv_code_hash:\n  .zero 32\n" ++
   "bbcv_delegated_code_hash:\n  .zero 32\n" ++
@@ -1231,14 +1236,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 8\n" ++
   "gp_egp:\n  .zero 32\n" ++
   "gp_prio:\n  .zero 32\n" ++
-  -- i3djw.3: skip-list for the all-accounts non-storage comparator (3 x 32B-strided
-  -- {recipient, sender, coinbase} addresses, gas/value-coupled, pinned on the gas path).
+  -- i3djw.3: skip-list for the all-accounts non-storage comparator (32B-strided
+  -- {recipient, sender, coinbase} plus system addresses, pinned outside the exec log).
   ".balign 8\n" ++
-  "i3djw_skip_list:\n  .zero 256\n" ++   -- coc3g.6.5: 3 {recipient,sender,coinbase} + 5 genesis system contracts (8*32)
+  "i3djw_skip_list:\n  .zero 288\n" ++   -- coc3g.6.5: 3 {recipient,sender,coinbase} + 6 system addresses (9*32)
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
   -- comparators. A multi-tx block's gas/value-coupled accounts are {sender_i,
-  -- recipient_i} for every tx i plus the shared {coinbase} -> up to 2N+1 entries
-  -- (N = bv_tx_count <= bvMtxFullTxCap). The skip list has 2N+1
+  -- recipient_i} for every tx i plus the shared {coinbase} and 6 system addresses -> up to 2N+7 entries
+  -- (N = bv_tx_count <= bvMtxFullTxCap). The skip list has 2N+7
   -- entries, 32-byte-strided,
   -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
   -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context

@@ -575,6 +575,66 @@ def basicPrecompileCallTail
     callMemoryExpansionGasAsm
       ("precompile_" ++ tag)
       inOffsetOff inSizeOff outOffsetOff outSizeOff ++
+    (if tag == "call_target" || tag == "staticcall_target" then (
+    -- EIP-4788 beacon-roots system contract fast path for the current block's
+    -- begin-of-block write. The ordinary bytecode descent resolves storage at a
+    -- committed header root and therefore cannot see the just-modeled system
+    -- storage update; `system_writes` has already staged that `(timestamp, root)`
+    -- pair in swd_4788_{val,root_val}. CALLCODE/DELEGATECALL into the predeploy
+    -- must keep normal bytecode semantics because their ADDRESS context is the
+    -- caller, not the system contract. Historical/stale cases also keep using the
+    -- normal bytecode path below.
+    "  la t0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+    "  la t1, bsr_addr_4788\n" ++
+    "  li t2, 20\n" ++
+    ".L" ++ tag ++ "_eip4788_addr_cmp:\n" ++
+    "  beqz t2, .L" ++ tag ++ "_eip4788_addr_match\n" ++
+    "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
+    "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_addr_cmp\n" ++
+    ".L" ++ tag ++ "_eip4788_addr_match:\n" ++
+    "  ld t0, " ++ toString inSizeOff ++ "(x12); li t1, 32; bne t0, t1, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
+    "  ld t0, 0(x12); li t1, 2100; bltu t0, t1, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
+    "  ld t0, " ++ toString inOffsetOff ++ "(x12); add t0, x13, t0\n" ++
+    "  li t2, 24\n" ++
+    ".L" ++ tag ++ "_eip4788_ts_hi_zero:\n" ++
+    "  beqz t2, .L" ++ tag ++ "_eip4788_ts_low_cmp_init\n" ++
+    "  lbu t3, 0(t0); bnez t3, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
+    "  addi t0, t0, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_ts_hi_zero\n" ++
+    ".L" ++ tag ++ "_eip4788_ts_low_cmp_init:\n" ++
+    "  la t1, swd_ts_be8\n" ++
+    "  li t2, 8\n" ++
+    ".L" ++ tag ++ "_eip4788_ts_cmp:\n" ++
+    "  beqz t2, .L" ++ tag ++ "_eip4788_current\n" ++
+    "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
+    "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_ts_cmp\n" ++
+    ".L" ++ tag ++ "_eip4788_current:\n" ++
+    "  li t0, 1; la t1, bv_eip4788_current_fast_seen; sd t0, 0(t1)\n" ++
+    "  la x15, evm_precompile_frame\n" ++
+    "  li t0, 1; sd t0, 0(x15)\n" ++
+    "  li t0, 32; sd t0, 8(x15)\n" ++
+    "  addi t1, x15, 16; li t2, 32\n" ++
+    ".L" ++ tag ++ "_eip4788_frame_zero:\n" ++
+    "  sb zero, 0(t1); addi t1, t1, 1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_eip4788_frame_zero\n" ++
+    "  la t0, swd_4788_root_vlen; ld t2, 0(t0); beqz t2, .L" ++ tag ++ "_eip4788_frame_ready\n" ++
+    "  li t3, 32; bgtu t2, t3, .L" ++ tag ++ "_eip4788_frame_ready\n" ++
+    "  addi t1, x15, 48; sub t1, t1, t2; la t0, swd_4788_root_val\n" ++
+    ".L" ++ tag ++ "_eip4788_frame_copy:\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_eip4788_frame_copy\n" ++
+    ".L" ++ tag ++ "_eip4788_frame_ready:\n" ++
+    "  ld t2, " ++ toString outSizeOff ++ "(x12); li t3, 32; bgeu t2, t3, .L" ++ tag ++ "_eip4788_out_cap\n" ++
+    "  mv t3, t2\n" ++
+    ".L" ++ tag ++ "_eip4788_out_cap:\n" ++
+    "  beqz t3, .L" ++ tag ++ "_eip4788_success\n" ++
+    "  addi t0, x15, 16; ld t1, " ++ toString outOffsetOff ++ "(x12); add t1, x13, t1\n" ++
+    ".L" ++ tag ++ "_eip4788_out_copy:\n" ++
+    "  lbu t2, 0(t0); sb t2, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t3, t3, -1; bnez t3, .L" ++ tag ++ "_eip4788_out_copy\n" ++
+    ".L" ++ tag ++ "_eip4788_success:\n" ++
+    "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+    "  li x14, 1; sd x14, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".L" ++ tag ++ "_eip4788_fallthrough:\n"
+    ) else "") ++
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
     "  bnez x15, 1f\n" ++

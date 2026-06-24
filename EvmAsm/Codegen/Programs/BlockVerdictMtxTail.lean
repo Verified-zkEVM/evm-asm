@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 
 namespace EvmAsm.Codegen
@@ -20,14 +21,16 @@ namespace EvmAsm.Codegen
 def blockVerdictMtxValidationTail : String :=
   -- bmvmx.5.5.1 (umbrella-A1): build the MULTI-TX skip-list that the all-accounts
   -- exec-vs-BAL comparators (@1032-1110, run only on the single-tx path today) must
-  -- skip. The single-tx i3djw_skip_list is the fixed 3 entries {recipient, sender,
-  -- coinbase}; a multi-tx block has up to 2N+1 such gas/value-coupled accounts. We are
+  -- skip. The single-tx i3djw_skip_list is the fixed 8 entries {recipient, sender,
+  -- coinbase, six system addresses}; a multi-tx block has up to 2N+1 such
+  -- gas/value-coupled accounts plus the same six system addresses. We are
   -- at .Lbv_mtx_done, so EVERY tx reached a status-0 supported shape -> re-deriving
   -- each is safe (address_from_pubkey already ran @474, multi_tx_nth_context @438):
   --   skip[2i]   = sender_i    = address_from_pubkey(public_keys[i]+1)   (as @473-474)
   --   skip[2i+1] = recipient_i = multi_tx_nth_context(bv_mtx_skip_ctx,i)+72 (pure re-extract)
   --   skip[2N]   = coinbase     = fee_recipient (bv_exec_p+32)            (as @161-164)
-  -- count = 2N+1. 32-byte-strided, address in the first 20 bytes. BEHAVIOR-NEUTRAL:
+  --   skip[2N+1..2N+6] = the genesis system/predeploy contracts plus SYSTEM_ADDRESS
+  -- count = 2N+7. 32-byte-strided, address in the first 20 bytes. BEHAVIOR-NEUTRAL:
   -- nothing reads bv_mtx_skip_list yet (umbrella-A2 wires it into the comparators);
   -- built here so the existing multi-tx fixtures exercise the derivation. The build
   -- loop's cursor lives in bv_mtx_skip_idx (memory) so it survives the jal calls;
@@ -49,7 +52,12 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_tx_count; ld t2, 0(t2); slli t5, t2, 6; la t6, bv_mtx_skip_list; add t6, t6, t5\n" ++  -- t6 = &skip[2N] (offset N*64)
   "  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32; li t3, 0\n" ++    -- src = fee_recipient (exec_p+32)
   ".Lbv_skl_cb:\n  li t4, 20; beq t3, t4, .Lbv_skl_cb_d\n  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_cb\n.Lbv_skl_cb_d:\n" ++
-  "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 1; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+1
+  "  addi t6, t6, 32\n" ++                                             -- t6 = &skip[2N+1]
+  "  la t1, bbcv_sys_2935; li t4, 6\n" ++
+  ".Lbv_skl_sys_o:\n  li t3, 0\n" ++
+  ".Lbv_skl_sys_i:\n  li t2, 20; beq t3, t2, .Lbv_skl_sys_next\n  add t2, t1, t3; lbu a0, 0(t2); add t2, t6, t3; sb a0, 0(t2); addi t3, t3, 1; j .Lbv_skl_sys_i\n.Lbv_skl_sys_next:\n" ++
+  "  addi t1, t1, 20; addi t6, t6, 32; addi t4, t4, -1; bnez t4, .Lbv_skl_sys_o\n" ++
+  "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 7; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+7
   -- bmvmx.5.5.2 (umbrella-B1): validate each multi-tx SENDER's BAL FINAL nonce == pre_nonce +
   -- (total count of that sender's txs) -- the multi-tx generalization of the single-tx post-
   -- nonce check (.Lbv_sender_nonce_fail, status 40). An EOA sender's nonce increments once per
@@ -114,7 +122,7 @@ def blockVerdictMtxValidationTail : String :=
   -- net of EIP-3529 refund and floored by EIP-7623) produced by the gas chain + the receipt-gas
   -- adjust -- which is why this block runs AFTER that adjust (reached via .Lbv_b2_entry from
   -- ReceiptsTail). This replaces the old multi_tx_actual_sender_debit raw-runtime-gas + flat
-  -- 42690 type-4 approximation, which UNDER-debited type-4 multi-tx senders by the omitted state
+  -- auth-list settlement, which UNDER-debited type-4 multi-tx senders by the omitted state
   -- gas (bv_fail=57 false-reject on witness_codes_delegation_set_in_same_block / reusing_nonce).
   -- The type-3 BLOB fee is a separate dimension (not in the regular+state receipt gas) and is
   -- still added below. i = bv_mtx_skip_idx (tx index); eff_price in bv_fee_egp_scratch (live).
@@ -130,6 +138,28 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_mtx_skip_ctx; ld a0, 8(t2); ld a1, 16(t2); la a2, bv_b23_txtype; la a3, bv_b23_innoff\n" ++
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_b2_after_type4_auth\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
+  "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; li a2, 9; la a3, bv_b23_authoff; la a4, bv_b23_authlen\n" ++
+  "  jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_b23_innoff; ld t1, 0(t0); la t2, bv_mtx_skip_ctx; ld t2, 8(t2); add t1, t2, t1\n" ++
+  "  la t0, bv_b23_authoff; ld t2, 0(t0); add a0, t1, t2\n" ++
+  "  la t0, bv_b23_authlen; ld a1, 0(t0); la a2, bv_b23_authcount\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la t0, bv_b23_authcount; ld a1, 0(t0); beqz a1, .Lbv_b2_after_type4_auth\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3\n" ++
+  "  la t0, bvgr_receipt_gas_increments; add t0, t0, t1; ld t2, 0(t0)\n" ++
+  "  la t0, bvgr_tx_total_state_gas; add t0, t0, t1; ld t3, 0(t0); bgeu t2, t3, .Lbv_b2_after_type4_auth\n" ++
+  "  li t2, " ++ toString (amsterdamAuthStateGas + 7500) ++ "; mul a1, a1, t2\n" ++
+  "  la a0, bv_fee_egp_scratch; la a2, bv_b23_feedebit\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_b23_feedebit; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_b2_next\n" ++
+  ".Lbv_b2_after_type4_auth:\n" ++
   "  la t0, bv_b23_txtype; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_b2_blob_done\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t4, 16(t2); la t0, bv_b23_innoff; ld t3, 0(t0); bltu t4, t3, .Lbv_b2_next\n" ++
   "  la t2, bv_mtx_skip_ctx; ld t1, 8(t2); add a0, t1, t3; ld t4, 16(t2); sub a1, t4, t3; la a2, tcbg_struct\n" ++
@@ -298,4 +328,3 @@ def blockVerdictMtxValidationTail : String :=
   "  bnez a0, .Lbv_bal_nonstorage_covers_fail\n" ++
   ".Lbv_mtx_ns_skip:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
-
