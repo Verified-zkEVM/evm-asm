@@ -127,9 +127,13 @@ def stageRuntimePayloadCodeFunction : String :=
   "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_scopy\n" ++
   ".Lsrpc_scopy_done:\n" ++
   -- 3vc2p.3b: M29 block at storage-end (t3 = s0 + co + 24 + storage*64 after the copy loop).
-  -- blob-base-fee@+0 (32) and blob_hash_count@+32 (8) stay 0 (already zeroed; no blob hashes);
-  -- then M29 cur@+40, count@+48, and count*32 hashes@+56 from the staging globals. With
-  -- m29_stage_count=0 this writes cur=count=0 and no hashes (byte-identical to the prior 0 gap).
+  -- BLOBBASEFEE occupies the first 32-byte word in this block; compute it from
+  -- exec.excess_blob_gas just like stage_runtime_payload. The remaining M29 fields
+  -- are blob_hash_count@+32, cur@+40, count@+48, and count*32 hashes@+56.
+  "  mv s5, t3\n" ++
+  "  addi a0, s2, 520; jal ra, bgv_u64le\n" ++
+  "  mv a1, s5; jal ra, amsterdam_blob_gas_price_u256\n" ++
+  "  mv t3, s5\n" ++
   "  la t4, m29_stage_cur;   ld t5, 0(t4); sd t5, 40(t3)\n" ++
   "  la t4, m29_stage_count; ld t6, 0(t4); sd t6, 48(t3)\n" ++
   "  addi t4, t3, 56              # dst = storage_end + 56 (M29 hashes)\n" ++
@@ -160,6 +164,10 @@ def stageRuntimePayloadCodeFunction : String :=
   "  addi t3, s2, 440\n" ++
   "  ld t4, 0(t3); sd t4, 352(s5); ld t4, 8(t3); sd t4, 360(s5)\n" ++
   "  ld t4, 16(t3); sd t4, 368(s5); ld t4, 24(t3); sd t4, 376(s5)\n" ++
+  -- CHAINID (word 12 -> +384): chain_config_valid captured the execution
+  -- chain id before contract dispatch. Store it as the low limb of the EVM
+  -- stack-word layout, matching the simple-transfer staging path.
+  "  la t3, bv_chain_id; ld t4, 0(t3); sd t4, 384(s5)\n" ++
   -- ADDRESS (word 0 -> +0): recipient (ctx+72, 20-byte BE address), converted
   -- to the EVM stack-word layout (low limb first) used by env loads and storage logs.
   "  addi t3, s1, 72; mv t4, s5; li t5, 0\n" ++

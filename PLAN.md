@@ -1873,9 +1873,12 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     with the pure RLP spec. A concrete legacy-tx/header decoder is now a direct caller instantiation
     (output layout = caller-chosen field offsets). Remaining beyond the decoder: Phase 6 host-I/O pipeline
     (`read_input → decode → write_output`).
-- **Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)** — IN PROGRESS.
-  Generic decode-to-output demo (input-buffer contract = host-ABI precondition `bytesRegion inputBufBase
-  privateInput`). Roadmap: read-input hand-off → read⨾decode → write_output + decode⨾write → full pipeline.
+- **🎉 Phase 6 COMPLETE — RLP pipeline end-to-end.** The full top-level pipeline
+  (`read_input → decode → write_output`) is proven: RLP bytes arrive via the host `read_input`
+  syscall, are decoded into the output `bytesRegion`, and the result is committed to the host
+  public-values stream via `write_output`, coinciding with the pure RLP spec
+  (`schemaScalarValues`). Input-buffer contract = host-ABI precondition `bytesRegion inputBufBase
+  privateInput`.
   - ✅ **Step 54 — read-input pointer hand-off** (`Phase6ReadDecode.lean`, `rlp_phase6_read_input_ptr`):
     composes the `read_input` Phase-4 wrapper (`rlp_phase4_read_input_len_spec_within_exact`) with
     `LD x13, x12, ptr_ptr_off`, loading the returned `inputBufBase` into `x13` (the decoder's input
@@ -1892,10 +1895,34 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `bytesRegion base bs` holds, `readBytes base bs.length = bs` (reconciles byte-granular `readBytes` with
     the dword-packed region via `bytesRegion_dword_at` + `extractByte_packBytes` + an offset induction).
     Connects the decoder's `bytesRegion` output to what `write_output` (which uses `readBytes`) emits.
-  - **Next (write-half remaining):** a `publicValues`-update `holdsFor` framing lemma (mirroring
-    `holdsFor_sepConj_memIs_setMem`) → CPS-level `write_output` ECALL spec (mirror
-    `ecall_read_input_spec_gen_within`, folding in the bridge) → `write_output` wrapper → `decode ⨾
-    write_output` → full `read ⨾ decode ⨾ write` pipeline + concrete example.
+  - ✅ **Step 57 — `publicValues`-append framing** (`Phase6WriteOutput.lean`,
+    `holdsFor_sepConj_publicValuesIs_appendPublicValues` + `compatibleWith_appendPublicValues`): the
+    write-half analogue of `holdsFor_sepConj_memIs_setMem` — threads the host `write_output` append
+    (`publicValuesIs vals → publicValuesIs (vals ++ extra)`) through a separation-logic frame.
+  - ✅ **Step 58 — CPS-level `write_output` ECALL spec** (`Phase6WriteOutput.lean`,
+    `ecall_write_output_spec_gen_within`): the t0=0x10 syscall as a `cpsTripleWithin 1`, folding in
+    `readBytes_of_bytesRegion` so a held `bytesRegion ptr bs` (x11 = bs.length) emits exactly `bs`:
+    `publicValuesIs old → publicValuesIs (old ++ bs)`. Mirror of `ecall_read_input_spec_gen_within`.
+  - ✅ **Step 59 — `write_output` wrapper** (`Phase6WriteOutput.lean`, `rlp_phase6_write_output_prog`
+    + `rlp_phase6_write_output_spec_within_exact`): the 4-instruction wrapper
+    (`ADDI x10,rOut,0; LI x11,len; LI x5,0x10; ECALL`), mirror of
+    `rlp_phase4_read_input_len_spec_within_exact`.
+  - ✅ **Step 60 — `decode ⨾ write_output`** (`Phase6DecodeWrite.lean`, `rlp_phase6_decode_and_write`
+    + reusable `rlp_phase6_write_output_spec_regOwn`): composes the short-list schema decoder with the
+    write wrapper, committing the decoded output region (`publicValuesIs old → publicValuesIs (old ++
+    schemaOut out specs)`). The decoder's `schemaINV` post exposes scratch as `regOwn`, so the write
+    wrapper is first lifted to a `regOwn` pre; the leftover state is framed through. The CR
+    disjointness is range-based (`codeReq_disjoint_of_ranges` + `schemaCR_none_above`) — `crDisjoint`
+    /`seqFrame` time out / `whnf`-blow up on the opaque 36-instruction decoder `ofProg`. The reshape
+    is `cpsTripleWithin_weaken … xperm_hyp` with a nested `refine` so the target is concrete before
+    `xperm` runs (else `Q`/`Q'` are metavars). Concrete `[0xc4,0x2a,0x82,0x01,0x02] → 0x3000` example.
+  - ✅ **Step 61 — full `read ⨾ decode ⨾ write` pipeline** (`Phase6Pipeline.lean`,
+    `rlp_phase6_read_decode_write`): composes the read⨾decode unit (step 55) with the write wrapper —
+    the complete top-level pipeline. From the host-ABI input contract the program runs `read_input` +
+    `LD` + decoder + `write_output` in `(5 + (61 + schemaSteps)) + 4` steps, committing the decoded
+    record to `publicValues` and recovering every field value. Concrete end-to-end example: the host
+    supplies `[0xc4,0x2a,0x82,0x01,0x02]` at `0x2000`, decoded to `0x3000` and committed.
+    Axiom-clean, 0 sorry, no `bv_decide`/`native_decide`, no heartbeat overrides.
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
   C ABI.
