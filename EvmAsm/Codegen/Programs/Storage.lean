@@ -184,11 +184,11 @@ def sstoreValueTransitionGasAsm : String :=
   liStateGasRuntime "x14" 64 ++             -- STATE_BYTES_PER_STORAGE_SET(64) × COST_PER_STATE_BYTE(1530)
   "  bgeu x16, x14, .Lsstore_state_from_reservoir\n" ++
   "  sub x14, x14, x16\n" ++         -- spill = charge - reservoir
+  "  ld x17, 568(x20)\n" ++
+  "  bltu x17, x14, .exit_outofgas\n" ++
   "  sd x0, 0(x15)\n" ++
-  "  ld x16, 568(x20)\n" ++
-  "  bltu x16, x14, .exit_outofgas\n" ++
-  "  sub x16, x16, x14\n" ++
-  "  sd x16, 568(x20)\n" ++
+  "  sub x17, x17, x14\n" ++
+  "  sd x17, 568(x20)\n" ++
   "  j .Lsstore_state_charged\n" ++
   ".Lsstore_state_from_reservoir:\n" ++
   "  sub x16, x16, x14\n" ++
