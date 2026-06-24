@@ -10,6 +10,7 @@ import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
 import EvmAsm.Evm64.MulMod.ReduceInnerStepTail
 import EvmAsm.Evm64.MulMod.ReduceInnerStepSubtract
 import EvmAsm.Rv64.Tactics.XSimp
+import EvmAsm.Rv64.Tactics.XPermPure
 
 namespace EvmAsm.Evm64
 
@@ -475,5 +476,181 @@ theorem evm_mulmod_reduce512_inner_step_subtract_path_spec_within
       dsimp only [shifted, tailFrame] at hp ⊢
       xperm_hyp hp)
     hbranch
+
+
+/-! ## Full reducer inner-step composition
+
+Compose the subtract and no-subtract reducer inner-step paths into one
+branch specification whose folded post records a single bit step
+`mulModReduceStep`: it shifts the consumed product bit into the remainder
+and conditionally subtracts the modulus. -/
+
+/-- Under the no-subtract (`<`) branch the bit step keeps the shifted-in
+    remainder unchanged. -/
+theorem mulModReduceStep_of_lt {r n : EvmWord} {bit : Bool}
+    (hlt : mulModReduceRemLT (mulModReduceShiftInBit r bit) n) :
+    mulModReduceStep r n bit = mulModReduceShiftInBit r bit := by
+  have hlt' : (mulModReduceShiftInBit r bit).toNat < n.toNat := by
+    unfold mulModReduceRemLT at hlt
+    simpa only [BitVec.ult, decide_eq_true_eq] using hlt
+  unfold mulModReduceStep
+  simp only [hlt', if_true]
+
+/-- Under the subtract (`≥`) branch the bit step subtracts the modulus from
+    the shifted-in remainder. -/
+theorem mulModReduceStep_of_ge {r n : EvmWord} {bit : Bool}
+    (hge : mulModReduceRemGE (mulModReduceShiftInBit r bit) n) :
+    mulModReduceStep r n bit = mulModReduceShiftInBit r bit - n := by
+  have hge' : ¬ (mulModReduceShiftInBit r bit).toNat < n.toNat := by
+    unfold mulModReduceRemGE at hge
+    simpa only [BitVec.ult, decide_eq_true_eq] using hge
+  unfold mulModReduceStep
+  simp only [hge', if_false]
+
+/-- Folded precondition for the full reducer inner step.
+
+It owns the loop-carried registers and the remainder/modulus memory window,
+agreeing with the subtract-path precondition so both branch paths share it. -/
+@[irreducible]
+def mulModReduceInnerStepPre
+    (sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old : Word)
+    (r n : EvmWord) : Assertion :=
+  mulModReduceInnerStepSubtractPre sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old
+    x15 x19Old x20Old r n
+
+/-- Folded postcondition for the full reducer inner step.
+
+The remainder window at `sp + 224..248` holds the limbs of one semantic step
+`mulModReduceStep r n bit` (shift the consumed bit in, conditionally subtract
+the modulus); the modulus window at `sp + 64..88` is preserved; the loop
+counter `x15` is decremented and the `done` flag records whether it reached
+zero. The scratch registers clobbered along the way are surrendered as
+ownership. -/
+@[irreducible]
+def mulModReduceInnerStepPost
+    (sp x17Old x15 : Word) (r n : EvmWord) (done : Bool) : Assertion :=
+  let stepped := mulModReduceStep r n (mulModReduceInputBit x17Old)
+  mulModReduceTailPost x15 done **
+  (.x12 ↦ᵣ sp) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+  (.x17 ↦ᵣ (x17Old <<< 1)) **
+  (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) **
+  (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
+  mulModReduceCompareMem sp stepped n
+
+/-- Surrender the subtract-path scratch registers as ownership. -/
+theorem mulModReduceSubtractPost_regOwn (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceSubtractPost sp r n h →
+      ((.x12 ↦ᵣ sp) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+       mulModReduceSubtractMem sp r n) h := by
+  intro h hp
+  unfold mulModReduceSubtractPost at hp
+  have hp1 := sepConj_mono_right (sepConj_mono_left
+    (regIs_to_regOwn .x5 _)) h hp
+  have hp2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left
+    (regIs_to_regOwn .x6 _))) h hp1
+  have hp3 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp2
+  have hp4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _))))) h hp3
+  have hp5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left
+      (regIs_to_regOwn .x11 _)))))) h hp4
+  have hp6 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left
+      (regIs_to_regOwn .x13 _))))))) h hp5
+  xperm_hyp hp6
+
+/-- Bridge the subtract-path post into the unified inner-step post. -/
+theorem mulModReduceInnerStepPost_of_subtractPost
+    (sp x17Old x15 : Word) (r n : EvmWord) (done : Bool)
+    (hge : mulModReduceRemGE (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n) :
+    ∀ h, mulModReduceInnerStepSubtractPost sp x17Old x15 r n done h →
+      mulModReduceInnerStepPost sp x17Old x15 r n done h := by
+  intro h hp
+  unfold mulModReduceInnerStepSubtractPost at hp
+  have hp1 := sepConj_mono_right (sepConj_mono_left
+    (mulModReduceSubtractPost_regOwn sp
+      (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n)) h hp
+  unfold mulModReduceInnerStepPost mulModReduceCompareMem
+  unfold mulModReduceSubtractMem at hp1
+  rw [mulModReduceStep_of_ge hge]
+  xperm_pure hp1
+
+/-- Drop the path-selecting pure fact carried by the compare-ladder post. -/
+theorem mulModReduceComparePost_drop (sp : Word) (r n : EvmWord) (b : Bool) :
+    ∀ h, mulModReduceComparePost sp r n b h →
+      ((.x12 ↦ᵣ sp) ** regOwn .x6 ** regOwn .x7 ** mulModReduceCompareMem sp r n) h := by
+  intro h hp
+  unfold mulModReduceComparePost at hp
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (fun _ hq => ((sepConj_pure_right _).1 hq).1))) h hp
+
+/-- Bridge the no-subtract-path post (with the frame-in scratch registers)
+    into the unified inner-step post. -/
+theorem mulModReduceInnerStepPost_of_noSubtractPost
+    (sp x17Old x10Old x11Old x13Old x15 : Word) (r n : EvmWord) (done : Bool)
+    (hlt : mulModReduceRemLT (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n) :
+    ∀ h, (mulModReduceInnerStepNoSubtractPost sp x17Old x15 r n done **
+            ((.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old))) h →
+      mulModReduceInnerStepPost sp x17Old x15 r n done h := by
+  intro h hp
+  unfold mulModReduceInnerStepNoSubtractPost at hp
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left
+    (mulModReduceComparePost_drop sp
+      (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n false))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 _))))) h hp1
+  have hp3 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x10 _)) h hp2
+  have hp4 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_left
+    (regIs_to_regOwn .x11 _))) h hp3
+  have hp5 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (regIs_to_regOwn .x13 _))) h hp4
+  unfold mulModReduceInnerStepPost
+  rw [mulModReduceStep_of_lt hlt]
+  xperm_hyp hp5
+
+/-- Full reducer inner-step branch specification: one bit-serial step of the
+    512-bit modular reduction, dispatching the subtract / no-subtract paths on
+    the comparison of the shifted remainder against the modulus. -/
+theorem evm_mulmod_reduce512_inner_step_spec_within
+    (sp base x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old : Word)
+    (r n : EvmWord) :
+    cpsBranchWithin 64 base
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceInnerStepPre sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old
+        x15 x19Old x20Old r n)
+      base (mulModReduceInnerStepPost sp x17Old x15 r n false)
+      (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+  by_cases hge : mulModReduceRemGE (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n
+  · have hsub := evm_mulmod_reduce512_inner_step_subtract_path_spec_within
+      sp base x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old r n hge
+    exact cpsBranchWithin_weaken
+      (fun h hp => by
+        unfold mulModReduceInnerStepPre at hp
+        exact (sepConj_pure_right h).2 ⟨hp, hge⟩)
+      (mulModReduceInnerStepPost_of_subtractPost sp x17Old x15 r n false hge)
+      (mulModReduceInnerStepPost_of_subtractPost sp x17Old x15 r n true hge)
+      hsub
+  · have hlt : mulModReduceRemLT (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n := by
+      unfold mulModReduceRemGE at hge
+      unfold mulModReduceRemLT
+      exact not_not.mp hge
+    have hns0 := evm_mulmod_reduce512_inner_step_no_subtract_path_spec_within
+      sp base x17Old x5Old x6Old x7Old x15 x19Old x20Old r n hlt
+    have hns1 := cpsBranchWithin_frameR
+      ((.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old)) (by pcFree) hns0
+    have hns := cpsBranchWithin_mono_nSteps (show (38 : Nat) ≤ 64 by omega) hns1
+    exact cpsBranchWithin_weaken
+      (fun h hp => by
+        unfold mulModReduceInnerStepPre mulModReduceInnerStepSubtractPre at hp
+        unfold mulModReduceInnerStepNoSubtractPre
+        have hp2 := (sepConj_pure_right h).2 ⟨hp, hlt⟩
+        xperm_hyp hp2)
+      (mulModReduceInnerStepPost_of_noSubtractPost sp x17Old x10Old x11Old x13Old x15 r n false hlt)
+      (mulModReduceInnerStepPost_of_noSubtractPost sp x17Old x10Old x11Old x13Old x15 r n true hlt)
+      hns
 
 end EvmAsm.Evm64
