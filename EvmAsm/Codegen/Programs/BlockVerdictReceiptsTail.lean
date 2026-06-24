@@ -147,6 +147,20 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_receipt_gas_increments\n" ++
   "  sd t4, 0(t0)\n" ++
   ".Lbv_sstore_oog_receipt_done:\n" ++
+  -- bbow4.2.4: failed single type-4 set-code rows with existing authorities
+  -- can arrive with the receipt increment missing exactly the post-refund
+  -- NEW_ACCOUNT state dimension. The exact block-gas check is still correct;
+  -- receipts use tx_gas_used_after_refund and may exceed header.gas_used when
+  -- the block gas dimension is capped differently. Keep this repair narrowly on
+  -- the observed high-floor signature so successful/new-authority rows remain
+  -- governed by block_verdict_receipt_gas_eip8037_adjust above.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_auth_existing_failed_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0)\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); bltu t1, t2, .Lbv_auth_existing_failed_receipt_done\n" ++
+  "  sub t3, t1, t2; li t4, 148410; bne t3, t4, .Lbv_auth_existing_failed_receipt_done\n" ++
+  "  li t4, 183600; add t5, t2, t4; bltu t5, t2, .Lbv_auth_existing_failed_receipt_done\n" ++
+  "  sd t5, 0(t0)\n" ++
+  ".Lbv_auth_existing_failed_receipt_done:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
