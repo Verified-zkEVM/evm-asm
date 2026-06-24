@@ -381,6 +381,7 @@ def staticGasCost (op : Nat) : Nat :=
     | 0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x15 => 3
     | 0x16 | 0x17 | 0x18 | 0x19 | 0x1a => 3
     | 0x1b | 0x1c | 0x1d => 3
+    | 0x1e => 5                                             -- CLZ (EIP-7939, LOW)
     | 0x20 => 30                                             -- KECCAK256 (base)
     -- environment / context
     | 0x30 => 2 | 0x32 => 2 | 0x33 => 2 | 0x34 => 2 | 0x3a => 2  -- ADDRESS,ORIGIN,CALLER,CALLVALUE,GASPRICE
