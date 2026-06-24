@@ -141,4 +141,19 @@ theorem fast_div_result_word_shift0
   · exact congrArg (fun w => (sp + 56) ↦ₘ w)
       (v6n_div_getLimbN_shift0_3 a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hclz)
 
+/-- **Dividend preservation fold.** The unchanged dividend cells `sp+0/+8/+16/+24`
+    fold into `evmWordIs sp a` — the `a`-operand component of
+    `divStackDispatchPost`, preserved by the fast path. -/
+theorem fast_div_dividend_word (sp a0 a1 a2 a3 : Word) :
+    evmWordIs sp (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+    = ((sp ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) ** ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3)) := by
+  rw [evmWordIs_sp_unfold]
+  congr 1
+  · exact congrArg (fun w => sp ↦ₘ w) EvmWord.getLimbN_fromLimbs_0
+  congr 1
+  · exact congrArg (fun w => (sp + 8) ↦ₘ w) EvmWord.getLimbN_fromLimbs_1
+  congr 1
+  · exact congrArg (fun w => (sp + 16) ↦ₘ w) EvmWord.getLimbN_fromLimbs_2
+  · exact congrArg (fun w => (sp + 24) ↦ₘ w) EvmWord.getLimbN_fromLimbs_3
+
 end EvmAsm.Evm64
