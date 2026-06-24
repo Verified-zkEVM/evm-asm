@@ -22,6 +22,41 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- **Scratch-ownership assembly.** The 15 div-scratch value cells (at the
+    `divScratchOwn` offsets `4088 … 3976`) weaken to `divScratchOwn sp`. A
+    building block of the fast-arm post → `divStackDispatchPost` weakening:
+    after the fast body, every scratch cell holds a concrete value, which
+    `divStackDispatchPost` only needs as anonymous ownership. -/
+theorem fast_scratch_own_assemble
+    (sp c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 : Word) :
+    ∀ h, (((sp + signExtend12 4088) ↦ₘ c0) ** ((sp + signExtend12 4080) ↦ₘ c1) **
+          ((sp + signExtend12 4072) ↦ₘ c2) ** ((sp + signExtend12 4064) ↦ₘ c3) **
+          ((sp + signExtend12 4056) ↦ₘ c4) ** ((sp + signExtend12 4048) ↦ₘ c5) **
+          ((sp + signExtend12 4040) ↦ₘ c6) ** ((sp + signExtend12 4032) ↦ₘ c7) **
+          ((sp + signExtend12 4024) ↦ₘ c8) ** ((sp + signExtend12 4016) ↦ₘ c9) **
+          ((sp + signExtend12 4008) ↦ₘ c10) ** ((sp + signExtend12 4000) ↦ₘ c11) **
+          ((sp + signExtend12 3992) ↦ₘ c12) ** ((sp + signExtend12 3984) ↦ₘ c13) **
+          ((sp + signExtend12 3976) ↦ₘ c14)) h →
+      divScratchOwn sp h := by
+  intro h hp
+  rw [divScratchOwn_unfold]
+  revert hp
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  apply sepConj_mono (memIs_implies_memOwn)
+  exact memIs_implies_memOwn
+
 variable (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 
 /-- **shiftNz lane result reconciliation.** The four quotient limbs the fast
