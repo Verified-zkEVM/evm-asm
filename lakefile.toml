@@ -40,3 +40,8 @@ supportInterpreter = true
 name = "arith-diff-check"
 root = "MainArithDiffCheck"
 supportInterpreter = true
+
+[[lean_exe]]
+name = "rlp-diff-check"
+root = "MainRlpDiffCheck"
+supportInterpreter = true

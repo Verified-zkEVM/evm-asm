@@ -7,6 +7,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Evm64.DivMod.Program
+import EvmAsm.Evm64.DivMod.FastN1Program
 import EvmAsm.Evm64.SDiv.Program
 import EvmAsm.Evm64.SMod.Program
 
@@ -63,6 +64,23 @@ def evmDivV5Patched : Program :=
   (EvmAsm.Evm64.evm_div_v5 : List Instr).take 267 ++
   [Instr.JAL .x0 (344 : BitVec 21)] ++
   (EvmAsm.Evm64.evm_div_v5 : List Instr).drop 268
+
+/-- `EvmAsm.Evm64.evm_div_v6` (n=1 DIV fast path) with the exit NOP patched
+    to skip the trailing `div128_v5` subroutine, exactly as `evmDivV5Patched`
+    does for v5.
+
+    `evm_div_v6` = `dispatch ;; fastBody ;; div_epilogue ;; div128_v5 ;;
+    evm_div_v5`; its last 353 instructions are exactly `evm_div_v5` (verified:
+    `(evm_div_v6).drop 204 = evm_div_v5`), so the embedded v5 NOP "exit PC" sits
+    at global index `204 + 267 = 471`, and the +344-byte (86-instruction) jump
+    reaches the end of the 557-instruction program — the same skip-distance as
+    `evmDivV5Patched`, since the post-NOP tail is the same 85-instruction
+    `div128_v5` subroutine. Both the fast arm and the embedded-v5 arm exit at
+    this NOP (= `base + v6ExitOff`), so the single splice catches both paths. -/
+def evmDivV6Patched : Program :=
+  (EvmAsm.Evm64.evm_div_v6 : List Instr).take 471 ++
+  [Instr.JAL .x0 (344 : BitVec 21)] ++
+  (EvmAsm.Evm64.evm_div_v6 : List Instr).drop 472
 
 /-- `EvmAsm.Evm64.evm_mod_v5` with the same v5 NOP-splice as
     `evmDivV5Patched`. -/

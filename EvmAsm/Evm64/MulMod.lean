@@ -22,6 +22,9 @@ import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
 import EvmAsm.Evm64.MulMod.ReduceInnerStepTail
 import EvmAsm.Evm64.MulMod.ReduceInnerStepSubtract
 import EvmAsm.Evm64.MulMod.ReduceInnerStepSpecs
+import EvmAsm.Evm64.MulMod.ReduceBitLoop
+import EvmAsm.Evm64.MulMod.ReduceOuterLoop
+import EvmAsm.Evm64.MulMod.ReduceOuterInduction
 import EvmAsm.Evm64.MulMod.LimbSpec
 import EvmAsm.Evm64.MulMod.AddPartialSpecs
 import EvmAsm.Evm64.MulMod.AddPartialTable
