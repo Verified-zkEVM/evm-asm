@@ -272,10 +272,22 @@ def callFrameDescendFunction : String :=
   -- GAS_CALL_VALUE (9000) BEFORE the 63/64 forwarding cap (it is part of
   -- extra_gas, deducted from gas_left first). Persist it to the parent so the
   -- forward cap below sees the reduced gas_left and the cost deduction follows it.
+  -- bbow4.1.1: GAS_CALL_VALUE participates in the spec's pre-state `check_gas`
+  -- (system.py:436/554 `check_gas(access + transfer + extend_memory)`), which raises
+  -- OutOfGasError (an exceptional halt that burns ALL remaining gas) when the caller
+  -- cannot afford it. The guest charges access (runtime_access_account_charge) and the
+  -- delegation-target access (callDelegationAccessChargeAsm) incrementally before this
+  -- point, so once gas_left < 9000 here the original gas was < access + 9000, i.e. the
+  -- spec's check_gas would already have OOG'd. Without this guard the bare `sub`
+  -- UNDERFLOWED gas_left to ~2^64, letting the call wrongly succeed (the EIP-7702-delegated
+  -- CALLCODE/CALL that the spec OOGs ran to completion, under-counting block_regular_gas by
+  -- ~the net transfer 6700 -> header.gas_used appeared to over-claim -> bv_fail=41/44/45,
+  -- bal_callcode_7702_delegation_and_oog). Route the shortfall to the exceptional-halt path.
   "  ld a2, 88(s7)\n" ++
   "  beqz a2, .Lcfd_no_transfer\n" ++
   "  ld t0, 568(s3)\n" ++
   "  li t1, 9000\n" ++
+  "  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n" ++
   "  sd t0, 568(s3)\n" ++
   ".Lcfd_no_transfer:\n" ++

@@ -300,7 +300,7 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
   "  li t5, 6; la t4, bv_receipts_completeness_shape; sd t5, 0(t4)\n" ++
-  "  la t4, bv_receipts_enforce_enabled; sd zero, 0(t4)\n" ++
+  "  li t5, 1; la t4, bv_receipts_enforce_enabled; sd t5, 0(t4)\n" ++
   "  li a0, 0\n" ++
   ".Lbvcr_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
