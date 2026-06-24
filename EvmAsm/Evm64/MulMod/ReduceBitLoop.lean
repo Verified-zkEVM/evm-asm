@@ -181,4 +181,105 @@ theorem evm_mulmod_reduce512_bit_loop_step_done_path
   obtain ⟨h1, h2, _, _, htail, _⟩ := hq
   exact ((sepConj_pure_right _).1 htail).2 hdone
 
+/-- Clean post-state of the full inner 64-bit bit loop: the remainder window
+    holds `result`, the modulus is preserved, the bit counter has reached zero,
+    and every scratch/shifted register is surrendered as ownership. -/
+@[irreducible]
+def mulModReduceBitLoopPost (sp : Word) (result n : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+  regOwn .x13 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20 **
+  mulModReduceCompareMem sp result n
+
+/-- The done-exit tail post pins the bit counter to zero. -/
+theorem tailPost_true_regs_zero (x15 : Word) :
+    ∀ h, mulModReduceTailPost x15 true h →
+      ((Reg.x15 ↦ᵣ (0 : Word)) ** (Reg.x0 ↦ᵣ (0 : Word))) h := by
+  intro h hq
+  unfold mulModReduceTailPost at hq
+  simp only [↓reduceIte] at hq
+  obtain ⟨hregs, hpure⟩ := (sepConj_pure_right _).1 hq
+  rw [hpure] at hregs
+  exact hregs
+
+/-- The done-exit inner-step post is the clean bit-loop post. -/
+theorem mulModReduceInnerStepPost_true_to_bitLoopPost
+    (sp x17Old x15 : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceInnerStepPost sp x17Old x15 r n true h →
+      mulModReduceBitLoopPost sp
+        (mulModReduceStep r n (mulModReduceInputBit x17Old)) n h := by
+  intro h hp
+  unfold mulModReduceInnerStepPost at hp
+  have hp1 := sepConj_mono_left (tailPost_true_regs_zero x15) h hp
+  have w3 : ∀ (a b c : Word) (M : Assertion) hh,
+      ((Reg.x17 ↦ᵣ a) ** (Reg.x19 ↦ᵣ b) ** (Reg.x20 ↦ᵣ c) ** M) hh →
+      (regOwn Reg.x17 ** regOwn Reg.x19 ** regOwn Reg.x20 ** M) hh := by
+    intro a b c M hh hq
+    have q1 := sepConj_mono_left (regIs_to_regOwn .x17 _) hh hq
+    have q2 := sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x19 _)) hh q1
+    exact sepConj_mono_right
+      (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x20 _))) hh q2
+  have hp2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (w3 _ _ _ _)))))))) h hp1
+  unfold mulModReduceBitLoopPost
+  xperm_hyp hp2
+
+/-- Inner 64-bit reducer loop, by induction on the remaining iteration count
+    `m` (1 ≤ m ≤ 64): starting with `m` in the counter `x15`, the loop runs `m`
+    bit steps and lands in the clean done-state with the remainder folded `m`
+    times. -/
+private theorem bit_loop_aux (m : Nat) :
+    1 ≤ m → m ≤ 64 →
+    ∀ (sp base w x19v x20v : Word) (r n : EvmWord),
+    cpsTripleWithin (64 * m) base (base + 256)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceBitLoopPre sp w (BitVec.ofNat 64 m) x19v x20v r n)
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n w m) n) := by
+  induction m with
+  | zero => intro h1 _; omega
+  | succ k ih =>
+    intro _ h64 sp base w x19v x20v r n
+    rcases Nat.eq_zero_or_pos k with hk0 | hkpos
+    · -- base case: one iteration remains (m = 1)
+      subst hk0
+      have hdone : BitVec.ofNat 64 1 + signExtend12 (4095 : BitVec 12) = 0 :=
+        (mulModReduceBitCounter_eq_zero_iff 1 (by omega) (by omega)).mpr rfl
+      have hstep := evm_mulmod_reduce512_bit_loop_step_done_path
+        sp base w (BitVec.ofNat 64 1) x19v x20v r n hdone
+      have hres := cpsTripleWithin_weaken (fun _ hp => hp)
+        (mulModReduceInnerStepPost_true_to_bitLoopPost sp w (BitVec.ofNat 64 1) r n)
+        hstep
+      simpa using hres
+    · -- inductive step: m = k + 1 with k ≥ 1
+      have hloop : BitVec.ofNat 64 (k + 1) + signExtend12 (4095 : BitVec 12) ≠ 0 := by
+        intro hc
+        have := (mulModReduceBitCounter_eq_zero_iff (k + 1) (by omega) h64).mp hc
+        omega
+      have hstep := evm_mulmod_reduce512_bit_loop_step_loop_path
+        sp base w (BitVec.ofNat 64 (k + 1)) x19v x20v r n hloop
+      have hih := ih hkpos (by omega) sp base (w <<< 1)
+        (EvmWord.getLimbN r 1 >>> 63) (EvmWord.getLimbN r 2 >>> 63)
+        (mulModReduceStep r n (mulModReduceInputBit w)) n
+      have hcomp := cpsTripleWithin_seq_perm_same_cr
+        (fun h hp => by
+          have hb := mulModReduceInnerStepPost_false_to_bitLoopPre
+            sp w (BitVec.ofNat 64 (k + 1)) r n h hp
+          rw [mulModReduceBitCounter_decr (k + 1) (by omega) h64] at hb
+          exact hb)
+        hstep hih
+      have hbound : 64 * (k + 1) = 64 + 64 * k := by ring
+      rw [hbound, mulModReduceStepN_succ]
+      exact hcomp
+
+/-- The inner 64-bit reducer loop, instantiated at the full 64-iteration count
+    used by `evm_mulmod_reduce512_loop`. -/
+theorem evm_mulmod_reduce512_bit_loop_spec_within
+    (sp base w x19v x20v : Word) (r n : EvmWord) :
+    cpsTripleWithin (64 * 64) base (base + 256)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceBitLoopPre sp w (BitVec.ofNat 64 64) x19v x20v r n)
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n w 64) n) :=
+  bit_loop_aux 64 (by omega) (by omega) sp base w x19v x20v r n
+
 end EvmAsm.Evm64
