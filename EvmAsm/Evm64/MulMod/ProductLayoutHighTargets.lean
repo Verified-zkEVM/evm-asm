@@ -78,6 +78,49 @@ theorem mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs_of_columnTarget
     EvmWord.getLimb_as_getLimbN_1, EvmWord.getLimb_as_getLimbN_2,
     EvmWord.getLimb_as_getLimbN_3]
 
+
+/-- The finalized high product-layout cells are exactly `productHighLimbs`. -/
+theorem mulModProductLayoutHighTargetValues_eq_productHighLimbs (a b : EvmWord) :
+    mulModProductLayoutHighTargetValues a b = productHighLimbs a b := by
+  exact mulModProductLayoutHighTargetValues_eq_productHighLimbs_of_columnTargets
+    (mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four a b)
+    (mulModProductLayoutColumn5Value_eq_productLimb_five a b)
+    (mulModProductLayoutColumn6Value_eq_productLimb_six a b)
+    (mulModProductLayoutColumn7Value_eq_productLimb_seven a b)
+
+/-- The finalized high product-layout cells are the limbs of `mulHigh`. -/
+theorem mulModProductLayoutHighTargetValues_eq_mulHigh_getLimbNs (a b : EvmWord) :
+    mulModProductLayoutHighTargetValues a b =
+      [(EvmWord.mulHigh a b).getLimbN 0, (EvmWord.mulHigh a b).getLimbN 1,
+       (EvmWord.mulHigh a b).getLimbN 2, (EvmWord.mulHigh a b).getLimbN 3] := by
+  exact mulModProductLayoutHighTargetValues_eq_mulHigh_getLimbNs_of_columnTargets
+    (mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four a b)
+    (mulModProductLayoutColumn5Value_eq_productLimb_five a b)
+    (mulModProductLayoutColumn6Value_eq_productLimb_six a b)
+    (mulModProductLayoutColumn7Value_eq_productLimb_seven a b)
+
+/-- The finalized high product-layout offset cells are the high half of `productOffsetValues`. -/
+theorem mulModProductLayoutHighOffsetValues_eq_productOffsetValues_drop_four (a b : EvmWord) :
+    mulModProductLayoutHighOffsetValues a b = (productOffsetValues a b).drop 4 := by
+  exact mulModProductLayoutHighOffsetValues_eq_productOffsetValues_drop_four_of_columnTargets
+    (mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four a b)
+    (mulModProductLayoutColumn5Value_eq_productLimb_five a b)
+    (mulModProductLayoutColumn6Value_eq_productLimb_six a b)
+    (mulModProductLayoutColumn7Value_eq_productLimb_seven a b)
+
+/-- The finalized high product-layout offset cells are the direct `mulHigh` limbs. -/
+theorem mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs (a b : EvmWord) :
+    mulModProductLayoutHighOffsetValues a b =
+      [((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
+       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
+       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
+       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
+  exact mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs_of_columnTargets
+    (mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four a b)
+    (mulModProductLayoutColumn5Value_eq_productLimb_five a b)
+    (mulModProductLayoutColumn6Value_eq_productLimb_six a b)
+    (mulModProductLayoutColumn7Value_eq_productLimb_seven a b)
+
 /-- The concrete final high product-layout cells as they appear in the call15 postcondition. -/
 def mulModProductLayoutConcreteHighTargetValues (a b : EvmWord) : List Word :=
   [mulModProductLayoutCall12P128 a b,
@@ -142,6 +185,45 @@ theorem mulModProductLayoutConcreteHighOffsetValues_eq_productOffsetValues_drop_
     EvmWord.getLimb_as_getLimbN_1, EvmWord.getLimb_as_getLimbN_2,
     EvmWord.getLimb_as_getLimbN_3]
 
+
+
+/-- The concrete final high cells identify with `productHighLimbs`. -/
+theorem mulModProductLayoutConcreteHighTargetValues_eq_productHighLimbs (a b : EvmWord) :
+    mulModProductLayoutConcreteHighTargetValues a b = productHighLimbs a b := by
+  rw [mulModProductLayoutConcreteHighTargetValues_eq_highTargetValues]
+  exact mulModProductLayoutHighTargetValues_eq_productHighLimbs a b
+
+/-- The concrete final high cells are the direct `mulHigh.getLimbN` limbs. -/
+theorem mulModProductLayoutConcreteHighTargetValues_eq_mulHigh_getLimbNs_noHyp (a b : EvmWord) :
+    mulModProductLayoutConcreteHighTargetValues a b =
+      [(EvmWord.mulHigh a b).getLimbN 0, (EvmWord.mulHigh a b).getLimbN 1,
+       (EvmWord.mulHigh a b).getLimbN 2, (EvmWord.mulHigh a b).getLimbN 3] := by
+  exact mulModProductLayoutConcreteHighTargetValues_eq_mulHigh_getLimbNs
+    (mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero a b)
+    (mulModProductLayoutCall14P136_eq_mulHigh_getLimbN_one a b)
+    (mulModProductLayoutCall15P144Value_eq_mulHigh_getLimbN_two a b)
+    (mulModProductLayoutCall15P152Value_eq_mulHigh_getLimbN_three a b)
+
+/-- The concrete final high offset cells are the high half of `productOffsetValues`. -/
+theorem mulModProductLayoutConcreteHighOffsetValues_eq_productOffsetValues_drop_four_noHyp
+    (a b : EvmWord) :
+    mulModProductLayoutConcreteHighOffsetValues a b = (productOffsetValues a b).drop 4 := by
+  exact mulModProductLayoutConcreteHighOffsetValues_eq_productOffsetValues_drop_four
+    (mulModProductLayoutCall12P128_eq_mulHigh_getLimbN_zero a b)
+    (mulModProductLayoutCall14P136_eq_mulHigh_getLimbN_one a b)
+    (mulModProductLayoutCall15P144Value_eq_mulHigh_getLimbN_two a b)
+    (mulModProductLayoutCall15P152Value_eq_mulHigh_getLimbN_three a b)
+
+/-- The concrete final high offset cells are the direct `mulHigh.getLimbN` limbs. -/
+theorem mulModProductLayoutConcreteHighOffsetValues_eq_mulHigh_getLimbNs_noHyp
+    (a b : EvmWord) :
+    mulModProductLayoutConcreteHighOffsetValues a b =
+      [((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
+       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
+       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
+       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
+  rw [mulModProductLayoutConcreteHighOffsetValues_eq_highOffsetValues]
+  exact mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs a b
 
 /-- Column-target obligations identify the concrete final high cells with
     `productHighLimbs`. -/
