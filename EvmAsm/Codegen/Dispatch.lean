@@ -971,6 +971,16 @@ def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String 
     "  la t0, evm_call_depth\n" ++
     "  ld t0, 0(t0)\n" ++
     "  beqz t0, .exit_label\n" ++
+    "  la t1, create_frame_flag\n" ++
+    "  slli t2, t0, 3\n" ++
+    "  add t1, t1, t2\n" ++
+    "  ld t3, 0(t1)\n" ++
+    "  beqz t3, 2f\n" ++
+    "  sd x0, 0(t1)\n" ++
+    "  li x14, 0\n" ++
+    "  li x15, 0\n" ++
+    "  j .Lcreate_deposit_from_halt_1\n" ++
+    "2:\n" ++
     "  li a0, 1\n" ++
     "  li a1, 0\n" ++
     "  li a2, 0\n" ++
@@ -2279,6 +2289,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- EIP-7702 validate_authorization refunds state gas into the message reservoir
+  -- when the recovered authority already exists (and, separately, for existing
+  -- delegation code). Transaction-aware callers compute the exact BAL/pre-state
+  -- refund and stage it in runtime_tx_auth_state_refund before this setup runs.
+  "  la x11, runtime_tx_auth_state_refund\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_auth_state_refund_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
@@ -2797,6 +2819,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_list_len:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_warm_fn:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
