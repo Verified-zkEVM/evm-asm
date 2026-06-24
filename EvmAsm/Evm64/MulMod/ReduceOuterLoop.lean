@@ -227,4 +227,30 @@ theorem evm_mulmod_reduce512_loop_fold_advance_spec_within
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hfoldf hadvf)
 
+/-- Outer-loop control `BNE x18, x0, -272` at byte offset 272: loops back to
+    `base` while the eight-limb counter `x18` is nonzero, falls through to
+    `base + 276` (the post-loop) when it reaches zero. -/
+theorem evm_mulmod_reduce512_loop_branch_spec_within (base x18v : Word) :
+    cpsBranchWithin 1 (base + 272)
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((.x18 ↦ᵣ x18v) ** (.x0 ↦ᵣ (0 : Word)))
+      base ((.x18 ↦ᵣ x18v) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜x18v ≠ (0 : Word)⌝)
+      (base + 276) ((.x18 ↦ᵣ x18v) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜x18v = (0 : Word)⌝) := by
+  have hsub : ∀ a i,
+      CodeReq.singleton (base + 272) (Instr.BNE .x18 .x0 (-272 : BitVec 13)) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop) a = some i := by
+    rw [← CodeReq.ofProg_singleton]
+    refine CodeReq.ofProg_mono_sub base (base + 272) evm_mulmod_reduce512_loop
+      [Instr.BNE .x18 .x0 (-272 : BitVec 13)] 68 ?_ ?_ ?_ ?_
+    · rw [show BitVec.ofNat 64 (4 * 68) = (272 : Word) by decide]
+    · rfl
+    · rw [evm_mulmod_reduce512_loop_length]; decide
+    · rw [evm_mulmod_reduce512_loop_length]; decide
+  have hbne := bne_spec_gen_within .x18 .x0 (-272 : BitVec 13) x18v (0 : Word) (base + 272)
+  have htaken : ((base + 272) + signExtend13 (-272 : BitVec 13) : Word) = base := by
+    rw [show signExtend13 (-272 : BitVec 13) = (-272 : Word) from by decide]; bv_omega
+  have hnt : ((base + 272) + 4 : Word) = base + 276 := by bv_omega
+  rw [htaken, hnt] at hbne
+  exact cpsBranchWithin_extend_code (hmono := hsub) (h := hbne)
+
 end EvmAsm.Evm64
