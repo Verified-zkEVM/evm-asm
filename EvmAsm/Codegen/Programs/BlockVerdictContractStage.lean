@@ -164,6 +164,10 @@ def stageRuntimePayloadCodeFunction : String :=
   "  addi t3, s2, 440\n" ++
   "  ld t4, 0(t3); sd t4, 352(s5); ld t4, 8(t3); sd t4, 360(s5)\n" ++
   "  ld t4, 16(t3); sd t4, 368(s5); ld t4, 24(t3); sd t4, 376(s5)\n" ++
+  -- CHAINID (word 12 -> +384): chain_config_valid captured the execution
+  -- chain id before contract dispatch. Store it as the low limb of the EVM
+  -- stack-word layout, matching the simple-transfer staging path.
+  "  la t3, bv_chain_id; ld t4, 0(t3); sd t4, 384(s5)\n" ++
   -- ADDRESS (word 0 -> +0): recipient (ctx+72, 20-byte BE address), converted
   -- to the EVM stack-word layout (low limb first) used by env loads and storage logs.
   "  addi t3, s1, 72; mv t4, s5; li t5, 0\n" ++
