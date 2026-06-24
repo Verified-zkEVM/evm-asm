@@ -57,6 +57,33 @@ theorem fast_scratch_own_assemble
   apply sepConj_mono (memIs_implies_memOwn)
   exact memIs_implies_memOwn
 
+/-- **Call-scratch ownership assembly.** Extends `fast_scratch_own_assemble`
+    with the four call cells (`3968 … 3944`) and `x1` to assemble the full
+    `divScratchOwnCall sp` — the scratch component of `divStackDispatchPost`. -/
+theorem fast_scratch_own_call_assemble
+    (sp c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 d0 d1 d2 d3 x1v : Word) :
+    ∀ h, ((((sp + signExtend12 4088) ↦ₘ c0) ** ((sp + signExtend12 4080) ↦ₘ c1) **
+          ((sp + signExtend12 4072) ↦ₘ c2) ** ((sp + signExtend12 4064) ↦ₘ c3) **
+          ((sp + signExtend12 4056) ↦ₘ c4) ** ((sp + signExtend12 4048) ↦ₘ c5) **
+          ((sp + signExtend12 4040) ↦ₘ c6) ** ((sp + signExtend12 4032) ↦ₘ c7) **
+          ((sp + signExtend12 4024) ↦ₘ c8) ** ((sp + signExtend12 4016) ↦ₘ c9) **
+          ((sp + signExtend12 4008) ↦ₘ c10) ** ((sp + signExtend12 4000) ↦ₘ c11) **
+          ((sp + signExtend12 3992) ↦ₘ c12) ** ((sp + signExtend12 3984) ↦ₘ c13) **
+          ((sp + signExtend12 3976) ↦ₘ c14)) **
+          ((sp + signExtend12 3968) ↦ₘ d0) ** ((sp + signExtend12 3960) ↦ₘ d1) **
+          ((sp + signExtend12 3952) ↦ₘ d2) ** ((sp + signExtend12 3944) ↦ₘ d3) **
+          ((.x1 : Reg) ↦ᵣ x1v)) h →
+      divScratchOwnCall sp h := by
+  intro h hp
+  rw [divScratchOwnCall_unfold]
+  revert hp
+  apply sepConj_mono (fast_scratch_own_assemble sp c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14)
+  apply sepConj_mono memIs_implies_memOwn
+  apply sepConj_mono memIs_implies_memOwn
+  apply sepConj_mono memIs_implies_memOwn
+  apply sepConj_mono memIs_implies_memOwn
+  exact regIs_implies_regOwn _
+
 variable (sp a0 a1 a2 a3 b0 b1 b2 b3 : Word)
 
 /-- **shiftNz lane result reconciliation.** The four quotient limbs the fast
