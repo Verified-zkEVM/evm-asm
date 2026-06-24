@@ -1017,4 +1017,171 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_ge_full_code_spec_within
     (hmono := evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_sub base)
     (h := evm_mulmod_reduce512_inner_step_compare_limb0_ge_spec_within sp base r n h3_eq h2_eq h1_eq hge)
 
+
+theorem comparePost_of_limb3GtPost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb3GtPost sp r n h → mulModReduceComparePost sp r n true h := by
+  intro h hp
+  unfold mulModReduceCompareLimb3GtPost mulModReduceCompareLimb3GtRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [ite_true]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _)))) h hp1
+  xperm_hyp hp2
+
+theorem comparePost_of_limb2GtPost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb2GtPost sp r n h → mulModReduceComparePost sp r n true h := by
+  intro h hp
+  unfold mulModReduceCompareLimb2GtPost mulModReduceCompareLimb2FallthroughRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [ite_true]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp1
+  xperm_hyp hp2
+
+theorem comparePost_of_limb1GtPost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb1GtPost sp r n h → mulModReduceComparePost sp r n true h := by
+  intro h hp
+  unfold mulModReduceCompareLimb1GtPost mulModReduceCompareLimb1FallthroughRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [ite_true]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp1
+  xperm_hyp hp2
+
+theorem comparePost_of_limb0GePost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb0GePost sp r n h → mulModReduceComparePost sp r n true h := by
+  intro h hp
+  unfold mulModReduceCompareLimb0GePost mulModReduceCompareLimb0FallthroughRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [ite_true]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp1
+  xperm_hyp hp2
+
+theorem comparePost_of_limb3LtPost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb3LtPost sp r n h → mulModReduceComparePost sp r n false h := by
+  intro h hp
+  unfold mulModReduceCompareLimb3LtPost mulModReduceCompareLimb3FallthroughRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [Bool.false_eq_true, ↓reduceIte]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp1
+  xperm_hyp hp2
+
+theorem comparePost_of_limb2LtPost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb2LtPost sp r n h → mulModReduceComparePost sp r n false h := by
+  intro h hp
+  unfold mulModReduceCompareLimb2LtPost mulModReduceCompareLimb2FallthroughRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [Bool.false_eq_true, ↓reduceIte]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp1
+  xperm_hyp hp2
+
+theorem comparePost_of_limb1LtPost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb1LtPost sp r n h → mulModReduceComparePost sp r n false h := by
+  intro h hp
+  unfold mulModReduceCompareLimb1LtPost mulModReduceCompareLimb1FallthroughRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [Bool.false_eq_true, ↓reduceIte]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp1
+  xperm_hyp hp2
+
+theorem comparePost_of_limb0LtPost (sp : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceCompareLimb0LtPost sp r n h → mulModReduceComparePost sp r n false h := by
+  intro h hp
+  unfold mulModReduceCompareLimb0LtPost mulModReduceCompareLimb0FallthroughRawPost at hp
+  unfold mulModReduceComparePost mulModReduceCompareMem
+  simp only [Bool.false_eq_true, ↓reduceIte]
+  have hp1 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x6 _))) h hp
+  have hp2 := sepConj_mono_left (sepConj_mono_right (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x7 _)))) h hp1
+  xperm_hyp hp2
+
+theorem evm_mulmod_reduce512_inner_step_compare_ge_spec_within
+    (sp base x6Old x7Old : Word) (r n : EvmWord)
+    (hge : mulModReduceRemGE r n) :
+    cpsTripleWithin 15 (base + 84) (base + 144)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceComparePre sp x6Old x7Old r n ** ⌜mulModReduceRemGE r n⌝)
+      (mulModReduceComparePost sp r n true) := by
+  rcases mulModReduceRemGE_cases r n hge with h3_gt | hrest
+  · exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb3GtPost sp r n)
+        (evm_mulmod_reduce512_inner_step_compare_limb3_gt_full_code_spec_within sp base x6Old x7Old r n h3_gt))
+  rcases hrest with ⟨h3_eq, h2_gt⟩ | hrest
+  · have hseq := cpsTripleWithin_seq_same_cr
+      (evm_mulmod_reduce512_inner_step_compare_limb3_eq_full_code_spec_within sp base x6Old x7Old r n h3_eq)
+      (evm_mulmod_reduce512_inner_step_compare_limb2_gt_full_code_spec_within sp base r n h3_eq h2_gt)
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb2GtPost sp r n) hseq)
+  rcases hrest with ⟨h3_eq, h2_eq, h1_gt⟩ | ⟨h3_eq, h2_eq, h1_eq, h0_ge⟩
+  · have hseq0 := cpsTripleWithin_seq_same_cr
+      (evm_mulmod_reduce512_inner_step_compare_limb3_eq_full_code_spec_within sp base x6Old x7Old r n h3_eq)
+      (evm_mulmod_reduce512_inner_step_compare_limb2_eq_full_code_spec_within sp base r n h3_eq h2_eq)
+    have hseq := cpsTripleWithin_seq_same_cr hseq0
+      (evm_mulmod_reduce512_inner_step_compare_limb1_gt_full_code_spec_within sp base r n h3_eq h2_eq h1_gt)
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb1GtPost sp r n) hseq)
+  · have hseq0 := cpsTripleWithin_seq_same_cr
+      (evm_mulmod_reduce512_inner_step_compare_limb3_eq_full_code_spec_within sp base x6Old x7Old r n h3_eq)
+      (evm_mulmod_reduce512_inner_step_compare_limb2_eq_full_code_spec_within sp base r n h3_eq h2_eq)
+    have hseq1 := cpsTripleWithin_seq_same_cr hseq0
+      (evm_mulmod_reduce512_inner_step_compare_limb1_eq_full_code_spec_within sp base r n h3_eq h2_eq h1_eq)
+    have hseq := cpsTripleWithin_seq_same_cr hseq1
+      (evm_mulmod_reduce512_inner_step_compare_limb0_ge_full_code_spec_within sp base r n h3_eq h2_eq h1_eq h0_ge)
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb0GePost sp r n) hseq)
+
+theorem evm_mulmod_reduce512_inner_step_compare_lt_spec_within
+    (sp base x6Old x7Old : Word) (r n : EvmWord)
+    (hlt : mulModReduceRemLT r n) :
+    cpsTripleWithin 15 (base + 84) (base + 248)
+      (evm_mulmod_reduce512_inner_step_compare_code base)
+      (mulModReduceComparePre sp x6Old x7Old r n ** ⌜mulModReduceRemLT r n⌝)
+      (mulModReduceComparePost sp r n false) := by
+  rcases mulModReduceRemLT_cases r n hlt with h3_lt | hrest
+  · exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb3LtPost sp r n)
+        (evm_mulmod_reduce512_inner_step_compare_limb3_lt_full_code_spec_within sp base x6Old x7Old r n h3_lt))
+  rcases hrest with ⟨h3_eq, h2_lt⟩ | hrest
+  · have hseq := cpsTripleWithin_seq_same_cr
+      (evm_mulmod_reduce512_inner_step_compare_limb3_eq_full_code_spec_within sp base x6Old x7Old r n h3_eq)
+      (evm_mulmod_reduce512_inner_step_compare_limb2_lt_full_code_spec_within sp base r n h3_eq h2_lt)
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb2LtPost sp r n) hseq)
+  rcases hrest with ⟨h3_eq, h2_eq, h1_lt⟩ | ⟨h3_eq, h2_eq, h1_eq, h0_lt⟩
+  · have hseq0 := cpsTripleWithin_seq_same_cr
+      (evm_mulmod_reduce512_inner_step_compare_limb3_eq_full_code_spec_within sp base x6Old x7Old r n h3_eq)
+      (evm_mulmod_reduce512_inner_step_compare_limb2_eq_full_code_spec_within sp base r n h3_eq h2_eq)
+    have hseq := cpsTripleWithin_seq_same_cr hseq0
+      (evm_mulmod_reduce512_inner_step_compare_limb1_lt_full_code_spec_within sp base r n h3_eq h2_eq h1_lt)
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb1LtPost sp r n) hseq)
+  · have hseq0 := cpsTripleWithin_seq_same_cr
+      (evm_mulmod_reduce512_inner_step_compare_limb3_eq_full_code_spec_within sp base x6Old x7Old r n h3_eq)
+      (evm_mulmod_reduce512_inner_step_compare_limb2_eq_full_code_spec_within sp base r n h3_eq h2_eq)
+    have hseq1 := cpsTripleWithin_seq_same_cr hseq0
+      (evm_mulmod_reduce512_inner_step_compare_limb1_eq_full_code_spec_within sp base r n h3_eq h2_eq h1_eq)
+    have hseq := cpsTripleWithin_seq_same_cr hseq1
+      (evm_mulmod_reduce512_inner_step_compare_limb0_lt_full_code_spec_within sp base r n h3_eq h2_eq h1_eq h0_lt)
+    exact cpsTripleWithin_mono_nSteps (by decide)
+      (cpsTripleWithin_weaken
+        (fun h hp => ((sepConj_pure_right h).1 hp).1)
+        (comparePost_of_limb0LtPost sp r n) hseq)
+
 end EvmAsm.Evm64

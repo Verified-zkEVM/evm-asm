@@ -223,7 +223,7 @@ def seedCalleeStorageFunction : String :=
 
 def dispatchTxRuntimeCodeFunction : String :=
   "dispatch_tx_runtime_code:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a1                    # witness.state ptr\n" ++
@@ -412,6 +412,22 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++
+  -- 6121j/coc3g.12.1: stage BLOBBASEFEE for the contract-recipient payload too.
+  -- stage_runtime_payload_code leaves the 32-byte M28 blob-base-fee slot zeroed; compute the
+  -- Amsterdam blob gas price from exec_payload.excess_blob_gas, then reverse the helper's BE
+  -- output into the EVM stack-word layout expected by h_BLOBBASEFEE (limb0 at +0).
+  "  la t0, bv_exec_p; ld a0, 0(t0); addi a0, a0, 520; jal ra, bgv_u64le\n" ++
+  "  addi a1, sp, 48; jal ra, amsterdam_blob_gas_price_u256\n" ++
+  "  bnez a0, .Ldtrc_stage_unsupported\n" ++
+  "  la t0, bv_runtime_payload\n" ++
+  "  la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  la t2, m29_stage_count; ld t2, 0(t2); slli t2, t2, 5; addi t2, t2, 56; sub t0, t0, t2\n" ++
+  "  addi t1, sp, 48; li t2, 0\n" ++
+  ".Ldtrc_blobbasefee_rev:\n" ++
+  "  li t3, 32; beq t2, t3, .Ldtrc_blobbasefee_done\n" ++
+  "  add t4, t1, t2; lbu t5, 0(t4); li t3, 31; sub t3, t3, t2; add t4, t0, t3; sb t5, 0(t4)\n" ++
+  "  addi t2, t2, 1; j .Ldtrc_blobbasefee_rev\n" ++
+  ".Ldtrc_blobbasefee_done:\n" ++
   -- bmvmx/gcylw: stage the same account-witness context used by the top-level
   -- recipient lookup into the callable runtime trailer, so nested CALL/EXTCODE
   -- lookups read the pre-header/state/codes context instead of zero lengths.
@@ -651,7 +667,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 end EvmAsm.Codegen
