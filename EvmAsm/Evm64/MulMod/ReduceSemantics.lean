@@ -103,4 +103,37 @@ def mulModReduceBitWord (bit : Bool) : EvmWord :=
     mulModReduceBitWord true = (1 : EvmWord) := by
   rfl
 
+/-- Iterate the bit-serial reducer step over the top `k` bits of the product
+    word `w`: each step consumes `w`'s most significant bit and shifts `w` left
+    by one. After 64 steps the limb `w` is fully folded into the remainder. -/
+def mulModReduceStepN (r n : EvmWord) (w : Word) : Nat → EvmWord
+  | 0 => r
+  | k + 1 =>
+    mulModReduceStepN (mulModReduceStep r n (mulModReduceInputBit w)) n (w <<< 1) k
+
+@[simp] theorem mulModReduceStepN_zero (r n : EvmWord) (w : Word) :
+    mulModReduceStepN r n w 0 = r := rfl
+
+theorem mulModReduceStepN_succ (r n : EvmWord) (w : Word) (k : Nat) :
+    mulModReduceStepN r n w (k + 1) =
+      mulModReduceStepN (mulModReduceStep r n (mulModReduceInputBit w)) n (w <<< 1) k :=
+  rfl
+
+/-- The bit-loop counter (`x15`) after the loop's `ADDI x15, x15, -1`: starting
+    from `m` remaining iterations it becomes `m - 1`. -/
+theorem mulModReduceBitCounter_decr (m : Nat) (h1 : 1 ≤ m) (h64 : m ≤ 64) :
+    BitVec.ofNat 64 m + signExtend12 (4095 : BitVec 12) = BitVec.ofNat 64 (m - 1) := by
+  have hse : signExtend12 (4095 : BitVec 12) = (-1 : BitVec 64) := by decide
+  rw [hse]; bv_omega
+
+/-- The decremented bit-loop counter is zero exactly when one iteration
+    remained. -/
+theorem mulModReduceBitCounter_eq_zero_iff (m : Nat) (h1 : 1 ≤ m) (h64 : m ≤ 64) :
+    (BitVec.ofNat 64 m + signExtend12 (4095 : BitVec 12) = 0) ↔ m = 1 := by
+  have hse : signExtend12 (4095 : BitVec 12) = (-1 : BitVec 64) := by decide
+  rw [hse]
+  constructor
+  · intro h; bv_omega
+  · intro h; subst h; decide
+
 end EvmAsm.Evm64
