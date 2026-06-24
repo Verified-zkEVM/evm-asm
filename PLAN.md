@@ -1836,12 +1836,93 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     `schemaDecodes_imp_scalarValues`, so the conclusion is `schemaScalarValues` (every field's big-endian
     value at its input offset, uniformly). The one-shot API behind the concrete tx/header decoders: RLP
     bytes in → operational decode + all field values out, verified.
-  - **🔀 Remaining.** The engine decodes every field type a real tx/header contains EXCEPT `n=0`/empty
-    fields (still `1 ≤ data.length`; needs an empty field-kind — distinct `fieldSize`/CR, an invasive
-    `FieldSpec`-kind extension). The named-struct assembly (legacy-tx 9-field → tx struct) is a direct
-    instantiation of the value API (contiguous output via parameterized field offsets; fixed 32-byte slots
-    would need a zero-pad primitive). Next: the legacy-tx schema instantiation, then empty-field integration.
-- Phase 6: Top-level pipeline (`read_input` -> decode -> `write_output`)
+  - **🚧 Empty (`n=0`) field support (in progress).** Closing the last gap so the engine decodes every
+    valid RLP field (zero scalars, empty `to`). Minimal-disruption design: keep `FieldSpec.isScalar : Bool`,
+    detect empty by `data = []`, dispatch data-dependently — only `SchemaFold`/`SchemaFoldConcat`/
+    `FieldUnitDisjoint` change; downstream rebuilds unchanged.
+  - ✅ **Step 49 — empty-scalar region unit** (`UnifiedEmptyScalarField.lean`,
+    `unified_empty_scalar_field_decode_and_store_region`): region analog of the cell-based n=0 unit — descend
+    `0x80` (`x13 → next`, `x11 = 0`) ⨾ scalar store-region leaf spilling `0` (`spillRange out 0 di 8`).
+    `fieldSize = 248` (32 B shorter than the non-empty scalar unit; no read loop). Coincides with
+    `decodeScalar (bs.drop O) = some (0, tail)`.
+  - ✅ **Step 50 — empty-scalar canonical chain + `emptyScalarUnitCR`** (`UnifiedEmptyScalarFieldCanonical.lean`
+    + `FieldUnitDisjoint.lean`): the `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain (mirrors
+    the non-empty scalar chain — identical pre/post shape) to the uniform `regOwn` interface with CR
+    `emptyScalarUnitCR`, plus the CR def + `empty_scalar_unit_cr_none_{above,below}` (range `[base, base+248)`).
+    The empty-scalar unit is now fold-ready.
+  - ✅ **Step 51 — empty-bytes region unit** (`UnifiedEmptyBytesField.lean`,
+    `unified_empty_bytes_field_decode_and_copy`): descend `0x80` ⨾ byte-copy leaf with `N = 0` (copies
+    nothing; `copyRangeGen out [] 0 di 0 = out`). Same statement shape as the non-empty bytes unit at
+    `data = []`; `fieldSize = 152`. Coincides with `decode (bs.drop O) = some (.bytes [], tail)`.
+  - ✅ **Step 52 — empty-bytes canonical chain** (`UnifiedEmptyBytesFieldCanonical.lean`): the
+    `_at_regOwn` → `_canonical` → `_fully_canonical` peeling chain (mirrors the non-empty bytes chain;
+    reuses `bytesUnitCR … 0`, no new CR) to the uniform `regOwn` interface. Both empty units are now
+    fold-ready.
+  - ✅ **Step 53 — empty fields integrated into the schema engine** (`SchemaFold`/`SchemaFoldConcat`
+    + `SchemaEmptyFieldExample.lean`): `fieldSize`/`fieldCR`/`fieldSteps` are now data-dependent for the
+    scalar kind (empty → 248/`emptyScalarUnitCR`; non-empty → 280/`scalarRegionUnitCR`); `field_step`
+    dispatches 4 ways (empty-scalar / scalar / empty-bytes / short|long bytes); `SchemaValid` &
+    `fieldCoreValid` drop the `1 ≤ data.length` floor (non-empty branches re-derive `1 ≤ len` from
+    `data ≠ []`); `fieldCR_none_{above,below}` gain the empty-scalar case. No `FieldSpec` structural change;
+    all ~10 downstream walk/decoder/example files rebuilt unchanged. Concrete cross-check: a record whose
+    first field is a zero scalar (`[0xc2,0x80,0x2a]`) decodes to values `0` and `42`.
+  - **🎉 RLP decoder COMPLETE.** `schema_walk` / the end-user `decode_encoded_{short,long}_list_schema_values`
+    APIs now decode EVERY valid RLP field type a transaction/header contains — `u64`/`u256` scalars,
+    zero/empty scalars, 20-byte addresses, 32-byte hashes, arbitrarily-long byte arrays (calldata, the
+    256-byte bloom), and empty `to` — into a shared output region, recovering every field's value, coinciding
+    with the pure RLP spec. A concrete legacy-tx/header decoder is now a direct caller instantiation
+    (output layout = caller-chosen field offsets). Remaining beyond the decoder: Phase 6 host-I/O pipeline
+    (`read_input → decode → write_output`).
+- **🎉 Phase 6 COMPLETE — RLP pipeline end-to-end.** The full top-level pipeline
+  (`read_input → decode → write_output`) is proven: RLP bytes arrive via the host `read_input`
+  syscall, are decoded into the output `bytesRegion`, and the result is committed to the host
+  public-values stream via `write_output`, coinciding with the pure RLP spec
+  (`schemaScalarValues`). Input-buffer contract = host-ABI precondition `bytesRegion inputBufBase
+  privateInput`.
+  - ✅ **Step 54 — read-input pointer hand-off** (`Phase6ReadDecode.lean`, `rlp_phase6_read_input_ptr`):
+    composes the `read_input` Phase-4 wrapper (`rlp_phase4_read_input_len_spec_within_exact`) with
+    `LD x13, x12, ptr_ptr_off`, loading the returned `inputBufBase` into `x13` (the decoder's input
+    pointer). Out-cells end `(buf_base, input.length)`, `x13 = buf_base`; `inputBufBaseIs`/`privateInputIs`
+    preserved.
+  - ✅ **Step 55 — read ⨾ decode** (`Phase6ReadDecode.lean`, `rlp_phase6_read_and_decode`): composes the
+    hand-off with `decode_encoded_short_list_schema_values`. From the host-ABI input contract
+    (`inputBufBaseIs buf_base`, `privateInputIs input`, `bytesRegion buf_base input` at the aligned/readable
+    buffer) with `input = encode (.list (schemaItems specs)) ++ tail`, the `read_input` syscall + `LD` +
+    decoder run end to end: the record is decoded into `bytesRegion outBase (schemaOut out specs)` with
+    `schemaScalarValues` recovered.
+  - ✅ **Step 56 — `readBytes`↔`bytesRegion` bridge** (`Phase6WriteOutput.lean`,
+    `getByte_of_bytesRegion` + `readBytes_of_bytesRegion`): the keystone of the write-half — when
+    `bytesRegion base bs` holds, `readBytes base bs.length = bs` (reconciles byte-granular `readBytes` with
+    the dword-packed region via `bytesRegion_dword_at` + `extractByte_packBytes` + an offset induction).
+    Connects the decoder's `bytesRegion` output to what `write_output` (which uses `readBytes`) emits.
+  - ✅ **Step 57 — `publicValues`-append framing** (`Phase6WriteOutput.lean`,
+    `holdsFor_sepConj_publicValuesIs_appendPublicValues` + `compatibleWith_appendPublicValues`): the
+    write-half analogue of `holdsFor_sepConj_memIs_setMem` — threads the host `write_output` append
+    (`publicValuesIs vals → publicValuesIs (vals ++ extra)`) through a separation-logic frame.
+  - ✅ **Step 58 — CPS-level `write_output` ECALL spec** (`Phase6WriteOutput.lean`,
+    `ecall_write_output_spec_gen_within`): the t0=0x10 syscall as a `cpsTripleWithin 1`, folding in
+    `readBytes_of_bytesRegion` so a held `bytesRegion ptr bs` (x11 = bs.length) emits exactly `bs`:
+    `publicValuesIs old → publicValuesIs (old ++ bs)`. Mirror of `ecall_read_input_spec_gen_within`.
+  - ✅ **Step 59 — `write_output` wrapper** (`Phase6WriteOutput.lean`, `rlp_phase6_write_output_prog`
+    + `rlp_phase6_write_output_spec_within_exact`): the 4-instruction wrapper
+    (`ADDI x10,rOut,0; LI x11,len; LI x5,0x10; ECALL`), mirror of
+    `rlp_phase4_read_input_len_spec_within_exact`.
+  - ✅ **Step 60 — `decode ⨾ write_output`** (`Phase6DecodeWrite.lean`, `rlp_phase6_decode_and_write`
+    + reusable `rlp_phase6_write_output_spec_regOwn`): composes the short-list schema decoder with the
+    write wrapper, committing the decoded output region (`publicValuesIs old → publicValuesIs (old ++
+    schemaOut out specs)`). The decoder's `schemaINV` post exposes scratch as `regOwn`, so the write
+    wrapper is first lifted to a `regOwn` pre; the leftover state is framed through. The CR
+    disjointness is range-based (`codeReq_disjoint_of_ranges` + `schemaCR_none_above`) — `crDisjoint`
+    /`seqFrame` time out / `whnf`-blow up on the opaque 36-instruction decoder `ofProg`. The reshape
+    is `cpsTripleWithin_weaken … xperm_hyp` with a nested `refine` so the target is concrete before
+    `xperm` runs (else `Q`/`Q'` are metavars). Concrete `[0xc4,0x2a,0x82,0x01,0x02] → 0x3000` example.
+  - ✅ **Step 61 — full `read ⨾ decode ⨾ write` pipeline** (`Phase6Pipeline.lean`,
+    `rlp_phase6_read_decode_write`): composes the read⨾decode unit (step 55) with the write wrapper —
+    the complete top-level pipeline. From the host-ABI input contract the program runs `read_input` +
+    `LD` + decoder + `write_output` in `(5 + (61 + schemaSteps)) + 4` steps, committing the decoded
+    record to `publicValues` and recovering every field value. Concrete end-to-end example: the host
+    supplies `[0xc4,0x2a,0x82,0x01,0x02]` at `0x2000`, decoded to `0x3000` and committed.
+    Axiom-clean, 0 sorry, no `bv_decide`/`native_decide`, no heartbeat overrides.
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
   C ABI.

@@ -93,6 +93,8 @@ def callFrameRoundtripData : String :=
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 16\n" ++
+  "frame_parent_bases:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
