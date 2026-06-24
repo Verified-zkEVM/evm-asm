@@ -206,7 +206,7 @@ By **opcode byte** (PUSH/DUP/SWAP/LOG families expanded; total = 149):
 | ✅ ADD | proven | `evm_add_stack_spec_within` | 30 |  |
 | ✅ MUL | proven | `evm_mul_stack_spec_within` | 63 |  |
 | ✅ SUB | proven | `evm_sub_stack_spec_within` | 30 |  |
-| ✅ DIV | proven | `evm_div_stack_spec_unconditional` | — | full-domain unconditional v5 DIV stack spec over divCode_noNop; wraps evm_div_stack_spec_unconditional_v5_div and the v5 lane proofs |
+| ✅ DIV | proven | `evm_div_v6_stack_spec` | — | full-domain unconditional v6 DIV stack spec over divCodeV6 (n=1 single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 proof (evm_div_v5_unconditional_over_divCodeV6), the n=1 fast arm is divK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch |
 | 🔶 SDIV | conditional | `evm_sdiv_exact_callable_return_stack_spec_within` | — | callable+dispatch shim; evm_sdiv_stack_spec_within conditional on hStack (discharged for divisor=0 and n=1/2/3/n4-call-skip); blocked on DIV/MOD spec-layer migration (bead evm-asm-9iqmw) |
 | 🔶 MOD | conditional | `evm_mod_stack_spec` | — | stack spec parametric over ModStackSpecCase (bzero / n=1,2,3, all require b.getLimbN 3 = 0); n=4 path not covered. Executable evm_mod uses divK_div128_v4 (PR #4992). Full-domain unconditional closure tracked by bead evm-asm-9iqmw / gh-61 |
 | 🔶 SMOD | conditional | `evm_smod_stack_spec_within` | — | all-case v4 wrapper result-stack spec; zero divisor discharged, nonzero path still parameterized by unsigned-MOD callable h_stack |
@@ -297,7 +297,7 @@ This is the verified gas-cost surrogate.
 
 ## D — Codegen reach
 
-- Programs in `EvmAsm/Codegen/Programs.lean` registry: **972**
+- Programs in `EvmAsm/Codegen/Programs.lean` registry: **974**
 - ziskemu round-trip scripts: **730** under `scripts/codegen-*.sh`
 - Milestones (CODEGEN.md):
 

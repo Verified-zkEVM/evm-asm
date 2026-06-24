@@ -107,6 +107,31 @@ def evmDivV5FromInputUnit : BuildUnit := {
   dataAsm     := evmDivFromInputDataSection
 }
 
+/-! ## evm_div_v6 — DIV executable using the n=1 fast-path dispatch
+
+    Same calling convention, prologue, and `.data` scratch layout as the v5
+    DIV unit; only the body differs (`evmDivV6Patched`, which dispatches to a
+    single-limb fast path for n=1 divisors and falls back to the embedded v5
+    Knuth path otherwise). Backed by the `evm_div_v6_stack_spec` proof over
+    `divCodeV6`. -/
+def evmDivV6Unit : BuildUnit := {
+  body        := evmDivV6Patched ++ evmAddEpilogue
+  prologueAsm := evmDivPrologue
+  dataAsm     := evmDivDataSection
+}
+
+def evm_div_v6_from_input : Program :=
+  LI .x5 (INPUT_ADDR + (BitVec.ofNat 64 INPUT_DATA_OFFSET)) ;;
+  copy64 .x12 .x5 .x6 ++
+  evmDivV6Patched ++
+  evmAddEpilogue
+
+def evmDivV6FromInputUnit : BuildUnit := {
+  body        := evm_div_v6_from_input
+  prologueAsm := evmDivFromInputPrologue
+  dataAsm     := evmDivFromInputDataSection
+}
+
 /-! ## evm_mod — M2 first MOD end-to-end through ziskemu
 
     Same calling convention and scratch layout as `evm_div`. `evm_mod`
