@@ -2755,6 +2755,11 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   ".balign 32\n" ++
   "frame_call_ctx:\n" ++
   "  .zero 32800\n" ++
+  -- `frame_parent_bases`: exact parent memory/env bases by CHILD depth. Depth 0
+  -- can be a staged stateless replay buffer rather than the global labels.
+  ".balign 16\n" ++
+  "frame_parent_bases:\n" ++
+  "  .zero 16400\n" ++
   -- Call descriptor + zero value word filled by the CALL descent
   -- (`callDescendFallThrough`) and consumed by `call_frame_descend`.
   ".balign 8\n" ++
@@ -3113,6 +3118,8 @@ def runtimeDispatcherStandaloneFrameData : String :=
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 16\n" ++
+  "frame_parent_bases:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
