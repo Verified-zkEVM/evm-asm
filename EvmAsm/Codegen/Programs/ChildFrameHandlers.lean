@@ -119,7 +119,7 @@ def childFrameHandlers
     , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 callFallThrough) }
   , { label := "h_CALLCODE"
     , opcodes := [0xf2]
-    , preBody := stackUnderflowGuardAsm 7 ++ "\n" ++ staticContextValueTransferGuardAsm 64
+    , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
     , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 callcodeFallThrough) }
   , { label := "h_DELEGATECALL"
@@ -193,9 +193,13 @@ def callDescendFallThrough
   -- value-bearing message calls (CALL=0, CALLCODE=2) charge value/balance; the
   -- value-less kinds (STATICCALL=1, DELEGATECALL=3) skip the balance gate.
   let valueBearing := mode == 0 || mode == 2
+  -- EIP-214 forbids CALL with nonzero value in a static context. CALLCODE is
+  -- value-bearing for balance/gas accounting but is not write-protected here.
+  let staticValueForbidden := mode == 0
   -- fva3w: EIP-7708 value-CALL transfer log emission is DEFERRED (see below); reset the
   -- per-CALL pending flag so a prior CALL's value transfer does not leak into this one.
   -- The snippet that emits one pending Transfer(cd_caller_be, cd_callee_be, cd_value_be)
+  -- and, for deleted same-tx-created callees, an additional Burn(cd_callee_be, cd_value_be)
   -- log into the CURRENT frame's env (env+472 count, via eip7708_append_transfer_log) and
   -- clears the flag. Used at .Lcd_descend (child env) and .Lcd_empty (parent env).
   let emitPendingXferLog : String → String := fun site =>
@@ -216,11 +220,18 @@ def callDescendFallThrough
     "  la t0, cd_value_be; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
     ".Lcd_xlog_val_" ++ site ++ tag ++ ":\n" ++
     "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_val_" ++ site ++ tag ++ "\n" ++
+    "  la t0, cd_xfer_log_burn\n  ld t1, 0(t0)\n  sd x0, 0(t0)\n" ++
     "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++
     "  jal ra, eip7708_append_transfer_log\n" ++
+    "  beqz t1, .Lcd_xlog_restore_" ++ site ++ tag ++ "\n" ++
+    ".Lcd_xlog_burn_" ++ site ++ tag ++ ":\n" ++
+    "  addi a0, sp, 32\n  addi a1, sp, 64\n" ++
+    "  jal ra, eip7708_append_burn_log\n" ++
+    ".Lcd_xlog_restore_" ++ site ++ tag ++ ":\n" ++
     "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
     ".Lcd_xlog_skip_" ++ site ++ tag ++ ":\n"
   "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++
+  "  la t0, cd_xfer_log_burn\n  sd x0, 0(t0)\n" ++
   -- drj99.1 (failed-inner rollback): DISARM the value-CALL non-storage-effect pre-snapshot at every
   -- CALL entry. A value-bearing CALL records the caller-debit + callee-credit NON-STORAGE effects in
   -- the parent BEFORE `jal call_frame_descend`, but the spec (interpreter.py process_message +
@@ -241,9 +252,9 @@ def callDescendFallThrough
   "  ld t0, 0(t0)\n" ++
   "  li t1, 1024\n" ++
   "  bgeu t0, t1, .Lcd_fail_" ++ tag ++ "\n" ++
-  -- Static-context value transfer gate. STATICCALL itself is value-less, but
-  -- CALL/CALLCODE with a nonzero value is state-changing and must exceptional-fail.
-  (if !valueBearing then "" else
+  -- Static-context value transfer gate. STATICCALL itself is value-less; only
+  -- CALL with a nonzero value exceptional-fails in a static context.
+  (if !staticValueForbidden then "" else
     "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
     "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
     "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
@@ -435,7 +446,30 @@ def callDescendFallThrough
     "  beqz t2, .Lcd_nse_cpaddr_d_" ++ tag ++ "\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_nse_cpaddr_" ++ tag ++ "\n" ++
     ".Lcd_nse_cpaddr_d_" ++ tag ++ ":\n" ++
-    -- pre fields: account_at_header_state_root(callee) -> nse_acct (nonce@0, balance@8)
+    -- coc3g.6.6: CALL value sent to a same-tx-created account after it SELFDESTRUCTed is burned;
+    -- do not append a callee credit that would resurrect the deleted account in the BAL final.
+    -- Detect the narrow marker emitted by selfdestructBeneficiaryNonstorageAsm for created-in-tx
+    -- deletion: the latest raw non-storage record for this callee is pre=post=0 and nonce 0->0.
+    "  la t0, exec_nonstorage_effect_count; ld t0, 0(t0)\n" ++
+    ".Lcd_nse_del_scan_" ++ tag ++ ":\n" ++
+    "  beqz t0, .Lcd_nse_del_done_" ++ tag ++ "\n" ++
+    "  addi t0, t0, -1\n" ++
+    "  li t1, 112; mul t1, t0, t1; la t2, exec_nonstorage_effect_log; add t2, t2, t1\n" ++
+    "  la t3, nse_callee_be; li t4, 0\n" ++
+    ".Lcd_nse_del_cmp_" ++ tag ++ ":\n" ++
+    "  li t5, 20; beq t4, t5, .Lcd_nse_del_match_" ++ tag ++ "\n" ++
+    "  add t5, t2, t4; lbu t5, 0(t5); add t6, t3, t4; lbu t6, 0(t6); bne t5, t6, .Lcd_nse_del_scan_" ++ tag ++ "\n" ++
+    "  addi t4, t4, 1; j .Lcd_nse_del_cmp_" ++ tag ++ "\n" ++
+    ".Lcd_nse_del_match_" ++ tag ++ ":\n" ++
+    "  ld t3, 32(t2); ld t4, 40(t2); or t3, t3, t4; ld t4, 48(t2); or t3, t3, t4; ld t4, 56(t2); or t3, t3, t4; bnez t3, .Lcd_nse_del_done_" ++ tag ++ "\n" ++
+    "  ld t3, 64(t2); ld t4, 72(t2); or t3, t3, t4; ld t4, 80(t2); or t3, t3, t4; ld t4, 88(t2); or t3, t3, t4; bnez t3, .Lcd_nse_del_done_" ++ tag ++ "\n" ++
+    "  ld t3, 96(t2); bnez t3, .Lcd_nse_del_done_" ++ tag ++ "\n" ++
+    "  ld t3, 104(t2); bnez t3, .Lcd_nse_del_done_" ++ tag ++ "\n" ++
+    "  la t0, cd_xfer_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
+    "  la t0, cd_xfer_log_burn\n  sd t1, 0(t0)\n" ++
+    "  j .Lcd_nse_done_" ++ tag ++ "\n" ++
+    ".Lcd_nse_del_done_" ++ tag ++ ":\n" ++
+    -- pre fields: account_at_header_state_root(callee) -> nse_acct (nonce, balance)
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, nse_callee_be\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  la a6, nse_acct\n" ++
     "  jal ra, account_at_header_state_root\n" ++
@@ -470,6 +504,7 @@ def callDescendFallThrough
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n  la a2, nse_post_bal\n" ++
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    ".Lcd_nse_xferlog_" ++ tag ++ ":\n" ++
     -- fhsxz.2.4.2.63.1.6.2.6: EIP-7708 emit_transfer_log for this CALL value move, so the
     -- value-bearing tx's receipt logs/bloom are complete. from = parent ADDRESS (env+0),
     -- to = callee (x12+32), value = value word (x12+valueOff), ALL passed as raw EVM stack
@@ -505,6 +540,7 @@ def callDescendFallThrough
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_tl_selfchk_" ++ tag ++ "\n" ++
     ".Lcd_tl_notself_" ++ tag ++ ":\n" ++
     "  la t0, cd_xfer_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
+    "  la t0, cd_xfer_log_burn\n  sd x0, 0(t0)\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n")) ++
   -- bbow4.1.1 / bbow4.2.5.8: EIP-150 value-transfer gas check. Amsterdam
   -- `generic_call` first checks `access_gas + transfer_gas + extend_memory` before
@@ -559,6 +595,26 @@ def callDescendFallThrough
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- created this tx -> alive -> no charge
+    -- coc3g.6.6: a same-tx-created callee already deleted by SELFDESTRUCT burns incoming value;
+    -- it also must not pay CALL NEW_ACCOUNT state gas. Detect the same zero deletion marker
+    -- used above for suppressing the callee credit.
+    "  la t0, exec_nonstorage_effect_count; ld t0, 0(t0)\n" ++
+    ".Lcd_nacc_del_scan_" ++ tag ++ ":\n" ++
+    "  beqz t0, .Lcd_nacc_del_done_" ++ tag ++ "\n" ++
+    "  addi t0, t0, -1\n" ++
+    "  li t1, 112; mul t1, t0, t1; la t2, exec_nonstorage_effect_log; add t2, t2, t1\n" ++
+    "  la t3, cd_callee_be; li t4, 0\n" ++
+    ".Lcd_nacc_del_cmp_" ++ tag ++ ":\n" ++
+    "  li t5, 20; beq t4, t5, .Lcd_nacc_del_match_" ++ tag ++ "\n" ++
+    "  add t5, t2, t4; lbu t5, 0(t5); add t6, t3, t4; lbu t6, 0(t6); bne t5, t6, .Lcd_nacc_del_scan_" ++ tag ++ "\n" ++
+    "  addi t4, t4, 1; j .Lcd_nacc_del_cmp_" ++ tag ++ "\n" ++
+    ".Lcd_nacc_del_match_" ++ tag ++ ":\n" ++
+    "  ld t3, 32(t2); ld t4, 40(t2); or t3, t3, t4; ld t4, 48(t2); or t3, t3, t4; ld t4, 56(t2); or t3, t3, t4; bnez t3, .Lcd_nacc_del_done_" ++ tag ++ "\n" ++
+    "  ld t3, 64(t2); ld t4, 72(t2); or t3, t3, t4; ld t4, 80(t2); or t3, t3, t4; ld t4, 88(t2); or t3, t3, t4; bnez t3, .Lcd_nacc_del_done_" ++ tag ++ "\n" ++
+    "  ld t3, 96(t2); bnez t3, .Lcd_nacc_del_done_" ++ tag ++ "\n" ++
+    "  ld t3, 104(t2); bnez t3, .Lcd_nacc_del_done_" ++ tag ++ "\n" ++
+    "  j .Lcd_nacc_done_" ++ tag ++ "\n" ++
+    ".Lcd_nacc_del_done_" ++ tag ++ ":\n" ++
     -- account_exists_at_header_state_root(callee) -> aex_predicate (helper clobbers a-regs aliasing x10/x12/x13)
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++

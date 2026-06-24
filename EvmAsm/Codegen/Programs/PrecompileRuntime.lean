@@ -321,13 +321,13 @@ def stagePrecompileInputWindowAsm
   "  add x19, x19, x13\n" ++
   "  li x22, " ++ toString sourceOff ++ "\n" ++
   "  add x19, x19, x22\n" ++
-  precompileFrameAddi "x21" frameOff ++
+  precompileFrameAddi "x24" frameOff ++
   ".L" ++ tag ++ "_copy:\n" ++
   "  beqz x18, .L" ++ tag ++ "_done\n" ++
   "  lbu x23, 0(x19)\n" ++
-  "  sb x23, 0(x21)\n" ++
+  "  sb x23, 0(x24)\n" ++
   "  addi x19, x19, 1\n" ++
-  "  addi x21, x21, 1\n" ++
+  "  addi x24, x24, 1\n" ++
   "  addi x18, x18, -1\n" ++
   "  j .L" ++ tag ++ "_copy\n" ++
   ".L" ++ tag ++ "_done:\n"
@@ -572,6 +572,7 @@ def precompileSuccessKzgPointEvalAsm
   "  sb x16, 7(x18)\n" ++
   "  li x16, 0x33\n" ++
   "  sb x16, 8(x18)\n" ++
+  "  li x16, 0x39\n" ++
   "  sb x16, 9(x18)\n" ++
   "  li x16, 0xd8\n" ++
   "  sb x16, 10(x18)\n" ++
