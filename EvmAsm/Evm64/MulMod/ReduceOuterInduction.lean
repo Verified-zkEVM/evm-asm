@@ -164,4 +164,33 @@ theorem evm_mulmod_reduce512_loop_spec_within
         regOwn .x16 ** regOwn .x18 ** limbChain ptr limbs 8) :=
   outer_aux 8 (by omega) (by omega) sp base ptr r n limbs
 
+/-- The reducer loop sits at byte offset 24 (after the six-instruction
+    `evm_mulmod_reduce512_init` prefix) within the total reducer program
+    `evm_mulmod_reduce512 = init ;; loop ;; write_result ;; epilogue`. -/
+theorem evm_mulmod_reduce512_loop_code_sub (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + BitVec.ofNat 64 24) evm_mulmod_reduce512_loop) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512) a = some i := by
+  intro a i h
+  refine CodeReq.ofProg_mono_append_right base evm_mulmod_reduce512_init
+    (evm_mulmod_reduce512_loop ++
+      (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue))
+    (by decide) a i ?_
+  exact CodeReq.ofProg_mono_append_left (base + BitVec.ofNat 64 24)
+    evm_mulmod_reduce512_loop
+    (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue) a i h
+
+/-- The full outer reducer loop, lifted into the total reducer program code:
+    from byte offset 24 it folds all eight product limbs into the remainder,
+    landing at offset 300 (where `write_result` begins). -/
+theorem evm_mulmod_reduce512_loop_total_spec_within
+    (sp base ptr : Word) (r n : EvmWord) (limbs : Nat → Word) :
+    cpsTripleWithin ((2 + 64 * 64 + 2 + 1) * 8) (base + 24) (base + 24 + 276)
+      (CodeReq.ofProg base evm_mulmod_reduce512)
+      (outerEntryCore sp ptr (BitVec.ofNat 64 8) r n ** limbChain ptr limbs 8)
+      (mulModReduceBitLoopPost sp (mulModReduceOuterFold n limbs r 8) n **
+        regOwn .x16 ** regOwn .x18 ** limbChain ptr limbs 8) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_loop_code_sub base)
+    (h := evm_mulmod_reduce512_loop_spec_within sp (base + BitVec.ofNat 64 24) ptr r n limbs)
+
 end EvmAsm.Evm64
