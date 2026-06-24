@@ -46,6 +46,13 @@
 #     --limit N          cap to N guest invocations (default 50)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 5000000000)
+#     --budget-retry-steps N
+#                        retry high-gas BUDGET rows at N steps before classifying
+#                        them as BUDGET (default $EEST_BUDGET_RETRY_STEPS or 50000000000;
+#                        0 disables)
+#     --budget-retry-min-gas N
+#                        only retry BUDGET rows whose manifest gas_limit is at
+#                        least N (default $EEST_BUDGET_RETRY_MIN_GAS or 100000000)
 #     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
 #                        Auto per-job budgets are sized for the uncached ELF->ROM
 #                        transpile; when the ziskemu ROM cache is detected via the
@@ -135,14 +142,12 @@ LIMIT=50
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
 # runaway/very-large runs; a case that halts earlier consumes only the steps it
-# needs, so a generous cap never slows normal blocks. The heaviest legitimate
-# case observed across a full 23219-case Amsterdam run is the EIP-8037
-# state_gas_reservoir block_2d_gas_valid_when_cumulative_exceeds_limit fixture
-# (gas_limit 1e8), which halts correctly at ~2.94e9 steps; the old 1e9 cap
-# truncated it to a spurious BUDGET. 5e9 covers it with ~1.7x headroom while
-# staying ~13x below ziskemu's -n ceiling (68719476735) so a genuinely runaway
-# guest is still bounded.
+# needs. The EIP-8037 state_gas_reservoir max-gas fixture can require more than
+# the default on current ziskemu builds, so high-gas BUDGET rows get one larger
+# retry before they are reported as budget exhaustion.
 STEPS="${EEST_STEPS:-5000000000}"
+BUDGET_RETRY_STEPS="${EEST_BUDGET_RETRY_STEPS:-50000000000}"
+BUDGET_RETRY_MIN_GAS="${EEST_BUDGET_RETRY_MIN_GAS:-100000000}"
 # Case-insensitive ERE matched against the ziskemu log when a run does NOT
 # produce a valid 105-byte output, to tell "exhausted the --steps budget"
 # (BUDGET, not a correctness failure) apart from a genuine ERROR. Override
@@ -186,6 +191,8 @@ Options:
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
   --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
+  --budget-retry-steps N   retry high-gas BUDGET rows at N steps before final BUDGET classification (0 disables)
+  --budget-retry-min-gas N only retry BUDGET rows with manifest gas_limit >= N
   --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
                            per-job budgets relax automatically (up to the same caps)
                            when the ziskemu ROM cache is detected by the first-case warmup
@@ -236,6 +243,8 @@ while [[ $# -gt 0 ]]; do
     --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; shift 2 ;;
     --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
     --steps) require_arg "$1" "${2:-}"; STEPS="$2"; shift 2 ;;
+    --budget-retry-steps) require_arg "$1" "${2:-}"; BUDGET_RETRY_STEPS="$2"; shift 2 ;;
+    --budget-retry-min-gas) require_arg "$1" "${2:-}"; BUDGET_RETRY_MIN_GAS="$2"; shift 2 ;;
     --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
     --max-jobs) require_arg "$1" "${2:-}"; MAX_JOBS="$2"; shift 2 ;;
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
@@ -281,6 +290,18 @@ if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ 
 fi
 if [[ "$JOB_CPU_THREADS" != "auto" ]] && { ! [[ "$JOB_CPU_THREADS" =~ ^[0-9]+$ ]] || [[ "$JOB_CPU_THREADS" -lt 1 ]]; }; then
   echo "EEST_JOB_CPU_THREADS must be a positive integer or auto (got: $JOB_CPU_THREADS)" >&2
+  exit 1
+fi
+if ! [[ "$STEPS" =~ ^[0-9]+$ ]] || [[ "$STEPS" -lt 1 ]]; then
+  echo "--steps/EEST_STEPS must be a positive integer (got: $STEPS)" >&2
+  exit 1
+fi
+if ! [[ "$BUDGET_RETRY_STEPS" =~ ^[0-9]+$ ]]; then
+  echo "--budget-retry-steps/EEST_BUDGET_RETRY_STEPS must be a nonnegative integer (got: $BUDGET_RETRY_STEPS)" >&2
+  exit 1
+fi
+if ! [[ "$BUDGET_RETRY_MIN_GAS" =~ ^[0-9]+$ ]]; then
+  echo "--budget-retry-min-gas/EEST_BUDGET_RETRY_MIN_GAS must be a nonnegative integer (got: $BUDGET_RETRY_MIN_GAS)" >&2
   exit 1
 fi
 if [[ "$VERDICT_DEBUG" != "0" && "$VERDICT_DEBUG" != "1" ]]; then
@@ -1054,27 +1075,63 @@ run_case() {
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
   local tmp_result="$result.tmp.$$"
-  local actual_hex
+  local actual_hex run_steps
 
-  if ! "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
-        -n "$STEPS" >"$log" 2>&1 </dev/null; then
+  run_steps="$STEPS"
+  run_ziskemu_case() {
+    local steps="$1"
+    local run_log="$2"
+    "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
+        -n "$steps" >"$run_log" 2>&1 </dev/null
+  }
+
+  retry_budget_case() {
+    [[ "$BUDGET_RETRY_STEPS" -gt "$run_steps" && "$gas_limit" -ge "$BUDGET_RETRY_MIN_GAS" ]] || return 1
+    run_steps="$BUDGET_RETRY_STEPS"
+    log="$RUN_DIR/$label.emu.retry-$run_steps.log"
+    run_ziskemu_case "$run_steps" "$log"
+  }
+
+  if ! run_ziskemu_case "$run_steps" "$log"; then
     # Distinguish a --steps budget exhaustion (sha256-heavy merkleization,
     # not a wrong answer) from a genuine error. Non-match => ERROR (no
     # behaviour change vs before this distinction was added).
     if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
-      printf 'BUDGET\tsteps:%s\n' "$STEPS" > "$tmp_result"
+      if retry_budget_case; then
+        :
+      elif grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+        printf 'BUDGET\tsteps:%s\n' "$run_steps" > "$tmp_result"
+        mv "$tmp_result" "$result"
+        return 0
+      else
+        printf 'ERROR\texit\n' > "$tmp_result"
+        mv "$tmp_result" "$result"
+        return 0
+      fi
     else
       printf 'ERROR\texit\n' > "$tmp_result"
+      mv "$tmp_result" "$result"
+      return 0
     fi
-    mv "$tmp_result" "$result"
-    return 0
   fi
   actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
   if [[ "${#actual_hex}" -lt 210 ]]; then
     # A zero-exit run that produced no valid output but whose log shows the
     # step cap was hit is also a budget exhaustion, not a correctness error.
     if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
-      printf 'BUDGET\tsteps:%s\n' "$STEPS" > "$tmp_result"
+      if retry_budget_case; then
+        actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
+        if [[ "${#actual_hex}" -ge 210 ]]; then
+          printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+          mv "$tmp_result" "$result"
+          return 0
+        fi
+      fi
+      if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+        printf 'BUDGET\tsteps:%s\n' "$run_steps" > "$tmp_result"
+      else
+        printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
+      fi
     else
       printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
     fi
@@ -1346,7 +1403,7 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  generated:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "  fixture tag: $TAG"
   echo "  selection:   $selection"
-  echo "  ziskemu:     $ZISKEMU (steps=$STEPS)"
+  echo "  ziskemu:     $ZISKEMU (steps=$STEPS, budget_retry_steps=$BUDGET_RETRY_STEPS, budget_retry_min_gas=$BUDGET_RETRY_MIN_GAS)"
   echo "  zisk build:  $ZISKEMU_FLAVOR -- $ZISKEMU_VERSION"
   echo "  jobs:        $JOBS (cpus=$CPUS, ${JOB_MEM_MIB} MiB/proc budget)"
   echo "  selected:    $selectedCount"
