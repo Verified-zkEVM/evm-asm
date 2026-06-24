@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # Run the EIP-8037 state-gas reservoir cumulative-limit EEST frontier.
 #
-# This is currently a diagnostic gate: the guest launches and agrees on
-# root/tail, but false-rejects the successful_validation bit.
+# This is a full-match gate for the high-gas cumulative-reservoir row.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
 JOBS="${EEST_EIP8037_RESERVOIR_JOBS:-${EEST_JOBS:-2}}"
-STEPS="${EEST_EIP8037_RESERVOIR_STEPS:-${EEST_STEPS:-1000000000}}"
+STEPS="${EEST_EIP8037_RESERVOIR_STEPS:-${EEST_STEPS:-12000000000}}"
 RUN_DIR="${EEST_EIP8037_RESERVOIR_RUN_DIR:-gen-out/eest-eip8037-reservoir}"
 FILTER="${EEST_EIP8037_RESERVOIR_FILTER:-block_2d_gas_valid_when_cumulative_exceeds_limit}"
 
@@ -57,13 +56,19 @@ ran="$(baseline_value "ran")"
 errored="$(baseline_value "errored")"
 budget="$(baseline_value "budget")"
 root="$(baseline_value "root match")"
+succ="$(baseline_value "succ match")"
 tail="$(baseline_value "tail match")"
+full="$(baseline_value "full match")"
+fail="$(baseline_value "fail")"
 
 [[ "$selected" == "$TOTAL" ]] || { echo "expected selected=$TOTAL, got ${selected:-missing}" >&2; exit 1; }
 [[ "$ran" == "$TOTAL" ]] || { echo "expected ran=$TOTAL, got ${ran:-missing}" >&2; exit 1; }
 [[ "${errored:-missing}" == "0" ]] || { echo "expected errored=0, got ${errored:-missing}" >&2; exit 1; }
 [[ "${budget:-missing}" == "0" ]] || { echo "expected budget=0, got ${budget:-missing}" >&2; exit 1; }
 [[ "$root" == "$TOTAL" ]] || { echo "expected root match=$TOTAL, got ${root:-missing}" >&2; exit 1; }
+[[ "$succ" == "$TOTAL" ]] || { echo "expected succ match=$TOTAL, got ${succ:-missing}" >&2; exit 1; }
 [[ "$tail" == "$TOTAL" ]] || { echo "expected tail match=$TOTAL, got ${tail:-missing}" >&2; exit 1; }
+[[ "$full" == "$TOTAL" ]] || { echo "expected full match=$TOTAL, got ${full:-missing}" >&2; exit 1; }
+[[ "${fail:-missing}" == "0" ]] || { echo "expected fail=0, got ${fail:-missing}" >&2; exit 1; }
 
-echo "==> PASS: EIP-8037 state-reservoir frontier launches with root/tail parity ($TOTAL case(s))"
+echo "==> PASS: EIP-8037 state-reservoir frontier full-matched ($TOTAL case(s))"

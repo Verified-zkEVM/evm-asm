@@ -243,6 +243,66 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi sp, sp, 64
 " ++
+    -- A same-transaction CREATE deposit is not visible in the header-state code
+    -- witness. The CREATE return path records deployed bytes in
+    -- exec_code_effect_log, so EXTCODECOPY must consult that current-code overlay
+    -- before falling back to the pre-block trie helper.
+    "  addi sp, sp, -64
+" ++
+    "  sd x10, 0(sp)
+" ++
+    "  sd x12, 8(sp)
+" ++
+    "  sd x13, 16(sp)
+" ++
+    "  sd x14, 24(sp)
+" ++
+    "  sd x15, 32(sp)
+" ++
+    "  sd x19, 40(sp)
+" ++
+    "  sd x21, 48(sp)
+" ++
+    "  la a0, exec_code_effect_log
+" ++
+    "  la t0, exec_code_effect_count; ld a1, 0(t0)
+" ++
+    "  la a2, ecc_address_scratch
+" ++
+    "  jal ra, find_code_effect_by_address
+" ++
+    "  mv t0, a0
+" ++
+    "  ld x10, 0(sp)
+" ++
+    "  ld x12, 8(sp)
+" ++
+    "  ld x13, 16(sp)
+" ++
+    "  ld x14, 24(sp)
+" ++
+    "  ld x15, 32(sp)
+" ++
+    "  ld x19, 40(sp)
+" ++
+    "  ld x21, 48(sp)
+" ++
+    "  addi sp, sp, 64
+" ++
+    "  beqz t0, .Lrt_ecc_no_create_effect
+" ++
+    "  addi t1, t0, 48
+" ++
+    "  ld t2, 40(t0)
+" ++
+    "  ld t3, 64(x12)
+" ++
+    "  li t4, 0
+" ++
+    "  j .Lrt_ecc_same_loop
+" ++
+    ".Lrt_ecc_no_create_effect:
+" ++
     "  ld t0, 608(x20)
 " ++         -- witness.codes ptr
     "  la t1, eccp_codes_ptr

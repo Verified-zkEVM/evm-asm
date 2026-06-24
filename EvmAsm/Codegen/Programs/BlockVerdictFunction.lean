@@ -1020,6 +1020,12 @@ def blockVerdictFunction : String :=
   ".Lbv_i3sksys_o:\n  li t2, 20\n" ++
   ".Lbv_i3sksys_i:\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lbv_i3sksys_i\n" ++
   "  addi t0, t0, 12\n  addi t4, t4, -1\n  bnez t4, .Lbv_i3sksys_o\n" ++
+  -- bbow4.2.5.7: EIP-7702 authorization nonce bumps are consensus state changes
+  -- made by set_delegation before runtime execution, not CALL/CREATE effects. Append
+  -- them to the non-storage effect log before aggregating it for BAL reconciliation.
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
+  "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
+  "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
   -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
   -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL
