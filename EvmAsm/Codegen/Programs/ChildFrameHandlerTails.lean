@@ -14,12 +14,11 @@ import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.CreateRuntime
+import EvmAsm.Codegen.Programs.CreateSameTxCollision
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Rv64.Program
-
 namespace EvmAsm.Codegen
-
 open EvmAsm.Rv64
 
 def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
@@ -260,6 +259,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la x18, hcon_predicate\n" ++
     "  ld x18, 0(x18)\n" ++
     "  bnez x18, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    createSameTxCollisionScanAsm hasSalt ++
     "6:\n" ++
     -- coc3g.6 CAUSE 2: mirror spec generic_create (amsterdam vm/instructions/system.py:122
     -- `evm.accessed_addresses.add(contract_address)`). On the committing CREATE path the derived
@@ -350,8 +350,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- create_account state gas = 120 * 1530 = 183600 (v0.4.0)
     "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n  mv t4, t2\n" ++
     "  bgeu t2, t0, .Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
-    "  ld t2, 568(x20)\n  bltu t2, t3, 7f\n" ++
+    "  sub t3, t0, t2\n  ld t2, 568(x20)\n  bltu t2, t3, 7f\n  sd x0, 0(t1)\n" ++
     "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_csg_res_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++

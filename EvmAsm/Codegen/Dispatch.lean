@@ -2290,6 +2290,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- EIP-7702 validate_authorization refunds state gas into the message reservoir
+  -- when the recovered authority already exists (and, separately, for existing
+  -- delegation code). Transaction-aware callers compute the exact BAL/pre-state
+  -- refund and stage it in runtime_tx_auth_state_refund before this setup runs.
+  "  la x11, runtime_tx_auth_state_refund\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_auth_state_refund_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
@@ -2744,6 +2756,11 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   ".balign 32\n" ++
   "frame_call_ctx:\n" ++
   "  .zero 32800\n" ++
+  -- `frame_parent_bases`: exact parent memory/env bases by CHILD depth. Depth 0
+  -- can be a staged stateless replay buffer rather than the global labels.
+  ".balign 16\n" ++
+  "frame_parent_bases:\n" ++
+  "  .zero 16400\n" ++
   -- Call descriptor + zero value word filled by the CALL descent
   -- (`callDescendFallThrough`) and consumed by `call_frame_descend`.
   ".balign 8\n" ++
@@ -2769,6 +2786,10 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
+  -- coc3g.6.6: append-Burn flag for the same deferred hook. 0 = Transfer only,
+  -- 1 = Transfer(caller, callee, value) plus Burn(callee, value) for value sent to
+  -- an account created and deleted in this tx.
+  "cd_xfer_log_burn:\n  .zero 8\n" ++
   -- drj99.1 (failed-inner rollback): pre-snapshot of exec_nonstorage_effect_count/overflow taken by
   -- callDescendFallThrough BEFORE the value-CALL caller-debit/callee-credit records, consumed by
   -- call_frame_descend so frame_return rolls those records back on a child OOG/REVERT. `armed` is a
@@ -2808,6 +2829,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_list_len:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_warm_fn:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
@@ -3100,6 +3123,8 @@ def runtimeDispatcherStandaloneFrameData : String :=
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 16\n" ++
+  "frame_parent_bases:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++

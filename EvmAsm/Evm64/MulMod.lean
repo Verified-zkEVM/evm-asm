@@ -14,6 +14,14 @@ import EvmAsm.Evm64.MulMod.AddrNormAttr
 import EvmAsm.Evm64.MulMod.Layout
 import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.MulMod.ProductAlgebra
+import EvmAsm.Evm64.MulMod.ReduceSemantics
+import EvmAsm.Evm64.MulMod.ReduceShift
+import EvmAsm.Evm64.MulMod.ReduceCompare
+import EvmAsm.Evm64.MulMod.ReduceInnerStepPrefix
+import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
+import EvmAsm.Evm64.MulMod.ReduceInnerStepTail
+import EvmAsm.Evm64.MulMod.ReduceInnerStepSubtract
+import EvmAsm.Evm64.MulMod.ReduceInnerStepSpecs
 import EvmAsm.Evm64.MulMod.LimbSpec
 import EvmAsm.Evm64.MulMod.AddPartialSpecs
 import EvmAsm.Evm64.MulMod.AddPartialTable
@@ -38,8 +46,10 @@ import EvmAsm.Evm64.MulMod.ProductLayoutColumn5Target
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn6Target
 import EvmAsm.Evm64.MulMod.ProductLayoutColumn7Target
 import EvmAsm.Evm64.MulMod.ProductLayoutHighTargets
+import EvmAsm.Evm64.MulMod.ProductLayoutSpec
 import EvmAsm.Evm64.MulMod.AddrNorm
 import EvmAsm.Evm64.MulMod.Compose.Base
+import EvmAsm.Evm64.MulMod.Compose.Reducer
 import EvmAsm.Evm64.MulMod.Compose.ProductCore
 import EvmAsm.Evm64.MulMod.Compose.ProductSuffix
 import EvmAsm.Evm64.MulMod.Spec
