@@ -134,4 +134,62 @@ theorem evm_mulmod_reduce512_loop_fold_one_limb_spec_within
         xperm_hyp hq)
       hpf hif)
 
+/-- The pointer-advance / loop-control suffix `[ADDI x16, ADDI x18, BNE]` sits at
+    byte offset 264 (instruction index 66) within `evm_mulmod_reduce512_loop`. -/
+theorem evm_mulmod_reduce512_loop_suffix_code_sub (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 264)
+        [Instr.ADDI .x16 .x16 4088, Instr.ADDI .x18 .x18 4095,
+          Instr.BNE .x18 .x0 (-272 : BitVec 13)]) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop) a = some i := by
+  refine CodeReq.ofProg_mono_sub base (base + 264) evm_mulmod_reduce512_loop
+    [Instr.ADDI .x16 .x16 4088, Instr.ADDI .x18 .x18 4095,
+      Instr.BNE .x18 .x0 (-272 : BitVec 13)] 66 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 66) = (264 : Word) by decide]
+  · rfl
+  · rw [evm_mulmod_reduce512_loop_length]; decide
+  · rw [evm_mulmod_reduce512_loop_length]; decide
+
+/-- Single instruction `ADDI x16, x16, -8` at index 66 lives in `reduce512_loop`. -/
+private theorem loop_addi16_code_sub (base : Word) :
+    ∀ a i, CodeReq.singleton (base + 264) (Instr.ADDI .x16 .x16 4088) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop) a = some i := by
+  rw [← CodeReq.ofProg_singleton]
+  refine CodeReq.ofProg_mono_sub base (base + 264) evm_mulmod_reduce512_loop
+    [Instr.ADDI .x16 .x16 4088] 66 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 66) = (264 : Word) by decide]
+  · rfl
+  · rw [evm_mulmod_reduce512_loop_length]; decide
+  · rw [evm_mulmod_reduce512_loop_length]; decide
+
+/-- Single instruction `ADDI x18, x18, -1` at index 67 lives in `reduce512_loop`. -/
+private theorem loop_addi18_code_sub (base : Word) :
+    ∀ a i, CodeReq.singleton (base + 268) (Instr.ADDI .x18 .x18 4095) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop) a = some i := by
+  rw [← CodeReq.ofProg_singleton]
+  refine CodeReq.ofProg_mono_sub base (base + 268) evm_mulmod_reduce512_loop
+    [Instr.ADDI .x18 .x18 4095] 67 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 67) = (268 : Word) by decide]
+  · rfl
+  · rw [evm_mulmod_reduce512_loop_length]; decide
+  · rw [evm_mulmod_reduce512_loop_length]; decide
+
+/-- Outer-loop pointer/counter advance: `ADDI x16, x16, -8 ; ADDI x18, x18, -1`. -/
+theorem evm_mulmod_reduce512_loop_advance_spec_within (base x16v x18v : Word) :
+    cpsTripleWithin 2 (base + 264) (base + 272)
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((.x16 ↦ᵣ x16v) ** (.x18 ↦ᵣ x18v))
+      ((.x16 ↦ᵣ (x16v + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12)))) := by
+  have h16 := cpsTripleWithin_extend_code (hmono := loop_addi16_code_sub base)
+    (h := addi_spec_gen_same_within .x16 x16v (4088 : BitVec 12) (base + 264) (by decide))
+  have h18 := cpsTripleWithin_extend_code (hmono := loop_addi18_code_sub base)
+    (h := addi_spec_gen_same_within .x18 x18v (4095 : BitVec 12) (base + 268) (by decide))
+  have h16f := cpsTripleWithin_frameR ((.x18 ↦ᵣ x18v)) (by pcFree) h16
+  have h18f := cpsTripleWithin_frameR
+    ((.x16 ↦ᵣ (x16v + signExtend12 (4088 : BitVec 12)))) (by pcFree) h18
+  rw [show (base + 264 + 4 : Word) = base + 268 from by bv_omega] at h16f
+  rw [show (base + 272 : Word) = base + 268 + 4 from by bv_omega]
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) h16f h18f)
+
 end EvmAsm.Evm64
