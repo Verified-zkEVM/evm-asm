@@ -448,7 +448,18 @@ def callDescendFallThrough
     ".Lcd_nse_zero_pre_" ++ tag ++ ":\n" ++
     "  la t0, nse_acct\n  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
     ".Lcd_nse_have_pre_" ++ tag ++ ":\n" ++
-    -- post_balance = pre_balance (nse_acct+8) + value (cd_value_be, populated above)
+    -- sr5m3.1: overlay the callee credit's pre_balance with the latest same-transaction
+    -- non-storage effect when one exists. Header pre-state alone is stale for a pre-existing
+    -- account that already moved value in this transaction, e.g. CALL target runs
+    -- SELFDESTRUCT first (recording target balance 1 -> 0) and is then called with value 1;
+    -- the second CALL credit must record 0 -> 1, not header 1 -> 2. The nonce still comes
+    -- from header pre-state because value transfer does not bump it. The helper overwrites
+    -- nse_acct+8 only on a hit; miss keeps the header/zero pre_balance above.
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n" ++
+    "  jal ra, nonstorage_effect_latest_balance\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
     "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
     "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
     "  jal ra, u256_add_be\n" ++
@@ -495,6 +506,24 @@ def callDescendFallThrough
     ".Lcd_tl_notself_" ++ tag ++ ":\n" ++
     "  la t0, cd_xfer_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n")) ++
+  -- bbow4.1.1 / bbow4.2.5.8: EIP-150 value-transfer gas check. Amsterdam
+  -- `generic_call` first checks `access_gas + transfer_gas + extend_memory` before
+  -- STATE ACCESS / delegation resolution and before EIP-8037 NEW_ACCOUNT state gas.
+  -- Access/memory are already charged before this fall-through, so the residual check here is
+  -- the value-transfer 9000. Keeping it before the state-gas charge matters: if the
+  -- NEW_ACCOUNT reservoir is drained first, a CALL tuned to be one gas short for
+  -- ordinary CALL gas can inflate the parent's state reservoir before exceptional halt
+  -- (`call_oog_reservoir_inflation_detection`). The actual 9000 charge still happens in
+  -- `call_frame_descend`; the empty-callee fast path charges the net 6700 separately.
+  (if valueBearing then
+     "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+     "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+     "  beqz t3, .Lcd_xfergas_ok_" ++ tag ++ "\n" ++   -- value == 0: no transfer
+     "  ld t3, 568(x20)\n  li t4, 9000\n  bltu t3, t4, .exit_outofgas\n" ++
+     ".Lcd_xfergas_ok_" ++ tag ++ ":\n"
+   else "") ++
   -- nxio8.8 (EIP-8037): CALL (mode 0) with value!=0 to a not-alive callee creates the
   -- account -> charge_state_gas(NEW_ACCOUNT = STATE_BYTES_PER_NEW_ACCOUNT(120)*COST_PER_STATE_BYTE(1530)
   -- = 183600). Spec vm/instructions/system.py:463-464: `if value != 0 and not is_account_alive(to):
@@ -696,6 +725,55 @@ def callDescendFallThrough
      "  li t0, 6700\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
+     -- bbow4.2.2 (bv41): the NEW_ACCOUNT state-gas charge (nxio8.8, below) lives in the
+     -- descend tail, which this insufficient-balance early-exit BYPASSES. Spec
+     -- system.py:463-465 charges `if value != 0 and not is_account_alive(to):
+     -- charge_state_gas(NEW_ACCOUNT)` BEFORE the balance check, so it stands even when the
+     -- value-CALL fails on insufficient balance. Mirror the nxio8.8 charge here (mode 0 only;
+     -- CALLCODE mode 2 recipient = current_target, always alive). value>0 is guaranteed
+     -- (insuffbal => caller balance < value, balance>=0). x12 is still the parent stack top
+     -- (callee at x12+32); x20 the parent env (witness ctx env+576..616). Without it
+     -- bvgr_tx_exec_state_gas under-counts by 183600 -> block_state under-count -> bv41.
+     (if mode != 0 then "" else
+       "  ld t3, 584(x20)\n  beqz t3, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++   -- no witness ctx -> conservative skip
+       "  la t0, cd_callee_be\n  addi t1, x12, " ++ toString (32+19) ++ "\n  li t2, 20\n" ++
+       ".Lcd_ibnacc_addr_" ++ tag ++ ":\n" ++
+       "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
+       "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
+       -- created this tx -> alive -> no charge
+       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+       "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, cd_callee_be\n" ++
+       "  jal ra, find_code_effect_by_address\n  mv t6, a0\n" ++
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++
+       -- account_exists_at_header_state_root(callee)
+       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+       "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
+       "  jal ra, account_exists_at_header_state_root\n  mv t6, a0\n" ++
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++           -- lookup err -> conservative skip
+       "  la t0, aex_predicate\n  ld t1, 0(t0)\n" ++
+       "  beqz t1, .Lcd_ibnacc_charge_" ++ tag ++ "\n" ++         -- not exists -> not alive -> charge
+       -- exists: account_is_empty_at_header_state_root(callee)
+       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+       "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++
+       "  jal ra, account_is_empty_at_header_state_root\n  mv t6, a0\n" ++
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++           -- lookup err -> skip
+       "  la t0, aie_predicate\n  ld t1, 0(t0)\n" ++
+       "  beqz t1, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++           -- exists & not empty = alive -> no charge
+       ".Lcd_ibnacc_charge_" ++ tag ++ ":\n" ++
+       liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++   -- NEW_ACCOUNT state gas = 120*1530 = 183600
+       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+       "  bgeu t2, t0, .Lcd_ibnacc_res_" ++ tag ++ "\n" ++
+       "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+       "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+       "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .Lcd_ibnacc_used_" ++ tag ++ "\n" ++
+       ".Lcd_ibnacc_res_" ++ tag ++ ":\n" ++
+       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
+       ".Lcd_ibnacc_used_" ++ tag ++ ":\n" ++
+       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+       ".Lcd_ibnacc_done_" ++ tag ++ ":\n") ++
      "  j .Lcd_fail_" ++ tag ++ "\n"
    else "") ++
   -- empty code (EOA): the call succeeds, runs nothing → push 1

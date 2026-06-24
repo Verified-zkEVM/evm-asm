@@ -495,6 +495,8 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
+  eip7702AuthNonstorageEffectsFunction ++ "\n" ++
+  blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
   b1SenderTableFindFunction ++ "\n" ++
