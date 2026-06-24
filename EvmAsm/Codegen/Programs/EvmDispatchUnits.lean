@@ -348,6 +348,11 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
+    "# Standalone precompile probe stubs: the ECRECOVER path never resolves non-precompile account code.\n" ++
+    "account_at_header_state_root:\n  li a0, 1\n  ret\n" ++
+    "account_extract_nonce:\n  li a0, 1\n  ret\n" ++
+    "code_at_header_state_root:\n  li a0, 5\n  ret\n" ++
+    "bal_same_block_delegation_code_resolve:\n  li a0, 1\n  ret\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
@@ -357,6 +362,20 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     secp256k1CurveDataSection ++ "\n" ++
     secp256k1RecoverDataSection ++ "\n" ++
     txPubkeyRecoverRawDataSection ++ "\n" ++
+    ".balign 8\n" ++
+    "callee_balance_count:\n  .zero 8\n" ++
+    ".balign 32\n" ++
+    "callee_balance_table:\n  .zero " ++ toString (128 * 64) ++ "\n" ++
+    ".balign 8\n" ++
+    "cd_nse_presnap_armed:\n  .zero 8\n" ++
+    "cd_nse_presnap_count:\n  .zero 8\n" ++
+    "cd_nse_presnap_overflow:\n  .zero 8\n" ++
+    ".balign 32\n" ++
+    "cahsr_state_root:\n  .zero 32\n" ++
+    ".balign 8\n" ++
+    "cahsr_acct_struct:\n  .zero 104\n" ++
+    "cahsr_code_offset:\n  .zero 8\n" ++
+    "cahsr_code_length:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "evm_call_depth:\n  .zero 8\n" ++
     ".balign 16\n" ++
