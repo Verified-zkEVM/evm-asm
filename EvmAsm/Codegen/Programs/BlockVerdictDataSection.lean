@@ -478,6 +478,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "teer_acct_ptr:\n  .zero 8\n" ++
   "teer_acct_len:\n  .zero 8\n" ++
   "teer_finals:\n  .zero 88\n" ++
+  "teer_pre_acct:\n  .zero 104\n" ++
   -- coc3g.5 multi-hop: eip7702_warm_recovered_authorities private scratch.
   ".balign 8\n" ++
   "e77w_count:\n  .zero 8\n" ++
