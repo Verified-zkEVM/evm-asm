@@ -8,6 +8,8 @@
 -/
 
 import EvmAsm.Evm64.MulMod.ReduceBitLoop
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.RunBlock
 
 namespace EvmAsm.Evm64
 
@@ -43,5 +45,47 @@ theorem evm_mulmod_reduce512_loop_bit_loop_spec_within
   cpsTripleWithin_extend_code
     (hmono := evm_mulmod_reduce512_loop_inner_code_sub base)
     (h := evm_mulmod_reduce512_bit_loop_spec_within sp (base + 8) w x19v x20v r n)
+
+/-- Outer-loop body prefix: `LD x17, [x16]` loads the current product limb and
+    `ADDI x15, x0, 64` arms the inner bit counter, advancing to the inner loop
+    at byte offset 8. -/
+theorem evm_mulmod_reduce512_loop_prefix_spec_within
+    (base ptr oldX17 oldX15 limb : Word) :
+    cpsTripleWithin 2 base (base + 8)
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((.x16 ↦ᵣ ptr) ** (.x17 ↦ᵣ oldX17) ** (.x15 ↦ᵣ oldX15) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+      ((.x16 ↦ᵣ ptr) ** (.x17 ↦ᵣ limb) **
+       (.x15 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb)) := by
+  have hLDsub : ∀ a i, CodeReq.singleton base (Instr.LD .x17 .x16 0) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop) a = some i := by
+    rw [← CodeReq.ofProg_singleton]
+    refine CodeReq.ofProg_mono_sub base base evm_mulmod_reduce512_loop
+      [Instr.LD .x17 .x16 0] 0 ?_ ?_ ?_ ?_
+    · rw [show BitVec.ofNat 64 (4 * 0) = (0 : Word) by decide]; bv_omega
+    · rfl
+    · decide
+    · decide
+  have hADDIsub : ∀ a i, CodeReq.singleton (base + 4) (Instr.ADDI .x15 .x0 64) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop) a = some i := by
+    rw [← CodeReq.ofProg_singleton]
+    refine CodeReq.ofProg_mono_sub base (base + 4) evm_mulmod_reduce512_loop
+      [Instr.ADDI .x15 .x0 64] 1 ?_ ?_ ?_ ?_
+    · rw [show BitVec.ofNat 64 (4 * 1) = (4 : Word) by decide]
+    · rfl
+    · decide
+    · decide
+  have hLD := cpsTripleWithin_extend_code (hmono := hLDsub)
+    (h := ld_spec_gen_within .x17 .x16 ptr oldX17 limb (0 : BitVec 12) base (by nofun))
+  have hADDI := cpsTripleWithin_extend_code (hmono := hADDIsub)
+    (h := addi_spec_gen_within .x15 .x0 oldX15 (0 : Word) (64 : BitVec 12) (base + 4) (by decide))
+  have hLDf := cpsTripleWithin_frameR ((.x15 ↦ᵣ oldX15) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree) hLD
+  have hADDIf := cpsTripleWithin_frameR
+    ((.x16 ↦ᵣ ptr) ** (.x17 ↦ᵣ limb) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+    (by pcFree) hADDI
+  rw [show (base + 8 : Word) = base + 4 + 4 from by bv_omega]
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hLDf hADDIf)
 
 end EvmAsm.Evm64
