@@ -78,4 +78,54 @@ theorem divK_dispatchN1_bne_spec_within_v6 (sp v5 v10 b1 b2 b3 : Word) (base : W
   · intro h hq; xperm_hyp hq
   · intro h hq; xperm_hyp hq
 
+theorem divK_dispatchN1_beq_taken_addr {base : Word} :
+    (base + 28 : Word) + signExtend13 788 = base + v6V5Off := by rv64_addr
+
+/-- LD b0 ;; BEQ over `divCodeV6` (2 steps, `base + 24` → branch): load the
+    single divisor limb `b0`; if it is zero (divide-by-zero) branch to the v5
+    path; else fall through to the fast-path body at `base + v6ClzOff`. -/
+theorem divK_dispatchN1_beq_spec_within_v6 (sp v5 b0 : Word) (base : Word) :
+    cpsBranchWithin 2 (base + 24) (divCodeV6 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x0 ↦ᵣ (0 : Word)) ** ((sp + signExtend12 32) ↦ₘ b0))
+      (base + v6V5Off)
+        ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x0 ↦ᵣ (0 : Word)) **
+         ((sp + signExtend12 32) ↦ₘ b0) ** ⌜b0 = (0 : Word)⌝)
+      (base + v6ClzOff)
+        ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0) ** (.x0 ↦ᵣ (0 : Word)) **
+         ((sp + signExtend12 32) ↦ₘ b0) ** ⌜b0 ≠ (0 : Word)⌝) := by
+  -- LD x5 x12 32 (b0) at base+24, extended to divCodeV6, framed with x0.
+  have hld := ld_spec_gen_within .x5 .x12 sp v5 b0 32 (base + 24) (by nofun)
+  have hlde := cpsTripleWithin_extend_code (hmono := by
+    intro a i h
+    exact divK_dispatchN1_code_sub_divCodeV6 a i
+      (CodeReq.singleton_mono (by
+        have hl := CodeReq.ofProg_lookup base (divK_dispatchN1 796 788) 6 (by decide) (by decide)
+        rw [show (base : Word) + BitVec.ofNat 64 (4 * 6) = base + 24 from by bv_omega] at hl
+        exact hl) a i h)) hld
+  have hldf := cpsTripleWithin_frameR ((.x0 ↦ᵣ (0 : Word))) (by pcFree) hlde
+  -- BEQ x5 x0 788 at base+28, extended to divCodeV6.
+  have hbeq := beq_spec_gen_within .x5 .x0 788 b0 (0 : Word) (base + 28)
+  rw [divK_dispatchN1_beq_taken_addr,
+    show (base + 28 : Word) + 4 = base + v6ClzOff from by bv_omega] at hbeq
+  have hbeqe := cpsBranchWithin_extend_code (hmono := by
+    intro a i h
+    exact divK_dispatchN1_code_sub_divCodeV6 a i
+      (CodeReq.singleton_mono (by
+        have hl := CodeReq.ofProg_lookup base (divK_dispatchN1 796 788) 7 (by decide) (by decide)
+        rw [show (base : Word) + BitVec.ofNat 64 (4 * 7) = base + 28 from by bv_omega] at hl
+        exact hl) a i h)) hbeq
+  have hbeqf := cpsBranchWithin_frameR
+    ((.x12 ↦ᵣ sp) ** ((sp + signExtend12 32) ↦ₘ b0))
+    (by pcFree) hbeqe
+  -- (base+24)+4 = base+28.
+  rw [show (base + 24 : Word) + 4 = base + 28 from by bv_omega] at hldf
+  have hldf' := cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => by xperm_hyp hq)
+    (Q' := ((.x5 ↦ᵣ b0) ** (.x0 ↦ᵣ (0 : Word))) ** ((.x12 ↦ᵣ sp) ** ((sp + signExtend12 32) ↦ₘ b0)))
+    hldf
+  have hbr := cpsTripleWithin_seq_cpsBranchWithin_same_cr hldf' hbeqf
+  refine cpsBranchWithin_weaken ?_ ?_ ?_ hbr
+  · intro h hp; xperm_hyp hp
+  · intro h hq; xperm_hyp hq
+  · intro h hq; xperm_hyp hq
+
 end EvmAsm.Evm64
