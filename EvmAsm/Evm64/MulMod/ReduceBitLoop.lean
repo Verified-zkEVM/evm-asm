@@ -126,4 +126,59 @@ theorem evm_mulmod_reduce512_bit_loop_step_spec_within
       xperm_hyp hp)
     (fun _ hp => hp) (fun _ hp => hp) h13
 
+/-- One iteration's loop-back post is the next iteration's loop-carried
+    precondition: the stepped remainder becomes the new `r`, the product word
+    shifts, the bit counter decrements, and the carry scratch `x19/x20` carry
+    the consumed-bit fields. -/
+theorem mulModReduceInnerStepPost_false_to_bitLoopPre
+    (sp x17Old x15 : Word) (r n : EvmWord) :
+    ∀ h, mulModReduceInnerStepPost sp x17Old x15 r n false h →
+      mulModReduceBitLoopPre sp (x17Old <<< 1)
+        (x15 + signExtend12 (4095 : BitVec 12))
+        (EvmWord.getLimbN r 1 >>> 63) (EvmWord.getLimbN r 2 >>> 63)
+        (mulModReduceStep r n (mulModReduceInputBit x17Old)) n h := by
+  intro h hp
+  unfold mulModReduceInnerStepPost mulModReduceTailPost mulModReduceCompareMem at hp
+  simp only [Bool.false_eq_true, ↓reduceIte] at hp
+  have hp' := sepConj_mono_left
+    (fun _ hq => ((sepConj_pure_right _).1 hq).1) h hp
+  unfold mulModReduceBitLoopPre bitLoopCommon
+  xperm_hyp hp'
+
+/-- When the decremented bit counter is still nonzero, the bit step takes the
+    loop-back exit: a `base → base` triple landing in the loop-back post. -/
+theorem evm_mulmod_reduce512_bit_loop_step_loop_path
+    (sp base x17Old x15 x19Old x20Old : Word) (r n : EvmWord)
+    (hloop : x15 + signExtend12 (4095 : BitVec 12) ≠ 0) :
+    cpsTripleWithin 64 base base
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceBitLoopPre sp x17Old x15 x19Old x20Old r n)
+      (mulModReduceInnerStepPost sp x17Old x15 r n false) := by
+  refine cpsBranchWithin_takenPath
+    (evm_mulmod_reduce512_bit_loop_step_spec_within
+      sp base x17Old x15 x19Old x20Old r n) ?_
+  intro hp hq
+  unfold mulModReduceInnerStepPost mulModReduceTailPost at hq
+  simp only [↓reduceIte] at hq
+  obtain ⟨h1, h2, _, _, htail, _⟩ := hq
+  exact hloop ((sepConj_pure_right _).1 htail).2
+
+/-- When the decremented bit counter reaches zero, the bit step takes the done
+    exit: a `base → base + 256` triple landing in the done post. -/
+theorem evm_mulmod_reduce512_bit_loop_step_done_path
+    (sp base x17Old x15 x19Old x20Old : Word) (r n : EvmWord)
+    (hdone : x15 + signExtend12 (4095 : BitVec 12) = 0) :
+    cpsTripleWithin 64 base (base + 256)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceBitLoopPre sp x17Old x15 x19Old x20Old r n)
+      (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+  refine cpsBranchWithin_ntakenPath
+    (evm_mulmod_reduce512_bit_loop_step_spec_within
+      sp base x17Old x15 x19Old x20Old r n) ?_
+  intro hp hq
+  unfold mulModReduceInnerStepPost mulModReduceTailPost at hq
+  simp only [Bool.false_eq_true, ↓reduceIte] at hq
+  obtain ⟨h1, h2, _, _, htail, _⟩ := hq
+  exact ((sepConj_pure_right _).1 htail).2 hdone
+
 end EvmAsm.Evm64
