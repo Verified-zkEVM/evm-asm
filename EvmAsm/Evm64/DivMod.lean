@@ -86,6 +86,7 @@ import EvmAsm.Evm64.DivMod.Compose.V6Shift0ChainBridge
 import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridge
 import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnect
 import EvmAsm.Evm64.DivMod.Compose.V6FastArmTriple
+import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.DivMod.FastN1ProgramTest
 import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
