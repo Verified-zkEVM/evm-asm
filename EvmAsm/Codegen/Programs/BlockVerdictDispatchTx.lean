@@ -593,6 +593,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
+  -- EIP-7702 `set_delegation` refunds the NEW_ACCOUNT state component into the
+  -- message state-gas reservoir when the recovered authority already exists.
+  -- The callable dispatcher resets its state-gas cells during setup, so compute
+  -- the refund here and hand it to setup through `runtime_tx_auth_state_refund`.
+  "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
+  "  la t4, runtime_tx_auth_state_refund; sd zero, 0(t4)\n" ++
+  "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
+  "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
+  "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
+  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
+  "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
