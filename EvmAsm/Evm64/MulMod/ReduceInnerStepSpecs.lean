@@ -162,6 +162,50 @@ theorem evm_mulmod_reduce512_inner_step_tail_loop_full_code_spec_within
     (h := evm_mulmod_reduce512_inner_step_tail_loop_spec_within base x15 h_loop)
 
 
+
+/-- Subtract-store precondition with compare-clobbered registers kept as ownership. -/
+@[irreducible]
+def mulModReduceSubtractOwnPre
+    (sp v5 v10 v11 v13 : Word) (r n : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** regOwn .x6 ** regOwn .x7 **
+  (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x13 ↦ᵣ v13) **
+  mulModReduceCompareMem sp r n
+
+theorem evm_mulmod_reduce512_inner_step_subtract_store_own_full_code_spec_within
+    (sp base v5 v10 v11 v13 : Word) (r n : EvmWord) :
+    cpsTripleWithin 26 (base + 144) (base + 248)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceSubtractOwnPre sp v5 v10 v11 v13 r n)
+      (mulModReduceSubtractPost sp r n) := by
+  have hown7 : cpsTripleWithin 26 (base + 144) (base + 248)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** regOwn .x6 **
+        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x13 ↦ᵣ v13) **
+        mulModReduceCompareMem sp r n) ** regOwn .x7)
+      (mulModReduceSubtractPost sp r n) := by
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x7) ?_
+    intro v7
+    have hown6 : cpsTripleWithin 26 (base + 144) (base + 248)
+        (evm_mulmod_reduce512_inner_step_code base)
+        (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) **
+          (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x13 ↦ᵣ v13) **
+          mulModReduceCompareMem sp r n ** (.x7 ↦ᵣ v7)) ** regOwn .x6)
+        (mulModReduceSubtractPost sp r n) := by
+      refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6) ?_
+      intro v6
+      exact cpsTripleWithin_weaken (fun h hp => by
+          xperm_hyp hp)
+        (fun _ hp => hp)
+        (evm_mulmod_reduce512_inner_step_subtract_store_full_code_spec_within
+          sp base v5 v6 v7 v10 v11 v13 r n)
+    exact cpsTripleWithin_weaken (fun h hp => by
+        xperm_hyp hp)
+      (fun _ hp => hp) hown6
+  exact cpsTripleWithin_weaken (fun h hp => by
+      unfold mulModReduceSubtractOwnPre at hp
+      xperm_hyp hp)
+    (fun _ hp => hp) hown7
+
 /-- Folded precondition for the reducer inner-step no-subtract path. -/
 @[irreducible]
 def mulModReduceInnerStepNoSubtractPre
@@ -280,6 +324,154 @@ theorem evm_mulmod_reduce512_inner_step_no_subtract_path_spec_within
       xperm_hyp hp)
     (fun h hp => by
       unfold mulModReduceInnerStepNoSubtractPost
+      dsimp only [shifted, tailFrame] at hp ⊢
+      xperm_hyp hp)
+    hbranch
+
+
+/-- Folded precondition for the reducer inner-step subtract path. -/
+@[irreducible]
+def mulModReduceInnerStepSubtractPre
+    (sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old : Word)
+    (r n : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ x17Old) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) **
+  (.x7 ↦ᵣ x7Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) **
+  (.x13 ↦ᵣ x13Old) ** (.x15 ↦ᵣ x15) ** (.x0 ↦ᵣ (0 : Word)) **
+  (.x19 ↦ᵣ x19Old) ** (.x20 ↦ᵣ x20Old) **
+  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
+
+/-- Folded postcondition for the reducer inner-step subtract path. -/
+@[irreducible]
+def mulModReduceInnerStepSubtractPost
+    (sp x17Old x15 : Word) (r n : EvmWord) (done : Bool) : Assertion :=
+  let shifted := mulModReduceShiftInBit r (mulModReduceInputBit x17Old)
+  mulModReduceTailPost x15 done **
+  mulModReduceSubtractPost sp shifted n **
+  (.x17 ↦ᵣ (x17Old <<< 1)) **
+  (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) **
+  (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
+  ⌜mulModReduceRemGE shifted n⌝
+
+/-- Compose prefix, compare-GE, subtract-store, and tail into the subtract reducer path. -/
+theorem evm_mulmod_reduce512_inner_step_subtract_path_spec_within
+    (sp base x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old : Word)
+    (r n : EvmWord)
+    (hge : mulModReduceRemGE (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n) :
+    cpsBranchWithin 64 base
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceInnerStepSubtractPre sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old r n **
+        ⌜mulModReduceRemGE (mulModReduceShiftInBit r (mulModReduceInputBit x17Old)) n⌝)
+      base (mulModReduceInnerStepSubtractPost sp x17Old x15 r n false)
+      (base + 256) (mulModReduceInnerStepSubtractPost sp x17Old x15 r n true) := by
+  let shifted := mulModReduceShiftInBit r (mulModReduceInputBit x17Old)
+  let prefixFrame : Assertion :=
+    (.x7 ↦ᵣ x7Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) **
+    (.x13 ↦ᵣ x13Old) ** (.x15 ↦ᵣ x15) ** (.x0 ↦ᵣ (0 : Word)) **
+    ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+    ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+    ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+    ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3) **
+    ⌜mulModReduceRemGE shifted n⌝
+  let compareFrame : Assertion :=
+    (.x17 ↦ᵣ (x17Old <<< 1)) **
+    (.x5 ↦ᵣ EvmWord.getLimbN r 3) **
+    (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) **
+    (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
+    (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) **
+    (.x15 ↦ᵣ x15) ** (.x0 ↦ᵣ (0 : Word))
+  let subtractFrame : Assertion :=
+    (.x17 ↦ᵣ (x17Old <<< 1)) **
+    (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) **
+    (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
+    (.x15 ↦ᵣ x15) ** (.x0 ↦ᵣ (0 : Word)) **
+    ⌜mulModReduceRemGE shifted n⌝
+  let tailFrame : Assertion :=
+    mulModReduceSubtractPost sp shifted n **
+    (.x17 ↦ᵣ (x17Old <<< 1)) **
+    (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) **
+    (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
+    ⌜mulModReduceRemGE shifted n⌝
+  have hprefix0 := evm_mulmod_reduce512_inner_step_shift_prefix_full_code_spec_within
+    sp base x17Old (EvmWord.getLimbN r 0) (EvmWord.getLimbN r 1)
+    (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 3) x5Old x6Old x19Old x20Old
+  have hprefix := cpsTripleWithin_frameR prefixFrame (by pcFree) hprefix0
+  have hprefixTop : cpsTripleWithin 21 base (base + 84)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceInnerStepSubtractPre sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old r n **
+        ⌜mulModReduceRemGE shifted n⌝)
+      (mulModReduceShiftPrefixPost sp x17Old (EvmWord.getLimbN r 0) (EvmWord.getLimbN r 1)
+        (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 3) ** prefixFrame) :=
+    cpsTripleWithin_weaken (fun h hp => by
+      unfold mulModReduceInnerStepSubtractPre at hp
+      dsimp only [prefixFrame, shifted] at hp ⊢
+      xperm_hyp hp)
+      (fun _ hp => hp) hprefix
+  have hcompare0 := evm_mulmod_reduce512_inner_step_compare_ge_full_code_spec_within
+    sp base (EvmWord.getLimbN shifted 3) x7Old shifted n hge
+  have hcompare := cpsTripleWithin_frameR compareFrame (by pcFree) hcompare0
+  have hprefix_compare : cpsTripleWithin (21 + 15) base (base + 144)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceInnerStepSubtractPre sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old r n **
+        ⌜mulModReduceRemGE shifted n⌝)
+      (mulModReduceComparePost sp shifted n true ** compareFrame) :=
+    cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      unfold mulModReduceShiftPrefixPost at hp
+      have hrem : mulModReduceRemWord (EvmWord.getLimbN r 0) (EvmWord.getLimbN r 1)
+          (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 3) = r := by
+        apply (EvmWord.eq_iff_limbs).2
+        intro i
+        fin_cases i <;> simp [EvmWord.getLimb_as_getLimbN_0,
+          EvmWord.getLimb_as_getLimbN_1, EvmWord.getLimb_as_getLimbN_2,
+          EvmWord.getLimb_as_getLimbN_3]
+      rw [hrem] at hp
+      unfold mulModReduceComparePre mulModReduceCompareMem
+      dsimp only [shifted, prefixFrame, compareFrame] at hp ⊢
+      xperm_hyp hp)
+      hprefixTop hcompare
+  have hsubtract0 := evm_mulmod_reduce512_inner_step_subtract_store_own_full_code_spec_within
+    sp base (EvmWord.getLimbN r 3) x10Old x11Old x13Old shifted n
+  have hsubtract := cpsTripleWithin_frameR subtractFrame (by pcFree) hsubtract0
+  have hthrough_subtract : cpsTripleWithin (21 + 15 + 26) base (base + 248)
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceInnerStepSubtractPre sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old r n **
+        ⌜mulModReduceRemGE shifted n⌝)
+      (mulModReduceSubtractPost sp shifted n ** subtractFrame) :=
+    cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      unfold mulModReduceComparePost at hp
+      unfold mulModReduceSubtractOwnPre
+      unfold mulModReduceCompareMem at hp ⊢
+      simp only [ite_true] at hp
+      dsimp only [compareFrame, subtractFrame] at hp ⊢
+      xperm_hyp hp)
+      hprefix_compare hsubtract
+  have htail0 := evm_mulmod_reduce512_inner_step_tail_full_code_spec_within base x15
+  have htail := cpsBranchWithin_frameR tailFrame (by
+    dsimp only [tailFrame]
+    unfold mulModReduceSubtractPost mulModReduceSubtractMem
+    pcFree) htail0
+  have hbranch := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun h hp => by
+      dsimp only [subtractFrame, tailFrame] at hp ⊢
+      xperm_hyp hp)
+    hthrough_subtract htail
+  change cpsBranchWithin (21 + 15 + 26 + 2) base
+      (evm_mulmod_reduce512_inner_step_code base)
+      (mulModReduceInnerStepSubtractPre sp x17Old x5Old x6Old x7Old x10Old x11Old x13Old x15 x19Old x20Old r n **
+        ⌜mulModReduceRemGE shifted n⌝)
+      base (mulModReduceInnerStepSubtractPost sp x17Old x15 r n false)
+      (base + 256) (mulModReduceInnerStepSubtractPost sp x17Old x15 r n true)
+  exact cpsBranchWithin_weaken (fun _ hp => hp) (fun h hp => by
+      unfold mulModReduceInnerStepSubtractPost
+      dsimp only [shifted, tailFrame] at hp ⊢
+      xperm_hyp hp)
+    (fun h hp => by
+      unfold mulModReduceInnerStepSubtractPost
       dsimp only [shifted, tailFrame] at hp ⊢
       xperm_hyp hp)
     hbranch
