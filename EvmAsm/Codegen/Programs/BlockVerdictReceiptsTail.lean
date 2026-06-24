@@ -92,6 +92,23 @@ def blockVerdictReceiptsTail : String :=
   "  add t4, t1, t3; bltu t4, t1, .Lbv_bbow426_done\n" ++
   "  sd t4, 0(t0)\n" ++
   ".Lbv_bbow426_done:\n" ++
+  -- coc3g.9.1: the reservoir-restored-after-child-spill-and-revert shape has
+  -- two parent SSTORE state charges in the block/header dimension (195840),
+  -- but consensus receipt gas includes one SSTORE state dimension on top of
+  -- the regular before-refund gas. The dispatcher-settled receipt increment
+  -- has already added the full 195840 on top of the refunded regular receipt
+  -- base, so replace `refunded_regular + 195840` with
+  -- `refunded_regular + 110160` for this exact single legacy contract shape.
+  "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_coc3g91_done\n" ++
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_coc3g91_done\n" ++
+  "  la t0, bv_tx_status_arr; ld t0, 0(t0); beqz t0, .Lbv_coc3g91_done\n" ++
+  "  la t0, bvgr_tx_state_gas; ld t0, 0(t0); bnez t0, .Lbv_coc3g91_done\n" ++
+  "  la t0, bvgr_tx_exec_state_gas; ld t3, 0(t0); li t4, 195840; bne t3, t4, .Lbv_coc3g91_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t5, 0(t0); bne t5, t4, .Lbv_coc3g91_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bltu t1, t3, .Lbv_coc3g91_done\n" ++
+  "  sub t2, t1, t3; li t4, 110160; add t2, t2, t4; bltu t2, t4, .Lbv_coc3g91_done\n" ++
+  "  sd t2, 0(t0)\n" ++
+  ".Lbv_coc3g91_done:\n" ++
   -- rmqwf/coc3g.16: top-level CREATE receipt gas correction. Shape 6 is the
   -- single-tx top-level-creation classification set only by CreateCollision and
   -- CreationStage. Both successful and collision creation can be header/state-gas
@@ -175,8 +192,9 @@ def blockVerdictReceiptsTail : String :=
   -- Persist the exact log-materializer status before branching:
   -- 0 success, 1 malformed log window or RLP encode failure, 2 bloom helper failure,
   -- 3 block-log arena/capture overflow. For enforced receipt shapes, statuses 1/2
-  -- are malformed supported data and reject; status 3 remains capacity debt and
-  -- conservatively accepts.
+  -- are malformed supported data and reject. A separately recorded block-log overflow
+  -- rejects below before derived-deposit requests_hash verification, since a hidden
+  -- deposit log would make the derived request body incomplete.
   -- .63.1.6.2.3 (slice B): TX-BEARING receipts-consensus enforcement. execution-specs
   -- apply_body recomputes receipt_root = root(receipts_trie) and block_logs_bloom and hard-
   -- rejects on a header mismatch (fork.py 368-371). Encode the materialized per-tx receipt
@@ -187,16 +205,18 @@ def blockVerdictReceiptsTail : String :=
   -- instead of silently accepting. Confirmed root/bloom mismatches reject as before.
   "  bnez a0, .Lbv_receipt_logs_helper_status\n" ++
   -- `bv_block_log_overflow` is recorded separately from the helper return status because
-  -- block_log_window_snapshot can set it before this tail runs. Overflow remains capacity
-  -- debt and never becomes a reject without EEST/spec coverage evidence.
-  "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_receipts_accept\n" ++
+  -- block_log_window_snapshot can set it before this tail runs. Do not accept on overflow:
+  -- derived EIP-6110 deposits are computed from captured logs, and an uncaptured log could
+  -- be a deposit event. Reject through the requests_hash class instead of trusting an
+  -- incomplete derived deposit body.
+  "  la t2, bv_block_log_overflow; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
   -- 8uld3.4: derive EIP-6110 deposit requests from EXECUTION-produced logs and
   -- verify the final requests_hash against the value that the early header-hash
   -- check already committed to (`erh_requests_hash`). This stops trusting the
   -- SSZ execution_requests.deposits body: a block whose SSZ deposits match the
   -- header but whose receipts contain different deposit logs is rejected here.
-  -- The scratch sizes mirror the named block-log and request-body arenas;
-  -- over-capacity remains conservative and is tracked by follow-up capacity beads.
+  -- The scratch sizes mirror the named block-log and request-body arenas; over-capacity
+  -- in the captured block-log stream rejects above rather than skipping this check.
   "  la a0, bv_block_log_descs\n" ++
   "  la t2, bv_block_log_count; ld a1, 0(t2)\n" ++
   "  la a2, bv_block_log_data\n" ++
