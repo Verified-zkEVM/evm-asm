@@ -47,4 +47,67 @@ theorem fullDivN1R3V5_quot_eq_div128 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
   unfold iterN1Call_v5
   rw [iterWithDoubleAddback_no_borrow hb]
 
+/-- Digit `j=2` quotient extraction (threads digit 3's remainder limb as `uHi`). -/
+theorem fullDivN1R2V5_quot_eq_div128 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb : ¬ BitVec.ult (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+      (mulsubN4 (div128Quot_v5 (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                                (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+                                (fullDivN1NormV b0 b1 b2 b3).1)
+        (fullDivN1NormV b0 b1 b2 b3).1 (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1 (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+        (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1).2.2.2.2) :
+    (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1 =
+      div128Quot_v5 (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                    (fullDivN1NormU a0 a1 a2 a3 b0).2.2.1
+                    (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1R2V5
+  simp only [iterN1V5_true]
+  unfold iterN1Call_v5
+  rw [iterWithDoubleAddback_no_borrow hb]
+
+/-- Digit `j=1` quotient extraction (threads digit 2's remainder limb as `uHi`). -/
+theorem fullDivN1R1V5_quot_eq_div128 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb : ¬ BitVec.ult (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+      (mulsubN4 (div128Quot_v5 (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                                (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+                                (fullDivN1NormV b0 b1 b2 b3).1)
+        (fullDivN1NormV b0 b1 b2 b3).1 (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1 (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+        (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1).2.2.2.2) :
+    (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1 =
+      div128Quot_v5 (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                    (fullDivN1NormU a0 a1 a2 a3 b0).2.1
+                    (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1R1V5
+  simp only [iterN1V5_true]
+  unfold iterN1Call_v5
+  rw [iterWithDoubleAddback_no_borrow hb]
+
+/-- Digit `j=0` quotient extraction (threads digit 1's remainder limb as `uHi`). -/
+theorem fullDivN1R0V5_quot_eq_div128 (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hb : ¬ BitVec.ult (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1
+      (mulsubN4 (div128Quot_v5 (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                                (fullDivN1NormU a0 a1 a2 a3 b0).1
+                                (fullDivN1NormV b0 b1 b2 b3).1)
+        (fullDivN1NormV b0 b1 b2 b3).1 (fullDivN1NormV b0 b1 b2 b3).2.1
+        (fullDivN1NormV b0 b1 b2 b3).2.2.1 (fullDivN1NormV b0 b1 b2 b3).2.2.2
+        (fullDivN1NormU a0 a1 a2 a3 b0).1
+        (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+        (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+        (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1).2.2.2.2) :
+    (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1 =
+      div128Quot_v5 (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+                    (fullDivN1NormU a0 a1 a2 a3 b0).1
+                    (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1R0V5
+  simp only [iterN1V5_true]
+  unfold iterN1Call_v5
+  rw [iterWithDoubleAddback_no_borrow hb]
+
 end EvmAsm.Evm64
