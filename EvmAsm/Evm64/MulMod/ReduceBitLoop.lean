@@ -17,7 +17,7 @@ open EvmAsm.Rv64.Tactics
 /-- The non-scratch resources carried unchanged across one reducer bit step:
     the frame pointer, the shifting product word, the bit counter, the carry
     scratch `x19/x20`, and the remainder/modulus memory windows. -/
-private def bitLoopCommon
+def bitLoopCommon
     (sp x17Old x15 x19Old x20Old : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ x17Old) ** (.x15 ↦ᵣ x15) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x19 ↦ᵣ x19Old) ** (.x20 ↦ᵣ x20Old) **

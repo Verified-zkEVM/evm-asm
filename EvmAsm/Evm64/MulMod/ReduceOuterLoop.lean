@@ -88,4 +88,50 @@ theorem evm_mulmod_reduce512_loop_prefix_spec_within
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hLDf hADDIf)
 
+/-- One outer-loop iteration up to the pointer-advance: load the product limb
+    at `x16`, run the inner 64-bit bit loop, and land at byte offset 264 with
+    that limb folded into the remainder (`mulModReduceStepN r n limb 64`). -/
+theorem evm_mulmod_reduce512_loop_fold_one_limb_spec_within
+    (sp base ptr oldX17 oldX15 x19v x20v limb : Word) (r n : EvmWord) :
+    cpsTripleWithin (2 + 64 * 64) base (base + 8 + 256)
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ ptr) ** (.x17 ↦ᵣ oldX17) ** (.x15 ↦ᵣ oldX15) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ x19v) ** (.x20 ↦ᵣ x20v) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb)) := by
+  have hpf := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x19 ↦ᵣ x19v) ** (.x20 ↦ᵣ x20v) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+     ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+     ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+     ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+     ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+     ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+     ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+     ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+     ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3))
+    (by pcFree)
+    (evm_mulmod_reduce512_loop_prefix_spec_within base ptr oldX17 oldX15 limb)
+  have hif := cpsTripleWithin_frameR
+    ((.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+    (by pcFree)
+    (evm_mulmod_reduce512_loop_bit_loop_spec_within sp base limb x19v x20v r n)
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_perm_same_cr
+      (fun h hq => by
+        rw [show (BitVec.ofNat 64 64) = (0 : Word) + signExtend12 (64 : BitVec 12) from by decide]
+        unfold mulModReduceBitLoopPre bitLoopCommon
+        xperm_hyp hq)
+      hpf hif)
+
 end EvmAsm.Evm64
