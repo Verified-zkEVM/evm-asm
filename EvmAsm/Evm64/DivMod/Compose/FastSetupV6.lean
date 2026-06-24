@@ -194,4 +194,68 @@ theorem divK_fastSetup_shiftNz_spec_within_v6 (sp v5 s b0 v2Old m3992 m3984 : Wo
     (fun h hq => by xperm_hyp hq)
     h
 
+/-- Full fastSetup shift-0 lane (s = 0): body + BEQ taken → copyAU.
+    7 steps total (6 body + 1 BEQ). Mirror of
+    `divK_fastSetup_shiftNz_spec_within_v6`, but the BEQ is *taken* (the
+    not-taken `s ≠ 0` arm is refuted as absurd). -/
+theorem divK_fastSetup_shift0_spec_within_v6 (sp v5 s b0 v2Old m3992 m3984 : Word)
+    (base : Word) (hs_eq_0 : s = (0 : Word)) :
+    let antiShift := (0 : Word) - s
+    let b0Prime := b0 <<< (s.toNat % 64)
+    cpsTripleWithin 7 (base + v6SetupOff) (base + v6CopyAUOff) (divCodeV6 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ s) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x2 ↦ᵣ v2Old) **
+       ((sp + signExtend12 32) ↦ₘ b0) **
+       ((sp + signExtend12 3992) ↦ₘ m3992) **
+       ((sp + signExtend12 3984) ↦ₘ m3984))
+      (divKFastSetupPost sp s b0 antiShift b0Prime) := by
+  intro antiShift b0Prime
+  have hbody := divK_fastSetup_body_spec_within_v6 sp v5 s b0 v2Old m3992 m3984 base
+  -- Transport hbody to unfolded post via the equation lemma.
+  have hbody_u : cpsTripleWithin 6 (base + v6SetupOff) (base + v6SetupOff + 24) (divCodeV6 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ s) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x2 ↦ᵣ v2Old) **
+       ((sp + signExtend12 32) ↦ₘ b0) **
+       ((sp + signExtend12 3992) ↦ₘ m3992) **
+       ((sp + signExtend12 3984) ↦ₘ m3984))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0Prime) ** (.x6 ↦ᵣ s) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x2 ↦ᵣ antiShift) **
+       ((sp + signExtend12 32) ↦ₘ b0) **
+       ((sp + signExtend12 3992) ↦ₘ s) **
+       ((sp + signExtend12 3984) ↦ₘ b0Prime)) :=
+    divKFastSetupPost_unfold ▸ hbody
+  -- BEQ x6 x0 88 at base+v6SetupOff+24
+  have hbeq := beq_spec_gen_within .x6 .x0 88 s (0 : Word) (base + v6SetupOff + 24)
+  rw [divK_fastSetup_beq_taken_addr, divK_fastSetup_beq_ntaken_addr] at hbeq
+  -- Strip the not-taken arm: prove it's absurd when s = 0.
+  have hbeq_taken := cpsBranchWithin_takenStripPure2 hbeq
+    (fun hp hQf => by
+      obtain ⟨w1, w2, _, _, _, _, hw_rest⟩ := hQf
+      obtain ⟨h3, _, _, _, hpure⟩ := hw_rest
+      exact absurd hs_eq_0 hpure.2)
+  -- Extend to divCodeV6.
+  have hbeq_e := cpsTripleWithin_extend_code (hmono := by
+    intro a i h
+    exact divK_fastSetup_code_sub_divCodeV6 a i
+      (CodeReq.singleton_mono (by
+        have hlookup := CodeReq.ofProg_lookup (base + v6SetupOff) (divK_fastSetup 88) 6
+          (by decide) (by decide)
+        rw [show (base + v6SetupOff : Word) + BitVec.ofNat 64 (4 * 6) =
+          base + v6SetupOff + 24 from by bv_addr] at hlookup
+        exact hlookup) a i h)) hbeq_taken
+  -- Frame the body post through the BEQ (exclude x6, x0 — they're in BEQ pre).
+  have hbeq_f := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ b0Prime) ** (.x2 ↦ᵣ antiShift) **
+     ((sp + signExtend12 32) ↦ₘ b0) **
+     ((sp + signExtend12 3992) ↦ₘ s) **
+     ((sp + signExtend12 3984) ↦ₘ b0Prime))
+    (by pcFree) hbeq_e
+  have h := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hbody_u hbeq_f
+  rw [divKFastSetupPost_unfold]
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq)
+    h
+
 end EvmAsm.Evm64
