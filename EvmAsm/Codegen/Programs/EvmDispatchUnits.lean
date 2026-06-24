@@ -76,7 +76,7 @@ def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
       +48 bv_tx_log_window start               (expect 0)
       +56 bv_tx_log_window count               (expect 0)
       +64 bv_receipts_completeness_shape       (expect 6)
-      +72 bv_receipts_enforce_enabled          (expect 0)
+      +72 bv_receipts_enforce_enabled          (expect 1)
       +80  bvgr_tx_exec_state_gas[0]           (expect 0)
       +88  non-STOP helper status              (expect 4)
       +96  runtime_count after non-STOP        (expect 0)
@@ -241,6 +241,8 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
@@ -348,6 +350,11 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
     witnessCodesLookupByHashFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
+    "# Standalone precompile probe stubs: the ECRECOVER path never resolves non-precompile account code.\n" ++
+    "account_at_header_state_root:\n  li a0, 1\n  ret\n" ++
+    "account_extract_nonce:\n  li a0, 1\n  ret\n" ++
+    "code_at_header_state_root:\n  li a0, 5\n  ret\n" ++
+    "bal_same_block_delegation_code_resolve:\n  li a0, 1\n  ret\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=
@@ -358,11 +365,27 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     secp256k1RecoverDataSection ++ "\n" ++
     txPubkeyRecoverRawDataSection ++ "\n" ++
     ".balign 8\n" ++
+    "callee_balance_count:\n  .zero 8\n" ++
+    ".balign 32\n" ++
+    "callee_balance_table:\n  .zero " ++ toString (128 * 64) ++ "\n" ++
+    ".balign 8\n" ++
+    "cd_nse_presnap_armed:\n  .zero 8\n" ++
+    "cd_nse_presnap_count:\n  .zero 8\n" ++
+    "cd_nse_presnap_overflow:\n  .zero 8\n" ++
+    ".balign 32\n" ++
+    "cahsr_state_root:\n  .zero 32\n" ++
+    ".balign 8\n" ++
+    "cahsr_acct_struct:\n  .zero 104\n" ++
+    "cahsr_code_offset:\n  .zero 8\n" ++
+    "cahsr_code_length:\n  .zero 8\n" ++
+    ".balign 8\n" ++
     "evm_call_depth:\n  .zero 8\n" ++
     ".balign 16\n" ++
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
@@ -453,6 +476,8 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
@@ -543,6 +568,8 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
@@ -633,6 +660,8 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
@@ -760,6 +789,8 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
@@ -851,6 +882,8 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
@@ -966,6 +999,8 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     "frame_save_area:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "frame_call_ctx:\n  .zero 32800\n" ++
+    ".balign 16\n" ++
+    "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
     "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
     ".balign 8\n" ++

@@ -110,6 +110,62 @@ def balStorageCoversExecLogFunction : String :=
   "  ld t1, 120(s5); ld t2, 88(s5); bne t1, t2, .Lbsce_netchange\n" ++
   "  j .Lbsce_next                        # no net change -> not required in the BAL\n" ++
   ".Lbsce_netchange:\n" ++
+  -- A contract created and SELFDESTRUCTed in the same transaction does not commit
+  -- constructor storage writes. The raw exec log still records them, but EIP-7928
+  -- exposes those touched slots as storage_reads, not storage_changes. Failed
+  -- CREATE/CREATE2 initcode can leave the same noncommitting storage trace when it
+  -- reaches the target account and then OOGs before deployment: the account is
+  -- accessed, but no deployed-code effect is produced. Restrict the demotion to the
+  -- user pass and require execution evidence from the nonstorage/code-effect logs.
+  "  bnez s8, .Lbsce_require_storage_change\n" ++
+  "  la t0, exec_nonstorage_effect_count; ld t4, 0(t0); beqz t4, .Lbsce_require_storage_change\n" ++
+  "  la t5, exec_nonstorage_effect_log\n" ++
+  "  mv t0, zero\n" ++
+  ".Lbsce_deleted_scan:\n" ++
+  "  beq t0, t4, .Lbsce_require_storage_change\n" ++
+  "  li t1, 112; mul t2, t0, t1; add t3, t5, t2\n" ++
+  "  li t1, 0\n" ++
+  ".Lbsce_deleted_addr_cmp:\n" ++
+  "  li t2, 20; beq t1, t2, .Lbsce_deleted_addr_match\n" ++
+  "  add t6, t3, t1; lbu t6, 0(t6)\n" ++
+  "  li t2, 19; sub t2, t2, t1; add t2, s0, t2; lbu t2, 0(t2)\n" ++
+  "  bne t6, t2, .Lbsce_deleted_next\n" ++
+  "  addi t1, t1, 1; j .Lbsce_deleted_addr_cmp\n" ++
+  ".Lbsce_deleted_addr_match:\n" ++
+  "  ld t1, 64(t3); ld t2, 72(t3); or t1, t1, t2\n" ++
+  "  ld t2, 80(t3); or t1, t1, t2\n" ++
+  "  ld t2, 88(t3); or t1, t1, t2\n" ++
+  "  bnez t1, .Lbsce_deleted_next\n" ++
+  "  ld t1, 104(t3); beqz t1, .Lbsce_deleted_demote\n" ++
+  "  li t2, 2; bne t1, t2, .Lbsce_deleted_next\n" ++
+  "  la t1, exec_code_effect_overflow; ld t1, 0(t1); bnez t1, .Lbsce_require_storage_change\n" ++
+  "  la t1, exec_code_effect_count; ld t2, 0(t1); beqz t2, .Lbsce_deleted_demote\n" ++
+  "  sd t0, 80(sp)\n" ++
+  "  la t1, exec_code_effect_log\n" ++
+  "  mv t6, zero\n" ++
+  ".Lbsce_failed_create_code_scan:\n" ++
+  "  beq t6, t2, .Lbsce_failed_create_no_code\n" ++
+  "  li t4, 0\n" ++
+  ".Lbsce_failed_create_code_addr_cmp:\n" ++
+  "  li t5, 20; beq t4, t5, .Lbsce_failed_create_has_code\n" ++
+  "  add t5, t1, t4; lbu t5, 0(t5)\n" ++
+  "  li t3, 19; sub t3, t3, t4; add t3, s0, t3; lbu t3, 0(t3)\n" ++
+  "  bne t5, t3, .Lbsce_failed_create_code_next\n" ++
+  "  addi t4, t4, 1; j .Lbsce_failed_create_code_addr_cmp\n" ++
+  ".Lbsce_failed_create_code_next:\n" ++
+  "  ld t4, 40(t1); addi t4, t4, 55; andi t4, t4, -8; add t1, t1, t4\n" ++
+  "  addi t6, t6, 1; j .Lbsce_failed_create_code_scan\n" ++
+  ".Lbsce_failed_create_has_code:\n" ++
+  "  ld t0, 80(sp); j .Lbsce_require_storage_change\n" ++
+  ".Lbsce_failed_create_no_code:\n" ++
+  "  ld t0, 80(sp)\n" ++
+  ".Lbsce_deleted_demote:\n" ++
+  "  j .Lbsce_next                        # noncommitting create/deleted-account storage writes demoted to reads\n" ++
+  ".Lbsce_deleted_next:\n" ++
+  "  la t5, exec_nonstorage_effect_log\n" ++
+  "  la t2, exec_nonstorage_effect_count; ld t4, 0(t2)\n" ++
+  "  addi t0, t0, 1; j .Lbsce_deleted_scan\n" ++
+  ".Lbsce_require_storage_change:\n" ++
   -- The exec slot/current are stack-word order (LE u64 limbs); the BAL keys/vals
   -- are big-endian (RLP). Byte-reverse the exec slot (32..64) and current (96..128)
   -- into bsce_slotrev / bsce_currev (big-endian) to match the BAL side.
@@ -301,7 +357,16 @@ def ziskBalStorageCoversExecLogDataSection : String :=
   ".balign 8\n" ++
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero 128\n"
+  "bv_system_storage_log:\n  .zero 128\n" ++
+  ".balign 8\n" ++
+  "exec_nonstorage_effect_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "exec_nonstorage_effect_log:\n  .zero 112\n" ++
+  ".balign 8\n" ++
+  "exec_code_effect_count:\n  .zero 8\n" ++
+  "exec_code_effect_overflow:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "exec_code_effect_log:\n  .zero 48\n"
 
 def ziskBalStorageCoversExecLogProbeUnit : BuildUnit := {
   body        := NOP
