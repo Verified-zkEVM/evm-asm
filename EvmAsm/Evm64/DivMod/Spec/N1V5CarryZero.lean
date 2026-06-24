@@ -100,6 +100,31 @@ theorem iterN1V5_true_quot_eq_div128_of_v0_norm_call
   unfold iterN1Call_v5
   rw [iterWithDoubleAddback_no_borrow (by rw [hc3]; simp [BitVec.ult])]
 
+/-- **Abstract v5 single-limb remainder extraction.** Companion of
+    `iterN1V5_true_quot_eq_div128_of_v0_norm_call`: under the normalized call
+    regime, the iteration's stored remainder limb is `u0 - q·v0` in closed form
+    (the single-limb no-borrow mulsub low limb, `un0 = u0 - q·v0`). This matches
+    the v6 body's `v6chainR = uLo -₆₄ q·d`. -/
+theorem iterN1V5_true_rem_eq_of_v0_norm_call
+    (v0 u0 u1 : Word)
+    (hv0_norm : v0.toNat ≥ 2^63)
+    (hcall : u1.toNat < v0.toNat) :
+    (iterN1V5 true v0 0 0 0 u0 u1 0 0 0).2.1 = u0 - div128Quot_v5 u1 u0 v0 * v0 := by
+  have hc3 : (mulsubN4 (div128Quot_v5 u1 u0 v0) v0 0 0 0 u0 u1 0 0).2.2.2.2 = 0 := by
+    apply c3_un_zero_of_qHat_mul_le
+    have h_prod : (div128Quot_v5 u1 u0 v0).toNat * v0.toNat ≤ u1.toNat * 2^64 + u0.toNat :=
+      le_trans (Nat.mul_le_mul_right v0.toNat
+        (div128Quot_v5_le_q_true u1 u0 v0 hv0_norm hcall)) (Nat.div_mul_le_self _ _)
+    simp [EvmWord.val256]
+    omega
+  rw [iterN1V5_true]
+  unfold iterN1Call_v5
+  rw [iterWithDoubleAddback_no_borrow (by rw [hc3]; simp [BitVec.ult])]
+  show (mulsubN4 (div128Quot_v5 u1 u0 v0) v0 0 0 0 u0 u1 0 0).1 = _
+  unfold mulsubN4
+  simp only [AddrNorm.se12_0]
+  bv_omega
+
 /-- **v5 n=1 first-digit carry-zero, from shape (no `Carry2NzAll`).** -/
 theorem fullDivN1R3V5_carry_zero_of_shape
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
@@ -160,6 +185,30 @@ theorem fullDivN1R3V5_quot_eq_div128_of_shape
     fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
     fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z]
   exact iterN1V5_true_quot_eq_div128_of_v0_norm_call _ _ _
+    (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
+    (fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
+      a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
+
+/-- **v5 n=1 first-digit remainder, from shape.** The `fullDivN1R3V5` stored
+    remainder limb equals `uLo - q₃·v0'` in closed form — the form the v6 body
+    threads as the next digit's high word (`v6chainR3`).  From shape. -/
+theorem fullDivN1R3V5_rem_eq_of_shape
+    (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).2.1 =
+      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1 -
+        div128Quot_v5 (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.2
+                      (fullDivN1NormU a0 a1 a2 a3 b0).2.2.2.1
+                      (fullDivN1NormV b0 b1 b2 b3).1 *
+          (fullDivN1NormV b0 b1 b2 b3).1 := by
+  unfold fullDivN1R3V5
+  simp only [
+    fullDivN1NormV_limb1_eq_zero_of_shape_shift_nz b0 b1 b2 b3 hb1z hshift_nz,
+    fullDivN1NormV_limb2_eq_zero_of_shape b0 b1 b2 b3 hb1z hb2z,
+    fullDivN1NormV_limb3_eq_zero_of_shape b0 b1 b2 b3 hb2z hb3z]
+  exact iterN1V5_true_rem_eq_of_v0_norm_call _ _ _
     (fullDivN1NormV_limb0_ge_pow63_of_shape b0 b1 b2 b3 hbnz hb1z hb2z hb3z)
     (fullDivN1NormU_top_lt_normV_limb0_of_shape_shift_nz
       a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)
