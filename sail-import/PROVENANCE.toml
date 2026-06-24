@@ -18,26 +18,39 @@ project_toolchain = "leanprover/lean4:v4.30.0-rc1"
 notes = "Moving rev=main + over-scoped. The thing P0/P2 replaces."
 
 [target]
-# The foundation P1 spikes and P2 vendors. Fill in from the P1 go/no-go report.
-sail_riscv_commit = "TODO (P1)"   # github.com/riscv/sail-riscv pinned commit
-sail_compiler_commit = "TODO (P1)"  # github.com/rems-project/sail; note its hardcoded Lean/mathlib target
-lean_sail_rev   = "TODO (P1)"     # backend default is "v4"; project currently consumes "v3"
-sail_modules = [
-  # The ~14-module RV64IM closure (review §3). Passed as
-  # -DSAIL_MODULES="--module prelude --module core ... --module postlude".
-  "prelude", "core", "exceptions", "pmp", "sys",
-  "I_types", "I_insts", "M_types", "M_insts", "postlude",
-  # core's unconditional TYPE deps (pulled transitively, listed for legibility):
-  "A_types", "Zicbop_types", "Zicbom_types", "PM_types",
-]
-config_file = "sail-import/riscv64im_zicclsm.json"   # TODO (P1): the §4 config (xlen=64, M on, S/U off, Zicclsm on, misaligned!=AccessFault, flat RAM)
-config_sha256 = "TODO (P2)"
-arch = "rv64d"   # or a new rv64im_zicclsm arch if defined (P1 decision)
+# MEASURED by the P1 regen spike (2026-06-24). See docs/agents/sail-regen-spike.md.
+# Verdict: CONDITIONAL GO — generation works; a version reconciliation remains (below).
+sail_riscv_commit = "1760ee2d14e123fc00e60a4f002a262fedcece14"  # riscv/sail-riscv, 2025-10-15 — LAST commit requiring Sail 0.19.1 (next bumped to 0.20)
+sail_compiler_version = "0.19.1"   # opam switch "sail"; ships sail_lean_backend 0.19.1 (Lean target present — no build-from-source needed)
+z3_version      = "4.15.3"   # required by Sail's typechecker; not on PATH by default (nix store path in regen-sail-model.sh)
+# Module selection in Sail 0.19.1 is POSITIONAL (not --module / not -DSAIL_MODULES).
+# Pass these names as positional args after riscv.sail_project; Sail pulls in each
+# one's `requires` closure automatically (review §3 mechanism CORRECTED).
+sail_modules = ["main", "I_insts", "M_insts"]
+# Transitive closure reached (for legibility): core, exceptions, pmp, sys, I_types,
+# M_types, postlude, termination, + (unavoidably, via sys→V_core→FD_core) the V and
+# FD *register/type* modules. Their *instruction* logic is NOT included. Result:
+# 84 .lean files; Register enum ~163 ctors (state barely shrinks vs 178 full).
+config_file = "sail-import/riscv64im_zicclsm.json"   # validated: generates cleanly + passes validate_config.sail (M on, A/F/D/V off, S=U off, Zicclsm via misaligned, NoFault regions)
+config_sha256 = "7dd1fa11db135e5b20e981499e172e48aa25d2b1f61f44afe6597eda13057e81"
+arch = "rv64d"   # generator names the arch rv64d; the scoped content is RV64IM. Renaming is cosmetic (P2 decision).
 
-# ---- Version-reconciliation note (review §1.1, corrected) ----
-# The Sail Lean backend hardcodes lean4 v4.29.0 / mathlib v4.29.0 / lean-sail v4.
-# The PROJECT is on lean4 v4.30.0-rc1 (AHEAD of the backend default) with
-# lean-sail v3. So P2 is a *reconciliation*, not a forward bump: choose a Sail
-# commit + lean-sail rev whose generated Lean is compatible with v4.30.0-rc1, or
-# align the project toolchain to the backend's target. Record the resolved triple
-# here once P1 determines it.
+# ---- Version reconciliation: REAL and UNRESOLVED (the P2 crux) ----
+# CORRECTION of an earlier draft that claimed "no bump, emits against v3" — WRONG.
+# Measured by actually building the scoped model on v4.30.0-rc1:
+#   * Sail 0.19.1's emitted model assumes lean-sail v4 (79b4d08, lean4 v4.29.0):
+#     uses `open ConcurrencyInterfaceV1`, `Arch` as a class, `sail_barrier`.
+#   * The PROJECT pins lean-sail v3 (49ccc5a, builds on v4.30.0-rc1). Wiring the
+#     0.19.1 model to v3 FAILS: Access_variety universe metavar, Arch not-a-class,
+#     sail_barrier unresolved, duplicate ExceptT.map_error.
+#   * The generator's INLINE runtime copy is pre-v4.30 (BitVec.getMsb', String.Slice,
+#     IntRange omega) — doesn't build on v4.30.0-rc1 without v3's fixes.
+# So the original review §1.1 skew (backend ↔ lean-sail v4 / v4.29.0; project v3 /
+# v4.30.0-rc1) STANDS. P2 must pick: (A) align project to v4.29.0 + lean-sail v4;
+# (B) vendor model + lean-sail v4 and backport v3's v4.30 fixes onto v4 [recommended,
+# keeps v4.30]; (C) build the older Sail that matches v3 and regenerate drop-in.
+# lean_sail_rev intentionally left UNSET until P2 resolves this.
+#
+# ---- P2 also owes lemma re-pointing for model-logic renames ----
+# e.g. bool_to_bit -> bool_to_bits (Prelude), hit by ALUProofs SLT/SLTU/SLTI.
+# Run a full regenerated-vs-vendored diff to enumerate the rest.
