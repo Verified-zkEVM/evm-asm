@@ -76,7 +76,7 @@ def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
       +48 bv_tx_log_window start               (expect 0)
       +56 bv_tx_log_window count               (expect 0)
       +64 bv_receipts_completeness_shape       (expect 6)
-      +72 bv_receipts_enforce_enabled          (expect 0)
+      +72 bv_receipts_enforce_enabled          (expect 1)
       +80  bvgr_tx_exec_state_gas[0]           (expect 0)
       +88  non-STOP helper status              (expect 4)
       +96  runtime_count after non-STOP        (expect 0)
