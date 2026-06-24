@@ -416,4 +416,50 @@ theorem evm_mulmod_reduce512_loop_body_regown_spec_within
   exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hp => hp) (fun _ hp => hp) h19
 
+/-- When the decremented limb counter `x18` is still nonzero, the outer-loop
+    body takes the `BNE` loop-back exit: a `base → base` triple landing in the
+    loop-carried post (the current limb folded into the remainder). -/
+theorem evm_mulmod_reduce512_loop_body_loop_path
+    (sp base ptr x18v limb : Word) (r n : EvmWord)
+    (hloop : x18v + signExtend12 (4095 : BitVec 12) ≠ (0 : Word)) :
+    cpsTripleWithin (2 + 64 * 64 + 2 + 1) base base
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((bodyLoopCommon sp ptr x18v r n limb **
+        regOwn .x17 ** regOwn .x15 ** regOwn .x19) ** regOwn .x20)
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) ≠ (0 : Word)⌝) := by
+  refine cpsBranchWithin_takenPath
+    (evm_mulmod_reduce512_loop_body_regown_spec_within sp base ptr x18v limb r n) ?_
+  intro hp hq
+  obtain ⟨_, _, _, _, _, hq1⟩ := hq
+  obtain ⟨_, _, _, _, _, hq2⟩ := hq1
+  obtain ⟨_, _, _, _, _, hq3⟩ := hq2
+  exact hloop ((sepConj_pure_right _).1 hq3).2
+
+/-- When the decremented limb counter `x18` reaches zero, the outer-loop body
+    takes the `BNE` fall-through exit: a `base → base + 276` triple landing in
+    the loop-done post (the last limb folded into the remainder). -/
+theorem evm_mulmod_reduce512_loop_body_done_path
+    (sp base ptr x18v limb : Word) (r n : EvmWord)
+    (hdone : x18v + signExtend12 (4095 : BitVec 12) = (0 : Word)) :
+    cpsTripleWithin (2 + 64 * 64 + 2 + 1) base (base + 276)
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((bodyLoopCommon sp ptr x18v r n limb **
+        regOwn .x17 ** regOwn .x15 ** regOwn .x19) ** regOwn .x20)
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) = (0 : Word)⌝) := by
+  refine cpsBranchWithin_ntakenPath
+    (evm_mulmod_reduce512_loop_body_regown_spec_within sp base ptr x18v limb r n) ?_
+  intro hp hq
+  obtain ⟨_, _, _, _, _, hq1⟩ := hq
+  obtain ⟨_, _, _, _, _, hq2⟩ := hq1
+  obtain ⟨_, _, _, _, _, hq3⟩ := hq2
+  exact ((sepConj_pure_right _).1 hq3).2 hdone
+
 end EvmAsm.Evm64
