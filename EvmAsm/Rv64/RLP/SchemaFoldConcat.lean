@@ -23,7 +23,6 @@ def schemaEncBytes : List FieldSpec → List Byte
 
 /-- Per-field validity WITHOUT the drop bookkeeping (length / immediate / output bound). -/
 def fieldCoreValid (outLen : Nat) (f : FieldSpec) : Prop :=
-  1 ≤ f.data.length ∧
   (if f.isScalar then f.data.length ≤ 8
    else (encode (.bytes f.data)).length < 256 ^ 8) ∧
   signExtend12 f.imm = BitVec.ofNat 64 f.di ∧
@@ -42,13 +41,13 @@ theorem schemaValid_of_concat (bs : List Byte) (outLen : Nat) (tail : List Byte)
   | nil => intro O _ _; exact trivial
   | cons f rest ih =>
     intro O hcore hconcat
-    obtain ⟨h1, hk, hi, hd⟩ := hcore f (by simp)
+    obtain ⟨hk, hi, hd⟩ := hcore f (by simp)
     have hdrop_tail : bs.drop (O + fieldEnc f) = schemaEncBytes rest ++ tail := by
       rw [← List.drop_drop, hconcat]
       simp only [schemaEncBytes, fieldEnc, List.append_assoc, List.drop_append_length]
     have hhead : bs.drop O = encode (.bytes f.data) ++ bs.drop (O + fieldEnc f) := by
       rw [hdrop_tail, hconcat]; simp only [schemaEncBytes, List.append_assoc]
-    exact ⟨h1, hk, hi, hd, hhead,
+    exact ⟨hk, hi, hd, hhead,
       ih (O + fieldEnc f) (fun g hg => hcore g (by simp [hg])) hdrop_tail⟩
 
 -- Concrete cross-check: decode a 3-field mixed schema — scalar `0x2a` (→ 42 at byte 0), the
@@ -66,7 +65,7 @@ example :=
     (schemaValid_of_concat _ 24 []
       [⟨true, [(0x2a : Byte)], 0, 0⟩, ⟨false, [(0x01 : Byte), (0x02 : Byte)], 8, 8⟩,
         ⟨true, [(0x07 : Byte)], 16, 16⟩] 0
-      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide, by decide⟩)
+      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
       (by decide))
     (by decide)
 
