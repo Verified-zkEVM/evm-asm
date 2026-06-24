@@ -30,6 +30,14 @@ theorem mulModReduceRemLT_iff_ult (r n : EvmWord) :
   unfold mulModReduceRemLT
   exact Iff.rfl
 
+
+theorem word_eq_of_not_ult_not_ult (a b : Word)
+    (hab : ¬ BitVec.ult a b) (hba : ¬ BitVec.ult b a) : a = b := by
+  apply BitVec.eq_of_toNat_eq
+  rw [show BitVec.ult a b ↔ a.toNat < b.toNat from EvmWord.ult_iff] at hab
+  rw [show BitVec.ult b a ↔ b.toNat < a.toNat from EvmWord.ult_iff] at hba
+  omega
+
 theorem mulModReduceRemGE_of_limb3_gt (r n : EvmWord)
     (h : BitVec.ult (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3)) :
     mulModReduceRemGE r n := by
@@ -189,6 +197,77 @@ theorem mulModReduceRemLT_of_limb0_lt (r n : EvmWord)
   simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
     EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3]
   nlinarith
+
+
+theorem mulModReduceRemGE_cases (r n : EvmWord) (hge : mulModReduceRemGE r n) :
+    BitVec.ult (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3) ∨
+    (EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3 ∧
+      BitVec.ult (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2)) ∨
+    (EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3 ∧
+      EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2 ∧
+      BitVec.ult (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1)) ∨
+    (EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3 ∧
+      EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2 ∧
+      EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1 ∧
+      ¬ BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0)) := by
+  have hge_ult : ¬ BitVec.ult r n := (mulModReduceRemGE_iff_not_ult r n).1 hge
+  by_cases h3_gt : BitVec.ult (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3)
+  · exact Or.inl h3_gt
+  · by_cases h3_lt : BitVec.ult (EvmWord.getLimbN r 3) (EvmWord.getLimbN n 3)
+    · have hlt := (mulModReduceRemLT_iff_ult r n).1 (mulModReduceRemLT_of_limb3_lt r n h3_lt)
+      exact False.elim (hge_ult hlt)
+    · have h3_eq := word_eq_of_not_ult_not_ult (EvmWord.getLimbN r 3) (EvmWord.getLimbN n 3) h3_lt h3_gt
+      by_cases h2_gt : BitVec.ult (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2)
+      · exact Or.inr (Or.inl ⟨h3_eq, h2_gt⟩)
+      · by_cases h2_lt : BitVec.ult (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2)
+        · have hlt := (mulModReduceRemLT_iff_ult r n).1 (mulModReduceRemLT_of_limb2_lt r n h3_eq h2_lt)
+          exact False.elim (hge_ult hlt)
+        · have h2_eq := word_eq_of_not_ult_not_ult (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2) h2_lt h2_gt
+          by_cases h1_gt : BitVec.ult (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1)
+          · exact Or.inr (Or.inr (Or.inl ⟨h3_eq, h2_eq, h1_gt⟩))
+          · by_cases h1_lt : BitVec.ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1)
+            · have hlt := (mulModReduceRemLT_iff_ult r n).1 (mulModReduceRemLT_of_limb1_lt r n h3_eq h2_eq h1_lt)
+              exact False.elim (hge_ult hlt)
+            · have h1_eq := word_eq_of_not_ult_not_ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1) h1_lt h1_gt
+              by_cases h0_lt : BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0)
+              · have hlt := (mulModReduceRemLT_iff_ult r n).1 (mulModReduceRemLT_of_limb0_lt r n h3_eq h2_eq h1_eq h0_lt)
+                exact False.elim (hge_ult hlt)
+              · exact Or.inr (Or.inr (Or.inr ⟨h3_eq, h2_eq, h1_eq, h0_lt⟩))
+
+theorem mulModReduceRemLT_cases (r n : EvmWord) (hlt : mulModReduceRemLT r n) :
+    BitVec.ult (EvmWord.getLimbN r 3) (EvmWord.getLimbN n 3) ∨
+    (EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3 ∧
+      BitVec.ult (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2)) ∨
+    (EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3 ∧
+      EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2 ∧
+      BitVec.ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1)) ∨
+    (EvmWord.getLimbN r 3 = EvmWord.getLimbN n 3 ∧
+      EvmWord.getLimbN r 2 = EvmWord.getLimbN n 2 ∧
+      EvmWord.getLimbN r 1 = EvmWord.getLimbN n 1 ∧
+      BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0)) := by
+  have hlt_ult : BitVec.ult r n := (mulModReduceRemLT_iff_ult r n).1 hlt
+  by_cases h3_lt : BitVec.ult (EvmWord.getLimbN r 3) (EvmWord.getLimbN n 3)
+  · exact Or.inl h3_lt
+  · by_cases h3_gt : BitVec.ult (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3)
+    · have hge := (mulModReduceRemGE_iff_not_ult r n).1 (mulModReduceRemGE_of_limb3_gt r n h3_gt)
+      exact False.elim (hge hlt_ult)
+    · have h3_eq := word_eq_of_not_ult_not_ult (EvmWord.getLimbN r 3) (EvmWord.getLimbN n 3) h3_lt h3_gt
+      by_cases h2_lt : BitVec.ult (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2)
+      · exact Or.inr (Or.inl ⟨h3_eq, h2_lt⟩)
+      · by_cases h2_gt : BitVec.ult (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2)
+        · have hge := (mulModReduceRemGE_iff_not_ult r n).1 (mulModReduceRemGE_of_limb2_gt r n h3_eq h2_gt)
+          exact False.elim (hge hlt_ult)
+        · have h2_eq := word_eq_of_not_ult_not_ult (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2) h2_lt h2_gt
+          by_cases h1_lt : BitVec.ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1)
+          · exact Or.inr (Or.inr (Or.inl ⟨h3_eq, h2_eq, h1_lt⟩))
+          · by_cases h1_gt : BitVec.ult (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1)
+            · have hge := (mulModReduceRemGE_iff_not_ult r n).1 (mulModReduceRemGE_of_limb1_gt r n h3_eq h2_eq h1_gt)
+              exact False.elim (hge hlt_ult)
+            · have h1_eq := word_eq_of_not_ult_not_ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1) h1_lt h1_gt
+              by_cases h0_lt : BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0)
+              · exact Or.inr (Or.inr (Or.inr ⟨h3_eq, h2_eq, h1_eq, h0_lt⟩))
+              · have hge := (mulModReduceRemGE_iff_not_ult r n).1 (mulModReduceRemGE_of_limb0_ge r n h3_eq h2_eq h1_eq h0_lt)
+                exact False.elim (hge hlt_ult)
 
 @[irreducible] def mulModReduceSubBorrow0 (r n : EvmWord) : Word :=
   if BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0) then (1 : Word) else 0
