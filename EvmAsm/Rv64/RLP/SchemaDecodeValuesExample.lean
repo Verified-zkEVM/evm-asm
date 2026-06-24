@@ -30,7 +30,7 @@ set_option maxRecDepth 8000 in
 theorem egTxFieldValues : schemaScalarValues egValBs 1 egValSpecs :=
   (decode_encoded_short_list_schema_values (0x1000 : Word) (0x2000 : Word) (0x3000 : Word) .x18
     egValBs 0 egValSpecs (List.replicate 24 (0 : Byte)) 24 [] 0 0 0 0 0 0 (by decide) (by decide)
-    (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide, by decide⟩)
+    (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
     (by decide) (by decide) (by decide) (by decide) (by simp) (by decide) (by decide) (by decide)).2
 
 -- The recovered field values are the expected naturals: `0x2a = 42` and `[0x01,0x02] = 258`.
