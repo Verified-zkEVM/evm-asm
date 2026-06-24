@@ -15,6 +15,8 @@
 
 import EvmAsm.Rv64.RLP.UnifiedFieldUnitFullyCanonical
 import EvmAsm.Rv64.RLP.UnifiedLongBytesFieldCanonical
+import EvmAsm.Rv64.RLP.UnifiedEmptyScalarFieldCanonical
+import EvmAsm.Rv64.RLP.UnifiedEmptyBytesFieldCanonical
 import EvmAsm.Rv64.RLP.UnifiedHeteroFieldWalk
 
 namespace EvmAsm.Rv64.RLP
@@ -34,19 +36,22 @@ structure FieldSpec where
 /-- Output bytes written by a field: 8 (scalar u64) or `|data|` (byte array). -/
 def fieldWriteLen (f : FieldSpec) : Nat := if f.isScalar then 8 else f.data.length
 
-/-- Code size of a field unit: 280 (scalar) or `152 + 20·|data|` (byte array). -/
-def fieldSize (f : FieldSpec) : Nat := if f.isScalar then 280 else 152 + 20 * f.data.length
+/-- Code size of a field unit: scalar 248 (empty) | 280 (non-empty); byte array `152 + 20·|data|`. -/
+def fieldSize (f : FieldSpec) : Nat :=
+  if f.isScalar then (if f.data = [] then 248 else 280) else 152 + 20 * f.data.length
 
 /-- Step bound of a field unit. -/
 def fieldSteps (f : FieldSpec) : Nat :=
-  if f.isScalar then (61 + (2 + 6 * f.data.length)) + (1 + 3 * 8) else 61 + (1 + 5 * f.data.length)
+  if f.isScalar then (if f.data = [] then 61 + (1 + 3 * 8) else (61 + (2 + 6 * f.data.length)) + (1 + 3 * 8))
+  else 61 + (1 + 5 * f.data.length)
 
 /-- Input bytes consumed by a field (its RLP item's encoding length). -/
 def fieldEnc (f : FieldSpec) : Nat := (encode (.bytes f.data)).length
 
 /-- The field unit's CodeReq at program address `base`. -/
 def fieldCR (base : Word) (rOut : Reg) (f : FieldSpec) : CodeReq :=
-  if f.isScalar then scalarRegionUnitCR base rOut f.imm else bytesUnitCR base rOut f.imm f.data.length
+  if f.isScalar then (if f.data = [] then emptyScalarUnitCR base rOut f.imm else scalarRegionUnitCR base rOut f.imm)
+  else bytesUnitCR base rOut f.imm f.data.length
 
 /-- The output region after a field writes its value (LE spill | payload copy). -/
 def fieldUpdate (out : List Byte) (f : FieldSpec) : List Byte :=
@@ -91,7 +96,6 @@ def schemaINV (regionBase outBase : Word) (rOut : Reg) (bs : List Byte) (O : Nat
 def SchemaValid (bs : List Byte) (outLen : Nat) : Nat → List FieldSpec → Prop
   | _, [] => True
   | O, f :: rest =>
-    1 ≤ f.data.length ∧
     (if f.isScalar then f.data.length ≤ 8
      else (encode (.bytes f.data)).length < 256 ^ 8) ∧
     signExtend12 f.imm = BitVec.ofNat 64 f.di ∧
@@ -141,23 +145,38 @@ theorem schemaOut_length (out : List Byte) (specs : List FieldSpec) :
 theorem fieldCR_none_above (base : Word) (rOut : Reg) (f : FieldSpec) (a : Word)
     (hcode : base.toNat + fieldSize f < 2 ^ 64) (h : base.toNat + fieldSize f ≤ a.toNat) :
     fieldCR base rOut f a = none := by
-  unfold fieldCR fieldSize at *
   by_cases hs : f.isScalar
-  · simp only [hs] at *
-    exact scalar_region_unit_cr_none_above base rOut f.imm a hcode h
-  · simp only [hs] at *
-    exact bytes_unit_cr_none_above base rOut f.imm f.data.length a hcode h
+  · by_cases hempty : f.data = []
+    · have hcode' : base.toNat + 248 < 2 ^ 64 := by simpa [fieldSize, hs, hempty] using hcode
+      have h' : base.toNat + 248 ≤ a.toNat := by simpa [fieldSize, hs, hempty] using h
+      simp only [fieldCR, hs, hempty, if_true]
+      exact empty_scalar_unit_cr_none_above base rOut f.imm a hcode' h'
+    · have hcode' : base.toNat + 280 < 2 ^ 64 := by simpa [fieldSize, hs, hempty] using hcode
+      have h' : base.toNat + 280 ≤ a.toNat := by simpa [fieldSize, hs, hempty] using h
+      simp only [fieldCR, hs, hempty, if_false]
+      exact scalar_region_unit_cr_none_above base rOut f.imm a hcode' h'
+  · have hcode' : base.toNat + (152 + 20 * f.data.length) < 2 ^ 64 := by
+      simpa [fieldSize, hs] using hcode
+    have h' : base.toNat + (152 + 20 * f.data.length) ≤ a.toNat := by simpa [fieldSize, hs] using h
+    simp only [fieldCR, hs]
+    exact bytes_unit_cr_none_above base rOut f.imm f.data.length a hcode' h'
 
 /-- A single field unit's CR is `none` below `base`. -/
 theorem fieldCR_none_below (base : Word) (rOut : Reg) (f : FieldSpec) (a : Word)
     (hcode : base.toNat + fieldSize f < 2 ^ 64) (h : a.toNat < base.toNat) :
     fieldCR base rOut f a = none := by
-  unfold fieldCR fieldSize at *
   by_cases hs : f.isScalar
-  · simp only [hs] at *
-    exact scalar_region_unit_cr_none_below base rOut f.imm a hcode h
-  · simp only [hs] at *
-    exact bytes_unit_cr_none_below base rOut f.imm f.data.length a hcode h
+  · by_cases hempty : f.data = []
+    · have hcode' : base.toNat + 248 < 2 ^ 64 := by simpa [fieldSize, hs, hempty] using hcode
+      simp only [fieldCR, hs, hempty, if_true]
+      exact empty_scalar_unit_cr_none_below base rOut f.imm a hcode' h
+    · have hcode' : base.toNat + 280 < 2 ^ 64 := by simpa [fieldSize, hs, hempty] using hcode
+      simp only [fieldCR, hs, hempty, if_false]
+      exact scalar_region_unit_cr_none_below base rOut f.imm a hcode' h
+  · have hcode' : base.toNat + (152 + 20 * f.data.length) < 2 ^ 64 := by
+      simpa [fieldSize, hs] using hcode
+    simp only [fieldCR, hs]
+    exact bytes_unit_cr_none_below base rOut f.imm f.data.length a hcode' h
 
 /-- The schema CR is `none` below `base` (every unit is at or after `base`). -/
 theorem schemaCR_none_below (rOut : Reg) :
@@ -226,7 +245,6 @@ theorem field_step (regionBase outBase : Word) (rOut : Reg) (bs : List Byte) (ou
     (hdalign : outBase.toNat % 8 = 0)
     (hdov : outBase.toNat + out.length < 2 ^ 64)
     (hdval : ∀ i, i < out.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
-    (hl1 : 1 ≤ f.data.length)
     (hkind : if f.isScalar then f.data.length ≤ 8
       else (encode (.bytes f.data)).length < 256 ^ 8)
     (himm : signExtend12 f.imm = BitVec.ofNat 64 f.di)
@@ -241,50 +259,97 @@ theorem field_step (regionBase outBase : Word) (rOut : Reg) (bs : List Byte) (ou
         then decodeScalar (bs.drop O) = some (Nat.fromBytesBE f.data, bs.drop (O + fieldEnc f))
         else decode (bs.drop O) = some (.bytes f.data, bs.drop (O + fieldEnc f))) := by
   by_cases hs : f.isScalar
-  · simp only [fieldSteps, fieldSize, fieldCR, fieldUpdate, fieldWriteLen, fieldEnc, schemaINV, hs]
-      at hkind hdst ⊢
-    have hcs : base.toNat + (180 + 4 + 12 * 8) < 2 ^ 64 := by
-      have : base.toNat + 280 < 2 ^ 64 := by simpa [fieldSize, hs] using hcode
-      omega
-    refine ⟨?_, ?_⟩
-    · have ht := (unified_scalar_field_decode_and_store_region_fully_canonical base regionBase rOut
-        outBase f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hkind
-        halign hover hwin hdropf hdalign hdst hdov hdval himm hcs).1
-      rw [show base + 180 + 4 + BitVec.ofNat 64 (12 * 8) = base + BitVec.ofNat 64 280 from by bv_omega] at ht
-      exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
-    · exact (unified_scalar_field_decode_and_store_region_fully_canonical base regionBase rOut
-        outBase f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hkind
-        halign hover hwin hdropf hdalign hdst hdov hdval himm hcs).2
-  · simp only [fieldSteps, fieldSize, fieldCR, fieldUpdate, fieldWriteLen, fieldEnc, schemaINV, hs]
-      at hkind hdst ⊢
-    have hsize := hkind
-    have hcb : base.toNat + (148 + 4 + 20 * f.data.length) < 2 ^ 64 := by
-      have : base.toNat + (152 + 20 * f.data.length) < 2 ^ 64 := by simpa [fieldSize, hs] using hcode
-      omega
-    have hexit : base + 148 + 4 + BitVec.ofNat 64 (20 * f.data.length)
-        = base + BitVec.ofNat 64 (152 + 20 * f.data.length) := by bv_omega
-    -- Dispatch on the byte-array length: short (`≤ 55`) vs long (`> 55`) form. Both units have
-    -- the identical triple shape, so the conclusion is uniform.
-    by_cases hL : f.data.length ≤ 55
-    · refine ⟨?_, ?_⟩
-      · have ht := (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
-          f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hL hsize
-          halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).1
-        rw [hexit] at ht
-        exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
-      · exact (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
-          f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hL hsize
-          halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).2
-    · have hlong : 55 < f.data.length := Nat.lt_of_not_le hL
+  · by_cases hempty : f.data = []
+    · -- EMPTY scalar (n=0): the empty-scalar unit (no read loop).
+      have hdrop0 := hdropf
+      simp only [hempty, fieldEnc] at hdrop0
+      simp only [fieldSteps, fieldSize, fieldCR, fieldUpdate, fieldWriteLen, fieldEnc, schemaINV,
+        hs, hempty] at hdst ⊢
+      have hcs : base.toNat + (148 + 4 + 12 * 8) < 2 ^ 64 := by
+        have : base.toNat + 248 < 2 ^ 64 := by simpa [fieldSize, hs, hempty] using hcode
+        omega
       refine ⟨?_, ?_⟩
-      · have ht := (unified_long_bytes_field_decode_and_copy_fully_canonical base regionBase rOut
-          outBase f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hlong
-          hsize halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).1
-        rw [hexit] at ht
+      · have ht := (unified_empty_scalar_field_decode_and_store_region_fully_canonical base regionBase
+          rOut outBase f.imm bs O (bs.drop (O + (encode (.bytes ([] : List Byte))).length)) out f.di
+          halign hover hwin hdrop0 hdalign hdst hdov hdval himm hcs).1
+        rw [show base + 148 + 4 + BitVec.ofNat 64 (12 * 8) = base + BitVec.ofNat 64 248 from by bv_omega] at ht
         exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
-      · exact (unified_long_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
-          f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hlong hsize
-          halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).2
+      · rw [Nat.fromBytesBE_nil]
+        exact (unified_empty_scalar_field_decode_and_store_region_fully_canonical base regionBase
+          rOut outBase f.imm bs O (bs.drop (O + (encode (.bytes ([] : List Byte))).length)) out f.di
+          halign hover hwin hdrop0 hdalign hdst hdov hdval himm hcs).2
+    · -- NON-EMPTY scalar (1 ≤ |data| ≤ 8).
+      have hl1 : 1 ≤ f.data.length := by
+        rcases hd : f.data with _ | ⟨a, t⟩
+        · exact absurd hd hempty
+        · simp only [List.length_cons]; omega
+      simp only [fieldSteps, fieldSize, fieldCR, fieldUpdate, fieldWriteLen, fieldEnc, schemaINV,
+        hs, hempty] at hkind hdst ⊢
+      have hcs : base.toNat + (180 + 4 + 12 * 8) < 2 ^ 64 := by
+        have : base.toNat + 280 < 2 ^ 64 := by simpa [fieldSize, hs, hempty] using hcode
+        omega
+      refine ⟨?_, ?_⟩
+      · have ht := (unified_scalar_field_decode_and_store_region_fully_canonical base regionBase rOut
+          outBase f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hkind
+          halign hover hwin hdropf hdalign hdst hdov hdval himm hcs).1
+        rw [show base + 180 + 4 + BitVec.ofNat 64 (12 * 8) = base + BitVec.ofNat 64 280 from by bv_omega] at ht
+        exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
+      · exact (unified_scalar_field_decode_and_store_region_fully_canonical base regionBase rOut
+          outBase f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hkind
+          halign hover hwin hdropf hdalign hdst hdov hdval himm hcs).2
+  · by_cases hempty : f.data = []
+    · -- EMPTY byte array (n=0): copies nothing.
+      have hdrop0 := hdropf
+      simp only [hempty, fieldEnc] at hdrop0
+      simp only [fieldSteps, fieldSize, fieldCR, fieldUpdate, fieldWriteLen, fieldEnc, schemaINV,
+        hs, hempty] at hdst ⊢
+      have hcb : base.toNat + (148 + 4 + 20 * ([] : List Byte).length) < 2 ^ 64 := by
+        have : base.toNat + (152 + 20 * ([] : List Byte).length) < 2 ^ 64 := by
+          simpa [fieldSize, hs, hempty] using hcode
+        simpa using this
+      refine ⟨?_, ?_⟩
+      · have ht := (unified_empty_bytes_field_decode_and_copy_fully_canonical base regionBase rOut
+          outBase f.imm bs O (bs.drop (O + (encode (.bytes ([] : List Byte))).length)) out f.di
+          halign hdalign hover hwin himm hdst hdov hdval hcb hdrop0).1
+        rw [show base + 148 + 4 + BitVec.ofNat 64 (20 * ([] : List Byte).length)
+            = base + BitVec.ofNat 64 (152 + 20 * ([] : List Byte).length) from by bv_omega] at ht
+        exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
+      · exact (unified_empty_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+          f.imm bs O (bs.drop (O + (encode (.bytes ([] : List Byte))).length)) out f.di
+          halign hdalign hover hwin himm hdst hdov hdval hcb hdrop0).2
+    · -- NON-EMPTY byte array; dispatch short (`≤ 55`) vs long (`> 55`).
+      have hl1 : 1 ≤ f.data.length := by
+        rcases hd : f.data with _ | ⟨a, t⟩
+        · exact absurd hd hempty
+        · simp only [List.length_cons]; omega
+      simp only [fieldSteps, fieldSize, fieldCR, fieldUpdate, fieldWriteLen, fieldEnc, schemaINV, hs]
+        at hkind hdst ⊢
+      have hsize := hkind
+      have hcb : base.toNat + (148 + 4 + 20 * f.data.length) < 2 ^ 64 := by
+        have : base.toNat + (152 + 20 * f.data.length) < 2 ^ 64 := by simpa [fieldSize, hs] using hcode
+        omega
+      have hexit : base + 148 + 4 + BitVec.ofNat 64 (20 * f.data.length)
+          = base + BitVec.ofNat 64 (152 + 20 * f.data.length) := by bv_omega
+      by_cases hL : f.data.length ≤ 55
+      · refine ⟨?_, ?_⟩
+        · have ht := (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+            f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hL hsize
+            halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).1
+          rw [hexit] at ht
+          exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
+        · exact (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+            f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hl1 hL hsize
+            halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).2
+      · have hlong : 55 < f.data.length := Nat.lt_of_not_le hL
+        refine ⟨?_, ?_⟩
+        · have ht := (unified_long_bytes_field_decode_and_copy_fully_canonical base regionBase rOut
+            outBase f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hlong
+            hsize halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).1
+          rw [hexit] at ht
+          exact cpsTripleWithin_weaken (fun _ h => h) (fun _ hp => by xperm_hyp hp) ht
+        · exact (unified_long_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+            f.imm bs O f.data (bs.drop (O + (encode (.bytes f.data)).length)) out f.di hlong hsize
+            halign hdalign hover hwin himm hdst hdov hdval hcb hdropf).2
 
 set_option maxRecDepth 8000 in
 /-- **N-field heterogeneous fold.** Decode an arbitrary schema (`List FieldSpec`, scalar |
@@ -320,7 +385,7 @@ theorem schema_walk (regionBase outBase : Word) (rOut : Reg) (bs : List Byte)
   | cons f rest ih =>
     intro base O out hlen hvalid hcode
     simp only [SchemaValid] at hvalid
-    obtain ⟨hl1, hkind, himm, hdstv, hdropf, hrest⟩ := hvalid
+    obtain ⟨hkind, himm, hdstv, hdropf, hrest⟩ := hvalid
     have hszrec : schemaSize (f :: rest) = fieldSize f + schemaSize rest := rfl
     have htot : base.toNat + (fieldSize f + schemaSize rest) < 2 ^ 64 := by rw [← hszrec]; exact hcode
     have hfs_lt : base.toNat + fieldSize f < 2 ^ 64 := by omega
@@ -328,7 +393,7 @@ theorem schema_walk (regionBase outBase : Word) (rOut : Reg) (bs : List Byte)
     have hrest_lt : (base + BitVec.ofNat 64 (fieldSize f)).toNat + schemaSize rest < 2 ^ 64 := by
       rw [hbsz]; omega
     have hstep := field_step regionBase outBase rOut bs out O base f halign hover hwin hdalign
-      (by rw [hlen]; exact hdov) (by rw [hlen]; exact hdval) hl1 hkind himm
+      (by rw [hlen]; exact hdov) (by rw [hlen]; exact hdval) hkind himm
       (by rw [hlen]; exact hdstv) hfs_lt hdropf
     have htail := ih (base + BitVec.ofNat 64 (fieldSize f)) (O + fieldEnc f) (fieldUpdate out f)
       (by rw [fieldUpdate_length]; exact hlen) hrest hrest_lt
