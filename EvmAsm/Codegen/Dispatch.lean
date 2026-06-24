@@ -2780,6 +2780,10 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
+  -- coc3g.6.6: append-Burn flag for the same deferred hook. 0 = Transfer only,
+  -- 1 = Transfer(caller, callee, value) plus Burn(callee, value) for value sent to
+  -- an account created and deleted in this tx.
+  "cd_xfer_log_burn:\n  .zero 8\n" ++
   -- drj99.1 (failed-inner rollback): pre-snapshot of exec_nonstorage_effect_count/overflow taken by
   -- callDescendFallThrough BEFORE the value-CALL caller-debit/callee-credit records, consumed by
   -- call_frame_descend so frame_return rolls those records back on a child OOG/REVERT. `armed` is a
