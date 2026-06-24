@@ -138,3 +138,5 @@ import EvmAsm.Rv64.RLP.Phase1ToPhase3SingleByte
 import EvmAsm.Rv64.RLP.Phase1StepToPhase3ShortString
 import EvmAsm.Rv64.RLP.Phase6ReadDecode
 import EvmAsm.Rv64.RLP.Phase6WriteOutput
+import EvmAsm.Rv64.RLP.Phase6DecodeWrite
+import EvmAsm.Rv64.RLP.Phase6Pipeline
