@@ -121,9 +121,9 @@ theorem fast_scratch_own_call_bodyform
     quotient `wq` and dividend `wa` are abstract `EvmWord`s, instantiated to
     `EvmWord.div a b` / `a` at the use site after the `evmWordIs` folds. -/
 theorem fast_post_weaken_core (sp : Word) (wa wq : EvmWord)
-    (x2v qv0 qv1 qv2 qv3 c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 x1v : Word) :
+    (x2v x11v qv0 qv1 qv2 qv3 c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 x1v : Word) :
     ∀ h, ((.x12 ↦ᵣ (sp + 32)) ** regOwn .x9 ** (.x2 ↦ᵣ x2v) **
-          (.x5 ↦ᵣ qv0) ** (.x6 ↦ᵣ qv1) ** (.x7 ↦ᵣ qv2) ** (.x10 ↦ᵣ qv3) ** (.x11 ↦ᵣ x2v) **
+          (.x5 ↦ᵣ qv0) ** (.x6 ↦ᵣ qv1) ** (.x7 ↦ᵣ qv2) ** (.x10 ↦ᵣ qv3) ** (.x11 ↦ᵣ x11v) **
           (.x0 ↦ᵣ (0 : Word)) ** evmWordIs sp wa ** evmWordIs (sp + 32) wq **
           ((((sp + signExtend12 4088) ↦ₘ c0) ** ((sp + signExtend12 4080) ↦ₘ c1) **
             ((sp + signExtend12 4072) ↦ₘ c2) ** ((sp + signExtend12 4064) ↦ₘ c3) **
