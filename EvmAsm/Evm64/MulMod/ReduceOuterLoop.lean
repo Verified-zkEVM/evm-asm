@@ -192,6 +192,41 @@ theorem evm_mulmod_reduce512_loop_advance_spec_within (base x16v x18v : Word) :
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) h16f h18f)
 
+/-- One outer-loop iteration through the pointer advance (everything but the
+    final branch): load the limb, fold it into the remainder, then advance the
+    limb pointer (`x16 -= 8`) and decrement the eight-limb counter (`x18`). -/
+theorem evm_mulmod_reduce512_loop_fold_advance_spec_within
+    (sp base ptr oldX17 oldX15 x19v x20v x18v limb : Word) (r n : EvmWord) :
+    cpsTripleWithin (2 + 64 * 64 + 2) base (base + 272)
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ ptr) ** (.x17 ↦ᵣ oldX17) ** (.x15 ↦ᵣ oldX15) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ x19v) ** (.x20 ↦ᵣ x20v) ** (.x18 ↦ᵣ x18v) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb)) := by
+  have hfoldf := cpsTripleWithin_frameR ((.x18 ↦ᵣ x18v)) (by pcFree)
+    (evm_mulmod_reduce512_loop_fold_one_limb_spec_within
+      sp base ptr oldX17 oldX15 x19v x20v limb r n)
+  have hadvf := cpsTripleWithin_frameR
+    (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+      ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+    (by unfold mulModReduceBitLoopPost mulModReduceCompareMem; pcFree)
+    (evm_mulmod_reduce512_loop_advance_spec_within base ptr x18v)
+  rw [show (base + 8 + 256 : Word) = base + 264 from by bv_omega] at hfoldf
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hfoldf hadvf)
+
 /-- Outer-loop control `BNE x18, x0, -272` at byte offset 272: loops back to
     `base` while the eight-limb counter `x18` is nonzero, falls through to
     `base + 276` (the post-loop) when it reaches zero. -/
