@@ -1,0 +1,43 @@
+# Provenance of the Sail-extracted RISC-V model — the trust anchor's pin record.
+#
+# SKELETON (staged 2026-06-24, pre-P1). The `[current]` block records what the
+# project consumes TODAY (the dhsorens fork, unscoped full RV64D). The `[target]`
+# block is the foundation P1/P2 will establish (pinned, scoped, vendored). The
+# pin gate `scripts/check-sail-pin.sh` (added in P2) will assert that the
+# resolved dependency matches whichever block is authoritative.
+#
+# See docs/sail-zkvm-implementation-plan.md (P2.3) and docs/sail-zkvm-model-review.md §6.
+
+[current]
+# What lakefile.toml + lake-manifest.json resolve to right now.
+source          = "https://github.com/dhsorens/sail-riscv-lean"  # FORK of opencompl/sail-riscv-lean
+lean_rv64d_rev  = "6009afb10039129aabcfd03ddac1c58670fe5d96"      # resolved; lakefile inputRev is the MOVING "main" (to be pinned)
+lean_sail_rev   = "49ccc5af55c957fcd170c439592327794b4aa886"      # inputRev "v3"
+scope           = "--all-modules"   # full RV64D: vector/FP/CSR/paging/crypto (153 Lean files)
+project_toolchain = "leanprover/lean4:v4.30.0-rc1"
+notes = "Moving rev=main + over-scoped. The thing P0/P2 replaces."
+
+[target]
+# The foundation P1 spikes and P2 vendors. Fill in from the P1 go/no-go report.
+sail_riscv_commit = "TODO (P1)"   # github.com/riscv/sail-riscv pinned commit
+sail_compiler_commit = "TODO (P1)"  # github.com/rems-project/sail; note its hardcoded Lean/mathlib target
+lean_sail_rev   = "TODO (P1)"     # backend default is "v4"; project currently consumes "v3"
+sail_modules = [
+  # The ~14-module RV64IM closure (review §3). Passed as
+  # -DSAIL_MODULES="--module prelude --module core ... --module postlude".
+  "prelude", "core", "exceptions", "pmp", "sys",
+  "I_types", "I_insts", "M_types", "M_insts", "postlude",
+  # core's unconditional TYPE deps (pulled transitively, listed for legibility):
+  "A_types", "Zicbop_types", "Zicbom_types", "PM_types",
+]
+config_file = "sail-import/riscv64im_zicclsm.json"   # TODO (P1): the §4 config (xlen=64, M on, S/U off, Zicclsm on, misaligned!=AccessFault, flat RAM)
+config_sha256 = "TODO (P2)"
+arch = "rv64d"   # or a new rv64im_zicclsm arch if defined (P1 decision)
+
+# ---- Version-reconciliation note (review §1.1, corrected) ----
+# The Sail Lean backend hardcodes lean4 v4.29.0 / mathlib v4.29.0 / lean-sail v4.
+# The PROJECT is on lean4 v4.30.0-rc1 (AHEAD of the backend default) with
+# lean-sail v3. So P2 is a *reconciliation*, not a forward bump: choose a Sail
+# commit + lean-sail rev whose generated Lean is compatible with v4.30.0-rc1, or
+# align the project toolchain to the backend's target. Record the resolved triple
+# here once P1 determines it.

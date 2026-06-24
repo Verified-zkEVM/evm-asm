@@ -1,0 +1,99 @@
+# Canonical RV64IM instruction set — the compliance target for `check-isa-coverage.sh`.
+#
+# Source: the zkVM RISC-V standard `riscv64im_zicclsm-unknown-none-elf`
+# (eth-act/zkvm-standards, standards/riscv-target/target.md) = RV64I base + M
+# extension. Zicclsm adds NO instructions (it is a misaligned-access platform
+# property). FENCE.I (Zifencei) and CSR ops (Zicsr) are NOT in the target triple
+# and are intentionally absent.
+#
+# This file is the source of truth the coverage gate checks our model against.
+# One mnemonic per line; `#` comments and blank lines ignored. 65 instructions.
+#
+# Current evm-asm status per instruction lives in docs/riscv-zkvm-compliance.md
+# (this file is the *target list*, deliberately status-free so the gate can diff
+# our covered set against it).
+
+# ---- RV64I: integer register-immediate ----
+ADDI
+SLTI
+SLTIU
+XORI
+ORI
+ANDI
+SLLI
+SRLI
+SRAI
+
+# ---- RV64I: integer register-register ----
+ADD
+SUB
+SLL
+SLT
+SLTU
+XOR
+SRL
+SRA
+OR
+AND
+
+# ---- RV64I: upper immediate ----
+LUI
+AUIPC
+
+# ---- RV64I: control transfer ----
+JAL
+JALR
+BEQ
+BNE
+BLT
+BGE
+BLTU
+BGEU
+
+# ---- RV64I: loads ----
+LB
+LH
+LW
+LBU
+LHU
+LWU
+LD
+
+# ---- RV64I: stores ----
+SB
+SH
+SW
+SD
+
+# ---- RV64I: word ops (RV64-specific, sign-extend 32->64) ----
+ADDIW
+SLLIW
+SRLIW
+SRAIW
+ADDW
+SUBW
+SLLW
+SRLW
+SRAW
+
+# ---- RV64I: system / fence ----
+ECALL
+EBREAK
+FENCE
+
+# ---- RV64M: mul/div ----
+MUL
+MULH
+MULHSU
+MULHU
+DIV
+DIVU
+REM
+REMU
+
+# ---- RV64M: word ops ----
+MULW
+DIVW
+DIVUW
+REMW
+REMUW
