@@ -253,4 +253,55 @@ theorem evm_mulmod_reduce512_loop_branch_spec_within (base x18v : Word) :
   rw [htaken, hnt] at hbne
   exact cpsBranchWithin_extend_code (hmono := hsub) (h := hbne)
 
+/-- One full outer-loop body iteration as a two-exit branch: fold the current
+    product limb, advance the pointer/counter, then branch on the eight-limb
+    counter — loop back to `base` while `x18` stays nonzero, fall through to
+    `base + 276` when it reaches zero. -/
+theorem evm_mulmod_reduce512_loop_body_spec_within
+    (sp base ptr oldX17 oldX15 x19v x20v x18v limb : Word) (r n : EvmWord) :
+    cpsBranchWithin (2 + 64 * 64 + 2 + 1) base
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ ptr) ** (.x17 ↦ᵣ oldX17) ** (.x15 ↦ᵣ oldX15) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ x19v) ** (.x20 ↦ᵣ x20v) ** (.x18 ↦ᵣ x18v) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+      base
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) ≠ (0 : Word)⌝)
+      (base + 276)
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) = (0 : Word)⌝) := by
+  have hbnef := cpsBranchWithin_frameR
+    ((.x12 ↦ᵣ sp) ** (.x15 ↦ᵣ (0 : Word)) **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+     regOwn .x17 ** regOwn .x19 ** regOwn .x20 **
+     mulModReduceCompareMem sp (mulModReduceStepN r n limb 64) n **
+     (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+     ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb))
+    (by unfold mulModReduceCompareMem; pcFree)
+    (evm_mulmod_reduce512_loop_branch_spec_within base
+      (x18v + signExtend12 (4095 : BitVec 12)))
+  exact cpsBranchWithin_weaken (fun _ hp => hp)
+    (fun h hp => by unfold mulModReduceBitLoopPost; xperm_hyp hp)
+    (fun h hp => by unfold mulModReduceBitLoopPost; xperm_hyp hp)
+    (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+      (fun h hp => by unfold mulModReduceBitLoopPost at hp; xperm_hyp hp)
+      (evm_mulmod_reduce512_loop_fold_advance_spec_within
+        sp base ptr oldX17 oldX15 x19v x20v x18v limb r n)
+      hbnef)
+
 end EvmAsm.Evm64
