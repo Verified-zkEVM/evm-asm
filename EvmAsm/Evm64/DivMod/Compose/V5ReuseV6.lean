@@ -14,6 +14,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.V5Code2
 import EvmAsm.Evm64.DivMod.Compose.Base
+import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
 
 namespace EvmAsm.Rv64
 
@@ -91,5 +92,49 @@ theorem divCode_v5_addr_mul4 (b a : Word) (i : Instr)
   · obtain ⟨k, hk, haddr⟩ := CodeReq.ofProg_some_range _ _ a i hblk
     exact ⟨268 + k, by simp only [divK_div128_v5_len] at hk; omega,
       by rw [haddr]; simp only [div128Off]; bv_omega⟩
+
+/-- A fast-path block at base address `c = base + d` (`d` an instruction-byte
+    offset) that fits entirely below `v6V5Off` (= 816) is disjoint from the
+    embedded `divCode_v5` at `base + v6V5Off`: any shared address would be both
+    `base + (d + 4·k₁)` with `d + 4·k₁ < 816` and `base + 816 + 4·K` (v5
+    support), impossible. -/
+theorem fast_disjoint_divCode_v5 {base : Word} (c : Word) (pFast : Program) (d : Nat)
+    (hc : c = base + BitVec.ofNat 64 d) (hfit : d + 4 * pFast.length ≤ 816) :
+    (CodeReq.ofProg c pFast).Disjoint (divCode_v5 (base + v6V5Off)) := by
+  intro a
+  rcases Option.eq_none_or_eq_some (CodeReq.ofProg c pFast a) with hA | ⟨i, hA⟩
+  · left; exact hA
+  · right
+    by_contra hB
+    obtain ⟨i', hv5⟩ := Option.ne_none_iff_exists'.mp hB
+    obtain ⟨K, hK, haddrV5⟩ := divCode_v5_addr_mul4 _ a i' hv5
+    obtain ⟨k1, hk1, haddrF⟩ := CodeReq.ofProg_some_range _ _ a i hA
+    rw [haddrF, hc] at haddrV5
+    simp only [v6V5Off] at haddrV5
+    bv_omega
+
+/-- The embedded `evm_div_v5` (block 11 of `divCodeV6`) is subsumed by
+    `divCodeV6`: every address `divCode_v5 (base + v6V5Off)` maps is mapped the
+    same by `divCodeV6 base`. The 11 preceding fast-path blocks each fit below
+    `v6V5Off`, so they are disjoint from the v5 block. -/
+theorem divCode_v5_sub_divCodeV6 {base : Word} :
+    ∀ a i, (divCode_v5 (base + v6V5Off)) a = some i → (divCodeV6 base) a = some i := by
+  unfold divCodeV6
+  refine CodeReq.mono_sub_unionAll (divCode_v5 (base + v6V5Off)) _ 11 ?_ ?_ ?_
+  · simp only [List.length_cons, List.length_nil]; omega
+  · intro a i h; simpa only [List.get] using h
+  · intro j hj
+    interval_cases j <;> simp only [List.get]
+    · exact fast_disjoint_divCode_v5 _ _ 0 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 32 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 128 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 156 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 240 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 276 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 316 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 356 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 396 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 436 (by bv_omega) (by decide)
+    · exact fast_disjoint_divCode_v5 _ _ 476 (by bv_omega) (by decide)
 
 end EvmAsm.Evm64
