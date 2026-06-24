@@ -304,4 +304,116 @@ theorem evm_mulmod_reduce512_loop_body_spec_within
         sp base ptr oldX17 oldX15 x19v x20v x18v limb r n)
       hbnef)
 
+/-- The part of the outer-loop body precondition that the eight-limb induction
+    threads unchanged from iteration to iteration: the frame pointer, the limb
+    pointer, the zero register, the limb counter, the six inner-step scratch
+    registers (owned), the four remainder limbs, the four modulus limbs, and the
+    current product limb in memory. The four registers the body overwrites
+    (`x17`, `x15`, `x19`, `x20`) are *not* part of this — they are carried as
+    `regOwn` and re-introduced by `evm_mulmod_reduce512_loop_body_regown_spec_within`. -/
+def bodyLoopCommon (sp ptr x18v : Word) (r n : EvmWord) (limb : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ ptr) ** (.x0 ↦ᵣ (0 : Word)) ** (.x18 ↦ᵣ x18v) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3) **
+  ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb)
+
+/-- Outer-loop body with the four scratch registers `x17`, `x15`, `x19`, `x20`
+    carried as `regOwn` rather than pinned to concrete values. The body's prefix
+    (`LD x17`, `ADDI x15`) and inner bit loop (`x19`/`x20`) overwrite all four
+    regardless of their incoming contents, so they can be forgotten on entry.
+    This is the shape the eight-limb induction iterates: the body-postcondition's
+    `x17`/`x19`/`x20` are owned (and `x15 = 0`), which feeds straight back into
+    this precondition for the next limb. -/
+theorem evm_mulmod_reduce512_loop_body_regown_spec_within
+    (sp base ptr x18v limb : Word) (r n : EvmWord) :
+    cpsBranchWithin (2 + 64 * 64 + 2 + 1) base
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((bodyLoopCommon sp ptr x18v r n limb **
+        regOwn .x17 ** regOwn .x15 ** regOwn .x19) ** regOwn .x20)
+      base
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) ≠ (0 : Word)⌝)
+      (base + 276)
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) = (0 : Word)⌝) := by
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x20) ?_
+  intro v20
+  have h19 : cpsBranchWithin (2 + 64 * 64 + 2 + 1) base
+      (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+      ((bodyLoopCommon sp ptr x18v r n limb ** (.x20 ↦ᵣ v20) **
+          regOwn .x17 ** regOwn .x15) ** regOwn .x19)
+      base
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) ≠ (0 : Word)⌝)
+      (base + 276)
+      (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+       (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+       (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+       ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+       ⌜x18v + signExtend12 (4095 : BitVec 12) = (0 : Word)⌝) := by
+    refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x19) ?_
+    intro v19
+    have h15 : cpsBranchWithin (2 + 64 * 64 + 2 + 1) base
+        (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+        ((bodyLoopCommon sp ptr x18v r n limb ** (.x20 ↦ᵣ v20) **
+            (.x19 ↦ᵣ v19) ** regOwn .x17) ** regOwn .x15)
+        base
+        (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+         (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+         (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+         ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+         ⌜x18v + signExtend12 (4095 : BitVec 12) ≠ (0 : Word)⌝)
+        (base + 276)
+        (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+         (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+         (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+         ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+         ⌜x18v + signExtend12 (4095 : BitVec 12) = (0 : Word)⌝) := by
+      refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x15) ?_
+      intro v15
+      have h17 : cpsBranchWithin (2 + 64 * 64 + 2 + 1) base
+          (CodeReq.ofProg base evm_mulmod_reduce512_loop)
+          ((bodyLoopCommon sp ptr x18v r n limb ** (.x20 ↦ᵣ v20) **
+              (.x19 ↦ᵣ v19) ** (.x15 ↦ᵣ v15)) ** regOwn .x17)
+          base
+          (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+           (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+           (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+           ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+           ⌜x18v + signExtend12 (4095 : BitVec 12) ≠ (0 : Word)⌝)
+          (base + 276)
+          (mulModReduceBitLoopPost sp (mulModReduceStepN r n limb 64) n **
+           (.x16 ↦ᵣ (ptr + signExtend12 (4088 : BitVec 12))) **
+           (.x18 ↦ᵣ (x18v + signExtend12 (4095 : BitVec 12))) **
+           ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ limb) **
+           ⌜x18v + signExtend12 (4095 : BitVec 12) = (0 : Word)⌝) := by
+        refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x17) ?_
+        intro v17
+        exact cpsBranchWithin_weaken
+          (fun h hp => by unfold bodyLoopCommon at hp; xperm_hyp hp)
+          (fun _ hp => hp) (fun _ hp => hp)
+          (evm_mulmod_reduce512_loop_body_spec_within sp base ptr v17 v15 v19 v20 x18v limb r n)
+      exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+        (fun _ hp => hp) (fun _ hp => hp) h17
+    exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun _ hp => hp) (fun _ hp => hp) h15
+  exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun _ hp => hp) (fun _ hp => hp) h19
+
 end EvmAsm.Evm64
