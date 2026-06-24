@@ -136,4 +136,60 @@ theorem v6n_quotient_word_eq_div
   exact fullDivN1QuotientWordV5_eq_div_of_shape a0 a1 a2 a3 b0 b1 b2 b3
     hbnz hb1z hb2z hb3z hshift_nz
 
+-- ============================================================================
+-- Per-limb form: `(EvmWord.div a b).getLimbN j = q[j]` (for `divStackDispatchPost`).
+-- ============================================================================
+
+/-- The fast-path stored quotient limb `q[0]` is `EvmWord.div`'s limb 0. -/
+theorem v6n_div_getLimbN_0
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 0
+      = v6chainQ0 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nU0 a0 b0) (v6nD b0) := by
+  exact ((congrArg (fun w => w.getLimbN 0)
+    (v6n_quotient_word_eq_div a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)).symm).trans
+    EvmWord.getLimbN_fromLimbs_0
+
+/-- The fast-path stored quotient limb `q[1]` is `EvmWord.div`'s limb 1. -/
+theorem v6n_div_getLimbN_1
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 1
+      = v6chainQ1 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nU1 a1 a0 b0) (v6nD b0) := by
+  exact ((congrArg (fun w => w.getLimbN 1)
+    (v6n_quotient_word_eq_div a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)).symm).trans
+    EvmWord.getLimbN_fromLimbs_1
+
+/-- The fast-path stored quotient limb `q[2]` is `EvmWord.div`'s limb 2. -/
+theorem v6n_div_getLimbN_2
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 2
+      = v6chainQ2 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nU2 a2 a1 b0) (v6nD b0) := by
+  exact ((congrArg (fun w => w.getLimbN 2)
+    (v6n_quotient_word_eq_div a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)).symm).trans
+    EvmWord.getLimbN_fromLimbs_2
+
+/-- The fast-path stored quotient limb `q[3]` is `EvmWord.div`'s limb 3. -/
+theorem v6n_div_getLimbN_3
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb1z : b1 = 0) (hb2z : b2 = 0) (hb3z : b3 = 0)
+    (hshift_nz : (clzResult b0).1 ≠ 0) :
+    (EvmWord.div
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => a0 | 1 => a1 | 2 => a2 | 3 => a3)
+        (EvmWord.fromLimbs fun i : Fin 4 => match i with | 0 => b0 | 1 => b1 | 2 => b2 | 3 => b3)).getLimbN 3
+      = v6chainQ3 (v6nU4 a3 b0) (v6nU3 a3 a2 b0) (v6nD b0) := by
+  exact ((congrArg (fun w => w.getLimbN 3)
+    (v6n_quotient_word_eq_div a0 a1 a2 a3 b0 b1 b2 b3 hbnz hb1z hb2z hb3z hshift_nz)).symm).trans
+    EvmWord.getLimbN_fromLimbs_3
+
 end EvmAsm.Evm64
