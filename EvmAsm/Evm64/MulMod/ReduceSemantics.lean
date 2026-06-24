@@ -136,4 +136,23 @@ theorem mulModReduceBitCounter_eq_zero_iff (m : Nat) (h1 : 1 ≤ m) (h64 : m ≤
   · intro h; bv_omega
   · intro h; subst h; decide
 
+/-- Iterate the per-limb 64-bit reduction over `m` product limbs (highest limb
+    first), reading the limb sequence `limb` (`limb 0` is the limb processed
+    next). After all eight product limbs the 512-bit product is fully folded
+    into the remainder, leaving the reduced result. -/
+def mulModReduceOuterFold (n : EvmWord) (limb : Nat → Word) (r : EvmWord) : Nat → EvmWord
+  | 0 => r
+  | m + 1 =>
+    mulModReduceOuterFold n (fun i => limb (i + 1))
+      (mulModReduceStepN r n (limb 0) 64) m
+
+@[simp] theorem mulModReduceOuterFold_zero (n : EvmWord) (limb : Nat → Word) (r : EvmWord) :
+    mulModReduceOuterFold n limb r 0 = r := rfl
+
+theorem mulModReduceOuterFold_succ (n : EvmWord) (limb : Nat → Word) (r : EvmWord) (m : Nat) :
+    mulModReduceOuterFold n limb r (m + 1) =
+      mulModReduceOuterFold n (fun i => limb (i + 1))
+        (mulModReduceStepN r n (limb 0) 64) m :=
+  rfl
+
 end EvmAsm.Evm64
