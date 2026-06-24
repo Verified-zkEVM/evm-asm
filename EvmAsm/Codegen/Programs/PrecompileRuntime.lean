@@ -572,6 +572,7 @@ def precompileSuccessKzgPointEvalAsm
   "  sb x16, 7(x18)\n" ++
   "  li x16, 0x33\n" ++
   "  sb x16, 8(x18)\n" ++
+  "  li x16, 0x39\n" ++
   "  sb x16, 9(x18)\n" ++
   "  li x16, 0xd8\n" ++
   "  sb x16, 10(x18)\n" ++
