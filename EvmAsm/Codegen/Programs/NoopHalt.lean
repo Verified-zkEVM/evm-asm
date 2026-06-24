@@ -151,6 +151,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  j .dispatch_loop\n" ++
       ".Lrr_crinv_" ++ toString kind ++ ":\n" ++
+      -- bbow4.2.5.1: invalid deployed code / code-deposit OOG is an
+      -- exceptional CREATE failure. execution-specs process_create_message
+      -- restores the child state snapshot and sets child gas_left = 0 before
+      -- incorporate_child_on_error, so the parent does not get the forwarded
+      -- gas back through frame_return.
+      "  sd x0, 568(x20)\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       "  j .dispatch_loop\n") ++
@@ -346,10 +352,20 @@ private def selfdestructTailAsm : String :=
   -- indexed and depth 0 is the top frame, never a CREATE child) to mirror the other halt exits and
   -- keep the slot clean for reuse. Guarded on depth>0 so a top-level SELFDESTRUCT is untouched.
   "  la t0, evm_call_depth\n  ld t0, 0(t0)\n  beqz t0, .L_sd_flag_clear_done\n" ++
-  "  la t1, create_frame_flag\n  slli t2, t0, 3\n  add t1, t1, t2\n  sd x0, 0(t1)\n" ++
+  "  la t1, create_frame_flag\n  slli t2, t0, 3\n  add t1, t1, t2\n  ld t3, 0(t1)\n  sd x0, 0(t1)\n" ++
+  "  bnez t3, .L_sd_create_return\n" ++
   ".L_sd_flag_clear_done:\n" ++
   "  addi x12, x12, 32\n" ++
-  "  j .exit_selfdestruct"
+  "  j .exit_selfdestruct\n" ++
+  ".L_sd_create_return:\n" ++
+  "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
+  "  jal ra, frame_return\n" ++
+  "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
+  ".L_sd_create_addr_loop:\n" ++
+  "  beqz t3, .L_sd_create_addr_done\n" ++
+  "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, -1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .L_sd_create_addr_loop\n" ++
+  ".L_sd_create_addr_done:\n" ++
+  "  j .dispatch_loop"
 
 /-- M18 / M23 / M31 EVM-terminating opcodes. `depthAware` makes RETURN/REVERT
     return to the parent frame (via `frame_return`) when `evm_call_depth > 0`
