@@ -357,7 +357,7 @@ infrastructure. The stateless-guest helpers are scaffolding: they
 ship as `def *Function : String` raw-asm bodies emitted by
 `lake exe codegen`, registered through `BuildUnit` probes, and
 exercised end-to-end on ziskemu against the
-[`execution-specs`](execution-specs/) Python reference via the
+[`execution-specs`](https://github.com/ethereum/execution-specs/) Python reference via the
 `scripts/codegen-zisk-*-check.sh` fixtures (one script per PR).
 What that gives us today:
 
