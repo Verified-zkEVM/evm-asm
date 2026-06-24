@@ -14,6 +14,7 @@
 -/
 
 import EvmAsm.Evm64.MulMod.ReduceOuterLoop
+import EvmAsm.Evm64.MulMod.LimbSpec
 
 namespace EvmAsm.Evm64
 
@@ -192,5 +193,111 @@ theorem evm_mulmod_reduce512_loop_total_spec_within
   cpsTripleWithin_extend_code
     (hmono := evm_mulmod_reduce512_loop_code_sub base)
     (h := evm_mulmod_reduce512_loop_spec_within sp (base + BitVec.ofNat 64 24) ptr r n limbs)
+
+/-- `evm_mulmod_reduce512_init` is the prefix (byte offset 0) of the total
+    reducer program. -/
+theorem evm_mulmod_reduce512_init_code_sub (base : Word) :
+    ∀ a i, (CodeReq.ofProg base evm_mulmod_reduce512_init) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512) a = some i := by
+  intro a i h
+  exact CodeReq.ofProg_mono_append_left base evm_mulmod_reduce512_init
+    (evm_mulmod_reduce512_loop ++
+      (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue)) a i h
+
+/-- `evm_mulmod_reduce512_write_result` sits at byte offset 300 (after `init`
+    and the 69-instruction `loop`) within the total reducer program. -/
+theorem evm_mulmod_reduce512_write_result_code_sub (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + BitVec.ofNat 64 300) evm_mulmod_reduce512_write_result) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512) a = some i := by
+  intro a i h
+  refine CodeReq.ofProg_mono_append_right base evm_mulmod_reduce512_init
+    (evm_mulmod_reduce512_loop ++
+      (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue)) (by decide) a i ?_
+  refine CodeReq.ofProg_mono_append_right (base + BitVec.ofNat 64 24) evm_mulmod_reduce512_loop
+    (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue) (by decide) a i ?_
+  rw [evm_mulmod_reduce512_loop_length,
+    show (base + BitVec.ofNat 64 24) + BitVec.ofNat 64 (4 * 69) = base + BitVec.ofNat 64 300 from by
+      bv_omega]
+  exact CodeReq.ofProg_mono_append_left (base + BitVec.ofNat 64 300)
+    evm_mulmod_reduce512_write_result evm_mulmod_epilogue a i h
+
+/-- `evm_mulmod_epilogue` is the final instruction (byte offset 332) of the
+    total reducer program. -/
+theorem evm_mulmod_epilogue_code_sub (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + BitVec.ofNat 64 332) evm_mulmod_epilogue) a = some i →
+      (CodeReq.ofProg base evm_mulmod_reduce512) a = some i := by
+  intro a i h
+  refine CodeReq.ofProg_mono_append_right base evm_mulmod_reduce512_init
+    (evm_mulmod_reduce512_loop ++
+      (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue)) (by decide) a i ?_
+  refine CodeReq.ofProg_mono_append_right (base + BitVec.ofNat 64 24) evm_mulmod_reduce512_loop
+    (evm_mulmod_reduce512_write_result ++ evm_mulmod_epilogue) (by decide) a i ?_
+  rw [evm_mulmod_reduce512_loop_length,
+    show (base + BitVec.ofNat 64 24) + BitVec.ofNat 64 (4 * 69) = base + BitVec.ofNat 64 300 from by
+      bv_omega]
+  refine CodeReq.ofProg_mono_append_right (base + BitVec.ofNat 64 300) evm_mulmod_reduce512_write_result
+    evm_mulmod_epilogue (by decide) a i ?_
+  rw [evm_mulmod_reduce512_write_result_length,
+    show (base + BitVec.ofNat 64 300) + BitVec.ofNat 64 (4 * 8) = base + BitVec.ofNat 64 332 from by
+      bv_omega]
+  exact h
+
+/-- `evm_mulmod_reduce512_init` lifted into the total reducer program code:
+    it zeroes the remainder accumulator and arms `x16 = sp + 152` / `x18 = 8`. -/
+theorem evm_mulmod_reduce512_init_total_spec_within (sp base : Word)
+    (v16Old v18Old r0 r1 r2 r3 : Word) :
+    cpsTripleWithin 6 base (base + 24) (CodeReq.ofProg base evm_mulmod_reduce512)
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3))
+      ((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ (sp + signExtend12 (152 : BitVec 12))) **
+       (.x18 ↦ᵣ (signExtend12 (8 : BitVec 12))) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ (0 : Word))) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_init_code_sub base)
+    (h := evm_mulmod_reduce512_init_spec_within sp base v16Old v18Old r0 r1 r2 r3)
+
+/-- `evm_mulmod_reduce512_write_result` lifted into the total reducer program
+    code (byte offset 300): copies the reduced remainder into the result slots. -/
+theorem evm_mulmod_reduce512_write_result_total_spec_within (sp base : Word)
+    (v5Old r0 r1 r2 r3 m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 8 (base + 300) (base + 300 + 32) (CodeReq.ofProg base evm_mulmod_reduce512)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5Old) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ m3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ r3)) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_reduce512_write_result_code_sub base)
+    (h := evm_mulmod_reduce512_write_result_spec_within sp (base + BitVec.ofNat 64 300)
+      v5Old r0 r1 r2 r3 m0 m1 m2 m3)
+
+/-- `evm_mulmod_epilogue` lifted into the total reducer program code (byte
+    offset 332): the final `ADDI x12, x12, 64` restoring the result base. -/
+theorem evm_mulmod_epilogue_total_spec_within (sp base : Word) :
+    cpsTripleWithin 1 (base + 332) (base + 332 + 4) (CodeReq.ofProg base evm_mulmod_reduce512)
+      (.x12 ↦ᵣ sp)
+      (.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) :=
+  cpsTripleWithin_extend_code
+    (hmono := evm_mulmod_epilogue_code_sub base)
+    (h := evm_mulmod_epilogue_spec_within sp (base + BitVec.ofNat 64 332))
 
 end EvmAsm.Evm64
