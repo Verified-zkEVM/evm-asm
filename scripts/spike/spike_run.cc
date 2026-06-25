@@ -7,6 +7,7 @@
 //     (services read_input t0=0xF2 and halt a7=93 — the guest's only 2 ecalls);
 //   - registers the zisk_accel crypto-CSR extension;
 //   - runs to HTIF exit, then writes 256 bytes from 0xa0010000 to <output-file>.
+#include <sys/syscall.h>
 #include "sim.h"
 #include "cfg.h"
 #include "mmu.h"

@@ -13,21 +13,33 @@
 //   0x805  sha256 compress : a0 -> 2 ptrs {state(4*u64=8*u32), input(64B block)};
 //                            standard SHA-256 compression, state IN-PLACE
 //
-// Precompile-only CSRs (0x803/4 secp256k1, 0x806-0x810 bn254/bls12, 0x819
+// Precompile-only CSRs (0x806-0x80d bn254/bls12 curve/arith, 0x819
 // blake2b-round, etc.) are TODO — blocks needing them are on the guest's
-// conservative-reject frontier anyway. Adding one = another AccelCsr subclass.
+// conservative-reject frontier unless their lower-level field ops are
+// implemented here. Adding one = another AccelCsr subclass.
 //
 // All multi-limb values are little-endian arrays of u64 (zisk convention).
 
+#include <sys/syscall.h>
 #include "extension.h"
 #include "processor.h"
 #include "mmu.h"
+#if defined(__APPLE__)
 #include <boost/multiprecision/cpp_int.hpp>
+#else
+#include <openssl/bn.h>
+#endif
 #include <cstdint>
 #include <cstring>
+#if !defined(__APPLE__)
+#include <memory>
+#endif
 #include <vector>
 
+#if defined(__APPLE__)
 using boost::multiprecision::uint512_t;
+using boost::multiprecision::cpp_int;
+#endif
 
 // ---- guest-memory helpers (via the processor MMU) --------------------------
 static inline uint64_t gload(processor_t* p, reg_t addr) {
@@ -36,13 +48,22 @@ static inline uint64_t gload(processor_t* p, reg_t addr) {
 static inline void gstore(processor_t* p, reg_t addr, uint64_t v) {
   p->get_mmu()->store<uint64_t>(addr, v);
 }
-// read n little-endian u64 limbs at addr into a cpp_int
+#if !defined(__APPLE__)
+struct bn_deleter { void operator()(BIGNUM* v) const { BN_free(v); } };
+struct bn_ctx_deleter { void operator()(BN_CTX* v) const { BN_CTX_free(v); } };
+using bn_ptr = std::unique_ptr<BIGNUM, bn_deleter>;
+using bn_ctx_ptr = std::unique_ptr<BN_CTX, bn_ctx_deleter>;
+
+static bn_ptr make_bn() { return bn_ptr(BN_new()); }
+static bn_ctx_ptr make_ctx() { return bn_ctx_ptr(BN_CTX_new()); }
+#endif
+// read/write n little-endian u64 limbs at addr
+#if defined(__APPLE__)
 static uint512_t read_bigint(processor_t* p, reg_t addr, int n) {
   uint512_t acc = 0;
   for (int i = n - 1; i >= 0; --i) { acc <<= 64; acc |= gload(p, addr + 8 * i); }
   return acc;
 }
-// write a cpp_int as n little-endian u64 limbs at addr (truncating to n limbs)
 static void write_bigint(processor_t* p, reg_t addr, uint512_t v, int n) {
   for (int i = 0; i < n; ++i) {
     uint64_t limb = (uint64_t)(v & 0xffffffffffffffffULL);
@@ -50,6 +71,28 @@ static void write_bigint(processor_t* p, reg_t addr, uint512_t v, int n) {
     v >>= 64;
   }
 }
+#else
+// Read/write n little-endian u64 limbs as a positive BIGNUM.
+static bn_ptr read_bigint(processor_t* p, reg_t addr, int n) {
+  std::vector<uint8_t> be((size_t)n * 8);
+  for (int i = 0; i < n; ++i) {
+    uint64_t limb = gload(p, addr + 8 * i);
+    size_t off = (size_t)(n - 1 - i) * 8;
+    for (int j = 0; j < 8; ++j) be[off + j] = (uint8_t)(limb >> (56 - 8 * j));
+  }
+  return bn_ptr(BN_bin2bn(be.data(), (int)be.size(), nullptr));
+}
+static void write_bigint(processor_t* p, reg_t addr, const BIGNUM* v, int n) {
+  std::vector<uint8_t> be((size_t)n * 8);
+  BN_bn2binpad(v, be.data(), (int)be.size());
+  for (int i = 0; i < n; ++i) {
+    size_t off = (size_t)(n - 1 - i) * 8;
+    uint64_t limb = 0;
+    for (int j = 0; j < 8; ++j) limb = (limb << 8) | be[off + j];
+    gstore(p, addr + 8 * i, limb);
+  }
+}
+#endif
 
 // ---- Keccak-f[1600] (standard, public-domain constants) --------------------
 static const uint64_t KECCAK_RC[24] = {
@@ -116,7 +159,7 @@ static void sha256_compress(uint32_t st[8], const uint8_t block[64]) {
 // Field prime p = 2^256 - 2^32 - 977. Points are affine x||y, each 4 LE u64.
 // The guest software wrapper handles infinity / p1==±p2 / y==0; the accelerator
 // assumes finite, on-curve, distinct points (matches ziskemu's naked formula).
-using boost::multiprecision::cpp_int;
+#if defined(__APPLE__)
 static const cpp_int SECP_P("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
 static inline cpp_int fmod(cpp_int x){ x %= SECP_P; if (x < 0) x += SECP_P; return x; }
 static inline cpp_int finv(const cpp_int& a){ return powm(fmod(a), SECP_P - 2, SECP_P); }
@@ -128,6 +171,84 @@ static void wr256(processor_t* p, reg_t a, cpp_int v){
   for (int i = 0; i < 4; ++i){ uint64_t l = (v & (cpp_int)0xffffffffffffffffULL).convert_to<uint64_t>();
     gstore(p, a + 8*i, l); v >>= 64; }
 }
+#else
+static const BIGNUM* secp_p() {
+  static BIGNUM* p = nullptr;
+  if (!p) BN_hex2bn(&p, "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
+  return p;
+}
+static bn_ptr fmod_bn(const BIGNUM* x, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_nnmod(r.get(), x, secp_p(), ctx);
+  return r;
+}
+static bn_ptr fsub(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_sub(r.get(), a, b, secp_p(), ctx);
+  return r;
+}
+static bn_ptr fmul(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_mul(r.get(), a, b, secp_p(), ctx);
+  return r;
+}
+static bn_ptr finv(const BIGNUM* a, BN_CTX* ctx) {
+  bn_ptr aa = fmod_bn(a, ctx);
+  return bn_ptr(BN_mod_inverse(nullptr, aa.get(), secp_p(), ctx));
+}
+static bn_ptr rd256(processor_t* p, reg_t a) { return read_bigint(p, a, 4); }
+static void wr256(processor_t* p, reg_t a, const BIGNUM* v, BN_CTX* ctx) {
+  bn_ptr vv = fmod_bn(v, ctx);
+  write_bigint(p, a, vv.get(), 4);
+}
+
+#endif
+
+// ---- BLS12-381 Fp2 ops (CSR 0x80e/0x80f/0x810) -----------------------------
+// Fp2 elements are c0 || c1, each 6 little-endian u64 limbs. The operation
+// mutates f1 in-place: f1 += f2, f1 -= f2, or f1 *= f2 over u^2 = -1.
+#if defined(__APPLE__)
+static const cpp_int BLS12_P(
+  "0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf"
+  "6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
+static inline cpp_int bls_mod(cpp_int x){ x %= BLS12_P; if (x < 0) x += BLS12_P; return x; }
+static cpp_int rd_limbs(processor_t* p, reg_t a, int n) {
+  cpp_int v = 0;
+  for (int i = n - 1; i >= 0; --i) { v <<= 64; v |= (cpp_int)gload(p, a + 8*i); }
+  return v;
+}
+static void wr_limbs(processor_t* p, reg_t a, cpp_int v, int n) {
+  v = bls_mod(v);
+  for (int i = 0; i < n; ++i) {
+    uint64_t l = (v & (cpp_int)0xffffffffffffffffULL).convert_to<uint64_t>();
+    gstore(p, a + 8*i, l);
+    v >>= 64;
+  }
+}
+#else
+static const BIGNUM* bls12_p() {
+  static BIGNUM* p = nullptr;
+  if (!p) BN_hex2bn(&p,
+      "1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf"
+      "6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
+  return p;
+}
+static bn_ptr bls_add(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_add(r.get(), a, b, bls12_p(), ctx);
+  return r;
+}
+static bn_ptr bls_sub(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_sub(r.get(), a, b, bls12_p(), ctx);
+  return r;
+}
+static bn_ptr bls_mul(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_mul(r.get(), a, b, bls12_p(), ctx);
+  return r;
+}
+#endif
 
 // ---- accelerator CSR base --------------------------------------------------
 class accel_csr_t : public csr_t {
@@ -157,10 +278,21 @@ class arith256_csr_t : public accel_csr_t {
   bool unlogged_write(const reg_t param) noexcept override {
     reg_t pa=gload(proc,param+0), pb=gload(proc,param+8), pc=gload(proc,param+16);
     reg_t pm=gload(proc,param+24), pd=gload(proc,param+32);
+#if defined(__APPLE__)
     uint512_t a=read_bigint(proc,pa,4), b=read_bigint(proc,pb,4);
     uint512_t c=read_bigint(proc,pc,4), m=read_bigint(proc,pm,4);
     uint512_t d = (a*b + c) % m;          // module is guaranteed nonzero by guest
     write_bigint(proc, pd, d, 4);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr a=read_bigint(proc,pa,4), b=read_bigint(proc,pb,4);
+    bn_ptr c=read_bigint(proc,pc,4), m=read_bigint(proc,pm,4);
+    bn_ptr ab = make_bn(), sum = make_bn(), d = make_bn();
+    BN_mul(ab.get(), a.get(), b.get(), ctx.get());
+    BN_add(sum.get(), ab.get(), c.get());
+    BN_mod(d.get(), sum.get(), m.get(), ctx.get()); // module is guaranteed nonzero by guest
+    write_bigint(proc, pd, d.get(), 4);
+#endif
     return false;
   }
 };
@@ -189,11 +321,31 @@ class secp_dbl_csr_t : public accel_csr_t {
  public:
   using accel_csr_t::accel_csr_t;
   bool unlogged_write(const reg_t param) noexcept override {
+#if defined(__APPLE__)
     cpp_int x = rd256(proc, param), y = rd256(proc, param + 32);
     cpp_int s  = fmod(3 * x % SECP_P * x % SECP_P * finv(2 * y) % SECP_P);
     cpp_int xr = fmod(s * s - 2 * x);
     cpp_int yr = fmod(s * (x - xr) - y);
     wr256(proc, param, xr); wr256(proc, param + 32, yr);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr x = rd256(proc, param), y = rd256(proc, param + 32);
+    bn_ptr three = make_bn(), two = make_bn();
+    BN_set_word(three.get(), 3);
+    BN_set_word(two.get(), 2);
+    bn_ptr x2 = fmul(x.get(), x.get(), ctx.get());
+    bn_ptr num = fmul(three.get(), x2.get(), ctx.get());
+    bn_ptr denom = fmul(two.get(), y.get(), ctx.get());
+    bn_ptr inv = finv(denom.get(), ctx.get());
+    bn_ptr slope = fmul(num.get(), inv.get(), ctx.get());
+    bn_ptr slope2 = fmul(slope.get(), slope.get(), ctx.get());
+    bn_ptr two_x = fmul(two.get(), x.get(), ctx.get());
+    bn_ptr xr = fsub(slope2.get(), two_x.get(), ctx.get());
+    bn_ptr x_minus_xr = fsub(x.get(), xr.get(), ctx.get());
+    bn_ptr sy = fmul(slope.get(), x_minus_xr.get(), ctx.get());
+    bn_ptr yr = fsub(sy.get(), y.get(), ctx.get());
+    wr256(proc, param, xr.get(), ctx.get()); wr256(proc, param + 32, yr.get(), ctx.get());
+#endif
     return false;
   }
 };
@@ -204,14 +356,81 @@ class secp_add_csr_t : public accel_csr_t {
   using accel_csr_t::accel_csr_t;
   bool unlogged_write(const reg_t param) noexcept override {
     reg_t p1 = gload(proc, param + 0), p2 = gload(proc, param + 8);
+#if defined(__APPLE__)
     cpp_int x1 = rd256(proc, p1), y1 = rd256(proc, p1 + 32);
     cpp_int x2 = rd256(proc, p2), y2 = rd256(proc, p2 + 32);
     cpp_int s  = fmod((y2 - y1) * finv(x2 - x1));
     cpp_int xr = fmod(s * s - x1 - x2);
     cpp_int yr = fmod(s * (x1 - xr) - y1);
     wr256(proc, p1, xr); wr256(proc, p1 + 32, yr);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr x1 = rd256(proc, p1), y1 = rd256(proc, p1 + 32);
+    bn_ptr x2 = rd256(proc, p2), y2 = rd256(proc, p2 + 32);
+    bn_ptr dy = fsub(y2.get(), y1.get(), ctx.get());
+    bn_ptr dx = fsub(x2.get(), x1.get(), ctx.get());
+    bn_ptr inv = finv(dx.get(), ctx.get());
+    bn_ptr slope = fmul(dy.get(), inv.get(), ctx.get());
+    bn_ptr slope2 = fmul(slope.get(), slope.get(), ctx.get());
+    bn_ptr tmp = fsub(slope2.get(), x1.get(), ctx.get());
+    bn_ptr xr = fsub(tmp.get(), x2.get(), ctx.get());
+    bn_ptr x1_minus_xr = fsub(x1.get(), xr.get(), ctx.get());
+    bn_ptr sy = fmul(slope.get(), x1_minus_xr.get(), ctx.get());
+    bn_ptr yr = fsub(sy.get(), y1.get(), ctx.get());
+    wr256(proc, p1, xr.get(), ctx.get()); wr256(proc, p1 + 32, yr.get(), ctx.get());
+#endif
     return false;
   }
+};
+
+class bls12_fp2_csr_t : public accel_csr_t {
+ public:
+  enum op_t { add, sub, mul };
+  bls12_fp2_csr_t(processor_t* p, reg_t addr, op_t op): accel_csr_t(p, addr), op(op) {}
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t f1 = gload(proc, param + 0), f2 = gload(proc, param + 8);
+#if defined(__APPLE__)
+    cpp_int a0 = rd_limbs(proc, f1, 6), a1 = rd_limbs(proc, f1 + 48, 6);
+    cpp_int b0 = rd_limbs(proc, f2, 6), b1 = rd_limbs(proc, f2 + 48, 6);
+    cpp_int r0 = 0, r1 = 0;
+    if (op == add) {
+      r0 = a0 + b0;
+      r1 = a1 + b1;
+    } else if (op == sub) {
+      r0 = a0 - b0;
+      r1 = a1 - b1;
+    } else {
+      r0 = a0 * b0 - a1 * b1;
+      r1 = a0 * b1 + a1 * b0;
+    }
+    wr_limbs(proc, f1, r0, 6);
+    wr_limbs(proc, f1 + 48, r1, 6);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr a0 = read_bigint(proc, f1, 6), a1 = read_bigint(proc, f1 + 48, 6);
+    bn_ptr b0 = read_bigint(proc, f2, 6), b1 = read_bigint(proc, f2 + 48, 6);
+    bn_ptr r0, r1;
+    if (op == add) {
+      r0 = bls_add(a0.get(), b0.get(), ctx.get());
+      r1 = bls_add(a1.get(), b1.get(), ctx.get());
+    } else if (op == sub) {
+      r0 = bls_sub(a0.get(), b0.get(), ctx.get());
+      r1 = bls_sub(a1.get(), b1.get(), ctx.get());
+    } else {
+      bn_ptr a0b0 = bls_mul(a0.get(), b0.get(), ctx.get());
+      bn_ptr a1b1 = bls_mul(a1.get(), b1.get(), ctx.get());
+      bn_ptr a0b1 = bls_mul(a0.get(), b1.get(), ctx.get());
+      bn_ptr a1b0 = bls_mul(a1.get(), b0.get(), ctx.get());
+      r0 = bls_sub(a0b0.get(), a1b1.get(), ctx.get());
+      r1 = bls_add(a0b1.get(), a1b0.get(), ctx.get());
+    }
+    write_bigint(proc, f1, r0.get(), 6);
+    write_bigint(proc, f1 + 48, r1.get(), 6);
+#endif
+    return false;
+  }
+ private:
+  op_t op;
 };
 
 // Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
@@ -239,11 +458,14 @@ class zisk_accel_t : public extension_t {
       std::make_shared<secp_add_csr_t>(&p, 0x803),
       std::make_shared<secp_dbl_csr_t>(&p, 0x804),
       std::make_shared<sha256_csr_t>(&p, 0x805),
+      std::make_shared<bls12_fp2_csr_t>(&p, 0x80e, bls12_fp2_csr_t::add),
+      std::make_shared<bls12_fp2_csr_t>(&p, 0x80f, bls12_fp2_csr_t::sub),
+      std::make_shared<bls12_fp2_csr_t>(&p, 0x810, bls12_fp2_csr_t::mul),
     };
     // register the not-yet-implemented accelerator CSRs as logging stubs so a
     // run reveals exactly which ones a block exercises.
     for (reg_t a : {0x806,0x807,0x808,0x809,0x80a,
-                    0x80b,0x80c,0x80d,0x80e,0x80f,0x810,0x819})
+                    0x80b,0x80c,0x80d,0x819})
       v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
     return v;
   }
