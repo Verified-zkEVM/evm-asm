@@ -57,6 +57,31 @@ post-`StateRel` to hold, need `data = sRv.getMem a`, i.e. **`readBytes 8 a` (lit
 append) = `reconstructDword sSail.mem a`** — a bitvector bridge lemma. StateRel.reg_agree
 ties `rX[rs1] = sRv.getReg rs1` so the Sail address = the toy address.
 
+## STATUS (8 leaf lemmas proven & committed in `VmemReduction.lean`)
+
+All axiom-clean, build 2986/2986. The hard leaves are DONE; what remains is composition.
+1. ✅ `readBytes8_eq_reconstruct` (`78ac911c6`) — leaf read = `reconstructDword`.
+2. ✅ `translateAddr_bare` (`274dfa8e4`) — bare-mode translation = identity.
+3. ✅ `forIn'_noop` (`41bf9ae0b`) — SailM WF-loop no-op invariant.
+4. ✅ `forIn'_noop_except` (`3eec407c0`) — SailME/ExceptT WF-loop no-op invariant.
+5/6. ✅ `untilFuelM_one` / `_pure` (`478c2a262`) — unwrap the `fuel=1` access loop.
+7. ✅ `pmaCheck_load_ok` (`2999f2047`) — PMA permits aligned readable load.
+8. ✅ `pmpCheck_machine_off` + helpers `pmpReadAddrReg_noop`/`pmpMatchAddr_off` (`60bfbfe7d`) — PMP permits Machine+all-OFF.
+
+**Remaining = composition (assembly, no open questions):** thread a `BareModeInv` bundle
+through `mem_read` (effectivePrivilege Machine → mem_read_priv_meta aq=res=false skip-align
+→ checked_mem_read → phys_access_check[#7+#8=none] → within_mmio_readable false → read_ram
+→ readBytes[#1]); then `vmem_read_addr` (alignment + `split_misaligned`=(1,w) + untilFuelM[#5]
++ translateAddr[#2] + the above); then `vmem_read` (get_transformed_data_addr) → `execute_LOAD`
+(rX read, wX write, RETIRE_SUCCESS) → rebuild `StateRel` (reg via `reg_agree_after_insert`,
+mem unchanged). Then the STORE mirror (write_ram/writeBytes, mem_write_value/ea), apply to all
+11 MemProofs lemmas (replacing `h_exec` with the bundle), and finally strengthen `StateRel`
+to fold all tiers into one `step_execute_sail_sim`.
+
+**Recommended next:** define `BareModeInv (s) : Prop` (cur_privilege=Machine; ∃mst, mstatus
++ MPRV=0; pmpcfg all-OFF + pmpaddr present; pma_regions has a readable region covering the
+access; htif none) to bundle the per-lemma hypotheses, then the composition lemmas read cleanly.
+
 ## Proof plan (layered reduction lemmas — `simp [simp_sail]` alone does NOT work)
 
 A diagnostic `simp only [runSail, execute_LOAD, vmem_read, vmem_read_addr, simp_sail, …]`
