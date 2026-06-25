@@ -764,6 +764,7 @@ def blockVerdictReceiptsTail : String :=
   "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1); bne t0, t2, .Lbv_receipts_sd_root_done\n" ++
   "  li t1, 35190; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 351900; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 195840; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  j .Lbv_receipts_sd_root_done\n" ++
   ".Lbv_receipts_zero_state_wip:\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 183600; beq t2, t1, .Lbv_receipts_accept\n" ++
