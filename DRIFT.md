@@ -64,7 +64,6 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 | `MULMOD` | mulmod_correct proven; no top-level Hoare triple |
 | `EXP` | exp_correct proven; program in active development |
 | `CALLDATACOPY` | preamble + partial memory effect; full loop pending |
-| `PUSH2..32` | zero-slot only; non-zero-slot path pending; 31 byte-codes |
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 
