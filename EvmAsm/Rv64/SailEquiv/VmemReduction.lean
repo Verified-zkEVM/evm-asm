@@ -179,4 +179,31 @@ theorem forIn'_noop {β : Type} (range : IntRange) (init : β) (s : SailState)
   show IntRange.forIn'.loop range f init range.start _ s = _
   exact aux init range.start _
 
+/-- **Lemma #4 — `IntRange.forIn'` no-op invariant in the `SailME`/`ExceptT` monad.**
+    The `forIn'_noop` analogue for loops that run inside `SailME.run` (i.e. in
+    `ExceptT ε SailM`), such as `pmpCheck`'s PMP scan. If the body, run on a fixed state
+    `s`, returns `.ok (Except.ok (.yield b)) s` — read-only, no early `throw`, yields the
+    accumulator unchanged — the whole loop returns `init` with `s` untouched. Same
+    `IntRange.forIn'.loop.induct` proof as `forIn'_noop`, with the `ExceptT` bind. -/
+theorem forIn'_noop_except {β : Type} {ε : Type} (range : IntRange) (init : β) (s : SailState)
+    (f : (i : Int) → i ∈ range → β → ExceptT ε SailM (ForInStep β))
+    (hf : ∀ (i : Int) (hi : i ∈ range) (b : β), (f i hi b) s = .ok (Except.ok (.yield b)) s) :
+    (forIn' range init f) s = .ok (Except.ok init) s := by
+  have aux : ∀ (b : β) (i : Int) (hs : (i - range.start) % range.step = 0),
+      IntRange.forIn'.loop range f b i hs s = .ok (Except.ok b) s := by
+    intro b i hs
+    induction b, i, hs using IntRange.forIn'.loop.induct (range := range) with
+    | case1 b i hs hin ih =>
+      rw [IntRange.forIn'.loop.eq_def]
+      simp only [hin, dif_pos]
+      show (ExceptT.bind (f i hin b) _) s = _
+      simp only [ExceptT.bind, ExceptT.mk, ExceptT.bindCont, bind, EStateM.bind, hf i hin b]
+      exact ih b
+    | case2 b i hs hnin =>
+      rw [IntRange.forIn'.loop.eq_def]
+      simp only [hnin, dif_neg, not_false_iff]
+      rfl
+  show IntRange.forIn'.loop range f init range.start _ s = _
+  exact aux init range.start _
+
 end EvmAsm.Rv64.SailEquiv
