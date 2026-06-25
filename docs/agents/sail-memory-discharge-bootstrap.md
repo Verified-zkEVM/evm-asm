@@ -68,7 +68,8 @@ So build, bottom-up, reduction lemmas each consuming part of the bundle:
 3. **`pmpCheck_machine_off`**: 16 pmpcfg OFF + Machine ⇒ `none`. The 16-iteration loop needs an invariant or `decide`-style unfold over the concrete range `[0:15]`.
 4. **`pmaCheck_region`**: region membership + readable + aligned ⇒ `none`.
 5. **`phys_access_check`** ⇒ combine 3+4 ⇒ `none`; then `checked_mem_read` not-MMIO ⇒ `read_ram`.
-6. **`translateAddr_bare`**: Machine + MPRV=0 + PMM-disabled ⇒ `Ok (Physaddr a, PBMT_PMA, ())`, no effects.
+6. ✅ **DONE (commit `274dfa8e4`)** — `translateAddr_bare` in `VmemReduction.lean`: Machine + MPRV=0 ⇒ `.ok (Ok (Physaddr (zero_extend 64 vaddr), PBMT_PMA, ())) s`, no state change. EStateM `.ok` form. Recipe: `unfold translateAddr; simp +decide [SailME.run, PreSail.PreSailME.run, effectivePrivilege, translationMode, is_shadow_stack_access, PreSail.readReg, <reg hyps>, <EStateM/ExceptT/liftM plumbing — see runSail_jump_to set>]`. `+decide` is essential (derived-BEq `==` won't fire via `beq_self_eq_true`); `open Out` for the `physaddr.Physaddr`/`page_based_mem_type.PBMT_PMA` constructors.
+   - ⏳ **IN PROGRESS** — generic `forIn'_noop` invariant (read-only no-op body ⇒ `IntRange.forIn'` returns init, state unchanged), the lemma that collapses the pmpCheck 16-entry loop. `IntRange.forIn'` is WF-recursive (Sail/IntRange.lean:28), so this needs WF induction — being proven (scratchpad/forin_target.lean). pmpCheck body is a no-op when every cfg A-field is OFF (`pmpMatchAddr` → `PMP_NoMatch`; `pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A ent) = .OFF`).
 7. **`untilFuelM` single-iteration**: `split_misaligned` = `(1,8)` ⇒ loop body runs once, `finished := true`.
 8. **`vmem_read_addr` / `vmem_read` / `execute_LOAD` top**: chain 1–7, plus the top `assert (8 ≤ xlen_bytes)` (xlen_bytes=8) and `get_transformed_data_addr` (default `ext_data_get_addr` = `Ext_DataAddr_OK (Virtaddr (rX[rs1]+offset))`, cannot error).
 
