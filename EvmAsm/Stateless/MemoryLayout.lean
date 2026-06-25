@@ -71,6 +71,28 @@
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
 
+  ## EVM value-stack frame geometry (opcode scratch slack)
+
+  The below-`sp` scratch opcodes (`EvmAsm/Evm64/{DivMod,SDiv,SMod,
+  AddMod,Multiply}/`) place their workspace at negative offsets from
+  `x12` (the EVM value-stack pointer): DivMod's call path reaches
+  `sp - 152` (`divScratchValuesCallNoX1`,
+  `EvmAsm/Evm64/DivMod/Compose/Base.lean:608-791`). For such `sp - K`
+  scratch to be a valid in-frame address at *any* legal stack depth --
+  including a full stack (`ptr = 1024`), where `sp` sits at the lowest
+  slot -- each value-stack frame statically reserves a **scratch slack**
+  margin (`STACK_SCRATCH_SLACK`, 256 B) immediately below its lowest
+  slot. This closes the underflow caveat of #9450 by construction:
+  `sp - STACK_SCRATCH_SLACK` is always a valid in-frame address.
+
+  The EVM value stack is reset on each message CALL, so a single
+  `EVM_VALUE_STACK_FRAME_BYTES` arena (`slack + 1024 x 32` = 33 024 B)
+  is reused per frame; the parent's `x12` is saved on `EVM_FRAME_STACK`
+  across the call. The slack therefore costs a single 256 B margin, not
+  `max_call_depth x slack`. (The alternative full-nesting reservation
+  `max_call_depth x EVM_VALUE_STACK_FRAME_BYTES` ~= 32 MiB does not fit
+  the working-RAM window below `.data` at `0xa3000000`; see issue #9450.)
+
   ## Calling convention (non-leaf stateless code)
 
   The existing opcode handlers are leaf functions. The stateless guest
@@ -109,6 +131,75 @@ def EVM_MEMORY_AREA         : Word := 0xa0b70000
 def KECCAK_SCRATCH          : Word := 0xa1b70000
 def ECRECOVER_SCRATCH       : Word := 0xa1b80000
 def SHA256_SCRATCH          : Word := 0xa1b90000
+
+/-! ## EVM value-stack frame geometry (opcode scratch slack, #9450)
+
+   These constants parametrise the per-frame value-stack arena so that
+   below-`sp` opcode scratch never underflows into a neighbour region.
+   See the layout table above for the full rationale. The per-frame
+   slicing / `sp` helpers built on these live in
+   `EvmAsm/Stateless/VM/Stack.lean`. -/
+
+/-- Number of 256-bit value-stack slots per EVM frame (Yellow Paper
+    upper bound; `1024`). -/
+def EVM_VALUE_STACK_SLOTS : Nat := 1024
+
+/-- Bytes per value-stack slot -- a 256-bit word stored as 4 little-endian
+    64-bit limbs. -/
+def EVM_VALUE_SLOT_BYTES : Nat := 32
+
+/-- Below-`sp` opcode scratch headroom, in bytes. Sized to the deepest
+    below-`sp` reach of any opcode (DivMod call path: `sp - 152`,
+    `divScratchValuesCallNoX1`) and rounded up to a 256-byte margin so
+    that every scratch address stays dword-aligned and future opcodes
+    that dig a little deeper than DivMod need no layout reflow. Change
+    this single number to resize the slack. -/
+def STACK_SCRATCH_SLACK : Nat := 256
+
+/-- One value-stack frame: scratch slack (low) ++ `EVM_VALUE_STACK_SLOTS`
+    slots (high). This is the per-frame arena that is reused across CALL
+    boundaries. -/
+def EVM_VALUE_STACK_FRAME_BYTES : Nat :=
+  STACK_SCRATCH_SLACK + EVM_VALUE_STACK_SLOTS * EVM_VALUE_SLOT_BYTES
+
+/-- Per-frame save-record slot count on `EVM_FRAME_STACK` (mirrors the
+    256 B-per-frame reservation already documented in
+    `Stateless/VM/Message.lean`). Kept here so disjointness lemmas can
+    name the frame-stack extent. -/
+def EVM_FRAME_STACK_RECORD_BYTES : Nat := 256
+
+/-- Number of message-call frames the layout reserves room for
+    (EIP-150 max call depth). -/
+def EVM_MAX_CALL_DEPTH : Nat := 1024
+
+/-! ## Working-RAM disjointness (#9450)
+
+   `decide`-checked witnesses that the value-stack arena (slack + 1024
+   slots) is inside the verified RAM zone and clear of its two working-RAM
+   neighbours (`EVM_FRAME_STACK` below, `EVM_MEMORY_AREA` above). These
+   are the load-bearing facts the per-frame `sp - STACK_SCRATCH_SLACK`
+   guard in `Stateless/VM/Stack.lean` reduces to. -/
+
+/-- The value-stack arena (slack + 1024 slots) fits inside the verified
+    RAM zone `RAM_MEM_START .. RAM_MEM_END`. -/
+theorem EVM_VALUE_STACK_arena_in_ram :
+    RAM_MEM_START ≤ EVM_VALUE_STACK.toNat ∧
+    EVM_VALUE_STACK.toNat + EVM_VALUE_STACK_FRAME_BYTES ≤ RAM_MEM_END := by
+  decide
+
+/-- The frame-stack region (`EVM_FRAME_STACK` + 256 KiB of per-frame
+    save records) ends where the value-stack arena begins, so the two
+    never overlap. -/
+theorem EVM_FRAME_STACK_disjoint_VALUE_STACK :
+    EVM_FRAME_STACK.toNat +
+      EVM_MAX_CALL_DEPTH * EVM_FRAME_STACK_RECORD_BYTES ≤ EVM_VALUE_STACK.toNat := by
+  decide
+
+/-- The value-stack arena (slack + 1024 slots) stays clear of the EVM
+    memory area above it. -/
+theorem EVM_VALUE_STACK_arena_disjoint_MEMORY_AREA :
+    EVM_VALUE_STACK.toNat + EVM_VALUE_STACK_FRAME_BYTES ≤ EVM_MEMORY_AREA.toNat := by
+  decide
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 
