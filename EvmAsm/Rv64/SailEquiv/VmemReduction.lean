@@ -245,4 +245,68 @@ theorem pmaCheck_load_ok (paddr : physaddr) (width : Nat) (s : SailState)
     get, MonadState.get, getThe, MonadStateOf.get,
     Sail.assert, PreSail.assert]
 
+/-- `pmpReadAddrReg` is read-only: it reads `pmpcfg_n`/`pmpaddr_n` and returns the stored
+    address (the grain-`0` mask branches are trivial), leaving the state untouched. -/
+theorem pmpReadAddrReg_noop (s : SailState) (n : Nat)
+    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
+    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
+    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs) :
+    (pmpReadAddrReg n) s = .ok (pmpaddrs[n]!) s := by
+  unfold pmpReadAddrReg
+  simp +decide only [sys_pmp_grain, PreSail.readReg, h_cfg, h_addr,
+    pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get, if_false]
+  generalize BitVec.access (_get_Pmpcfg_ent_A cfgs[n]!) 1 = b
+  match b with
+  | 0#1 => rfl
+  | 1#1 => rfl
+
+/-- When a PMP entry's A-field decodes to `OFF`, `pmpMatchAddr` returns `PMP_NoMatch`
+    immediately without touching the address/state. -/
+theorem pmpMatchAddr_off (s : SailState) (addr : physaddr) (width pmpaddr prev : BitVec 64)
+    (ent : BitVec 8)
+    (h_off : pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A ent) = PmpAddrMatchType.OFF) :
+    (pmpMatchAddr addr width ent pmpaddr prev) s = .ok pmpAddrMatch.PMP_NoMatch s := by
+  unfold pmpMatchAddr
+  simp +decide only [h_off, pure, EStateM.pure]
+
+/-- **Lemma #8 — `pmpCheck` permits access in Machine mode with all PMP entries OFF.**
+    Returns `none` (access permitted), state untouched. The 16-entry PMP scan is a
+    read-only no-op (every entry OFF ⇒ `pmpMatchAddr` = `PMP_NoMatch`), collapsed via
+    `forIn'_noop_except` (#4); the trailing `priv == Machine` guard yields `none`. -/
+theorem pmpCheck_machine_off (addr : physaddr) (width : Nat) (s : SailState)
+    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
+    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
+    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
+    (h_off : ∀ i : Nat,
+      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF) :
+    pmpCheck addr width (MemoryAccessType.Load mem_payload.Data) Privilege.Machine s
+      = .ok none s := by
+  unfold pmpCheck
+  simp +decide only [SailME.run, PreSail.PreSailME.run, sys_pmp_count,
+    bind, EStateM.bind,
+    ExceptT.run, ExceptT.mk, ExceptT.bind]
+  simp only [if_false, if_true]
+  rw [forIn]
+  simp only [instForInOfForIn', EStateM.bind]
+  rw [forIn'_noop_except _ () s _ ?hf]
+  case hf =>
+    intro i hi b
+    have hmatch : ∀ (pa prev : BitVec 64),
+        (pmpMatchAddr addr (to_bits width) cfgs[i]! pa prev) s
+          = .ok pmpAddrMatch.PMP_NoMatch s := by
+      intro pa prev
+      exact pmpMatchAddr_off s addr (to_bits width) pa prev cfgs[i]! (h_off i.toNat)
+    split
+    all_goals
+      simp +decide only [PreSail.readReg, h_cfg,
+        pmpReadAddrReg_noop s _ cfgs pmpaddrs h_cfg h_addr,
+        hmatch,
+        pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
+        get, MonadState.get, getThe, MonadStateOf.get,
+        MonadLift.monadLift, monadLift, liftM, Functor.map,
+        ExceptT.mk, ExceptT.pure, ExceptT.bindCont, ExceptT.lift,
+        EStateM.map]
+  rfl
+
 end EvmAsm.Rv64.SailEquiv
