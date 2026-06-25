@@ -8,31 +8,38 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
 
 ## Status
 
-**Working & validated (macOS arm64):**
+**Working & validated:**
+- macOS arm64: original spike backend MVP.
+- Linux x86_64: builds with a local `riscv-isa-sim` checkout plus OpenSSL/libcrypto and `riscv64-unknown-elf-*` binutils; validated through the EEST runner with `EEST_BACKEND=spike`.
+
 - SPIKE builds from source at `$SPIKE_SRC` (default: a `riscv-isa-sim` checkout sibling to this repo).
 - `build.sh` produces `libziskaccel.so` (extension for stock `spike --extlib`) AND
   `spike_run` (custom driver: `spike_run <guest.elf> <input> <output>`, a drop-in
   for `ziskemu -e/-i/-o`).
-- Accelerator CSRs, all isolation-validated (`test/*_selfcheck.s`, exit 0 only if byte-correct):
+- Accelerator CSRs (`test/*_selfcheck.s` contains stock-Spike isolation checks; the EEST backend path is validated by byte parity below):
   - **Keccak-f[1600] `csrs 0x800`** — published zero-state vector.
   - **arith256_mod `csrs 0x802`** `d=(a·b+c) mod m` — `(7·11+5) mod 20 = 2`.
   - **sha256 `csrs 0x805`** — SHA-256("abc") = ba7816bf…
 - **secp256k1 affine point add `csrs 0x803` / double `csrs 0x804`** — implemented
-  with boost field arithmetic over the secp256k1 prime (needed for tx sender
-  recovery / ecrecover); validated by full byte-parity below.
+  with OpenSSL BIGNUM field arithmetic over the secp256k1 prime (needed for tx
+  sender recovery / ecrecover); validated by full byte-parity below.
 - **`spike_run` runs the real stateless guest END-TO-END and is BYTE-IDENTICAL to
   ziskemu.** `scripts/spike/parity-check.sh N SEED` runs N random blocks on both
   backends and diffs the 256-byte output: **8/8 match** (contract creation,
   precompiled-touch, returndata, SSTORE, tx intrinsic gas, address opcodes, …),
   **0 differ**. Speed: ziskemu ~55–62 s/block (ROM transpile dominates), spike
-  ~1 s/block — **~50× faster**.
+  ~1 s/block — **~50× faster**. Linux validation on this repo branch: focused row
+  skip=139 ran in 0.45s with SPIKE vs 1.06s with cached ziskemu; the 22-row EIP-7708
+  cluster ran in 2.62s with SPIKE vs 13.05s with cached ziskemu; the first 1000 rows
+  ran 1000/1000 full matches in 95.87s with SPIKE (4 workers).
   Key fixes that got it there: enable Zicclsm (misaligned loads, like ziskemu);
   explicit `load_elf` + start at the ELF entry (bypass spike's bootrom); explicit
   `state.add_csr()` (`register_extension` does NOT call `get_csrs`); secp256k1
   add/double CSRs; trap handler reports faults (mcause/mtval/mepc).
 
-Build: `SPIKE_SRC=/path/to/riscv-isa-sim ./build.sh`
+Build: `SPIKE_SRC=/path/to/riscv-isa-sim scripts/spike/build.sh`
 Run one block: `scripts/spike/spike_run <guest.elf> <input> <output>`
+EEST backend: `EEST_BACKEND=spike scripts/codegen-eest-stateless-check.sh --limit 1000 --jobs 4 --max-jobs 4`
 Parity gate: `scripts/spike/parity-check.sh 8 1`
 
 ## The guest's runtime contract (see ../../../.claude/plans for full map)
@@ -50,9 +57,10 @@ Parity gate: `scripts/spike/parity-check.sh 8 1`
   and `0x819` (blake2b round) so blocks calling those precompiles also reach parity.
   Each is one more `accel_csr_t` subclass (param layouts in the plan file); a run on a
   precompile block prints `UNIMPLEMENTED CSR 0x…` showing exactly which is needed.
-- **Phase 3 — selectable backend**: a `spike-run.sh <elf> <in> <out>` shim is now just
-  `spike_run`; wire `EEST_BACKEND=ziskemu|spike` into `loop_run.py`/`sweep.py` and add a
-  `spike-stateless-check.sh` so the loop tooling can pick the backend (default ziskemu).
+- **Phase 3 — selectable backend**: `scripts/codegen-eest-stateless-check.sh` supports
+  `--backend ziskemu|spike` / `EEST_BACKEND=ziskemu|spike` for stateless EEST runs
+  (default ziskemu). Remaining loop tooling such as `loop_run.py`/`sweep.py` can adopt
+  the same backend variable when those paths need SPIKE.
 - Generalize: read the guest entry/regions instead of hardcoding; handle multi-page
   misaligned if any block needs it.
 

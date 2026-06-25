@@ -4,10 +4,10 @@
 #
 # Pipeline (end to end):
 #   1. build the `stateless_guest` ELF via codegen -> as -> ld;
-#   2. convert EEST zkevm fixtures (Amsterdam / Glamsterdam) into ziskemu
-#      `-i` inputs + a manifest via scripts/eest-stateless-to-input.py;
-#   3. run each guest input on ziskemu and compare its output against the
-#      fixture's recorded `statelessOutputBytes`.
+#   2. convert EEST zkevm fixtures (Amsterdam / Glamsterdam) into guest
+#      input blobs + a manifest via scripts/eest-stateless-to-input.py;
+#   3. run each guest input on the selected emulator and compare its output
+#      against the fixture's recorded `statelessOutputBytes`.
 #
 # Fixtures come from the release tarball fetched by
 # scripts/eest-fetch-fixtures.sh (NOT re-filled locally); the EEST repo is
@@ -53,7 +53,7 @@
 #     --budget-retry-min-gas N
 #                        only retry BUDGET rows whose manifest gas_limit is at
 #                        least N (default $EEST_BUDGET_RETRY_MIN_GAS or 100000000)
-#     --jobs N|auto      parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
+#     --jobs N|auto      parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
 #                        Auto per-job budgets are sized for the uncached ELF->ROM
 #                        transpile; when the ziskemu ROM cache is detected via the
 #                        first-case warmup (see below) they are relaxed and the
@@ -73,14 +73,14 @@
 #                        experimental: patch the emitted block_state_root
 #                        BAL row cap before relinking (default: guest default)
 #     --job-mem-mib N|auto
-#                        memory budget per ziskemu job (default $EEST_JOB_MEM_MIB
-#                        or auto). Auto is derived from the ziskemu build:
-#                        stock builds budget ~7000 MiB/process; patched lowmem
-#                        builds advertising PATCHED-lowmem budget 1024 MiB/process
-#                        for this stateless guest workload.
-#                        CPU cap uses one core/job on patched builds and four
-#                        cores/job on stock builds unless EEST_JOB_CPU_THREADS is set.
-#     --max-jobs N       cap parallel ziskemu jobs after memory/CPU auto-cap
+#                        memory budget per guest-emulator job (default $EEST_JOB_MEM_MIB
+#                        or auto). Auto is derived from the selected backend:
+#                        stock ziskemu budgets ~7000 MiB/process; patched lowmem
+#                        ziskemu budgets 1024 MiB/process; spike defaults to
+#                        $EEST_SPIKE_JOB_MEM_MIB or 1024 MiB.
+#                        CPU cap uses one core/job on patched ziskemu/spike and
+#                        four cores/job on stock ziskemu unless EEST_JOB_CPU_THREADS is set.
+#     --max-jobs N       cap parallel guest-emulator jobs after memory/CPU auto-cap
 #                        (default $EEST_MAX_JOBS or 2; set higher explicitly
 #                        when this host is not sharing ziskemu capacity).
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
@@ -145,6 +145,7 @@ FILTER=""
 # needs. The EIP-8037 state_gas_reservoir max-gas fixture can require more than
 # the default on current ziskemu builds, so high-gas BUDGET rows get one larger
 # retry before they are reported as budget exhaustion.
+BACKEND="${EEST_BACKEND:-ziskemu}"
 STEPS="${EEST_STEPS:-5000000000}"
 BUDGET_RETRY_STEPS="${EEST_BUDGET_RETRY_STEPS:-50000000000}"
 BUDGET_RETRY_MIN_GAS="${EEST_BUDGET_RETRY_MIN_GAS:-100000000}"
@@ -179,6 +180,7 @@ RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
 PREFLIGHT_REPORT="${EEST_PREFLIGHT_REPORT:-budget}"
+SPIKE_RUN="${SPIKE_RUN:-$REPO_ROOT/scripts/spike/spike_run}"
 
 usage() {
   cat <<'USAGE'
@@ -190,10 +192,11 @@ Options:
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
+  --backend ziskemu|spike  guest emulator backend (default $EEST_BACKEND or ziskemu)
   --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
   --budget-retry-steps N   retry high-gas BUDGET rows at N steps before final BUDGET classification (0 disables)
   --budget-retry-min-gas N only retry BUDGET rows with manifest gas_limit >= N
-  --jobs N|auto            parallel ziskemu jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
+  --jobs N|auto            parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
                            per-job budgets relax automatically (up to the same caps)
                            when the ziskemu ROM cache is detected by the first-case warmup
   --max-failures N         stop after N FAIL/ERROR results
@@ -205,12 +208,12 @@ Options:
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
   --bsr-bal-cap N          experimental: add a lower block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
-  --max-jobs N             cap parallel ziskemu jobs after memory/CPU auto-cap
+  --max-jobs N             cap parallel guest-emulator jobs after memory/CPU auto-cap
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
-  --verify-input-parity    verify ziskemu inputs unpack to statelessInputBytes (default)
-  --no-verify-input-parity skip the default ziskemu input parity check
+  --verify-input-parity    verify guest inputs unpack to statelessInputBytes (default)
+  --no-verify-input-parity skip the default input parity check
   --verify-execution-spec-input
                            additionally decode guest bytes via execution-specs
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
@@ -239,6 +242,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --all) ALL=1; shift ;;
+    --backend) require_arg "$1" "${2:-}"; BACKEND="$2"; shift 2 ;;
     --skip) require_arg "$1" "${2:-}"; SKIP="$2"; shift 2 ;;
     --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; shift 2 ;;
     --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
@@ -271,6 +275,11 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+case "$BACKEND" in
+  ziskemu|spike) ;;
+  *) echo "--backend/EEST_BACKEND must be ziskemu or spike (got: $BACKEND)" >&2; exit 1 ;;
+esac
 
 if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
   echo "--skip must be a nonnegative integer (got: $SKIP)" >&2
@@ -388,20 +397,28 @@ cleanup_children() {
 }
 trap 'cleanup_children; exit 130' INT TERM HUP
 
-# --- locate ziskemu ---------------------------------------------------------
+# --- locate guest emulator --------------------------------------------------
 ZISKEMU="${ZISKEMU:-}"
-if [[ -z "$ZISKEMU" ]]; then
-  if command -v ziskemu >/dev/null 2>&1; then
-    ZISKEMU="$(command -v ziskemu)"
-  elif [[ -x "$HOME/.zisk/bin/ziskemu" ]]; then
-    ZISKEMU="$HOME/.zisk/bin/ziskemu"
-  else
-    echo "ziskemu not found -- install via ziskup or set ZISKEMU=..." >&2
+if [[ "$BACKEND" == "ziskemu" ]]; then
+  if [[ -z "$ZISKEMU" ]]; then
+    if command -v ziskemu >/dev/null 2>&1; then
+      ZISKEMU="$(command -v ziskemu)"
+    elif [[ -x "$HOME/.zisk/bin/ziskemu" ]]; then
+      ZISKEMU="$HOME/.zisk/bin/ziskemu"
+    else
+      echo "ziskemu not found -- install via ziskup or set ZISKEMU=..." >&2
+      exit 1
+    fi
+  fi
+else
+  if [[ ! -x "$SPIKE_RUN" ]]; then
+    echo "spike backend requested, but spike_run is not executable: $SPIKE_RUN" >&2
+    echo "  build it with: SPIKE_SRC=/path/to/riscv-isa-sim scripts/spike/build.sh" >&2
     exit 1
   fi
 fi
 
-# --- pick parallelism based on the ziskemu build ----------------------------
+# --- pick parallelism based on the guest emulator build ----------------------
 # ziskemu's peak RSS is dominated by a fixed allocation built at ELF-load time,
 # independent of the program or step budget. A stock build keeps every ROM
 # instruction in one flat array indexed from the program base; because the
@@ -410,15 +427,22 @@ fi
 # the float library into its own array; tiny ELFs measure around 30 MB RSS, while
 # the stateless guest measures around 700 MB RSS on real fixtures. We size this
 # harness for the stateless workload.
-ZISKEMU_VERSION="$("$ZISKEMU" --version 2>/dev/null || echo unknown)"
-if [[ "$ZISKEMU_VERSION" == *PATCHED-lowmem* ]]; then
-  ZISKEMU_FLAVOR="patched-lowmem"
-  ZISKEMU_AUTO_JOB_MEM_MIB=1024
-  ZISKEMU_AUTO_JOB_CPU_THREADS=1
+if [[ "$BACKEND" == "ziskemu" ]]; then
+  ZISKEMU_VERSION="$($ZISKEMU --version 2>/dev/null || echo unknown)"
+  if [[ "$ZISKEMU_VERSION" == *PATCHED-lowmem* ]]; then
+    ZISKEMU_FLAVOR="patched-lowmem"
+    ZISKEMU_AUTO_JOB_MEM_MIB=1024
+    ZISKEMU_AUTO_JOB_CPU_THREADS=1
+  else
+    ZISKEMU_FLAVOR="stock"
+    ZISKEMU_AUTO_JOB_MEM_MIB=7000
+    ZISKEMU_AUTO_JOB_CPU_THREADS=4
+  fi
 else
-  ZISKEMU_FLAVOR="stock"
-  ZISKEMU_AUTO_JOB_MEM_MIB=7000
-  ZISKEMU_AUTO_JOB_CPU_THREADS=4
+  ZISKEMU_VERSION="n/a"
+  ZISKEMU_FLAVOR="spike"
+  ZISKEMU_AUTO_JOB_MEM_MIB="${EEST_SPIKE_JOB_MEM_MIB:-1024}"
+  ZISKEMU_AUTO_JOB_CPU_THREADS="${EEST_SPIKE_JOB_CPU_THREADS:-1}"
 fi
 JOB_MEM_MIB_AUTO=0
 JOB_CPU_THREADS_AUTO=0
@@ -435,17 +459,7 @@ fi
 # Newer ziskemu builds cache the transpiled compact ROM keyed by the ELF bytes
 # under $ZISKEMU_ROM_CACHE (or $XDG_CACHE_HOME/ziskemu, or ~/.cache/ziskemu;
 # ZISKEMU_ROM_CACHE=off|0 disables it). A cache hit skips the ELF->ROM
-# transpile entirely: measured on stateless_guest, a hit runs in ~2s wall on
-# ~1 core with ~4.3 GiB peak RSS, vs ~35s on 4 threads with ~25 GB transient
-# for the uncached transpile. Older ziskemu builds ignore the variable and
-# always transpile, and --version does not advertise the feature, so the
-# parallel path runs the FIRST case serially as a warmup and treats the cache
-# as live iff the warmup was too fast to have transpiled OR it wrote a fresh
-# *.zisk-rom entry (a first-run miss). Only then are the auto per-job budgets
-# relaxed to the cached-run numbers below. The warmup also guarantees the
-# cache is populated before fan-out, so a cold start never launches N
-# concurrent multi-GB transpiles. Non-cache builds keep today's conservative
-# budgets (the slow-warmup-no-entry fallthrough).
+# transpile entirely. Spike does not use this path.
 ROM_CACHE_ENABLED=1
 ROM_CACHE_DIR=""
 case "${ZISKEMU_ROM_CACHE:-}" in
@@ -453,21 +467,14 @@ case "${ZISKEMU_ROM_CACHE:-}" in
   "") ROM_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ziskemu" ;;
   *) ROM_CACHE_DIR="$ZISKEMU_ROM_CACHE" ;;
 esac
-# Measured cached-run peak RSS is ~4300 MiB (mostly the deserialized compact
-# ROM); budget 5500 MiB/job for headroom so a full-width run stays clear of
-# earlyoom on shared hosts.
 ZISKEMU_CACHED_JOB_MEM_MIB="${EEST_CACHED_JOB_MEM_MIB:-5500}"
 ZISKEMU_CACHED_JOB_CPU_THREADS="${EEST_CACHED_JOB_CPU_THREADS:-1}"
-# A cached run finishes in seconds; the transpile alone takes far longer than
-# this on any host, so a warmup under the threshold proves the cache was hit.
 ROM_CACHE_WARMUP_FAST_SECS="${EEST_ROM_CACHE_WARMUP_FAST_SECS:-15}"
 
 compute_job_cap() {
   local mem_avail_kib mem_avail_mib mem_cap ncpu cpu_cap cap
-  # Linux: read MemAvailable from /proc/meminfo
   mem_avail_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || true)"
   if [[ -z "$mem_avail_kib" ]]; then
-    # macOS: approximate available memory from vm_stat (pages * page_size / 1024)
     local page_size free_pages speculative inactive
     page_size="$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)"
     free_pages="$(vm_stat 2>/dev/null | awk '/Pages free:/ {gsub(/\./,"",$3); print $3}')"
@@ -488,7 +495,6 @@ compute_job_cap() {
       [[ "$mem_cap" -lt 1 ]] && mem_cap=1
     fi
   fi
-  # nproc is Linux-specific; fall back to sysctl on macOS
   ncpu="$(nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 1)"
   cpu_cap=$((ncpu / JOB_CPU_THREADS))
   [[ "$cpu_cap" -lt 1 ]] && cpu_cap=1
@@ -498,8 +504,6 @@ compute_job_cap() {
 }
 
 CPUS="$(nproc 2>/dev/null || echo 1)"
-# Remember what the caller asked for: if the ROM-cache warmup later proves the
-# relaxed budgets apply, the cap is recomputed and JOBS is re-derived from this.
 JOBS_REQUESTED="$JOBS"
 JOB_CAP="$(compute_job_cap)"
 if [[ "$JOB_CAP" -gt "$MAX_JOBS" ]]; then
@@ -512,14 +516,9 @@ elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
   JOBS="$JOB_CAP"
 fi
 
-# Re-derive the job cap with cached-run budgets once the first-case warmup has
-# shown the ROM cache is live. Only auto-derived budgets are touched (explicit
-# --job-mem-mib / EEST_JOB_CPU_THREADS are respected), only on stock builds
-# (patched-lowmem budgets were measured for that build), and the result can
-# only grow: relaxed budgets give a cap >= the conservative one, and JOBS is
-# still bounded by the original request and --max-jobs.
 recalibrate_jobs_for_rom_cache() {
   local warmup_secs="$1" stamp="$2" cached=0 new_cap
+  [[ "$BACKEND" == "ziskemu" ]] || return 0
   [[ "$ROM_CACHE_ENABLED" -eq 1 && -n "$ROM_CACHE_DIR" ]] || return 0
   [[ "$ZISKEMU_FLAVOR" == "stock" ]] || return 0
   [[ "$JOB_MEM_MIB_AUTO" -eq 1 || "$JOB_CPU_THREADS_AUTO" -eq 1 ]] || return 0
@@ -545,9 +544,16 @@ recalibrate_jobs_for_rom_cache() {
   echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS, max_jobs=$MAX_JOBS)"
 }
 
-echo "==> ziskemu: $ZISKEMU"
-echo "    version: $ZISKEMU_VERSION"
-echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+if [[ "$BACKEND" == "ziskemu" ]]; then
+  echo "==> backend: ziskemu"
+  echo "    ziskemu: $ZISKEMU"
+  echo "    version: $ZISKEMU_VERSION"
+  echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+else
+  echo "==> backend: spike"
+  echo "    spike_run: $SPIKE_RUN"
+  echo "    flavor:    $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+fi
 
 # --- locate fixtures --------------------------------------------------------
 FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
@@ -654,6 +660,16 @@ else
     exit 1
   fi
 fi
+
+
+run_guest_elf() {
+  local elf="$1" input="$2" out="$3" log="$4" steps="$5"
+  if [[ "$BACKEND" == "ziskemu" ]]; then
+    "$ZISKEMU" -e "$elf" -i "$input" -o "$out" -n "$steps" >"$log" 2>&1 </dev/null
+  else
+    "$SPIKE_RUN" "$elf" "$input" "$out" >"$log" 2>&1 </dev/null
+  fi
+}
 
 format_verdict_debug() {
   local out="$1"
@@ -987,8 +1003,7 @@ verdict_debug_for_case() {
   local out="$RUN_DIR/$label.verdict-debug.output"
   local log="$RUN_DIR/$label.verdict-debug.log"
   ensure_verdict_debug_probe || return 0
-  if ! "$ZISKEMU" -e "$VERDICT_DEBUG_ELF" -i "$input" -o "$out" \
-        -n "$STEPS" >"$log" 2>&1 </dev/null; then
+  if ! run_guest_elf "$VERDICT_DEBUG_ELF" "$input" "$out" "$log" "$STEPS"; then
     echo "verdict_debug_error=exit"
     return 0
   fi
@@ -1078,28 +1093,27 @@ run_case() {
   local actual_hex run_steps
 
   run_steps="$STEPS"
-  run_ziskemu_case() {
+  run_emulator_case() {
     local steps="$1"
     local run_log="$2"
-    "$ZISKEMU" -e "$GUEST_ELF" -i "$input" -o "$out" \
-        -n "$steps" >"$run_log" 2>&1 </dev/null
+    run_guest_elf "$GUEST_ELF" "$input" "$out" "$run_log" "$steps"
   }
 
   retry_budget_case() {
     [[ "$BUDGET_RETRY_STEPS" -gt "$run_steps" && "$gas_limit" -ge "$BUDGET_RETRY_MIN_GAS" ]] || return 1
     run_steps="$BUDGET_RETRY_STEPS"
     log="$RUN_DIR/$label.emu.retry-$run_steps.log"
-    run_ziskemu_case "$run_steps" "$log"
+    run_emulator_case "$run_steps" "$log"
   }
 
-  if ! run_ziskemu_case "$run_steps" "$log"; then
+  if ! run_emulator_case "$run_steps" "$log"; then
     # Distinguish a --steps budget exhaustion (sha256-heavy merkleization,
     # not a wrong answer) from a genuine error. Non-match => ERROR (no
     # behaviour change vs before this distinction was added).
-    if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+    if [[ "$BACKEND" == "ziskemu" ]] && grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
       if retry_budget_case; then
         :
-      elif grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+      elif [[ "$BACKEND" == "ziskemu" ]] && grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
         printf 'BUDGET\tsteps:%s\n' "$run_steps" > "$tmp_result"
         mv "$tmp_result" "$result"
         return 0
@@ -1118,7 +1132,7 @@ run_case() {
   if [[ "${#actual_hex}" -lt 210 ]]; then
     # A zero-exit run that produced no valid output but whose log shows the
     # step cap was hit is also a budget exhaustion, not a correctness error.
-    if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+    if [[ "$BACKEND" == "ziskemu" ]] && grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
       if retry_budget_case; then
         actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
         if [[ "${#actual_hex}" -ge 210 ]]; then
@@ -1127,7 +1141,7 @@ run_case() {
           return 0
         fi
       fi
-      if grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
+      if [[ "$BACKEND" == "ziskemu" ]] && grep -qiE "$STEP_LIMIT_RE" "$log" 2>/dev/null; then
         printf 'BUDGET\tsteps:%s\n' "$run_steps" > "$tmp_result"
       else
         printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$tmp_result"
@@ -1319,7 +1333,7 @@ stopEarly=0
 worker_fail=0
 run_note=""
 [[ -n "$MAX_FAILURES" ]] && run_note=", max_failures=$MAX_FAILURES"
-echo "==> run stateless_guest on $selectedCount input(s) (jobs=$JOBS$run_note)"
+echo "==> run stateless_guest on $selectedCount input(s) (backend=$BACKEND, jobs=$JOBS$run_note)"
 RUN_START="$(date +%s)"
 if [[ "$JOBS" -eq 1 ]]; then
   for line in "${manifestLines[@]}"; do
@@ -1332,7 +1346,7 @@ if [[ "$JOBS" -eq 1 ]]; then
     fi
   done
 else
-  # Serial first-case warmup: populates the ziskemu ROM cache on a cold start
+  # Serial first-case warmup: for ziskemu, populates the ROM cache on a cold start
   # (so the fan-out below never races N concurrent multi-GB transpiles) and
   # detects whether cached-run job budgets apply (see
   # recalibrate_jobs_for_rom_cache). The case is a real one; its result counts.
@@ -1403,8 +1417,13 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  generated:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "  fixture tag: $TAG"
   echo "  selection:   $selection"
-  echo "  ziskemu:     $ZISKEMU (steps=$STEPS, budget_retry_steps=$BUDGET_RETRY_STEPS, budget_retry_min_gas=$BUDGET_RETRY_MIN_GAS)"
-  echo "  zisk build:  $ZISKEMU_FLAVOR -- $ZISKEMU_VERSION"
+  echo "  backend:     $BACKEND"
+  if [[ "$BACKEND" == "ziskemu" ]]; then
+    echo "  ziskemu:     $ZISKEMU (steps=$STEPS, budget_retry_steps=$BUDGET_RETRY_STEPS, budget_retry_min_gas=$BUDGET_RETRY_MIN_GAS)"
+    echo "  zisk build:  $ZISKEMU_FLAVOR -- $ZISKEMU_VERSION"
+  else
+    echo "  spike_run:   $SPIKE_RUN"
+  fi
   echo "  jobs:        $JOBS (cpus=$CPUS, ${JOB_MEM_MIB} MiB/proc budget)"
   echo "  selected:    $selectedCount"
   [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
