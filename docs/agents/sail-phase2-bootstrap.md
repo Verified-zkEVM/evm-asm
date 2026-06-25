@@ -107,9 +107,8 @@ evm-asm builds against the **vendored, release-pinned, current-upstream** scoped
 
 ## Housekeeping
 
-- **Push still pending.** The branch `feat/sail-zkvm-integration` has unpushed commits
-  (`e445f8ac7` docs, `a2dedf448` vendor). Auto-mode denied `git push` last session —
-  the user runs it: `git push origin feat/sail-zkvm-integration`.
+- **Synced.** `feat/sail-zkvm-integration` is pushed (through `ba45cc4d`); local and
+  `origin` agree. No manual push pending.
 - The untracked `docs/agents/phaseN-bootstrap.md` + `rollout-complete.md` are unrelated
   steering-rollout leftovers — leave them.
 

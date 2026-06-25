@@ -116,7 +116,7 @@ when the underlying state changes.
 
 | Component | State |
 |---|---|
-| RV64 instruction semantics tie | `Rv64/SailEquiv/` references the official Sail RISC-V model via the `dhsorens/sail-riscv-lean` fork (`lakefile.toml`) |
+| RV64 instruction semantics tie | `Rv64/SailEquiv/` references the vendored, release-pinned, scoped RV64IM Sail model in `vendor/sail-riscv-zkvm-lean/` (`lakefile.toml` path-dep; pins in `sail-import/PROVENANCE.toml`) |
 | Mathlib pin | `lake-manifest.json` (refreshed alongside Lean nightly) |
 | Lean toolchain pin | `lean-toolchain` (Lean 4 nightly) |
 | Kernel additions | 0 `axiom`, 0 `sorry` (axis A.1) |

@@ -17,7 +17,7 @@ source          = "vendor/sail-riscv-zkvm-lean"   # local path require (package 
 lean_sail_rev   = "79b4d08505af29d88b3918f32d29840fae1fa191"   # = lean-sail v4; pinned by the vendored package's lakefile
 scope           = ["main", "I_insts", "M_insts"]   # scoped RV64IM (113 Lean files)
 project_toolchain = "leanprover/lean4:v4.30.0-rc1"
-notes = "Repointed off dhsorens onto the vendored release-pinned model. lean-sail v4 + mathlib-master proven to coexist in the real evm-asm build; all 51 *_sail_equiv lemmas green (rename was 100% mechanical LeanRV64D->Out); axioms = {propext, Classical.choice, Quot.sound} only."
+notes = "Repointed off dhsorens onto the vendored release-pinned model. lean-sail v4 + mathlib-master proven to coexist in the real evm-asm build; all 51 *_sail_equiv lemmas green (rename was 100% mechanical LeanRV64D->Out). AXIOM FOOTPRINT (corrected 2026-06-25 adversarial review, docs/agents/sail-adversarial-review.md F1): pure-ALU lemmas reduce to {propext, Classical.choice, Quot.sound}; memory lemmas additionally carry Sail PLATFORM axioms {plat_term_write, load_reservation, match_reservation, sys_enable_experimental_extensions} (host/LR-SC/experimental-ext boundary). The earlier '3 classical only' note was inaccurate for mem ops. (F2 RESOLVED: the model_sha256 below is correct; only its recipe was underspecified — pinned reproducibly at the hash line.)"
 
 # Historical (pre-migration): dhsorens fork, full RV64D, lean-sail v3.
 #   source = https://github.com/dhsorens/sail-riscv-lean
@@ -46,7 +46,16 @@ config_file = "sail-import/riscv64im_zicclsm.json"   # NOTE: produced against 17
 config_sha256 = "7dd1fa11db135e5b20e981499e172e48aa25d2b1f61f44afe6597eda13057e81"
 arch = "rv64d"   # generator names the arch rv64d; scoped content is RV64IM. Renaming cosmetic.
 vendor_path  = "vendor/sail-riscv-zkvm-lean"   # P2 step 2: model VENDORED here (113 .lean files; package "out", lib "Out" kept verbatim from the proven artifact). lakefile git-pins lean-sail at the rev below.
-model_sha256 = "3a49ffa5cfc3a46e52686d56f43d3923567242bf616cdf3e2f19a4b8859a76e0"   # deterministic: `find -name '*.lean' | sort | xargs sha256sum | sha256sum` over the vendored sources (excl. .lake)
+model_sha256 = "3a49ffa5cfc3a46e52686d56f43d3923567242bf616cdf3e2f19a4b8859a76e0"
+# REPRODUCIBLE RECIPE (pinned 2026-06-25 after review F2 — the old one-liner was
+# underspecified re: CWD/locale/.lake and did NOT reproduce this hash). Run EXACTLY:
+#   cd vendor/sail-riscv-zkvm-lean && \
+#     find . -name '*.lean' -not -path './.lake/*' | LC_ALL=C sort | xargs sha256sum | sha256sum
+# The three things that MUST be pinned: (1) CWD = the vendor dir (so paths are './…',
+# not absolute/stripped); (2) LC_ALL=C sort (locale-stable ordering — a plain `sort`
+# under a non-C locale gives a different concatenation order, hence a different hash);
+# (3) exclude './.lake/*' (build artifacts). Verified bit-identical across runs on
+# coreutils 9.4. check-sail-pin.sh (P6) must use this exact invocation.
 
 # ---- TOOLCHAIN: RESOLVED + PROVEN — no change, no model patching ----
 # lean-sail v4 *declares* lean-toolchain v4.29.0, but that is only its CI's toolchain.

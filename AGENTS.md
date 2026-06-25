@@ -9,7 +9,7 @@ EvmAsm is a verified macro assembler for RISC-V in Lean 4, inspired by "Coq: The
 ## Build System
 
 - **Build tool**: Lake (Lean 4's build system)
-- **Toolchain**: Lean 4.28.0-nightly-2026-01-22 (specified in `lean-toolchain`)
+- **Toolchain**: Lean `leanprover/lean4:v4.30.0-rc1` (specified in `lean-toolchain`)
 - **Build command**: `lake build`
 - **Clean build**: `lake clean && lake build`
 

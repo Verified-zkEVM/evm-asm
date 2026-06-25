@@ -7,8 +7,8 @@ required to read this page.*
 **Sources of truth:** the zkVM standard
 [`eth-act/zkvm-standards`](https://github.com/eth-act/zkvm-standards)
 (`standards/riscv-target/target.md` + siblings); the official Sail model
-[`riscv/sail-riscv`](https://github.com/riscv/sail-riscv); the Lean export
-consumed at `.lake/packages/Lean_RV64D`; and the deep review in
+[`riscv/sail-riscv`](https://github.com/riscv/sail-riscv); the vendored, scoped
+Lean export consumed at `vendor/sail-riscv-zkvm-lean/` (lib `Out`); and the deep review in
 [`sail-zkvm-model-review.md`](sail-zkvm-model-review.md).
 
 ---
@@ -73,7 +73,7 @@ codebase.
 
 This is the heart of the correspondence. Each standard instruction maps to a
 Sail `instruction` AST constructor (executed by `execute_*` in
-`Lean_RV64D/.../InstsEnd.lean`) and, where present, to the `evm-asm` theorem
+`vendor/sail-riscv-zkvm-lean/.../InstsEnd.lean`) and, where present, to the `evm-asm` theorem
 proving our model agrees with Sail.
 
 ### 2.1 RV64I — integer computation (register-register)
