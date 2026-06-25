@@ -535,6 +535,68 @@ class bls12_curve_dbl_csr_t : public accel_csr_t {
   }
 };
 
+// ---- BLAKE2b round (CSR 0x819) ---------------------------------------------
+// RFC 7693 BLAKE2b F-function round: one pass of the G mixing function over
+// the 8 MIX_TABLE index sets, using SIGMA[index] to select message words.
+// The guest software wrapper (zkvm_blake2f) builds the v = h||IV working
+// vector, applies the t/f flags, and calls this CSR once per round with
+// index = round mod 10; the CSR mutates the 16-word v vector in place.
+static const unsigned int BLAKE2B_SIGMA[10][16] = {
+  { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15},
+  {14,10, 4, 8, 9,15,13, 6, 1,12, 0, 2,11, 7, 5, 3},
+  {11, 8,12, 0, 5, 2,15,13,10,14, 3, 6, 7, 1, 9, 4},
+  { 7, 9, 3, 1,13,12,11,14, 2, 6, 5,10, 4, 0,15, 8},
+  { 9, 0, 5, 7, 2, 4,10,15,14, 1,11,12, 6, 8, 3,13},
+  { 2,12, 6,10, 0,11, 8, 3, 4,13, 7, 5,15,14, 1, 9},
+  {12, 5, 1,15,14,13, 4,10, 0, 7, 6, 3, 9, 2, 8,11},
+  {13,11, 7,14,12, 1, 3, 9, 5, 0,15, 4, 8, 6, 2,10},
+  { 6,15,14, 9,11, 3, 0, 8,12, 2,13, 7, 1, 4,10, 5},
+  {10, 2, 8, 4, 7, 6, 1, 5,15,11, 9,14, 3,12,13, 0},
+};
+// MIX_TABLE[i] = (a, b, c, d) index sets: rows 0..3 are columns, 4..7 diagonals.
+static const unsigned int BLAKE2B_MIX[8][4] = {
+  { 0, 4, 8,12},{ 1, 5, 9,13},{ 2, 6,10,14},{ 3, 7,11,15},
+  { 0, 5,10,15},{ 1, 6,11,12},{ 2, 7, 8,13},{ 3, 4, 9,14},
+};
+static inline uint64_t rotr64(uint64_t x, int n){ return (x>>n)|(x<<(64-n)); }
+// One G invocation: mixes v[a..d] with message words x, y (RFC 7693, BLAKE2b).
+static inline void blake2b_g(uint64_t v[16], int a, int b, int c, int d,
+                             uint64_t x, uint64_t y) {
+  v[a] += v[b] + x;
+  v[d]  = rotr64(v[d] ^ v[a], 32);
+  v[c] += v[d];
+  v[b]  = rotr64(v[b] ^ v[c], 24);
+  v[a] += v[b] + y;
+  v[d]  = rotr64(v[d] ^ v[a], 16);
+  v[c] += v[d];
+  v[b]  = rotr64(v[b] ^ v[c], 63);
+}
+// 0x819: one BLAKE2b round.  param = {index, &state, &input}; index in [0,10),
+// state and input each point at 16 LE u64 words. State (the v working vector)
+// is permuted in place; input (the message block) is read-only.
+class blake2b_round_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    uint64_t index = gload(proc, param + 0);
+    reg_t pstate = gload(proc, param + 8);
+    reg_t pinput = gload(proc, param + 16);
+    uint64_t v[16], m[16];
+    for (int i = 0; i < 16; ++i) {
+      v[i] = gload(proc, pstate + 8 * i);
+      m[i] = gload(proc, pinput + 8 * i);
+    }
+    const unsigned int* s = BLAKE2B_SIGMA[index % 10];
+    for (int i = 0; i < 8; ++i) {
+      blake2b_g(v, BLAKE2B_MIX[i][0], BLAKE2B_MIX[i][1],
+                   BLAKE2B_MIX[i][2], BLAKE2B_MIX[i][3],
+                m[s[2*i]], m[s[2*i + 1]]);
+    }
+    for (int i = 0; i < 16; ++i) gstore(proc, pstate + 8 * i, v[i]);
+    return false;
+  }
+};
+
 // Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
 // we can see which a given block needs, instead of silently raising illegal-insn.
 class unimpl_csr_t : public accel_csr_t {
@@ -563,14 +625,14 @@ class zisk_accel_t : public extension_t {
       std::make_shared<bls12_fp2_csr_t>(&p, 0x80e, bls12_fp2_csr_t::add),
       std::make_shared<bls12_fp2_csr_t>(&p, 0x80f, bls12_fp2_csr_t::sub),
       std::make_shared<bls12_fp2_csr_t>(&p, 0x810, bls12_fp2_csr_t::mul),
+      std::make_shared<blake2b_round_csr_t>(&p, 0x819),
       std::make_shared<arith384_csr_t>(&p, 0x80b),
       std::make_shared<bls12_curve_add_csr_t>(&p, 0x80c),
       std::make_shared<bls12_curve_dbl_csr_t>(&p, 0x80d),
     };
     // register the not-yet-implemented accelerator CSRs as logging stubs so a
     // run reveals exactly which ones a block exercises.
-    for (reg_t a : {0x806,0x807,0x808,0x809,0x80a,
-                    0x819})
+    for (reg_t a : {0x806,0x807,0x808,0x809,0x80a})
       v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
     return v;
   }

@@ -57,9 +57,16 @@ import EvmAsm.Evm64.MulMod.ProductLayoutColumn7Target
 import EvmAsm.Evm64.MulMod.ProductLayoutHighTargets
 import EvmAsm.Evm64.MulMod.ProductLayoutSpec
 import EvmAsm.Evm64.MulMod.AddrNorm
+import EvmAsm.Evm64.MulMod.MulModResultWord
 import EvmAsm.Evm64.MulMod.Compose.Base
 import EvmAsm.Evm64.MulMod.Compose.Reducer
 import EvmAsm.Evm64.MulMod.Compose.ProductCore
 import EvmAsm.Evm64.MulMod.Compose.ProductSuffix
 import EvmAsm.Evm64.MulMod.Compose.ProductReduceBridge
+import EvmAsm.Evm64.MulMod.Compose.ProductReduce
+import EvmAsm.Evm64.MulMod.Compose.ProductReduceValue
+import EvmAsm.Evm64.MulMod.Compose.ZeroPathBody
+import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
+import EvmAsm.Evm64.MulMod.Compose.Dispatch
+import EvmAsm.Evm64.MulMod.Compose.StackSpec
 import EvmAsm.Evm64.MulMod.Spec

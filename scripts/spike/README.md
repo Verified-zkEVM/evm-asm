@@ -23,6 +23,12 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
 - **secp256k1 affine point add `csrs 0x803` / double `csrs 0x804`** — implemented
   with OpenSSL BIGNUM field arithmetic over the secp256k1 prime (needed for tx
   sender recovery / ecrecover); validated by full byte-parity below.
+- **BLS12-381 Fp2 add/sub/mul `csrs 0x80e` / `0x80f` / `0x810`** — implemented
+  with OpenSSL BIGNUM; needed by the BLS12-381 precompiles (fixed in `cfcbdb56f`).
+- **BLAKE2b round `csrs 0x819`** — implemented directly from the RFC 7693 G
+  mixing function (SIGMA schedule + 8 MIX_TABLE index sets); backs the BLAKE2F
+  (`0x09`, EIP-152) precompile; validated by full byte-parity on all blake2 EEST
+  fixtures.
 - **arith384_mod `csrs 0x80b`** `d=(a·b+c) mod m` over 6-limb (384-bit) values with
   a parameter-supplied modulus — mirrors `0x802` widened to 6 limbs; foundational
   for the BLS12-381 precompiles.
@@ -61,10 +67,10 @@ Parity gate: `scripts/spike/parity-check.sh 8 1`
 
 ## Remaining (post-MVP)
 - **Phase 2 — precompile CSRs**: implement the remaining `0x806`–`0x80a` (bn254
-  curve + Fp2 complex) and `0x819` (blake2b round) so blocks calling those
-  precompiles also reach parity. `0x80b` (arith384_mod) and `0x80c`/`0x80d`
-  (bls12 curve add/double) are now implemented; `0x80e`–`0x810` (bls12 Fp2) landed
-  in `cfcbdb56f`.
+  curve + Fp2 complex) so blocks calling those precompiles also reach parity.
+  `0x80b` (arith384_mod) and `0x80c`/`0x80d` (bls12 curve add/double) are now
+  implemented; `0x80e`–`0x810` (bls12 Fp2) landed in `cfcbdb56f`; `0x819`
+  (blake2b-round) is also done.
   Each remaining CSR is one more `accel_csr_t` subclass (param layouts in the plan
   file); a run on a precompile block prints `UNIMPLEMENTED CSR 0x…` showing exactly
   which is needed.
