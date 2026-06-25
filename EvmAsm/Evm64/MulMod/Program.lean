@@ -356,7 +356,7 @@ def evm_mulmod_nonzero_or_zero_prefix : Program :=
 /-- Branch over the nonzero product/reduction path after the `N = 0` result.
     The target is the end of `evm_mulmod`. -/
 def evm_mulmod_zero_path_skip_nonzero : Program :=
-  JAL .x0 (2100 : BitVec 21)
+  JAL .x0 (2108 : BitVec 21)
 
 /-- Initialize the 256-bit remainder accumulator and loop cursors.
 
@@ -398,6 +398,8 @@ def evm_mulmod_reduce512_inner_step : Program :=
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x20 ;;
   SD .x12 .x6 248 ;;
+  SRLI .x8 .x5 63 ;;
+  BNE .x8 .x0 (64 : BitVec 13) ;;
   LD .x6 .x12 248 ;;
   LD .x7 .x12 88 ;;
   BLTU .x7 .x6 (52 : BitVec 13) ;;
@@ -440,7 +442,7 @@ def evm_mulmod_reduce512_inner_step : Program :=
   SUB .x5 .x5 .x11 ;;
   SD .x12 .x5 248 ;;
   ADDI .x15 .x15 4095 ;;
-  BNE .x15 .x0 (-252 : BitVec 13)
+  BNE .x15 .x0 (-260 : BitVec 13)
 
 /-- Outer eight-limb reducer loop. -/
 def evm_mulmod_reduce512_loop : Program :=
@@ -493,29 +495,29 @@ theorem evm_mulmod_reduce512_init_length :
     evm_mulmod_reduce512_init.length = 6 := by rfl
 
 theorem evm_mulmod_reduce512_inner_step_length :
-    evm_mulmod_reduce512_inner_step.length = 64 := by set_option maxRecDepth 1000 in rfl
+    evm_mulmod_reduce512_inner_step.length = 66 := by set_option maxRecDepth 1000 in rfl
 
 theorem evm_mulmod_reduce512_loop_length :
-    evm_mulmod_reduce512_loop.length = 69 := by set_option maxRecDepth 1000 in rfl
+    evm_mulmod_reduce512_loop.length = 71 := by set_option maxRecDepth 1000 in rfl
 
 theorem evm_mulmod_reduce512_write_result_length :
     evm_mulmod_reduce512_write_result.length = 8 := by rfl
 
 theorem evm_mulmod_reduce512_length :
-    evm_mulmod_reduce512.length = 84 := by
+    evm_mulmod_reduce512.length = 86 := by
   unfold evm_mulmod_reduce512
   simp only [seq, Program.length_append, evm_mulmod_reduce512_init_length,
     evm_mulmod_reduce512_loop_length, evm_mulmod_reduce512_write_result_length,
     evm_mulmod_epilogue_length]
 
-theorem evm_mulmod_length : evm_mulmod.length = 538 := by
+theorem evm_mulmod_length : evm_mulmod.length = 540 := by
   unfold evm_mulmod
   simp only [seq, Program.length_append, evm_mulmod_nonzero_or_zero_prefix_length,
     evm_mulmod_reduce_zero_path_length, evm_mulmod_epilogue_length,
     evm_mulmod_zero_path_skip_nonzero_length, evm_mulmod_product_layout_length,
     evm_mulmod_reduce512_length]
 
-theorem evm_mulmod_byte_length : 4 * evm_mulmod.length = 2152 := by
+theorem evm_mulmod_byte_length : 4 * evm_mulmod.length = 2160 := by
   rw [evm_mulmod_length]
 
 theorem evm_mulmod_nonzero_path_start_byte :
@@ -527,12 +529,12 @@ theorem evm_mulmod_nonzero_path_start_byte :
 
 theorem evm_mulmod_bne_nonzero_target_byte : 28 + (28 : Nat) = 56 := by rfl
 
-theorem evm_mulmod_zero_skip_target_byte : 52 + (2100 : Nat) = 2152 := by rfl
+theorem evm_mulmod_zero_skip_target_byte : 52 + (2108 : Nat) = 2160 := by rfl
 
 theorem evm_mulmod_reduce512_start_byte : 56 + 4 * evm_mulmod_product_layout.length = 1816 := by
   rw [evm_mulmod_product_layout_length]
 
-theorem evm_mulmod_reduce512_end_byte : 1816 + 4 * evm_mulmod_reduce512.length = 2152 := by
+theorem evm_mulmod_reduce512_end_byte : 1816 + 4 * evm_mulmod_reduce512.length = 2160 := by
   rw [evm_mulmod_reduce512_length]
 
 -- ============================================================================
