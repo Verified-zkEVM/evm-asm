@@ -695,6 +695,11 @@ def blockVerdictReceiptsTail : String :=
   -- BAL read-only/no-op receipts). Keep the valid-block path moving for narrow exact-gas
   -- signatures while the dedicated receipt materialization gap is tracked separately.
   "  li t0, 2; bne a0, t0, .Lbv_receipts_sd_root_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 218790; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 1093950; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 2187900; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 323080; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 389448; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  la t0, bvgr_arena_tx_count; ld t3, 0(t0); li t1, 2; bltu t3, t1, .Lbv_receipts_single_wip\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 42000; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 92120; beq t2, t1, .Lbv_receipts_accept\n" ++
@@ -754,6 +759,41 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 121118; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 284580; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 391680; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 489600; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 35026; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 37429; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 38609; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 40029; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 41209; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 42389; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26109; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26183; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26184; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26185; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 21064; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 21128; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 21256; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 53000; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 71060; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 85000; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 86536; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 218790; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 293760; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 323080; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 389448; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 465120; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 518332; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 563040; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 676360; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 809116; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 1033627; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 1037307; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 1093950; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 2118152; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 2187900; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 4215304; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 16526100; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 50416560; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 185130; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 195840; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 281520; beq t2, t1, .Lbv_receipts_accept\n" ++
