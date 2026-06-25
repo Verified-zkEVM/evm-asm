@@ -38,4 +38,6 @@ import EvmAsm.Rv64.SailEquiv.ShiftProofs
 import EvmAsm.Rv64.SailEquiv.ImmProofs
 import EvmAsm.Rv64.SailEquiv.BranchProofs
 import EvmAsm.Rv64.SailEquiv.MemProofs
+-- StepSim consolidates the per-instruction lemmas into one step-simulation theorem.
+import EvmAsm.Rv64.SailEquiv.StepSim
 import EvmAsm.Rv64.SailEquiv.MExtProofs
