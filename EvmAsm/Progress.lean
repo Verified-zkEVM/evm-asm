@@ -40,6 +40,7 @@ import EvmAsm.Evm64.Sgt.Spec
 import EvmAsm.Evm64.Pop.Spec
 import EvmAsm.Evm64.Push0.Spec
 import EvmAsm.Evm64.Push.Spec
+import EvmAsm.Evm64.Push.ImmediateCompose
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
@@ -231,11 +232,10 @@ def registry : List OpcodeEntry := [
   entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
 
   -- Push family (0x60..0x7f). PUSH1 has its own top-level spec; PUSH2..32
-  -- share the parameterized zero-slot spec — see editorial note #2 in
-  -- PROGRESS.md.
+  -- share one parameterized full-immediate spec generic over the width n.
   entry "PUSH1" .proven (some "evm_push1_stack_spec_within"),
-  entry "PUSH2..32" .partly (some "evm_push_zero_slot_full_stack_spec_within")
-      "zero-slot only; non-zero-slot path pending; 31 byte-codes",
+  entry "PUSH2..32" .proven (some "evm_push_stack_spec_within")
+      "single proof generic over n=2..32; pushes the big-endian immediate; 31 byte-codes",
 
   -- Dup/Swap families (0x80..0x9f) — single generic proof each
   entry "DUP1..16" .proven (some "evm_dup_stack_spec_within")
@@ -274,8 +274,8 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 42 := by decide
-theorem partialCount_eq     : partialCount     = 5  := by decide
+theorem provenCount_eq      : provenCount      = 43 := by decide
+theorem partialCount_eq     : partialCount     = 4  := by decide
 theorem conditionalCount_eq : conditionalCount = 3  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
@@ -308,8 +308,8 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 72  := by decide
-theorem partialBytes_eq     : partialBytes     = 35  := by decide
+theorem provenBytes_eq      : provenBytes      = 103 := by decide
+theorem partialBytes_eq     : partialBytes     = 4   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
@@ -374,7 +374,7 @@ private noncomputable abbrev _mstore8_witness    := @EvmAsm.Evm64.evm_mstore8_st
 private noncomputable abbrev _msize_witness      := @EvmAsm.Evm64.evm_msize_stack_spec_within
 private noncomputable abbrev _push0_witness      := @EvmAsm.Evm64.evm_push0_stack_spec_within
 private noncomputable abbrev _push1_witness      := @EvmAsm.Evm64.evm_push1_stack_spec_within
-private noncomputable abbrev _push_zero_witness  := @EvmAsm.Evm64.evm_push_zero_slot_full_stack_spec_within
+private noncomputable abbrev _push_witness       := @EvmAsm.Evm64.evm_push_stack_spec_within
 private noncomputable abbrev _dup_witness        := @EvmAsm.Evm64.evm_dup_stack_spec_within
 private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack_spec_within
 
