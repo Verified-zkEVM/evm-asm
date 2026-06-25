@@ -15,6 +15,7 @@ import EvmAsm.Evm64.MulMod.Layout
 import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.MulMod.ProductAlgebra
 import EvmAsm.Evm64.MulMod.ReduceSemantics
+import EvmAsm.Evm64.MulMod.ReduceCorrect
 import EvmAsm.Evm64.MulMod.ReduceShift
 import EvmAsm.Evm64.MulMod.ReduceCompare
 import EvmAsm.Evm64.MulMod.ReduceInnerStepPrefix
