@@ -101,14 +101,14 @@ abbrev evm_mulmod_zero_path_skip_nonzero_code (base : Word) : CodeReq :=
 theorem evm_mulmod_zero_path_skip_nonzero_spec_within
     (base : Word) :
     let code := evm_mulmod_zero_path_skip_nonzero_code base
-    cpsTripleWithin 1 base (base + signExtend21 (2100 : BitVec 21)) code
+    cpsTripleWithin 1 base (base + signExtend21 (2108 : BitVec 21)) code
       empAssertion
       empAssertion := by
-  show cpsTripleWithin 1 base (base + signExtend21 (2100 : BitVec 21))
+  show cpsTripleWithin 1 base (base + signExtend21 (2108 : BitVec 21))
     (CodeReq.ofProg base evm_mulmod_zero_path_skip_nonzero) _ _
   rw [show CodeReq.ofProg base evm_mulmod_zero_path_skip_nonzero =
-      CodeReq.singleton base (.JAL .x0 2100) from CodeReq.ofProg_singleton]
-  exact jal_x0_spec_gen_within 2100 base
+      CodeReq.singleton base (.JAL .x0 2108) from CodeReq.ofProg_singleton]
+  exact jal_x0_spec_gen_within 2108 base
 
 abbrev evm_mulmod_nonzero_or_zero_prefix_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_mulmod_nonzero_or_zero_prefix

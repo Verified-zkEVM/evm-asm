@@ -451,7 +451,7 @@ def evm_mulmod_reduce512_loop : Program :=
   evm_mulmod_reduce512_inner_step ;;
   ADDI .x16 .x16 4088 ;;
   ADDI .x18 .x18 4095 ;;
-  BNE .x18 .x0 (-272 : BitVec 13)
+  BNE .x18 .x0 (-280 : BitVec 13)
 
 /-- Copy the finalized remainder into the EVM result slot `sp + 64..88`. -/
 def evm_mulmod_reduce512_write_result : Program :=

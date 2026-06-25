@@ -2,12 +2,14 @@
   EvmAsm.Evm64.MulMod.ReduceBitLoop
 
   Loop-facing adapter for the MULMOD 512-bit reducer. The inner-step branch
-  spec clobbers and surrenders six scratch registers (`x5/x6/x7/x10/x11/x13`),
-  so the bit-loop invariant carries them as ownership. This file restates the
-  inner step over that loop-carried precondition.
+  spec clobbers and surrenders seven scratch registers
+  (`x5/x6/x7/x8/x10/x11/x13`, with `x8` the new carry register), so the
+  bit-loop invariant carries them as ownership. This file restates the inner
+  step over that loop-carried precondition.
 -/
 
 import EvmAsm.Evm64.MulMod.ReduceInnerStepSpecs
+import EvmAsm.Evm64.MulMod.ReduceFoldInvariant
 
 namespace EvmAsm.Evm64
 
@@ -31,91 +33,103 @@ def bitLoopCommon
   ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
 
 /-- Loop-carried precondition for one reducer bit step: `bitLoopCommon` plus
-    ownership of the six clobbered scratch registers. -/
+    ownership of the seven clobbered scratch registers (including the new carry
+    register `x8`). -/
 @[irreducible]
 def mulModReduceBitLoopPre
     (sp x17Old x15 x19Old x20Old : Word) (r n : EvmWord) : Assertion :=
   bitLoopCommon sp x17Old x15 x19Old x20Old r n **
-  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x13
 
 /-- One reducer bit step restated over the loop-carried precondition that owns
     the six clobbered scratch registers, ready for the bit-loop induction. -/
 theorem evm_mulmod_reduce512_bit_loop_step_spec_within
     (sp base x17Old x15 x19Old x20Old : Word) (r n : EvmWord) :
-    cpsBranchWithin 64 base
+    cpsBranchWithin 66 base
       (evm_mulmod_reduce512_inner_step_code base)
       (mulModReduceBitLoopPre sp x17Old x15 x19Old x20Old r n)
       base (mulModReduceInnerStepPost sp x17Old x15 r n false)
-      (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
-  have h13 : cpsBranchWithin 64 base
+      (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+  have h13 : cpsBranchWithin 66 base
       (evm_mulmod_reduce512_inner_step_code base)
       ((bitLoopCommon sp x17Old x15 x19Old x20Old r n **
-          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11) **
         regOwn .x13)
       base (mulModReduceInnerStepPost sp x17Old x15 r n false)
-      (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+      (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
     refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x13) ?_
     intro v13
-    have h11 : cpsBranchWithin 64 base
+    have h11 : cpsBranchWithin 66 base
         (evm_mulmod_reduce512_inner_step_code base)
         ((bitLoopCommon sp x17Old x15 x19Old x20Old r n ** (.x13 ↦ᵣ v13) **
-            regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10) **
+            regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10) **
           regOwn .x11)
         base (mulModReduceInnerStepPost sp x17Old x15 r n false)
-        (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+        (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
       refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x11) ?_
       intro v11
-      have h10 : cpsBranchWithin 64 base
+      have h10 : cpsBranchWithin 66 base
           (evm_mulmod_reduce512_inner_step_code base)
           ((bitLoopCommon sp x17Old x15 x19Old x20Old r n ** (.x13 ↦ᵣ v13) **
-              (.x11 ↦ᵣ v11) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) **
+              (.x11 ↦ᵣ v11) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8) **
             regOwn .x10)
           base (mulModReduceInnerStepPost sp x17Old x15 r n false)
-          (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+          (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
         refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x10) ?_
         intro v10
-        have h7 : cpsBranchWithin 64 base
+        have h8 : cpsBranchWithin 66 base
             (evm_mulmod_reduce512_inner_step_code base)
             ((bitLoopCommon sp x17Old x15 x19Old x20Old r n ** (.x13 ↦ᵣ v13) **
-                (.x11 ↦ᵣ v11) ** (.x10 ↦ᵣ v10) ** regOwn .x5 ** regOwn .x6) **
-              regOwn .x7)
+                (.x11 ↦ᵣ v11) ** (.x10 ↦ᵣ v10) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) **
+              regOwn .x8)
             base (mulModReduceInnerStepPost sp x17Old x15 r n false)
-            (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
-          refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x7) ?_
-          intro v7
-          have h6 : cpsBranchWithin 64 base
+            (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+          refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x8) ?_
+          intro v8
+          have h7 : cpsBranchWithin 66 base
               (evm_mulmod_reduce512_inner_step_code base)
               ((bitLoopCommon sp x17Old x15 x19Old x20Old r n ** (.x13 ↦ᵣ v13) **
-                  (.x11 ↦ᵣ v11) ** (.x10 ↦ᵣ v10) ** (.x7 ↦ᵣ v7) ** regOwn .x5) **
-                regOwn .x6)
+                  (.x11 ↦ᵣ v11) ** (.x10 ↦ᵣ v10) ** (.x8 ↦ᵣ v8) ** regOwn .x5 ** regOwn .x6) **
+                regOwn .x7)
               base (mulModReduceInnerStepPost sp x17Old x15 r n false)
-              (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
-            refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x6) ?_
-            intro v6
-            have h5 : cpsBranchWithin 64 base
+              (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+            refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x7) ?_
+            intro v7
+            have h6 : cpsBranchWithin 66 base
                 (evm_mulmod_reduce512_inner_step_code base)
                 ((bitLoopCommon sp x17Old x15 x19Old x20Old r n ** (.x13 ↦ᵣ v13) **
-                    (.x11 ↦ᵣ v11) ** (.x10 ↦ᵣ v10) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6)) **
-                  regOwn .x5)
+                    (.x11 ↦ᵣ v11) ** (.x10 ↦ᵣ v10) ** (.x8 ↦ᵣ v8) ** (.x7 ↦ᵣ v7) ** regOwn .x5) **
+                  regOwn .x6)
                 base (mulModReduceInnerStepPost sp x17Old x15 r n false)
-                (base + 256) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
-              refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x5) ?_
-              intro v5
-              refine cpsBranchWithin_weaken
-                (fun h hp => by
-                  unfold bitLoopCommon at hp
-                  unfold mulModReduceInnerStepPre mulModReduceInnerStepSubtractPre
-                  xperm_hyp hp)
-                (fun _ hp => hp) (fun _ hp => hp)
-                (evm_mulmod_reduce512_inner_step_spec_within
-                  sp base x17Old v5 v6 v7 v10 v11 v13 x15 x19Old x20Old r n)
+                (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+              refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x6) ?_
+              intro v6
+              have h5 : cpsBranchWithin 66 base
+                  (evm_mulmod_reduce512_inner_step_code base)
+                  ((bitLoopCommon sp x17Old x15 x19Old x20Old r n ** (.x13 ↦ᵣ v13) **
+                      (.x11 ↦ᵣ v11) ** (.x10 ↦ᵣ v10) ** (.x8 ↦ᵣ v8) ** (.x7 ↦ᵣ v7) ** (.x6 ↦ᵣ v6)) **
+                    regOwn .x5)
+                  base (mulModReduceInnerStepPost sp x17Old x15 r n false)
+                  (base + 264) (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
+                refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x5) ?_
+                intro v5
+                refine cpsBranchWithin_weaken
+                  (fun h hp => by
+                    unfold bitLoopCommon at hp
+                    unfold mulModReduceInnerStepPre mulModReduceInnerStepSubtractPre
+                    xperm_hyp hp)
+                  (fun _ hp => hp) (fun _ hp => hp)
+                  (evm_mulmod_reduce512_inner_step_spec_within
+                    sp base x17Old v5 v6 v7 v8 v10 v11 v13 x15 x19Old x20Old r n)
+              exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+                (fun _ hp => hp) (fun _ hp => hp) h5
             exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
-              (fun _ hp => hp) (fun _ hp => hp) h5
+              (fun _ hp => hp) (fun _ hp => hp) h6
           exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
-            (fun _ hp => hp) (fun _ hp => hp) h6
+            (fun _ hp => hp) (fun _ hp => hp) h7
         exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
-          (fun _ hp => hp) (fun _ hp => hp) h7
+          (fun _ hp => hp) (fun _ hp => hp) h8
       exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
         (fun _ hp => hp) (fun _ hp => hp) h10
     exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -136,7 +150,7 @@ theorem mulModReduceInnerStepPost_false_to_bitLoopPre
       mulModReduceBitLoopPre sp (x17Old <<< 1)
         (x15 + signExtend12 (4095 : BitVec 12))
         (EvmWord.getLimbN r 1 >>> 63) (EvmWord.getLimbN r 2 >>> 63)
-        (mulModReduceStep r n (mulModReduceInputBit x17Old)) n h := by
+        (mulModReduceStepCarry r n (mulModReduceInputBit x17Old)) n h := by
   intro h hp
   unfold mulModReduceInnerStepPost mulModReduceTailPost mulModReduceCompareMem at hp
   simp only [Bool.false_eq_true, ↓reduceIte] at hp
@@ -150,7 +164,7 @@ theorem mulModReduceInnerStepPost_false_to_bitLoopPre
 theorem evm_mulmod_reduce512_bit_loop_step_loop_path
     (sp base x17Old x15 x19Old x20Old : Word) (r n : EvmWord)
     (hloop : x15 + signExtend12 (4095 : BitVec 12) ≠ 0) :
-    cpsTripleWithin 64 base base
+    cpsTripleWithin 66 base base
       (evm_mulmod_reduce512_inner_step_code base)
       (mulModReduceBitLoopPre sp x17Old x15 x19Old x20Old r n)
       (mulModReduceInnerStepPost sp x17Old x15 r n false) := by
@@ -168,7 +182,7 @@ theorem evm_mulmod_reduce512_bit_loop_step_loop_path
 theorem evm_mulmod_reduce512_bit_loop_step_done_path
     (sp base x17Old x15 x19Old x20Old : Word) (r n : EvmWord)
     (hdone : x15 + signExtend12 (4095 : BitVec 12) = 0) :
-    cpsTripleWithin 64 base (base + 256)
+    cpsTripleWithin 66 base (base + 264)
       (evm_mulmod_reduce512_inner_step_code base)
       (mulModReduceBitLoopPre sp x17Old x15 x19Old x20Old r n)
       (mulModReduceInnerStepPost sp x17Old x15 r n true) := by
@@ -187,7 +201,7 @@ theorem evm_mulmod_reduce512_bit_loop_step_done_path
 @[irreducible]
 def mulModReduceBitLoopPost (sp : Word) (result n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
-  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11 **
   regOwn .x13 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20 **
   mulModReduceCompareMem sp result n
 
@@ -207,7 +221,7 @@ theorem mulModReduceInnerStepPost_true_to_bitLoopPost
     (sp x17Old x15 : Word) (r n : EvmWord) :
     ∀ h, mulModReduceInnerStepPost sp x17Old x15 r n true h →
       mulModReduceBitLoopPost sp
-        (mulModReduceStep r n (mulModReduceInputBit x17Old)) n h := by
+        (mulModReduceStepCarry r n (mulModReduceInputBit x17Old)) n h := by
   intro h hp
   unfold mulModReduceInnerStepPost at hp
   have hp1 := sepConj_mono_left (tailPost_true_regs_zero x15) h hp
@@ -221,7 +235,7 @@ theorem mulModReduceInnerStepPost_true_to_bitLoopPost
       (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x20 _))) hh q2
   have hp2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
     (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-      (sepConj_mono_right (w3 _ _ _ _)))))))) h hp1
+      (sepConj_mono_right (sepConj_mono_right (w3 _ _ _ _))))))))) h hp1
   unfold mulModReduceBitLoopPost
   xperm_hyp hp2
 
@@ -232,10 +246,10 @@ theorem mulModReduceInnerStepPost_true_to_bitLoopPost
 private theorem bit_loop_aux (m : Nat) :
     1 ≤ m → m ≤ 64 →
     ∀ (sp base w x19v x20v : Word) (r n : EvmWord),
-    cpsTripleWithin (64 * m) base (base + 256)
+    cpsTripleWithin (66 * m) base (base + 264)
       (evm_mulmod_reduce512_inner_step_code base)
       (mulModReduceBitLoopPre sp w (BitVec.ofNat 64 m) x19v x20v r n)
-      (mulModReduceBitLoopPost sp (mulModReduceStepN r n w m) n) := by
+      (mulModReduceBitLoopPost sp (mulModReduceStepNCarry r n w m) n) := by
   induction m with
   | zero => intro h1 _; omega
   | succ k ih =>
@@ -260,7 +274,7 @@ private theorem bit_loop_aux (m : Nat) :
         sp base w (BitVec.ofNat 64 (k + 1)) x19v x20v r n hloop
       have hih := ih hkpos (by omega) sp base (w <<< 1)
         (EvmWord.getLimbN r 1 >>> 63) (EvmWord.getLimbN r 2 >>> 63)
-        (mulModReduceStep r n (mulModReduceInputBit w)) n
+        (mulModReduceStepCarry r n (mulModReduceInputBit w)) n
       have hcomp := cpsTripleWithin_seq_perm_same_cr
         (fun h hp => by
           have hb := mulModReduceInnerStepPost_false_to_bitLoopPre
@@ -268,18 +282,18 @@ private theorem bit_loop_aux (m : Nat) :
           rw [mulModReduceBitCounter_decr (k + 1) (by omega) h64] at hb
           exact hb)
         hstep hih
-      have hbound : 64 * (k + 1) = 64 + 64 * k := by ring
-      rw [hbound, mulModReduceStepN_succ]
+      have hbound : 66 * (k + 1) = 66 + 66 * k := by ring
+      rw [hbound, mulModReduceStepNCarry_succ]
       exact hcomp
 
 /-- The inner 64-bit reducer loop, instantiated at the full 64-iteration count
     used by `evm_mulmod_reduce512_loop`. -/
 theorem evm_mulmod_reduce512_bit_loop_spec_within
     (sp base w x19v x20v : Word) (r n : EvmWord) :
-    cpsTripleWithin (64 * 64) base (base + 256)
+    cpsTripleWithin (66 * 64) base (base + 264)
       (evm_mulmod_reduce512_inner_step_code base)
       (mulModReduceBitLoopPre sp w (BitVec.ofNat 64 64) x19v x20v r n)
-      (mulModReduceBitLoopPost sp (mulModReduceStepN r n w 64) n) :=
+      (mulModReduceBitLoopPost sp (mulModReduceStepNCarry r n w 64) n) :=
   bit_loop_aux 64 (by omega) (by omega) sp base w x19v x20v r n
 
 end EvmAsm.Evm64
