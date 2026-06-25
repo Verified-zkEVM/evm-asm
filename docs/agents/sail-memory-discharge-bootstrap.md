@@ -5,9 +5,48 @@ lemmas (each assumes `h_exec`) into lemmas proven from a concrete **bare-mode
 precondition bundle**, by writing the layered `vmem_read/write` reduction the original
 authors deferred. This is the largest remaining tier of the P4 consolidated theorem.
 
-## Verified ground truth (re-checked 2026-06-25)
+> ## ⇒ START HERE (Phase 2 — composition). All 8 leaf lemmas are DONE & committed.
+> The hard proofs are over; what's left is **assembly**. Cold-start steps:
+> 1. Read this file + `EvmAsm/Rv64/SailEquiv/VmemReduction.lean` (the 8 proven leaves) +
+>    `EvmAsm/Rv64/SailEquiv/MemProofs.lean` (the 11 `h_exec` lemmas to rewrite).
+> 2. Add a `BareModeInv` bundle to `VmemReduction.lean` (sketch below), then prove
+>    `mem_read_load_bare` (the first composition lemma — combines #1/#7/#8 through the
+>    `mem_read` wrapper chain). Then `vmem_read_addr` → `vmem_read` → `execute_LOAD`.
+> 3. Verify each builds (`lake build EvmAsm`, 2986/2986 baseline) and stays axiom-clean
+>    (`{3 classical} ∪ {4 platform}` — the 4 platform axioms enter only via the wider
+>    `execute` reference, not the pure reads).
+>
+> **`BareModeInv` sketch** (the bundle to define; addresses the long per-lemma hyp list):
+> ```lean
+> structure BareModeInv (s : SailState) : Prop where
+>   priv   : s.regs.get? Register.cur_privilege = some Privilege.Machine
+>   mstatus : ∃ mst, s.regs.get? Register.mstatus = some mst ∧ _get_Mstatus_MPRV mst = 0#1
+>   pmpcfg  : ∃ cfgs, s.regs.get? Register.pmpcfg_n = some cfgs ∧
+>               ∀ i, pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A cfgs[i]!) = .OFF
+>   pmpaddr : ∃ pas, s.regs.get? Register.pmpaddr_n = some pas
+>   -- per-access (keep separate; depend on paddr): a readable PMA region covers
+>   -- [paddr, paddr+width); paddr aligned; paddr outside CLINT/SIG/HTIF MMIO; bytes present.
+> ```
+> First composition lemma target:
+> ```lean
+> theorem mem_read_load_bare (s : SailState) (paddr : physaddr) (b0..b7 : BitVec 8)
+>     (hbare : BareModeInv s) (region …) (h_match …) (h_read …) (h_align …)
+>     (h_mmio : within_mmio_readable paddr 8 = …false…) (h_bytes : 8 bytes at (bits_of_physaddr paddr).toNat) :
+>     mem_read (.Load .Data) PBMT_PMA paddr 8 false false false s
+>       = .ok (.Ok (reconstructDword s.mem (bits_of_physaddr paddr).toNat)) s
+> ```
+> Reduce via: `mem_read`→`effectivePrivilege` (Machine, from hbare) →`mem_read_priv`→
+> `mem_read_priv_meta` (aq=res=false ⇒ skip the align-throw; `(_,_,_)` arm) →
+> `checked_mem_read` → `phys_access_check` (combine `pmaCheck_load_ok` #7 +
+> `pmpCheck_machine_off` #8 — note phys_access_check Mem.lean:382 calls both) →
+> `within_mmio_readable` false → `read_ram`→`sail_mem_read`→`readBytes` (`readBytes8_eq_reconstruct` #1).
+> The callbacks (`mem_read_callback`) and `MemoryOpResult_drop_meta` are pure no-ops.
+> Watch: the address into `readBytes` is `(bits_of_physaddr paddr).toNat`; thread #1's `a`
+> to that. Use the proven recipe `unfold <fn>; simp +decide [<plumbing> + leaf lemmas]`.
 
-- `lake build EvmAsm` = **2985/2985, exit 0**.
+## Verified ground truth (re-checked 2026-06-26)
+
+- `lake build EvmAsm` = **2986/2986, exit 0** (includes `VmemReduction.lean` + `StepSim.lean`).
 - `EvmAsm/Rv64/SailEquiv/StepSim.lean` ships `step_execute_sail_sim_uncond` over the
   **29 unconditional** instrs. Axioms = `{propext, Classical.choice, Quot.sound}` ∪
   `{load_reservation, match_reservation, plat_term_write, sys_enable_experimental_extensions}`.
