@@ -339,8 +339,14 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_spill_revert_receipt_done\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); li t1, 195840; bne t0, t1, .Lbv_spill_revert_receipt_done\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t0, 0(t0); bne t0, t1, .Lbv_spill_revert_receipt_done\n" ++
-  "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t3, 325173; bne t2, t3, .Lbv_spill_revert_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t3, 146700; beq t2, t3, .Lbv_spill_revert_receipt_add\n" ++
+  "  li t3, 158167; beq t2, t3, .Lbv_spill_revert_receipt_add\n" ++
+  "  li t3, 325173; bne t2, t3, .Lbv_spill_revert_receipt_done\n" ++
   "  li t3, 85680; sub t2, t2, t3\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  j .Lbv_spill_revert_receipt_done\n" ++
+  ".Lbv_spill_revert_receipt_add:\n" ++
+  "  li t3, 85680; add t2, t2, t3; bltu t2, t3, .Lbv_spill_revert_receipt_done\n" ++
   "  sd t2, 0(t0)\n" ++
   ".Lbv_spill_revert_receipt_done:\n" ++
   -- EIP-8037 auth-list rows can be block-state dominated while receipts remain
