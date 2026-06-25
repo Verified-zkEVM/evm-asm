@@ -45,10 +45,10 @@ abbrev evm_mulmod_reduce512_inner_step_compare_code (base : Word) : CodeReq :=
 /-- Shared memory footprint for the reducer compare ladder. -/
 @[irreducible]
 def mulModReduceCompareMem (sp : Word) (r n : EvmWord) : Assertion :=
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -88,10 +88,10 @@ def evm_mulmod_reduce512_inner_step_compare_limb3_lt_code (base : Word) : CodeRe
 /-- Raw post after loading the top comparison limbs and exiting through the first BLTU. -/
 def mulModReduceCompareLimb3GtRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ EvmWord.getLimbN n 3) ** (.x6 ↦ᵣ EvmWord.getLimbN r 3) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -100,10 +100,10 @@ def mulModReduceCompareLimb3GtRawPost (sp : Word) (r n : EvmWord) : Assertion :=
 /-- Raw post after the high-limb less/equality branch has passed the second BLTU. -/
 def mulModReduceCompareLimb3FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 3) ** (.x7 ↦ᵣ EvmWord.getLimbN n 3) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -129,7 +129,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_raw_spec_within
   unfold mulModReduceComparePre mulModReduceCompareMem
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_gt_code
   unfold mulModReduceCompareLimb3GtRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 248 (base + 84) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 4088 (base + 84) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp x7Old (EvmWord.getLimbN n 3) 88 (base + 88) (by decide)
   have Braw := bltu_spec_gen_within .x7 .x6 (52 : BitVec 13)
     (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3) (base + 92)
@@ -162,7 +162,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_raw_spec_within
   unfold mulModReduceComparePre mulModReduceCompareMem
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_lt_code
   unfold mulModReduceCompareLimb3FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 248 (base + 84) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 4088 (base + 84) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp x7Old (EvmWord.getLimbN n 3) 88 (base + 88) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (52 : BitVec 13)
     (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3) (base + 92)
@@ -204,7 +204,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_eq_raw_spec_within
   unfold mulModReduceComparePre mulModReduceCompareMem
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_lt_code
   unfold mulModReduceCompareLimb3FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 248 (base + 84) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 4088 (base + 84) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp x7Old (EvmWord.getLimbN n 3) 88 (base + 88) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (52 : BitVec 13)
     (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3) (base + 92)
@@ -255,10 +255,10 @@ def evm_mulmod_reduce512_inner_step_compare_limb2_lt_code (base : Word) : CodeRe
 /-- Raw post after loading limb2 comparison operands. -/
 def mulModReduceCompareLimb2FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 2) ** (.x7 ↦ᵣ EvmWord.getLimbN n 2) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -285,7 +285,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_raw_spec_within
   unfold mulModReduceCompareLimb3FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_gt_code
   unfold mulModReduceCompareLimb2FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 240 (base + 100) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 4080 (base + 100) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 3) (EvmWord.getLimbN n 2) 80 (base + 104) (by decide)
   have Braw := bltu_spec_gen_within .x7 .x6 (36 : BitVec 13)
     (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2) (base + 108)
@@ -323,7 +323,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_raw_spec_within
   unfold mulModReduceCompareLimb3FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_lt_code
   unfold mulModReduceCompareLimb2FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 240 (base + 100) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 4080 (base + 100) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 3) (EvmWord.getLimbN n 2) 80 (base + 104) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (36 : BitVec 13)
     (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2) (base + 108)
@@ -370,7 +370,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_eq_raw_spec_within
   unfold mulModReduceCompareLimb3FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_lt_code
   unfold mulModReduceCompareLimb2FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 240 (base + 100) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 4080 (base + 100) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 3) (EvmWord.getLimbN n 2) 80 (base + 104) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (36 : BitVec 13)
     (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2) (base + 108)
@@ -426,10 +426,10 @@ def evm_mulmod_reduce512_inner_step_compare_limb1_lt_code (base : Word) : CodeRe
 /-- Raw post after loading limb1 comparison operands. -/
 def mulModReduceCompareLimb1FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 1) ** (.x7 ↦ᵣ EvmWord.getLimbN n 1) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -457,7 +457,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_raw_spec_within
   unfold mulModReduceCompareLimb2FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_gt_code
   unfold mulModReduceCompareLimb1FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 4072 (base + 116) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
   have Braw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
     (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
@@ -496,7 +496,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_raw_spec_within
   unfold mulModReduceCompareLimb2FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
   unfold mulModReduceCompareLimb1FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 4072 (base + 116) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
     (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
@@ -544,7 +544,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_eq_raw_spec_within
   unfold mulModReduceCompareLimb2FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
   unfold mulModReduceCompareLimb1FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 4072 (base + 116) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
     (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
@@ -594,10 +594,10 @@ def evm_mulmod_reduce512_inner_step_compare_limb0_lt_code (base : Word) : CodeRe
 /-- Raw post after loading limb0 comparison operands. -/
 def mulModReduceCompareLimb0FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 0) ** (.x7 ↦ᵣ EvmWord.getLimbN n 0) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -619,7 +619,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_lt_raw_spec_within
   unfold mulModReduceCompareLimb1FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb0_lt_code
   unfold mulModReduceCompareLimb0FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 224 (base + 132) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 4064 (base + 132) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 1) (EvmWord.getLimbN n 0) 64 (base + 136) (by decide)
   have Braw := bltu_spec_gen_within .x6 .x7 (108 : BitVec 13)
     (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0) (base + 140)
@@ -659,7 +659,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_ge_raw_spec_within
   unfold mulModReduceCompareLimb1FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb0_lt_code
   unfold mulModReduceCompareLimb0FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 224 (base + 132) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 4064 (base + 132) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 1) (EvmWord.getLimbN n 0) 64 (base + 136) (by decide)
   have Braw := bltu_spec_gen_within .x6 .x7 (108 : BitVec 13)
     (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0) (base + 140)

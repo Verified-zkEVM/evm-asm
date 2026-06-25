@@ -22,7 +22,7 @@ def mulModReduceWord (w0 w1 w2 w3 : Word) : EvmWord :=
     | 2 => w2
     | 3 => w3
 
-/-- Remainder accumulator word stored at `sp + 224 .. sp + 248`. -/
+/-- Remainder accumulator word stored at `sp + 18446744073709551584 .. sp + 18446744073709551608`. -/
 def mulModReduceRemWord (r0 r1 r2 r3 : Word) : EvmWord :=
   mulModReduceWord r0 r1 r2 r3
 

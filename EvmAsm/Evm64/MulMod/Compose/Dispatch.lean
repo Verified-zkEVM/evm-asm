@@ -56,12 +56,12 @@ theorem evmWord_ne_zero_of_toNat_pos {n : EvmWord} (h : 0 < n.toNat) : n ≠ 0 :
     Entry `base`, exit `base + 2160` (the program exit). The precondition is the
     ambient `evm_mulmod` machine state: `x12 ↦ sp`, the `a`/`b`/`n` argument
     windows (`sp + 0 .. sp + 88`), the eight-cell product scratch window
-    (`sp + 96 .. sp + 152`, arbitrary input garbage `p0..p7`), the modular
-    accumulator window (`sp + 224 .. sp + 248`, garbage `r0..r3`), and the
+    (`sp + 18446744073709551456 .. sp + 18446744073709551512`, arbitrary input garbage `p0..p7`), the modular
+    accumulator window (`sp + 18446744073709551584 .. sp + 18446744073709551608`, garbage `r0..r3`), and the
     scratch registers `x0, x5 .. x20`. The branch ORs `n`'s four limbs; since
     `0 < n.toNat` forces `n ≠ 0` (hence `orAll ≠ 0`), the zero path is
     unreachable and the body computes the modular product. The result window
-    `sp + 64 .. sp + 88` (and the mirror copy in `x5`/`sp + 224 .. sp + 248`)
+    `sp + 64 .. sp + 88` (and the mirror copy in `x5`/`sp + 18446744073709551584 .. sp + 18446744073709551608`)
     holds the limbs of `EvmWord.mulmod a b n`; `x12` advances to `sp + 64`. -/
 theorem evm_mulmod_dispatch_evm_mulmod_spec_within
     (sp base : Word) (a b n : EvmWord)
@@ -82,21 +82,21 @@ theorem evm_mulmod_dispatch_evm_mulmod_spec_within
         ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
         ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
         ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
-        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
-        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
-        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
-        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
-        ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
-        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
-        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7) **
+        ((sp + signExtend12 (3936 : BitVec 12)) ↦ₘ p0) **
+        ((sp + signExtend12 (3944 : BitVec 12)) ↦ₘ p1) **
+        ((sp + signExtend12 (3952 : BitVec 12)) ↦ₘ p2) **
+        ((sp + signExtend12 (3960 : BitVec 12)) ↦ₘ p3) **
+        ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ p4) **
+        ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ p5) **
+        ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7) **
         (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) ** (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) **
         (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) **
         (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) **
-        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+        ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3) **
         regOwn .x15 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20))
       -- Post: result limbs are `EvmWord.mulmod a b n`; everything else is junk.
       (((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
@@ -106,10 +106,10 @@ theorem evm_mulmod_dispatch_evm_mulmod_spec_within
         regOwn .x9 ** regOwn .x14) **
        ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
         (((.x5 ↦ᵣ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
-          ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 0) **
-          ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 1) **
-          ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 2) **
-          ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
+          ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 0) **
+          ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 1) **
+          ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 2) **
+          ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
           ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 0) **
           ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 1) **
           ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 2) **
@@ -117,28 +117,28 @@ theorem evm_mulmod_dispatch_evm_mulmod_spec_within
          (((.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
            regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
            regOwn .x17 ** regOwn .x19 ** regOwn .x20 ** regOwn .x16 ** regOwn .x18) **
-          limbChain (sp + signExtend12 (152 : BitVec 12)) (fun i => productLimb a b (7 - i)) 8)))) := by
+          limbChain (sp + signExtend12 (3992 : BitVec 12)) (fun i => productLimb a b (7 - i)) 8)))) := by
   -- R_amb: resources the N ≠ 0 body needs beyond the branch's taken post `Q_t`.
   set Ramb : Assertion :=
     ((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
      ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
      ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
      ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
-     ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
-     ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
-     ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
-     ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
-     ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
-     ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
-     ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-     ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7) **
+     ((sp + signExtend12 (3936 : BitVec 12)) ↦ₘ p0) **
+     ((sp + signExtend12 (3944 : BitVec 12)) ↦ₘ p1) **
+     ((sp + signExtend12 (3952 : BitVec 12)) ↦ₘ p2) **
+     ((sp + signExtend12 (3960 : BitVec 12)) ↦ₘ p3) **
+     ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ p4) **
+     ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ p5) **
+     ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+     ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7) **
      (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) ** (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) **
      (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) **
      (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) **
-     ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-     ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-     ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-     ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+     ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+     ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+     ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+     ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3) **
      regOwn .x15 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20) with hRamb
   -- Prefix branch, framed with `Ramb`.
   have hbr0 := evm_mulmod_nonzero_or_zero_prefix_evm_mulmod_spec_within

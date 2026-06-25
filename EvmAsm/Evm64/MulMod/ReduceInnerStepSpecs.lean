@@ -165,10 +165,10 @@ theorem evm_mulmod_reduce512_inner_step_shift_prefix_full_code_spec_within
       (evm_mulmod_reduce512_inner_step_code base)
       ((.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ x17Old) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
        (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3))
+       ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3))
       (mulModReduceShiftPrefixPost sp x17Old r0 r1 r2 r3) :=
   cpsTripleWithin_extend_code
     (hmono := evm_mulmod_reduce512_inner_step_shift_prefix_code_sub base)
@@ -393,10 +393,10 @@ def mulModReduceInnerStepNoSubtractPre
   (.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ x17Old) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) **
   (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) ** (.x15 ↦ᵣ x15) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x19 ↦ᵣ x19Old) ** (.x20 ↦ᵣ x20Old) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -485,10 +485,10 @@ theorem evm_mulmod_reduce512_inner_step_no_subtract_path_spec_within
     (.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ (x17Old <<< 1)) ** (.x5 ↦ᵣ EvmWord.getLimbN r 3) **
     (.x6 ↦ᵣ EvmWord.getLimbN shifted 3) **
     (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) ** (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
-    ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 0) **
-    ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 1) **
-    ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 2) **
-    ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 3) **
+    ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 0) **
+    ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 1) **
+    ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 2) **
+    ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 3) **
     (.x7 ↦ᵣ x7Old) ** (.x15 ↦ᵣ x15) **
     ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
     ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
@@ -572,10 +572,10 @@ def mulModReduceInnerStepSubtractPre
   (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) **
   (.x13 ↦ᵣ x13Old) ** (.x15 ↦ᵣ x15) ** (.x0 ↦ᵣ (0 : Word)) **
   (.x19 ↦ᵣ x19Old) ** (.x20 ↦ᵣ x20Old) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -675,10 +675,10 @@ theorem evm_mulmod_reduce512_inner_step_subtract_path_spec_within
         (.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ (x17Old <<< 1)) ** (.x5 ↦ᵣ EvmWord.getLimbN r 3) **
         (.x6 ↦ᵣ EvmWord.getLimbN shifted 3) **
         (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) ** (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
-        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 0) **
-        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 1) **
-        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 2) **
-        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 3) **
+        ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 0) **
+        ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 1) **
+        ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 2) **
+        ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 3) **
         (.x7 ↦ᵣ x7Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) **
         (.x15 ↦ᵣ x15) **
         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
@@ -759,10 +759,10 @@ theorem evm_mulmod_reduce512_inner_step_subtract_path_spec_within
         (.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ (x17Old <<< 1)) ** (.x5 ↦ᵣ EvmWord.getLimbN r 3) **
         (.x6 ↦ᵣ EvmWord.getLimbN shifted 3) **
         (.x19 ↦ᵣ (EvmWord.getLimbN r 1 >>> 63)) ** (.x20 ↦ᵣ (EvmWord.getLimbN r 2 >>> 63)) **
-        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 0) **
-        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 1) **
-        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 2) **
-        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 3) **
+        ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 0) **
+        ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 1) **
+        ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 2) **
+        ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN shifted 3) **
         (.x7 ↦ᵣ x7Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) **
         (.x15 ↦ᵣ x15) **
         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
@@ -938,7 +938,7 @@ def mulModReduceInnerStepPre
 
 /-- Folded postcondition for the full reducer inner step.
 
-The remainder window at `sp + 224..248` holds the limbs of one semantic step
+The remainder window at `sp + 18446744073709551584..248` holds the limbs of one semantic step
 `mulModReduceStep r n bit` (shift the consumed bit in, conditionally subtract
 the modulus); the modulus window at `sp + 64..88` is preserved; the loop
 counter `x15` is decremented and the `done` flag records whether it reached

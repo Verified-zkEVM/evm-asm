@@ -30,11 +30,11 @@ local macro "evm_mulmod_slice_rfl" : tactic =>
 theorem evm_mulmod_program_code_product_tenth_finish_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1272)
-        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (128 : BitVec 12))) a = some i →
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3968 : BitVec 12))) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1272) evm_mulmod
-    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (128 : BitVec 12)) 318 ?_ ?_ ?_ ?_
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3968 : BitVec 12)) 318 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -47,11 +47,11 @@ theorem evm_mulmod_program_code_product_tenth_finish_sub
 theorem evm_mulmod_program_code_product_tenth_carry_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1280)
-        (evm_mulmod_product_propagate_carry [136, 144, 152])) a = some i →
+        (evm_mulmod_product_propagate_carry [3976, 3984, 3992])) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1280) evm_mulmod
-    (evm_mulmod_product_propagate_carry [136, 144, 152]) 320 ?_ ?_ ?_ ?_
+    (evm_mulmod_product_propagate_carry [3976, 3984, 3992]) 320 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -66,14 +66,14 @@ theorem evm_mulmod_product_tenth_finish_evm_mulmod_spec_within
     cpsTripleWithin 2 (base + 1272) ((base + 1272) + 8) (evm_mulmod_program_code base)
       ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-       ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ hiOld))
+       ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ hiOld))
       (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-        ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ hiVal)) **
+        ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ hiVal)) **
        (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
        (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1272)
-      (128 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+      (3968 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
     (hmono := evm_mulmod_program_code_product_tenth_finish_sub base)
 
 /-- Tenth product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
@@ -82,18 +82,18 @@ theorem evm_mulmod_product_tenth_carry_evm_mulmod_spec_within
     (carry v9 p5 p6 p7 : Word) :
     cpsTripleWithin 12 (base + 1280) ((base + 1280) + 48) (evm_mulmod_program_code base)
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
-       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+       ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ p5) **
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7))
       ((.x12 ↦ᵣ sp) **
        (.x10 ↦ᵣ mulModCarryStepCarry p7
           (mulModCarryStepCarry p6 (mulModCarryStepCarry p5 carry))) **
        (.x9 ↦ᵣ mulModCarryStepValue p7
           (mulModCarryStepCarry p6 (mulModCarryStepCarry p5 carry))) **
-       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ mulModCarryStepValue p5 carry) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ
+       ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ mulModCarryStepValue p5 carry) **
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ
          mulModCarryStepValue p6 (mulModCarryStepCarry p5 carry)) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ
          mulModCarryStepValue p7
            (mulModCarryStepCarry p6 (mulModCarryStepCarry p5 carry)))) :=
   cpsTripleWithin_extend_code
@@ -106,11 +106,11 @@ theorem evm_mulmod_product_tenth_carry_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_eleventh_finish_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1380)
-        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (136 : BitVec 12))) a = some i →
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3976 : BitVec 12))) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1380) evm_mulmod
-    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (136 : BitVec 12)) 345 ?_ ?_ ?_ ?_
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3976 : BitVec 12)) 345 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -123,11 +123,11 @@ theorem evm_mulmod_program_code_product_eleventh_finish_sub
 theorem evm_mulmod_program_code_product_eleventh_carry_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1388)
-        (evm_mulmod_product_propagate_carry [144, 152])) a = some i →
+        (evm_mulmod_product_propagate_carry [3984, 3992])) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1388) evm_mulmod
-    (evm_mulmod_product_propagate_carry [144, 152]) 347 ?_ ?_ ?_ ?_
+    (evm_mulmod_product_propagate_carry [3984, 3992]) 347 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -142,14 +142,14 @@ theorem evm_mulmod_product_eleventh_finish_evm_mulmod_spec_within
     cpsTripleWithin 2 (base + 1380) ((base + 1380) + 8) (evm_mulmod_program_code base)
       ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ hiOld))
+       ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ hiOld))
       (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ hiVal)) **
+        ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ hiVal)) **
        (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
        (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1380)
-      (136 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+      (3976 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
     (hmono := evm_mulmod_program_code_product_eleventh_finish_sub base)
 
 /-- Eleventh product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
@@ -158,12 +158,12 @@ theorem evm_mulmod_product_eleventh_carry_evm_mulmod_spec_within
     (carry v9 p6 p7 : Word) :
     cpsTripleWithin 8 (base + 1388) ((base + 1388) + 32) (evm_mulmod_program_code base)
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ mulModCarryStepCarry p7 (mulModCarryStepCarry p6 carry)) **
        (.x9 ↦ᵣ mulModCarryStepValue p7 (mulModCarryStepCarry p6 carry)) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ mulModCarryStepValue p6 carry) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ mulModCarryStepValue p6 carry) **
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ
          mulModCarryStepValue p7 (mulModCarryStepCarry p6 carry))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_propagate_carry_144_152_spec_within
@@ -175,11 +175,11 @@ theorem evm_mulmod_product_eleventh_carry_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_twelfth_finish_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1472)
-        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (136 : BitVec 12))) a = some i →
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3976 : BitVec 12))) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1472) evm_mulmod
-    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (136 : BitVec 12)) 368 ?_ ?_ ?_ ?_
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3976 : BitVec 12)) 368 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -192,11 +192,11 @@ theorem evm_mulmod_program_code_product_twelfth_finish_sub
 theorem evm_mulmod_program_code_product_twelfth_carry_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1480)
-        (evm_mulmod_product_propagate_carry [144, 152])) a = some i →
+        (evm_mulmod_product_propagate_carry [3984, 3992])) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1480) evm_mulmod
-    (evm_mulmod_product_propagate_carry [144, 152]) 370 ?_ ?_ ?_ ?_
+    (evm_mulmod_product_propagate_carry [3984, 3992]) 370 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -211,14 +211,14 @@ theorem evm_mulmod_product_twelfth_finish_evm_mulmod_spec_within
     cpsTripleWithin 2 (base + 1472) ((base + 1472) + 8) (evm_mulmod_program_code base)
       ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ hiOld))
+       ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ hiOld))
       (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ hiVal)) **
+        ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ hiVal)) **
        (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
        (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1472)
-      (136 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+      (3976 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
     (hmono := evm_mulmod_program_code_product_twelfth_finish_sub base)
 
 /-- Twelfth product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
@@ -227,12 +227,12 @@ theorem evm_mulmod_product_twelfth_carry_evm_mulmod_spec_within
     (carry v9 p6 p7 : Word) :
     cpsTripleWithin 8 (base + 1480) ((base + 1480) + 32) (evm_mulmod_program_code base)
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ mulModCarryStepCarry p7 (mulModCarryStepCarry p6 carry)) **
        (.x9 ↦ᵣ mulModCarryStepValue p7 (mulModCarryStepCarry p6 carry)) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ mulModCarryStepValue p6 carry) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ mulModCarryStepValue p6 carry) **
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ
          mulModCarryStepValue p7 (mulModCarryStepCarry p6 carry))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_propagate_carry_144_152_spec_within
@@ -244,11 +244,11 @@ theorem evm_mulmod_product_twelfth_carry_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_thirteenth_finish_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1564)
-        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (136 : BitVec 12))) a = some i →
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3976 : BitVec 12))) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1564) evm_mulmod
-    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (136 : BitVec 12)) 391 ?_ ?_ ?_ ?_
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3976 : BitVec 12)) 391 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -261,11 +261,11 @@ theorem evm_mulmod_program_code_product_thirteenth_finish_sub
 theorem evm_mulmod_program_code_product_thirteenth_carry_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1572)
-        (evm_mulmod_product_propagate_carry [144, 152])) a = some i →
+        (evm_mulmod_product_propagate_carry [3984, 3992])) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1572) evm_mulmod
-    (evm_mulmod_product_propagate_carry [144, 152]) 393 ?_ ?_ ?_ ?_
+    (evm_mulmod_product_propagate_carry [3984, 3992]) 393 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -280,14 +280,14 @@ theorem evm_mulmod_product_thirteenth_finish_evm_mulmod_spec_within
     cpsTripleWithin 2 (base + 1564) ((base + 1564) + 8) (evm_mulmod_program_code base)
       ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-       ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ hiOld))
+       ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ hiOld))
       (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ hiVal)) **
+        ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ hiVal)) **
        (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
        (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1564)
-      (136 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+      (3976 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
     (hmono := evm_mulmod_program_code_product_thirteenth_finish_sub base)
 
 /-- Thirteenth product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
@@ -296,12 +296,12 @@ theorem evm_mulmod_product_thirteenth_carry_evm_mulmod_spec_within
     (carry v9 p6 p7 : Word) :
     cpsTripleWithin 8 (base + 1572) ((base + 1572) + 32) (evm_mulmod_program_code base)
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ mulModCarryStepCarry p7 (mulModCarryStepCarry p6 carry)) **
        (.x9 ↦ᵣ mulModCarryStepValue p7 (mulModCarryStepCarry p6 carry)) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ mulModCarryStepValue p6 carry) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ mulModCarryStepValue p6 carry) **
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ
          mulModCarryStepValue p7 (mulModCarryStepCarry p6 carry))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_propagate_carry_144_152_spec_within
@@ -313,11 +313,11 @@ theorem evm_mulmod_product_thirteenth_carry_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_fourteenth_finish_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1656)
-        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (144 : BitVec 12))) a = some i →
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3984 : BitVec 12))) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1656) evm_mulmod
-    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (144 : BitVec 12)) 414 ?_ ?_ ?_ ?_
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3984 : BitVec 12)) 414 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -330,11 +330,11 @@ theorem evm_mulmod_program_code_product_fourteenth_finish_sub
 theorem evm_mulmod_program_code_product_fourteenth_carry_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1664)
-        (evm_mulmod_product_propagate_carry [152])) a = some i →
+        (evm_mulmod_product_propagate_carry [3992])) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1664) evm_mulmod
-    (evm_mulmod_product_propagate_carry [152]) 416 ?_ ?_ ?_ ?_
+    (evm_mulmod_product_propagate_carry [3992]) 416 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -349,14 +349,14 @@ theorem evm_mulmod_product_fourteenth_finish_evm_mulmod_spec_within
     cpsTripleWithin 2 (base + 1656) ((base + 1656) + 8) (evm_mulmod_program_code base)
       ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ hiOld))
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ hiOld))
       (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ hiVal)) **
+        ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ hiVal)) **
        (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
        (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1656)
-      (144 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+      (3984 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
     (hmono := evm_mulmod_program_code_product_fourteenth_finish_sub base)
 
 /-- Fourteenth product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
@@ -365,13 +365,13 @@ theorem evm_mulmod_product_fourteenth_carry_evm_mulmod_spec_within
     (carry v9 p7 : Word) :
     cpsTripleWithin 4 (base + 1664) ((base + 1664) + 16) (evm_mulmod_program_code base)
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ mulModCarryStepCarry p7 carry) **
        (.x9 ↦ᵣ mulModCarryStepValue p7 carry) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ mulModCarryStepValue p7 carry)) :=
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ mulModCarryStepValue p7 carry)) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_propagate_carry_one_spec_within
-      sp (base + 1664) (152 : BitVec 12) carry p7 v9)
+      sp (base + 1664) (3992 : BitVec 12) carry p7 v9)
     (hmono := evm_mulmod_program_code_product_fourteenth_carry_sub base)
 
 /-- The finish suffix of the fifteenth product partial at offset 1732 is subsumed by
@@ -379,11 +379,11 @@ theorem evm_mulmod_product_fourteenth_carry_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_fifteenth_finish_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1732)
-        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (144 : BitVec 12))) a = some i →
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3984 : BitVec 12))) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1732) evm_mulmod
-    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (144 : BitVec 12)) 433 ?_ ?_ ?_ ?_
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3984 : BitVec 12)) 433 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -396,11 +396,11 @@ theorem evm_mulmod_program_code_product_fifteenth_finish_sub
 theorem evm_mulmod_program_code_product_fifteenth_carry_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1740)
-        (evm_mulmod_product_propagate_carry [152])) a = some i →
+        (evm_mulmod_product_propagate_carry [3992])) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1740) evm_mulmod
-    (evm_mulmod_product_propagate_carry [152]) 435 ?_ ?_ ?_ ?_
+    (evm_mulmod_product_propagate_carry [3992]) 435 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -415,14 +415,14 @@ theorem evm_mulmod_product_fifteenth_finish_evm_mulmod_spec_within
     cpsTripleWithin 2 (base + 1732) ((base + 1732) + 8) (evm_mulmod_program_code base)
       ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-       ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ hiOld))
+       ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ hiOld))
       (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ hiVal)) **
+        ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ hiVal)) **
        (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
        (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1732)
-      (144 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+      (3984 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
     (hmono := evm_mulmod_program_code_product_fifteenth_finish_sub base)
 
 /-- Fifteenth product-partial carry suffix lifted onto `evm_mulmod_program_code`. -/
@@ -431,13 +431,13 @@ theorem evm_mulmod_product_fifteenth_carry_evm_mulmod_spec_within
     (carry v9 p7 : Word) :
     cpsTripleWithin 4 (base + 1740) ((base + 1740) + 16) (evm_mulmod_program_code base)
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ carry) ** (.x9 ↦ᵣ v9) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7))
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7))
       ((.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ mulModCarryStepCarry p7 carry) **
        (.x9 ↦ᵣ mulModCarryStepValue p7 carry) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ mulModCarryStepValue p7 carry)) :=
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ mulModCarryStepValue p7 carry)) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_propagate_carry_one_spec_within
-      sp (base + 1740) (152 : BitVec 12) carry p7 v9)
+      sp (base + 1740) (3992 : BitVec 12) carry p7 v9)
     (hmono := evm_mulmod_program_code_product_fifteenth_carry_sub base)
 
 /-- The finish suffix of the final product partial at offset 1808 is subsumed by
@@ -446,11 +446,11 @@ theorem evm_mulmod_product_fifteenth_carry_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_sixteenth_finish_sub
     (base : Word) :
     ∀ a i, (CodeReq.ofProg (base + 1808)
-        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (152 : BitVec 12))) a = some i →
+        (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3992 : BitVec 12))) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1808) evm_mulmod
-    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (152 : BitVec 12)) 452 ?_ ?_ ?_ ?_
+    (OR' .x10 .x13 .x14 ;; SD .x12 .x11 (3992 : BitVec 12)) 452 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -465,14 +465,14 @@ theorem evm_mulmod_product_sixteenth_finish_evm_mulmod_spec_within
     cpsTripleWithin 2 (base + 1808) ((base + 1808) + 8) (evm_mulmod_program_code base)
       ((.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) ** (.x10 ↦ᵣ loCarry) **
        (.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-       ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ hiOld))
+       ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ hiOld))
       (((.x12 ↦ᵣ sp) ** (.x11 ↦ᵣ hiVal) **
-        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ hiVal)) **
+        ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ hiVal)) **
        (.x13 ↦ᵣ hiBaseCarry) ** (.x14 ↦ᵣ hiCarryFromLo) **
        (.x10 ↦ᵣ (hiBaseCarry ||| hiCarryFromLo))) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_finish_spec_within sp (base + 1808)
-      (152 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
+      (3992 : BitVec 12) loCarry hiBaseCarry hiCarryFromLo hiVal hiOld)
     (hmono := evm_mulmod_program_code_product_sixteenth_finish_sub base)
 
 end EvmAsm.Evm64.MulMod.Compose
