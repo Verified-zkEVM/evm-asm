@@ -108,6 +108,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++
                  "  ld x15, 64(x12)\n" ++
+                 memDynamicArenaOogGuardAsm "calldatacopy" "x14" "x15" "x16" "x17" ++
                  copyWordGasAsm "calldatacopy" "x15" "x16" "x17" "x18" ++
                  updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy

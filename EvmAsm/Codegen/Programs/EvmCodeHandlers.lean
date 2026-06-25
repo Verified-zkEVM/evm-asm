@@ -43,6 +43,7 @@ def codeHandlers : List OpcodeHandlerSpec :=
       preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++        -- destOffset low limb (MSIZE range)
                  "  ld x15, 64(x12)\n" ++       -- size low limb (MSIZE range)
+                 memDynamicArenaOogGuardAsm "codecopy" "x14" "x15" "x16" "x17" ++
                  copyWordGasAsm "codecopy" "x15" "x16" "x17" "x18" ++
                  updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18" "x6" true
       body    := EvmAsm.Evm64.Code.evm_codecopy

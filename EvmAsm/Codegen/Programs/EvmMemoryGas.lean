@@ -101,7 +101,24 @@ def memConstOffsetOogGuardAsm
   "  ld " ++ scratchReg ++ ", 24(x12)\n" ++
   "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
   "  addi " ++ scratchReg ++ ", " ++ offsetReg ++ ", " ++ toString length ++ "\n" ++
-  "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n"
+  "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, " ++ scratchReg ++ ", .exit_outofgas\n"
+
+/-- Runtime memory arena guard for a dynamic memory range `(offset, length)`
+    whose low u64 limbs are already loaded. Zero-length ranges are no-ops and
+    need no bound. Nonzero ranges whose low-limb end wraps or exceeds the
+    dispatcher's 64 KiB per-frame arena route to OOG before the byte-copy body
+    can write past the mapped ziskemu RAM window. High-limb rejection remains
+    the caller's responsibility because stack layouts differ by opcode. -/
+def memDynamicArenaOogGuardAsm
+    (tag offsetReg lengthReg endReg limitReg : String) : String :=
+  "  beqz " ++ lengthReg ++ ", .Lmemarena_" ++ tag ++ "_done\n" ++
+  "  add " ++ endReg ++ ", " ++ offsetReg ++ ", " ++ lengthReg ++ "\n" ++
+  "  bltu " ++ endReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ limitReg ++ ", 0x10000\n" ++
+  "  bltu " ++ limitReg ++ ", " ++ endReg ++ ", .exit_outofgas\n" ++
+  ".Lmemarena_" ++ tag ++ "_done:\n"
 
 /-- `updateActiveMemorySizeAsm` for a constant access length (MLOAD/MSTORE =
     32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first.

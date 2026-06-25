@@ -110,8 +110,12 @@ def mcopyRangeGuardAsm : String :=
   -- Detect u64 source/destination end wraparound.
   "  add x5, x15, x16\n" ++
   "  bltu x5, x15, .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, x5, .exit_outofgas\n" ++
   "  add x5, x14, x16\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, x5, .exit_outofgas\n" ++
   ".Lmcopy_range_ok:\n"
 
 end EvmAsm.Codegen

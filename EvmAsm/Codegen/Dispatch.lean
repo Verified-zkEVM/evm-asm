@@ -2010,6 +2010,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  srli x5, x5, 3\n" ++
   "  slli x5, x5, 3\n" ++          -- x5 = &(slot count)
   "  ld x6, 0(x5)\n" ++            -- x6 = slot_count (= preload count)
+  "  li x28, 16384\n" ++
+  "  bgtu x6, x28, .exit_invalid\n" ++
   "  sd x6, 448(x20)\n" ++         -- env.persistentLogLengthOff = preload count
   "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0

@@ -50,6 +50,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++         -- memory_start_index
     "  ld x15, 96(x12)
 " ++         -- size
+    memDynamicArenaOogGuardAsm "extcodecopy" "x14" "x15" "x16" "x17" ++
     "  ld x5, " ++ toString activeMemorySizeOff ++ "(x20)
 " ++
     "  la x6, ecc_old_active; sd x5, 0(x6)

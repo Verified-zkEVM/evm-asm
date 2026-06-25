@@ -706,6 +706,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 32232; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 281520; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 314129; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 311927; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 311928; beq t2, t1, .Lbv_receipts_accept\n" ++
   ".Lbv_receipts_sd_root_done:\n" ++
   "  li t0, 2; beq a0, t0, .Lbv_receipts_root_mismatch\n" ++
   "  li t0, 4; beq a0, t0, .Lbv_receipts_bloom_mismatch\n" ++
