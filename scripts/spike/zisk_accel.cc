@@ -112,6 +112,23 @@ static void sha256_compress(uint32_t st[8], const uint8_t block[64]) {
   st[0]+=a;st[1]+=b;st[2]+=c;st[3]+=d;st[4]+=e;st[5]+=f;st[6]+=g;st[7]+=h;
 }
 
+// ---- secp256k1 affine point ops (CSR 0x803 add, 0x804 double) --------------
+// Field prime p = 2^256 - 2^32 - 977. Points are affine x||y, each 4 LE u64.
+// The guest software wrapper handles infinity / p1==±p2 / y==0; the accelerator
+// assumes finite, on-curve, distinct points (matches ziskemu's naked formula).
+using boost::multiprecision::cpp_int;
+static const cpp_int SECP_P("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
+static inline cpp_int fmod(cpp_int x){ x %= SECP_P; if (x < 0) x += SECP_P; return x; }
+static inline cpp_int finv(const cpp_int& a){ return powm(fmod(a), SECP_P - 2, SECP_P); }
+static cpp_int rd256(processor_t* p, reg_t a){
+  cpp_int v = 0; for (int i = 3; i >= 0; --i){ v <<= 64; v |= (cpp_int)gload(p, a + 8*i); } return v;
+}
+static void wr256(processor_t* p, reg_t a, cpp_int v){
+  v = fmod(v);
+  for (int i = 0; i < 4; ++i){ uint64_t l = (v & (cpp_int)0xffffffffffffffffULL).convert_to<uint64_t>();
+    gstore(p, a + 8*i, l); v >>= 64; }
+}
+
 // ---- accelerator CSR base --------------------------------------------------
 class accel_csr_t : public csr_t {
  public:
@@ -167,6 +184,36 @@ class sha256_csr_t : public accel_csr_t {
   }
 };
 
+// 0x804: secp256k1 point double, in-place on the 8-limb point (x||y) at param (t0).
+class secp_dbl_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    cpp_int x = rd256(proc, param), y = rd256(proc, param + 32);
+    cpp_int s  = fmod(3 * x % SECP_P * x % SECP_P * finv(2 * y) % SECP_P);
+    cpp_int xr = fmod(s * s - 2 * x);
+    cpp_int yr = fmod(s * (x - xr) - y);
+    wr256(proc, param, xr); wr256(proc, param + 32, yr);
+    return false;
+  }
+};
+
+// 0x803: secp256k1 point add. param (t0) -> {ptr p1, ptr p2}; result in-place on *p1.
+class secp_add_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t p1 = gload(proc, param + 0), p2 = gload(proc, param + 8);
+    cpp_int x1 = rd256(proc, p1), y1 = rd256(proc, p1 + 32);
+    cpp_int x2 = rd256(proc, p2), y2 = rd256(proc, p2 + 32);
+    cpp_int s  = fmod((y2 - y1) * finv(x2 - x1));
+    cpp_int xr = fmod(s * s - x1 - x2);
+    cpp_int yr = fmod(s * (x1 - xr) - y1);
+    wr256(proc, p1, xr); wr256(proc, p1 + 32, yr);
+    return false;
+  }
+};
+
 // Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
 // we can see which a given block needs, instead of silently raising illegal-insn.
 class unimpl_csr_t : public accel_csr_t {
@@ -189,11 +236,13 @@ class zisk_accel_t : public extension_t {
     std::vector<csr_t_p> v = {
       std::make_shared<keccak_csr_t>(&p, 0x800),
       std::make_shared<arith256_csr_t>(&p, 0x802),
+      std::make_shared<secp_add_csr_t>(&p, 0x803),
+      std::make_shared<secp_dbl_csr_t>(&p, 0x804),
       std::make_shared<sha256_csr_t>(&p, 0x805),
     };
     // register the not-yet-implemented accelerator CSRs as logging stubs so a
     // run reveals exactly which ones a block exercises.
-    for (reg_t a : {0x803,0x804,0x806,0x807,0x808,0x809,0x80a,
+    for (reg_t a : {0x806,0x807,0x808,0x809,0x80a,
                     0x80b,0x80c,0x80d,0x80e,0x80f,0x810,0x819})
       v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
     return v;

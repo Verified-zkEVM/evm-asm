@@ -17,24 +17,23 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
   - **Keccak-f[1600] `csrs 0x800`** — published zero-state vector.
   - **arith256_mod `csrs 0x802`** `d=(a·b+c) mod m` — `(7·11+5) mod 20 = 2`.
   - **sha256 `csrs 0x805`** — SHA-256("abc") = ba7816bf…
-- **`spike_run` runs the real stateless guest END-TO-END** (loads ELF, services the
-  read_input/halt ecalls via an installed trap handler, runs the accelerator CSRs,
-  halts cleanly) and on the CLZ `single_bit_106` block its output **matches ziskemu
-  byte-for-byte for the full 32-byte root**. Key fixes that got it there: enable
-  Zicclsm (misaligned loads, like ziskemu); explicit `load_elf` + start at the ELF
-  entry (bypass spike's bootrom); explicit `state.add_csr()` (register_extension
-  does NOT call get_csrs); trap handler reports faults (mcause/mtval/mepc).
-
-**Remaining divergence (the parity gap):** byte 32 (the succ/verdict bit) and the
-tail still differ (spike says invalid, ziskemu valid). The matching root proves
-keccak/sha256/SSZ-merkleization are correct, so the divergence is in the EVM
-**re-execution** path that produces the verdict — most likely a subtle
-`arith256_mod` edge case (large/non-canonical operands) or a spike-vs-ziskemu CPU
-semantic difference. Debug next: run a no-tx / minimal block (does succ match
-then?) to localize EVM-exec vs systemic; add a wider arith256 isolation test with
-full 256-bit operands; compare spike vs ziskemu step traces around the verdict.
+- **secp256k1 affine point add `csrs 0x803` / double `csrs 0x804`** — implemented
+  with boost field arithmetic over the secp256k1 prime (needed for tx sender
+  recovery / ecrecover); validated by full byte-parity below.
+- **`spike_run` runs the real stateless guest END-TO-END and is BYTE-IDENTICAL to
+  ziskemu.** `scripts/spike/parity-check.sh N SEED` runs N random blocks on both
+  backends and diffs the 256-byte output: **8/8 match** (contract creation,
+  precompiled-touch, returndata, SSTORE, tx intrinsic gas, address opcodes, …),
+  **0 differ**. Speed: ziskemu ~55–62 s/block (ROM transpile dominates), spike
+  ~1 s/block — **~50× faster**.
+  Key fixes that got it there: enable Zicclsm (misaligned loads, like ziskemu);
+  explicit `load_elf` + start at the ELF entry (bypass spike's bootrom); explicit
+  `state.add_csr()` (`register_extension` does NOT call `get_csrs`); secp256k1
+  add/double CSRs; trap handler reports faults (mcause/mtval/mepc).
 
 Build: `SPIKE_SRC=/path/to/riscv-isa-sim ./build.sh`
+Run one block: `scripts/spike/spike_run <guest.elf> <input> <output>`
+Parity gate: `scripts/spike/parity-check.sh 8 1`
 
 ## The guest's runtime contract (see ../../../.claude/plans for full map)
 - Memory: header `0x7ffff000`, `.text 0x80000000`, `.data 0xa3000000`,
@@ -46,7 +45,18 @@ Build: `SPIKE_SRC=/path/to/riscv-isa-sim ./build.sh`
   Each is one more `accel_csr_t` subclass in zisk_accel.cc; zisk semantics + param
   layouts are documented in the plan file.
 
-## Remaining for an end-to-end MVP (next steps)
+## Remaining (post-MVP)
+- **Phase 2 — precompile CSRs**: implement `0x806`–`0x810` (bn254/bls12 + arith384_mod)
+  and `0x819` (blake2b round) so blocks calling those precompiles also reach parity.
+  Each is one more `accel_csr_t` subclass (param layouts in the plan file); a run on a
+  precompile block prints `UNIMPLEMENTED CSR 0x…` showing exactly which is needed.
+- **Phase 3 — selectable backend**: a `spike-run.sh <elf> <in> <out>` shim is now just
+  `spike_run`; wire `EEST_BACKEND=ziskemu|spike` into `loop_run.py`/`sweep.py` and add a
+  `spike-stateless-check.sh` so the loop tooling can pick the backend (default ziskemu).
+- Generalize: read the guest entry/regions instead of hardcoding; handle multi-page
+  misaligned if any block needs it.
+
+## Historical: getting to the first end-to-end MVP (next steps, now done)
 1. **ecall + I/O harness.** Stock spike only loads ELF segments and has no
    input/output flags. Build EITHER:
    (a) a small custom driver (links libriscv/libfesvr) that: creates sim_t with the
