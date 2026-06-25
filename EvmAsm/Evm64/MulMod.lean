@@ -70,4 +70,6 @@ import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
 import EvmAsm.Evm64.MulMod.Compose.Dispatch
 import EvmAsm.Evm64.MulMod.Compose.DispatchZero
 import EvmAsm.Evm64.MulMod.Compose.StackSpec
+import EvmAsm.Evm64.MulMod.Compose.DispatchAll
+import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
 import EvmAsm.Evm64.MulMod.Spec
