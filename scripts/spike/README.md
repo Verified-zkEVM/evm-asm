@@ -10,14 +10,29 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
 
 **Working & validated (macOS arm64):**
 - SPIKE builds from source at `$SPIKE_SRC` (default `/Users/dhsorens/devel/riscv-isa-sim`).
-- `zisk_accel.cc` → `libziskaccel.so`: a SPIKE extension registering ziskemu's
-  custom accelerator CSRs. Loaded with `spike --extlib=libziskaccel.so --extension=zisk_accel`.
-- **Keccak-f[1600] `csrs 0x800`** — validated against the published zero-state
-  vector (`test/keccak_selfcheck.s`, exit 0 with the extension, hangs/fails without).
-- **arith256_mod `csrs 0x802`** `d=(a·b+c) mod m` — validated `(7·11+5) mod 20 = 2`
-  (`test/arith_selfcheck.s`), exercising the 5-pointer indirection + boost bignum.
-- **sha256 `csrs 0x805`** — implemented (standard FIPS-180-4 compress); isolation
-  test still TODO.
+- `build.sh` produces `libziskaccel.so` (extension for stock `spike --extlib`) AND
+  `spike_run` (custom driver: `spike_run <guest.elf> <input> <output>`, a drop-in
+  for `ziskemu -e/-i/-o`).
+- Accelerator CSRs, all isolation-validated (`test/*_selfcheck.s`, exit 0 only if byte-correct):
+  - **Keccak-f[1600] `csrs 0x800`** — published zero-state vector.
+  - **arith256_mod `csrs 0x802`** `d=(a·b+c) mod m` — `(7·11+5) mod 20 = 2`.
+  - **sha256 `csrs 0x805`** — SHA-256("abc") = ba7816bf…
+- **`spike_run` runs the real stateless guest END-TO-END** (loads ELF, services the
+  read_input/halt ecalls via an installed trap handler, runs the accelerator CSRs,
+  halts cleanly) and on the CLZ `single_bit_106` block its output **matches ziskemu
+  byte-for-byte for the full 32-byte root**. Key fixes that got it there: enable
+  Zicclsm (misaligned loads, like ziskemu); explicit `load_elf` + start at the ELF
+  entry (bypass spike's bootrom); explicit `state.add_csr()` (register_extension
+  does NOT call get_csrs); trap handler reports faults (mcause/mtval/mepc).
+
+**Remaining divergence (the parity gap):** byte 32 (the succ/verdict bit) and the
+tail still differ (spike says invalid, ziskemu valid). The matching root proves
+keccak/sha256/SSZ-merkleization are correct, so the divergence is in the EVM
+**re-execution** path that produces the verdict — most likely a subtle
+`arith256_mod` edge case (large/non-canonical operands) or a spike-vs-ziskemu CPU
+semantic difference. Debug next: run a no-tx / minimal block (does succ match
+then?) to localize EVM-exec vs systemic; add a wider arith256 isolation test with
+full 256-bit operands; compare spike vs ziskemu step traces around the verdict.
 
 Build: `SPIKE_SRC=/path/to/riscv-isa-sim ./build.sh`
 

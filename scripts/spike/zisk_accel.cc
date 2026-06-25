@@ -167,6 +167,18 @@ class sha256_csr_t : public accel_csr_t {
   }
 };
 
+// Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
+// we can see which a given block needs, instead of silently raising illegal-insn.
+class unimpl_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    fprintf(stderr, "[zisk_accel] UNIMPLEMENTED CSR 0x%llx param=0x%llx\n",
+            (unsigned long long)address, (unsigned long long)param);
+    return false;
+  }
+};
+
 // ---- extension -------------------------------------------------------------
 class zisk_accel_t : public extension_t {
  public:
@@ -174,12 +186,22 @@ class zisk_accel_t : public extension_t {
   std::vector<insn_desc_t> get_instructions(const processor_t&) override { return {}; }
   std::vector<disasm_insn_t*> get_disasms(const processor_t*) override { return {}; }
   std::vector<csr_t_p> get_csrs(processor_t& p) const override {
-    return {
+    std::vector<csr_t_p> v = {
       std::make_shared<keccak_csr_t>(&p, 0x800),
       std::make_shared<arith256_csr_t>(&p, 0x802),
       std::make_shared<sha256_csr_t>(&p, 0x805),
     };
+    // register the not-yet-implemented accelerator CSRs as logging stubs so a
+    // run reveals exactly which ones a block exercises.
+    for (reg_t a : {0x803,0x804,0x806,0x807,0x808,0x809,0x80a,
+                    0x80b,0x80c,0x80d,0x80e,0x80f,0x810,0x819})
+      v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
+    return v;
   }
 };
 
 REGISTER_EXTENSION(zisk_accel, [](){ return new zisk_accel_t; })
+
+// Factory so the custom driver (spike_run) can instantiate the extension
+// directly, without loading the .so via --extlib.
+extension_t* make_zisk_accel_extension() { return new zisk_accel_t; }

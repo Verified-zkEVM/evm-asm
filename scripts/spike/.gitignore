@@ -1,7 +1,9 @@
-*.so
-*.o
 *.elf
+*.o
 *.sig
-test/*.o
+*.so
+handler.bin
+handler_bin.h
 test/*.elf
+test/*.o
 test/*.sig
