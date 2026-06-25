@@ -69,8 +69,8 @@ def evmMulModDispatchPre (sp : Word) (a b n : EvmWord)
     precise `evmWordIs`; `x12` advances to `sp + signExtend12 64`. Every other
     clobbered resource — the 16 scratch registers, the `a`/`b` argument window
     (`sp .. sp + 56`), the eight-cell product scratch window
-    (`sp + 18446744073709551456 .. sp + 18446744073709551512`), and the modular accumulator window
-    (`sp + 18446744073709551584 .. sp + 18446744073709551608`) — is forgotten as `regOwn`/`memOwn`.
+    (`sp - 160 .. sp - 104`), and the modular accumulator window
+    (`sp - 32 .. sp - 8`) — is forgotten as `regOwn`/`memOwn`.
 
     Bundled `@[irreducible]` so consumers see a handful of opaque atoms. -/
 @[irreducible]

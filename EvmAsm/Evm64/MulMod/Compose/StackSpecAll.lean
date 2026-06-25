@@ -31,7 +31,7 @@ open EvmAsm.Evm64.MulMod.ProductAlgebra
     `evm_mulmod_program_code base`. The `a` / `b` / `n` argument words are
     presented as `evmWordIs sp a`, `evmWordIs (sp + 32) b`,
     `evmWordIs (sp + signExtend12 64) n`; the scratch product window
-    (`sp + 18446744073709551456 .. sp + 18446744073709551512`), modular-accumulator cells (`sp + 18446744073709551584 .. sp + 18446744073709551608`),
+    (`sp - 160 .. sp - 104`), modular-accumulator cells (`sp - 32 .. sp - 8`),
     and scratch registers (`x0, x5 .. x20`) pass through as a frame. On exit the
     stack top holds `evmWordIs (sp + signExtend12 64) (EvmWord.mulmod a b n)` and
     everything else is forgotten as `regOwn`/`memOwn` (`evmMulModDispatchPost`).

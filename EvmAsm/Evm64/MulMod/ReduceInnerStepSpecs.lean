@@ -938,7 +938,7 @@ def mulModReduceInnerStepPre
 
 /-- Folded postcondition for the full reducer inner step.
 
-The remainder window at `sp + 18446744073709551584..248` holds the limbs of one semantic step
+The remainder window at `sp - 32 .. sp - 8` holds the limbs of one semantic step
 `mulModReduceStep r n bit` (shift the consumed bit in, conditionally subtract
 the modulus); the modulus window at `sp + 64..88` is preserved; the loop
 counter `x15` is decremented and the `done` flag records whether it reached

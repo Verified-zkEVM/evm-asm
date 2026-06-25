@@ -38,8 +38,8 @@ open EvmAsm.Evm64.MulMod.ProductAlgebra
     Entry `base`, exit `base + 2160` (the program exit). The precondition is the
     ambient `evm_mulmod` machine state: `x12 ↦ sp`, the `a`/`b`/`n` argument
     windows (`sp + 0 .. sp + 88`), the eight-cell product scratch window
-    (`sp + 18446744073709551456 .. sp + 18446744073709551512`, arbitrary input garbage `p0..p7`), the modular
-    accumulator window (`sp + 18446744073709551584 .. sp + 18446744073709551608`, garbage `r0..r3`), and the
+    (`sp - 160 .. sp - 104`, arbitrary input garbage `p0..p7`), the modular
+    accumulator window (`sp - 32 .. sp - 8`, garbage `r0..r3`), and the
     scratch registers `x0, x5 .. x20`. The branch ORs `n`'s four limbs; since
     `n = 0` forces `orAll = 0`, the N ≠ 0 path is unreachable and the zero path
     zeroes the result window. The result window `sp + 64 .. sp + 88` holds the

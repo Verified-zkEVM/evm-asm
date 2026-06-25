@@ -3,10 +3,10 @@
 
   Bridge between the `limbChain` product-limb window primitive and the explicit
   eight-cell separation-logic layout of the 512-bit product. Unfolding the
-  window of eight limbs starting at `sp + 18446744073709551512` (each cell 8 bytes lower) with
+  window of eight limbs starting at `sp - 104` (each cell 8 bytes lower) with
   the limb function `fun i => productLimb a b (7 - i)` yields the high four
   limbs of `mulHigh a b` followed by the low four limbs of the truncated
-  product `a * b`, laid out from `sp + 18446744073709551512` down to `sp + 18446744073709551456`.
+  product `a * b`, laid out from `sp - 104` down to `sp - 160`.
 -/
 
 import EvmAsm.Evm64.MulMod.ReduceOuterInduction

@@ -243,7 +243,7 @@ theorem evm_mulmod_epilogue_code_sub (base : Word) :
   exact h
 
 /-- `evm_mulmod_reduce512_init` lifted into the total reducer program code:
-    it zeroes the remainder accumulator and arms `x16 = sp + 18446744073709551512` / `x18 = 8`. -/
+    it zeroes the remainder accumulator and arms `x16 = sp - 104` / `x18 = 8`. -/
 theorem evm_mulmod_reduce512_init_total_spec_within (sp base : Word)
     (v16Old v18Old r0 r1 r2 r3 : Word) :
     cpsTripleWithin 6 base (base + 24) (CodeReq.ofProg base evm_mulmod_reduce512)
@@ -301,8 +301,8 @@ theorem evm_mulmod_epilogue_total_spec_within (sp base : Word) :
     (h := evm_mulmod_epilogue_spec_within sp (base + BitVec.ofNat 64 340))
 
 /-- The reducer prologue and main loop composed: `init` zeroes the accumulator
-    and arms the pointer/counter (`x16 = sp + 18446744073709551512`, `x18 = 8`), then the
-    eight-limb `loop` folds the product window `limbChain (sp + 18446744073709551512) limbs 8`
+    and arms the pointer/counter (`x16 = sp - 104`, `x18 = 8`), then the
+    eight-limb `loop` folds the product window `limbChain (sp - 104) limbs 8`
     into the remainder, landing at byte offset 308 with the reduced value
     `mulModReduceOuterFoldCarry n limbs 0 8` in the accumulator. The scratch
     registers, modulus, and product window are framed across `init`. -/
@@ -430,7 +430,7 @@ theorem evm_mulmod_reduce512_init_loop_wr_spec_within
   xperm_hyp hp
 
 /-- The full 512-bit-by-256-bit MULMOD reducer, end to end. Given the 512-bit
-    product as eight 64-bit limbs (`limbChain (sp + 18446744073709551512) limbs 8`) and the
+    product as eight 64-bit limbs (`limbChain (sp - 104) limbs 8`) and the
     256-bit modulus `n` in its slots, `evm_mulmod_reduce512` leaves the reduced
     value `R = mulModReduceOuterFoldCarry n limbs 0 8` in the EVM result slots
     `sp + 64 .. sp + 88` and restores the result base pointer (`x12 = sp + 64`). -/

@@ -9,8 +9,8 @@
   The two specs meet at the midpoint `(base + 56) + 1760 = base + 1816`. The
   only structural difference between `product_layout`'s output and
   `reduce512`'s input is the product window: `product_layout` exposes it as the
-  eight explicit memory cells `sp + 18446744073709551456 .. sp + 18446744073709551512`, while `reduce512` consumes
-  it as `limbChain (sp + 18446744073709551512) (fun i => productLimb a b (7 - i)) 8`. The merged
+  eight explicit memory cells `sp - 160 .. sp - 104`, while `reduce512` consumes
+  it as `limbChain (sp - 104) (fun i => productLimb a b (7 - i)) 8`. The merged
   bridge `limbChain_productLimb_eq` [A1] rewrites the `limbChain` window into the
   explicit cells, after which both intermediate assertions are permutations of
   the same `**` multiset and `xperm_hyp` closes the midpoint coercion.
