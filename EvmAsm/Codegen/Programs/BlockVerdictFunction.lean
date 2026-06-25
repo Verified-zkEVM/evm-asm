@@ -1126,6 +1126,7 @@ def blockVerdictFunction : String :=
   -- item 2) is consensus-bound but NOT in the state root, so verify every BAL read slot
   -- was actually accessed by the recipient (appears in the exec log). bvcd_acct_ptr/len
   -- holds the recipient AccountChanges. A read claimed but never accessed -> reject.
+  "  la t0, evm_env; ld t0, 448(t0); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t0, bvcd_acct_ptr; ld t1, 0(t0); beqz t1, .Lbv_after_tx_gas_precharge\n" ++  -- no recipient AccountChanges (not in BAL) -> skip
   "  mv a0, t1; la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_account_is_modeled_system\n" ++
