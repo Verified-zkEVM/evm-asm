@@ -36,14 +36,14 @@ theorem evm_mulmod_program_code_reduce512_sub
     `evm_mulmod_program_code` at offset 1816. -/
 theorem evm_mulmod_reduce512_evm_mulmod_spec_within
     (sp base : Word) (v16Old v18Old r0 r1 r2 r3 : Word) (n : EvmWord) (limbs : Nat → Word) :
-    cpsTripleWithin (6 + (2 + 64 * 64 + 2 + 1) * 8 + 8 + 1) (base + 1816) ((base + 1816) + 336)
+    cpsTripleWithin (6 + (2 + 66 * 64 + 2 + 1) * 8 + 8 + 1) (base + 1816) ((base + 1816) + 344)
       (evm_mulmod_program_code base)
       (((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
         ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
         ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
         ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
         ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3)) **
-       ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+       ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11 **
          regOwn .x13 ** regOwn .x17 ** regOwn .x15 ** regOwn .x19 ** regOwn .x20 **
          ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
          ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
@@ -51,17 +51,17 @@ theorem evm_mulmod_reduce512_evm_mulmod_spec_within
          ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)) **
         limbChain (sp + signExtend12 (152 : BitVec 12)) limbs 8))
       ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
-       (((.x5 ↦ᵣ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 3) **
-         ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 0) **
-         ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 1) **
-         ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 2) **
-         ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 3) **
-         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 0) **
-         ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 1) **
-         ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 2) **
-         ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 3)) **
+       (((.x5 ↦ᵣ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 3) **
+         ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 0) **
+         ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 1) **
+         ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 2) **
+         ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 3) **
+         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 0) **
+         ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 1) **
+         ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 2) **
+         ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n limbs (0 : EvmWord) 8) 3)) **
         (((.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
-          regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+          regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
           regOwn .x17 ** regOwn .x19 ** regOwn .x20 ** regOwn .x16 ** regOwn .x18) **
          limbChain (sp + signExtend12 (152 : BitVec 12)) limbs 8))) :=
   cpsTripleWithin_extend_code
