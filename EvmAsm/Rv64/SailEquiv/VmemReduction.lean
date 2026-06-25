@@ -206,4 +206,24 @@ theorem forIn'_noop_except {β : Type} {ε : Type} (range : IntRange) (init : β
   show IntRange.forIn'.loop range f init range.start _ s = _
   exact aux init range.start _
 
+/-- **Lemma #5 — `untilFuelM` single iteration.** With `fuel = 1` the Sail bounded loop
+    runs its body once and evaluates the condition (whose result is discarded — both `if`
+    branches return the same `x`). Used to unwrap `vmem_read_addr`'s outer access loop,
+    which has `fuel = 1` for an aligned access (`split_misaligned` returns `(1, width)`). -/
+theorem untilFuelM_one {α} (cond : α → SailM Bool) (init : α) (f : α → SailM α) :
+    untilFuelM 1 cond init f = (f init >>= fun x => cond x >>= fun _ => pure x) := by
+  show untilFuelM.go cond f init 1 = _
+  rw [untilFuelM.go.eq_def]
+  simp only [untilFuelM.go]
+  apply bind_congr
+  intro x
+  simp only [ite_self]
+
+/-- `untilFuelM` fuel-1 with a pure condition (the `vmem_read_addr` shape, where the
+    condition is `fun (data, finished, i) => pure finished`) collapses to just the body. -/
+theorem untilFuelM_one_pure {α} (g : α → Bool) (init : α) (f : α → SailM α) :
+    untilFuelM 1 (fun x => pure (g x)) init f = f init := by
+  rw [untilFuelM_one]
+  simp only [pure_bind, bind_pure]
+
 end EvmAsm.Rv64.SailEquiv
