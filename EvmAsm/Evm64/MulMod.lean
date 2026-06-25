@@ -19,6 +19,7 @@ import EvmAsm.Evm64.MulMod.ReduceCorrect
 import EvmAsm.Evm64.MulMod.ReduceFoldInvariant
 import EvmAsm.Evm64.MulMod.ReducePerLimb
 import EvmAsm.Evm64.MulMod.ReduceOuterHorner
+import EvmAsm.Evm64.MulMod.ProductLimbsValue
 import EvmAsm.Evm64.MulMod.ReduceShift
 import EvmAsm.Evm64.MulMod.ReduceCompare
 import EvmAsm.Evm64.MulMod.ReduceInnerStepPrefix
