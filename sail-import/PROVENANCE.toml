@@ -18,39 +18,37 @@ project_toolchain = "leanprover/lean4:v4.30.0-rc1"
 notes = "Moving rev=main + over-scoped. The thing P0/P2 replaces."
 
 [target]
-# MEASURED by the P1 regen spike (2026-06-24). See docs/agents/sail-regen-spike.md.
-# Verdict: CONDITIONAL GO — generation works; a version reconciliation remains (below).
-sail_riscv_commit = "1760ee2d14e123fc00e60a4f002a262fedcece14"  # riscv/sail-riscv, 2025-10-15 — LAST commit requiring Sail 0.19.1 (next bumped to 0.20)
-sail_compiler_version = "0.19.1"   # opam switch "sail"; ships sail_lean_backend 0.19.1 (Lean target present — no build-from-source needed)
-z3_version      = "4.15.3"   # required by Sail's typechecker; not on PATH by default (nix store path in regen-sail-model.sh)
-# Module selection in Sail 0.19.1 is POSITIONAL (not --module / not -DSAIL_MODULES).
-# Pass these names as positional args after riscv.sail_project; Sail pulls in each
-# one's `requires` closure automatically (review §3 mechanism CORRECTED).
-sail_modules = ["main", "I_insts", "M_insts"]
-# Transitive closure reached (for legibility): core, exceptions, pmp, sys, I_types,
-# M_types, postlude, termination, + (unavoidably, via sys→V_core→FD_core) the V and
-# FD *register/type* modules. Their *instruction* logic is NOT included. Result:
-# 84 .lean files; Register enum ~163 ctors (state barely shrinks vs 178 full).
-config_file = "sail-import/riscv64im_zicclsm.json"   # validated: generates cleanly + passes validate_config.sail (M on, A/F/D/V off, S=U off, Zicclsm via misaligned, NoFault regions)
+# DIRECTION (maintainer, 2026-06-25): use the LATEST/best of each upstream component;
+# keep the project's toolchain unless a real trade-off forces otherwise. Validated by
+# the P1 spike + actual builds. See docs/agents/sail-regen-spike.md.
+# (The 0.19.1 / sail-riscv 1760ee2 path the spike first explored is ABANDONED.)
+sail_compiler_version = "0.20.2"   # latest on opam: `opam install sail.0.20.2` — ships sail_lean_backend (no build-from-source)
+ocaml_min_version = "5.2"   # !! REQUIRED: build Sail on OCaml >=5.2 (we used 5.4.1). On 4.14.2 the Lean backend stack-overflows on the sail-riscv model — rems-project/sail#1674.
+sail_riscv_tag    = "2026-06-22-b5a2182"   # latest sail-riscv RELEASE tag (requires Sail >=0.20.1). Generation validated on main @ e123b61 (~equivalent).
+lean_sail_rev     = "v4"   # = 79b4d08, HEAD of rems-project/lean-sail. The MATCHED runtime Sail 0.20.2 emits as the lakefile `require`. Model imports EXTERNAL Sail (no inline runtime).
+project_toolchain = "leanprover/lean4:v4.30.0-rc1"   # UNCHANGED — verified the matched pair builds here (see toolchain note)
+z3_version        = "4.15.3"   # required by Sail's typechecker; not on PATH by default (nix store path in regen-sail-model.sh)
+# lean flags MUST match sail-riscv's cmake target — all THREE --lean-non-beq-type
+# (instruction, ExecutionResult, Step); omitting the latter two => ExecutionResult
+# fails to derive BEq. Generation cost: ~9-13 min / ~7 GB (one-time; --memo-z3 helps).
+# Module selection is POSITIONAL after the project file (no --module flag even in
+# 0.20.2). sail-riscv main/tags ALSO expose -DSAIL_MODULES as a cmake cache var.
+sail_modules = ["main", "I_insts", "M_insts"]   # scoped RV64IM; see "scoping" open question in the spike report
+config_file = "sail-import/riscv64im_zicclsm.json"   # NOTE: produced against 1760ee2; P2 must REGENERATE/REVALIDATE against the tag's config schema + tighten (single flat RAM; justify extension set; actually run validate_config)
 config_sha256 = "7dd1fa11db135e5b20e981499e172e48aa25d2b1f61f44afe6597eda13057e81"
-arch = "rv64d"   # generator names the arch rv64d; the scoped content is RV64IM. Renaming is cosmetic (P2 decision).
+arch = "rv64d"   # generator names the arch rv64d; scoped content is RV64IM. Renaming cosmetic.
 
-# ---- Version reconciliation: REAL and UNRESOLVED (the P2 crux) ----
-# CORRECTION of an earlier draft that claimed "no bump, emits against v3" — WRONG.
-# Measured by actually building the scoped model on v4.30.0-rc1:
-#   * Sail 0.19.1's emitted model assumes lean-sail v4 (79b4d08, lean4 v4.29.0):
-#     uses `open ConcurrencyInterfaceV1`, `Arch` as a class, `sail_barrier`.
-#   * The PROJECT pins lean-sail v3 (49ccc5a, builds on v4.30.0-rc1). Wiring the
-#     0.19.1 model to v3 FAILS: Access_variety universe metavar, Arch not-a-class,
-#     sail_barrier unresolved, duplicate ExceptT.map_error.
-#   * The generator's INLINE runtime copy is pre-v4.30 (BitVec.getMsb', String.Slice,
-#     IntRange omega) — doesn't build on v4.30.0-rc1 without v3's fixes.
-# So the original review §1.1 skew (backend ↔ lean-sail v4 / v4.29.0; project v3 /
-# v4.30.0-rc1) STANDS. P2 must pick: (A) align project to v4.29.0 + lean-sail v4;
-# (B) vendor model + lean-sail v4 and backport v3's v4.30 fixes onto v4 [recommended,
-# keeps v4.30]; (C) build the older Sail that matches v3 and regenerate drop-in.
-# lean_sail_rev intentionally left UNSET until P2 resolves this.
+# ---- TOOLCHAIN: RESOLVED + PROVEN — no change, no model patching ----
+# lean-sail v4 *declares* lean-toolchain v4.29.0, but that is only its CI's toolchain.
+# PROVEN (2026-06-25): the matched pair — Sail-0.20.2-generated scoped model (113
+# files) + lean-sail v4 — builds on the project's v4.30.0-rc1 PATCH-FREE: `lake build`
+# 84/84 jobs, exit 0, incl. InstsEnd (execute_*), DecodeExt, Step, Model. No toolchain
+# downgrade, no cross-version source edits. The earlier "must move to v4.29.0 or
+# forward-patch" framing was a false premise (declared toolchain != required toolchain).
+# (Side note: the project pins mathlib `master`, so a downgrade to v4.29.0 would have
+# forced pinning mathlib off master — moot now.) Remaining check: lean-sail v4 +
+# mathlib-master coexisting inside the actual evm-asm lake build (P2 step 1).
 #
-# ---- P2 also owes lemma re-pointing for model-logic renames ----
+# ---- P2 still owes lemma re-pointing for model-logic renames ----
 # e.g. bool_to_bit -> bool_to_bits (Prelude), hit by ALUProofs SLT/SLTU/SLTI.
-# Run a full regenerated-vs-vendored diff to enumerate the rest.
+# Run a full regenerated-vs-current-vendored diff to enumerate the rest.

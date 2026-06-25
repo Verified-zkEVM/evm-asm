@@ -1,95 +1,74 @@
 # Sail-zkVM integration — Phase 2 bootstrap (foundation migration)
 
-**For:** the next session. **Goal of P2:** vendor a pinned, scoped RV64IM Lean
-model in-tree, get it to **build in-project**, and re-establish the 51
-`*_sail_equiv` lemmas against it — dropping the moving `dhsorens` fork. This is the
-locked **foundation-first** step. P1 (the regen spike) is done: verdict
-**🟡 CONDITIONAL GO** — generation works, but a real version reconciliation remains
-and is now P2's central task.
+**For:** the next session. **Goal of P2:** vendor the (now-proven) current-upstream
+scoped RV64IM Lean model into evm-asm, build it in-project, drop the moving
+`dhsorens` fork, and re-establish the 51 `*_sail_equiv` lemmas against it. P1 is
+done — verdict **🟢 GO, proven end-to-end** (generation + a patch-free 84/84 `lake
+build` of the matched pair). This bootstrap reflects what's PROVEN vs. what REMAINS.
 
-> Read first, and trust it over the design doc: `docs/agents/sail-regen-spike.md`
-> (esp. "What does NOT work yet" + "The version finding" + "What P2 must decide").
-> Then `sail-import/PROVENANCE.toml [target]` and `scripts/regen-sail-model.sh`.
+> Read first: `docs/agents/sail-regen-spike.md` (validated report — note the two
+> hard requirements: OCaml ≥5.2, and all three `--lean-non-beq-type`). Then
+> `sail-import/PROVENANCE.toml [target]` and `scripts/regen-sail-model.sh` (the
+> validated, runnable recipe).
 
-## What P1 settled (don't re-discover)
+## Proven foundation (don't re-litigate)
 
-- **Sail + Lean backend is installed** (opam switch `sail`, 0.19.1). z3 4.15.3 at
-  the nix path in `regen-sail-model.sh`. No build-from-source for *this* Sail.
-- **Working generation recipe**: `scripts/regen-sail-model.sh --run <dir>` →
-  sail-riscv `1760ee2`, positional modules `main I_insts M_insts`, config
-  `sail-import/riscv64im_zicclsm.json`. ~84 files. Decode is `bv_decide`-free.
-  `execute_*` *signatures* match the lemmas. Word-ops already present (P5 is
-  lemmas-only).
-- **Config is validated** (`riscv64im_zicclsm.json`, sha256 `7dd1fa11…`).
+- **Toolchain stack:** Sail **0.20.2** (opam, built on **OCaml ≥5.2** — 4.14.2
+  stack-overflows, sail#1674) + sail-riscv release tag **`2026-06-22-b5a2182`** +
+  external **lean-sail v4** (`79b4d08`). **Project stays on lean4 v4.30.0-rc1** — no
+  bump (lean-sail v4 builds on it; its declared v4.29.0 is just CI scaffolding).
+- **Generation works:** `scripts/regen-sail-model.sh --run <dir>` → 113 files,
+  ~9–13 min / ~7 GB. Decode is `bv_decide`-free. Word-ops present (P5 = lemmas-only).
+- **Matched pair builds patch-free:** that model + lean-sail v4 on v4.30.0-rc1 →
+  `lake build` 84/84 jobs, exit 0, incl. `InstsEnd`/`DecodeExt`/`Step`/`Model`.
+- A working scratch build lives at `…/scratchpad/out_v2/out` (model) wired to
+  `…/scratchpad/lean-sail` (v4) — reference it when stuck.
 
-## The crux P1 uncovered (was hidden by a wrong first draft)
+## Remaining work (ordered)
 
-**The 0.19.1-emitted model does NOT build drop-in against the project's pinned
-lean-sail v3 on v4.30.0-rc1.** Measured by actually building it:
-
-- 0.19.1's model assumes lean-sail **v4** (`79b4d08`, lean4 v4.29.0): wants
-  `open ConcurrencyInterfaceV1`, `Arch`-as-a-class, `sail_barrier`.
-- Against project **v3** (`49ccc5a`, which *does* build on v4.30.0-rc1) the model
-  fails: `Access_variety` universe metavar → then `Arch` not-a-class,
-  `sail_barrier` unresolved, duplicate `ExceptT.map_error`.
-- The generator's **inline runtime** copy is pre-v4.30 (`BitVec.getMsb'`,
-  `String.Slice`, an `IntRange` omega that v4.30 rejects). v3 is precisely the
-  v4.30-patched runtime — but a *different* model-match.
-
-So the original review §1.1 skew is real: **Sail 0.19.1 ↔ lean-sail v4 ↔ lean4
-v4.29.0** vs **project v3 ↔ v4.30.0-rc1**. No single existing lean-sail rev both
-matches a 0.19.1 model *and* builds on v4.30.0-rc1.
-
-## P2's reconciliation decision (pick one — none is free)
-
-- **Path A — align project to backend:** lean4 `v4.29.0` + lean-sail `v4`, vendor
-  the 0.19.1 model drop-in. *Downgrades the project's Lean; re-points 51 lemmas.*
-- **Path B (recommended) — keep v4.30, patch v4 forward:** vendor the 0.19.1 model
-  + lean-sail `v4`, backport v3's v4.30 fixes onto v4 (`getMsb`, `String.Slice`
-  `.toString`, `IntRange` omega — all visible in the v3↔v4 diff). *Keeps the
-  project on v4.30.0-rc1; cost is a maintained runtime patch.*
-- **Path C — match v3 at source:** build the older Sail commit whose emitted model
-  matches lean-sail `v3`, and regenerate. *Reintroduces "build a specific Sail from
-  source"; yields a true drop-in on the project's working v3.*
-
-## P2 task order
-
-1. **Confirm the match.** Build the scoped 0.19.1 model against lean-sail **v4**
-   (`79b4d08`) — verify v4 resolves the `Arch`/`sail_barrier`/`Access_variety`
-   drift that the v3 attempt hit. The scratchpad work stopped exactly here.
-2. **Resolve the runtime** per the chosen path (B: clone lean-sail `v4`, backport
-   the three v4.30 fix-classes from v3, confirm it builds on v4.30.0-rc1).
-3. **Regenerate + vendor** under `vendor/sail-riscv-zkvm-lean/`
-   (`regen-sail-model.sh --run`), replacing only the generator's `lean-toolchain`/
-   `lakefile.toml` scaffolding; keep the model's `Out/Sail` → external-runtime
-   wiring (`import Sail.*`, add `open ConcurrencyInterfaceV1` to model files — the
-   generator omits it for v3 but the v4 model needs it; verify whether v4-target
-   generation emits it).
-4. **Re-point** `lakefile.toml`/`lake-manifest.json` off `dhsorens` to the vendored
-   package; drop `rev=main`.
-5. **`lake build`**; fix the lemma re-pointings — start with `bool_to_bit →
-   bool_to_bits` in `ALUProofs` SLT/SLTU/SLTI; `diff` regenerated-vs-vendored first
-   to enumerate the rest. Get the 51 `*_sail_equiv` lemmas green.
-6. **Axiom hygiene** unchanged (`[[bv-decide-purge]]`: 0 custom axioms); no
-   forbidden tactic in vendored code (the runtime's lone `try bv_decide` BEq macro
-   is pre-existing). Update `PROVENANCE.toml` (set `lean_sail_rev`), PLAN.md, and
-   write `docs/agents/sail-phase3-bootstrap.md`.
+1. **Project integration (only remaining unknown).** Build the model *inside*
+   evm-asm — lean-sail v4 coexisting with the project's mathlib-`master` stack in one
+   `lake` build. Lower risk (lean-sail doesn't pull mathlib) but unverified. Do this
+   on a throwaway lakefile edit first to confirm before vendoring.
+2. **Vendor** the regenerated model under `vendor/sail-riscv-zkvm-lean/`. Set its
+   `lean-toolchain` to the project's v4.30.0-rc1 and the lakefile `require Sail` to
+   lean-sail v4 (discard the generator's emitted v4.29.0/git scaffolding). Record the
+   regenerated-model hash + `config_sha256` in `PROVENANCE.toml`.
+3. **Repoint the project** `lakefile.toml`/`lake-manifest.json` off
+   `dhsorens/sail-riscv-lean` to the vendored model + lean-sail v4; drop `rev=main`.
+4. **Re-point the 51 `*_sail_equiv` lemmas.** Known rename: `bool_to_bit →
+   bool_to_bits` (Prelude), hit by `ALUProofs` SLT/SLTU/SLTI. First step: a full
+   `diff` of the regenerated model vs the old vendored `Lean_RV64D` to enumerate every
+   rename; then compiler-guided repair until all 51 are green. ← the real proof work.
+5. **Config:** regenerate/revalidate `riscv64im_zicclsm.json` against the *tag's*
+   schema (it changed since 1760ee2) and tighten per spec — single flat RAM region;
+   justify the kept extensions (Zicntr/Zihpm/Zifencei) against the zkVM standard;
+   actually exercise `validate_config` (P1 only confirmed it *generates*).
+6. **Scoping decision (open).** Scoping gives 163 vs 178 registers and did NOT reduce
+   generation memory — decide scoped-generation vs. full-model + a coverage/scope
+   gate on merit, and record it.
+7. **Hygiene + gates:** axiom hygiene unchanged (0 custom axioms, `[[bv-decide-purge]]`);
+   no forbidden tactic in vendored code (the runtime's lone `try bv_decide` BEq macro
+   is pre-existing); de-`nix` the z3 path in the regen recipe; pin release tags; note
+   the 9-min/7-GB regen cost in the compliance ledger. Update PLAN.md; write
+   `docs/agents/sail-phase3-bootstrap.md` (differential testing — still essential: the
+   backend is experimental; GO means "builds + type-checks", not "proven correct").
 
 ## Exit criteria
 
-Project builds against the **vendored, pinned, scoped** model with `dhsorens`
-removed; the runtime reconciliation resolved + recorded; all 51 `*_sail_equiv`
-lemmas green; axiom hygiene preserved.
+evm-asm builds against the **vendored, release-pinned, current-upstream** scoped
+model (lean-sail v4 on the unchanged v4.30.0-rc1), `dhsorens` removed; all 51
+`*_sail_equiv` lemmas green; axiom hygiene preserved; provenance + PLAN updated.
 
 ## Bead tree (`bd` still not installed)
 
 ```
 sail-zkvm-integration (parent)
-├─ p1-regen-spike            ✅ DONE — CONDITIONAL GO (docs/agents/sail-regen-spike.md)
-├─ p2-foundation-migration   ← THIS PHASE (version reconciliation is the crux)
-├─ p3-differential-testing
+├─ p1-regen-spike            ✅ DONE — GO, proven end-to-end (docs/agents/sail-regen-spike.md)
+├─ p2-foundation-migration   ← THIS PHASE (only open unknown: in-project integration)
+├─ p3-differential-testing   (essential — backend is experimental)
 ├─ p4-consolidated-sim-theorem
 ├─ p5-full-rv64im-coverage   (word-ops already in model; lemmas-only)
-├─ p6-gates-and-ledger
+├─ p6-gates-and-ledger       (release-pin gate; portable regen; OCaml>=5.2 pin)
 └─ p7-decode-tie
 ```
