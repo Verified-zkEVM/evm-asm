@@ -212,6 +212,7 @@ static const cpp_int BLS12_P(
   "0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf"
   "6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
 static inline cpp_int bls_mod(cpp_int x){ x %= BLS12_P; if (x < 0) x += BLS12_P; return x; }
+static inline cpp_int bls_inv(const cpp_int& a){ return powm(bls_mod(a), BLS12_P - 2, BLS12_P); }
 static cpp_int rd_limbs(processor_t* p, reg_t a, int n) {
   cpp_int v = 0;
   for (int i = n - 1; i >= 0; --i) { v <<= 64; v |= (cpp_int)gload(p, a + 8*i); }
@@ -247,6 +248,9 @@ static bn_ptr bls_mul(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
   bn_ptr r = make_bn();
   BN_mod_mul(r.get(), a, b, bls12_p(), ctx);
   return r;
+}
+static bn_ptr bls_inv(const BIGNUM* a, BN_CTX* ctx) {
+  return bn_ptr(BN_mod_inverse(nullptr, a, bls12_p(), ctx));
 }
 #endif
 
@@ -429,8 +433,106 @@ class bls12_fp2_csr_t : public accel_csr_t {
 #endif
     return false;
   }
- private:
-  op_t op;
+  private:
+   op_t op;
+ };
+
+// 0x80b: Arith384Mod  d = (a*b + c) mod module.  param -> 5 ptrs (LE 6*u64 each).
+// Generic 384-bit modular arithmetic; module is parameter-supplied. Mirrors
+// arith256_csr_t widened from 4 to 6 limbs (768-bit exact intermediate).
+class arith384_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t pa=gload(proc,param+0), pb=gload(proc,param+8), pc=gload(proc,param+16);
+    reg_t pm=gload(proc,param+24), pd=gload(proc,param+32);
+#if defined(__APPLE__)
+    uint512_t a=read_bigint(proc,pa,6), b=read_bigint(proc,pb,6);
+    uint512_t c=read_bigint(proc,pc,6), m=read_bigint(proc,pm,6);
+    uint512_t d = (a*b + c) % m;
+    write_bigint(proc, pd, d, 6);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr a=read_bigint(proc,pa,6), b=read_bigint(proc,pb,6);
+    bn_ptr c=read_bigint(proc,pc,6), m=read_bigint(proc,pm,6);
+    bn_ptr ab = make_bn(), sum = make_bn(), d = make_bn();
+    BN_mul(ab.get(), a.get(), b.get(), ctx.get());
+    BN_add(sum.get(), ab.get(), c.get());
+    BN_nnmod(d.get(), sum.get(), m.get(), ctx.get());
+    write_bigint(proc, pd, d.get(), 6);
+#endif
+    return false;
+  }
+};
+
+// 0x80c: BLS12-381 affine point add.  param -> {ptr p1, ptr p2}; result in-place on *p1.
+// Points are 96-byte records: x (6 LE u64) at +0, y (6 LE u64) at +48.
+// Requires x1 != x2 (infinity / equal-x / doubling handled by guest wrappers).
+class bls12_curve_add_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t p1 = gload(proc, param + 0), p2 = gload(proc, param + 8);
+#if defined(__APPLE__)
+    cpp_int x1 = rd_limbs(proc, p1, 6), y1 = rd_limbs(proc, p1 + 48, 6);
+    cpp_int x2 = rd_limbs(proc, p2, 6), y2 = rd_limbs(proc, p2 + 48, 6);
+    cpp_int s  = bls_mod((y2 - y1) * bls_inv(x2 - x1));
+    cpp_int xr = bls_mod(s * s - x1 - x2);
+    cpp_int yr = bls_mod(s * (x1 - xr) - y1);
+    wr_limbs(proc, p1, xr, 6); wr_limbs(proc, p1 + 48, yr, 6);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr x1 = read_bigint(proc, p1, 6), y1 = read_bigint(proc, p1 + 48, 6);
+    bn_ptr x2 = read_bigint(proc, p2, 6), y2 = read_bigint(proc, p2 + 48, 6);
+    bn_ptr dy = bls_sub(y2.get(), y1.get(), ctx.get());
+    bn_ptr dx = bls_sub(x2.get(), x1.get(), ctx.get());
+    bn_ptr inv = bls_inv(dx.get(), ctx.get());
+    bn_ptr slope = bls_mul(dy.get(), inv.get(), ctx.get());
+    bn_ptr slope2 = bls_mul(slope.get(), slope.get(), ctx.get());
+    bn_ptr tmp = bls_sub(slope2.get(), x1.get(), ctx.get());
+    bn_ptr xr = bls_sub(tmp.get(), x2.get(), ctx.get());
+    bn_ptr x1_minus_xr = bls_sub(x1.get(), xr.get(), ctx.get());
+    bn_ptr sy = bls_mul(slope.get(), x1_minus_xr.get(), ctx.get());
+    bn_ptr yr = bls_sub(sy.get(), y1.get(), ctx.get());
+    write_bigint(proc, p1, xr.get(), 6); write_bigint(proc, p1 + 48, yr.get(), 6);
+#endif
+    return false;
+  }
+};
+
+// 0x80d: BLS12-381 affine point double, in-place on the 96-byte point at param.
+// Requires y != 0 (infinity handled by the guest wrapper).
+class bls12_curve_dbl_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+#if defined(__APPLE__)
+    cpp_int x = rd_limbs(proc, param, 6), y = rd_limbs(proc, param + 48, 6);
+    cpp_int s  = bls_mod(3 * x * x * bls_inv(2 * y));
+    cpp_int xr = bls_mod(s * s - 2 * x);
+    cpp_int yr = bls_mod(s * (x - xr) - y);
+    wr_limbs(proc, param, xr, 6); wr_limbs(proc, param + 48, yr, 6);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr x = read_bigint(proc, param, 6), y = read_bigint(proc, param + 48, 6);
+    bn_ptr three = make_bn(), two = make_bn();
+    BN_set_word(three.get(), 3);
+    BN_set_word(two.get(), 2);
+    bn_ptr x2 = bls_mul(x.get(), x.get(), ctx.get());
+    bn_ptr num = bls_mul(three.get(), x2.get(), ctx.get());
+    bn_ptr denom = bls_mul(two.get(), y.get(), ctx.get());
+    bn_ptr inv = bls_inv(denom.get(), ctx.get());
+    bn_ptr slope = bls_mul(num.get(), inv.get(), ctx.get());
+    bn_ptr slope2 = bls_mul(slope.get(), slope.get(), ctx.get());
+    bn_ptr two_x = bls_mul(two.get(), x.get(), ctx.get());
+    bn_ptr xr = bls_sub(slope2.get(), two_x.get(), ctx.get());
+    bn_ptr x_minus_xr = bls_sub(x.get(), xr.get(), ctx.get());
+    bn_ptr sy = bls_mul(slope.get(), x_minus_xr.get(), ctx.get());
+    bn_ptr yr = bls_sub(sy.get(), y.get(), ctx.get());
+    write_bigint(proc, param, xr.get(), 6); write_bigint(proc, param + 48, yr.get(), 6);
+#endif
+    return false;
+  }
 };
 
 // Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
@@ -461,11 +563,14 @@ class zisk_accel_t : public extension_t {
       std::make_shared<bls12_fp2_csr_t>(&p, 0x80e, bls12_fp2_csr_t::add),
       std::make_shared<bls12_fp2_csr_t>(&p, 0x80f, bls12_fp2_csr_t::sub),
       std::make_shared<bls12_fp2_csr_t>(&p, 0x810, bls12_fp2_csr_t::mul),
+      std::make_shared<arith384_csr_t>(&p, 0x80b),
+      std::make_shared<bls12_curve_add_csr_t>(&p, 0x80c),
+      std::make_shared<bls12_curve_dbl_csr_t>(&p, 0x80d),
     };
     // register the not-yet-implemented accelerator CSRs as logging stubs so a
     // run reveals exactly which ones a block exercises.
     for (reg_t a : {0x806,0x807,0x808,0x809,0x80a,
-                    0x80b,0x80c,0x80d,0x819})
+                    0x819})
       v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
     return v;
   }
