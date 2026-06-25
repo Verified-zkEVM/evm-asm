@@ -81,4 +81,24 @@ theorem mulModReduceOuterFold_productLimb_eq_mod (a b n : EvmWord)
       (by simpa using hn0),
     mulModReduceOuterFoldCarry_toNat_zero_start n _ 8 hn0, mulModLimbsValue_productLimb]
 
+/-- The shipped reducer's output is a valid remainder (`< n`) for `0 < n ≤ 2^255`. -/
+theorem mulModReduceOuterFold_productLimb_lt (a b n : EvmWord)
+    (hn0 : 0 < n.toNat) (hn : n.toNat ≤ 2 ^ 255) :
+    (mulModReduceOuterFold n (fun i => productLimb a b (7 - i)) 0 8).toNat < n.toNat := by
+  rw [mulModReduceOuterFold_productLimb_eq_mod a b n hn0 hn]
+  exact Nat.mod_lt _ hn0
+
+/-- EvmWord form: for `0 < n ≤ 2^255` the shipped reducer leaves exactly the
+    EVM `MULMOD` result word `((a·b) mod n)` truncated to 256 bits. -/
+theorem mulModReduceOuterFold_productLimb_eq_evmWord (a b n : EvmWord)
+    (hn0 : 0 < n.toNat) (hn : n.toNat ≤ 2 ^ 255) :
+    mulModReduceOuterFold n (fun i => productLimb a b (7 - i)) 0 8
+      = BitVec.ofNat 256 (a.toNat * b.toNat % n.toNat) := by
+  have hlt256 : a.toNat * b.toNat % n.toNat < 2 ^ 256 := by
+    have h1 := Nat.mod_lt (a.toNat * b.toNat) hn0
+    have h2 : (2 : Nat) ^ 255 < 2 ^ 256 := Nat.pow_lt_pow_right (by decide) (by decide)
+    omega
+  rw [← BitVec.toNat_inj, mulModReduceOuterFold_productLimb_eq_mod a b n hn0 hn,
+    BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt256]
+
 end EvmAsm.Evm64
