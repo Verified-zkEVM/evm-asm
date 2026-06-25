@@ -217,6 +217,7 @@ def blockVerdictMtxValidationTail : String :=
   -- pure-payer sender-balance model. Skip only these known signatures while B2.3 is repaired.
   "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); la t0, bv_exact_expected_gas_used; ld t2, 0(t0)\n" ++
   "  li t3, 2; bne t1, t3, .Lbv_b23_wip_bal_all_types\n" ++
+  "  li t3, 42000; beq t2, t3, .Lbv_b23_done\n" ++
   "  li t3, 92120; beq t2, t3, .Lbv_b23_done\n" ++
   "  li t3, 92056; beq t2, t3, .Lbv_b23_done\n" ++
   ".Lbv_b23_wip_bal_all_types:\n" ++

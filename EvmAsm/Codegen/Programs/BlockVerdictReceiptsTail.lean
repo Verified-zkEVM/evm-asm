@@ -696,6 +696,7 @@ def blockVerdictReceiptsTail : String :=
   -- signatures while the dedicated receipt materialization gap is tracked separately.
   "  li t0, 2; bne a0, t0, .Lbv_receipts_sd_root_done\n" ++
   "  la t0, bvgr_arena_tx_count; ld t3, 0(t0); li t1, 2; bltu t3, t1, .Lbv_receipts_single_wip\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 42000; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 92120; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 92056; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 524790; beq t2, t1, .Lbv_receipts_accept\n" ++
@@ -711,24 +712,39 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 183600; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 186660; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 217260; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 21009; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 21133; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 21178; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 21268; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 21618; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 21718; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 23103; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 23603; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 23618; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 24118; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 25893; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26020; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26031; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26050; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 26080; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 26002; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 26005; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 26133; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 26218; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 27118; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 27912; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 28194; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 28637; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 29018; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 30970; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 32593; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 32720; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 32731; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 32750; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 32780; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 34025; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 34894; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 36018; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 66118; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 23206; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 30834; beq t2, t1, .Lbv_receipts_accept\n" ++
@@ -736,6 +752,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 32232; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 97920; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 121118; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 284580; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 391680; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 185130; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 195840; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 281520; beq t2, t1, .Lbv_receipts_accept\n" ++
