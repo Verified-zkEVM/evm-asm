@@ -20,25 +20,25 @@ open EvmAsm.Rv64
 def evm_mulmod_reduce512_inner_step_shift_prefix : Program :=
   SRLI .x19 .x17 63 ;;
   SLLI .x17 .x17 1 ;;
-  LD .x5 .x12 224 ;;
+  LD .x5 .x12 4064 ;;
   SRLI .x20 .x5 63 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x19 ;;
-  SD .x12 .x6 224 ;;
-  LD .x5 .x12 232 ;;
+  SD .x12 .x6 4064 ;;
+  LD .x5 .x12 4072 ;;
   SRLI .x19 .x5 63 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x20 ;;
-  SD .x12 .x6 232 ;;
-  LD .x5 .x12 240 ;;
+  SD .x12 .x6 4072 ;;
+  LD .x5 .x12 4080 ;;
   SRLI .x20 .x5 63 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x19 ;;
-  SD .x12 .x6 240 ;;
-  LD .x5 .x12 248 ;;
+  SD .x12 .x6 4080 ;;
+  LD .x5 .x12 4088 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x20 ;;
-  SD .x12 .x6 248
+  SD .x12 .x6 4088
 
 abbrev evm_mulmod_reduce512_inner_step_shift_prefix_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_mulmod_reduce512_inner_step_shift_prefix
@@ -114,7 +114,7 @@ theorem evm_mulmod_reduce512_inner_step_shift_prefix_raw_spec_within
     (r0 <<< (1 : BitVec 6).toNat) (x17Old >>> (63 : BitVec 6).toNat)
     (base + 20) (by decide)
   have St0 := sd_spec_gen_within .x12 .x6 sp
-    ((r0 <<< (1 : BitVec 6).toNat) ||| (x17Old >>> (63 : BitVec 6).toNat)) r0 224
+    ((r0 <<< (1 : BitVec 6).toNat) ||| (x17Old >>> (63 : BitVec 6).toNat)) r0 4064
     (base + 24)
   have L1 := ld_spec_gen_within .x5 .x12 sp r0 r1 4072 (base + 28) (by decide)
   have S4 := srli_spec_gen_within .x19 .x5 (x17Old >>> (63 : BitVec 6).toNat) r1 63
@@ -126,7 +126,7 @@ theorem evm_mulmod_reduce512_inner_step_shift_prefix_raw_spec_within
     (r1 <<< (1 : BitVec 6).toNat) (r0 >>> (63 : BitVec 6).toNat)
     (base + 40) (by decide)
   have St1 := sd_spec_gen_within .x12 .x6 sp
-    ((r1 <<< (1 : BitVec 6).toNat) ||| (r0 >>> (63 : BitVec 6).toNat)) r1 232
+    ((r1 <<< (1 : BitVec 6).toNat) ||| (r0 >>> (63 : BitVec 6).toNat)) r1 4072
     (base + 44)
   have L2 := ld_spec_gen_within .x5 .x12 sp r1 r2 4080 (base + 48) (by decide)
   have S6 := srli_spec_gen_within .x20 .x5 (r0 >>> (63 : BitVec 6).toNat) r2 63
@@ -138,7 +138,7 @@ theorem evm_mulmod_reduce512_inner_step_shift_prefix_raw_spec_within
     (r2 <<< (1 : BitVec 6).toNat) (r1 >>> (63 : BitVec 6).toNat)
     (base + 60) (by decide)
   have St2 := sd_spec_gen_within .x12 .x6 sp
-    ((r2 <<< (1 : BitVec 6).toNat) ||| (r1 >>> (63 : BitVec 6).toNat)) r2 240
+    ((r2 <<< (1 : BitVec 6).toNat) ||| (r1 >>> (63 : BitVec 6).toNat)) r2 4080
     (base + 64)
   have L3 := ld_spec_gen_within .x5 .x12 sp r2 r3 4088 (base + 68) (by decide)
   have S8 := slli_spec_gen_within .x6 .x5
@@ -148,7 +148,7 @@ theorem evm_mulmod_reduce512_inner_step_shift_prefix_raw_spec_within
     (r3 <<< (1 : BitVec 6).toNat) (r2 >>> (63 : BitVec 6).toNat)
     (base + 76) (by decide)
   have St3 := sd_spec_gen_within .x12 .x6 sp
-    ((r3 <<< (1 : BitVec 6).toNat) ||| (r2 >>> (63 : BitVec 6).toNat)) r3 248
+    ((r3 <<< (1 : BitVec 6).toNat) ||| (r2 >>> (63 : BitVec 6).toNat)) r3 4088
     (base + 80)
   dsimp only
   runBlock S0 S1 L0 S2 S3 O0 St0 L1 S4 S5 O1 St1 L2 S6 S7 O2 St2 L3 S8 O3 St3
