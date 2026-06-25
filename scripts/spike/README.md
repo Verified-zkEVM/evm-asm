@@ -35,6 +35,12 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
 - **BLS12-381 affine point add `csrs 0x80c` / double `csrs 0x80d`** — implemented
   with OpenSSL BIGNUM field arithmetic over the BLS12-381 base-field prime (6 limbs);
   needed for the G1/G2 add/msm precompiles.
+- **BN254 (alt_bn128) affine point add `csrs 0x806` / double `csrs 0x807`** —
+  implemented with OpenSSL BIGNUM field arithmetic over the BN254 prime (4 limbs);
+  needed for the ecAdd (0x06) / ecMul (0x07) precompiles.
+- **BN254 Fp2 complex add/sub/mul `csrs 0x808` / `0x809` / `0x80a`** — implemented
+  over `Fp2 = Fp[u]/(u^2+1)` (4 limbs per component); needed for the ecPairing (0x08)
+  precompile.
 - **`spike_run` runs the real stateless guest END-TO-END and is BYTE-IDENTICAL to
   ziskemu.** `scripts/spike/parity-check.sh N SEED` runs N random blocks on both
   backends and diffs the 256-byte output: **8/8 match** (contract creation,
@@ -66,14 +72,11 @@ Parity gate: `scripts/spike/parity-check.sh 8 1`
   layouts are documented in the plan file.
 
 ## Remaining (post-MVP)
-- **Phase 2 — precompile CSRs**: implement the remaining `0x806`–`0x80a` (bn254
-  curve + Fp2 complex) so blocks calling those precompiles also reach parity.
-  `0x80b` (arith384_mod) and `0x80c`/`0x80d` (bls12 curve add/double) are now
-  implemented; `0x80e`–`0x810` (bls12 Fp2) landed in `cfcbdb56f`; `0x819`
-  (blake2b-round) is also done.
-  Each remaining CSR is one more `accel_csr_t` subclass (param layouts in the plan
-  file); a run on a precompile block prints `UNIMPLEMENTED CSR 0x…` showing exactly
-  which is needed.
+- **All accelerator CSRs are now implemented.** `0x800` (keccak), `0x802`
+  (arith256_mod), `0x803`/`0x804` (secp256k1), `0x805` (sha256),
+  `0x806`/`0x807` (bn254 curve), `0x808`–`0x80a` (bn254 Fp2), `0x80b`
+  (arith384_mod), `0x80c`/`0x80d` (bls12 curve), `0x80e`–`0x810` (bls12 Fp2),
+  and `0x819` (blake2b-round) are all done.
 - **Phase 3 — selectable backend**: `scripts/codegen-eest-stateless-check.sh` supports
   `--backend ziskemu|spike` / `EEST_BACKEND=ziskemu|spike` for stateless EEST runs
   (default ziskemu). Remaining loop tooling such as `loop_run.py`/`sweep.py` can adopt
