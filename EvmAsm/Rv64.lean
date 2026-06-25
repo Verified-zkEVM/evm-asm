@@ -38,6 +38,8 @@ import EvmAsm.Rv64.SailEquiv.ShiftProofs
 import EvmAsm.Rv64.SailEquiv.ImmProofs
 import EvmAsm.Rv64.SailEquiv.BranchProofs
 import EvmAsm.Rv64.SailEquiv.MemProofs
+-- VmemReduction: building blocks for discharging the MemProofs h_exec hypothesis.
+import EvmAsm.Rv64.SailEquiv.VmemReduction
 -- StepSim consolidates the per-instruction lemmas into one step-simulation theorem.
 import EvmAsm.Rv64.SailEquiv.StepSim
 import EvmAsm.Rv64.SailEquiv.MExtProofs
