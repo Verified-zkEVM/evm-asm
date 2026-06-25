@@ -151,4 +151,32 @@ theorem translateAddr_bare (s : SailState) (vAddr : virtaddr) (mst : BitVec 64)
     ExceptT.run, ExceptT.mk, ExceptT.pure, ExceptT.bind, ExceptT.bindCont, ExceptT.lift,
     EStateM.map]
 
+/-- **Lemma #3 — `IntRange.forIn'` no-op invariant.** If the loop body, run on a fixed
+    state `s`, always leaves `s` unchanged and `.yield`s the accumulator unchanged (i.e.
+    only reads state, never errors or `.done`s), the whole loop returns `init` with `s`
+    untouched. Proven by the generated well-founded induction principle
+    `IntRange.forIn'.loop.induct`. This collapses `pmpCheck`'s 16-entry PMP scan — whose
+    body, with every cfg A-field OFF, is exactly such a read-only no-op — and any similar
+    Sail `for i in [..]i` loop. -/
+theorem forIn'_noop {β : Type} (range : IntRange) (init : β) (s : SailState)
+    (f : (i : Int) → i ∈ range → β → SailM (ForInStep β))
+    (hf : ∀ (i : Int) (hi : i ∈ range) (b : β), f i hi b s = .ok (.yield b) s) :
+    (forIn' range init f) s = .ok init s := by
+  have aux : ∀ (b : β) (i : Int) (hs : (i - range.start) % range.step = 0),
+      IntRange.forIn'.loop range f b i hs s = .ok b s := by
+    intro b i hs
+    induction b, i, hs using IntRange.forIn'.loop.induct (range := range) with
+    | case1 b i hs hin ih =>
+      rw [IntRange.forIn'.loop.eq_def]
+      simp only [hin, dif_pos]
+      show (EStateM.bind (f i hin b) _) s = _
+      simp only [EStateM.bind, hf i hin b]
+      exact ih b
+    | case2 b i hs hnin =>
+      rw [IntRange.forIn'.loop.eq_def]
+      simp only [hnin, dif_neg, not_false_iff]
+      rfl
+  show IntRange.forIn'.loop range f init range.start _ s = _
+  exact aux init range.start _
+
 end EvmAsm.Rv64.SailEquiv
