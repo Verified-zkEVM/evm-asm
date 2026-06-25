@@ -48,6 +48,7 @@ import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
+import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.SDiv.Spec
@@ -151,7 +152,10 @@ def registry : List OpcodeEntry := [
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
   entry "ADDMOD" .partly (some "evm_addmod_n0_spec_within")
       "addmod_correct proven; zero-modulus stack spec done for arbitrary b",
-  entry "MULMOD" .partly none "mulmod_correct proven; no top-level Hoare triple",
+  entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
+      ("total all-n stack spec over evm_mulmod_program_code: evmWordIs a / b / n -> " ++
+       "evmWordIs (sp+64) (EvmWord.mulmod a b n); carry-aware reducer (bit-255 capture), " ++
+       "no n<=2^255 restriction (PR #9442)"),
   entry "EXP" .partly none "exp_correct proven; program in active development",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
@@ -274,8 +278,8 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 43 := by decide
-theorem partialCount_eq     : partialCount     = 4  := by decide
+theorem provenCount_eq      : provenCount      = 44 := by decide
+theorem partialCount_eq     : partialCount     = 3  := by decide
 theorem conditionalCount_eq : conditionalCount = 3  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
@@ -308,8 +312,8 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 103 := by decide
-theorem partialBytes_eq     : partialBytes     = 4   := by decide
+theorem provenBytes_eq      : provenBytes      = 104 := by decide
+theorem partialBytes_eq     : partialBytes     = 3   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 3   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
@@ -327,6 +331,7 @@ theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
 private noncomputable abbrev _add_witness        := @EvmAsm.Evm64.evm_add_stack_spec_within
 private noncomputable abbrev _mul_witness        := @EvmAsm.Evm64.evm_mul_stack_spec_within
+private noncomputable abbrev _mulmod_witness     := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
 private noncomputable abbrev _sub_witness        := @EvmAsm.Evm64.evm_sub_stack_spec_within
 private noncomputable abbrev _div_witness        := @EvmAsm.Evm64.evm_div_v6_stack_spec
 private noncomputable abbrev _sdiv_witness       :=
