@@ -1,0 +1,256 @@
+// zisk_accel.cc — SPIKE extension replicating ziskemu's custom-CSR crypto
+// accelerators, so the codegen stateless_guest ELF runs on SPIKE byte-for-byte
+// identically to ziskemu. Goal: speed (no per-run ROM transpile).
+//
+// The guest triggers each accelerator with `csrrs x0, <csr>, <rsX>` where the
+// rsX register holds a param pointer. SPIKE routes the csrrs to a registered
+// csr_t whose unlogged_write(val) gets val = (old_csr | rsX) = rsX (old=0).
+//
+// MVP accelerators (run on every non-precompile block):
+//   0x800  Keccak-f[1600]  : a0 -> 25*u64 state (200B), permute IN-PLACE
+//   0x802  arith256_mod    : t0 -> 5 ptrs {a,b,c,module,d}, each ->4*u64 LE;
+//                            d = (a*b + c) mod module  (write 4*u64 to *d)
+//   0x805  sha256 compress : a0 -> 2 ptrs {state(4*u64=8*u32), input(64B block)};
+//                            standard SHA-256 compression, state IN-PLACE
+//
+// Precompile-only CSRs (0x803/4 secp256k1, 0x806-0x810 bn254/bls12, 0x819
+// blake2b-round, etc.) are TODO — blocks needing them are on the guest's
+// conservative-reject frontier anyway. Adding one = another AccelCsr subclass.
+//
+// All multi-limb values are little-endian arrays of u64 (zisk convention).
+
+#include "extension.h"
+#include "processor.h"
+#include "mmu.h"
+#include <boost/multiprecision/cpp_int.hpp>
+#include <cstdint>
+#include <cstring>
+#include <vector>
+
+using boost::multiprecision::uint512_t;
+
+// ---- guest-memory helpers (via the processor MMU) --------------------------
+static inline uint64_t gload(processor_t* p, reg_t addr) {
+  return p->get_mmu()->load<uint64_t>(addr);
+}
+static inline void gstore(processor_t* p, reg_t addr, uint64_t v) {
+  p->get_mmu()->store<uint64_t>(addr, v);
+}
+// read n little-endian u64 limbs at addr into a cpp_int
+static uint512_t read_bigint(processor_t* p, reg_t addr, int n) {
+  uint512_t acc = 0;
+  for (int i = n - 1; i >= 0; --i) { acc <<= 64; acc |= gload(p, addr + 8 * i); }
+  return acc;
+}
+// write a cpp_int as n little-endian u64 limbs at addr (truncating to n limbs)
+static void write_bigint(processor_t* p, reg_t addr, uint512_t v, int n) {
+  for (int i = 0; i < n; ++i) {
+    uint64_t limb = (uint64_t)(v & 0xffffffffffffffffULL);
+    gstore(p, addr + 8 * i, limb);
+    v >>= 64;
+  }
+}
+
+// ---- Keccak-f[1600] (standard, public-domain constants) --------------------
+static const uint64_t KECCAK_RC[24] = {
+  0x0000000000000001ULL,0x0000000000008082ULL,0x800000000000808aULL,0x8000000080008000ULL,
+  0x000000000000808bULL,0x0000000080000001ULL,0x8000000080008081ULL,0x8000000000008009ULL,
+  0x000000000000008aULL,0x0000000000000088ULL,0x0000000080008009ULL,0x000000008000000aULL,
+  0x000000008000808bULL,0x800000000000008bULL,0x8000000000008089ULL,0x8000000000008003ULL,
+  0x8000000000008002ULL,0x8000000000000080ULL,0x000000000000800aULL,0x800000008000000aULL,
+  0x8000000080008081ULL,0x8000000000008080ULL,0x0000000080000001ULL,0x8000000080008008ULL};
+static const int KECCAK_ROT[24] = {1,3,6,10,15,21,28,36,45,55,2,14,27,41,56,8,25,43,62,18,39,61,20,44};
+static const int KECCAK_PI[24]  = {10,7,11,17,18,3,5,16,8,21,24,4,15,23,19,13,12,2,20,14,22,9,6,1};
+static inline uint64_t rotl64(uint64_t x, int n){ return (x<<n)|(x>>(64-n)); }
+static void keccakf(uint64_t st[25]) {
+  for (int round = 0; round < 24; ++round) {
+    uint64_t bc[5];
+    for (int i=0;i<5;++i) bc[i]=st[i]^st[i+5]^st[i+10]^st[i+15]^st[i+20];
+    for (int i=0;i<5;++i){ uint64_t t=bc[(i+4)%5]^rotl64(bc[(i+1)%5],1);
+      for (int j=0;j<25;j+=5) st[j+i]^=t; }
+    uint64_t t=st[1];
+    for (int i=0;i<24;++i){ int j=KECCAK_PI[i]; uint64_t tmp=st[j];
+      st[j]=rotl64(t,KECCAK_ROT[i]); t=tmp; }
+    for (int j=0;j<25;j+=5){ uint64_t b[5];
+      for(int i=0;i<5;++i) b[i]=st[j+i];
+      for(int i=0;i<5;++i) st[j+i]^=(~b[(i+1)%5])&b[(i+2)%5]; }
+    st[0]^=KECCAK_RC[round];
+  }
+}
+
+// ---- SHA-256 compression (standard FIPS 180-4) -----------------------------
+static const uint32_t SHA256_K[64] = {
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2};
+static inline uint32_t rotr32(uint32_t x,int n){return (x>>n)|(x<<(32-n));}
+static void sha256_compress(uint32_t st[8], const uint8_t block[64]) {
+  uint32_t w[64];
+  for (int i=0;i<16;++i)
+    w[i]=((uint32_t)block[4*i]<<24)|((uint32_t)block[4*i+1]<<16)|
+         ((uint32_t)block[4*i+2]<<8)|((uint32_t)block[4*i+3]);
+  for (int i=16;i<64;++i){
+    uint32_t s0=rotr32(w[i-15],7)^rotr32(w[i-15],18)^(w[i-15]>>3);
+    uint32_t s1=rotr32(w[i-2],17)^rotr32(w[i-2],19)^(w[i-2]>>10);
+    w[i]=w[i-16]+s0+w[i-7]+s1;
+  }
+  uint32_t a=st[0],b=st[1],c=st[2],d=st[3],e=st[4],f=st[5],g=st[6],h=st[7];
+  for (int i=0;i<64;++i){
+    uint32_t S1=rotr32(e,6)^rotr32(e,11)^rotr32(e,25);
+    uint32_t ch=(e&f)^((~e)&g);
+    uint32_t t1=h+S1+ch+SHA256_K[i]+w[i];
+    uint32_t S0=rotr32(a,2)^rotr32(a,13)^rotr32(a,22);
+    uint32_t maj=(a&b)^(a&c)^(b&c);
+    uint32_t t2=S0+maj;
+    h=g;g=f;f=e;e=d+t1;d=c;c=b;b=a;a=t1+t2;
+  }
+  st[0]+=a;st[1]+=b;st[2]+=c;st[3]+=d;st[4]+=e;st[5]+=f;st[6]+=g;st[7]+=h;
+}
+
+// ---- secp256k1 affine point ops (CSR 0x803 add, 0x804 double) --------------
+// Field prime p = 2^256 - 2^32 - 977. Points are affine x||y, each 4 LE u64.
+// The guest software wrapper handles infinity / p1==±p2 / y==0; the accelerator
+// assumes finite, on-curve, distinct points (matches ziskemu's naked formula).
+using boost::multiprecision::cpp_int;
+static const cpp_int SECP_P("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
+static inline cpp_int fmod(cpp_int x){ x %= SECP_P; if (x < 0) x += SECP_P; return x; }
+static inline cpp_int finv(const cpp_int& a){ return powm(fmod(a), SECP_P - 2, SECP_P); }
+static cpp_int rd256(processor_t* p, reg_t a){
+  cpp_int v = 0; for (int i = 3; i >= 0; --i){ v <<= 64; v |= (cpp_int)gload(p, a + 8*i); } return v;
+}
+static void wr256(processor_t* p, reg_t a, cpp_int v){
+  v = fmod(v);
+  for (int i = 0; i < 4; ++i){ uint64_t l = (v & (cpp_int)0xffffffffffffffffULL).convert_to<uint64_t>();
+    gstore(p, a + 8*i, l); v >>= 64; }
+}
+
+// ---- accelerator CSR base --------------------------------------------------
+class accel_csr_t : public csr_t {
+ public:
+  accel_csr_t(processor_t* p, reg_t addr): csr_t(p, addr) {}
+  void verify_permissions(insn_t, bool) const override {}   // always allow
+  reg_t read() const noexcept override { return 0; }
+};
+
+// 0x800: Keccak-f[1600] in place on 25*u64 at param.
+class keccak_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    uint64_t st[25];
+    for (int i=0;i<25;++i) st[i]=gload(proc, param + 8*i);
+    keccakf(st);
+    for (int i=0;i<25;++i) gstore(proc, param + 8*i, st[i]);
+    return false;
+  }
+};
+
+// 0x802: arith256_mod  d = (a*b + c) mod module.  param -> 5 ptrs (LE 4*u64 each).
+class arith256_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t pa=gload(proc,param+0), pb=gload(proc,param+8), pc=gload(proc,param+16);
+    reg_t pm=gload(proc,param+24), pd=gload(proc,param+32);
+    uint512_t a=read_bigint(proc,pa,4), b=read_bigint(proc,pb,4);
+    uint512_t c=read_bigint(proc,pc,4), m=read_bigint(proc,pm,4);
+    uint512_t d = (a*b + c) % m;          // module is guaranteed nonzero by guest
+    write_bigint(proc, pd, d, 4);
+    return false;
+  }
+};
+
+// 0x805: SHA-256 compress one block.  param -> 2 ptrs {state(4*u64=8*u32), input(64B)}.
+class sha256_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t pstate=gload(proc,param+0), pin=gload(proc,param+8);
+    uint32_t st[8];
+    for (int i=0;i<4;++i){ uint64_t w=gload(proc,pstate+8*i);
+      st[2*i]=(uint32_t)w; st[2*i+1]=(uint32_t)(w>>32); }   // LE-host u64 -> 2*u32
+    uint8_t block[64];
+    for (int i=0;i<8;++i){ uint64_t w=gload(proc,pin+8*i);
+      memcpy(block+8*i,&w,8); }                              // raw bytes
+    sha256_compress(st, block);
+    for (int i=0;i<4;++i){ uint64_t w=((uint64_t)st[2*i+1]<<32)|st[2*i];
+      gstore(proc,pstate+8*i,w); }
+    return false;
+  }
+};
+
+// 0x804: secp256k1 point double, in-place on the 8-limb point (x||y) at param (t0).
+class secp_dbl_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    cpp_int x = rd256(proc, param), y = rd256(proc, param + 32);
+    cpp_int s  = fmod(3 * x % SECP_P * x % SECP_P * finv(2 * y) % SECP_P);
+    cpp_int xr = fmod(s * s - 2 * x);
+    cpp_int yr = fmod(s * (x - xr) - y);
+    wr256(proc, param, xr); wr256(proc, param + 32, yr);
+    return false;
+  }
+};
+
+// 0x803: secp256k1 point add. param (t0) -> {ptr p1, ptr p2}; result in-place on *p1.
+class secp_add_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t p1 = gload(proc, param + 0), p2 = gload(proc, param + 8);
+    cpp_int x1 = rd256(proc, p1), y1 = rd256(proc, p1 + 32);
+    cpp_int x2 = rd256(proc, p2), y2 = rd256(proc, p2 + 32);
+    cpp_int s  = fmod((y2 - y1) * finv(x2 - x1));
+    cpp_int xr = fmod(s * s - x1 - x2);
+    cpp_int yr = fmod(s * (x1 - xr) - y1);
+    wr256(proc, p1, xr); wr256(proc, p1 + 32, yr);
+    return false;
+  }
+};
+
+// Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
+// we can see which a given block needs, instead of silently raising illegal-insn.
+class unimpl_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    fprintf(stderr, "[zisk_accel] UNIMPLEMENTED CSR 0x%llx param=0x%llx\n",
+            (unsigned long long)address, (unsigned long long)param);
+    return false;
+  }
+};
+
+// ---- extension -------------------------------------------------------------
+class zisk_accel_t : public extension_t {
+ public:
+  const char* name() const override { return "zisk_accel"; }
+  std::vector<insn_desc_t> get_instructions(const processor_t&) override { return {}; }
+  std::vector<disasm_insn_t*> get_disasms(const processor_t*) override { return {}; }
+  std::vector<csr_t_p> get_csrs(processor_t& p) const override {
+    std::vector<csr_t_p> v = {
+      std::make_shared<keccak_csr_t>(&p, 0x800),
+      std::make_shared<arith256_csr_t>(&p, 0x802),
+      std::make_shared<secp_add_csr_t>(&p, 0x803),
+      std::make_shared<secp_dbl_csr_t>(&p, 0x804),
+      std::make_shared<sha256_csr_t>(&p, 0x805),
+    };
+    // register the not-yet-implemented accelerator CSRs as logging stubs so a
+    // run reveals exactly which ones a block exercises.
+    for (reg_t a : {0x806,0x807,0x808,0x809,0x80a,
+                    0x80b,0x80c,0x80d,0x80e,0x80f,0x810,0x819})
+      v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
+    return v;
+  }
+};
+
+REGISTER_EXTENSION(zisk_accel, [](){ return new zisk_accel_t; })
+
+// Factory so the custom driver (spike_run) can instantiate the extension
+// directly, without loading the .so via --extlib.
+extension_t* make_zisk_accel_extension() { return new zisk_accel_t; }

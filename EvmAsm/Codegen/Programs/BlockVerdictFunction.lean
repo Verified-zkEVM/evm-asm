@@ -991,11 +991,20 @@ def blockVerdictFunction : String :=
   -- descent; the recipient is skipped (checked above, BE-keyed). Mismatch/omission -> reject.
   -- This surfaces guest nested-execution divergences (per @pirapira "see more failures").
   ".Lbv_recipient_nc_done:\n" ++   -- .61.8c-2: CREATE/CREATE2 recipients skip the recipient nonce/code checks to here
+  "  la t0, i3djw_skip_list; la t1, bv_simple_transfer_tx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_storage_skip_recipient:\n" ++
+  "  beqz t2, .Lbv_storage_skip_recipient_done\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lbv_storage_skip_recipient\n" ++
+  ".Lbv_storage_skip_recipient_done:\n" ++
+  "  la t0, i3djw_skip_list; addi t0, t0, 32; la t1, bbcv_sys_2935; li t4, 6\n" ++
+  ".Lbv_storage_skip_sys_o:\n  li t2, 20\n" ++
+  ".Lbv_storage_skip_sys_i:\n  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lbv_storage_skip_sys_i\n" ++
+  "  addi t0, t0, 12; addi t4, t4, -1; bnez t4, .Lbv_storage_skip_sys_o\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
-  "  la a4, bv_simple_transfer_tx; addi a4, a4, 72\n" ++
-  "  jal ra, bal_all_accounts_storage_consistent\n" ++
+  "  la a4, i3djw_skip_list; li a5, 7\n" ++
+  "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
   "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
   -- bmvmx.1.6.6: per-slot tuple-SEQUENCE consistency. The checks above pin each slot's FINAL
   -- value; this pins the per-tx (block_access_index, new_value) tuple SEQUENCE that the spec
@@ -1008,8 +1017,8 @@ def blockVerdictFunction : String :=
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
   "  la a4, exec_log_txindex\n" ++
-  "  la a5, bv_simple_transfer_tx; addi a5, a5, 72\n" ++
-  "  jal ra, bal_all_accounts_tuple_sequences_consistent\n" ++
+  "  la a5, i3djw_skip_list; li a6, 7\n" ++
+  "  jal ra, bal_all_accounts_tuple_sequences_consistent_skip_list\n" ++
   "  bnez a0, .Lbv_bal_tuple_fail\n" ++
   -- i3djw (all-accounts CODE reverse): every account execution changed code for (CREATE/CREATE2
   -- deploy, has_code_change=1 in exec_code_effect_log) must be PRESENT in the BAL -- catching a
