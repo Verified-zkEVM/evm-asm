@@ -10,8 +10,8 @@
     2. copy `min(outsize, retlen)` returndata bytes into the parent's output region;
     3. pop `evm_call_depth` (child depth d → parent depth d-1);
     4. restore the parent PC / code-base (x10 / x21) from `frame_save_area`;
-    5. recompute the parent register bases x13 (memory) / x20 (env): the existing
-       `evm_memory` / `evm_env` labels for depth 0, else `frame_base(d-1)+off`;
+    5. restore the exact parent register bases x13 (memory) / x20 (env) from
+       `frame_parent_bases[d]`;
     6. restore the parent stack top x12 to `parent_x12 + netPopBytes` (pop the CALL
        args) and write the success word (1 = STOP/RETURN, 0 = REVERT/exceptional);
     7. advance the parent PC one byte past the CALL opcode;
@@ -29,6 +29,8 @@
     `frame_call_ctx`   1025 × 32 B (parent_x12, outoff_abs, outsize, netPopBytes)
                        indexed by the CHILD depth — saved by the descent, consumed
                        here on the matching return.
+    `frame_parent_bases` 1025 × 16 B (parent memory base, parent env base) indexed
+                       by the CHILD depth.
     `call_frame_arena` base for frames 1..1024 (FRAME_STRIDE 0x29000);
     `evm_memory`/`evm_env` the depth-0 register bases.
   Child-frame sub-offsets: frameMemOff=0, frameEnvOff=0x28400.
@@ -121,6 +123,9 @@ def frameReturnFunction : String :=
   -- future cold access overwrites slot[count]. Success leaves it (warmth
   -- propagates up per incorporate_child_on_success).
   "  ld t0, 648(x20); la t1, evm_storage_access_count; sd t0, 0(t1)\n" ++
+  -- EIP-2929 accessed_addresses has the same rollback rule as accessed_storage_keys:
+  -- a reverted child does not propagate accounts it warmed to the parent.
+  "  ld t0, 720(x20); la t1, evm_access_account_count; sd t0, 0(t1)\n" ++
   -- i3djw/reverted-CREATE rollback: truncate global effect logs to the
   -- pre-child snapshots captured by call_frame_descend. Successful child frames
   -- keep their CREATE/CALL value effects; reverted child frames discard them.
@@ -129,6 +134,7 @@ def frameReturnFunction : String :=
   "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
   "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
   "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
+  "  ld t0, 728(x20); la t1, evm_selfdestruct_destroyed_count; sd t0, 0(t1)\n" ++
   -- 3hlnt.2.2: failed child frames restore the hot running block bloom from the
   -- child-depth checkpoint captured by call_frame_descend. Success leaves the
   -- child-updated hot bloom intact.
@@ -205,7 +211,12 @@ def frameReturnFunction : String :=
   "9:\n" ++
   -- Pop the depth: child d -> parent d-1.
   "  la t0, evm_call_depth\n" ++
-  "  ld t1, 0(t0)\n" ++
+  "  ld t1, 0(t0)                   # t1 = child depth d\n" ++
+  "  la t3, frame_parent_bases\n" ++
+  "  slli t4, t1, 4                 # d * 16\n" ++
+  "  add t3, t3, t4\n" ++
+  "  ld x13, 0(t3)                  # exact parent memory base\n" ++
+  "  ld x20, 8(t3)                  # exact parent env base\n" ++
   "  addi t1, t1, -1                # t1 = parent depth\n" ++
   "  sd t1, 0(t0)\n" ++
   -- Restore parent PC (x10) and code base (x21).
@@ -214,10 +225,9 @@ def frameReturnFunction : String :=
   "  add t0, t0, t2\n" ++
   "  ld x10, 0(t0)                  # parent pc (points AT the CALL opcode)\n" ++
   "  ld x21, 8(t0)                  # parent code base\n" ++
-  -- Recompute parent memory base (x13) and env base (x20).
+  -- x13/x20 already hold the exact parent memory/env bases.
   "  bnez t1, 4f\n" ++
-  "  la x13, evm_memory\n" ++
-  "  la x20, evm_env\n" ++
+
   -- Frame-relative stack bounds: restore the guards to the depth-0 global arena.
   "  la t0, evm_cur_stack_top; la t2, evm_stack_top; sd t2, 0(t0)\n" ++
   "  la t0, evm_cur_stack_low; la t2, evm_stack_low; sd t2, 0(t0)\n" ++
@@ -228,9 +238,6 @@ def frameReturnFunction : String :=
   "  mul t2, t2, t3\n" ++
   "  la t3, call_frame_arena\n" ++
   "  add t2, t3, t2               # frame_base(parent_depth)\n" ++
-  "  mv x13, t2                   # + frameMemOff (0)\n" ++
-  "  li t3, 0x28400\n" ++
-  "  add x20, t2, t3              # + frameEnvOff\n" ++
   -- Frame-relative stack bounds: restore the guards to the parent frame's stack.
   "  li t3, 0x18200\n" ++
   "  add t3, t2, t3               # parent stack top = frame_base + frameStackTopOff\n" ++
@@ -314,6 +321,7 @@ def ziskFrameReturnPrologue : String :=
   "  la t1, fr_out; sd t1, 8(t0)\n" ++
   "  sd x0, 16(t0)\n" ++
   "  li t1, 192; sd t1, 24(t0)\n" ++
+  "  la t0, frame_parent_bases; addi t0, t0, 16; la t1, evm_memory; sd t1, 0(t0); la t1, evm_env; sd t1, 8(t0)\n" ++
   "  la x20, fr_child_env\n" ++                       -- child env for the gas read
   "  la t0, fr_child_env; li t1, 50; sd t1, 568(t0)\n" ++   -- child leftover gas = 50
   "  la t0, evm_env;      li t1, 100; sd t1, 568(t0)\n" ++  -- parent gas = 100
@@ -358,6 +366,7 @@ def ziskFrameReturnPrologue : String :=
   "  la t1, fr_out; sd t1, 8(t0)\n" ++
   "  li t1, 1; sd t1, 16(t0)\n" ++
   "  li t1, 160; sd t1, 24(t0)\n" ++
+  "  la t0, frame_parent_bases; addi t0, t0, 32; la t1, call_frame_arena; sd t1, 0(t0); li t1, 0x28400; la t2, call_frame_arena; add t1, t1, t2; sd t1, 8(t0)\n" ++
   -- returndata source: one byte 0xab
   "  la t0, fr_ret; li t1, 0xab; sb t1, 0(t0)\n" ++
   "  la x20, fr_child_env\n" ++
@@ -413,6 +422,8 @@ def ziskFrameReturnDataSection : String :=
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++          -- 1025 × 32 B
+  ".balign 16\n" ++
+  "frame_parent_bases:\n  .zero 16400\n" ++          -- 1025 × 16 B
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 32\n" ++

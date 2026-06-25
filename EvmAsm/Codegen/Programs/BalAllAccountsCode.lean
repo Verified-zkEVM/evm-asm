@@ -17,13 +17,14 @@
   i.e. record size = 48 + roundup8(code_len). The wrapper passes a2 = record+32 to
   bal_account_code_consistent (whose effect layout is `[has_code_change | code_len | code]`).
 
-  DIRECTION — FORWARD: every BAL account that declares a code change must have a matching
-  exec code-effect with identical bytes (and `bal_account_code_consistent`'s own per-account
-  reverse rejects a matched account whose exec changed code the BAL omitted). A non-matched
-  account that declares a code change is rejected; one that declares none is skipped. The
-  account-level REVERSE (an exec code-effect for an account ENTIRELY ABSENT from the BAL) is
-  a follow-up, analogous to .3b. No skip-list is needed: code never changes for the
-  gas/value accounts {sender,recipient,coinbase} via the gas path.
+  DIRECTION — FORWARD: when an execution code-effect record exists for a BAL account, the
+  BAL account's final code bytes must match it exactly (and `bal_account_code_consistent`'s
+  own per-account reverse rejects a matched account whose exec changed code but the BAL omitted
+  it). A BAL account with no execution code-effect imposes no forward obligation: EEST BALs can
+  carry idempotent final-code preimages for already-existing accounts, so treating every
+  `code_changes` tuple as a CREATE/SELFDESTRUCT effect false-rejects ordinary calls. The
+  all-account reverse (`bal_all_accounts_code_covers`) still requires every execution-created
+  code-effect account to be present in the BAL.
 
   EIP-7702 EXCEPTION (i3djw.4, per #8626): a set-code (EIP-7702) authorization installs the
   delegation indicator `0xef 0x01 0x00 || 20-byte address` (23 bytes) as the authority
@@ -38,8 +39,7 @@
   records (.8b) — before that, removing CREATE from the self-contained gate (.8c) would leave
   a self-contained CREATE with no effect record, and the forward direction would false-reject.
 
-  Conservative: any parse failure, per-account mismatch, or a code-declaring account with no
-  matching exec code-effect returns 1.
+  Conservative for actual execution code effects: parse failure or byte mismatch returns 1.
 -/
 
 import EvmAsm.Rv64.Program
@@ -108,21 +108,9 @@ def balAllAccountsCodeConsistentFunction : String :=
   "  bnez a0, .Lbaac_fail\n" ++
   "  j .Lbaac_next\n" ++
   ".Lbaac_notfound:\n" ++
-  "  # no code-effect for this account: only a problem if the BAL declares a code change\n" ++
-  "  mv a0, s6; mv a1, s7; la a2, bacc_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lbaac_fail                     # parse failure -> reject\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbaac_next   # BAL declares no code change -> nothing to check\n" ++
-  "  # BAL declares a code change but no exec code-effect record exists. EIP-7702 delegations\n" ++
-  "  # (0xef 0x01 0x00 || 20-byte address, 23 bytes) are installed from the authorization list,\n" ++
-  "  # NOT via a CREATE deposit, so they legitimately have no exec code-effect record. Skip them;\n" ++
-  "  # any OTHER code-declaring account with no matching exec effect is a real omission -> reject.\n" ++
-  "  la t0, bacc_finals; ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbaac_fail   # not 23B -> not a 7702 delegation -> reject\n" ++
-  "  la t0, bacc_finals; ld t2, 64(t0); add t2, s6, t2          # BAL code content ptr (= AccountChanges + code_off)\n" ++
-  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lbaac_fail        # byte 0 != 0xef -> reject\n" ++
-  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lbaac_fail        # byte 1 != 0x01 -> reject\n" ++
-  "  lbu t3, 2(t2); li t4, 0x00; bne t3, t4, .Lbaac_fail        # byte 2 != 0x00 -> reject\n" ++
-  "  # confirmed EIP-7702 delegation indicator -> no exec code-effect expected, skip\n" ++
+  "  # No execution code-effect for this account. EEST BALs may still carry final-code\n" ++
+  "  # preimages for existing accounts, so only matched exec effects are byte-checked here.\n" ++
+  "  j .Lbaac_next\n" ++
   ".Lbaac_next:\n" ++
   "  addi s5, s5, 1; j .Lbaac_loop\n" ++
   ".Lbaac_ok:\n" ++

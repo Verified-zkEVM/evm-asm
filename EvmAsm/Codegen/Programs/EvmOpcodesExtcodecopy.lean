@@ -49,7 +49,7 @@ open EvmAsm.Rv64.Program
       a1 (input)  : header_rlp_len
       a2 (input)  : address ptr (20 bytes)
       a3 (input)  : code_offset (u64)
-      a4 (input)  : length (u64; must be <= 256)
+      a4 (input)  : length (u64; must be <= 32768)
       a5 (input)  : output buffer ptr (`length` bytes)
       a6 (input)  : witness.state ptr
       a7 (input)  : witness.state len
@@ -64,7 +64,7 @@ open EvmAsm.Rv64.Program
         4 = header parse / state_root size fail
         5 = code_hash != EMPTY but not in witness.codes
             (witness integrity violation)
-        6 = length > 256 (probe cap; not a spec issue)
+        6 = length > 32768 (deployed-code cap; not a spec issue)
 
       (Code 1 "account not in trie" is intentionally absent:
       missing accounts map to `status=0, output=all zeros` per
@@ -85,10 +85,10 @@ def extcodecopyAtHeaderStateRootFunction : String :=
   "  mv s5, a5                  # output buffer ptr\n" ++
   "  mv s6, a6                  # witness.state ptr\n" ++
   "  mv s7, a7                  # witness.state len\n" ++
-  "  # Reject length > 256.\n" ++
-  "  li t0, 256\n" ++
+  "  # Reject length > 32768 (EIP-7907 deployed-code-size cap).\n" ++
+  "  li t0, 32768\n" ++
   "  bgtu s4, t0, .Lecc_too_long\n" ++
-  "  # Pre-zero output[0..length] byte-by-byte (length <= 256).\n" ++
+  "  # Pre-zero output[0..length] byte-by-byte (length <= 32768).\n" ++
   "  mv t0, s5\n" ++
   "  mv t1, s4\n" ++
   ".Lecc_zero_loop:\n" ++
@@ -186,7 +186,7 @@ def extcodecopyAtHeaderStateRootFunction : String :=
       bytes 16..24 : witness_state_len (u64 LE)
       bytes 24..32 : witness_codes_len (u64 LE)
       bytes 32..40 : code_offset (u64 LE)
-      bytes 40..48 : length (u64 LE; must be <= 256)
+      bytes 40..48 : length (u64 LE; must be <= 32768)
       bytes 48..68 : address (20 bytes)
       bytes 68..68+H              : header_rlp
       bytes 68+H..68+H+WS         : witness.state

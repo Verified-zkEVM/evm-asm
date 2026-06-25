@@ -7,14 +7,14 @@
 #
 # Composes K201 + K28 + K19 + a byte-by-byte zero-padded copy.
 #
-# Output (16 + length bytes; length capped at 256):
+# Output (16 + length bytes; length capped at 32768):
 #   bytes  0.. 8 : status
 #       0 success (output filled, zero-padded if needed)
 #       2 state-trie mpt parse error
 #       3 account_decode failure
 #       4 header parse fail
 #       5 code_hash != EMPTY but not in witness.codes
-#       6 length > 256 (probe cap)
+#       6 length > 32768 (deployed-code cap)
 #   bytes  8..16 : effective length
 #   bytes 16..(16+length) : code bytes
 set -euo pipefail
@@ -62,7 +62,7 @@ REPO_ROOT="$(pwd)"
 #
 #   garbage_header <addr> <length>  -> (4, 0, all zeros)
 #
-#   over_cap <addr> <code_hex>  -> (6, 0, ...) [length=257]
+#   over_cap <addr> <code_hex>  -> (6, 0, ...) [length=32769]
 run_case() {
   local name="$1"; shift
   local mode="$1"; shift
@@ -204,7 +204,7 @@ elif mode == 'over_cap':
     addr = bytes.fromhex(parts[0])
     code = bytes.fromhex(parts[1])
     code_offset = 0
-    length = 257
+    length = 32769
     code_hash = k256(code)
     account = encode_account(0, 0, EMPTY_TRIE, code_hash)
     state_root, witness_state = build_state_with_account(addr, account)
@@ -279,7 +279,7 @@ run_case "missing_account"       missing_account "$BOB" "$ALICE" "6000" 4 || FAI
 run_case "integrity_violation"   integrity_violation "$ALICE" "6000" 4 || FAILED=1
 # Garbage header.
 run_case "garbage_header"        garbage_header "$ALICE" 4 || FAILED=1
-# Length > 256 cap.
+# Length > 32768 cap.
 run_case "over_cap"              over_cap "$ALICE" "6000" || FAILED=1
 
 echo

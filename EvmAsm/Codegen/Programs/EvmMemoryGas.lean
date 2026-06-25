@@ -101,7 +101,24 @@ def memConstOffsetOogGuardAsm
   "  ld " ++ scratchReg ++ ", 24(x12)\n" ++
   "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
   "  addi " ++ scratchReg ++ ", " ++ offsetReg ++ ", " ++ toString length ++ "\n" ++
-  "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n"
+  "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, " ++ scratchReg ++ ", .exit_outofgas\n"
+
+/-- Runtime memory arena guard for a dynamic memory range `(offset, length)`
+    whose low u64 limbs are already loaded. Zero-length ranges are no-ops and
+    need no bound. Nonzero ranges whose low-limb end wraps or exceeds the
+    dispatcher's 64 KiB per-frame arena route to OOG before the byte-copy body
+    can write past the mapped ziskemu RAM window. High-limb rejection remains
+    the caller's responsibility because stack layouts differ by opcode. -/
+def memDynamicArenaOogGuardAsm
+    (tag offsetReg lengthReg endReg limitReg : String) : String :=
+  "  beqz " ++ lengthReg ++ ", .Lmemarena_" ++ tag ++ "_done\n" ++
+  "  add " ++ endReg ++ ", " ++ offsetReg ++ ", " ++ lengthReg ++ "\n" ++
+  "  bltu " ++ endReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
+  "  li " ++ limitReg ++ ", 0x10000\n" ++
+  "  bltu " ++ limitReg ++ ", " ++ endReg ++ ", .exit_outofgas\n" ++
+  ".Lmemarena_" ++ tag ++ "_done:\n"
 
 /-- `updateActiveMemorySizeAsm` for a constant access length (MLOAD/MSTORE =
     32, MSTORE8 = 1). Materializes the length into `tmpLengthReg` first.
@@ -182,8 +199,9 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
     EVM memory expansion for `(in_offset, in_size)` and
     `(out_offset, out_size)`. Zero-size ranges do not expand memory, so high
     offset limbs are tolerated when the corresponding low size limb is zero.
-    Non-zero high size limbs, high offsets for non-zero sizes, and low-limb
-    offset+size wraparound route to `.exit_outofgas`. -/
+    Non-zero high size limbs, high offsets for non-zero sizes, low-limb
+    offset+size wraparound, and ranges past the 64 KiB per-frame memory arena
+    route to `.exit_outofgas`. -/
 def callMemoryExpansionGasAsm
     (tag : String)
     (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
@@ -204,6 +222,8 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString inOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, x5, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_in") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_out:\n" ++
   "  ld x15, " ++ toString outSizeOff ++ "(x12)\n" ++
@@ -223,6 +243,8 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, x5, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_done:\n"
 

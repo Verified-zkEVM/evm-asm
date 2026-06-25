@@ -511,6 +511,7 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  la t0, bvgr_before_refund; add t0, t0, t1; ld t3, 0(t0)\n" ++   -- t3 = before_refund[i]
   "  add t0, s4, t1; ld t4, 0(t0); mv t6, t4; add t3, t3, t4\n" ++   -- t3 += tx_total_state_gas[i], keep total in t6
   "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++  -- t3 = before_refund + tot + 7500*auth
+  "  mv a0, t4\n" ++                                                 -- a0 = authbase_total before t4 is reused
   "  ld t0, 104(sp); add t0, t0, t1; ld t4, 0(t0)\n" ++              -- t4 = tx_exec_state_gas[i]
   -- For legitimate txs base = before_refund+tot+7500 >= exec_state (before_refund already
   -- includes the state charged to the pool). exec_state > base only happens on a REVERT,
@@ -523,6 +524,13 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   -- dimension. Subtract exec_state only when it is strictly larger than the net
   -- state dimension, i.e. when the runtime pool included state that the refund
   -- path removed from tx_total_state_gas.
+  -- bbow4.2.4: failed high-gas auth rows that reach this path have already paid
+  -- the per-auth regular intrinsic in `before_refund`; their receipt adds only
+  -- the EIP-8037 state dimension. Low failed rows still land in the floor/auth
+  -- margin branch below and add both dimensions there.
+  "  la t0, bv_tx_status_arr; add t0, t0, t1; ld t0, 0(t0); bnez t0, .Lbvrga_type4_authbase_ok\n" ++
+  "  sub t3, t3, a0\n" ++
+  ".Lbvrga_type4_authbase_ok:\n" ++
   "  la t0, bvgr_before_refund; add t0, t0, t1; ld t5, 0(t0)\n" ++
   "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld a0, 0(t0); bne t5, a0, .Lbvrga_type4_subchk\n" ++
   "  li a0, 21000; bne t5, a0, .Lbvrga_type4_subchk\n" ++
@@ -553,12 +561,27 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  add t2, s3, t1; sd t3, 0(t2)\n" ++                              -- bvgr_receipt_gas_increments[i] = receipt
   "  j .Lbvrga_next\n" ++
   ".Lbvrga_type4_store_before_refund:\n" ++
-  -- bbow4.2.5.7: successful authorization-only transactions can land here
-  -- because before_refund equals the 21000 calldata floor while the dispatcher
+  -- bbow4.2.5.7 / EIP-7976: successful authorization-only transactions can land
+  -- here because before_refund equals the calldata floor while the dispatcher
   -- omitted both PER_AUTH_BASE_COST and the EIP-8037 state dimension from the
-  -- receipt increment. Add those verdict-side dimensions before storing.
+  -- receipt increment. The floor is not always 21000 after EIP-7976; for any exact
+  -- floor hit, the receipt is the net state dimension plus the calldata-floor
+  -- regular dimension plus PER_AUTH_BASE_COST per authorization.
+  -- bbow4.2.4: failed type-4 rows can spend a few VM gas above the calldata
+  -- floor before failing, but the consensus receipt still includes the auth
+  -- state-gas dimension plus PER_AUTH_BASE_COST. Gate that repair on the stored
+  -- tx status so successful full-gas rows keep the pre-existing floor behavior.
+  "  la t0, bv_tx_status_arr; add t0, t0, t1; ld t4, 0(t0); bnez t4, .Lbvrga_type4_store_before_refund_success\n" ++
+  "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); li t0, 21000; bne t4, t0, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  la t0, bvrga_auth_count; ld t4, 0(t0); beqz t4, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  j .Lbvrga_type4_store_before_refund_with_dims\n" ++
+  ".Lbvrga_type4_store_before_refund_success:\n" ++
   "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  li t4, 21000; bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  la t0, bvrga_auth_count; ld t4, 0(t0); beqz t4, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  li t5, 7500; mul t4, t4, t5; add t3, t3, t4\n" ++
+  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
+  "  j .Lbvrga_type4_store_before_refund_raw\n" ++
+  ".Lbvrga_type4_store_before_refund_with_dims:\n" ++
   "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
   "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++
   ".Lbvrga_type4_store_before_refund_raw:\n" ++
@@ -693,12 +716,15 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  bltu t2, t3, .Lbvf4ar_compute_floor\n" ++
   "  sub t5, t2, t3\n" ++
   "  add t4, t4, t0; ld t4, 0(t4)          # tx_state_gas\n" ++
-  "  beq t5, t4, .Lbvf4ar_next             # OOG path already normalized as before_refund - state\n" ++
+  "  beq t5, t4, .Lbvf4ar_restore_before   # OOG path normalized as before_refund - state\n" ++
   ".Lbvf4ar_compute_floor:\n" ++
   "  la t1, bvrga_auth_count; ld t1, 0(t1); li t3, 7500; mul t1, t1, t3\n" ++
   "  add t2, t2, t1; bltu t2, t1, .Lbvf4ar_next\n" ++
   "  add t1, s3, t0; ld t3, 0(t1); bgeu t3, t2, .Lbvf4ar_next\n" ++
   "  sd t2, 0(t1)\n" ++
+  "  j .Lbvf4ar_next\n" ++
+  ".Lbvf4ar_restore_before:\n" ++
+  "  add t1, s3, t0; sd t2, 0(t1)\n" ++
   "  j .Lbvf4ar_next\n" ++
   ".Lbvf4ar_failed_floor_store:\n" ++
   "  add t1, s3, t0; sd t4, 0(t1)\n" ++

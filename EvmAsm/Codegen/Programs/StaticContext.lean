@@ -17,7 +17,8 @@ def staticContextWriteGuardAsm : String :=
   "  ld x14, " ++ toString staticContextFlagOff ++ "(x20)\n" ++
   "  bnez x14, .exit_static_violation\n"
 
-/-- Abort a value-bearing CALL/CALLCODE in a static context when the value word is nonzero. -/
+/-- Abort a value-bearing CALL in a static context when the value word is nonzero.
+    EIP-214 excludes CALLCODE from this write-protection rule. -/
 def staticContextValueTransferGuardAsm (valueOff : Nat) : String :=
   "  ld x14, " ++ toString valueOff ++ "(x12)\n" ++
   "  ld x15, " ++ toString (valueOff + 8) ++ "(x12)\n" ++

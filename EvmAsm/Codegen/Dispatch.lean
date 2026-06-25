@@ -60,6 +60,8 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+def selfdestructDestroyedAddressCap : Nat := 32768
+
 /-- Protocol EVM stack depth in 256-bit words. The dispatcher stack arena
     is static, so this is the capacity that valid bytecode may rely on. -/
 def evmStackWordCapacity : Nat := 1024
@@ -527,7 +529,15 @@ def emitSelfdestructData : String :=
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "evm_selfdestruct_staged:\n" ++
-  "  .zero 8\n"
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_destroyed_count:\n" ++
+  "  .zero 8\n" ++
+  "evm_selfdestruct_destroyed_overflow:\n" ++
+  "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "evm_selfdestruct_destroyed_table:\n" ++
+  "  .zero " ++ toString (selfdestructDestroyedAddressCap * 32) ++ "\n"
 
 /-- Zero-padded component and output buffers for the runtime MODEXP backend
     path. EIP-7823 caps each component at 1024 bytes before the backend call. -/
@@ -1027,6 +1037,9 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++   -- reset per-tx SELFDESTRUCT execution flag
+  "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++   -- i3djw/.8c: reset the per-created-account code-effect log per tx
@@ -1098,6 +1111,18 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  la x18, evm_call_depth\n" ++
   "  ld x18, 0(x18)\n" ++
   s!"  beqz x18, {label}_top\n" ++
+  -- Exceptional exits can be reached after an opcode prelude has clobbered caller-saved
+  -- registers. Rebuild the child env base from the depth counter before touching env+568;
+  -- otherwise a stale x20 can turn the gas-zeroing store into an out-of-RAM write.
+  s!"  li x5, {maxCallDepth}\n" ++
+  s!"  bgtu x18, x5, {label}_top\n" ++
+  "  addi x5, x18, -1\n" ++
+  s!"  li x6, {frameStride}\n" ++
+  "  mul x5, x5, x6\n" ++
+  "  la x20, call_frame_arena\n" ++
+  "  add x20, x20, x5\n" ++
+  s!"  li x6, {frameEnvOff}\n" ++
+  "  add x20, x20, x6\n" ++
   "  sd x0, 568(x20)\n" ++
   "  li a0, 0\n" ++
   "  li a1, 0\n" ++
@@ -1985,6 +2010,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  srli x5, x5, 3\n" ++
   "  slli x5, x5, 3\n" ++          -- x5 = &(slot count)
   "  ld x6, 0(x5)\n" ++            -- x6 = slot_count (= preload count)
+  "  li x28, 16384\n" ++
+  "  bgtu x6, x28, .exit_invalid\n" ++
   "  sd x6, 448(x20)\n" ++         -- env.persistentLogLengthOff = preload count
   "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
@@ -2007,6 +2034,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- otherwise) and preserves all caller regs (x5 cursor / x20 env live here); save ra around it.
   "  addi sp, sp, -16\n  sd ra, 0(sp)\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
+  "  jal ra, dispatcher_seed_pending_upfront_balance\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 16\n" ++
   -- nxio8: per-TRANSACTION dispatch state that previously leaked across calls in a
   -- multi-tx block (the callable dispatcher is invoked once per tx in one guest run):
@@ -2290,6 +2318,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- EIP-7702 validate_authorization refunds state gas into the message reservoir
+  -- when the recovered authority already exists (and, separately, for existing
+  -- delegation code). Transaction-aware callers compute the exact BAL/pre-state
+  -- refund and stage it in runtime_tx_auth_state_refund before this setup runs.
+  "  la x11, runtime_tx_auth_state_refund\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_auth_state_refund_done:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
@@ -2744,6 +2784,11 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   ".balign 32\n" ++
   "frame_call_ctx:\n" ++
   "  .zero 32800\n" ++
+  -- `frame_parent_bases`: exact parent memory/env bases by CHILD depth. Depth 0
+  -- can be a staged stateless replay buffer rather than the global labels.
+  ".balign 16\n" ++
+  "frame_parent_bases:\n" ++
+  "  .zero 16400\n" ++
   -- Call descriptor + zero value word filled by the CALL descent
   -- (`callDescendFallThrough`) and consumed by `call_frame_descend`.
   ".balign 8\n" ++
@@ -2769,6 +2814,15 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
+  -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
+  -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
+  -- deferred Transfer log so receipt order is Transfer then Burn.
+  "cd_burn_log_pending:\n  .zero 8\n" ++
+  "cd_destroyed_empty_hits:\n  .zero 8\n" ++
+  -- coc3g.6.6: append-Burn flag for the same deferred hook. 0 = Transfer only,
+  -- 1 = Transfer(caller, callee, value) plus Burn(callee, value) for value sent to
+  -- an account created and deleted in this tx.
+  "cd_xfer_log_burn:\n  .zero 8\n" ++
   -- drj99.1 (failed-inner rollback): pre-snapshot of exec_nonstorage_effect_count/overflow taken by
   -- callDescendFallThrough BEFORE the value-CALL caller-debit/callee-credit records, consumed by
   -- call_frame_descend so frame_return rolls those records back on a child OOG/REVERT. `armed` is a
@@ -2808,6 +2862,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_list_len:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_warm_fn:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
@@ -3100,6 +3156,8 @@ def runtimeDispatcherStandaloneFrameData : String :=
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 16\n" ++
+  "frame_parent_bases:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
   ".balign 8\n" ++

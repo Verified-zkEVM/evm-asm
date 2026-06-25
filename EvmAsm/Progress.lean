@@ -48,6 +48,7 @@ import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
+import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
@@ -129,9 +130,11 @@ def registry : List OpcodeEntry := [
   entry "ADD" .proven (some "evm_add_stack_spec_within") (cycleBound := some 30),
   entry "MUL" .proven (some "evm_mul_stack_spec_within") (cycleBound := some 63),
   entry "SUB" .proven (some "evm_sub_stack_spec_within") (cycleBound := some 30),
-  entry "DIV" .proven (some "evm_div_stack_spec_unconditional")
-      ("full-domain unconditional v5 DIV stack spec over divCode_noNop; " ++
-       "wraps evm_div_stack_spec_unconditional_v5_div and the v5 lane proofs"),
+  entry "DIV" .proven (some "evm_div_v6_stack_spec")
+      ("full-domain unconditional v6 DIV stack spec over divCodeV6 (n=1 " ++
+       "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
+       "proof (evm_div_v5_unconditional_over_divCodeV6), the n=1 fast arm is " ++
+       "divK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch"),
   entry "SDIV" .conditional (some "evm_sdiv_exact_callable_return_stack_spec_within")
       ("callable+dispatch shim; evm_sdiv_stack_spec_within conditional on " ++
        "hStack (discharged for divisor=0 and n=1/2/3/n4-call-skip); blocked " ++
@@ -325,7 +328,7 @@ theorem totalBytes_eq       : totalBytes       = 149 := by decide
 private noncomputable abbrev _add_witness        := @EvmAsm.Evm64.evm_add_stack_spec_within
 private noncomputable abbrev _mul_witness        := @EvmAsm.Evm64.evm_mul_stack_spec_within
 private noncomputable abbrev _sub_witness        := @EvmAsm.Evm64.evm_sub_stack_spec_within
-private noncomputable abbrev _div_witness        := @EvmAsm.Evm64.evm_div_stack_spec
+private noncomputable abbrev _div_witness        := @EvmAsm.Evm64.evm_div_v6_stack_spec
 private noncomputable abbrev _sdiv_witness       :=
   @EvmAsm.Evm64.evm_sdiv_exact_callable_return_stack_spec_within
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_stack_spec

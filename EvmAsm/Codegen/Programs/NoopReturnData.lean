@@ -37,6 +37,7 @@ def returnDataHandlers : List OpcodeHandlerSpec :=
         "  bltu x18, x19, .exit_invalid\n" ++
         "  li x18, 256\n" ++
         "  bltu x18, x19, .exit_invalid\n" ++
+        memDynamicArenaOogGuardAsm "returndatacopy" "x14" "x16" "x17" "x18" ++
         copyWordGasAsm "returndatacopy" "x16" "x17" "x18" "x19" ++
         updateActiveMemorySizeAsm "returndatacopy" "x14" "x16" "x17" "x18" "x19" "x6" true ++
         "  addi x12, x12, 96\n" ++

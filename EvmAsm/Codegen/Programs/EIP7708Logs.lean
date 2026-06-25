@@ -226,6 +226,32 @@ def eip7708SyntheticLogFunctions : String :=
   "  ld a0, 64(sp); ld a1, 72(sp); ld a2, 80(sp); ld a3, 88(sp); ld a4, 96(sp); ld a5, 104(sp); ld a6, 112(sp); ld a7, 120(sp)\n" ++
   "  ld x20, 128(sp)\n" ++
   "  addi sp, sp, 144\n" ++
+  "  ret\n" ++
+  -- EIP-4844 blob-fee subtraction tests require BALANCE(ORIGIN) during recipient
+  -- execution to observe the sender after the upfront gas/blob/value debit but
+  -- before the post-execution gas refund. The dispatcher setup resets per-call
+  -- runtime state, so block_verdict stages this one-shot record and the setup
+  -- emits it after those resets. Preserves every caller register: setup still
+  -- has a live input cursor in t0/t1/t2 and env in x20.
+  "dispatcher_seed_pending_upfront_balance:\n" ++
+  "  addi sp, sp, -144\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd t0, 8(sp); sd t1, 16(sp); sd t2, 24(sp); sd t3, 32(sp); sd t4, 40(sp); sd t5, 48(sp); sd t6, 56(sp)\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
+  "  sd x20, 128(sp)\n" ++
+  "  la t0, bv_pending_upfront_balance_flag; ld t0, 0(t0); beqz t0, .Ldpub_done\n" ++
+  "  la a0, bv_pending_upfront_sender_addr\n" ++
+  "  la a1, bv_pending_upfront_sender_pre\n" ++
+  "  la a2, bv_pending_upfront_sender_post\n" ++
+  "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
+  "  la t0, bv_pending_upfront_balance_flag; sd x0, 0(t0)\n" ++
+  ".Ldpub_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld t0, 8(sp); ld t1, 16(sp); ld t2, 24(sp); ld t3, 32(sp); ld t4, 40(sp); ld t5, 48(sp); ld t6, 56(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); ld a2, 80(sp); ld a3, 88(sp); ld a4, 96(sp); ld a5, 104(sp); ld a6, 112(sp); ld a7, 120(sp)\n" ++
+  "  ld x20, 128(sp)\n" ++
+  "  addi sp, sp, 144\n" ++
   "  ret\n"
 
 def eip7708SyntheticLogTopicData : String :=
@@ -250,7 +276,14 @@ def eip7708SyntheticLogTopicData : String :=
   "eip7708_tl_val32:\n  .zero 32\n" ++
   -- bmvmx.5.5.2.2.ln9ly: 1 = a single-tx contract-path top-level transfer log is staged for the
   -- next dispatch to re-emit post-reset (see dispatcher_reemit_pending_tl). Cleared by the dispatcher.
-  "bv_pending_tl_flag:\n  .zero 8\n"
+  "bv_pending_tl_flag:\n  .zero 8\n" ++
+  -- One-shot sender upfront-balance seed, consumed by dispatcher_seed_pending_upfront_balance.
+  "bv_pending_upfront_balance_flag:\n  .zero 8\n" ++
+  "bv_pending_upfront_sender_nonce:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "bv_pending_upfront_sender_addr:\n  .zero 32\n" ++
+  "bv_pending_upfront_sender_pre:\n  .zero 32\n" ++
+  "bv_pending_upfront_sender_post:\n  .zero 32\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++

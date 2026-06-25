@@ -204,13 +204,14 @@ def callFrameForwardGasFunction : String :=
       2. `frame_depth_push` → child depth d;
       3. save the return-context `frame_call_ctx[d]` = (parent_x12,
          outOff_abs = parent_mem + outOff, outSize, netPopBytes) for `frame_return`;
-      4. `call_frame_enter(d)` → child memory/stack/env bases (+ child mem zero-init);
-      5. `call_frame_set_call_env` (ADDRESS=to, CALLER=parent.ADDRESS, CALLVALUE);
-      6. `call_frame_set_calldata` (alias child calldata into parent memory);
-      7. `call_frame_forward_gas` (EIP-150 63/64 + stipend) → child env.gasRemaining;
-      8. copy the witness context env+576..616 (header/state/codes ptrs+lens) so the
+      4. save the parent memory/env bases in `frame_parent_bases[d]`;
+      5. `call_frame_enter(d)` → child memory/stack/env bases (+ child mem zero-init);
+      6. `call_frame_set_call_env` (ADDRESS=to, CALLER=parent.ADDRESS, CALLVALUE);
+      7. `call_frame_set_calldata` (alias child calldata into parent memory);
+      8. `call_frame_forward_gas` (EIP-150 63/64 + stipend) → child env.gasRemaining;
+      9. copy the witness context env+576..616 (header/state/codes ptrs+lens) so the
          child's by-address handlers (BALANCE/EXTCODE*/the next descent) resolve;
-      9. set the child code base x21=x10=code_ptr (PC at code[0]) and
+     10. set the child code base x21=x10=code_ptr (PC at code[0]) and
          env.codeSize (env+496) = code_len.
 
     On return the live dispatcher registers are repointed to the child frame and
@@ -250,6 +251,13 @@ def callFrameDescendFunction : String :=
   "  sd t2, 8(t0)\n" ++
   "  ld t2, 48(s7); sd t2, 16(t0)   # outSize\n" ++
   "  ld t2, 56(s7); sd t2, 24(t0)   # netPopBytes\n" ++
+  -- Save the exact parent memory/env bases. Depth-0 may be staged by stateless
+  -- replay code instead of the global `evm_memory`/`evm_env` labels.
+  "  la t0, frame_parent_bases\n" ++
+  "  slli t1, s8, 4                 # d * 16\n" ++
+  "  add t0, t0, t1\n" ++
+  "  sd s2, 0(t0)                   # parent memory base\n" ++
+  "  sd s3, 8(t0)                   # parent env base\n" ++
   -- 4. enter the child frame (rebase + zero-init). Stash the returned child
   --    mem/stack/env bases in callee-saved regs — the helper calls below clobber
   --    a0-a4 (= x10/x11/x12/x13/x14), so the live dispatcher regs are set LAST.
@@ -407,6 +415,10 @@ def callFrameDescendFunction : String :=
   -- The warm-set is append-only; truncating the count on revert reverts the
   -- additions (the gas already charged stays — regular gas is spent on revert).
   "  la t1, evm_storage_access_count; ld t0, 0(t1); sd t0, 648(s9)  # warmth count snapshot\n" ++
+  -- account_warm_status_reverted_by_subcall: snapshot EIP-2929 accessed_addresses
+  -- alongside accessed_storage_keys. A child REVERT rolls back accounts it warmed,
+  -- so the parent's later BALANCE/EXT*/CALL access must be cold again.
+  "  la t1, evm_access_account_count; ld t0, 0(t1); sd t0, 720(s9)  # account-warmth count snapshot\n" ++
   -- i3djw/reverted-CREATE rollback: CREATE deposit appends to global code and
   -- non-storage effect logs. A later child REVERT must discard those records,
   -- exactly like storage/log cursors above; otherwise the block-verdict reverse
@@ -432,6 +444,7 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   -- 3hlnt.2.2: snapshot the hot running block bloom into the child-depth
   -- checkpoint slab. The consensus receipt/log-bloom path still comes from
   -- descriptors; this only gives the hot accumulator the same rollback shape
@@ -688,6 +701,8 @@ def ziskCallFrameDescendDataSection : String :=
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
   "frame_call_ctx:\n  .zero 32800\n" ++
+  ".balign 16\n" ++
+  "frame_parent_bases:\n  .zero 16400\n" ++
   ".balign 8\n" ++
   -- Frame-relative stack-bound cells (descend overwrites them; zeroed stubs here).
   "evm_cur_stack_top:\n  .zero 8\n" ++

@@ -36,6 +36,7 @@ def blobContextHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x15 24
   [ { label := "h_BLOBBASEFEE"
     , opcodes := [0x4a]
+    , preBody := stackOverflowGuardAsm
     , body := blobBaseFeeBody
     , tail := .advanceAndRet 1 } ]
   ++

@@ -320,6 +320,8 @@ def lookupProgram : String → Option BuildUnit
   | "evm_add"                   => some evmAddUnit
   | "evm_div_v5"                => some evmDivV5Unit
   | "evm_div_v5_from_input"     => some evmDivV5FromInputUnit
+  | "evm_div_v6"                => some evmDivV6Unit
+  | "evm_div_v6_from_input"     => some evmDivV6FromInputUnit
   | "evm_mod_v5"                => some evmModV5Unit
   | "evm_mod_v5_from_input"     => some evmModV5FromInputUnit
   | "evm_sdiv_v5"               => some evmSdivV5Unit
