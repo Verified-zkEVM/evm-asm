@@ -182,8 +182,9 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
     EVM memory expansion for `(in_offset, in_size)` and
     `(out_offset, out_size)`. Zero-size ranges do not expand memory, so high
     offset limbs are tolerated when the corresponding low size limb is zero.
-    Non-zero high size limbs, high offsets for non-zero sizes, and low-limb
-    offset+size wraparound route to `.exit_outofgas`. -/
+    Non-zero high size limbs, high offsets for non-zero sizes, low-limb
+    offset+size wraparound, and ranges past the 64 KiB per-frame memory arena
+    route to `.exit_outofgas`. -/
 def callMemoryExpansionGasAsm
     (tag : String)
     (inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat) : String :=
@@ -204,6 +205,8 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString inOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, x5, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_in") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_out:\n" ++
   "  ld x15, " ++ toString outSizeOff ++ "(x12)\n" ++
@@ -223,6 +226,8 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
+  "  li x6, 0x10000\n" ++
+  "  bltu x6, x5, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_done:\n"
 

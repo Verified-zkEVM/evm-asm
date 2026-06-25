@@ -352,6 +352,10 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
     ".Lcr_csg_used_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    -- CREATE uses the same call-frame arena as CALL. Mirror CALL's depth gate before
+    -- create_frame_descend so recursive constructors at depth 1024 push zero instead of
+    -- attempting to enter a non-protocol child frame.
+    "  la t1, evm_call_depth\n  ld t2, 0(t1)\n  li t3, 1024\n  bgeu t2, t3, 7f\n" ++
     "  addi sp, sp, -16\n  sd t4, 0(sp)\n" ++
     "  li a1, " ++ toString netPopBytes ++ "\n" ++
     "  jal x1, create_frame_descend\n" ++

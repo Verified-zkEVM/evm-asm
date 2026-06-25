@@ -1111,6 +1111,18 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  la x18, evm_call_depth\n" ++
   "  ld x18, 0(x18)\n" ++
   s!"  beqz x18, {label}_top\n" ++
+  -- Exceptional exits can be reached after an opcode prelude has clobbered caller-saved
+  -- registers. Rebuild the child env base from the depth counter before touching env+568;
+  -- otherwise a stale x20 can turn the gas-zeroing store into an out-of-RAM write.
+  s!"  li x5, {maxCallDepth}\n" ++
+  s!"  bgtu x18, x5, {label}_top\n" ++
+  "  addi x5, x18, -1\n" ++
+  s!"  li x6, {frameStride}\n" ++
+  "  mul x5, x5, x6\n" ++
+  "  la x20, call_frame_arena\n" ++
+  "  add x20, x20, x5\n" ++
+  s!"  li x6, {frameEnvOff}\n" ++
+  "  add x20, x20, x6\n" ++
   "  sd x0, 568(x20)\n" ++
   "  li a0, 0\n" ++
   "  li a1, 0\n" ++
