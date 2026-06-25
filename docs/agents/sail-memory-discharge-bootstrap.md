@@ -63,7 +63,7 @@ A diagnostic `simp only [runSail, execute_LOAD, vmem_read, vmem_read_addr, simp_
 unfolds the structure but reduces **no branch** (all gated on symbolic register reads).
 So build, bottom-up, reduction lemmas each consuming part of the bundle:
 
-1. **`readByte`/`readBytes` reduction** given bytes-present: `readBytes 8 a sSail = .ok (v, sSail)` where `v` = the appended bytes; + the bridge `v = reconstructDword sSail.mem a` (pure BitVec proof — mirror `reconstructDword`'s shifts/ors against `readBytes`'s `append`).
+1. ✅ **DONE (commit `78ac911c6`)** — `readByte`/`readBytes` reduction + the `reconstructDword` bridge, in `EvmAsm/Rv64/SailEquiv/VmemReduction.lean`: `readBytes8_eq_reconstruct` (+ pure helper `append8_eq_or_shifts`). Axiom-clean ({3 classical}; helper {propext,Quot.sound}). Gotchas captured for the rest: `readBytes`/`readByte` ∈ namespace `PreSail`; getD↔get? = `Std.ExtHashMap.getD_eq_getD_getElem?` + `get?_eq_getElem?`; `getLsbD_append` only fires after `show (… ++ …) = _` (the `.append`/`++` head mismatch), then an 8-way getLsbD bit-range split + `BitVec.getLsbD_of_ge`.
 2. **`read_ram` / `sail_mem_read`** ⇒ wrap (1) (both `@[simp_sail]`, near-definitional).
 3. **`pmpCheck_machine_off`**: 16 pmpcfg OFF + Machine ⇒ `none`. The 16-iteration loop needs an invariant or `decide`-style unfold over the concrete range `[0:15]`.
 4. **`pmaCheck_region`**: region membership + readable + aligned ⇒ `none`.
