@@ -19,6 +19,7 @@
 
 import EvmAsm.Rv64.SailEquiv.MemProofs
 
+open Out
 open Out.Functions
 open Sail
 open PreSail
@@ -128,5 +129,26 @@ theorem readBytes8_eq_reconstruct (sSail : SailState) (a : Nat)
   simp only [Std.ExtHashMap.get?_eq_getElem?] at h0 h1 h2 h3 h4 h5 h6 h7
   simp only [reconstructDword, Std.ExtHashMap.getD_eq_getD_getElem?,
     h0, h1, h2, h3, h4, h5, h6, h7, Option.getD_some, append8_eq_or_shifts]
+
+/-- **Lemma #2 — `translateAddr` bare-mode no-op.** In bare mode (`cur_privilege =
+    Machine`, `mstatus.MPRV = 0`) a `Load Data` translation is the identity: it reads
+    only `mstatus`/`cur_privilege`, leaves the state untouched, and returns the virtual
+    address as physical (`PBMT_PMA`). Stated in `EStateM` `.ok` form so it rewrites
+    directly inside the `vmem_read_addr` translation `bind`/`match`. -/
+theorem translateAddr_bare (s : SailState) (vAddr : virtaddr) (mst : BitVec 64)
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mst : s.regs.get? Register.mstatus = some mst)
+    (h_mprv : _get_Mstatus_MPRV mst = 0#1) :
+    translateAddr vAddr (MemoryAccessType.Load mem_payload.Data) s
+      = .ok (Ok ((physaddr.Physaddr (zero_extend (m := 64) (bits_of_virtaddr vAddr))),
+                 page_based_mem_type.PBMT_PMA, init_ext_ptw)) s := by
+  unfold translateAddr
+  simp +decide [SailME.run, PreSail.PreSailME.run, effectivePrivilege, translationMode,
+    is_shadow_stack_access, PreSail.readReg, h_priv, h_mst, h_mprv,
+    pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get,
+    MonadLift.monadLift, monadLift, liftM, Functor.map,
+    ExceptT.run, ExceptT.mk, ExceptT.pure, ExceptT.bind, ExceptT.bindCont, ExceptT.lift,
+    EStateM.map]
 
 end EvmAsm.Rv64.SailEquiv
