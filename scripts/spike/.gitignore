@@ -1,0 +1,7 @@
+*.so
+*.o
+*.elf
+*.sig
+test/*.o
+test/*.elf
+test/*.sig
