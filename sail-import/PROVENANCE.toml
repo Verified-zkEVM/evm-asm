@@ -37,6 +37,8 @@ sail_modules = ["main", "I_insts", "M_insts"]   # scoped RV64IM; see "scoping" o
 config_file = "sail-import/riscv64im_zicclsm.json"   # NOTE: produced against 1760ee2; P2 must REGENERATE/REVALIDATE against the tag's config schema + tighten (single flat RAM; justify extension set; actually run validate_config)
 config_sha256 = "7dd1fa11db135e5b20e981499e172e48aa25d2b1f61f44afe6597eda13057e81"
 arch = "rv64d"   # generator names the arch rv64d; scoped content is RV64IM. Renaming cosmetic.
+vendor_path  = "vendor/sail-riscv-zkvm-lean"   # P2 step 2: model VENDORED here (113 .lean files; package "out", lib "Out" kept verbatim from the proven artifact). lakefile git-pins lean-sail at the rev below.
+model_sha256 = "3a49ffa5cfc3a46e52686d56f43d3923567242bf616cdf3e2f19a4b8859a76e0"   # deterministic: `find -name '*.lean' | sort | xargs sha256sum | sha256sum` over the vendored sources (excl. .lake)
 
 # ---- TOOLCHAIN: RESOLVED + PROVEN — no change, no model patching ----
 # lean-sail v4 *declares* lean-toolchain v4.29.0, but that is only its CI's toolchain.
@@ -45,6 +47,9 @@ arch = "rv64d"   # generator names the arch rv64d; scoped content is RV64IM. Ren
 # 84/84 jobs, exit 0, incl. InstsEnd (execute_*), DecodeExt, Step, Model. No toolchain
 # downgrade, no cross-version source edits. The earlier "must move to v4.29.0 or
 # forward-patch" framing was a false premise (declared toolchain != required toolchain).
+# RE-PROVEN VENDORED (2026-06-25, P2 step 2): the model copied to vendor_path, with its
+# lakefile git-pinning lean-sail @ 79b4d08, builds 84/84 (exit 0) from the committed
+# location — lean-sail fetched fresh from git, no scratchpad absolute paths. Reproducible.
 # (Side note: the project pins mathlib `master`, so a downgrade to v4.29.0 would have
 # forced pinning mathlib off master — moot now.) Remaining check: lean-sail v4 +
 # mathlib-master coexisting inside the actual evm-asm lake build (P2 step 1).
