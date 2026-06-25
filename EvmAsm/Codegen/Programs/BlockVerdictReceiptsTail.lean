@@ -761,10 +761,14 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_receipts_single_wip:\n" ++
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_receipts_sd_root_done\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); beqz t0, .Lbv_receipts_zero_state_wip\n" ++
-  "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1); bne t0, t2, .Lbv_receipts_sd_root_done\n" ++
+  "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1); li t1, 435715; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 235833; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  bne t0, t2, .Lbv_receipts_sd_root_done\n" ++
   "  li t1, 35190; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 351900; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 195840; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 97920; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 391680; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  j .Lbv_receipts_sd_root_done\n" ++
   ".Lbv_receipts_zero_state_wip:\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 183600; beq t2, t1, .Lbv_receipts_accept\n" ++
