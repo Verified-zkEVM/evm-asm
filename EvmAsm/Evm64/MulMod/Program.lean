@@ -23,36 +23,41 @@ open EvmAsm.Rv64
 -- Product layout
 -- ============================================================================
 
-/-- Low half of the full `a * b` product lives at `sp + 96 .. sp + 120`.
-    The stack input itself stays untouched:
+/-- Low half of the full `a * b` product lives at `sp - 160 .. sp - 136`
+    (the scratchpad sits *below* the live stack so MULMOD never clobbers
+    unrelated stack items; the offsets are encoded as `signExtend12`
+    negatives, e.g. `3936 ≡ -160 (mod 2^12)`). The stack input itself stays
+    untouched:
 
       * `sp + 0  .. sp + 24`: `a`
       * `sp + 32 .. sp + 56`: `b`
       * `sp + 64 .. sp + 88`: `N`
-      * `sp + 96 .. sp + 120`: product low half `pL`
-      * `sp + 128.. sp + 152`: product high half `pH`
+      * `sp - 160 .. sp - 136`: product low half `pL`
+      * `sp - 128 .. sp - 104`: product high half `pH`
+      * `sp - 32  .. sp - 8`:   remainder accumulator
 
-    All slots are 8-byte aligned and remain within positive 12-bit LD/SD
-    offsets from `x12`. -/
-def mulmodProductLowBase : BitVec 12 := 96
+    All scratch slots are 8-byte aligned and lie in the free region below
+    the stack pointer (negative 12-bit LD/SD offsets from `x12`), mirroring
+    DIV's `sp + signExtend12 3936..` layout. -/
+def mulmodProductLowBase : BitVec 12 := 3936
 
 /-- High half of the full `a * b` product. See `mulmodProductLowBase`. -/
-def mulmodProductHighBase : BitVec 12 := 128
+def mulmodProductHighBase : BitVec 12 := 3968
 
 /-- All eight product-limb offsets, low half first then high half. -/
 def mulmodProductOffsets : List (BitVec 12) :=
-  [96, 104, 112, 120, 128, 136, 144, 152]
+  [3936, 3944, 3952, 3960, 3968, 3976, 3984, 3992]
 
 /-- Zero the product window before accumulating partial products. -/
 def evm_mulmod_product_zero : Program :=
-  SD .x12 .x0 96 ;;
-  SD .x12 .x0 104 ;;
-  SD .x12 .x0 112 ;;
-  SD .x12 .x0 120 ;;
-  SD .x12 .x0 128 ;;
-  SD .x12 .x0 136 ;;
-  SD .x12 .x0 144 ;;
-  SD .x12 .x0 152
+  SD .x12 .x0 3936 ;;
+  SD .x12 .x0 3944 ;;
+  SD .x12 .x0 3952 ;;
+  SD .x12 .x0 3960 ;;
+  SD .x12 .x0 3968 ;;
+  SD .x12 .x0 3976 ;;
+  SD .x12 .x0 3984 ;;
+  SD .x12 .x0 3992
 
 /-- Propagate the carry in `x10` through product result limbs.
 
@@ -103,22 +108,22 @@ def evm_mulmod_product_add_partial
     The first four limbs are `pL`; the last four limbs are `pH`. -/
 def evm_mulmod_product_layout : Program :=
   evm_mulmod_product_zero ;;
-  evm_mulmod_product_add_partial 0 32 96 104 [112, 120, 128, 136, 144, 152] ;;
-  evm_mulmod_product_add_partial 8 32 104 112 [120, 128, 136, 144, 152] ;;
-  evm_mulmod_product_add_partial 0 40 104 112 [120, 128, 136, 144, 152] ;;
-  evm_mulmod_product_add_partial 16 32 112 120 [128, 136, 144, 152] ;;
-  evm_mulmod_product_add_partial 8 40 112 120 [128, 136, 144, 152] ;;
-  evm_mulmod_product_add_partial 0 48 112 120 [128, 136, 144, 152] ;;
-  evm_mulmod_product_add_partial 24 32 120 128 [136, 144, 152] ;;
-  evm_mulmod_product_add_partial 16 40 120 128 [136, 144, 152] ;;
-  evm_mulmod_product_add_partial 8 48 120 128 [136, 144, 152] ;;
-  evm_mulmod_product_add_partial 0 56 120 128 [136, 144, 152] ;;
-  evm_mulmod_product_add_partial 24 40 128 136 [144, 152] ;;
-  evm_mulmod_product_add_partial 16 48 128 136 [144, 152] ;;
-  evm_mulmod_product_add_partial 8 56 128 136 [144, 152] ;;
-  evm_mulmod_product_add_partial 24 48 136 144 [152] ;;
-  evm_mulmod_product_add_partial 16 56 136 144 [152] ;;
-  evm_mulmod_product_add_partial 24 56 144 152 []
+  evm_mulmod_product_add_partial 0 32 3936 3944 [3952, 3960, 3968, 3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 8 32 3944 3952 [3960, 3968, 3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 0 40 3944 3952 [3960, 3968, 3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 16 32 3952 3960 [3968, 3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 8 40 3952 3960 [3968, 3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 0 48 3952 3960 [3968, 3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 24 32 3960 3968 [3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 16 40 3960 3968 [3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 8 48 3960 3968 [3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 0 56 3960 3968 [3976, 3984, 3992] ;;
+  evm_mulmod_product_add_partial 24 40 3968 3976 [3984, 3992] ;;
+  evm_mulmod_product_add_partial 16 48 3968 3976 [3984, 3992] ;;
+  evm_mulmod_product_add_partial 8 56 3968 3976 [3984, 3992] ;;
+  evm_mulmod_product_add_partial 24 48 3976 3984 [3992] ;;
+  evm_mulmod_product_add_partial 16 56 3976 3984 [3992] ;;
+  evm_mulmod_product_add_partial 24 56 3984 3992 []
 
 theorem evm_mulmod_product_zero_length :
     evm_mulmod_product_zero.length = 8 := by rfl
@@ -336,8 +341,9 @@ theorem evm_mulmod_epilogue_byte_length :
 -- Total top-level MULMOD assembly
 -- ============================================================================
 
-/-- Remainder accumulator base for the bit-serial 512-bit reduction. -/
-def mulmodRemainderBase : BitVec 12 := 224
+/-- Remainder accumulator base for the bit-serial 512-bit reduction.
+    Lives at `sp - 32 .. sp - 8` (`4064 ≡ -32 (mod 2^12)`), below the stack. -/
+def mulmodRemainderBase : BitVec 12 := 4064
 
 /-- OR-fold the modulus limbs and branch to the nonzero path.
 
@@ -361,13 +367,13 @@ def evm_mulmod_zero_path_skip_nonzero : Program :=
 /-- Initialize the 256-bit remainder accumulator and loop cursors.
 
     `x16` points at the current product limb, starting from the highest limb at
-    `sp + 152`; `x18` counts the eight product limbs. -/
+    `sp - 104` (`3992 ≡ -104`); `x18` counts the eight product limbs. -/
 def evm_mulmod_reduce512_init : Program :=
-  SD .x12 .x0 224 ;;
-  SD .x12 .x0 232 ;;
-  SD .x12 .x0 240 ;;
-  SD .x12 .x0 248 ;;
-  ADDI .x16 .x12 152 ;;
+  SD .x12 .x0 4064 ;;
+  SD .x12 .x0 4072 ;;
+  SD .x12 .x0 4080 ;;
+  SD .x12 .x0 4088 ;;
+  ADDI .x16 .x12 3992 ;;
   ADDI .x18 .x0 8
 
 /-- One bit step of the 512-bit long reduction.
@@ -379,68 +385,68 @@ def evm_mulmod_reduce512_init : Program :=
 def evm_mulmod_reduce512_inner_step : Program :=
   SRLI .x19 .x17 63 ;;
   SLLI .x17 .x17 1 ;;
-  LD .x5 .x12 224 ;;
+  LD .x5 .x12 4064 ;;
   SRLI .x20 .x5 63 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x19 ;;
-  SD .x12 .x6 224 ;;
-  LD .x5 .x12 232 ;;
+  SD .x12 .x6 4064 ;;
+  LD .x5 .x12 4072 ;;
   SRLI .x19 .x5 63 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x20 ;;
-  SD .x12 .x6 232 ;;
-  LD .x5 .x12 240 ;;
+  SD .x12 .x6 4072 ;;
+  LD .x5 .x12 4080 ;;
   SRLI .x20 .x5 63 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x19 ;;
-  SD .x12 .x6 240 ;;
-  LD .x5 .x12 248 ;;
+  SD .x12 .x6 4080 ;;
+  LD .x5 .x12 4088 ;;
   SLLI .x6 .x5 1 ;;
   OR' .x6 .x6 .x20 ;;
-  SD .x12 .x6 248 ;;
+  SD .x12 .x6 4088 ;;
   SRLI .x8 .x5 63 ;;
   BNE .x8 .x0 (64 : BitVec 13) ;;
-  LD .x6 .x12 248 ;;
+  LD .x6 .x12 4088 ;;
   LD .x7 .x12 88 ;;
   BLTU .x7 .x6 (52 : BitVec 13) ;;
   BLTU .x6 .x7 (152 : BitVec 13) ;;
-  LD .x6 .x12 240 ;;
+  LD .x6 .x12 4080 ;;
   LD .x7 .x12 80 ;;
   BLTU .x7 .x6 (36 : BitVec 13) ;;
   BLTU .x6 .x7 (136 : BitVec 13) ;;
-  LD .x6 .x12 232 ;;
+  LD .x6 .x12 4072 ;;
   LD .x7 .x12 72 ;;
   BLTU .x7 .x6 (20 : BitVec 13) ;;
   BLTU .x6 .x7 (120 : BitVec 13) ;;
-  LD .x6 .x12 224 ;;
+  LD .x6 .x12 4064 ;;
   LD .x7 .x12 64 ;;
   BLTU .x6 .x7 (108 : BitVec 13) ;;
-  LD .x6 .x12 224 ;;
+  LD .x6 .x12 4064 ;;
   LD .x7 .x12 64 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x11 .x6 .x7 ;;
-  SD .x12 .x5 224 ;;
-  LD .x6 .x12 232 ;;
+  SD .x12 .x5 4064 ;;
+  LD .x6 .x12 4072 ;;
   LD .x7 .x12 72 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x10 .x6 .x7 ;;
   SLTU .x13 .x5 .x11 ;;
   SUB .x5 .x5 .x11 ;;
   OR' .x11 .x10 .x13 ;;
-  SD .x12 .x5 232 ;;
-  LD .x6 .x12 240 ;;
+  SD .x12 .x5 4072 ;;
+  LD .x6 .x12 4080 ;;
   LD .x7 .x12 80 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x10 .x6 .x7 ;;
   SLTU .x13 .x5 .x11 ;;
   SUB .x5 .x5 .x11 ;;
   OR' .x11 .x10 .x13 ;;
-  SD .x12 .x5 240 ;;
-  LD .x6 .x12 248 ;;
+  SD .x12 .x5 4080 ;;
+  LD .x6 .x12 4088 ;;
   LD .x7 .x12 88 ;;
   SUB .x5 .x6 .x7 ;;
   SUB .x5 .x5 .x11 ;;
-  SD .x12 .x5 248 ;;
+  SD .x12 .x5 4088 ;;
   ADDI .x15 .x15 4095 ;;
   BNE .x15 .x0 (-260 : BitVec 13)
 
@@ -455,13 +461,13 @@ def evm_mulmod_reduce512_loop : Program :=
 
 /-- Copy the finalized remainder into the EVM result slot `sp + 64..88`. -/
 def evm_mulmod_reduce512_write_result : Program :=
-  LD .x5 .x12 224 ;;
+  LD .x5 .x12 4064 ;;
   SD .x12 .x5 64 ;;
-  LD .x5 .x12 232 ;;
+  LD .x5 .x12 4072 ;;
   SD .x12 .x5 72 ;;
-  LD .x5 .x12 240 ;;
+  LD .x5 .x12 4080 ;;
   SD .x12 .x5 80 ;;
-  LD .x5 .x12 248 ;;
+  LD .x5 .x12 4088 ;;
   SD .x12 .x5 88
 
 /-- Total 512-bit-by-256-bit MULMOD reduction path. -/
@@ -640,8 +646,10 @@ def runMulModProductLayout (sp : Word)
   | some s' =>
       some (s'.getReg .x12,
         [s'.getMem (sp + 64), s'.getMem (sp + 72), s'.getMem (sp + 80), s'.getMem (sp + 88)],
-        [s'.getMem (sp + 96), s'.getMem (sp + 104), s'.getMem (sp + 112), s'.getMem (sp + 120)],
-        [s'.getMem (sp + 128), s'.getMem (sp + 136), s'.getMem (sp + 144), s'.getMem (sp + 152)])
+        [s'.getMem (sp + signExtend12 3936), s'.getMem (sp + signExtend12 3944),
+         s'.getMem (sp + signExtend12 3952), s'.getMem (sp + signExtend12 3960)],
+        [s'.getMem (sp + signExtend12 3968), s'.getMem (sp + signExtend12 3976),
+         s'.getMem (sp + signExtend12 3984), s'.getMem (sp + signExtend12 3992)])
   | none => none
 
 /-- Zero product leaves both halves zero and preserves `N`. -/
