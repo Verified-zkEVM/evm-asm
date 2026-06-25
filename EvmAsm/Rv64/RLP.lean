@@ -141,3 +141,4 @@ import EvmAsm.Rv64.RLP.Phase6WriteOutput
 import EvmAsm.Rv64.RLP.Phase6DecodeWrite
 import EvmAsm.Rv64.RLP.Phase6Pipeline
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortBytesValidated
+import EvmAsm.Rv64.RLP.UnifiedDecodeItemSingleByteValidated

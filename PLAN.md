@@ -1932,6 +1932,33 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
     record to `publicValues` and recovering every field value. Concrete end-to-end example: the host
     supplies `[0xc4,0x2a,0x82,0x01,0x02]` at `0x2000`, decoded to `0x3000` and committed.
     Axiom-clean, 0 sorry, no `bv_decide`/`native_decide`, no heartbeat overrides.
+### EL.4 Untrusted-input RLP decoders (#9373, in progress)
+The Phase-1..6 decoder above assumes the input is a well-formed encoding (precondition
+`bs = encode(...) ++ tail`). Issue #9373 wants decoders over **untrusted** input whose spec covers
+both outcomes: valid RLP of the expected shape → success, else → **fail** (nonzero `a0`); plus
+**specialized** per-shape decoders (header/tx/MPT) that **abort early** the moment a fixed-arity list
+shows more elements than expected (no decode-then-count). Layering:
+- **Phase A — pure rejection bridges (done).** `EvmAsm/EL/RLP/{ByteStringDecodeBridge,ListDecodeBridge,
+  ReadLength,FullDecode}.lean` give per-class `…_eq_some_iff` AND `…_eq_none_of_*` characterizations
+  (OOB length, leading-zero/`≤55` non-canonical long form, single-byte-not-wrapped, list leftover) — the
+  verdicts a validating decoder discharges. The pure `decode`/`decodeFully`/`decodeScalar` already reject
+  every invalidity class.
+- **Phase B — RV64 validating decoders (in progress).** 2-exit `cpsBranchWithin` with `⌜decode = some…⌝`
+  / `⌜decode = none⌝` posts and NO validity hypotheses; untrusted-length contract `x15 = L`
+  (the codegen K20 model), a thin wrapper sets `a0`.
+  - ✅ **B.1 — validating shortBytes (non-singleton)** (`UnifiedDecodeItemShortBytesValidated.lean`,
+    `rlp_decode_shortBytes_validated`): handler ⨾ `BLTU x11, x15` bound check. Taken (`len < L`) ⇒
+    `decode = some (.bytes …)`; fall ⇒ `decode = none` (truncated). `payloadLen ≠ 1` (singleton-canonical
+    check vacuous).
+  - ✅ **B.2 — validating singleByte** (`UnifiedDecodeItemSingleByteValidated.lean`,
+    `rlp_decode_singleByte_validated`): a canonical single byte always decodes, so a single-exit
+    `cpsTripleWithin` carrying `⌜decode = some (.bytes [pfx], rest)⌝`; full untrusted-decoder register/mem
+    interface framed through the e1 handler. No failure case. Axiom-clean, concrete `0x42` example.
+  - ⏳ **Next**: `0x81` singleton-canonical sub-branch (drops `hns`, completes shortBytes); longBytes
+    (bound + leading-zero/`≤55` rejection); shortList/longList payload-window; 5-way unified validating
+    decoder; then the early-abort field walker (Step 2) → block-header decoder (Step 3, target order:
+    header → EIP-1559 tx → MPT node → legacy tx).
+
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
   C ABI.
