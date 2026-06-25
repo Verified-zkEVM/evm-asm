@@ -226,4 +226,23 @@ theorem untilFuelM_one_pure {α} (g : α → Bool) (init : α) (f : α → SailM
   rw [untilFuelM_one]
   simp only [pure_bind, bind_pure]
 
+/-- **Lemma #7 — `pmaCheck` permits an aligned readable Load.** If `paddr` lies in a PMA
+    region (`matching_pma_region` finds it) that is `readable` and the access is aligned,
+    a `Load Data` PMA check (with `PBMT_PMA`, non-reservation) returns `none` (permitted),
+    leaving the state untouched. Region membership/readability are taken abstractly so
+    this is independent of the concrete `sail_model_init` region list. -/
+theorem pmaCheck_load_ok (paddr : physaddr) (width : Nat) (s : SailState)
+    (regions : List PMA_Region) (region : PMA_Region)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions paddr width = some region)
+    (h_read : region.attributes.readable = true)
+    (h_align : is_aligned_paddr paddr width = true) :
+    pmaCheck paddr width (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA false s
+      = .ok none s := by
+  unfold pmaCheck
+  simp +decide [PreSail.readReg, h_reg, h_match, override_PMA, h_align, h_read,
+    pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get,
+    Sail.assert, PreSail.assert]
+
 end EvmAsm.Rv64.SailEquiv
