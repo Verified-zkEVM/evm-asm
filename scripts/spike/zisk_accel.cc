@@ -254,6 +254,42 @@ static bn_ptr bls_inv(const BIGNUM* a, BN_CTX* ctx) {
 }
 #endif
 
+// ---- BN254 (alt_bn128) field ops (CSR 0x806/0x807 curve, 0x808-0x80a Fp2) ---
+// Field prime p = 21888242871839275222246405745257275088548364400416034343698204186575808495617.
+// Curve G1 points are affine x||y, each 4 LE u64 (BN254 is 254-bit; fits 256 bits).
+// Fp2 = Fp[u]/(u^2+1): elements c0||c1, each 4 LE u64 (32 bytes per component).
+#if defined(__APPLE__)
+static const cpp_int BN254_P("0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd45");
+static inline cpp_int bn254_mod(cpp_int x){ x %= BN254_P; if (x < 0) x += BN254_P; return x; }
+static inline cpp_int bn254_inv(const cpp_int& a){ return powm(bn254_mod(a), BN254_P - 2, BN254_P); }
+static void wr_limbs254(processor_t* p, reg_t a, cpp_int v, int n) {
+  v = bn254_mod(v);
+  for (int i = 0; i < n; ++i) {
+    uint64_t l = (v & (cpp_int)0xffffffffffffffffULL).convert_to<uint64_t>();
+    gstore(p, a + 8*i, l);
+    v >>= 64;
+  }
+}
+#else
+static const BIGNUM* bn254_p() {
+  static BIGNUM* p = nullptr;
+  if (!p) BN_hex2bn(&p, "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd45");
+  return p;
+}
+static bn_ptr bn254_add(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn(); BN_mod_add(r.get(), a, b, bn254_p(), ctx); return r;
+}
+static bn_ptr bn254_sub(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn(); BN_mod_sub(r.get(), a, b, bn254_p(), ctx); return r;
+}
+static bn_ptr bn254_mul(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn(); BN_mod_mul(r.get(), a, b, bn254_p(), ctx); return r;
+}
+static bn_ptr bn254_inv(const BIGNUM* a, BN_CTX* ctx) {
+  return bn_ptr(BN_mod_inverse(nullptr, a, bn254_p(), ctx));
+}
+#endif
+
 // ---- accelerator CSR base --------------------------------------------------
 class accel_csr_t : public csr_t {
  public:
@@ -597,6 +633,131 @@ class blake2b_round_csr_t : public accel_csr_t {
   }
 };
 
+// 0x806: BN254 (alt_bn128) affine point add.  param -> {ptr p1, ptr p2};
+// result in-place on *p1. Points are 64-byte records: x (4 LE u64) at +0,
+// y (4 LE u64) at +32. Requires x1 != x2 (infinity / equal-x / doubling
+// handled by guest wrappers). Mirrors secp_add_csr_t over the BN254 prime.
+class bn254_curve_add_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t p1 = gload(proc, param + 0), p2 = gload(proc, param + 8);
+#if defined(__APPLE__)
+    cpp_int x1 = rd_limbs(proc, p1, 4), y1 = rd_limbs(proc, p1 + 32, 4);
+    cpp_int x2 = rd_limbs(proc, p2, 4), y2 = rd_limbs(proc, p2 + 32, 4);
+    cpp_int s  = bn254_mod((y2 - y1) * bn254_inv(x2 - x1));
+    cpp_int xr = bn254_mod(s * s - x1 - x2);
+    cpp_int yr = bn254_mod(s * (x1 - xr) - y1);
+    wr_limbs254(proc, p1, xr, 4); wr_limbs254(proc, p1 + 32, yr, 4);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr x1 = read_bigint(proc, p1, 4), y1 = read_bigint(proc, p1 + 32, 4);
+    bn_ptr x2 = read_bigint(proc, p2, 4), y2 = read_bigint(proc, p2 + 32, 4);
+    bn_ptr dy = bn254_sub(y2.get(), y1.get(), ctx.get());
+    bn_ptr dx = bn254_sub(x2.get(), x1.get(), ctx.get());
+    bn_ptr inv = bn254_inv(dx.get(), ctx.get());
+    bn_ptr slope = bn254_mul(dy.get(), inv.get(), ctx.get());
+    bn_ptr slope2 = bn254_mul(slope.get(), slope.get(), ctx.get());
+    bn_ptr tmp = bn254_sub(slope2.get(), x1.get(), ctx.get());
+    bn_ptr xr = bn254_sub(tmp.get(), x2.get(), ctx.get());
+    bn_ptr x1_minus_xr = bn254_sub(x1.get(), xr.get(), ctx.get());
+    bn_ptr sy = bn254_mul(slope.get(), x1_minus_xr.get(), ctx.get());
+    bn_ptr yr = bn254_sub(sy.get(), y1.get(), ctx.get());
+    write_bigint(proc, p1, xr.get(), 4); write_bigint(proc, p1 + 32, yr.get(), 4);
+#endif
+    return false;
+  }
+};
+
+// 0x807: BN254 affine point double, in-place on the 64-byte point at param.
+// Requires y != 0 (infinity handled by the guest wrapper).
+class bn254_curve_dbl_csr_t : public accel_csr_t {
+ public:
+  using accel_csr_t::accel_csr_t;
+  bool unlogged_write(const reg_t param) noexcept override {
+#if defined(__APPLE__)
+    cpp_int x = rd_limbs(proc, param, 4), y = rd_limbs(proc, param + 32, 4);
+    cpp_int s  = bn254_mod(3 * x * x * bn254_inv(2 * y));
+    cpp_int xr = bn254_mod(s * s - 2 * x);
+    cpp_int yr = bn254_mod(s * (x - xr) - y);
+    wr_limbs254(proc, param, xr, 4); wr_limbs254(proc, param + 32, yr, 4);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr x = read_bigint(proc, param, 4), y = read_bigint(proc, param + 32, 4);
+    bn_ptr three = make_bn(), two = make_bn();
+    BN_set_word(three.get(), 3);
+    BN_set_word(two.get(), 2);
+    bn_ptr x2 = bn254_mul(x.get(), x.get(), ctx.get());
+    bn_ptr num = bn254_mul(three.get(), x2.get(), ctx.get());
+    bn_ptr denom = bn254_mul(two.get(), y.get(), ctx.get());
+    bn_ptr inv = bn254_inv(denom.get(), ctx.get());
+    bn_ptr slope = bn254_mul(num.get(), inv.get(), ctx.get());
+    bn_ptr slope2 = bn254_mul(slope.get(), slope.get(), ctx.get());
+    bn_ptr two_x = bn254_mul(two.get(), x.get(), ctx.get());
+    bn_ptr xr = bn254_sub(slope2.get(), two_x.get(), ctx.get());
+    bn_ptr x_minus_xr = bn254_sub(x.get(), xr.get(), ctx.get());
+    bn_ptr sy = bn254_mul(slope.get(), x_minus_xr.get(), ctx.get());
+    bn_ptr yr = bn254_sub(sy.get(), y.get(), ctx.get());
+    write_bigint(proc, param, xr.get(), 4); write_bigint(proc, param + 32, yr.get(), 4);
+#endif
+    return false;
+  }
+};
+
+// 0x808/0x809/0x80a: BN254 Fp2 add/sub/mul over Fp[u]/(u^2+1).
+// param -> {&f1, &f2}; result in-place on *f1. Each Fp2 element is 64 bytes:
+// c0 (4 LE u64) at +0, c1 (4 LE u64) at +32. Mirrors bls12_fp2_csr_t over the
+// BN254 prime (4 limbs per component instead of 6).
+class bn254_fp2_csr_t : public accel_csr_t {
+ public:
+  enum op_t { add, sub, mul };
+  bn254_fp2_csr_t(processor_t* p, reg_t addr, op_t op): accel_csr_t(p, addr), op(op) {}
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t f1 = gload(proc, param + 0), f2 = gload(proc, param + 8);
+#if defined(__APPLE__)
+    cpp_int a0 = rd_limbs(proc, f1, 4), a1 = rd_limbs(proc, f1 + 32, 4);
+    cpp_int b0 = rd_limbs(proc, f2, 4), b1 = rd_limbs(proc, f2 + 32, 4);
+    cpp_int r0 = 0, r1 = 0;
+    if (op == add) {
+      r0 = a0 + b0;
+      r1 = a1 + b1;
+    } else if (op == sub) {
+      r0 = a0 - b0;
+      r1 = a1 - b1;
+    } else {
+      r0 = a0 * b0 - a1 * b1;
+      r1 = a0 * b1 + a1 * b0;
+    }
+    wr_limbs254(proc, f1, r0, 4);
+    wr_limbs254(proc, f1 + 32, r1, 4);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr a0 = read_bigint(proc, f1, 4), a1 = read_bigint(proc, f1 + 32, 4);
+    bn_ptr b0 = read_bigint(proc, f2, 4), b1 = read_bigint(proc, f2 + 32, 4);
+    bn_ptr r0, r1;
+    if (op == add) {
+      r0 = bn254_add(a0.get(), b0.get(), ctx.get());
+      r1 = bn254_add(a1.get(), b1.get(), ctx.get());
+    } else if (op == sub) {
+      r0 = bn254_sub(a0.get(), b0.get(), ctx.get());
+      r1 = bn254_sub(a1.get(), b1.get(), ctx.get());
+    } else {
+      bn_ptr a0b0 = bn254_mul(a0.get(), b0.get(), ctx.get());
+      bn_ptr a1b1 = bn254_mul(a1.get(), b1.get(), ctx.get());
+      bn_ptr a0b1 = bn254_mul(a0.get(), b1.get(), ctx.get());
+      bn_ptr a1b0 = bn254_mul(a1.get(), b0.get(), ctx.get());
+      r0 = bn254_sub(a0b0.get(), a1b1.get(), ctx.get());
+      r1 = bn254_add(a0b1.get(), a1b0.get(), ctx.get());
+    }
+    write_bigint(proc, f1, r0.get(), 4);
+    write_bigint(proc, f1 + 32, r1.get(), 4);
+#endif
+    return false;
+  }
+ private:
+  op_t op;
+};
+
 // Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
 // we can see which a given block needs, instead of silently raising illegal-insn.
 class unimpl_csr_t : public accel_csr_t {
@@ -629,11 +790,13 @@ class zisk_accel_t : public extension_t {
       std::make_shared<arith384_csr_t>(&p, 0x80b),
       std::make_shared<bls12_curve_add_csr_t>(&p, 0x80c),
       std::make_shared<bls12_curve_dbl_csr_t>(&p, 0x80d),
+      std::make_shared<bn254_curve_add_csr_t>(&p, 0x806),
+      std::make_shared<bn254_curve_dbl_csr_t>(&p, 0x807),
+      std::make_shared<bn254_fp2_csr_t>(&p, 0x808, bn254_fp2_csr_t::add),
+      std::make_shared<bn254_fp2_csr_t>(&p, 0x809, bn254_fp2_csr_t::sub),
+      std::make_shared<bn254_fp2_csr_t>(&p, 0x80a, bn254_fp2_csr_t::mul),
     };
-    // register the not-yet-implemented accelerator CSRs as logging stubs so a
-    // run reveals exactly which ones a block exercises.
-    for (reg_t a : {0x806,0x807,0x808,0x809,0x80a})
-      v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
+    // All accelerator CSRs are now implemented — no stubs remain.
     return v;
   }
 };
