@@ -99,7 +99,7 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 | Shift | SHR, SHL, SAR | 90 / 90 / 95 | ✅ Fully proved |
 | Comparison | ISZERO, LT, GT, EQ, SLT, SGT | 12 / 26 / 26 / 21 / 25 / 25 | ✅ Fully proved |
 | Byte/SignExt | BYTE, SIGNEXTEND | 45 / 48 | ✅ Fully proved |
-| Stack | POP, PUSH0, DUP1-16, SWAP1-16 | 1 / 5 / 9 / 16 | ✅ Fully proved |
+| Stack | POP, PUSH0, PUSH1-32, DUP1-16, SWAP1-16 | 1 / 5 / (5+2n) / 9 / 16 | ✅ Fully proved |
 
 **Deleted spec files** (incomplete CodeReq migration, easier to recreate):
 - ~~`ShiftSpec.lean`~~ — ✅ Recreated as `LimbSpec.lean` (SHR) + `ShlSpec.lean` (SHL) + `Compose.lean` + `ShlCompose.lean` + `Semantic.lean` + `ShlSemantic.lean`
@@ -672,12 +672,21 @@ All phases below target **Evm64** primarily. Files are under `EvmAsm/Evm64/`.
   Added `signExtend12_ofNat_small` and `evmStackIs_split_at` to `Stack.lean`.
 - Covers 34 opcodes (POP, PUSH0, DUP1-16, SWAP1-16) with one proof each. Fully proved.
 
-#### 3.2 PUSH1-32
-- **File**: `Evm64/StackOps.lean`
-- **Approach**: Requires EVM bytecode parsing. Push immediate from EVM code
-  region. Read 1-32 bytes from code[pc+1..pc+n], zero-extend to 256 bits,
-  push onto stack.
-- **Depends on**: EVM code region model (Phase 5.1)
+#### ~~3.2 PUSH1-32~~ ✅
+- **Files**: `Evm64/Push/Program.lean` (`evm_push n`, `5 + 2n` instrs),
+  `Evm64/Push/Spec.lean` (PUSH0/PUSH1 + zero-slot prefix + `pushImmediateWord`),
+  `Evm64/Push/ImmediateCompose.lean` (the full `n`-byte composition)
+- **Approach**: Read `n` immediate bytes from the EVM code region
+  (`code[codePtr+1 .. codePtr+n]`), big-endian, into the freshly-allocated
+  32-byte stack slot. The full spec models BOTH the code source and the stack
+  slot as byte-addressable `bytesRegion`s (`Rv64/MemRegion.lean`), sidestepping
+  the symbolic-limb case split (immediate byte `i` lands in limb `(n-1-i)/8`,
+  not concrete for symbolic `n`). Inductive `n`-byte copy chain composed via
+  `cpsTripleWithin_seq` + `ofProg_append`, then folded back to
+  `evmStackIs nsp (pushImmediateWord n byteAt :: rest)`.
+- **Status**: `evm_push_stack_spec_within` (`1 ≤ n ≤ 32`) — complete
+  unconditional stack spec, 0 sorry, trust base = 3 classical axioms. Registry
+  `PUSH2..32` lifted `.partly → .proven` (31 byte-codes). PUSH0/PUSH1 already proven.
 
 ### Phase 4: Remaining Arithmetic
 
