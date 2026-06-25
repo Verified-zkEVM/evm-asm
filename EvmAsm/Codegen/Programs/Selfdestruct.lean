@@ -562,6 +562,23 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
   "  la a0, sdai_origin_address\n  mv a1, sp\n  mv a2, sp\n  li a3, 0\n  li a4, 0\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
+  -- c83ty.1: remember same-tx-created accounts queued for EIP-6780 deletion. A later value CALL to
+  -- that address credits the live account, but the end-of-transaction deletion burns the accumulated
+  -- balance. The CALL value-effect producer consults this table and appends a final zero-balance
+  -- effect after the credit so the all-accounts final comparator sees BAL final 0.
+  "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0)\n" ++
+  "  li t2, " ++ toString selfdestructDestroyedAddressCap ++ "\n" ++
+  "  bgeu t1, t2, .L_sdbn_destroyed_overflow\n" ++
+  "  slli t2, t1, 5; la t3, evm_selfdestruct_destroyed_table; add t3, t3, t2\n" ++
+  "  la t4, sdai_origin_address; li t5, 20\n" ++
+  ".L_sdbn_destroyed_copy:\n" ++
+  "  beqz t5, .L_sdbn_destroyed_copied\n" ++
+  "  lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .L_sdbn_destroyed_copy\n" ++
+  ".L_sdbn_destroyed_copied:\n" ++
+  "  addi t1, t1, 1; sd t1, 0(t0); j .L_sdbn_destroyed_done\n" ++
+  ".L_sdbn_destroyed_overflow:\n" ++
+  "  la t0, evm_selfdestruct_destroyed_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".L_sdbn_destroyed_done:\n" ++
   -- transferred != 0 ?  (sp+32..63 BE)
   "  ld t0, 32(sp); ld t1, 40(sp); or t0, t0, t1; ld t1, 48(sp); or t0, t0, t1; ld t1, 56(sp); or t0, t0, t1\n" ++
   "  beqz t0, .L_sdbn_ci_restore\n" ++

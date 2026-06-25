@@ -124,10 +124,10 @@ def modexpPrecompileGasAsm
   "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
   "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
   "  add x18, x13, x18\n" ++
-  modexpReadLengthAsm suffix 0 "x21" ++
+  modexpReadLengthAsm suffix 0 "x5" ++
   modexpReadLengthAsm suffix 32 "x22" ++
   modexpReadLengthAsm suffix 64 "x23" ++
-  "  mv x24, x21\n" ++
+  "  mv x24, x5\n" ++
   "  bgeu x24, x23, .Lmodexp_max_done_" ++ suffix ++ "\n" ++
   "  mv x24, x23\n" ++
   ".Lmodexp_max_done_" ++ suffix ++ ":\n" ++
@@ -151,7 +151,7 @@ def modexpPrecompileGasAsm
   "  li x29, 0\n" ++
   ".Lmodexp_head_loop_" ++ suffix ++ ":\n" ++
   "  beq x29, x28, .Lmodexp_head_done_zero_" ++ suffix ++ "\n" ++
-  "  addi x31, x21, 96\n" ++
+  "  addi x31, x5, 96\n" ++
   "  add x31, x31, x29\n" ++
   "  bgeu x31, x17, .Lmodexp_head_missing_" ++ suffix ++ "\n" ++
   "  add x31, x18, x31\n" ++
@@ -193,16 +193,16 @@ def modexpPrecompileGasAsm
   "  mv x16, x31\n" ++
   ".Lmodexp_cost_done_" ++ suffix ++ ":\n" ++
   chargePrecompileGasAsm "x16" "x31" ++
-  "  or x24, x21, x23\n" ++
+  "  or x24, x5, x23\n" ++
   "  beqz x24, 7b\n" ++
   "  beqz x23, 7b\n" ++
   "  li x31, 4\n" ++
-  "  bltu x31, x21, .Lmodexp_backend_" ++ suffix ++ "\n" ++
+  "  bltu x31, x5, .Lmodexp_backend_" ++ suffix ++ "\n" ++
   "  bltu x31, x22, .Lmodexp_backend_" ++ suffix ++ "\n" ++
   "  bltu x31, x23, .Lmodexp_backend_" ++ suffix ++ "\n" ++
   "  li x30, 96\n" ++
-  modexpReadSmallComponentAsm suffix "base" "x30" "x21" "x24" ++
-  "  add x30, x30, x21\n" ++
+  modexpReadSmallComponentAsm suffix "base" "x30" "x5" "x24" ++
+  "  add x30, x30, x5\n" ++
   modexpReadSmallComponentAsm suffix "exp" "x30" "x22" "x25" ++
   "  add x30, x30, x22\n" ++
   modexpReadSmallComponentAsm suffix "mod" "x30" "x23" "x26" ++
@@ -259,21 +259,23 @@ def modexpPrecompileGasAsm
   "  j 7b\n" ++
   ".Lmodexp_backend_" ++ suffix ++ ":\n" ++
   "  li x30, 96\n" ++
-  modexpStageComponentAsm suffix "base" "x30" "x21" "modexp_base_scratch" ++
-  "  add x30, x30, x21\n" ++
+  modexpStageComponentAsm suffix "base" "x30" "x5" "modexp_base_scratch" ++
+  "  add x30, x30, x5\n" ++
   modexpStageComponentAsm suffix "exp" "x30" "x22" "modexp_exp_scratch" ++
   "  add x30, x30, x22\n" ++
   modexpStageComponentAsm suffix "modulus" "x30" "x23" "modexp_modulus_scratch" ++
+  "  mv s9, x13\n" ++
   "  mv s10, x10\n" ++
   "  mv s11, x12\n" ++
   "  la a0, modexp_base_scratch\n" ++
-  "  mv a1, x21\n" ++
+  "  mv a1, x5\n" ++
   "  la a2, modexp_exp_scratch\n" ++
   "  mv a3, x22\n" ++
   "  la a4, modexp_modulus_scratch\n" ++
   "  mv a5, x23\n" ++
   "  la a6, modexp_output_scratch\n" ++
   "  jal x1, zkvm_modexp\n" ++
+  "  mv x13, s9\n" ++
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
   "  la x15, evm_precompile_frame\n" ++

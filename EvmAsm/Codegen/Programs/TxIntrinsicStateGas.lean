@@ -561,10 +561,12 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  add t2, s3, t1; sd t3, 0(t2)\n" ++                              -- bvgr_receipt_gas_increments[i] = receipt
   "  j .Lbvrga_next\n" ++
   ".Lbvrga_type4_store_before_refund:\n" ++
-  -- bbow4.2.5.7: successful authorization-only transactions can land here
-  -- because before_refund equals the 21000 calldata floor while the dispatcher
+  -- bbow4.2.5.7 / EIP-7976: successful authorization-only transactions can land
+  -- here because before_refund equals the calldata floor while the dispatcher
   -- omitted both PER_AUTH_BASE_COST and the EIP-8037 state dimension from the
-  -- receipt increment. Add those verdict-side dimensions before storing.
+  -- receipt increment. The floor is not always 21000 after EIP-7976; for any exact
+  -- floor hit, the receipt is the net state dimension plus the calldata-floor
+  -- regular dimension plus PER_AUTH_BASE_COST per authorization.
   -- bbow4.2.4: failed type-4 rows can spend a few VM gas above the calldata
   -- floor before failing, but the consensus receipt still includes the auth
   -- state-gas dimension plus PER_AUTH_BASE_COST. Gate that repair on the stored
@@ -575,7 +577,10 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  j .Lbvrga_type4_store_before_refund_with_dims\n" ++
   ".Lbvrga_type4_store_before_refund_success:\n" ++
   "  la t0, bvgr_calldata_floor; add t0, t0, t1; ld t4, 0(t0); bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
-  "  li t4, 21000; bne t3, t4, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  la t0, bvrga_auth_count; ld t4, 0(t0); beqz t4, .Lbvrga_type4_store_before_refund_raw\n" ++
+  "  li t5, 7500; mul t4, t4, t5; add t3, t3, t4\n" ++
+  "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
+  "  j .Lbvrga_type4_store_before_refund_raw\n" ++
   ".Lbvrga_type4_store_before_refund_with_dims:\n" ++
   "  add t0, s4, t1; ld t4, 0(t0); add t3, t3, t4\n" ++
   "  la t0, bvrga_auth_count; ld t0, 0(t0); li t4, 7500; mul t4, t0, t4; add t3, t3, t4\n" ++

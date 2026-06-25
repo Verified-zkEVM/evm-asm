@@ -99,12 +99,17 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  la a2, eahsr_address_scratch\n" ++
     "  ld a3, 592(x20)\n" ++         -- witness.state ptr
     "  ld a4, 600(x20)\n" ++         -- witness.state len
-    "  ld a5, 8(sp)\n" ++            -- saved EVM stack ptr; a2 aliases x12
+    "  la a5, rsbd_hash\n" ++        -- helper writes canonical hash bytes; stack needs word order below
     "  jal ra, extcodehash_at_header_state_root\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
     "  ld x13, 24(sp)\n" ++
+    "  la t0, rsbd_hash; addi t0, t0, 31; mv t1, x12; li t2, 32\n" ++
+    ".Lextcodehash_witness_rev:\n" ++
+    "  beqz t2, .Lextcodehash_witness_rev_done\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lextcodehash_witness_rev\n" ++
+    ".Lextcodehash_witness_rev_done:\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop\n" ++

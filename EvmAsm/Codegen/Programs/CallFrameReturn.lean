@@ -123,6 +123,9 @@ def frameReturnFunction : String :=
   -- future cold access overwrites slot[count]. Success leaves it (warmth
   -- propagates up per incorporate_child_on_success).
   "  ld t0, 648(x20); la t1, evm_storage_access_count; sd t0, 0(t1)\n" ++
+  -- EIP-2929 accessed_addresses has the same rollback rule as accessed_storage_keys:
+  -- a reverted child does not propagate accounts it warmed to the parent.
+  "  ld t0, 720(x20); la t1, evm_access_account_count; sd t0, 0(t1)\n" ++
   -- i3djw/reverted-CREATE rollback: truncate global effect logs to the
   -- pre-child snapshots captured by call_frame_descend. Successful child frames
   -- keep their CREATE/CALL value effects; reverted child frames discard them.
@@ -131,6 +134,7 @@ def frameReturnFunction : String :=
   "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
   "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
   "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
+  "  ld t0, 728(x20); la t1, evm_selfdestruct_destroyed_count; sd t0, 0(t1)\n" ++
   -- 3hlnt.2.2: failed child frames restore the hot running block bloom from the
   -- child-depth checkpoint captured by call_frame_descend. Success leaves the
   -- child-updated hot bloom intact.
