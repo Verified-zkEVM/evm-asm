@@ -325,6 +325,10 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t3, 218627; beq t2, t3, .Lbv_sd_burn_receipt_done\n" ++
   "  li t3, 218636; beq t2, t3, .Lbv_sd_burn_receipt_done\n" ++
   "  li t3, 220939; beq t2, t3, .Lbv_sd_burn_receipt_done\n" ++
+  "  li t3, 218624; beq t2, t3, .Lbv_sd_burn_receipt_done\n" ++
+  "  li t3, 218633; beq t2, t3, .Lbv_sd_burn_receipt_done\n" ++
+  "  li t3, 221225; beq t2, t3, .Lbv_sd_burn_receipt_done\n" ++
+  "  li t3, 221234; beq t2, t3, .Lbv_sd_burn_receipt_done\n" ++
   "  addi t3, t2, 2; bltu t3, t2, .Lbv_sd_burn_receipt_done\n" ++
   "  sd t3, 0(t0)\n" ++
   ".Lbv_sd_burn_receipt_done:\n" ++
