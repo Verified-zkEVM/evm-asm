@@ -344,4 +344,89 @@ theorem evm_mulmod_reduce512_init_loop_spec_within
   simp only [EvmWord.getLimbN_zero]
   xperm_hyp hp
 
+/-- `write_result` with its scratch register `x5` carried as `regOwn` rather than
+    pinned: the phase's first instruction (`LD x5, [x12 + 224]`) overwrites `x5`
+    regardless of its incoming value, so the loop's owned `x5` feeds straight in. -/
+theorem evm_mulmod_reduce512_write_result_regown_spec_within (sp base : Word)
+    (r0 r1 r2 r3 m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 8 (base + 300) (base + 300 + 32) (CodeReq.ofProg base evm_mulmod_reduce512)
+      (((.x12 ↦ᵣ sp) **
+        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ m0) **
+        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ m1) **
+        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ m2) **
+        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ m3)) ** regOwn .x5)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ r3)) := by
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn ?_
+  intro v5
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hp => hp)
+    (evm_mulmod_reduce512_write_result_total_spec_within sp base v5 r0 r1 r2 r3 m0 m1 m2 m3)
+
+/-- Prologue, main loop, and result-writeback composed: after `init ;; loop`
+    leaves the reduced value `R = mulModReduceOuterFold n limbs 0 8` in the
+    accumulator window, `write_result` copies its four limbs into the EVM result
+    slots `sp + 64 .. sp + 88`. Lands at byte offset 332 (where the epilogue
+    begins). The loop's owned scratch registers and the (now-spent) product
+    window are framed across `write_result`. -/
+theorem evm_mulmod_reduce512_init_loop_wr_spec_within
+    (sp base : Word) (v16Old v18Old r0 r1 r2 r3 : Word) (n : EvmWord) (limbs : Nat → Word) :
+    cpsTripleWithin (6 + (2 + 64 * 64 + 2 + 1) * 8 + 8) base (base + 300 + 32)
+      (CodeReq.ofProg base evm_mulmod_reduce512)
+      (((.x12 ↦ᵣ sp) ** (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
+        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3)) **
+       ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+         regOwn .x13 ** regOwn .x17 ** regOwn .x15 ** regOwn .x19 ** regOwn .x20 **
+         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
+         ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
+         ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
+         ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)) **
+        limbChain (sp + signExtend12 (152 : BitVec 12)) limbs 8))
+      (((.x12 ↦ᵣ sp) **
+        (.x5 ↦ᵣ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 3) **
+        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 0) **
+        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 1) **
+        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 2) **
+        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 3) **
+        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 0) **
+        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 1) **
+        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 2) **
+        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 3)) **
+       (((.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+         regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+         regOwn .x17 ** regOwn .x19 ** regOwn .x20 ** regOwn .x16 ** regOwn .x18) **
+        limbChain (sp + signExtend12 (152 : BitVec 12)) limbs 8)) := by
+  have hil := evm_mulmod_reduce512_init_loop_spec_within sp base v16Old v18Old r0 r1 r2 r3 n limbs
+  rw [show (base : Word) + 24 + 276 = base + 300 from by bv_omega] at hil
+  have hwr := cpsTripleWithin_frameR
+    (((.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+      regOwn .x17 ** regOwn .x19 ** regOwn .x20 ** regOwn .x16 ** regOwn .x18) **
+      limbChain (sp + signExtend12 (152 : BitVec 12)) limbs 8)
+    (pcFree_sepConj (by pcFree) (limbChain_pcFree _ _ _))
+    (evm_mulmod_reduce512_write_result_regown_spec_within sp base
+      (EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 0)
+      (EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 1)
+      (EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 2)
+      (EvmWord.getLimbN (mulModReduceOuterFold n limbs (0 : EvmWord) 8) 3)
+      (EvmWord.getLimbN n 0) (EvmWord.getLimbN n 1)
+      (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 3))
+  refine cpsTripleWithin_seq_perm_same_cr ?_ hil hwr
+  intro h hp
+  unfold mulModReduceBitLoopPost mulModReduceCompareMem at hp
+  xperm_hyp hp
+
 end EvmAsm.Evm64
