@@ -17,7 +17,7 @@
   as `EvmWord.getLimbN (EvmWord.mulmod a b n) k` to match the N ≠ 0 dispatch's
   post shape. The product window and accumulator window are untouched.
 
-  Exit address: `(base + 52) + signExtend21 2100 = base + 2152`, the program
+  Exit address: `(base + 52) + signExtend21 2108 = base + 2160`, the program
   exit.
 -/
 
@@ -35,7 +35,7 @@ open EvmAsm.Evm64.MulMod.ProductAlgebra
 
 /-- Full `evm_mulmod` dispatch over the `N = 0` arm.
 
-    Entry `base`, exit `base + 2152` (the program exit). The precondition is the
+    Entry `base`, exit `base + 2160` (the program exit). The precondition is the
     ambient `evm_mulmod` machine state: `x12 ↦ sp`, the `a`/`b`/`n` argument
     windows (`sp + 0 .. sp + 88`), the eight-cell product scratch window
     (`sp + 96 .. sp + 152`, arbitrary input garbage `p0..p7`), the modular
@@ -54,7 +54,7 @@ theorem evm_mulmod_dispatch_zero_evm_mulmod_spec_within
     (v16Old v18Old r0 r1 r2 r3 : Word)
     (hnz : n = 0) :
     cpsTripleWithin (8 + (4 + 1 + 1))
-      base (base + 2152) (evm_mulmod_program_code base)
+      base (base + 2160) (evm_mulmod_program_code base)
       -- Ambient pre: identical to the N ≠ 0 dispatch PRE.
       (((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v5Old) ** (.x5 ↦ᵣ v6Old) ** (.x0 ↦ᵣ 0) **
         ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ n.getLimbN 0) **
@@ -155,8 +155,8 @@ theorem evm_mulmod_dispatch_zero_evm_mulmod_spec_within
       (fun h hp => by
         xperm_hyp hp)
       h_f0 htailF
-    -- Exit alignment: `(base + 52) + signExtend21 2100 = base + 2152`.
-    have hexit : (base + 52) + signExtend21 (2100 : BitVec 21) = base + 2152 := by
+    -- Exit alignment: `(base + 52) + signExtend21 2108 = base + 2160`.
+    have hexit : (base + 52) + signExtend21 (2108 : BitVec 21) = base + 2160 := by
       rw [BitVec.add_assoc]; congr 1
     rw [hexit] at hcomp
     -- The zeroed result slots equal `EvmWord.getLimbN (EvmWord.mulmod a b n) k`.

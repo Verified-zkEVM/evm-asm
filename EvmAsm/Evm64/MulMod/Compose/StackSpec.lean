@@ -2,7 +2,8 @@
   EvmAsm.Evm64.MulMod.Compose.StackSpec
 
   Stack-level lift of the `evm_mulmod` dispatch spec
-  (`evm_mulmod_dispatch_evm_mulmod_spec_within`) over the `N ≠ 0` arm.
+  (`evm_mulmod_dispatch_evm_mulmod_spec_within`) over the `N ≠ 0` arm
+  (`0 < n.toNat`, any modulus).
 
   The per-limb dispatch spec presents the `a` / `b` / `n` argument words and the
   `EvmWord.mulmod a b n` result word as raw limb-level memory atoms. This file
@@ -32,23 +33,23 @@ open EvmAsm.Evm64
 open EvmAsm.Evm64.MulMod.ProductAlgebra
 
 /-- Stack-level lift of `evm_mulmod_dispatch_evm_mulmod_spec_within` over the
-    `N ≠ 0` arm (`0 < n.toNat ≤ 2^255`).
+    `N ≠ 0` arm (`0 < n.toNat`, any modulus).
 
-    Identical entry/exit (`base` → `base + 2152`) and code requirement to the
+    Identical entry/exit (`base` → `base + 2160`) and code requirement to the
     dispatch spec, but the `a` / `b` / `n` argument windows are presented as
     `evmWordIs` predicates rather than four raw limb cells each, and the result
     window is `evmWordIs (sp + signExtend12 64) (EvmWord.mulmod a b n)`. The
     product scratch, modular-accumulator cells, scratch registers and `x12`
     pass through unchanged as a scratch frame. -/
-theorem evm_mulmod_stack_spec_within_nonzero_small
+theorem evm_mulmod_stack_spec_within_nonzero
     (sp base : Word) (a b n : EvmWord)
     (v5Old v6Old : Word)
     (p0 p1 p2 p3 p4 p5 p6 p7 : Word)
     (x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word)
     (v16Old v18Old r0 r1 r2 r3 : Word)
-    (hn0 : 0 < n.toNat) (hn : n.toNat ≤ 2 ^ 255) :
-    cpsTripleWithin (8 + (440 + (6 + (2 + 64 * 64 + 2 + 1) * 8 + 8 + 1)))
-      base (base + 2152) (evm_mulmod_program_code base)
+    (hn0 : 0 < n.toNat) :
+    cpsTripleWithin (8 + (440 + (6 + (2 + 66 * 64 + 2 + 1) * 8 + 8 + 1)))
+      base (base + 2160) (evm_mulmod_program_code base)
       -- Ambient pre: `a`/`b`/`n` argument words as `evmWordIs`, scratch verbatim.
       (((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v5Old) ** (.x5 ↦ᵣ v6Old) ** (.x0 ↦ᵣ 0) **
         evmWordIs (sp + signExtend12 (64 : BitVec 12)) n) **
@@ -74,7 +75,7 @@ theorem evm_mulmod_stack_spec_within_nonzero_small
         ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
         ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
         ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
-        regOwn .x8 ** regOwn .x9 ** regOwn .x14) **
+        regOwn .x9 ** regOwn .x14) **
        ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
         (((.x5 ↦ᵣ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
           ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 0) **
@@ -83,7 +84,7 @@ theorem evm_mulmod_stack_spec_within_nonzero_small
           ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
           evmWordIs (sp + signExtend12 (64 : BitVec 12)) (EvmWord.mulmod a b n)) **
          (((.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
-           regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
+           regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
            regOwn .x17 ** regOwn .x19 ** regOwn .x20 ** regOwn .x16 ** regOwn .x18) **
           limbChain (sp + signExtend12 (152 : BitVec 12)) (fun i => productLimb a b (7 - i)) 8)))) := by
   have se72 : signExtend12 (72 : BitVec 12) = (72 : Word) := by decide
@@ -106,6 +107,6 @@ theorem evm_mulmod_stack_spec_within_nonzero_small
       xperm_hyp hq)
     (evm_mulmod_dispatch_evm_mulmod_spec_within sp base a b n v5Old v6Old
       p0 p1 p2 p3 p4 p5 p6 p7 x7Old x8Old x9Old x10Old x11Old x13Old x14Old
-      v16Old v18Old r0 r1 r2 r3 hn0 hn)
+      v16Old v18Old r0 r1 r2 r3 hn0)
 
 end EvmAsm.Evm64.MulMod.Compose

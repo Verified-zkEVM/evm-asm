@@ -3,7 +3,7 @@
 
   The complete N = 0 path from the zero-store through the skip jump:
   `reduce_zero_path ;; epilogue ;; zero_path_skip_nonzero`, composed over
-  `evm_mulmod_program_code` (`base + 32` → `base + 2152`, the program exit). The
+  `evm_mulmod_program_code` (`base + 32` → `base + 2160`, the program exit). The
   zero-path body (`ZeroPathBody`) zeroes the result window and advances `x12`;
   the final `JAL` (`zero_path_skip_nonzero`) jumps over the N ≠ 0 path to the
   program exit while owning nothing, so it is framed with the (untouched)
@@ -21,7 +21,7 @@ open EvmAsm.Evm64
     program exit. -/
 theorem evm_mulmod_zero_path_tail_evm_mulmod_spec_within
     (sp m0 m1 m2 m3 base : Word) :
-    cpsTripleWithin (4 + 1 + 1) (base + 32) ((base + 52) + signExtend21 (2100 : BitVec 21))
+    cpsTripleWithin (4 + 1 + 1) (base + 32) ((base + 52) + signExtend21 (2108 : BitVec 21))
       (evm_mulmod_program_code base)
       ((.x12 ↦ᵣ sp) **
        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ m0) **

@@ -59,4 +59,28 @@ theorem mulModLimbsValue_productLimb (a b : EvmWord) :
   rw [show 64 * (7 + 1) = 64 * 8 from rfl, Nat.mod_eq_of_lt hlt] at h
   exact h
 
+/-- Total MULMOD correctness of the carry-aware reducer: from the `r = 0`
+    initial state, the carry-aware outer fold of the product limbs computes
+    `(a·b) % n` for **every** positive modulus `n` (no `n ≤ 2^255`
+    restriction). -/
+theorem mulModReduceOuterFoldCarry_productLimb_eq_mod (a b n : EvmWord)
+    (hn0 : 0 < n.toNat) :
+    (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) 0 8).toNat
+      = a.toNat * b.toNat % n.toNat := by
+  rw [mulModReduceOuterFoldCarry_toNat_zero_start n _ 8 hn0, mulModLimbsValue_productLimb]
+
+/-- EvmWord form: for every positive modulus `n` the carry-aware reducer leaves
+    exactly the EVM `MULMOD` result word `((a·b) mod n)` truncated to 256 bits.
+    Total: no `n ≤ 2^255` hypothesis, since `(a·b) % n < n < 2^256` always. -/
+theorem mulModReduceOuterFoldCarry_productLimb_eq_evmWord (a b n : EvmWord)
+    (hn0 : 0 < n.toNat) :
+    mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) 0 8
+      = BitVec.ofNat 256 (a.toNat * b.toNat % n.toNat) := by
+  have hlt256 : a.toNat * b.toNat % n.toNat < 2 ^ 256 := by
+    have h1 := Nat.mod_lt (a.toNat * b.toNat) hn0
+    have h2 : n.toNat < 2 ^ 256 := n.isLt
+    omega
+  rw [← BitVec.toNat_inj, mulModReduceOuterFoldCarry_productLimb_eq_mod a b n hn0,
+    BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt256]
+
 end EvmAsm.Evm64
