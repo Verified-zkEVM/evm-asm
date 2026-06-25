@@ -29,6 +29,12 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
   mixing function (SIGMA schedule + 8 MIX_TABLE index sets); backs the BLAKE2F
   (`0x09`, EIP-152) precompile; validated by full byte-parity on all blake2 EEST
   fixtures.
+- **arith384_mod `csrs 0x80b`** `d=(a·b+c) mod m` over 6-limb (384-bit) values with
+  a parameter-supplied modulus — mirrors `0x802` widened to 6 limbs; foundational
+  for the BLS12-381 precompiles.
+- **BLS12-381 affine point add `csrs 0x80c` / double `csrs 0x80d`** — implemented
+  with OpenSSL BIGNUM field arithmetic over the BLS12-381 base-field prime (6 limbs);
+  needed for the G1/G2 add/msm precompiles.
 - **`spike_run` runs the real stateless guest END-TO-END and is BYTE-IDENTICAL to
   ziskemu.** `scripts/spike/parity-check.sh N SEED` runs N random blocks on both
   backends and diffs the 256-byte output: **8/8 match** (contract creation,
@@ -54,17 +60,20 @@ Parity gate: `scripts/spike/parity-check.sh 8 1`
 - 2 ecalls: `read_input` (t0=0xF2: write inputBufBase=0x40000000 → [a0], len → [a1]),
   halt (a7=93). Input file layout at 0x40000000: 8-byte zero meta + 8-byte LE len + blob.
 - 17 custom accelerator CSRs (all decoded). MVP needs 0x800/0x802/0x805; the rest
-  (0x803/4 secp256k1, 0x80e/0x80f/0x810 bls12 fp2, 0x819 blake2b-round are done;
-   0x806–0x80d bn254/bls12-curve + arith384_mod remain) are precompile-only.
+  (0x803/4 secp256k1, 0x806–0x80a bn254, 0x80b arith384_mod, 0x80c/0x80d bls12-curve,
+  0x80e–0x810 bls12-fp2, 0x819 blake2b-round) are precompile-only.
   Each is one more `accel_csr_t` subclass in zisk_accel.cc; zisk semantics + param
   layouts are documented in the plan file.
 
 ## Remaining (post-MVP)
-- **Phase 2 — precompile CSRs**: implement `0x806`–`0x80d` (bn254/bls12 curve +
-  arith384_mod) so blocks calling those precompiles also reach parity. (`0x819`
-  blake2b-round is done.) Each is one more `accel_csr_t` subclass (param layouts
-  in the plan file); a run on a precompile block prints `UNIMPLEMENTED CSR 0x…`
-  showing exactly which is needed.
+- **Phase 2 — precompile CSRs**: implement the remaining `0x806`–`0x80a` (bn254
+  curve + Fp2 complex) so blocks calling those precompiles also reach parity.
+  `0x80b` (arith384_mod) and `0x80c`/`0x80d` (bls12 curve add/double) are now
+  implemented; `0x80e`–`0x810` (bls12 Fp2) landed in `cfcbdb56f`; `0x819`
+  (blake2b-round) is also done.
+  Each remaining CSR is one more `accel_csr_t` subclass (param layouts in the plan
+  file); a run on a precompile block prints `UNIMPLEMENTED CSR 0x…` showing exactly
+  which is needed.
 - **Phase 3 — selectable backend**: `scripts/codegen-eest-stateless-check.sh` supports
   `--backend ziskemu|spike` / `EEST_BACKEND=ziskemu|spike` for stateless EEST runs
   (default ziskemu). Remaining loop tooling such as `loop_run.py`/`sweep.py` can adopt
