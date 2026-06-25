@@ -4,6 +4,7 @@
   CPS spec for the shift-and-insert prefix of the MULMOD reducer inner step.
 -/
 
+import EvmAsm.Evm64.MulMod.Program
 import EvmAsm.Evm64.MulMod.ReduceCompare
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.RunBlock
@@ -168,5 +169,104 @@ theorem evm_mulmod_reduce512_inner_step_shift_prefix_spec_within
       sp base x17Old r0 r1 r2 r3 v5 v6 v19 v20
   rw [mulModReduceShiftPrefixRawPost_eq_folded] at hraw
   exact hraw
+
+/-- The shift prefix (instructions 0–20) is subsumed by the full inner-step
+    CodeReq. (Mirrors `evm_mulmod_reduce512_inner_step_shift_prefix_code_sub`
+    in `ReduceInnerStepSpecs`, which is downstream of this file.) -/
+private theorem inner_step_shift_prefix_code_sub (base : Word) :
+    ∀ a i, evm_mulmod_reduce512_inner_step_shift_prefix_code base a = some i →
+      CodeReq.ofProg base evm_mulmod_reduce512_inner_step a = some i := by
+  unfold evm_mulmod_reduce512_inner_step_shift_prefix_code
+  refine CodeReq.ofProg_mono_sub base base
+    evm_mulmod_reduce512_inner_step evm_mulmod_reduce512_inner_step_shift_prefix
+    0 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 0) = (0 : Word) by decide]
+    bv_omega
+  · rfl
+  · decide
+  · decide
+
+/-- The new `SRLI .x8 .x5 63` at byte offset 84 (program index 21) of
+    `evm_mulmod_reduce512_inner_step` is subsumed by the full-step CodeReq. -/
+private theorem inner_step_srli_carry_code_sub (base : Word) :
+    ∀ a i, CodeReq.singleton (base + 84) (.SRLI .x8 .x5 (63 : BitVec 6)) a = some i →
+      CodeReq.ofProg base evm_mulmod_reduce512_inner_step a = some i := by
+  rw [← CodeReq.ofProg_singleton]
+  refine CodeReq.ofProg_mono_sub base (base + 84)
+    evm_mulmod_reduce512_inner_step [.SRLI .x8 .x5 (63 : BitVec 6)]
+    21 ?_ ?_ ?_ ?_
+  · rw [show BitVec.ofNat 64 (4 * 21) = (84 : Word) by decide]
+  · rfl
+  · decide
+  · decide
+
+/-- Shift prefix spec extended by the new carry-capturing `SRLI .x8 .x5 63`
+    (program index 21, byte offset 84 → 88), over the full inner-step CodeReq.
+
+    After the 21-instruction shift cascade, `.x5 ↦ᵣ r3` holds the pre-shift high
+    limb (the 4th remainder limb), so `SRLI .x8 .x5 63` writes `x8 = r3 >>> 63`,
+    i.e. the remainder's bit 255 — the carry-out the old code discarded. -/
+theorem evm_mulmod_reduce512_inner_step_shift_prefix_carry_spec_within
+    (sp base x17Old r0 r1 r2 r3 v5 v6 v19 v20 x8Old : Word) :
+    cpsTripleWithin 22 base (base + 88)
+      (CodeReq.ofProg base evm_mulmod_reduce512_inner_step)
+      ((.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ x17Old) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+       (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x8 ↦ᵣ x8Old) **
+       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3))
+      (mulModReduceShiftPrefixPost sp x17Old r0 r1 r2 r3 ** (.x8 ↦ᵣ (r3 >>> 63))) := by
+  -- Prefix: 21 instructions, base → base+84, framed with `.x8 ↦ᵣ x8Old`.
+  have hprefix :=
+    cpsTripleWithin_frameR (.x8 ↦ᵣ x8Old) pcFree_regIs
+      (cpsTripleWithin_extend_code
+        (hmono := inner_step_shift_prefix_code_sub base)
+        (h := evm_mulmod_reduce512_inner_step_shift_prefix_spec_within
+          sp base x17Old r0 r1 r2 r3 v5 v6 v19 v20))
+  -- SRLI step: 1 instruction, base+84 → base+88, reads x5 = r3, writes x8.
+  have hsrli :=
+    cpsTripleWithin_extend_code
+      (hmono := inner_step_srli_carry_code_sub base)
+      (h := srli_spec_gen_within .x8 .x5 x8Old r3 (63 : BitVec 6) (base + 84) (by decide))
+  rw [show (63 : BitVec 6).toNat = 63 by decide] at hsrli
+  rw [show base + 84 + 4 = base + 88 by bv_omega] at hsrli
+  -- The frame for the SRLI: every atom of the folded prefix post except `.x5`.
+  set shifted :=
+    mulModReduceShiftInBit (mulModReduceRemWord r0 r1 r2 r3) (mulModReduceInputBit x17Old)
+    with hshifted
+  have hstep :
+      cpsTripleWithin 1 (base + 84) (base + 88)
+        (CodeReq.ofProg base evm_mulmod_reduce512_inner_step)
+        (mulModReduceShiftPrefixPost sp x17Old r0 r1 r2 r3 ** (.x8 ↦ᵣ x8Old))
+        (mulModReduceShiftPrefixPost sp x17Old r0 r1 r2 r3 ** (.x8 ↦ᵣ (r3 >>> 63))) := by
+    have hframed :=
+      cpsTripleWithin_frameR
+        ((.x12 ↦ᵣ sp) ** (.x17 ↦ᵣ (x17Old <<< 1)) ** (.x6 ↦ᵣ shifted.getLimbN 3) **
+         (.x19 ↦ᵣ (r1 >>> 63)) ** (.x20 ↦ᵣ (r2 >>> 63)) **
+         ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ shifted.getLimbN 0) **
+         ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ shifted.getLimbN 1) **
+         ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ shifted.getLimbN 2) **
+         ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ shifted.getLimbN 3))
+        (by
+          repeat first
+            | exact pcFree_regIs
+            | exact pcFree_memIs
+            | apply pcFree_sepConj)
+        hsrli
+    refine cpsTripleWithin_weaken ?_ ?_ hframed
+    · intro h hp
+      unfold mulModReduceShiftPrefixPost at hp
+      simp only [← hshifted] at hp
+      xperm_hyp hp
+    · intro h hp
+      unfold mulModReduceShiftPrefixPost
+      simp only [← hshifted]
+      xperm_hyp hp
+  -- Sequence prefix then SRLI step (same CodeReq), then fix entry/exit shape.
+  have hcomp := cpsTripleWithin_seq_same_cr hprefix hstep
+  refine cpsTripleWithin_weaken ?_ (fun _ hp => hp) hcomp
+  intro h hp
+  xperm_hyp hp
 
 end EvmAsm.Evm64
