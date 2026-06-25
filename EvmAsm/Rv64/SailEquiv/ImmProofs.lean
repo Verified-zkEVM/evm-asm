@@ -12,7 +12,7 @@
 
 import EvmAsm.Rv64.SailEquiv.ALUProofs  -- for reg_ne_* and reg_agree_after_insert
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv

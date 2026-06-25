@@ -18,7 +18,7 @@
 
 import EvmAsm.Rv64.SailEquiv.ALUProofs
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv

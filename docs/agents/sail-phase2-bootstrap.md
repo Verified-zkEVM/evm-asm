@@ -4,10 +4,21 @@
 scoped RV64IM Lean model into evm-asm, build it in-project, drop the moving
 `dhsorens` fork, and re-establish the 51 `*_sail_equiv` lemmas against it.
 
-**Status (2026-06-25):** steps 1–2 DONE. The model is **vendored, git-pinned, and
-builds 84/84 from its committed location** (commit `a2dedf448`). The next concrete
-action is **step 3 (repoint the project off dhsorens)**, which immediately flows into
-**step 4 (re-point the 51 lemmas)** — the real proof work. Start there.
+**Status (2026-06-25):** steps 1–4 DONE — **the core P2 migration is complete and
+green.** `dhsorens` is gone from `lakefile.toml`/`lake-manifest.json`; the project
+builds against the vendored model (`require out from "vendor/sail-riscv-zkvm-lean"`).
+Full `lake build EvmAsm` = **2984/2984, exit 0**. All **51 `*_sail_equiv` lemmas green**;
+axioms = `{propext, Classical.choice, Quot.sound}` only (no custom axioms, no `sorryAx`);
+no forbidden tactic in vendored or proof code. The `LeanRV64D → Out` rename was **100%
+mechanical** — the feared `bool_to_bit → bool_to_bits` rename was a PHANTOM (both old and
+new model use `bool_to_bit`; the doc below had it backwards). Residual P2 items 5–7
+(config revalidate, scoping write-up, pin gate) are tracked below and in
+`docs/agents/sail-phase3-bootstrap.md`; none block downstream proof work.
+
+**What proved out (the two real risks, both retired):**
+- lean-sail **v4 + mathlib-`master` coexist** in the real evm-asm build (StateRel +
+  2984-job full build). This was the one unverified step-1 risk.
+- The 51 lemmas re-point with **zero genuine logic renames** — pure `LeanRV64D → Out`.
 
 > Read first: `sail-import/PROVENANCE.toml [target]` (the proven pins + `vendor_path`
 > + `model_sha256`). Then `scripts/regen-sail-model.sh` (the validated regen recipe)
@@ -66,16 +77,15 @@ the regenerated model against the old vendored `Lean_RV64D` BEFORE editing lemma
 
 ## Remaining work (ordered)
 
-3. **Repoint the project.** In `lakefile.toml`: drop the `Lean_RV64D` git require;
-   add `require out from "vendor/sail-riscv-zkvm-lean"`. Update `lake-manifest.json`
-   (let `lake` regenerate). In `StateRel.lean`: `import LeanRV64D` → `import Out`,
-   `open LeanRV64D.Functions` → `open Out.Functions`. **This is also the step-1 test:**
-   it's the first time lean-sail v4 + mathlib-`master` coexist in the *real* evm-asm
-   build (the model itself doesn't pull mathlib, so risk is low but unverified). Get
-   `StateRel.lean` + downstream non-proof code compiling first.
-4. **Re-point the 51 `*_sail_equiv` lemmas** (the real proof work). Apply the namespace
-   rename across the 6 files, then compiler-guided repair for the genuine renames
-   (`bool_to_bit → bool_to_bits`, + whatever the diff surfaces). Target: all 51 green.
+3. ✅ **DONE — Repoint the project.** `lakefile.toml`: `Lean_RV64D` git-require →
+   `require out` (path `vendor/sail-riscv-zkvm-lean`). `lake update out` re-resolved
+   cleanly: `Lean_RV64D`→`out`, `Sail` v3 (`49ccc5af`)→v4 (`79b4d08`), **mathlib stayed
+   pinned** at `e2f607b` (avoided the bare-`lake update` float). `StateRel.lean`:
+   `import LeanRV64D`→`import Out`, `open LeanRV64D.Functions`→`open Out.Functions`.
+   StateRel + full downstream compile.
+4. ✅ **DONE — Re-point the 51 `*_sail_equiv` lemmas.** Global `LeanRV64D → Out` across
+   the 8 remaining SailEquiv files (`.Functions.{not,xlen,log2_xlen}` map 1:1; `bool_to_bit`
+   unchanged). **Zero compiler-guided repair needed** — all 51 green on first build.
 5. **Config:** regenerate/revalidate `riscv64im_zicclsm.json` against the *tag's* schema
    (changed since 1760ee2) and tighten — single flat RAM region; justify kept extensions
    (Zicntr/Zihpm/Zifencei) vs the zkVM standard; actually exercise `validate_config`
@@ -108,8 +118,8 @@ evm-asm builds against the **vendored, release-pinned, current-upstream** scoped
 ```
 sail-zkvm-integration (parent)
 ├─ p1-regen-spike            ✅ DONE — GO, proven end-to-end (docs/agents/sail-regen-spike.md)
-├─ p2-foundation-migration   ← THIS PHASE. steps 1–2 ✅ (vendored + builds, a2dedf448); NEXT: step 3 → 4
-├─ p3-differential-testing   (essential — backend is experimental)
+├─ p2-foundation-migration   ✅ CORE DONE — steps 1–4 (vendored, repointed, 51 lemmas green, full build 2984/2984). Residual 5–7 → sail-phase3-bootstrap.md
+├─ p3-differential-testing   ← NEXT (essential — backend is experimental). P4 (sim theorem) also unblocked & parallel.
 ├─ p4-consolidated-sim-theorem
 ├─ p5-full-rv64im-coverage   (word-ops already in model; lemmas-only)
 ├─ p6-gates-and-ledger       (release-pin gate; portable regen; OCaml>=5.2 pin)

@@ -6,9 +6,9 @@
 -/
 
 import EvmAsm.Rv64.Basic
-import LeanRV64D
+import Out
 
-open LeanRV64D.Functions
+open Out.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv

@@ -10,12 +10,20 @@
 
 [current]
 # What lakefile.toml + lake-manifest.json resolve to right now.
-source          = "https://github.com/dhsorens/sail-riscv-lean"  # FORK of opencompl/sail-riscv-lean
-lean_rv64d_rev  = "6009afb10039129aabcfd03ddac1c58670fe5d96"      # resolved; lakefile inputRev is the MOVING "main" (to be pinned)
-lean_sail_rev   = "49ccc5af55c957fcd170c439592327794b4aa886"      # inputRev "v3"
-scope           = "--all-modules"   # full RV64D: vector/FP/CSR/paging/crypto (153 Lean files)
+# MIGRATED (2026-06-25, P2 steps 3-4, commit pending): the project now consumes the
+# VENDORED model — `[current]` == `[target]`. The dhsorens fork is GONE from
+# lakefile.toml + lake-manifest.json. See [target] for the authoritative pins.
+source          = "vendor/sail-riscv-zkvm-lean"   # local path require (package "out", lib "Out")
+lean_sail_rev   = "79b4d08505af29d88b3918f32d29840fae1fa191"   # = lean-sail v4; pinned by the vendored package's lakefile
+scope           = ["main", "I_insts", "M_insts"]   # scoped RV64IM (113 Lean files)
 project_toolchain = "leanprover/lean4:v4.30.0-rc1"
-notes = "Moving rev=main + over-scoped. The thing P0/P2 replaces."
+notes = "Repointed off dhsorens onto the vendored release-pinned model. lean-sail v4 + mathlib-master proven to coexist in the real evm-asm build; all 51 *_sail_equiv lemmas green (rename was 100% mechanical LeanRV64D->Out); axioms = {propext, Classical.choice, Quot.sound} only."
+
+# Historical (pre-migration): dhsorens fork, full RV64D, lean-sail v3.
+#   source = https://github.com/dhsorens/sail-riscv-lean
+#   lean_rv64d_rev = 6009afb10039129aabcfd03ddac1c58670fe5d96 (moving rev=main)
+#   lean_sail_rev  = 49ccc5af55c957fcd170c439592327794b4aa886 (v3)
+#   scope = --all-modules (153 Lean files: vector/FP/CSR/paging/crypto)
 
 [target]
 # DIRECTION (maintainer, 2026-06-25): use the LATEST/best of each upstream component;
