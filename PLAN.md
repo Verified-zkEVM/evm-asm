@@ -1954,10 +1954,19 @@ shows more elements than expected (no decode-then-count). Layering:
     `rlp_decode_singleByte_validated`): a canonical single byte always decodes, so a single-exit
     `cpsTripleWithin` carrying `⌜decode = some (.bytes [pfx], rest)⌝`; full untrusted-decoder register/mem
     interface framed through the e1 handler. No failure case. Axiom-clean, concrete `0x42` example.
-  - ⏳ **Next**: `0x81` singleton-canonical sub-branch (drops `hns`, completes shortBytes); longBytes
-    (bound + leading-zero/`≤55` rejection); shortList/longList payload-window; 5-way unified validating
-    decoder; then the early-abort field walker (Step 2) → block-header decoder (Step 3, target order:
-    header → EIP-1559 tx → MPT node → legacy tx).
+  - ✅ **B.3 — validating singleton (`0x81`)** (`UnifiedDecodeItemSingletonValidated.lean`,
+    `rlp_decode_singleton_validated`): completes the shortBytes class (drops B.1's `hns`). Composes a
+    bound check (`BGEU x11, x15` — truncation) with a canonical check (`LBU x12,x13,0 ; ANDI x10,x12,0x80 ;
+    BEQ x10,x0` — the single payload byte must be `≥ 0x80`, else non-canonical) via
+    `cpsBranchWithin_seq_cpsBranchWithin`, both failure routes converging on one `failPC` with
+    `⌜decode = none⌝`, success at `e2_target + 24` with `⌜decode = some (.bytes (rest.take 1), rest.drop 1)⌝`.
+    Sub-lemmas `singleton_B1` (handler⨾bound) / `singleton_B2` (canonical check, empty-payload vacuity via
+    `holdsFor_pure`); new bit-reasoning `byte_lt_0x80_imp_and_zero` (converse of the existing
+    `byte_zext_and_0x80_eq_zero_imp_lt`). No validity hypotheses. Axiom-clean, 0 sorry, no `bv_decide`,
+    concrete `0x81 0xFF` example.
+  - ⏳ **Next**: longBytes (bound + leading-zero/`≤55` rejection); shortList/longList payload-window;
+    5-way unified validating decoder; then the early-abort field walker (Step 2) → block-header decoder
+    (Step 3, target order: header → EIP-1559 tx → MPT node → legacy tx).
 
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
