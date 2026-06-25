@@ -6,7 +6,8 @@
 # Requires riscv-isa-sim checked out + built at $SPIKE_SRC, and a riscv64 as/ld.
 set -euo pipefail
 cd "$(dirname "$0")"
-SPIKE_SRC="${SPIKE_SRC:-/Users/dhsorens/devel/riscv-isa-sim}"
+# Default to a riscv-isa-sim checkout sibling to this repo; override with SPIKE_SRC.
+SPIKE_SRC="${SPIKE_SRC:-$(cd ../../.. && pwd)/riscv-isa-sim}"
 SPIKE_BUILD="${SPIKE_BUILD:-$SPIKE_SRC/build}"
 BOOST_INC="${BOOST_INC:-/opt/homebrew/include}"
 AS="${RISCV_AS:-riscv64-elf-as}"

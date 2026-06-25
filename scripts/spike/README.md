@@ -9,7 +9,7 @@ No guest/codegen changes — SPIKE adapts to the existing ELF's contract.
 ## Status
 
 **Working & validated (macOS arm64):**
-- SPIKE builds from source at `$SPIKE_SRC` (default `/Users/dhsorens/devel/riscv-isa-sim`).
+- SPIKE builds from source at `$SPIKE_SRC` (default: a `riscv-isa-sim` checkout sibling to this repo).
 - `build.sh` produces `libziskaccel.so` (extension for stock `spike --extlib`) AND
   `spike_run` (custom driver: `spike_run <guest.elf> <input> <output>`, a drop-in
   for `ziskemu -e/-i/-o`).
