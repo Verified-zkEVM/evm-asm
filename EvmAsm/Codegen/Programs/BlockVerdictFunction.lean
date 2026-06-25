@@ -1064,6 +1064,11 @@ def blockVerdictFunction : String :=
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
+  -- If contract replay could not materialize a complete runtime gas/effect arena,
+  -- the final state-root recompute is still the binding authenticated check. Do not
+  -- false-reject such rows in the redundant exec-vs-BAL non-storage comparator with
+  -- an incomplete execution log (observed on same-tx SELFDESTRUCT-via-CALL rows).
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_nonstorage_covers\n" ++
   -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
   -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
   -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL

@@ -624,6 +624,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
   "  jal ra, tx_eip7702_existing_authority_refund\n" ++
   "  la t4, runtime_tx_auth_state_refund; sd a0, 0(t4)\n" ++
+  -- The callable dispatcher will reread calldata_len at payload+8+round8(code_len)
+  -- before it has any verdict-side bounds context. If later staging accidentally
+  -- clobbers that word, ziskemu panics on the derived slot-count address instead
+  -- of returning a conservative unsupported status. Recheck the exact word here.
+  "  la t0, bv_runtime_payload\n" ++
+  "  ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++
+  "  add t2, t0, t1; addi t2, t2, 8; ld t3, 0(t2)\n" ++
+  "  ld t4, 64(s2); bne t3, t4, .Ldtrc_stage_unsupported\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
