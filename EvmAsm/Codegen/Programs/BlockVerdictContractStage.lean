@@ -144,6 +144,7 @@ def stageRuntimePayloadCodeFunction : String :=
   "  lbu a5, 0(t5); sb a5, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lsrpc_m29\n" ++
   ".Lsrpc_m29_done:\n" ++
   -- env words base (now after the M29 block).
+  "  la t1, srpc_env_base; ld t1, 0(t1)     # reload env_base after helper calls\n" ++
   "  add s5, s0, t1               # s5 = &env_words (env_base)\n" ++
   -- COINBASE (word 6 -> +192): exec 20-byte canonical address at payload byte 32,
   -- reversed into the low 160 bits of the EVM stack word layout.
