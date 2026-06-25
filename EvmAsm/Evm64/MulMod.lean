@@ -62,6 +62,7 @@ import EvmAsm.Evm64.MulMod.Compose.Reducer
 import EvmAsm.Evm64.MulMod.Compose.ProductCore
 import EvmAsm.Evm64.MulMod.Compose.ProductSuffix
 import EvmAsm.Evm64.MulMod.Compose.ProductReduceBridge
+import EvmAsm.Evm64.MulMod.Compose.ProductReduce
 import EvmAsm.Evm64.MulMod.Compose.ZeroPathBody
 import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
 import EvmAsm.Evm64.MulMod.Spec
