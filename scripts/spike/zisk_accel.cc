@@ -259,7 +259,7 @@ static bn_ptr bls_inv(const BIGNUM* a, BN_CTX* ctx) {
 // Curve G1 points are affine x||y, each 4 LE u64 (BN254 is 254-bit; fits 256 bits).
 // Fp2 = Fp[u]/(u^2+1): elements c0||c1, each 4 LE u64 (32 bytes per component).
 #if defined(__APPLE__)
-static const cpp_int BN254_P("0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd45");
+static const cpp_int BN254_P("0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47");
 static inline cpp_int bn254_mod(cpp_int x){ x %= BN254_P; if (x < 0) x += BN254_P; return x; }
 static inline cpp_int bn254_inv(const cpp_int& a){ return powm(bn254_mod(a), BN254_P - 2, BN254_P); }
 static void wr_limbs254(processor_t* p, reg_t a, cpp_int v, int n) {
@@ -273,7 +273,7 @@ static void wr_limbs254(processor_t* p, reg_t a, cpp_int v, int n) {
 #else
 static const BIGNUM* bn254_p() {
   static BIGNUM* p = nullptr;
-  if (!p) BN_hex2bn(&p, "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd45");
+  if (!p) BN_hex2bn(&p, "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47");
   return p;
 }
 static bn_ptr bn254_add(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
