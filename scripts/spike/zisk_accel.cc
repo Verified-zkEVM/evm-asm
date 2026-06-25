@@ -13,9 +13,10 @@
 //   0x805  sha256 compress : a0 -> 2 ptrs {state(4*u64=8*u32), input(64B block)};
 //                            standard SHA-256 compression, state IN-PLACE
 //
-// Precompile-only CSRs (0x803/4 secp256k1, 0x806-0x810 bn254/bls12, 0x819
+// Precompile-only CSRs (0x806-0x80d bn254/bls12 curve/arith, 0x819
 // blake2b-round, etc.) are TODO — blocks needing them are on the guest's
-// conservative-reject frontier anyway. Adding one = another AccelCsr subclass.
+// conservative-reject frontier unless their lower-level field ops are
+// implemented here. Adding one = another AccelCsr subclass.
 //
 // All multi-limb values are little-endian arrays of u64 (zisk convention).
 
@@ -200,6 +201,53 @@ static void wr256(processor_t* p, reg_t a, const BIGNUM* v, BN_CTX* ctx) {
   bn_ptr vv = fmod_bn(v, ctx);
   write_bigint(p, a, vv.get(), 4);
 }
+
+#endif
+
+// ---- BLS12-381 Fp2 ops (CSR 0x80e/0x80f/0x810) -----------------------------
+// Fp2 elements are c0 || c1, each 6 little-endian u64 limbs. The operation
+// mutates f1 in-place: f1 += f2, f1 -= f2, or f1 *= f2 over u^2 = -1.
+#if defined(__APPLE__)
+static const cpp_int BLS12_P(
+  "0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf"
+  "6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
+static inline cpp_int bls_mod(cpp_int x){ x %= BLS12_P; if (x < 0) x += BLS12_P; return x; }
+static cpp_int rd_limbs(processor_t* p, reg_t a, int n) {
+  cpp_int v = 0;
+  for (int i = n - 1; i >= 0; --i) { v <<= 64; v |= (cpp_int)gload(p, a + 8*i); }
+  return v;
+}
+static void wr_limbs(processor_t* p, reg_t a, cpp_int v, int n) {
+  v = bls_mod(v);
+  for (int i = 0; i < n; ++i) {
+    uint64_t l = (v & (cpp_int)0xffffffffffffffffULL).convert_to<uint64_t>();
+    gstore(p, a + 8*i, l);
+    v >>= 64;
+  }
+}
+#else
+static const BIGNUM* bls12_p() {
+  static BIGNUM* p = nullptr;
+  if (!p) BN_hex2bn(&p,
+      "1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf"
+      "6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
+  return p;
+}
+static bn_ptr bls_add(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_add(r.get(), a, b, bls12_p(), ctx);
+  return r;
+}
+static bn_ptr bls_sub(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_sub(r.get(), a, b, bls12_p(), ctx);
+  return r;
+}
+static bn_ptr bls_mul(const BIGNUM* a, const BIGNUM* b, BN_CTX* ctx) {
+  bn_ptr r = make_bn();
+  BN_mod_mul(r.get(), a, b, bls12_p(), ctx);
+  return r;
+}
 #endif
 
 // ---- accelerator CSR base --------------------------------------------------
@@ -335,6 +383,56 @@ class secp_add_csr_t : public accel_csr_t {
   }
 };
 
+class bls12_fp2_csr_t : public accel_csr_t {
+ public:
+  enum op_t { add, sub, mul };
+  bls12_fp2_csr_t(processor_t* p, reg_t addr, op_t op): accel_csr_t(p, addr), op(op) {}
+  bool unlogged_write(const reg_t param) noexcept override {
+    reg_t f1 = gload(proc, param + 0), f2 = gload(proc, param + 8);
+#if defined(__APPLE__)
+    cpp_int a0 = rd_limbs(proc, f1, 6), a1 = rd_limbs(proc, f1 + 48, 6);
+    cpp_int b0 = rd_limbs(proc, f2, 6), b1 = rd_limbs(proc, f2 + 48, 6);
+    cpp_int r0 = 0, r1 = 0;
+    if (op == add) {
+      r0 = a0 + b0;
+      r1 = a1 + b1;
+    } else if (op == sub) {
+      r0 = a0 - b0;
+      r1 = a1 - b1;
+    } else {
+      r0 = a0 * b0 - a1 * b1;
+      r1 = a0 * b1 + a1 * b0;
+    }
+    wr_limbs(proc, f1, r0, 6);
+    wr_limbs(proc, f1 + 48, r1, 6);
+#else
+    bn_ctx_ptr ctx = make_ctx();
+    bn_ptr a0 = read_bigint(proc, f1, 6), a1 = read_bigint(proc, f1 + 48, 6);
+    bn_ptr b0 = read_bigint(proc, f2, 6), b1 = read_bigint(proc, f2 + 48, 6);
+    bn_ptr r0, r1;
+    if (op == add) {
+      r0 = bls_add(a0.get(), b0.get(), ctx.get());
+      r1 = bls_add(a1.get(), b1.get(), ctx.get());
+    } else if (op == sub) {
+      r0 = bls_sub(a0.get(), b0.get(), ctx.get());
+      r1 = bls_sub(a1.get(), b1.get(), ctx.get());
+    } else {
+      bn_ptr a0b0 = bls_mul(a0.get(), b0.get(), ctx.get());
+      bn_ptr a1b1 = bls_mul(a1.get(), b1.get(), ctx.get());
+      bn_ptr a0b1 = bls_mul(a0.get(), b1.get(), ctx.get());
+      bn_ptr a1b0 = bls_mul(a1.get(), b0.get(), ctx.get());
+      r0 = bls_sub(a0b0.get(), a1b1.get(), ctx.get());
+      r1 = bls_add(a0b1.get(), a1b0.get(), ctx.get());
+    }
+    write_bigint(proc, f1, r0.get(), 6);
+    write_bigint(proc, f1 + 48, r1.get(), 6);
+#endif
+    return false;
+  }
+ private:
+  op_t op;
+};
+
 // Stub for accelerator CSRs not yet implemented: logs the CSR + param once so
 // we can see which a given block needs, instead of silently raising illegal-insn.
 class unimpl_csr_t : public accel_csr_t {
@@ -360,11 +458,14 @@ class zisk_accel_t : public extension_t {
       std::make_shared<secp_add_csr_t>(&p, 0x803),
       std::make_shared<secp_dbl_csr_t>(&p, 0x804),
       std::make_shared<sha256_csr_t>(&p, 0x805),
+      std::make_shared<bls12_fp2_csr_t>(&p, 0x80e, bls12_fp2_csr_t::add),
+      std::make_shared<bls12_fp2_csr_t>(&p, 0x80f, bls12_fp2_csr_t::sub),
+      std::make_shared<bls12_fp2_csr_t>(&p, 0x810, bls12_fp2_csr_t::mul),
     };
     // register the not-yet-implemented accelerator CSRs as logging stubs so a
     // run reveals exactly which ones a block exercises.
     for (reg_t a : {0x806,0x807,0x808,0x809,0x80a,
-                    0x80b,0x80c,0x80d,0x80e,0x80f,0x810,0x819})
+                    0x80b,0x80c,0x80d,0x819})
       v.push_back(std::make_shared<unimpl_csr_t>(&p, a));
     return v;
   }
