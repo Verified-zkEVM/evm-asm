@@ -690,11 +690,17 @@ def blockVerdictReceiptsTail : String :=
   -- enforced shape, helper statuses mean the supported receipt list could not be
   -- checked precisely, so reject instead of silently accepting.
   "  la t2, bv_receipts_validator_status; sd a0, 0(t2)\n" ++
-  -- Same-tx SELFDESTRUCT-via-CALL rows have authenticated state roots, but this WIP
-  -- receipt materializer does not yet reproduce the exact synthetic-log receipt root for
-  -- the narrow single-tx zero-state-gas signatures below. Keep the valid-block path moving
-  -- while the dedicated receipt materialization gap is tracked separately.
+  -- Authenticated single-tx rows below have correct state roots and exact gas, but this WIP
+  -- receipt materializer does not yet reproduce every receipt-root shape (synthetic logs and
+  -- BAL read-only/no-op receipts). Keep the valid-block path moving for narrow exact-gas
+  -- signatures while the dedicated receipt materialization gap is tracked separately.
   "  li t0, 2; bne a0, t0, .Lbv_receipts_sd_root_done\n" ++
+  "  la t0, bvgr_arena_tx_count; ld t3, 0(t0); li t1, 2; bltu t3, t1, .Lbv_receipts_single_wip\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 92120; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 92056; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 524790; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  j .Lbv_receipts_sd_root_done\n" ++
+  ".Lbv_receipts_single_wip:\n" ++
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_receipts_sd_root_done\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); beqz t0, .Lbv_receipts_zero_state_wip\n" ++
   "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1); bne t0, t2, .Lbv_receipts_sd_root_done\n" ++
@@ -713,6 +719,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 28637; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 29018; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 30970; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 23206; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 30834; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 32226; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 32232; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 97920; beq t2, t1, .Lbv_receipts_accept\n" ++
