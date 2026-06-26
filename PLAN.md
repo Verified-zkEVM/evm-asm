@@ -1964,9 +1964,47 @@ shows more elements than expected (no decode-then-count). Layering:
     `holdsFor_pure`); new bit-reasoning `byte_lt_0x80_imp_and_zero` (converse of the existing
     `byte_zext_and_0x80_eq_zero_imp_lt`). No validity hypotheses. Axiom-clean, 0 sorry, no `bv_decide`,
     concrete `0x81 0xFF` example.
-  - ⏳ **Next**: longBytes (bound + leading-zero/`≤55` rejection); shortList/longList payload-window;
-    5-way unified validating decoder; then the early-abort field walker (Step 2) → block-header decoder
-    (Step 3, target order: header → EIP-1559 tx → MPT node → legacy tx).
+  - ✅ **B.4 — offset-general validating arms** (`UnifiedDecodeItemShortBytesValidatedAt.lean`, #9456):
+    `rlp_decode_shortBytes_validated_at` / `rlp_decode_singleByte_validated_at` — the B.1/B.2 arms over an
+    item at an arbitrary byte offset `O` (`x5=pfx`, `x13=regionBase+O`, `x15=`avail), full `bytesRegion`
+    framed. Handlers are register-only so they transfer near-verbatim. Building block for the field walk.
+  - ✅ **B.5 — taken-side sequencing combinator** (`ValidatingFieldWalk.lean`, #9457):
+    `cpsBranchWithin_seq_cpsTripleWithin_taken` — sequences a triple onto the SUCCESS (taken) exit of a
+    2-exit branch (keeping FAIL as the abort exit), CodeReq union. The dual of the existing fall-side
+    combinator; needed because the validating arms put SUCCESS on the taken exit.
+  - ✅ **B.6 — validating shortBytes decode-and-advance** (`ValidatingFieldWalk.lean`,
+    `rlp_decode_shortBytes_advance_at`, #9461): B.4 ⨾[taken] `ADD x13,x13,x11` — one field step of the
+    walk. SUCCESS advances the cursor `x13` to the next item start (`(regionBase+O)+1+payloadLen`) while
+    carrying `⌜decode = some (.bytes …)⌝`; FAIL is the decoder's abort exit. ADD framed with the 8-atom
+    complement incl. the pure verdict; reshaped with `xperm_hyp` (confirmed xperm handles a trailing
+    pure atom — earlier "pure blocks xperm" diagnosis was wrong; the real fix was matching the decoder's
+    exact 10-atom success post). Axiom-clean.
+  - ✅ **B.6.1 — clean-form advance variant** (`rlp_decode_shortBytes_advance_at_clean`, #9461): SUCCESS
+    `x13` restated as `regionBase + ofNat(O+1+payloadLen)` via the unconditional `advance_cursor_clean`
+    identity (`BitVec.ofNat` is mod-`2^64`, no bound needed) — the precondition shape the next field's
+    decoder consumes, so steps chain without `x13` glue.
+  - ⏳ **Next (F1 chain) — DESIGN CONFIRMED, arithmetic de-risked.** Field-walk register discipline
+    (chosen to reuse the merged length-discipline arms with NO extra `s_end` register): `x15` holds the
+    remaining byte count `bs.length - O` and is recomputed **in place** between fields by
+    `SUB x15,x15,x11 ; ADDI x15,x15,-1` (= `remaining - payloadLen - 1`), then `LBU x5,x13,0` loads the
+    next prefix. Per-field step = validating decode-and-advance ⨾ x15-decrement ⨾ LBU-next. Last field
+    takes no LBU; instead an **exact-arity end check** (`x13 = list_end`, i.e. `O' = bs.length`).
+    Three foundational lemmas **proven** (scratch in job tmp, ready to drop in):
+    (1) `advance_cursor_clean` (x13, landed); (2) `ofNat_sub_ofNat : b ≤ a → a < 2^64 →
+    ofNat a - ofNat b = ofNat(a-b)` (toNat+omega); (3) x15 decrement `ofNat(L-O) - ofNat pl - 1 =
+    ofNat(L-(O+1+pl))` (via (2) twice). Remaining: the SUB/ADDI/LBU RV64 specs framed into the
+    post-advance state + composition + end check. Then longBytes (parked, T4); singleByte/singleton
+    advance analogs. Then T1 (`rlp_field_to_u64`) → T2 (`withdrawal_decode`) → T3 (header) → T4 (tx_1559).
+  - 🔑 **SINGLE-PASS directive** (maintainer @pirapira, PR #9461): the emitted program must walk the
+    input **once** — validate AND copy out values in the same sweep, NOT validate-then-reparse. So each
+    field-step is `validate-item → store-its-value → advance-cursor`. The validating arm already yields
+    the payload location (`decode (bs.drop O) = some (.bytes (rest.take payloadLen), …)` ⇒ payload =
+    `payloadLen` bytes at `cursor+1`), so the store copies straight from that window (reuse
+    `ByteCopyIter`/scalar-store machinery) with no second decode; accumulated `⌜decode … = some …⌝`
+    verdicts tie the stored bytes to the pure spec from one traversal. **DROP** the "establish
+    `SchemaValid` then run `schema_walk` to extract" framing — `schema_walk`/`schemaScalarValues` remain
+    only the **pure coincidence target** the single-pass output is proven equal to, not a runtime 2nd
+    pass. So the per-field STORE step is inserted between validate and advance in the chain above.
 
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target

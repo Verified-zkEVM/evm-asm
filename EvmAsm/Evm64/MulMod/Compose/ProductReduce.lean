@@ -9,8 +9,8 @@
   The two specs meet at the midpoint `(base + 56) + 1760 = base + 1816`. The
   only structural difference between `product_layout`'s output and
   `reduce512`'s input is the product window: `product_layout` exposes it as the
-  eight explicit memory cells `sp + 96 .. sp + 152`, while `reduce512` consumes
-  it as `limbChain (sp + 152) (fun i => productLimb a b (7 - i)) 8`. The merged
+  eight explicit memory cells `sp - 160 .. sp - 104`, while `reduce512` consumes
+  it as `limbChain (sp - 104) (fun i => productLimb a b (7 - i)) 8`. The merged
   bridge `limbChain_productLimb_eq` [A1] rewrites the `limbChain` window into the
   explicit cells, after which both intermediate assertions are permutations of
   the same `**` multiset and `xperm_hyp` closes the midpoint coercion.
@@ -43,10 +43,10 @@ theorem evm_mulmod_product_reduce_evm_mulmod_spec_within
          (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) **
          (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old))) **
        ((.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
-        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+        ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3) **
         regOwn .x15 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20))
       (((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
         ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
@@ -55,10 +55,10 @@ theorem evm_mulmod_product_reduce_evm_mulmod_spec_within
         regOwn .x9 ** regOwn .x14) **
        ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
         (((.x5 ↦ᵣ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 3) **
-          ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 0) **
-          ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 1) **
-          ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 2) **
-          ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 3) **
+          ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 0) **
+          ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 1) **
+          ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 2) **
+          ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 3) **
           ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 0) **
           ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 1) **
           ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN (mulModReduceOuterFoldCarry n (fun i => productLimb a b (7 - i)) (0 : EvmWord) 8) 2) **
@@ -66,15 +66,15 @@ theorem evm_mulmod_product_reduce_evm_mulmod_spec_within
          (((.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
            regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
            regOwn .x17 ** regOwn .x19 ** regOwn .x20 ** regOwn .x16 ** regOwn .x18) **
-          limbChain (sp + signExtend12 (152 : BitVec 12)) (fun i => productLimb a b (7 - i)) 8)))) := by
+          limbChain (sp + signExtend12 (3992 : BitVec 12)) (fun i => productLimb a b (7 - i)) 8)))) := by
   -- Frame onto the product-layout spec the resources `reduce512` needs that
   -- `product_layout` does not touch (`F1`).
   have h1 := cpsTripleWithin_frameR
     ((.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) ** (.x0 ↦ᵣ 0) **
-     ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-     ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-     ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-     ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+     ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+     ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+     ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+     ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3) **
      regOwn .x15 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20)
     (by pcFree)
     (evm_mulmod_product_layout_evm_mulmod_spec_within sp base a b n

@@ -30,7 +30,7 @@ local macro "evm_mulmod_slice_rfl" : tactic =>
 theorem evm_mulmod_program_code_product_first_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 88)
-        (0 : BitVec 12) (32 : BitVec 12) (96 : BitVec 12) (104 : BitVec 12)) a = some i →
+        (0 : BitVec 12) (32 : BitVec 12) (3936 : BitVec 12) (3944 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 88) evm_mulmod
@@ -38,17 +38,17 @@ theorem evm_mulmod_program_code_product_first_core_finish_sub
      LD .x6 .x12 (32 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (96 : BitVec 12) ;;
+     LD .x9 .x12 (3936 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (96 : BitVec 12) ;;
-     LD .x9 .x12 (104 : BitVec 12) ;;
+     SD .x12 .x9 (3936 : BitVec 12) ;;
+     LD .x9 .x12 (3944 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (104 : BitVec 12)) 22 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3944 : BitVec 12)) 22 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -62,13 +62,13 @@ theorem evm_mulmod_product_first_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 88) ((base + 88) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (0 : BitVec 12) (32 : BitVec 12) (96 : BitVec 12) (104 : BitVec 12) a b lo hi
+        (0 : BitVec 12) (32 : BitVec 12) (3936 : BitVec 12) (3944 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (0 : BitVec 12) (32 : BitVec 12) (96 : BitVec 12) (104 : BitVec 12) a b lo hi) :=
+        (0 : BitVec 12) (32 : BitVec 12) (3936 : BitVec 12) (3944 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 88)
-      (0 : BitVec 12) (32 : BitVec 12) (96 : BitVec 12) (104 : BitVec 12) a b lo hi
+      (0 : BitVec 12) (32 : BitVec 12) (3936 : BitVec 12) (3944 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_first_core_finish_sub base)
 
@@ -77,7 +77,7 @@ theorem evm_mulmod_product_first_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_second_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 244)
-        (8 : BitVec 12) (32 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12)) a = some i →
+        (8 : BitVec 12) (32 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 244) evm_mulmod
@@ -85,17 +85,17 @@ theorem evm_mulmod_program_code_product_second_core_finish_sub
      LD .x6 .x12 (32 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (104 : BitVec 12) ;;
+     LD .x9 .x12 (3944 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (104 : BitVec 12) ;;
-     LD .x9 .x12 (112 : BitVec 12) ;;
+     SD .x12 .x9 (3944 : BitVec 12) ;;
+     LD .x9 .x12 (3952 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (112 : BitVec 12)) 61 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3952 : BitVec 12)) 61 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -109,13 +109,13 @@ theorem evm_mulmod_product_second_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 244) ((base + 244) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (8 : BitVec 12) (32 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12) a b lo hi
+        (8 : BitVec 12) (32 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (8 : BitVec 12) (32 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12) a b lo hi) :=
+        (8 : BitVec 12) (32 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 244)
-      (8 : BitVec 12) (32 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12) a b lo hi
+      (8 : BitVec 12) (32 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_second_core_finish_sub base)
 
@@ -124,7 +124,7 @@ theorem evm_mulmod_product_second_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_third_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 384)
-        (0 : BitVec 12) (40 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12)) a = some i →
+        (0 : BitVec 12) (40 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 384) evm_mulmod
@@ -132,17 +132,17 @@ theorem evm_mulmod_program_code_product_third_core_finish_sub
      LD .x6 .x12 (40 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (104 : BitVec 12) ;;
+     LD .x9 .x12 (3944 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (104 : BitVec 12) ;;
-     LD .x9 .x12 (112 : BitVec 12) ;;
+     SD .x12 .x9 (3944 : BitVec 12) ;;
+     LD .x9 .x12 (3952 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (112 : BitVec 12)) 96 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3952 : BitVec 12)) 96 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -156,13 +156,13 @@ theorem evm_mulmod_product_third_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 384) ((base + 384) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (0 : BitVec 12) (40 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12) a b lo hi
+        (0 : BitVec 12) (40 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (0 : BitVec 12) (40 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12) a b lo hi) :=
+        (0 : BitVec 12) (40 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 384)
-      (0 : BitVec 12) (40 : BitVec 12) (104 : BitVec 12) (112 : BitVec 12) a b lo hi
+      (0 : BitVec 12) (40 : BitVec 12) (3944 : BitVec 12) (3952 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_third_core_finish_sub base)
 
@@ -171,7 +171,7 @@ theorem evm_mulmod_product_third_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_fourth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 524)
-        (16 : BitVec 12) (32 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12)) a = some i →
+        (16 : BitVec 12) (32 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 524) evm_mulmod
@@ -179,17 +179,17 @@ theorem evm_mulmod_program_code_product_fourth_core_finish_sub
      LD .x6 .x12 (32 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (112 : BitVec 12) ;;
+     LD .x9 .x12 (3952 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (112 : BitVec 12) ;;
-     LD .x9 .x12 (120 : BitVec 12) ;;
+     SD .x12 .x9 (3952 : BitVec 12) ;;
+     LD .x9 .x12 (3960 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (120 : BitVec 12)) 131 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3960 : BitVec 12)) 131 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -203,13 +203,13 @@ theorem evm_mulmod_product_fourth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 524) ((base + 524) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (16 : BitVec 12) (32 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi
+        (16 : BitVec 12) (32 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (16 : BitVec 12) (32 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi) :=
+        (16 : BitVec 12) (32 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 524)
-      (16 : BitVec 12) (32 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi
+      (16 : BitVec 12) (32 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_fourth_core_finish_sub base)
 
@@ -218,7 +218,7 @@ theorem evm_mulmod_product_fourth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_fifth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 648)
-        (8 : BitVec 12) (40 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12)) a = some i →
+        (8 : BitVec 12) (40 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 648) evm_mulmod
@@ -226,17 +226,17 @@ theorem evm_mulmod_program_code_product_fifth_core_finish_sub
      LD .x6 .x12 (40 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (112 : BitVec 12) ;;
+     LD .x9 .x12 (3952 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (112 : BitVec 12) ;;
-     LD .x9 .x12 (120 : BitVec 12) ;;
+     SD .x12 .x9 (3952 : BitVec 12) ;;
+     LD .x9 .x12 (3960 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (120 : BitVec 12)) 162 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3960 : BitVec 12)) 162 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -250,13 +250,13 @@ theorem evm_mulmod_product_fifth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 648) ((base + 648) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (8 : BitVec 12) (40 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi
+        (8 : BitVec 12) (40 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (8 : BitVec 12) (40 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi) :=
+        (8 : BitVec 12) (40 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 648)
-      (8 : BitVec 12) (40 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi
+      (8 : BitVec 12) (40 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_fifth_core_finish_sub base)
 
@@ -265,7 +265,7 @@ theorem evm_mulmod_product_fifth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_sixth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 772)
-        (0 : BitVec 12) (48 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12)) a = some i →
+        (0 : BitVec 12) (48 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 772) evm_mulmod
@@ -273,17 +273,17 @@ theorem evm_mulmod_program_code_product_sixth_core_finish_sub
      LD .x6 .x12 (48 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (112 : BitVec 12) ;;
+     LD .x9 .x12 (3952 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (112 : BitVec 12) ;;
-     LD .x9 .x12 (120 : BitVec 12) ;;
+     SD .x12 .x9 (3952 : BitVec 12) ;;
+     LD .x9 .x12 (3960 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (120 : BitVec 12)) 193 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3960 : BitVec 12)) 193 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -297,13 +297,13 @@ theorem evm_mulmod_product_sixth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 772) ((base + 772) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (0 : BitVec 12) (48 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi
+        (0 : BitVec 12) (48 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (0 : BitVec 12) (48 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi) :=
+        (0 : BitVec 12) (48 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 772)
-      (0 : BitVec 12) (48 : BitVec 12) (112 : BitVec 12) (120 : BitVec 12) a b lo hi
+      (0 : BitVec 12) (48 : BitVec 12) (3952 : BitVec 12) (3960 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_sixth_core_finish_sub base)
 
@@ -312,7 +312,7 @@ theorem evm_mulmod_product_sixth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_seventh_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 896)
-        (24 : BitVec 12) (32 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)) a = some i →
+        (24 : BitVec 12) (32 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 896) evm_mulmod
@@ -320,17 +320,17 @@ theorem evm_mulmod_program_code_product_seventh_core_finish_sub
      LD .x6 .x12 (32 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (120 : BitVec 12) ;;
+     LD .x9 .x12 (3960 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (120 : BitVec 12) ;;
-     LD .x9 .x12 (128 : BitVec 12) ;;
+     SD .x12 .x9 (3960 : BitVec 12) ;;
+     LD .x9 .x12 (3968 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (128 : BitVec 12)) 224 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3968 : BitVec 12)) 224 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -344,13 +344,13 @@ theorem evm_mulmod_product_seventh_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 896) ((base + 896) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (24 : BitVec 12) (32 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        (24 : BitVec 12) (32 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (24 : BitVec 12) (32 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi) :=
+        (24 : BitVec 12) (32 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 896)
-      (24 : BitVec 12) (32 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+      (24 : BitVec 12) (32 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_seventh_core_finish_sub base)
 
@@ -359,7 +359,7 @@ theorem evm_mulmod_product_seventh_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_eighth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1004)
-        (16 : BitVec 12) (40 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)) a = some i →
+        (16 : BitVec 12) (40 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1004) evm_mulmod
@@ -367,17 +367,17 @@ theorem evm_mulmod_program_code_product_eighth_core_finish_sub
      LD .x6 .x12 (40 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (120 : BitVec 12) ;;
+     LD .x9 .x12 (3960 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (120 : BitVec 12) ;;
-     LD .x9 .x12 (128 : BitVec 12) ;;
+     SD .x12 .x9 (3960 : BitVec 12) ;;
+     LD .x9 .x12 (3968 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (128 : BitVec 12)) 251 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3968 : BitVec 12)) 251 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -391,13 +391,13 @@ theorem evm_mulmod_product_eighth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1004) ((base + 1004) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (16 : BitVec 12) (40 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        (16 : BitVec 12) (40 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (16 : BitVec 12) (40 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi) :=
+        (16 : BitVec 12) (40 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1004)
-      (16 : BitVec 12) (40 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+      (16 : BitVec 12) (40 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_eighth_core_finish_sub base)
 
@@ -406,7 +406,7 @@ theorem evm_mulmod_product_eighth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_ninth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1112)
-        (8 : BitVec 12) (48 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)) a = some i →
+        (8 : BitVec 12) (48 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1112) evm_mulmod
@@ -414,17 +414,17 @@ theorem evm_mulmod_program_code_product_ninth_core_finish_sub
      LD .x6 .x12 (48 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (120 : BitVec 12) ;;
+     LD .x9 .x12 (3960 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (120 : BitVec 12) ;;
-     LD .x9 .x12 (128 : BitVec 12) ;;
+     SD .x12 .x9 (3960 : BitVec 12) ;;
+     LD .x9 .x12 (3968 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (128 : BitVec 12)) 278 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3968 : BitVec 12)) 278 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -438,13 +438,13 @@ theorem evm_mulmod_product_ninth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1112) ((base + 1112) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (8 : BitVec 12) (48 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        (8 : BitVec 12) (48 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (8 : BitVec 12) (48 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi) :=
+        (8 : BitVec 12) (48 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1112)
-      (8 : BitVec 12) (48 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+      (8 : BitVec 12) (48 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_ninth_core_finish_sub base)
 
@@ -453,7 +453,7 @@ theorem evm_mulmod_product_ninth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_tenth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1220)
-        (0 : BitVec 12) (56 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12)) a = some i →
+        (0 : BitVec 12) (56 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1220) evm_mulmod
@@ -461,17 +461,17 @@ theorem evm_mulmod_program_code_product_tenth_core_finish_sub
      LD .x6 .x12 (56 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (120 : BitVec 12) ;;
+     LD .x9 .x12 (3960 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (120 : BitVec 12) ;;
-     LD .x9 .x12 (128 : BitVec 12) ;;
+     SD .x12 .x9 (3960 : BitVec 12) ;;
+     LD .x9 .x12 (3968 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (128 : BitVec 12)) 305 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3968 : BitVec 12)) 305 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -485,13 +485,13 @@ theorem evm_mulmod_product_tenth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1220) ((base + 1220) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (0 : BitVec 12) (56 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+        (0 : BitVec 12) (56 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (0 : BitVec 12) (56 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi) :=
+        (0 : BitVec 12) (56 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1220)
-      (0 : BitVec 12) (56 : BitVec 12) (120 : BitVec 12) (128 : BitVec 12) a b lo hi
+      (0 : BitVec 12) (56 : BitVec 12) (3960 : BitVec 12) (3968 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_tenth_core_finish_sub base)
 
@@ -500,7 +500,7 @@ theorem evm_mulmod_product_tenth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_eleventh_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1328)
-        (24 : BitVec 12) (40 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12)) a = some i →
+        (24 : BitVec 12) (40 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1328) evm_mulmod
@@ -508,17 +508,17 @@ theorem evm_mulmod_program_code_product_eleventh_core_finish_sub
      LD .x6 .x12 (40 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (128 : BitVec 12) ;;
+     LD .x9 .x12 (3968 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (128 : BitVec 12) ;;
-     LD .x9 .x12 (136 : BitVec 12) ;;
+     SD .x12 .x9 (3968 : BitVec 12) ;;
+     LD .x9 .x12 (3976 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (136 : BitVec 12)) 332 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3976 : BitVec 12)) 332 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -532,13 +532,13 @@ theorem evm_mulmod_product_eleventh_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1328) ((base + 1328) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (24 : BitVec 12) (40 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+        (24 : BitVec 12) (40 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (24 : BitVec 12) (40 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi) :=
+        (24 : BitVec 12) (40 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1328)
-      (24 : BitVec 12) (40 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+      (24 : BitVec 12) (40 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_eleventh_core_finish_sub base)
 
@@ -547,7 +547,7 @@ theorem evm_mulmod_product_eleventh_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_twelfth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1420)
-        (16 : BitVec 12) (48 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12)) a = some i →
+        (16 : BitVec 12) (48 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1420) evm_mulmod
@@ -555,17 +555,17 @@ theorem evm_mulmod_program_code_product_twelfth_core_finish_sub
      LD .x6 .x12 (48 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (128 : BitVec 12) ;;
+     LD .x9 .x12 (3968 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (128 : BitVec 12) ;;
-     LD .x9 .x12 (136 : BitVec 12) ;;
+     SD .x12 .x9 (3968 : BitVec 12) ;;
+     LD .x9 .x12 (3976 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (136 : BitVec 12)) 355 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3976 : BitVec 12)) 355 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -579,13 +579,13 @@ theorem evm_mulmod_product_twelfth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1420) ((base + 1420) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (16 : BitVec 12) (48 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+        (16 : BitVec 12) (48 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (16 : BitVec 12) (48 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi) :=
+        (16 : BitVec 12) (48 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1420)
-      (16 : BitVec 12) (48 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+      (16 : BitVec 12) (48 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_twelfth_core_finish_sub base)
 
@@ -594,7 +594,7 @@ theorem evm_mulmod_product_twelfth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_thirteenth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1512)
-        (8 : BitVec 12) (56 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12)) a = some i →
+        (8 : BitVec 12) (56 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1512) evm_mulmod
@@ -602,17 +602,17 @@ theorem evm_mulmod_program_code_product_thirteenth_core_finish_sub
      LD .x6 .x12 (56 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (128 : BitVec 12) ;;
+     LD .x9 .x12 (3968 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (128 : BitVec 12) ;;
-     LD .x9 .x12 (136 : BitVec 12) ;;
+     SD .x12 .x9 (3968 : BitVec 12) ;;
+     LD .x9 .x12 (3976 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (136 : BitVec 12)) 378 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3976 : BitVec 12)) 378 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -626,13 +626,13 @@ theorem evm_mulmod_product_thirteenth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1512) ((base + 1512) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (8 : BitVec 12) (56 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+        (8 : BitVec 12) (56 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (8 : BitVec 12) (56 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi) :=
+        (8 : BitVec 12) (56 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1512)
-      (8 : BitVec 12) (56 : BitVec 12) (128 : BitVec 12) (136 : BitVec 12) a b lo hi
+      (8 : BitVec 12) (56 : BitVec 12) (3968 : BitVec 12) (3976 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_thirteenth_core_finish_sub base)
 
@@ -641,7 +641,7 @@ theorem evm_mulmod_product_thirteenth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_fourteenth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1604)
-        (24 : BitVec 12) (48 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12)) a = some i →
+        (24 : BitVec 12) (48 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1604) evm_mulmod
@@ -649,17 +649,17 @@ theorem evm_mulmod_program_code_product_fourteenth_core_finish_sub
      LD .x6 .x12 (48 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (136 : BitVec 12) ;;
+     LD .x9 .x12 (3976 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (136 : BitVec 12) ;;
-     LD .x9 .x12 (144 : BitVec 12) ;;
+     SD .x12 .x9 (3976 : BitVec 12) ;;
+     LD .x9 .x12 (3984 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (144 : BitVec 12)) 401 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3984 : BitVec 12)) 401 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -673,13 +673,13 @@ theorem evm_mulmod_product_fourteenth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1604) ((base + 1604) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (24 : BitVec 12) (48 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12) a b lo hi
+        (24 : BitVec 12) (48 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (24 : BitVec 12) (48 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12) a b lo hi) :=
+        (24 : BitVec 12) (48 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1604)
-      (24 : BitVec 12) (48 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12) a b lo hi
+      (24 : BitVec 12) (48 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_fourteenth_core_finish_sub base)
 
@@ -688,7 +688,7 @@ theorem evm_mulmod_product_fourteenth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_fifteenth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1680)
-        (16 : BitVec 12) (56 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12)) a = some i →
+        (16 : BitVec 12) (56 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1680) evm_mulmod
@@ -696,17 +696,17 @@ theorem evm_mulmod_program_code_product_fifteenth_core_finish_sub
      LD .x6 .x12 (56 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (136 : BitVec 12) ;;
+     LD .x9 .x12 (3976 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (136 : BitVec 12) ;;
-     LD .x9 .x12 (144 : BitVec 12) ;;
+     SD .x12 .x9 (3976 : BitVec 12) ;;
+     LD .x9 .x12 (3984 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (144 : BitVec 12)) 420 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3984 : BitVec 12)) 420 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -720,13 +720,13 @@ theorem evm_mulmod_product_fifteenth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1680) ((base + 1680) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (16 : BitVec 12) (56 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12) a b lo hi
+        (16 : BitVec 12) (56 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (16 : BitVec 12) (56 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12) a b lo hi) :=
+        (16 : BitVec 12) (56 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1680)
-      (16 : BitVec 12) (56 : BitVec 12) (136 : BitVec 12) (144 : BitVec 12) a b lo hi
+      (16 : BitVec 12) (56 : BitVec 12) (3976 : BitVec 12) (3984 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_fifteenth_core_finish_sub base)
 
@@ -735,7 +735,7 @@ theorem evm_mulmod_product_fifteenth_core_finish_evm_mulmod_spec_within
 theorem evm_mulmod_program_code_product_sixteenth_core_finish_sub
     (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1756)
-        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12)) a = some i →
+        (24 : BitVec 12) (56 : BitVec 12) (3984 : BitVec 12) (3992 : BitVec 12)) a = some i →
       (evm_mulmod_program_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_program_code
   refine CodeReq.ofProg_mono_sub base (base + 1756) evm_mulmod
@@ -743,17 +743,17 @@ theorem evm_mulmod_program_code_product_sixteenth_core_finish_sub
      LD .x6 .x12 (56 : BitVec 12) ;;
      single (.MUL .x7 .x5 .x6) ;;
      single (.MULHU .x8 .x5 .x6) ;;
-     LD .x9 .x12 (144 : BitVec 12) ;;
+     LD .x9 .x12 (3984 : BitVec 12) ;;
      ADD .x9 .x9 .x7 ;;
      SLTU .x10 .x9 .x7 ;;
-     SD .x12 .x9 (144 : BitVec 12) ;;
-     LD .x9 .x12 (152 : BitVec 12) ;;
+     SD .x12 .x9 (3984 : BitVec 12) ;;
+     LD .x9 .x12 (3992 : BitVec 12) ;;
      ADD .x11 .x9 .x8 ;;
      SLTU .x13 .x11 .x8 ;;
      ADD .x11 .x11 .x10 ;;
      SLTU .x14 .x11 .x10 ;;
      OR' .x10 .x13 .x14 ;;
-     SD .x12 .x11 (152 : BitVec 12)) 439 ?_ ?_ ?_ ?_
+     SD .x12 .x11 (3992 : BitVec 12)) 439 ?_ ?_ ?_ ?_
   · bv_omega
   · evm_mulmod_slice_rfl
   · rw [evm_mulmod_length]
@@ -767,13 +767,13 @@ theorem evm_mulmod_product_sixteenth_core_finish_evm_mulmod_spec_within
     (x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old : Word) :
     cpsTripleWithin 15 (base + 1756) ((base + 1756) + 60) (evm_mulmod_program_code base)
       (evmMulModAddPartialCoreFullPre sp
-        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+        (24 : BitVec 12) (56 : BitVec 12) (3984 : BitVec 12) (3992 : BitVec 12) a b lo hi
         x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
       (evmMulModAddPartialCorePost sp
-        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi) :=
+        (24 : BitVec 12) (56 : BitVec 12) (3984 : BitVec 12) (3992 : BitVec 12) a b lo hi) :=
   cpsTripleWithin_extend_code
     (h := evm_mulmod_product_add_partial_core_finish_spec_within sp (base + 1756)
-      (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12) a b lo hi
+      (24 : BitVec 12) (56 : BitVec 12) (3984 : BitVec 12) (3992 : BitVec 12) a b lo hi
       x5Old x6Old x7Old x8Old x9Old x10Old x11Old x13Old x14Old)
     (hmono := evm_mulmod_program_code_product_sixteenth_core_finish_sub base)
 

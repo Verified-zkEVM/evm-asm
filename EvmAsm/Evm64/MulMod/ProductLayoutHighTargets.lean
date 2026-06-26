@@ -14,10 +14,10 @@ def mulModProductLayoutHighTargetValues (a b : EvmWord) : List Word :=
 
 /-- The finalized high product-layout cells paired with their runtime offsets. -/
 def mulModProductLayoutHighOffsetValues (a b : EvmWord) : List (BitVec 12 × Word) :=
-  [((128 : BitVec 12), mulModProductLayoutCall12P128 a b),
-   ((136 : BitVec 12), mulModProductLayoutColumn5Value a b),
-   ((144 : BitVec 12), mulModProductLayoutColumn6Value a b),
-   ((152 : BitVec 12), mulModProductLayoutColumn7Value a b)]
+  [((3968 : BitVec 12), mulModProductLayoutCall12P128 a b),
+   ((3976 : BitVec 12), mulModProductLayoutColumn5Value a b),
+   ((3984 : BitVec 12), mulModProductLayoutColumn6Value a b),
+   ((3992 : BitVec 12), mulModProductLayoutColumn7Value a b)]
 
 /-- Column-target obligations are exactly enough to identify the high product
     cells with `productHighLimbs`. -/
@@ -68,10 +68,10 @@ theorem mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs_of_columnTarget
     (h6 : mulModProductLayoutColumn6Value a b = productLimb a b 6)
     (h7 : mulModProductLayoutColumn7Value a b = productLimb a b 7) :
     mulModProductLayoutHighOffsetValues a b =
-      [((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
-       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
-       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
-       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
+      [((3968 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
+       ((3976 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
+       ((3984 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
+       ((3992 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
   rw [mulModProductLayoutHighOffsetValues_eq_productOffsetValues_drop_four_of_columnTargets
     h4 h5 h6 h7]
   simp [productOffsetValues, productOffsetIndices, EvmWord.getLimb_as_getLimbN_0,
@@ -111,10 +111,10 @@ theorem mulModProductLayoutHighOffsetValues_eq_productOffsetValues_drop_four (a 
 /-- The finalized high product-layout offset cells are the direct `mulHigh` limbs. -/
 theorem mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs (a b : EvmWord) :
     mulModProductLayoutHighOffsetValues a b =
-      [((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
-       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
-       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
-       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
+      [((3968 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
+       ((3976 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
+       ((3984 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
+       ((3992 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
   exact mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs_of_columnTargets
     (mulModProductLayoutColumn4Call08P120FeedValue_eq_productLimb_four a b)
     (mulModProductLayoutColumn5Value_eq_productLimb_five a b)
@@ -132,11 +132,11 @@ def mulModProductLayoutConcreteHighTargetValues (a b : EvmWord) : List Word :=
 
 /-- The concrete final high product-layout cells paired with their runtime offsets. -/
 def mulModProductLayoutConcreteHighOffsetValues (a b : EvmWord) : List (BitVec 12 × Word) :=
-  [((128 : BitVec 12), mulModProductLayoutCall12P128 a b),
-   ((136 : BitVec 12), mulModProductLayoutCall14P136 a b),
-   ((144 : BitVec 12), mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
+  [((3968 : BitVec 12), mulModProductLayoutCall12P128 a b),
+   ((3976 : BitVec 12), mulModProductLayoutCall14P136 a b),
+   ((3984 : BitVec 12), mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
     (a.getLimbN 3) (b.getLimbN 3)),
-   ((152 : BitVec 12), mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
+   ((3992 : BitVec 12), mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
     (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3))]
 
 /-- The concrete call15 high cells are exactly the folded target values. -/
@@ -218,10 +218,10 @@ theorem mulModProductLayoutConcreteHighOffsetValues_eq_productOffsetValues_drop_
 theorem mulModProductLayoutConcreteHighOffsetValues_eq_mulHigh_getLimbNs_noHyp
     (a b : EvmWord) :
     mulModProductLayoutConcreteHighOffsetValues a b =
-      [((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
-       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
-       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
-       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
+      [((3968 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
+       ((3976 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
+       ((3984 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
+       ((3992 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
   rw [mulModProductLayoutConcreteHighOffsetValues_eq_highOffsetValues]
   exact mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs a b
 
@@ -275,10 +275,10 @@ theorem mulModProductLayoutConcreteHighOffsetValues_eq_mulHigh_getLimbNs_of_colu
     (h6 : mulModProductLayoutColumn6Value a b = productLimb a b 6)
     (h7 : mulModProductLayoutColumn7Value a b = productLimb a b 7) :
     mulModProductLayoutConcreteHighOffsetValues a b =
-      [((128 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
-       ((136 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
-       ((144 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
-       ((152 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
+      [((3968 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 0),
+       ((3976 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 1),
+       ((3984 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 2),
+       ((3992 : BitVec 12), (EvmWord.mulHigh a b).getLimbN 3)] := by
   rw [mulModProductLayoutConcreteHighOffsetValues_eq_highOffsetValues]
   exact mulModProductLayoutHighOffsetValues_eq_mulHigh_getLimbNs_of_columnTargets
     h4 h5 h6 h7

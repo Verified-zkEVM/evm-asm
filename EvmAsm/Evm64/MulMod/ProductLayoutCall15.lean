@@ -24,7 +24,7 @@ local macro "evm_mulmod_product_layout_slice_rfl" : tactic =>
 /-- Core+finish code for layout call 15 is contained in `evm_mulmod_product_layout`. -/
 theorem evm_mulmod_product_layout_call15_core_code_sub (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1700)
-        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12)) a = some i →
+        (24 : BitVec 12) (56 : BitVec 12) (3984 : BitVec 12) (3992 : BitVec 12)) a = some i →
       (evm_mulmod_product_layout_code base) a = some i := by
   unfold evm_mulmod_product_add_partial_core_finish_code evm_mulmod_product_layout_code
   refine CodeReq.ofProg_mono_sub base (base + 1700) evm_mulmod_product_layout _ 425 ?_ ?_ ?_ ?_
@@ -38,7 +38,7 @@ theorem evm_mulmod_product_layout_call15_core_code_sub (base : Word) :
 /-- Layout call 15 code is contained in `evm_mulmod_product_layout`. -/
 theorem evm_mulmod_product_layout_call15_code_sub (base : Word) :
     ∀ a i, (evm_mulmod_product_add_partial_core_finish_code (base + 1700)
-        (24 : BitVec 12) (56 : BitVec 12) (144 : BitVec 12) (152 : BitVec 12)) a = some i →
+        (24 : BitVec 12) (56 : BitVec 12) (3984 : BitVec 12) (3992 : BitVec 12)) a = some i →
       (evm_mulmod_product_layout_code base) a = some i :=
   evm_mulmod_product_layout_call15_core_code_sub base
 
@@ -84,12 +84,12 @@ def evmMulModProductLayoutCall15Frame (sp : Word) (a b n : EvmWord) : Assertion 
   ((sp + 72) ↦ₘ n.getLimbN 1) **
   ((sp + 80) ↦ₘ n.getLimbN 2) **
   ((sp + 88) ↦ₘ n.getLimbN 3) **
-  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ mulModProductLayoutCall00P96 a b) **
-  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ mulModProductLayoutCall02P104 a b) **
-  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ mulModProductLayoutCall05P112 a b) **
-  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ mulModProductLayoutCall09P120 a b) **
-  ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ mulModProductLayoutCall12P128 a b) **
-  ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ mulModProductLayoutCall14P136 a b)
+  ((sp + signExtend12 (3936 : BitVec 12)) ↦ₘ mulModProductLayoutCall00P96 a b) **
+  ((sp + signExtend12 (3944 : BitVec 12)) ↦ₘ mulModProductLayoutCall02P104 a b) **
+  ((sp + signExtend12 (3952 : BitVec 12)) ↦ₘ mulModProductLayoutCall05P112 a b) **
+  ((sp + signExtend12 (3960 : BitVec 12)) ↦ₘ mulModProductLayoutCall09P120 a b) **
+  ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ mulModProductLayoutCall12P128 a b) **
+  ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ mulModProductLayoutCall14P136 a b)
 
 /-- Folded post after zeroing and product-layout calls 00 through 15. -/
 @[irreducible]
@@ -110,9 +110,9 @@ def evmMulModProductLayoutZeroCall15Post (sp : Word) (a b n : EvmWord) : Asserti
       (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3)) **
     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ a.getLimbN 3) **
     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ b.getLimbN 3) **
-    ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
+    ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ mulModAddPartialLoValue (mulModProductLayoutCall14P144 a b)
       (a.getLimbN 3) (b.getLimbN 3)) **
-    ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
+    ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ mulModAddPartialHiValue (mulModProductLayoutCall14P152 a b)
       (mulModProductLayoutCall14P144 a b) (a.getLimbN 3) (b.getLimbN 3))) **
    evmMulModProductLayoutCall15Frame sp a b n)
 
@@ -166,12 +166,12 @@ theorem evm_mulmod_product_layout_zero_call15_spec_within
       ((sp + 72) ↦ₘ n.getLimbN 1) **
       ((sp + 80) ↦ₘ n.getLimbN 2) **
       ((sp + 88) ↦ₘ n.getLimbN 3) **
-      ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ (mulModProductLayoutCall00P96 a b)) **
-      ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ (mulModProductLayoutCall02P104 a b)) **
-      ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ (mulModProductLayoutCall05P112 a b)) **
-      ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ (mulModProductLayoutCall09P120 a b)) **
-      ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ (mulModProductLayoutCall12P128 a b)) **
-      ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ (mulModProductLayoutCall14P136 a b)))
+      ((sp + signExtend12 (3936 : BitVec 12)) ↦ₘ (mulModProductLayoutCall00P96 a b)) **
+      ((sp + signExtend12 (3944 : BitVec 12)) ↦ₘ (mulModProductLayoutCall02P104 a b)) **
+      ((sp + signExtend12 (3952 : BitVec 12)) ↦ₘ (mulModProductLayoutCall05P112 a b)) **
+      ((sp + signExtend12 (3960 : BitVec 12)) ↦ₘ (mulModProductLayoutCall09P120 a b)) **
+      ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ (mulModProductLayoutCall12P128 a b)) **
+      ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ (mulModProductLayoutCall14P136 a b)))
   have hCallF := cpsTripleWithin_frameR call15Frame (by pcFree) hCall
   have hComp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hPrev hCallF
   rw [show base + 1700 + 60 = base + 1760 by bv_omega] at hComp
@@ -184,24 +184,24 @@ theorem evm_mulmod_product_layout_zero_call15_spec_within
       delta evmMulModAddPartialCorePost at hq
       simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24,
         signExtend12_32, signExtend12_40] at hq ⊢
-      simp only [show signExtend12 (96 : BitVec 12) = (96 : Word) by decide,
-        show signExtend12 (104 : BitVec 12) = (104 : Word) by decide,
+      simp only [show signExtend12 (3936 : BitVec 12) = (18446744073709551456 : Word) by decide,
+        show signExtend12 (3944 : BitVec 12) = (18446744073709551464 : Word) by decide,
         show signExtend12 (48 : BitVec 12) = (48 : Word) by decide,
         show signExtend12 (56 : BitVec 12) = (56 : Word) by decide,
-        show signExtend12 (112 : BitVec 12) = (112 : Word) by decide,
-        show signExtend12 (120 : BitVec 12) = (120 : Word) by decide,
-        show signExtend12 (128 : BitVec 12) = (128 : Word) by decide,
-        show signExtend12 (136 : BitVec 12) = (136 : Word) by decide,
-        show signExtend12 (144 : BitVec 12) = (144 : Word) by decide,
-        show signExtend12 (152 : BitVec 12) = (152 : Word) by decide] at ⊢
-      rw [show signExtend12 (96#12) = (96#64) by decide,
-        show signExtend12 (104#12) = (104#64) by decide,
-        show signExtend12 (112#12) = (112#64) by decide,
-        show signExtend12 (120#12) = (120#64) by decide,
-        show signExtend12 (128#12) = (128#64) by decide,
-        show signExtend12 (136#12) = (136#64) by decide,
-        show signExtend12 (144#12) = (144#64) by decide,
-        show signExtend12 (152#12) = (152#64) by decide] at hq
+        show signExtend12 (3952 : BitVec 12) = (18446744073709551472 : Word) by decide,
+        show signExtend12 (3960 : BitVec 12) = (18446744073709551480 : Word) by decide,
+        show signExtend12 (3968 : BitVec 12) = (18446744073709551488 : Word) by decide,
+        show signExtend12 (3976 : BitVec 12) = (18446744073709551496 : Word) by decide,
+        show signExtend12 (3984 : BitVec 12) = (18446744073709551504 : Word) by decide,
+        show signExtend12 (3992 : BitVec 12) = (18446744073709551512 : Word) by decide] at ⊢
+      rw [show signExtend12 (3936#12) = (18446744073709551456#64) by decide,
+        show signExtend12 (3944#12) = (18446744073709551464#64) by decide,
+        show signExtend12 (3952#12) = (18446744073709551472#64) by decide,
+        show signExtend12 (3960#12) = (18446744073709551480#64) by decide,
+        show signExtend12 (3968#12) = (18446744073709551488#64) by decide,
+        show signExtend12 (3976#12) = (18446744073709551496#64) by decide,
+        show signExtend12 (3984#12) = (18446744073709551504#64) by decide,
+        show signExtend12 (3992#12) = (18446744073709551512#64) by decide] at hq
       rw [show sp + (0 : Word) = sp by bv_omega]
       simpa only [sepConj_assoc'] using hq)
     hComp

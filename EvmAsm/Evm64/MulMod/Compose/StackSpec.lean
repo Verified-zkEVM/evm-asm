@@ -54,21 +54,21 @@ theorem evm_mulmod_stack_spec_within_nonzero
       (((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v5Old) ** (.x5 ↦ᵣ v6Old) ** (.x0 ↦ᵣ 0) **
         evmWordIs (sp + signExtend12 (64 : BitVec 12)) n) **
        (evmWordIs sp a ** evmWordIs (sp + 32) b **
-        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
-        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
-        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
-        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
-        ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
-        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
-        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7) **
+        ((sp + signExtend12 (3936 : BitVec 12)) ↦ₘ p0) **
+        ((sp + signExtend12 (3944 : BitVec 12)) ↦ₘ p1) **
+        ((sp + signExtend12 (3952 : BitVec 12)) ↦ₘ p2) **
+        ((sp + signExtend12 (3960 : BitVec 12)) ↦ₘ p3) **
+        ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ p4) **
+        ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ p5) **
+        ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7) **
         (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) ** (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) **
         (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) **
         (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) **
-        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+        ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3) **
         regOwn .x15 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20))
       -- Post: result word as `evmWordIs`, everything else junk.
       (((sp ↦ₘ a.getLimbN 0) ** ((sp + 8) ↦ₘ a.getLimbN 1) **
@@ -78,15 +78,15 @@ theorem evm_mulmod_stack_spec_within_nonzero
         regOwn .x9 ** regOwn .x14) **
        ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
         (((.x5 ↦ᵣ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
-          ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 0) **
-          ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 1) **
-          ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 2) **
-          ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
+          ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 0) **
+          ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 1) **
+          ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 2) **
+          ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN (EvmWord.mulmod a b n) 3) **
           evmWordIs (sp + signExtend12 (64 : BitVec 12)) (EvmWord.mulmod a b n)) **
          (((.x15 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
            regOwn .x6 ** regOwn .x7 ** regOwn .x8 ** regOwn .x10 ** regOwn .x11 ** regOwn .x13 **
            regOwn .x17 ** regOwn .x19 ** regOwn .x20 ** regOwn .x16 ** regOwn .x18) **
-          limbChain (sp + signExtend12 (152 : BitVec 12)) (fun i => productLimb a b (7 - i)) 8)))) := by
+          limbChain (sp + signExtend12 (3992 : BitVec 12)) (fun i => productLimb a b (7 - i)) 8)))) := by
   have se72 : signExtend12 (72 : BitVec 12) = (72 : Word) := by decide
   have se80 : signExtend12 (80 : BitVec 12) = (80 : Word) := by decide
   have se88 : signExtend12 (88 : BitVec 12) = (88 : Word) := by decide
