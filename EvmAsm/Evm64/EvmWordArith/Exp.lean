@@ -179,6 +179,69 @@ theorem expSqMulStep_one (base e' : EvmWord) (bit : Bool)
   rw [h1]
   exact expSqMulStep_correct base 0 e' bit (by simpa using hNext)
 
+/-- MSB-first fold of the square-and-multiply step over a list of exponent
+    bits (list head = most significant bit). This is the pure accumulator
+    trajectory the 256-iteration EXP loop body realizes. -/
+def expSqMulFold (base acc : EvmWord) : List Bool → EvmWord
+  | [] => acc
+  | b :: bs => expSqMulFold base (expSqMulStep base acc b) bs
+
+/-- Value of an MSB-first bit list (list head = most significant bit). -/
+def bitsToNatMsb : List Bool → Nat
+  | [] => 0
+  | b :: bs => (if b then 1 else 0) * 2 ^ bs.length + bitsToNatMsb bs
+
+/-- MSB-first square-and-multiply fold correctness, generalized over a running
+    prefix exponent `e`.
+
+    If the accumulator equals `exp base e` for the processed prefix `e`, folding
+    the remaining `bits` (most significant first) yields `exp base ef`, where
+    `ef` is the full exponent `ef = e * 2^|bits| + value(bits)` — provided that
+    value fits in 256 bits (which holds for any ≤256-bit EVM exponent). -/
+theorem expSqMulFold_exp (base : EvmWord) (bits : List Bool) :
+    ∀ (e ef : EvmWord), ef.toNat < 2 ^ 256 →
+      ef.toNat = e.toNat * 2 ^ bits.length + bitsToNatMsb bits →
+      expSqMulFold base (exp base e) bits = exp base ef := by
+  induction bits with
+  | nil =>
+    intro e ef _ hef
+    simp only [expSqMulFold]
+    simp only [bitsToNatMsb, List.length_nil, Nat.pow_zero, Nat.mul_one,
+      Nat.add_zero] at hef
+    rw [BitVec.eq_of_toNat_eq hef.symm]
+  | cons b bs ih =>
+    intro e ef hlt hef
+    simp only [expSqMulFold]
+    -- The extended prefix `e1 = 2*e + b` is bounded by `ef`, hence fits.
+    have h3 : (2 : Nat) ≤ 2 ^ (b :: bs).length := by
+      rw [List.length_cons]
+      calc (2 : Nat) = 2 ^ 1 := (Nat.pow_one 2).symm
+        _ ≤ 2 ^ (bs.length + 1) := Nat.pow_le_pow_right (by omega) (by omega)
+    have hpos : 1 ≤ 2 ^ bs.length := Nat.one_le_pow _ _ (by omega)
+    have hA : 2 * e.toNat ≤ e.toNat * 2 ^ (b :: bs).length := by
+      calc 2 * e.toNat = e.toNat * 2 := by rw [Nat.mul_comm]
+        _ ≤ e.toNat * 2 ^ (b :: bs).length := Nat.mul_le_mul_left _ h3
+    have hB : (if b then 1 else 0) ≤ bitsToNatMsb (b :: bs) := by
+      simp only [bitsToNatMsb]
+      calc (if b then (1 : Nat) else 0) = (if b then 1 else 0) * 1 := (Nat.mul_one _).symm
+        _ ≤ (if b then 1 else 0) * 2 ^ bs.length := Nat.mul_le_mul_left _ hpos
+        _ ≤ (if b then 1 else 0) * 2 ^ bs.length + bitsToNatMsb bs := Nat.le_add_right _ _
+    have hge : 2 * e.toNat + (if b then 1 else 0) ≤ ef.toNat := by
+      rw [hef]; omega
+    have hbnd : 2 * e.toNat + (if b then 1 else 0) < 2 ^ 256 := by omega
+    have he1 : (BitVec.ofNat 256 (2 * e.toNat + (if b then 1 else 0)) : EvmWord).toNat
+        = 2 * e.toNat + (if b then 1 else 0) := by
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hbnd]
+    rw [expSqMulStep_correct base e
+      (BitVec.ofNat 256 (2 * e.toNat + (if b then 1 else 0))) b he1]
+    refine ih (BitVec.ofNat 256 (2 * e.toNat + (if b then 1 else 0))) ef hlt ?_
+    rw [he1, hef]
+    simp only [bitsToNatMsb, List.length_cons, Nat.pow_succ]
+    rw [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm (2 ^ bs.length) 2,
+      ← Nat.mul_assoc e.toNat 2 (2 ^ bs.length), Nat.mul_comm e.toNat 2,
+      Nat.mul_assoc 2 e.toNat (2 ^ bs.length)]
+    omega
+
 /-- The GH #92 cross-limb boundary case `EXP(2, 64)`. -/
 theorem exp_two_64 : exp (2 : EvmWord) (64 : EvmWord) =
     BitVec.ofNat 256 (2^64) := by
