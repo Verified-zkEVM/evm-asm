@@ -47,7 +47,6 @@ namespace RLP
 open EvmAsm.EL.RLP
 open EvmAsm.Rv64.Tactics
 
-set_option maxRecDepth 8000 in
 /-- **Validating shortBytes decode-and-advance** (one field step of the untrusted walk, F1 of
     #9373). Runs the offset-general validating shortBytes decoder at byte offset `O`
     (`rlp_decode_shortBytes_validated_at`) and, on its SUCCESS (taken) exit, sequences
@@ -169,7 +168,6 @@ theorem advance_cursor_clean (regionBase : Word) (O payloadLen : Nat) :
       show (1 : Word) = BitVec.ofNat 64 1 from rfl, BitVec.add_assoc, BitVec.add_assoc,
       ← BitVec.ofNat_add, ← BitVec.ofNat_add, Nat.add_assoc]
 
-set_option maxRecDepth 8000 in
 /-- **Clean-form** validating shortBytes decode-and-advance: identical to
     `rlp_decode_shortBytes_advance_at` but the SUCCESS cursor `x13` is stated in the canonical
     next-item-start form `regionBase + (O + 1 + payloadLen)` — the precondition shape the next
