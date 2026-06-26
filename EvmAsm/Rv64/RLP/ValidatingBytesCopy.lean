@@ -228,18 +228,27 @@ theorem rlp_shortBytes_length_check
   exact hseq
 
 set_option linter.unusedVariables false in
-/-- **Single-pass validated fixed-length byte-array copy** at byte offset `O`: validate the
-    shortBytes field, then stream its `N`-byte payload into the output slot `outBase + di0`. -/
+/-- **Single-pass validated fixed-length byte-array copy** at byte offset `O`. Validates the
+    shortBytes field, **checks its decoded length equals the Lean argument `expectedN`** (rejecting a
+    field of any other length — a DoS guard, since the copy length must not be attacker-controlled),
+    then streams **exactly `expectedN`** payload bytes into the output slot `outBase + di0`.
+
+    SUCCESS (taken): the slot `[di0, di0+expectedN)` holds the payload bytes, with
+    `⌜payloadLen = expectedN⌝` (so the field IS an `expectedN`-byte string; tie to the pure decode is
+    assembled by the caller). FAIL (fall): either malformed (`decode = none`) OR wrong length
+    (`payloadLen ≠ expectedN`) — both at the one abort exit, output untouched. -/
 theorem rlp_decode_shortBytes_bytescopy_at
-    (pfx : Byte) (rest : List Byte) (bs : List Byte) (O : Nat)
+    (pfx : Byte) (rest : List Byte) (bs : List Byte) (O expectedN : Nat)
     (v10 v11Old v12Old v14Old : Word)
     (regionBase : Word) (rOut : Reg) (outBase : Word) (fieldImm : BitVec 12)
     (outBytes : List Byte) (di0 : Nat)
-    (off1 off2 succOff : BitVec 13) (base e2_target : Word)
+    (off1 off2 succOff lenFailOff : BitVec 13) (base e2_target : Word)
     (h_class : classifyPrefix pfx = .shortBytes)
     (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
     (hLfit : (pfx :: rest).length < 2 ^ 64)
     (htarget : (base + 8 + 4) + signExtend13 off2 = e2_target)
+    (hexp11 : expectedN < 2 ^ 11)
+    (hpl64 : rlpPrefixShortBytesPayloadLen pfx < 2 ^ 64)
     (hd_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
                     (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
                  (CodeReq.ofProg e2_target rlp_phase3_short_string_prog))
@@ -249,101 +258,146 @@ theorem rlp_decode_shortBytes_bytescopy_at
                (CodeReq.singleton (e2_target + 8) (.BLTU .x11 .x15 succOff)))
     (succPC : Word)
     (hsuccPC : (e2_target + 8) + signExtend13 succOff = succPC)
+    (hlenfail : (succPC + 4) + signExtend13 lenFailOff = e2_target + 12)
     (hsalign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
     (hsover : regionBase.toNat + bs.length < 2 ^ 64)
     (hsvalid : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
-    (hsrc : (O + 1) + rlpPrefixShortBytesPayloadLen pfx ≤ bs.length)
-    (hdst : di0 + rlpPrefixShortBytesPayloadLen pfx ≤ outBytes.length)
+    (hsrc : (O + 1) + expectedN ≤ bs.length)
+    (hdst : di0 + expectedN ≤ outBytes.length)
     (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
     (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
-    (hcode : succPC.toNat + (4 + 20 * rlpPrefixShortBytesPayloadLen pfx) < 2 ^ 64)
+    (hcode : (succPC + 8).toNat + (4 + 20 * expectedN) < 2 ^ 64)
     (hImm : signExtend12 fieldImm = BitVec.ofNat 64 di0)
-    (hd_copy : ((((rlp_phase1_step_code 0x80 off1 base).union
+    (hd_addibne : (CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).Disjoint
+                  (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))
+    (hd_lencheck : ((((rlp_phase1_step_code 0x80 off1 base).union
                     (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
                  (CodeReq.ofProg e2_target rlp_phase3_short_string_prog)).union
                  (CodeReq.singleton (e2_target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
-               ((CodeReq.singleton succPC (.ADDI .x14 rOut fieldImm)).union
-                 (byteCopyChainCR (succPC + 4) (rlpPrefixShortBytesPayloadLen pfx)))) :
-    cpsBranchWithin (7 + (1 + 5 * rlpPrefixShortBytesPayloadLen pfx)) base
-      (((((rlp_phase1_step_code 0x80 off1 base).union
+               ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                 (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff))))
+    (hd_copy : (((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2_target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2_target + 8) (.BLTU .x11 .x15 succOff))).union
+                 ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                   (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))).Disjoint
+               ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+                 (byteCopyChainCR (succPC + 8 + 4) expectedN))) :
+    cpsBranchWithin ((7 + 2) + (1 + 5 * expectedN)) base
+      ((((((rlp_phase1_step_code 0x80 off1 base).union
           (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
          (CodeReq.ofProg e2_target rlp_phase3_short_string_prog)).union
         (CodeReq.singleton (e2_target + 8) (.BLTU .x11 .x15 succOff))).union
-        ((CodeReq.singleton succPC (.ADDI .x14 rOut fieldImm)).union
-          (byteCopyChainCR (succPC + 4) (rlpPrefixShortBytesPayloadLen pfx))))
+        ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+          (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))).union
+        ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+          (byteCopyChainCR (succPC + 8 + 4) expectedN)))
       (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
         (.x11 ↦ᵣ v11Old) ** (.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
         (.x14 ↦ᵣ v14Old) **
         (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs) **
        ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
-      -- SUCCESS (taken): the payload is copied into the output slot.
-      (succPC + 4 + BitVec.ofNat 64 (20 * rlpPrefixShortBytesPayloadLen pfx))
+      -- SUCCESS (taken): the `expectedN`-byte payload is copied into the output slot.
+      (succPC + 8 + 4 + BitVec.ofNat 64 (20 * expectedN))
         ((((regOwn .x12) **
-          (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 ((O + 1) + rlpPrefixShortBytesPayloadLen pfx))) **
-          (.x14 ↦ᵣ (outBase + BitVec.ofNat 64 (di0 + rlpPrefixShortBytesPayloadLen pfx))) **
+          (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 ((O + 1) + expectedN))) **
+          (.x14 ↦ᵣ (outBase + BitVec.ofNat 64 (di0 + expectedN))) **
           (regOwn .x15) ** (rOut ↦ᵣ outBase) ** bytesRegion regionBase bs **
-          bytesRegion outBase
-            (copyRangeGen outBytes bs (O + 1) di0 (rlpPrefixShortBytesPayloadLen pfx))) **
+          bytesRegion outBase (copyRangeGen outBytes bs (O + 1) di0 expectedN)) **
          ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
-          (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+          (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
           (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
-          ⌜decode (pfx :: rest)
-            = some (.bytes (rest.take (rlpPrefixShortBytesPayloadLen pfx)),
-                    rest.drop (rlpPrefixShortBytesPayloadLen pfx))⌝)))
-      -- FAIL (fall): the decoder's abort exit, output untouched.
+          ⌜rlpPrefixShortBytesPayloadLen pfx = expectedN⌝)))
+      -- FAIL (fall): malformed OR wrong length, output untouched.
       (e2_target + 12)
-        (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
-          (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+        (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
           (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
           (.x12 ↦ᵣ v12Old) **
-          (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 (O + 1))) **
+          (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
           (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
           bytesRegion regionBase bs **
-          ⌜decode (pfx :: rest) = none⌝) **
+          ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) **
          ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes)) := by
-  set N := rlpPrefixShortBytesPayloadLen pfx with hN
-  -- The validating decoder at offset O; rewrite x13 (both exits) to the payload pointer.
+  -- The validating decoder at offset O (success at succPC, fall at e2_target+12).
   have decAt := rlp_decode_shortBytes_validated_at pfx rest bs O v10 v11Old v12Old v14Old
     regionBase off1 off2 succOff base e2_target h_class hns hLfit htarget hd_phase3 hd_bltu
   rw [hsuccPC] at decAt
-  simp only [bytescopy_ptr_eq] at decAt
-  -- Frame the output pointer + region onto both exits.
-  have decAtF := cpsBranchWithin_frameR
+  -- The length check on the success exit.
+  have lenCheck := rlp_shortBytes_length_check pfx rest bs O expectedN v12Old v14Old regionBase
+    succPC lenFailOff (e2_target + 12) hlenfail hexp11 (by omega) hpl64 hd_addibne
+  -- Converge: arm fall (decode = none) and length-check fail (payloadLen ≠ expectedN).
+  have armWithLen := cpsBranchWithin_seq_cpsBranchWithin_taken_conv hd_lencheck decAt lenCheck
+      (fun h hp => by
+        show ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+            (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+            (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+            (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+            bytesRegion regionBase bs **
+            ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) h
+        extract_pure hp
+        obtain ⟨hnone, hst⟩ := hp
+        have hst' := sepConj_mono_left (sepConj_mono_left (sepConj_mono_left (sepConj_mono_left
+          (sepConj_mono_left (sepConj_mono_left
+            (sepConj_mono_right (regIs_implies_regOwn .x10))))))) h hst
+        have hg := (sepConj_pure_right h).2 ⟨hst',
+          (Or.inl hnone : decode (pfx :: rest) = none
+            ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN)⟩
+        xperm_hyp hg)
+      (fun h hp => by
+        show ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+            (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+            (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+            (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+            bytesRegion regionBase bs **
+            ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) h
+        extract_pure hp
+        obtain ⟨hne, hst⟩ := hp
+        have hst' := sepConj_mono_left (sepConj_mono_left (sepConj_mono_left (sepConj_mono_left
+          (sepConj_mono_left (sepConj_mono_left
+            (sepConj_mono_right (regIs_implies_regOwn .x10))))))) h hst
+        have hg := (sepConj_pure_right h).2 ⟨hst',
+          (Or.inr hne : decode (pfx :: rest) = none
+            ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN)⟩
+        xperm_hyp hg)
+  -- Frame the output pointer + region onto both exits of armWithLen.
+  have armWithLenF := cpsBranchWithin_frameR
     ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes)
-    (pcFree_sepConj pcFree_regIs (bytesRegion_pcFree _ _)) decAt
-  -- The byte copy at succPC, off = O+1, copying N payload bytes into outBase+di0; framed with the
-  -- arm's extra atoms (x5/x10/x11 and the pure verdict) and reordered to decAtF's taken post.
-  have copyRaw := unified_field_bytes_copy succPC regionBase rOut outBase fieldImm bs outBytes
-    (O + 1) di0 N v12Old v14Old (BitVec.ofNat 64 (pfx :: rest).length)
+    (pcFree_sepConj pcFree_regIs (bytesRegion_pcFree _ _)) armWithLen
+  -- The byte copy of exactly `expectedN` bytes, on the success exit (succPC+8).
+  have copyRaw := unified_field_bytes_copy (succPC + 8) regionBase rOut outBase fieldImm bs outBytes
+    (O + 1) di0 expectedN v12Old v14Old (BitVec.ofNat 64 (pfx :: rest).length)
     hsalign hdalign hsover hsvalid hsrc hdst hdov hdval hcode hImm
-  have copyF : cpsTripleWithin (1 + 5 * N) succPC (succPC + 4 + BitVec.ofNat 64 (20 * N))
-      ((CodeReq.singleton succPC (.ADDI .x14 rOut fieldImm)).union (byteCopyChainCR (succPC + 4) N))
+  have copyF : cpsTripleWithin (1 + 5 * expectedN) (succPC + 8)
+      (succPC + 8 + 4 + BitVec.ofNat 64 (20 * expectedN))
+      ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+        (byteCopyChainCR (succPC + 8 + 4) expectedN))
       (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
-        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
-        (.x11 ↦ᵣ (BitVec.ofNat 64 N)) ** (.x12 ↦ᵣ v12Old) **
-        (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 (O + 1))) ** (.x14 ↦ᵣ v14Old) **
-        (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs **
-        ⌜decode (pfx :: rest) = some (.bytes (rest.take N), rest.drop N)⌝) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+        bytesRegion regionBase bs ** ⌜rlpPrefixShortBytesPayloadLen pfx = expectedN⌝) **
        ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
-      ((((regOwn .x12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 ((O + 1) + N))) **
-          (.x14 ↦ᵣ (outBase + BitVec.ofNat 64 (di0 + N))) ** (regOwn .x15) **
+      ((((regOwn .x12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 ((O + 1) + expectedN))) **
+          (.x14 ↦ᵣ (outBase + BitVec.ofNat 64 (di0 + expectedN))) ** (regOwn .x15) **
           (rOut ↦ᵣ outBase) ** bytesRegion regionBase bs **
-          bytesRegion outBase (copyRangeGen outBytes bs (O + 1) di0 N)) **
+          bytesRegion outBase (copyRangeGen outBytes bs (O + 1) di0 expectedN)) **
         ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
-          (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
-          (.x11 ↦ᵣ (BitVec.ofNat 64 N)) **
-          ⌜decode (pfx :: rest) = some (.bytes (rest.take N), rest.drop N)⌝))) :=
+          (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+          (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
+          ⌜rlpPrefixShortBytesPayloadLen pfx = expectedN⌝))) :=
     cpsTripleWithin_weaken
-      (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by rw [bytescopy_ptr_eq] at hp; xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp)
       (cpsTripleWithin_frameR
         ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
-          (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
-          (.x11 ↦ᵣ (BitVec.ofNat 64 N)) **
-          ⌜decode (pfx :: rest) = some (.bytes (rest.take N), rest.drop N)⌝)
+          (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+          (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
+          ⌜rlpPrefixShortBytesPayloadLen pfx = expectedN⌝)
         (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
           (pcFree_sepConj pcFree_regIs pcFree_pure))))
         copyRaw)
-  exact cpsBranchWithin_seq_cpsTripleWithin_taken hd_copy decAtF copyF
+  exact cpsBranchWithin_seq_cpsTripleWithin_taken hd_copy armWithLenF copyF
 
 end EvmAsm.Rv64.RLP
