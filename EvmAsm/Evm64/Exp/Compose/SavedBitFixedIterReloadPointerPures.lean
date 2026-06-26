@@ -46,7 +46,9 @@ theorem expTwoMulFixedIterReloadCondPointerScratchFrame_pures
   obtain ⟨_psRet, _psX19Tail, _hDisjointRet, _hUnionRet,
     _hRet, hX19Tail⟩ := hSuffix
   obtain ⟨_psX19, _psX18Tail, _hDisjointX19, _hUnionX19,
-    _hX19, hX18Tail⟩ := hX19Tail
+    _hX19, hX20Tail⟩ := hX19Tail
+  obtain ⟨_psX20, _psX18Tail2, _hDisjointX20, _hUnionX20,
+    _hX20, hX18Tail⟩ := hX20Tail
   obtain ⟨_psX18, _psC6Tail, _hDisjointX18, _hUnionX18,
     _hX18, hC6Tail⟩ := hX18Tail
   obtain ⟨_psC6, _psPtrTail, _hDisjointC6, _hUnionC6,
@@ -95,7 +97,9 @@ theorem expTwoMulFixedIterReloadSkipPointerScratchFrame_pures
   obtain ⟨_psRet, _psX19Tail, _hDisjointRet, _hUnionRet,
     _hRet, hX19Tail⟩ := hSuffix
   obtain ⟨_psX19, _psX18Tail, _hDisjointX19, _hUnionX19,
-    _hX19, hX18Tail⟩ := hX19Tail
+    _hX19, hX20Tail⟩ := hX19Tail
+  obtain ⟨_psX20, _psX18Tail2, _hDisjointX20, _hUnionX20,
+    _hX20, hX18Tail⟩ := hX20Tail
   obtain ⟨_psX18, _psC6Tail, _hDisjointX18, _hUnionX18,
     _hX18, hC6Tail⟩ := hX18Tail
   obtain ⟨_psC6, _psPtrTail, _hDisjointC6, _hUnionC6,
