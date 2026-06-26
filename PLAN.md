@@ -1995,6 +1995,26 @@ shows more elements than expected (no decode-then-count). Layering:
     ofNat(L-(O+1+pl))` (via (2) twice). Remaining: the SUB/ADDI/LBU RV64 specs framed into the
     post-advance state + composition + end check. Then longBytes (parked, T4); singleByte/singleton
     advance analogs. Then T1 (`rlp_field_to_u64`) → T2 (`withdrawal_decode`) → T3 (header) → T4 (tx_1559).
+  - ✅ **B.7 — single-pass validated scalar read** (`ValidatingScalarRead.lean`,
+    `rlp_decode_shortBytes_scalar_at`, #9483): the T1 core. Composes `rlp_decode_shortBytes_validated_at`
+    (#9456) with the existing `unified_field_scalar_read` on the SUCCESS exit — the validating arm leaves
+    exactly the read's register convention (`x13`=payload ptr, `x11`=len), so a `≤8`-byte scalar field is
+    validated AND its value read in **one descent** (single-pass; no reparse). SUCCESS: `x11 =
+    Nat.fromBytesBE payload`, `x13` advanced, verdict `⌜decodeScalar (bs.drop O) = some (value, …)⌝` via
+    `decodeScalar_of_decode_bytes`; FAIL: decoder's abort exit. Needs `1 ≤ payloadLen ≤ 8` (the decoder's
+    `a0=2` runtime check discharges it). Key reuse insight: for EXTRACTED fields the value-read advances
+    `x13` itself, so the ADD-skip advance (B.6) is for DISCARDED fields (header gaps); extracted fields
+    (all of withdrawal) use this read-advance. Axiom-clean; no `maxRecDepth`.
+  - ✅ **B.8 — single-pass validated scalar decode-and-store** (`ValidatingScalarStore.lean`,
+    `rlp_decode_shortBytes_scalar_store_at`, #9486): B.7 ⨾[taken] `SD rOut,x11,offset` — the per-field op
+    a fixed-schema scalar decoder repeats. SUCCESS: output cell `outBase+offset` = `Nat.fromBytesBE
+    payload`, verdict `decodeScalar (bs.drop O) = some (value, …)`; FAIL: abort, slot untouched. `rOut` =
+    callee-saved output base (distinct from `x5/x10..x15`). Mirrors valid-input
+    `unified_scalar_field_decode_and_store` onto the validating taken exit. Axiom-clean.
+  - ⏳ **Next (T1 `rlp_field_to_u64`)**: walk-to-field-`i` (iterate the validating advance over fields
+    `0..i-1`, validating each, via the x15-decrement + LBU-next glue from #9477) → `rlp_decode_shortBytes_
+    scalar_at` at field `i` → runtime `payloadLen ≤ 8` check (`a0=2`) → `SD` store value to `*a3` → F2 LP64
+    wrapper. Then T2 `withdrawal_decode` (4 consecutive scalar/address fields, exact-arity).
   - 🔑 **SINGLE-PASS directive** (maintainer @pirapira, PR #9461): the emitted program must walk the
     input **once** — validate AND copy out values in the same sweep, NOT validate-then-reparse. So each
     field-step is `validate-item → store-its-value → advance-cursor`. The validating arm already yields
