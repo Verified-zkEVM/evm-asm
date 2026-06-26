@@ -1142,7 +1142,7 @@ theorem exp_prologue_fixed_spec_within
     cpsTripleWithin 10 base (base + 40) (exp_prologue_fixed_code base)
       ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
        (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
@@ -1152,7 +1152,7 @@ theorem exp_prologue_fixed_spec_within
        (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
        (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
        (.x12 ↦ᵣ evmSp) **
-       (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
        (.x16 ↦ᵣ evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12)) **
        (.x19 ↦ᵣ expLimb3) **
        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
@@ -1167,7 +1167,7 @@ theorem exp_prologue_fixed_spec_within
   have hSd1 := generic_sd_spec_within .x2 .x0 sp (0:Word) m1 (8:BitVec 12) (base+12)
   have hSd2 := generic_sd_spec_within .x2 .x0 sp (0:Word) m2 (16:BitVec 12) (base+16)
   have hSd3 := generic_sd_spec_within .x2 .x0 sp (0:Word) m3 (24:BitVec 12) (base+20)
-  have hC6 := addi_spec_gen_within .x6 .x0 c6Old (0:Word) (64:BitVec 12) (base+24) (by decide)
+  have hC6 := addi_spec_gen_within .x20 .x0 c6Old (0:Word) (64:BitVec 12) (base+24) (by decide)
   have hLP := addi_spec_gen_within .x16 .x12 c16Old evmSp (56:BitVec 12) (base+28) (by decide)
   have hLd := ld_spec_gen_within .x19 .x16 (evmSp+signExtend12 56) c19Old expLimb3 (0:BitVec 12) (base+32) (by decide)
   have hAP := addi_spec_gen_same_within .x16 (evmSp+signExtend12 56) (-8:BitVec 12) (base+36) (by decide)
@@ -1211,12 +1211,12 @@ theorem exp_msb_bit_test_block_fixed_slli_spec_within (e : Word) (base : Word) :
 theorem exp_msb_bit_test_block_fixed_decrement_spec_within (c6 : Word) (base : Word) :
     cpsTripleWithin 1 (base + 8) (base + 12)
       (exp_msb_bit_test_block_fixed_code base)
-      (.x6 ↦ᵣ c6)
-      (.x6 ↦ᵣ (c6 + signExtend12 (-1 : BitVec 12))) := by
-  have h := addi_spec_gen_same_within .x6 c6 (-1 : BitVec 12) (base + 8) (by decide)
+      (.x20 ↦ᵣ c6)
+      (.x20 ↦ᵣ (c6 + signExtend12 (-1 : BitVec 12))) := by
+  have h := addi_spec_gen_same_within .x20 c6 (-1 : BitVec 12) (base + 8) (by decide)
   have hext := cpsTripleWithin_extend_code (h := h)
     (hmono := CodeReq.ofProg_mono_sub base (base + 8) exp_msb_bit_test_block_fixed
-      [.ADDI .x6 .x6 (-1)] 2 (by bv_omega) (by decide) (by decide) (by decide))
+      [.ADDI .x20 .x20 (-1)] 2 (by bv_omega) (by decide) (by decide) (by decide))
   have haddr : (base + 8 : Word) + 4 = base + 12 := by bv_addr
   rw [haddr] at hext; exact hext
 
@@ -1229,15 +1229,15 @@ theorem exp_msb_bit_test_block_fixed_decrement_spec_within (c6 : Word) (base : W
 theorem exp_msb_bit_test_block_fixed_bne_spec_within (c6_new : Word) (base : Word) :
     cpsBranchWithin 1 (base + 12)
       (exp_msb_bit_test_block_fixed_code base)
-      ((.x6 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x20 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0 : Word)))
       (base + 12 + signExtend13 (16 : BitVec 13))
-        ((.x6 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c6_new ≠ 0⌝)
+        ((.x20 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c6_new ≠ 0⌝)
       (base + 12 + 4)
-        ((.x6 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c6_new = 0⌝) :=
+        ((.x20 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c6_new = 0⌝) :=
   cpsBranchWithin_extend_code
-    (h := bne_spec_gen_within .x6 .x0 (16 : BitVec 13) c6_new (0 : Word) (base + 12))
+    (h := bne_spec_gen_within .x20 .x0 (16 : BitVec 13) c6_new (0 : Word) (base + 12))
     (hmono := CodeReq.ofProg_mono_sub base (base + 12) exp_msb_bit_test_block_fixed
-      [.BNE .x6 .x0 16] 3 (by bv_omega) (by decide) (by decide) (by decide))
+      [.BNE .x20 .x0 16] 3 (by bv_omega) (by decide) (by decide) (by decide))
 
 /-- Skip path of the fixed bit-test block: BNE is taken because x6-1 ≠ 0.
     Exits at base+28 after 4 instructions. x19 shifted, x10 = MSB of old x19,
@@ -1247,17 +1247,17 @@ theorem exp_msb_bit_test_block_fixed_skip_spec_within
     (hc6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
     cpsTripleWithin 4 base (base + 28)
       (exp_msb_bit_test_block_fixed_code base)
-      ((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x6 ↦ᵣ c6 + signExtend12 (-1 : BitVec 12)) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x20 ↦ᵣ c6 + signExtend12 (-1 : BitVec 12)) ** (.x0 ↦ᵣ (0 : Word)) **
        ⌜c6 + signExtend12 (-1 : BitVec 12) ≠ 0⌝ **
        (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
        (.x10 ↦ᵣ (e >>> (63 : BitVec 6).toNat))) := by
   let c6_new := c6 + signExtend12 (-1 : BitVec 12)
   -- Compose 3 instructions with explicit intermediate types
-  have hSR_f := cpsTripleWithin_frameR ((.x6 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)))
+  have hSR_f := cpsTripleWithin_frameR ((.x20 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)))
     (by pcFree) (exp_msb_bit_test_block_fixed_srli_spec_within c10 e base)
   have hSL_f := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x6 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)))
+    ((.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x20 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)))
     (by pcFree) (exp_msb_bit_test_block_fixed_slli_spec_within e base)
   have hAD_f := cpsTripleWithin_frameR
     ((.x19 ↦ᵣ (e <<< (1:BitVec 6).toNat)) ** (.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) **
@@ -1266,8 +1266,8 @@ theorem exp_msb_bit_test_block_fixed_skip_spec_within
   have h3_seq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hSR_f hSL_f) hAD_f
   have h3 : cpsTripleWithin 3 base (base + 12) (exp_msb_bit_test_block_fixed_code base)
-      ((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0 : Word)))
-      ((.x19 ↦ᵣ (e <<< (1:BitVec 6).toNat)) ** (.x6 ↦ᵣ c6_new) **
+      ((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x19 ↦ᵣ (e <<< (1:BitVec 6).toNat)) ** (.x20 ↦ᵣ c6_new) **
        (.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x0 ↦ᵣ (0:Word))) :=
     cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h3_seq
   have hBNE_f := cpsBranchWithin_frameR
@@ -1293,21 +1293,21 @@ theorem exp_msb_bit_test_block_fixed_reload_spec_within
     (hc6 : c6 + signExtend12 (-1 : BitVec 12) = 0) :
     cpsTripleWithin 7 base (base + 28)
       (exp_msb_bit_test_block_fixed_code base)
-      ((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb))
       ((.x19 ↦ᵣ nextLimb) **
-       (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
        (.x10 ↦ᵣ (e >>> (63 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
        ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
        (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
        ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)) := by
   let c6_new := c6 + signExtend12 (-1 : BitVec 12)
   have hSR_f := cpsTripleWithin_frameR
-    ((.x6 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)) ** (.x16 ↦ᵣ ptr) **
+    ((.x20 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)) ** (.x16 ↦ᵣ ptr) **
      ((ptr + signExtend12 0) ↦ₘ nextLimb))
     (by pcFree) (exp_msb_bit_test_block_fixed_srli_spec_within c10 e base)
   have hSL_f := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x6 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)) **
+    ((.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x20 ↦ᵣ c6) ** (.x0 ↦ᵣ (0:Word)) **
      (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 0) ↦ₘ nextLimb))
     (by pcFree) (exp_msb_bit_test_block_fixed_slli_spec_within e base)
   have hAD_f := cpsTripleWithin_frameR
@@ -1317,9 +1317,9 @@ theorem exp_msb_bit_test_block_fixed_reload_spec_within
   have h3_seq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hSR_f hSL_f) hAD_f
   have h3 : cpsTripleWithin 3 base (base+12) (exp_msb_bit_test_block_fixed_code base)
-      ((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0:Word)) **
+      ((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x10 ↦ᵣ c10) ** (.x0 ↦ᵣ (0:Word)) **
        (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 0) ↦ₘ nextLimb))
-      ((.x19 ↦ᵣ (e <<< (1:BitVec 6).toNat)) ** (.x6 ↦ᵣ c6_new) **
+      ((.x19 ↦ᵣ (e <<< (1:BitVec 6).toNat)) ** (.x20 ↦ᵣ c6_new) **
        (.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x0 ↦ᵣ (0:Word)) **
        (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 0) ↦ₘ nextLimb)) :=
     cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h3_seq
@@ -1345,9 +1345,9 @@ theorem exp_msb_bit_test_block_fixed_reload_spec_within
       [.ADDI .x16 .x16 (-8)] 5 (by bv_omega) (by decide) (by decide) (by decide))
   -- ADDI x6 x0 64 at base+24
   have hC6 := cpsTripleWithin_extend_code
-    (h := addi_spec_gen_within .x6 .x0 c6_new (0:Word) (64:BitVec 12) (base+24) (by decide))
+    (h := addi_spec_gen_within .x20 .x0 c6_new (0:Word) (64:BitVec 12) (base+24) (by decide))
     (hmono := CodeReq.ofProg_mono_sub base (base+24) exp_msb_bit_test_block_fixed
-      [.ADDI .x6 .x0 64] 6 (by bv_omega) (by decide) (by decide) (by decide))
+      [.ADDI .x20 .x0 64] 6 (by bv_omega) (by decide) (by decide) (by decide))
   have e1 : (base+16:Word)+4=base+20 := by bv_addr
   have e2 : (base+20:Word)+4=base+24 := by bv_addr
   have e3 : (base+24:Word)+4=base+28 := by bv_addr
@@ -1355,11 +1355,11 @@ theorem exp_msb_bit_test_block_fixed_reload_spec_within
   -- Compose last 3 instructions
   -- Build h3b with explicit type to force elaboration
   have hLd_f := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x6 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0:Word)) **
+    ((.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x20 ↦ᵣ c6_new) ** (.x0 ↦ᵣ (0:Word)) **
      ⌜c6_new = 0⌝)
     (by pcFree) hLd
   have hAP_f := cpsTripleWithin_frameR
-    ((.x19 ↦ᵣ nextLimb) ** (.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x6 ↦ᵣ c6_new) **
+    ((.x19 ↦ᵣ nextLimb) ** (.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x20 ↦ᵣ c6_new) **
      (.x0 ↦ᵣ (0:Word)) ** ⌜c6_new = 0⌝ ** ((ptr + signExtend12 0) ↦ₘ nextLimb))
     (by pcFree) hAP
   have hC6_f := cpsTripleWithin_frameR
@@ -1370,11 +1370,11 @@ theorem exp_msb_bit_test_block_fixed_reload_spec_within
   have h3b_seq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hLd_f hAP_f) hC6_f
   have h3b : cpsTripleWithin 3 (base+16) (base+28) (exp_msb_bit_test_block_fixed_code base)
-      ((.x19 ↦ᵣ (e <<< (1:BitVec 6).toNat)) ** (.x6 ↦ᵣ c6_new) **
+      ((.x19 ↦ᵣ (e <<< (1:BitVec 6).toNat)) ** (.x20 ↦ᵣ c6_new) **
        (.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x0 ↦ᵣ (0:Word)) **
        (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 0) ↦ₘ nextLimb) ** ⌜c6_new = 0⌝)
       ((.x19 ↦ᵣ nextLimb) **
-       (.x6 ↦ᵣ ((0:Word) + signExtend12 (64:BitVec 12))) **
+       (.x20 ↦ᵣ ((0:Word) + signExtend12 (64:BitVec 12))) **
        (.x10 ↦ᵣ (e >>> (63:BitVec 6).toNat)) ** (.x0 ↦ᵣ (0:Word)) **
        ⌜c6_new = 0⌝ **
        (.x16 ↦ᵣ (ptr + signExtend12 (-8:BitVec 12))) **

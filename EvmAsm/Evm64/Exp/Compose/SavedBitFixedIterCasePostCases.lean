@@ -151,6 +151,7 @@ abbrev expTwoMulFixedIterSkipRestScratchSuffix
   let c6New := c6 + signExtend12 (-1 : BitVec 12)
   (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
   (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+  (.x20 ↦ᵣ c6New) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
 
@@ -174,6 +175,7 @@ abbrev expTwoMulFixedIterReloadSkipRestScratchSuffix
   let c6New := c6 + signExtend12 (-1 : BitVec 12)
   (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
   (.x19 ↦ᵣ nextLimb) **
+  (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New = 0⌝ **
   (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -808,7 +810,8 @@ theorem expTwoMulFixedIterSkipCondCountPost_pures
   obtain ⟨_, _, _, _, _, hCountTail⟩ := hCount
   have hExit : exitCond := ((sepConj_pure_right _).1 hCountTail).2
   obtain ⟨_, _, _, _, _, hFrameTail⟩ := hFrame
-  obtain ⟨_, _, _, _, _, hPureTail⟩ := hFrameTail
+  obtain ⟨_, _, _, _, _, hFrameTailB⟩ := hFrameTail
+  obtain ⟨_, _, _, _, _, hPureTail⟩ := hFrameTailB
   have hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0 :=
     ((sepConj_pure_left _).1 hPureTail).1
   obtain ⟨_, hBit⟩ := ((sepConj_pure_left _).1 hPureTail).2
@@ -844,7 +847,8 @@ theorem expTwoMulFixedIterSkipCountPost_pures
   obtain ⟨_, _, _, _, _, hRest13⟩ := hRest12
   obtain ⟨_, _, _, _, _, hRest14⟩ := hRest13
   obtain ⟨_, _, _, _, _, hRest15⟩ := hRest14
-  obtain ⟨_, _, _, _, _, hPureTail⟩ := hRest15
+  obtain ⟨_, _, _, _, _, hRest15b⟩ := hRest15
+  obtain ⟨_, _, _, _, _, hPureTail⟩ := hRest15b
   have hC6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0 :=
     ((sepConj_pure_left _).1 hPureTail).1
   obtain ⟨_, hBit⟩ := ((sepConj_pure_left _).1 hPureTail).2
@@ -867,7 +871,8 @@ theorem expTwoMulFixedIterReloadCondCountPost_pures
   obtain ⟨_, _, _, _, _, hCountTail⟩ := hCount
   have hExit : exitCond := ((sepConj_pure_right _).1 hCountTail).2
   obtain ⟨_, _, _, _, _, hFrame1⟩ := hFrame
-  obtain ⟨_, _, _, _, _, hFrame2⟩ := hFrame1
+  obtain ⟨_, _, _, _, _, hFrame1b⟩ := hFrame1
+  obtain ⟨_, _, _, _, _, hFrame2⟩ := hFrame1b
   have hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0 :=
     ((sepConj_pure_left _).1 hFrame2).1
   have hAfterC6 := ((sepConj_pure_left _).1 hFrame2).2
@@ -908,9 +913,10 @@ theorem expTwoMulFixedIterReloadSkipCountPost_pures
   obtain ⟨_, _, _, _, _, hRest14⟩ := hRest13
   obtain ⟨_, _, _, _, _, hRest15⟩ := hRest14
   obtain ⟨_, _, _, _, _, hRest16⟩ := hRest15
+  obtain ⟨_, _, _, _, _, hRest16b⟩ := hRest16
   have hC6 : c6 + signExtend12 (-1 : BitVec 12) = 0 :=
-    ((sepConj_pure_left _).1 hRest16).1
-  have hAfterC6 := ((sepConj_pure_left _).1 hRest16).2
+    ((sepConj_pure_left _).1 hRest16b).1
+  have hAfterC6 := ((sepConj_pure_left _).1 hRest16b).2
   obtain ⟨_, _, _, _, _, hRest17⟩ := hAfterC6
   have hBit :
       (e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) = 0 :=

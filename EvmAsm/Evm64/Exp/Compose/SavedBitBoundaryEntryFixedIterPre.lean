@@ -193,7 +193,7 @@ theorem expTwoMulFixedFirstIterPre_unfold_words
     expTwoMulFixedFirstIterPre sp evmSp v10 v18 vOld v7 v11
         baseWord exponentWord dWord eWord =
       (((((.x19 ↦ᵣ exponentWord.getLimbN 3) **
-        (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+        (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) ** regOwn .x6 **
         (.x10 ↦ᵣ v10) ** (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
         (.x5 ↦ᵣ (1 : Word)) **
@@ -240,7 +240,7 @@ def expTwoMulFixedFirstIterPreOwned
     (sp evmSp v18 vOld : Word)
     (baseWord exponentWord dWord eWord : EvmWord) : Assertion :=
   (((((.x19 ↦ᵣ exponentWord.getLimbN 3) **
-    (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) ** regOwn .x6 **
     regOwn .x10 ** (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
     (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
     (.x5 ↦ᵣ (1 : Word)) **
@@ -259,7 +259,7 @@ theorem expTwoMulFixedFirstIterPreOwned_unfold
     expTwoMulFixedFirstIterPreOwned sp evmSp v18 vOld
         baseWord exponentWord dWord eWord =
       (((((.x19 ↦ᵣ exponentWord.getLimbN 3) **
-        (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+        (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) ** regOwn .x6 **
         regOwn .x10 ** (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
         (.x5 ↦ᵣ (1 : Word)) **
@@ -351,7 +351,7 @@ theorem expTwoMulFixedFirstIterPreOwned_choose_frame
     (.x19 ↦ᵣ exponentWord.getLimbN 3) **
     (.x2 ↦ᵣ sp) **
     (.x5 ↦ᵣ (1 : Word)) **
-    (.x6 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) ** regOwn .x6 **
     (.x9 ↦ᵣ (256 : Word))
   have h_front : (expTwoMulFixedFirstIterScratchOwn ** restFrame) ps := by
     unfold expTwoMulFixedFirstIterScratchOwn
@@ -374,8 +374,7 @@ def expTwoMulFixedFirstIterEntryResidual
   ((evmSp + 32) ↦ₘ exponentWord.getLimbN 0) **
   ((evmSp + 40) ↦ₘ exponentWord.getLimbN 1) **
   ((evmSp + 56) ↦ₘ exponentWord.getLimbN 3) **
-  evmStackIs (evmSp + 128) rest **
-  regOwn .x6
+  evmStackIs (evmSp + 128) rest
 
 theorem expTwoMulFixedFirstIterEntryResidual_unfold
     {evmSp : Word} {exponentWord : EvmWord} {rest : List EvmWord} :
@@ -383,8 +382,7 @@ theorem expTwoMulFixedFirstIterEntryResidual_unfold
       (((evmSp + 32) ↦ₘ exponentWord.getLimbN 0) **
        ((evmSp + 40) ↦ₘ exponentWord.getLimbN 1) **
        ((evmSp + 56) ↦ₘ exponentWord.getLimbN 3) **
-       evmStackIs (evmSp + 128) rest **
-       regOwn .x6) := by
+       evmStackIs (evmSp + 128) rest) := by
   delta expTwoMulFixedFirstIterEntryResidual
   rfl
 

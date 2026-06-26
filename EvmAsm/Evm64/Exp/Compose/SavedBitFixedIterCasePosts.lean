@@ -23,6 +23,7 @@ abbrev expTwoMulFixedIterSkipCondFrame (e c6 : Word) : Assertion :=
   let bit := e >>> (63 : BitVec 6).toNat
   let c6New := c6 + signExtend12 (-1 : BitVec 12)
   (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+  (.x20 ↦ᵣ c6New) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
 
@@ -39,6 +40,7 @@ abbrev expTwoMulFixedIterSkipRest
   memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
   (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
   (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+  (.x20 ↦ᵣ c6New) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
 
@@ -63,6 +65,7 @@ abbrev expTwoMulFixedIterReloadCondFrame
   let bit := e >>> (63 : BitVec 6).toNat
   let c6New := c6 + signExtend12 (-1 : BitVec 12)
   (.x19 ↦ᵣ nextLimb) **
+  (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New = 0⌝ **
   (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -82,6 +85,7 @@ abbrev expTwoMulFixedIterReloadSkipRest
   memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
   (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
   (.x19 ↦ᵣ nextLimb) **
+  (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
   (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
   ⌜c6New = 0⌝ **
   (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **

@@ -29,41 +29,41 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectTailFrameN exponentWord k ptr nextNextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
@@ -107,41 +107,41 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
@@ -189,39 +189,39 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTailFrame ptr nextNextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectFalseFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTrueFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
@@ -268,39 +268,39 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTailFrame ptr nextNextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectFalseFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTrueFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
@@ -835,42 +835,42 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hReloadBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectTailFrameN exponentWord k ptr
               nextNextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
@@ -878,42 +878,42 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hPreBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTailFrameN exponentWord k ptr
               nextNextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hPreFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hPreTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
@@ -921,39 +921,39 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hOrdBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTailFrame ptr nextNextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hOrdFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectFalseFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hOrdTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTrueFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
@@ -1026,42 +1026,42 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hReloadBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectTailFrameN exponentWord k ptr
               nextNextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hReloadTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadTailDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expReloadTailDirectTailFrameN exponentWord k ptr
@@ -1069,42 +1069,42 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hPreBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTailFrameN exponentWord k ptr
               nextNextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hPreFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectFalseFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
             nextNextLimb))
     (hPreTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expPreReloadDirectTrueFrameN exponentWord k controlC6 e
               iterCount ptr nextLimb))
           (Q ** expPreReloadDirectTailFrameN exponentWord k ptr
@@ -1112,39 +1112,39 @@ theorem cpsTripleWithin_expTwoMulFixedIterPreNWithInductionFrame_head_reloadDire
     (hOrdBranch :
       k < 255 →
       ∀ (bit : Bool)
-        (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+        (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectBranchPre k baseWord exponentWord
             controlC6 e iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            bit v6' v7' v10' v11' d0' d1' d2' d3' base
+            bit v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTailFrame ptr nextNextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hOrdFalse :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectFalsePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectFalseFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
     (hOrdTrue :
       k < 255 →
-      ∀ (v6' v7' v10' v11' d0' d1' d2' d3' : Word),
+      ∀ (v7' v10' v11' d0' d1' d2' d3' : Word),
         cpsTripleWithin (expTwoMulFixedIterationsBodyBound iterations)
           (base + 44) (base + 296)
           (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expReloadDirectTruePre k baseWord exponentWord
             e iterCount nextLimb ptr nextNextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3
-            v6' v7' v10' v11' d0' d1' d2' d3' base
+            v7' v10' v11' d0' d1' d2' d3' base
             (expReloadLimbDirectTrueFrame controlC6 e iterCount ptr
               nextLimb))
           (Q ** expReloadLimbDirectTailFrame ptr nextNextLimb))
