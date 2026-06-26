@@ -94,14 +94,14 @@ theorem evm_mulmod_product_layout_exact_scratch_spec_within
     simp only [
       show signExtend12 (48 : BitVec 12) = (48 : Word) by decide,
       show signExtend12 (56 : BitVec 12) = (56 : Word) by decide,
-      show signExtend12 (96 : BitVec 12) = (96 : Word) by decide,
-      show signExtend12 (104 : BitVec 12) = (104 : Word) by decide,
-      show signExtend12 (112 : BitVec 12) = (112 : Word) by decide,
-      show signExtend12 (120 : BitVec 12) = (120 : Word) by decide,
-      show signExtend12 (128 : BitVec 12) = (128 : Word) by decide,
-      show signExtend12 (136 : BitVec 12) = (136 : Word) by decide,
-      show signExtend12 (144 : BitVec 12) = (144 : Word) by decide,
-      show signExtend12 (152 : BitVec 12) = (152 : Word) by decide] at hq ⊢
+      show signExtend12 (3936 : BitVec 12) = (18446744073709551456 : Word) by decide,
+      show signExtend12 (3944 : BitVec 12) = (18446744073709551464 : Word) by decide,
+      show signExtend12 (3952 : BitVec 12) = (18446744073709551472 : Word) by decide,
+      show signExtend12 (3960 : BitVec 12) = (18446744073709551480 : Word) by decide,
+      show signExtend12 (3968 : BitVec 12) = (18446744073709551488 : Word) by decide,
+      show signExtend12 (3976 : BitVec 12) = (18446744073709551496 : Word) by decide,
+      show signExtend12 (3984 : BitVec 12) = (18446744073709551504 : Word) by decide,
+      show signExtend12 (3992 : BitVec 12) = (18446744073709551512 : Word) by decide] at hq ⊢
     rw [show sp + (0 : Word) = sp by bv_omega] at hq
     rw [mulModProductLayoutCall00P96_eq_mul_limb0,
       mulModProductLayoutCall02P104_eq_mul_limb1,
