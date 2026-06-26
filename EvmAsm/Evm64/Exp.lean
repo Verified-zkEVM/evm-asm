@@ -102,6 +102,8 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopPreReload
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
+import EvmAsm.Evm64.Exp.Compose.SavedBitEntryIterPreBridge
+import EvmAsm.Evm64.Exp.Compose.SavedBitPrologueBodyCompose
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
 import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulSkip
@@ -117,6 +119,8 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
 import EvmAsm.Evm64.Exp.Compose.SavedBitIterExitBridge
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticStep
+import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyFromLoopPost
+import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
 import EvmAsm.Evm64.Exp.Layout
 import EvmAsm.Evm64.Exp.Spec
 import EvmAsm.Evm64.Exp.StackExecutionBridge
