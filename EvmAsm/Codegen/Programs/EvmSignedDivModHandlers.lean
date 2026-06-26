@@ -24,7 +24,7 @@ namespace EvmAsm.Codegen
 -- garbage `sp` (ziskemu `mem.rs:593` invalid addr). Mirrors `divModTail` /
 -- `expTail`.
 private def signedDivModTail : HandlerTail :=
-  .custom "  mv x10, x14\n  la sp, lp64_sp_top\n  addi x10, x10, 1\n  j .dispatch_loop"
+  .custom "  mv x13, x15\n  mv x10, x14\n  la sp, lp64_sp_top\n  addi x10, x10, 1\n  j .dispatch_loop"
 
 /-- M9 signed division handlers: SDIV (0x05) and SMOD (0x07).
 
@@ -39,13 +39,13 @@ private def signedDivModTail : HandlerTail :=
 def signedDivModHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_SDIV"
       opcodes       := [0x05]
-      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SDIV_done"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  mv x15, x13\n  la x18, h_SDIV_done"
       body          := evmSdivPatched
       postBodyLabel := some "h_SDIV_done"
       tail          := signedDivModTail }
   , { label         := "h_SMOD"
       opcodes       := [0x07]
-      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  la x18, h_SMOD_done"
+      preBody       := stackUnderflowGuardAsm 2 ++ "\n  mv x14, x10\n  mv x15, x13\n  la x18, h_SMOD_done"
       body          := evmSmodPatched
       postBodyLabel := some "h_SMOD_done"
       tail          := signedDivModTail } ]
