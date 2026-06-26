@@ -1261,7 +1261,10 @@ theorem evm_exp_msb_saved_bit_two_mul_canonical_byte_length
 -- FIX DESIGN:
 -- - Use x19 (callee-saved, preserved across mul_callable) as the
 --   exponent cursor, initialized to exponentWord.getLimbN 3.
--- - Use x6 as per-limb counter (counts down from 64 to 0).
+-- - Use x20 (callee-saved, preserved across mul_callable) as the per-limb
+--   counter (counts down from 64 to 0). NOTE: x6 (caller-saved t1) is in
+--   mul_callable's footprint and is clobbered by the squaring/cond-mul JALs,
+--   so the counter must live in a callee-saved register like the x19 cursor.
 -- - Use x16 as limb pointer (starts at &exponent.limb3, advances by -8
 --   after each 64-bit limb is exhausted).
 -- - Fixed prologue: load x19=exponent.limb3, x6=64, x16=&exponent.limb2.
@@ -1272,7 +1275,7 @@ theorem evm_exp_msb_saved_bit_two_mul_canonical_byte_length
 -- ============================================================================
 
 /-- Fixed EXP prologue: initialize accumulator to 1, master counter x9=256,
-    per-limb counter x6=64, exponent cursor x19=exponent.getLimbN 3
+    per-limb counter x20=64, exponent cursor x19=exponent.getLimbN 3
     (loaded from x12+56 = evmSp+56 since x12=evmSp before pointer_advance),
     and limb pointer x16 pointing at the NEXT limb to reload (evmSp+48).
     10 instructions, 40 bytes. -/
@@ -1283,7 +1286,7 @@ def exp_prologue_fixed : Program :=
   SD .x2 .x0 8 ;;
   SD .x2 .x0 16 ;;
   SD .x2 .x0 24 ;;
-  ADDI .x6 .x0 64 ;;
+  ADDI .x20 .x0 64 ;;
   ADDI .x16 .x12 56 ;;
   LD .x19 .x16 0 ;;
   ADDI .x16 .x16 (-8)
@@ -1294,18 +1297,18 @@ theorem exp_prologue_fixed_byte_length : 4 * exp_prologue_fixed.length = 40 := b
   rw [exp_prologue_fixed_length]
 
 /-- Fixed MSB-first bit-test block: extract MSB of x19 (exponent cursor),
-    advance cursor (SLLI x19 x19 1), decrement per-limb counter x6.
-    When x6 = 0 (limb exhausted), reload x19 from x16 and advance x16 by -8.
+    advance cursor (SLLI x19 x19 1), decrement per-limb counter x20.
+    When x20 = 0 (limb exhausted), reload x19 from x16 and advance x16 by -8.
     7 instructions (3 core + 4 reload). The reload branch skips 4 instructions
     (= 16 bytes) when x6 ≠ 0 after decrement. -/
 def exp_msb_bit_test_block_fixed : Program :=
   SRLI .x10 .x19 63 ;;
   SLLI .x19 .x19 1 ;;
-  ADDI .x6 .x6 (-1) ;;
-  single (.BNE .x6 .x0 16) ;;
+  ADDI .x20 .x20 (-1) ;;
+  single (.BNE .x20 .x0 16) ;;
   LD .x19 .x16 0 ;;
   ADDI .x16 .x16 (-8) ;;
-  ADDI .x6 .x0 64
+  ADDI .x20 .x0 64
 
 theorem exp_msb_bit_test_block_fixed_length :
     exp_msb_bit_test_block_fixed.length = 7 := by decide
