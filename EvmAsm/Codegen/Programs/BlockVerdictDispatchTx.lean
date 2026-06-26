@@ -500,9 +500,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1; addi t2, t2, 160\n" ++                  -- t2 = &gasPrice word (env_base+160)
-  "  la t3, gp_egp\n" ++
-  "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(t2); ld t4, 24(t3); sd t4, 24(t2)\n" ++
+  -- odq06.3: byte-reverse the 32B BE gp_egp into env+160 so the low limb lands
+  -- at env+160 (LE-limb order, matching how h_GASPRICE copies env+160..191
+  -- dword-for-dword onto the stack). A verbatim BE copy put the low byte at
+  -- env+191, so limb 0 was all-zero -> GASPRICE pushed 0 -> SSTORE(0,0) ->
+  -- bv_fail=34 (blob_tx_attribute_gasprice_opcode). Same fix as odq06.2 SELFBALANCE.
+  "  la t3, gp_egp; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
+  ".Ldtrc_gp_rev:\n" ++
+  "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_gp_rev\n" ++
   ".Ldtrc_no_gasprice:\n" ++
   -- yisv8.1: SELFBALANCE (word 1 -> env_base+32) = the recipient's own balance from the
   -- witness (account_at_header_state_root over env.ADDRESS=recipient, ctx+72), copied
