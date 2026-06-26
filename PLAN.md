@@ -1979,11 +1979,22 @@ shows more elements than expected (no decode-then-count). Layering:
     complement incl. the pure verdict; reshaped with `xperm_hyp` (confirmed xperm handles a trailing
     pure atom — earlier "pure blocks xperm" diagnosis was wrong; the real fix was matching the decoder's
     exact 10-atom success post). Axiom-clean.
-  - ⏳ **Next (F1 chain)**: clean-form cursor rewrite (`regionBase+ofNat O + 1 + ofNat payloadLen =
-    regionBase + ofNat(O+1+payloadLen)` under a length bound) so one advance unit's SUCCESS post matches
-    the next unit's precondition; then compose N advance units into a fixed-arity walk with an exact-arity
-    end check (cursor = list_end). Then longBytes (parked, T4); singleByte/singleton advance analogs.
-    Then T1 (`rlp_field_to_u64`) → T2 (`withdrawal_decode`) → T3 (header) → T4 (tx_1559).
+  - ✅ **B.6.1 — clean-form advance variant** (`rlp_decode_shortBytes_advance_at_clean`, #9461): SUCCESS
+    `x13` restated as `regionBase + ofNat(O+1+payloadLen)` via the unconditional `advance_cursor_clean`
+    identity (`BitVec.ofNat` is mod-`2^64`, no bound needed) — the precondition shape the next field's
+    decoder consumes, so steps chain without `x13` glue.
+  - ⏳ **Next (F1 chain) — DESIGN CONFIRMED, arithmetic de-risked.** Field-walk register discipline
+    (chosen to reuse the merged length-discipline arms with NO extra `s_end` register): `x15` holds the
+    remaining byte count `bs.length - O` and is recomputed **in place** between fields by
+    `SUB x15,x15,x11 ; ADDI x15,x15,-1` (= `remaining - payloadLen - 1`), then `LBU x5,x13,0` loads the
+    next prefix. Per-field step = validating decode-and-advance ⨾ x15-decrement ⨾ LBU-next. Last field
+    takes no LBU; instead an **exact-arity end check** (`x13 = list_end`, i.e. `O' = bs.length`).
+    Three foundational lemmas **proven** (scratch in job tmp, ready to drop in):
+    (1) `advance_cursor_clean` (x13, landed); (2) `ofNat_sub_ofNat : b ≤ a → a < 2^64 →
+    ofNat a - ofNat b = ofNat(a-b)` (toNat+omega); (3) x15 decrement `ofNat(L-O) - ofNat pl - 1 =
+    ofNat(L-(O+1+pl))` (via (2) twice). Remaining: the SUB/ADDI/LBU RV64 specs framed into the
+    post-advance state + composition + end check. Then longBytes (parked, T4); singleByte/singleton
+    advance analogs. Then T1 (`rlp_field_to_u64`) → T2 (`withdrawal_decode`) → T3 (header) → T4 (tx_1559).
 
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
