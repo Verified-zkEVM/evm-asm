@@ -35,6 +35,17 @@ theorem expTwoMulEntryIterPreResidual_unfold
   delta expTwoMulEntryIterPreResidual
   rfl
 
+theorem expTwoMulEntryIterPreResidual_pcFree
+    {evmSp : Word} {exponentWord : EvmWord} {rest : List EvmWord} :
+    (expTwoMulEntryIterPreResidual evmSp exponentWord rest).pcFree := by
+  rw [expTwoMulEntryIterPreResidual_unfold]
+  exact pcFree_sepConj pcFree_evmWordIs pcFree_evmStackIs
+
+instance pcFreeInst_expTwoMulEntryIterPreResidual
+    (evmSp : Word) (exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree (expTwoMulEntryIterPreResidual evmSp exponentWord rest) :=
+  ⟨expTwoMulEntryIterPreResidual_pcFree⟩
+
 /-- Loop-entry → first-iteration-pre bridge (non-fixed / two-MUL path).
 
     The prologue's `expTwoMulLoopEntryPost` (with the stack carrying the two
