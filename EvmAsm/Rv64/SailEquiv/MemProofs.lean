@@ -27,7 +27,7 @@ namespace EvmAsm.Rv64.SailEquiv
 -- Doubleword loads/stores (LD/SD)
 -- ============================================================================
 
-theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem ld_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8 sSail =
@@ -40,7 +40,7 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sd_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 8 sSail =
@@ -57,7 +57,7 @@ theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
 -- Word loads/stores (LW/LWU/SW)
 -- ============================================================================
 
-theorem lw_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem lw_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 4 sSail =
@@ -70,7 +70,7 @@ theorem lw_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem lwu_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem lwu_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 4 sSail =
@@ -83,7 +83,7 @@ theorem lwu_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sw_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 4 sSail =
@@ -100,7 +100,7 @@ theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
 -- Byte loads/stores (LB/LBU/SB)
 -- ============================================================================
 
-theorem lb_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem lb_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 1 sSail =
@@ -113,7 +113,7 @@ theorem lb_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem lbu_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem lbu_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 1 sSail =
@@ -126,7 +126,7 @@ theorem lbu_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sb_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 1 sSail =
@@ -143,7 +143,7 @@ theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
 -- Halfword loads/stores (LH/LHU/SH)
 -- ============================================================================
 
-theorem lh_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem lh_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 2 sSail =
@@ -156,7 +156,7 @@ theorem lh_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem lhu_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem lhu_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) true 2 sSail =
@@ -169,7 +169,7 @@ theorem lhu_sail_equiv (sRv : MachineState) (sSail : SailState)
   obtain ⟨s', h_ok, hrel'⟩ := h_exec
   exact ⟨s', by simp [runSail, h_ok], hrel'⟩
 
-theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
+theorem sh_sail_equiv_stub (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
     (h_exec : ∃ sSail',
       execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 2 sSail =
