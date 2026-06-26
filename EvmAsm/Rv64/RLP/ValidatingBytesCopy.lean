@@ -101,6 +101,133 @@ private theorem ofNat_eq_iff_small (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 6
   · intro h; rw [h]
 
 set_option linter.unusedVariables false in
+/-- **Length-equality check** bolted onto the validating decode's SUCCESS state: `ADDI x10,x0,N` then
+    `BNE x11,x10` — taken (`payloadLen ≠ N`) exits at `failPC` (wrong length), fall (`payloadLen = N`)
+    continues at `succPC+8`. The decode verdict is dropped here (re-derived at the copy site from
+    `payloadLen = N` + availability), keeping a single pure per exit. -/
+theorem rlp_shortBytes_length_check
+    (pfx : Byte) (rest : List Byte) (bs : List Byte) (O expectedN : Nat)
+    (v12Old v14Old regionBase : Word)
+    (succPC : Word) (lenFailOff : BitVec 13) (failPC : Word)
+    (hfail : (succPC + 4) + signExtend13 lenFailOff = failPC)
+    (hexp11 : expectedN < 2 ^ 11)
+    (hexp64 : expectedN < 2 ^ 64)
+    (hpl64 : rlpPrefixShortBytesPayloadLen pfx < 2 ^ 64)
+    (hd : (CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).Disjoint
+          (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff))) :
+    cpsBranchWithin 2 succPC
+      ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+       (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) **
+        (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs **
+        ⌜decode (pfx :: rest)
+          = some (.bytes (rest.take (rlpPrefixShortBytesPayloadLen pfx)),
+                  rest.drop (rlpPrefixShortBytesPayloadLen pfx))⌝)
+      -- FAIL (taken): wrong length.
+      failPC
+        ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+          (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+          (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+          (.x14 ↦ᵣ v14Old) **
+          (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs **
+          ⌜rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝)
+      -- CONTINUE (fall): correct length.
+      (succPC + 8)
+        ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+          (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+          (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+          (.x14 ↦ᵣ v14Old) **
+          (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs **
+          ⌜rlpPrefixShortBytesPayloadLen pfx = expectedN⌝) := by
+  set pl := rlpPrefixShortBytesPayloadLen pfx with hpl
+  -- ADDI x10, x0, expectedN : x10 := expectedN (the decode verdict in the pre is dropped).
+  have addi_raw := addi_x0_spec_gen_within .x10 ((0 : Word) + signExtend12 (0xB8 : BitVec 12))
+    (BitVec.ofNat 12 expectedN) succPC (by nofun)
+  rw [signExtend12_ofNat_small expectedN hexp11] at addi_raw
+  have addiF : cpsTripleWithin 1 succPC (succPC + 4)
+      (CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN)))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 pl)) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) **
+        (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs **
+        ⌜decode (pfx :: rest) = some (.bytes (rest.take pl), rest.drop pl)⌝)
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 pl)) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) **
+        (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by extract_pure hp; obtain ⟨_, hr⟩ := hp; xperm_hyp hr)
+      (fun _ hp => by xperm_hyp hp)
+      (cpsTripleWithin_frameR
+        ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x11 ↦ᵣ (BitVec.ofNat 64 pl)) ** (.x12 ↦ᵣ v12Old) **
+          (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+          (.x14 ↦ᵣ v14Old) **
+          (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs)
+        (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs (bytesRegion_pcFree _ _)))))))
+        addi_raw)
+  -- BNE x11, x10 : compare payloadLen to expectedN.
+  have bne_raw := bne_spec_gen_within .x11 .x10 lenFailOff (BitVec.ofNat 64 pl)
+    (BitVec.ofNat 64 expectedN) (succPC + 4)
+  rw [hfail, show ((succPC + 4) + 4 : Word) = succPC + 8 from by bv_omega] at bne_raw
+  have bneF : cpsBranchWithin 1 (succPC + 4)
+      (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff))
+      ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 pl)) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) **
+        (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs)
+      failPC
+        ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+          (.x11 ↦ᵣ (BitVec.ofNat 64 pl)) ** (.x12 ↦ᵣ v12Old) **
+          (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+          (.x14 ↦ᵣ v14Old) **
+          (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs **
+          ⌜pl ≠ expectedN⌝)
+      (succPC + 8)
+        ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+          (.x11 ↦ᵣ (BitVec.ofNat 64 pl)) ** (.x12 ↦ᵣ v12Old) **
+          (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+          (.x14 ↦ᵣ v14Old) **
+          (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs **
+          ⌜pl = expectedN⌝) := by
+    refine cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp) ?tk ?fl
+      (cpsBranchWithin_frameR
+        ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ v12Old) **
+          (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+          (.x14 ↦ᵣ v14Old) **
+          (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs)
+        (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs (bytesRegion_pcFree _ _)))))))
+        bne_raw)
+    · intro h hp
+      rw [show (BitVec.ofNat 64 pl ≠ BitVec.ofNat 64 expectedN) = (pl ≠ expectedN) from
+            propext (not_congr (ofNat_eq_iff_small pl expectedN hpl64 hexp64))] at hp
+      xperm_hyp hp
+    · intro h hp
+      rw [show (BitVec.ofNat 64 pl = BitVec.ofNat 64 expectedN) = (pl = expectedN) from
+            propext (ofNat_eq_iff_small pl expectedN hpl64 hexp64)] at hp
+      xperm_hyp hp
+  have hseq := cpsTripleWithin_seq_cpsBranchWithin hd addiF bneF
+  rw [show (1 + 1) = 2 from rfl] at hseq
+  exact hseq
+
+set_option linter.unusedVariables false in
 /-- **Single-pass validated fixed-length byte-array copy** at byte offset `O`: validate the
     shortBytes field, then stream its `N`-byte payload into the output slot `outBase + di0`. -/
 theorem rlp_decode_shortBytes_bytescopy_at
