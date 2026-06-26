@@ -834,35 +834,19 @@ def blockVerdictFunction : String :=
   -- dispatcher consumes this after its setup resets and records it in the live
   -- nonstorage log; it is one-shot and harmless for contracts that never query
   -- the sender balance.
-   "  la a0, bv_stx_sender_acct; addi a0, a0, 8; la a1, bv_upfront_cost; la a2, bv_pending_upfront_sender_post\n" ++
-   "  jal ra, u256_sub_be\n" ++
-   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-   -- bv_upfront_cost used max_fee*gas_limit + max_blob_fee*blob_gas, but the
-   -- actual deduction at tx start uses effective_gas_price*gas_limit +
-   -- blob_gas_price*blob_gas. Add back both differences so BALANCE(ORIGIN)
-   -- during execution sees the correct sender balance.
-   -- bv_upfront_blob_cost is scratch (freed after blob-cost accumulation).
-   -- Gas delta: (max_fee - effective_gas_price) * gas_limit
-   "  la a0, tefgp_max_fee; la a1, bv_fee_egp_scratch; la a2, bv_upfront_blob_cost\n" ++
-   "  jal ra, u256_sub_be\n" ++
-   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-   "  la a0, bv_upfront_blob_cost; la t0, bv_simple_transfer_tx; ld a1, 40(t0); la a2, bv_upfront_blob_cost\n" ++
-   "  jal ra, u256_mul_u64_be\n" ++
-   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-   "  la a0, bv_pending_upfront_sender_post; la a1, bv_upfront_blob_cost; la a2, bv_pending_upfront_sender_post\n" ++
-   "  jal ra, u256_add_be\n" ++
-   -- Blob delta: (max_fee_per_blob_gas - blob_gas_price) * blob_count * 131072
-   -- bsg_blob_price_be holds the actual blob_gas_price (set at line 338).
-   "  la a0, tcbg_blob_fee_be; la a1, bsg_blob_price_be; la a2, bv_upfront_blob_cost\n" ++
-   "  jal ra, u256_sub_be\n" ++
-   "  bnez a0, .Lbv_stx_pending_upfront_blob_delta_done\n" ++
-   "  la a0, bv_upfront_blob_cost; la t0, bv_upfront_blob_count; ld a1, 0(t0); slli a1, a1, 17; la a2, bv_upfront_blob_cost\n" ++
-   "  jal ra, u256_mul_u64_be\n" ++
-   "  bnez a0, .Lbv_stx_pending_upfront_blob_delta_done\n" ++
-   "  la a0, bv_pending_upfront_sender_post; la a1, bv_upfront_blob_cost; la a2, bv_pending_upfront_sender_post\n" ++
-   "  jal ra, u256_add_be\n" ++
-   ".Lbv_stx_pending_upfront_blob_delta_done:\n" ++
-   "  la t0, bv_stx_sender_addr; la t1, bv_pending_upfront_sender_addr\n" ++
+    "  la a0, bv_stx_sender_acct; addi a0, a0, 8; la a1, bv_upfront_cost; la a2, bv_pending_upfront_sender_post\n" ++
+    "  jal ra, u256_sub_be\n" ++
+    "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+    -- bv_upfront_cost already holds effective_gas_price*gas_limit +
+    -- blob_gas_price*blob_gas + value (recomputed @807-831, PR #9482), so
+    -- bv_pending_upfront_sender_post is now the correct execution-start sender
+    -- balance. The (max_fee-eff_price) and (max_blob-blob_gas_price) refund
+    -- deltas that previously followed here were a double-correction: they assumed
+    -- bv_upfront_cost was still max-fee-based, but the recompute above already
+    -- replaced it with the eff-price-based cost, so adding the deltas back made
+    -- BALANCE(ORIGIN) too high by ~max_fee_gap*gas_limit -> bv_fail=34
+    -- (bal_storage_mismatch) on the gasUsed=195840 blob_gas_subtraction_tx cases.
+    "  la t0, bv_stx_sender_addr; la t1, bv_pending_upfront_sender_addr\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); sd zero, 24(t1)\n" ++
   "  la t0, bv_stx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
