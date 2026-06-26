@@ -68,4 +68,64 @@ theorem expTwoMulFixedIterPointerFrame_reshuffle_to_reloadPointerFrame
   rw [expTwoMulFixedIterReloadPointerFrame_unfold]
   sep_perm h
 
+/-- Suffix-level reload reshuffle (conditional-multiply branch).
+
+    Lifts the pointer-cell reshuffle to the full reload-cond scratch suffix
+    frame that appears in the merged loop-back reload disjunct: given that
+    suffix together with the next-limb cell at `ptr-8` (from the induction
+    residual), regroup the `reloadPointerFrame` into the next iteration's
+    `IterPointerFrame (ptr-8)` and return the stale `ptr` cell.  All other
+    suffix atoms (the cursor `x19`, reset counter `x20`, saved bit `x18`, the
+    `c6New = 0` / `bit ≠ 0` pures, the `SkipCondRestScratchSuffix`) are
+    unchanged — this is a pure `sep_perm` once the pointer frames unfold. -/
+theorem expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame_reshuffle
+    {e c6 ptr nextLimb nextNextLimb base : Word} {ps : PartialState}
+    (h :
+      (expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame
+          e c6 ptr nextLimb base **
+        (((ptr + signExtend12 (-8 : BitVec 12)) +
+          signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb)) ps) :
+    (expTwoMulFixedIterSkipCondRestScratchSuffix base **
+      (.x19 ↦ᵣ nextLimb) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+      (.x18 ↦ᵣ ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))) **
+      ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+      expTwoMulFixedIterPointerFrame (ptr + signExtend12 (-8 : BitVec 12))
+        nextNextLimb **
+      ⌜(e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) ≠ 0⌝ **
+      ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)) ps := by
+  simp only [expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame,
+    expTwoMulFixedIterReloadPointerFrame_unfold] at h
+  rw [expTwoMulFixedIterPointerFrame_unfold]
+  sep_perm h
+
+/-- Suffix-level reload reshuffle (skip / no-conditional-multiply branch).
+    The skip variant of
+    `expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame_reshuffle`: the
+    suffix carries the `x1` return slot and the `IterBaseFrame` instead of the
+    `SkipCondRestScratchSuffix`, and the `bit = 0` pure; the reshuffle is again
+    a pure `sep_perm`. -/
+theorem expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame_reshuffle
+    {e c6 ptr nextLimb nextNextLimb evmSp a0 a1 a2 a3 base : Word}
+    {ps : PartialState}
+    (h :
+      (expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame
+          e c6 ptr nextLimb evmSp a0 a1 a2 a3 base **
+        (((ptr + signExtend12 (-8 : BitVec 12)) +
+          signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb)) ps) :
+    ((.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
+      (.x19 ↦ᵣ nextLimb) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+      (.x18 ↦ᵣ ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))) **
+      ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+      expTwoMulFixedIterPointerFrame (ptr + signExtend12 (-8 : BitVec 12))
+        nextNextLimb **
+      ⌜(e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) = 0⌝ **
+      expTwoMulFixedIterBaseFrame evmSp a0 a1 a2 a3 **
+      ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)) ps := by
+  simp only [expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame,
+    expTwoMulFixedIterReloadPointerFrame_unfold] at h
+  rw [expTwoMulFixedIterPointerFrame_unfold]
+  sep_perm h
+
 end EvmAsm.Evm64.Exp.Compose
