@@ -105,12 +105,12 @@ theorem cpsTripleWithin_expReloadDirectFalsePre_ordinary_vacuous
     {n : Nat} {entry exit_ : Word} {code : CodeReq} {Q : Assertion}
     {k : Nat} {baseWord exponentWord : EvmWord}
     {controlC6 e iterCount nextLimb ptr nextNextLimb sp evmSp
-      r0 r1 r2 r3 a0 a1 a2 a3 v6' v7' v10' v11' d0' d1' d2' d3' base : Word}
+      r0 r1 r2 r3 a0 a1 a2 a3 v7' v10' v11' d0' d1' d2' d3' base : Word}
     (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
     cpsTripleWithin n entry exit_ code
       (expReloadDirectFalsePre k baseWord exponentWord e iterCount nextLimb ptr
         nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3
-        v6' v7' v10' v11' d0' d1' d2' d3' base
+        v7' v10' v11' d0' d1' d2' d3' base
         (expReloadLimbDirectFalseFrame controlC6 e iterCount ptr nextLimb))
       Q := by
   intro R _ s _ hPR _
@@ -132,12 +132,12 @@ theorem cpsTripleWithin_expReloadDirectTruePre_ordinary_vacuous
     {n : Nat} {entry exit_ : Word} {code : CodeReq} {Q : Assertion}
     {k : Nat} {baseWord exponentWord : EvmWord}
     {controlC6 e iterCount nextLimb ptr nextNextLimb sp evmSp
-      r0 r1 r2 r3 a0 a1 a2 a3 v6' v7' v10' v11' d0' d1' d2' d3' base : Word}
+      r0 r1 r2 r3 a0 a1 a2 a3 v7' v10' v11' d0' d1' d2' d3' base : Word}
     (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
     cpsTripleWithin n entry exit_ code
       (expReloadDirectTruePre k baseWord exponentWord e iterCount nextLimb ptr
         nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3
-        v6' v7' v10' v11' d0' d1' d2' d3' base
+        v7' v10' v11' d0' d1' d2' d3' base
         (expReloadLimbDirectTrueFrame controlC6 e iterCount ptr nextLimb))
       Q := by
   intro R _ s _ hPR _
@@ -163,12 +163,12 @@ theorem cpsTripleWithin_expReloadDirectFalsePre_preReload_vacuous
     {n : Nat} {entry exit_ : Word} {code : CodeReq} {Q : Assertion}
     {k kf : Nat} {baseWord exponentWord : EvmWord}
     {controlC6 e iterCount nextLimb ptr nextNextLimb sp evmSp
-      r0 r1 r2 r3 a0 a1 a2 a3 v6' v7' v10' v11' d0' d1' d2' d3' base : Word}
+      r0 r1 r2 r3 a0 a1 a2 a3 v7' v10' v11' d0' d1' d2' d3' base : Word}
     (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
     cpsTripleWithin n entry exit_ code
       (expReloadDirectFalsePre k baseWord exponentWord e iterCount nextLimb ptr
         nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3
-        v6' v7' v10' v11' d0' d1' d2' d3' base
+        v7' v10' v11' d0' d1' d2' d3' base
         (expPreReloadDirectFalseFrameN exponentWord kf controlC6 e iterCount
           ptr nextLimb))
       Q := by
@@ -190,12 +190,12 @@ theorem cpsTripleWithin_expReloadDirectTruePre_preReload_vacuous
     {n : Nat} {entry exit_ : Word} {code : CodeReq} {Q : Assertion}
     {k kf : Nat} {baseWord exponentWord : EvmWord}
     {controlC6 e iterCount nextLimb ptr nextNextLimb sp evmSp
-      r0 r1 r2 r3 a0 a1 a2 a3 v6' v7' v10' v11' d0' d1' d2' d3' base : Word}
+      r0 r1 r2 r3 a0 a1 a2 a3 v7' v10' v11' d0' d1' d2' d3' base : Word}
     (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
     cpsTripleWithin n entry exit_ code
       (expReloadDirectTruePre k baseWord exponentWord e iterCount nextLimb ptr
         nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3
-        v6' v7' v10' v11' d0' d1' d2' d3' base
+        v7' v10' v11' d0' d1' d2' d3' base
         (expPreReloadDirectTrueFrameN exponentWord kf controlC6 e iterCount
           ptr nextLimb))
       Q := by

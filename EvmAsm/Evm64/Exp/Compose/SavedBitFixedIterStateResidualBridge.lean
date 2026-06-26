@@ -30,7 +30,7 @@ def expTwoMulFixedReloadResidualFalseNextPre
     (k : Nat) (baseWord exponentWord : EvmWord)
     (iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base
-      v6 v7 v10 v11 d0 d1 d2 d3 : Word)
+      v7 v10 v11 d0 d1 d2 d3 : Word)
     (frame : Assertion) : Assertion :=
   let squareW := expSquaringCallSquareW r0 r1 r2 r3
   expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
@@ -51,7 +51,7 @@ def expTwoMulFixedReloadResidualTrueNextPre
     (k : Nat) (baseWord exponentWord : EvmWord)
     (iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base
-      v6 v7 v10 v11 d0 d1 d2 d3 : Word)
+      v7 v10 v11 d0 d1 d2 d3 : Word)
     (frame : Assertion) : Assertion :=
   let rw := expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
     a0 a1 a2 a3
@@ -111,7 +111,6 @@ theorem expTwoMulFixedReloadBranchResidualWithStateFrame_false_to_iterPreNWithSt
     expTwoMulFixedIterSkipRestScratchPrefix,
     expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame,
     expTwoMulFixedIterReloadPointerFrame_unfold,
-    expTwoMulFixedIterScratchIs,
     expTwoMulFixedIterBaseFrame,
     expTwoMulIterBaseFrame_unfold,
     signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24,
@@ -134,7 +133,7 @@ theorem cpsTripleWithin_expTwoMulFixedReloadBranchResidualWithStateFrame_false_t
         (expTwoMulFixedReloadResidualFalseNextPre k baseWord exponentWord
           iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
           r0 r1 r2 r3 a0 a1 a2 a3 base
-          v6 v7 v10 v11 d0 d1 d2 d3 frame)
+          v7 v10 v11 d0 d1 d2 d3 frame)
         Q) :
     cpsTripleWithin nSteps entry exit cr
       (expTwoMulFixedReloadBranchResidualWithStateFrame false (k := k)
@@ -197,7 +196,6 @@ theorem expTwoMulFixedReloadBranchResidualWithStateFrame_true_to_iterPreNWithSta
     expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame,
     expTwoMulFixedIterSkipCondRestScratchSuffix,
     expTwoMulFixedIterReloadPointerFrame_unfold,
-    expTwoMulFixedIterScratchIs,
     expTwoMulIterBaseFrame_unfold,
     signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24,
     signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56,
@@ -219,7 +217,7 @@ theorem cpsTripleWithin_expTwoMulFixedReloadBranchResidualWithStateFrame_true_to
         (expTwoMulFixedReloadResidualTrueNextPre k baseWord exponentWord
           iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
           r0 r1 r2 r3 a0 a1 a2 a3 base
-          v6 v7 v10 v11 d0 d1 d2 d3 frame)
+          v7 v10 v11 d0 d1 d2 d3 frame)
         Q) :
     cpsTripleWithin nSteps entry exit cr
       (expTwoMulFixedReloadBranchResidualWithStateFrame true (k := k)
