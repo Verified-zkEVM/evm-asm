@@ -61,7 +61,7 @@ def expTwoMulFixedStateReloadFalsePre
     (base : Word) (frame : Assertion) : Assertion :=
   let squareW := expSquaringCallSquareW r0 r1 r2 r3
   expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
-    64 nextLimb v6' (expTwoMulIterCountNew iterCount) v10'
+    64 nextLimb (signExtend12 (64 : BitVec 12)) (expTwoMulIterCountNew iterCount) v10'
     ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
     (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb sp evmSp
     (squareW.getLimbN 3) (((base + 44) + 32) + 68)
@@ -82,7 +82,7 @@ def expTwoMulFixedStateReloadTruePre
   let rw := expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3)
     a0 a1 a2 a3
   expTwoMulFixedIterPreNWithStateFrame (k + 1) baseWord exponentWord
-    64 nextLimb v6' (expTwoMulIterCountNew iterCount) v10'
+    64 nextLimb (signExtend12 (64 : BitVec 12)) (expTwoMulIterCountNew iterCount) v10'
     ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
     (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb sp evmSp
     (rw.getLimbN 3) (((base + 44) + 140) + 68)
