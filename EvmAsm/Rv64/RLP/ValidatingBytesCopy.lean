@@ -34,6 +34,36 @@ private theorem bytescopy_ptr_eq (regionBase : Word) (O : Nat) :
   rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
       show (1 : Word) = BitVec.ofNat 64 1 from rfl, BitVec.add_assoc, ← BitVec.ofNat_add]
 
+/-- Sequence a branch onto the TAKEN exit of a branch, converging the follow-on branch's TAKEN exit
+    with the first branch's fall exit onto a shared fail exit `exitF`. Used to bolt a length-equality
+    check onto a validating decode's success so that *both* a malformed field (the decoder's bound
+    failure) and a wrong-length field converge on the one `a0 ≠ 0` exit. -/
+theorem cpsBranchWithin_seq_cpsBranchWithin_taken_conv {n1 n2 : Nat}
+    {entry mid succ exitF : Word} {cr1 cr2 : CodeReq} (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 Q_t2 Q_succ Q_f : Assertion}
+    (h1 : cpsBranchWithin n1 entry cr1 P mid Q_t1 exitF Q_f1)
+    (h2 : cpsBranchWithin n2 mid cr2 Q_t1 exitF Q_t2 succ Q_succ)
+    (hf1 : ∀ h, Q_f1 h → Q_f h) (hf2 : ∀ h, Q_t2 h → Q_f h) :
+    cpsBranchWithin (n1 + n2) entry (cr1.union cr2) P succ Q_succ exitF Q_f := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr2' hQ_t1R hpc_t1
+    rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_succR⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inr ⟨hpc_t2, by
+          obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
+          exact ⟨hp, hcompat, sepConj_mono_left hf2 hp hpq⟩⟩⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inl ⟨hpc_f2, hQ_succR⟩⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1, hstep1,
+      Or.inr ⟨hpc_f1, by
+        obtain ⟨hp, hcompat, hpq⟩ := hQ_f1R
+        exact ⟨hp, hcompat, sepConj_mono_left hf1 hp hpq⟩⟩⟩
+
 set_option linter.unusedVariables false in
 /-- **Single-pass validated fixed-length byte-array copy** at byte offset `O`: validate the
     shortBytes field, then stream its `N`-byte payload into the output slot `outBase + di0`. -/
