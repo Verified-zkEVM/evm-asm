@@ -47,4 +47,33 @@ theorem expTwoMulIterRw_eq_expSqMulStep_true
   simp only [if_true]
   rw [BitVec.mul_comm]
 
+/-- Per-iteration accumulator value preservation, skip path.
+
+    If the input accumulator limb-word equals `exp base e`, the loop body's
+    squaring result `expTwoMulSquareW` equals `exp base e'` for the doubled
+    prefix `e'` with `e'.toNat = 2 * e.toNat`. -/
+theorem expTwoMulSquareW_exp (base : EvmWord) (r0 r1 r2 r3 : Word) (e e' : EvmWord)
+    (hacc : expResultWord r0 r1 r2 r3 = exp base e)
+    (hnext : e'.toNat = 2 * e.toNat) :
+    expTwoMulSquareW r0 r1 r2 r3 = exp base e' := by
+  unfold expTwoMulSquareW expTwoMulIterW
+  rw [hacc]
+  exact (exp_double_right_of_toNat_eq base e e' hnext).symm
+
+/-- Per-iteration accumulator value preservation, cond-mul path.
+
+    If the input accumulator limb-word equals `exp base e` and the base
+    limb-word equals `base`, the loop body's cond-mul result `expTwoMulIterRw`
+    equals `exp base e'` for the doubled-plus-one prefix `e'` with
+    `e'.toNat = 2 * e.toNat + 1`. -/
+theorem expTwoMulIterRw_exp (base : EvmWord) (r0 r1 r2 r3 a0 a1 a2 a3 : Word)
+    (e e' : EvmWord)
+    (hacc : expResultWord r0 r1 r2 r3 = exp base e)
+    (hbase : expResultWord a0 a1 a2 a3 = base)
+    (hnext : e'.toNat = 2 * e.toNat + 1) :
+    expTwoMulIterRw r0 r1 r2 r3 a0 a1 a2 a3 = exp base e' := by
+  unfold expTwoMulIterRw expTwoMulSquareW expTwoMulIterW expTwoMulIterAw
+  rw [hacc, hbase, BitVec.mul_comm]
+  exact (exp_double_add_one_right_of_toNat_eq base e e' hnext).symm
+
 end EvmAsm.Evm64.Exp.Compose
