@@ -211,4 +211,30 @@ theorem cpsTripleWithin_expReloadDirectTruePre_preReload_vacuous
   have h3 := holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right h2)
   exact hC6 (holdsFor_pure.mp h3)
 
+/-- Deep-ordinary input-frame chaining: when the *next* iteration `k+1` is
+    itself ordinary (its control decrement is neither a reload nor a pre-reload)
+    and the current iteration is not at a 64-bit limb boundary, the ordinary
+    head step's `hBranch` continuation frame `expReloadLimbDirectTailFrame`
+    coincides with the next iteration's induction-frame
+    `InductionFrameN (k+1) (controlC6-1) ptr`.  This is the input-frame side of
+    the deep-ordinary `hBranch` discharge in the fixed-loop induction (the
+    boundary cases — pre-reload/reload of `k+1` — are handled separately). -/
+theorem expReloadLimbDirectTailFrame_eq_inductionFrameN_succ_ordinary
+    {exponentWord : EvmWord} {k : Nat} {controlC6 ptr nextNextLimb : Word}
+    (hC6' :
+      (controlC6 + signExtend12 (-1 : BitVec 12)) + signExtend12 (-1 : BitVec 12)
+        ≠ 0)
+    (hNotPre' :
+      ((controlC6 + signExtend12 (-1 : BitVec 12)) +
+        signExtend12 (-1 : BitVec 12)).toNat ≠ 1)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hMod : k % 64 < 62) :
+    expReloadLimbDirectTailFrame ptr nextNextLimb =
+      expTwoMulFixedInductionFrameN exponentWord (k + 1)
+        (controlC6 + signExtend12 (-1 : BitVec 12)) ptr := by
+  rw [expReloadLimbDirectTailFrame_eq_savedNextLimbFrameN hNextNext,
+    expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod,
+    expTwoMulFixedInductionFrameN_ordinary_of_control hC6' hNotPre']
+
 end EvmAsm.Evm64.Exp.Compose
