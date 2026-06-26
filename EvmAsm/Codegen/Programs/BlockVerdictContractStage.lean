@@ -86,6 +86,7 @@ def stageRuntimePayloadCodeFunction : String :=
   -- sits in env_base; the count*32 HASHES push the env trailer further back, so shift env_base
   -- by m29_stage_count*32. m29_stage_count defaults 0 -> no shift (byte-identical) until the
   -- dispatch site (3vc2p.3b sub-step B) populates the M29 staging globals.
+  "  la t5, m28_blob_stage_count; ld t5, 0(t5); slli t5, t5, 5; add t1, t1, t5\n" ++
   "  la t5, m29_stage_count; ld t5, 0(t5); slli t5, t5, 5; add t1, t1, t5\n" ++
   -- 3vc2p.5: publish the env_base OFFSET so dispatch_tx_runtime_code's CALLER/ORIGIN/
   -- GASPRICE/SELFBALANCE staging uses the SAME base instead of the round8(codelen)+80
@@ -126,19 +127,25 @@ def stageRuntimePayloadCodeFunction : String :=
   "  beqz t5, .Lsrpc_scopy_done\n" ++
   "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_scopy\n" ++
   ".Lsrpc_scopy_done:\n" ++
-  -- 3vc2p.3b: M29 block at storage-end (t3 = s0 + co + 24 + storage*64 after the copy loop).
-  -- BLOBBASEFEE occupies the first 32-byte word in this block; compute it from
-  -- exec.excess_blob_gas just like stage_runtime_payload. The remaining M29 fields
-  -- are blob_hash_count@+32, cur@+40, count@+48, and count*32 hashes@+56.
+  -- 3vc2p.3b: M28+M29 block at storage-end (t3 = s0 + co + 24 + storage*64 after the copy loop).
+  -- BLOBBASEFEE occupies the first 32-byte word; then blob_hash_count@+32,
+  -- blob_hashes@+40 (count*32), cur@+40+bhc*32, count@+48+bhc*32, hashes@+56+bhc*32.
   "  mv s5, t3\n" ++
   "  addi a0, s2, 520; jal ra, bgv_u64le\n" ++
   "  mv a1, s5; jal ra, amsterdam_blob_gas_price_u256\n" ++
   "  mv t3, s5\n" ++
-  "  la t4, m29_stage_cur;   ld t5, 0(t4); sd t5, 40(t3)\n" ++
-  "  la t4, m29_stage_count; ld t6, 0(t4); sd t6, 48(t3)\n" ++
-  "  addi t4, t3, 56              # dst = storage_end + 56 (M29 hashes)\n" ++
-  "  la t5, m29_stage_table       # src = staged hashes\n" ++
-  "  slli t6, t6, 5               # count*32 bytes\n" ++
+  -- blob_hash_count @ +32 + blob hashes @ +40.
+  "  la t4, m28_blob_stage_count; ld t0, 0(t4); sd t0, 32(t3)\n" ++
+  "  addi t4, t3, 40; la t5, m28_blob_stage_table; slli t6, t0, 5\n" ++
+  ".Lsrpc_blob:\n" ++
+  "  beqz t6, .Lsrpc_blob_done\n" ++
+  "  lbu a5, 0(t5); sb a5, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lsrpc_blob\n" ++
+  ".Lsrpc_blob_done:\n" ++
+  -- BLOCKHASH fields shifted by blob_count*32 (t0 = blob_count).
+  "  slli t0, t0, 5\n" ++
+  "  la t4, m29_stage_cur;   ld t5, 0(t4); add t4, t3, t0; sd t5, 40(t4)\n" ++
+  "  la t4, m29_stage_count; ld t6, 0(t4); add t4, t3, t0; sd t6, 48(t4)\n" ++
+  "  add t4, t3, t0; addi t4, t4, 56; la t5, m29_stage_table; slli t6, t6, 5\n" ++
   ".Lsrpc_m29:\n" ++
   "  beqz t6, .Lsrpc_m29_done\n" ++
   "  lbu a5, 0(t5); sb a5, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lsrpc_m29\n" ++
