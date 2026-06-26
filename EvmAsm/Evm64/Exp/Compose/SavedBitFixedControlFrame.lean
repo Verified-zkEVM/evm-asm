@@ -232,13 +232,15 @@ theorem expTwoMulFixedSavedNextLimbFrameN_eq_succ_reload_limb_of_control_pre_rel
 def expTwoMulFixedPreReloadFrameN
     (exponentWord : EvmWord) (k : Nat) (ptr : Word) : Assertion :=
   expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr **
-  expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr
+  expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1)
+    (ptr + signExtend12 (-8 : BitVec 12))
 
 theorem expTwoMulFixedPreReloadFrameN_unfold
     {exponentWord : EvmWord} {k : Nat} {ptr : Word} :
     expTwoMulFixedPreReloadFrameN exponentWord k ptr =
       (expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr **
-      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr) := by
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1)
+        (ptr + signExtend12 (-8 : BitVec 12))) := by
   delta expTwoMulFixedPreReloadFrameN
   rfl
 
@@ -266,10 +268,16 @@ theorem expTwoMulFixedPreReloadFrameN_handoff_of_control
     (hC6 : (c6 + signExtend12 (-1 : BitVec 12)).toNat = 1) :
     expTwoMulFixedPreReloadFrameN exponentWord k ptr =
       (expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr **
-        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr) := by
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+          (ptr + signExtend12 (-8 : BitVec 12))) := by
+  -- Use the address-parametric value lemma keyed on `k % 64 = 62`, extracted
+  -- from the control invariant — avoids juggling `hControl`'s pointer argument
+  -- (which would trigger a non-matching-atom def-eq blowup).
+  have hMod : k % 64 = 62 :=
+    expTwoMulFixedControlInvariant_pre_reload_mod hControl hC6
   rw [expTwoMulFixedPreReloadFrameN_unfold,
-    expTwoMulFixedSavedNextLimbFrameN_eq_succ_reload_limb_of_control_pre_reload
-      hControl hC6]
+    expTwoMulFixedSavedNextLimbFrameN_eq_succ_reload_limb_of_pre_reload
+      (ptr := ptr + signExtend12 (-8 : BitVec 12)) hMod]
 
 theorem expTwoMulFixedReloadLimbFrameN_eq_of_reload_nextNext
     {exponentWord : EvmWord} {k : Nat} {ptr nextNextLimb : Word}

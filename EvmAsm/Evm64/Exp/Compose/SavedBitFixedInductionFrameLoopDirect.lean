@@ -722,11 +722,15 @@ theorem expTwoMulFixedPreReloadFrameN_eq_direct_tail_of_control
       expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb =
         expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr :=
     expTwoMulFixedSavedNextLimbFrameN_eq_of_nextNext hNextNext
+  have hMod : k % 64 = 62 :=
+    expTwoMulFixedControlInvariant_pre_reload_mod hControl hC6
   have hSecondEq :
-      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1) ptr =
-        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1) ptr :=
-    expTwoMulFixedSavedNextLimbFrameN_eq_succ_reload_limb_of_control_pre_reload
-      hControl hC6
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 1)
+          (ptr + signExtend12 (-8 : BitVec 12)) =
+        expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+          (ptr + signExtend12 (-8 : BitVec 12)) :=
+    expTwoMulFixedSavedNextLimbFrameN_eq_succ_reload_limb_of_pre_reload
+      (ptr := ptr + signExtend12 (-8 : BitVec 12)) hMod
   rw [expTwoMulFixedPreReloadFrameN_unfold, hSecondEq, ← hFrameEq,
     expTwoMulFixedSavedNextLimbFrame_unfold,
     expPreReloadDirectTailFrameN_unfold]

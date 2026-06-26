@@ -67,6 +67,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCountBridge
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostStateBridge
@@ -75,6 +76,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitBridge
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedEntryExists
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedIterSpBounds
@@ -100,6 +102,9 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopDirect
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFrameLoopDirect
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopPreReload
 import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry

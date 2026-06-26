@@ -648,7 +648,7 @@ theorem expTwoMulFixedIterReloadSkipScratchFrame_pures
 /-- Weaken the per-iteration scratch frame's `x6` value slot to ownership.
     After the counter moved to `x20`, the next `IterPre` keeps `x6` only as
     `regOwn` scratch, so the loop-back post's concrete `x6` value is dropped. -/
-private theorem expTwoMulFixedIterScratchIs_x6_to_regOwn
+theorem expTwoMulFixedIterScratchIs_x6_to_regOwn
     {evmSp v6 v7 v10 v11 d0 d1 d2 d3 : Word} :
     ∀ ps, expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 ps →
       (regOwn .x6 ** (.x7 ↦ᵣ v7) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) **
