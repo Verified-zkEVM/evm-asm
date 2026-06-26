@@ -17,70 +17,70 @@ open EvmAsm.Rv64
 
 /-- The subtract-and-store subpath of `evm_mulmod_reduce512_inner_step`. -/
 def evm_mulmod_reduce512_inner_step_subtract_store : Program :=
-  LD .x6 .x12 224 ;;
+  LD .x6 .x12 4064 ;;
   LD .x7 .x12 64 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x11 .x6 .x7 ;;
-  SD .x12 .x5 224 ;;
-  LD .x6 .x12 232 ;;
+  SD .x12 .x5 4064 ;;
+  LD .x6 .x12 4072 ;;
   LD .x7 .x12 72 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x10 .x6 .x7 ;;
   SLTU .x13 .x5 .x11 ;;
   SUB .x5 .x5 .x11 ;;
   OR' .x11 .x10 .x13 ;;
-  SD .x12 .x5 232 ;;
-  LD .x6 .x12 240 ;;
+  SD .x12 .x5 4072 ;;
+  LD .x6 .x12 4080 ;;
   LD .x7 .x12 80 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x10 .x6 .x7 ;;
   SLTU .x13 .x5 .x11 ;;
   SUB .x5 .x5 .x11 ;;
   OR' .x11 .x10 .x13 ;;
-  SD .x12 .x5 240 ;;
-  LD .x6 .x12 248 ;;
+  SD .x12 .x5 4080 ;;
+  LD .x6 .x12 4088 ;;
   LD .x7 .x12 88 ;;
   SUB .x5 .x6 .x7 ;;
   SUB .x5 .x5 .x11 ;;
-  SD .x12 .x5 248
+  SD .x12 .x5 4088
 
 /-- The first limb subtract/store block at the subtract path entry. -/
 def evm_mulmod_reduce512_inner_step_subtract_limb0 : Program :=
-  LD .x6 .x12 224 ;;
+  LD .x6 .x12 4064 ;;
   LD .x7 .x12 64 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x11 .x6 .x7 ;;
-  SD .x12 .x5 224
+  SD .x12 .x5 4064
 
 /-- The second limb subtract/store block, consuming the limb0 borrow. -/
 def evm_mulmod_reduce512_inner_step_subtract_limb1 : Program :=
-  LD .x6 .x12 232 ;;
+  LD .x6 .x12 4072 ;;
   LD .x7 .x12 72 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x10 .x6 .x7 ;;
   SLTU .x13 .x5 .x11 ;;
   SUB .x5 .x5 .x11 ;;
   OR' .x11 .x10 .x13 ;;
-  SD .x12 .x5 232
+  SD .x12 .x5 4072
 
 /-- The third limb subtract/store block, consuming the limb1 borrow. -/
 def evm_mulmod_reduce512_inner_step_subtract_limb2 : Program :=
-  LD .x6 .x12 240 ;;
+  LD .x6 .x12 4080 ;;
   LD .x7 .x12 80 ;;
   SUB .x5 .x6 .x7 ;;
   SLTU .x10 .x6 .x7 ;;
   SLTU .x13 .x5 .x11 ;;
   SUB .x5 .x5 .x11 ;;
   OR' .x11 .x10 .x13 ;;
-  SD .x12 .x5 240
+  SD .x12 .x5 4080
 
 /-- The high limb subtract/store block, consuming the limb2 borrow. -/
 def evm_mulmod_reduce512_inner_step_subtract_limb3 : Program :=
-  LD .x6 .x12 248 ;;
+  LD .x6 .x12 4088 ;;
   LD .x7 .x12 88 ;;
   SUB .x5 .x6 .x7 ;;
   SUB .x5 .x5 .x11 ;;
-  SD .x12 .x5 248
+  SD .x12 .x5 4088
 
 abbrev evm_mulmod_reduce512_inner_step_subtract_store_code (base : Word) : CodeReq :=
   CodeReq.ofProg (base + 144) evm_mulmod_reduce512_inner_step_subtract_store
@@ -100,10 +100,10 @@ abbrev evm_mulmod_reduce512_inner_step_subtract_limb3_code (base : Word) : CodeR
 /-- Folded final memory state after the reducer subtract-store subpath. -/
 @[irreducible]
 def mulModReduceSubtractMem (sp : Word) (r n : EvmWord) : Assertion :=
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN (r - n) 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -132,10 +132,10 @@ def mulModReduceSubtractLimb0Post
   (.x10 ↦ᵣ v10) **
   (.x11 ↦ᵣ mulModReduceSubBorrow0 r n) **
   (.x13 ↦ᵣ v13) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -152,10 +152,10 @@ def mulModReduceSubtractLimb1Post (sp : Word) (r n : EvmWord) : Assertion :=
   (.x10 ↦ᵣ mulModReduceSubBorrow1a r n) **
   (.x11 ↦ᵣ mulModReduceSubBorrow1 r n) **
   (.x13 ↦ᵣ mulModReduceSubBorrow1b r n) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -171,10 +171,10 @@ def mulModReduceSubtractLimb2Post (sp : Word) (r n : EvmWord) : Assertion :=
   (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
   (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
   (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -190,10 +190,10 @@ def mulModReduceSubtractLimb3Post (sp : Word) (r n : EvmWord) : Assertion :=
   (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
   (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
   (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ mulModReduceSubLimb3 r n) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ mulModReduceSubLimb3 r n) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -202,22 +202,22 @@ def mulModReduceSubtractLimb3Post (sp : Word) (r n : EvmWord) : Assertion :=
 /-- The limb0 subtract block as explicit singleton code entries for `runBlock`. -/
 theorem evm_mulmod_reduce512_inner_step_subtract_limb0_code_eq_singletons (base : Word) :
     evm_mulmod_reduce512_inner_step_subtract_limb0_code base =
-      (CodeReq.singleton (base + 144) (.LD .x6 .x12 224)).union
+      (CodeReq.singleton (base + 144) (.LD .x6 .x12 4064)).union
         ((CodeReq.singleton (base + 148) (.LD .x7 .x12 64)).union
           ((CodeReq.singleton (base + 152) (.SUB .x5 .x6 .x7)).union
             ((CodeReq.singleton (base + 156) (.SLTU .x11 .x6 .x7)).union
-              (CodeReq.singleton (base + 160) (.SD .x12 .x5 224))))) := by
+              (CodeReq.singleton (base + 160) (.SD .x12 .x5 4064))))) := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_subtract_limb0_code
   unfold evm_mulmod_reduce512_inner_step_subtract_limb0
   change CodeReq.ofProg (base + 144)
-      [(.LD .x6 .x12 224), (.LD .x7 .x12 64), (.SUB .x5 .x6 .x7),
-       (.SLTU .x11 .x6 .x7), (.SD .x12 .x5 224)] a =
-    ((CodeReq.singleton (base + 144) (.LD .x6 .x12 224)).union
+      [(.LD .x6 .x12 4064), (.LD .x7 .x12 64), (.SUB .x5 .x6 .x7),
+       (.SLTU .x11 .x6 .x7), (.SD .x12 .x5 4064)] a =
+    ((CodeReq.singleton (base + 144) (.LD .x6 .x12 4064)).union
       ((CodeReq.singleton (base + 148) (.LD .x7 .x12 64)).union
         ((CodeReq.singleton (base + 152) (.SUB .x5 .x6 .x7)).union
           ((CodeReq.singleton (base + 156) (.SLTU .x11 .x6 .x7)).union
-            (CodeReq.singleton (base + 160) (.SD .x12 .x5 224)))))) a
+            (CodeReq.singleton (base + 160) (.SD .x12 .x5 4064)))))) a
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
     CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
   rw [show (base + 144 : Word) + 4 = base + 148 by bv_addr]
@@ -231,9 +231,9 @@ def mulModReduceSubtractLimb0Frame
     (sp v10 v13 : Word) (r n : EvmWord) : Assertion :=
   (.x10 ↦ᵣ v10) **
   (.x13 ↦ᵣ v13) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
   ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
@@ -246,7 +246,7 @@ def mulModReduceSubtractLimb0CorePost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x6 ↦ᵣ EvmWord.getLimbN r 0) **
   (.x7 ↦ᵣ EvmWord.getLimbN n 0) **
   (.x11 ↦ᵣ mulModReduceSubBorrow0 r n) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0)
 
 theorem evm_mulmod_reduce512_inner_step_subtract_limb0_core_spec_within
@@ -255,13 +255,21 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb0_core_spec_within
       (evm_mulmod_reduce512_inner_step_subtract_limb0_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x11 ↦ᵣ v11) **
-       ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+       ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0))
       (mulModReduceSubtractLimb0CorePost sp r n) := by
   rw [evm_mulmod_reduce512_inner_step_subtract_limb0_code_eq_singletons base]
   unfold mulModReduceSubtractLimb0CorePost
   unfold mulModReduceSubLimb0 mulModReduceSubBorrow0
-  runBlock
+  have I0 := ld_spec_gen_within .x6 .x12 sp v6 (EvmWord.getLimbN r 0) 4064 (base + 144) (by nofun)
+  have I1 := ld_spec_gen_within .x7 .x12 sp v7 (EvmWord.getLimbN n 0) 64 (base + 148) (by nofun)
+  have I2 := sub_spec_gen_within .x5 .x6 .x7 (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0) v5
+    (base + 152) (by nofun)
+  have I3 := sltu_spec_gen_within .x11 .x6 .x7 v11 (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0)
+    (base + 156) (by nofun)
+  have I4 := sd_spec_gen_within .x12 .x5 sp
+    (EvmWord.getLimbN r 0 - EvmWord.getLimbN n 0) (EvmWord.getLimbN r 0) 4064 (base + 160)
+  runBlock I0 I1 I2 I3 I4
 
 theorem evm_mulmod_reduce512_inner_step_subtract_limb0_spec_within
     (sp base v5 v6 v7 v10 v11 v13 : Word) (r n : EvmWord) :
@@ -291,29 +299,29 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb0_spec_within
 /-- The limb1 subtract block as explicit singleton code entries for `runBlock`. -/
 theorem evm_mulmod_reduce512_inner_step_subtract_limb1_code_eq_singletons (base : Word) :
     evm_mulmod_reduce512_inner_step_subtract_limb1_code base =
-      (CodeReq.singleton (base + 164) (.LD .x6 .x12 232)).union
+      (CodeReq.singleton (base + 164) (.LD .x6 .x12 4072)).union
         ((CodeReq.singleton (base + 168) (.LD .x7 .x12 72)).union
           ((CodeReq.singleton (base + 172) (.SUB .x5 .x6 .x7)).union
             ((CodeReq.singleton (base + 176) (.SLTU .x10 .x6 .x7)).union
               ((CodeReq.singleton (base + 180) (.SLTU .x13 .x5 .x11)).union
                 ((CodeReq.singleton (base + 184) (.SUB .x5 .x5 .x11)).union
                   ((CodeReq.singleton (base + 188) (.OR .x11 .x10 .x13)).union
-                    (CodeReq.singleton (base + 192) (.SD .x12 .x5 232)))))))) := by
+                    (CodeReq.singleton (base + 192) (.SD .x12 .x5 4072)))))))) := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_subtract_limb1_code
   unfold evm_mulmod_reduce512_inner_step_subtract_limb1
   change CodeReq.ofProg (base + 164)
-      [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.SUB .x5 .x6 .x7),
+      [(.LD .x6 .x12 4072), (.LD .x7 .x12 72), (.SUB .x5 .x6 .x7),
        (.SLTU .x10 .x6 .x7), (.SLTU .x13 .x5 .x11), (.SUB .x5 .x5 .x11),
-       (.OR .x11 .x10 .x13), (.SD .x12 .x5 232)] a =
-    ((CodeReq.singleton (base + 164) (.LD .x6 .x12 232)).union
+       (.OR .x11 .x10 .x13), (.SD .x12 .x5 4072)] a =
+    ((CodeReq.singleton (base + 164) (.LD .x6 .x12 4072)).union
       ((CodeReq.singleton (base + 168) (.LD .x7 .x12 72)).union
         ((CodeReq.singleton (base + 172) (.SUB .x5 .x6 .x7)).union
           ((CodeReq.singleton (base + 176) (.SLTU .x10 .x6 .x7)).union
             ((CodeReq.singleton (base + 180) (.SLTU .x13 .x5 .x11)).union
               ((CodeReq.singleton (base + 184) (.SUB .x5 .x5 .x11)).union
                 ((CodeReq.singleton (base + 188) (.OR .x11 .x10 .x13)).union
-                  (CodeReq.singleton (base + 192) (.SD .x12 .x5 232))))))))) a
+                  (CodeReq.singleton (base + 192) (.SD .x12 .x5 4072))))))))) a
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
     CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
     CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
@@ -328,29 +336,29 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb1_code_eq_singletons (base 
 /-- The limb2 subtract block as explicit singleton code entries for `runBlock`. -/
 theorem evm_mulmod_reduce512_inner_step_subtract_limb2_code_eq_singletons (base : Word) :
     evm_mulmod_reduce512_inner_step_subtract_limb2_code base =
-      (CodeReq.singleton (base + 196) (.LD .x6 .x12 240)).union
+      (CodeReq.singleton (base + 196) (.LD .x6 .x12 4080)).union
         ((CodeReq.singleton (base + 200) (.LD .x7 .x12 80)).union
           ((CodeReq.singleton (base + 204) (.SUB .x5 .x6 .x7)).union
             ((CodeReq.singleton (base + 208) (.SLTU .x10 .x6 .x7)).union
               ((CodeReq.singleton (base + 212) (.SLTU .x13 .x5 .x11)).union
                 ((CodeReq.singleton (base + 216) (.SUB .x5 .x5 .x11)).union
                   ((CodeReq.singleton (base + 220) (.OR .x11 .x10 .x13)).union
-                    (CodeReq.singleton (base + 224) (.SD .x12 .x5 240)))))))) := by
+                    (CodeReq.singleton (base + 224) (.SD .x12 .x5 4080)))))))) := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_subtract_limb2_code
   unfold evm_mulmod_reduce512_inner_step_subtract_limb2
   change CodeReq.ofProg (base + 196)
-      [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.SUB .x5 .x6 .x7),
+      [(.LD .x6 .x12 4080), (.LD .x7 .x12 80), (.SUB .x5 .x6 .x7),
        (.SLTU .x10 .x6 .x7), (.SLTU .x13 .x5 .x11), (.SUB .x5 .x5 .x11),
-       (.OR .x11 .x10 .x13), (.SD .x12 .x5 240)] a =
-    ((CodeReq.singleton (base + 196) (.LD .x6 .x12 240)).union
+       (.OR .x11 .x10 .x13), (.SD .x12 .x5 4080)] a =
+    ((CodeReq.singleton (base + 196) (.LD .x6 .x12 4080)).union
       ((CodeReq.singleton (base + 200) (.LD .x7 .x12 80)).union
         ((CodeReq.singleton (base + 204) (.SUB .x5 .x6 .x7)).union
           ((CodeReq.singleton (base + 208) (.SLTU .x10 .x6 .x7)).union
             ((CodeReq.singleton (base + 212) (.SLTU .x13 .x5 .x11)).union
               ((CodeReq.singleton (base + 216) (.SUB .x5 .x5 .x11)).union
                 ((CodeReq.singleton (base + 220) (.OR .x11 .x10 .x13)).union
-                  (CodeReq.singleton (base + 224) (.SD .x12 .x5 240))))))))) a
+                  (CodeReq.singleton (base + 224) (.SD .x12 .x5 4080))))))))) a
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
     CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
     CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
@@ -365,9 +373,9 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb2_code_eq_singletons (base 
 /-- Untouched resources around the limb1 subtract/store block. -/
 @[irreducible]
 def mulModReduceSubtractLimb1Frame (sp : Word) (r n : EvmWord) : Assertion :=
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
   ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
@@ -382,15 +390,15 @@ def mulModReduceSubtractLimb1CorePost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x10 ↦ᵣ mulModReduceSubBorrow1a r n) **
   (.x11 ↦ᵣ mulModReduceSubBorrow1 r n) **
   (.x13 ↦ᵣ mulModReduceSubBorrow1b r n) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1)
 
 /-- Untouched resources around the limb2 subtract/store block. -/
 @[irreducible]
 def mulModReduceSubtractLimb2Frame (sp : Word) (r n : EvmWord) : Assertion :=
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
@@ -405,7 +413,7 @@ def mulModReduceSubtractLimb2CorePost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
   (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
   (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2)
 
 theorem evm_mulmod_reduce512_inner_step_subtract_limb1_core_spec_within
@@ -414,7 +422,7 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb1_core_spec_within
       (evm_mulmod_reduce512_inner_step_subtract_limb1_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mulModReduceSubBorrow0 r n) ** (.x13 ↦ᵣ v13) **
-       ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+       ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1))
       (mulModReduceSubtractLimb1CorePost sp r n) := by
   rw [evm_mulmod_reduce512_inner_step_subtract_limb1_code_eq_singletons base]
@@ -422,7 +430,25 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb1_core_spec_within
   unfold mulModReduceSubLimb1 mulModReduceSubTemp1 mulModReduceSubBorrow1
     mulModReduceSubBorrow1a mulModReduceSubBorrow1b mulModReduceSubBorrow0
   unfold mulModReduceSubTemp1
-  runBlock
+  set b0 := (if BitVec.ult (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0) then (1 : Word) else 0)
+    with hb0
+  have I0 := ld_spec_gen_within .x6 .x12 sp v6 (EvmWord.getLimbN r 1) 4072 (base + 164) (by nofun)
+  have I1 := ld_spec_gen_within .x7 .x12 sp v7 (EvmWord.getLimbN n 1) 72 (base + 168) (by nofun)
+  have I2 := sub_spec_gen_within .x5 .x6 .x7 (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1) v5
+    (base + 172) (by nofun)
+  have I3 := sltu_spec_gen_within .x10 .x6 .x7 v10 (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1)
+    (base + 176) (by nofun)
+  have I4 := sltu_spec_gen_within .x13 .x5 .x11 v13
+    (EvmWord.getLimbN r 1 - EvmWord.getLimbN n 1) b0 (base + 180) (by nofun)
+  have I5 := sub_spec_gen_rd_eq_rs1_within .x5 .x11
+    (EvmWord.getLimbN r 1 - EvmWord.getLimbN n 1) b0 (base + 184) (by nofun)
+  have I6 := or_spec_gen_within .x11 .x10 .x13 b0
+    (if BitVec.ult (EvmWord.getLimbN r 1) (EvmWord.getLimbN n 1) then (1 : Word) else 0)
+    (if BitVec.ult (EvmWord.getLimbN r 1 - EvmWord.getLimbN n 1) b0 then (1 : Word) else 0)
+    (base + 188) (by nofun)
+  have I7 := sd_spec_gen_within .x12 .x5 sp
+    (EvmWord.getLimbN r 1 - EvmWord.getLimbN n 1 - b0) (EvmWord.getLimbN r 1) 4072 (base + 192)
+  runBlock I0 I1 I2 I3 I4 I5 I6 I7
 
 theorem evm_mulmod_reduce512_inner_step_subtract_limb1_spec_within
     (sp base v10 v13 : Word) (r n : EvmWord) :
@@ -453,7 +479,7 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb2_core_spec_within
       (evm_mulmod_reduce512_inner_step_subtract_limb2_code base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ mulModReduceSubBorrow1 r n) ** (.x13 ↦ᵣ v13) **
-       ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+       ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2))
       (mulModReduceSubtractLimb2CorePost sp r n) := by
   rw [evm_mulmod_reduce512_inner_step_subtract_limb2_code_eq_singletons base]
@@ -461,7 +487,24 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb2_core_spec_within
   unfold mulModReduceSubLimb2 mulModReduceSubTemp2 mulModReduceSubBorrow2
     mulModReduceSubBorrow2a mulModReduceSubBorrow2b
   unfold mulModReduceSubTemp2
-  runBlock
+  set b1 := mulModReduceSubBorrow1 r n with hb1
+  have I0 := ld_spec_gen_within .x6 .x12 sp v6 (EvmWord.getLimbN r 2) 4080 (base + 196) (by nofun)
+  have I1 := ld_spec_gen_within .x7 .x12 sp v7 (EvmWord.getLimbN n 2) 80 (base + 200) (by nofun)
+  have I2 := sub_spec_gen_within .x5 .x6 .x7 (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2) v5
+    (base + 204) (by nofun)
+  have I3 := sltu_spec_gen_within .x10 .x6 .x7 v10 (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2)
+    (base + 208) (by nofun)
+  have I4 := sltu_spec_gen_within .x13 .x5 .x11 v13
+    (EvmWord.getLimbN r 2 - EvmWord.getLimbN n 2) b1 (base + 212) (by nofun)
+  have I5 := sub_spec_gen_rd_eq_rs1_within .x5 .x11
+    (EvmWord.getLimbN r 2 - EvmWord.getLimbN n 2) b1 (base + 216) (by nofun)
+  have I6 := or_spec_gen_within .x11 .x10 .x13 b1
+    (if BitVec.ult (EvmWord.getLimbN r 2) (EvmWord.getLimbN n 2) then (1 : Word) else 0)
+    (if BitVec.ult (EvmWord.getLimbN r 2 - EvmWord.getLimbN n 2) b1 then (1 : Word) else 0)
+    (base + 220) (by nofun)
+  have I7 := sd_spec_gen_within .x12 .x5 sp
+    (EvmWord.getLimbN r 2 - EvmWord.getLimbN n 2 - b1) (EvmWord.getLimbN r 2) 4080 (base + 224)
+  runBlock I0 I1 I2 I3 I4 I5 I6 I7
 
 theorem evm_mulmod_reduce512_inner_step_subtract_limb2_spec_within
     (sp base : Word) (r n : EvmWord) :
@@ -491,22 +534,22 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb2_spec_within
 /-- The high-limb subtract block as explicit singleton code entries for `runBlock`. -/
 theorem evm_mulmod_reduce512_inner_step_subtract_limb3_code_eq_singletons (base : Word) :
     evm_mulmod_reduce512_inner_step_subtract_limb3_code base =
-      (CodeReq.singleton (base + 228) (.LD .x6 .x12 248)).union
+      (CodeReq.singleton (base + 228) (.LD .x6 .x12 4088)).union
         ((CodeReq.singleton (base + 232) (.LD .x7 .x12 88)).union
           ((CodeReq.singleton (base + 236) (.SUB .x5 .x6 .x7)).union
             ((CodeReq.singleton (base + 240) (.SUB .x5 .x5 .x11)).union
-              (CodeReq.singleton (base + 244) (.SD .x12 .x5 248))))) := by
+              (CodeReq.singleton (base + 244) (.SD .x12 .x5 4088))))) := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_subtract_limb3_code
   unfold evm_mulmod_reduce512_inner_step_subtract_limb3
   change CodeReq.ofProg (base + 228)
-      [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.SUB .x5 .x6 .x7),
-       (.SUB .x5 .x5 .x11), (.SD .x12 .x5 248)] a =
-    ((CodeReq.singleton (base + 228) (.LD .x6 .x12 248)).union
+      [(.LD .x6 .x12 4088), (.LD .x7 .x12 88), (.SUB .x5 .x6 .x7),
+       (.SUB .x5 .x5 .x11), (.SD .x12 .x5 4088)] a =
+    ((CodeReq.singleton (base + 228) (.LD .x6 .x12 4088)).union
       ((CodeReq.singleton (base + 232) (.LD .x7 .x12 88)).union
         ((CodeReq.singleton (base + 236) (.SUB .x5 .x6 .x7)).union
           ((CodeReq.singleton (base + 240) (.SUB .x5 .x5 .x11)).union
-            (CodeReq.singleton (base + 244) (.SD .x12 .x5 248)))))) a
+            (CodeReq.singleton (base + 244) (.SD .x12 .x5 4088)))))) a
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
     CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
   rw [show (base + 228 : Word) + 4 = base + 232 by bv_addr]
@@ -517,9 +560,9 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb3_code_eq_singletons (base 
 /-- Untouched resources around the high-limb subtract/store block. -/
 @[irreducible]
 def mulModReduceSubtractLimb3Frame (sp : Word) (r n : EvmWord) : Assertion :=
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ mulModReduceSubLimb0 r n) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ mulModReduceSubLimb1 r n) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ mulModReduceSubLimb2 r n) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2)
@@ -534,7 +577,7 @@ def mulModReduceSubtractLimb3CorePost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
   (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
   (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ mulModReduceSubLimb3 r n) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ mulModReduceSubLimb3 r n) **
   ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3)
 
 theorem evm_mulmod_reduce512_inner_step_subtract_limb3_core_spec_within
@@ -545,13 +588,22 @@ theorem evm_mulmod_reduce512_inner_step_subtract_limb3_core_spec_within
        (.x10 ↦ᵣ mulModReduceSubBorrow2a r n) **
        (.x11 ↦ᵣ mulModReduceSubBorrow2 r n) **
        (.x13 ↦ᵣ mulModReduceSubBorrow2b r n) **
-       ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+       ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 3))
       (mulModReduceSubtractLimb3CorePost sp r n) := by
   rw [evm_mulmod_reduce512_inner_step_subtract_limb3_code_eq_singletons base]
   unfold mulModReduceSubtractLimb3CorePost
   unfold mulModReduceSubLimb3 mulModReduceSubTemp3
-  runBlock
+  set b2 := mulModReduceSubBorrow2 r n with hb2
+  have I0 := ld_spec_gen_within .x6 .x12 sp v6 (EvmWord.getLimbN r 3) 4088 (base + 228) (by nofun)
+  have I1 := ld_spec_gen_within .x7 .x12 sp v7 (EvmWord.getLimbN n 3) 88 (base + 232) (by nofun)
+  have I2 := sub_spec_gen_within .x5 .x6 .x7 (EvmWord.getLimbN r 3) (EvmWord.getLimbN n 3) v5
+    (base + 236) (by nofun)
+  have I3 := sub_spec_gen_rd_eq_rs1_within .x5 .x11
+    (EvmWord.getLimbN r 3 - EvmWord.getLimbN n 3) b2 (base + 240) (by nofun)
+  have I4 := sd_spec_gen_within .x12 .x5 sp
+    (EvmWord.getLimbN r 3 - EvmWord.getLimbN n 3 - b2) (EvmWord.getLimbN r 3) 4088 (base + 244)
+  runBlock I0 I1 I2 I3 I4
 
 theorem evm_mulmod_reduce512_inner_step_subtract_limb3_spec_within
     (sp base : Word) (r n : EvmWord) :

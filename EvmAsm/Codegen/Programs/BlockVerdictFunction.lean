@@ -784,14 +784,85 @@ def blockVerdictFunction : String :=
   ".Lbv_stx_upfront_blob_done:\n" ++
   "  la a0, bv_stx_sender_acct; addi a0, a0, 8\n  la a1, bv_upfront_cost\n  la a2, bv_upfront_islt\n  jal ra, u256_lt_be\n" ++
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n  bnez t0, .Lbv_sender_upfront_fail\n" ++
+  -- #9458: recompute bv_upfront_cost for the runtime BALANCE(ORIGIN) staging
+  -- using the SAME terms execution-specs actually debits before EVM execution,
+  -- not the (larger) worst-case terms the sufficiency CHECK above uses. The
+  -- CHECK (@761-786) correctly uses max_fee_per_gas / max_fee_per_blob_gas per
+  -- execution-specs check_transaction (amsterdam/fork.py:630,657,677), but the
+  -- DEBIT (amsterdam/fork.py:1065,1069,1080-1083) charges:
+  --   effective_gas_price * gas_limit + blob_gas_price * BLOB_GAS * nblobs + value
+  -- where blob_gas_price = calculate_blob_gas_price(excess_blob_gas) and value is
+  -- moved out of the sender before the recipient code runs. Staging the
+  -- max-fee-based cost over-charges whenever max_fee > base_fee (gas term) or
+  -- max_fee_per_blob_gas > blob_gas_price (blob term), so BALANCE(ORIGIN)
+  -- returns a balance that is too low, producing SSTORE values that disagree
+  -- with the BAL -> bv_fail=34. Mirrors @761-783 with two swaps: the gas term
+  -- tefgp_max_fee -> bv_fee_egp_scratch (effective_gas_price, written by
+  -- tx_effective_gas_pricing @438) and the blob term tcbg_blob_fee_be
+  -- (max_fee_per_blob_gas) -> bsg_blob_price_be (blob_gas_price, written by
+  -- amsterdam_blob_gas_price_u256 @338). Both staged terms are <= their checked
+  -- counterparts, so once the max-based check passed these cannot overflow; any
+  -- unreachable decode/count miss skips the staging rather than rejecting a
+  -- valid block.
+  "  la a0, bv_fee_egp_scratch\n" ++
+  "  la t0, bv_simple_transfer_tx; ld a1, 40(t0)\n" ++
+  "  la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+  "  la a0, bv_upfront_cost; la t0, bv_simple_transfer_tx; addi a1, t0, 96; la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_stx_restage_blob_done\n" ++
+  "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  la t3, bv_simple_transfer_tx; ld t3, 176(t3); add a0, t3, t1; mv a1, t2; la a2, bv_upfront_blob_count\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+  "  la t0, bv_upfront_blob_count; ld a1, 0(t0); beqz a1, .Lbv_stx_pending_upfront_done\n" ++
+  "  li t2, 6; bgtu a1, t2, .Lbv_stx_pending_upfront_done\n" ++
+  "  slli a1, a1, 17\n" ++
+  "  la a0, bsg_blob_price_be; la a2, bv_upfront_blob_cost\n" ++
+  "  jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+  ".Lbv_stx_restage_blob_done:\n" ++
   -- Stage sender.balance at execution start for runtime BALANCE(ORIGIN). The
   -- dispatcher consumes this after its setup resets and records it in the live
   -- nonstorage log; it is one-shot and harmless for contracts that never query
   -- the sender balance.
-  "  la a0, bv_stx_sender_acct; addi a0, a0, 8; la a1, bv_upfront_cost; la a2, bv_pending_upfront_sender_post\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-  "  la t0, bv_stx_sender_addr; la t1, bv_pending_upfront_sender_addr\n" ++
+   "  la a0, bv_stx_sender_acct; addi a0, a0, 8; la a1, bv_upfront_cost; la a2, bv_pending_upfront_sender_post\n" ++
+   "  jal ra, u256_sub_be\n" ++
+   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+   -- bv_upfront_cost used max_fee*gas_limit + max_blob_fee*blob_gas, but the
+   -- actual deduction at tx start uses effective_gas_price*gas_limit +
+   -- blob_gas_price*blob_gas. Add back both differences so BALANCE(ORIGIN)
+   -- during execution sees the correct sender balance.
+   -- bv_upfront_blob_cost is scratch (freed after blob-cost accumulation).
+   -- Gas delta: (max_fee - effective_gas_price) * gas_limit
+   "  la a0, tefgp_max_fee; la a1, bv_fee_egp_scratch; la a2, bv_upfront_blob_cost\n" ++
+   "  jal ra, u256_sub_be\n" ++
+   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+   "  la a0, bv_upfront_blob_cost; la t0, bv_simple_transfer_tx; ld a1, 40(t0); la a2, bv_upfront_blob_cost\n" ++
+   "  jal ra, u256_mul_u64_be\n" ++
+   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+   "  la a0, bv_pending_upfront_sender_post; la a1, bv_upfront_blob_cost; la a2, bv_pending_upfront_sender_post\n" ++
+   "  jal ra, u256_add_be\n" ++
+   -- Blob delta: (max_fee_per_blob_gas - blob_gas_price) * blob_count * 131072
+   -- bsg_blob_price_be holds the actual blob_gas_price (set at line 338).
+   "  la a0, tcbg_blob_fee_be; la a1, bsg_blob_price_be; la a2, bv_upfront_blob_cost\n" ++
+   "  jal ra, u256_sub_be\n" ++
+   "  bnez a0, .Lbv_stx_pending_upfront_blob_delta_done\n" ++
+   "  la a0, bv_upfront_blob_cost; la t0, bv_upfront_blob_count; ld a1, 0(t0); slli a1, a1, 17; la a2, bv_upfront_blob_cost\n" ++
+   "  jal ra, u256_mul_u64_be\n" ++
+   "  bnez a0, .Lbv_stx_pending_upfront_blob_delta_done\n" ++
+   "  la a0, bv_pending_upfront_sender_post; la a1, bv_upfront_blob_cost; la a2, bv_pending_upfront_sender_post\n" ++
+   "  jal ra, u256_add_be\n" ++
+   ".Lbv_stx_pending_upfront_blob_delta_done:\n" ++
+   "  la t0, bv_stx_sender_addr; la t1, bv_pending_upfront_sender_addr\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); sd zero, 24(t1)\n" ++
   "  la t0, bv_stx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre\n" ++
   "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
