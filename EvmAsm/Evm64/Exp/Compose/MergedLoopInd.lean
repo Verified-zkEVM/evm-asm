@@ -9,12 +9,25 @@
   threaded without a `control = machine` side condition.  This mirrors the
   proven non-fixed template `exp_loop_from_looppost_induction_general`.
 
-  The reload (64-bit-boundary) loop-back disjuncts are not yet reshuffled into
-  the next-iteration `IterPre` shape in the merged formulation, so they are
-  taken here as an explicit reshuffle hypothesis `MergedReloadReshuffle`,
-  isolating exactly that remaining pure-assertion lemma.  Everything else —
-  the non-reload loop-back, the exit, the count threading, and the Nat
-  induction — is proven.
+  The reload (64-bit-boundary) loop-back disjuncts are taken here as an
+  explicit hypothesis `MergedReloadReshuffle`.  Everything else — the
+  non-reload loop-back, the exit, the count threading, and the Nat induction —
+  is proven outright.
+
+  IMPORTANT (established 2026-06-26): `MergedReloadReshuffle` as stated — a
+  *pure* assertion entailment from `expTwoMulFixedIterMergedLoopPost` to the
+  next `IterPre` — is NOT dischargeable.  At a limb boundary the merged
+  loop-back post has `x16 ↦ ptr-8` but its only pointer memory cell is at
+  `ptr` (a now-stale cell), and the next-limb cell at `ptr-8` is absent, so no
+  `IterPre` witness (whose `expTwoMulFixedIterPointerFrame` puts the pointer
+  register and its cell at the *same* address) can be built by `sep_perm`.
+  The reload is genuinely a *code step* (the limb load), which is exactly why
+  the `WithStateFrame`/`InductionFrame` routes thread the `(ptr-8)` next-limb
+  cell through the loop-back frame (`DirectHeadTailOrSuccessorFrameN`) instead.
+  Consequently this theorem proves the merged loop's *non-reload* structure and
+  count threading, but the full `hBody` (all 256 iterations including reloads)
+  must come from the `InductionFrame` route, which carries the next-limb cell.
+  See bead `evm-asm-20z6.13.7`.
 -/
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
@@ -26,11 +39,16 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
-/-- The reload-disjunct reshuffle: at a 64-bit limb boundary, the merged
-    loop-back post's reload residual re-enters the next iteration's `IterPre`
-    (with reloaded control, advanced pointer, and decremented count).  This is
-    a pure assertion entailment — the single remaining merged-route lemma —
-    taken here as a hypothesis. -/
+/-- The reload-disjunct reshuffle hypothesis: at a 64-bit limb boundary, the
+    merged loop-back post's reload residual re-enters the next iteration's
+    `IterPre` (with reloaded control, advanced pointer, and decremented count).
+
+    NOTE: this is NOT a pure assertion entailment and is NOT dischargeable as
+    stated — the merged loop-back post lacks the `(ptr-8)` next-limb cell the
+    `IterPre` pointer frame requires, so the reload is genuinely a code-step
+    (the limb load).  It is kept as a hypothesis to factor out exactly the
+    reload handling; the full loop body must instead use the `InductionFrame`
+    route, which threads the next-limb cell.  See the module docstring. -/
 abbrev MergedReloadReshuffle (base sp evmSp a0 a1 a2 a3 : Word) : Prop :=
   ∀ (e c6 iterCount ptr nextLimb r0 r1 r2 r3 : Word) (ps : PartialState),
     expTwoMulFixedIterMergedLoopPost e c6 iterCount ptr nextLimb sp evmSp
