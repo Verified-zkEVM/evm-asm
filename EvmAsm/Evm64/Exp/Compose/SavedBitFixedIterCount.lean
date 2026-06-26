@@ -46,6 +46,24 @@ theorem expTwoMulFixedRemainingIterations_succ_final :
     expTwoMulFixedRemainingIterations (255 + 1) = 0 := by
   rfl
 
+/-- Block-bound at a non-final reload: a reload loop-back fires at a 64-bit
+    boundary (`k % 64 = 63`) and, when it is not the loop exit (`k < 255`),
+    the limb block index `k / 64` is strictly below 3.  This is the arithmetic
+    core of the `ExpResidual` block-bound used by the residual-threaded merged
+    induction: the look-ahead exponent cell is present (`ExpResidual` non-empty)
+    at every reload, because the only `k / 64 = 3` reload coincides with the
+    exit (`k = 255`), not a loop-back. -/
+theorem expTwoMulFixedReloadBlock_lt_three
+    {k : Nat} (hMod : k % 64 = 63) (hLt : k < 255) :
+    k / 64 < 3 := by
+  omega
+
+/-- The non-final reload block index is exactly one of `0, 1, 2`. -/
+theorem expTwoMulFixedReloadBlock_cases
+    {k : Nat} (hMod : k % 64 = 63) (hLt : k < 255) :
+    k / 64 = 0 ∨ k / 64 = 1 ∨ k / 64 = 2 := by
+  omega
+
 theorem expTwoMulFixedIterCountInvariant_zero :
     expTwoMulFixedIterCountInvariant 0 (256 : Word) := by
   unfold expTwoMulFixedIterCountInvariant
