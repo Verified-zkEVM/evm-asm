@@ -791,7 +791,9 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 35190; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 351900; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 195840; beq t2, t1, .Lbv_receipts_accept\n" ++
-  "  li t1, 97920; beq t2, t1, .Lbv_receipts_accept\n" ++
+  -- 97920 (nonzero-state) removed post-#9496: the 48 blob_gas_subtraction_tx
+  -- cases with gasUsed=97920 now pass with validator status 0 (honest receipt
+  -- root) via the existing-EOA CALL-routing fix, so this allowlist entry is dead.
   "  li t1, 391680; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 364140; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 388620; beq t2, t1, .Lbv_receipts_accept\n" ++
