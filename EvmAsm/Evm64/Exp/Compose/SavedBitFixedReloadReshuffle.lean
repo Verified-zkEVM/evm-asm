@@ -232,4 +232,100 @@ theorem expTwoMulFixedIterReloadCondScratchFrame_to_iterPre_frame
     BitVec.add_assoc] at h ⊢
   xperm_hyp h
 
+/-- Reload→`IterPre` assembler (skip / no-conditional-multiply branch).
+
+    The skip analogue of `expTwoMulFixedIterReloadCondScratchFrame_to_iterPre_frame`:
+    the merged loop-back reload-skip disjunct's residual together with the next-limb
+    cell at `ptr-8` assembles into the next iteration's `expTwoMulFixedIterPre` at
+    `ptr-8` with the squaring result (`squareW`, since the conditional multiply is
+    skipped), reloaded cursor and reset counter, returning the stale `ptr` cell. -/
+theorem expTwoMulFixedIterReloadSkipScratchFrame_to_iterPre_frame
+    {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {exitCond : Prop} {v6 v7 v10 v11 d0 d1 d2 d3 : Word}
+    {frame : Assertion} {ps : PartialState}
+    (h :
+      ((expTwoMulFixedIterSkipCountPostScratchPrefix iterCount sp evmSp
+        r0 r1 r2 r3 exitCond **
+        expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
+        (expTwoMulFixedIterReloadSkipCountPostScratchSuffix
+          e c6 ptr nextLimb evmSp a0 a1 a2 a3 base **
+          (((ptr + signExtend12 (-8 : BitVec 12)) +
+            signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb))) **
+        frame) ps) :
+    ((expTwoMulFixedIterPre
+      nextLimb
+      ((0 : Word) + signExtend12 (64 : BitVec 12))
+      (expTwoMulIterCountNew iterCount)
+      v10
+      ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+      (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb sp evmSp
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
+      (((base + 44) + 32) + 68)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
+      d0 d1 d2 d3
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2)
+      ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
+      a0 a1 a2 a3 v7 v11) **
+      (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+        frame)) ps := by
+  obtain ⟨h_exit, h_c6, h_bit⟩ :=
+    expTwoMulFixedIterReloadSkipScratchFrame_pures
+      (show ((expTwoMulFixedIterSkipCountPostScratchPrefix iterCount sp evmSp
+          r0 r1 r2 r3 exitCond **
+          expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
+          expTwoMulFixedIterReloadSkipCountPostScratchSuffix
+            e c6 ptr nextLimb evmSp a0 a1 a2 a3 base) **
+          ((((ptr + signExtend12 (-8 : BitVec 12)) +
+            signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb) ** frame)) ps
+        from by sep_perm h)
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_left
+        (fun ps' hh =>
+          expTwoMulFixedIterReloadSkipCountPostScratchSuffix_frame hh)))) _ h
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_right
+      (fun ps' hh =>
+        expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame_reshuffle hh))) _ h
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_left
+      expTwoMulFixedIterScratchIs_x6_to_regOwn)) _ h
+  unfold expTwoMulFixedIterSkipCountPostScratchPrefix
+    expTwoMulFixedIterSkipRestScratchPrefix at h
+  rw [expTwoMulFixedIterPointerFrame_unfold] at h
+  rw [show (⌜exitCond⌝ : Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_exit⟩⟩] at h
+  rw [show (⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ : Assertion) =
+      empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_c6⟩⟩] at h
+  rw [show
+      (⌜(e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) = 0⌝ :
+        Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_bit⟩⟩] at h
+  simp only [sepConj_emp_left', sepConj_emp_right'] at h
+  rw [expTwoMulFixedIterPre_unfold, expTwoMulIterBaseFrame_unfold,
+    expTwoMulFixedIterPointerFrame_unfold]
+  simp only [expTwoMulFixedIterBaseFrame,
+    evmWordIs, signExtend12_0, signExtend12_8, signExtend12_16,
+    signExtend12_24, signExtend12_32, signExtend12_40, signExtend12_48,
+    signExtend12_56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg48,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg40,
+    EvmAsm.Rv64.AddrNorm.word_add_zero,
+    show (32 : Word) + 8 = 40 from by decide,
+    show (32 : Word) + 16 = 48 from by decide,
+    show (32 : Word) + 24 = 56 from by decide,
+    show (32 : Word) + 68 = 100 from by decide,
+    show (44 : Word) + 100 = 144 from by decide,
+    BitVec.add_assoc] at h ⊢
+  xperm_hyp h
+
 end EvmAsm.Evm64.Exp.Compose
