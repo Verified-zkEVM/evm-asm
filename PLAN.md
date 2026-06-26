@@ -2015,6 +2015,17 @@ shows more elements than expected (no decode-then-count). Layering:
     `0..i-1`, validating each, via the x15-decrement + LBU-next glue from #9477) → `rlp_decode_shortBytes_
     scalar_at` at field `i` → runtime `payloadLen ≤ 8` check (`a0=2`) → `SD` store value to `*a3` → F2 LP64
     wrapper. Then T2 `withdrawal_decode` (4 consecutive scalar/address fields, exact-arity).
+  - ✅ **B.9 — validating shortList descend** (`UnifiedDecodeItemShortListValidated.lean`,
+    `rlp_decode_shortList_validated_at`, #9489): the LIST GATEWAY. shortList (`0xc0..0xf7`) analog of the
+    shortBytes arm — e4 handler ⨾ `BLTU x11,x15` bound. SUCCESS (`payloadLen < L`): `x13`=payload start,
+    `x11`=payload length, `⌜takeBytes rest payloadLen = some (rest.take pl, rest.drop pl)⌝` (so with the
+    shortList Phase-A bridge `decode` reduces to decoding the window as a list); FAIL: `⌜decode = none⌝`.
+    Canonical-clean (length in prefix), so bound check alone validates. Axiom-clean.
+  - ⏳ **Next (T2 assembly)**: descend (#9489) → 4× scalar/address field-stores (#9486) within the list
+    payload (chained via x15-decrement+LBU-next #9477) → exact-arity end check (`cursor = list_end`) →
+    F2 LP64 wrapper → coincidence to `decodeWithdrawal` (#9487). Also needs an address (20-byte fixed)
+    field-store variant alongside the scalar one. longList descend (canonical len-of-len check) deferred
+    to header/tx targets.
   - 🔑 **SINGLE-PASS directive** (maintainer @pirapira, PR #9461): the emitted program must walk the
     input **once** — validate AND copy out values in the same sweep, NOT validate-then-reparse. So each
     field-step is `validate-item → store-its-value → advance-cursor`. The validating arm already yields
