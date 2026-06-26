@@ -23,19 +23,19 @@ Entry is `base + 84` relative to the full inner step.  The ladder branches to
 `base + 144` when the shifted remainder is at least the modulus, and to
 `base + 248` when it is smaller. -/
 def evm_mulmod_reduce512_inner_step_compare : Program :=
-  LD .x6 .x12 248 ;;
+  LD .x6 .x12 4088 ;;
   LD .x7 .x12 88 ;;
   BLTU .x7 .x6 (52 : BitVec 13) ;;
   BLTU .x6 .x7 (152 : BitVec 13) ;;
-  LD .x6 .x12 240 ;;
+  LD .x6 .x12 4080 ;;
   LD .x7 .x12 80 ;;
   BLTU .x7 .x6 (36 : BitVec 13) ;;
   BLTU .x6 .x7 (136 : BitVec 13) ;;
-  LD .x6 .x12 232 ;;
+  LD .x6 .x12 4072 ;;
   LD .x7 .x12 72 ;;
   BLTU .x7 .x6 (20 : BitVec 13) ;;
   BLTU .x6 .x7 (120 : BitVec 13) ;;
-  LD .x6 .x12 224 ;;
+  LD .x6 .x12 4064 ;;
   LD .x7 .x12 64 ;;
   BLTU .x6 .x7 (108 : BitVec 13)
 
@@ -45,10 +45,10 @@ abbrev evm_mulmod_reduce512_inner_step_compare_code (base : Word) : CodeReq :=
 /-- Shared memory footprint for the reducer compare ladder. -/
 @[irreducible]
 def mulModReduceCompareMem (sp : Word) (r n : EvmWord) : Assertion :=
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -74,13 +74,13 @@ def mulModReduceComparePost (sp : Word) (r n : EvmWord) (willSubtract : Bool) : 
 
 /-- Explicit code requirement for the high-limb `n3 < r3` subtract path. -/
 def evm_mulmod_reduce512_inner_step_compare_limb3_gt_code (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 84) (.LD .x6 .x12 248))
+  CodeReq.union (CodeReq.singleton (base + 84) (.LD .x6 .x12 4088))
     (CodeReq.union (CodeReq.singleton (base + 88) (.LD .x7 .x12 88))
       (CodeReq.singleton (base + 92) (.BLTU .x7 .x6 (52 : BitVec 13))))
 
 /-- Explicit code requirement for the high-limb `r3 < n3` no-sub path. -/
 def evm_mulmod_reduce512_inner_step_compare_limb3_lt_code (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 84) (.LD .x6 .x12 248))
+  CodeReq.union (CodeReq.singleton (base + 84) (.LD .x6 .x12 4088))
     (CodeReq.union (CodeReq.singleton (base + 88) (.LD .x7 .x12 88))
       (CodeReq.union (CodeReq.singleton (base + 92) (.BLTU .x7 .x6 (52 : BitVec 13)))
         (CodeReq.singleton (base + 96) (.BLTU .x6 .x7 (152 : BitVec 13)))))
@@ -88,10 +88,10 @@ def evm_mulmod_reduce512_inner_step_compare_limb3_lt_code (base : Word) : CodeRe
 /-- Raw post after loading the top comparison limbs and exiting through the first BLTU. -/
 def mulModReduceCompareLimb3GtRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x7 ↦ᵣ EvmWord.getLimbN n 3) ** (.x6 ↦ᵣ EvmWord.getLimbN r 3) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -100,10 +100,10 @@ def mulModReduceCompareLimb3GtRawPost (sp : Word) (r n : EvmWord) : Assertion :=
 /-- Raw post after the high-limb less/equality branch has passed the second BLTU. -/
 def mulModReduceCompareLimb3FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 3) ** (.x7 ↦ᵣ EvmWord.getLimbN n 3) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -129,7 +129,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_raw_spec_within
   unfold mulModReduceComparePre mulModReduceCompareMem
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_gt_code
   unfold mulModReduceCompareLimb3GtRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 248 (base + 84) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 4088 (base + 84) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp x7Old (EvmWord.getLimbN n 3) 88 (base + 88) (by decide)
   have Braw := bltu_spec_gen_within .x7 .x6 (52 : BitVec 13)
     (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3) (base + 92)
@@ -162,7 +162,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_raw_spec_within
   unfold mulModReduceComparePre mulModReduceCompareMem
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_lt_code
   unfold mulModReduceCompareLimb3FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 248 (base + 84) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 4088 (base + 84) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp x7Old (EvmWord.getLimbN n 3) 88 (base + 88) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (52 : BitVec 13)
     (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3) (base + 92)
@@ -204,7 +204,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_eq_raw_spec_within
   unfold mulModReduceComparePre mulModReduceCompareMem
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_lt_code
   unfold mulModReduceCompareLimb3FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 248 (base + 84) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp x6Old (EvmWord.getLimbN r 3) 4088 (base + 84) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp x7Old (EvmWord.getLimbN n 3) 88 (base + 88) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (52 : BitVec 13)
     (EvmWord.getLimbN n 3) (EvmWord.getLimbN r 3) (base + 92)
@@ -241,13 +241,13 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_eq_spec_within
 
 /-- Explicit code requirement for the limb2 `n2 < r2` subtract path. -/
 def evm_mulmod_reduce512_inner_step_compare_limb2_gt_code (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 100) (.LD .x6 .x12 240))
+  CodeReq.union (CodeReq.singleton (base + 100) (.LD .x6 .x12 4080))
     (CodeReq.union (CodeReq.singleton (base + 104) (.LD .x7 .x12 80))
       (CodeReq.singleton (base + 108) (.BLTU .x7 .x6 (36 : BitVec 13))))
 
 /-- Explicit code requirement for the limb2 `r2 < n2` no-sub path. -/
 def evm_mulmod_reduce512_inner_step_compare_limb2_lt_code (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 100) (.LD .x6 .x12 240))
+  CodeReq.union (CodeReq.singleton (base + 100) (.LD .x6 .x12 4080))
     (CodeReq.union (CodeReq.singleton (base + 104) (.LD .x7 .x12 80))
       (CodeReq.union (CodeReq.singleton (base + 108) (.BLTU .x7 .x6 (36 : BitVec 13)))
         (CodeReq.singleton (base + 112) (.BLTU .x6 .x7 (136 : BitVec 13)))))
@@ -255,10 +255,10 @@ def evm_mulmod_reduce512_inner_step_compare_limb2_lt_code (base : Word) : CodeRe
 /-- Raw post after loading limb2 comparison operands. -/
 def mulModReduceCompareLimb2FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 2) ** (.x7 ↦ᵣ EvmWord.getLimbN n 2) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -285,7 +285,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_raw_spec_within
   unfold mulModReduceCompareLimb3FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_gt_code
   unfold mulModReduceCompareLimb2FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 240 (base + 100) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 4080 (base + 100) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 3) (EvmWord.getLimbN n 2) 80 (base + 104) (by decide)
   have Braw := bltu_spec_gen_within .x7 .x6 (36 : BitVec 13)
     (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2) (base + 108)
@@ -323,7 +323,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_raw_spec_within
   unfold mulModReduceCompareLimb3FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_lt_code
   unfold mulModReduceCompareLimb2FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 240 (base + 100) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 4080 (base + 100) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 3) (EvmWord.getLimbN n 2) 80 (base + 104) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (36 : BitVec 13)
     (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2) (base + 108)
@@ -370,7 +370,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_eq_raw_spec_within
   unfold mulModReduceCompareLimb3FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_lt_code
   unfold mulModReduceCompareLimb2FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 240 (base + 100) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 3) (EvmWord.getLimbN r 2) 4080 (base + 100) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 3) (EvmWord.getLimbN n 2) 80 (base + 104) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (36 : BitVec 13)
     (EvmWord.getLimbN n 2) (EvmWord.getLimbN r 2) (base + 108)
@@ -412,13 +412,13 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_eq_spec_within
 
 /-- Explicit code requirement for the limb1 `n1 < r1` subtract path. -/
 def evm_mulmod_reduce512_inner_step_compare_limb1_gt_code (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 116) (.LD .x6 .x12 232))
+  CodeReq.union (CodeReq.singleton (base + 116) (.LD .x6 .x12 4072))
     (CodeReq.union (CodeReq.singleton (base + 120) (.LD .x7 .x12 72))
       (CodeReq.singleton (base + 124) (.BLTU .x7 .x6 (20 : BitVec 13))))
 
 /-- Explicit code requirement for the limb1 `r1 < n1` no-sub path. -/
 def evm_mulmod_reduce512_inner_step_compare_limb1_lt_code (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 116) (.LD .x6 .x12 232))
+  CodeReq.union (CodeReq.singleton (base + 116) (.LD .x6 .x12 4072))
     (CodeReq.union (CodeReq.singleton (base + 120) (.LD .x7 .x12 72))
       (CodeReq.union (CodeReq.singleton (base + 124) (.BLTU .x7 .x6 (20 : BitVec 13)))
         (CodeReq.singleton (base + 128) (.BLTU .x6 .x7 (120 : BitVec 13)))))
@@ -426,10 +426,10 @@ def evm_mulmod_reduce512_inner_step_compare_limb1_lt_code (base : Word) : CodeRe
 /-- Raw post after loading limb1 comparison operands. -/
 def mulModReduceCompareLimb1FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 1) ** (.x7 ↦ᵣ EvmWord.getLimbN n 1) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -457,7 +457,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_raw_spec_within
   unfold mulModReduceCompareLimb2FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_gt_code
   unfold mulModReduceCompareLimb1FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 4072 (base + 116) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
   have Braw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
     (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
@@ -496,7 +496,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_raw_spec_within
   unfold mulModReduceCompareLimb2FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
   unfold mulModReduceCompareLimb1FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 4072 (base + 116) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
     (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
@@ -544,7 +544,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_eq_raw_spec_within
   unfold mulModReduceCompareLimb2FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
   unfold mulModReduceCompareLimb1FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 232 (base + 116) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 2) (EvmWord.getLimbN r 1) 4072 (base + 116) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 2) (EvmWord.getLimbN n 1) 72 (base + 120) (by decide)
   have B0raw := bltu_spec_gen_within .x7 .x6 (20 : BitVec 13)
     (EvmWord.getLimbN n 1) (EvmWord.getLimbN r 1) (base + 124)
@@ -587,17 +587,17 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_eq_spec_within
 
 /-- Explicit code requirement for the limb0 `r0 < n0` no-sub path. -/
 def evm_mulmod_reduce512_inner_step_compare_limb0_lt_code (base : Word) : CodeReq :=
-  CodeReq.union (CodeReq.singleton (base + 132) (.LD .x6 .x12 224))
+  CodeReq.union (CodeReq.singleton (base + 132) (.LD .x6 .x12 4064))
     (CodeReq.union (CodeReq.singleton (base + 136) (.LD .x7 .x12 64))
       (CodeReq.singleton (base + 140) (.BLTU .x6 .x7 (108 : BitVec 13))))
 
 /-- Raw post after loading limb0 comparison operands. -/
 def mulModReduceCompareLimb0FallthroughRawPost (sp : Word) (r n : EvmWord) : Assertion :=
   (.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ EvmWord.getLimbN r 0) ** (.x7 ↦ᵣ EvmWord.getLimbN n 0) **
-  ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
-  ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
-  ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
-  ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
+  ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 0) **
+  ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 1) **
+  ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 2) **
+  ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ EvmWord.getLimbN r 3) **
   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 0) **
   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 1) **
   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ EvmWord.getLimbN n 2) **
@@ -619,7 +619,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_lt_raw_spec_within
   unfold mulModReduceCompareLimb1FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb0_lt_code
   unfold mulModReduceCompareLimb0FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 224 (base + 132) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 4064 (base + 132) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 1) (EvmWord.getLimbN n 0) 64 (base + 136) (by decide)
   have Braw := bltu_spec_gen_within .x6 .x7 (108 : BitVec 13)
     (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0) (base + 140)
@@ -659,7 +659,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_ge_raw_spec_within
   unfold mulModReduceCompareLimb1FallthroughRawPost
   unfold evm_mulmod_reduce512_inner_step_compare_limb0_lt_code
   unfold mulModReduceCompareLimb0FallthroughRawPost
-  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 224 (base + 132) (by decide)
+  have L0 := ld_spec_gen_within .x6 .x12 sp (EvmWord.getLimbN r 1) (EvmWord.getLimbN r 0) 4064 (base + 132) (by decide)
   have L1 := ld_spec_gen_within .x7 .x12 sp (EvmWord.getLimbN n 1) (EvmWord.getLimbN n 0) 64 (base + 136) (by decide)
   have Braw := bltu_spec_gen_within .x6 .x7 (108 : BitVec 13)
     (EvmWord.getLimbN r 0) (EvmWord.getLimbN n 0) (base + 140)
@@ -694,7 +694,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_ge_spec_within
 theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_code_eq_ofProg (base : Word) :
     evm_mulmod_reduce512_inner_step_compare_limb3_gt_code base =
       CodeReq.ofProg (base + 84)
-        [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13))] := by
+        [(.LD .x6 .x12 4088), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13))] := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_gt_code
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
@@ -708,7 +708,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_code_sub (base : Word) 
   unfold evm_mulmod_reduce512_inner_step_compare_code
   refine CodeReq.ofProg_mono_sub (base + 84) (base + 84)
     evm_mulmod_reduce512_inner_step_compare
-    [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13))]
+    [(.LD .x6 .x12 4088), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13))]
     0 ?_ ?_ ?_ ?_
   · rw [show BitVec.ofNat 64 (4 * 0) = (0 : Word) by decide]
     bv_addr
@@ -720,7 +720,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_gt_code_sub (base : Word) 
 theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_eq_ofProg (base : Word) :
     evm_mulmod_reduce512_inner_step_compare_limb3_lt_code base =
       CodeReq.ofProg (base + 84)
-        [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13)),
+        [(.LD .x6 .x12 4088), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13)),
           (.BLTU .x6 .x7 (152 : BitVec 13))] := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_compare_limb3_lt_code
@@ -736,7 +736,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_sub (base : Word) 
   unfold evm_mulmod_reduce512_inner_step_compare_code
   refine CodeReq.ofProg_mono_sub (base + 84) (base + 84)
     evm_mulmod_reduce512_inner_step_compare
-    [(.LD .x6 .x12 248), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13)),
+    [(.LD .x6 .x12 4088), (.LD .x7 .x12 88), (.BLTU .x7 .x6 (52 : BitVec 13)),
       (.BLTU .x6 .x7 (152 : BitVec 13))]
     0 ?_ ?_ ?_ ?_
   · rw [show BitVec.ofNat 64 (4 * 0) = (0 : Word) by decide]
@@ -749,7 +749,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb3_lt_code_sub (base : Word) 
 theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_code_eq_ofProg (base : Word) :
     evm_mulmod_reduce512_inner_step_compare_limb2_gt_code base =
       CodeReq.ofProg (base + 100)
-        [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13))] := by
+        [(.LD .x6 .x12 4080), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13))] := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_gt_code
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
@@ -763,7 +763,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_code_sub (base : Word) 
   unfold evm_mulmod_reduce512_inner_step_compare_code
   refine CodeReq.ofProg_mono_sub (base + 84) (base + 100)
     evm_mulmod_reduce512_inner_step_compare
-    [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13))]
+    [(.LD .x6 .x12 4080), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13))]
     4 ?_ ?_ ?_ ?_
   · rw [show BitVec.ofNat 64 (4 * 4) = (16 : Word) by decide]
     bv_addr
@@ -775,7 +775,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_gt_code_sub (base : Word) 
 theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_eq_ofProg (base : Word) :
     evm_mulmod_reduce512_inner_step_compare_limb2_lt_code base =
       CodeReq.ofProg (base + 100)
-        [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13)),
+        [(.LD .x6 .x12 4080), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13)),
           (.BLTU .x6 .x7 (136 : BitVec 13))] := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_compare_limb2_lt_code
@@ -791,7 +791,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_sub (base : Word) 
   unfold evm_mulmod_reduce512_inner_step_compare_code
   refine CodeReq.ofProg_mono_sub (base + 84) (base + 100)
     evm_mulmod_reduce512_inner_step_compare
-    [(.LD .x6 .x12 240), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13)),
+    [(.LD .x6 .x12 4080), (.LD .x7 .x12 80), (.BLTU .x7 .x6 (36 : BitVec 13)),
       (.BLTU .x6 .x7 (136 : BitVec 13))]
     4 ?_ ?_ ?_ ?_
   · rw [show BitVec.ofNat 64 (4 * 4) = (16 : Word) by decide]
@@ -804,7 +804,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb2_lt_code_sub (base : Word) 
 theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_code_eq_ofProg (base : Word) :
     evm_mulmod_reduce512_inner_step_compare_limb1_gt_code base =
       CodeReq.ofProg (base + 116)
-        [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13))] := by
+        [(.LD .x6 .x12 4072), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13))] := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_gt_code
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
@@ -818,7 +818,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_code_sub (base : Word) 
   unfold evm_mulmod_reduce512_inner_step_compare_code
   refine CodeReq.ofProg_mono_sub (base + 84) (base + 116)
     evm_mulmod_reduce512_inner_step_compare
-    [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13))]
+    [(.LD .x6 .x12 4072), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13))]
     8 ?_ ?_ ?_ ?_
   · rw [show BitVec.ofNat 64 (4 * 8) = (32 : Word) by decide]
     bv_addr
@@ -830,7 +830,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_gt_code_sub (base : Word) 
 theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_eq_ofProg (base : Word) :
     evm_mulmod_reduce512_inner_step_compare_limb1_lt_code base =
       CodeReq.ofProg (base + 116)
-        [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13)),
+        [(.LD .x6 .x12 4072), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13)),
           (.BLTU .x6 .x7 (120 : BitVec 13))] := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_compare_limb1_lt_code
@@ -846,7 +846,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_sub (base : Word) 
   unfold evm_mulmod_reduce512_inner_step_compare_code
   refine CodeReq.ofProg_mono_sub (base + 84) (base + 116)
     evm_mulmod_reduce512_inner_step_compare
-    [(.LD .x6 .x12 232), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13)),
+    [(.LD .x6 .x12 4072), (.LD .x7 .x12 72), (.BLTU .x7 .x6 (20 : BitVec 13)),
       (.BLTU .x6 .x7 (120 : BitVec 13))]
     8 ?_ ?_ ?_ ?_
   · rw [show BitVec.ofNat 64 (4 * 8) = (32 : Word) by decide]
@@ -859,7 +859,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb1_lt_code_sub (base : Word) 
 theorem evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_eq_ofProg (base : Word) :
     evm_mulmod_reduce512_inner_step_compare_limb0_lt_code base =
       CodeReq.ofProg (base + 132)
-        [(.LD .x6 .x12 224), (.LD .x7 .x12 64), (.BLTU .x6 .x7 (108 : BitVec 13))] := by
+        [(.LD .x6 .x12 4064), (.LD .x7 .x12 64), (.BLTU .x6 .x7 (108 : BitVec 13))] := by
   funext a
   unfold evm_mulmod_reduce512_inner_step_compare_limb0_lt_code
   rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
@@ -873,7 +873,7 @@ theorem evm_mulmod_reduce512_inner_step_compare_limb0_lt_code_sub (base : Word) 
   unfold evm_mulmod_reduce512_inner_step_compare_code
   refine CodeReq.ofProg_mono_sub (base + 84) (base + 132)
     evm_mulmod_reduce512_inner_step_compare
-    [(.LD .x6 .x12 224), (.LD .x7 .x12 64), (.BLTU .x6 .x7 (108 : BitVec 13))]
+    [(.LD .x6 .x12 4064), (.LD .x7 .x12 64), (.BLTU .x6 .x7 (108 : BitVec 13))]
     12 ?_ ?_ ?_ ?_
   · rw [show BitVec.ofNat 64 (4 * 12) = (48 : Word) by decide]
     bv_addr
