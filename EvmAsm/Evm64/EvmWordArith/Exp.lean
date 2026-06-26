@@ -242,6 +242,20 @@ theorem expSqMulFold_exp (base : EvmWord) (bits : List Bool) :
       Nat.mul_assoc 2 e.toNat (2 ^ bs.length)]
     omega
 
+/-- MSB-first square-and-multiply from the unit accumulator computes `EvmWord.exp`.
+
+    Folding the square-and-multiply step from `acc = 1` (`= exp base 0`) over any
+    bit sequence whose MSB-first value equals the exponent yields
+    `exp base exponent`.  This is the semantic capstone the EXP loop realizes:
+    the loop body produces exactly such a bit sequence (the 256 exponent bits,
+    most significant first), so its accumulator ends at `base ^ exponent`. -/
+theorem expSqMulFold_one (base exponent : EvmWord) (bits : List Bool)
+    (hval : bitsToNatMsb bits = exponent.toNat) :
+    expSqMulFold base (1 : EvmWord) bits = exp base exponent := by
+  rw [show (1 : EvmWord) = exp base 0 from (exp_zero_right base).symm]
+  refine expSqMulFold_exp base bits 0 exponent exponent.isLt ?_
+  simp [hval]
+
 /-- The GH #92 cross-limb boundary case `EXP(2, 64)`. -/
 theorem exp_two_64 : exp (2 : EvmWord) (64 : EvmWord) =
     BitVec.ofNat 256 (2^64) := by
