@@ -108,6 +108,57 @@ theorem expTwoMulLoopEntryPost_unfold
   rw [expTwoMulLoopEntryPost_unfold_namedScratch]
   rw [expTwoMulScratchFrame_unfold]
 
+/-- Entry-post unfold that exposes the first two words below the EXP operands.
+
+    After the prologue advances `x12` to `evmSp + 64`, the loop body treats the
+    two stack slots below the operands (`dWord`, `eWord`) as squaring/accumulator
+    scratch.  This splits the stack assertion into the explicit operand and
+    scratch words, the shape the first-iteration precondition `expTwoMulIterPre`
+    consumes (non-fixed analog of `expTwoMulLoopEntryPostFixed_unfold_rest2`). -/
+theorem expTwoMulLoopEntryPost_unfold_rest2
+    {sp evmSp vOld v18 : Word} {baseWord exponentWord dWord eWord : EvmWord}
+    {rest : List EvmWord} :
+    expTwoMulLoopEntryPost sp evmSp vOld v18
+        baseWord exponentWord (dWord :: eWord :: rest) =
+      (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
+          evmWordIs sp (1 : EvmWord)) **
+         (.x12 ↦ᵣ (evmSp + 64))) **
+        (evmWordIs evmSp baseWord **
+         evmWordIs (evmSp + 32) exponentWord **
+         evmWordIs (evmSp + 32 + 32) dWord **
+         evmWordIs (evmSp + 32 + 32 + 32) eWord **
+         evmStackIs (evmSp + 32 + 32 + 32 + 32) rest)) **
+       (regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+        (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18))) := by
+  rw [expTwoMulLoopEntryPost_unfold]
+  rfl
+
+/-- Normalized-offset variant of `expTwoMulLoopEntryPost_unfold_rest2`.
+    The first scratch word starts exactly at the advanced iteration stack
+    pointer `evmSp + 64`. -/
+theorem expTwoMulLoopEntryPost_unfold_rest2_offsets
+    {sp evmSp vOld v18 : Word} {baseWord exponentWord dWord eWord : EvmWord}
+    {rest : List EvmWord} :
+    expTwoMulLoopEntryPost sp evmSp vOld v18
+        baseWord exponentWord (dWord :: eWord :: rest) =
+      (((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x9 ↦ᵣ (256 : Word)) ** (.x5 ↦ᵣ (1 : Word)) **
+          evmWordIs sp (1 : EvmWord)) **
+         (.x12 ↦ᵣ (evmSp + 64))) **
+        (evmWordIs evmSp baseWord **
+         evmWordIs (evmSp + 32) exponentWord **
+         evmWordIs (evmSp + 64) dWord **
+         evmWordIs (evmSp + 96) eWord **
+         evmStackIs (evmSp + 128) rest)) **
+       (regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+        (.x1 ↦ᵣ vOld) ** (.x18 ↦ᵣ v18))) := by
+  rw [expTwoMulLoopEntryPost_unfold_rest2]
+  simp only [BitVec.add_assoc,
+    show (32 : Word) + 32 = 64 from by decide,
+    show (64 : Word) + 32 = 96 from by decide,
+    show (96 : Word) + 32 = 128 from by decide]
+
 theorem expTwoMulLoopEntryPost_pcFree
     {sp evmSp vOld v18 : Word} {baseWord exponentWord : EvmWord}
     {rest : List EvmWord} :
