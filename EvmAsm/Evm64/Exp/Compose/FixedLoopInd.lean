@@ -296,4 +296,20 @@ theorem directHeadTailOrSuccessorFrameN_succ_ordinary_eq_reloadLimbTail
     expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod,
     expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod1]
 
+/-- Pre-reload output-frame split: the two-cell pre-reload tail frame
+    `expPreReloadDirectTailFrameN` decomposes definitionally into the ordinary
+    one-cell tail `expReloadLimbDirectTailFrame` (at `ptr-8`) and the look-ahead
+    reload cell (at `ptr-16`).  This is the output-frame side of the
+    ordinary→pre-reload discharge: after applying the IH (whose output carries
+    the two-cell pre-reload frame), the look-ahead cell is returned to the
+    induction residual and the ordinary continuation's required one-cell tail
+    remains. -/
+theorem expPreReloadDirectTailFrameN_eq_tail_lookahead
+    {exponentWord : EvmWord} {k : Nat} {ptr nextNextLimb : Word} :
+    expPreReloadDirectTailFrameN exponentWord k ptr nextNextLimb =
+      (expReloadLimbDirectTailFrame ptr nextNextLimb **
+       expTwoMulFixedReloadLimbFrameN exponentWord (k + 1)
+         (ptr + signExtend12 (-8 : BitVec 12))) := by
+  rw [expPreReloadDirectTailFrameN_unfold, expReloadLimbDirectTailFrame_unfold]
+
 end EvmAsm.Evm64.Exp.Compose
