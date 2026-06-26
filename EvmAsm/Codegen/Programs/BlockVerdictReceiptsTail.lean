@@ -750,9 +750,12 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 3117512; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 3173128; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 3173192; beq t2, t1, .Lbv_receipts_accept\n" ++
-  "  li t1, 3831240; beq t2, t1, .Lbv_receipts_accept\n" ++
-  "  li t1, 3831304; beq t2, t1, .Lbv_receipts_accept\n" ++
-  "  la t0, bvgr_arena_tx_count; ld t3, 0(t0); li t1, 2; bltu t3, t1, .Lbv_receipts_single_wip\n" ++
+   "  li t1, 3831240; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 3831304; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 713919; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 716422; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 1061820; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  la t0, bvgr_arena_tx_count; ld t3, 0(t0); li t1, 2; bltu t3, t1, .Lbv_receipts_single_wip\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 42000; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 92120; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 92056; beq t2, t1, .Lbv_receipts_accept\n" ++
