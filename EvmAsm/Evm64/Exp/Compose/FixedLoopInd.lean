@@ -237,4 +237,35 @@ theorem expReloadLimbDirectTailFrame_eq_inductionFrameN_succ_ordinary
     expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod,
     expTwoMulFixedInductionFrameN_ordinary_of_control hC6' hNotPre']
 
+/-- Deep-ordinary output-frame chaining (companion to
+    `expReloadLimbDirectTailFrame_eq_inductionFrameN_succ_ordinary`): when the
+    next iteration `k+1` is ordinary and neither `k` nor `k+1` is at a 64-bit
+    limb boundary, the induction-hypothesis output frame
+    `DirectHeadTailOrSuccessorFrameN (k+1) (controlC6-1) ptr` coincides with the
+    ordinary head step's `hBranch` continuation tail
+    `expReloadLimbDirectTailFrame ptr nextNextLimb`.  With the input-frame lemma
+    this completes the deep-ordinary `hBranch` discharge: rewrite the pre, apply
+    the IH, rewrite the post. -/
+theorem directHeadTailOrSuccessorFrameN_succ_ordinary_eq_reloadLimbTail
+    {exponentWord : EvmWord} {k : Nat}
+    {controlC6 ptr nextNextLimb nextNextLimb' : Word}
+    (hC6' :
+      (controlC6 + signExtend12 (-1 : BitVec 12)) + signExtend12 (-1 : BitVec 12)
+        ≠ 0)
+    (hNotPre' :
+      ((controlC6 + signExtend12 (-1 : BitVec 12)) +
+        signExtend12 (-1 : BitVec 12)).toNat ≠ 1)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hMod : k % 64 < 62)
+    (hMod1 : (k + 1) % 64 < 62) :
+    expTwoMulFixedDirectHeadTailOrSuccessorFrameN exponentWord (k + 1)
+        (controlC6 + signExtend12 (-1 : BitVec 12)) ptr nextNextLimb' =
+      expReloadLimbDirectTailFrame ptr nextNextLimb := by
+  rw [expTwoMulFixedDirectHeadTailOrSuccessorFrameN_ordinary_of_control
+    hC6' hNotPre',
+    expReloadLimbDirectTailFrame_eq_savedNextLimbFrameN hNextNext,
+    expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod,
+    expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod1]
+
 end EvmAsm.Evm64.Exp.Compose
