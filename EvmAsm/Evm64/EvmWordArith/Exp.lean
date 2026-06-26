@@ -142,6 +142,43 @@ theorem exp_double_add_one_right_of_toNat_eq
     (2^256)]
   rw [Nat.mod_mod]
 
+/-- One MSB-first square-and-multiply step on the accumulator: square, then
+    multiply by `base` when the current exponent bit is set. This is the pure
+    per-iteration accumulator update performed by the EXP loop body. -/
+def expSqMulStep (base acc : EvmWord) (bit : Bool) : EvmWord :=
+  if bit then base * (acc * acc) else acc * acc
+
+/-- Accumulator invariant preservation for one square-and-multiply step.
+
+    If the accumulator currently equals `exp base e` (the running power for the
+    processed exponent prefix `e`), then after one MSB-first step consuming
+    `bit` it equals `exp base e'`, where `e'` is the extended prefix
+    `e' = 2*e + bit`.  This is the per-iteration semantic bridge the EXP loop
+    body realizes; it unifies `exp_double_right_of_toNat_eq` (bit = 0) and
+    `exp_double_add_one_right_of_toNat_eq` (bit = 1). -/
+theorem expSqMulStep_correct (base e e' : EvmWord) (bit : Bool)
+    (hNext : e'.toNat = 2 * e.toNat + (if bit then 1 else 0)) :
+    expSqMulStep base (exp base e) bit = exp base e' := by
+  unfold expSqMulStep
+  cases bit with
+  | false =>
+    show exp base e * exp base e = exp base e'
+    have hNext' : e'.toNat = 2 * e.toNat := by simpa using hNext
+    exact (exp_double_right_of_toNat_eq base e e' hNext').symm
+  | true =>
+    show base * (exp base e * exp base e) = exp base e'
+    have hNext' : e'.toNat = 2 * e.toNat + 1 := by simpa using hNext
+    exact (exp_double_add_one_right_of_toNat_eq base e e' hNext').symm
+
+/-- The square-and-multiply step from the unit accumulator (`exp base 0 = 1`)
+    yields `base^bit`: the first MSB-first iteration's accumulator value. -/
+theorem expSqMulStep_one (base e' : EvmWord) (bit : Bool)
+    (hNext : e'.toNat = (if bit then 1 else 0)) :
+    expSqMulStep base (1 : EvmWord) bit = exp base e' := by
+  have h1 : (1 : EvmWord) = exp base (0 : EvmWord) := (exp_zero_right base).symm
+  rw [h1]
+  exact expSqMulStep_correct base 0 e' bit (by simpa using hNext)
+
 /-- The GH #92 cross-limb boundary case `EXP(2, 64)`. -/
 theorem exp_two_64 : exp (2 : EvmWord) (64 : EvmWord) =
     BitVec.ofNat 256 (2^64) := by
