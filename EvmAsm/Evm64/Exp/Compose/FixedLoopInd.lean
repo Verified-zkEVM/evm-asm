@@ -71,4 +71,29 @@ theorem exp_two_mul_fixed_loop_final_iteration_spec
     (fun h => absurd h (by decide)) (fun h => absurd h (by decide))
     (fun h => absurd h (by decide)) (fun _ => hExit)
 
+/-- The ordinary-case continuation tail frame `expReloadLimbDirectTailFrame`
+    and the induction-frame's `expTwoMulFixedSavedNextLimbFrame` are the same
+    single saved-next-limb cell at `ptr - 8`.  This is the def-level bridge the
+    ordinary control sub-case of the inductive step uses to reconcile the
+    direct head step's continuation tail against `InductionFrameN (k+1)`. -/
+theorem expReloadLimbDirectTailFrame_eq_savedNextLimbFrame
+    {ptr nextNextLimb : Word} :
+    expReloadLimbDirectTailFrame ptr nextNextLimb =
+      expTwoMulFixedSavedNextLimbFrame ptr nextNextLimb := by
+  rw [expReloadLimbDirectTailFrame_unfold,
+    expTwoMulFixedSavedNextLimbFrame_unfold]
+
+/-- Restatement of `expReloadLimbDirectTailFrame_eq_savedNextLimbFrame` against
+    the `k`-indexed saved-next-limb frame, given the standard `nextNextLimb`
+    cursor equation.  Converts the ordinary continuation tail directly into the
+    `InductionFrameN`-ordinary frame `expTwoMulFixedSavedNextLimbFrameN`. -/
+theorem expReloadLimbDirectTailFrame_eq_savedNextLimbFrameN
+    {exponentWord : EvmWord} {k : Nat} {ptr nextNextLimb : Word}
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64)) :
+    expReloadLimbDirectTailFrame ptr nextNextLimb =
+      expTwoMulFixedSavedNextLimbFrameN exponentWord k ptr := by
+  rw [expReloadLimbDirectTailFrame_eq_savedNextLimbFrame,
+    expTwoMulFixedSavedNextLimbFrameN_eq_of_nextNext hNextNext]
+
 end EvmAsm.Evm64.Exp.Compose
