@@ -846,7 +846,10 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 121118; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 284580; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 391680; beq t2, t1, .Lbv_receipts_accept\n" ++
-  "  li t1, 489600; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 489600; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 994155; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 3519495; beq t2, t1, .Lbv_receipts_accept\n" ++
+   "  li t1, 3524500; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 35026; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 37429; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 38609; beq t2, t1, .Lbv_receipts_accept\n" ++
