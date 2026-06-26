@@ -19,7 +19,7 @@ open EvmAsm.Rv64
     the loop-back counter update. The nonzero conditional-multiply path remains
     the first exit. -/
 theorem exp_msb_bit_test_fixed_skip_save_squaring_beq_skip_then_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-    (e c6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+    (e c6 v6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 v7 v11 mulTarget loopTarget : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base : Word)
@@ -44,13 +44,14 @@ theorem exp_msb_bit_test_fixed_skip_save_squaring_beq_skip_then_loop_back_expIte
       memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
       (.x1 ↦ᵣ ((base + 32) + 68)) **
       (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+      (.x20 ↦ᵣ c6New) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
     cpsNBranchWithin ((((4 + 1) + (17 + 64 + 9)) + 1) + 2) base
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget))
-      ((((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+      ((((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x6 ↦ᵣ v6) ** (.x10 ↦ᵣ v10) **
         (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
         ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -77,6 +78,7 @@ theorem exp_msb_bit_test_fixed_skip_save_squaring_beq_skip_then_loop_back_expIte
             (.x1 ↦ᵣ ((base + 32) + 68)) **
             (.x0 ↦ᵣ (0 : Word)) **
             (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+            (.x20 ↦ᵣ c6New) **
             (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
             ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝) **
             (.x9 ↦ᵣ iterCount))),
@@ -89,7 +91,7 @@ theorem exp_msb_bit_test_fixed_skip_save_squaring_beq_skip_then_loop_back_expIte
   intro bit c6New squareW skipRest
   have hBranch :=
     exp_msb_bit_test_fixed_skip_save_squaring_then_cond_mul_beq_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-      e c6 v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e c6 v6 v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 v7 v11 mulTarget (base + 244) squaringMulOff condMulOff
       skipOff backOff base hc6 hbase hmt hskip hd
   have hBranchFramed := cpsBranchWithin_frameR (.x9 ↦ᵣ iterCount) (by pcFree) hBranch
@@ -118,7 +120,7 @@ theorem exp_msb_bit_test_fixed_skip_save_squaring_beq_skip_then_loop_back_expIte
     the loop-back counter update. The nonzero conditional-multiply path remains
     the first exit. -/
 theorem exp_msb_bit_test_fixed_reload_save_squaring_beq_skip_then_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-    (e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+    (e c6 v6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 mulTarget loopTarget : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base : Word)
@@ -142,6 +144,7 @@ theorem exp_msb_bit_test_fixed_reload_save_squaring_beq_skip_then_loop_back_expI
       memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
       (.x1 ↦ᵣ ((base + 32) + 68)) **
       (.x19 ↦ᵣ nextLimb) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
       (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -151,7 +154,7 @@ theorem exp_msb_bit_test_fixed_reload_save_squaring_beq_skip_then_loop_back_expI
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget))
-      ((((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+      ((((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x6 ↦ᵣ v6) ** (.x10 ↦ᵣ v10) **
         (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
@@ -179,6 +182,7 @@ theorem exp_msb_bit_test_fixed_reload_save_squaring_beq_skip_then_loop_back_expI
             (.x1 ↦ᵣ ((base + 32) + 68)) **
             (.x0 ↦ᵣ (0 : Word)) **
             (.x19 ↦ᵣ nextLimb) **
+            (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
             (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
             ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
             (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -194,7 +198,7 @@ theorem exp_msb_bit_test_fixed_reload_save_squaring_beq_skip_then_loop_back_expI
   intro bit squareW skipRest
   have hBranch :=
     exp_msb_bit_test_fixed_reload_save_squaring_then_cond_mul_beq_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-      e c6 v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e c6 v6 v10 v18 ptr nextLimb sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 v7 v11 mulTarget (base + 244) squaringMulOff condMulOff
       skipOff backOff base hc6 hbase hmt hskip hd
   have hBranchFramed := cpsBranchWithin_frameR (.x9 ↦ᵣ iterCount) (by pcFree) hBranch
@@ -654,7 +658,7 @@ theorem exp_cond_mul_call_then_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCo
     prefix through squaring and saved-bit BEQ with the folded conditional
     multiply continuation, leaving the reload entry branch for a later merge. -/
 theorem exp_msb_bit_test_fixed_skip_full_iter_four_exit_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-    (e c6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+    (e c6 v6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 mulTarget loopTarget : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base : Word)
@@ -679,6 +683,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_four_exit_expIterBodyFullMsbSavedB
       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
     let condFrame : Assertion :=
       (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+      (.x20 ↦ᵣ c6New) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
     let skipRest : Assertion :=
@@ -690,6 +695,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_four_exit_expIterBodyFullMsbSavedB
       memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
       (.x1 ↦ᵣ ((base + 32) + 68)) **
       (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+      (.x20 ↦ᵣ c6New) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
     let condRest : Assertion :=
@@ -710,7 +716,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_four_exit_expIterBodyFullMsbSavedB
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget))
-      (((((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+      (((((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x6 ↦ᵣ v6) ** (.x10 ↦ᵣ v10) **
         (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
         ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -742,7 +748,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_four_exit_expIterBodyFullMsbSavedB
   intro bit c6New squareW rw baseFrame condFrame skipRest condRest
   have hSkipRaw :=
     exp_msb_bit_test_fixed_skip_save_squaring_beq_skip_then_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-      e c6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e c6 v6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 v7 v11 mulTarget loopTarget squaringMulOff condMulOff
       skipOff backOff base hc6 hbase hsqmt hskip hback hd
   have hSkip := cpsNBranchWithin_frameR (F := baseFrame) (by
@@ -793,7 +799,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_four_exit_expIterBodyFullMsbSavedB
     the conditional-multiply and zero-bit skip outcomes that land at the same
     loop/exit PCs. -/
 theorem exp_msb_bit_test_fixed_skip_full_iter_merged_exit_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-    (e c6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+    (e c6 v6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 mulTarget loopTarget : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
     (base : Word)
@@ -818,6 +824,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_merged_exit_expIterBodyFullMsbSave
       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
     let condFrame : Assertion :=
       (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+      (.x20 ↦ᵣ c6New) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
     let skipRest : Assertion :=
@@ -829,6 +836,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_merged_exit_expIterBodyFullMsbSave
       memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
       (.x1 ↦ᵣ ((base + 32) + 68)) **
       (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
+      (.x20 ↦ᵣ c6New) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6New ≠ 0⌝ ** ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
     let condRest : Assertion :=
@@ -849,7 +857,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_merged_exit_expIterBodyFullMsbSave
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget))
-      (((((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+      (((((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x6 ↦ᵣ v6) ** (.x10 ↦ᵣ v10) **
         (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
         ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
@@ -881,7 +889,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_merged_exit_expIterBodyFullMsbSave
   intro bit c6New squareW rw baseFrame condFrame skipRest condRest
   have hFour :=
     exp_msb_bit_test_fixed_skip_full_iter_four_exit_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-      e c6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
+      e c6 v6 iterCount v10 v18 sp evmSp tOld vOld r0 r1 r2 r3 d0 d1 d2 d3
       e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 mulTarget loopTarget
       squaringMulOff condMulOff skipOff backOff base hc6 hbase hsqmt hcondmt
       hskip hback hd
@@ -934,7 +942,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_merged_exit_expIterBodyFullMsbSave
     while carrying the reloaded exponent limb and pointer state through the
     conditional-multiply continuation. -/
 theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-    (e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+    (e c6 v6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
       v7 v11 mulTarget loopTarget : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13)
@@ -959,6 +967,7 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_expIterBodyFullMsbSave
       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
     let condFrame : Assertion :=
       (.x19 ↦ᵣ nextLimb) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
       (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -973,6 +982,7 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_expIterBodyFullMsbSave
       memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
       (.x1 ↦ᵣ ((base + 32) + 68)) **
       (.x19 ↦ᵣ nextLimb) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
       (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
       ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
       (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
@@ -996,7 +1006,7 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_expIterBodyFullMsbSave
       ((expIterBodyFullMsbSavedBitTwoMulFixedCode
         base squaringMulOff condMulOff skipOff backOff).union
         (mul_callable_code mulTarget))
-      (((((.x19 ↦ᵣ e) ** (.x6 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+      (((((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x6 ↦ᵣ v6) ** (.x10 ↦ᵣ v10) **
         (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x16 ↦ᵣ ptr) ** ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
         (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
@@ -1029,7 +1039,7 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_expIterBodyFullMsbSave
   intro bit squareW rw baseFrame condFrame skipRest condRest
   have hReloadRaw :=
     exp_msb_bit_test_fixed_reload_save_squaring_beq_skip_then_loop_back_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
-      e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
+      e c6 v6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 mulTarget loopTarget
       squaringMulOff condMulOff skipOff backOff base hc6 hbase hsqmt hskip hback hd
   have hReload := cpsNBranchWithin_frameR (F := baseFrame) (by
