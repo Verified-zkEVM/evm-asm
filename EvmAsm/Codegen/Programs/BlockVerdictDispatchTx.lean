@@ -393,6 +393,43 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a3, m29_stage_table\n" ++
   "  la a4, m29_stage_cur; la a5, m29_stage_count\n" ++
   "  jal ra, stage_blockhash_m29\n" ++
+  -- BLOBHASH: extract blob versioned hashes from type-3 txs into the M28 staging
+  -- globals, so stage_runtime_payload_code writes blob_hash_count + blob_hashes
+  -- into the runtime payload trailer. Non-type-3 txs leave count=0 (inert).
+  -- Each blob versioned hash is a fixed 32-byte string (RLP prefix 0xa0 + 32 bytes
+  -- = 33 bytes per item), so the list payload start = list_start + (list_len - count*33).
+  "  la t0, m28_blob_stage_count; sd zero, 0(t0)\n" ++
+  "  ld t0, 160(s2); li t1, 3; bne t0, t1, .Ldtrc_no_blob_hash\n" ++
+  "  ld a0, 176(s2); ld a1, 184(s2); la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ldtrc_no_blob_hash\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  ld t0, 176(s2); add t0, t0, t1\n" ++
+  "  mv a0, t0; mv a1, t2; la a2, m28_blob_stage_count; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Ldtrc_no_blob_hash\n" ++
+  -- t0/t1/t2 clobbered by call — recompute list_start and blob_len
+  "  la t0, tcbg_struct; lwu t4, 168(t0); lwu t2, 172(t0)\n" ++
+  "  ld t0, 176(s2); add t0, t0, t4\n" ++
+  "  la t1, m28_blob_stage_count; ld t1, 0(t1)\n" ++
+  "  li t3, 33; mul t3, t1, t3; sub t3, t2, t3; add t0, t0, t3\n" ++
+  "  la t2, m28_blob_stage_table\n" ++
+  ".Ldtrc_blob_extract:\n" ++
+  "  beqz t1, .Ldtrc_blob_extract_done\n" ++
+  "  addi t0, t0, 1\n" ++
+  -- Byte-reverse the 32-byte BE blob hash into LE-limb order (same fix
+  -- class as GASPRICE odq06.3 / SELFBALANCE odq06.2). The EVM stack
+  -- stores U256 in LE-limb order (low limb at +0), but the RLP source
+  -- is big-endian; a raw dword copy reverses the limb order.
+  "  li t3, 0\n" ++
+  ".Ldtrc_blob_rev:\n" ++
+  "  li t4, 32; beq t3, t4, .Ldtrc_blob_rev_done\n" ++
+  "  add t4, t0, t3; lbu t5, 0(t4)\n" ++
+  "  li t4, 31; sub t4, t4, t3; add t4, t2, t4; sb t5, 0(t4)\n" ++
+  "  addi t3, t3, 1; j .Ldtrc_blob_rev\n" ++
+  ".Ldtrc_blob_rev_done:\n" ++
+  "  addi t0, t0, 32; addi t2, t2, 32; addi t1, t1, -1; j .Ldtrc_blob_extract\n" ++
+  ".Ldtrc_blob_extract_done:\n" ++
+  ".Ldtrc_no_blob_hash:\n" ++
   -- bmvmx.1.7.2: conservative payload-size guard. stage_runtime_payload_code writes
   -- round8(codelen)+round8(calldata)+storage*64+584 bytes into bv_runtime_payload; if that
   -- exceeds the buffer (bsrAccountSlotCap*64+65536, the 4jczt-lifted size) the write would
@@ -402,6 +439,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
+  "  la t0, m28_blob_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- + blob hashes (count*32)
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- 3vc2p.3b: + M29 hashes (count*32)
   "  la t0, dtrc_hdr_len; ld t2, 0(t0); add t1, t1, t2\n" ++        -- nested-CALL account-witness header bytes
   "  add t1, t1, s1\n" ++                                             -- witness.state bytes
@@ -421,7 +459,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++
   "  la t0, bv_runtime_payload\n" ++
   "  la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t2, m29_stage_count; ld t2, 0(t2); slli t2, t2, 5; addi t2, t2, 56; sub t0, t0, t2\n" ++
+  "  la t2, m28_blob_stage_count; ld t2, 0(t2); slli t2, t2, 5; addi t2, t2, 56\n" ++
+  "  la t3, m29_stage_count; ld t3, 0(t3); slli t3, t3, 5; add t2, t2, t3; sub t0, t0, t2\n" ++
   "  addi t1, sp, 48; li t2, 0\n" ++
   ".Ldtrc_blobbasefee_rev:\n" ++
   "  li t3, 32; beq t2, t3, .Ldtrc_blobbasefee_done\n" ++
@@ -500,9 +539,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
   "  add t2, t0, t1; addi t2, t2, 160\n" ++                  -- t2 = &gasPrice word (env_base+160)
-  "  la t3, gp_egp\n" ++
-  "  ld t4, 0(t3); sd t4, 0(t2); ld t4, 8(t3); sd t4, 8(t2)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(t2); ld t4, 24(t3); sd t4, 24(t2)\n" ++
+  -- odq06.3: byte-reverse the 32B BE gp_egp into env+160 so the low limb lands
+  -- at env+160 (LE-limb order, matching how h_GASPRICE copies env+160..191
+  -- dword-for-dword onto the stack). A verbatim BE copy put the low byte at
+  -- env+191, so limb 0 was all-zero -> GASPRICE pushed 0 -> SSTORE(0,0) ->
+  -- bv_fail=34 (blob_tx_attribute_gasprice_opcode). Same fix as odq06.2 SELFBALANCE.
+  "  la t3, gp_egp; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
+  ".Ldtrc_gp_rev:\n" ++
+  "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_gp_rev\n" ++
   ".Ldtrc_no_gasprice:\n" ++
   -- yisv8.1: SELFBALANCE (word 1 -> env_base+32) = the recipient's own balance from the
   -- witness (account_at_header_state_root over env.ADDRESS=recipient, ctx+72), copied
