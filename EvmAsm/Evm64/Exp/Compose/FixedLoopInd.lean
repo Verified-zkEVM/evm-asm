@@ -237,6 +237,34 @@ theorem expReloadLimbDirectTailFrame_eq_inductionFrameN_succ_ordinary
     expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod,
     expTwoMulFixedInductionFrameN_ordinary_of_control hC6' hNotPre']
 
+/-- Ordinary→pre-reload input-frame re-partition.  When the next iteration
+    `k+1` is a *pre-reload* step (its control decrement has `toNat = 1`) and the
+    current iteration is not at a 64-bit limb boundary, the ordinary head step's
+    `hBranch` continuation tail `expReloadLimbDirectTailFrame` (one cell at
+    `ptr-8`) together with the look-ahead exponent cell at `ptr-16` (supplied
+    from the induction residual `R_k`) forms exactly the next iteration's
+    two-cell pre-reload induction frame `InductionFrameN (k+1) (controlC6-1)`.
+    This is the input-frame side of the ordinary→pre-reload `hBranch` discharge
+    in the fixed-loop induction; the look-ahead cell is the one re-partitioned
+    out of the residual at this boundary. -/
+theorem expReloadLimbDirectTailFrame_lookahead_eq_inductionFrameN_succ_preReload
+    {exponentWord : EvmWord} {k : Nat} {controlC6 ptr nextNextLimb : Word}
+    (hC6' :
+      ((controlC6 + signExtend12 (-1 : BitVec 12)) +
+        signExtend12 (-1 : BitVec 12)).toNat = 1)
+    (hNextNext :
+      nextNextLimb = exponentWord.getLimbN (2 - (k + 1) / 64))
+    (hMod : k % 64 < 62) :
+    (expReloadLimbDirectTailFrame ptr nextNextLimb **
+      expTwoMulFixedSavedNextLimbFrameN exponentWord (k + 2)
+        (ptr + signExtend12 (-8 : BitVec 12))) =
+      expTwoMulFixedInductionFrameN exponentWord (k + 1)
+        (controlC6 + signExtend12 (-1 : BitVec 12)) ptr := by
+  rw [expReloadLimbDirectTailFrame_eq_savedNextLimbFrameN hNextNext,
+    expTwoMulFixedSavedNextLimbFrameN_succ_no_reload hMod,
+    expTwoMulFixedInductionFrameN_pre_reload_of_control hC6',
+    expTwoMulFixedPreReloadFrameN_unfold]
+
 /-- Deep-ordinary output-frame chaining (companion to
     `expReloadLimbDirectTailFrame_eq_inductionFrameN_succ_ordinary`): when the
     next iteration `k+1` is ordinary and neither `k` nor `k+1` is at a 64-bit
