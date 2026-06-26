@@ -393,6 +393,34 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a3, m29_stage_table\n" ++
   "  la a4, m29_stage_cur; la a5, m29_stage_count\n" ++
   "  jal ra, stage_blockhash_m29\n" ++
+  -- BLOBHASH: extract blob versioned hashes from type-3 txs into the M28 staging
+  -- globals, so stage_runtime_payload_code writes blob_hash_count + blob_hashes
+  -- into the runtime payload trailer. Non-type-3 txs leave count=0 (inert).
+  -- Each blob versioned hash is a fixed 32-byte string (RLP prefix 0xa0 + 32 bytes
+  -- = 33 bytes per item), so the list payload start = list_start + (list_len - count*33).
+  "  la t0, m28_blob_stage_count; sd zero, 0(t0)\n" ++
+  "  ld t0, 160(s2); li t1, 3; bne t0, t1, .Ldtrc_no_blob_hash\n" ++
+  "  ld a0, 176(s2); ld a1, 184(s2); la a2, tcbg_struct\n" ++
+  "  jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Ldtrc_no_blob_hash\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
+  "  ld t0, 176(s2); add t0, t0, t1\n" ++
+  "  mv a0, t0; mv a1, t2; la a2, m28_blob_stage_count; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Ldtrc_no_blob_hash\n" ++
+  -- t0/t1/t2 clobbered by call — recompute list_start and blob_len
+  "  la t0, tcbg_struct; lwu t4, 168(t0); lwu t2, 172(t0)\n" ++
+  "  ld t0, 176(s2); add t0, t0, t4\n" ++
+  "  la t1, m28_blob_stage_count; ld t1, 0(t1)\n" ++
+  "  li t3, 33; mul t3, t1, t3; sub t3, t2, t3; add t0, t0, t3\n" ++
+  "  la t2, m28_blob_stage_table\n" ++
+  ".Ldtrc_blob_extract:\n" ++
+  "  beqz t1, .Ldtrc_blob_extract_done\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  ld t3, 0(t0); sd t3, 0(t2); ld t3, 8(t0); sd t3, 8(t2)\n" ++
+  "  ld t3, 16(t0); sd t3, 16(t2); ld t3, 24(t0); sd t3, 24(t2)\n" ++
+  "  addi t0, t0, 32; addi t2, t2, 32; addi t1, t1, -1; j .Ldtrc_blob_extract\n" ++
+  ".Ldtrc_blob_extract_done:\n" ++
+  ".Ldtrc_no_blob_hash:\n" ++
   -- bmvmx.1.7.2: conservative payload-size guard. stage_runtime_payload_code writes
   -- round8(codelen)+round8(calldata)+storage*64+584 bytes into bv_runtime_payload; if that
   -- exceeds the buffer (bsrAccountSlotCap*64+65536, the 4jczt-lifted size) the write would
@@ -402,6 +430,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
+  "  la t0, m28_blob_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- + blob hashes (count*32)
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- 3vc2p.3b: + M29 hashes (count*32)
   "  la t0, dtrc_hdr_len; ld t2, 0(t0); add t1, t1, t2\n" ++        -- nested-CALL account-witness header bytes
   "  add t1, t1, s1\n" ++                                             -- witness.state bytes
@@ -421,7 +450,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++
   "  la t0, bv_runtime_payload\n" ++
   "  la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t2, m29_stage_count; ld t2, 0(t2); slli t2, t2, 5; addi t2, t2, 56; sub t0, t0, t2\n" ++
+  "  la t2, m28_blob_stage_count; ld t2, 0(t2); slli t2, t2, 5; addi t2, t2, 56\n" ++
+  "  la t3, m29_stage_count; ld t3, 0(t3); slli t3, t3, 5; add t2, t2, t3; sub t0, t0, t2\n" ++
   "  addi t1, sp, 48; li t2, 0\n" ++
   ".Ldtrc_blobbasefee_rev:\n" ++
   "  li t3, 32; beq t2, t3, .Ldtrc_blobbasefee_done\n" ++
