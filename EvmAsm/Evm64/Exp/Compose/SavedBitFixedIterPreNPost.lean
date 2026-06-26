@@ -213,6 +213,7 @@ theorem expTwoMulFixedIterSkipCondScratchFrame_to_iterPreN_frame
         (rw.getLimbN 0) (rw.getLimbN 1) (rw.getLimbN 2) (rw.getLimbN 3)
         a0 a1 a2 a3 v7 v11) **
         frame) ps := by
+    rw [hC6Reg]
     simpa [rw] using
       (expTwoMulFixedIterSkipCondScratchFrame_to_iterPre_frame h)
   rw [expTwoMulFixedIterPreNWithFrame_unfold,
@@ -312,6 +313,7 @@ theorem expTwoMulFixedIterSkipScratchFrame_to_iterPreN_frame
         (squareW.getLimbN 2) (squareW.getLimbN 3)
         a0 a1 a2 a3 v7 v11) **
         frame) ps := by
+    rw [hC6Reg]
     simpa [squareW] using
       (expTwoMulFixedIterSkipScratchFrame_to_iterPre_frame h)
   rw [expTwoMulFixedIterPreNWithFrame_unfold,
@@ -351,7 +353,7 @@ theorem expTwoMulFixedIterSkipCondScratchFrame_to_iterPreNWithControl_frame
     expTwoMulFixedIterPreNWithControlFrame (k + 1) baseWord exponentWord
       (c6 + signExtend12 (-1 : BitVec 12))
       (e <<< (1 : BitVec 6).toNat)
-      v6
+      (c6 + signExtend12 (-1 : BitVec 12))
       (expTwoMulIterCountNew iterCount)
       v10
       ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
@@ -394,7 +396,7 @@ theorem expTwoMulFixedIterSkipCondScratchFrame_to_iterPreNWithControl_frame
   have hPre :
       ((expTwoMulFixedIterPre
         (e <<< (1 : BitVec 6).toNat)
-        v6
+        (c6 + signExtend12 (-1 : BitVec 12))
         (expTwoMulIterCountNew iterCount)
         v10
         ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
@@ -445,7 +447,7 @@ theorem expTwoMulFixedIterSkipScratchFrame_to_iterPreNWithControl_frame
     expTwoMulFixedIterPreNWithControlFrame (k + 1) baseWord exponentWord
       (c6 + signExtend12 (-1 : BitVec 12))
       (e <<< (1 : BitVec 6).toNat)
-      v6
+      (c6 + signExtend12 (-1 : BitVec 12))
       (expTwoMulIterCountNew iterCount)
       v10
       ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
@@ -490,7 +492,7 @@ theorem expTwoMulFixedIterSkipScratchFrame_to_iterPreNWithControl_frame
   have hPre :
       ((expTwoMulFixedIterPre
         (e <<< (1 : BitVec 6).toNat)
-        v6
+        (c6 + signExtend12 (-1 : BitVec 12))
         (expTwoMulIterCountNew iterCount)
         v10
         ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
@@ -593,13 +595,13 @@ theorem expTwoMulFixedIterCaseLoopPost_iterPreNWithControl_or_reloadPointerFrame
     hSkipCond | hRest
   · rcases hSkipCond with ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩
     exact Or.inl
-      ⟨v6, v7, v10, v11, d0, d1, d2, d3,
+      ⟨(c6 + signExtend12 (-1 : BitVec 12)), v7, v10, v11, d0, d1, d2, d3,
         expTwoMulFixedIterSkipCondScratchFrame_to_iterPreNWithControl_frame
           hk hBase hCursor hControl hInv hScratch⟩
   · rcases hRest with hSkip | hRest
     · rcases hSkip with ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩
       exact Or.inr (Or.inl
-        ⟨v6, v7, v10, v11, d0, d1, d2, d3,
+        ⟨(c6 + signExtend12 (-1 : BitVec 12)), v7, v10, v11, d0, d1, d2, d3,
           expTwoMulFixedIterSkipScratchFrame_to_iterPreNWithControl_frame
             hk hBase hCursor hControl hInv hScratch⟩)
     · rcases hRest with hReloadCond | hReloadSkip
