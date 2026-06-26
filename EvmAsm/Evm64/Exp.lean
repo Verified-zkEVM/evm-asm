@@ -105,6 +105,7 @@ import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInduction
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
