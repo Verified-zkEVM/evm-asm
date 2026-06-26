@@ -119,6 +119,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
 import EvmAsm.Evm64.Exp.Compose.SavedBitIterExitBridge
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticStep
+import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticUnify
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyFromLoopPost
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
 import EvmAsm.Evm64.Exp.Layout
