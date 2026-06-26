@@ -416,8 +416,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_blob_extract:\n" ++
   "  beqz t1, .Ldtrc_blob_extract_done\n" ++
   "  addi t0, t0, 1\n" ++
-  "  ld t3, 0(t0); sd t3, 0(t2); ld t3, 8(t0); sd t3, 8(t2)\n" ++
-  "  ld t3, 16(t0); sd t3, 16(t2); ld t3, 24(t0); sd t3, 24(t2)\n" ++
+  -- Byte-reverse the 32-byte BE blob hash into LE-limb order (same fix
+  -- class as GASPRICE odq06.3 / SELFBALANCE odq06.2). The EVM stack
+  -- stores U256 in LE-limb order (low limb at +0), but the RLP source
+  -- is big-endian; a raw dword copy reverses the limb order.
+  "  li t3, 0\n" ++
+  ".Ldtrc_blob_rev:\n" ++
+  "  li t4, 32; beq t3, t4, .Ldtrc_blob_rev_done\n" ++
+  "  add t4, t0, t3; lbu t5, 0(t4)\n" ++
+  "  li t4, 31; sub t4, t4, t3; add t4, t2, t4; sb t5, 0(t4)\n" ++
+  "  addi t3, t3, 1; j .Ldtrc_blob_rev\n" ++
+  ".Ldtrc_blob_rev_done:\n" ++
   "  addi t0, t0, 32; addi t2, t2, 32; addi t1, t1, -1; j .Ldtrc_blob_extract\n" ++
   ".Ldtrc_blob_extract_done:\n" ++
   ".Ldtrc_no_blob_hash:\n" ++
