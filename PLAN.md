@@ -2005,6 +2005,12 @@ shows more elements than expected (no decode-then-count). Layering:
     `a0=2` runtime check discharges it). Key reuse insight: for EXTRACTED fields the value-read advances
     `x13` itself, so the ADD-skip advance (B.6) is for DISCARDED fields (header gaps); extracted fields
     (all of withdrawal) use this read-advance. Axiom-clean; no `maxRecDepth`.
+  - ✅ **B.8 — single-pass validated scalar decode-and-store** (`ValidatingScalarStore.lean`,
+    `rlp_decode_shortBytes_scalar_store_at`, #9486): B.7 ⨾[taken] `SD rOut,x11,offset` — the per-field op
+    a fixed-schema scalar decoder repeats. SUCCESS: output cell `outBase+offset` = `Nat.fromBytesBE
+    payload`, verdict `decodeScalar (bs.drop O) = some (value, …)`; FAIL: abort, slot untouched. `rOut` =
+    callee-saved output base (distinct from `x5/x10..x15`). Mirrors valid-input
+    `unified_scalar_field_decode_and_store` onto the validating taken exit. Axiom-clean.
   - ⏳ **Next (T1 `rlp_field_to_u64`)**: walk-to-field-`i` (iterate the validating advance over fields
     `0..i-1`, validating each, via the x15-decrement + LBU-next glue from #9477) → `rlp_decode_shortBytes_
     scalar_at` at field `i` → runtime `payloadLen ≤ 8` check (`a0=2`) → `SD` store value to `*a3` → F2 LP64
