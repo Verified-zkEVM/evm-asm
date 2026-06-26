@@ -161,6 +161,7 @@ import EvmAsm.EL.TransactionCall
 import EvmAsm.EL.TransactionExecution
 import EvmAsm.EL.TransactionExecutionShape
 import EvmAsm.EL.Block
+import EvmAsm.EL.Withdrawal
 import EvmAsm.EL.BlockTrace
 import EvmAsm.EL.Bls12G2AddInputBridge
 import EvmAsm.EL.Bls12G2AddResultBridge
