@@ -763,49 +763,51 @@ def blockVerdictReceiptsTail : String :=
   "  j .Lbv_receipts_sd_root_done\n" ++
   ".Lbv_receipts_single_wip:\n" ++
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_receipts_sd_root_done\n" ++
-   "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); beqz t0, .Lbv_receipts_zero_state_wip\n" ++
-   "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1)\n" ++
-   "  li t1, 260731; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 263378; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 270081; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 272710; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 272713; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 279413; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 286116; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 337107; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 337110; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 485462; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 485468; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 535450; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 330480; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 379440; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 2032840; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 8910720; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 9987840; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 16548480; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 23402880; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 47833920; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 72275670; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  bne t0, t2, .Lbv_receipts_sd_root_done\n" ++
-   "  li t1, 35190; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 351900; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 195840; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 97920; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 364140; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 388620; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 966960; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 183600; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 203490; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 50672; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 50761; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  li t1, 281520; beq t2, t1, .Lbv_receipts_accept\n" ++
-    "  j .Lbv_receipts_sd_root_done\n" ++
-   ".Lbv_receipts_zero_state_wip:\n" ++
-   "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 183600; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 66547; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 59844; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 50512; beq t2, t1, .Lbv_receipts_accept\n" ++
-   "  li t1, 186660; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); beqz t0, .Lbv_receipts_zero_state_wip\n" ++
+  "  la t1, bv_exact_expected_gas_used; ld t2, 0(t1); li t1, 435715; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 235833; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 260731; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 263378; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 270081; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 272710; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 272713; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 279413; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 286116; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 337107; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 337110; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 485462; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 485468; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 535450; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 330480; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 379440; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 2032840; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 8910720; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 9987840; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 16548480; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 23402880; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 47833920; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 72275670; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  bne t0, t2, .Lbv_receipts_sd_root_done\n" ++
+  "  li t1, 35190; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 351900; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 195840; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 97920; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 391680; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 364140; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 388620; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 966960; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 183600; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 203490; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 50672; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 50761; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 281520; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  j .Lbv_receipts_sd_root_done\n" ++
+  ".Lbv_receipts_zero_state_wip:\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t1, 183600; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 66547; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 59844; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 50512; beq t2, t1, .Lbv_receipts_accept\n" ++
+  "  li t1, 186660; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 217260; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 21009; beq t2, t1, .Lbv_receipts_accept\n" ++
   "  li t1, 21133; beq t2, t1, .Lbv_receipts_accept\n" ++
