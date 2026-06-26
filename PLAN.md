@@ -1995,6 +1995,16 @@ shows more elements than expected (no decode-then-count). Layering:
     ofNat(L-(O+1+pl))` (via (2) twice). Remaining: the SUB/ADDI/LBU RV64 specs framed into the
     post-advance state + composition + end check. Then longBytes (parked, T4); singleByte/singleton
     advance analogs. Then T1 (`rlp_field_to_u64`) → T2 (`withdrawal_decode`) → T3 (header) → T4 (tx_1559).
+  - 🔑 **SINGLE-PASS directive** (maintainer @pirapira, PR #9461): the emitted program must walk the
+    input **once** — validate AND copy out values in the same sweep, NOT validate-then-reparse. So each
+    field-step is `validate-item → store-its-value → advance-cursor`. The validating arm already yields
+    the payload location (`decode (bs.drop O) = some (.bytes (rest.take payloadLen), …)` ⇒ payload =
+    `payloadLen` bytes at `cursor+1`), so the store copies straight from that window (reuse
+    `ByteCopyIter`/scalar-store machinery) with no second decode; accumulated `⌜decode … = some …⌝`
+    verdicts tie the stored bytes to the pure spec from one traversal. **DROP** the "establish
+    `SchemaValid` then run `schema_walk` to extract" framing — `schema_walk`/`schemaScalarValues` remain
+    only the **pure coincidence target** the single-pass output is proven equal to, not a runtime 2nd
+    pass. So the per-field STORE step is inserted between validate and advance in the chain above.
 
 - **Host I/O ABI**: See `docs/zkvm-host-io-interface.md`; SP1
   `HINT_LEN`/`HINT_READ`/`COMMIT` are legacy handler shapes, not the target
