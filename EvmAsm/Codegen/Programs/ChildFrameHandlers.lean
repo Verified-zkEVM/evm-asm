@@ -787,7 +787,27 @@ def callDescendFallThrough
   ".Lcd_callee_nocreate_" ++ tag ++ ":\n" ++
   "  li t3, 1\n" ++
   "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
-  -- fail (status 2/3/4/5): pop args, push 0
+  -- coc3g.9.3 (#9458 follow-up, bv_fail=53): status 5 = code_hash not found in
+  -- witness.codes. An EXISTING EOA is in the state trie (step 2 ok) but its
+  -- code_hash is EMPTY_CODE_HASH (keccak ""), which is never stored in the codes
+  -- section -> status 5. A value-CALL to such an existing EOA is a VALID
+  -- empty-code callee: the spec runs no code, transfers value, and bills the net
+  -- 6700 value gas (9000 - 2300 stipend) -- exactly .Lcd_empty_. Without this the
+  -- call routed to .Lcd_fail_ (push 0), skipping the value gas -> receipt
+  -- cumulative under-counted by 6700 -> receipts-root mismatch (bv_fail=53 on the
+  -- 48 non-allowlisted blob_gas_subtraction_tx cases). Distinguish a genuine
+  -- witness-miss (non-empty code hash absent from codes -> fail) from a legitimate
+  -- empty-code EOA by checking cahsr_acct_struct.code_hash == EMPTY_CODE_HASH.
+  "  li t3, 5\n" ++
+  "  bne t2, t3, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  la t3, cd_empty_code_hash\n" ++
+  "  la t4, cahsr_acct_struct\n" ++
+  "  ld t5,  0(t3); ld t6,  72(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  ld t5,  8(t3); ld t6,  80(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  ld t5, 16(t3); ld t6,  88(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  ld t5, 24(t3); ld t6,  96(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  j .Lcd_empty_" ++ tag ++ "\n" ++
+  -- fail (status 2/3/4): pop args, push 0
   ".Lcd_fail_" ++ tag ++ ":\n" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++

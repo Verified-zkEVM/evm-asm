@@ -2867,13 +2867,25 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
-  -- lv44p.1: 32-byte zero-pad staging window for CALLDATALOAD (h_CALLDATALOAD
-  -- preBody). The verified mload body reads a raw 32-byte window with no
-  -- out-of-bounds guard; the handler stages a zero-padded copy here so reads
-  -- past env.callDataLen yield the EVM-mandated zero pad instead of adjacent
-  -- memory. Used transiently within one opcode dispatch (no re-entrancy: the
-  -- dispatcher runs one opcode at a time), so a single static buffer is sound.
-  "bv_cdl_stage:\n  .zero 32\n" ++
+   -- lv44p.1: 32-byte zero-pad staging window for CALLDATALOAD (h_CALLDATALOAD
+   -- preBody). The verified mload body reads a raw 32-byte window with no
+   -- out-of-bounds guard; the handler stages a zero-padded copy here so reads
+   -- past env.callDataLen yield the EVM-mandated zero pad instead of adjacent
+   -- memory. Used transiently within one opcode dispatch (no re-entrancy: the
+   -- dispatcher runs one opcode at a time), so a single static buffer is sound.
+   "bv_cdl_stage:\n  .zero 32\n" ++
+   -- coc3g.9.3 (#9458 follow-up, bv_fail=53): EMPTY_CODE_HASH (keccak "") for the
+   -- callDescendFallThrough empty-code-EOA routing fix. status 5 from
+   -- code_at_header_state_root means code_hash not in witness.codes; for an
+   -- EXISTING EOA that code_hash is EMPTY_CODE_HASH, so the call is a valid
+   -- empty-code callee (not a witness miss). ChildFrameHandlers.Lcd_callee_nocreate_
+   -- compares cahsr_acct_struct.code_hash against this constant.
+   ".balign 32\n" ++
+   "cd_empty_code_hash:\n" ++
+   "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+   "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
   ".balign 8\n" ++
   "txal_type:\n  .zero 8\n" ++
   "txal_inner_off:\n  .zero 8\n" ++
