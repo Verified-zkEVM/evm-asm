@@ -61,7 +61,6 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 | Opcode | Why not (yet) fully proven |
 |---|---|
 | `ADDMOD` | addmod_correct proven; zero-modulus stack spec done for arbitrary b |
-| `MULMOD` | mulmod_correct proven; no top-level Hoare triple |
 | `EXP` | exp_correct proven; program in active development |
 | `CALLDATACOPY` | preamble + partial memory effect; full loop pending |
 

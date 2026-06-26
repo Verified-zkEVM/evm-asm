@@ -31,7 +31,7 @@ open EvmAsm.Evm64.MulMod.ProductAlgebra
     `evm_mulmod_program_code base`. The `a` / `b` / `n` argument words are
     presented as `evmWordIs sp a`, `evmWordIs (sp + 32) b`,
     `evmWordIs (sp + signExtend12 64) n`; the scratch product window
-    (`sp + 96 .. sp + 152`), modular-accumulator cells (`sp + 224 .. sp + 248`),
+    (`sp - 160 .. sp - 104`), modular-accumulator cells (`sp - 32 .. sp - 8`),
     and scratch registers (`x0, x5 .. x20`) pass through as a frame. On exit the
     stack top holds `evmWordIs (sp + signExtend12 64) (EvmWord.mulmod a b n)` and
     everything else is forgotten as `regOwn`/`memOwn` (`evmMulModDispatchPost`).
@@ -51,21 +51,21 @@ theorem evm_mulmod_stack_spec_within
       (((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v5Old) ** (.x5 ↦ᵣ v6Old) ** (.x0 ↦ᵣ 0) **
         evmWordIs (sp + signExtend12 (64 : BitVec 12)) n) **
        (evmWordIs sp a ** evmWordIs (sp + 32) b **
-        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
-        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
-        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
-        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
-        ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
-        ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
-        ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-        ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7) **
+        ((sp + signExtend12 (3936 : BitVec 12)) ↦ₘ p0) **
+        ((sp + signExtend12 (3944 : BitVec 12)) ↦ₘ p1) **
+        ((sp + signExtend12 (3952 : BitVec 12)) ↦ₘ p2) **
+        ((sp + signExtend12 (3960 : BitVec 12)) ↦ₘ p3) **
+        ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ p4) **
+        ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ p5) **
+        ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+        ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7) **
         (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) ** (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) **
         (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) **
         (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) **
-        ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-        ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-        ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-        ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+        ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3) **
         regOwn .x15 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20))
       (evmMulModDispatchPost sp a b n) := by
   have se72 : signExtend12 (72 : BitVec 12) = (72 : Word) := by decide
