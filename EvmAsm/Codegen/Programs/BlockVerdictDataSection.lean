@@ -1044,6 +1044,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "m29_stage_cur:\n  .zero 8\n" ++
   "m29_stage_count:\n  .zero 8\n" ++
   "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)
+  -- BLOBHASH staging: blob versioned hashes extracted from type-3 txs, written
+  -- into the M28 block's blob_hash_count + blob_hashes fields by stage_runtime_payload_code.
+  ".balign 8\n" ++
+  "m28_blob_stage_count:\n  .zero 8\n" ++
+  "m28_blob_stage_table:\n  .zero 512\n" ++  -- 16x32-byte blob hashes (runtime cap in Dispatch.lean)
   -- 3vc2p.3b sub-step B: stage_blockhash_m29 scratch (the ignored offset/length outs + the
   -- pass-1 hash sink) + blockhash_from_witness_headers' number buffer.
   ".balign 32\n" ++
