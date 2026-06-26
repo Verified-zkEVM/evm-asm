@@ -144,3 +144,7 @@ import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortBytesValidated
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemSingleByteValidated
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemSingletonValidated
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortBytesValidatedAt
+import EvmAsm.Rv64.RLP.ValidatingFieldWalk
+import EvmAsm.Rv64.RLP.ValidatingFieldStep
+import EvmAsm.Rv64.RLP.ValidatingScalarRead
+import EvmAsm.Rv64.RLP.ValidatingScalarStore

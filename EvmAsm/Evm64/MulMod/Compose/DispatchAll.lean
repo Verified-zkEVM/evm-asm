@@ -46,21 +46,21 @@ def evmMulModDispatchPre (sp : Word) (a b n : EvmWord)
     ((sp + 16) ↦ₘ a.getLimbN 2) ** ((sp + 24) ↦ₘ a.getLimbN 3) **
     ((sp + 32) ↦ₘ b.getLimbN 0) ** ((sp + 40) ↦ₘ b.getLimbN 1) **
     ((sp + 48) ↦ₘ b.getLimbN 2) ** ((sp + 56) ↦ₘ b.getLimbN 3) **
-    ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ p0) **
-    ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ p1) **
-    ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ p2) **
-    ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ p3) **
-    ((sp + signExtend12 (128 : BitVec 12)) ↦ₘ p4) **
-    ((sp + signExtend12 (136 : BitVec 12)) ↦ₘ p5) **
-    ((sp + signExtend12 (144 : BitVec 12)) ↦ₘ p6) **
-    ((sp + signExtend12 (152 : BitVec 12)) ↦ₘ p7) **
+    ((sp + signExtend12 (3936 : BitVec 12)) ↦ₘ p0) **
+    ((sp + signExtend12 (3944 : BitVec 12)) ↦ₘ p1) **
+    ((sp + signExtend12 (3952 : BitVec 12)) ↦ₘ p2) **
+    ((sp + signExtend12 (3960 : BitVec 12)) ↦ₘ p3) **
+    ((sp + signExtend12 (3968 : BitVec 12)) ↦ₘ p4) **
+    ((sp + signExtend12 (3976 : BitVec 12)) ↦ₘ p5) **
+    ((sp + signExtend12 (3984 : BitVec 12)) ↦ₘ p6) **
+    ((sp + signExtend12 (3992 : BitVec 12)) ↦ₘ p7) **
     (.x7 ↦ᵣ x7Old) ** (.x8 ↦ᵣ x8Old) ** (.x9 ↦ᵣ x9Old) ** (.x10 ↦ᵣ x10Old) **
     (.x11 ↦ᵣ x11Old) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) **
     (.x16 ↦ᵣ v16Old) ** (.x18 ↦ᵣ v18Old) **
-    ((sp + signExtend12 (224 : BitVec 12)) ↦ₘ r0) **
-    ((sp + signExtend12 (232 : BitVec 12)) ↦ₘ r1) **
-    ((sp + signExtend12 (240 : BitVec 12)) ↦ₘ r2) **
-    ((sp + signExtend12 (248 : BitVec 12)) ↦ₘ r3) **
+    ((sp + signExtend12 (4064 : BitVec 12)) ↦ₘ r0) **
+    ((sp + signExtend12 (4072 : BitVec 12)) ↦ₘ r1) **
+    ((sp + signExtend12 (4080 : BitVec 12)) ↦ₘ r2) **
+    ((sp + signExtend12 (4088 : BitVec 12)) ↦ₘ r3) **
     regOwn .x15 ** regOwn .x17 ** regOwn .x19 ** regOwn .x20)
 
 /-- Abstracted dispatch postcondition shared by both arms.
@@ -69,8 +69,8 @@ def evmMulModDispatchPre (sp : Word) (a b n : EvmWord)
     precise `evmWordIs`; `x12` advances to `sp + signExtend12 64`. Every other
     clobbered resource — the 16 scratch registers, the `a`/`b` argument window
     (`sp .. sp + 56`), the eight-cell product scratch window
-    (`sp + 96 .. sp + 152`), and the modular accumulator window
-    (`sp + 224 .. sp + 248`) — is forgotten as `regOwn`/`memOwn`.
+    (`sp - 160 .. sp - 104`), and the modular accumulator window
+    (`sp - 32 .. sp - 8`) — is forgotten as `regOwn`/`memOwn`.
 
     Bundled `@[irreducible]` so consumers see a handful of opaque atoms. -/
 @[irreducible]
@@ -83,18 +83,18 @@ def evmMulModDispatchPost (sp : Word) (a b n : EvmWord) : Assertion :=
   regOwn .x20 **
   memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) ** memOwn (sp + 24) **
   memOwn (sp + 32) ** memOwn (sp + 40) ** memOwn (sp + 48) ** memOwn (sp + 56) **
-  memOwn (sp + signExtend12 (96 : BitVec 12)) **
-  memOwn (sp + signExtend12 (104 : BitVec 12)) **
-  memOwn (sp + signExtend12 (112 : BitVec 12)) **
-  memOwn (sp + signExtend12 (120 : BitVec 12)) **
-  memOwn (sp + signExtend12 (128 : BitVec 12)) **
-  memOwn (sp + signExtend12 (136 : BitVec 12)) **
-  memOwn (sp + signExtend12 (144 : BitVec 12)) **
-  memOwn (sp + signExtend12 (152 : BitVec 12)) **
-  memOwn (sp + signExtend12 (224 : BitVec 12)) **
-  memOwn (sp + signExtend12 (232 : BitVec 12)) **
-  memOwn (sp + signExtend12 (240 : BitVec 12)) **
-  memOwn (sp + signExtend12 (248 : BitVec 12))
+  memOwn (sp + signExtend12 (3936 : BitVec 12)) **
+  memOwn (sp + signExtend12 (3944 : BitVec 12)) **
+  memOwn (sp + signExtend12 (3952 : BitVec 12)) **
+  memOwn (sp + signExtend12 (3960 : BitVec 12)) **
+  memOwn (sp + signExtend12 (3968 : BitVec 12)) **
+  memOwn (sp + signExtend12 (3976 : BitVec 12)) **
+  memOwn (sp + signExtend12 (3984 : BitVec 12)) **
+  memOwn (sp + signExtend12 (3992 : BitVec 12)) **
+  memOwn (sp + signExtend12 (4064 : BitVec 12)) **
+  memOwn (sp + signExtend12 (4072 : BitVec 12)) **
+  memOwn (sp + signExtend12 (4080 : BitVec 12)) **
+  memOwn (sp + signExtend12 (4088 : BitVec 12))
 
 /-- Full `evm_mulmod` dispatch over **all** moduli `n` (no hypothesis).
 
