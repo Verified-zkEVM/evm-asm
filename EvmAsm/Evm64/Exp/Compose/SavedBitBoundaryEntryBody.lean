@@ -74,4 +74,38 @@ theorem exp_two_mul_full_loop_boundary_of_entry_general_spec_within
       iterCountFinal tOld out0 out1 out2 out3 d0 d1 d2 d3
       baseWord rest exitCond hExitUniv)
 
+/-- Closed-form bound variant of
+    `exp_two_mul_full_loop_boundary_of_entry_general_spec_within`.
+
+    Exposes the boundary triple with the literal step count
+    `48401 = expTwoMulFullLoopBoundaryBound`, for downstream `progAt`-style
+    consumers that match on a concrete numeral rather than the named bound. -/
+theorem exp_two_mul_full_loop_boundary_of_entry_general_closed_bound_spec_within
+    (bit sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 : Word)
+    (iterCountFinal out0 out1 out2 out3 d0 d1 d2 d3 a0 a1 a2 a3 : Word)
+    (baseWord exponentWord : EvmWord) (squarW rwW : EvmWord)
+    (rest : List EvmWord) (exitCond : Prop) (base : Word)
+    (hbase : base &&& 1 = 0)
+    (hEntry :
+      ∀ hp,
+        expTwoMulLoopEntryPost sp evmSp vOld v18 baseWord exponentWord rest hp →
+        expTwoMulIterLoopPost (256 : Word) bit sp evmSp base a0 a1 a2 a3
+          squarW rwW hp)
+    (hExitUniv : ∀ (bit0 : Word) (squarW0 rwW0 : EvmWord) (ps : PartialState),
+        expTwoMulIterExitPost 0 bit0 sp evmSp base a0 a1 a2 a3 squarW0 rwW0 ps →
+        expTwoMulLoopExitFullStackPreFrame sp evmSp iterCountFinal tOld
+          out0 out1 out2 out3 d0 d1 d2 d3 baseWord rest exitCond ps) :
+    cpsTripleWithin 48401 base (base + 304)
+      (evmExpMsbSavedBitTwoMulCanonicalAppendedMulCode base)
+      (expTwoMulBoundaryPre sp evmSp cOld tOld m0 m1 m2 m3 vOld v18
+        baseWord exponentWord rest)
+      (expTwoMulLoopExitPost sp evmSp iterCountFinal out0 out1 out2 out3
+        baseWord rest exitCond) := by
+  rw [← expTwoMulFullLoopBoundaryBound_eq]
+  exact
+    exp_two_mul_full_loop_boundary_of_entry_general_spec_within
+      bit sp evmSp cOld tOld m0 m1 m2 m3 vOld v18 iterCountFinal
+      out0 out1 out2 out3 d0 d1 d2 d3 a0 a1 a2 a3
+      baseWord exponentWord squarW rwW rest exitCond base hbase hEntry hExitUniv
+
 end EvmAsm.Evm64.Exp.Compose
