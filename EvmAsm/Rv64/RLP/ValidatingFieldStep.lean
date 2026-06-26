@@ -77,4 +77,30 @@ theorem rv64_x15_minus_x11_minus_one (b : Word) (w pl : Word) :
   rw [show (b + 4 + 4 : Word) = b + 8 from by bv_omega] at hseq
   exact hseq
 
+/-- Pointer subtraction: `(regionBase + a) − (regionBase + b) = a − b` for `b ≤ a < 2^64`
+    (the `regionBase` base cancels). -/
+theorem ptr_sub_ofNat (regionBase : Word) (a b : Nat) (hba : b ≤ a) (ha : a < 2 ^ 64) :
+    (regionBase + BitVec.ofNat 64 a) - (regionBase + BitVec.ofNat 64 b) = BitVec.ofNat 64 (a - b) := by
+  have hc : (regionBase + BitVec.ofNat 64 a) - (regionBase + BitVec.ofNat 64 b)
+      = BitVec.ofNat 64 a - BitVec.ofNat 64 b := by bv_omega
+  rw [hc, ofNat_sub_ofNat a b hba ha]
+
+/-- **Per-field `x15` recompute from a saved list-end pointer** (the walk's remaining-bytes setup,
+    avoiding the `x11` ordering hazard of the in-place decrement): `SUB x15, rEnd, x13` sets `x15` to
+    the bytes left to the list end, `listEnd − cursor`, where `rEnd` holds the list-end pointer
+    `regionBase + listEnd` and `x13` the cursor `regionBase + cursor`. `rEnd` is a callee-saved
+    register the field walk never touches (set once by the list descend). -/
+theorem rv64_x15_recompute (b regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat) (v15Old : Word)
+    (hba : cursor ≤ listEnd) (hL : listEnd < 2 ^ 64) :
+    cpsTripleWithin 1 b (b + 4) (CodeReq.singleton b (.SUB .x15 rEnd .x13))
+      ((rEnd ↦ᵣ (regionBase + BitVec.ofNat 64 listEnd)) **
+       (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 cursor)) ** (.x15 ↦ᵣ v15Old))
+      ((rEnd ↦ᵣ (regionBase + BitVec.ofNat 64 listEnd)) **
+       (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 cursor)) **
+       (.x15 ↦ᵣ (BitVec.ofNat 64 (listEnd - cursor)))) := by
+  have raw := sub_spec_within .x15 rEnd .x13 (regionBase + BitVec.ofNat 64 listEnd)
+    (regionBase + BitVec.ofNat 64 cursor) v15Old b (by nofun)
+  rw [ptr_sub_ofNat regionBase listEnd cursor hba hL] at raw
+  exact raw
+
 end EvmAsm.Rv64.RLP
