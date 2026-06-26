@@ -340,6 +340,15 @@ def callFrameDescendFunction : String :=
   "  addi t0, s3, 128; addi t1, s9, 128; li t2, 288\n" ++
   ".Lcfd_envconst:\n" ++
   "  ld t3, 0(t0); sd t3, 0(t1); addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -8; bnez t2, .Lcfd_envconst\n" ++
+  -- Propagate BLOBBASEFEE (env+512..543, 32 bytes) and blobHashCount (env+544..551)
+  -- from parent to child. Without this, a nested CALL/CREATE frame reads
+  -- BAL-replay garbage at env+544, so BLOBHASH always returns 0 (count=0).
+  -- The evm_blob_hashes table is global (.data), so only the count needs copying.
+  "  ld t0, 512(s3); sd t0, 512(s9)\n" ++
+  "  ld t0, 520(s3); sd t0, 520(s9)\n" ++
+  "  ld t0, 528(s3); sd t0, 528(s9)\n" ++
+  "  ld t0, 536(s3); sd t0, 536(s9)\n" ++
+  "  ld t0, 544(s3); sd t0, 544(s9)\n" ++
   -- 8c (1ipxd.1): stage the child's SELFBALANCE (env+32) from the pre-resolved balance table.
   -- call_frame_set_call_env stages ADDRESS/CALLER/CALLVALUE but NOT selfBalance (a per-frame
   -- balance, not a tx constant), so a nested SELFBALANCE would read BAL-replay-dirtied garbage;
