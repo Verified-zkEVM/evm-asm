@@ -256,6 +256,47 @@ theorem expSqMulFold_one (base exponent : EvmWord) (bits : List Bool)
   refine expSqMulFold_exp base bits 0 exponent exponent.isLt ?_
   simp [hval]
 
+/-- The MSB-first bit list of the low `k` bits of `v` (most significant of the
+    `k` bits first): position `k-1` down to position `0`. -/
+def natBitsMsb : Nat → Nat → List Bool
+  | 0, _ => []
+  | k + 1, v => decide (v / 2 ^ k % 2 = 1) :: natBitsMsb k v
+
+/-- `natBitsMsb k v` has exactly `k` bits. -/
+theorem natBitsMsb_length (k v : Nat) : (natBitsMsb k v).length = k := by
+  induction k generalizing v with
+  | zero => rfl
+  | succ k ih => simp [natBitsMsb, ih]
+
+/-- The MSB-first value of `natBitsMsb k v` is `v` reduced mod `2^k`. -/
+theorem bitsToNatMsb_natBitsMsb (k v : Nat) :
+    bitsToNatMsb (natBitsMsb k v) = v % 2 ^ k := by
+  induction k generalizing v with
+  | zero => simp [natBitsMsb, bitsToNatMsb, Nat.pow_zero, Nat.mod_one]
+  | succ k ih =>
+    simp only [natBitsMsb, bitsToNatMsb, natBitsMsb_length]
+    have hcoef :
+        (if decide (v / 2 ^ k % 2 = 1) then (1 : Nat) else 0) = v / 2 ^ k % 2 := by
+      rcases (show v / 2 ^ k % 2 = 0 ∨ v / 2 ^ k % 2 = 1 from by omega) with h | h <;>
+        rw [h] <;> decide
+    rw [hcoef, ih, Nat.pow_succ, Nat.mod_mul,
+      Nat.mul_comm (2 ^ k) (v / 2 ^ k % 2)]
+    omega
+
+/-- The canonical 256-bit MSB-first decomposition of an EvmWord has value equal
+    to the word itself (no reduction needed, since `w.toNat < 2^256`). -/
+theorem bitsToNatMsb_natBitsMsb_toNat (w : EvmWord) :
+    bitsToNatMsb (natBitsMsb 256 w.toNat) = w.toNat := by
+  rw [bitsToNatMsb_natBitsMsb, Nat.mod_eq_of_lt w.isLt]
+
+/-- Square-and-multiply over the canonical 256-bit MSB-first decomposition of the
+    exponent computes `EvmWord.exp`. This is the concrete bit-sequence instance
+    of `expSqMulFold_one`: the EXP loop consumes exactly these 256 bits (most
+    significant first), so its accumulator ends at `base ^ exponent mod 2^256`. -/
+theorem expSqMulFold_natBitsMsb (base exponent : EvmWord) :
+    expSqMulFold base 1 (natBitsMsb 256 exponent.toNat) = exp base exponent :=
+  expSqMulFold_one base exponent _ (bitsToNatMsb_natBitsMsb_toNat exponent)
+
 /-- The GH #92 cross-limb boundary case `EXP(2, 64)`. -/
 theorem exp_two_64 : exp (2 : EvmWord) (64 : EvmWord) =
     BitVec.ofNat 256 (2^64) := by
