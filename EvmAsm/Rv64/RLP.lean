@@ -148,5 +148,6 @@ import EvmAsm.Rv64.RLP.ValidatingFieldWalk
 import EvmAsm.Rv64.RLP.ValidatingFieldStep
 import EvmAsm.Rv64.RLP.ValidatingScalarRead
 import EvmAsm.Rv64.RLP.ValidatingScalarStore
+import EvmAsm.Rv64.RLP.ValidatingBytesCopy
 import EvmAsm.Rv64.RLP.ValidatingExactArity
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortListValidated
