@@ -64,6 +64,42 @@ theorem cpsBranchWithin_seq_cpsBranchWithin_taken_conv {n1 n2 : Nat}
         obtain ⟨hp, hcompat, hpq⟩ := hQ_f1R
         exact ⟨hp, hcompat, sepConj_mono_left hf1 hp hpq⟩⟩⟩
 
+/-- Merge two pure facts carried in the two top-level operands of a separating conjunction into a
+    single conjunctive pure: `(R1 ** ⌜P⌝) ** (R2 ** ⌜Q⌝) ⟹ (R1 ** R2) ** ⌜P ∧ Q⌝`. General in
+    `R1`,`R2`,`P`,`Q`; the work-horse for collapsing the decode verdict and the length-check verdict
+    into one pure so a single `xperm` reshape suffices. -/
+theorem sepConj_merge_two_pures {R1 R2 : Assertion} {P Q : Prop} :
+    ∀ s, ((R1 ** ⌜P⌝) ** (R2 ** ⌜Q⌝)) s → ((R1 ** R2) ** ⌜P ∧ Q⌝) s := by
+  intro s hs
+  obtain ⟨h1, h2, hd, hu, hL, hR⟩ := hs
+  rw [sepConj_pure_right] at hL hR
+  obtain ⟨hR1, hP⟩ := hL
+  obtain ⟨hR2, hQ⟩ := hR
+  rw [sepConj_pure_right]
+  exact ⟨⟨h1, h2, hd, hu, hR1, hR2⟩, hP, hQ⟩
+
+/-- `signExtend12` of a small `ofNat` (high bit clear, `< 2^11`) is the zero-extended `ofNat 64`. -/
+private theorem signExtend12_ofNat_small (n : Nat) (hn : n < 2 ^ 11) :
+    signExtend12 (BitVec.ofNat 12 n) = BitVec.ofNat 64 n := by
+  unfold signExtend12
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_signExtend, BitVec.toNat_setWidth, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  have hmsb : (BitVec.ofNat 12 n).msb = false := by
+    rw [BitVec.msb_eq_decide, BitVec.toNat_ofNat]
+    simp only [decide_eq_false_iff_not, Nat.not_le]; omega
+  rw [hmsb, if_neg (by decide)]
+  omega
+
+/-- `ofNat`-equality reflects to `Nat`-equality for in-range values. -/
+private theorem ofNat_eq_iff_small (a b : Nat) (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
+    (BitVec.ofNat 64 a = BitVec.ofNat 64 b) ↔ a = b := by
+  constructor
+  · intro h
+    have := congrArg BitVec.toNat h
+    simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at this
+    exact this
+  · intro h; rw [h]
+
 set_option linter.unusedVariables false in
 /-- **Single-pass validated fixed-length byte-array copy** at byte offset `O`: validate the
     shortBytes field, then stream its `N`-byte payload into the output slot `outBase + di0`. -/
