@@ -128,4 +128,108 @@ theorem expTwoMulFixedIterReloadSkipCountPostScratchSuffixFrame_reshuffle
   rw [expTwoMulFixedIterPointerFrame_unfold]
   sep_perm h
 
+/-- Reload→`IterPre` assembler (conditional-multiply branch).
+
+    The merged loop-back reload-cond disjunct's residual
+    (`SkipCondCountPostScratchPrefix ** ScratchIs ** ReloadCondCountPostScratchSuffix`)
+    together with the next-limb cell at `ptr-8` (from the induction residual)
+    assembles into the *next* iteration's `expTwoMulFixedIterPre` at the advanced
+    pointer `ptr-8`, with the reloaded cursor `x19 = nextLimb`, the reset counter
+    `x20 = 64`, and the stale `ptr` cell returned to the residual.  This is the
+    reload analogue of `expTwoMulFixedIterSkipCondScratchFrame_to_iterPre_frame`,
+    with the committed suffix reshuffle applied first to fix the pointer cell. -/
+theorem expTwoMulFixedIterReloadCondScratchFrame_to_iterPre_frame
+    {iterCount e c6 ptr nextLimb nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {exitCond : Prop} {v6 v7 v10 v11 d0 d1 d2 d3 : Word}
+    {frame : Assertion} {ps : PartialState}
+    (h :
+      ((expTwoMulFixedIterSkipCondCountPostScratchPrefix iterCount sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 exitCond **
+        expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
+        (expTwoMulFixedIterReloadCondCountPostScratchSuffix e c6 ptr nextLimb base **
+          (((ptr + signExtend12 (-8 : BitVec 12)) +
+            signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb))) **
+        frame) ps) :
+    ((expTwoMulFixedIterPre
+      nextLimb
+      ((0 : Word) + signExtend12 (64 : BitVec 12))
+      (expTwoMulIterCountNew iterCount)
+      v10
+      ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
+      (ptr + signExtend12 (-8 : BitVec 12)) nextNextLimb sp evmSp
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
+      (((base + 44) + 140) + 68)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 0)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 2)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
+      d0 d1 d2 d3
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 0)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 1)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 2)
+      ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
+      a0 a1 a2 a3 v7 v11) **
+      (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
+        frame)) ps := by
+  -- Extract the pure facts (exit condition, reload `c6New = 0`, branch taken)
+  -- from the original residual before reshaping.
+  obtain ⟨h_exit, h_c6, h_bit⟩ :=
+    expTwoMulFixedIterReloadCondScratchFrame_pures
+      (show ((expTwoMulFixedIterSkipCondCountPostScratchPrefix iterCount sp evmSp
+          r0 r1 r2 r3 a0 a1 a2 a3 exitCond **
+          expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
+          expTwoMulFixedIterReloadCondCountPostScratchSuffix e c6 ptr nextLimb base) **
+          ((((ptr + signExtend12 (-8 : BitVec 12)) +
+            signExtend12 (0 : BitVec 12)) ↦ₘ nextNextLimb) ** frame)) ps
+        from by sep_perm h)
+  -- Convert the reload-cond suffix to its frame form, then reshuffle the
+  -- pointer cell using the committed suffix reshuffle.
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_left
+        (fun ps' hh =>
+          expTwoMulFixedIterReloadCondCountPostScratchSuffix_frame hh)))) _ h
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_right
+      (fun ps' hh =>
+        expTwoMulFixedIterReloadCondCountPostScratchSuffixFrame_reshuffle hh))) _ h
+  -- Weaken the surrendered `x6` scratch value to ownership.
+  replace h := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_left
+      expTwoMulFixedIterScratchIs_x6_to_regOwn)) _ h
+  -- Strip the pure facts produced by the reshuffle.
+  unfold expTwoMulFixedIterSkipCondCountPostScratchPrefix
+    expTwoMulFixedIterSkipCondRestScratchPrefix
+    expTwoMulFixedIterSkipCondRestScratchSuffix at h
+  rw [expTwoMulFixedIterPointerFrame_unfold] at h
+  -- Strip the pure facts now that they are known true.
+  rw [show (⌜exitCond⌝ : Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_exit⟩⟩] at h
+  rw [show (⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ : Assertion) =
+      empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_c6⟩⟩] at h
+  rw [show
+      (⌜(e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) ≠ 0⌝ :
+        Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_bit⟩⟩] at h
+  simp only [sepConj_emp_left', sepConj_emp_right'] at h
+  rw [expTwoMulFixedIterPre_unfold, expTwoMulIterBaseFrame_unfold,
+    expTwoMulFixedIterPointerFrame_unfold]
+  simp only [evmWordIs, signExtend12_0, signExtend12_8, signExtend12_16,
+    signExtend12_24, signExtend12_32, signExtend12_40, signExtend12_48,
+    signExtend12_56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg48,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg40,
+    EvmAsm.Rv64.AddrNorm.word_add_zero,
+    show (32 : Word) + 8 = 40 from by decide,
+    show (32 : Word) + 16 = 48 from by decide,
+    show (32 : Word) + 24 = 56 from by decide,
+    show (140 : Word) + 68 = 208 from by decide,
+    show (44 : Word) + 208 = 252 from by decide,
+    BitVec.add_assoc] at h ⊢
+  xperm_hyp h
+
 end EvmAsm.Evm64.Exp.Compose
