@@ -102,6 +102,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopPreReload
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
+import EvmAsm.Evm64.Exp.Compose.SavedBitEntryIterPreBridge
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
 import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulSkip
