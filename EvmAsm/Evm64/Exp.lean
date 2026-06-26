@@ -99,6 +99,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadTailFrames
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopDirect
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFrameLoopDirect
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopPreReload
+import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
