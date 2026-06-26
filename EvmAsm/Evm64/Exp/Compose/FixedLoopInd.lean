@@ -152,4 +152,63 @@ theorem cpsTripleWithin_expReloadDirectTruePre_ordinary_vacuous
   have h3 := holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right h2)
   exact hC6 (holdsFor_pure.mp h3)
 
+/-- Pre-reload-family analogue of
+    `cpsTripleWithin_expReloadDirectFalsePre_ordinary_vacuous`: when
+    `controlC6 - 1 ≠ 0` (which holds in both the ordinary and pre-reload
+    control sub-cases, since pre-reload has `(controlC6-1).toNat = 1`), the
+    pre-reload reload-false continuation is vacuous.  Its tail frame
+    `expPreReloadDirectFalseFrameN` carries the same contradicting pure
+    `⌜controlC6 - 1 = 0⌝` ahead of the extra reload-limb cell. -/
+theorem cpsTripleWithin_expReloadDirectFalsePre_preReload_vacuous
+    {n : Nat} {entry exit_ : Word} {code : CodeReq} {Q : Assertion}
+    {k kf : Nat} {baseWord exponentWord : EvmWord}
+    {controlC6 e iterCount nextLimb ptr nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 v6' v7' v10' v11' d0' d1' d2' d3' base : Word}
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
+    cpsTripleWithin n entry exit_ code
+      (expReloadDirectFalsePre k baseWord exponentWord e iterCount nextLimb ptr
+        nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3
+        v6' v7' v10' v11' d0' d1' d2' d3' base
+        (expPreReloadDirectFalseFrameN exponentWord kf controlC6 e iterCount
+          ptr nextLimb))
+      Q := by
+  intro R _ s _ hPR _
+  exfalso
+  delta expReloadDirectFalsePre at hPR
+  simp only [] at hPR
+  rw [expTwoMulFixedIterPreNWithStateFrame_unfold] at hPR
+  have hFrame :=
+    holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)
+  rw [expPreReloadDirectFalseFrameN_unfold] at hFrame
+  have h2 := holdsFor_sepConj_elim_right hFrame
+  have h3 := holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right h2)
+  exact hC6 (holdsFor_pure.mp h3)
+
+/-- Pre-reload-family true-branch analogue of
+    `cpsTripleWithin_expReloadDirectTruePre_ordinary_vacuous`. -/
+theorem cpsTripleWithin_expReloadDirectTruePre_preReload_vacuous
+    {n : Nat} {entry exit_ : Word} {code : CodeReq} {Q : Assertion}
+    {k kf : Nat} {baseWord exponentWord : EvmWord}
+    {controlC6 e iterCount nextLimb ptr nextNextLimb sp evmSp
+      r0 r1 r2 r3 a0 a1 a2 a3 v6' v7' v10' v11' d0' d1' d2' d3' base : Word}
+    (hC6 : controlC6 + signExtend12 (-1 : BitVec 12) ≠ 0) :
+    cpsTripleWithin n entry exit_ code
+      (expReloadDirectTruePre k baseWord exponentWord e iterCount nextLimb ptr
+        nextNextLimb sp evmSp r0 r1 r2 r3 a0 a1 a2 a3
+        v6' v7' v10' v11' d0' d1' d2' d3' base
+        (expPreReloadDirectTrueFrameN exponentWord kf controlC6 e iterCount
+          ptr nextLimb))
+      Q := by
+  intro R _ s _ hPR _
+  exfalso
+  delta expReloadDirectTruePre at hPR
+  simp only [] at hPR
+  rw [expTwoMulFixedIterPreNWithStateFrame_unfold] at hPR
+  have hFrame :=
+    holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left hPR)
+  rw [expPreReloadDirectTrueFrameN_unfold] at hFrame
+  have h2 := holdsFor_sepConj_elim_right hFrame
+  have h3 := holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_right h2)
+  exact hC6 (holdsFor_pure.mp h3)
+
 end EvmAsm.Evm64.Exp.Compose
