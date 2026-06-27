@@ -599,6 +599,104 @@ theorem exp_loop_stack_save_code_eq_ofProg (base : Word) :
     CodeReq.ofProg_singleton]
   bv_addr
 
+def exp_loop_operand_copy_code (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.LD .x6 .x12 0)).union
+    ((CodeReq.singleton (base + 4) (.SD .x12 .x6 (-128))).union
+      ((CodeReq.singleton (base + 8) (.LD .x6 .x12 8)).union
+        ((CodeReq.singleton (base + 12) (.SD .x12 .x6 (-120))).union
+          ((CodeReq.singleton (base + 16) (.LD .x6 .x12 16)).union
+            ((CodeReq.singleton (base + 20) (.SD .x12 .x6 (-112))).union
+              ((CodeReq.singleton (base + 24) (.LD .x6 .x12 24)).union
+                ((CodeReq.singleton (base + 28) (.SD .x12 .x6 (-104))).union
+                  ((CodeReq.singleton (base + 32) (.LD .x6 .x12 32)).union
+                    ((CodeReq.singleton (base + 36) (.SD .x12 .x6 (-96))).union
+                      ((CodeReq.singleton (base + 40) (.LD .x6 .x12 40)).union
+                        ((CodeReq.singleton (base + 44) (.SD .x12 .x6 (-88))).union
+                          ((CodeReq.singleton (base + 48) (.LD .x6 .x12 48)).union
+                            ((CodeReq.singleton (base + 52) (.SD .x12 .x6 (-80))).union
+                              ((CodeReq.singleton (base + 56) (.LD .x6 .x12 56)).union
+                                (CodeReq.singleton (base + 60)
+                                  (.SD .x12 .x6 (-72)))))))))))))))))
+
+theorem exp_loop_operand_copy_code_eq_ofProg (base : Word) :
+    exp_loop_operand_copy_code base = CodeReq.ofProg base exp_loop_operand_copy := by
+  unfold exp_loop_operand_copy_code exp_loop_operand_copy LD SD single seq
+  change _ = CodeReq.ofProg base
+    [.LD .x6 .x12 0, .SD .x12 .x6 (-128), .LD .x6 .x12 8, .SD .x12 .x6 (-120),
+     .LD .x6 .x12 16, .SD .x12 .x6 (-112), .LD .x6 .x12 24, .SD .x12 .x6 (-104),
+     .LD .x6 .x12 32, .SD .x12 .x6 (-96), .LD .x6 .x12 40, .SD .x12 .x6 (-88),
+     .LD .x6 .x12 48, .SD .x12 .x6 (-80), .LD .x6 .x12 56, .SD .x12 .x6 (-72)]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_singleton]
+  bv_addr
+
+/-- Arch-B operand copy: copies live `base` (`evmSp+0..24`) and `exponent`
+    (`evmSp+32..56`) into the headroom loop frame (`base → evmSp-128..-104`,
+    `exponent → evmSp-96..-72`). Runs with `x12 = evmSp` (live top); the live
+    stack at `evmSp+64..` is untouched. The headroom destination cells start
+    arbitrary (`h0..h7`) and end holding the copied operands. -/
+theorem exp_loop_operand_copy_spec_within
+    (evmSp v6 b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 : Word)
+    (base : Word) :
+    cpsTripleWithin 16 base (base + 64) (exp_loop_operand_copy_code base)
+      ((.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ h7))
+      ((.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ e3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ e3)) := by
+  unfold exp_loop_operand_copy_code
+  have hLd0 := ld_spec_gen_within .x6 .x12 evmSp v6 b0 (0) base (by decide)
+  have hSd0 := generic_sd_spec_within .x12 .x6 evmSp b0 h0 (-128) (base + 4)
+  have hLd1 := ld_spec_gen_within .x6 .x12 evmSp b0 b1 (8) (base + 8) (by decide)
+  have hSd1 := generic_sd_spec_within .x12 .x6 evmSp b1 h1 (-120) (base + 12)
+  have hLd2 := ld_spec_gen_within .x6 .x12 evmSp b1 b2 (16) (base + 16) (by decide)
+  have hSd2 := generic_sd_spec_within .x12 .x6 evmSp b2 h2 (-112) (base + 20)
+  have hLd3 := ld_spec_gen_within .x6 .x12 evmSp b2 b3 (24) (base + 24) (by decide)
+  have hSd3 := generic_sd_spec_within .x12 .x6 evmSp b3 h3 (-104) (base + 28)
+  have hLd4 := ld_spec_gen_within .x6 .x12 evmSp b3 e0 (32) (base + 32) (by decide)
+  have hSd4 := generic_sd_spec_within .x12 .x6 evmSp e0 h4 (-96) (base + 36)
+  have hLd5 := ld_spec_gen_within .x6 .x12 evmSp e0 e1 (40) (base + 40) (by decide)
+  have hSd5 := generic_sd_spec_within .x12 .x6 evmSp e1 h5 (-88) (base + 44)
+  have hLd6 := ld_spec_gen_within .x6 .x12 evmSp e1 e2 (48) (base + 48) (by decide)
+  have hSd6 := generic_sd_spec_within .x12 .x6 evmSp e2 h6 (-80) (base + 52)
+  have hLd7 := ld_spec_gen_within .x6 .x12 evmSp e2 e3 (56) (base + 56) (by decide)
+  have hSd7 := generic_sd_spec_within .x12 .x6 evmSp e3 h7 (-72) (base + 60)
+  runBlock hLd0 hSd0 hLd1 hSd1 hLd2 hSd2 hLd3 hSd3 hLd4 hSd4 hLd5 hSd5 hLd6 hSd6
+    hLd7 hSd7
+
 theorem exp_loop_stack_save_spec_within
     (evmSp v6 s0 s1 s2 s3 s4 s5 s6 s7 h0 h1 h2 h3 h4 h5 h6 h7 : Word)
     (base : Word) :

@@ -973,6 +973,26 @@ theorem exp_loop_stack_save_byte_length :
     4 * exp_loop_stack_save.length = 64 := by
   rw [exp_loop_stack_save_length]
 
+/-- Architecture-B operand copy: copy the two live EVM-stack operands
+    `base` (`x12 + 0 .. + 24`) and `exponent` (`x12 + 32 .. + 56`) into the
+    headroom loop frame below the live stack, at `base → x12 - 128 .. - 104`
+    and `exponent → x12 - 96 .. - 72`. Runs with `x12 = sp_evm0` (the live
+    stack top), before `exp_loop_pointer_advance` sets `x12 := sp_evm0 - 64`
+    (= the headroom `evmSp_iter`, with `base` at `evmSp_iter - 64` and
+    `exponent` at `evmSp_iter - 32`). The loop then runs entirely in the
+    headroom slack, leaving the live stack untouched. 16 instructions. -/
+def exp_loop_operand_copy : Program :=
+  LD .x6 .x12 0 ;; SD .x12 .x6 (-128) ;;
+  LD .x6 .x12 8 ;; SD .x12 .x6 (-120) ;;
+  LD .x6 .x12 16 ;; SD .x12 .x6 (-112) ;;
+  LD .x6 .x12 24 ;; SD .x12 .x6 (-104) ;;
+  LD .x6 .x12 32 ;; SD .x12 .x6 (-96) ;;
+  LD .x6 .x12 40 ;; SD .x12 .x6 (-88) ;;
+  LD .x6 .x12 48 ;; SD .x12 .x6 (-80) ;;
+  LD .x6 .x12 56 ;; SD .x12 .x6 (-72)
+
+theorem exp_loop_operand_copy_length : exp_loop_operand_copy.length = 16 := by decide
+
 /-- Restore the two caller EVM-stack words saved by `exp_loop_stack_save`
     from the headroom at `x12 - 64 .. - 8` back to `x12 + 64 .. + 120`.
     Runs with `x12 = sp_evm0` (after `exp_loop_pointer_restore`, before
