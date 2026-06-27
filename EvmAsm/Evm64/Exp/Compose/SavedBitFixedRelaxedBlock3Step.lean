@@ -84,7 +84,7 @@ theorem exp_msb_bit_test_fixed_skip_full_iter_merged_exit_branch_reload_bound_re
       memOwn evmSp ** memOwn (evmSp + 8) **
       memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
       (.x1 ↦ᵣ ((base + 140) + 68))
-    let relaxedFrame : Assertion := regOwn .x16
+    let relaxedFrame : Assertion := (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))
     cpsBranchWithin
       expTwoMulFixedReloadIterStepBound
       base
@@ -154,7 +154,7 @@ theorem exp_msb_bit_test_fixed_skip_relaxed_x16_evmExpMsbSavedBitTwoMulFixedCano
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-    let relaxedFrame : Assertion := regOwn .x16
+    let relaxedFrame : Assertion := (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))
     let condFrame : Assertion :=
       (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
       (.x20 ↦ᵣ c6New) **
@@ -209,7 +209,7 @@ theorem exp_msb_bit_test_fixed_skip_relaxed_x16_evmExpMsbSavedBitTwoMulFixedCano
         ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
         ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
         ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-        regOwn .x16) ** regOwn .x6)
+        (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))) ** regOwn .x6)
       (base + 44)
       ((fun h =>
         ((((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -249,7 +249,7 @@ theorem exp_msb_bit_test_fixed_skip_relaxed_x16_evmExpMsbSavedBitTwoMulFixedCano
       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-      regOwn .x16)
+      (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12))))
     (fun v6 => by
       have h :=
         exp_msb_bit_test_fixed_skip_full_iter_merged_exit_branch_reload_bound_relaxed_x16_expIterBodyFullMsbSavedBitTwoMulFixedCode_spec_within
@@ -289,7 +289,7 @@ abbrev expTwoMulFixedIterMergedLoopPostRelaxedBlock3
     ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
     ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
     ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-  let relaxedFrame : Assertion := regOwn .x16
+  let relaxedFrame : Assertion := (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))
   let condFrame : Assertion :=
     (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
     (.x20 ↦ᵣ c6New) **
@@ -338,7 +338,7 @@ abbrev expTwoMulFixedIterMergedExitPostRelaxedBlock3
     ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
     ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
     ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
-  let relaxedFrame : Assertion := regOwn .x16
+  let relaxedFrame : Assertion := (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))
   let condFrame : Assertion :=
     (.x19 ↦ᵣ (e <<< (1 : BitVec 6).toNat)) **
     (.x20 ↦ᵣ c6New) **
@@ -403,7 +403,7 @@ abbrev expTwoMulFixedIterPreRelaxedBlock3
     ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
     ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
     ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
-    regOwn .x16) ** regOwn .x6
+    (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))) ** regOwn .x6
 
 /-- Relaxed (block-3) merged one-iteration cpsTriple with continuations and a
     pcFree frame `F` threaded through (mirrors
