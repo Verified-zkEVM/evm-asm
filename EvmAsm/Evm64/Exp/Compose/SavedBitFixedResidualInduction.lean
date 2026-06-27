@@ -31,6 +31,8 @@ theorem exp_merged_loop_from_iterpre_residual_induction
     (hBase : baseWord = expResultWord a0 a1 a2 a3)
     (hExitU :
       ∀ (e c6 iterCount ptr nextLimb r0 r1 r2 r3 : Word) (ps : PartialState),
+        ptr = evmSp + signExtend12
+          (- (16 + 8 * (((255 - 0) / 64 : Nat) : BitVec 12))) →
         (expTwoMulFixedIterMergedExitPost e c6 iterCount ptr nextLimb sp evmSp
           r0 r1 r2 r3 a0 a1 a2 a3 base **
           (expTwoMulFixedExpResidual 3 ptr lookahead exponentWord **
@@ -69,7 +71,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
   | zero =>
     intro _hn e c6 iterCount v10 v18 ptr nextLimb tOld vOld
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 hcount hCursor _hControl hInv
-      _hptrAnchor
+      hptrAnchor
     simp only [Nat.sub_zero] at hCursor hInv
     have hzero : expTwoMulIterCountNew iterCount = 0 :=
       expTwoMulIterCountNew_eq_zero_of_toNat_one hcount
@@ -85,7 +87,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
           expTwoMulFixedExpReadPrefix_pcFree)
         hzero
         (fun ps hps =>
-          hExitU e c6 iterCount ptr nextLimb r0 r1 r2 r3 ps hps hCursor hInv)
+          hExitU e c6 iterCount ptr nextLimb r0 r1 r2 r3 ps hptrAnchor hps hCursor hInv)
   | succ k IH =>
     intro hn e c6 iterCount v10 v18 ptr nextLimb tOld vOld
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 hcount hCursor hControl hInv
