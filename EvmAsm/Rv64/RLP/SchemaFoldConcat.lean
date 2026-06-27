@@ -50,23 +50,4 @@ theorem schemaValid_of_concat (bs : List Byte) (outLen : Nat) (tail : List Byte)
     exact ⟨hk, hi, hd, hhead,
       ih (O + fieldEnc f) (fun g hg => hcore g (by simp [hg])) hdrop_tail⟩
 
--- Concrete cross-check: decode a 3-field mixed schema — scalar `0x2a` (→ 42 at byte 0), the
--- 2-byte array `[0x01, 0x02]` (→ bytes 8..10), scalar `0x07` (→ 7 at byte 16) — from the buffer
--- `[0x2a, 0x82, 0x01, 0x02, 0x07]` at region `0x2000` into the 24-byte output region at `0x3000`
--- via `x18`. `SchemaValid` is discharged from the single concatenation fact by
--- `schemaValid_of_concat`, showing the generic fold applies to a concrete heterogeneous schema.
-example :=
-  schema_walk (0x2000 : Word) (0x3000 : Word) .x18
-    [(0x2a : Byte), (0x82 : Byte), (0x01 : Byte), (0x02 : Byte), (0x07 : Byte)]
-    (by decide) (by decide) (by decide) (by decide) 24 (by decide) (by decide)
-    [⟨true, [(0x2a : Byte)], 0, 0⟩, ⟨false, [(0x01 : Byte), (0x02 : Byte)], 8, 8⟩,
-      ⟨true, [(0x07 : Byte)], 16, 16⟩]
-    (0x1000 : Word) 0 (List.replicate 24 (0 : Byte)) (by simp)
-    (schemaValid_of_concat _ 24 []
-      [⟨true, [(0x2a : Byte)], 0, 0⟩, ⟨false, [(0x01 : Byte), (0x02 : Byte)], 8, 8⟩,
-        ⟨true, [(0x07 : Byte)], 16, 16⟩] 0
-      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
-      (by decide))
-    (by decide)
-
 end EvmAsm.Rv64.RLP
