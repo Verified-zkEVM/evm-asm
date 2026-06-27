@@ -33,7 +33,7 @@ theorem expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame
             r0 r1 r2 r3 a0 a1 a2 a3 base **
           evmWordIs (evmSp + signExtend12 ((-32) : BitVec 12)) exponentWord) ps) :
     ∃ w0 w1 w2 w3 : Word,
-      (expTwoMulLoopExitFullStackPreFrame sp (evmSp - 64)
+      ((expTwoMulLoopExitFullStackPreFrame sp (evmSp - 64)
           (expTwoMulIterCountNew iterCount)
           ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
           ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 0)
@@ -51,8 +51,9 @@ theorem expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame
        (.x18 ↦ᵣ (e >>> (63 : BitVec 6).toNat)) **
        (.x16 ↦ᵣ (evmSp + (18446744073709551576 + signExtend12 (-8 : BitVec 12)))) **
        (.x1 ↦ᵣ (((base + 44) + 140) + 68)) **
-       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11) ps ∨
-      (expTwoMulLoopExitFullStackPreFrame sp (evmSp - 64)
+       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11) ps ∧
+        e >>> (63 : BitVec 6).toNat ≠ 0) ∨
+      ((expTwoMulLoopExitFullStackPreFrame sp (evmSp - 64)
           (expTwoMulIterCountNew iterCount)
           ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
           ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0)
@@ -69,7 +70,8 @@ theorem expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame
        (.x18 ↦ᵣ (e >>> (63 : BitVec 6).toNat)) **
        (.x16 ↦ᵣ (evmSp + (18446744073709551576 + signExtend12 (-8 : BitVec 12)))) **
        (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
-       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11) ps := by
+       regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11) ps ∧
+        e >>> (63 : BitVec 6).toNat = 0) := by
   simp only [expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload, evmWordIs] at h
   simp only [signExtend12_0,
              EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64,
@@ -126,7 +128,7 @@ theorem expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame
     obtain ⟨ps_x0e, ps_ef1, hdx0, hux0, h_x0e, h_ef1⟩ := hexp
     obtain ⟨ps_x1e, ps_ef2, hdx1, hux1, h_x1e, h_ef2⟩ := h_ef1
     obtain ⟨ps_x2e, ps_x3e, hdx23, hux23, h_x2e, h_x3e⟩ := h_ef2
-    refine ⟨w0, w1, w2, w3, Or.inl ?_⟩
+    refine ⟨w0, w1, w2, w3, Or.inl ⟨?_, h_bitpure.2⟩⟩
     rw [expTwoMulLoopExitFullStackPreFrame_unfold, expTwoMulLoopExitControl_unfold]
     rw [show (evmSp - 64 : Word) = evmSp + 18446744073709551552 from by bv_omega]
     simp only [evmWordIs, evmStackIs,
@@ -251,7 +253,7 @@ theorem expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame
     obtain ⟨ps_x0e, ps_ef1, hdx0, hux0, h_x0e, h_ef1⟩ := hexp
     obtain ⟨ps_x1e, ps_ef2, hdx1, hux1, h_x1e, h_ef2⟩ := h_ef1
     obtain ⟨ps_x2e, ps_x3e, hdx23, hux23, h_x2e, h_x3e⟩ := h_ef2
-    refine ⟨w0, w1, w2, w3, Or.inr ?_⟩
+    refine ⟨w0, w1, w2, w3, Or.inr ⟨?_, h_bitpure.2⟩⟩
     rw [expTwoMulLoopExitFullStackPreFrame_unfold, expTwoMulLoopExitControl_unfold]
     rw [show (evmSp - 64 : Word) = evmSp + 18446744073709551552 from by bv_omega]
     simp only [evmWordIs, evmStackIs,
