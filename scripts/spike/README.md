@@ -60,6 +60,32 @@ Run one block: `scripts/spike/spike_run <guest.elf> <input> <output>`
 EEST backend: `EEST_BACKEND=spike scripts/codegen-eest-stateless-check.sh --limit 1000 --jobs 4 --max-jobs 4`
 Parity gate: `scripts/spike/parity-check.sh 8 1`
 
+## Debugging: per-instruction commit log
+
+`spike_run` supports an env-gated commit log for EVM-faithfulness / gas-model
+debugging. Set `SPIKE_COMMITLOG=<file>` and spike writes its standard per-instruction
+trace (RV64 `pc`, instruction word, register and memory writes) to that file.
+Unset, behavior is byte-identical to before (zero impact on parity/CI runs).
+
+```bash
+SPIKE_COMMITLOG=/tmp/cl.log scripts/spike/spike_run <guest.elf> <input> /tmp/out
+```
+
+The guest\'s EVM-bytecode interpreter has a single dispatch loop; its opcode
+fetch is the `lbu t0, 0(a0)` at the `.dispatch_loop` label (a0/x10 = EVM PC,
+t0/x5 = opcode byte). To extract the executed EVM bytecodes from the log, find
+that fetch instruction\'s address (e.g. via `riscv64-unknown-elf-objdump -d
+<guest.elf> | grep -A2 .dispatch_loop`) and filter:
+
+```bash
+rg "<fetch-addr> \(0x00054283\)" /tmp/cl.log \
+  | rg -o 'x5\s+0x([0-9a-f]+)\s+mem\s+0x([0-9a-f]+)' -r '$1 $2'
+# column 1 = opcode/operand byte, column 2 = EVM PC (memory address)
+```
+
+This gives the executed-EVM-byte sequence (count includes PUSH operand bytes),
+useful for diffing guest vs execution-specs per-opcode traces (`ethereum.trace`).
+
 ## The guest's runtime contract (see ../../../.claude/plans for full map)
 - Memory: header `0x7ffff000`, `.text 0x80000000`, `.data 0xa3000000`,
   `.sszscratch 0xbf500000`, input `0x40000000`, output `0xa0010000`.
