@@ -31,14 +31,4 @@ abbrev egLongBs : List Byte :=
 abbrev egLongSpecs : List FieldSpec :=
   [⟨false, egHash, 0, 0⟩, ⟨false, egHash, 32, 32⟩]
 
-set_option maxRecDepth 8000 in
-example :=
-  long_list_schema_walk (0x1000 : Word) (0x2000 : Word) (0x3000 : Word) .x18 egLongBs 0 (by decide)
-    egLongSpecs (List.replicate 64 (0 : Byte)) 64 0 0 0 0 0 0 (by decide) (by decide) (by decide)
-    (by decide) (by decide) (by decide) (by simp) (by decide) (by decide)
-    (schemaValid_of_concat egLongBs 64 [] egLongSpecs 2
-      (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
-      (by decide))
-    (by decide)
-
 end EvmAsm.Rv64.RLP

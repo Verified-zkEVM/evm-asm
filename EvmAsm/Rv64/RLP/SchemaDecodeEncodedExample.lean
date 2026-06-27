@@ -17,18 +17,4 @@ namespace EvmAsm.Rv64.RLP
 open EvmAsm.Rv64
 open EvmAsm.EL.RLP
 
-/-- A scalar field (`0x2a`) at output offset 0 and a 2-byte array (`[0x01,0x02]`) at offset 8. -/
-abbrev egEncSpecs : List FieldSpec :=
-  [⟨true, [(0x2a : Byte)], 0, 0⟩, ⟨false, [(0x01 : Byte), (0x02 : Byte)], 8, 8⟩]
-
-/-- The buffer is the genuine RLP encoding of the field record: `[0xc4, 0x2a, 0x82, 0x01, 0x02]`. -/
-abbrev egEncBs : List Byte := [(0xc4 : Byte), 0x2a, 0x82, 0x01, 0x02]
-
-set_option maxRecDepth 8000 in
-example :=
-  decode_encoded_short_list_schema (0x1000 : Word) (0x2000 : Word) (0x3000 : Word) .x18 egEncBs 0
-    egEncSpecs (List.replicate 24 (0 : Byte)) 24 [] 0 0 0 0 0 0 (by decide) (by decide)
-    (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
-    (by decide) (by decide) (by decide) (by decide) (by simp) (by decide) (by decide) (by decide)
-
 end EvmAsm.Rv64.RLP

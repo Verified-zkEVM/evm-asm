@@ -18,12 +18,16 @@ namespace EvmAsm.EL.RLP
 def encodeScalar (n : Nat) : List Byte :=
   encodeBytes (Nat.toBytesBE n)
 
-/-- Decode an RLP scalar: decode one item; if it is a byte string, read it as a
-    big-endian natural. (A `.list` head is not a scalar.) -/
+/-- Decode an RLP **scalar** (canonical nonnegative integer): decode one item; if it
+    is a byte string with **no leading zero** (`data.headD 1 ≠ 0` — the empty string is
+    the canonical `0`, and a nonzero value's high byte must be nonzero) read it as a
+    big-endian natural; otherwise **reject** as non-canonical. (A `.list` head is not a
+    scalar.) Matches execution-specs `ethereum_rlp._deserialize_to_uint`
+    (`len(decoded) > 0 ∧ decoded[0] == 0 ⇒ DecodingError "non-canonical integer"`). -/
 def decodeScalar (bs : List Byte) : Option (Nat × List Byte) := do
   let (item, rest) ← decode bs
   match item with
-  | .bytes data => some (Nat.fromBytesBE data, rest)
+  | .bytes data => if data.headD 1 = 0 then none else some (Nat.fromBytesBE data, rest)
   | .list _ => none
 
 /-- Scalar round-trip: decoding a scalar's encoding recovers the value, for any
@@ -33,9 +37,14 @@ theorem decodeScalar_encodeScalar (n : Nat) (h : (Nat.toBytesBE n).length < 256 
     decodeScalar (encodeScalar n) = some (n, []) := by
   have hd : decode (encodeScalar n) = some (.bytes (Nat.toBytesBE n), []) :=
     decode_encode_bytes (Nat.toBytesBE n) h
+  have hhead : (Nat.toBytesBE n).headD 1 ≠ 0 := by
+    rcases Nat.eq_zero_or_pos n with hn | hn
+    · subst hn; rw [Nat.toBytesBE_zero]; decide
+    · obtain ⟨b, tl, hbtl, hb⟩ := Nat.toBytesBE_eq_cons_of_pos n hn
+      rw [hbtl]; simpa using hb
   unfold decodeScalar
   rw [hd]
-  simp only [Option.bind_eq_bind, Option.bind_some, Nat.fromBytesBE_toBytesBE]
+  simp only [Option.bind_eq_bind, Option.bind_some, if_neg hhead, Nat.fromBytesBE_toBytesBE]
 
 /-- `encodeScalar` is injective (within the length bound): distinct scalars have
     distinct encodings. A corollary of the round-trip. -/
@@ -63,10 +72,13 @@ theorem decodeScalar_eq_some_imp {bs rest : List Byte} {n : Nat}
     simp only [Option.bind_eq_bind, Option.bind_some] at h
     cases item with
     | bytes data =>
-      simp only [Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨hn, hr⟩ := h
-      subst hn; subst hr
-      exact ⟨data, by simpa using decode_eq_some_imp_encode bs (.bytes data) r hdec, rfl⟩
+      simp only at h
+      split at h
+      · simp at h
+      · simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨hn, hr⟩ := h
+        subst hn; subst hr
+        exact ⟨data, by simpa using decode_eq_some_imp_encode bs (.bytes data) r hdec, rfl⟩
     | list items => simp at h
 
 /-! ### Cross-checks

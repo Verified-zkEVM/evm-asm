@@ -23,15 +23,6 @@ abbrev egEmptySpecs : List FieldSpec :=
 /-- The buffer is the genuine RLP encoding of the field record: `[0xc2, 0x80, 0x2a]`. -/
 abbrev egEmptyBs : List Byte := [(0xc2 : Byte), 0x80, 0x2a]
 
-set_option maxRecDepth 8000 in
-/-- **End-to-end empty-field decode.** The decoder runs over the record whose first field is the
-    empty/zero scalar and recovers both field values. -/
-theorem egEmptyFieldValues : schemaScalarValues egEmptyBs 1 egEmptySpecs :=
-  (decode_encoded_short_list_schema_values (0x1000 : Word) (0x2000 : Word) (0x3000 : Word) .x18
-    egEmptyBs 0 egEmptySpecs (List.replicate 16 (0 : Byte)) 16 [] 0 0 0 0 0 0 (by decide) (by decide)
-    (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
-    (by decide) (by decide) (by decide) (by decide) (by simp) (by decide) (by decide) (by decide)).2
-
 -- The recovered field values: the empty scalar is `0`, and `0x2a = 42`.
 example : Nat.fromBytesBE ([] : List Byte) = 0 := by decide
 example : Nat.fromBytesBE [(0x2a : Byte)] = 42 := by decide

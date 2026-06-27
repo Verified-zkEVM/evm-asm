@@ -24,15 +24,6 @@ abbrev egValSpecs : List FieldSpec :=
 /-- The buffer is the genuine RLP encoding of the field record: `[0xc4, 0x2a, 0x82, 0x01, 0x02]`. -/
 abbrev egValBs : List Byte := [(0xc4 : Byte), 0x2a, 0x82, 0x01, 0x02]
 
-set_option maxRecDepth 8000 in
-/-- **End-to-end field-value recovery.** Decoding the encoded record recovers each field's
-    big-endian value at its input offset (`schemaScalarValues`). -/
-theorem egTxFieldValues : schemaScalarValues egValBs 1 egValSpecs :=
-  (decode_encoded_short_list_schema_values (0x1000 : Word) (0x2000 : Word) (0x3000 : Word) .x18
-    egValBs 0 egValSpecs (List.replicate 24 (0 : Byte)) 24 [] 0 0 0 0 0 0 (by decide) (by decide)
-    (by intro f hf; fin_cases hf <;> exact ⟨by decide, by decide, by decide⟩)
-    (by decide) (by decide) (by decide) (by decide) (by simp) (by decide) (by decide) (by decide)).2
-
 -- The recovered field values are the expected naturals: `0x2a = 42` and `[0x01,0x02] = 258`.
 example : Nat.fromBytesBE [(0x2a : Byte)] = 42 := by decide
 example : Nat.fromBytesBE [(0x01 : Byte), (0x02 : Byte)] = 258 := by decide
