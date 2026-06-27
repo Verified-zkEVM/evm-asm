@@ -63,7 +63,8 @@ theorem exp_relaxed_block3_loop_induction
     (hExitU :
       ∀ (e c6 iterCount r0 r1 r2 r3 : Word) (ps : PartialState),
         (expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload e c6 iterCount sp evmSp
-          r0 r1 r2 r3 a0 a1 a2 a3 base ** F) ps →
+          r0 r1 r2 r3 a0 a1 a2 a3 base **
+          (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F)) ps →
         expTwoMulFixedCursorInvariant exponentWord 255 e →
         expTwoMulFixedAccumulatorInvariant baseWord exponentWord 255 r0 r1 r2 r3 →
         R ps)
@@ -81,8 +82,12 @@ theorem exp_relaxed_block3_loop_induction
       cpsTripleWithin ((m + 1) * 193) (base + 44) (base + 296)
         (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
         (expTwoMulFixedIterPreRelaxedBlock3 e c6 iterCount v10 v18 sp evmSp
-          tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 ** F)
+          tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 **
+          (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F))
         R := by
+  have hFe :
+      (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F).pcFree :=
+    pcFree_sepConj pcFree_evmWordIs hF
   induction m with
   | zero =>
     intro _hm e c6 iterCount v10 v18 tOld vOld nextLimbCtl
@@ -100,7 +105,8 @@ theorem exp_relaxed_block3_loop_induction
       exp_fixed_loop_body_final_succ_step_relaxed_block3_framed
         e c6 iterCount v10 v18 sp evmSp tOld vOld
         r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
-        base R F hc6z hbase hF hzero
+        base R (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F)
+        hc6z hbase hFe hzero
         (fun ps hps => hExitU e c6 iterCount r0 r1 r2 r3 ps hps hCursor255 hInv255)
     rw [show (0 + 1) * 193 = expTwoMulFixedReloadIterStepBound from by
       rw [expTwoMulFixedReloadIterStepBound_eq]]
@@ -120,7 +126,8 @@ theorem exp_relaxed_block3_loop_induction
     refine exp_fixed_loop_body_succ_step_relaxed_block3_framed (m' + 1)
       e c6 iterCount v10 v18 sp evmSp tOld vOld
       r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
-      base R F (c6_succ_ne_zero hc6) hbase hF ?hExit ?hLoop
+      base R (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F)
+      (c6_succ_ne_zero hc6) hbase hFe ?hExit ?hLoop
     case hExit =>
       intro ps hps
       exfalso
@@ -146,7 +153,8 @@ theorem exp_relaxed_block3_loop_induction
       obtain ⟨psDisj, psRf, hdDR, huDR, hDisj, hRf⟩ := hLP
       have hResEmp : expTwoMulFixedExpResidual 3 evmSp (0 : Word) (0 : EvmWord)
           = empAssertion := expTwoMulFixedExpResidual_ge_two (by omega)
-      have hEmp : (expTwoMulFixedExpResidual 3 evmSp (0 : Word) (0 : EvmWord) ** F) psF := by
+      have hEmp : (expTwoMulFixedExpResidual 3 evmSp (0 : Word) (0 : EvmWord) **
+          (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F)) psF := by
         rw [hResEmp, sepConj_emp_left']; exact hFps
       rcases hDisj with hCond | hSkip
       · have hBitNe :
@@ -168,7 +176,8 @@ theorem exp_relaxed_block3_loop_induction
                 r0 r1 r2 r3 a0 a1 a2 a3 base
                 (expTwoMulIterCountNew iterCount ≠ 0) **
               (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))) **
-             (expTwoMulFixedExpResidual 3 evmSp (0 : Word) (0 : EvmWord) ** F)) psPF :=
+             (expTwoMulFixedExpResidual 3 evmSp (0 : Word) (0 : EvmWord) **
+              (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F))) psPF :=
           ⟨psM, psF, hdMF, huMF, ⟨psDisj, psRf, hdDR, huDR, hCond, hRf⟩, hEmp⟩
         obtain ⟨v7', v10', v11', d0', d1', d2', d3', hOut⟩ :=
           expTwoMulFixedIterSkipCondCountPost_residual_repartition_block3 hInput
@@ -210,7 +219,8 @@ theorem exp_relaxed_block3_loop_induction
                 r0 r1 r2 r3 a0 a1 a2 a3 base
                 (expTwoMulIterCountNew iterCount ≠ 0) **
               (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12)))) **
-             (expTwoMulFixedExpResidual 3 evmSp (0 : Word) (0 : EvmWord) ** F)) psPF :=
+             (expTwoMulFixedExpResidual 3 evmSp (0 : Word) (0 : EvmWord) **
+              (evmWordIs (evmSp + signExtend12 (-32 : BitVec 12)) exponentWord ** F))) psPF :=
           ⟨psM, psF, hdMF, huMF, ⟨psDisj, psRf, hdDR, huDR, hSkip, hRf⟩, hEmp⟩
         obtain ⟨v7', v10', v11', d0', d1', d2', d3', hOut⟩ :=
           expTwoMulFixedIterSkipCountPost_residual_repartition_block3 hInput
