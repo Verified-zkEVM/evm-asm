@@ -22,6 +22,7 @@
   code requirement, mirroring `SavedBitFixedSaveRestoreCompose.lean`.
 -/
 import EvmAsm.Evm64.Exp.LimbSpec
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalChain
 
 namespace EvmAsm.Evm64.Exp.Compose
 
@@ -275,5 +276,111 @@ theorem exp_headroom_epilogue_lifted
     (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
     (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
     a i ha
+
+/-- Union head-monotonicity for the loop lift: the canonical iter-body slice sits
+    inside the headroom program (idx 29), and the appended `mul_callable` at
+    `base+408` is disjoint from the headroom code (which ends at `base+408`). -/
+theorem exp_headroom_loop_code_mono (base : Word) :
+    ∀ a i,
+      ((expIterBodyFullMsbSavedBitTwoMulFixedCode (base + 72 + 44)
+          EvmAsm.Evm64.canonicalExpSquaringMulOff
+          EvmAsm.Evm64.canonicalExpCondMulOff
+          EvmAsm.Evm64.canonicalExpCondMulSkipOff
+          EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff).union
+          (mul_callable_code (base + 72 + 336))) a = some i →
+      ((evm_exp_headroom_code
+          EvmAsm.Evm64.canonicalExpSquaringMulOff
+          EvmAsm.Evm64.canonicalExpCondMulOff
+          EvmAsm.Evm64.canonicalExpCondMulSkipOff
+          EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff base).union
+          (mul_callable_code (base + 408))) a = some i := by
+  intro a i hq
+  rw [show (base + 72 + 336 : Word) = base + 408 from by bv_addr] at hq
+  rw [expIterBodyFullMsbSavedBitTwoMulFixedCode_eq_ofProg] at hq
+  -- iter-body slice ⊆ headroom code at idx 29
+  have hsub : ∀ a i, CodeReq.ofProg (base + 72 + 44)
+      (EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul_fixed
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff) a = some i →
+      evm_exp_headroom_code
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff base a = some i := by
+    intro a' i' h'
+    refine CodeReq.ofProg_mono_sub base (base + 72 + 44)
+      (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff)
+      (EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul_fixed
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff)
+      29 (by bv_addr) (by rfl)
+      (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length,
+              EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul_fixed_length]; decide)
+      (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+      a' i' h'
+  cases hib : CodeReq.ofProg (base + 72 + 44)
+      (EvmAsm.Evm64.exp_iter_body_full_msb_saved_bit_two_mul_fixed
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff) a with
+  | some j =>
+    rw [CodeReq.union_mono_left a j hib] at hq
+    have hji : j = i := by simpa using hq
+    subst hji
+    exact CodeReq.union_mono_left a j (hsub a j hib)
+  | none =>
+    rw [CodeReq.union_none_left hib] at hq
+    -- hq : mul_callable_code (base+408) a = some i ; show headroom a = none then union
+    have hq' := hq
+    rw [mul_callable_code_eq_ofProg] at hq'
+    obtain ⟨k, hk, haddr⟩ := CodeReq.ofProg_some_range _ _ a i hq'
+    rw [EvmAsm.Evm64.mul_callable_length] at hk
+    have hnone : evm_exp_headroom_code
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff base a = none := by
+      unfold evm_exp_headroom_code
+      apply CodeReq.ofProg_none_range
+      intro k' hk'
+      rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length] at hk'
+      rw [haddr]; bv_omega
+    rw [CodeReq.union_none_left hnone]; exact hq
+
+/-- The body-only loop surface (n=255 iterations) lifted onto the headroom program
+    at code base `base+72` (iter body @ byte +116, mul @ base+408). -/
+theorem exp_headroom_loop_lifted
+    (sp evmSp base : Word) (baseWord exponentWord dWord eWord : EvmWord)
+    (rest : List EvmWord) (lookahead vOld v18 : Word)
+    (hbase : (base + 72 + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin ((255 + 1) * 193) (base + 72 + 44) (base + 72 + 296)
+      ((evm_exp_headroom_code
+          EvmAsm.Evm64.canonicalExpSquaringMulOff
+          EvmAsm.Evm64.canonicalExpCondMulOff
+          EvmAsm.Evm64.canonicalExpCondMulSkipOff
+          EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff base).union
+          (mul_callable_code (base + 408)))
+      (expTwoMulFixedFirstIterPreWithResidual sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord rest)
+      (expExpFinalExitR sp (evmSp + signExtend12 (64 : BitVec 12))
+          baseWord exponentWord
+          (baseWord.getLimbN 0) (baseWord.getLimbN 1)
+          (baseWord.getLimbN 2) (baseWord.getLimbN 3) **
+        evmStackIs (evmSp + 128) rest) := by
+  have h := exp_final_loop_firstIterPreWithResidual_bodyonly (base + 72) sp evmSp
+    baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase
+  refine cpsTripleWithin_extend_code ?_ h
+  intro a i hq
+  rw [expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_eq] at hq
+  exact exp_headroom_loop_code_mono base a i hq
 
 end EvmAsm.Evm64.Exp.Compose
