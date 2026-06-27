@@ -12,10 +12,12 @@
     K87  tx_decode_dispatch  (legacy + typed)
 
   Each decoder splits the appropriate RLP shape into per-field
-  offset / length pairs in a caller-supplied output table.
+  offset / length pairs in a caller-supplied output table, using
+  the cursor-advancing walker pair (`EvmAsm.Codegen.Programs.
+  RlpWalk`) for a single left-to-right pass over the fields.
   K87 inspects the typed-tx prefix byte and dispatches to the
   matching specific decoder (legacy / 1559 / 2930 / 4844 /
-  7702). Composes K34 / K35 / K20 + K36 (tx_legacy_decode) +
+  7702). Composes the RlpWalk walker + K36 (tx_legacy_decode) +
   K40 (tx_type_dispatch) which remain in `Programs/Tx.lean`.
 
   No proofs yet -- these are codegen `String` defs only.
@@ -78,8 +80,11 @@ open EvmAsm.Rv64.Program
       ra (input)  : return
       a0 (output) : packed status (see encoding above).
 
-    Uses 8 bytes of `.data` scratch (`tdd_inner_off`) plus the
-    inner-decoder scratches (rfu_offset/rfu_length etc.). -/
+    Uses `.data` scratch for its own `tdd_type` / `tdd_inner_off`
+    (via `tx_type_dispatch`) and for `tcbg_blob_fee_be` (written
+    by `tx_eip4844_decode`); the five decoders themselves hold
+    their (cursor, end) pair in callee-saved registers and need
+    no per-decoder `.data` scratch. -/
 def txDecodeDispatchFunction : String :=
   "tx_decode_dispatch:\n" ++
   "  addi sp, sp, -32\n" ++
@@ -184,9 +189,10 @@ def ziskTxDecodeDispatchPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # packed status\n" ++
   "  j .Ltdd_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txLegacyDecodeFunction ++ "\n" ++
   txEip2930DecodeFunction ++ "\n" ++
@@ -196,38 +202,21 @@ def ziskTxDecodeDispatchPrologue : String :=
   txDecodeDispatchFunction ++ "\n" ++
   ".Ltdd_pdone:"
 
+/-- The five decoders all use the cursor-advancing walker and hold
+    (cursor, end) in callee-saved registers, so the only `.data`
+    cells the dispatcher's combined image needs are: its own
+    `tdd_type` / `tdd_inner_off` scratch (for `tx_type_dispatch`),
+    and `tcbg_blob_fee_be` -- the full BE u256 of
+    `max_fee_per_blob_gas` that `tx_eip4844_decode` persists and
+    downstream consumers (`BlockVerdict` / EIP-8037 gate) read
+    back. Declaring `tcbg_blob_fee_be` here makes the standalone
+    dispatcher probe linkable (previously it relied on the symbol
+    being defined only in unrelated probe data sections). -/
 def ziskTxDecodeDispatchDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "txd_offset:\n" ++
-  "  .zero 8\n" ++
-  "txd_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t1d_offset:\n" ++
-  "  .zero 8\n" ++
-  "t1d_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t29_offset:\n" ++
-  "  .zero 8\n" ++
-  "t29_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t48_offset:\n" ++
-  "  .zero 8\n" ++
-  "t48_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t77_offset:\n" ++
-  "  .zero 8\n" ++
-  "t77_length:\n" ++
-  "  .zero 8\n" ++
+  "tcbg_blob_fee_be:\n" ++
+  "  .zero 32\n" ++
   ".balign 8\n" ++
   "tdd_type:\n" ++
   "  .zero 8\n" ++

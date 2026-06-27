@@ -1,0 +1,259 @@
+/-
+  EvmAsm.Codegen.Programs.RlpWalk
+
+  Cursor-advancing RLP walker primitives -- a single-pass
+  alternative to the index-based `rlp_list_nth_item` (PR-K20) used
+  by the container decoders in `Tx.lean` / `TxDecode{1559,2930,
+  4844,7702}.lean`.
+
+  Motivation: every call to `rlp_list_nth_item` / `rlp_field_to_*`
+  re-walks the list from byte 0, so decoding all N fields of one
+  container costs 0+1+...+(N-1) = O(N^2) item visits. The pair
+  here walks the list exactly once: `rlp_walk_init` positions the
+  cursor at the first item, then each `rlp_walk_next` advances
+  past exactly one item and reports its content bounds, so the
+  decoder consumes fields 0..N-1 in N visits.
+
+  Key invariant.  For every RLP item form, the content (payload)
+  start pointer is recoverable from the two values `walk_next`
+  returns -- the *advanced* cursor and the *content length*:
+
+      content_ptr = advanced_cursor - content_length
+
+  Verified per form (C = item-start cursor):
+    * single byte  (<0x80)   : adv = C+1, len = 1     -> ptr = C
+    * short string (0x80..b7): adv = C+1+len          -> ptr = C+1
+    * long string  (b8..bf)  : adv = C+1+lol+len      -> ptr = C+1+lol
+    * short list   (c0..f7)  : len = full span, ptr = C
+    * long list    (f8..ff)  : len = full span, ptr = C
+
+  This mirrors PR-K20's content semantics exactly: byte-string
+  items are prefix-stripped, sub-list items are returned in full
+  (so callers can recurse / store whole-encoded spans).
+
+  No proofs yet -- these are codegen `String` defs only.  The
+  verified cursor-advancing walker in `EvmAsm.Rv64.RLP` (e.g.
+  `ValidatingFieldWalk.lean`) is the future verification target.
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+
+/-! ## rlp_walk_init -- position cursor at the first list item
+
+    Skip the outer RLP list prefix (0xc0..0xff) so the cursor
+    points at the first encoded child item.
+
+    Calling convention:
+      a0 (input)  : list bytes ptr (start of outer list prefix)
+      a1 (input)  : total list byte length (full encoded item)
+      ra (input)  : return
+      a0 (output) : cursor (first child item, abs ptr)
+      a1 (output) : end (list_ptr + list_len, exclusive)
+      a2 (output) : status (0 ok / 1 not-a-list)
+
+    Frameless leaf -- clobbers only t0/t1/t2, returns in a0/a1/a2. -/
+def rlpWalkInitFunction : String :=
+  "rlp_walk_init:\n" ++
+  "  add a1, a0, a1             # end = list_ptr + list_len\n" ++
+  "  lbu t0, 0(a0)\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lwi_fail     # not an RLP list\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lwi_short    # short list: 1 prefix byte\n" ++
+  "  # Long list: prefix bytes = 1 + (t0 - 0xf7)\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  addi t2, t2, 1             # prefix bytes\n" ++
+  "  add a0, a0, t2             # cursor past outer prefix\n" ++
+  "  li a2, 0\n" ++
+  "  ret\n" ++
+  ".Lwi_short:\n" ++
+  "  addi a0, a0, 1\n" ++
+  "  li a2, 0\n" ++
+  "  ret\n" ++
+  ".Lwi_fail:\n" ++
+  "  li a2, 1\n" ++
+  "  ret"
+
+/-! ## rlp_walk_next -- advance cursor past one item, report content
+
+    Decode the single item at the cursor, advance the cursor past
+    it, and return the item's content length.  The content pointer
+    is derived by the caller as `advanced_cursor - content_length`
+    (see module doc for the per-form proof).
+
+    Calling convention:
+      a0 (input)  : cursor (current item, abs ptr)
+      a1 (input)  : end (exclusive, abs ptr)
+      ra (input)  : return
+      a0 (output) : advanced cursor (next item, abs ptr)
+      a1 (output) : status (0 ok / 1 unused / 2 end-of-list)
+      a2 (output) : content length
+                      (byte-string items: prefix-stripped payload;
+                       sub-list items: full encoded span)
+
+    Frameless leaf -- clobbers only t0..t6, returns in a0/a1/a2. -/
+def rlpWalkNextFunction : String :=
+  "rlp_walk_next:\n" ++
+  "  bgeu a0, a1, .Lwn_end      # cursor at/past end -> end-of-list\n" ++
+  "  lbu t0, 0(a0)              # prefix byte\n" ++
+  "  li t1, 0x80\n" ++
+  "  bltu t0, t1, .Lwn_single\n" ++
+  "  li t1, 0xb8\n" ++
+  "  bltu t0, t1, .Lwn_short_string\n" ++
+  "  li t1, 0xc0\n" ++
+  "  bltu t0, t1, .Lwn_long_string\n" ++
+  "  li t1, 0xf8\n" ++
+  "  bltu t0, t1, .Lwn_short_list\n" ++
+  "  # Long list (full encoded span): lol = t0 - 0xf7\n" ++
+  "  li t1, 0xf7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li t3, 0                   # decoded length accumulator\n" ++
+  "  mv t4, t2                  # remaining length bytes\n" ++
+  "  addi t5, a0, 1             # first length byte\n" ++
+  ".Lwn_ll_be:\n" ++
+  "  beqz t4, .Lwn_ll_done\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t6, 0(t5)\n" ++
+  "  or t3, t3, t6\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lwn_ll_be\n" ++
+  ".Lwn_ll_done:\n" ++
+  "  add t6, t2, t3             # lol + decoded\n" ++
+  "  addi t6, t6, 1             # full span = 1 + lol + decoded\n" ++
+  "  add a0, a0, t6             # advanced cursor\n" ++
+  "  mv a2, t6                  # content length = full span\n" ++
+  "  li a1, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_short_list:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub t6, t0, t1             # t0 - 0xc0\n" ++
+  "  addi t6, t6, 1             # full span = 1 + (t0 - 0xc0)\n" ++
+  "  add a0, a0, t6             # advanced cursor\n" ++
+  "  mv a2, t6                  # content length = full span\n" ++
+  "  li a1, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_long_string:\n" ++
+  "  li t1, 0xb7\n" ++
+  "  sub t2, t0, t1             # lol\n" ++
+  "  li t3, 0                   # decoded length accumulator\n" ++
+  "  mv t4, t2                  # remaining length bytes\n" ++
+  "  addi t5, a0, 1             # first length byte\n" ++
+  ".Lwn_ls_be:\n" ++
+  "  beqz t4, .Lwn_ls_done\n" ++
+  "  slli t3, t3, 8\n" ++
+  "  lbu t6, 0(t5)\n" ++
+  "  or t3, t3, t6\n" ++
+  "  addi t5, t5, 1\n" ++
+  "  addi t4, t4, -1\n" ++
+  "  j .Lwn_ls_be\n" ++
+  ".Lwn_ls_done:\n" ++
+  "  # t5 = content start (a0 + 1 + lol); advanced = t5 + decoded\n" ++
+  "  add a0, t5, t3             # advanced cursor\n" ++
+  "  mv a2, t3                  # content length = decoded (stripped)\n" ++
+  "  li a1, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_short_string:\n" ++
+  "  li t1, 0x80\n" ++
+  "  sub a2, t0, t1             # content length = t0 - 0x80\n" ++
+  "  addi a0, a0, 1             # past prefix\n" ++
+  "  add a0, a0, a2             # advanced = cursor + 1 + len\n" ++
+  "  li a1, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_single:\n" ++
+  "  addi a0, a0, 1             # advanced cursor\n" ++
+  "  li a2, 1                   # content length = 1\n" ++
+  "  li a1, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_end:\n" ++
+  "  li a1, 2                   # end-of-list\n" ++
+  "  li a2, 0\n" ++
+  "  ret"
+
+/-! ## rlp_content_to_u64 -- big-endian content bytes -> u64
+
+    Decode a big-endian byte string (the prefix-stripped payload
+    of an RLP byte-string item, as reported by `rlp_walk_next`) as
+    a u64.  This is the BE-decode half of PR-K34
+    `rlp_field_to_u64`, taking an explicit (ptr, len) instead of
+    re-walking the list.
+
+    Calling convention:
+      a0 (input)  : content bytes ptr
+      a1 (input)  : content byte length
+      ra (input)  : return
+      a0 (output) : u64 value (LE register form)
+      a1 (output) : status (0 ok / 2 too long (> 8 bytes))
+
+    Frameless leaf. -/
+def rlpContentToU64Function : String :=
+  "rlp_content_to_u64:\n" ++
+  "  li t0, 8\n" ++
+  "  bgtu a1, t0, .Lrcu_too_long\n" ++
+  "  mv t1, a0                  # ptr\n" ++
+  "  mv t2, a1                  # remaining\n" ++
+  "  li a0, 0                   # accumulator\n" ++
+  ".Lrcu_loop:\n" ++
+  "  beqz t2, .Lrcu_done\n" ++
+  "  slli a0, a0, 8\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  or a0, a0, t3\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lrcu_loop\n" ++
+  ".Lrcu_done:\n" ++
+  "  li a1, 0\n" ++
+  "  ret\n" ++
+  ".Lrcu_too_long:\n" ++
+  "  li a0, 0\n" ++
+  "  li a1, 2\n" ++
+  "  ret"
+
+/-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
+
+    Right-align a big-endian byte string (the prefix-stripped
+    payload of an RLP byte-string item) into a 32-byte BE u256
+    buffer.  This is the copy half of PR-K35
+    `rlp_field_to_u256_be`, taking an explicit (ptr, len, out)
+    instead of re-walking the list.
+
+    Calling convention:
+      a0 (input)  : content bytes ptr
+      a1 (input)  : content byte length
+      a2 (input)  : 32-byte u256 BE output ptr (right-aligned)
+      ra (input)  : return
+      a0 (output) : status (0 ok / 2 too long (> 32 bytes))
+
+    The output is always zeroed first, so fail / too-long paths
+    leave a zero u256.  Frameless leaf. -/
+def rlpContentToU256BeFunction : String :=
+  "rlp_content_to_u256_be:\n" ++
+  "  sd zero,  0(a2); sd zero,  8(a2); sd zero, 16(a2); sd zero, 24(a2)\n" ++
+  "  li t0, 32\n" ++
+  "  bgtu a1, t0, .Lrc256_too_long\n" ++
+  "  sub t0, t0, a1             # 32 - len\n" ++
+  "  add t1, a2, t0             # dst start (right-aligned)\n" ++
+  "  mv t2, a0                  # src ptr\n" ++
+  "  mv t3, a1                  # remaining\n" ++
+  ".Lrc256_copy:\n" ++
+  "  beqz t3, .Lrc256_done\n" ++
+  "  lbu t4, 0(t2)\n" ++
+  "  sb  t4, 0(t1)\n" ++
+  "  addi t2, t2, 1\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lrc256_copy\n" ++
+  ".Lrc256_done:\n" ++
+  "  li a0, 0\n" ++
+  "  ret\n" ++
+  ".Lrc256_too_long:\n" ++
+  "  li a0, 2\n" ++
+  "  ret"
+
+end EvmAsm.Codegen
