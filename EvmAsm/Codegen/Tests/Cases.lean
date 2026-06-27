@@ -2207,6 +2207,19 @@ def opcodeTestCases : List OpcodeTestCase :=
     { name           := "exp_two_255_squared"
       bytecode       := "0x60, 0x02, 0x7f, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00"
       expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
+  , -- Regression for the `evm-asm-fjivz` stack-corruption bug: the squaring
+    -- loop used to marshal its MUL factors into the live EVM stack words below
+    -- the operands (slots [2]/[3] at `x12+64..120`), clobbering caller data.
+    -- Push a sentinel into slot [2] *under* the two operands, run EXP, POP the
+    -- result, and return the sentinel — it must survive untouched. The
+    -- headroom-scratch body (`evm_exp_..._fixed_fixed_headroom`) runs the loop
+    -- in the slack below the live stack, so slots [2]/[3] stay intact.
+    -- PUSH1 0xAA; PUSH1 0x03; PUSH1 0x02; EXP; POP; STOP — 2**3 = 8 (popped),
+    -- top = sentinel 0xAA. (With the pre-fix body this returns MUL-factor
+    -- garbage instead of 0xAA.)
+    { name           := "exp_preserves_caller_stack"
+      bytecode       := "0x60, 0xaa, 0x60, 0x03, 0x60, 0x02, 0x0a, 0x50, 0x00"
+      expectedOutHex := "aa00000000000000000000000000000000000000000000000000000000000000" }
   , -- EXP gas: exponent zero charges only PUSH1*2 + EXP base = 16.
     { name           := "exp_gas_zero_exponent_exact"
       bytecode       := "0x60, 0x00, 0x60, 0x05, 0x0a, 0x00"

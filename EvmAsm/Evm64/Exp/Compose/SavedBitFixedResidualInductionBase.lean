@@ -1,5 +1,10 @@
 /-
-  EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInduction
+  EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInductionBase
+
+  First half of `EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInduction`
+  (the canonical-code residual induction), split out to keep each file under
+  the file-size guardrail (`scripts/check-file-size.sh`). The parent module
+  imports this and re-exports it transitively, so importers are unaffected.
 
   The `ExpResidual`-threaded merged fixed-x19 EXP loop-body induction.
 
@@ -19,14 +24,12 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Induction
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInductionBase
 
 namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
-/-- Body-only-code-req twin of the residual-induction loop spec (path A, bug fjivz). -/
-theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
+theorem exp_merged_loop_from_iterpre_residual_induction
     (base sp evmSp a0 a1 a2 a3 : Word) (R : Assertion)
     (baseWord exponentWord : EvmWord) (lookahead : Word)
     (hbase : (base + 44 : Word) &&& 1 = 0)
@@ -63,7 +66,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
       ptr = evmSp + signExtend12
         (- (16 + 8 * (((255 - n) / 64 : Nat) : BitVec 12))) →
       cpsTripleWithin ((n + 1) * 193) (base + 44) (base + 296)
-        (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
         (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
           tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 **
          (expTwoMulFixedExpResidual ((255 - n) / 64) ptr lookahead exponentWord **
@@ -80,7 +83,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
     have hb : (255 - 0) / 64 = 3 := by decide
     rw [hb]
     exact
-      exp_fixed_loop_body_final_succ_step_framed_bodyonly
+      exp_fixed_loop_body_final_succ_step_framed
         e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
         r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
         base R (expTwoMulFixedExpResidual 3 ptr lookahead exponentWord **
@@ -111,7 +114,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
       exact absurd hE (expTwoMulFixedIterMergedExitPost_nonzero_count_false hne)
     have hLoop :
         cpsTripleWithin ((k + 1) * 193) (base + 44) (base + 296)
-          (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+          (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
           (expTwoMulFixedIterMergedLoopPost e c6 iterCount ptr nextLimb sp evmSp
             r0 r1 r2 r3 a0 a1 a2 a3 base **
             (expTwoMulFixedExpResidual ((255 - (k + 1)) / 64) ptr lookahead exponentWord **
@@ -406,7 +409,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
             have hFull : ((_ : Assertion) ** Rframe).holdsFor s :=
               ⟨hp, hcompat, psMF, psR, hdisj, hunion, hOut, hRps⟩
             obtain ⟨kk, hkk, s', hstep', hpc', hH⟩ :=
-              exp_relaxed_block3_loop_induction_bodyonly base sp evmSp a0 a1 a2 a3
+              exp_relaxed_block3_loop_induction base sp evmSp a0 a1 a2 a3
                 baseWord exponentWord R
                 empAssertion
                 hbase pcFree_emp hBase
@@ -621,7 +624,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
             have hFull : ((_ : Assertion) ** Rframe).holdsFor s :=
               ⟨hp, hcompat, psMF, psR, hdisj, hunion, hOut, hRps⟩
             obtain ⟨kk, hkk, s', hstep', hpc', hH⟩ :=
-              exp_relaxed_block3_loop_induction_bodyonly base sp evmSp a0 a1 a2 a3
+              exp_relaxed_block3_loop_induction base sp evmSp a0 a1 a2 a3
                 baseWord exponentWord R
                 empAssertion
                 hbase pcFree_emp hBase
@@ -645,7 +648,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
                 Rframe hRframe s hcr hFull hpc
             exact ⟨kk, by rw [show k + 1 = 64 from by omega]; exact hkk, s', hstep', hpc', hH⟩
     exact
-      exp_fixed_loop_body_succ_step_framed_bodyonly
+      exp_fixed_loop_body_succ_step_framed
         (k + 1)
         e c6 iterCount v10 v18 ptr nextLimb sp evmSp tOld vOld
         r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11
@@ -654,5 +657,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction_bodyonly
         hbase (pcFree_sepConj expTwoMulFixedExpResidual_pcFree
           expTwoMulFixedExpReadPrefix_pcFree)
         hExit hLoop
+
+
 
 end EvmAsm.Evm64.Exp.Compose

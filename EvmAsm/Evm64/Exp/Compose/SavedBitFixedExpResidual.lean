@@ -6,25 +6,28 @@
   the loop pointer `x16 = ptr`, organized by block `b = k / 64`.
 
   Within a block the pointer `x16` is constant, so `ExpResidual` is constant
-  (it depends only on the block `b`, `ptr`, and a `lookahead` value).  At each
-  of the three 64-bit reload boundaries the pointer advances by `-8`, the top
-  residual cell becomes the next iteration's `IterPre` pointer cell (consumed
-  by the proven reload assemblers), and the (now stale) old pointer cell drops
-  into the read-only ambient frame.  The residual therefore shrinks by one cell
-  per reload.
+  (it depends only on the block `b` and `ptr`).  At each of the first two
+  64-bit reload boundaries the pointer advances by `-8`, the top residual cell
+  becomes the next iteration's `IterPre` pointer cell (consumed by the proven
+  reload assemblers), and the (now stale) old pointer cell drops into the
+  read-only ambient frame.  The residual therefore shrinks by one cell per
+  reload.
 
-  Cell counts are `3 / 2 / 1 / 0` by block.  Block 0 (`x16 = OUTER+48`) carries
-  the three cells strictly below `x16` that the three remaining reloads will
-  consume: `OUTER+40` (`getLimbN 1`), `OUTER+32` (`getLimbN 0`), and `OUTER+24`
-  (the `lookahead` cell — physically the high limb of the operand word just
-  below the exponent, never read since block 3 performs no reload).  Block 1
-  drops the top cell, block 2 carries only the `lookahead` cell, and block 3
-  (`x16 = OUTER+24`) carries nothing.
+  Cell counts are `2 / 1 / 0 / 0` by block.  Block 0 (`x16 = OUTER+48`) carries
+  the two exponent cells strictly below `x16` that the next two reloads will
+  consume: `OUTER+40` (`getLimbN 1`) and `OUTER+32` (`getLimbN 0`).  Block 1
+  drops the top cell, and blocks 2/3 carry nothing.
 
-  This file provides the definition together with the three reload-boundary
-  split identities `..._succ_zero` / `..._succ_one` / `..._succ_two` and the
-  empty-tail fact `..._ge_three`, which the induction uses to re-partition the
-  residual at a reload before applying the IH.
+  Block 3's spurious final reload reads base operand `a3` (the over-walk cell
+  just below the exponent), which is handled by the *relaxed* block-3 engine
+  (`SavedBitFixedRelaxedBlock3Step`) sourcing it from the base frame — so the
+  residual does NOT carry a separate look-ahead cell for it.  The `lookahead`
+  parameter is retained (unused) only to keep the consuming call sites stable.
+
+  This file provides the definition together with the reload-boundary split
+  identities `..._succ_zero` / `..._succ_one` and the empty-tail fact
+  `..._ge_two`, which the induction uses to re-partition the residual at a
+  reload before applying the IH.
 -/
 
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
@@ -33,29 +36,23 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
-/-- Exponent residual for block `b` at pointer `ptr` with bottom look-ahead
-    value `lookahead`: the not-yet-loaded limb cells strictly below `x16 = ptr`.
-    Counts are `3 / 2 / 1 / 0` by block; the cell addresses descend by `-8`. -/
+/-- Exponent residual for block `b` at pointer `ptr`: the not-yet-loaded limb
+    cells strictly below `x16 = ptr`.  Counts are `2 / 1 / 0 / 0` by block; the
+    cell addresses descend by `-8`.  (`lookahead` is unused — retained for call
+    site stability; block 3's over-walk cell is base `a3`, handled by the
+    relaxed block-3 engine, not the residual.) -/
 @[irreducible]
-def expTwoMulFixedExpResidual (b : Nat) (ptr lookahead : Word)
+def expTwoMulFixedExpResidual (b : Nat) (ptr _lookahead : Word)
     (exponentWord : EvmWord) : Assertion :=
   match b with
   | 0 =>
     (((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
         exponentWord.getLimbN 1) **
     ((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (-8 : BitVec 12)) +
-        signExtend12 (0 : BitVec 12)) ↦ₘ exponentWord.getLimbN 0) **
-    (((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (-8 : BitVec 12)) +
-        signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-        lookahead)
+        signExtend12 (0 : BitVec 12)) ↦ₘ exponentWord.getLimbN 0)
   | 1 =>
     (((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-        exponentWord.getLimbN 0) **
-    ((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (-8 : BitVec 12)) +
-        signExtend12 (0 : BitVec 12)) ↦ₘ lookahead)
-  | 2 =>
-    (((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-        lookahead)
+        exponentWord.getLimbN 0)
   | _ => empAssertion
 
 theorem expTwoMulFixedExpResidual_zero_unfold
@@ -64,37 +61,24 @@ theorem expTwoMulFixedExpResidual_zero_unfold
       ((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
           exponentWord.getLimbN 1) **
        ((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (-8 : BitVec 12)) +
-          signExtend12 (0 : BitVec 12)) ↦ₘ exponentWord.getLimbN 0) **
-       (((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (-8 : BitVec 12)) +
-          signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-          lookahead)) := by
+          signExtend12 (0 : BitVec 12)) ↦ₘ exponentWord.getLimbN 0)) := by
   delta expTwoMulFixedExpResidual
   rfl
 
 theorem expTwoMulFixedExpResidual_one_unfold
     {ptr lookahead : Word} {exponentWord : EvmWord} :
     expTwoMulFixedExpResidual 1 ptr lookahead exponentWord =
-      ((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-          exponentWord.getLimbN 0) **
-       ((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (-8 : BitVec 12)) +
-          signExtend12 (0 : BitVec 12)) ↦ₘ lookahead)) := by
-  delta expTwoMulFixedExpResidual
-  rfl
-
-theorem expTwoMulFixedExpResidual_two_unfold
-    {ptr lookahead : Word} {exponentWord : EvmWord} :
-    expTwoMulFixedExpResidual 2 ptr lookahead exponentWord =
       (((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-          lookahead) := by
+          exponentWord.getLimbN 0) := by
   delta expTwoMulFixedExpResidual
   rfl
 
-theorem expTwoMulFixedExpResidual_ge_three
-    {b : Nat} {ptr lookahead : Word} {exponentWord : EvmWord} (hb : 3 ≤ b) :
+theorem expTwoMulFixedExpResidual_ge_two
+    {b : Nat} {ptr lookahead : Word} {exponentWord : EvmWord} (hb : 2 ≤ b) :
     expTwoMulFixedExpResidual b ptr lookahead exponentWord = empAssertion := by
   delta expTwoMulFixedExpResidual
   match b, hb with
-  | (n + 3), _ => rfl
+  | (n + 2), _ => rfl
 
 theorem expTwoMulFixedExpResidual_pcFree
     {b : Nat} {ptr lookahead : Word} {exponentWord : EvmWord} :
@@ -104,10 +88,8 @@ theorem expTwoMulFixedExpResidual_pcFree
     rw [expTwoMulFixedExpResidual_zero_unfold]; pcFree
   | 1 =>
     rw [expTwoMulFixedExpResidual_one_unfold]; pcFree
-  | 2 =>
-    rw [expTwoMulFixedExpResidual_two_unfold]; pcFree
-  | (n + 3) =>
-    rw [expTwoMulFixedExpResidual_ge_three (by omega)]; pcFree
+  | (n + 2) =>
+    rw [expTwoMulFixedExpResidual_ge_two (by omega)]; pcFree
 
 instance pcFreeInst_expTwoMulFixedExpResidual
     (b : Nat) (ptr lookahead : Word) (exponentWord : EvmWord) :
@@ -129,8 +111,8 @@ theorem expTwoMulFixedExpResidual_succ_zero
   rw [expTwoMulFixedExpResidual_zero_unfold,
     expTwoMulFixedExpResidual_one_unfold]
 
-/-- Reload-boundary split at block 1: top cell at `ptr-8` (`getLimbN 0`)
-    conjoined with the block-2 residual at the advanced pointer. -/
+/-- Reload-boundary split at block 1: the single top cell at `ptr-8`
+    (`getLimbN 0`) conjoined with the empty block-2 residual. -/
 theorem expTwoMulFixedExpResidual_succ_one
     {ptr lookahead : Word} {exponentWord : EvmWord} :
     expTwoMulFixedExpResidual 1 ptr lookahead exponentWord =
@@ -139,19 +121,7 @@ theorem expTwoMulFixedExpResidual_succ_one
        expTwoMulFixedExpResidual 2 (ptr + signExtend12 (-8 : BitVec 12))
          lookahead exponentWord) := by
   rw [expTwoMulFixedExpResidual_one_unfold,
-    expTwoMulFixedExpResidual_two_unfold]
-
-/-- Reload-boundary split at block 2: the single top cell at `ptr-8` (the
-    `lookahead` cell) conjoined with the empty block-3 residual. -/
-theorem expTwoMulFixedExpResidual_succ_two
-    {ptr lookahead : Word} {exponentWord : EvmWord} :
-    expTwoMulFixedExpResidual 2 ptr lookahead exponentWord =
-      ((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-          lookahead) **
-       expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12))
-         lookahead exponentWord) := by
-  rw [expTwoMulFixedExpResidual_two_unfold,
-    expTwoMulFixedExpResidual_ge_three (b := 3) (by omega),
+    expTwoMulFixedExpResidual_ge_two (b := 2) (by omega),
     sepConj_emp_right']
 
 end EvmAsm.Evm64.Exp.Compose
