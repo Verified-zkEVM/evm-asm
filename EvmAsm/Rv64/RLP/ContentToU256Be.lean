@@ -37,8 +37,8 @@
     (This implementation in fact zeroes the buffer before the length check, so
     the bytes are all `0`; the *contract* deliberately under-specifies them so
     that any conforming implementation is a valid drop-in and callers never
-    depend on the zero-fill. This is expressed below with `memOwn`: the caller
-    still owns a writable 32-byte region at `a2`, but its contents are
+    depend on the zero-fill. This is expressed below with `memOwnU256`: the
+    caller still owns a writable 32-byte region at `a2`, but its contents are
     unconstrained.)
 
   ## Verification status
@@ -126,7 +126,7 @@ abbrev rlp_content_to_u256_be_code (base : Word) : CodeReq :=
     output-buffer ownership token, both on entry and (for the failure path)
     on exit — capturing "the caller owns a writable 32-byte region whose
     contents are unconstrained". -/
-def u256OutRegion (outPtr : Word) : Assertion :=
+def memOwnU256 (outPtr : Word) : Assertion :=
   memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) ** memOwn (outPtr + 24)
 
 /--
@@ -134,7 +134,7 @@ def u256OutRegion (outPtr : Word) : Assertion :=
 
 When the requested content length exceeds 32 bytes (`32 <ᵤ len`), the routine
 returns status `a0 = 2` and leaves the 32-byte output buffer at `a2` owned by
-the caller but with **arbitrary content** (`u256OutRegion outPtr` in the post).
+the caller but with **arbitrary content** (`memOwnU256 outPtr` in the post).
 
 Registers `a1`/`a2`/`ra` are preserved; `t0` (`x5`) is clobbered to `32`.
 The routine returns to `ra &&& ~~~1` (`JALR x0, ra, 0`).
@@ -148,10 +148,10 @@ theorem rlp_content_to_u256_be_too_long_spec_within
     cpsTripleWithin 8 base (raVal &&& ~~~1) (rlp_content_to_u256_be_code base)
       ((.x10 ↦ᵣ contentPtr) ** (.x11 ↦ᵣ len) ** (.x12 ↦ᵣ outPtr) **
         (.x5 ↦ᵣ t0Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
-        u256OutRegion outPtr)
+        memOwnU256 outPtr)
       ((.x10 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ len) ** (.x12 ↦ᵣ outPtr) **
         (.x5 ↦ᵣ (32 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
-        u256OutRegion outPtr) := by
+        memOwnU256 outPtr) := by
   -- Phase A: zero the 32-byte output and load 32 into t0 (idx 0..4), base → base + 20.
   have hSD0 := sd_spec_gen_own_within .x12 .x0 outPtr (0 : Word) (0 : BitVec 12) base
   have hSD1 := sd_spec_gen_own_within .x12 .x0 outPtr (0 : Word) (8 : BitVec 12) (base + 4)
@@ -219,9 +219,9 @@ theorem rlp_content_to_u256_be_too_long_spec_within
   -- Weaken to the public caller contract: drop the pure guard, and weaken each
   -- zeroed output dword to `memOwn` (arbitrary content on the failure path).
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hFull
-  · simp only [u256OutRegion] at hp
+  · simp only [memOwnU256] at hp
     xperm_hyp hp
-  · simp only [u256OutRegion]
+  · simp only [memOwnU256]
     exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
       (sepConj_mono_right (sepConj_mono_right
         (sepConj_mono memIs_implies_memOwn

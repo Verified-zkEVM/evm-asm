@@ -2063,7 +2063,7 @@ calling convention so it is a literal drop-in.
     `rlp_content_to_u256_be_too_long_spec_within` — complete leaf-function
     triple `cpsTripleWithin 8 base (raVal &&& ~~~1)`. Inputs `a0`/`a1`/`a2`
     (content ptr / len / out ptr); returns `a0 = 2`; the 32-byte output region
-    at `a2` is returned to the caller as `u256OutRegion` (`memOwn` ×4 — arbitrary
+    at `a2` is returned to the caller as `memOwnU256` (`memOwn` ×4 — arbitrary
     content). Axiom-clean (3 classical), 0 sorry.
   - ⏳ **Success path** (`len ≤ 32`, the right-aligned big-endian copy loop) —
     follow-up; reuse the `ByteCopyIter`/`ByteCopyChain` counted-copy infra.
