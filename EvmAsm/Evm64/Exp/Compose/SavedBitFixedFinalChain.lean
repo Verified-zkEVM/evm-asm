@@ -93,4 +93,42 @@ theorem expExpFinalExitR_of_std
     bv_addr
   exact (expTwoMulFixedIterMergedExitPost_collision_false hcol hMerged).elim
 
+/-- STEP A — the residual induction instantiated at `n = 255`: the full
+    256-iteration loop body from the first `IterPre` (with `ExpResidual 0`/
+    `ExpReadPrefix 0`) to `expExpFinalExitR`.  Both exit hypotheses are
+    discharged by the packaged lemmas above. -/
+theorem exp_final_loop_hBody
+    (base sp evmSp a0 a1 a2 a3 : Word)
+    (baseWord exponentWord : EvmWord) (lookahead : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (e c6 iterCount v10 v18 ptr nextLimb tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 : Word)
+    (hcount : iterCount.toNat = 255 + 1)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord (255 - 255) e)
+    (hControl : expTwoMulFixedControlInvariant exponentWord (255 - 255) c6 ptr
+      nextLimb evmSp)
+    (hInv : expTwoMulFixedAccumulatorInvariant baseWord exponentWord (255 - 255)
+      r0 r1 r2 r3)
+    (hptr : ptr = evmSp + signExtend12
+      (- (16 + 8 * (((255 - 255) / 64 : Nat) : BitVec 12)))) :
+    cpsTripleWithin ((255 + 1) * 193) (base + 44) (base + 296)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3 v7 v11 **
+       (expTwoMulFixedExpResidual ((255 - 255) / 64) ptr lookahead exponentWord **
+         expTwoMulFixedExpReadPrefix ((255 - 255) / 64) evmSp exponentWord))
+      (expExpFinalExitR sp evmSp baseWord exponentWord a0 a1 a2 a3) := by
+  refine exp_merged_loop_from_iterpre_residual_induction
+    base sp evmSp a0 a1 a2 a3
+    (expExpFinalExitR sp evmSp baseWord exponentWord a0 a1 a2 a3)
+    baseWord exponentWord lookahead hbase hBase ?_ ?_ 255 (by omega)
+    e c6 iterCount v10 v18 ptr nextLimb tOld vOld
+    r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11
+    hcount hCursor hControl hInv hptr
+  · intro e' c6' iterCount' ptr' nextLimb' r0' r1' r2' r3' ps hptr' h _hcur _hinv
+    exact expExpFinalExitR_of_std hptr' h
+  · intro e' c6' iterCount' r0' r1' r2' r3' ps h hcur hinv
+    exact expExpFinalExitR_of_relaxed hBase hcur hinv h
+
 end EvmAsm.Evm64.Exp.Compose
