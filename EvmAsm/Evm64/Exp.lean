@@ -112,6 +112,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInduction
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitVacuous
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalChain
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
