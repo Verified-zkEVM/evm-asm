@@ -2045,6 +2045,29 @@ shows more elements than expected (no decode-then-count). Layering:
 - **Output format**: Pointer + length (zero-copy into input buffer)
 - **Depends on**: EL.1 (spec to verify against), EL.2 (byte-level specs)
 
+### EL.5 Codegen-guest RLP drop-in replacements (in progress, bead `evm-asm-cmz21`)
+
+The codegen stateless guest links several RLP decode helpers emitted as raw
+assembly **strings with no proofs** (`EvmAsm/Codegen/Programs/RlpWalk.lean`:
+`rlp_walk_init`, `rlp_walk_next`, `rlp_content_to_u64`, `rlp_content_to_u256_be`;
+plus `RlpRead.lean` / `Tx.lean` index-based helpers). This track replaces them,
+one routine at a time, with verified `Program`s carrying **caller-facing**
+Hoare triples: LP64 register I/O, where the output is located, and — crucially —
+what the output memory region may hold **on failure** (`memOwn`, i.e. arbitrary
+content; callers must not read it). Each verified body matches the guest's
+calling convention so it is a literal drop-in.
+
+- ⏳ **`rlp_content_to_u256_be`** (`EvmAsm/Rv64/RLP/ContentToU256Be.lean`):
+  faithful 21-instruction drop-in body `rlp_content_to_u256_be_prog`.
+  - ✅ **Content-too-long failure path** (`len > 32`):
+    `rlp_content_to_u256_be_too_long_spec_within` — complete leaf-function
+    triple `cpsTripleWithin 8 base (raVal &&& ~~~1)`. Inputs `a0`/`a1`/`a2`
+    (content ptr / len / out ptr); returns `a0 = 2`; the 32-byte output region
+    at `a2` is returned to the caller as `u256OutRegion` (`memOwn` ×4 — arbitrary
+    content). Axiom-clean (3 classical), 0 sorry.
+  - ⏳ **Success path** (`len ≤ 32`, the right-aligned big-endian copy loop) —
+    follow-up; reuse the `ByteCopyIter`/`ByteCopyChain` counted-copy infra.
+
 ---
 
 ## Roadmap: Phases 7-11 (STF — State Transition Function)
