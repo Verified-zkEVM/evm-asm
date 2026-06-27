@@ -13,6 +13,7 @@
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
 
 namespace EvmAsm.Evm64.Exp.Compose
 
@@ -248,24 +249,29 @@ theorem expTwoMulFixedIterReloadSkipCountPost_residual_repartition_one
     ⟨psA, psR, hdisj, hunion, hScratch, hR⟩
   xperm_hyp hCombined
 
-/-- Reload-boundary re-partition (cond branch, block 2). -/
+/-- Reload-boundary re-partition (cond branch, block 2 → block 3): the b=2 reload
+    advances `x16` to `ptr-8 = evmSp+se(-40)` = base operand `a3`'s address, so it
+    enters the RELAXED block-3 pre (`x16` register only, base `a3` is the cell at
+    that address, no separate pointer cell).  `ExpResidual 2 = emp`. -/
 theorem expTwoMulFixedIterReloadCondCountPost_residual_repartition_two
     {iterCount e c6 ptr nextLimb sp evmSp
       r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
     {exitCond : Prop} {lookahead : Word} {exponentWord : EvmWord}
     {frame : Assertion} {ps : PartialState}
+    (hptr : ptr + signExtend12 (-8 : BitVec 12)
+      = evmSp + signExtend12 (-40 : BitVec 12))
     (h :
       (expTwoMulFixedIterReloadCondCountPost iterCount e c6 ptr nextLimb sp evmSp
         r0 r1 r2 r3 a0 a1 a2 a3 base exitCond **
        (expTwoMulFixedExpResidual 2 ptr lookahead exponentWord ** frame)) ps) :
     (∃ v7 v10 v11 d0 d1 d2 d3,
-      (expTwoMulFixedIterPre
+      (expTwoMulFixedIterPreRelaxedBlock3
         nextLimb
         ((0 : Word) + signExtend12 (64 : BitVec 12))
         (expTwoMulIterCountNew iterCount)
         v10
         ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
-        (ptr + signExtend12 (-8 : BitVec 12)) lookahead sp evmSp
+        sp evmSp
         ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
         (((base + 44) + 140) + 68)
         ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 0)
@@ -278,31 +284,56 @@ theorem expTwoMulFixedIterReloadCondCountPost_residual_repartition_two
         ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 2)
         ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
         a0 a1 a2 a3 v7 v11 **
-       (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
-        (expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12))
-          lookahead exponentWord **
-         frame))) ps) := by
+       (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** frame)) ps) := by
   obtain ⟨psA, psR, hdisj, hunion, hA, hR⟩ := h
   obtain ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩ :=
     expTwoMulFixedIterReloadCondCountPost_choose_scratch hA
-  rw [expTwoMulFixedExpResidual_succ_two] at hR
+  rw [expTwoMulFixedExpResidual_ge_two (by omega), sepConj_emp_left'] at hR
   refine ⟨v7, v10, v11, d0, d1, d2, d3, ?_⟩
-  apply expTwoMulFixedIterReloadCondScratchFrame_to_iterPre_frame
-    (nextNextLimb := lookahead)
-    (frame := expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12))
-      lookahead exponentWord ** frame)
-  have hCombined :
+  have hC :
       ((expTwoMulFixedIterSkipCondCountPostScratchPrefix iterCount sp evmSp
           r0 r1 r2 r3 a0 a1 a2 a3 exitCond **
         expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
         expTwoMulFixedIterReloadCondCountPostScratchSuffix e c6 ptr nextLimb base) **
-       (((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-          lookahead) **
-        expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12))
-          lookahead exponentWord) **
-        frame)) ps :=
+        frame) ps :=
     ⟨psA, psR, hdisj, hunion, hScratch, hR⟩
-  xperm_hyp hCombined
+  obtain ⟨h_exit, h_c6, h_bit⟩ :=
+    expTwoMulFixedIterReloadCondScratchFrame_pures hC
+  replace hC := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_left
+      expTwoMulFixedIterScratchIs_x6_to_regOwn)) _ hC
+  unfold expTwoMulFixedIterSkipCondCountPostScratchPrefix
+    expTwoMulFixedIterSkipCondRestScratchPrefix
+    expTwoMulFixedIterReloadCondCountPostScratchSuffix
+    expTwoMulFixedIterSkipCondRestScratchSuffix
+    expTwoMulFixedIterReloadCondFrame at hC
+  simp only [] at hC
+  rw [show (⌜exitCond⌝ : Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_exit⟩⟩] at hC
+  rw [show (⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ : Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_c6⟩⟩] at hC
+  rw [show
+      (⌜(e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) ≠ 0⌝ :
+        Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_bit⟩⟩] at hC
+  simp only [sepConj_emp_left', sepConj_emp_right'] at hC
+  rw [hptr] at hC
+  unfold expTwoMulFixedIterPreRelaxedBlock3
+  simp only [evmWordIs, signExtend12_0, signExtend12_8, signExtend12_16,
+    signExtend12_24, signExtend12_32, signExtend12_40, signExtend12_48,
+    signExtend12_56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg48,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg40,
+    EvmAsm.Rv64.AddrNorm.word_add_zero,
+    show (32 : Word) + 8 = 40 from by decide,
+    show (32 : Word) + 16 = 48 from by decide,
+    show (32 : Word) + 24 = 56 from by decide,
+    show (140 : Word) + 68 = 208 from by decide,
+    show (44 : Word) + 208 = 252 from by decide,
+    BitVec.add_assoc] at hC ⊢
+  xperm_hyp hC
 
 /-- Reload-boundary re-partition (skip branch, block 2). -/
 theorem expTwoMulFixedIterReloadSkipCountPost_residual_repartition_two
@@ -310,18 +341,20 @@ theorem expTwoMulFixedIterReloadSkipCountPost_residual_repartition_two
       r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
     {exitCond : Prop} {lookahead : Word} {exponentWord : EvmWord}
     {frame : Assertion} {ps : PartialState}
+    (hptr : ptr + signExtend12 (-8 : BitVec 12)
+      = evmSp + signExtend12 (-40 : BitVec 12))
     (h :
       (expTwoMulFixedIterReloadSkipCountPost iterCount e c6 ptr nextLimb sp evmSp
         r0 r1 r2 r3 a0 a1 a2 a3 base exitCond **
        (expTwoMulFixedExpResidual 2 ptr lookahead exponentWord ** frame)) ps) :
     (∃ v7 v10 v11 d0 d1 d2 d3,
-      (expTwoMulFixedIterPre
+      (expTwoMulFixedIterPreRelaxedBlock3
         nextLimb
         ((0 : Word) + signExtend12 (64 : BitVec 12))
         (expTwoMulIterCountNew iterCount)
         v10
         ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
-        (ptr + signExtend12 (-8 : BitVec 12)) lookahead sp evmSp
+        sp evmSp
         ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
         (((base + 44) + 32) + 68)
         ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0)
@@ -334,32 +367,57 @@ theorem expTwoMulFixedIterReloadSkipCountPost_residual_repartition_two
         ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2)
         ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
         a0 a1 a2 a3 v7 v11 **
-       (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) **
-        (expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12))
-          lookahead exponentWord **
-         frame))) ps) := by
+       (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** frame)) ps) := by
   obtain ⟨psA, psR, hdisj, hunion, hA, hR⟩ := h
   obtain ⟨v6, v7, v10, v11, d0, d1, d2, d3, hScratch⟩ :=
     expTwoMulFixedIterReloadSkipCountPost_choose_scratch hA
-  rw [expTwoMulFixedExpResidual_succ_two] at hR
+  rw [expTwoMulFixedExpResidual_ge_two (by omega), sepConj_emp_left'] at hR
   refine ⟨v7, v10, v11, d0, d1, d2, d3, ?_⟩
-  apply expTwoMulFixedIterReloadSkipScratchFrame_to_iterPre_frame
-    (nextNextLimb := lookahead)
-    (frame := expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12))
-      lookahead exponentWord ** frame)
-  have hCombined :
+  have hC :
       ((expTwoMulFixedIterSkipCountPostScratchPrefix iterCount sp evmSp
           r0 r1 r2 r3 exitCond **
         expTwoMulFixedIterScratchIs evmSp v6 v7 v10 v11 d0 d1 d2 d3 **
         expTwoMulFixedIterReloadSkipCountPostScratchSuffix e c6 ptr nextLimb
           evmSp a0 a1 a2 a3 base) **
-       (((((ptr + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ
-          lookahead) **
-        expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12))
-          lookahead exponentWord) **
-        frame)) ps :=
+        frame) ps :=
     ⟨psA, psR, hdisj, hunion, hScratch, hR⟩
-  xperm_hyp hCombined
+  obtain ⟨h_exit, h_c6, h_bit⟩ :=
+    expTwoMulFixedIterReloadSkipScratchFrame_pures hC
+  replace hC := sepConj_mono_left
+    (sepConj_mono_right (sepConj_mono_left
+      expTwoMulFixedIterScratchIs_x6_to_regOwn)) _ hC
+  unfold expTwoMulFixedIterSkipCountPostScratchPrefix
+    expTwoMulFixedIterSkipRestScratchPrefix
+    expTwoMulFixedIterReloadSkipCountPostScratchSuffix
+    expTwoMulFixedIterReloadSkipRestScratchSuffix
+    expTwoMulFixedIterBaseFrame at hC
+  simp only [] at hC
+  rw [show (⌜exitCond⌝ : Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_exit⟩⟩] at hC
+  rw [show (⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ : Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_c6⟩⟩] at hC
+  rw [show
+      (⌜(e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12) = 0⌝ :
+        Assertion) = empAssertion from
+      funext fun ps' => propext ⟨fun h' => h'.1, fun h' => ⟨h', h_bit⟩⟩] at hC
+  simp only [sepConj_emp_left', sepConj_emp_right'] at hC
+  rw [hptr] at hC
+  unfold expTwoMulFixedIterPreRelaxedBlock3
+  simp only [evmWordIs, signExtend12_0, signExtend12_8, signExtend12_16,
+    signExtend12_24, signExtend12_32, signExtend12_40, signExtend12_48,
+    signExtend12_56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg56,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg48,
+    EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg40,
+    EvmAsm.Rv64.AddrNorm.word_add_zero,
+    show (32 : Word) + 8 = 40 from by decide,
+    show (32 : Word) + 16 = 48 from by decide,
+    show (32 : Word) + 24 = 56 from by decide,
+    show (32 : Word) + 68 = 100 from by decide,
+    show (44 : Word) + 100 = 144 from by decide,
+    BitVec.add_assoc] at hC ⊢
+  xperm_hyp hC
 
 /-- Non-reload (within-block) re-partition, cond branch: the loop-back
     `SkipCondCountPost ** PointerPost` together with the (unchanged) exponent
