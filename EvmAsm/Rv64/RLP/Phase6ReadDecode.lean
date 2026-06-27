@@ -11,13 +11,11 @@
 -/
 
 import EvmAsm.Rv64.RLP.Phase4HintLen
-import EvmAsm.Rv64.RLP.SchemaDecodeValues
 import EvmAsm.Rv64.InstructionSpecs
 
 namespace EvmAsm.Rv64.RLP
 
 open EvmAsm.Rv64
-open EvmAsm.EL.RLP
 open EvmAsm.Rv64.Tactics
 
 set_option maxRecDepth 8000 in

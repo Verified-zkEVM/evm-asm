@@ -15,7 +15,6 @@
   post `x15 ↦ v15` to `regOwn x15` (value-independent) and then peeling `x15` in the pre.
 -/
 
-import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegionRegOwn
 import EvmAsm.Rv64.RLP.UnifiedBytesFieldRegOwn
 import EvmAsm.Rv64.RLP.FieldUnitDisjoint
 

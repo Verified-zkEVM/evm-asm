@@ -16,12 +16,10 @@
 -/
 
 import EvmAsm.Rv64.RLP.Phase6WriteOutput
-import EvmAsm.Rv64.RLP.SchemaDecodeValues
 
 namespace EvmAsm.Rv64.RLP
 
 open EvmAsm.Rv64
-open EvmAsm.EL.RLP
 open EvmAsm.Rv64.Tactics
 
 -- ============================================================================
