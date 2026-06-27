@@ -51,14 +51,14 @@
   ## Verification status
 
   Lays out the faithful 26-instruction canonical-strict drop-in body
-  `rlp_content_to_u256_be_prog`. Both **failure paths** are proved as complete
-  leaf-function Hoare triples: the **content-too-long** path (`len > 32`,
-  status 2, `rlp_content_to_u256_be_too_long_spec_within`) and the
-  **non-canonical** path (`0 < len ≤ 32 ∧ content[0] = 0`, status 3,
-  `rlp_content_to_u256_be_noncanonical_spec_within`). Follow-ups: the success
-  copy-loop (`len ≤ 32`, canonical) and the unified 3-way theorem covering all
-  outcomes. (The success copy-loop induction proven on the earlier lenient
-  layout is preserved in git for the re-offset redo.)
+  `rlp_content_to_u256_be_prog`. **All four behavioral cases** are proved as
+  complete leaf-function Hoare triples:
+    * `…_too_long_spec_within` — `len > 32`, status 2;
+    * `…_noncanonical_spec_within` — `0 < len ≤ 32 ∧ content[0] = 0`, status 3;
+    * `…_empty_spec_within` — `len = 0` (canonical zero), status 0, output `0`;
+    * `…_success_spec_within` — `0 < len ≤ 32 ∧ content[0] ≠ 0`, status 0, output
+      the right-aligned big-endian `u256`.
+  A single unified dispatch theorem combining the four is a follow-up.
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
@@ -879,8 +879,7 @@ the all-zero `u256` (`replicate 32 0`). No input byte is read. Scratch `t0..t4`
 clobbered (`regOwn`); `a1`/`a2`/`ra` preserved.
 -/
 theorem rlp_content_to_u256_be_empty_spec_within
-    (base srcBase outPtr raVal x5Old x6Old x7Old x28Old x29Old : Word) (srcOff : Nat)
-    (hoalign : outPtr.toNat % 8 = 0) (hoover : outPtr.toNat + 32 ≤ 2 ^ 64) :
+    (base srcBase outPtr raVal x5Old x6Old x7Old x28Old x29Old : Word) (srcOff : Nat) :
     cpsTripleWithin 9 base (raVal &&& ~~~1) (rlp_content_to_u256_be_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (0 : Word)) **
        (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
