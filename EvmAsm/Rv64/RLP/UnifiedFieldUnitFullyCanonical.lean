@@ -23,51 +23,6 @@ open EvmAsm.EL.RLP
 open EvmAsm.Rv64.Tactics
 
 set_option maxRecDepth 8000 in
-/-- **Fully-canonical scalar field unit.** As `…_canonical` but `x14` is also `regOwn` in both
-    pre and post — a fully uniform scratch interface (`x5, x10, x11, x12, x14, x15`). -/
-theorem unified_scalar_field_decode_and_store_region_fully_canonical
-    (base regionBase : Word) (rOut : Reg) (outBase : Word) (fieldImm : BitVec 12)
-    (bs : List Byte) (O : Nat) (data tail : List Byte) (outBytes : List Byte) (di0 : Nat)
-    (hlen1 : 1 ≤ data.length) (hlen8 : data.length ≤ 8)
-    (halign : regionBase.toNat % 8 = 0)
-    (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
-    (hdrop : bs.drop O = encode (.bytes data) ++ tail)
-    (hdalign : outBase.toNat % 8 = 0) (hdst : di0 + 8 ≤ outBytes.length)
-    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
-    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
-    (hImm : signExtend12 fieldImm = BitVec.ofNat 64 di0)
-    (hcode : base.toNat + (180 + 4 + 12 * 8) < 2 ^ 64) :
-    cpsTripleWithin ((61 + (2 + 6 * data.length)) + (1 + 3 * 8)) base
-        (base + 180 + 4 + BitVec.ofNat 64 (12 * 8))
-      (scalarRegionUnitCR base rOut fieldImm)
-      (((regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) ** (regOwn .x11) **
-        (regOwn .x12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (regOwn .x14) **
-        (regOwn .x15) ** bytesRegion regionBase bs) **
-       ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
-      (((regOwn .x11) ** (regOwn .x14) ** (rOut ↦ᵣ outBase) **
-        bytesRegion outBase (spillRange outBytes (BitVec.ofNat 64 (Nat.fromBytesBE data)) di0 8)) **
-       ((.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 (O + (encode (.bytes data)).length))) **
-        regOwn .x12 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion regionBase bs **
-        regOwn .x5 ** regOwn .x10 ** (regOwn .x15)))
-    ∧ decodeScalar (bs.drop O) = some (Nat.fromBytesBE data, tail) := by
-  refine ⟨?_, ?_⟩
-  · refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
-      (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x14)
-        (P := (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) ** (regOwn .x11) **
-          (regOwn .x12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
-          (regOwn .x15) ** bytesRegion regionBase bs ** ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
-        (fun v14 => ?_))
-    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (sepConj_mono_left (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x14))))
-      (unified_scalar_field_decode_and_store_region_canonical base regionBase rOut outBase fieldImm
-        bs O data tail outBytes di0 v14 hlen1 hlen8 halign hover hwin hdrop hdalign hdst hdov hdval
-        hImm hcode).1
-  · exact (unified_scalar_field_decode_and_store_region_canonical base regionBase rOut outBase
-      fieldImm bs O data tail outBytes di0 0 hlen1 hlen8 halign hover hwin hdrop hdalign hdst hdov
-      hdval hImm hcode).2
-
-set_option maxRecDepth 8000 in
 /-- **Fully-canonical byte-array field unit.** As `…_canonical` but `x14` is also `regOwn` in
     both pre and post — the same fully uniform scratch interface as the scalar unit. -/
 theorem unified_bytes_field_decode_and_copy_fully_canonical

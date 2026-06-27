@@ -15,7 +15,6 @@
   post `x15 ↦ v15` to `regOwn x15` (value-independent) and then peeling `x15` in the pre.
 -/
 
-import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegionRegOwn
 import EvmAsm.Rv64.RLP.UnifiedBytesFieldRegOwn
 import EvmAsm.Rv64.RLP.FieldUnitDisjoint
 
@@ -24,56 +23,6 @@ namespace EvmAsm.Rv64.RLP
 open EvmAsm.Rv64
 open EvmAsm.EL.RLP
 open EvmAsm.Rv64.Tactics
-
-set_option maxRecDepth 8000 in
-/-- **Canonical scalar field decode-and-store into region.** As
-    `unified_scalar_field_decode_and_store_region_at_regOwn` but `x15` is also owned abstractly
-    (`regOwn`) in both the precondition and postcondition — a uniform all-`regOwn` scratch
-    interface (`x5, x10, x11, x12, x15`) for chaining in any field order. -/
-theorem unified_scalar_field_decode_and_store_region_canonical
-    (base regionBase : Word) (rOut : Reg) (outBase : Word) (fieldImm : BitVec 12)
-    (bs : List Byte) (O : Nat) (data tail : List Byte) (outBytes : List Byte) (di0 : Nat)
-    (v14Old : Word)
-    (hlen1 : 1 ≤ data.length) (hlen8 : data.length ≤ 8)
-    (halign : regionBase.toNat % 8 = 0)
-    (hover : regionBase.toNat + bs.length < 2 ^ 64)
-    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
-    (hdrop : bs.drop O = encode (.bytes data) ++ tail)
-    (hdalign : outBase.toNat % 8 = 0) (hdst : di0 + 8 ≤ outBytes.length)
-    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
-    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
-    (hImm : signExtend12 fieldImm = BitVec.ofNat 64 di0)
-    (hcode : base.toNat + (180 + 4 + 12 * 8) < 2 ^ 64) :
-    cpsTripleWithin ((61 + (2 + 6 * data.length)) + (1 + 3 * 8)) base
-        (base + 180 + 4 + BitVec.ofNat 64 (12 * 8))
-      (scalarRegionUnitCR base rOut fieldImm)
-      (((regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) ** (regOwn .x11) **
-        (regOwn .x12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
-        (regOwn .x15) ** bytesRegion regionBase bs) **
-       ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
-      (((regOwn .x11) ** (.x14 ↦ᵣ (outBase + BitVec.ofNat 64 (di0 + 8))) ** (rOut ↦ᵣ outBase) **
-        bytesRegion outBase (spillRange outBytes (BitVec.ofNat 64 (Nat.fromBytesBE data)) di0 8)) **
-       ((.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 (O + (encode (.bytes data)).length))) **
-        regOwn .x12 ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion regionBase bs **
-        regOwn .x5 ** regOwn .x10 ** (regOwn .x15)))
-    ∧ decodeScalar (bs.drop O) = some (Nat.fromBytesBE data, tail) := by
-  refine ⟨?_, ?_⟩
-  · refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
-      (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x15)
-        (P := (regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x10) ** (regOwn .x11) **
-          (regOwn .x12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
-          bytesRegion regionBase bs ** ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
-        (fun v15 => ?_))
-    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-        (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-          (regIs_implies_regOwn .x15))))))))
-      (unified_scalar_field_decode_and_store_region_at_regOwn base regionBase rOut outBase fieldImm
-        bs O data tail outBytes di0 v14Old v15 hlen1 hlen8 halign hover hwin hdrop hdalign hdst
-        hdov hdval hImm hcode).1
-  · exact (unified_scalar_field_decode_and_store_region_at_regOwn base regionBase rOut outBase
-      fieldImm bs O data tail outBytes di0 v14Old 0 hlen1 hlen8 halign hover hwin hdrop hdalign
-      hdst hdov hdval hImm hcode).2
 
 set_option maxRecDepth 8000 in
 /-- **Canonical byte-array field decode-and-copy into region.** As

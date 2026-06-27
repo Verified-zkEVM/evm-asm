@@ -9,11 +9,17 @@
 -/
 
 import EvmAsm.Rv64.RLP.Phase6ReadDecode
+import EvmAsm.Rv64.MemRegion
 
 namespace EvmAsm.Rv64.RLP
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
+
+/-- `bytesRegion` is PC-free — lets `runBlock`/`pcFree` discharge frame side-conditions. -/
+instance (regionBase : Word) (bs : List (BitVec 8)) :
+    Assertion.PCFree (bytesRegion regionBase bs) :=
+  ⟨bytesRegion_pcFree _ _⟩
 
 /-- **A byte read from a held `bytesRegion`.** When `bytesRegion regionBase bs ** R` holds in `s`
     (region dword-aligned, byte `i` in range, no address overflow), `s.getByte (regionBase + i)`
