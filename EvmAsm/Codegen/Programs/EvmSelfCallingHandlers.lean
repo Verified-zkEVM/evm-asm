@@ -76,17 +76,30 @@ private def addmodRuntimeAsm : String :=
 /-- EXP (0x0a) handler body: the double-fixed verified EXP body inlined
     with `mul_callable`, mirroring `evmAddmodComposed`.
 
+    Uses the architecture-B **headroom** body
+    (`evm_exp_..._fixed_fixed_headroom_canonical`), which fixes the
+    stack-corruption bug `evm-asm-fjivz`: the prior `_fixed_fixed_canonical`
+    body ran its squaring loop in place and marshalled the MUL factors into
+    the *live* EVM stack words below the two operands (slots [2]/[3] at
+    `x12+64..120`), clobbering caller data. The headroom body copies the
+    operands into the slack below the live stack (`evm_stack_guard`, 512 B)
+    and runs the loop there, leaving the live stack framed through untouched.
+    The counter stays in callee-saved `x22` (not the `x20` of the proof-only
+    `_headroom`), so the dispatcher's reserved `x20`/`x21` are preserved.
+
     Composition:
-      - `evm_exp_..._fixed_fixed_canonical 200 92`: 84 instr (336 B). The
-        two interior `JAL .x1` MUL-call sites target `mul_callable`.
-      - skip-JAL `JAL .x0 +260`: 1 instr (4 B) at byte 336; jumps past
-        the inlined callable to the handler tail (260 = 4 + 256).
-      - `mul_callable`: 64 instr (256 B) at byte 340.
+      - `evm_exp_..._fixed_fixed_headroom_canonical 200 92`: 102 instr (408 B).
+        The two interior `JAL .x1` MUL-call sites target `mul_callable`. The
+        operand-copy prologue shifts the loop body +72 bytes, but `mul_callable`
+        shifts by the same +72, so the 200/92 offsets are unchanged.
+      - skip-JAL `JAL .x0 +260`: 1 instr (4 B) at byte 408; jumps past the
+        inlined callable to the handler tail (260 = 4 + 256).
+      - `mul_callable`: 64 instr (256 B) at byte 412.
 
     Net `x12` advance: `exp_epilogue` does one `ADDI x12, x12, 32` (pops 2,
-    pushes 1); the per-iteration call marshal/un-marshal nets zero. -/
+    pushes 1); the headroom operand-copy / pointer-frame moves net zero. -/
 def evmExpComposed : Program :=
-  EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_fixed_canonical
+  EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_fixed_headroom_canonical
     (200 : BitVec 21) (92 : BitVec 21) ;;
   single (Instr.JAL .x0 (260 : BitVec 21)) ;;
   EvmAsm.Evm64.mul_callable
