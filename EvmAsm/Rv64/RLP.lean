@@ -151,3 +151,4 @@ import EvmAsm.Rv64.RLP.ValidatingScalarStore
 import EvmAsm.Rv64.RLP.ValidatingBytesCopy
 import EvmAsm.Rv64.RLP.ValidatingExactArity
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortListValidated
+import EvmAsm.Rv64.RLP.ContentToU256Be
