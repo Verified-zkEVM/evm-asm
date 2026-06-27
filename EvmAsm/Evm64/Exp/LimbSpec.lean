@@ -554,6 +554,109 @@ theorem exp_epilogue_ofProg_spec_within
   rw [← exp_epilogue_code_eq_ofProg]
   exact exp_epilogue_spec_within sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 base
 
+-- ============================================================================
+-- Section 5.6: exp_loop_stack_save / exp_loop_stack_restore (bug evm-asm-fjivz)
+-- ============================================================================
+--
+-- Straight-line specs for the two blocks that preserve the caller EVM-stack
+-- words at `evmSp + 64 .. + 120` across the loop, by copying them to/from the
+-- free headroom at `evmSp - 64 .. - 8`. Both run with `x12 = evmSp` and use
+-- `x6` as the copy temporary. Source cells are at small positive offsets;
+-- headroom cells are at `signExtend12`-negative offsets.
+
+def exp_loop_stack_save_code (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.LD .x6 .x12 64)).union
+    ((CodeReq.singleton (base + 4) (.SD .x12 .x6 (-64))).union
+      ((CodeReq.singleton (base + 8) (.LD .x6 .x12 72)).union
+        ((CodeReq.singleton (base + 12) (.SD .x12 .x6 (-56))).union
+          ((CodeReq.singleton (base + 16) (.LD .x6 .x12 80)).union
+            ((CodeReq.singleton (base + 20) (.SD .x12 .x6 (-48))).union
+              ((CodeReq.singleton (base + 24) (.LD .x6 .x12 88)).union
+                ((CodeReq.singleton (base + 28) (.SD .x12 .x6 (-40))).union
+                  ((CodeReq.singleton (base + 32) (.LD .x6 .x12 96)).union
+                    ((CodeReq.singleton (base + 36) (.SD .x12 .x6 (-32))).union
+                      ((CodeReq.singleton (base + 40) (.LD .x6 .x12 104)).union
+                        ((CodeReq.singleton (base + 44) (.SD .x12 .x6 (-24))).union
+                          ((CodeReq.singleton (base + 48) (.LD .x6 .x12 112)).union
+                            ((CodeReq.singleton (base + 52) (.SD .x12 .x6 (-16))).union
+                              ((CodeReq.singleton (base + 56) (.LD .x6 .x12 120)).union
+                                (CodeReq.singleton (base + 60)
+                                  (.SD .x12 .x6 (-8)))))))))))))))))
+
+theorem exp_loop_stack_save_code_eq_ofProg (base : Word) :
+    exp_loop_stack_save_code base = CodeReq.ofProg base exp_loop_stack_save := by
+  unfold exp_loop_stack_save_code exp_loop_stack_save LD SD single seq
+  change _ = CodeReq.ofProg base
+    [.LD .x6 .x12 64, .SD .x12 .x6 (-64), .LD .x6 .x12 72, .SD .x12 .x6 (-56),
+     .LD .x6 .x12 80, .SD .x12 .x6 (-48), .LD .x6 .x12 88, .SD .x12 .x6 (-40),
+     .LD .x6 .x12 96, .SD .x12 .x6 (-32), .LD .x6 .x12 104, .SD .x12 .x6 (-24),
+     .LD .x6 .x12 112, .SD .x12 .x6 (-16), .LD .x6 .x12 120, .SD .x12 .x6 (-8)]
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_singleton]
+  bv_addr
+
+theorem exp_loop_stack_save_spec_within
+    (evmSp v6 s0 s1 s2 s3 s4 s5 s6 s7 h0 h1 h2 h3 h4 h5 h6 h7 : Word)
+    (base : Word) :
+    cpsTripleWithin 16 base (base + 64) (exp_loop_stack_save_code base)
+      ((.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 (64 : BitVec 12)) ↦ₘ s0) **
+       ((evmSp + signExtend12 (72 : BitVec 12)) ↦ₘ s1) **
+       ((evmSp + signExtend12 (80 : BitVec 12)) ↦ₘ s2) **
+       ((evmSp + signExtend12 (88 : BitVec 12)) ↦ₘ s3) **
+       ((evmSp + signExtend12 (96 : BitVec 12)) ↦ₘ s4) **
+       ((evmSp + signExtend12 (104 : BitVec 12)) ↦ₘ s5) **
+       ((evmSp + signExtend12 (112 : BitVec 12)) ↦ₘ s6) **
+       ((evmSp + signExtend12 (120 : BitVec 12)) ↦ₘ s7) **
+       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-32) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-24) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-16) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-8) : BitVec 12)) ↦ₘ h7))
+      ((.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ s7) **
+       ((evmSp + signExtend12 (64 : BitVec 12)) ↦ₘ s0) **
+       ((evmSp + signExtend12 (72 : BitVec 12)) ↦ₘ s1) **
+       ((evmSp + signExtend12 (80 : BitVec 12)) ↦ₘ s2) **
+       ((evmSp + signExtend12 (88 : BitVec 12)) ↦ₘ s3) **
+       ((evmSp + signExtend12 (96 : BitVec 12)) ↦ₘ s4) **
+       ((evmSp + signExtend12 (104 : BitVec 12)) ↦ₘ s5) **
+       ((evmSp + signExtend12 (112 : BitVec 12)) ↦ₘ s6) **
+       ((evmSp + signExtend12 (120 : BitVec 12)) ↦ₘ s7) **
+       ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ s0) **
+       ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ s1) **
+       ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ s2) **
+       ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ s3) **
+       ((evmSp + signExtend12 ((-32) : BitVec 12)) ↦ₘ s4) **
+       ((evmSp + signExtend12 ((-24) : BitVec 12)) ↦ₘ s5) **
+       ((evmSp + signExtend12 ((-16) : BitVec 12)) ↦ₘ s6) **
+       ((evmSp + signExtend12 ((-8) : BitVec 12)) ↦ₘ s7)) := by
+  unfold exp_loop_stack_save_code
+  have hLd0 := ld_spec_gen_within .x6 .x12 evmSp v6 s0 (64) base (by decide)
+  have hSd0 := generic_sd_spec_within .x12 .x6 evmSp s0 h0 (-64) (base + 4)
+  have hLd1 := ld_spec_gen_within .x6 .x12 evmSp s0 s1 (72) (base + 8) (by decide)
+  have hSd1 := generic_sd_spec_within .x12 .x6 evmSp s1 h1 (-56) (base + 12)
+  have hLd2 := ld_spec_gen_within .x6 .x12 evmSp s1 s2 (80) (base + 16) (by decide)
+  have hSd2 := generic_sd_spec_within .x12 .x6 evmSp s2 h2 (-48) (base + 20)
+  have hLd3 := ld_spec_gen_within .x6 .x12 evmSp s2 s3 (88) (base + 24) (by decide)
+  have hSd3 := generic_sd_spec_within .x12 .x6 evmSp s3 h3 (-40) (base + 28)
+  have hLd4 := ld_spec_gen_within .x6 .x12 evmSp s3 s4 (96) (base + 32) (by decide)
+  have hSd4 := generic_sd_spec_within .x12 .x6 evmSp s4 h4 (-32) (base + 36)
+  have hLd5 := ld_spec_gen_within .x6 .x12 evmSp s4 s5 (104) (base + 40) (by decide)
+  have hSd5 := generic_sd_spec_within .x12 .x6 evmSp s5 h5 (-24) (base + 44)
+  have hLd6 := ld_spec_gen_within .x6 .x12 evmSp s5 s6 (112) (base + 48) (by decide)
+  have hSd6 := generic_sd_spec_within .x12 .x6 evmSp s6 h6 (-16) (base + 52)
+  have hLd7 := ld_spec_gen_within .x6 .x12 evmSp s6 s7 (120) (base + 56) (by decide)
+  have hSd7 := generic_sd_spec_within .x12 .x6 evmSp s7 h7 (-8) (base + 60)
+  runBlock hLd0 hSd0 hLd1 hSd1 hLd2 hSd2 hLd3 hSd3 hLd4 hSd4 hLd5 hSd5 hLd6 hSd6
+    hLd7 hSd7
+
 /-- The word assembled from the four accumulator limbs copied out by
     `exp_epilogue`. Limbs are little-endian, matching `evmWordIs`. -/
 def expResultWord (r0 r1 r2 r3 : Word) : EvmWord :=
