@@ -610,4 +610,106 @@ theorem exp_saverestore_ptr_restore_then_restore_spec_within
     g0 g1 g2 g3 g4 g5 g6 g7 base squaringMulOff condMulOff skipOff backOff
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hq => by xperm_hyp hq) h1 h2
 
+/-- Suffix `ptr_restore ;; restore ;; epilogue` (base+360 → base+464): restore
+    the EVM stack pointer and the saved caller words, then write the accumulator
+    result `r0..r3` (RISC-V scratch `sp+0..24`) to the result slot `evmSp+32..56`
+    and advance `x12` to `evmSp+32` (one EVM-word pop). -/
+theorem exp_saverestore_suffix_spec_within
+    (sp evmSp v6 tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (s0 s1 s2 s3 s4 s5 s6 s7 g0 g1 g2 g3 g4 g5 g6 g7 : Word)
+    (base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 26 (base + 360) (base + 464)
+      (evm_exp_saverestore_code squaringMulOff condMulOff skipOff backOff base)
+      (((.x12 ↦ᵣ (evmSp + signExtend12 (64 : BitVec 12))) **
+        ((.x6 ↦ᵣ v6) **
+         ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ s0) **
+         ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ s1) **
+         ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ s2) **
+         ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ s3) **
+         ((evmSp + signExtend12 ((-32) : BitVec 12)) ↦ₘ s4) **
+         ((evmSp + signExtend12 ((-24) : BitVec 12)) ↦ₘ s5) **
+         ((evmSp + signExtend12 ((-16) : BitVec 12)) ↦ₘ s6) **
+         ((evmSp + signExtend12 ((-8) : BitVec 12)) ↦ₘ s7) **
+         ((evmSp + signExtend12 (64 : BitVec 12)) ↦ₘ g0) **
+         ((evmSp + signExtend12 (72 : BitVec 12)) ↦ₘ g1) **
+         ((evmSp + signExtend12 (80 : BitVec 12)) ↦ₘ g2) **
+         ((evmSp + signExtend12 (88 : BitVec 12)) ↦ₘ g3) **
+         ((evmSp + signExtend12 (96 : BitVec 12)) ↦ₘ g4) **
+         ((evmSp + signExtend12 (104 : BitVec 12)) ↦ₘ g5) **
+         ((evmSp + signExtend12 (112 : BitVec 12)) ↦ₘ g6) **
+         ((evmSp + signExtend12 (120 : BitVec 12)) ↦ₘ g7))) **
+       ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))
+      (((.x6 ↦ᵣ s7) **
+        ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ s0) **
+        ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ s1) **
+        ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ s2) **
+        ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ s3) **
+        ((evmSp + signExtend12 ((-32) : BitVec 12)) ↦ₘ s4) **
+        ((evmSp + signExtend12 ((-24) : BitVec 12)) ↦ₘ s5) **
+        ((evmSp + signExtend12 ((-16) : BitVec 12)) ↦ₘ s6) **
+        ((evmSp + signExtend12 ((-8) : BitVec 12)) ↦ₘ s7) **
+        ((evmSp + signExtend12 (64 : BitVec 12)) ↦ₘ s0) **
+        ((evmSp + signExtend12 (72 : BitVec 12)) ↦ₘ s1) **
+        ((evmSp + signExtend12 (80 : BitVec 12)) ↦ₘ s2) **
+        ((evmSp + signExtend12 (88 : BitVec 12)) ↦ₘ s3) **
+        ((evmSp + signExtend12 (96 : BitVec 12)) ↦ₘ s4) **
+        ((evmSp + signExtend12 (104 : BitVec 12)) ↦ₘ s5) **
+        ((evmSp + signExtend12 (112 : BitVec 12)) ↦ₘ s6) **
+        ((evmSp + signExtend12 (120 : BitVec 12)) ↦ₘ s7)) **
+       ((.x2 ↦ᵣ sp) **
+        (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+        (.x5 ↦ᵣ r3) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ r0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ r1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ r2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3))) := by
+  have h1 := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+      ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+      ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+      ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+      ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+      ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+      ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+      ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+      ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    (exp_saverestore_ptr_restore_then_restore_spec_within evmSp v6 s0 s1 s2 s3 s4 s5 s6 s7
+      g0 g1 g2 g3 g4 g5 g6 g7 base squaringMulOff condMulOff skipOff backOff)
+  have h2 := cpsTripleWithin_frameL
+    ((.x6 ↦ᵣ s7) **
+      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ s0) **
+      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ s1) **
+      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ s2) **
+      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ s3) **
+      ((evmSp + signExtend12 ((-32) : BitVec 12)) ↦ₘ s4) **
+      ((evmSp + signExtend12 ((-24) : BitVec 12)) ↦ₘ s5) **
+      ((evmSp + signExtend12 ((-16) : BitVec 12)) ↦ₘ s6) **
+      ((evmSp + signExtend12 ((-8) : BitVec 12)) ↦ₘ s7) **
+      ((evmSp + signExtend12 (64 : BitVec 12)) ↦ₘ s0) **
+      ((evmSp + signExtend12 (72 : BitVec 12)) ↦ₘ s1) **
+      ((evmSp + signExtend12 (80 : BitVec 12)) ↦ₘ s2) **
+      ((evmSp + signExtend12 (88 : BitVec 12)) ↦ₘ s3) **
+      ((evmSp + signExtend12 (96 : BitVec 12)) ↦ₘ s4) **
+      ((evmSp + signExtend12 (104 : BitVec 12)) ↦ₘ s5) **
+      ((evmSp + signExtend12 (112 : BitVec 12)) ↦ₘ s6) **
+      ((evmSp + signExtend12 (120 : BitVec 12)) ↦ₘ s7))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    (exp_saverestore_epilogue_lifted sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 base
+      squaringMulOff condMulOff skipOff backOff)
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hq => by xperm_hyp hq) h1 h2
+
 end EvmAsm.Evm64.Exp.Compose
