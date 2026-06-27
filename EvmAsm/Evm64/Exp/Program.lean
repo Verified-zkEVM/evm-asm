@@ -937,6 +937,63 @@ theorem exp_loop_pointer_restore_byte_length :
   rw [exp_loop_pointer_restore_length]
 
 -- ----------------------------------------------------------------------------
+-- EVM-stack caller-slot SAVE / RESTORE (bug evm-asm-fjivz)
+-- ----------------------------------------------------------------------------
+--
+-- The 256-iteration loop uses the EVM stack window `x12_loop + 0 .. + 56`
+-- (= `sp_evm0 + 64 .. + 120`, the two caller stack words below the EXP
+-- operands) as transient MUL marshalling scratch and never restores it.
+-- For EXP to honour the standard stack contract (pop base+exp, push the
+-- result, preserve the rest of the caller stack), those two words must be
+-- preserved across the loop. We copy them, once, into the free headroom
+-- below the live EVM stack top (`sp_evm0 - 64 .. - 8`, inside the 512-byte
+-- slack guaranteed around the EVM stack) before the loop, and copy them
+-- back afterwards. Both blocks run with `x12 = sp_evm0` (the SAVE block is
+-- emitted between the prologue and `exp_loop_pointer_advance`; the RESTORE
+-- block between `exp_loop_pointer_restore` and `exp_epilogue`). They use
+-- `x6` as the copy temporary, which is `regOwn` (don't-care) at loop entry
+-- and is freely clobbered by the loop body, so no live value is disturbed.
+
+/-- Save the two caller EVM-stack words at `x12 + 64 .. + 120` (the eight
+    8-byte limbs the loop overwrites as MUL scratch) into the free headroom
+    at `x12 - 64 .. - 8`. Runs with `x12 = sp_evm0`. 16 instructions. -/
+def exp_loop_stack_save : Program :=
+  LD .x6 .x12 64 ;; SD .x12 .x6 (-64) ;;
+  LD .x6 .x12 72 ;; SD .x12 .x6 (-56) ;;
+  LD .x6 .x12 80 ;; SD .x12 .x6 (-48) ;;
+  LD .x6 .x12 88 ;; SD .x12 .x6 (-40) ;;
+  LD .x6 .x12 96 ;; SD .x12 .x6 (-32) ;;
+  LD .x6 .x12 104 ;; SD .x12 .x6 (-24) ;;
+  LD .x6 .x12 112 ;; SD .x12 .x6 (-16) ;;
+  LD .x6 .x12 120 ;; SD .x12 .x6 (-8)
+
+theorem exp_loop_stack_save_length : exp_loop_stack_save.length = 16 := by decide
+
+theorem exp_loop_stack_save_byte_length :
+    4 * exp_loop_stack_save.length = 64 := by
+  rw [exp_loop_stack_save_length]
+
+/-- Restore the two caller EVM-stack words saved by `exp_loop_stack_save`
+    from the headroom at `x12 - 64 .. - 8` back to `x12 + 64 .. + 120`.
+    Runs with `x12 = sp_evm0` (after `exp_loop_pointer_restore`, before
+    `exp_epilogue` writes the result to `x12 + 32 .. + 56`). 16 instructions. -/
+def exp_loop_stack_restore : Program :=
+  LD .x6 .x12 (-64) ;; SD .x12 .x6 64 ;;
+  LD .x6 .x12 (-56) ;; SD .x12 .x6 72 ;;
+  LD .x6 .x12 (-48) ;; SD .x12 .x6 80 ;;
+  LD .x6 .x12 (-40) ;; SD .x12 .x6 88 ;;
+  LD .x6 .x12 (-32) ;; SD .x12 .x6 96 ;;
+  LD .x6 .x12 (-24) ;; SD .x12 .x6 104 ;;
+  LD .x6 .x12 (-16) ;; SD .x12 .x6 112 ;;
+  LD .x6 .x12 (-8) ;; SD .x12 .x6 120
+
+theorem exp_loop_stack_restore_length : exp_loop_stack_restore.length = 16 := by decide
+
+theorem exp_loop_stack_restore_byte_length :
+    4 * exp_loop_stack_restore.length = 64 := by
+  rw [exp_loop_stack_restore_length]
+
+-- ----------------------------------------------------------------------------
 -- Top-level `evm_exp` Program assembly (#92 slice 3, beads evm-asm-ahaz /
 -- evm-asm-3pil2)
 -- ----------------------------------------------------------------------------
