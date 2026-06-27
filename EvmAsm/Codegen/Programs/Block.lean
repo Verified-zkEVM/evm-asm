@@ -29,6 +29,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.TxDecode
@@ -470,6 +471,8 @@ def ziskBlockBodyBlobGasTotalPrologue : String :=
   txTypeDispatchFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   blobGasUsedFromVersionedHashesFunction ++ "\n" ++
   txEip4844ComputeBlobGasFunction ++ "\n" ++
@@ -635,6 +638,8 @@ def ziskBlockValidateBlobGasConsistencyPrologue : String :=
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   blobGasUsedFromVersionedHashesFunction ++ "\n" ++
   txEip4844ComputeBlobGasFunction ++ "\n" ++

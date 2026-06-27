@@ -6,12 +6,18 @@
   Hosts:
     K45  tx_eip4844_decode   (14-field EIP-4844)
 
+  Uses the cursor-advancing walker pair (`EvmAsm.Codegen.Programs.
+  RlpWalk`) instead of the index-based `rlp_field_to_*` wrappers,
+  so all 14 fields are decoded in a single left-to-right pass
+  (14 item visits) rather than 0+1+...+13 = 91 re-walks.
+
   No proofs yet -- these are codegen `String` defs only.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
@@ -41,10 +47,15 @@ open EvmAsm.Rv64.Program
     NOTE on max_fee_per_blob_gas: the spec type is u256, but
     real-world blob fees fit comfortably in u64 (mainnet typical
     range is 1 wei .. low gwei). To keep the struct within
-    ziskemu's 256-byte output cap, this decoder stores the
-    field as `u64` and rejects (status=1) any encoded value
-    longer than 8 bytes. Callers needing the full u256 can
-    re-extract via `rlp_field_to_u256_be` at field index 9.
+    ziskemu's 256-byte output cap, this decoder stores the field
+    as `u64` (low 64 bits of the u256) and TOLERATES values that
+    exceed u64 -- the full u256 (BE) is also persisted to the
+    `.data` cell `tcbg_blob_fee_be` for callers (EIP-8037 gate /
+    `BlockVerdict`) that need the complete value. In the high
+    blob-fee regime (parent excess_blob_gas > ~328M) the blob gas
+    price exceeds u64, so a valid tx's max_fee_per_blob_gas does
+    too; the old index-based reject false-rejected those valid
+    blob txs.
 
     Output struct (248 bytes; u32 offsets/lengths):
 
@@ -62,7 +73,7 @@ open EvmAsm.Rv64.Program
      148..152  data_length               (u32)
      152..156  access_list_offset        (u32; whole encoded item)
      156..160  access_list_length        (u32; whole encoded item)
-     160..168  max_fee_per_blob_gas      (u64 LE; rejects > 8 B BE)
+     160..168  max_fee_per_blob_gas      (u64 LE; low 64 bits of the u256)
      168..172  blob_versioned_hashes_off (u32; whole encoded item)
      172..176  blob_versioned_hashes_len (u32; whole encoded item)
      176..184  y_parity                  (u64; 0 or 1)
@@ -74,49 +85,73 @@ open EvmAsm.Rv64.Program
       a1 (input)  : inner_rlp byte length
       a2 (input)  : output struct ptr (248 bytes)
       ra (input)  : return
-      a0 (output) : 0 success / 1 parse fail (incl. blob fee > u64) -/
+      a0 (output) : 0 success / 1 parse fail -/
 def txEip4844DecodeFunction : String :=
   "tx_eip4844_decode:\n" ++
-  "  addi sp, sp, -64\n" ++          -- +32B scratch (sp+32) for the u256 blob-fee read
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # inner_rlp ptr\n" ++
-  "  mv s1, a1                  # inner_rlp_len\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                  # inner_rlp ptr (list base)\n" ++
   "  mv s2, a2                  # struct out\n" ++
-  "  # Field 0: chain_id\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_walk_init      # a0=cursor, a1=end, a2=status\n" ++
+  "  bnez a2, .Lt48_fail\n" ++
+  "  mv s1, a1                  # end\n" ++
+  "  mv s3, a0                  # cursor\n" ++
+  "  # Field 0: chain_id (u64 at offset 0)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next      # a0=advanced, a1=status, a2=content_len\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2             # content_ptr = advanced - len\n" ++
+  "  mv a1, a2                  # content_len\n" ++
+  "  jal ra, rlp_content_to_u64 # a0=u64, a1=status\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sd a0, 0(s2)\n" ++
+  "  # Field 1: nonce (u64 at offset 8)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sd a0, 8(s2)\n" ++
+  "  # Field 2: max_priority_fee_per_gas (u256 at offset 16)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 16\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 1: nonce\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  # Field 3: max_fee_per_gas (u256 at offset 48)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 48\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 2: max_priority_fee_per_gas\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  addi a3, s2, 16\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 3: max_fee_per_gas\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  addi a3, s2, 48\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 4: gas_limit\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
-  "  addi a3, s2, 80\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 5: to (0 or 20 B at 88; to_present u32 at 108)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  la a3, t48_offset; la a4, t48_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  la t0, t48_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lt48_to_creation\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Lt48_fail\n" ++
-  "  la t0, t48_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  # Field 4: gas_limit (u64 at offset 80)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sd a0, 80(s2)\n" ++
+  "  # Field 5: to (0 or 20 bytes at 88; to_present u32 at 108)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  beqz a2, .Lt48_to_creation\n" ++
+  "  li t0, 20\n" ++
+  "  bne a2, t0, .Lt48_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
   "  addi t4, s2, 88\n" ++
   "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
   "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
@@ -129,41 +164,45 @@ def txEip4844DecodeFunction : String :=
   "  sd zero, 0(t4); sd zero, 8(t4); sw zero, 16(t4)\n" ++
   "  sw zero, 108(s2)           # to_present = 0\n" ++
   ".Lt48_after_to:\n" ++
-  "  # Field 6: value\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
-  "  addi a3, s2, 112\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  # Field 6: value (u256 at offset 112)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 112\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 7: data (u32 off+len at 144/148)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  la a3, t48_offset; la a4, t48_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
+  "  # Field 7: data (offset+length u32 at 144/148)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sw t1, 144(s2)\n" ++
+  "  sw a2, 148(s2)             # content_len\n" ++
+  "  # Field 8: access_list (offset+length u32 at 152/156; full encoded item)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sw t1, 152(s2)\n" ++
+  "  sw a2, 156(s2)             # content_len (full span)\n" ++
+  "  # Field 9: max_fee_per_blob_gas (u256). Write the full BE u256 directly\n" ++
+  "  # to tcbg_blob_fee_be (no sp+32 scratch needed), then BE-decode the low\n" ++
+  "  # 64 bits (bytes 24..31) into the u64 view at struct offset 160.\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  la a2, tcbg_blob_fee_be\n" ++
+  "  jal ra, rlp_content_to_u256_be  # persists full u256 BE -> tcbg; a0=status\n" ++
   "  bnez a0, .Lt48_fail\n" ++
-  "  la t0, t48_offset; ld t1, 0(t0); sw t1, 144(s2)\n" ++
-  "  la t0, t48_length; ld t1, 0(t0); sw t1, 148(s2)\n" ++
-  "  # Field 8: access_list (u32 off+len at 152/156)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  la a3, t48_offset; la a4, t48_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  la t0, t48_offset; ld t1, 0(t0); sw t1, 152(s2)\n" ++
-  "  la t0, t48_length; ld t1, 0(t0); sw t1, 156(s2)\n" ++
-  "  # Field 9: max_fee_per_blob_gas. Spec type is u256; we keep a low-64-bit\n" ++
-  "  # view at offset 160 and TOLERATE values > u64 rather than rejecting. In\n" ++
-  "  # the high blob-fee regime (parent excess_blob_gas > ~328M), the blob gas\n" ++
-  "  # price exceeds u64, so a valid tx's max_fee_per_blob_gas does too; the old\n" ++
-  "  # rlp_field_to_u64 reject false-rejected those valid blob txs. Callers that\n" ++
-  "  # need the full value re-extract via rlp_field_to_u256_be at field index 9.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 9; addi a3, sp, 32\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  # Persist the full u256 (BE) for callers needing the >u64 value (EIP-8037 gate).\n" ++
-  "  addi t0, sp, 32; la t1, tcbg_blob_fee_be\n" ++
-  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
-  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
-  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
-  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  addi t0, sp, 32             # low 64 bits (BE bytes 24..31) -> u64 LE @160\n" ++
+  "  la t0, tcbg_blob_fee_be\n" ++
   "  lbu t1, 24(t0); slli t1, t1, 56\n" ++
   "  lbu t2, 25(t0); slli t2, t2, 48; or t1, t1, t2\n" ++
   "  lbu t2, 26(t0); slli t2, t2, 40; or t1, t1, t2\n" ++
@@ -173,27 +212,41 @@ def txEip4844DecodeFunction : String :=
   "  lbu t2, 30(t0); slli t2, t2,  8; or t1, t1, t2\n" ++
   "  lbu t2, 31(t0);                  or t1, t1, t2\n" ++
   "  sd t1, 160(s2)\n" ++
-  "  # Field 10: blob_versioned_hashes (u32 off+len at 168/172)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  la a3, t48_offset; la a4, t48_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
+  "  # Field 10: blob_versioned_hashes (offset+length u32 at 168/172; full encoded item)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sw t1, 168(s2)\n" ++
+  "  sw a2, 172(s2)             # content_len (full span)\n" ++
+  "  # Field 11: y_parity (u64 at offset 176)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sd a0, 176(s2)\n" ++
+  "  # Field 12: r (u256 at offset 184)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 184\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt48_fail\n" ++
-  "  la t0, t48_offset; ld t1, 0(t0); sw t1, 168(s2)\n" ++
-  "  la t0, t48_length; ld t1, 0(t0); sw t1, 172(s2)\n" ++
-  "  # Field 11: y_parity (u64 at 176)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  addi a3, s2, 176\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 12: r (u256 at 184)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 12\n" ++
-  "  addi a3, s2, 184\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  bnez a0, .Lt48_fail\n" ++
-  "  # Field 13: s (u256 at 216)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 13\n" ++
-  "  addi a3, s2, 216\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  # Field 13: s (u256 at offset 216)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt48_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 216\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt48_fail\n" ++
   "  li a0, 0\n" ++
   "  j .Lt48_ret\n" ++
@@ -201,7 +254,7 @@ def txEip4844DecodeFunction : String :=
   "  li a0, 1\n" ++
   ".Lt48_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret"
 
@@ -229,24 +282,26 @@ def ziskTxEip4844DecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lt48_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   ".Lt48_pdone:"
 
+/-- The decoder holds (cursor, end) in callee-saved registers and
+    derives every content pointer arithmetically, so the only
+    `.data` cell it needs is `tcbg_blob_fee_be` -- the full BE
+    u256 of `max_fee_per_blob_gas` that downstream consumers
+    (`BlockVerdict` / EIP-8037 gate) read back. Declaring it here
+    (previously it was only declared in unrelated probe data
+    sections, leaving the standalone 4844 + dispatch probes unable
+    to link) makes this probe self-contained. -/
 def ziskTxEip4844DecodeDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t48_offset:\n" ++
-  "  .zero 8\n" ++
-  "t48_length:\n" ++
-  "  .zero 8"
+  "tcbg_blob_fee_be:\n" ++
+  "  .zero 32"
 
 def ziskTxEip4844DecodeProbeUnit : BuildUnit := {
   body        := NOP

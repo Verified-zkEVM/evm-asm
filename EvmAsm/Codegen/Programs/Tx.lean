@@ -38,6 +38,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
@@ -232,10 +233,12 @@ def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
 /-! ## tx_legacy_decode -- PR-K36 full 9-field decoder
 
     Decode an RLP-encoded legacy Ethereum transaction into a
-    196-byte flat output struct. Composes the field-decoder
-    primitives shipped in PR-K34/K35 plus PR-K20
-    `rlp_list_nth_item` for the variable-length `to` and `data`
-    fields.
+    196-byte flat output struct. Uses the cursor-advancing walker
+    pair (`EvmAsm.Codegen.Programs.RlpWalk`) instead of the
+    index-based `rlp_field_to_*` wrappers, so all 9 fields are
+    decoded in a single left-to-right pass (9 item visits) rather
+    than 0+1+...+8 = 36 re-walks. The (cursor, end) pair is held
+    in callee-saved registers across the chain.
 
     Output struct (196 bytes):
        0..  8  nonce (u64 LE)
@@ -258,36 +261,52 @@ def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
       a0 (output) : 0 success / 1 parse fail -/
 def txLegacyDecodeFunction : String :=
   "tx_legacy_decode:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # tx ptr\n" ++
-  "  mv s1, a1                  # tx_len\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                  # tx_rlp ptr (list base)\n" ++
   "  mv s2, a2                  # struct out\n" ++
-  "  # Field 0: nonce (u64)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
+  "  jal ra, rlp_walk_init      # a0=cursor, a1=end, a2=status\n" ++
+  "  bnez a2, .Ltxd_fail\n" ++
+  "  mv s1, a1                  # end\n" ++
+  "  mv s3, a0                  # cursor\n" ++
+  "  # Field 0: nonce (u64 at offset 0)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next      # a0=advanced, a1=status, a2=content_len\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2             # content_ptr = advanced - len\n" ++
+  "  mv a1, a2                  # content_len\n" ++
+  "  jal ra, rlp_content_to_u64 # a0=u64, a1=status\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sd a0, 0(s2)\n" ++
   "  # Field 1: gas_price (u256 BE at offset 8)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 8\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  # Field 2: gas_limit (u64 at offset 40)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  addi a3, s2, 40\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  # Field 3: to (0 or 20 bytes at offset 48; to_present at 68)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  la a3, txd_offset; la a4, txd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  la t0, txd_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Ltxd_to_creation\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Ltxd_fail\n" ++
-  "  la t0, txd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sd a0, 40(s2)\n" ++
+  "  # Field 3: to (0 or 20 bytes at offset 48; to_present u64 at 68)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  beqz a2, .Ltxd_to_creation\n" ++
+  "  li t0, 20\n" ++
+  "  bne a2, t0, .Ltxd_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
   "  addi t4, s2, 48\n" ++
   "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
   "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
@@ -301,31 +320,49 @@ def txLegacyDecodeFunction : String :=
   "  sd zero, 68(s2)            # to_present = 0\n" ++
   ".Ltxd_after_to:\n" ++
   "  # Field 4: value (u256 BE at offset 76)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
-  "  addi a3, s2, 76\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 76\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
-  "  # Field 5: data (arbitrary; store offset+length at 108/116)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  la a3, txd_offset; la a4, txd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  la t0, txd_offset; ld t1, 0(t0); sd t1, 108(s2)\n" ++
-  "  la t0, txd_length; ld t1, 0(t0); sd t1, 116(s2)\n" ++
+  "  # Field 5: data (offset+length u64 at 108/116)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sd t1, 108(s2)\n" ++
+  "  sd a2, 116(s2)             # content_len\n" ++
   "  # Field 6: v (u64 at offset 124)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
-  "  addi a3, s2, 124\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sd a0, 124(s2)\n" ++
   "  # Field 7: r (u256 BE at offset 132)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  addi a3, s2, 132\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 132\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  # Field 8: s (u256 BE at offset 164)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  addi a3, s2, 164\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Ltxd_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 164\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  li a0, 0\n" ++
   "  j .Ltxd_ret\n" ++
@@ -333,8 +370,8 @@ def txLegacyDecodeFunction : String :=
   "  li a0, 1\n" ++
   ".Ltxd_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_legacy_decode`: probe BuildUnit. Reads
@@ -362,24 +399,17 @@ def ziskTxLegacyDecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Ltxd_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
   txLegacyDecodeFunction ++ "\n" ++
   ".Ltxd_pdone:"
 
-def ziskTxLegacyDecodeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "txd_offset:\n" ++
-  "  .zero 8\n" ++
-  "txd_length:\n" ++
-  "  .zero 8"
+/-- The decoder holds (cursor, end) in callee-saved registers and
+    derives every content pointer arithmetically, so it needs no
+    `.data` scratch. -/
+def ziskTxLegacyDecodeDataSection : String := ""
 
 def ziskTxLegacyDecodeProbeUnit : BuildUnit := {
   body        := NOP

@@ -26,6 +26,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.TxExtract
@@ -337,6 +338,13 @@ def ziskTxAccessListSpanPrologue : String :=
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- Cursor-walk RLP primitives required by the tx decoders below
+  -- (the decoders now use the single-pass walker; mirror it here so the
+  -- standalone probe links, as the guest closure is not bundled).
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
   txEip2930DecodeFunction ++ "\n" ++
   txEip1559DecodeFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++

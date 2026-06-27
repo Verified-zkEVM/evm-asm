@@ -6,12 +6,18 @@
   Hosts:
     K44  tx_eip7702_decode   (13-field EIP-7702)
 
+  Uses the cursor-advancing walker pair (`EvmAsm.Codegen.Programs.
+  RlpWalk`) instead of the index-based `rlp_field_to_*` wrappers,
+  so all 13 fields are decoded in a single left-to-right pass
+  (13 item visits) rather than 0+1+...+12 = 78 re-walks.
+
   No proofs yet -- these are codegen `String` defs only.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
@@ -63,6 +69,11 @@ open EvmAsm.Rv64.Program
      176..208  r                     (u256 BE)
      208..240  s                     (u256 BE)
 
+    access_list / authorization_list semantics: per
+    `rlp_walk_next`'s contract for list items, the recorded
+    (offset, length) span the *full* encoded sub-list including
+    its RLP prefix.  Byte-string items (data) are prefix-stripped.
+
     Calling convention:
       a0 (input)  : inner_rlp ptr
       a1 (input)  : inner_rlp byte length
@@ -71,46 +82,70 @@ open EvmAsm.Rv64.Program
       a0 (output) : 0 success / 1 parse fail -/
 def txEip7702DecodeFunction : String :=
   "tx_eip7702_decode:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # inner_rlp ptr\n" ++
-  "  mv s1, a1                  # inner_rlp_len\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                  # inner_rlp ptr (list base)\n" ++
   "  mv s2, a2                  # struct out\n" ++
+  "  jal ra, rlp_walk_init      # a0=cursor, a1=end, a2=status\n" ++
+  "  bnez a2, .Lt77_fail\n" ++
+  "  mv s1, a1                  # end\n" ++
+  "  mv s3, a0                  # cursor\n" ++
   "  # Field 0: chain_id (u64 at offset 0)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next      # a0=advanced, a1=status, a2=content_len\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2             # content_ptr = advanced - len\n" ++
+  "  mv a1, a2                  # content_len\n" ++
+  "  jal ra, rlp_content_to_u64 # a0=u64, a1=status\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sd a0, 0(s2)\n" ++
   "  # Field 1: nonce (u64 at offset 8)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sd a0, 8(s2)\n" ++
   "  # Field 2: max_priority_fee_per_gas (u256 at offset 16)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  addi a3, s2, 16\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 16\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt77_fail\n" ++
   "  # Field 3: max_fee_per_gas (u256 at offset 48)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  addi a3, s2, 48\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 48\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt77_fail\n" ++
   "  # Field 4: gas_limit (u64 at offset 80)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
-  "  addi a3, s2, 80\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
-  "  # Field 5: to (0 or 20 bytes at offset 88; to_present u32 at 108)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  la a3, t77_offset; la a4, t77_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
-  "  la t0, t77_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lt77_to_creation\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Lt77_fail\n" ++
-  "  la t0, t77_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sd a0, 80(s2)\n" ++
+  "  # Field 5: to (0 or 20 bytes at 88; to_present u32 at 108)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  beqz a2, .Lt77_to_creation\n" ++
+  "  li t0, 20\n" ++
+  "  bne a2, t0, .Lt77_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
   "  addi t4, s2, 88\n" ++
   "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
   "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
@@ -124,45 +159,67 @@ def txEip7702DecodeFunction : String :=
   "  sw zero, 108(s2)           # to_present = 0\n" ++
   ".Lt77_after_to:\n" ++
   "  # Field 6: value (u256 at offset 112)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
-  "  addi a3, s2, 112\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 112\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt77_fail\n" ++
   "  # Field 7: data (offset+length u32 at 144/148)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  la a3, t77_offset; la a4, t77_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
-  "  la t0, t77_offset; ld t1, 0(t0); sw t1, 144(s2)\n" ++
-  "  la t0, t77_length; ld t1, 0(t0); sw t1, 148(s2)\n" ++
-  "  # Field 8: access_list (offset+length u32 at 152/156)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  la a3, t77_offset; la a4, t77_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
-  "  la t0, t77_offset; ld t1, 0(t0); sw t1, 152(s2)\n" ++
-  "  la t0, t77_length; ld t1, 0(t0); sw t1, 156(s2)\n" ++
-  "  # Field 9: authorization_list (offset+length u32 at 160/164)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
-  "  la a3, t77_offset; la a4, t77_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
-  "  la t0, t77_offset; ld t1, 0(t0); sw t1, 160(s2)\n" ++
-  "  la t0, t77_length; ld t1, 0(t0); sw t1, 164(s2)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sw t1, 144(s2)\n" ++
+  "  sw a2, 148(s2)             # content_len\n" ++
+  "  # Field 8: access_list (offset+length u32 at 152/156; full encoded item)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sw t1, 152(s2)\n" ++
+  "  sw a2, 156(s2)             # content_len (full span)\n" ++
+  "  # Field 9: authorization_list (offset+length u32 at 160/164; full encoded item)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sw t1, 160(s2)\n" ++
+  "  sw a2, 164(s2)             # content_len (full span)\n" ++
   "  # Field 10: y_parity (u64 at offset 168)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  addi a3, s2, 168\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt77_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sd a0, 168(s2)\n" ++
   "  # Field 11: r (u256 at offset 176)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
-  "  addi a3, s2, 176\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 176\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt77_fail\n" ++
   "  # Field 12: s (u256 at offset 208)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 12\n" ++
-  "  addi a3, s2, 208\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt77_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 208\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt77_fail\n" ++
   "  li a0, 0\n" ++
   "  j .Lt77_ret\n" ++
@@ -170,8 +227,8 @@ def txEip7702DecodeFunction : String :=
   "  li a0, 1\n" ++
   ".Lt77_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_eip7702_decode`: probe BuildUnit. Reads (inner_len,
@@ -198,24 +255,17 @@ def ziskTxEip7702DecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lt77_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
   txEip7702DecodeFunction ++ "\n" ++
   ".Lt77_pdone:"
 
-def ziskTxEip7702DecodeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t77_offset:\n" ++
-  "  .zero 8\n" ++
-  "t77_length:\n" ++
-  "  .zero 8"
+/-- The decoder holds (cursor, end) in callee-saved registers and
+    derives every content pointer arithmetically, so it needs no
+    `.data` scratch. -/
+def ziskTxEip7702DecodeDataSection : String := ""
 
 def ziskTxEip7702DecodeProbeUnit : BuildUnit := {
   body        := NOP

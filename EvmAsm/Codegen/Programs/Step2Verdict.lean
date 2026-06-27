@@ -30,6 +30,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Mpt
@@ -203,6 +204,8 @@ def ziskStep2VerdictPrologue : String :=
   headerValidateBaseFeeFunction ++ "\n" ++
   headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFullFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
   headerValidateParentHashFunction ++ "\n" ++

@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.TxExtract
 
 namespace EvmAsm.Codegen
@@ -114,6 +115,8 @@ def ziskTxEip4844ComputeBlobGasPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   blobGasUsedFromVersionedHashesFunction ++ "\n" ++
   txEip4844ComputeBlobGasFunction ++ "\n" ++
@@ -270,6 +273,8 @@ def ziskTxEip4844ValidateBlobHashesPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   txEip4844ValidateBlobHashesFunction ++ "\n" ++
   ".Lt48v_pdone:"
@@ -461,6 +466,8 @@ def ziskSszTxListVersionedHashesMatchPrologue : String :=
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   sszTxListVersionedHashesMatchFunction ++ "\n" ++
   ".Ltvhmp_done:"

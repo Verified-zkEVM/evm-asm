@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.ReceiptsConsensus
 import EvmAsm.Codegen.Programs.EvmBasic
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
@@ -90,6 +91,13 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
     txAccessListSpanFunction ++ "\n" ++
+    -- Cursor-walk RLP primitives required by the tx/header decoders below
+    -- (same drift class as the contract-dispatch helpers above: these are
+    -- embedded in the guest closure but not this debug ELF, so mirror them).
+    rlpWalkInitFunction ++ "\n" ++
+    rlpWalkNextFunction ++ "\n" ++
+    rlpContentToU64Function ++ "\n" ++
+    rlpContentToU256BeFunction ++ "\n" ++
     txEip2930DecodeFunction ++ "\n" ++
     txEip1559DecodeFunction ++ "\n" ++
     txEip7702DecodeFunction ++ "\n" ++
@@ -222,6 +230,13 @@ def statelessVerdictV2GuestClosure : String :=
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
   rlpItemSpanFunction ++ "\n" ++
+  -- Cursor-walk RLP primitives (single-pass decode; used by the tx/header
+  -- decoders invoked from the verdict pipeline). Peer to the index-based
+  -- primitives above; linked here so the guest resolves these symbols.
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
   mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
   mptNodeSlotEncodeFunction ++ "\n" ++
   bytesToNibblesFunction ++ "\n" ++

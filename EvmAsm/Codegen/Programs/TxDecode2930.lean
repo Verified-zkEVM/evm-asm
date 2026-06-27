@@ -6,12 +6,18 @@
   Hosts:
     K42  tx_eip2930_decode   (11-field EIP-2930)
 
+  Uses the cursor-advancing walker pair (`EvmAsm.Codegen.Programs.
+  RlpWalk`) instead of the index-based `rlp_field_to_*` wrappers,
+  so all 11 fields are decoded in a single left-to-right pass
+  (11 item visits) rather than 0+1+...+10 = 55 re-walks.
+
   No proofs yet -- these are codegen `String` defs only.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
@@ -50,12 +56,10 @@ open EvmAsm.Rv64
      152..184  r                     (u256 BE)
      184..216  s                     (u256 BE)
 
-    Caller passes the inner RLP body -- after stripping the 0x01
-    type byte that PR-K40 `tx_type_dispatch` reports via
-    `inner_offset`. access_list semantics mirror PR-K41
-    `tx_eip1559_decode`: the returned (offset, length) span the
-    *full* encoded sub-list including its RLP prefix, so the
-    caller can recurse into it.
+    access_list semantics: per `rlp_walk_next`'s contract for list
+    items, the recorded (offset, length) span the *full* encoded
+    sub-list including its RLP prefix, so the caller can recurse
+    into it.  Byte-string items (data) are prefix-stripped.
 
     Calling convention:
       a0 (input)  : inner_rlp ptr
@@ -65,41 +69,61 @@ open EvmAsm.Rv64
       a0 (output) : 0 success / 1 parse fail -/
 def txEip2930DecodeFunction : String :=
   "tx_eip2930_decode:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # inner_rlp ptr\n" ++
-  "  mv s1, a1                  # inner_rlp_len\n" ++
+  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0                  # inner_rlp ptr (list base)\n" ++
   "  mv s2, a2                  # struct out\n" ++
+  "  jal ra, rlp_walk_init      # a0=cursor, a1=end, a2=status\n" ++
+  "  bnez a2, .Lt29_fail\n" ++
+  "  mv s1, a1                  # end\n" ++
+  "  mv s3, a0                  # cursor\n" ++
   "  # Field 0: chain_id (u64 at offset 0)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt29_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next      # a0=advanced, a1=status, a2=content_len\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2             # content_ptr = advanced - len\n" ++
+  "  mv a1, a2                  # content_len\n" ++
+  "  jal ra, rlp_content_to_u64 # a0=u64, a1=status\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sd a0, 0(s2)\n" ++
   "  # Field 1: nonce (u64 at offset 8)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt29_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sd a0, 8(s2)\n" ++
   "  # Field 2: gas_price (u256 at offset 16)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  addi a3, s2, 16\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 16\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt29_fail\n" ++
   "  # Field 3: gas_limit (u64 at offset 48)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  addi a3, s2, 48\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt29_fail\n" ++
-  "  # Field 4: to (0 or 20 bytes at offset 56; to_present u32 at 76)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4\n" ++
-  "  la a3, t29_offset; la a4, t29_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt29_fail\n" ++
-  "  la t0, t29_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lt29_to_creation\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Lt29_fail\n" ++
-  "  la t0, t29_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sd a0, 48(s2)\n" ++
+  "  # Field 4: to (0 or 20 bytes at 56; to_present u32 at 76)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  beqz a2, .Lt29_to_creation\n" ++
+  "  li t0, 20\n" ++
+  "  bne a2, t0, .Lt29_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
   "  addi t4, s2, 56\n" ++
   "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
   "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
@@ -113,38 +137,58 @@ def txEip2930DecodeFunction : String :=
   "  sw zero, 76(s2)            # to_present = 0\n" ++
   ".Lt29_after_to:\n" ++
   "  # Field 5: value (u256 at offset 80)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  addi a3, s2, 80\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 80\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt29_fail\n" ++
-  "  # Field 6: data (offset+length at 112/120)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
-  "  la a3, t29_offset; la a4, t29_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt29_fail\n" ++
-  "  la t0, t29_offset; ld t1, 0(t0); sd t1, 112(s2)\n" ++
-  "  la t0, t29_length; ld t1, 0(t0); sd t1, 120(s2)\n" ++
-  "  # Field 7: access_list (offset+length at 128/136; full encoded item)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 7\n" ++
-  "  la a3, t29_offset; la a4, t29_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lt29_fail\n" ++
-  "  la t0, t29_offset; ld t1, 0(t0); sd t1, 128(s2)\n" ++
-  "  la t0, t29_length; ld t1, 0(t0); sd t1, 136(s2)\n" ++
+  "  # Field 6: data (offset+length u64 at 112/120)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sd t1, 112(s2)\n" ++
+  "  sd a2, 120(s2)             # content_len\n" ++
+  "  # Field 7: access_list (offset+length u64 at 128/136; full encoded item)\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub t3, a0, a2             # content_ptr\n" ++
+  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
+  "  sd t1, 128(s2)\n" ++
+  "  sd a2, 136(s2)             # content_len (full span)\n" ++
   "  # Field 8: y_parity (u64 at offset 144)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  addi a3, s2, 144\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lt29_fail\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sd a0, 144(s2)\n" ++
   "  # Field 9: r (u256 at offset 152)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
-  "  addi a3, s2, 152\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 152\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt29_fail\n" ++
   "  # Field 10: s (u256 at offset 184)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 10\n" ++
-  "  addi a3, s2, 184\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a0, s3; mv a1, s1\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  mv s3, a0\n" ++
+  "  bnez a1, .Lt29_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  addi a2, s2, 184\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lt29_fail\n" ++
   "  li a0, 0\n" ++
   "  j .Lt29_ret\n" ++
@@ -152,8 +196,8 @@ def txEip2930DecodeFunction : String :=
   "  li a0, 1\n" ++
   ".Lt29_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_eip2930_decode`: probe BuildUnit. Reads (inner_len,
@@ -180,24 +224,17 @@ def ziskTxEip2930DecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lt29_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction ++ "\n" ++
   txEip2930DecodeFunction ++ "\n" ++
   ".Lt29_pdone:"
 
-def ziskTxEip2930DecodeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t29_offset:\n" ++
-  "  .zero 8\n" ++
-  "t29_length:\n" ++
-  "  .zero 8"
+/-- The decoder holds (cursor, end) in callee-saved registers and
+    derives every content pointer arithmetically, so it needs no
+    `.data` scratch. -/
+def ziskTxEip2930DecodeDataSection : String := ""
 
 def ziskTxEip2930DecodeProbeUnit : BuildUnit := {
   body        := NOP
