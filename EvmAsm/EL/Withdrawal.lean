@@ -7,13 +7,15 @@
 
     - `index`           : u64 scalar (RLP uint)
     - `validatorIndex`  : u64 scalar (RLP uint)
-    - `address`         : 20-byte bytestring
+    - `address`         : 20-byte bytestring, decoded to a 160-bit word
     - `amount`          : u64 scalar (RLP uint, in gwei)
 
   `decodeWithdrawal` decodes the *whole* input (no trailing bytes) as such a list, reading the three
   scalar fields big-endian and requiring the address be exactly 20 bytes; any structural deviation
   (wrong element count, a nested list where bytes are expected, a non-20-byte address, trailing
-  bytes) yields `none`. The numeric fields coincide with `decodeScalar` of each list element.
+  bytes) yields `none`. The numeric fields coincide with `decodeScalar` of each list element. The
+  address is kept as a `BitVec 160` (big-endian value of the 20 bytes), mirroring how u256 scalars
+  are modelled as `BitVec`s elsewhere.
 -/
 
 import EvmAsm.EL.RLP.FullDecode
@@ -24,11 +26,11 @@ namespace EvmAsm.EL
 open EvmAsm.EL.RLP
 
 /-- A decoded EIP-4895 withdrawal. Scalars are kept as `Nat` (the big-endian value); the address is
-    the raw 20-byte string. -/
+    a `BitVec 160` (the big-endian value of the 20 address bytes). -/
 structure Withdrawal where
   index : Nat
   validatorIndex : Nat
-  address : List Byte
+  address : BitVec 160
   amount : Nat
   deriving DecidableEq, Repr
 
@@ -41,7 +43,7 @@ def decodeWithdrawal (bs : List Byte) : Option Withdrawal :=
       if d2.length = 20 then
         some { index := Nat.fromBytesBE d0,
                validatorIndex := Nat.fromBytesBE d1,
-               address := d2,
+               address := BitVec.ofNat 160 (Nat.fromBytesBE d2),
                amount := Nat.fromBytesBE d3 }
       else none
   | _ => none
@@ -51,11 +53,12 @@ def decodeWithdrawal (bs : List Byte) : Option Withdrawal :=
     elements. The defining unfolding, stated for the verified drop-in's coincidence proof. -/
 theorem decodeWithdrawal_eq_some_iff (bs : List Byte) (w : Withdrawal) :
     decodeWithdrawal bs = some w ↔
-      ∃ d0 d1 d3 : List Byte,
-        decodeFully bs = some (.list [.bytes d0, .bytes d1, .bytes w.address, .bytes d3])
-        ∧ w.address.length = 20
+      ∃ d0 d1 d2 d3 : List Byte,
+        decodeFully bs = some (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3])
+        ∧ d2.length = 20
         ∧ w.index = Nat.fromBytesBE d0
         ∧ w.validatorIndex = Nat.fromBytesBE d1
+        ∧ w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2)
         ∧ w.amount = Nat.fromBytesBE d3 := by
   constructor
   · intro h
@@ -67,13 +70,13 @@ theorem decodeWithdrawal_eq_some_iff (bs : List Byte) (w : Withdrawal) :
       · rename_i h20
         simp only [Option.some.injEq] at h
         subst h
-        exact ⟨d0, d1, d3, heq, h20, rfl, rfl, rfl⟩
+        exact ⟨d0, d1, d2, d3, heq, h20, rfl, rfl, rfl, rfl⟩
       · simp at h
     · simp at h
-  · rintro ⟨d0, d1, d3, hf, h20, hi, hv, ha⟩
+  · rintro ⟨d0, d1, d2, d3, hf, h20, hi, hv, ha, hamt⟩
     unfold decodeWithdrawal
     cases w
-    subst hi hv ha
+    subst hi hv ha hamt
     rw [hf]
     simp [h20]
 
