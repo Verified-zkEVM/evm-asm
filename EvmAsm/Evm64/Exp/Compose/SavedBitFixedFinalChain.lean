@@ -131,4 +131,78 @@ theorem exp_final_loop_hBody
   · intro e' c6' iterCount' r0' r1' r2' r3' ps h hcur hinv
     exact expExpFinalExitR_of_relaxed hBase hcur hinv h
 
+/-- STEP E — entry surgery: the `n = 255` loop body, re-expressed over the
+    boundary brick's loop-body input surface `FirstIterPre ** FirstIterEntryResidual`
+    (with the stack tail `evmStackIs (evmSp + 128) rest` framed through to the post). -/
+theorem exp_final_loop_firstIter_hBody
+    (base sp evmSp : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    ∀ v10 v7 v11,
+      cpsTripleWithin ((255 + 1) * 193) (base + 44) (base + 296)
+        (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (expTwoMulFixedFirstIterPre sp evmSp v10 v18 vOld v7 v11
+          baseWord exponentWord dWord eWord **
+         expTwoMulFixedFirstIterEntryResidual evmSp exponentWord rest)
+        (expExpFinalExitR sp (evmSp + signExtend12 (64 : BitVec 12))
+            baseWord exponentWord
+            (baseWord.getLimbN 0) (baseWord.getLimbN 1)
+            (baseWord.getLimbN 2) (baseWord.getLimbN 3) **
+          evmStackIs (evmSp + 128) rest) := by
+  intro v10 v7 v11
+  have hCore := exp_final_loop_hBody base sp (evmSp + signExtend12 (64 : BitVec 12))
+    (baseWord.getLimbN 0) (baseWord.getLimbN 1)
+    (baseWord.getLimbN 2) (baseWord.getLimbN 3)
+    baseWord exponentWord lookahead hbase
+    (expResultWord_getLimbN_self baseWord).symm
+    (exponentWord.getLimbN 3)
+    ((0 : Word) + signExtend12 (64 : BitVec 12))
+    (256 : Word)
+    v10 v18
+    (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
+    (exponentWord.getLimbN 2)
+    (1 : Word) vOld
+    ((1 : EvmWord).getLimbN 0) ((1 : EvmWord).getLimbN 1)
+    ((1 : EvmWord).getLimbN 2) ((1 : EvmWord).getLimbN 3)
+    (dWord.getLimbN 0) (dWord.getLimbN 1)
+    (dWord.getLimbN 2) (dWord.getLimbN 3)
+    (eWord.getLimbN 0) (eWord.getLimbN 1)
+    (eWord.getLimbN 2) (eWord.getLimbN 3)
+    v7 v11
+    (by decide)
+    (expTwoMulFixedCursorInvariant_zero exponentWord)
+    (by
+      unfold expTwoMulFixedControlInvariant
+      refine ⟨by decide, ?_⟩
+      rfl)
+    (by
+      unfold expTwoMulFixedAccumulatorInvariant
+      rw [expResultWord_getLimbN_self, expTwoMulFixedAccumulatorTarget_zero])
+    (by
+      rw [show (-(16 + 8 * (((255 - 255) / 64 : Nat) : BitVec 12)))
+            = (-16 : BitVec 12) from by decide]
+      bv_addr)
+  have hFramed := cpsTripleWithin_frameR (evmStackIs (evmSp + 128) rest)
+    (by pcFree) hCore
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      simp only [show ((255 - 255) / 64 : Nat) = 0 from rfl]
+      rw [expTwoMulFixedFirstIterPre_unfold,
+        expTwoMulFixedFirstIterEntryResidual_unfold] at hp
+      rw [expTwoMulFixedExpResidual_zero_unfold,
+        expTwoMulFixedExpReadPrefix_zero_unfold,
+        show ((evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
+            + signExtend12 (-8 : BitVec 12)) + signExtend12 (0 : BitVec 12)
+          = evmSp + 40 from by bv_addr,
+        show (((evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
+            + signExtend12 (-8 : BitVec 12)) + signExtend12 (-8 : BitVec 12))
+            + signExtend12 (0 : BitVec 12)
+          = evmSp + 32 from by bv_addr,
+        show ((evmSp + signExtend12 (64 : BitVec 12)) + signExtend12 (-32 : BitVec 12))
+            + 24 = evmSp + 56 from by bv_addr]
+      xperm_hyp hp)
+    (fun _ hp => hp)
+    hFramed
+
 end EvmAsm.Evm64.Exp.Compose
