@@ -1463,6 +1463,63 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_byte_length
       squaringMulOff condMulOff skipOff backOff).length = 336 := by
   rw [evm_exp_msb_saved_bit_two_mul_fixed_length]
 
+/-- Corrected EXP program that SAVES the two caller EVM-stack words below the
+    operands (`x12 + 64 .. + 120`, transiently clobbered by the loop's MUL
+    factor marshalling) into the headroom slack (`x12 - 64 .. - 8`) before the
+    loop and RESTORES them afterwards, so the caller stack tail is preserved.
+    Fixes the stack-corruption bug `evm-asm-fjivz`:
+
+        exp_prologue_fixed          -- 10 instr (init counter + accumulator)
+        exp_loop_stack_save         -- 16 instr (back up slots [2],[3] to headroom)
+        exp_loop_pointer_advance    --  1 instr (ADDI x12 +64)
+        exp_iter_body_full_…_fixed  -- 63 instr (one square+cond-mul iter + BNE)
+        exp_loop_pointer_restore    --  1 instr (ADDI x12 -64)
+        exp_loop_stack_restore      -- 16 instr (restore slots [2],[3] from headroom)
+        exp_epilogue                --  9 instr (writeback result + ADDI x12 +32)
+
+    116 instructions, 464 bytes. The loop body now sits at byte offset +108
+    (vs +44 without save), shifting all downstream code offsets by +64. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_saverestore
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_prologue_fixed ;;
+  exp_loop_stack_save ;;
+  exp_loop_pointer_advance ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_restore ;;
+  exp_loop_stack_restore ;;
+  exp_epilogue
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_saverestore_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed_saverestore
+      squaringMulOff condMulOff skipOff backOff).length = 116 := by
+  show ((((((exp_prologue_fixed ;;
+            exp_loop_stack_save) ;;
+           exp_loop_pointer_advance) ;;
+          exp_iter_body_full_msb_saved_bit_two_mul_fixed
+            squaringMulOff condMulOff skipOff backOff) ;;
+         exp_loop_pointer_restore) ;;
+        exp_loop_stack_restore) ;;
+       exp_epilogue).length = 116
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_length,
+    exp_loop_stack_save_length,
+    exp_loop_pointer_advance_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_length,
+    exp_loop_pointer_restore_length,
+    exp_loop_stack_restore_length,
+    exp_epilogue_length]
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_saverestore_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (evm_exp_msb_saved_bit_two_mul_fixed_saverestore
+      squaringMulOff condMulOff skipOff backOff).length = 464 := by
+  rw [evm_exp_msb_saved_bit_two_mul_fixed_saverestore_length]
+
 theorem evm_exp_msb_saved_bit_two_mul_fixed_loop_entry_byte_offset :
     4 * (exp_prologue_fixed.length + exp_loop_pointer_advance.length) = 44 := by
   rw [exp_prologue_fixed_length, exp_loop_pointer_advance_length]
