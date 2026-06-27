@@ -253,4 +253,74 @@ theorem exp_saverestore_restore_lifted
   exact cpsTripleWithin_extend_code
     (exp_saverestore_mono_restore base squaringMulOff condMulOff skipOff backOff) h
 
+/-- The prologue block (idx 0, byte +0) lifted onto the full save/restore
+    program: initializes the accumulator (x5=1, scratch=1,0,0,0), counter
+    (x9=256, x20=64), and the exponent cursor/pointer (x19=expLimb3, x16). -/
+theorem exp_saverestore_prologue_lifted
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 expLimb3 : Word)
+    (base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 10 base (base + 40)
+      (evm_exp_saverestore_code squaringMulOff condMulOff skipOff backOff base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ expLimb3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       (.x12 ↦ᵣ evmSp) **
+       (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x16 ↦ᵣ evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12)) **
+       (.x19 ↦ᵣ expLimb3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ expLimb3)) := by
+  exact cpsTripleWithin_extend_code
+    (exp_saverestore_mono_prologue base squaringMulOff condMulOff skipOff backOff)
+    (exp_prologue_fixed_spec_within sp evmSp cOld tOld c6Old c16Old c19Old
+      m0 m1 m2 m3 expLimb3 base)
+
+/-- The epilogue block (idx 107, byte +428) lifted onto the full save/restore
+    program: writes the accumulator `r0..r3` (RISC-V scratch `sp+0..24`) to the
+    result slot `evmSp+32..56` and advances `x12` by +32 (one EVM-word pop). -/
+theorem exp_saverestore_epilogue_lifted
+    (sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 9 (base + 428) (base + 464)
+      (evm_exp_saverestore_code squaringMulOff condMulOff skipOff backOff base)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ r0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ r1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ r2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3)) := by
+  have h := exp_epilogue_spec_within sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 428)
+  rw [exp_epilogue_code_eq_ofProg] at h
+  rw [show (base + 428 + 36 : Word) = base + 464 from by bv_addr] at h
+  exact cpsTripleWithin_extend_code
+    (exp_saverestore_mono_epilogue base squaringMulOff condMulOff skipOff backOff) h
+
 end EvmAsm.Evm64.Exp.Compose
