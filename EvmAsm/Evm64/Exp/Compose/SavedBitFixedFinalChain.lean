@@ -19,6 +19,19 @@ namespace EvmAsm.Evm64.Exp.Compose
 
 open EvmAsm.Rv64
 
+/-- Existential introduction on the precondition of a `cpsTripleWithin`: a triple
+    whose precondition is `∃ a, P a` holds iff it holds for every `P a` (with the
+    same postcondition).  `**` distributes over `∃` on the left, so the proof just
+    re-packs the separating split. -/
+theorem cpsTripleWithin_exists_pre
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq} {Q : Assertion}
+    {α : Sort _} {P : α → Assertion}
+    (h : ∀ a, cpsTripleWithin nSteps entry exit_ cr (P a) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (fun s => ∃ a, P a s) Q := by
+  intro R hR s hcr hpre hpc
+  obtain ⟨hh, hcompat, h1, h2, hdisj, hunion, ⟨a, hPa⟩, hR2⟩ := hpre
+  exact h a R hR s hcr ⟨hh, hcompat, h1, h2, hdisj, hunion, hPa, hR2⟩ hpc
+
 /-- The fixed exit post the residual induction targets at n=255: the relaxed exit
     bridge's `FullStackPreFrame` (result pinned to `EvmWord.exp`) together with the
     surrendered leftover registers `L_own`, with the loop-state-dependent scratch
