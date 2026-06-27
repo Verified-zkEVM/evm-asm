@@ -846,4 +846,138 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_block3_a3_canonical_sp
       dsimp only [] at hp ⊢
       xperm_hyp hp)
 
+/-- Block-3 final-iteration (reload) merged-exit post: the disjunction of the
+    cond/skip exit branches of the canonical `a3`-aliased reload four-exit at
+    `iterCountNew = 0`. -/
+abbrev expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload
+    (e c6 iterCount sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base : Word) : Assertion :=
+  let bit := e >>> (63 : BitVec 6).toNat
+  let ptr : Word := evmSp + signExtend12 (-40 : BitVec 12)
+  let squareW := expSquaringCallSquareW r0 r1 r2 r3
+  let rw := expTwoMulCondRw squareW a0 a1 a2 a3
+  let baseFrame : Assertion :=
+    ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+    ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+    ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+    ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+  let condFrame : Assertion :=
+    (.x19 ↦ᵣ a3) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+    (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
+    ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+    (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+    ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
+  let skipRest : Assertion :=
+    (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
+    (.x5 ↦ᵣ squareW.getLimbN 3) **
+    evmWordIs sp squareW ** evmWordIs (evmSp + 32) squareW **
+    regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+    memOwn evmSp ** memOwn (evmSp + 8) **
+    memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
+    (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
+    (.x19 ↦ᵣ a3) **
+    (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+    (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
+    ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+    (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+    ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
+  let condRest : Assertion :=
+    (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
+    (.x5 ↦ᵣ rw.getLimbN 3) **
+    ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+    ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+    ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+    ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+    evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
+    regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+    memOwn evmSp ** memOwn (evmSp + 8) **
+    memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
+    (.x1 ↦ᵣ (((base + 44) + 140) + 68))
+  fun h =>
+    ((((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
+      ⌜expTwoMulIterCountNew iterCount = 0⌝) ** condRest) ** condFrame) h ∨
+    ((((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
+      ⌜expTwoMulIterCountNew iterCount = 0⌝) ** skipRest) ** baseFrame) h
+
+/-- Block-3 final-iteration (k=255, reload) framed step: the loop-back edge is
+    vacuous (`iterCountNew = 0`), so only the exit branches survive.  Mirrors
+    `exp_fixed_loop_body_final_succ_step_framed` for the block-3 reload pre. -/
+theorem exp_fixed_loop_body_final_succ_step_relaxed_block3_framed
+    (e c6 iterCount v10 v18 sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word) (R F : Assertion)
+    (hc6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    (hF : F.pcFree)
+    (hzero : expTwoMulIterCountNew iterCount = 0)
+    (hExit :
+      ∀ ps,
+        (expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload e c6 iterCount sp evmSp
+          r0 r1 r2 r3 a0 a1 a2 a3 base ** F) ps →
+        R ps) :
+    cpsTripleWithin expTwoMulFixedReloadIterStepBound (base + 44) (base + 296)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      ((((((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+        (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x16 ↦ᵣ (evmSp + signExtend12 (-40 : BitVec 12))) **
+        (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+        ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+        ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+        ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+        (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) ** (.x1 ↦ᵣ vOld)) **
+        (.x9 ↦ᵣ iterCount)) **
+        (((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+         ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+         ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+         ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3))) ** regOwn .x6) ** F)
+      R := by
+  have hFour :=
+    exp_msb_bit_test_fixed_reload_full_iter_four_exit_block3_a3_canonical_spec_within
+      e c6 iterCount v10 v18 sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 base hc6 hbase
+  have hFourF := cpsNBranchWithin_frameR hF hFour
+  have hm := cpsNBranchWithin_merge (exit_ := base + 296) (R := R) hFourF (by
+    intro ex hmem
+    simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil,
+      or_false] at hmem
+    rcases hmem with rfl | rfl | rfl | rfl
+    · -- cond loop-back at base+44: vacuous (iterCountNew ≠ 0 contradicts hzero)
+      intro Rf _ s _ hPR _
+      exfalso
+      have hne := holdsFor_pure.mp (holdsFor_sepConj_elim_right
+        (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left
+          (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left
+            (holdsFor_sepConj_elim_left hPR))))))
+      exact hne hzero
+    · -- cond exit at base+296: → R via hExit (left disjunct)
+      refine cpsTripleWithin_extend_code (hmono := by intro a i h; cases h)
+        (cpsTripleWithin_refl ?_)
+      intro ps hp
+      exact hExit ps (sepConj_mono_left (fun _ h => Or.inl h) ps hp)
+    · -- skip loop-back at base+44: vacuous
+      intro Rf _ s _ hPR _
+      exfalso
+      have hne := holdsFor_pure.mp (holdsFor_sepConj_elim_right
+        (holdsFor_sepConj_elim_right (holdsFor_sepConj_elim_left
+          (holdsFor_sepConj_elim_left (holdsFor_sepConj_elim_left
+            (holdsFor_sepConj_elim_left hPR))))))
+      exact hne hzero
+    · -- skip exit at base+296: → R via hExit (right disjunct)
+      refine cpsTripleWithin_extend_code (hmono := by intro a i h; cases h)
+        (cpsTripleWithin_refl ?_)
+      intro ps hp
+      exact hExit ps (sepConj_mono_left (fun _ h => Or.inr h) ps hp))
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hm
+
 end EvmAsm.Evm64.Exp.Compose
