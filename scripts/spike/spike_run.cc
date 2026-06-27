@@ -63,8 +63,12 @@ int main(int argc, char** argv) {
   for (auto& m : cfg.mem_layout) mems.push_back({m.get_base(), new mem_t(m.get_size())});
 
   std::vector<std::string> args = { argv[1] };
+  // Env-gated commit log: set SPIKE_COMMITLOG=<file> to get a per-instruction
+  // trace (pc, insn word, reg/mem writes) for EVM-faithfulness debugging.
+  const char* log_path = getenv("SPIKE_COMMITLOG");
   sim_t sim(&cfg, false, mems, {}, false, args, debug_module_config_t(),
-            nullptr, false, nullptr, false, nullptr, std::nullopt);
+            log_path, false, nullptr, false, nullptr, std::nullopt);
+  if (log_path) sim.configure_log(false, true);
   processor_t* p = sim.get_core(0);
   // register_extension() (called post-construction) does NOT invoke get_csrs(),
   // and the proc's init-time get_csrs sweep already ran, so add the accelerator
