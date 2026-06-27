@@ -17,6 +17,7 @@ import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Induction
 
 namespace EvmAsm.Evm64.Exp.Compose
 
@@ -32,6 +33,12 @@ theorem exp_merged_loop_from_iterpre_residual_induction
           r0 r1 r2 r3 a0 a1 a2 a3 base **
           expTwoMulFixedExpResidual 3 ptr lookahead exponentWord) ps →
         R ps)
+    (hExitU_relaxed :
+      ∀ (ptr' nextLimb' e c6 iterCount r0 r1 r2 r3 : Word) (ps : PartialState),
+        (expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload e c6 iterCount sp evmSp
+          r0 r1 r2 r3 a0 a1 a2 a3 base **
+          ((ptr' + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb')) ps →
+        R ps)
     (n : Nat) :
     n ≤ 255 →
     ∀ (e c6 iterCount v10 v18 ptr nextLimb tOld vOld
@@ -39,6 +46,8 @@ theorem exp_merged_loop_from_iterpre_residual_induction
       iterCount.toNat = n + 1 →
       expTwoMulFixedControlInvariant exponentWord (255 - n) c6 ptr
         (exponentWord.getLimbN (2 - (255 - n) / 64)) evmSp →
+      ptr = evmSp + signExtend12
+        (- (16 + 8 * (((255 - n) / 64 : Nat) : BitVec 12))) →
       cpsTripleWithin ((n + 1) * 193) (base + 44) (base + 296)
         (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
         (expTwoMulFixedIterPre e c6 iterCount v10 v18 ptr nextLimb sp evmSp
@@ -48,7 +57,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
   induction n with
   | zero =>
     intro _hn e c6 iterCount v10 v18 ptr nextLimb tOld vOld
-      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 hcount _hControl
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 hcount _hControl _hptrAnchor
     have hzero : expTwoMulIterCountNew iterCount = 0 :=
       expTwoMulIterCountNew_eq_zero_of_toNat_one hcount
     have hb : (255 - 0) / 64 = 3 := by decide
@@ -62,7 +71,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
         hzero (hExitU e c6 iterCount ptr nextLimb r0 r1 r2 r3)
   | succ k IH =>
     intro hn e c6 iterCount v10 v18 ptr nextLimb tOld vOld
-      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 hcount hControl
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 v7 v11 hcount hControl hptrAnchor
     have hn' : k ≤ 255 := by omega
     have hcountNew : (expTwoMulIterCountNew iterCount).toNat = k + 1 :=
       expTwoMulIterCountNew_toNat_of_eq_succ hcount
@@ -121,7 +130,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
           rw [sepConj_emp_right'] at hOut
           rw [← hbk] at hOut
           exact IH hn' _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcountNew
-            hControlNext Rframe hRframe s hcr
+            hControlNext (by rw [show (255 - k) / 64 = (255 - (k + 1)) / 64 from by omega]; exact hptrAnchor) Rframe hRframe s hcr
             ⟨hp, hcompat, psMF, psR, hdisj, hunion, hOut, hRps⟩ hpc
         · -- Skip branch
           obtain ⟨_, hC6, _⟩ := expTwoMulFixedIterSkipCountPost_pures hSk
@@ -148,7 +157,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
           rw [sepConj_emp_right'] at hOut
           rw [← hbk] at hOut
           exact IH hn' _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcountNew
-            hControlNext Rframe hRframe s hcr
+            hControlNext (by rw [show (255 - k) / 64 = (255 - (k + 1)) / 64 from by omega]; exact hptrAnchor) Rframe hRframe s hcr
             ⟨hp, hcompat, psMF, psR, hdisj, hunion, hOut, hRps⟩ hpc
       · -- Reload loop-back: (ReloadCond ∨ ReloadSkip) psM  (no PointerPost wrapper)
         rcases hReload with hRC | hRS
@@ -207,6 +216,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 2)
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
                 v7' v11' hcountNew hControlNext
+                (by rw [hb0] at hptrAnchor; rw [hbk]; rw [hptrAnchor]; bv_addr)
                 (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** Rframe)
                 (pcFree_sepConj pcFree_memIs hRframe) s hcr
                 (by
@@ -263,6 +273,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 0) ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 1)
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 2) ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
                 v7' v11' hcountNew hControlNext
+                (by rw [hb1] at hptrAnchor; rw [hbk]; rw [hptrAnchor]; bv_addr)
                 (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** Rframe)
                 (pcFree_sepConj pcFree_memIs hRframe) s hcr
                 (by
@@ -273,19 +284,11 @@ theorem exp_merged_loop_from_iterpre_residual_induction
             refine ⟨kk, hkk, s', hstep', hpc', ?_⟩
             rw [sepConj_left_comm' R ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) Rframe] at hH
             exact holdsFor_sepConj_elim_right hH
-          · -- block 2 → 3
-            have hbk : (255 - k) / 64 = 3 := by omega
+          · -- block 2 → 3 : hand off to the relaxed block-3 induction
             have hc64 : ((0 : Word) + signExtend12 (64 : BitVec 12)) = (64 : Word) := by decide
-            have hControlNext :
-                expTwoMulFixedControlInvariant exponentWord (255 - k)
-                  ((0 : Word) + signExtend12 (64 : BitVec 12))
-                  (ptr + signExtend12 (-8 : BitVec 12))
-                  (exponentWord.getLimbN (2 - (255 - k) / 64)) evmSp := by
-              rw [hc64]
-              have h := expTwoMulFixedControlInvariant_succ_reload hControl hC6
-                (nextNextLimb := exponentWord.getLimbN (2 - (255 - k) / 64))
-                (by rw [show (255 - (k + 1)) + 1 = 255 - k from by omega])
-              rwa [show (255 - (k + 1)) + 1 = 255 - k from by omega] at h
+            have hptr : ptr + signExtend12 (-8 : BitVec 12)
+                = evmSp + signExtend12 (-40 : BitVec 12) := by
+              rw [hb2] at hptrAnchor; rw [hptrAnchor]; bv_addr
             rw [hb2] at hFps
             have hEmpB : (expTwoMulFixedExpResidual 2 ptr lookahead exponentWord ** empAssertion) psF := by
               rw [sepConj_emp_right']; exact hFps
@@ -295,32 +298,28 @@ theorem exp_merged_loop_from_iterpre_residual_induction
                  (expTwoMulFixedExpResidual 2 ptr lookahead exponentWord ** empAssertion)) psMF :=
               ⟨psM, psF, hdMF, huMF, hRC, hEmpB⟩
             obtain ⟨v7', v10', v11', d0', d1', d2', d3', hOut⟩ :=
-              expTwoMulFixedIterReloadCondCountPost_residual_repartition_two hInput
+              expTwoMulFixedIterReloadCondCountPost_residual_repartition_two hptr hInput
             simp only [sepConj_emp_right'] at hOut
             have hFull : ((_ : Assertion) ** Rframe).holdsFor s :=
               ⟨hp, hcompat, psMF, psR, hdisj, hunion, hOut, hRps⟩
             obtain ⟨kk, hkk, s', hstep', hpc', hH⟩ :=
-              IH hn' nextLimb ((0 : Word) + signExtend12 (64 : BitVec 12))
+              exp_relaxed_block3_loop_induction base sp evmSp a0 a1 a2 a3 R
+                ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)
+                hbase pcFree_memIs (hExitU_relaxed ptr nextLimb)
+                63
+                nextLimb ((0 : Word) + signExtend12 (64 : BitVec 12))
                 (expTwoMulIterCountNew iterCount) v10'
                 ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
-                (ptr + signExtend12 (-8 : BitVec 12)) lookahead
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3) (((base + 44) + 140) + 68)
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 0) ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 1)
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 2) ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
                 d0' d1' d2' d3'
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 0) ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 1)
                 ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 2) ((expTwoMulCondRw (expSquaringCallSquareW r0 r1 r2 r3) a0 a1 a2 a3).getLimbN 3)
-                v7' v11' hcountNew hControlNext
-                (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** Rframe)
-                (pcFree_sepConj pcFree_memIs hRframe) s hcr
-                (by
-                  rw [hbk, ← sepConj_assoc' _ ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) Rframe,
-                    sepConj_assoc' _ (expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12)) lookahead exponentWord) ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb),
-                    sepConj_comm' (expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12)) lookahead exponentWord) ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)]
-                  exact hFull) hpc
-            refine ⟨kk, hkk, s', hstep', hpc', ?_⟩
-            rw [sepConj_left_comm' R ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) Rframe] at hH
-            exact holdsFor_sepConj_elim_right hH
+                v7' v11'
+                (by rw [hcountNew]; omega) (by rw [hc64]; decide)
+                Rframe hRframe s hcr hFull hpc
+            exact ⟨kk, by rw [show k + 1 = 64 from by omega]; exact hkk, s', hstep', hpc', hH⟩
         · -- ReloadSkip branch
           obtain ⟨_, hC6, _⟩ := expTwoMulFixedIterReloadSkipCountPost_pures hRS
           have hMod : (255 - (k + 1)) % 64 = 63 :=
@@ -364,6 +363,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
                 v7' v11' hcountNew hControlNext
+                (by rw [hb0] at hptrAnchor; rw [hbk]; rw [hptrAnchor]; bv_addr)
                 (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** Rframe)
                 (pcFree_sepConj pcFree_memIs hRframe) s hcr
                 (by
@@ -412,6 +412,7 @@ theorem exp_merged_loop_from_iterpre_residual_induction
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
                 v7' v11' hcountNew hControlNext
+                (by rw [hb1] at hptrAnchor; rw [hbk]; rw [hptrAnchor]; bv_addr)
                 (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** Rframe)
                 (pcFree_sepConj pcFree_memIs hRframe) s hcr
                 (by
@@ -422,19 +423,11 @@ theorem exp_merged_loop_from_iterpre_residual_induction
             refine ⟨kk, hkk, s', hstep', hpc', ?_⟩
             rw [sepConj_left_comm' R ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) Rframe] at hH
             exact holdsFor_sepConj_elim_right hH
-          · -- block 2 → 3
-            have hbk : (255 - k) / 64 = 3 := by omega
+          · -- block 2 → 3 : hand off to the relaxed block-3 induction
             have hc64 : ((0 : Word) + signExtend12 (64 : BitVec 12)) = (64 : Word) := by decide
-            have hControlNext :
-                expTwoMulFixedControlInvariant exponentWord (255 - k)
-                  ((0 : Word) + signExtend12 (64 : BitVec 12))
-                  (ptr + signExtend12 (-8 : BitVec 12))
-                  (exponentWord.getLimbN (2 - (255 - k) / 64)) evmSp := by
-              rw [hc64]
-              have h := expTwoMulFixedControlInvariant_succ_reload hControl hC6
-                (nextNextLimb := exponentWord.getLimbN (2 - (255 - k) / 64))
-                (by rw [show (255 - (k + 1)) + 1 = 255 - k from by omega])
-              rwa [show (255 - (k + 1)) + 1 = 255 - k from by omega] at h
+            have hptr : ptr + signExtend12 (-8 : BitVec 12)
+                = evmSp + signExtend12 (-40 : BitVec 12) := by
+              rw [hb2] at hptrAnchor; rw [hptrAnchor]; bv_addr
             rw [hb2] at hFps
             have hEmpB : (expTwoMulFixedExpResidual 2 ptr lookahead exponentWord ** empAssertion) psF := by
               rw [sepConj_emp_right']; exact hFps
@@ -444,32 +437,28 @@ theorem exp_merged_loop_from_iterpre_residual_induction
                  (expTwoMulFixedExpResidual 2 ptr lookahead exponentWord ** empAssertion)) psMF :=
               ⟨psM, psF, hdMF, huMF, hRS, hEmpB⟩
             obtain ⟨v7', v10', v11', d0', d1', d2', d3', hOut⟩ :=
-              expTwoMulFixedIterReloadSkipCountPost_residual_repartition_two hInput
+              expTwoMulFixedIterReloadSkipCountPost_residual_repartition_two hptr hInput
             simp only [sepConj_emp_right'] at hOut
             have hFull : ((_ : Assertion) ** Rframe).holdsFor s :=
               ⟨hp, hcompat, psMF, psR, hdisj, hunion, hOut, hRps⟩
             obtain ⟨kk, hkk, s', hstep', hpc', hH⟩ :=
-              IH hn' nextLimb ((0 : Word) + signExtend12 (64 : BitVec 12))
+              exp_relaxed_block3_loop_induction base sp evmSp a0 a1 a2 a3 R
+                ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)
+                hbase pcFree_memIs (hExitU_relaxed ptr nextLimb)
+                63
+                nextLimb ((0 : Word) + signExtend12 (64 : BitVec 12))
                 (expTwoMulIterCountNew iterCount) v10'
                 ((e >>> (63 : BitVec 6).toNat) + signExtend12 (0 : BitVec 12))
-                (ptr + signExtend12 (-8 : BitVec 12)) lookahead
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3) (((base + 44) + 32) + 68)
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
                 d0' d1' d2' d3'
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 0) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 1)
                 ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 2) ((expSquaringCallSquareW r0 r1 r2 r3).getLimbN 3)
-                v7' v11' hcountNew hControlNext
-                (((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) ** Rframe)
-                (pcFree_sepConj pcFree_memIs hRframe) s hcr
-                (by
-                  rw [hbk, ← sepConj_assoc' _ ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) Rframe,
-                    sepConj_assoc' _ (expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12)) lookahead exponentWord) ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb),
-                    sepConj_comm' (expTwoMulFixedExpResidual 3 (ptr + signExtend12 (-8 : BitVec 12)) lookahead exponentWord) ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb)]
-                  exact hFull) hpc
-            refine ⟨kk, hkk, s', hstep', hpc', ?_⟩
-            rw [sepConj_left_comm' R ((ptr + signExtend12 (0 : BitVec 12)) ↦ₘ nextLimb) Rframe] at hH
-            exact holdsFor_sepConj_elim_right hH
+                v7' v11'
+                (by rw [hcountNew]; omega) (by rw [hc64]; decide)
+                Rframe hRframe s hcr hFull hpc
+            exact ⟨kk, by rw [show k + 1 = 64 from by omega]; exact hkk, s', hstep', hpc', hH⟩
     exact
       exp_fixed_loop_body_succ_step_framed
         (k + 1)
