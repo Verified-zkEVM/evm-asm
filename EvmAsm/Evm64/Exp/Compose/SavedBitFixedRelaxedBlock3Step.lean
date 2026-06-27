@@ -708,4 +708,142 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_block3_a3_spec_within
       xperm_hyp hp)
     hFull
 
+/-- Canonical-appended whole-code view of the block-3 `a3`-aliased reload
+    four-exit spec.  Mirrors the skip canonical lift
+    (`exp_msb_bit_test_fixed_skip_relaxed_x16_evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_spec_within`)
+    but for the reload four-exit: instantiate the raw four-exit at `base + 44`
+    with canonical offsets/targets, fold the union into the canonical-appended
+    iter-body code, then lift to the 336-byte wrapper code. `x6` is abstracted
+    to `regOwn`. -/
+theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_block3_a3_canonical_spec_within
+    (e c6 iterCount v10 v18 sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word)
+    (hc6 : c6 + signExtend12 (-1 : BitVec 12) = 0)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    let bit := e >>> (63 : BitVec 6).toNat
+    let ptr : Word := evmSp + signExtend12 (-40 : BitVec 12)
+    let squareW := expSquaringCallSquareW r0 r1 r2 r3
+    let rw := expTwoMulCondRw squareW a0 a1 a2 a3
+    let baseFrame : Assertion :=
+      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3)
+    let condFrame : Assertion :=
+      (.x19 ↦ᵣ a3) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+      (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
+      ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+      (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+      ⌜bit + signExtend12 (0 : BitVec 12) ≠ 0⌝
+    let skipRest : Assertion :=
+      (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
+      (.x5 ↦ᵣ squareW.getLimbN 3) **
+      evmWordIs sp squareW ** evmWordIs (evmSp + 32) squareW **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+      memOwn evmSp ** memOwn (evmSp + 8) **
+      memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
+      (.x1 ↦ᵣ (((base + 44) + 32) + 68)) **
+      (.x19 ↦ᵣ a3) **
+      (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+      (.x18 ↦ᵣ (bit + signExtend12 (0 : BitVec 12))) **
+      ⌜c6 + signExtend12 (-1 : BitVec 12) = 0⌝ **
+      (.x16 ↦ᵣ (ptr + signExtend12 (-8 : BitVec 12))) **
+      ⌜bit + signExtend12 (0 : BitVec 12) = 0⌝
+    let condRest : Assertion :=
+      (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) **
+      (.x5 ↦ᵣ rw.getLimbN 3) **
+      ((evmSp + signExtend12 ((-64) : BitVec 12)) ↦ₘ a0) **
+      ((evmSp + signExtend12 ((-56) : BitVec 12)) ↦ₘ a1) **
+      ((evmSp + signExtend12 ((-48) : BitVec 12)) ↦ₘ a2) **
+      ((evmSp + signExtend12 ((-40) : BitVec 12)) ↦ₘ a3) **
+      evmWordIs sp rw ** evmWordIs (evmSp + 32) rw **
+      regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11 **
+      memOwn evmSp ** memOwn (evmSp + 8) **
+      memOwn (evmSp + 16) ** memOwn (evmSp + 24) **
+      (.x1 ↦ᵣ (((base + 44) + 140) + 68))
+    cpsNBranchWithin
+      expTwoMulFixedReloadIterStepBound
+      (base + 44)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (((((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+        (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x16 ↦ᵣ ptr) **
+        (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+        ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+        ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+        ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+        (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) ** (.x1 ↦ᵣ vOld)) **
+        (.x9 ↦ᵣ iterCount)) ** baseFrame) ** regOwn .x6)
+      [((base + 44),
+          (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
+            ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** condRest) ** condFrame),
+        (base + 296,
+          (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
+            ⌜expTwoMulIterCountNew iterCount = 0⌝) ** condRest) ** condFrame),
+        ((base + 44),
+          (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
+            ⌜expTwoMulIterCountNew iterCount ≠ 0⌝) ** skipRest) ** baseFrame),
+        (base + 296,
+          (((.x9 ↦ᵣ expTwoMulIterCountNew iterCount) ** (.x0 ↦ᵣ (0 : Word)) **
+            ⌜expTwoMulIterCountNew iterCount = 0⌝) ** skipRest) ** baseFrame)] := by
+  intro bit ptr squareW rw baseFrame condFrame skipRest condRest
+  have hExit : ((base + 44) + 252 : Word) = base + 296 := by bv_addr
+  exact cpsNBranchWithin_of_forall_regIs_to_regOwn (r := .x6)
+    (P :=
+      (((.x19 ↦ᵣ e) ** (.x20 ↦ᵣ c6) ** (.x10 ↦ᵣ v10) **
+        (.x18 ↦ᵣ v18) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x16 ↦ᵣ ptr) **
+        (.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ d0) **
+        ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ d1) **
+        ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ d2) **
+        ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ d3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+        (.x7 ↦ᵣ v7) ** (.x11 ↦ᵣ v11) ** (.x1 ↦ᵣ vOld)) **
+        (.x9 ↦ᵣ iterCount)) ** baseFrame)
+    (fun v6 => by
+      have h :=
+        exp_msb_bit_test_fixed_reload_full_iter_four_exit_block3_a3_spec_within
+          e c6 v6 iterCount v10 v18 sp evmSp tOld vOld
+          r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+          v7 v11 (base + 336) (base + 44)
+          EvmAsm.Evm64.canonicalExpSquaringMulOff
+          EvmAsm.Evm64.canonicalExpCondMulOff
+          EvmAsm.Evm64.canonicalExpCondMulSkipOff
+          EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff
+          (base + 44) hc6 hbase
+          (EvmAsm.Evm64.canonicalExpFixedSquaringMul_target base).symm
+          (EvmAsm.Evm64.canonicalExpFixedCondMul_target base).symm
+          (EvmAsm.Evm64.canonicalExpFixedCondMulSkip_target base)
+          (EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBack_target base)
+          (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalCode_disjoint_appended_mul base)
+      rw [hExit] at h
+      rw [← expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_eq base] at h
+      have h' :=
+        cpsNBranchWithin_extend_iter_body_union_evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode
+          h
+      refine cpsNBranchWithin_weaken_pre ?_ h'
+      intro st hp
+      dsimp only [] at hp ⊢
+      xperm_hyp hp)
+
 end EvmAsm.Evm64.Exp.Compose
