@@ -110,6 +110,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInduction
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitVacuous
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
