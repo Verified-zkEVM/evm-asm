@@ -106,6 +106,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopPreReload
 import EvmAsm.Evm64.Exp.Compose.FixedLoopInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInduction
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
