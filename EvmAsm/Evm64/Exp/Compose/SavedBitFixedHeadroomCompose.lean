@@ -135,4 +135,145 @@ theorem exp_headroom_ptr_restore_lifted
     (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
     a i ha
 
+/-- Operand-copy block (instr idx 0, byte +0..64) lifted onto the headroom program. -/
+theorem exp_headroom_operand_copy_lifted
+    (evmSp v6 b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 16 base (base + 64)
+      (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
+      ((.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ h7))
+      ((.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ e3) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ e3)) := by
+  have h := exp_loop_operand_copy_spec_within evmSp v6 b0 b1 b2 b3 e0 e1 e2 e3
+    h0 h1 h2 h3 h4 h5 h6 h7 base
+  rw [exp_loop_operand_copy_code_eq_ofProg] at h
+  refine cpsTripleWithin_extend_code ?_ h
+  intro a i ha
+  exact CodeReq.ofProg_mono_sub base base
+    (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff)
+    exp_loop_operand_copy 0
+    (by bv_omega)
+    (by rfl)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    a i ha
+
+/-- Prologue block (instr idx 18, byte +72..112) lifted onto the headroom program.
+    Runs at the headroom coordinate `x12 = evmSp` (= `evmSp_live - 128` in use). -/
+theorem exp_headroom_prologue_lifted
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 expLimb3 base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 10 (base + 72) (base + 112)
+      (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x12 ↦ᵣ evmSp) **
+       (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ expLimb3))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       (.x12 ↦ᵣ evmSp) **
+       (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x16 ↦ᵣ evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12)) **
+       (.x19 ↦ᵣ expLimb3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ expLimb3)) := by
+  have h := exp_prologue_fixed_spec_within sp evmSp cOld tOld c6Old c16Old c19Old
+    m0 m1 m2 m3 expLimb3 (base + 72)
+  simp only [exp_prologue_fixed_code] at h
+  rw [show (base + 72 + 40 : Word) = base + 112 from by bv_addr] at h
+  refine cpsTripleWithin_extend_code ?_ h
+  intro a i ha
+  exact CodeReq.ofProg_mono_sub base (base + 72)
+    (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff)
+    exp_prologue_fixed 18
+    (by bv_omega)
+    (by rfl)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    a i ha
+
+/-- Epilogue block (instr idx 93, byte +372..408) lifted onto the headroom program.
+    Runs at `x12 = evmSp` (= `evmSp_live` in use); writes result @ `evmSp+32`. -/
+theorem exp_headroom_epilogue_lifted
+    (sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 9 (base + 372) (base + 408)
+      (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
+      ((.x2 ↦ᵣ sp) ** (.x12 ↦ᵣ evmSp) ** (.x5 ↦ᵣ tOld) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3))
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ r0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ r1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ r2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ r3)) := by
+  have h := exp_epilogue_spec_within sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 (base + 372)
+  rw [exp_epilogue_code_eq_ofProg] at h
+  rw [show (base + 372 + 36 : Word) = base + 408 from by bv_addr] at h
+  refine cpsTripleWithin_extend_code ?_ h
+  intro a i ha
+  exact CodeReq.ofProg_mono_sub base (base + 372)
+    (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff)
+    exp_epilogue 93
+    (by bv_omega)
+    (by rfl)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    a i ha
+
 end EvmAsm.Evm64.Exp.Compose
