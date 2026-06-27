@@ -1540,6 +1540,63 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_saverestore_byte_length
       squaringMulOff condMulOff skipOff backOff).length = 464 := by
   rw [evm_exp_msb_saved_bit_two_mul_fixed_saverestore_length]
 
+/-- Corrected EXP program (architecture B) that runs the squaring loop entirely
+    in the headroom slack so the live EVM stack is never clobbered. The prologue
+    COPIES the two operands (`base`@`x12+0..24`, `exp`@`x12+32..56`) down into the
+    headroom frame (`x12-128..-72`), the loop body then squares there (its MUL
+    workspace at `x12_loop+0..56` lands in the slack, x12_loop = x12-64), and the
+    epilogue writes the result back to the standard live slot `x12+32`. No
+    save/restore block is needed (the live stack is framed through untouched), so
+    `mul_callable` stays appended after the epilogue with no collision. Fixes
+    `evm-asm-fjivz`:
+
+        exp_prologue_fixed          -- 10 instr (init counter + accumulator, x12=evmSp)
+        exp_loop_operand_copy       -- 16 instr (copy operands -> headroom)
+        exp_loop_pointer_restore    --  1 instr (ADDI x12 -64 : the advance into headroom)
+        exp_iter_body_full_…_fixed  -- 63 instr (square+cond-mul iter + BNE)
+        exp_loop_pointer_advance    --  1 instr (ADDI x12 +64 : back to evmSp)
+        exp_epilogue                --  9 instr (writeback result + ADDI x12 +32)
+
+    100 instructions, 400 bytes; loop body at byte +108, exit (= mul_callable
+    address) at +400. -/
+def evm_exp_msb_saved_bit_two_mul_fixed_headroom
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) : Program :=
+  exp_prologue_fixed ;;
+  exp_loop_operand_copy ;;
+  exp_loop_pointer_restore ;;
+  exp_iter_body_full_msb_saved_bit_two_mul_fixed
+    squaringMulOff condMulOff skipOff backOff ;;
+  exp_loop_pointer_advance ;;
+  exp_epilogue
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_headroom_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff).length = 100 := by
+  show (((((exp_prologue_fixed ;;
+           exp_loop_operand_copy) ;;
+          exp_loop_pointer_restore) ;;
+         exp_iter_body_full_msb_saved_bit_two_mul_fixed
+           squaringMulOff condMulOff skipOff backOff) ;;
+        exp_loop_pointer_advance) ;;
+       exp_epilogue).length = 100
+  simp only [seq, Program.length_append,
+    exp_prologue_fixed_length,
+    exp_loop_operand_copy_length,
+    exp_loop_pointer_restore_length,
+    exp_iter_body_full_msb_saved_bit_two_mul_fixed_length,
+    exp_loop_pointer_advance_length,
+    exp_epilogue_length]
+
+theorem evm_exp_msb_saved_bit_two_mul_fixed_headroom_byte_length
+    (squaringMulOff condMulOff : BitVec 21)
+    (skipOff backOff : BitVec 13) :
+    4 * (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff).length = 400 := by
+  rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
+
 theorem evm_exp_msb_saved_bit_two_mul_fixed_loop_entry_byte_offset :
     4 * (exp_prologue_fixed.length + exp_loop_pointer_advance.length) = 44 := by
   rw [exp_prologue_fixed_length, exp_loop_pointer_advance_length]
