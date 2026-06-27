@@ -1562,9 +1562,11 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_saverestore_byte_length
 def evm_exp_msb_saved_bit_two_mul_fixed_headroom
     (squaringMulOff condMulOff : BitVec 21)
     (skipOff backOff : BitVec 13) : Program :=
-  exp_prologue_fixed ;;
   exp_loop_operand_copy ;;
   exp_loop_pointer_restore ;;
+  exp_loop_pointer_restore ;;
+  exp_prologue_fixed ;;
+  exp_loop_pointer_advance ;;
   exp_iter_body_full_msb_saved_bit_two_mul_fixed
     squaringMulOff condMulOff skipOff backOff ;;
   exp_loop_pointer_advance ;;
@@ -1574,14 +1576,16 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_headroom_length
     (squaringMulOff condMulOff : BitVec 21)
     (skipOff backOff : BitVec 13) :
     (evm_exp_msb_saved_bit_two_mul_fixed_headroom
-      squaringMulOff condMulOff skipOff backOff).length = 100 := by
-  show (((((exp_prologue_fixed ;;
-           exp_loop_operand_copy) ;;
+      squaringMulOff condMulOff skipOff backOff).length = 102 := by
+  show (((((((exp_loop_operand_copy ;;
+           exp_loop_pointer_restore) ;;
           exp_loop_pointer_restore) ;;
-         exp_iter_body_full_msb_saved_bit_two_mul_fixed
-           squaringMulOff condMulOff skipOff backOff) ;;
+         exp_prologue_fixed) ;;
         exp_loop_pointer_advance) ;;
-       exp_epilogue).length = 100
+       exp_iter_body_full_msb_saved_bit_two_mul_fixed
+         squaringMulOff condMulOff skipOff backOff) ;;
+      exp_loop_pointer_advance) ;;
+     exp_epilogue).length = 102
   simp only [seq, Program.length_append,
     exp_prologue_fixed_length,
     exp_loop_operand_copy_length,
@@ -1594,7 +1598,7 @@ theorem evm_exp_msb_saved_bit_two_mul_fixed_headroom_byte_length
     (squaringMulOff condMulOff : BitVec 21)
     (skipOff backOff : BitVec 13) :
     4 * (evm_exp_msb_saved_bit_two_mul_fixed_headroom
-      squaringMulOff condMulOff skipOff backOff).length = 400 := by
+      squaringMulOff condMulOff skipOff backOff).length = 408 := by
   rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
 
 theorem evm_exp_msb_saved_bit_two_mul_fixed_loop_entry_byte_offset :

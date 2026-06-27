@@ -35,62 +35,104 @@ abbrev evm_exp_headroom_code
     (evm_exp_msb_saved_bit_two_mul_fixed_headroom
       squaringMulOff condMulOff skipOff backOff)
 
-/-- The `ADDI x12 -64` advance-into-headroom block (instruction index 26, byte
-    +104) lifted onto the full headroom program.  This is `exp_loop_pointer_restore`
-    used as the advance (x12 : evmSp -> evmSp-64). -/
-theorem exp_headroom_advance_lifted
+/- Corrected headroom layout (bug `evm-asm-fjivz`): the prologue must run at the
+   HEADROOM coordinate so its `x16 = evmSp_iter + 48` matches the loop and it
+   reads the COPIED exponent.  Order:
+     operand_copy @0 (16) ;; pointer_restore @16 (-64) ;; pointer_restore @17 (-64)
+     ;; prologue @18 (10) ;; pointer_advance @28 (+64) ;; iter_body @29 (63)
+     ;; pointer_advance @92 (+64) ;; epilogue @93 (9)
+   102 instr / 408 bytes; loop body @ byte +116, exit (= mul) @ +408. -/
+
+/-- First `ADDI x12 -64` (instr idx 16, byte +64): x12 evmSp -> evmSp-64. -/
+theorem exp_headroom_advance1_lifted
     (vOld base : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
-    cpsTripleWithin 1 (base + 104) (base + 108)
+    cpsTripleWithin 1 (base + 64) (base + 68)
       (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
       (.x12 ↦ᵣ vOld)
       (.x12 ↦ᵣ (vOld + signExtend12 ((-64) : BitVec 12))) := by
-  have h := exp_loop_pointer_restore_spec_within vOld (base + 104)
+  have h := exp_loop_pointer_restore_spec_within vOld (base + 64)
   simp only [exp_loop_pointer_restore_code] at h
-  rw [show (base + 104 + 4 : Word) = base + 108 from by bv_addr] at h
+  rw [show (base + 64 + 4 : Word) = base + 68 from by bv_addr] at h
   refine cpsTripleWithin_extend_code ?_ h
   intro a i ha
-  exact CodeReq.ofProg_mono_sub base (base + 104)
+  exact CodeReq.ofProg_mono_sub base (base + 64)
     (evm_exp_msb_saved_bit_two_mul_fixed_headroom
       squaringMulOff condMulOff skipOff backOff)
-    exp_loop_pointer_restore 26
+    exp_loop_pointer_restore 16
     (by bv_omega)
     (by rfl)
-    (by
-      rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
-      decide)
-    (by
-      rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
-      decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
     a i ha
 
-/-- The `ADDI x12 +64` pointer-restore block (instruction index 90, byte +360)
-    lifted onto the full headroom program.  This is `exp_loop_pointer_advance`
-    used as the post-loop restore (x12 : evmSp-64 -> evmSp). -/
-theorem exp_headroom_ptr_restore_lifted
+/-- Second `ADDI x12 -64` (instr idx 17, byte +68): x12 evmSp-64 -> evmSp-128. -/
+theorem exp_headroom_advance2_lifted
     (vOld base : Word)
     (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
-    cpsTripleWithin 1 (base + 360) (base + 364)
+    cpsTripleWithin 1 (base + 68) (base + 72)
+      (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
+      (.x12 ↦ᵣ vOld)
+      (.x12 ↦ᵣ (vOld + signExtend12 ((-64) : BitVec 12))) := by
+  have h := exp_loop_pointer_restore_spec_within vOld (base + 68)
+  simp only [exp_loop_pointer_restore_code] at h
+  rw [show (base + 68 + 4 : Word) = base + 72 from by bv_addr] at h
+  refine cpsTripleWithin_extend_code ?_ h
+  intro a i ha
+  exact CodeReq.ofProg_mono_sub base (base + 68)
+    (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff)
+    exp_loop_pointer_restore 17
+    (by bv_omega)
+    (by rfl)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    a i ha
+
+/-- `ADDI x12 +64` into the loop (instr idx 28, byte +112): x12 evmSp-128 -> evmSp-64. -/
+theorem exp_headroom_loop_advance_lifted
+    (vOld base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 1 (base + 112) (base + 116)
       (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
       (.x12 ↦ᵣ vOld)
       (.x12 ↦ᵣ (vOld + signExtend12 (64 : BitVec 12))) := by
-  have h := exp_loop_pointer_advance_spec_within vOld (base + 360)
+  have h := exp_loop_pointer_advance_spec_within vOld (base + 112)
   simp only [exp_loop_pointer_advance_code] at h
-  rw [show (base + 360 + 4 : Word) = base + 364 from by bv_addr] at h
+  rw [show (base + 112 + 4 : Word) = base + 116 from by bv_addr] at h
   refine cpsTripleWithin_extend_code ?_ h
   intro a i ha
-  exact CodeReq.ofProg_mono_sub base (base + 360)
+  exact CodeReq.ofProg_mono_sub base (base + 112)
     (evm_exp_msb_saved_bit_two_mul_fixed_headroom
       squaringMulOff condMulOff skipOff backOff)
-    exp_loop_pointer_advance 90
+    exp_loop_pointer_advance 28
     (by bv_omega)
     (by rfl)
-    (by
-      rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
-      decide)
-    (by
-      rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
-      decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    a i ha
+
+/-- `ADDI x12 +64` out of the loop (instr idx 92, byte +368): x12 evmSp-64 -> evmSp. -/
+theorem exp_headroom_ptr_restore_lifted
+    (vOld base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 1 (base + 368) (base + 372)
+      (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
+      (.x12 ↦ᵣ vOld)
+      (.x12 ↦ᵣ (vOld + signExtend12 (64 : BitVec 12))) := by
+  have h := exp_loop_pointer_advance_spec_within vOld (base + 368)
+  simp only [exp_loop_pointer_advance_code] at h
+  rw [show (base + 368 + 4 : Word) = base + 372 from by bv_addr] at h
+  refine cpsTripleWithin_extend_code ?_ h
+  intro a i ha
+  exact CodeReq.ofProg_mono_sub base (base + 368)
+    (evm_exp_msb_saved_bit_two_mul_fixed_headroom
+      squaringMulOff condMulOff skipOff backOff)
+    exp_loop_pointer_advance 92
+    (by bv_omega)
+    (by rfl)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
+    (by rw [evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]; decide)
     a i ha
 
 end EvmAsm.Evm64.Exp.Compose
