@@ -205,4 +205,25 @@ theorem exp_final_loop_firstIter_hBody
     (fun _ hp => hp)
     hFramed
 
+/-- STEP E (cont.) — the loop body over the boundary brick's input surface
+    `FirstIterPreWithResidual`, obtained from `exp_final_loop_firstIter_hBody`
+    through the existential entry bridge. -/
+theorem exp_final_loop_firstIterPreWithResidual
+    (base sp evmSp : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin ((255 + 1) * 193) (base + 44) (base + 296)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedFirstIterPreWithResidual sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord rest)
+      (expExpFinalExitR sp (evmSp + signExtend12 (64 : BitVec 12))
+          baseWord exponentWord
+          (baseWord.getLimbN 0) (baseWord.getLimbN 1)
+          (baseWord.getLimbN 2) (baseWord.getLimbN 3) **
+        evmStackIs (evmSp + 128) rest) :=
+  cpsTripleWithin_expTwoMulFixedFirstIterPreWithResidual
+    (exp_final_loop_firstIter_hBody base sp evmSp baseWord exponentWord dWord eWord
+      rest lookahead vOld v18 hbase)
+
 end EvmAsm.Evm64.Exp.Compose
