@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
@@ -348,6 +349,8 @@ def ziskTxGasBalPostVerifyPrologue : String :=
   u256MulU64BeFunction ++ "\n" ++
   accountChargeGasPreExecFunction ++ "\n" ++
   txUpfrontPrechargeFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   txGasBalPostVerifyFunction ++ "\n" ++
   ".Ltgbpvp_done:"

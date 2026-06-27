@@ -11,6 +11,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxBlobGas
 
@@ -126,6 +127,8 @@ def ziskTxCalculateTotalBlobGasPrologue : String :=
   rlpFieldToU64Function ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  -- cursor-walk helpers (closure-drift fix for rewritten decoders)
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   blobGasUsedFromVersionedHashesFunction ++ "\n" ++
   txEip4844ComputeBlobGasFunction ++ "\n" ++

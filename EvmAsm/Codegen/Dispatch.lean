@@ -18,6 +18,7 @@
 
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.SstoreGasRefund
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
@@ -1555,6 +1556,14 @@ def emitDispatcherEpilogueCore
     rlpEncodeListPrefixFunction ++ "\n" ++
     rlpItemSizeFunction ++ "\n" ++
     rlpItemSpanFunction ++ "\n" ++
+    -- Cursor-walk RLP primitives (single-pass decode; used by the tx/header
+    -- decoders in the verdict pipeline). Peer to the index-based primitives
+    -- above; linked here so every dispatcher-based ELF that transitively
+    -- includes a cursor-walk decoder resolves these symbols.
+    rlpWalkInitFunction ++ "\n" ++
+    rlpWalkNextFunction ++ "\n" ++
+    rlpContentToU64Function ++ "\n" ++
+    rlpContentToU256BeFunction ++ "\n" ++
     msetMemcpyFunction ++ "\n" ++
     mptSpliceSlotFunction ++ "\n" ++
     accountDecodeFunction ++ "\n" ++

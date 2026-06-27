@@ -256,4 +256,17 @@ def rlpContentToU256BeFunction : String :=
   "  li a0, 2\n" ++
   "  ret"
 
+/-! The four cursor-walk primitives concatenated as a single helper block.
+
+    Standalone debug probes that embed the tx/header decoders (which now use
+    the single-pass cursor walker) must link these bodies too. Mirrors the
+    index-based RLP primitives each such probe already bundles; centralised
+    here so new probes don't hand-copy four lines (the documented closure-drift
+    pattern, see `BlockVerdictV2.lean` ziskStatelessVerdictV2ProbeUnit). -/
+def rlpWalkHelpersClosure : String :=
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU256BeFunction
+
 end EvmAsm.Codegen
