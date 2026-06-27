@@ -1119,4 +1119,106 @@ theorem exp_fixed_loop_body_final_succ_step_relaxed_block3_framed
       exact hExit ps (sepConj_mono_left (fun _ h => Or.inr h) ps hp))
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hm
 
+/-- PATH-A body-only twin of `exp_fixed_relaxed_block3_merged_with_continuations_framed_spec_within`:
+    same merge, over the body-only code req (no canonical prologue/epilogue), using the
+    body-only leaf twin. -/
+theorem exp_fixed_relaxed_block3_merged_with_continuations_framed_bodyonly_spec_within
+    {nCont : Nat} {exit_ : Word} {R F : Assertion}
+    (e c6 iterCount v10 v18 sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word)
+    (hc6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    (hF : F.pcFree) :
+    (cpsTripleWithin nCont (base + 44) exit_
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterMergedLoopPostRelaxedBlock3 e c6 iterCount sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base ** F)
+      R) →
+    (cpsTripleWithin nCont (base + 296) exit_
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterMergedExitPostRelaxedBlock3 e c6 iterCount sp evmSp
+        r0 r1 r2 r3 a0 a1 a2 a3 base ** F)
+      R) →
+    cpsTripleWithin
+      (expTwoMulFixedReloadIterStepBound + nCont)
+      (base + 44)
+      exit_
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPreRelaxedBlock3 e c6 iterCount v10 v18 sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11 ** F)
+      R := by
+  intro hLoop hExit
+  have hbr :=
+    cpsBranchWithin_as_cpsNBranchWithin
+      (exp_msb_bit_test_fixed_skip_relaxed_x16_bodyonly_spec_within
+        e c6 iterCount v10 v18 sp evmSp tOld vOld
+        r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11 base hc6 hbase)
+  have hbrF := cpsNBranchWithin_frameR hF hbr
+  refine cpsNBranchWithin_merge hbrF ?_
+  intro ex hmem
+  simp only [List.map] at hmem
+  cases hmem with
+  | head => exact hLoop
+  | tail _ htail =>
+      cases htail with
+      | head => exact hExit
+      | tail _ hnil => cases hnil
+
+/-- PATH-A body-only twin of `exp_fixed_loop_body_succ_step_relaxed_block3_framed`. -/
+theorem exp_fixed_loop_body_succ_step_relaxed_block3_bodyonly_framed
+    (n : Nat)
+    (e c6 iterCount v10 v18 sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 : Word)
+    (base : Word) (R F : Assertion)
+    (hc6 : c6 + signExtend12 (-1 : BitVec 12) ≠ 0)
+    (hbase : (base + 44 : Word) &&& 1 = 0)
+    (hF : F.pcFree)
+    (hExit :
+      ∀ ps,
+        (expTwoMulFixedIterMergedExitPostRelaxedBlock3 e c6 iterCount sp evmSp
+          r0 r1 r2 r3 a0 a1 a2 a3 base ** F) ps →
+        R ps)
+    (hLoop :
+      cpsTripleWithin (n * 193) (base + 44) (base + 296)
+        (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (expTwoMulFixedIterMergedLoopPostRelaxedBlock3 e c6 iterCount sp evmSp
+          r0 r1 r2 r3 a0 a1 a2 a3 base ** F)
+        R) :
+    cpsTripleWithin ((n + 1) * 193) (base + 44) (base + 296)
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedIterPreRelaxedBlock3 e c6 iterCount v10 v18 sp evmSp
+        tOld vOld r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+        v7 v11 ** F)
+      R := by
+  rw [← expTwoMulFixedIterationsBodyBound_eq n] at hLoop
+  have hExitTriple :
+      cpsTripleWithin (expTwoMulFixedIterationsBodyBound n) (base + 296) (base + 296)
+        (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+        (expTwoMulFixedIterMergedExitPostRelaxedBlock3 e c6 iterCount sp evmSp
+          r0 r1 r2 r3 a0 a1 a2 a3 base ** F)
+        R :=
+    cpsTripleWithin_mono_nSteps (Nat.zero_le _)
+      (cpsTripleWithin_extend_code
+        (hmono := by intro a i h; cases h)
+        (cpsTripleWithin_refl hExit))
+  have hmain :=
+    exp_fixed_relaxed_block3_merged_with_continuations_framed_bodyonly_spec_within
+      (nCont := expTwoMulFixedIterationsBodyBound n) (exit_ := base + 296)
+      (R := R) (F := F)
+      e c6 iterCount v10 v18 sp evmSp tOld vOld
+      r0 r1 r2 r3 d0 d1 d2 d3 e0 e1 e2 e3 a0 a1 a2 a3
+      v7 v11 base hc6 hbase hF hLoop hExitTriple
+  have hbound :
+      expTwoMulFixedReloadIterStepBound + expTwoMulFixedIterationsBodyBound n
+        = (n + 1) * 193 := by
+    rw [expTwoMulFixedReloadIterStepBound_eq, expTwoMulFixedIterationsBodyBound_eq]
+    ring
+  rw [hbound] at hmain
+  exact hmain
+
 end EvmAsm.Evm64.Exp.Compose
