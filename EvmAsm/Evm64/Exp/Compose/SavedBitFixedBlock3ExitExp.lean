@@ -119,4 +119,44 @@ theorem expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame
     refine ⟨w0, w1, w2, w3, ((base + 44) + 32) + 68, ?_⟩
     rw [← hsq]; exact hs
 
+/-- `…_exp_framed` with the five concrete leftover registers weakened to `regOwn`.
+    This is the unified leftover frame `L_own` (all nine leftover registers as
+    `regOwn`) that the final-chain `hExitU_relaxed` discharge feeds to the
+    leftover-aware boundary brick — weak enough that *both* the relaxed and the
+    (future) standard merged exit branches imply it. -/
+theorem expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame_exp_regown
+    {e c6 iterCount sp evmSp r0 r1 r2 r3 a0 a1 a2 a3 base : Word}
+    {baseWord exponentWord : EvmWord} {ps : PartialState}
+    (hBase : baseWord = expResultWord a0 a1 a2 a3)
+    (hCursor : expTwoMulFixedCursorInvariant exponentWord 255 e)
+    (hInv : expTwoMulFixedAccumulatorInvariant baseWord exponentWord 255 r0 r1 r2 r3)
+    (h : (expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload e c6 iterCount sp evmSp
+            r0 r1 r2 r3 a0 a1 a2 a3 base **
+          evmWordIs (evmSp + signExtend12 ((-32) : BitVec 12)) exponentWord) ps) :
+    ∃ w0 w1 w2 w3 : Word,
+      (expTwoMulLoopExitFullStackPreFrame sp (evmSp - 64)
+          (expTwoMulIterCountNew iterCount)
+          ((EvmWord.exp baseWord exponentWord).getLimbN 3)
+          ((EvmWord.exp baseWord exponentWord).getLimbN 0)
+          ((EvmWord.exp baseWord exponentWord).getLimbN 1)
+          ((EvmWord.exp baseWord exponentWord).getLimbN 2)
+          ((EvmWord.exp baseWord exponentWord).getLimbN 3)
+          (exponentWord.getLimbN 0) (exponentWord.getLimbN 1)
+          (exponentWord.getLimbN 2) (exponentWord.getLimbN 3)
+          (expResultWord a0 a1 a2 a3)
+          [expResultWord w0 w1 w2 w3, EvmWord.exp baseWord exponentWord]
+          (expTwoMulIterCountNew iterCount = 0) **
+       regOwn .x19 ** regOwn .x20 ** regOwn .x18 ** regOwn .x16 **
+       regOwn .x1 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11) ps := by
+  obtain ⟨w0, w1, w2, w3, vx1, hfs⟩ :=
+    expTwoMulFixedIterMergedExitPostRelaxedBlock3Reload_to_FullStackPreFrame_exp_framed
+      hBase hCursor hInv h
+  refine ⟨w0, w1, w2, w3, ?_⟩
+  exact sepConj_mono_right
+    (sepConj_mono (regIs_to_regOwn .x19 a3)
+      (sepConj_mono (regIs_to_regOwn .x20 _)
+        (sepConj_mono (regIs_to_regOwn .x18 _)
+          (sepConj_mono (regIs_to_regOwn .x16 _)
+            (sepConj_mono_left (regIs_to_regOwn .x1 vx1)))))) _ hfs
+
 end EvmAsm.Evm64.Exp.Compose
