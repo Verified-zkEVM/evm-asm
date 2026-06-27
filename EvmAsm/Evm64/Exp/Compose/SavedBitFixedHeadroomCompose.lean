@@ -383,4 +383,177 @@ theorem exp_headroom_loop_lifted
   rw [expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_eq] at hq
   exact exp_headroom_loop_code_mono base a i hq
 
+/-- Entry prefix `operand_copy ;; advance1(-64) ;; advance2(-64) ;; prologue`
+    (base+0 → base+112): copies the live operands into the headroom frame, walks
+    `x12` down to `evmSp-128`, then runs the prologue at that headroom coordinate.
+    The shared cell `evmSp-72` carries the copied exponent limb 3 (= prologue's
+    `expLimb3`). -/
+theorem exp_headroom_entry_prefix_spec_within
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 base : Word)
+    (squaringMulOff condMulOff : BitVec 21) (skipOff backOff : BitVec 13) :
+    cpsTripleWithin 28 base (base + 112)
+      (evm_exp_headroom_code squaringMulOff condMulOff skipOff backOff base)
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       (.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ h7))
+      ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x9 ↦ᵣ ((0 : Word) + signExtend12 (256 : BitVec 12))) **
+       (.x5 ↦ᵣ ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 ((-64) : BitVec 12)
+                  + signExtend12 ((-64) : BitVec 12))) **
+       (.x20 ↦ᵣ ((0 : Word) + signExtend12 (64 : BitVec 12))) **
+       (.x16 ↦ᵣ (evmSp + signExtend12 ((-72) : BitVec 12)
+                  + signExtend12 (-8 : BitVec 12))) **
+       (.x19 ↦ᵣ e3) ** (.x6 ↦ᵣ e3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+        ((0 : Word) + signExtend12 (1 : BitVec 12))) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ e3)) := by
+  -- operand_copy (base+0 → base+64)
+  have h_oc := exp_headroom_operand_copy_lifted evmSp v6 b0 b1 b2 b3 e0 e1 e2 e3
+    h0 h1 h2 h3 h4 h5 h6 h7 base squaringMulOff condMulOff skipOff backOff
+  -- advance1 (base+64 → base+68): x12 evmSp → evmSp-64
+  have h_a1 := exp_headroom_advance1_lifted evmSp base squaringMulOff condMulOff
+    skipOff backOff
+  -- advance2 (base+68 → base+72): x12 evmSp-64 → evmSp-128
+  have h_a2 := exp_headroom_advance2_lifted (evmSp + signExtend12 ((-64) : BitVec 12))
+    base squaringMulOff condMulOff skipOff backOff
+  -- prologue (base+72 → base+112) at x12 = evmSp-128.  Normalize the prologue's
+  -- exponent-limb cell `(evmSp-128)+56` to the operand_copy headroom cell `evmSp-72`,
+  -- and its `x12 = evmSp-128`.
+  have hptr72 : (evmSp + signExtend12 ((-64) : BitVec 12)
+      + signExtend12 ((-64) : BitVec 12)) + signExtend12 (56 : BitVec 12)
+      = evmSp + signExtend12 ((-72) : BitVec 12) := by bv_addr
+  have h_pro := exp_headroom_prologue_lifted sp
+    (evmSp + signExtend12 ((-64) : BitVec 12) + signExtend12 ((-64) : BitVec 12))
+    cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 e3 base
+    squaringMulOff condMulOff skipOff backOff
+  rw [hptr72] at h_pro
+  -- Frame the prologue-ambient state around operand_copy.
+  have h_oc' := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) ** (.x5 ↦ᵣ tOld) **
+     (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+     ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    h_oc
+  -- Thread x12 down through the two advances (everything else framed).
+  have h_a1f := cpsTripleWithin_frameL
+    ((.x6 ↦ᵣ e3) **
+     ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+     ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+     ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+     ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+     ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+     ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+     ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+     ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+     ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ b0) **
+     ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ b1) **
+     ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ b2) **
+     ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ b3) **
+     ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ e0) **
+     ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ e1) **
+     ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ e2) **
+     ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ e3) **
+     (.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) ** (.x5 ↦ᵣ tOld) **
+     (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+     ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    h_a1
+  have h_oc_a1 := cpsTripleWithin_seq_perm_same_cr (fun _ hq => by xperm_hyp hq) h_oc' h_a1f
+  have h_a2f := cpsTripleWithin_frameL
+    ((.x6 ↦ᵣ e3) **
+     ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+     ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+     ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+     ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+     ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+     ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+     ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+     ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+     ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ b0) **
+     ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ b1) **
+     ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ b2) **
+     ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ b3) **
+     ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ e0) **
+     ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ e1) **
+     ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ e2) **
+     ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ e3) **
+     (.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) ** (.x5 ↦ᵣ tOld) **
+     (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+     ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+     ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+     ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+     ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    h_a2
+  have h_oc_a := cpsTripleWithin_seq_perm_same_cr (fun _ hq => by xperm_hyp hq)
+    h_oc_a1 h_a2f
+  -- Frame operand_copy's leftovers around the prologue, then sequence.
+  have h_prof := cpsTripleWithin_frameL
+    ((.x6 ↦ᵣ e3) **
+     ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+     ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+     ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+     ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+     ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+     ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+     ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+     ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+     ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ b0) **
+     ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ b1) **
+     ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ b2) **
+     ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ b3) **
+     ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ e0) **
+     ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ e1) **
+     ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ e2))
+    (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj)
+    h_pro
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun _ hq => by xperm_hyp hq) h_oc_a h_prof)
+
 end EvmAsm.Evm64.Exp.Compose
