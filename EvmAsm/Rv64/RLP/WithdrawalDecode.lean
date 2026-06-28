@@ -412,6 +412,22 @@ theorem wd_decode_setup (base cursor endv s1Old s2Old : Word) :
   have hmv1 := mv_spec_gen_within .x18 .x11 endv s2Old (base + 36) (by decide)
   runBlock hmv0 hmv1
 
+/-- **Scalar-field arithmetic** (field 0, idx 17–20, `base+68 → base+84`): set `s1 := advanced`
+    (cursor), compute `a0 := contentPtr = advanced − contentLen`, and stage `content_to_u64`'s
+    args `a1 := contentLen`, `t1 := contentPtr`. The same four-instruction shape recurs for
+    fields 1 and 3 (idx 31–34, 62–65). -/
+theorem wd_decode_scalarArith (base advanced contentLen s1Old t1Old a1Old : Word) :
+    cpsTripleWithin 4 (base + 68) (base + 84) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ s1Old) ** (.x10 ↦ᵣ advanced) ** (.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ a1Old) **
+        (.x6 ↦ᵣ t1Old))
+      ((.x9 ↦ᵣ advanced) ** (.x10 ↦ᵣ (advanced - contentLen)) ** (.x12 ↦ᵣ contentLen) **
+        (.x11 ↦ᵣ contentLen) ** (.x6 ↦ᵣ (advanced - contentLen))) := by
+  have hmv0 := mv_spec_gen_within .x9 .x10 advanced s1Old (base + 68) (by decide)
+  have hsub := sub_spec_gen_within .x10 .x9 .x12 advanced contentLen advanced (base + 72) (by decide)
+  have hmv1 := mv_spec_gen_within .x11 .x12 contentLen a1Old (base + 76) (by decide)
+  have hmv2 := mv_spec_gen_within .x6 .x10 (advanced - contentLen) t1Old (base + 80) (by decide)
+  runBlock hmv0 hsub hmv1 hmv2
+
 /-! ## M3 proof — reusable in-situ call code-lifting toolkit
 
 A call block from `wd_call_content_to_u64`'s pattern lives over
