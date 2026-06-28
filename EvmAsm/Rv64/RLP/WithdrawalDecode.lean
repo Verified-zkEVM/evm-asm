@@ -918,6 +918,55 @@ theorem wd_decode_li (base : Word) (idx : Nat) (rd : Reg) (imm vOld : Word) (hrd
   have h := wd_prog_lookup base idx hidx
   rwa [hinstr] at h
 
+/-- **Field-0 reject-check, pass path** (`lbu prefix; li 0xc0; bgeu prefix,0xc0,fail` — idx 14–16,
+    base+56 → base+68): read field 0's RLP prefix byte from the input region, materialise the
+    list-marker threshold `0xc0` into `t1`, and fall through the reject branch because the prefix
+    is below it (`prefix < 0xc0`, i.e. a byte-string item — what `decodeWithdrawal` requires). A
+    real straight-line segment of the monolith, composing the three proven blocks
+    `wd_decode_readPrefix`, `wd_decode_li`, and `wd_bgeu_lt` via `cpsTripleWithin_seq_same_cr`
+    (read⨾li, exact seam) and `cpsTripleWithin_seq_perm_same_cr` (⨾bgeu, permuted seam), reshaping
+    the pre/post by `xperm`. Exposes `⌜prefix < 0xc0⌝` for the field body that follows. -/
+theorem wd_decode_field0RejectCheck (base srcBase t0Old t1Old : Word) (srcBytes : List (BitVec 8))
+    (cursorOff : Nat) (halign : srcBase.toNat % 8 = 0) (hi : cursorOff < srcBytes.length)
+    (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true)
+    (hlt : BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)) :
+    cpsTripleWithin 3 (base + 56) (base + 68) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        bytesRegion srcBase srcBytes)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+        (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** (.x6 ↦ᵣ (192 : Word)) **
+        bytesRegion srcBase srcBytes **
+        ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝) := by
+  -- prefix-read (idx 14), framed with the old `t1`
+  have h14 := cpsTripleWithin_frameR (.x6 ↦ᵣ t1Old) (by pcFree)
+    (wd_decode_readPrefix base srcBase t0Old srcBytes cursorOff 14
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide) halign hi hover hvalid)
+  rw [show base + BitVec.ofNat 64 56 = base + 56 from by bv_omega,
+      show base + 56 + 4 = base + 60 from by bv_omega] at h14
+  -- li 0xc0 (idx 15), framed with the read state (post of the prefix-read)
+  have h15 := cpsTripleWithin_frameL
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+      (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** bytesRegion srcBase srcBytes)
+    (by pcFree)
+    (wd_decode_li base 15 .x6 (192 : Word) t1Old (by decide)
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 60 = base + 60 from by bv_omega,
+      show base + 60 + 4 = base + 64 from by bv_omega] at h15
+  -- bgeu pass (idx 16), framed with cursor + input region
+  have h16 := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** bytesRegion srcBase srcBytes)
+    (by pcFree)
+    (wd_bgeu_lt base 16 .x5 .x6 (240 : BitVec 13)
+      ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word) hlt
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 64 = base + 64 from by bv_omega,
+      show base + 64 + 4 = base + 68 from by bv_omega] at h16
+  -- compose: (read ⨾ li) ⨾ bgeu (permuted seam), then reshape pre/post
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_same_cr h14 h15) h16
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
