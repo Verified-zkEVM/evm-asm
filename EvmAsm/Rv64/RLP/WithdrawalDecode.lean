@@ -1098,6 +1098,38 @@ theorem wd_decode_field0ScalarBody (base srcBase vOld t0Old t1Old advanced a1Old
   have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsp hc2u'
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hcomp
 
+/-- **Field-0 scalar store, success tail** (`bnez a1,fail` not taken ⨾ `sd a0,0(s0)` — idx 22–23,
+    base+88 → base+96): on the `content_to_u64` success arm (status `a1 = 0`) the status guard
+    falls through, and the decoded u64 value (`a0`) is stored into the output struct dword at
+    `s0 + 0` (the `index` field). Straight-line composition of `wd_bnez_notaken` (idx 22) and
+    `wd_decode_storeScalar` (idx 23) — the exact seam matches with no permutation. The same shape
+    recurs for fields 1/3 at idx 36–37 (off 8) and 67–68 (off 40). -/
+theorem wd_decode_field0ScalarStore (base struct value mOld : Word) :
+    cpsTripleWithin 2 (base + 88) (base + 96) (withdrawal_decode_code base)
+      ((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ struct) ** (.x10 ↦ᵣ value) **
+        ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ mOld))
+      ((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(0 : Word) = (0 : Word)⌝ **
+        (.x8 ↦ᵣ struct) ** (.x10 ↦ᵣ value) **
+        ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ value)) := by
+  -- status guard (idx 22), not taken on success; framed with the store's footprint
+  have hb := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ struct) ** (.x10 ↦ᵣ value) ** ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ mOld))
+    (by pcFree)
+    (wd_bnez_notaken base 22 .x11 (216 : BitVec 13)
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 88 = base + 88 from by bv_omega,
+      show base + 88 + 4 = base + 92 from by bv_omega] at hb
+  -- scalar store (idx 23); framed with the guard's residual register state
+  have hs := cpsTripleWithin_frameL
+    ((.x11 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(0 : Word) = (0 : Word)⌝) (by pcFree)
+    (wd_decode_storeScalar base struct value mOld 23 (0 : BitVec 12)
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 92 = base + 92 from by bv_omega,
+      show base + 92 + 4 = base + 96 from by bv_omega] at hs
+  -- exact seam at base+92, then reshape pre/post
+  have hcomp := cpsTripleWithin_seq_same_cr hb hs
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
