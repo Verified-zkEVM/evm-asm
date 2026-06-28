@@ -731,6 +731,37 @@ theorem wd_decode_storeScalar (base struct value mOld : Word) (idx : Nat) (struc
   have h := wd_prog_lookup base idx hidx
   rwa [hinstr] at h
 
+/-! ## M3 proof — leaf status-derivations
+
+Inside the assembly, the input's `decodeFully`/canonicity facts pin each leaf's returned status,
+collapsing its disjunctive `Post` to a single arm. These lemmas do that collapse for
+`content_to_u64` (used for the three scalar fields). -/
+
+/-- `content_to_u64` returns **success** for a canonical scalar: given the content is nonempty
+    (`0 < len`), fits a u64 (`len ≤ 8`), and has a nonzero leading byte
+    (`getByteAt ≠ 0` — the canonicity), the 4-way status `Post` collapses to the status-0 arm
+    (`a1 = 0`, `a0 = fromBytesBE content`). Rules out the `8<len` (D0), `len=0` (D1), and
+    leading-zero (D2) fail arms via their pure facts. -/
+theorem c2u_status_success {srcBytes : List Byte} {srcOff len : Nat} {h : PartialState}
+    (hlen : len ≤ 8) (hpos : 0 < len) (hbyte : getByteAt srcBytes srcOff ≠ 0)
+    (hpost :
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+         ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+      (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+         (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)) :
+    ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+      (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h := by
+  rcases hpost with h0 | h1 | h2 | h3
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h0
+    have : 8 < len := ((sepConj_pure_right b).1 hrest).2; omega
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h1
+    have : len = 0 := ((sepConj_pure_right b).1 hrest).2; omega
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h2
+    exact hbyte ((sepConj_pure_right b).1 hrest).2.2
+  · exact h3
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
