@@ -1045,6 +1045,59 @@ theorem wd_call_c2u_field0 (base srcBase vOld t0Old t2Old t3Old : Word)
   rw [show (base + 84) + 4 = base + 88 from by bv_omega] at hcall
   exact cpsTripleWithin_extend_code (wd_call_code_sub hjal (wd_c2uBody_sub base)) hcall
 
+/-- **Field-0 scalar body, reject-check through the `content_to_u64` call** (idx 14–21,
+    base+56 → base+88): composes `wd_decode_field0ScalarPrep` (reject-check ⨾ scalar arithmetic)
+    with `wd_call_c2u_field0` (the decode call). The seam at base+84 threads the content-pointer
+    identity `hcp : advanced − len = srcBase + srcOff` (the staged `t1`/`a0` content pointer equals
+    the call's `srcBase + srcOff`, which the preceding `walk_next`'s `rlpItemDecode` fact supplies),
+    and pins the content length to `len` (`x12 = ofNat len`). Frames each side's disjoint registers
+    (`x1`/`x7`/`x28`/`x0` through the prep; `x9`/`x12`/`⌜<0xc0⌝` through the call) and reconciles by
+    permutation. The result carries the 4-way `content_to_u64` status post — the input for the
+    `bnez` status guard and scalar store that follow. -/
+theorem wd_decode_field0ScalarBody (base srcBase vOld t0Old t1Old advanced a1Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (cursorOff srcOff len : Nat) (halign : srcBase.toNat % 8 = 0)
+    (hi : cursorOff < srcBytes.length) (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true)
+    (hlt : BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word))
+    (halign88 : (base + 88) &&& ~~~1 = base + 88)
+    (hdisj : (CodeReq.singleton (base + 84) (.JAL .x1 (872 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hlen64 : len < 2 ^ 64) (hslen : srcOff + len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
+    (hcp : advanced - BitVec.ofNat 64 len = srcBase + BitVec.ofNat 64 srcOff) :
+    cpsTripleWithin (7 + (1 + (7 * len + 11))) (base + 56) (base + 88) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x10 ↦ᵣ advanced) ** (.x12 ↦ᵣ (BitVec.ofNat 64 len)) ** (.x11 ↦ᵣ a1Old) **
+        (.x1 ↦ᵣ vOld) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion srcBase srcBytes)
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ (base + 88)) ** bytesRegion srcBase srcBytes) **
+         (fun h =>
+           (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+           (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+           (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+              ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+           (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+              (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0 ∧ len ≤ 8⌝) h))) **
+        ((.x9 ↦ᵣ advanced) ** (.x12 ↦ᵣ (BitVec.ofNat 64 len)) **
+          ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝)) := by
+  -- scalar-prep (idx 14–20), framed with the call's other inputs (x1/x7/x28/x0)
+  have hsp := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ vOld) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree)
+    (wd_decode_field0ScalarPrep base srcBase t0Old t1Old advanced (BitVec.ofNat 64 len) a1Old
+      srcBytes cursorOff halign hi hover hvalid hlt)
+  -- the content_to_u64 call (idx 21); rewrite its content pointer to the prep's staged value
+  have hc2u := wd_call_c2u_field0 base srcBase vOld ((srcBytes[cursorOff]'hi).zeroExtend 64) t2Old
+    t3Old srcBytes srcOff len halign88 hdisj hlen64 halign hslen hsover hsvalid
+  rw [← hcp] at hc2u
+  have hc2u' := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ advanced) ** (.x12 ↦ᵣ (BitVec.ofNat 64 len)) **
+      ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝) (by pcFree) hc2u
+  -- compose at base+84 (permuted seam), then reshape the pre
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsp hc2u'
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hcomp
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
