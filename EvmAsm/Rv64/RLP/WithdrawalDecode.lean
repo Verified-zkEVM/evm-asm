@@ -673,6 +673,17 @@ theorem sepConj_exists_left {α : Sort _} {P : α → Assertion} {Q : Assertion}
   rintro ⟨h1, h2, hdisj, hunion, ⟨a, hP⟩, hQ⟩
   exact ⟨a, h1, h2, hdisj, hunion, hP, hQ⟩
 
+/-- Extract the four scratch-register witnesses from a `regOwn` group. A leaf's post owns the
+    temporaries as `regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28`; the next segment's
+    precondition wants them as concrete `regIs` cells. This peels the four existentials so the
+    composition can be done with `cpsTripleWithin_exists_pre` over the witnesses. -/
+theorem regOwn4_exists {a b c d : Reg} {h : PartialState}
+    (hp : (regOwn a ** regOwn b ** regOwn c ** regOwn d) h) :
+    ∃ va vb vc vd, ((a ↦ᵣ va) ** (b ↦ᵣ vb) ** (c ↦ᵣ vc) ** (d ↦ᵣ vd)) h := by
+  obtain ⟨h1, h2, hd, hu, ⟨va, ha⟩, h3, h4, hd2, hu2, ⟨vb, hb⟩, h5, h6, hd3, hu3, ⟨vc, hc⟩,
+    vd, hdd⟩ := hp
+  exact ⟨va, vb, vc, vd, h1, h2, hd, hu, ha, h3, h4, hd2, hu2, hb, h5, h6, hd3, hu3, hc, hdd⟩
+
 /-- **Branch or-elimination.** If both `P1` and `P2` branch (same exits `lt`/`lf`), then their
     disjunction branches, with the per-exit posts disjoined. The tool for consuming a leaf call's
     disjunctive status `Post` as a branch `Pre`: fold the leaf's status disjuncts (each a branch
