@@ -655,6 +655,14 @@ theorem sepConj_or_elim {P Q1 Q2 : Assertion} {h : PartialState} :
   · exact Or.inl ⟨h1, h2, hdisj, hunion, hP, hQ1⟩
   · exact Or.inr ⟨h1, h2, hdisj, hunion, hP, hQ2⟩
 
+/-- Distribute `**` over an existential on the right: pull a leaf's existentially-quantified arm
+    (e.g. `rlpWalkNextOk = fun h => ∃ next len, …`) out past the frame, so the `∃` is at the top and
+    can be threaded with `cpsTripleWithin_exists_pre` / `cpsBranchWithin_exists_pre`. -/
+theorem sepConj_exists_right {α : Sort _} {P : Assertion} {Q : α → Assertion} {h : PartialState} :
+    (P ** (fun s => ∃ a, Q a s)) h → ∃ a, (P ** Q a) h := by
+  rintro ⟨h1, h2, hdisj, hunion, hP, a, hQ⟩
+  exact ⟨a, h1, h2, hdisj, hunion, hP, hQ⟩
+
 /-- **Branch or-elimination.** If both `P1` and `P2` branch (same exits `lt`/`lf`), then their
     disjunction branches, with the per-exit posts disjoined. The tool for consuming a leaf call's
     disjunctive status `Post` as a branch `Pre`: fold the leaf's status disjuncts (each a branch
