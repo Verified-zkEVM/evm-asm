@@ -1632,6 +1632,38 @@ theorem rlpItemDecode_singleByte_offsets (srcBase cursor next len : Word) (off :
           from by bv_omega]
   · rw [hnext, hlen, hcursor, hse]; bv_omega
 
+/-! ## M3 proof — walk-succeeds (reverse) bridges
+
+For the success path, the forward proof must show `rlp_walk_next` returns `rlpWalkNextOk` for each
+decodable field — i.e. it must supply the `∃ next len, rlpItemDecode …` witness (`hdec`) that
+`walknext_status_success` consumes to collapse the 6-way status `Post`. These lemmas construct that
+witness directly from the byte-string item facts (the reverse of the `decodeAux` glue): given the
+prefix byte and range (and, for short strings, the canonicity and the content-fit), the matching
+`rlpItemDecode` disjunct holds with the concrete `next`/`len`. -/
+
+/-- **Single-byte walk-succeeds.** A single-byte item (`b < 0x80`) at an in-bounds cursor decodes:
+    `rlpItemDecode` holds with `next = cursor + 1`, `len = 1`. -/
+theorem rlpItemDecode_of_singleByte {bytes : List Byte} {off : Nat} {b : Byte} {cursor endPtr : Word}
+    (hget : bytes[off]? = some b) (hsingle : BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hin : BitVec.ult cursor endPtr = true) :
+    rlpItemDecode bytes off cursor endPtr (cursor + signExtend12 (1 : BitVec 12)) (1 : Word) :=
+  ⟨b, hget, Or.inl ⟨hsingle, hin, rfl, rfl⟩⟩
+
+/-- **Short-byte-string walk-succeeds.** A short-string item (`b ∈ [0x80, 0xB7]`) with the `len = 1`
+    canonicity and the content-fit (`b − 0x80 < endPtr − cursor`) decodes: `rlpItemDecode` holds
+    with `next = (cursor + 1) + (b − 0x80)`, `len = b − 0x80`. -/
+theorem rlpItemDecode_of_shortBytes {bytes : List Byte} {off : Nat} {b : Byte} {cursor endPtr : Word}
+    (hget : bytes[off]? = some b)
+    (hlo : ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true)
+    (hcanon : b.zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+      ∃ c : Byte, bytes[off + 1]? = some c ∧ ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)
+    (hfit : BitVec.ult (b.zeroExtend 64 - (0x80 : Word)) (endPtr - cursor) = true) :
+    rlpItemDecode bytes off cursor endPtr
+      ((cursor + signExtend12 (1 : BitVec 12)) + (b.zeroExtend 64 - (0x80 : Word)))
+      (b.zeroExtend 64 - (0x80 : Word)) :=
+  ⟨b, hget, Or.inr (Or.inl ⟨hlo, hhi, hcanon, hfit, rfl, rfl⟩)⟩
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
