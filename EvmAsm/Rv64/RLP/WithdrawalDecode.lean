@@ -1003,6 +1003,48 @@ theorem wd_decode_field0ScalarPrep (base srcBase t0Old t1Old advanced contentLen
   have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h_rc h_sa
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
 
+/-- **Field-0 `content_to_u64` call, over the full program code** (idx 21, base+84 → base+88):
+    the `jal ra, rlp_content_to_u64` call lifted from its local call-`CodeReq`
+    (`wd_call_content_to_u64`) to `withdrawal_decode_code base` via `cpsTripleWithin_extend_code`
+    and the `wd_call_code_sub`/`wd_c2uBody_sub` toolkit (the `jal` is at byte 84, the verified
+    `content_to_u64` body is the program segment at byte 956). Decodes the `len`-byte content at
+    `srcBase + srcOff` and returns to base+88 with the 4-way status result. The call-over-full-code
+    step the scalar field body composes after `wd_decode_field0ScalarPrep`. -/
+theorem wd_call_c2u_field0 (base srcBase vOld t0Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (halign : (base + 88) &&& ~~~1 = base + 88)
+    (hdisj : (CodeReq.singleton (base + 84) (.JAL .x1 (872 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : srcOff + len ≤ srcBytes.length) (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true) :
+    cpsTripleWithin (1 + (7 * len + 11)) (base + 84) (base + 88) (withdrawal_decode_code base)
+      ((.x1 ↦ᵣ vOld) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
+         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x7 ↦ᵣ t2Old) **
+         (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes))
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (base + 88)) ** bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+         (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+         (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+            ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+         (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+            (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0 ∧ len ≤ 8⌝) h))) := by
+  have hoffset : (base + 84) + signExtend21 (872 : BitVec 21) = base + 956 := by
+    rw [show signExtend21 (872 : BitVec 21) = (872 : Word) from by decide]; bv_omega
+  have hjal : withdrawal_decode_code base (base + 84) = some (.JAL .x1 (872 : BitVec 21)) := by
+    have h := wd_prog_lookup base 21 (by rw [withdrawal_decode_prog_length]; norm_num)
+    rw [show base + BitVec.ofNat 64 (4 * 21) = base + 84 from by bv_omega] at h
+    rw [h]; decide
+  have hcall := wd_call_content_to_u64 (base + 84) (base + 956) srcBase vOld t0Old t2Old t3Old
+    srcBytes srcOff len (872 : BitVec 21) hoffset
+    (by rw [show (base + 84) + 4 = base + 88 from by bv_omega]; exact halign) hdisj
+    hlen64 hsalign hslen hsover hsvalid
+  rw [show (base + 84) + 4 = base + 88 from by bv_omega] at hcall
+  exact cpsTripleWithin_extend_code (wd_call_code_sub hjal (wd_c2uBody_sub base)) hcall
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
