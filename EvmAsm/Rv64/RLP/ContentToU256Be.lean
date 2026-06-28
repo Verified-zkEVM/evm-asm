@@ -58,7 +58,10 @@
     * `…_empty_spec_within` — `len = 0` (canonical zero), status 0, output `0`;
     * `…_success_spec_within` — `0 < len ≤ 32 ∧ content[0] ≠ 0`, status 0, output
       the right-aligned big-endian `u256`.
-  A single unified dispatch theorem combining the four is a follow-up.
+  The unified dispatch theorem `…_spec_within` combines all four: static
+  preconditions only, a single `cpsTripleWithin (7*len+16)` (upper bound via
+  `cpsTripleWithin_mono_nSteps`), and the outcome stated as a four-way
+  postcondition disjunction (per the `AGENTS.md` spec-design convention).
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
@@ -975,6 +978,122 @@ theorem rlp_content_to_u256_be_empty_spec_within
               (sepConj_mono (regIs_implies_regOwn .x29) (fun _ x => x))))))))
         h hp
       xperm_hyp hp') sFull
+
+/--
+**Unified spec for `rlp_content_to_u256_be`.**
+
+Per the project spec-design convention (see `AGENTS.md`): every hypothesis is
+**statically known before the run** (alignment, the input buffer holds the
+`len`-byte content, size bounds, memory-validity); the **outcome** (status code
+and output) lives entirely in the **postcondition disjunction**. The step count
+is the static upper bound `7 * len + 16`, covering all four paths via
+`cpsTripleWithin_mono_nSteps`. A caller supplies only static facts and reads back
+which of the four cases occurred:
+
+* `32 < len` → `a0 = 2`, output arbitrary (`memOwnU256`);
+* `len = 0` → `a0 = 0`, output the all-zero `u256`;
+* `0 < len ∧ content[0] = 0` → `a0 = 3` (non-canonical), output arbitrary;
+* `0 < len ∧ content[0] ≠ 0` → `a0 = 0`, output the right-aligned big-endian `u256`.
+-/
+theorem rlp_content_to_u256_be_spec_within
+    (base srcBase outPtr raVal x5Old x6Old x7Old x28Old x29Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (hlen64 : len < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
+    (hslen : srcOff + len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64) (hoover : outPtr.toNat + 32 ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
+    (hdvalid : ∀ k, k < 32 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (7 * len + 16) base (raVal &&& ~~~1) (rlp_content_to_u256_be_code base)
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
+       (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+       (.x28 ↦ᵣ x28Old) ** (.x29 ↦ᵣ x29Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
+       bytesRegion srcBase srcBytes ** memOwnU256 outPtr)
+      (((.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x12 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (((.x10 ↦ᵣ (2 : Word)) ** memOwnU256 outPtr ** ⌜32 < len⌝) h) ∨
+         (((.x10 ↦ᵣ (0 : Word)) ** bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
+            ⌜len = 0⌝) h) ∨
+         (((.x10 ↦ᵣ (3 : Word)) ** memOwnU256 outPtr **
+            ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+         (((.x10 ↦ᵣ (0 : Word)) **
+            bytesRegion outPtr (copyN (List.replicate 32 (0 : BitVec 8)) srcBytes (32 - len) srcOff len) **
+            ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h))) := by
+  by_cases htl : 32 < len
+  · -- too-long (status 2)
+    have htl' : BitVec.ult (32 : Word) (BitVec.ofNat 64 len) = true := by
+      simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_ofNat,
+        show BitVec.toNat (32 : Word) = 32 from by decide, Nat.mod_eq_of_lt hlen64]
+      omega
+    have ht := cpsTripleWithin_frameR
+      ((.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) ** (.x28 ↦ᵣ x28Old) ** (.x29 ↦ᵣ x29Old) **
+       bytesRegion srcBase srcBytes)
+      (by pcFree)
+      (rlp_content_to_u256_be_too_long_spec_within base (srcBase + BitVec.ofNat 64 srcOff)
+        (BitVec.ofNat 64 len) outPtr x5Old raVal htl')
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+    have hp1 := sepConj_mono
+      (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
+        (sepConj_mono (regIs_implies_regOwn .x5) (fun _ x => x)))))
+      (sepConj_mono (regIs_implies_regOwn .x6) (sepConj_mono (regIs_implies_regOwn .x7)
+        (sepConj_mono (regIs_implies_regOwn .x28) (sepConj_mono (regIs_implies_regOwn .x29)
+          (fun _ x => x)))))
+      h hp
+    refine sepConj_mono_right (fun h' hbody => Or.inl
+      (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, htl⟩) h' hbody)) h ?_
+    xperm_hyp hp1
+  · by_cases h0 : len = 0
+    · -- empty / canonical zero (status 0)
+      subst h0
+      have he := cpsTripleWithin_frameR (bytesRegion srcBase srcBytes) (by pcFree)
+        (rlp_content_to_u256_be_empty_spec_within base srcBase outPtr raVal x5Old x6Old x7Old
+          x28Old x29Old srcOff)
+      refine cpsTripleWithin_mono_nSteps (by omega)
+        (cpsTripleWithin_weaken (fun h hp => by
+          simp only [show (BitVec.ofNat 64 0 : Word) = 0 from by decide] at hp ⊢; xperm_hyp hp)
+          (fun h hp => ?_) he)
+      refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inl
+        (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, rfl⟩) h' hbody))) h ?_
+      simp only [show (BitVec.ofNat 64 0 : Word) = 0 from by decide]
+      xperm_hyp hp
+    · by_cases hc : getByteAt srcBytes srcOff = 0
+      · -- non-canonical (status 3)
+        have hlen0 : 0 < len := Nat.pos_of_ne_zero h0
+        have hsoff : srcOff < srcBytes.length := by omega
+        have hgb : srcBytes[srcOff]'hsoff = getByteAt srcBytes srcOff := by simp [getByteAt, hsoff]
+        have hnoncanon : srcBytes[srcOff]'hsoff = 0 := by rw [hgb]; exact hc
+        have hsv0 : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true := by
+          have := hsvalid 0 hlen0; rwa [Nat.add_zero] at this
+        have hnc := cpsTripleWithin_frameR
+          ((.x7 ↦ᵣ x7Old) ** (.x28 ↦ᵣ x28Old) ** (.x29 ↦ᵣ x29Old))
+          (by pcFree)
+          (rlp_content_to_u256_be_noncanonical_spec_within base srcBase outPtr raVal x5Old x6Old
+            srcBytes srcOff len hlen0 (by omega) hsalign hsoff (by omega) hsv0 hnoncanon)
+        refine cpsTripleWithin_mono_nSteps (by omega)
+          (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hnc)
+        have hp1 := sepConj_mono (fun _ x => x)
+          (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x28)
+            (regIs_implies_regOwn .x29)))
+          h hp
+        refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl
+          (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hlen0, hc⟩) h' hbody)))) h ?_
+        xperm_hyp hp1
+      · -- success (status 0)
+        have hlen0 : 0 < len := Nat.pos_of_ne_zero h0
+        have hsoff : srcOff < srcBytes.length := by omega
+        have hgb : srcBytes[srcOff]'hsoff = getByteAt srcBytes srcOff := by simp [getByteAt, hsoff]
+        have hcanon : srcBytes[srcOff]'hsoff ≠ 0 := by rw [hgb]; exact hc
+        have hs := rlp_content_to_u256_be_success_spec_within base srcBase outPtr raVal x5Old x6Old
+          x7Old x28Old x29Old srcBytes srcOff len hlen0 (by omega) hsalign hoalign hsoff hcanon hslen
+          hsover hoover hsvalid (fun k hk => hdvalid ((32 - len) + k) (by omega))
+        refine cpsTripleWithin_mono_nSteps (by omega)
+          (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hs)
+        refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inr
+          (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hlen0, hc⟩) h' hbody)))) h ?_
+        xperm_hyp hp
 
 -- Sanity: program length and the failure-path instruction lookups.
 example : rlp_content_to_u256_be_prog.length = 26 := rfl
