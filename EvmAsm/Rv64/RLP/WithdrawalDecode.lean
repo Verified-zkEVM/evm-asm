@@ -117,6 +117,75 @@ theorem wd_call_content_to_u64
   exact cpsCallWithin offset hoffset halign (by pcFree) hdisj
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => hp) hcallee)
 
+/-- **Call block: `rlp_walk_next`.** A `jal ra` at `callerPC` into the verified `rlp_walk_next`
+    (appended at `calleeEntry`) advances one RLP item and returns to `callerPC + 4` with the 6-way
+    status result (`rlpWalkNextOk` on success, or status 2..6 on out-of-bounds/malformed).
+    Mirrors `wd_call_content_to_u64`; used at the five `walk_next` call sites. -/
+theorem wd_call_walk_next
+    (callerPC calleeEntry srcBase endPtr vOld a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) (offset : BitVec 21)
+    (hoffset : callerPC + signExtend21 offset = calleeEntry)
+    (halign : (callerPC + 4) &&& ~~~1 = callerPC + 4)
+    (hdisj : (CodeReq.singleton callerPC (.JAL .x1 offset)).Disjoint
+      (rlp_walk_next_code calleeEntry))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) :
+    cpsTripleWithin (1 + 87) callerPC (callerPC + 4)
+      ((CodeReq.singleton callerPC (.JAL .x1 offset)).union (rlp_walk_next_code calleeEntry))
+      ((.x1 ↦ᵣ vOld) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+         (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+         bytesRegion srcBase srcBytes))
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (callerPC + 4)) **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (2 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (3 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+              endPtr next len⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (4 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+              endPtr next len⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (5 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+              endPtr next len⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (6 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+              endPtr next len⌝) h))) := by
+  have hcallee := rlp_walk_next_spec_within calleeEntry srcBase endPtr (callerPC + 4) a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hover hvalid hss hls hll
+  exact cpsCallWithin offset hoffset halign (by pcFree) hdisj
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => hp) hcallee)
+
 /-! ## The self-contained drop-in program
 
 `withdrawal_decode_prog` is a single-pass, walk-based parse of an RLP withdrawal into the
