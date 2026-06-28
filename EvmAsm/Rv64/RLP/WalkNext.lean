@@ -47,6 +47,39 @@
   their prefix ranges — a single static step bound `78` (the longest path, lifted
   per case via `cpsTripleWithin_mono_nSteps`), and the outcome as a six-way
   postcondition disjunction keyed on `cursor vs end` and the prefix byte.
+
+  ## ⚠ Strictness gap vs execution-specs — additional failure checks required
+
+  The body above faithfully models the codegen guest, which is a **trusting**
+  single-item stepper: on the long forms it reads the declared length field and
+  advances by `1 + lol + decoded` **without** checking that span fits in
+  `[cursor, end)` (`endPtr` is consulted only by the initial `bgeu`), and it never
+  validates structural canonicality of the length encoding. Python execution-specs
+  (`ethereum_rlp/rlp.py`, `decode_to_bytes` / `decode_to_sequence`) is **strict**
+  and raises `DecodingError` in exactly the cases the guest silently accepts. To be
+  an execution-specs-equivalent (consensus-correct) decoder, this routine must gain
+  the following checks, each a **new failure status** (more reasons to fail):
+
+    1. **Span-fits / bound check** — reject when the advanced cursor exceeds `end`
+       (`advanced > endPtr`), i.e. the item (or, for long forms, even the length
+       field) runs past the available bytes — including a length declared in the
+       parent node. (execution-specs: `… _end_idx - 1 >= len(encoded) → raise`.)
+    2. **Long-form minimal length** — reject a long string/list whose decoded
+       length is `< 56` (`0x38`); such an item must use the short form.
+       (execution-specs: `if len_decoded_data < 0x38: raise`.)
+    3. **Length-field leading zero** — reject when the first length byte is `0`.
+       (execution-specs: `if encoded_bytes[1] == 0: raise`.)
+    4. **Single-byte short-string canonicality** — reject a 1-byte short string
+       whose content byte is `< 0x80` (it must be the bare byte). Requires reading
+       `content[0]`. (execution-specs: `if len_raw_data == 1 and raw_data[0] < 0x80: raise`.)
+
+  Checks (1)–(3) are computable from the prefix + length field + `end` that the
+  walker already has; (4) needs a content-byte read. These are **structural**
+  canonicality/bounds, distinct from the **scalar** canonicality (leading-zero of
+  the integer value) already enforced in `ContentToU256Be`/`ContentToU64`. Adding
+  them changes the program (extra compares + fail blocks) and the proofs (extra
+  failure disjuncts); the no-lenient-variant directive means this routine itself is
+  to be made strict rather than forked.
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
