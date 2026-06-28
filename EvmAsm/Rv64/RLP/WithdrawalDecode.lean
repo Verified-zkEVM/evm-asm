@@ -382,6 +382,25 @@ theorem wd_decode_epilogue (base spF raSaved s0Saved s1Saved s2Saved raClob s0Cl
   simp only [signExtend12_0] at hld0 hret
   runBlock hld0 hld1 hld2 hld3 haddi hret
 
+/-- **Success tail** (idx 74–75): `li a0, 0` then `j ret` — jump over the fail block to the
+    epilogue entry (base+308) with `a0 = 0`. -/
+theorem wd_decode_successTail (base a0Old : Word) :
+    cpsTripleWithin 2 (base + 296) (base + 308) (withdrawal_decode_code base)
+      (.x10 ↦ᵣ a0Old) (.x10 ↦ᵣ (0 : Word)) := by
+  have hli := li_spec_gen_within .x10 a0Old (0 : Word) (base + 296) (by decide)
+  have hjal := jal_x0_spec_gen_within (8 : BitVec 21) (base + 300)
+  rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide,
+      show (base + 300) + (8 : Word) = base + 308 from by bv_omega] at hjal
+  runBlock hli hjal
+
+/-- **Fail tail** (idx 76): `li a0, 1` — set the failure status, then fall through to the
+    epilogue entry (base+308). -/
+theorem wd_decode_failTail (base a0Old : Word) :
+    cpsTripleWithin 1 (base + 304) (base + 308) (withdrawal_decode_code base)
+      (.x10 ↦ᵣ a0Old) (.x10 ↦ᵣ (1 : Word)) := by
+  have hli := li_spec_gen_within .x10 a0Old (1 : Word) (base + 304) (by decide)
+  runBlock hli
+
 /-! ## M3 proof — reusable in-situ call code-lifting toolkit
 
 A call block from `wd_call_content_to_u64`'s pattern lives over
