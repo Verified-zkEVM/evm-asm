@@ -422,4 +422,40 @@ theorem wd_walkinit_code_sub (base : Word) :
     rw [withdrawal_decode_code, hrest]
     exact hr h2
 
+/-! ## M3 proof — fail-path bridge foundation
+
+Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
+The lemma below is the foundation: `decodeWithdrawal bs = none` exactly when `bs` does **not**
+fully decode to a canonical 4-element byte-list. Each assembly reject discharges its branch by
+establishing that the structural/canonicity condition fails (`walk_init` not-a-list, `walk_next`
+malformed/premature-end, prefix ≥ 0xc0 ⟹ element is a list, `content_to_u64` non-canonical
+scalar, address length ≠ 20, wrong arity), then applying `.mpr`. Derived from
+`decodeWithdrawal_eq_some_iff`. -/
+theorem decodeWithdrawal_eq_none_iff (bs : List Byte) :
+    decodeWithdrawal bs = none ↔
+      ¬ ∃ d0 d1 d2 d3 : List Byte,
+        decodeFully bs = some (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3])
+        ∧ d0.headD 1 ≠ 0 ∧ d0.length ≤ 8
+        ∧ d1.headD 1 ≠ 0 ∧ d1.length ≤ 8
+        ∧ d2.length = 20
+        ∧ d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 := by
+  constructor
+  · -- none ⟹ no canonical 4-byte-list structure
+    intro hnone ⟨d0, d1, d2, d3, hf, hc0, hl0, hc1, hl1, h20, hc3, hl3⟩
+    have hsome : decodeWithdrawal bs =
+        some { index := Nat.fromBytesBE d0, validatorIndex := Nat.fromBytesBE d1,
+               address := BitVec.ofNat 160 (Nat.fromBytesBE d2), amount := Nat.fromBytesBE d3 } :=
+      (decodeWithdrawal_eq_some_iff bs _).mpr
+        ⟨d0, d1, d2, d3, hf, hc0, hl0, hc1, hl1, h20, hc3, hl3, rfl, rfl, rfl, rfl⟩
+    rw [hsome] at hnone; simp at hnone
+  · -- no structure ⟹ none
+    intro hno
+    cases hw : decodeWithdrawal bs with
+    | none => rfl
+    | some w =>
+      exfalso
+      obtain ⟨d0, d1, d2, d3, hf, hc0, hl0, hc1, hl1, h20, hc3, hl3, _, _, _, _⟩ :=
+        (decodeWithdrawal_eq_some_iff bs w).mp hw
+      exact hno ⟨d0, d1, d2, d3, hf, hc0, hl0, hc1, hl1, h20, hc3, hl3⟩
+
 end EvmAsm.Rv64.RLP
