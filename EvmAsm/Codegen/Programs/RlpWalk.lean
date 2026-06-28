@@ -134,27 +134,35 @@ def rlpWalkInitFunction : String :=
   "  li a2, 7\n" ++
   "  ret"
 
-/-! ## rlp_walk_next -- advance cursor past one item, report content
+/-! ## rlp_walk_next -- advance cursor past one item, report content (STRICT)
 
-    Decode the single item at the cursor, advance the cursor past
-    it, and return the item's content length.  The content pointer
-    is derived by the caller as `advanced_cursor - content_length`
-    (see module doc for the per-form proof).
+    Decode the single item at the cursor, advance the cursor past it, and return
+    the item's content length.  STRICT (execution-specs-equivalent): rejects an
+    item whose header or content runs past `end` (bound), a non-canonical long
+    form (leading-zero length field, non-minimal decoded length), and a
+    non-canonical single-byte short string -- each with a distinct status.
 
     Calling convention:
       a0 (input)  : cursor (current item, abs ptr)
       a1 (input)  : end (exclusive, abs ptr)
       ra (input)  : return
-      a0 (output) : advanced cursor (next item, abs ptr)
-      a1 (output) : status (0 ok / 1 unused / 2 end-of-list)
-      a2 (output) : content length
+      a0 (output) : advanced cursor (next item); = cursor on every fail path
+      a1 (output) : status:
+                      0 ok
+                      2 end-of-list (cursor >= end)
+                      3 bound (item or length field runs past end)
+                      4 long-form non-minimal (decoded < 56)
+                      5 long-form length-field leading zero (len[0] == 0)
+                      6 single-byte short-string non-canonical (len==1, content < 0x80)
+      a2 (output) : content length (0 on every fail path)
                       (byte-string items: prefix-stripped payload;
                        sub-list items: full encoded span)
 
-    Frameless leaf -- clobbers only t0..t6, returns in a0/a1/a2. -/
+    The content pointer is derived by the caller as `advanced_cursor - content_length`.
+    Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2. -/
 def rlpWalkNextFunction : String :=
   "rlp_walk_next:\n" ++
-  "  bgeu a0, a1, .Lwn_end      # cursor at/past end -> end-of-list\n" ++
+  "  bgeu a0, a1, .Lwn_end      # cursor >= end -> end-of-list (status 2)\n" ++
   "  lbu t0, 0(a0)              # prefix byte\n" ++
   "  li t1, 0x80\n" ++
   "  bltu t0, t1, .Lwn_single\n" ++
@@ -167,66 +175,109 @@ def rlpWalkNextFunction : String :=
   "  # Long list (full encoded span): lol = t0 - 0xf7\n" ++
   "  li t1, 0xf7\n" ++
   "  sub t2, t0, t1             # lol\n" ++
-  "  li t3, 0                   # decoded length accumulator\n" ++
-  "  mv t4, t2                  # remaining length bytes\n" ++
-  "  addi t5, a0, 1             # first length byte\n" ++
+  "  addi t1, t2, 1             # 1 + lol (header size)\n" ++
+  "  add t4, a0, t1             # header_end = cursor + 1 + lol\n" ++
+  "  bltu a1, t4, .Lwn_bound    # header runs past end -> bound (status 3)\n" ++
+  "  addi t5, a0, 1             # length-field ptr\n" ++
+  "  lbu t6, 0(t5)              # first length byte\n" ++
+  "  beqz t6, .Lwn_lz           # leading zero -> status 5\n" ++
+  "  li t3, 0                   # decoded accumulator\n" ++
+  "  mv t1, t2                  # count = lol\n" ++
   ".Lwn_ll_be:\n" ++
-  "  beqz t4, .Lwn_ll_done\n" ++
+  "  beqz t1, .Lwn_ll_done\n" ++
   "  slli t3, t3, 8\n" ++
   "  lbu t6, 0(t5)\n" ++
   "  or t3, t3, t6\n" ++
   "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
+  "  addi t1, t1, -1\n" ++
   "  j .Lwn_ll_be\n" ++
   ".Lwn_ll_done:\n" ++
+  "  li t1, 56\n" ++
+  "  bltu t3, t1, .Lwn_nonmin   # decoded < 56 -> non-minimal (status 4)\n" ++
   "  add t6, t2, t3             # lol + decoded\n" ++
   "  addi t6, t6, 1             # full span = 1 + lol + decoded\n" ++
-  "  add a0, a0, t6             # advanced cursor\n" ++
-  "  mv a2, t6                  # content length = full span\n" ++
-  "  li a1, 0\n" ++
-  "  ret\n" ++
-  ".Lwn_short_list:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  sub t6, t0, t1             # t0 - 0xc0\n" ++
-  "  addi t6, t6, 1             # full span = 1 + (t0 - 0xc0)\n" ++
-  "  add a0, a0, t6             # advanced cursor\n" ++
+  "  add t1, a0, t6             # advanced (temp)\n" ++
+  "  bltu a1, t1, .Lwn_bound    # content runs past end -> bound (status 3)\n" ++
+  "  mv a0, t1                  # advanced cursor\n" ++
   "  mv a2, t6                  # content length = full span\n" ++
   "  li a1, 0\n" ++
   "  ret\n" ++
   ".Lwn_long_string:\n" ++
   "  li t1, 0xb7\n" ++
   "  sub t2, t0, t1             # lol\n" ++
-  "  li t3, 0                   # decoded length accumulator\n" ++
-  "  mv t4, t2                  # remaining length bytes\n" ++
-  "  addi t5, a0, 1             # first length byte\n" ++
+  "  addi t1, t2, 1             # 1 + lol\n" ++
+  "  add t4, a0, t1             # header_end = cursor + 1 + lol\n" ++
+  "  bltu a1, t4, .Lwn_bound    # header runs past end -> bound (status 3)\n" ++
+  "  addi t5, a0, 1             # length-field ptr\n" ++
+  "  lbu t6, 0(t5)              # first length byte\n" ++
+  "  beqz t6, .Lwn_lz           # leading zero -> status 5\n" ++
+  "  li t3, 0                   # decoded accumulator\n" ++
+  "  mv t1, t2                  # count = lol\n" ++
   ".Lwn_ls_be:\n" ++
-  "  beqz t4, .Lwn_ls_done\n" ++
+  "  beqz t1, .Lwn_ls_done\n" ++
   "  slli t3, t3, 8\n" ++
   "  lbu t6, 0(t5)\n" ++
   "  or t3, t3, t6\n" ++
   "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
+  "  addi t1, t1, -1\n" ++
   "  j .Lwn_ls_be\n" ++
   ".Lwn_ls_done:\n" ++
-  "  # t5 = content start (a0 + 1 + lol); advanced = t5 + decoded\n" ++
-  "  add a0, t5, t3             # advanced cursor\n" ++
+  "  li t1, 56\n" ++
+  "  bltu t3, t1, .Lwn_nonmin   # decoded < 56 -> non-minimal (status 4)\n" ++
+  "  add t1, t4, t3             # advanced = header_end + decoded (temp)\n" ++
+  "  bltu a1, t1, .Lwn_bound    # content runs past end -> bound (status 3)\n" ++
+  "  mv a0, t1                  # advanced cursor\n" ++
   "  mv a2, t3                  # content length = decoded (stripped)\n" ++
   "  li a1, 0\n" ++
   "  ret\n" ++
   ".Lwn_short_string:\n" ++
   "  li t1, 0x80\n" ++
   "  sub a2, t0, t1             # content length = t0 - 0x80\n" ++
-  "  addi a0, a0, 1             # past prefix\n" ++
-  "  add a0, a0, a2             # advanced = cursor + 1 + len\n" ++
+  "  addi t2, a0, 1             # content start = cursor + 1\n" ++
+  "  add t3, t2, a2             # advanced = cursor + 1 + len (temp)\n" ++
+  "  bltu a1, t3, .Lwn_bound    # content runs past end -> bound (status 3)\n" ++
+  "  li t1, 1\n" ++
+  "  bne a2, t1, .Lwn_ss_ok     # len != 1 -> canonical\n" ++
+  "  lbu t1, 0(t2)              # content[0]\n" ++
+  "  li t4, 0x80\n" ++
+  "  bltu t1, t4, .Lwn_noncanon # len==1 and content[0] < 0x80 -> non-canonical (status 6)\n" ++
+  ".Lwn_ss_ok:\n" ++
+  "  mv a0, t3                  # advanced cursor\n" ++
   "  li a1, 0\n" ++
   "  ret\n" ++
   ".Lwn_single:\n" ++
-  "  addi a0, a0, 1             # advanced cursor\n" ++
+  "  addi a0, a0, 1             # advanced cursor (cursor < end ensures in-bounds)\n" ++
   "  li a2, 1                   # content length = 1\n" ++
+  "  li a1, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_short_list:\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub t6, t0, t1             # t0 - 0xc0\n" ++
+  "  addi t6, t6, 1             # full span = 1 + (t0 - 0xc0)\n" ++
+  "  add t1, a0, t6             # advanced (temp)\n" ++
+  "  bltu a1, t1, .Lwn_bound    # content runs past end -> bound (status 3)\n" ++
+  "  mv a0, t1                  # advanced cursor\n" ++
+  "  mv a2, t6                  # content length = full span\n" ++
   "  li a1, 0\n" ++
   "  ret\n" ++
   ".Lwn_end:\n" ++
   "  li a1, 2                   # end-of-list\n" ++
+  "  li a2, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_bound:\n" ++
+  "  li a1, 3\n" ++
+  "  li a2, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_nonmin:\n" ++
+  "  li a1, 4\n" ++
+  "  li a2, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_lz:\n" ++
+  "  li a1, 5\n" ++
+  "  li a2, 0\n" ++
+  "  ret\n" ++
+  ".Lwn_noncanon:\n" ++
+  "  li a1, 6\n" ++
   "  li a2, 0\n" ++
   "  ret"
 
