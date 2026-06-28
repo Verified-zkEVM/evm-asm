@@ -548,6 +548,23 @@ theorem wd_bnez_branch (base : Word) (idx : Nat) (statusReg : Reg) (failOff : Bi
   have h := wd_prog_lookup base idx hidx
   rwa [hinstr] at h
 
+/-- **Generic scalar store** (`sd a0, structOff(s0)`): store the decoded u64 value (`a0`) into the
+    output struct dword at `s0 + structOff`. Reusable for the three scalar stores (idx 23/37/68,
+    offsets 0/8/40). Lifted to the program via `cpsTripleWithin_extend_code` + `wd_prog_lookup`. -/
+theorem wd_decode_storeScalar (base struct value mOld : Word) (idx : Nat) (structOff : BitVec 12)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .SD .x8 .x10 structOff) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (base + BitVec.ofNat 64 (4 * idx) + 4)
+      (withdrawal_decode_code base)
+      ((.x8 ↦ᵣ struct) ** (.x10 ↦ᵣ value) ** ((struct + signExtend12 structOff) ↦ₘ mOld))
+      ((.x8 ↦ᵣ struct) ** (.x10 ↦ᵣ value) ** ((struct + signExtend12 structOff) ↦ₘ value)) := by
+  have hsd := sd_spec_gen_within .x8 .x10 struct value mOld structOff
+    (base + BitVec.ofNat 64 (4 * idx))
+  refine cpsTripleWithin_extend_code ?_ hsd
+  apply CodeReq.singleton_mono
+  have h := wd_prog_lookup base idx hidx
+  rwa [hinstr] at h
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
