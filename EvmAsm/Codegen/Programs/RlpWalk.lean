@@ -54,30 +54,84 @@ open EvmAsm.Rv64
       ra (input)  : return
       a0 (output) : cursor (first child item, abs ptr)
       a1 (output) : end (list_ptr + list_len, exclusive)
-      a2 (output) : status (0 ok / 1 not-a-list)
+      a2 (output) : status (0 ok; nonzero = malformed, distinct per reason):
+                      1 not-a-list (prefix < 0xc0)
+                      2 empty (list_len == 0)
+                      3 short-list length mismatch (1 + (prefix-0xc0) != list_len)
+                      4 long-list header truncated (1 + lol > list_len)
+                      5 long-list length-field leading zero (len[0] == 0)
+                      6 long-list non-minimal (decoded < 56)
+                      7 long-list length mismatch (1 + lol + decoded != list_len)
 
-    Frameless leaf -- clobbers only t0/t1/t2, returns in a0/a1/a2. -/
+    EXACT (execution-specs-equivalent): the list's self-declared length must
+    equal `list_len` -- `1 + lol + decoded` (long) or `1 + (prefix-0xc0)` (short).
+    Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2. -/
 def rlpWalkInitFunction : String :=
   "rlp_walk_init:\n" ++
+  "  beqz a1, .Lwi_empty        # list_len == 0 -> empty (status 2)\n" ++
   "  add a1, a0, a1             # end = list_ptr + list_len\n" ++
-  "  lbu t0, 0(a0)\n" ++
+  "  lbu t0, 0(a0)              # prefix\n" ++
   "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lwi_fail     # not an RLP list\n" ++
+  "  bltu t0, t1, .Lwi_notlist  # prefix < 0xc0 -> not a list (status 1)\n" ++
   "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lwi_short    # short list: 1 prefix byte\n" ++
-  "  # Long list: prefix bytes = 1 + (t0 - 0xf7)\n" ++
+  "  bltu t0, t1, .Lwi_short    # 0xc0 <= prefix < 0xf8 -> short list\n" ++
+  "  # Long list: lol = prefix - 0xf7\n" ++
   "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  addi t2, t2, 1             # prefix bytes\n" ++
-  "  add a0, a0, t2             # cursor past outer prefix\n" ++
+  "  sub t2, t0, t1             # lol (1..8)\n" ++
+  "  addi t3, t2, 1             # header size = 1 + lol\n" ++
+  "  add t4, a0, t3             # cursor = list_ptr + 1 + lol\n" ++
+  "  bltu a1, t4, .Lwi_ltrunc   # end < cursor -> length field truncated (status 4)\n" ++
+  "  lbu t5, 1(a0)              # first length byte\n" ++
+  "  beqz t5, .Lwi_llz          # leading zero -> status 5\n" ++
+  "  # read length field (lol bytes, big-endian) -> t6 = decoded\n" ++
+  "  li t6, 0\n" ++
+  "  addi t1, a0, 1             # ptr = list_ptr + 1\n" ++
+  "  mv t5, t2                  # count = lol\n" ++
+  ".Lwi_lloop:\n" ++
+  "  beqz t5, .Lwi_ldone\n" ++
+  "  slli t6, t6, 8\n" ++
+  "  lbu t3, 0(t1)\n" ++
+  "  or t6, t6, t3\n" ++
+  "  addi t1, t1, 1\n" ++
+  "  addi t5, t5, -1\n" ++
+  "  j .Lwi_lloop\n" ++
+  ".Lwi_ldone:\n" ++
+  "  li t1, 56\n" ++
+  "  bltu t6, t1, .Lwi_lmin     # decoded < 56 -> non-minimal (status 6)\n" ++
+  "  add t1, t4, t6             # content_end = cursor + decoded\n" ++
+  "  bne t1, a1, .Lwi_lmism     # content_end != end -> length mismatch (status 7)\n" ++
+  "  mv a0, t4                  # cursor = list_ptr + 1 + lol\n" ++
   "  li a2, 0\n" ++
   "  ret\n" ++
   ".Lwi_short:\n" ++
-  "  addi a0, a0, 1\n" ++
+  "  li t1, 0xc0\n" ++
+  "  sub t2, t0, t1             # content_len = prefix - 0xc0\n" ++
+  "  addi t3, t2, 1             # 1 + content_len\n" ++
+  "  add t4, a0, t3             # content_end = list_ptr + 1 + content_len\n" ++
+  "  bne t4, a1, .Lwi_smism     # content_end != end -> short mismatch (status 3)\n" ++
+  "  addi a0, a0, 1             # cursor = list_ptr + 1\n" ++
   "  li a2, 0\n" ++
   "  ret\n" ++
-  ".Lwi_fail:\n" ++
+  ".Lwi_empty:\n" ++
+  "  li a2, 2\n" ++
+  "  ret\n" ++
+  ".Lwi_notlist:\n" ++
   "  li a2, 1\n" ++
+  "  ret\n" ++
+  ".Lwi_smism:\n" ++
+  "  li a2, 3\n" ++
+  "  ret\n" ++
+  ".Lwi_ltrunc:\n" ++
+  "  li a2, 4\n" ++
+  "  ret\n" ++
+  ".Lwi_llz:\n" ++
+  "  li a2, 5\n" ++
+  "  ret\n" ++
+  ".Lwi_lmin:\n" ++
+  "  li a2, 6\n" ++
+  "  ret\n" ++
+  ".Lwi_lmism:\n" ++
+  "  li a2, 7\n" ++
   "  ret"
 
 /-! ## rlp_walk_next -- advance cursor past one item, report content
