@@ -84,3 +84,37 @@ theorem decodeAux_shortBytes_bridge (bytes : List Byte) (off : Nat) (b : Byte)
     simp only [Nat.not_lt] at hcge
     simp only [Option.bind_eq_bind, Option.bind_some, if_neg (by omega : ¬ b0.toNat < 0x80)]
   · rfl
+
+/-! ### `decodeItems` composition steps
+
+These chain a byte-string item bridge with the recursive item decoder, so a payload that is a
+run of byte-string items (as the verified walk produces them) decodes as the corresponding
+`.bytes` item list. Fuel is `n + 2` at the outer level so the inner `decodeAux` runs at `n + 1`
+(the bridge's positive-fuel form) and the recursive `decodeItems` continues at `n + 1`. -/
+
+/-- One `decodeItems` step over a single-byte item at offset `off`. -/
+theorem decodeItems_cons_singleByte (bytes : List Byte) (off : Nat) (b : Byte)
+    (items : List RLPItem) (rest' : List Byte) (n : Nat)
+    (hget : bytes[off]? = some b) (hsingle : b.toNat < 0x80)
+    (hrest : decodeItems (n + 1) (bytes.drop (off + 1)) = some (items, rest')) :
+    decodeItems (n + 2) (bytes.drop off) = some (.bytes [b] :: items, rest') := by
+  have hne : bytes.drop off ≠ [] := by rw [drop_eq_cons_of_getElem? hget]; simp
+  rw [decodeItems_succ_of_ne_nil (n + 1) (bytes.drop off) hne,
+    decodeAux_singleByte_bridge bytes off b hget hsingle n]
+  simp only [Option.bind_eq_bind, Option.bind_some, hrest]
+
+set_option maxRecDepth 8000 in
+/-- One `decodeItems` step over a short-byte-string item at offset `off`. -/
+theorem decodeItems_cons_shortBytes (bytes : List Byte) (off : Nat) (b : Byte)
+    (items : List RLPItem) (rest' : List Byte) (n : Nat)
+    (hget : bytes[off]? = some b) (hlo : 0x80 ≤ b.toNat) (hhi : b.toNat ≤ 0xB7)
+    (hlen : off + 1 + (b.toNat - 0x80) ≤ bytes.length)
+    (hcanon : b.toNat - 0x80 = 1 →
+      ∃ c : Byte, bytes[off + 1]? = some c ∧ ¬ c.toNat < 0x80)
+    (hrest : decodeItems (n + 1) (bytes.drop (off + 1 + (b.toNat - 0x80))) = some (items, rest')) :
+    decodeItems (n + 2) (bytes.drop off) =
+      some (.bytes ((bytes.drop (off + 1)).take (b.toNat - 0x80)) :: items, rest') := by
+  have hne : bytes.drop off ≠ [] := by rw [drop_eq_cons_of_getElem? hget]; simp
+  rw [decodeItems_succ_of_ne_nil (n + 1) (bytes.drop off) hne,
+    decodeAux_shortBytes_bridge bytes off b hget hlo hhi hlen hcanon n]
+  simp only [Option.bind_eq_bind, Option.bind_some, hrest]
