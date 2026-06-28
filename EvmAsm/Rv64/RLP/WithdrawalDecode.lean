@@ -1445,6 +1445,43 @@ theorem walknext_status_success {srcBytes : List Byte} {srcOff : Nat} {srcBase e
     obtain ⟨_, b, _, _, _, hr2⟩ := hr1
     exact (((sepConj_pure_right b).1 hr2).2) hdec
 
+/-- **Byte-string-form extraction.** A decoded item whose prefix is below `0xb8` is a single-byte
+    or short-byte-string item: the three larger forms (long string ≥ 0xb8, short list ≥ 0xc0, long
+    list ≥ 0xf8) are all ruled out by their prefix-range guards. The two surviving disjuncts are
+    exactly `rlpItemDecode`'s single-byte / short-string cases (with their `next`/`len` equations).
+    For the scalar/address withdrawal fields these are the only forms that can decode successfully
+    (`content_to_u64` rejects `len > 8`, the address check rejects `len ≠ 20`, so the field is a
+    short byte string); the surviving facts then feed the `decodeAux` byte-string bridges. -/
+theorem rlpItemDecode_byteString_of_lt_0xb8 {bytes : List (BitVec 8)} {off : Nat}
+    (hoff : off < bytes.length) {cursor endPtr next len : Word}
+    (hpre : BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (h : rlpItemDecode bytes off cursor endPtr next len) :
+    ∃ b : BitVec 8, bytes[off]? = some b ∧
+      ((BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
+          BitVec.ult cursor endPtr = true ∧
+          next = cursor + signExtend12 (1 : BitVec 12) ∧ len = (1 : Word)) ∨
+       (¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
+          BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+          (b.zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+            ∃ c : BitVec 8, bytes[off + 1]? = some c ∧
+              ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) ∧
+          BitVec.ult (b.zeroExtend 64 - (0x80 : Word)) (endPtr - cursor) = true ∧
+          next = (cursor + signExtend12 (1 : BitVec 12)) + (b.zeroExtend 64 - (0x80 : Word)) ∧
+          len = b.zeroExtend 64 - (0x80 : Word))) := by
+  obtain ⟨b, hb, hdisj⟩ := h
+  have hbe : b = bytes[off]'hoff := by
+    rw [List.getElem?_eq_getElem hoff] at hb; exact (Option.some.inj hb).symm
+  rw [← hbe] at hpre
+  refine ⟨b, hb, ?_⟩
+  rcases hdisj with sb | ss | ls | sl | ll
+  · exact Or.inl sb
+  · exact Or.inr ss
+  · exact absurd hpre ls.1
+  · exfalso; have h1 := sl.1
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hpre; bv_omega
+  · exfalso; have h1 := ll.1
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hpre; bv_omega
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
