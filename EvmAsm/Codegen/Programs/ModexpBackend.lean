@@ -3,24 +3,24 @@
 
   Pure-RV64 implementation of the MODEXP precompile (EIP-198) backend,
   replacing the deterministic safe-fail stub. Computes `(base^exp) mod modulus`
-  for arbitrary-precision operands up to 1024 bytes using schoolbook
+  for arbitrary-precision operands up to 2048 bytes using schoolbook
   multiplication and binary long division.
 -/
 
 namespace EvmAsm.Codegen
 
-/-- Maximum number of 64-bit limbs (1024 bytes / 8). -/
-def modexpBnMaxLimbs : Nat := 128
+/-- Maximum number of 64-bit limbs (2048 bytes / 8). -/
+def modexpBnMaxLimbs : Nat := 256
 
 /-- Scratch data section for the BigNum modexp backend. -/
 def emitModexpBnScratchData : String :=
   ".balign 8\n" ++
-  "modexp_bn_base:\n" ++ "  .zero 1024\n" ++
-  "modexp_bn_exp:\n" ++ "  .zero 1024\n" ++
-  "modexp_bn_mod:\n" ++ "  .zero 1024\n" ++
-  "modexp_bn_result:\n" ++ "  .zero 1024\n" ++
-  "modexp_bn_product:\n" ++ "  .zero 2048\n" ++
-  "modexp_bn_remainder:\n" ++ "  .zero 1032\n"
+  "modexp_bn_base:\n" ++ "  .zero 2048\n" ++
+  "modexp_bn_exp:\n" ++ "  .zero 2048\n" ++
+  "modexp_bn_mod:\n" ++ "  .zero 2048\n" ++
+  "modexp_bn_result:\n" ++ "  .zero 2048\n" ++
+  "modexp_bn_product:\n" ++ "  .zero 4096\n" ++
+  "modexp_bn_remainder:\n" ++ "  .zero 2056\n"
 
 /-- All helper functions concatenated (cmpge, sub, mul, binmod, be_to_le,
     le_to_be, iszero). Each is a global function using only t-regs internally
@@ -199,7 +199,7 @@ def zkvmModexpBackendImpl : String :=
   "  mv s3, a3\n" ++ "  mv s4, a4\n" ++ "  mv s5, a5\n" ++
   "  mv s6, a6\n" ++
   -- Validate lengths
-  "  li t0, 1024\n" ++
+  "  li t0, 2048\n" ++
   "  bltu t0, s1, .Lmexp_err\n" ++
   "  bltu t0, s3, .Lmexp_err\n" ++
   "  bltu t0, s5, .Lmexp_err\n" ++
@@ -213,7 +213,7 @@ def zkvmModexpBackendImpl : String :=
   "  beqz s5, .Lmexp_ok\n" ++
   -- Parse modulus → modexp_bn_mod
   "  mv a0, s4\n" ++ "  mv a1, s5\n" ++
-  "  la a2, modexp_bn_mod\n" ++ "  li a3, 1024\n" ++
+  "  la a2, modexp_bn_mod\n" ++ "  li a3, 2048\n" ++
   "  jal ra, modexp_be_to_le\n" ++
   -- Check modulus == 0 → fill output with Mlen zeros
   "  la a0, modexp_bn_mod\n" ++ "  mv a1, s7\n" ++
@@ -221,11 +221,11 @@ def zkvmModexpBackendImpl : String :=
   "  bnez a0, .Lmexp_modzero\n" ++
   -- Parse base → modexp_bn_base
   "  mv a0, s0\n" ++ "  mv a1, s1\n" ++
-  "  la a2, modexp_bn_base\n" ++ "  li a3, 1024\n" ++
+  "  la a2, modexp_bn_base\n" ++ "  li a3, 2048\n" ++
   "  jal ra, modexp_be_to_le\n" ++
   -- Parse exp → modexp_bn_exp
   "  mv a0, s2\n" ++ "  mv a1, s3\n" ++
-  "  la a2, modexp_bn_exp\n" ++ "  li a3, 1024\n" ++
+  "  la a2, modexp_bn_exp\n" ++ "  li a3, 2048\n" ++
   "  jal ra, modexp_be_to_le\n" ++
   -- Reduce base mod modulus: binmod(base, nb, mod, nm) → base
   "  la a0, modexp_bn_base\n" ++ "  mv a1, s8\n" ++
