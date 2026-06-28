@@ -1177,6 +1177,43 @@ theorem c2u_status_success {srcBytes : List Byte} {srcOff len : Nat} {h : Partia
     exact hbyte ((sepConj_pure_right b).1 hrest).2.2
   · exact h3
 
+/-- **Field-0 scalar body, success arm** (idx 14–21, base+56 → base+88): `wd_decode_field0ScalarBody`
+    with its 4-way `content_to_u64` status post **collapsed to the success arm** via
+    `c2u_status_success`, given the scalar is canonical (nonempty `0 < len`, fits a u64 `len ≤ 8`,
+    nonzero leading byte `getByteAt ≠ 0`). The post then carries the concrete decoded value
+    `a0 = ofNat (fromBytesBE content)` and `a1 = 0`, ready for the status guard to fall through and
+    the scalar store. Collapses the disjunction in place with `sepConj_mono_left/right`. -/
+theorem wd_decode_field0ScalarBodySuccess (base srcBase vOld t0Old t1Old advanced a1Old t2Old t3Old :
+    Word) (srcBytes : List (BitVec 8)) (cursorOff srcOff len : Nat) (halign : srcBase.toNat % 8 = 0)
+    (hi : cursorOff < srcBytes.length) (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true)
+    (hlt : BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word))
+    (halign88 : (base + 88) &&& ~~~1 = base + 88)
+    (hdisj : (CodeReq.singleton (base + 84) (.JAL .x1 (872 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hlen64 : len < 2 ^ 64) (hslen : srcOff + len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
+    (hcp : advanced - BitVec.ofNat 64 len = srcBase + BitVec.ofNat 64 srcOff)
+    (hpos : 0 < len) (hbyte : getByteAt srcBytes srcOff ≠ 0) (hlen8 : len ≤ 8) :
+    cpsTripleWithin (7 + (1 + (7 * len + 11))) (base + 56) (base + 88) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x10 ↦ᵣ advanced) ** (.x12 ↦ᵣ (BitVec.ofNat 64 len)) ** (.x11 ↦ᵣ a1Old) **
+        (.x1 ↦ᵣ vOld) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion srcBase srcBytes)
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x1 ↦ᵣ (base + 88)) ** bytesRegion srcBase srcBytes) **
+         ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+          (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0 ∧ len ≤ 8⌝)) **
+        ((.x9 ↦ᵣ advanced) ** (.x12 ↦ᵣ (BitVec.ofNat 64 len)) **
+          ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝)) :=
+  cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hp => sepConj_mono_left
+      (sepConj_mono_right (fun _ hd => c2u_status_success hlen8 hpos hbyte hd)) _ hp)
+    (wd_decode_field0ScalarBody base srcBase vOld t0Old t1Old advanced a1Old t2Old t3Old
+      srcBytes cursorOff srcOff len halign hi hover hvalid hlt halign88 hdisj hlen64 hslen hsover
+      hsvalid hcp)
+
 /-- `content_to_u64` **fails** on an over-long scalar (`8 < len`): the status `Post` collapses to a
     fail arm (D0 status 2 or D2 status 3) — both `a1 ≠ 0`, so the guard is taken ⟹ fail. Rules out
     `len = 0` (D1) and, crucially via the strengthened spec, the success arm D3 (which now carries
