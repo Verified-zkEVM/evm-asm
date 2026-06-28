@@ -382,45 +382,94 @@ theorem wd_decode_epilogue (base spF raSaved s0Saved s1Saved s2Saved raClob s0Cl
   simp only [signExtend12_0] at hld0 hret
   runBlock hld0 hld1 hld2 hld3 haddi hret
 
-/-! ## M3 proof — in-situ call code-lifting
+/-! ## M3 proof — reusable in-situ call code-lifting toolkit
 
 A call block from `wd_call_content_to_u64`'s pattern lives over
-`singleton callerPC (jal) ∪ leaf_code calleeEntry`. To compose it into the full program it
-must be lifted to `withdrawal_decode_code base` via `cpsTripleWithin_extend_code`. The lemma
-below is that lifting for the `walk_init` call (`jal` at idx 6, body appended at idx 83); the
-`walk_next`/`content_to_u64` calls lift identically (bodies at idx 136 / 239). -/
-theorem wd_walkinit_code_sub (base : Word) :
-    ∀ a i, ((CodeReq.singleton (base + 24) (.JAL .x1 (308 : BitVec 21))).union
-              (rlp_walk_init_code (base + 332))) a = some i →
+`singleton callerPC (jal) ∪ leaf_code calleeEntry`; to compose it into the program it is lifted
+to `withdrawal_decode_code base` via `cpsTripleWithin_extend_code`. `wd_call_code_sub` factors
+that lifting into (a) the `jal` is present at `callerPC` in the program and (b) the leaf body is
+a contiguous segment of the program. The three body-subset lemmas supply (b) for the leaves
+appended at idx 83 / 136 / 239 (bytes 332 / 544 / 956); they serve all nine call sites
+(`walk_init` ×1, `walk_next` ×5, `content_to_u64` ×3). -/
+
+/-- Generic call code-lifting: a `jal` present in the program, unioned with a leaf body that is a
+    program segment, is contained in the program. -/
+theorem wd_call_code_sub {base callerPC : Word} {i_jal : Instr} {calleeCode : CodeReq}
+    (hjal : withdrawal_decode_code base callerPC = some i_jal)
+    (hbody : ∀ a i, calleeCode a = some i → withdrawal_decode_code base a = some i) :
+    ∀ a i, ((CodeReq.singleton callerPC i_jal).union calleeCode) a = some i →
+           withdrawal_decode_code base a = some i :=
+  CodeReq.union_sub (CodeReq.singleton_mono hjal) hbody
+
+/-- The appended `rlp_walk_init` body (idx 83, byte 332) is a segment of the program. -/
+theorem wd_walkInitBody_sub (base : Word) :
+    ∀ a i, (rlp_walk_init_code (base + 332)) a = some i →
            withdrawal_decode_code base a = some i := by
+  intro a i hwi
   have hrest : withdrawal_decode_prog
       = withdrawal_decode_glue ++
           (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog) := by
     simp only [withdrawal_decode_prog, List.append_assoc]
-  apply CodeReq.union_sub
-  · -- the `jal` at idx 6 of the program
-    apply CodeReq.singleton_mono
-    have h := CodeReq.ofProg_lookup_addr base withdrawal_decode_prog 6 (base + 24)
-      (by rw [withdrawal_decode_prog_length]; norm_num)
-      (by rw [withdrawal_decode_prog_length]; norm_num)
-      (by bv_omega)
-    rwa [show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
-          = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
-  · -- the appended `rlp_walk_init` body (idx 83.., byte offset 332)
-    intro a i hwi
-    -- walk_init ⊆ walk_init ++ walk_next ++ content_to_u64, at base + 332
-    have h1 := CodeReq.ofProg_mono_append_left (base + 332) rlp_walk_init_prog rlp_walk_next_prog
-      a i hwi
-    have h2 := CodeReq.ofProg_mono_append_left (base + 332)
-      (rlp_walk_init_prog ++ rlp_walk_next_prog) rlp_content_to_u64_prog a i h1
-    -- that suffix sits at byte offset 4 * |glue| = 332 in the whole program
-    have hr := CodeReq.ofProg_mono_append_right base withdrawal_decode_glue
-      (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog)
-      (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
-    rw [withdrawal_decode_glue_length,
-        show base + BitVec.ofNat 64 (4 * 83) = base + 332 from by bv_omega] at hr
-    rw [withdrawal_decode_code, hrest]
-    exact hr h2
+  have h1 := CodeReq.ofProg_mono_append_left (base + 332) rlp_walk_init_prog rlp_walk_next_prog
+    a i hwi
+  have h2 := CodeReq.ofProg_mono_append_left (base + 332)
+    (rlp_walk_init_prog ++ rlp_walk_next_prog) rlp_content_to_u64_prog a i h1
+  have hr := CodeReq.ofProg_mono_append_right base withdrawal_decode_glue
+    (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog)
+    (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
+  rw [withdrawal_decode_glue_length,
+      show base + BitVec.ofNat 64 (4 * 83) = base + 332 from by bv_omega] at hr
+  rw [withdrawal_decode_code, hrest]
+  exact hr h2
+
+/-- The appended `rlp_walk_next` body (idx 136, byte 544) is a segment of the program. -/
+theorem wd_walkNextBody_sub (base : Word) :
+    ∀ a i, (rlp_walk_next_code (base + 544)) a = some i →
+           withdrawal_decode_code base a = some i := by
+  intro a i hwn
+  have hrest : withdrawal_decode_prog
+      = (withdrawal_decode_glue ++ rlp_walk_init_prog) ++
+          (rlp_walk_next_prog ++ rlp_content_to_u64_prog) := by
+    simp only [withdrawal_decode_prog, List.append_assoc]
+  have h1 := CodeReq.ofProg_mono_append_left (base + 544) rlp_walk_next_prog rlp_content_to_u64_prog
+    a i hwn
+  have hr := CodeReq.ofProg_mono_append_right base (withdrawal_decode_glue ++ rlp_walk_init_prog)
+    (rlp_walk_next_prog ++ rlp_content_to_u64_prog)
+    (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
+  rw [show (withdrawal_decode_glue ++ rlp_walk_init_prog).length = 136 from by
+        simp [List.length_append, withdrawal_decode_glue_length, rlp_walk_init_prog_length],
+      show base + BitVec.ofNat 64 (4 * 136) = base + 544 from by bv_omega] at hr
+  rw [withdrawal_decode_code, hrest]
+  exact hr h1
+
+/-- The appended `rlp_content_to_u64` body (idx 239, byte 956) is a segment of the program. -/
+theorem wd_c2uBody_sub (base : Word) :
+    ∀ a i, (rlp_content_to_u64_code (base + 956)) a = some i →
+           withdrawal_decode_code base a = some i := by
+  intro a i hc
+  have hr := CodeReq.ofProg_mono_append_right base
+    (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog) rlp_content_to_u64_prog
+    (by simp [List.length_append, withdrawal_decode_glue_length, rlp_walk_init_prog_length,
+              rlp_walk_next_prog_length, rlp_content_to_u64_prog_length]) a i
+  rw [show (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog).length = 239 from by
+        simp [List.length_append, withdrawal_decode_glue_length, rlp_walk_init_prog_length,
+              rlp_walk_next_prog_length],
+      show base + BitVec.ofNat 64 (4 * 239) = base + 956 from by bv_omega] at hr
+  rw [withdrawal_decode_code]
+  exact hr hc
+
+/-- Code-lifting for the `walk_init` call (`jal` at idx 6 → body at idx 83), via the toolkit. -/
+theorem wd_walkinit_code_sub (base : Word) :
+    ∀ a i, ((CodeReq.singleton (base + 24) (.JAL .x1 (308 : BitVec 21))).union
+              (rlp_walk_init_code (base + 332))) a = some i →
+           withdrawal_decode_code base a = some i := by
+  refine wd_call_code_sub ?_ (wd_walkInitBody_sub base)
+  have h := CodeReq.ofProg_lookup_addr base withdrawal_decode_prog 6 (base + 24)
+    (by rw [withdrawal_decode_prog_length]; norm_num)
+    (by rw [withdrawal_decode_prog_length]; norm_num) (by bv_omega)
+  rw [withdrawal_decode_code]
+  rwa [show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
+        = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
 
 /-! ## M3 proof — fail-path bridge foundation
 
