@@ -412,6 +412,17 @@ theorem wd_decode_setup (base cursor endv s1Old s2Old : Word) :
   have hmv1 := mv_spec_gen_within .x18 .x11 endv s2Old (base + 36) (by decide)
   runBlock hmv0 hmv1
 
+/-- **Field `walk_next` arg setup** (`mv a0,s1; mv a1,s2`): load the saved cursor/end into the
+    `walk_next` argument registers before each field's call. Shown for field 0 (idx 10–11,
+    `base+40 → base+48`); the same shape recurs at idx 24–25 / 38–39 / 55–56 / 69–70. -/
+theorem wd_decode_fieldSetup (base cursor endv a0Old a1Old : Word) :
+    cpsTripleWithin 2 (base + 40) (base + 48) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endv))
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endv) ** (.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endv)) := by
+  have hmv0 := mv_spec_gen_within .x10 .x9 cursor a0Old (base + 40) (by decide)
+  have hmv1 := mv_spec_gen_within .x11 .x18 endv a1Old (base + 44) (by decide)
+  runBlock hmv0 hmv1
+
 /-- **Scalar-field arithmetic** (field 0, idx 17–20, `base+68 → base+84`): set `s1 := advanced`
     (cursor), compute `a0 := contentPtr = advanced − contentLen`, and stage `content_to_u64`'s
     args `a1 := contentLen`, `t1 := contentPtr`. The same four-instruction shape recurs for
