@@ -40,6 +40,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.RLP.WalkInit
+import EvmAsm.Rv64.RLP.WalkNext
 
 namespace EvmAsm.Codegen
 
@@ -75,101 +76,34 @@ open EvmAsm.Rv64
 def rlpWalkInitFunction : String :=
   "rlp_walk_init:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_init_prog
 
-/-! ## rlp_walk_next -- advance cursor past one item, report content
+/-! ## rlp_walk_next -- advance cursor past one item, report content (STRICT)
 
-    Decode the single item at the cursor, advance the cursor past
-    it, and return the item's content length.  The content pointer
-    is derived by the caller as `advanced_cursor - content_length`
-    (see module doc for the per-form proof).
+    Decode the single item at the cursor, advance the cursor past it, and return
+    the item's content length.  STRICT (execution-specs-equivalent): rejects an
+    item whose header or content runs past `end` (bound), a non-canonical long
+    form (leading-zero length field, non-minimal decoded length), and a
+    non-canonical single-byte short string -- each with a distinct status.
 
     Calling convention:
       a0 (input)  : cursor (current item, abs ptr)
       a1 (input)  : end (exclusive, abs ptr)
       ra (input)  : return
-      a0 (output) : advanced cursor (next item, abs ptr)
-      a1 (output) : status (0 ok / 1 unused / 2 end-of-list)
-      a2 (output) : content length
+      a0 (output) : advanced cursor (next item); = cursor on every fail path
+      a1 (output) : status:
+                      0 ok
+                      2 end-of-list (cursor >= end)
+                      3 bound (item or length field runs past end)
+                      4 long-form non-minimal (decoded < 56)
+                      5 long-form length-field leading zero (len[0] == 0)
+                      6 single-byte short-string non-canonical (len==1, content < 0x80)
+      a2 (output) : content length (0 on every fail path)
                       (byte-string items: prefix-stripped payload;
                        sub-list items: full encoded span)
 
-    Frameless leaf -- clobbers only t0..t6, returns in a0/a1/a2. -/
+    The content pointer is derived by the caller as `advanced_cursor - content_length`.
+    Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2. -/
 def rlpWalkNextFunction : String :=
-  "rlp_walk_next:\n" ++
-  "  bgeu a0, a1, .Lwn_end      # cursor at/past end -> end-of-list\n" ++
-  "  lbu t0, 0(a0)              # prefix byte\n" ++
-  "  li t1, 0x80\n" ++
-  "  bltu t0, t1, .Lwn_single\n" ++
-  "  li t1, 0xb8\n" ++
-  "  bltu t0, t1, .Lwn_short_string\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lwn_long_string\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lwn_short_list\n" ++
-  "  # Long list (full encoded span): lol = t0 - 0xf7\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li t3, 0                   # decoded length accumulator\n" ++
-  "  mv t4, t2                  # remaining length bytes\n" ++
-  "  addi t5, a0, 1             # first length byte\n" ++
-  ".Lwn_ll_be:\n" ++
-  "  beqz t4, .Lwn_ll_done\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t6, 0(t5)\n" ++
-  "  or t3, t3, t6\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lwn_ll_be\n" ++
-  ".Lwn_ll_done:\n" ++
-  "  add t6, t2, t3             # lol + decoded\n" ++
-  "  addi t6, t6, 1             # full span = 1 + lol + decoded\n" ++
-  "  add a0, a0, t6             # advanced cursor\n" ++
-  "  mv a2, t6                  # content length = full span\n" ++
-  "  li a1, 0\n" ++
-  "  ret\n" ++
-  ".Lwn_short_list:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  sub t6, t0, t1             # t0 - 0xc0\n" ++
-  "  addi t6, t6, 1             # full span = 1 + (t0 - 0xc0)\n" ++
-  "  add a0, a0, t6             # advanced cursor\n" ++
-  "  mv a2, t6                  # content length = full span\n" ++
-  "  li a1, 0\n" ++
-  "  ret\n" ++
-  ".Lwn_long_string:\n" ++
-  "  li t1, 0xb7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li t3, 0                   # decoded length accumulator\n" ++
-  "  mv t4, t2                  # remaining length bytes\n" ++
-  "  addi t5, a0, 1             # first length byte\n" ++
-  ".Lwn_ls_be:\n" ++
-  "  beqz t4, .Lwn_ls_done\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t6, 0(t5)\n" ++
-  "  or t3, t3, t6\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lwn_ls_be\n" ++
-  ".Lwn_ls_done:\n" ++
-  "  # t5 = content start (a0 + 1 + lol); advanced = t5 + decoded\n" ++
-  "  add a0, t5, t3             # advanced cursor\n" ++
-  "  mv a2, t3                  # content length = decoded (stripped)\n" ++
-  "  li a1, 0\n" ++
-  "  ret\n" ++
-  ".Lwn_short_string:\n" ++
-  "  li t1, 0x80\n" ++
-  "  sub a2, t0, t1             # content length = t0 - 0x80\n" ++
-  "  addi a0, a0, 1             # past prefix\n" ++
-  "  add a0, a0, a2             # advanced = cursor + 1 + len\n" ++
-  "  li a1, 0\n" ++
-  "  ret\n" ++
-  ".Lwn_single:\n" ++
-  "  addi a0, a0, 1             # advanced cursor\n" ++
-  "  li a2, 1                   # content length = 1\n" ++
-  "  li a1, 0\n" ++
-  "  ret\n" ++
-  ".Lwn_end:\n" ++
-  "  li a1, 2                   # end-of-list\n" ++
-  "  li a2, 0\n" ++
-  "  ret"
+  "rlp_walk_next:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_next_prog
 
 /-! ## rlp_content_to_u64 -- big-endian content bytes -> u64
 
