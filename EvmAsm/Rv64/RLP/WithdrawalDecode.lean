@@ -401,6 +401,17 @@ theorem wd_decode_failTail (base a0Old : Word) :
   have hli := li_spec_gen_within .x10 a0Old (1 : Word) (base + 304) (by decide)
   runBlock hli
 
+/-- **Cursor/end setup** (idx 8–9): after the `walk_init` call returns the cursor in `a0` and the
+    list end in `a1`, save them into `s1`/`s2` (`base+32 → base+40`). The first body segment past
+    the `walk_init` call + its `bnez` guard. -/
+theorem wd_decode_setup (base cursor endv s1Old s2Old : Word) :
+    cpsTripleWithin 2 (base + 32) (base + 40) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endv))
+      ((.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endv) ** (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endv)) := by
+  have hmv0 := mv_spec_gen_within .x9 .x10 cursor s1Old (base + 32) (by decide)
+  have hmv1 := mv_spec_gen_within .x18 .x11 endv s2Old (base + 36) (by decide)
+  runBlock hmv0 hmv1
+
 /-! ## M3 proof — reusable in-situ call code-lifting toolkit
 
 A call block from `wd_call_content_to_u64`'s pattern lives over
