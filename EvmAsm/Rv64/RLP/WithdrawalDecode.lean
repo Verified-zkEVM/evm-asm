@@ -682,6 +682,25 @@ theorem cpsBranchWithin_or_pre {n : Nat} {e : Word} {cr : CodeReq} {P1 P2 : Asse
     · exact Or.inl ⟨hpct, g, gc, ga, gb, gd, gu, Or.inr gQ, gR⟩
     · exact Or.inr ⟨hpcf, g, gc, ga, gb, gd, gu, Or.inr gQ, gR⟩
 
+/-- **Branch existential-elimination.** If `P a` branches (same exits `lt`/`lf`) for every witness
+    `a`, then the existential pre `∃ a, P a` branches, with each per-exit post existentially closed.
+    The tool for consuming a leaf call's existentially-quantified success arm (e.g.
+    `rlpWalkNextOk = fun h => ∃ next len, …`) as a branch `Pre`: peel the `∃`, run the per-witness
+    branch, and re-close the `∃` on the taken/not-taken posts. -/
+theorem cpsBranchWithin_exists_pre {α : Sort _} {n : Nat} {e : Word} {cr : CodeReq}
+    {P : α → Assertion} {lt lf : Word} {Qt Qf : α → Assertion}
+    (h : ∀ a, cpsBranchWithin n e cr (P a) lt (Qt a) lf (Qf a)) :
+    cpsBranchWithin n e cr (fun s => ∃ a, P a s) lt (fun s => ∃ a, Qt a s)
+      lf (fun s => ∃ a, Qf a s) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hh, hcompat, x, y, hxy, hu, hPx, hRy⟩ := hPR
+  obtain ⟨a, hPa⟩ := hPx
+  obtain ⟨k, hk, s', hstep, hbr⟩ := h a R hR s hcr ⟨hh, hcompat, x, y, hxy, hu, hPa, hRy⟩ hpc
+  refine ⟨k, hk, s', hstep, ?_⟩
+  rcases hbr with ⟨hpct, g, gc, ga, gb, gd, gu, gQ, gR⟩ | ⟨hpcf, g, gc, ga, gb, gd, gu, gQ, gR⟩
+  · exact Or.inl ⟨hpct, g, gc, ga, gb, gd, gu, ⟨a, gQ⟩, gR⟩
+  · exact Or.inr ⟨hpcf, g, gc, ga, gb, gd, gu, ⟨a, gQ⟩, gR⟩
+
 /-! ## M3 proof — reusable guard-branch machinery
 
 Each leaf call is followed by `bnez status, fail` (`.BNE status .x0 failOff`). `wd_bnez_branch`
