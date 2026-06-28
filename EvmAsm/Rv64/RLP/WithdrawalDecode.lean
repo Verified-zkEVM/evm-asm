@@ -325,4 +325,37 @@ def withdrawal_decode_characterization
        (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
           ⌜decodeWithdrawal srcBytes = none⌝) h)))
 
+/-! ## M3 proof — block 1: prologue over the full program code
+
+The composition proof of `withdrawal_decode_characterization` runs over
+`withdrawal_decode_code base`. The first block is the prologue (idx 0..5), proved here
+directly over the full program's `CodeReq` (so it composes with the remaining blocks via
+`cpsTripleWithin_seq` without a code-lifting step). -/
+theorem wd_decode_prologue (base sp0 raVal s0Old s1Old s2Old structPtr m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 6 base (base + 24) (withdrawal_decode_code base)
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ structPtr) **
+        ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ m3))
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x1 ↦ᵣ raVal) **
+        (.x8 ↦ᵣ structPtr) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ structPtr) **
+        ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)) := by
+  have hadd := addi_spec_gen_same_within .x2 sp0 (-32 : BitVec 12) base (by decide)
+  have hsd0 := sd_spec_gen_within .x2 .x1 (sp0 + signExtend12 (-32 : BitVec 12)) raVal m0
+    (0 : BitVec 12) (base + 4)
+  have hsd1 := sd_spec_gen_within .x2 .x8 (sp0 + signExtend12 (-32 : BitVec 12)) s0Old m1
+    (8 : BitVec 12) (base + 8)
+  have hsd2 := sd_spec_gen_within .x2 .x9 (sp0 + signExtend12 (-32 : BitVec 12)) s1Old m2
+    (16 : BitVec 12) (base + 12)
+  have hsd3 := sd_spec_gen_within .x2 .x18 (sp0 + signExtend12 (-32 : BitVec 12)) s2Old m3
+    (24 : BitVec 12) (base + 16)
+  have hmv := mv_spec_gen_within .x8 .x12 structPtr s0Old (base + 20) (by decide)
+  simp only [signExtend12_0] at hsd0
+  runBlock hadd hsd0 hsd1 hsd2 hsd3 hmv
+
 end EvmAsm.Rv64.RLP
