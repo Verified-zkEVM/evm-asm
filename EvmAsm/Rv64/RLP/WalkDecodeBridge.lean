@@ -92,6 +92,43 @@ run of byte-string items (as the verified walk produces them) decodes as the cor
 `.bytes` item list. Fuel is `n + 2` at the outer level so the inner `decodeAux` runs at `n + 1`
 (the bridge's positive-fuel form) and the recursive `decodeItems` continues at `n + 1`. -/
 
+/-- **Unified `decodeItems` step.** Given any item whose `decodeAux` consumes
+    `[off, nextOff)` and the recursive decode of the tail from `nextOff`, prepend the item.
+    Single-byte and short-byte-string items are the instances (via the bridges above); this
+    form lets the 4-field assembly treat them uniformly. -/
+theorem decodeItems_cons_of_decodeAux (bytes : List Byte) (off nextOff : Nat) (item : RLPItem)
+    (items : List RLPItem) (rest' : List Byte) (n : Nat)
+    (hne : bytes.drop off ≠ [])
+    (hitem : decodeAux (n + 1) (bytes.drop off) = some (item, bytes.drop nextOff))
+    (hrest : decodeItems (n + 1) (bytes.drop nextOff) = some (items, rest')) :
+    decodeItems (n + 2) (bytes.drop off) = some (item :: items, rest') := by
+  rw [decodeItems_succ_of_ne_nil (n + 1) (bytes.drop off) hne, hitem]
+  simp only [Option.bind_eq_bind, Option.bind_some, hrest]
+
+/-- **Four-byte-string-item assembly.** A run of four byte-string items at `off0 < off1 < off2 <
+    off3`, each consuming up to the next offset (`hi`, fuel-parametric as the bridges provide),
+    and ending exactly at `off4` (`hend`), decodes as the four-item `.bytes` list with no
+    leftover — for any fuel `≥ 5` (always met: a withdrawal payload is well over 3 bytes). -/
+theorem decodeItems_four_of_decodeAux (bytes : List Byte)
+    (off0 off1 off2 off3 off4 : Nat) (item0 item1 item2 item3 : RLPItem) (k : Nat)
+    (h0 : ∀ m, decodeAux (m + 1) (bytes.drop off0) = some (item0, bytes.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (bytes.drop off1) = some (item1, bytes.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (bytes.drop off2) = some (item2, bytes.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (bytes.drop off3) = some (item3, bytes.drop off4))
+    (hend : bytes.drop off4 = []) :
+    decodeItems (k + 5) (bytes.drop off0) = some ([item0, item1, item2, item3], []) := by
+  have hne : ∀ {o item r}, decodeAux 1 (bytes.drop o) = some (item, r) → bytes.drop o ≠ [] := by
+    intro o item r h hnil; rw [hnil, decodeAux_nil] at h; simp at h
+  have base : decodeItems (k + 1) (bytes.drop off4) = some ([], []) := by rw [hend]; rfl
+  have s3 := decodeItems_cons_of_decodeAux bytes off3 off4 item3 [] [] k
+    (hne (h3 0)) (h3 k) base
+  have s2 := decodeItems_cons_of_decodeAux bytes off2 off3 item2 _ [] (k + 1)
+    (hne (h2 0)) (h2 (k + 1)) s3
+  have s1 := decodeItems_cons_of_decodeAux bytes off1 off2 item1 _ [] (k + 2)
+    (hne (h1 0)) (h1 (k + 2)) s2
+  exact decodeItems_cons_of_decodeAux bytes off0 off1 item0 _ [] (k + 3)
+    (hne (h0 0)) (h0 (k + 3)) s1
+
 /-- One `decodeItems` step over a single-byte item at offset `off`. -/
 theorem decodeItems_cons_singleByte (bytes : List Byte) (off : Nat) (b : Byte)
     (items : List RLPItem) (rest' : List Byte) (n : Nat)
