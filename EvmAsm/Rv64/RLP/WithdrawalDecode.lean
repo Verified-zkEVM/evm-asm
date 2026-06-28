@@ -1278,6 +1278,52 @@ theorem wd_decode_walkInitSetup (base cursor endv s1Old s2Old : Word) :
   have hcomp := cpsTripleWithin_seq_same_cr hb hs
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
 
+/-- **Field-0 walk_next guard, success continuation** (`bnez a1,fail` not taken — idx 13, base+52 →
+    base+56): on the `walk_next` success arm (`rlpWalkNextOk`, status `a1 = 0`) the guard falls
+    through, threading the runtime-determined `next`/`len` witnesses (and the `rlpItemDecode` fact)
+    to the post. Built by pulling `rlpWalkNextOk`'s `∃ next len` to the top (`sepConj_exists_right`),
+    threading it through the per-witness `wd_bnez_notaken` triple (`cpsTripleWithin_exists_pre`).
+    The per-witness state carries the saved-register frame the field body consumes. -/
+theorem wd_walknext_guard_success (base srcBase cursor endPtr vx1 : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) :
+    cpsTripleWithin 1 (base + 52) (base + 56) (withdrawal_decode_code base)
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vx1) ** bytesRegion srcBase srcBytes) **
+        rlpWalkNextOk cursor endPtr srcBytes srcOff)
+      (fun s => ∃ next len,
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vx1) ** bytesRegion srcBase srcBytes) **
+          ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** ⌜(0 : Word) = (0 : Word)⌝ **
+            ⌜rlpItemDecode srcBytes srcOff cursor endPtr next len⌝)) s) := by
+  have per : ∀ next len : Word,
+      cpsTripleWithin 1 (base + 52) (base + 56) (withdrawal_decode_code base)
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vx1) ** bytesRegion srcBase srcBytes) **
+          ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+            ⌜rlpItemDecode srcBytes srcOff cursor endPtr next len⌝))
+        ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ vx1) ** bytesRegion srcBase srcBytes) **
+          ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** ⌜(0 : Word) = (0 : Word)⌝ **
+            ⌜rlpItemDecode srcBytes srcOff cursor endPtr next len⌝)) := by
+    intro next len
+    have hb := cpsTripleWithin_frameR
+      ((.x10 ↦ᵣ next) ** (.x12 ↦ᵣ len) **
+        ⌜rlpItemDecode srcBytes srcOff cursor endPtr next len⌝ **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x1 ↦ᵣ vx1) ** bytesRegion srcBase srcBytes) (by pcFree)
+      (wd_bnez_notaken base 13 .x11 (252 : BitVec 13)
+        (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+    rw [show base + BitVec.ofNat 64 52 = base + 52 from by bv_omega,
+        show base + 52 + 4 = base + 56 from by bv_omega] at hb
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hb
+  have htriple := cpsTripleWithin_exists_pre (fun next : Word =>
+    cpsTripleWithin_exists_pre (fun len : Word => per next len))
+  refine cpsTripleWithin_weaken (fun s hp => ?_) (fun _ hp => hp) htriple
+  unfold rlpWalkNextOk at hp
+  obtain ⟨next, hp1⟩ := sepConj_exists_right hp
+  obtain ⟨len, hp2⟩ := sepConj_exists_right hp1
+  exact ⟨next, len, hp2⟩
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
