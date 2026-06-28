@@ -1523,6 +1523,53 @@ theorem rlpItemDecode_shortBytes_decodeAux {bytes : List Byte} {off : Nat} {b : 
     simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at hcge ⊢; bv_omega
   exact fun m => decodeAux_shortBytes_bridge bytes off b hget hlo' hhi' hlen hcanon' m
 
+/-- **Short-string offset bookkeeping** (Word ↔ Nat). For a short-string item at byte offset `off`
+    (cursor `srcBase + off`), the `rlpItemDecode` `next`/`len` Words convert to the `Nat` offsets the
+    pure assembly needs: the item ends at `srcBase + (off + 1 + (b−0x80))` (the capstone's next
+    offset), the reported length is `ofNat (b−0x80)`, and the **content pointer** `next − len`
+    is `srcBase + (off + 1)` — i.e. content offset `off + 1` (after the 1-byte prefix), which is the
+    scalar body's `hcp`. All three are pure `BitVec.ofNat` additive identities (the symbolic
+    3-term sum is chained through the 2-term `ofNat_add` bridge). -/
+theorem rlpItemDecode_shortBytes_offsets (srcBase cursor next len : Word) (b : BitVec 8) (off : Nat)
+    (hcursor : cursor = srcBase + BitVec.ofNat 64 off)
+    (hlo : ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hnext : next = (cursor + signExtend12 (1 : BitVec 12)) + (b.zeroExtend 64 - (0x80 : Word)))
+    (hlen : len = b.zeroExtend 64 - (0x80 : Word)) :
+    next = srcBase + BitVec.ofNat 64 (off + 1 + (b.toNat - 0x80)) ∧
+    len = BitVec.ofNat 64 (b.toNat - 0x80) ∧
+    next - len = srcBase + BitVec.ofNat 64 (off + 1) := by
+  have hb : 0x80 ≤ b.toNat := by
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at hlo; bv_omega
+  have hbw : b.zeroExtend 64 - (0x80 : Word) = BitVec.ofNat 64 (b.toNat - 0x80) := by bv_omega
+  have hse : signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 := by decide
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hnext, hcursor, hse, hbw,
+        show srcBase + BitVec.ofNat 64 off + BitVec.ofNat 64 1 = srcBase + BitVec.ofNat 64 (off + 1)
+          from by bv_omega,
+        show srcBase + BitVec.ofNat 64 (off + 1) + BitVec.ofNat 64 (b.toNat - 0x80)
+          = srcBase + BitVec.ofNat 64 (off + 1 + (b.toNat - 0x80)) from by bv_omega]
+  · rw [hlen, hbw]
+  · rw [hnext, hlen, hcursor, hse, hbw,
+        show srcBase + BitVec.ofNat 64 off + BitVec.ofNat 64 1 = srcBase + BitVec.ofNat 64 (off + 1)
+          from by bv_omega]
+    bv_omega
+
+/-- **Single-byte offset bookkeeping** (Word ↔ Nat). For a single-byte item at byte offset `off`,
+    the item ends at `srcBase + (off + 1)` (the capstone's next offset) and the content pointer
+    `next − len` (with `len = 1`) is `srcBase + off` — i.e. the content is the byte itself, at
+    offset `off` (the scalar body's `hcp`). -/
+theorem rlpItemDecode_singleByte_offsets (srcBase cursor next len : Word) (off : Nat)
+    (hcursor : cursor = srcBase + BitVec.ofNat 64 off)
+    (hnext : next = cursor + signExtend12 (1 : BitVec 12)) (hlen : len = (1 : Word)) :
+    next = srcBase + BitVec.ofNat 64 (off + 1) ∧
+    next - len = srcBase + BitVec.ofNat 64 off := by
+  have hse : signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 := by decide
+  refine ⟨?_, ?_⟩
+  · rw [hnext, hcursor, hse,
+        show srcBase + BitVec.ofNat 64 off + BitVec.ofNat 64 1 = srcBase + BitVec.ofNat 64 (off + 1)
+          from by bv_omega]
+  · rw [hnext, hlen, hcursor, hse]; bv_omega
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
