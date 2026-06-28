@@ -714,6 +714,53 @@ theorem wd_bne_ne (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13
       obtain ⟨_, b, _, _, _, hrest⟩ := hqf
       exact hne ((sepConj_pure_right b).1 hrest).2)
 
+/-- The reject-list guard branch (`.BGEU rs1 rs2`): `bgeu prefix, 0xc0, fail` — taken when
+    `¬ult v1 v2` (prefix ≥ 0xc0, a list), not taken when `ult v1 v2` (prefix < 0xc0, a string). -/
+theorem wd_bgeu_branch (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13) (v1 v2 : Word)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BGEU rs1 rs2 failOff) :
+    cpsBranchWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (withdrawal_decode_code base)
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
+      ((base + BitVec.ofNat 64 (4 * idx)) + signExtend13 failOff)
+        ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜¬ BitVec.ult v1 v2⌝)
+      ((base + BitVec.ofNat 64 (4 * idx)) + 4)
+        ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜BitVec.ult v1 v2⌝) := by
+  have hb := bgeu_spec_gen_within rs1 rs2 failOff v1 v2 (base + BitVec.ofNat 64 (4 * idx))
+  refine cpsBranchWithin_extend_code ?_ hb
+  apply CodeReq.singleton_mono
+  have h := wd_prog_lookup base idx hidx
+  rwa [hinstr] at h
+
+/-- Reject-check passes (`ult v1 v2` ⟹ not taken): `prefix < 0xc0`, a byte-string field. -/
+theorem wd_bgeu_lt (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13) (v1 v2 : Word)
+    (hlt : BitVec.ult v1 v2)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BGEU rs1 rs2 failOff) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (base + BitVec.ofNat 64 (4 * idx) + 4)
+      (withdrawal_decode_code base)
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜BitVec.ult v1 v2⌝) :=
+  cpsBranchWithin_ntakenPath (wd_bgeu_branch base idx rs1 rs2 failOff v1 v2 hidx hinstr)
+    (fun _ hqt => by
+      obtain ⟨_, b, _, _, _, hrest⟩ := hqt
+      exact ((sepConj_pure_right b).1 hrest).2 hlt)
+
+/-- Reject-check fails (`¬ult v1 v2` ⟹ taken ⟹ fail): `prefix ≥ 0xc0`, a list where bytes are
+    required ⟹ `decodeWithdrawal = none`. -/
+theorem wd_bgeu_ge (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13) (v1 v2 : Word)
+    (hge : ¬ BitVec.ult v1 v2)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BGEU rs1 rs2 failOff) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx))
+      ((base + BitVec.ofNat 64 (4 * idx)) + signExtend13 failOff)
+      (withdrawal_decode_code base)
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜¬ BitVec.ult v1 v2⌝) :=
+  cpsBranchWithin_takenPath (wd_bgeu_branch base idx rs1 rs2 failOff v1 v2 hidx hinstr)
+    (fun _ hqf => by
+      obtain ⟨_, b, _, _, _, hrest⟩ := hqf
+      exact hge ((sepConj_pure_right b).1 hrest).2)
+
 /-- **Prefix read** (`lbu t0, 0(s1)`): load the field's first byte (the RLP prefix at the cursor)
     from the input region into `t0`, for the reject-list check. Generic over the program index;
     serves the four reject-checks (idx 14/28/42/59). Reads byte `cursorOff` of `srcBytes` via
