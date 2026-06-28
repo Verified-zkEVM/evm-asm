@@ -13,6 +13,8 @@
 
 import EvmAsm.EL.RLP.PrefixDecode
 import EvmAsm.EL.RLP.Properties
+import EvmAsm.EL.RLP.FullDecode
+import EvmAsm.EL.RLP.ListDecodeBridge
 
 namespace EvmAsm.Rv64.RLP
 
@@ -155,3 +157,39 @@ theorem decodeItems_cons_shortBytes (bytes : List Byte) (off : Nat) (b : Byte)
   rw [decodeItems_succ_of_ne_nil (n + 1) (bytes.drop off) hne,
     decodeAux_shortBytes_bridge bytes off b hget hlo hhi hlen hcanon n]
   simp only [Option.bind_eq_bind, Option.bind_some, hrest]
+
+/-! ### Capstone: outer short-list of four byte-string items ⟹ `decodeFully` -/
+
+/-- **M2 capstone (short-list).** If `pfx` is a short-list prefix whose declared payload length
+    equals `|payload|`, and `payload` is exactly a run of four byte-string items (each consuming
+    up to the next offset, fuel-parametric; ending at `off4` with `payload.drop off4 = []`), then
+    the full input `pfx :: payload` decodes (no trailing bytes) to the four-item `.bytes` list.
+    A withdrawal's outer list is always short (payload `< 55` bytes), so this is the only outer
+    form needed. -/
+theorem decodeFully_shortList_four (pfx : Byte) (payload : List Byte)
+    (off1 off2 off3 off4 : Nat) (item0 item1 item2 item3 : RLPItem)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (item0, payload.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (payload.drop off1) = some (item1, payload.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (payload.drop off2) = some (item2, payload.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (payload.drop off3) = some (item3, payload.drop off4))
+    (hend : payload.drop off4 = [])
+    (h_min : 2 ≤ payload.length) :
+    decodeFully (pfx :: payload) = some (.list [item0, item1, item2, item3]) := by
+  have hdec : decode (pfx :: payload) = some (.list [item0, item1, item2, item3], []) := by
+    rw [decode_cons_eq_decodeAux_fuel,
+      show 2 * payload.length + 2 = (2 * payload.length + 1) + 1 from by omega]
+    refine (ListDecodeBridge.decodeAux_cons_shortList_eq_some_iff (2 * payload.length + 1) pfx
+      payload h_class [item0, item1, item2, item3] []).mpr ?_
+    refine ⟨payload, ?_, ?_⟩
+    · rw [h_len, takeBytes_length_ge (le_refl payload.length), List.take_length, List.drop_length]
+    · apply ListDecodeBridge.decodeListPayload_eq_some_of_decodeItems_empty
+      obtain ⟨k, hk⟩ : ∃ k, 2 * payload.length + 1 = k + 5 := ⟨2 * payload.length - 4, by omega⟩
+      rw [hk]
+      have h0' : ∀ m, decodeAux (m + 1) (payload.drop 0) = some (item0, payload.drop off1) := by
+        simp only [List.drop_zero]; exact h0
+      have hfour := decodeItems_four_of_decodeAux payload 0 off1 off2 off3 off4
+        item0 item1 item2 item3 k h0' h1 h2 h3 hend
+      rwa [List.drop_zero] at hfour
+  simp [decodeFully, hdec]
