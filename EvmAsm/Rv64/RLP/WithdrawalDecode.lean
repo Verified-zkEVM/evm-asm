@@ -28,11 +28,13 @@ import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
+import EvmAsm.EL.Withdrawal
 
 namespace EvmAsm.Rv64.RLP
 
 open EvmAsm.Rv64
 open EvmAsm.EL.RLP
+open EvmAsm.EL
 
 /-- **Prologue.** Push a 32-byte frame, save `ra` and callee-saved `s0/s1/s2`, and move the
     output-struct pointer (`a2`) into `s0`. Registers: `sp = x2`, `ra = x1`, `s0 = x8`,
@@ -242,5 +244,85 @@ theorem withdrawal_decode_glue_length : withdrawal_decode_glue.length = 83 := rf
 theorem withdrawal_decode_prog_length : withdrawal_decode_prog.length = 261 := by
   simp only [withdrawal_decode_prog, List.length_append, withdrawal_decode_glue_length,
     rlp_walk_init_prog_length, rlp_walk_next_prog_length, rlp_content_to_u64_prog_length]
+
+/-- The drop-in body as a `CodeReq` rooted at `base`. -/
+abbrev withdrawal_decode_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base withdrawal_decode_prog
+
+/-! ## CPS characterization, anchored on the pure `decodeWithdrawal`
+
+The contract below specifies `withdrawal_decode_prog` as a `cpsTripleWithin` whose
+postcondition is stated entirely in terms of the pure strict decoder
+`EvmAsm.EL.decodeWithdrawal`: on success the program returns `a0 = 0`, `decodeWithdrawal`
+of the input bytes is `some w`, and the 48-byte output struct holds `w`; on failure it
+returns `a0 = 1` and `decodeWithdrawal` of the input is `none`. Either way the input region
+and the callee-saved registers (`s0`/`s1`/`s2`, `ra`, `sp`) are preserved. This is the
+`withdrawal_decode_spec_within` target the block-by-block proof discharges. -/
+
+open EvmAsm.EL in
+/-- The writable 48-byte output struct, caller-owned with unconstrained content (six dwords). -/
+def wd_outOwned (outPtr : Word) : Assertion :=
+  memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) **
+  memOwn (outPtr + 24) ** memOwn (outPtr + 32) ** memOwn (outPtr + 40)
+
+open EvmAsm.EL in
+/-- The 48-byte output struct holding decoded withdrawal `w` whose 20-byte address bytes are
+    `d2`: `index` (u64, LE dword) @0, `validator_index` @8, the 20 address bytes @16..36
+    (`bytesRegion`, dwords @16/@24/@32 — the high 4 bytes of @32 are the zero pad), `amount`
+    @40. The scalar dwords are the little-endian u64 values written by `sd`. -/
+def wd_outHolds (outPtr : Word) (w : Withdrawal) (d2 : List Byte) : Assertion :=
+  (outPtr ↦ₘ BitVec.ofNat 64 w.index) **
+  ((outPtr + 8) ↦ₘ BitVec.ofNat 64 w.validatorIndex) **
+  bytesRegion (outPtr + 16) d2 **
+  ((outPtr + 40) ↦ₘ BitVec.ofNat 64 w.amount)
+
+open EvmAsm.EL in
+/-- The clobbered scratch (`t0..t6`) register-ownership tokens. -/
+def wd_scratchOwned : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
+
+open EvmAsm.EL in
+/-- The 32-byte stack frame `[sp0-32, sp0)` (four dwords), caller-owned. -/
+def wd_frameOwned (sp0 : Word) : Assertion :=
+  memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8)
+
+open EvmAsm.EL in
+/-- **CPS characterization of `withdrawal_decode_prog` against the pure `decodeWithdrawal`.**
+
+    With the input RLP bytes `srcBytes` in `bytesRegion srcBase srcBytes` (the drop-in is called
+    with `a0 = srcBase`, `a1 = |srcBytes|`, `a2 = outPtr`), a pre-zeroed 48-byte output struct,
+    a 32-byte stack frame below `sp0`, and the callee-saved registers holding arbitrary old
+    values, the routine runs to its return address `raVal &&& ~~~1` in some number of steps and:
+
+    - **succeeds** (`a0 = 0`) exactly with a decoded `w` and address bytes `d2` such that
+      `decodeWithdrawal srcBytes = some w`, leaving the output struct holding `w`; or
+    - **fails** (`a0 = 1`) with `decodeWithdrawal srcBytes = none`, leaving the output owned.
+
+    In both cases `sp`, `ra`, and `s0`/`s1`/`s2` are restored and the input region is intact;
+    `t0..t6` are clobbered. The well-formedness hypotheses (alignment, in-range byte-access
+    validity, `|srcBytes| < 2^64`) are the standard side-conditions the verified leaves require. -/
+def withdrawal_decode_characterization
+    (base srcBase outPtr raVal sp0 s0Old s1Old s2Old : Word) (srcBytes : List Byte) : Prop :=
+  srcBase.toNat % 8 = 0 →
+  outPtr.toNat % 8 = 0 →
+  srcBytes.length < 2 ^ 64 →
+  srcBase.toNat + srcBytes.length ≤ 2 ^ 64 →
+  (∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) →
+  ∃ N, cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+    -- precondition
+    ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
+      (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+      (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** wd_frameOwned sp0 **
+      bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : Byte)))
+    -- postcondition: shared frame + (success ∨ failure), anchored on `decodeWithdrawal`
+    (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+      (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** wd_frameOwned sp0 **
+      bytesRegion srcBase srcBytes) **
+     (fun h =>
+       (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
+          ⌜decodeWithdrawal srcBytes = some w ∧ w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2)
+            ∧ d2.length = 20⌝) h)) ∨
+       (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+          ⌜decodeWithdrawal srcBytes = none⌝) h)))
 
 end EvmAsm.Rv64.RLP
