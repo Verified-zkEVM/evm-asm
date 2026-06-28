@@ -967,6 +967,42 @@ theorem wd_decode_field0RejectCheck (base srcBase t0Old t1Old : Word) (srcBytes 
     (cpsTripleWithin_seq_same_cr h14 h15) h16
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
 
+/-- **Field-0 scalar prep** (reject-check ⨾ scalar arithmetic — idx 14–20, base+56 → base+84):
+    the reject-check (`prefix < 0xc0`) followed by the scalar-field arithmetic that advances the
+    cursor (`s1 := advanced`), computes the content pointer (`a0 := advanced − contentLen`), and
+    stages `content_to_u64`'s arguments (`a1 := contentLen`, `t1 := contentPtr`). Composes the
+    proven `wd_decode_field0RejectCheck` and `wd_decode_scalarArith` over the full program code by
+    framing each side's disjoint registers and reconciling the seam at base+68 with a permutation.
+    Carries `⌜prefix < 0xc0⌝` forward for the field body's `decodeWithdrawal` threading. `advanced`
+    and `contentLen` are the `walk_next` outputs (`a0`/`a2`) supplied by the preceding call. -/
+theorem wd_decode_field0ScalarPrep (base srcBase t0Old t1Old advanced contentLen a1Old : Word)
+    (srcBytes : List (BitVec 8)) (cursorOff : Nat) (halign : srcBase.toNat % 8 = 0)
+    (hi : cursorOff < srcBytes.length) (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true)
+    (hlt : BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)) :
+    cpsTripleWithin 7 (base + 56) (base + 84) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x10 ↦ᵣ advanced) ** (.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ a1Old) **
+        bytesRegion srcBase srcBytes)
+      ((.x9 ↦ᵣ advanced) ** (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) **
+        (.x6 ↦ᵣ (advanced - contentLen)) ** (.x10 ↦ᵣ (advanced - contentLen)) **
+        (.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ contentLen) ** bytesRegion srcBase srcBytes **
+        ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝) := by
+  -- reject-check (idx 14–16), framed with the walk_next outputs it does not touch
+  have h_rc := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ advanced) ** (.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ a1Old)) (by pcFree)
+    (wd_decode_field0RejectCheck base srcBase t0Old t1Old srcBytes cursorOff halign hi hover hvalid
+      hlt)
+  -- scalar arithmetic (idx 17–20), framed with the prefix/region/⌜<0xc0⌝ it does not touch
+  have h_sa := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** bytesRegion srcBase srcBytes **
+      ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝) (by pcFree)
+    (wd_decode_scalarArith base advanced contentLen (srcBase + BitVec.ofNat 64 cursorOff)
+      (192 : Word) a1Old)
+  -- compose at base+68 (permuted seam), then reshape pre/post
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h_rc h_sa
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
