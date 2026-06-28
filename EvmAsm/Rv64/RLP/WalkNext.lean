@@ -30,11 +30,23 @@
 
   ## Verification status
 
-  Lays out the 64-instruction body `rlp_walk_next_prog`. Proved: the
-  **end-of-list** path (`cursor ≥ end`, status 2). Follow-ups (stacked-PR
-  sequence): the single-byte / short-string / short-list paths (loop-free), the
-  long-string / long-list paths (big-endian length-field accumulation loops), and
-  the unified disjunctive theorem.
+  Lays out the 64-instruction body `rlp_walk_next_prog`. **All six per-form cases**
+  are proved as complete leaf-function Hoare triples (axiom-clean):
+    * `…_end_spec_within` — `cursor ≥ end` → `a1 = 2`;
+    * `…_single_spec_within` — `prefix < 0x80` → `a2 = 1`, cursor `+1`;
+    * `…_short_string_spec_within` — `0x80 ≤ prefix < 0xb8` → `a2 = prefix-0x80`;
+    * `…_long_string_spec_within` — `0xb8 ≤ prefix < 0xc0` → `a2 = decoded` (the
+      big-endian length-field accumulation loop, `wn_ls_loop`);
+    * `…_short_list_spec_within` — `0xc0 ≤ prefix < 0xf8` → `a2 = full span`;
+    * `…_long_list_spec_within` — `prefix ≥ 0xf8` → `a2 = full span` (the
+      length-field loop `wn_ll_loop`).
+
+  A single unified disjunctive theorem is a follow-up: unlike the content/walk-init
+  routines it is structurally awkward here, since the `end-of-list` branch
+  (`cursor ≥ end`, no prefix read) has an *incompatible* precondition with the
+  five prefix-reading branches, and the two long forms carry prefix-dependent
+  length-field validity/step counts. The six per-form triples already fully
+  specify the behavior.
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
