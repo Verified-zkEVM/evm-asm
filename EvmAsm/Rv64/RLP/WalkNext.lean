@@ -181,4 +181,144 @@ instance (regionBase : Word) (bs : List (BitVec 8)) :
     Assertion.PCFree (bytesRegion regionBase bs) :=
   ⟨bytesRegion_pcFree _ _⟩
 
+/-- **end-of-list** (`cursor ≥ end`): status `a1 = 2`, cursor unchanged. -/
+theorem rlp_walk_next_end_spec_within
+    (base cursor endPtr raVal a2Old : Word)
+    (h_end : ¬ BitVec.ult cursor endPtr) :
+    cpsTripleWithin 4 base (raVal &&& ~~~1) (rlp_walk_next_code base)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ raVal))
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ raVal)) := by
+  have hbgeu := bgeu_spec_gen_within .x10 .x11 (352 : BitVec 13) cursor endPtr base
+  rw [show base + signExtend13 (352 : BitVec 13) = base + 352 from by
+        rw [show signExtend13 (352 : BitVec 13) = (352 : Word) from by decide]] at hbgeu
+  have hmono0 : ∀ a i, CodeReq.singleton base (.BGEU .x10 .x11 (352 : BitVec 13)) a = some i
+      → rlp_walk_next_code base a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base rlp_walk_next_prog 0 base
+      (by rw [rlp_walk_next_prog_length]; norm_num)
+      (by rw [rlp_walk_next_prog_length]; norm_num) (by bv_omega))
+  have hB := cpsBranchWithin_takenPath
+    (cpsBranchWithin_extend_code hmono0 (cpsBranchWithin_frameR
+      ((.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal))
+      (by pcFree) hbgeu))
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQf
+      exact h_end ((sepConj_pure_right _).1 h_pure).2)
+  have hLI2 := li_spec_gen_within .x11 endPtr (2 : Word) (base + 352) (by decide)
+  have hLI0 := li_spec_gen_within .x12 a2Old (0 : Word) (base + 356) (by decide)
+  have hRet := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (base + 360)
+  simp only [signExtend12_0] at hRet
+  have hC : cpsTripleWithin 3 (base + 352) (raVal &&& ~~~1) (rlp_walk_next_code base)
+      ((.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ raVal))
+      ((.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal)) := by
+    runBlock hLI2 hLI0 hRet
+  have hC' := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree) hC
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+    have hp2 := sepConj_mono_left (sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+    xperm_hyp hp2) hB hC'
+  rw [show (1 + 3) = 4 from rfl] at s1
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) s1
+
+/-- Helper: `BGEU x10 x11` NOT taken (in-bounds), idx 0, `base → base+4`. -/
+private theorem wn_bgeu_ntaken (base srcBase endPtr : Word)
+    (srcOff : Nat) (R : Assertion) (hR : R.pcFree)
+    (h_inb : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true) :
+    cpsTripleWithin 1 base (base + 4) (rlp_walk_next_code base)
+      (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr)) ** R)
+      (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr)) ** R) := by
+  have hbgeu := bgeu_spec_gen_within .x10 .x11 (352 : BitVec 13)
+    (srcBase + BitVec.ofNat 64 srcOff) endPtr base
+  have hmono0 : ∀ a i, CodeReq.singleton base (.BGEU .x10 .x11 (352 : BitVec 13)) a = some i
+      → rlp_walk_next_code base a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base rlp_walk_next_prog 0 base
+      (by rw [rlp_walk_next_prog_length]; norm_num)
+      (by rw [rlp_walk_next_prog_length]; norm_num) (by bv_omega))
+  have h := cpsBranchWithin_ntakenPath
+    (cpsBranchWithin_extend_code hmono0 (cpsBranchWithin_frameR R hR hbgeu))
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQt
+      exact ((sepConj_pure_right _).1 h_pure).2 h_inb)
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h' hp => sepConj_mono_left (sepConj_mono_right
+      (fun h'' hp'' => ((sepConj_pure_right h'').1 hp'').1)) h' hp) h
+
+/-- **single-byte item** (`prefix < 0x80`): cursor `+1`, `a2 = 1`, `a1 = 0`. -/
+theorem rlp_walk_next_single_spec_within
+    (base srcBase endPtr raVal a2Old t0Old t1Old : Word) (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (h_inb : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (h_single : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true) :
+    cpsTripleWithin 8 base (raVal &&& ~~~1) (rlp_walk_next_code base)
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
+        bytesRegion srcBase srcBytes)
+      ((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12))) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) := by
+  have hA := wn_bgeu_ntaken base srcBase endPtr srcOff
+    ((.x12 ↦ᵣ a2Old) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) (by pcFree) h_inb
+  have hlbu := bytesRegion_lbu_within .x5 .x10 srcBase t0Old (base + 4) srcBytes srcOff
+    (by decide) hsalign hoff hover hvalid
+  have hLI := li_spec_gen_within .x6 t1Old (0x80 : Word) (base + 8) (by decide)
+  have hB : cpsTripleWithin 2 (base + 4) (base + 12) (rlp_walk_next_code base)
+      ((.x5 ↦ᵣ t0Old) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ t1Old) **
+        bytesRegion srcBase srcBytes)
+      ((.x5 ↦ᵣ (srcBytes[srcOff]'hoff).zeroExtend 64) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x6 ↦ᵣ (0x80 : Word)) **
+        bytesRegion srcBase srcBytes) := by
+    runBlock hlbu hLI
+  have hB' := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal)) (by pcFree) hB
+  have hbltu := bltu_spec_gen_within .x5 .x6 (288 : BitVec 13)
+    ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) (base + 12)
+  rw [show (base + 12) + signExtend13 (288 : BitVec 13) = base + 300 from by
+        rw [show signExtend13 (288 : BitVec 13) = (288 : Word) from by decide]; bv_omega,
+      show (base + 12 : Word) + 4 = base + 16 from by bv_omega] at hbltu
+  have hmono3 : ∀ a i, CodeReq.singleton (base + 12) (.BLTU .x5 .x6 (288 : BitVec 13)) a = some i
+      → rlp_walk_next_code base a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base rlp_walk_next_prog 3 (base + 12)
+      (by rw [rlp_walk_next_prog_length]; norm_num)
+      (by rw [rlp_walk_next_prog_length]; norm_num) (by bv_omega))
+  have hC := cpsBranchWithin_takenPath
+    (cpsBranchWithin_extend_code hmono3 (cpsBranchWithin_frameR
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
+      (by pcFree) hbltu))
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQf
+      exact ((sepConj_pure_right _).1 h_pure).2 h_single)
+  have haddi := addi_spec_gen_same_within .x10 (srcBase + BitVec.ofNat 64 srcOff) (1 : BitVec 12)
+    (base + 300) (by decide)
+  have hLI1 := li_spec_gen_within .x12 a2Old (1 : Word) (base + 304) (by decide)
+  have hLI0 := li_spec_gen_within .x11 endPtr (0 : Word) (base + 308) (by decide)
+  have hRet := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (base + 312)
+  simp only [signExtend12_0] at hRet
+  have hD : cpsTripleWithin 4 (base + 300) (raVal &&& ~~~1) (rlp_walk_next_code base)
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x12 ↦ᵣ a2Old) ** (.x11 ↦ᵣ endPtr) **
+        (.x1 ↦ᵣ raVal))
+      ((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12))) **
+        (.x12 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal)) := by
+    runBlock haddi hLI1 hLI0 hRet
+  have hD' := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ (srcBytes[srcOff]'hoff).zeroExtend 64) ** (.x6 ↦ᵣ (0x80 : Word)) **
+      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)
+    (by pcFree) hD
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hA hB'
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s1 hC
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+    have hp2 := sepConj_mono_left (sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+    xperm_hyp hp2) s2 hD'
+  rw [show (1 + 2 + 1 + 4) = 8 from rfl] at s3
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) s3
+  have hp' := sepConj_mono_right (sepConj_mono (regIs_implies_regOwn .x5)
+    (sepConj_mono (regIs_implies_regOwn .x6) (fun _ x => x))) h hp
+  xperm_hyp hp'
+
 end EvmAsm.Rv64.RLP
