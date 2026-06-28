@@ -830,6 +830,39 @@ theorem wd_bgeu_ge (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 1
       obtain ⟨_, b, _, _, _, hrest⟩ := hqf
       exact hge ((sepConj_pure_right b).1 hrest).2)
 
+/-- **Arity-pass → success → return** (idx 73..82): the arity guard `bne a1, t1(=2), fail` is not
+    taken (the 5th `walk_next` reported end-of-list, `a1 = 2`), so control falls into the success
+    tail (`a0 := 0`) and the epilogue (`ret`). Composes `wd_bne_eq` (the arity guard, passing) with
+    `wd_decode_successReturn` via `cpsTripleWithin_seq_same_cr` (frameR/frameL at the seam). A real
+    tail segment of the monolithic assembly. -/
+theorem wd_decode_aritySuccessReturn (base spF raSaved s0Saved s1Saved s2Saved raClob s0Clob s1Clob
+    s2Clob a0Old : Word)
+    (hinstr : withdrawal_decode_prog.get
+        ⟨73, by rw [withdrawal_decode_prog_length]; norm_num⟩ = .BNE .x11 .x6 (12 : BitVec 13)) :
+    cpsTripleWithin (1 + 8) (base + 292) (raSaved &&& ~~~1) (withdrawal_decode_code base)
+      (((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word))) **
+        ((.x10 ↦ᵣ a0Old) ** (.x2 ↦ᵣ spF) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) **
+          (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) **
+          ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved)))
+      (((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** ⌜(2 : Word) = (2 : Word)⌝) **
+        ((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (spF + signExtend12 (32 : BitVec 12))) **
+          (.x1 ↦ᵣ raSaved) ** (.x8 ↦ᵣ s0Saved) ** (.x9 ↦ᵣ s1Saved) ** (.x18 ↦ᵣ s2Saved) **
+          (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+          ((spF + 24) ↦ₘ s2Saved))) := by
+  have hbne := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0Old) ** (.x2 ↦ᵣ spF) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) ** (.x9 ↦ᵣ s1Clob) **
+      (.x18 ↦ᵣ s2Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+      ((spF + 24) ↦ₘ s2Saved)) (by pcFree)
+    (wd_bne_eq base 73 .x11 .x6 (12 : BitVec 13) (2 : Word)
+      (by rw [withdrawal_decode_prog_length]; norm_num) hinstr)
+  rw [show base + BitVec.ofNat 64 292 = base + 292 from by bv_omega] at hbne
+  rw [show base + 292 + 4 = base + 296 from by bv_omega] at hbne
+  have hret := cpsTripleWithin_frameL
+    ((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** ⌜(2 : Word) = (2 : Word)⌝) (by pcFree)
+    (wd_decode_successReturn base spF raSaved s0Saved s1Saved s2Saved raClob s0Clob s1Clob s2Clob
+      a0Old)
+  exact cpsTripleWithin_seq_same_cr hbne hret
+
 /-- **Prefix read** (`lbu t0, 0(s1)`): load the field's first byte (the RLP prefix at the cursor)
     from the input region into `t0`, for the reject-list check. Generic over the program index;
     serves the four reject-checks (idx 14/28/42/59). Reads byte `cursorOff` of `srcBytes` via
