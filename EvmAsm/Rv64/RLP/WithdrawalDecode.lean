@@ -1393,6 +1393,58 @@ theorem c2u_status_fail_leadzero {srcBytes : List Byte} {srcOff len : Nat} {h : 
   · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h3
     exact (((sepConj_pure_right b).1 hrest).2.2.1) hlz
 
+/-- `rlp_walk_next` returns **success** for a decodable in-bounds item: given the cursor is before
+    the list end (`ult cursor endPtr`) and the item decodes (`∃ next len, rlpItemDecode …`), the
+    6-way status `Post` collapses to the `rlpWalkNextOk` arm. The premature-end arm (status 2)
+    carries `⌜¬ ult cursor endPtr⌝` (ruled out by `hin`); the malformed arms (status 3/4/5/6) each
+    carry `⌜¬ ∃ next len, rlpItemDecode …⌝` (ruled out by `hdec`). The `walk_next` analogue of
+    `c2u_status_success`; the field body uses it to expose the `rlpItemDecode` fact that supplies
+    the content-pointer/length/canonicity facts for the scalar (or address) decode. -/
+theorem walknext_status_success {srcBytes : List Byte} {srcOff : Nat} {srcBase endPtr : Word}
+    {h : PartialState}
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hdec : ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+      endPtr next len)
+    (hpost :
+      rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h ∨
+      (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (2 : Word)) **
+         (.x12 ↦ᵣ (0 : Word)) **
+         ⌜¬ BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true⌝) h) ∨
+      (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (3 : Word)) **
+         (.x12 ↦ᵣ (0 : Word)) **
+         ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+           endPtr next len⌝) h) ∨
+      (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (4 : Word)) **
+         (.x12 ↦ᵣ (0 : Word)) **
+         ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+           endPtr next len⌝) h) ∨
+      (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (5 : Word)) **
+         (.x12 ↦ᵣ (0 : Word)) **
+         ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+           endPtr next len⌝) h) ∨
+      (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (6 : Word)) **
+         (.x12 ↦ᵣ (0 : Word)) **
+         ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+           endPtr next len⌝) h)) :
+    rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h := by
+  rcases hpost with h0 | h2 | h3 | h4 | h5 | h6
+  · exact h0
+  · exfalso; obtain ⟨_, _, _, _, _, hr1⟩ := h2
+    obtain ⟨_, b, _, _, _, hr2⟩ := hr1
+    exact (((sepConj_pure_right b).1 hr2).2) hin
+  · exfalso; obtain ⟨_, _, _, _, _, hr1⟩ := h3
+    obtain ⟨_, b, _, _, _, hr2⟩ := hr1
+    exact (((sepConj_pure_right b).1 hr2).2) hdec
+  · exfalso; obtain ⟨_, _, _, _, _, hr1⟩ := h4
+    obtain ⟨_, b, _, _, _, hr2⟩ := hr1
+    exact (((sepConj_pure_right b).1 hr2).2) hdec
+  · exfalso; obtain ⟨_, _, _, _, _, hr1⟩ := h5
+    obtain ⟨_, b, _, _, _, hr2⟩ := hr1
+    exact (((sepConj_pure_right b).1 hr2).2) hdec
+  · exfalso; obtain ⟨_, _, _, _, _, hr1⟩ := h6
+    obtain ⟨_, b, _, _, _, hr2⟩ := hr1
+    exact (((sepConj_pure_right b).1 hr2).2) hdec
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
