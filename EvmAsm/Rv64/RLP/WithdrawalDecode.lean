@@ -1926,6 +1926,29 @@ theorem rlpItemDecode_of_shortBytes {bytes : List Byte} {off : Nat} {b : Byte} {
       (b.zeroExtend 64 - (0x80 : Word)) :=
   ⟨b, hget, Or.inr (Or.inl ⟨hlo, hhi, hcanon, hfit, rfl, rfl⟩)⟩
 
+/-- **Single-byte `next`/`len` determination.** A decode whose prefix byte is `< 0x80` is forced
+    into the single-byte form, so `next = cursor + 1` and `len = 1`: the four non-single-byte
+    disjuncts require a prefix `≥ 0x80`/`0xb8`/`0xc0`/`0xf8`, all contradicting `< 0x80`. Used in the
+    field body to pin the walk's existential `next`/`len` for a single-byte scalar field. -/
+theorem rlpItemDecode_singleByte_eq {bytes : List (BitVec 8)} {off : Nat}
+    (hoff : off < bytes.length) {cursor endPtr next len : Word}
+    (hsingle : BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (h : rlpItemDecode bytes off cursor endPtr next len) :
+    next = cursor + signExtend12 (1 : BitVec 12) ∧ len = (1 : Word) := by
+  obtain ⟨b, hb, hdisj⟩ := h
+  have hbe : b = bytes[off]'hoff := by
+    rw [List.getElem?_eq_getElem hoff] at hb; exact (Option.some.inj hb).symm
+  rw [← hbe] at hsingle
+  rcases hdisj with ⟨_, _, hn, hl⟩ | ss | ls | sl | ll
+  · exact ⟨hn, hl⟩
+  · exact absurd hsingle ss.1
+  · exfalso; have h1 := ls.1
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hsingle; bv_omega
+  · exfalso; have h1 := sl.1
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hsingle; bv_omega
+  · exfalso; have h1 := ll.1
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hsingle; bv_omega
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
