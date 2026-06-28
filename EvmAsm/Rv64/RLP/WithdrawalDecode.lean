@@ -524,6 +524,30 @@ theorem wd_walkinit_code_sub (base : Word) :
        show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
          = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
 
+/-! ## M3 proof — reusable guard-branch machinery
+
+Each leaf call is followed by `bnez status, fail` (`.BNE status .x0 failOff`). `wd_bnez_branch`
+lifts that branch to the full program code at any site: from the program byte `4*idx`, on
+`status ≠ 0` it jumps to the fail block (`+ sext failOff`), on `status = 0` it falls through
+(`+4`). Generic over the status register, offset, and the (symbolic) status value `v` — so the
+call's status disjunction is case-split at composition time (each disjunct fixes `v`). Serves all
+nine guard branches (the `bgeu`/arity `bne` variants are analogous). -/
+theorem wd_bnez_branch (base : Word) (idx : Nat) (statusReg : Reg) (failOff : BitVec 13) (v : Word)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BNE statusReg .x0 failOff) :
+    cpsBranchWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (withdrawal_decode_code base)
+      ((statusReg ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)))
+      ((base + BitVec.ofNat 64 (4 * idx)) + signExtend13 failOff)
+        ((statusReg ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v ≠ (0 : Word)⌝)
+      ((base + BitVec.ofNat 64 (4 * idx)) + 4)
+        ((statusReg ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v = (0 : Word)⌝) := by
+  have hbne := bne_spec_gen_within statusReg .x0 failOff v (0 : Word)
+    (base + BitVec.ofNat 64 (4 * idx))
+  refine cpsBranchWithin_extend_code ?_ hbne
+  apply CodeReq.singleton_mono
+  have h := wd_prog_lookup base idx hidx
+  rwa [hinstr] at h
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
