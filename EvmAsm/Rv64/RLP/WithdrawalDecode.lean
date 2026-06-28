@@ -401,6 +401,48 @@ theorem wd_decode_failTail (base a0Old : Word) :
   have hli := li_spec_gen_within .x10 a0Old (1 : Word) (base + 304) (by decide)
   runBlock hli
 
+/-- **Success-return segment** (`successTail ⨾ epilogue`, idx 74–82): set `a0 = 0`, jump over the
+    fail block, restore `ra`/`s0`/`s1`/`s2`, pop the frame, and `ret`. The first multi-block
+    composition (via `cpsTripleWithin_seq_same_cr`), demonstrating the stitch: frame the tail with
+    the epilogue's state (`frameR`) and the epilogue with `a0=0` (`frameL`), then sequence. -/
+theorem wd_decode_successReturn (base spF raSaved s0Saved s1Saved s2Saved raClob s0Clob s1Clob
+    s2Clob a0Old : Word) :
+    cpsTripleWithin 8 (base + 296) (raSaved &&& ~~~1) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ a0Old) ** ((.x2 ↦ᵣ spF) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) **
+        (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) **
+        ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved)))
+      ((.x10 ↦ᵣ (0 : Word)) ** ((.x2 ↦ᵣ (spF + signExtend12 (32 : BitVec 12))) **
+        (.x1 ↦ᵣ raSaved) ** (.x8 ↦ᵣ s0Saved) ** (.x9 ↦ᵣ s1Saved) ** (.x18 ↦ᵣ s2Saved) **
+        (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+        ((spF + 24) ↦ₘ s2Saved))) := by
+  have hst := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spF) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) ** (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) **
+      (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+      ((spF + 24) ↦ₘ s2Saved)) (by pcFree) (wd_decode_successTail base a0Old)
+  have hepi := cpsTripleWithin_frameL (.x10 ↦ᵣ (0 : Word)) (by pcFree)
+    (wd_decode_epilogue base spF raSaved s0Saved s1Saved s2Saved raClob s0Clob s1Clob s2Clob)
+  exact cpsTripleWithin_seq_same_cr hst hepi
+
+/-- **Fail-return segment** (`failTail ⨾ epilogue`, idx 76–82): set `a0 = 1`, restore the frame,
+    and `ret`. The exit target every reject branch funnels to. -/
+theorem wd_decode_failReturn (base spF raSaved s0Saved s1Saved s2Saved raClob s0Clob s1Clob
+    s2Clob a0Old : Word) :
+    cpsTripleWithin 7 (base + 304) (raSaved &&& ~~~1) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ a0Old) ** ((.x2 ↦ᵣ spF) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) **
+        (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) **
+        ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved)))
+      ((.x10 ↦ᵣ (1 : Word)) ** ((.x2 ↦ᵣ (spF + signExtend12 (32 : BitVec 12))) **
+        (.x1 ↦ᵣ raSaved) ** (.x8 ↦ᵣ s0Saved) ** (.x9 ↦ᵣ s1Saved) ** (.x18 ↦ᵣ s2Saved) **
+        (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+        ((spF + 24) ↦ₘ s2Saved))) := by
+  have hft := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spF) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) ** (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) **
+      (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+      ((spF + 24) ↦ₘ s2Saved)) (by pcFree) (wd_decode_failTail base a0Old)
+  have hepi := cpsTripleWithin_frameL (.x10 ↦ᵣ (1 : Word)) (by pcFree)
+    (wd_decode_epilogue base spF raSaved s0Saved s1Saved s2Saved raClob s0Clob s1Clob s2Clob)
+  exact cpsTripleWithin_seq_same_cr hft hepi
+
 /-- **Cursor/end setup** (idx 8–9): after the `walk_init` call returns the cursor in `a0` and the
     list end in `a1`, save them into `s1`/`s2` (`base+32 → base+40`). The first body segment past
     the `walk_init` call + its `bnez` guard. -/
