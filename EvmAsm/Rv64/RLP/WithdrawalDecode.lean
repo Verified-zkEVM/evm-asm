@@ -358,4 +358,28 @@ theorem wd_decode_prologue (base sp0 raVal s0Old s1Old s2Old structPtr m0 m1 m2 
   simp only [signExtend12_0] at hsd0
   runBlock hadd hsd0 hsd1 hsd2 hsd3 hmv
 
+/-! ## M3 proof — block 8 (last): epilogue over the full program code
+
+The epilogue (idx 77..82): restore `ra`/`s0`/`s1`/`s2` from the frame, pop the 32-byte frame,
+and `ret` to the (restored) return address. Exits to `raSaved &&& ~~~1` — the routine's return
+target. The success/fail paths both fall into this block (after `a0` is set). -/
+theorem wd_decode_epilogue (base spF raSaved s0Saved s1Saved s2Saved raClob s0Clob s1Clob s2Clob :
+    Word) :
+    cpsTripleWithin 6 (base + 308) (raSaved &&& ~~~1) (withdrawal_decode_code base)
+      ((.x2 ↦ᵣ spF) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) ** (.x9 ↦ᵣ s1Clob) **
+        (.x18 ↦ᵣ s2Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) **
+        ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved))
+      ((.x2 ↦ᵣ (spF + signExtend12 (32 : BitVec 12))) ** (.x1 ↦ᵣ raSaved) **
+        (.x8 ↦ᵣ s0Saved) ** (.x9 ↦ᵣ s1Saved) ** (.x18 ↦ᵣ s2Saved) **
+        (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+        ((spF + 24) ↦ₘ s2Saved)) := by
+  have hld0 := ld_spec_gen_within .x1 .x2 spF raClob raSaved (0 : BitVec 12) (base + 308) (by decide)
+  have hld1 := ld_spec_gen_within .x8 .x2 spF s0Clob s0Saved (8 : BitVec 12) (base + 312) (by decide)
+  have hld2 := ld_spec_gen_within .x9 .x2 spF s1Clob s1Saved (16 : BitVec 12) (base + 316) (by decide)
+  have hld3 := ld_spec_gen_within .x18 .x2 spF s2Clob s2Saved (24 : BitVec 12) (base + 320) (by decide)
+  have haddi := addi_spec_gen_same_within .x2 spF (32 : BitVec 12) (base + 324) (by decide)
+  have hret := jalr_x0_spec_gen_within .x1 raSaved (0 : BitVec 12) (base + 328)
+  simp only [signExtend12_0] at hld0 hret
+  runBlock hld0 hld1 hld2 hld3 haddi hret
+
 end EvmAsm.Rv64.RLP
