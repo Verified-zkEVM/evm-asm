@@ -1070,15 +1070,14 @@ def balCodePreimagesValidFunction : String :=
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_seed\n" ++
   ".Lbsbd_skip_freewarm:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
-  "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
-  "  addi a2, s9, 3             # delegated address ptr\n" ++
-  "  mv a3, s1; mv a4, s2\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lbsbd_target_sameblock\n" ++
-  "  beqz s10, .Lbsbd_ret\n" ++
-  "  sd s4, 96(sp); ld x20, 40(sp)   # restore caller env base only while charging gas\n" ++
+  -- Charge the delegation target access (100 floor + cold delta) BEFORE target
+  -- resolution. The spec (calculate_delegation_cost) charges this regardless of
+  -- whether the target's code exists; previously the charge was only on the
+  -- resolution-SUCCESS paths, so unresolved targets (empty / nonexistent code)
+  -- skipped it -> gas under-counted -> bv_fail=34 on EIP-7702 fixtures.
+  -- x20(=s4) is bv_bal_len inside this fn; reload caller env from 40(sp).
+  "  beqz s10, .Lbsbd_skip_charge\n" ++
+  "  sd s4, 96(sp); ld x20, 40(sp)\n" ++
   "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
@@ -1086,7 +1085,15 @@ def balCodePreimagesValidFunction : String :=
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
   "  ld s4, 96(sp)\n" ++
-  "  li a0, 0\n" ++
+  ".Lbsbd_skip_charge:\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  addi a2, s9, 3             # delegated address ptr\n" ++
+  "  mv a3, s1; mv a4, s2\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lbsbd_target_sameblock\n" ++
+  -- charge already applied above; a0=0 from code_at_header_state_root.
   "  j .Lbsbd_ret\n" ++
   -- coc3g.5 (multi-hop chain/loop): the single-hop delegated target's code is NOT in
   -- the pre-state witness because the target is ITSELF a same-block-delegated authority
@@ -1120,19 +1127,7 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bsbd_tgt_ptr; ld t3, 0(t0); la t0, bacc_finals; ld t4, 64(t0); add t3, t3, t4\n" ++
   "  la t0, svf_codes_ptr; ld t5, 0(t0); sub t3, t3, t5\n" ++
   "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
-  "  beqz s10, .Lbsbd_ret\n" ++                         -- free (no-charge) resolution: done
-  -- Charge the single-hop delegation access (100 floor + cold delta if target is cold in the
-  -- runtime warm set). x20(=s4) inside this fn is bv_bal_len, NOT the env; reload the saved
-  -- caller env from 40(sp) (the prologue's saved s4=x20) while charging, exactly like the
-  -- pre-state-hit charge path, then restore bv_bal_len into s4.
-  "  sd s4, 96(sp); ld x20, 40(sp)\n" ++
-  "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
-  "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
-  "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
-  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
-  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
-  "  jal ra, runtime_access_account_charge\n" ++
-  "  ld s4, 96(sp)\n" ++
+  -- charge already applied above (.Lbsbd_skip_charge)
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
   ".Lbsbd_next:\n" ++
