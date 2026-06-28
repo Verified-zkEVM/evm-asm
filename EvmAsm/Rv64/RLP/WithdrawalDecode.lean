@@ -663,6 +663,16 @@ theorem sepConj_exists_right {α : Sort _} {P : Assertion} {Q : α → Assertion
   rintro ⟨h1, h2, hdisj, hunion, hP, a, hQ⟩
   exact ⟨a, h1, h2, hdisj, hunion, hP, hQ⟩
 
+/-- Distribute `**` over an existential on the **left**: pull an existential frame (e.g. a `regOwn`
+    scratch register, `regOwn r = fun h => ∃ v, (r ↦ᵣ v) h`) out to the top. The companion to
+    `sepConj_exists_right`; used to turn a `regOwn`-carrying state from a leaf's post into the
+    `∃ v, (r ↦ᵣ v) ** …` form the next segment's `regIs` precondition consumes (via the exists_pre
+    combinators). -/
+theorem sepConj_exists_left {α : Sort _} {P : α → Assertion} {Q : Assertion} {h : PartialState} :
+    ((fun s => ∃ a, P a s) ** Q) h → ∃ a, (P a ** Q) h := by
+  rintro ⟨h1, h2, hdisj, hunion, ⟨a, hP⟩, hQ⟩
+  exact ⟨a, h1, h2, hdisj, hunion, hP, hQ⟩
+
 /-- **Branch or-elimination.** If both `P1` and `P2` branch (same exits `lt`/`lf`), then their
     disjunction branches, with the per-exit posts disjoined. The tool for consuming a leaf call's
     disjunctive status `Post` as a branch `Pre`: fold the leaf's status disjuncts (each a branch
