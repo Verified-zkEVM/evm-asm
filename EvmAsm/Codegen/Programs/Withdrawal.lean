@@ -17,11 +17,13 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Block
+import EvmAsm.Rv64.RLP.WithdrawalDecode
 
 namespace EvmAsm.Codegen
 
@@ -386,52 +388,16 @@ def ziskWithdrawalComputeHashProbeUnit : BuildUnit := {
       a2 (input)  : 48-byte output struct ptr
       ra (input)  : return
       a0 (output) : 0 success / 1 parse fail (not a 4-item list,
-                    field too long, or address not 20 bytes). -/
+                    field too long, or address not 20 bytes).
+
+    **Emitted from the verified `EvmAsm.Rv64.RLP.withdrawal_decode_prog`** — a strict,
+    single-pass, walk-based drop-in built on the verified RLP leaves (`rlp_walk_init`,
+    `rlp_walk_next`, `rlp_content_to_u64`, inlined and reached via PC-relative `jal`),
+    replacing the previous unverified four-`rlp_list_nth_item`-rescan string. Its spec is
+    proved (in `EvmAsm/Rv64/RLP/WithdrawalDecode.lean`) to coincide with the strict pure
+    `EvmAsm.EL.decodeWithdrawal`. -/
 def withdrawalDecodeFunction : String :=
-  "withdrawal_decode:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # wd_rlp ptr\n" ++
-  "  mv s1, a1                  # wd_rlp_len\n" ++
-  "  mv s2, a2                  # struct out\n" ++
-  "  # Field 0: index (u64 at offset 0)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  # Field 1: validator_index (u64 at offset 8)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  # Field 2: address (20 bytes at offset 16)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  la a3, wd_offset; la a4, wd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  la t0, wd_length; ld t1, 0(t0)\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Lwd_fail\n" ++
-  "  la t0, wd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  addi t4, s2, 16\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  lwu t5, 16(t3); sw t5, 16(t4)\n" ++
-  "  # Pad bytes 20..24 of address slot (struct 36..40) are zero (from caller zeroing).\n" ++
-  "  # Field 3: amount (u64 at offset 40)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  addi a3, s2, 40\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lwd_ret\n" ++
-  ".Lwd_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lwd_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+  "withdrawal_decode:\n" ++ emitProgram EvmAsm.Rv64.RLP.withdrawal_decode_prog
 
 /-- `zisk_withdrawal_decode`: probe BuildUnit. Reads (wd_len,
     wd_bytes) from host input, writes (status, 48-byte struct)
