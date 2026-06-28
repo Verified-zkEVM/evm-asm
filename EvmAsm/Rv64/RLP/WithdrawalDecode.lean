@@ -1561,6 +1561,85 @@ theorem walknext_status_success {srcBytes : List Byte} {srcOff : Nat} {srcBase e
     obtain ⟨_, b, _, _, _, hr2⟩ := hr1
     exact (((sepConj_pure_right b).1 hr2).2) hdec
 
+/-- **Field-0 walk** (idx 10–13, base+40 → base+56): the full per-field item walk on the success
+    path — load the cursor/end into the `walk_next` args (`wd_decode_fieldSetup`), call `walk_next`
+    (`wd_call_walknext_field0`, framed with the saved `s1`/`s2`), collapse its 6-way status post to
+    the `rlpWalkNextOk` arm (`walknext_status_success`, given the item is in bounds `hin` and decodes
+    `hdec`), and fall through the status guard (`wd_walknext_guard_success`). The post exposes
+    `∃ next len`, the advanced cursor `a0 = next`, the content length `a2 = len`, and the
+    `rlpItemDecode` fact — everything the field body needs. `hdec`/`hin` are supplied by the monolith
+    from the field's decodability (via the reverse bridges) and in-bounds. -/
+theorem wd_decode_field0Walk (base srcBase endPtr vOld a0Old a1Old a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign52 : (base + 52) &&& ~~~1 = base + 52)
+    (hdisj : (CodeReq.singleton (base + 48) (.JAL .x1 (496 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hdec : ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+      endPtr next len) :
+    cpsTripleWithin (2 + (1 + 87) + 1) (base + 40) (base + 56) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)
+      (fun s => ∃ next len,
+        ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ next) **
+          (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** (.x1 ↦ᵣ (base + 52)) ** (.x0 ↦ᵣ (0 : Word)) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** bytesRegion srcBase srcBytes ** ⌜(0 : Word) = (0 : Word)⌝ **
+          ⌜rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝) s) := by
+  -- arg setup (idx 10-11), framed with the walk_next call inputs
+  have hA := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) (by pcFree)
+    (wd_decode_fieldSetup base (srcBase + BitVec.ofNat 64 srcOff) endPtr a0Old a1Old)
+  -- walk_next call (idx 12), framed with the saved s1/s2 it does not touch
+  have hB := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr)) (by pcFree)
+    (wd_call_walknext_field0 base srcBase endPtr vOld a2Old t0Old t1Old t2Old t3Old t4Old
+      t5Old t6Old srcBytes srcOff halign52 hdisj hsalign hoff hover hvalid hss hls hll)
+  -- setup ⨾ call (permuted seam at base+48)
+  have hAB := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hA hB
+  -- collapse the 6-way status post to the rlpWalkNextOk arm
+  have hABc := cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun s hp => sepConj_mono_left
+      (sepConj_mono_right (fun _ hd => walknext_status_success hin hdec hd)) s hp) hAB
+  -- guard not-taken (idx 13), framed with the saved cursor/end; ⨾ at base+52 (permuted seam)
+  have hC := cpsTripleWithin_frameL
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr)) (by pcFree)
+    (wd_walknext_guard_success base srcBase (srcBase + BitVec.ofNat 64 srcOff) endPtr (base + 52)
+      srcBytes srcOff)
+  have hABC := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hABc hC
+  -- reshape pre; distribute the ∃ out of the post and reshape
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun s hp => ?_) hABC
+  obtain ⟨next, hp1⟩ := sepConj_exists_right hp
+  obtain ⟨len, hp2⟩ := sepConj_exists_right hp1
+  exact ⟨next, len, by xperm_hyp hp2⟩
+
 /-- **Byte-string-form extraction.** A decoded item whose prefix is below `0xb8` is a single-byte
     or short-byte-string item: the three larger forms (long string ≥ 0xb8, short list ≥ 0xc0, long
     list ≥ 0xf8) are all ruled out by their prefix-range guards. The two surviving disjuncts are
