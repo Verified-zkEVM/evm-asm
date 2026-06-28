@@ -49,8 +49,13 @@
   Together these per-form triples establish correctness of the strict body on every
   input: each reachable execution path is a proved leaf-function triple, so the program
   advances/rejects exactly as specified for every prefix byte and every check outcome.
-  (A single unified dispatch theorem combining all paths into one `cpsTripleWithin` — as
-  for `rlp_walk_init` — is a mechanical follow-up that adds no new verification.)
+
+  These are combined into a single unified dispatch theorem `rlp_walk_next_spec_within`
+  (bound `87`): from the common static preconditions it lands in exactly one of six
+  outcomes distinguished by the status `a1` (`0/2/3/4/5/6`). The `a1 = 0` (ok) outcome is
+  the single pure predicate `rlpWalkNextOk` relating the advanced cursor `a0` and reported
+  length `a2` to the prefix-indicated decode (`rlpItemDecode`); the long-form decode also
+  certifies canonical length encoding (no leading `0x00`, decoded length `≥ 56`).
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
@@ -3614,5 +3619,546 @@ theorem rlp_walk_next_long_list_content_spec_within
           (sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x29)
             (fun _ x => x))))))))) h hp
   xperm_hyp hp'
+
+/-! ## Unified success predicate and dispatch
+
+Collapse the six accept paths into a single `a1 = 0` outcome described by a pure decode
+relation about the two outputs `a0` (advanced cursor) and `a2` (reported length). -/
+
+/-- If `a < b` (unsigned) then `a + 1 ≤ b`, i.e. `¬ b < a + 1`: a one-byte item in bounds
+    leaves room for its successor.  (`bv_omega` does not translate `BitVec.ult … = true`
+    hypotheses, so reduce to `toNat`/`omega`.) -/
+private theorem wn_ult_succ_le {a b : Word} (h : BitVec.ult a b = true) :
+    ¬ BitVec.ult b (a + 1) = true := by
+  simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h ⊢
+  rw [BitVec.toNat_add]
+  have h1 : BitVec.toNat (1 : Word) = 1 := by decide
+  have := a.isLt; have := b.isLt
+  omega
+
+/-- `base + (off+1) = (base + off) + 1` as words (the `signExtend12 1 = 1` step folded). -/
+private theorem wn_base_off_succ (srcBase : Word) (srcOff : Nat) :
+    srcBase + BitVec.ofNat 64 (srcOff + 1) = (srcBase + BitVec.ofNat 64 srcOff) + 1 := by
+  bv_omega
+
+/-- Strict-RLP decode of the item at byte-offset `off` in `bytes`, read from a cursor
+    pointing at the prefix byte. Pure relation pinning the two outputs of `rlp_walk_next`
+    on success: `next` (the advanced cursor `a0`) and `len` (the reported length `a2`).
+    The five disjuncts are the RLP prefix forms; `next - cursor` is the item's full span,
+    and `len` is the content length (single byte / string) or the full span (list). For the
+    long forms the length field is `(bytes.drop (off+1)).take lol` with `lol = p - 0xb7`
+    (string) / `p - 0xf7` (list). The expressions match the per-form accept postconditions
+    verbatim (the short-string `next` differs only by the `cursor+1 = base+(off+1)` identity). -/
+def rlpItemDecode (bytes : List (BitVec 8)) (off : Nat) (cursor next len : Word) : Prop :=
+  ∃ b : BitVec 8, bytes[off]? = some b ∧
+    ( -- single byte (p < 0x80)
+      (BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
+        next = cursor + signExtend12 (1 : BitVec 12) ∧ len = (1 : Word)) ∨
+      -- short string (0x80 ≤ p < 0xb8)
+      (¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+        next = (cursor + signExtend12 (1 : BitVec 12)) + (b.zeroExtend 64 - (0x80 : Word)) ∧
+        len = b.zeroExtend 64 - (0x80 : Word)) ∨
+      -- long string (0xb8 ≤ p < 0xc0): canonical — no leading 0x00, decoded length ≥ 56
+      (¬ BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+        BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true ∧
+        (∃ b1 : BitVec 8, bytes[off + 1]? = some b1 ∧ b1.zeroExtend 64 ≠ (0 : Word)) ∧
+        ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xb7 : Word)).toNat))) (56 : Word) = true ∧
+        next = (cursor + ((b.zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12))) +
+          BitVec.ofNat 64 (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xb7 : Word)).toNat)) ∧
+        len = BitVec.ofNat 64 (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xb7 : Word)).toNat))) ∨
+      -- short list (0xc0 ≤ p < 0xf8)
+      (¬ BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true ∧
+        BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true ∧
+        next = cursor + ((b.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) ∧
+        len = (b.zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)) ∨
+      -- long list (p ≥ 0xf8): canonical — no leading 0x00, decoded length ≥ 56
+      (¬ BitVec.ult (b.zeroExtend 64) (0xf8 : Word) = true ∧
+        (∃ b1 : BitVec 8, bytes[off + 1]? = some b1 ∧ b1.zeroExtend 64 ≠ (0 : Word)) ∧
+        ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
+        next = cursor + ((b.zeroExtend 64 - (0xf7 : Word)) +
+          BitVec.ofNat 64 (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xf7 : Word)).toNat)) +
+          signExtend12 (1 : BitVec 12)) ∧
+        len = (b.zeroExtend 64 - (0xf7 : Word)) +
+          BitVec.ofNat 64 (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xf7 : Word)).toNat)) +
+          signExtend12 (1 : BitVec 12)) )
+
+/-- Single `a1 = 0` (ok) outcome of `rlp_walk_next`: the advanced cursor `a0 = next`, the
+    reported length `a2 = len`, the decode is the prefix-indicated one (`rlpItemDecode`), and
+    the item fits within `end` (`¬ ult endPtr next`, the bound check that passed). Memory
+    (`bytesRegion`) lives in the dispatch's common frame, not here. -/
+def rlpWalkNextOk (cursor endPtr : Word) (bytes : List (BitVec 8)) (off : Nat) : Assertion :=
+  fun h => ∃ next len : Word,
+    ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+      ⌜rlpItemDecode bytes off cursor next len ∧ ¬ BitVec.ult endPtr next = true⌝) h
+
+/-- Weaken the **single**-byte accept post (`a0 = cursor+1`, `a2 = 1`) to `rlpWalkNextOk`. -/
+theorem rlpWalkNextOk_of_single (srcBase endPtr : Word) (srcBytes : List (BitVec 8))
+    (srcOff : Nat) (hoff : srcOff < srcBytes.length)
+    (h_inb : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (h_single : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true) :
+    ∀ h, ((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12))) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (1 : Word))) h
+      → rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h := by
+  intro h hp
+  refine ⟨(srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12), (1 : Word), ?_⟩
+  refine sepConj_mono_right (sepConj_mono_right (fun h' hx12 =>
+    (sepConj_pure_right h').2 ⟨hx12, ?_, ?_⟩)) h hp
+  · exact ⟨srcBytes[srcOff]'hoff, List.getElem?_eq_getElem hoff, Or.inl ⟨h_single, rfl, rfl⟩⟩
+  · rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; exact wn_ult_succ_le h_inb
+
+/-- Weaken the **short string** accept post (`a0 = base+(off+1)+(p-0x80)`, `a2 = p-0x80`) to
+    `rlpWalkNextOk`.  Covers both the multi-byte and canonical single-byte accepts. -/
+theorem rlpWalkNextOk_of_short_string (srcBase endPtr : Word) (srcBytes : List (BitVec 8))
+    (srcOff : Nat) (hoff : srcOff < srcBytes.length)
+    (h_lo : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (h_hi : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (h_bound : ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 (srcOff + 1)) +
+      ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))) = true) :
+    ∀ h, ((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 (srcOff + 1)) +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)))) h
+      → rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h := by
+  intro h hp
+  refine ⟨(srcBase + BitVec.ofNat 64 (srcOff + 1)) +
+      ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)),
+    (srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word), ?_⟩
+  refine sepConj_mono_right (sepConj_mono_right (fun h' hx12 =>
+    (sepConj_pure_right h').2 ⟨hx12, ?_, h_bound⟩)) h hp
+  refine ⟨srcBytes[srcOff]'hoff, List.getElem?_eq_getElem hoff, Or.inr (Or.inl ⟨h_lo, h_hi, ?_, rfl⟩)⟩
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide, wn_base_off_succ]
+
+/-- Weaken the **short list** accept post (`a0 = cursor+((p-0xc0)+1)`, `a2 = (p-0xc0)+1`) to
+    `rlpWalkNextOk`. -/
+theorem rlpWalkNextOk_of_short_list (srcBase endPtr : Word) (srcBytes : List (BitVec 8))
+    (srcOff : Nat) (hoff : srcOff < srcBytes.length)
+    (h_lo : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_bound : ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+      (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)))
+      = true) :
+    ∀ h, ((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 srcOff) +
+          (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)))) h
+      → rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h := by
+  intro h hp
+  refine ⟨(srcBase + BitVec.ofNat 64 srcOff) +
+      (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12)),
+    ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12), ?_⟩
+  refine sepConj_mono_right (sepConj_mono_right (fun h' hx12 =>
+    (sepConj_pure_right h').2 ⟨hx12, ?_, h_bound⟩)) h hp
+  exact ⟨srcBytes[srcOff]'hoff, List.getElem?_eq_getElem hoff,
+    Or.inr (Or.inr (Or.inr (Or.inl ⟨h_lo, h_hi, rfl, rfl⟩)))⟩
+
+/-- Weaken the **long string** accept post (`a0 = cursor+(lol+1)+dec`, `a2 = dec`) to
+    `rlpWalkNextOk`. -/
+theorem rlpWalkNextOk_of_long_string (srcBase endPtr : Word) (srcBytes : List (BitVec 8))
+    (srcOff : Nat) (hoff : srcOff < srcBytes.length) (hoff1 : srcOff + 1 < srcBytes.length)
+    (h_lo : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (h_hi : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_fb : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 ≠ (0 : Word))
+    (h_nonmin : ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat))) (56 : Word) = true)
+    (h_content : ¬ BitVec.ult endPtr (((srcBase + BitVec.ofNat 64 srcOff) +
+        (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12))) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat))) = true) :
+    ∀ h, ((.x10 ↦ᵣ (((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12))) +
+          BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+            ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat)))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+            ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat)))) h
+      → rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h := by
+  intro h hp
+  refine ⟨((srcBase + BitVec.ofNat 64 srcOff) +
+        (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12))) +
+      BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat)),
+    BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat)), ?_⟩
+  refine sepConj_mono_right (sepConj_mono_right (fun h' hx12 =>
+    (sepConj_pure_right h').2 ⟨hx12, ?_, h_content⟩)) h hp
+  exact ⟨srcBytes[srcOff]'hoff, List.getElem?_eq_getElem hoff,
+    Or.inr (Or.inr (Or.inl ⟨h_lo, h_hi,
+      ⟨srcBytes[srcOff + 1]'hoff1, List.getElem?_eq_getElem hoff1, h_fb⟩, h_nonmin, rfl, rfl⟩))⟩
+
+/-- Weaken the **long list** accept post (`a0 = cursor+((lol+dec)+1)`, `a2 = (lol+dec)+1`) to
+    `rlpWalkNextOk`. -/
+theorem rlpWalkNextOk_of_long_list (srcBase endPtr : Word) (srcBytes : List (BitVec 8))
+    (srcOff : Nat) (hoff : srcOff < srcBytes.length) (hoff1 : srcOff + 1 < srcBytes.length)
+    (h_ge : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_fb : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 ≠ (0 : Word))
+    (h_nonmin : ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true)
+    (h_content : ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+        (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+            ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) +
+          signExtend12 (1 : BitVec 12))) = true) :
+    ∀ h, ((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+                ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) +
+              signExtend12 (1 : BitVec 12)))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+                ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) +
+              signExtend12 (1 : BitVec 12)))) h
+      → rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h := by
+  intro h hp
+  refine ⟨(srcBase + BitVec.ofNat 64 srcOff) +
+        (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+          BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+            ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) +
+          signExtend12 (1 : BitVec 12)),
+    ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+      BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) +
+      signExtend12 (1 : BitVec 12), ?_⟩
+  refine sepConj_mono_right (sepConj_mono_right (fun h' hx12 =>
+    (sepConj_pure_right h').2 ⟨hx12, ?_, h_content⟩)) h hp
+  exact ⟨srcBytes[srcOff]'hoff, List.getElem?_eq_getElem hoff,
+    Or.inr (Or.inr (Or.inr (Or.inr ⟨h_ge,
+      ⟨srcBytes[srcOff + 1]'hoff1, List.getElem?_eq_getElem hoff1, h_fb⟩, h_nonmin, rfl, rfl⟩)))⟩
+
+/-- **Unified strict `rlp_walk_next` dispatch.**  Given the common static preconditions
+    (alignment, prefix readable) and the per-form length-field validity (needed only when the
+    prefix selects that form), the routine reaches `ra` in `≤ 87` steps, clobbers `t0..t6`,
+    and lands in exactly one of six outcomes distinguished by the status `a1`:
+    `0` ok (a single canonical RLP item; advanced cursor `a0` and reported length `a2`
+    described by `rlpWalkNextOk`), `2` end-of-list, `3` bound, `4` non-minimal long form,
+    `5` leading-zero long form, `6` single-byte non-canonical short string. -/
+theorem rlp_walk_next_spec_within
+    (base srcBase endPtr raVal a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) (hsalign : srcBase.toNat % 8 = 0)
+    (hoff : srcOff < srcBytes.length) (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) :
+    cpsTripleWithin 87 base (raVal &&& ~~~1) (rlp_walk_next_code base)
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+        (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) **
+       (fun h =>
+         rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (2 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (3 : Word)) **
+            (.x12 ↦ᵣ (0 : Word))) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (4 : Word)) **
+            (.x12 ↦ᵣ (0 : Word))) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (5 : Word)) **
+            (.x12 ↦ᵣ (0 : Word))) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (6 : Word)) **
+            (.x12 ↦ᵣ (0 : Word))) h))) := by
+  set ptr := srcBase + BitVec.ofNat 64 srcOff with hptr
+  set pfx := (srcBytes[srcOff]'hoff).zeroExtend 64 with hpfx
+  by_cases hinb : BitVec.ult ptr endPtr = true
+  · -- in bounds: read prefix and dispatch
+    by_cases hp80 : BitVec.ult pfx (0x80 : Word) = true
+    · -- single (a1 = 0)
+      have ht := cpsTripleWithin_frameR
+        ((.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))
+        (by pcFree)
+        (rlp_walk_next_single_spec_within base srcBase endPtr raVal a2Old t0Old t1Old srcBytes srcOff
+          hsalign hoff hover hvalid hinb hp80)
+      refine cpsTripleWithin_mono_nSteps (by omega)
+        (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+      have hp1 := sepConj_mono (fun _ x => x)
+        (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x28)
+          (sepConj_mono (regIs_implies_regOwn .x29) (sepConj_mono (regIs_implies_regOwn .x30)
+            (regIs_implies_regOwn .x31))))) h hp
+      refine sepConj_mono_right (fun h' hbody => Or.inl
+        (rlpWalkNextOk_of_single srcBase endPtr srcBytes srcOff hoff hinb hp80 h' hbody)) h ?_
+      xperm_hyp hp1
+    · by_cases hpb8 : BitVec.ult pfx (0xb8 : Word) = true
+      · -- short string
+        by_cases hbnd : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 (srcOff + 1)) +
+            (pfx - (0x80 : Word))) = true
+        · -- bound (a1 = 3)
+          have hbnd' : BitVec.ult endPtr (((srcBase + BitVec.ofNat 64 srcOff) +
+              signExtend12 (1 : BitVec 12)) + (pfx - (0x80 : Word))) = true := by
+            rwa [show (srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12)
+                = srcBase + BitVec.ofNat 64 (srcOff + 1) from by
+              rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
+                wn_base_off_succ]]
+          have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
+            (rlp_walk_next_short_string_bound_spec_within base srcBase endPtr raVal a2Old t0Old t1Old
+              t2Old t3Old t4Old srcBytes srcOff hsalign hoff hover hvalid hinb hp80 hpb8 hbnd')
+          refine cpsTripleWithin_mono_nSteps (by omega)
+            (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+          have hp1 := sepConj_mono (fun _ x => x)
+            (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31)) h hp
+          refine sepConj_mono_right (fun h' hbody =>
+            Or.inr (Or.inr (Or.inl hbody))) h ?_
+          xperm_hyp hp1
+        · -- not bound; len = 1?
+          by_cases hlen1 : (pfx - (0x80 : Word)) = (1 : Word)
+          · -- len = 1; content byte
+            obtain ⟨hoff1, hover1, hvalid1⟩ := hss hp80 hpb8
+            by_cases hcb : BitVec.ult ((srcBytes[srcOff + 1]'hoff1).zeroExtend 64) (0x80 : Word) = true
+            · -- non-canonical single byte (a1 = 6)
+              have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
+                (rlp_walk_next_short_string_noncanon_spec_within base srcBase endPtr raVal a2Old t0Old
+                  t1Old t2Old t3Old t4Old srcBytes srcOff hsalign hoff hoff1 hover hover1 hvalid hvalid1
+                  hinb hp80 hpb8 hbnd hlen1 hcb)
+              refine cpsTripleWithin_mono_nSteps (by omega)
+                (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+              have hp1 := sepConj_mono (fun _ x => x)
+                (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31)) h hp
+              refine sepConj_mono_right (fun h' hbody =>
+                Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hbody))))) h ?_
+              xperm_hyp hp1
+            · -- canonical single byte accept (a1 = 0)
+              have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
+                (rlp_walk_next_short_string_single_spec_within base srcBase endPtr raVal a2Old t0Old
+                  t1Old t2Old t3Old t4Old srcBytes srcOff hsalign hoff hoff1 hover hover1 hvalid hvalid1
+                  hinb hp80 hpb8 hbnd hlen1 hcb)
+              refine cpsTripleWithin_mono_nSteps (by omega)
+                (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+              have hp1 := sepConj_mono (fun _ x => x)
+                (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31)) h hp
+              refine sepConj_mono_right (fun h' hbody => Or.inl
+                (rlpWalkNextOk_of_short_string srcBase endPtr srcBytes srcOff hoff hp80 hpb8 hbnd
+                  h' hbody)) h ?_
+              xperm_hyp hp1
+          · -- len ≠ 1; multi-byte accept (a1 = 0)
+            have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
+              (rlp_walk_next_short_string_spec_within base srcBase endPtr raVal a2Old t0Old t1Old
+                t2Old t3Old t4Old srcBytes srcOff hsalign hoff hover hvalid hinb hp80 hpb8 hbnd hlen1)
+            refine cpsTripleWithin_mono_nSteps (by omega)
+              (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+            have hp1 := sepConj_mono (fun _ x => x)
+              (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31)) h hp
+            refine sepConj_mono_right (fun h' hbody => Or.inl
+              (rlpWalkNextOk_of_short_string srcBase endPtr srcBytes srcOff hoff hp80 hpb8 hbnd
+                h' hbody)) h ?_
+            xperm_hyp hp1
+      · by_cases hpc0 : BitVec.ult pfx (0xc0 : Word) = true
+        · -- long string
+          obtain ⟨hllen, hlover, hlvalid⟩ := hls hpb8 hpc0
+          rw [hpfx] at hllen hlover hlvalid
+          have hge : 184 ≤ pfx.toNat := by
+            simpa only [BitVec.ult, decide_eq_true_eq, Nat.not_lt,
+              show (0xb8 : Word).toNat = 184 from by decide] using hpb8
+          have hlt : pfx.toNat < 192 := by
+            simpa only [BitVec.ult, decide_eq_true_eq,
+              show (0xc0 : Word).toNat = 192 from by decide] using hpc0
+          rw [hpfx] at hge hlt
+          have hn1 : 1 ≤ ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat := by
+            rw [BitVec.toNat_sub, show (0xb7 : Word).toNat = 183 from by decide]; omega
+          have hn8 : ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
+            rw [BitVec.toNat_sub, show (0xb7 : Word).toNat = 183 from by decide]; omega
+          have hoff1 : srcOff + 1 < srcBytes.length := by omega
+          have hover1 : srcBase.toNat + (srcOff + 1) < 2 ^ 64 := by omega
+          have hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+            have := hlvalid 0 (by omega); simpa using this
+          by_cases hhdr : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+              (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12)))
+              = true
+          · -- header bound (a1 = 3)
+            have ht := rlp_walk_next_long_string_header_spec_within base srcBase endPtr raVal a2Old
+              t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hover hvalid
+              hinb hpb8 hpc0 hhdr
+            refine cpsTripleWithin_mono_nSteps (by omega)
+              (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+            refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl hbody))) h ?_
+            xperm_hyp hp
+          · by_cases hlz : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
+            · -- leading zero (a1 = 5)
+              have ht := rlp_walk_next_long_string_lz_spec_within base srcBase endPtr raVal a2Old
+                t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
+                hover1 hvalid hvalid1 hinb hpb8 hpc0 hhdr hlz
+              refine cpsTripleWithin_mono_nSteps (by omega)
+                (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+              refine sepConj_mono_right (fun h' hbody =>
+                Or.inr (Or.inr (Or.inr (Or.inr (Or.inl hbody))))) h ?_
+              xperm_hyp hp
+            · by_cases hmin : BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+                  ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat))) (56 : Word) = true
+              · -- non-minimal (a1 = 4)
+                have ht := rlp_walk_next_long_string_nonmin_spec_within base srcBase endPtr raVal a2Old
+                  t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
+                  hvalid hinb hpb8 hpc0 hllen hlover hlvalid hhdr hlz hmin
+                refine cpsTripleWithin_mono_nSteps (by omega)
+                  (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+                refine sepConj_mono_right (fun h' hbody =>
+                  Or.inr (Or.inr (Or.inr (Or.inl hbody)))) h ?_
+                xperm_hyp hp
+              · by_cases hcont : BitVec.ult endPtr (((srcBase + BitVec.ofNat 64 srcOff) +
+                    (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+                      signExtend12 (1 : BitVec 12))) +
+                    BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+                      ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat))) = true
+                · -- content bound (a1 = 3)
+                  have ht := rlp_walk_next_long_string_content_spec_within base srcBase endPtr raVal
+                    a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1
+                    hover hvalid hinb hpb8 hpc0 hllen hlover hlvalid hhdr hlz hmin hcont
+                  refine cpsTripleWithin_mono_nSteps (by omega)
+                    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+                  refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl hbody))) h ?_
+                  xperm_hyp hp
+                · -- accept (a1 = 0)
+                  have ht := rlp_walk_next_long_string_spec_within base srcBase endPtr raVal a2Old
+                    t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
+                    hvalid hinb hpb8 hpc0 hllen hlover hlvalid hhdr hlz hmin hcont
+                  refine cpsTripleWithin_mono_nSteps (by omega)
+                    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+                  refine sepConj_mono_right (fun h' hbody => Or.inl
+                    (rlpWalkNextOk_of_long_string srcBase endPtr srcBytes srcOff hoff hoff1 hpb8 hpc0
+                      hlz hmin hcont h' hbody)) h ?_
+                  xperm_hyp hp
+        · by_cases hpf8 : BitVec.ult pfx (0xf8 : Word) = true
+          · -- short list
+            by_cases hbnd : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+                ((pfx - (0xc0 : Word)) + signExtend12 (1 : BitVec 12))) = true
+            · -- bound (a1 = 3)
+              have ht := cpsTripleWithin_frameR
+                ((.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old))
+                (by pcFree)
+                (rlp_walk_next_short_list_bound_spec_within base srcBase endPtr raVal a2Old t0Old t1Old
+                  t6Old srcBytes srcOff hsalign hoff hover hvalid hinb hpc0 hpf8 hbnd)
+              refine cpsTripleWithin_mono_nSteps (by omega)
+                (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+              have hp1 := sepConj_mono (fun _ x => x)
+                (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x28)
+                  (sepConj_mono (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)))) h hp
+              refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl hbody))) h ?_
+              xperm_hyp hp1
+            · -- accept (a1 = 0)
+              have ht := cpsTripleWithin_frameR
+                ((.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old))
+                (by pcFree)
+                (rlp_walk_next_short_list_spec_within base srcBase endPtr raVal a2Old t0Old t1Old
+                  t6Old srcBytes srcOff hsalign hoff hover hvalid hinb hpc0 hpf8 hbnd)
+              refine cpsTripleWithin_mono_nSteps (by omega)
+                (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+              have hp1 := sepConj_mono (fun _ x => x)
+                (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x28)
+                  (sepConj_mono (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)))) h hp
+              refine sepConj_mono_right (fun h' hbody => Or.inl
+                (rlpWalkNextOk_of_short_list srcBase endPtr srcBytes srcOff hoff hpc0 hpf8 hbnd
+                  h' hbody)) h ?_
+              xperm_hyp hp1
+          · -- long list
+            obtain ⟨hllen, hlover, hlvalid⟩ := hll hpf8
+            rw [hpfx] at hllen hlover hlvalid
+            have hge : 248 ≤ pfx.toNat := by
+              simpa only [BitVec.ult, decide_eq_true_eq, Nat.not_lt,
+                show (0xf8 : Word).toNat = 248 from by decide] using hpf8
+            have hlt : pfx.toNat < 256 := by
+              rw [hpfx, BitVec.toNat_setWidth]; have := (srcBytes[srcOff]'hoff).isLt; omega
+            rw [hpfx] at hge hlt
+            have hn1 : 1 ≤ ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+              rw [BitVec.toNat_sub, show (0xf7 : Word).toNat = 247 from by decide]; omega
+            have hn8 : ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+              rw [BitVec.toNat_sub, show (0xf7 : Word).toNat = 247 from by decide]; omega
+            have hoff1 : srcOff + 1 < srcBytes.length := by omega
+            have hover1 : srcBase.toNat + (srcOff + 1) < 2 ^ 64 := by omega
+            have hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+              have := hlvalid 0 (by omega); simpa using this
+            by_cases hhdr : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+                (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                  signExtend12 (1 : BitVec 12))) = true
+            · -- header bound (a1 = 3)
+              have ht := rlp_walk_next_long_list_header_spec_within base srcBase endPtr raVal a2Old
+                t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hover hvalid
+                hinb hpf8 hhdr
+              refine cpsTripleWithin_mono_nSteps (by omega)
+                (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+              refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl hbody))) h ?_
+              xperm_hyp hp
+            · by_cases hlz : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
+              · -- leading zero (a1 = 5)
+                have ht := rlp_walk_next_long_list_lz_spec_within base srcBase endPtr raVal a2Old
+                  t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
+                  hover1 hvalid hvalid1 hinb hpf8 hhdr hlz
+                refine cpsTripleWithin_mono_nSteps (by omega)
+                  (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+                refine sepConj_mono_right (fun h' hbody =>
+                  Or.inr (Or.inr (Or.inr (Or.inr (Or.inl hbody))))) h ?_
+                xperm_hyp hp
+              · by_cases hmin : BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+                    ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true
+                · -- non-minimal (a1 = 4)
+                  have ht := rlp_walk_next_long_list_nonmin_spec_within base srcBase endPtr raVal a2Old
+                    t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
+                    hvalid hinb hpf8 hllen hlover hlvalid hhdr hlz hmin
+                  refine cpsTripleWithin_mono_nSteps (by omega)
+                    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+                  refine sepConj_mono_right (fun h' hbody =>
+                    Or.inr (Or.inr (Or.inr (Or.inl hbody)))) h ?_
+                  xperm_hyp hp
+                · by_cases hcont : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+                      (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                        BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
+                          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) +
+                        signExtend12 (1 : BitVec 12))) = true
+                  · -- content bound (a1 = 3)
+                    have ht := rlp_walk_next_long_list_content_spec_within base srcBase endPtr raVal
+                      a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff
+                      hoff1 hover hvalid hinb hpf8 hllen hlover hlvalid hhdr hlz hmin hcont
+                    refine cpsTripleWithin_mono_nSteps (by omega)
+                      (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+                    refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl hbody))) h ?_
+                    xperm_hyp hp
+                  · -- accept (a1 = 0)
+                    have ht := rlp_walk_next_long_list_spec_within base srcBase endPtr raVal a2Old
+                      t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1
+                      hover hvalid hinb hpf8 hllen hlover hlvalid hhdr hlz hmin hcont
+                    refine cpsTripleWithin_mono_nSteps (by omega)
+                      (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+                    refine sepConj_mono_right (fun h' hbody => Or.inl
+                      (rlpWalkNextOk_of_long_list srcBase endPtr srcBytes srcOff hoff hoff1 hpf8
+                        hlz hmin hcont h' hbody)) h ?_
+                    xperm_hyp hp
+  · -- end of list (a1 = 2)
+    have ht := cpsTripleWithin_frameR
+      ((.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) **
+        (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** bytesRegion srcBase srcBytes) (by pcFree)
+      (rlp_walk_next_end_spec_within base ptr endPtr raVal a2Old hinb)
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
+    have hp1 := sepConj_mono (fun _ x => x)
+      (sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
+        (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x28)
+          (sepConj_mono (regIs_implies_regOwn .x29) (sepConj_mono (regIs_implies_regOwn .x30)
+            (sepConj_mono (regIs_implies_regOwn .x31) (fun _ x => x)))))))) h hp
+    refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inl
+      (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
+        (sepConj_pure_right h'').2 ⟨hb, hinb⟩)) h' hbody))) h ?_
+    xperm_hyp hp1
 
 end EvmAsm.Rv64.RLP
