@@ -47,6 +47,7 @@ import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HashProbes
 import EvmAsm.Codegen.Programs.Modexp
+import EvmAsm.Codegen.Programs.ModexpBackend
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.Secp256k1Field

@@ -34,6 +34,7 @@ import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
+import EvmAsm.Codegen.Programs.ModexpBackend
 import EvmAsm.Codegen.Programs.Bn254Curve
 import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.Bls12G1
@@ -1590,7 +1591,8 @@ def emitDispatcherEpilogueCore
     createRecordCodeEffectFunction ++ "\n" ++
     findCodeEffectByAddressFunction ++ "\n" ++
     createCreatorNonceUseFunction ++ "\n" ++
-    zkvmModexpSafeFailWrapper ++ "\n" ++
+    zkvmModexpBackendImpl ++ "\n" ++
+    emitModexpBnScratchData ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
     sstoreGasRefundOutcomeFunction ++ "\n" ++
     dispatcherTxGasSettleFunction ++ "\n" ++
@@ -2554,7 +2556,8 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createRecordCodeEffectFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
-  zkvmModexpSafeFailWrapper ++ "\n" ++
+  zkvmModexpBackendImpl ++ "\n" ++
+  emitModexpBnScratchData ++ "\n" ++
   -- Real RIPEMD160 (0x03) software kernel for the guest closures
   -- (the guest provides `zkvm_sha256` itself, but `zkvm_ripemd160`
   -- only exists here and in the shared-helpers epilogue branch).
