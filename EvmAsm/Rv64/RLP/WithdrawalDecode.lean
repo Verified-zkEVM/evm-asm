@@ -382,4 +382,44 @@ theorem wd_decode_epilogue (base spF raSaved s0Saved s1Saved s2Saved raClob s0Cl
   simp only [signExtend12_0] at hld0 hret
   runBlock hld0 hld1 hld2 hld3 haddi hret
 
+/-! ## M3 proof — in-situ call code-lifting
+
+A call block from `wd_call_content_to_u64`'s pattern lives over
+`singleton callerPC (jal) ∪ leaf_code calleeEntry`. To compose it into the full program it
+must be lifted to `withdrawal_decode_code base` via `cpsTripleWithin_extend_code`. The lemma
+below is that lifting for the `walk_init` call (`jal` at idx 6, body appended at idx 83); the
+`walk_next`/`content_to_u64` calls lift identically (bodies at idx 136 / 239). -/
+theorem wd_walkinit_code_sub (base : Word) :
+    ∀ a i, ((CodeReq.singleton (base + 24) (.JAL .x1 (308 : BitVec 21))).union
+              (rlp_walk_init_code (base + 332))) a = some i →
+           withdrawal_decode_code base a = some i := by
+  have hrest : withdrawal_decode_prog
+      = withdrawal_decode_glue ++
+          (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog) := by
+    simp only [withdrawal_decode_prog, List.append_assoc]
+  apply CodeReq.union_sub
+  · -- the `jal` at idx 6 of the program
+    apply CodeReq.singleton_mono
+    have h := CodeReq.ofProg_lookup_addr base withdrawal_decode_prog 6 (base + 24)
+      (by rw [withdrawal_decode_prog_length]; norm_num)
+      (by rw [withdrawal_decode_prog_length]; norm_num)
+      (by bv_omega)
+    rwa [show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
+          = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
+  · -- the appended `rlp_walk_init` body (idx 83.., byte offset 332)
+    intro a i hwi
+    -- walk_init ⊆ walk_init ++ walk_next ++ content_to_u64, at base + 332
+    have h1 := CodeReq.ofProg_mono_append_left (base + 332) rlp_walk_init_prog rlp_walk_next_prog
+      a i hwi
+    have h2 := CodeReq.ofProg_mono_append_left (base + 332)
+      (rlp_walk_init_prog ++ rlp_walk_next_prog) rlp_content_to_u64_prog a i h1
+    -- that suffix sits at byte offset 4 * |glue| = 332 in the whole program
+    have hr := CodeReq.ofProg_mono_append_right base withdrawal_decode_glue
+      (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog)
+      (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
+    rw [withdrawal_decode_glue_length,
+        show base + BitVec.ofNat 64 (4 * 83) = base + 332 from by bv_omega] at hr
+    rw [withdrawal_decode_code, hrest]
+    exact hr h2
+
 end EvmAsm.Rv64.RLP
