@@ -392,6 +392,15 @@ a contiguous segment of the program. The three body-subset lemmas supply (b) for
 appended at idx 83 / 136 / 239 (bytes 332 / 544 / 956); they serve all nine call sites
 (`walk_init` ×1, `walk_next` ×5, `content_to_u64` ×3). -/
 
+/-- Uniform instruction lookup: the `k`-th instruction of the program sits at byte `4*k` from
+    `base`. Used for every `jal` (call-site `hjal`) and branch lookup; identify the concrete
+    instruction at the use site with `decide` on `withdrawal_decode_prog.get ⟨k, _⟩`. -/
+theorem wd_prog_lookup (base : Word) (k : Nat) (hk : k < withdrawal_decode_prog.length) :
+    withdrawal_decode_code base (base + BitVec.ofNat 64 (4 * k))
+      = some (withdrawal_decode_prog.get ⟨k, hk⟩) :=
+  CodeReq.ofProg_lookup_addr base withdrawal_decode_prog k _ hk
+    (by rw [withdrawal_decode_prog_length]; norm_num) rfl
+
 /-- Generic call code-lifting: a `jal` present in the program, unioned with a leaf body that is a
     program segment, is contained in the program. -/
 theorem wd_call_code_sub {base callerPC : Word} {i_jal : Instr} {calleeCode : CodeReq}
@@ -464,12 +473,10 @@ theorem wd_walkinit_code_sub (base : Word) :
               (rlp_walk_init_code (base + 332))) a = some i →
            withdrawal_decode_code base a = some i := by
   refine wd_call_code_sub ?_ (wd_walkInitBody_sub base)
-  have h := CodeReq.ofProg_lookup_addr base withdrawal_decode_prog 6 (base + 24)
-    (by rw [withdrawal_decode_prog_length]; norm_num)
-    (by rw [withdrawal_decode_prog_length]; norm_num) (by bv_omega)
-  rw [withdrawal_decode_code]
-  rwa [show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
-        = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
+  have h := wd_prog_lookup base 6 (by rw [withdrawal_decode_prog_length]; norm_num)
+  rwa [show base + BitVec.ofNat 64 (4 * 6) = base + 24 from by bv_omega,
+       show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
+         = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
 
 /-! ## M3 proof — fail-path bridge foundation
 
