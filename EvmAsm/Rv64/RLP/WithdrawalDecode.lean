@@ -714,6 +714,29 @@ theorem wd_bne_ne (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13
       obtain ⟨_, b, _, _, _, hrest⟩ := hqf
       exact hne ((sepConj_pure_right b).1 hrest).2)
 
+/-- **Prefix read** (`lbu t0, 0(s1)`): load the field's first byte (the RLP prefix at the cursor)
+    from the input region into `t0`, for the reject-list check. Generic over the program index;
+    serves the four reject-checks (idx 14/28/42/59). Reads byte `cursorOff` of `srcBytes` via
+    `bytesRegion_lbu_within`. -/
+theorem wd_decode_readPrefix (base srcBase t0Old : Word) (srcBytes : List (BitVec 8))
+    (cursorOff idx : Nat) (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .LBU .x5 .x9 0)
+    (halign : srcBase.toNat % 8 = 0) (hi : cursorOff < srcBytes.length)
+    (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (base + BitVec.ofNat 64 (4 * idx) + 4)
+      (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0Old) **
+        bytesRegion srcBase srcBytes)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+        (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** bytesRegion srcBase srcBytes) := by
+  refine cpsTripleWithin_extend_code ?_
+    (bytesRegion_lbu_within .x5 .x9 srcBase t0Old (base + BitVec.ofNat 64 (4 * idx)) srcBytes
+      cursorOff (by decide) halign hi hover hvalid)
+  apply CodeReq.singleton_mono
+  have h := wd_prog_lookup base idx hidx
+  rwa [hinstr] at h
+
 /-- **Generic scalar store** (`sd a0, structOff(s0)`): store the decoded u64 value (`a0`) into the
     output struct dword at `s0 + structOff`. Reusable for the three scalar stores (idx 23/37/68,
     offsets 0/8/40). Lifted to the program via `cpsTripleWithin_extend_code` + `wd_prog_lookup`. -/
