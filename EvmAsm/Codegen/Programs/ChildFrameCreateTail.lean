@@ -356,16 +356,16 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- create_frame_descend so recursive constructors at depth 1024 push zero instead of
     -- attempting to enter a non-protocol child frame.
     "  la t1, evm_call_depth\n  ld t2, 0(t1)\n  li t3, 1024\n  bgeu t2, t3, 7f\n" ++
-    "  addi sp, sp, -16\n  sd t4, 0(sp)\n" ++
     "  li a1, " ++ toString netPopBytes ++ "\n" ++
     "  jal x1, create_frame_descend\n" ++
-    "  ld t4, 0(sp)\n  addi sp, sp, 16\n" ++
-    -- nxio8.8 refund-on-failure: the descent snapshotted state-gas POST-charge into child_env+624/632;
-    -- rewrite the snapshot to the PRE-charge reservoir/used values. On child error/revert,
-    -- frame_return restores those globals and restores any regular-gas spill to the parent;
-    -- on child success the snapshot is unused and the charge stands.
-    "  sd t4, 624(x20)\n" ++
-    "  ld t0, 632(x20)\n" ++ liStateGasRuntime "t1" amsterdamStateBytesPerNewAccountV2 ++ "  sub t0, t0, t1\n  sd t0, 632(x20)\n" ++   -- refund = same 120*1530
+    -- coc3g.9.3.4: the descent snapshotted state-gas POST-charge into child_env+624/632.
+    -- We do NOT rewrite the snapshot to PRE-charge values. Previously the rewrite made
+    -- frame_return compute used_delta = full CREATE charge (183600), inflating s7 (child
+    -- leftover gas) by 183600 → gas_left got the CREATE spill back via EIP-150 (double
+    -- refund: gas_left AND state_gas_left). With POST-charge values, used_delta excludes
+    -- the CREATE charge (s7 not inflated). frame_return's CREATE-specific credit path
+    -- (create_frame_flag check) credits state_gas_left += 183600 on child failure,
+    -- matching execution-specs credit_state_gas_refund without touching gas_left.
 
     -- drj99.1 part 2: credit child C's env+32 selfBalance with the endowment so the initcode's
     -- SELFBALANCE and its outgoing value-CALL debits operate on the real balance. call_frame_descend

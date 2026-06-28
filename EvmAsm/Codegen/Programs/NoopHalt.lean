@@ -48,6 +48,14 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
+      -- coc3g.9.3.4: refund CREATE new-account state gas (183600) after frame_return.
+      -- Flag was cleared above so CallFrameReturn's credit doesn't fire; apply here.
+      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
+      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
+      "  bltu t1, t2, .Lrr_crrev_cr_" ++ toString kind ++ "\n" ++
+      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      ".Lrr_crrev_cr_" ++ toString kind ++ ":\n" ++
       "  j .dispatch_loop\n"
      else
       -- RETURN: validity-gate child mem[x14..x14+x15] (the deployed code), record the
@@ -159,6 +167,13 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  sd x0, 568(x20)\n" ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
+      -- coc3g.9.3.4: refund CREATE state gas (same as REVERT path above).
+      "  la t0, evm_state_gas_left\n  ld t1, 0(t0)\n  li t2, 183600\n" ++
+      "  add t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      "  la t0, evm_state_gas_used\n  ld t1, 0(t0)\n" ++
+      "  bltu t1, t2, .Lrr_crinv_cr_" ++ toString kind ++ "\n" ++
+      "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
+      ".Lrr_crinv_cr_" ++ toString kind ++ ":\n" ++
       "  j .dispatch_loop\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
     "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++

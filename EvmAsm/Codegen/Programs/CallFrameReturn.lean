@@ -113,6 +113,25 @@ def frameReturnFunction : String :=
   ".Lfr_sgas_restore_left:\n" ++
   "  la t1, evm_state_gas_left; sd t3, 0(t1)\n" ++
   "  ld t0, 632(x20); la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  -- coc3g.9.3.4: CREATE-specific state gas credit on child failure. The CREATE charge
+  -- (amsterdamStateBytesPerNewAccountV2 = 120*1530 = 183600) is refunded to
+  -- state_gas_left and subtracted from state_gas_used, matching execution-specs
+  -- credit_state_gas_refund(evm, create_account_state_gas). This MUST NOT touch
+  -- gas_left — the spec credits state_gas_left ONLY. frame_return's spill restore
+  -- (above) already excluded the CREATE charge from s7 because the snapshot holds
+  -- POST-charge values (used_delta excludes the CREATE charge), so gas_left is not
+  -- inflated. Check create_frame_flag[child_depth] (set by create_frame_descend).
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t0, create_frame_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  beqz t0, .Lfr_create_credit_done\n" ++
+  "  la t0, evm_state_gas_left; ld t1, 0(t0)\n" ++
+  "  li t2, 183600\n" ++
+  "  add t1, t1, t2; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; ld t1, 0(t0)\n" ++
+  "  bltu t1, t2, .Lfr_create_credit_done\n" ++
+  "  sub t1, t1, t2; sd t1, 0(t0)\n" ++
+  ".Lfr_create_credit_done:\n" ++
   -- nxio8.4.2: discard the reverted child's EIP-3529 refund additions by restoring
   -- evm_refund_acc to the pre-child snapshot (incorporate_child_on_error does not
   -- add child.refund_counter). Success leaves it (the SSTORE refunds stay).
