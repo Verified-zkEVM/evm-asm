@@ -2068,6 +2068,21 @@ calling convention so it is a literal drop-in.
   - ⏳ **Success path** (`len ≤ 32`, the right-aligned big-endian copy loop) —
     follow-up; reuse the `ByteCopyIter`/`ByteCopyChain` counted-copy infra.
 
+- ✅ **`rlp_walk_next`** (`EvmAsm/Rv64/RLP/WalkNext.lean`): verified 103-instruction
+  drop-in (`rlp_walk_next_prog`), all 18 reachable paths proved as leaf `cpsTripleWithin`
+  triples, combined into the unified dispatch `rlp_walk_next_spec_within` (bound `87`).
+  Status `a1`: `0` ok / `2` end-of-list / `3` bound / `4` non-minimal / `5` leading-zero /
+  `6` non-canonical single byte. The `a1 = 0` outcome is the pure predicate `rlpWalkNextOk`
+  over `rlpItemDecode` (canonical decode + **per-form overflow-safe fit** conjuncts matching
+  the program's `endPtr − cursor` subtraction checks). **Every** non-`0` status carries
+  `⌜¬ ∃ next len, rlpItemDecode …⌝` (no canonical item is consumable): `4/5/6` via the
+  canonicality conjuncts, `3` via the fit conjuncts (each the exact negation of a bound
+  check). The bound checks are overflow-robust (`avail = endPtr − cursor` subtraction, not
+  `cursor + span` addition which can wrap for long forms with `dec` up to `2^64−1` — see
+  the `rlp-walk-next-fit-per-disjunct` note). Axiom-clean (3 classical), 0 sorry, EEST
+  200/200 spike. (Beads `evm-asm-enb37` unified theorem; `evm-asm-rpeko` overflow-robust
+  bound + `a1=3` ¬∃.)
+
 ---
 
 ## Roadmap: Phases 7-11 (STF — State Transition Function)
