@@ -55,7 +55,12 @@
   outcomes distinguished by the status `a1` (`0/2/3/4/5/6`). The `a1 = 0` (ok) outcome is
   the single pure predicate `rlpWalkNextOk` relating the advanced cursor `a0` and reported
   length `a2` to the prefix-indicated decode (`rlpItemDecode`); the long-form decode also
-  certifies canonical length encoding (no leading `0x00`, decoded length `≥ 56`).
+  certifies canonical length encoding (no leading `0x00`, decoded length `≥ 56`) and the
+  short-form decode the single-byte rule (a 1-byte string's content is `≥ 0x80`).
+  The canonicality-reject outcomes (`a1 = 4` non-minimal, `5` leading-zero, `6` single-byte
+  non-canonical) additionally carry `⌜¬ ∃ next len, rlpItemDecode …⌝`: no canonical RLP item
+  decodes at the cursor. (The `a1 = 3` bound outcome is a fit failure, not a decode failure —
+  a canonical item may decode but run past `end` — so it carries no decode negation.)
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
@@ -3654,9 +3659,13 @@ def rlpItemDecode (bytes : List (BitVec 8)) (off : Nat) (cursor next len : Word)
     ( -- single byte (p < 0x80)
       (BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
         next = cursor + signExtend12 (1 : BitVec 12) ∧ len = (1 : Word)) ∨
-      -- short string (0x80 ≤ p < 0xb8)
+      -- short string (0x80 ≤ p < 0xb8): canonical — a 1-byte string's content is ≥ 0x80
+      -- (a byte < 0x80 must use the single-byte form)
       (¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+        (b.zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+          ∃ c : BitVec 8, bytes[off + 1]? = some c ∧
+            ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) ∧
         next = (cursor + signExtend12 (1 : BitVec 12)) + (b.zeroExtend 64 - (0x80 : Word)) ∧
         len = b.zeroExtend 64 - (0x80 : Word)) ∨
       -- long string (0xb8 ≤ p < 0xc0): canonical — no leading 0x00, decoded length ≥ 56
@@ -3689,6 +3698,41 @@ def rlpItemDecode (bytes : List (BitVec 8)) (off : Nat) (cursor next len : Word)
             ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xf7 : Word)).toNat)) +
           signExtend12 (1 : BitVec 12)) )
 
+/-- Invert `rlpItemDecode`: any decode at `off` exposes its prefix form (range guards plus
+    the long-form / single-byte canonicality conjuncts), dropping the `next`/`len` equations.
+    Used to refute the existence of a canonical decode on the reject paths. -/
+private theorem rlpItemDecode_dichotomy {bytes : List (BitVec 8)} {off : Nat}
+    (hoff : off < bytes.length) {cursor next len : Word}
+    (h : rlpItemDecode bytes off cursor next len) :
+    (BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true) ∨
+    (¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
+      ((bytes[off]'hoff).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+        ∃ c : BitVec 8, bytes[off + 1]? = some c ∧
+          ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)) ∨
+    (¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      (∃ b1 : BitVec 8, bytes[off + 1]? = some b1 ∧ b1.zeroExtend 64 ≠ (0 : Word)) ∧
+      ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop (off + 1)).take
+        ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat))) (56 : Word) = true) ∨
+    (¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xf8 : Word) = true) ∨
+    (¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+      (∃ b1 : BitVec 8, bytes[off + 1]? = some b1 ∧ b1.zeroExtend 64 ≠ (0 : Word)) ∧
+      ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((bytes.drop (off + 1)).take
+        ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true) := by
+  obtain ⟨b, hb, hdisj⟩ := h
+  have hbe : b = bytes[off]'hoff := by
+    rw [List.getElem?_eq_getElem hoff] at hb; exact (Option.some.inj hb).symm
+  subst hbe
+  rcases hdisj with ⟨h1, _, _⟩ | ⟨h1, h2, h3, _, _⟩ | ⟨h1, h2, h3, h4, _, _⟩ | ⟨h1, h2, _, _⟩ |
+    ⟨h1, h2, h3, _, _⟩
+  · exact Or.inl h1
+  · exact Or.inr (Or.inl ⟨h1, h2, h3⟩)
+  · exact Or.inr (Or.inr (Or.inl ⟨h1, h2, h3, h4⟩))
+  · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨h1, h2⟩)))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨h1, h2, h3⟩)))
+
 /-- Single `a1 = 0` (ok) outcome of `rlp_walk_next`: the advanced cursor `a0 = next`, the
     reported length `a2 = len`, the decode is the prefix-indicated one (`rlpItemDecode`), and
     the item fits within `end` (`¬ ult endPtr next`, the bound check that passed). Memory
@@ -3719,6 +3763,9 @@ theorem rlpWalkNextOk_of_short_string (srcBase endPtr : Word) (srcBytes : List (
     (srcOff : Nat) (hoff : srcOff < srcBytes.length)
     (h_lo : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true)
     (h_hi : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (hcanon : (srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+      ∃ c : BitVec 8, srcBytes[srcOff + 1]? = some c ∧
+        ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)
     (h_bound : ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 (srcOff + 1)) +
       ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))) = true) :
     ∀ h, ((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 (srcOff + 1)) +
@@ -3732,7 +3779,8 @@ theorem rlpWalkNextOk_of_short_string (srcBase endPtr : Word) (srcBytes : List (
     (srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word), ?_⟩
   refine sepConj_mono_right (sepConj_mono_right (fun h' hx12 =>
     (sepConj_pure_right h').2 ⟨hx12, ?_, h_bound⟩)) h hp
-  refine ⟨srcBytes[srcOff]'hoff, List.getElem?_eq_getElem hoff, Or.inr (Or.inl ⟨h_lo, h_hi, ?_, rfl⟩)⟩
+  refine ⟨srcBytes[srcOff]'hoff, List.getElem?_eq_getElem hoff,
+    Or.inr (Or.inl ⟨h_lo, h_hi, hcanon, ?_, rfl⟩)⟩
   rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide, wn_base_off_succ]
 
 /-- Weaken the **short list** accept post (`a0 = cursor+((p-0xc0)+1)`, `a2 = (p-0xc0)+1`) to
@@ -3878,11 +3926,17 @@ theorem rlp_walk_next_spec_within
          (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (3 : Word)) **
             (.x12 ↦ᵣ (0 : Word))) h) ∨
          (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (4 : Word)) **
-            (.x12 ↦ᵣ (0 : Word))) h) ∨
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+              next len⌝) h) ∨
          (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (5 : Word)) **
-            (.x12 ↦ᵣ (0 : Word))) h) ∨
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+              next len⌝) h) ∨
          (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (6 : Word)) **
-            (.x12 ↦ᵣ (0 : Word))) h))) := by
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff)
+              next len⌝) h))) := by
   set ptr := srcBase + BitVec.ofNat 64 srcOff with hptr
   set pfx := (srcBytes[srcOff]'hoff).zeroExtend 64 with hpfx
   by_cases hinb : BitVec.ult ptr endPtr = true
@@ -3938,8 +3992,25 @@ theorem rlp_walk_next_spec_within
                 (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
               have hp1 := sepConj_mono (fun _ x => x)
                 (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31)) h hp
+              have hno : ¬ ∃ next len,
+                  rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) next len := by
+                rintro ⟨next, len, hdec⟩
+                rcases rlpItemDecode_dichotomy hoff hdec with hc | hc | hc | hc | hc
+                · exact hp80 hc
+                · obtain ⟨c, hcget, hcge⟩ := hc.2.2 hlen1
+                  rw [List.getElem?_eq_getElem hoff1] at hcget
+                  obtain rfl := (Option.some.inj hcget).symm
+                  exact hcge hcb
+                · exact hc.1 hpb8
+                · exact hc.1 (by simp only [hpfx, BitVec.ult, decide_eq_true_eq,
+                    show (0xb8 : Word).toNat = 184 from by decide,
+                    show (0xc0 : Word).toNat = 192 from by decide] at hpb8 ⊢; omega)
+                · exact hc.1 (by simp only [hpfx, BitVec.ult, decide_eq_true_eq,
+                    show (0xb8 : Word).toNat = 184 from by decide,
+                    show (0xf8 : Word).toNat = 248 from by decide] at hpb8 ⊢; omega)
               refine sepConj_mono_right (fun h' hbody =>
-                Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hbody))))) h ?_
+                Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (sepConj_mono_right (sepConj_mono_right
+                  (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hno⟩)) h' hbody)))))) h ?_
               xperm_hyp hp1
             · -- canonical single byte accept (a1 = 0)
               have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
@@ -3951,7 +4022,8 @@ theorem rlp_walk_next_spec_within
               have hp1 := sepConj_mono (fun _ x => x)
                 (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31)) h hp
               refine sepConj_mono_right (fun h' hbody => Or.inl
-                (rlpWalkNextOk_of_short_string srcBase endPtr srcBytes srcOff hoff hp80 hpb8 hbnd
+                (rlpWalkNextOk_of_short_string srcBase endPtr srcBytes srcOff hoff hp80 hpb8
+                  (fun _ => ⟨srcBytes[srcOff + 1]'hoff1, List.getElem?_eq_getElem hoff1, hcb⟩) hbnd
                   h' hbody)) h ?_
               xperm_hyp hp1
           · -- len ≠ 1; multi-byte accept (a1 = 0)
@@ -3963,8 +4035,8 @@ theorem rlp_walk_next_spec_within
             have hp1 := sepConj_mono (fun _ x => x)
               (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31)) h hp
             refine sepConj_mono_right (fun h' hbody => Or.inl
-              (rlpWalkNextOk_of_short_string srcBase endPtr srcBytes srcOff hoff hp80 hpb8 hbnd
-                h' hbody)) h ?_
+              (rlpWalkNextOk_of_short_string srcBase endPtr srcBytes srcOff hoff hp80 hpb8
+                (fun h1 => absurd h1 hlen1) hbnd h' hbody)) h ?_
             xperm_hyp hp1
       · by_cases hpc0 : BitVec.ult pfx (0xc0 : Word) = true
         · -- long string
@@ -4001,10 +4073,25 @@ theorem rlp_walk_next_spec_within
               have ht := rlp_walk_next_long_string_lz_spec_within base srcBase endPtr raVal a2Old
                 t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
                 hover1 hvalid hvalid1 hinb hpb8 hpc0 hhdr hlz
+              have hno : ¬ ∃ next len,
+                  rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) next len := by
+                rintro ⟨next, len, hdec⟩
+                rcases rlpItemDecode_dichotomy hoff hdec with hc | hc | hc | hc | hc
+                · exact hp80 hc
+                · exact hpb8 hc.2.1
+                · obtain ⟨b1, hb1, hb1ne⟩ := hc.2.2.1
+                  rw [List.getElem?_eq_getElem hoff1] at hb1
+                  obtain rfl := (Option.some.inj hb1).symm
+                  exact hb1ne hlz
+                · exact hc.1 hpc0
+                · exact hc.1 (by simp only [hpfx, BitVec.ult, decide_eq_true_eq,
+                    show (0xc0 : Word).toNat = 192 from by decide,
+                    show (0xf8 : Word).toNat = 248 from by decide] at hpc0 ⊢; omega)
               refine cpsTripleWithin_mono_nSteps (by omega)
                 (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
               refine sepConj_mono_right (fun h' hbody =>
-                Or.inr (Or.inr (Or.inr (Or.inr (Or.inl hbody))))) h ?_
+                Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (sepConj_mono_right (sepConj_mono_right
+                  (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hno⟩)) h' hbody)))))) h ?_
               xperm_hyp hp
             · by_cases hmin : BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
                   ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat))) (56 : Word) = true
@@ -4012,10 +4099,22 @@ theorem rlp_walk_next_spec_within
                 have ht := rlp_walk_next_long_string_nonmin_spec_within base srcBase endPtr raVal a2Old
                   t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
                   hvalid hinb hpb8 hpc0 hllen hlover hlvalid hhdr hlz hmin
+                have hno : ¬ ∃ next len,
+                    rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) next len := by
+                  rintro ⟨next, len, hdec⟩
+                  rcases rlpItemDecode_dichotomy hoff hdec with hc | hc | hc | hc | hc
+                  · exact hp80 hc
+                  · exact hpb8 hc.2.1
+                  · exact hc.2.2.2 hmin
+                  · exact hc.1 hpc0
+                  · exact hc.1 (by simp only [hpfx, BitVec.ult, decide_eq_true_eq,
+                      show (0xc0 : Word).toNat = 192 from by decide,
+                      show (0xf8 : Word).toNat = 248 from by decide] at hpc0 ⊢; omega)
                 refine cpsTripleWithin_mono_nSteps (by omega)
                   (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
                 refine sepConj_mono_right (fun h' hbody =>
-                  Or.inr (Or.inr (Or.inr (Or.inl hbody)))) h ?_
+                  Or.inr (Or.inr (Or.inr (Or.inl (sepConj_mono_right (sepConj_mono_right
+                    (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hno⟩)) h' hbody))))) h ?_
                 xperm_hyp hp
               · by_cases hcont : BitVec.ult endPtr (((srcBase + BitVec.ofNat 64 srcOff) +
                     (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) +
@@ -4105,10 +4204,23 @@ theorem rlp_walk_next_spec_within
                 have ht := rlp_walk_next_long_list_lz_spec_within base srcBase endPtr raVal a2Old
                   t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
                   hover1 hvalid hvalid1 hinb hpf8 hhdr hlz
+                have hno : ¬ ∃ next len,
+                    rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) next len := by
+                  rintro ⟨next, len, hdec⟩
+                  rcases rlpItemDecode_dichotomy hoff hdec with hc | hc | hc | hc | hc
+                  · exact hp80 hc
+                  · exact hpb8 hc.2.1
+                  · exact hpc0 hc.2.1
+                  · exact hpf8 hc.2
+                  · obtain ⟨b1, hb1, hb1ne⟩ := hc.2.1
+                    rw [List.getElem?_eq_getElem hoff1] at hb1
+                    obtain rfl := (Option.some.inj hb1).symm
+                    exact hb1ne hlz
                 refine cpsTripleWithin_mono_nSteps (by omega)
                   (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
                 refine sepConj_mono_right (fun h' hbody =>
-                  Or.inr (Or.inr (Or.inr (Or.inr (Or.inl hbody))))) h ?_
+                  Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (sepConj_mono_right (sepConj_mono_right
+                    (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hno⟩)) h' hbody)))))) h ?_
                 xperm_hyp hp
               · by_cases hmin : BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (srcOff + 1)).take
                     ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true
@@ -4116,10 +4228,20 @@ theorem rlp_walk_next_spec_within
                   have ht := rlp_walk_next_long_list_nonmin_spec_within base srcBase endPtr raVal a2Old
                     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
                     hvalid hinb hpf8 hllen hlover hlvalid hhdr hlz hmin
+                  have hno : ¬ ∃ next len,
+                      rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) next len := by
+                    rintro ⟨next, len, hdec⟩
+                    rcases rlpItemDecode_dichotomy hoff hdec with hc | hc | hc | hc | hc
+                    · exact hp80 hc
+                    · exact hpb8 hc.2.1
+                    · exact hpc0 hc.2.1
+                    · exact hpf8 hc.2
+                    · exact hc.2.2 hmin
                   refine cpsTripleWithin_mono_nSteps (by omega)
                     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
                   refine sepConj_mono_right (fun h' hbody =>
-                    Or.inr (Or.inr (Or.inr (Or.inl hbody)))) h ?_
+                    Or.inr (Or.inr (Or.inr (Or.inl (sepConj_mono_right (sepConj_mono_right
+                      (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hno⟩)) h' hbody))))) h ?_
                   xperm_hyp hp
                 · by_cases hcont : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
                       (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
