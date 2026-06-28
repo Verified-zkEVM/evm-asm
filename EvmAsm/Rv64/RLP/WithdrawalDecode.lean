@@ -524,6 +524,15 @@ theorem wd_walkinit_code_sub (base : Word) :
        show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
          = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
 
+/-- Distribute `**` over a disjunction: a leaf's `Post` is `frame ** (d0 ∨ d1 ∨ …)`; this turns it
+    into `(frame ** d0) ∨ (frame ** d1) ∨ …` so the disjuncts can be folded with
+    `cpsBranchWithin_or_pre`. (Chain for >2-way.) -/
+theorem sepConj_or_elim {P Q1 Q2 : Assertion} {h : PartialState} :
+    (P ** (fun g => Q1 g ∨ Q2 g)) h → (P ** Q1) h ∨ (P ** Q2) h := by
+  rintro ⟨h1, h2, hdisj, hunion, hP, hQ1 | hQ2⟩
+  · exact Or.inl ⟨h1, h2, hdisj, hunion, hP, hQ1⟩
+  · exact Or.inr ⟨h1, h2, hdisj, hunion, hP, hQ2⟩
+
 /-- **Branch or-elimination.** If both `P1` and `P2` branch (same exits `lt`/`lf`), then their
     disjunction branches, with the per-exit posts disjoined. The tool for consuming a leaf call's
     disjunctive status `Post` as a branch `Pre`: fold the leaf's status disjuncts (each a branch
