@@ -762,6 +762,53 @@ theorem c2u_status_success {srcBytes : List Byte} {srcOff len : Nat} {h : Partia
     exact hbyte ((sepConj_pure_right b).1 hrest).2.2
   · exact h3
 
+/-- `content_to_u64` **fails** on an over-long scalar (`8 < len`): the status `Post` collapses to a
+    fail arm (D0 status 2 or D2 status 3) — both `a1 ≠ 0`, so the guard is taken ⟹ fail. Rules out
+    `len = 0` (D1) and, crucially via the strengthened spec, the success arm D3 (which now carries
+    `len ≤ 8`). This is the direction that motivated strengthening `content_to_u64`. -/
+theorem c2u_status_fail_long {srcBytes : List Byte} {srcOff len : Nat} {h : PartialState}
+    (hlong : 8 < len)
+    (hpost :
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+         ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+      (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+         (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0 ∧ len ≤ 8⌝) h)) :
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+       ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) := by
+  rcases hpost with h0 | h1 | h2 | h3
+  · exact Or.inl h0
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h1
+    have : len = 0 := ((sepConj_pure_right b).1 hrest).2; omega
+  · exact Or.inr h2
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h3
+    have : len ≤ 8 := ((sepConj_pure_right b).1 hrest).2.2.2; omega
+
+/-- `content_to_u64` **fails** on a leading-zero scalar (`0 < len`, `getByteAt = 0`): the status
+    `Post` collapses to a fail arm (D0 status 2 or D2 status 3) — both `a1 ≠ 0`. Rules out `len = 0`
+    (D1) and the success arm D3 (which needs `getByteAt ≠ 0`). -/
+theorem c2u_status_fail_leadzero {srcBytes : List Byte} {srcOff len : Nat} {h : PartialState}
+    (hpos : 0 < len) (hlz : getByteAt srcBytes srcOff = 0)
+    (hpost :
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+         ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+      (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+         (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0 ∧ len ≤ 8⌝) h)) :
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+       ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) := by
+  rcases hpost with h0 | h1 | h2 | h3
+  · exact Or.inl h0
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h1
+    have : len = 0 := ((sepConj_pure_right b).1 hrest).2; omega
+  · exact Or.inr h2
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h3
+    exact (((sepConj_pure_right b).1 hrest).2.2.1) hlz
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
