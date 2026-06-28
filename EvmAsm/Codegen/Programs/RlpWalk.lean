@@ -38,6 +38,8 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Rv64.RLP.WalkInit
 
 namespace EvmAsm.Codegen
 
@@ -65,74 +67,13 @@ open EvmAsm.Rv64
 
     EXACT (execution-specs-equivalent): the list's self-declared length must
     equal `list_len` -- `1 + lol + decoded` (long) or `1 + (prefix-0xc0)` (short).
-    Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2. -/
+    Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2.
+
+    Emitted from the verified body `EvmAsm.Rv64.RLP.rlp_walk_init_prog` (proven
+    correct by `rlp_walk_init_spec_within`); the rendered assembly is
+    instruction-identical to the prior hand-written version (EEST 200/200 on spike). -/
 def rlpWalkInitFunction : String :=
-  "rlp_walk_init:\n" ++
-  "  beqz a1, .Lwi_empty        # list_len == 0 -> empty (status 2)\n" ++
-  "  add a1, a0, a1             # end = list_ptr + list_len\n" ++
-  "  lbu t0, 0(a0)              # prefix\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lwi_notlist  # prefix < 0xc0 -> not a list (status 1)\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lwi_short    # 0xc0 <= prefix < 0xf8 -> short list\n" ++
-  "  # Long list: lol = prefix - 0xf7\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol (1..8)\n" ++
-  "  addi t3, t2, 1             # header size = 1 + lol\n" ++
-  "  add t4, a0, t3             # cursor = list_ptr + 1 + lol\n" ++
-  "  bltu a1, t4, .Lwi_ltrunc   # end < cursor -> length field truncated (status 4)\n" ++
-  "  addi t1, a0, 1             # length-field ptr = list_ptr + 1\n" ++
-  "  lbu t5, 0(t1)              # first length byte\n" ++
-  "  beqz t5, .Lwi_llz          # leading zero -> status 5\n" ++
-  "  # read length field (lol bytes, big-endian) -> t6 = decoded\n" ++
-  "  li t6, 0\n" ++
-  "  mv t5, t2                  # count = lol\n" ++
-  ".Lwi_lloop:\n" ++
-  "  beqz t5, .Lwi_ldone\n" ++
-  "  slli t6, t6, 8\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  or t6, t6, t3\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lwi_lloop\n" ++
-  ".Lwi_ldone:\n" ++
-  "  li t1, 56\n" ++
-  "  bltu t6, t1, .Lwi_lmin     # decoded < 56 -> non-minimal (status 6)\n" ++
-  "  add t1, t4, t6             # content_end = cursor + decoded\n" ++
-  "  bne t1, a1, .Lwi_lmism     # content_end != end -> length mismatch (status 7)\n" ++
-  "  mv a0, t4                  # cursor = list_ptr + 1 + lol\n" ++
-  "  li a2, 0\n" ++
-  "  ret\n" ++
-  ".Lwi_short:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  sub t2, t0, t1             # content_len = prefix - 0xc0\n" ++
-  "  addi t3, t2, 1             # 1 + content_len\n" ++
-  "  add t4, a0, t3             # content_end = list_ptr + 1 + content_len\n" ++
-  "  bne t4, a1, .Lwi_smism     # content_end != end -> short mismatch (status 3)\n" ++
-  "  addi a0, a0, 1             # cursor = list_ptr + 1\n" ++
-  "  li a2, 0\n" ++
-  "  ret\n" ++
-  ".Lwi_empty:\n" ++
-  "  li a2, 2\n" ++
-  "  ret\n" ++
-  ".Lwi_notlist:\n" ++
-  "  li a2, 1\n" ++
-  "  ret\n" ++
-  ".Lwi_smism:\n" ++
-  "  li a2, 3\n" ++
-  "  ret\n" ++
-  ".Lwi_ltrunc:\n" ++
-  "  li a2, 4\n" ++
-  "  ret\n" ++
-  ".Lwi_llz:\n" ++
-  "  li a2, 5\n" ++
-  "  ret\n" ++
-  ".Lwi_lmin:\n" ++
-  "  li a2, 6\n" ++
-  "  ret\n" ++
-  ".Lwi_lmism:\n" ++
-  "  li a2, 7\n" ++
-  "  ret"
+  "rlp_walk_init:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_init_prog
 
 /-! ## rlp_walk_next -- advance cursor past one item, report content
 
