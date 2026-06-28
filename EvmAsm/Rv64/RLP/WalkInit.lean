@@ -1645,23 +1645,64 @@ theorem rlp_walk_init_spec_within
                 ((listBase + BitVec.ofNat 64 listOff) +
                   (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
                 = true⌝) h) ∨
-         -- long leading zero (a2 = 5)
+         -- long leading zero (a2 = 5): header fits, but the first length byte is 0
          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
             (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) ** (.x12 ↦ᵣ (5 : Word)) **
-            ⌜True⌝) h) ∨
-         -- long non-minimal (a2 = 6)
+            ⌜listLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+                ((listBase + BitVec.ofNat 64 listOff) +
+                  (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              listBytes[listOff + 1]? = some (0 : BitVec 8)⌝) h) ∨
+         -- long non-minimal (a2 = 6): header fits, decoded length < 56
          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
             (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) ** (.x12 ↦ᵣ (6 : Word)) **
-            ⌜True⌝) h) ∨
-         -- long mismatch (a2 = 7)
+            ⌜listLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+                ((listBase + BitVec.ofNat 64 listOff) +
+                  (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
+                ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true⌝) h) ∨
+         -- long mismatch (a2 = 7): decoded ≥ 56 but cursor + decoded ≠ end
          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
             (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) ** (.x12 ↦ᵣ (7 : Word)) **
-            ⌜True⌝) h) ∨
-         -- long success (a2 = 0)
+            ⌜listLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+                ((listBase + BitVec.ofNat 64 listOff) +
+                  (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
+                ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
+              ((listBase + BitVec.ofNat 64 listOff) +
+                  (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) +
+                  BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
+                    ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+                ≠ (listBase + BitVec.ofNat 64 listOff) + listLen⌝) h) ∨
+         -- long success (a2 = 0): decoded ≥ 56 and cursor + decoded = end
          (((.x10 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) +
               (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))) **
             (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) ** (.x12 ↦ᵣ (0 : Word)) **
-            ⌜True⌝) h))) := by
+            ⌜listLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+                ((listBase + BitVec.ofNat 64 listOff) +
+                  (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
+                ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
+              ((listBase + BitVec.ofNat 64 listOff) +
+                  (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) +
+                  BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
+                    ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+                = (listBase + BitVec.ofNat 64 listOff) + listLen⌝) h))) := by
   set ptr := listBase + BitVec.ofNat 64 listOff with hptr
   set pfx := (listBytes[listOff]'hoff).zeroExtend 64 with hpfx
   by_cases hempty : listLen = (0 : Word)
@@ -1774,9 +1815,12 @@ theorem rlp_walk_init_spec_within
             refine cpsTripleWithin_mono_nSteps (by omega)
               (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) ht)
             have hp1 := sepConj_mono (fun _ x => x) (regIs_implies_regOwn .x31) h hp
+            have hb0 : listBytes[listOff + 1]? = some (0 : BitVec 8) := by
+              have hbeq : (listBytes[listOff + 1]'hoff1) = (0 : BitVec 8) := by bv_omega
+              rw [List.getElem?_eq_getElem hoff1, hbeq]
             refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
               (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
-                (sepConj_pure_right h'').2 ⟨hb, trivial⟩)) h' hbody)))))) ) h ?_
+                (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hb0⟩⟩)) h' hbody)))))) ) h ?_
             xperm_hyp hp1
           · by_cases hmin : BitVec.ult dec (56 : Word) = true
             · -- lmin
@@ -1788,7 +1832,8 @@ theorem rlp_walk_init_spec_within
               refine sepConj_mono_right (fun h' hbody =>
                 Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
                   (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
-                    (sepConj_pure_right h'').2 ⟨hb, trivial⟩)) h' hbody)))))))) h ?_
+                    (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hmin⟩⟩))
+                      h' hbody)))))))) h ?_
               xperm_hyp hp
             · by_cases hmatch : cur + dec = ptr + listLen
               · -- long success
@@ -1800,7 +1845,8 @@ theorem rlp_walk_init_spec_within
                 refine sepConj_mono_right (fun h' hbody =>
                   Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
                     (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
-                      (sepConj_pure_right h'').2 ⟨hb, trivial⟩)) h' hbody))))))))) h ?_
+                      (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hmin, hmatch⟩⟩))
+                        h' hbody))))))))) h ?_
                 xperm_hyp hp
               · -- lmism
                 have ht := rlp_walk_init_lmism_spec_within base listBase raVal listLen a2Old t0Old t1Old
@@ -1811,7 +1857,8 @@ theorem rlp_walk_init_spec_within
                 refine sepConj_mono_right (fun h' hbody =>
                   Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
                     (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
-                      (sepConj_pure_right h'').2 ⟨hb, trivial⟩)) h' hbody)))))))) ) h ?_
+                      (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits, hmin, hmatch⟩⟩))
+                        h' hbody)))))))) ) h ?_
                 xperm_hyp hp
 
 end EvmAsm.Rv64.RLP
