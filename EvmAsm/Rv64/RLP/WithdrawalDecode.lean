@@ -595,6 +595,38 @@ theorem wd_bnez_branch (base : Word) (idx : Nat) (statusReg : Reg) (failOff : Bi
   have h := wd_prog_lookup base idx hidx
   rwa [hinstr] at h
 
+/-- **Guard, status = 0 ⟹ fall through.** When the leaf returned success (`status = 0`), the
+    `bnez status, fail` is not taken: a straight-line step to the next instruction. (The big proof
+    instantiates this on the success path, where the input fixes the status to 0.) -/
+theorem wd_bnez_notaken (base : Word) (idx : Nat) (statusReg : Reg) (failOff : BitVec 13)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BNE statusReg .x0 failOff) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (base + BitVec.ofNat 64 (4 * idx) + 4)
+      (withdrawal_decode_code base)
+      ((statusReg ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)))
+      ((statusReg ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(0 : Word) = (0 : Word)⌝) :=
+  cpsBranchWithin_ntakenPath (wd_bnez_branch base idx statusReg failOff (0 : Word) hidx hinstr)
+    (fun _ hqt => by
+      obtain ⟨_, b, _, _, _, hrest⟩ := hqt
+      exact ((sepConj_pure_right b).1 hrest).2 rfl)
+
+/-- **Guard, status ≠ 0 ⟹ jump to fail.** When the leaf returned an error status, the
+    `bnez status, fail` is taken: a straight-line step to the fail block. (The big proof
+    instantiates this on each fail path.) -/
+theorem wd_bnez_taken (base : Word) (idx : Nat) (statusReg : Reg) (failOff : BitVec 13) (v : Word)
+    (hv : v ≠ (0 : Word))
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BNE statusReg .x0 failOff) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx))
+      ((base + BitVec.ofNat 64 (4 * idx)) + signExtend13 failOff)
+      (withdrawal_decode_code base)
+      ((statusReg ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)))
+      ((statusReg ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜v ≠ (0 : Word)⌝) :=
+  cpsBranchWithin_takenPath (wd_bnez_branch base idx statusReg failOff v hidx hinstr)
+    (fun _ hqf => by
+      obtain ⟨_, b, _, _, _, hrest⟩ := hqf
+      exact hv ((sepConj_pure_right b).1 hrest).2)
+
 /-- **Generic scalar store** (`sd a0, structOff(s0)`): store the decoded u64 value (`a0`) into the
     output struct dword at `s0 + structOff`. Reusable for the three scalar stores (idx 23/37/68,
     offsets 0/8/40). Lifted to the program via `cpsTripleWithin_extend_code` + `wd_prog_lookup`. -/
