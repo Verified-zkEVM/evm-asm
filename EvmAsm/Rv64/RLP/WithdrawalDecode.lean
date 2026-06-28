@@ -627,6 +627,51 @@ theorem wd_bnez_taken (base : Word) (idx : Nat) (statusReg : Reg) (failOff : Bit
       obtain ⟨_, b, _, _, _, hrest⟩ := hqf
       exact hv ((sepConj_pure_right b).1 hrest).2)
 
+/-- General two-register guard branch (`.BNE rs1 rs2`): for the equality checks
+    `bne a2,20,fail` (address length, idx 46) and `bne a1,2,fail` (arity, idx 73). -/
+theorem wd_bne_branch (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13) (v1 v2 : Word)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BNE rs1 rs2 failOff) :
+    cpsBranchWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (withdrawal_decode_code base)
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
+      ((base + BitVec.ofNat 64 (4 * idx)) + signExtend13 failOff)
+        ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 ≠ v2⌝)
+      ((base + BitVec.ofNat 64 (4 * idx)) + 4)
+        ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 = v2⌝) := by
+  have hbne := bne_spec_gen_within rs1 rs2 failOff v1 v2 (base + BitVec.ofNat 64 (4 * idx))
+  refine cpsBranchWithin_extend_code ?_ hbne
+  apply CodeReq.singleton_mono
+  have h := wd_prog_lookup base idx hidx
+  rwa [hinstr] at h
+
+/-- Equality-check passes (`v1 = v2` ⟹ not taken): the address-length/arity check succeeds. -/
+theorem wd_bne_eq (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13) (v : Word)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BNE rs1 rs2 failOff) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (base + BitVec.ofNat 64 (4 * idx) + 4)
+      (withdrawal_decode_code base)
+      ((rs1 ↦ᵣ v) ** (rs2 ↦ᵣ v))
+      ((rs1 ↦ᵣ v) ** (rs2 ↦ᵣ v) ** ⌜v = v⌝) :=
+  cpsBranchWithin_ntakenPath (wd_bne_branch base idx rs1 rs2 failOff v v hidx hinstr)
+    (fun _ hqt => by
+      obtain ⟨_, b, _, _, _, hrest⟩ := hqt
+      exact ((sepConj_pure_right b).1 hrest).2 rfl)
+
+/-- Equality-check fails (`v1 ≠ v2` ⟹ taken ⟹ fail block): wrong address length / arity. -/
+theorem wd_bne_ne (base : Word) (idx : Nat) (rs1 rs2 : Reg) (failOff : BitVec 13) (v1 v2 : Word)
+    (hne : v1 ≠ v2)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BNE rs1 rs2 failOff) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx))
+      ((base + BitVec.ofNat 64 (4 * idx)) + signExtend13 failOff)
+      (withdrawal_decode_code base)
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2))
+      ((rs1 ↦ᵣ v1) ** (rs2 ↦ᵣ v2) ** ⌜v1 ≠ v2⌝) :=
+  cpsBranchWithin_takenPath (wd_bne_branch base idx rs1 rs2 failOff v1 v2 hidx hinstr)
+    (fun _ hqf => by
+      obtain ⟨_, b, _, _, _, hrest⟩ := hqf
+      exact hne ((sepConj_pure_right b).1 hrest).2)
+
 /-- **Generic scalar store** (`sd a0, structOff(s0)`): store the decoded u64 value (`a0`) into the
     output struct dword at `s0 + structOff`. Reusable for the three scalar stores (idx 23/37/68,
     offsets 0/8/40). Lifted to the program via `cpsTripleWithin_extend_code` + `wd_prog_lookup`. -/
