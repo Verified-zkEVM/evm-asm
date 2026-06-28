@@ -524,6 +524,33 @@ theorem wd_walkinit_code_sub (base : Word) :
        show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
          = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
 
+/-- **Branch or-elimination.** If both `P1` and `P2` branch (same exits `lt`/`lf`), then their
+    disjunction branches, with the per-exit posts disjoined. The tool for consuming a leaf call's
+    disjunctive status `Post` as a branch `Pre`: fold the leaf's status disjuncts (each a branch
+    via `wd_bnez_branch`) into one branch whose taken/not-taken posts collect the fail/success
+    disjuncts. -/
+theorem cpsBranchWithin_or_pre {n : Nat} {e : Word} {cr : CodeReq} {P1 P2 : Assertion}
+    {lt lf : Word} {Qt1 Qt2 Qf1 Qf2 : Assertion}
+    (h1 : cpsBranchWithin n e cr P1 lt Qt1 lf Qf1)
+    (h2 : cpsBranchWithin n e cr P2 lt Qt2 lf Qf2) :
+    cpsBranchWithin n e cr (fun h => P1 h ∨ P2 h) lt (fun h => Qt1 h ∨ Qt2 h)
+      lf (fun h => Qf1 h ∨ Qf2 h) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hh, hcompat, a, b, hab_disj, hab_union, hPor, hRb⟩ := hPR
+  rcases hPor with hP1 | hP2
+  · obtain ⟨k, hk, s', hstep, hbr⟩ :=
+      h1 R hR s hcr ⟨hh, hcompat, a, b, hab_disj, hab_union, hP1, hRb⟩ hpc
+    refine ⟨k, hk, s', hstep, ?_⟩
+    rcases hbr with ⟨hpct, g, gc, ga, gb, gd, gu, gQ, gR⟩ | ⟨hpcf, g, gc, ga, gb, gd, gu, gQ, gR⟩
+    · exact Or.inl ⟨hpct, g, gc, ga, gb, gd, gu, Or.inl gQ, gR⟩
+    · exact Or.inr ⟨hpcf, g, gc, ga, gb, gd, gu, Or.inl gQ, gR⟩
+  · obtain ⟨k, hk, s', hstep, hbr⟩ :=
+      h2 R hR s hcr ⟨hh, hcompat, a, b, hab_disj, hab_union, hP2, hRb⟩ hpc
+    refine ⟨k, hk, s', hstep, ?_⟩
+    rcases hbr with ⟨hpct, g, gc, ga, gb, gd, gu, gQ, gR⟩ | ⟨hpcf, g, gc, ga, gb, gd, gu, gQ, gR⟩
+    · exact Or.inl ⟨hpct, g, gc, ga, gb, gd, gu, Or.inr gQ, gR⟩
+    · exact Or.inr ⟨hpcf, g, gc, ga, gb, gd, gu, Or.inr gQ, gR⟩
+
 /-! ## M3 proof — reusable guard-branch machinery
 
 Each leaf call is followed by `bnez status, fail` (`.BNE status .x0 failOff`). `wd_bnez_branch`
