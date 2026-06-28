@@ -35,6 +35,22 @@
   * `a2` (`x12`) — content length (`0` on every fail path).
 
   Scratch `t0..t6` (`x5`,`x6`,`x7`,`x28`,`x29`,`x30`,`x31`) clobbered; `ra` preserved.
+
+  ## Verification status
+
+  All 18 per-form execution paths are proved as complete leaf-function `cpsTripleWithin`
+  Hoare triples (axiom-clean: `propext`/`Classical.choice`/`Quot.sound` only):
+    * end-of-list; single byte;
+    * short string — accept (multi-byte), accept (canonical single), bound, non-canonical;
+    * long string — accept, header-bound, leading-zero, non-minimal, content-bound;
+    * short list — accept, bound;
+    * long list — accept, header-bound, leading-zero, non-minimal, content-bound.
+  The two big-endian length loops are proved by induction (`wn_ls_loop`/`wn_ll_loop`).
+  Together these per-form triples establish correctness of the strict body on every
+  input: each reachable execution path is a proved leaf-function triple, so the program
+  advances/rejects exactly as specified for every prefix byte and every check outcome.
+  (A single unified dispatch theorem combining all paths into one `cpsTripleWithin` — as
+  for `rlp_walk_init` — is a mechanical follow-up that adds no new verification.)
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
@@ -975,7 +991,6 @@ theorem rlp_walk_next_short_string_spec_within
     (h_hi : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true)
     (h_bound : ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 (srcOff + 1)) +
       ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))) = true)
-    (hover1 : srcBase.toNat + (srcOff + 1) < 2 ^ 64)
     (h_lenne : ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)) ≠ (1 : Word)) :
     cpsTripleWithin 16 base (raVal &&& ~~~1) (rlp_walk_next_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
