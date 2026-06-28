@@ -514,4 +514,20 @@ theorem decodeWithdrawal_eq_none_iff (bs : List Byte) :
         (decodeWithdrawal_eq_some_iff bs w).mp hw
       exact hno ⟨d0, d1, d2, d3, hf, hc0, hl0, hc1, hl1, h20, hc3, hl3⟩
 
+/-- Success-path bridge endpoint: once the assembly has established `decodeFully srcBytes` is the
+    canonical 4-byte-list (the four element byte-lists `d0..d3` via the walk facts + M2
+    `decodeFully_shortList_four`, with the canonicity/length conditions from `content_to_u64` and
+    the address-length check), `decodeWithdrawal srcBytes = some w` with `w` the field values. -/
+theorem decodeWithdrawal_eq_some_of_fields (bs : List Byte) (d0 d1 d2 d3 : List Byte)
+    (hf : decodeFully bs = some (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3]))
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (h20 : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal bs =
+      some { index := Nat.fromBytesBE d0, validatorIndex := Nat.fromBytesBE d1,
+             address := BitVec.ofNat 160 (Nat.fromBytesBE d2), amount := Nat.fromBytesBE d3 } :=
+  (decodeWithdrawal_eq_some_iff bs _).mpr
+    ⟨d0, d1, d2, d3, hf, hc0, hl0, hc1, hl1, h20, hc3, hl3, rfl, rfl, rfl, rfl⟩
+
 end EvmAsm.Rv64.RLP
