@@ -135,3 +135,4 @@ import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.Rv64.CPSCall
+import EvmAsm.Rv64.RLP.WithdrawalDecode
