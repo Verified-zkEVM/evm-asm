@@ -1371,6 +1371,30 @@ theorem c2u_status_success {srcBytes : List Byte} {srcOff len : Nat} {h : Partia
     exact hbyte ((sepConj_pure_right b).1 hrest).2.2
   · exact h3
 
+/-- `content_to_u64` returns **success with value 0** for an empty scalar (`len = 0`): the 4-way
+    status `Post` collapses to the empty-content arm (`a1 = 0`, `a0 = 0`). This is the other success
+    sub-case — a withdrawal scalar field that is `0` is canonically RLP-encoded as the empty string
+    (prefix `0x80`, no content), which `content_to_u64` accepts with value `0`. Rules out the
+    `8 < len` (D0) and the two `0 < len` arms (D2/D3) via their pure facts. -/
+theorem c2u_status_empty {srcBytes : List Byte} {srcOff len : Nat} {h : PartialState}
+    (hlen0 : len = 0)
+    (hpost :
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+         ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
+      (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+         (.x11 ↦ᵣ (0 : Word)) ** ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0 ∧ len ≤ 8⌝) h)) :
+    ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h := by
+  rcases hpost with h0 | h1 | h2 | h3
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h0
+    have : 8 < len := ((sepConj_pure_right b).1 hrest).2; omega
+  · exact h1
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h2
+    have : 0 < len := ((sepConj_pure_right b).1 hrest).2.1; omega
+  · exfalso; obtain ⟨_, b, _, _, _, hrest⟩ := h3
+    have : 0 < len := ((sepConj_pure_right b).1 hrest).2.1; omega
+
 /-- **Field-0 scalar body, success arm** (idx 14–21, base+56 → base+88): `wd_decode_field0ScalarBody`
     with its 4-way `content_to_u64` status post **collapsed to the success arm** via
     `c2u_status_success`, given the scalar is canonical (nonempty `0 < len`, fits a u64 `len ≤ 8`,
