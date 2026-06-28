@@ -731,6 +731,22 @@ theorem wd_decode_storeScalar (base struct value mOld : Word) (idx : Nat) (struc
   have h := wd_prog_lookup base idx hidx
   rwa [hinstr] at h
 
+/-! ## M3 proof — canonicity bridge
+
+`content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
+`decodeWithdrawal`'s canonicity uses `d.headD 1` (the first byte of the decoded content list).
+For a nonempty content slice these are the same byte — bridging the two canonicity notions. -/
+
+/-- The first byte of the content slice (`headD 1`) is the runtime `getByteAt` at that offset:
+    both are `srcBytes[off]` when the slice is nonempty (`0 < len`, `off < length`). -/
+theorem headD_take_drop_eq_getByteAt (srcBytes : List (BitVec 8)) (off len : Nat)
+    (hlen : 0 < len) (hoff : off < srcBytes.length) :
+    ((srcBytes.drop off).take len).headD 1 = getByteAt srcBytes off := by
+  obtain ⟨k, rfl⟩ : ∃ k, len = k + 1 := ⟨len - 1, by omega⟩
+  rw [getByteAt, dif_pos hoff,
+      drop_eq_cons_of_getElem? (List.getElem?_eq_getElem hoff), List.take_succ_cons]
+  rfl
+
 /-! ## M3 proof — leaf status-derivations
 
 Inside the assembly, the input's `decodeFully`/canonicity facts pin each leaf's returned status,
