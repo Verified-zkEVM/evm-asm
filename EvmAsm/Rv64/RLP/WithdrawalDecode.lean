@@ -1482,6 +1482,47 @@ theorem rlpItemDecode_byteString_of_lt_0xb8 {bytes : List (BitVec 8)} {off : Nat
   · exfalso; have h1 := ll.1
     simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hpre; bv_omega
 
+/-- **Single-byte field decode step.** A single-byte item (prefix `< 0x80`) at offset `off`
+    decodes (any positive fuel) to `.bytes [b]`, consuming `[off, off+1)`. The runtime
+    `rlpItemDecode` prefix-range fact (`ult`) is converted to the `Nat` bound the pure
+    `decodeAux_singleByte_bridge` needs. In the `∀ m` form `decodeFully_shortList_four` consumes. -/
+theorem rlpItemDecode_singleByte_decodeAux {bytes : List Byte} {off : Nat} {b : Byte}
+    (hget : bytes[off]? = some b)
+    (hsingle : BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true) :
+    ∀ m, decodeAux (m + 1) (bytes.drop off) = some (.bytes [b], bytes.drop (off + 1)) := by
+  have hb : b.toNat < 0x80 := by
+    simp only [BitVec.ult, decide_eq_true_eq] at hsingle; bv_omega
+  exact fun m => decodeAux_singleByte_bridge bytes off b hget hb m
+
+/-- **Short-byte-string field decode step.** A short-string item (prefix `b ∈ [0x80, 0xB7]`) at
+    offset `off`, with the declared `b - 0x80` content bytes available (`hlen`, a `Nat` fit the
+    monolith derives from the cursor/end pointers) and the `len = 1` canonicity, decodes (any
+    positive fuel) to `.bytes content` (`content = (drop (off+1)).take (b-0x80)`), consuming
+    `[off, off+1+(b-0x80))`. The runtime `rlpItemDecode` `ult` prefix facts and the `Word` `len=1`
+    canonicity guard are converted to the `Nat`/`Bool` forms `decodeAux_shortBytes_bridge` needs. -/
+theorem rlpItemDecode_shortBytes_decodeAux {bytes : List Byte} {off : Nat} {b : Byte}
+    (hget : bytes[off]? = some b)
+    (hlo : ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true)
+    (hcanon : b.zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+      ∃ c : Byte, bytes[off + 1]? = some c ∧ ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)
+    (hlen : off + 1 + (b.toNat - 0x80) ≤ bytes.length) :
+    ∀ m, decodeAux (m + 1) (bytes.drop off) =
+      some (.bytes ((bytes.drop (off + 1)).take (b.toNat - 0x80)),
+        bytes.drop (off + 1 + (b.toNat - 0x80))) := by
+  have hlo' : 0x80 ≤ b.toNat := by
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at hlo; bv_omega
+  have hhi' : b.toNat ≤ 0xB7 := by
+    simp only [BitVec.ult, decide_eq_true_eq] at hhi; bv_omega
+  have hcanon' : b.toNat - 0x80 = 1 →
+      ∃ c : Byte, bytes[off + 1]? = some c ∧ ¬ c.toNat < 0x80 := by
+    intro hb1
+    have hbw : b.zeroExtend 64 - (0x80 : Word) = (1 : Word) := by bv_omega
+    obtain ⟨c, hc, hcge⟩ := hcanon hbw
+    refine ⟨c, hc, ?_⟩
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at hcge ⊢; bv_omega
+  exact fun m => decodeAux_shortBytes_bridge bytes off b hget hlo' hhi' hlen hcanon' m
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
