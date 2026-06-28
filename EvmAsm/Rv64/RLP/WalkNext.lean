@@ -188,8 +188,8 @@ theorem rlp_walk_next_end_spec_within
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) s1
 
 /-- Helper: `BGEU x10 x11` NOT taken (in-bounds), idx 0, `base → base+4`. -/
-private theorem wn_bgeu_ntaken (base srcBase endPtr raVal a2Old t0Old t1Old : Word)
-    (srcBytes : List (BitVec 8)) (srcOff : Nat) (R : Assertion) (hR : R.pcFree)
+private theorem wn_bgeu_ntaken (base srcBase endPtr : Word)
+    (srcOff : Nat) (R : Assertion) (hR : R.pcFree)
     (h_inb : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true) :
     cpsTripleWithin 1 base (base + 4) (rlp_walk_next_code base)
       (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr)) ** R)
@@ -231,7 +231,7 @@ theorem rlp_walk_next_single_spec_within
         (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 **
         (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) := by
   -- Phase A: BGEU not taken (idx 0).  base → base+4.
-  have hA := wn_bgeu_ntaken base srcBase endPtr raVal a2Old t0Old t1Old srcBytes srcOff
+  have hA := wn_bgeu_ntaken base srcBase endPtr srcOff
     ((.x12 ↦ᵣ a2Old) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
       (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes) (by pcFree) h_inb
   -- Phase B: LBU x5 x10 0 ; LI x6 0x80 (idx 1,2).  base+4 → base+12.
