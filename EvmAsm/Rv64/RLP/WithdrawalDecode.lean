@@ -726,6 +726,20 @@ theorem cpsTripleWithin_exists_pre {α : Sort _} {n : Nat} {e1 e2 : Word} {cr : 
   obtain ⟨g, gc, ga, gb, gd, gu, gQ, gR⟩ := hQR
   exact ⟨g, gc, ga, gb, gd, gu, ⟨a, gQ⟩, gR⟩
 
+/-- **Pure-hypothesis extraction from the precondition.** If, *assuming* a pure fact `fact`, the body
+    runs `P → Q`, then it runs `(P ** ⌜fact⌝) → Q`: the heap-level pure in the precondition is
+    extracted into the proof context. The tool for turning a leaf's reported heap-pure (e.g. the
+    `⌜rlpItemDecode …⌝` exposed by `rlp_walk_next`'s success arm) into a `Prop` hypothesis usable to
+    discharge the next segment's side-conditions (`hcp`, the form classification, …). -/
+theorem cpsTripleWithin_pure_pre {fact : Prop} {n : Nat} {e1 e2 : Word} {cr : CodeReq}
+    {P Q : Assertion}
+    (h : fact → cpsTripleWithin n e1 e2 cr P Q) :
+    cpsTripleWithin n e1 e2 cr (P ** ⌜fact⌝) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hh, hcompat, x, y, hxy, hu, hPfact, hRy⟩ := hPR
+  have hsplit := (sepConj_pure_right x).1 hPfact
+  exact h hsplit.2 R hR s hcr ⟨hh, hcompat, x, y, hxy, hu, hsplit.1, hRy⟩ hpc
+
 /-! ## M3 proof — reusable guard-branch machinery
 
 Each leaf call is followed by `bnez status, fail` (`.BNE status .x0 failOff`). `wd_bnez_branch`
