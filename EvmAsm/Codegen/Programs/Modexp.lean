@@ -275,11 +275,12 @@ def modexpPrecompileGasAsm
   "  mv a5, x23\n" ++
   "  la a6, modexp_output_scratch\n" ++
   "  jal x1, zkvm_modexp\n" ++
+  "  mv t6, a0\n" ++
   "  mv x13, s9\n" ++
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
   "  la x15, evm_precompile_frame\n" ++
-  "  bnez a0, 1f\n" ++
+  "  bnez t6, 1f\n" ++
   "  sd x23, 8(x15)\n" ++
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  mv x24, x23\n" ++
