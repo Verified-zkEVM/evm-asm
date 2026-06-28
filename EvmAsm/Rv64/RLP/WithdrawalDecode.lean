@@ -903,6 +903,21 @@ theorem wd_decode_storeScalar (base struct value mOld : Word) (idx : Nat) (struc
   have h := wd_prog_lookup base idx hidx
   rwa [hinstr] at h
 
+/-- **Generic `li`** (`li rd, imm`): load an immediate. Reusable for the constants the program
+    materializes — `0xc0` (reject-list, idx 15/29/43/60), `20` (address length, idx 45), `2`
+    (arity, idx 72), `0`/`1` (success/fail status, idx 74/76). Lifted via
+    `cpsTripleWithin_extend_code` + `wd_prog_lookup`. -/
+theorem wd_decode_li (base : Word) (idx : Nat) (rd : Reg) (imm vOld : Word) (hrd : rd ≠ .x0)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .LI rd imm) :
+    cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * idx)) (base + BitVec.ofNat 64 (4 * idx) + 4)
+      (withdrawal_decode_code base) (rd ↦ᵣ vOld) (rd ↦ᵣ imm) := by
+  refine cpsTripleWithin_extend_code ?_
+    (li_spec_gen_within rd vOld imm (base + BitVec.ofNat 64 (4 * idx)) hrd)
+  apply CodeReq.singleton_mono
+  have h := wd_prog_lookup base idx hidx
+  rwa [hinstr] at h
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
