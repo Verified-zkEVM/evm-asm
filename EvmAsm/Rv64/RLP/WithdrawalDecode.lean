@@ -701,6 +701,23 @@ theorem cpsBranchWithin_exists_pre {α : Sort _} {n : Nat} {e : Word} {cr : Code
   · exact Or.inl ⟨hpct, g, gc, ga, gb, gd, gu, ⟨a, gQ⟩, gR⟩
   · exact Or.inr ⟨hpcf, g, gc, ga, gb, gd, gu, ⟨a, gQ⟩, gR⟩
 
+/-- **Triple existential-elimination.** The straight-line analogue of `cpsBranchWithin_exists_pre`:
+    if `P a` runs to `Q a` for every witness `a`, then the existential pre `∃ a, P a` runs to the
+    existentially-closed post `∃ a, Q a`. Threads a leaf's existential success arm
+    (`rlpWalkNextOk = fun h => ∃ next len, …`) through the straight-line continuation (guard, scalar
+    arithmetic, store) so the runtime-determined `next`/`len` witnesses carry to the field post. -/
+theorem cpsTripleWithin_exists_pre {α : Sort _} {n : Nat} {e1 e2 : Word} {cr : CodeReq}
+    {P Q : α → Assertion}
+    (h : ∀ a, cpsTripleWithin n e1 e2 cr (P a) (Q a)) :
+    cpsTripleWithin n e1 e2 cr (fun s => ∃ a, P a s) (fun s => ∃ a, Q a s) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hh, hcompat, x, y, hxy, hu, hPx, hRy⟩ := hPR
+  obtain ⟨a, hPa⟩ := hPx
+  obtain ⟨k, hk, s', hstep, hpc', hQR⟩ := h a R hR s hcr ⟨hh, hcompat, x, y, hxy, hu, hPa, hRy⟩ hpc
+  refine ⟨k, hk, s', hstep, hpc', ?_⟩
+  obtain ⟨g, gc, ga, gb, gd, gu, gQ, gR⟩ := hQR
+  exact ⟨g, gc, ga, gb, gd, gu, ⟨a, gQ⟩, gR⟩
+
 /-! ## M3 proof — reusable guard-branch machinery
 
 Each leaf call is followed by `bnez status, fail` (`.BNE status .x0 failOff`). `wd_bnez_branch`
