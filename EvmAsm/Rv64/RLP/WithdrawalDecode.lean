@@ -1208,6 +1208,32 @@ theorem wd_decode_field0ScalarStore (base struct value mOld : Word) :
   have hcomp := cpsTripleWithin_seq_same_cr hb hs
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
 
+/-- **walk_init-success setup segment** (`bnez a2,fail` not taken ⨾ `mv s1,a0; mv s2,a1` — idx 7–9,
+    base+28 → base+40): on the `walk_init` success arm (status `a2 = 0`, a well-formed list) the
+    guard falls through and the returned cursor (`a0`) and list end (`a1`) are saved into `s1`/`s2`.
+    Composes `wd_bnez_notaken` (idx 7) ⨾ `wd_decode_setup` (idx 8–9) over the full program code with
+    an exact seam at base+32 — the first body segment after the `walk_init` call. -/
+theorem wd_decode_walkInitSetup (base cursor endv s1Old s2Old : Word) :
+    cpsTripleWithin 3 (base + 28) (base + 40) (withdrawal_decode_code base)
+      ((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endv))
+      ((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(0 : Word) = (0 : Word)⌝ **
+        (.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endv) ** (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endv)) := by
+  -- status guard (idx 7), not taken on success; framed with the setup's footprint
+  have hb := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endv)) (by pcFree)
+    (wd_bnez_notaken base 7 .x12 (276 : BitVec 13)
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 28 = base + 28 from by bv_omega,
+      show base + 28 + 4 = base + 32 from by bv_omega] at hb
+  -- cursor/end save (idx 8–9); framed with the guard's residual register state
+  have hs := cpsTripleWithin_frameL
+    ((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(0 : Word) = (0 : Word)⌝) (by pcFree)
+    (wd_decode_setup base cursor endv s1Old s2Old)
+  -- exact seam at base+32, then reshape pre/post
+  have hcomp := cpsTripleWithin_seq_same_cr hb hs
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
 /-! ## M3 proof — canonicity bridge
 
 `content_to_u64`'s status uses `getByteAt` (the runtime byte read at the content pointer);
