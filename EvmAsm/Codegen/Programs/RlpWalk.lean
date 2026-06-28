@@ -81,11 +81,11 @@ def rlpWalkInitFunction : String :=
   "  addi t3, t2, 1             # header size = 1 + lol\n" ++
   "  add t4, a0, t3             # cursor = list_ptr + 1 + lol\n" ++
   "  bltu a1, t4, .Lwi_ltrunc   # end < cursor -> length field truncated (status 4)\n" ++
-  "  lbu t5, 1(a0)              # first length byte\n" ++
+  "  addi t1, a0, 1             # length-field ptr = list_ptr + 1\n" ++
+  "  lbu t5, 0(t1)              # first length byte\n" ++
   "  beqz t5, .Lwi_llz          # leading zero -> status 5\n" ++
   "  # read length field (lol bytes, big-endian) -> t6 = decoded\n" ++
   "  li t6, 0\n" ++
-  "  addi t1, a0, 1             # ptr = list_ptr + 1\n" ++
   "  mv t5, t2                  # count = lol\n" ++
   ".Lwi_lloop:\n" ++
   "  beqz t5, .Lwi_ldone\n" ++
