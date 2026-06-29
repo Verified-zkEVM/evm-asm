@@ -677,6 +677,22 @@ theorem evm_addmod_n0_existential_regs_owned_live_stack_spec_within
     hcallable hbase hdisjoint R hR s hcr
     ⟨hh, hcompat, h1, h2, hdisj, hunion, hStackPre, hR2⟩ hpc
 
+/-- Canonical-code zero-modulus ADDMOD theorem with implementation
+    register/scratch witnesses hidden in the precondition. -/
+theorem evm_addmod_n0_canonical_existential_regs_owned_live_stack_spec_within
+    (sp base : Word) (a b : EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModN0ExistentialPre sp a b)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b (0 : EvmWord)) := by
+  exact evm_addmod_n0_existential_regs_owned_live_stack_spec_within
+    sp base ((base + 124) + signExtend21 modOff) a b modOff rfl hbase hdisjoint
+
 /-- No-overflow ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the currently composed
@@ -766,5 +782,24 @@ theorem evm_addmod_no_overflow_existential_regs_owned_live_stack_spec_within
     w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0
     hNoOverflow hcallable hbase hdisjoint hEvidence R hR s hcr
     ⟨hh, hcompat, h1, h2, hdisj, hunion, hStackPre, hR2⟩ hpc
+
+/-- Canonical-code no-overflow ADDMOD theorem with implementation
+    register/scratch witnesses and the legacy MOD body evidence hidden in the
+    precondition. The arithmetic no-overflow fact remains explicit. -/
+theorem evm_addmod_no_overflow_canonical_existential_regs_owned_live_stack_spec_within
+    (sp base : Word) (a b N : EvmWord) (modOff : BitVec 21)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModNoOverflowExistentialPre
+        sp base ((base + 124) + signExtend21 modOff) a b N)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
+  exact evm_addmod_no_overflow_existential_regs_owned_live_stack_spec_within
+    sp base ((base + 124) + signExtend21 modOff) a b N modOff hNoOverflow rfl hbase hdisjoint
 
 end EvmAsm.Evm64
