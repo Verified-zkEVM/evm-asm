@@ -805,6 +805,60 @@ theorem evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within
     (fun _ hp => evmAddModPartialRegsOwnedLiveStackPost_tail_to_tailPost hp)
     hFramed
 
+@[irreducible]
+def evmAddModN0RegsOwnedLiveStackTailPost
+    (sp : Word) (rest : List EvmWord) : Assertion :=
+  ((.x12 ↦ᵣ (sp + 64)) **
+    evmStackIs (sp + 64) ((0 : EvmWord) :: rest)) **
+  evmAddModPartialRegsOwnedLiveStackFrame sp
+
+theorem evmAddModN0RegsOwnedLiveStackTailPost_unfold
+    (sp : Word) (rest : List EvmWord) :
+    evmAddModN0RegsOwnedLiveStackTailPost sp rest =
+      (((.x12 ↦ᵣ (sp + 64)) **
+        evmStackIs (sp + 64) ((0 : EvmWord) :: rest)) **
+       evmAddModPartialRegsOwnedLiveStackFrame sp) := by
+  delta evmAddModN0RegsOwnedLiveStackTailPost
+  rfl
+
+theorem evmAddModN0RegsOwnedLiveStackTailPost_pcFree
+    (sp : Word) (rest : List EvmWord) :
+    (evmAddModN0RegsOwnedLiveStackTailPost sp rest).pcFree := by
+  rw [evmAddModN0RegsOwnedLiveStackTailPost_unfold]
+  pcFree
+
+instance pcFreeInst_evmAddModN0RegsOwnedLiveStackTailPost
+    (sp : Word) (rest : List EvmWord) :
+    Assertion.PCFree (evmAddModN0RegsOwnedLiveStackTailPost sp rest) :=
+  ⟨evmAddModN0RegsOwnedLiveStackTailPost_pcFree sp rest⟩
+
+private theorem evmAddModPartialRegsOwnedLiveStackTailPost_n0_to_zeroPost
+    {sp : Word} {a b : EvmWord} {rest : List EvmWord} {ps : PartialState}
+    (h : evmAddModPartialRegsOwnedLiveStackTailPost sp a b (0 : EvmWord) rest ps) :
+    evmAddModN0RegsOwnedLiveStackTailPost sp rest ps := by
+  rw [evmAddModPartialRegsOwnedLiveStackTailPost_unfold] at h
+  rw [evmAddModN0RegsOwnedLiveStackTailPost_unfold]
+  simpa using h
+
+/-- Canonical-code zero-modulus ADDMOD theorem with the result stack exposed as
+    the concrete zero word, preserving an arbitrary caller stack tail. -/
+theorem evm_addmod_n0_canonical_existential_regs_owned_zero_stack_tail_spec_within
+    (sp base : Word) (a b : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModN0ExistentialStackTailPre sp a b rest)
+      (evmAddModN0RegsOwnedLiveStackTailPost sp rest) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmAddModPartialRegsOwnedLiveStackTailPost_n0_to_zeroPost hp)
+    (evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within
+      sp base a b rest modOff hbase hdisjoint)
+
 /-- No-overflow ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the currently composed
