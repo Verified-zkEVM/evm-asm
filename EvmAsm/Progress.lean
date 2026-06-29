@@ -53,6 +53,7 @@ import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
+import EvmAsm.Evm64.AddMod.LiveStackPost
 import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
 import EvmAsm.Evm64.Exp.Spec
 import EvmAsm.Evm64.Exp.StackExecutionBridge
@@ -152,10 +153,10 @@ def registry : List OpcodeEntry := [
       (some "evm_smod_stack_spec_within")
       ("all-case v4 wrapper result-stack spec; zero divisor discharged, " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
-  entry "ADDMOD" .partly (some "evm_addmod_partial_domain_named_stack_spec_within")
+  entry "ADDMOD" .partly (some "evm_addmod_partial_domain_named_live_stack_spec_within")
       ("addmod_correct proven; zero-modulus stack spec done for arbitrary b; " ++
        "no-overflow skeleton composed through legacy MOD no-NOP body proof; " ++
-       "current partial theorem has named domain plus stack pre/post assertions"),
+       "current partial theorem has named domain plus a final live-stack post at sp+64, with old operand cells and scratch resources framed explicitly"),
   entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
       ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
        "n ≤ 2^255 hypothesis); bit-serial 512-bit reducer. Scratchpad " ++
@@ -345,7 +346,7 @@ private noncomputable abbrev _sdiv_witness       :=
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_stack_spec
 private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
-private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_domain_named_stack_spec_within
+private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_domain_named_live_stack_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
 private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_framed_live_stack_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
