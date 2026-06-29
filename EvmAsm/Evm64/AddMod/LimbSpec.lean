@@ -1283,6 +1283,31 @@ theorem evm_addmod_pow256_prepare_plus_one_mod_args_low_prefix_spec_within
     (r0 + signExtend12 (1 : BitVec 12)) w0 64 (base + 12)
   runBlock L A C S
 
+abbrev evm_addmod_pow256_prepare_plus_one_mod_args_limb1_chunk_code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 (104 : BitVec 12)))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.ADD .x6 .x5 .x7))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SLTU .x7 .x6 .x7))
+   (CodeReq.singleton (base + 12) (.SD .x12 .x6 (72 : BitVec 12)))))
+
+/-- Plus-one MOD-call setup limb 1: add the incoming carry, compute the next
+    carry, and store the second dividend limb. -/
+theorem evm_addmod_pow256_prepare_plus_one_mod_args_limb1_chunk_spec_within
+    (sp base x5Old x6Old carryIn r1 w1 : Word) :
+    cpsTripleWithin 4 base (base + 16)
+      (evm_addmod_pow256_prepare_plus_one_mod_args_limb1_chunk_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ carryIn) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r1) ** (.x6 ↦ᵣ (r1 + carryIn)) **
+       (.x7 ↦ᵣ (if BitVec.ult (r1 + carryIn) carryIn then (1 : Word) else 0)) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ (r1 + carryIn))) := by
+  have L := ld_spec_gen_within .x5 .x12 sp x5Old r1 104 base (by nofun)
+  have A := add_spec_gen_within .x6 .x5 .x7 r1 carryIn x6Old (base + 4) (by nofun)
+  have C := sltu_spec_gen_rd_eq_rs2_within .x7 .x6 (r1 + carryIn) carryIn (base + 8) (by nofun)
+  have S := sd_spec_gen_within .x12 .x6 sp (r1 + carryIn) w1 72 (base + 12)
+  runBlock L A C S
+
 /-- Compose the full helper that prepares the first callable MOD arguments for
     the ADDMOD overflow path. -/
 theorem evm_addmod_pow256_prepare_minus_one_mod_args_spec_within
