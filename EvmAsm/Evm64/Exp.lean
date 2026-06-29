@@ -142,4 +142,5 @@ import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
 import EvmAsm.Evm64.Exp.Layout
 import EvmAsm.Evm64.Exp.Spec
+import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 import EvmAsm.Evm64.Exp.StackExecutionBridge
