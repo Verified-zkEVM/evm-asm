@@ -1027,6 +1027,45 @@ theorem evm_addmod_n0_stack_spec_within
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     rfl rfl rfl rfl rfl rfl rfl rfl hcallable hbase hdisjoint
 
+
+/-- Semantic zero-modulus ADDMOD stack spec.
+
+    This restates the zero-modulus path with the public EVM result expression
+    `EvmWord.addmod a b 0`, so downstream users do not need to know that the
+    branch result is definitionally zero. -/
+theorem evm_addmod_n0_semantic_stack_spec_within
+    (sp base callable_base : Word)
+    (a b : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) (0 : EvmWord) **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      ((.x12 ↦ᵣ (sp + 64)) **
+       (.x1 ↦ᵣ ((base + 124) + 4)) **
+       regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (a + b) **
+       evmWordIs (sp + 64) (EvmWord.addmod a b 0) **
+         divScratchOwnCallNoX1 (sp + 32)) := by
+  simpa using evm_addmod_n0_stack_spec_within
+    sp base callable_base a b v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hcallable hbase hdisjoint
+
 -- Placeholder: full general `evm_addmod_stack_spec_within` lands in slice evm-asm-sord.
 
 end EvmAsm.Evm64

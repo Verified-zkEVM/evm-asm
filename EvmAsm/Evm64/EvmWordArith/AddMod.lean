@@ -90,6 +90,10 @@ theorem addmod_correct (a b N : EvmWord) :
       omega
     exact Nat.mod_eq_of_lt hlt
 
+@[simp] theorem addmod_zero (a b : EvmWord) : EvmWord.addmod a b 0 = 0 := by
+  unfold addmod
+  simp
+
 -- ============================================================================
 -- modAdd: pre-reduced ADDMOD helper
 -- ============================================================================
