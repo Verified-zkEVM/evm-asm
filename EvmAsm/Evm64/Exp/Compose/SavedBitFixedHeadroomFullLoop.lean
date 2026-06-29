@@ -821,6 +821,81 @@ instance pcFreeInst_expHeadroomFinalCleanStackVisiblePost
       (expHeadroomFinalCleanStackVisiblePost sp evmSp baseWord exponentWord rest) :=
   ⟨expHeadroomFinalCleanStackVisiblePost_pcFree⟩
 
+@[irreducible]
+def expHeadroomFinalCleanLiveStackPost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) : Assertion :=
+  fun ps => ∃ (scratchWord : EvmWord),
+    (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + 32)) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmWordIs evmSp baseWord **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+      expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+        (EvmWord.exp baseWord exponentWord)) ps
+
+theorem expHeadroomFinalCleanLiveStackPost_unfold
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    expHeadroomFinalCleanLiveStackPost sp evmSp baseWord exponentWord rest =
+      (fun ps => ∃ (scratchWord : EvmWord),
+        (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+          ((.x2 ↦ᵣ sp) **
+           (.x12 ↦ᵣ (evmSp + 32)) **
+           (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+           evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+           evmWordIs evmSp baseWord **
+           evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+          expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+            (EvmWord.exp baseWord exponentWord)) ps) := by
+  delta expHeadroomFinalCleanLiveStackPost
+  rfl
+
+theorem expHeadroomFinalCleanLiveStackPost_pcFree
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    (expHeadroomFinalCleanLiveStackPost sp evmSp baseWord exponentWord rest).pcFree := by
+  intro ps h_post
+  rw [expHeadroomFinalCleanLiveStackPost_unfold] at h_post
+  obtain ⟨scratchWord, h_post⟩ := h_post
+  have hControl : (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))).pcFree) := by
+    pcFree
+  have hVisible :
+      (((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + 32)) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmWordIs evmSp baseWord **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)).pcFree) := by
+    pcFree
+  exact (pcFree_sepConj hControl
+    (pcFree_sepConj hVisible expHeadroomFinalLoopExtraFrame_pcFree)) ps h_post
+
+instance pcFreeInst_expHeadroomFinalCleanLiveStackPost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expHeadroomFinalCleanLiveStackPost sp evmSp baseWord exponentWord rest) :=
+  ⟨expHeadroomFinalCleanLiveStackPost_pcFree⟩
+
+/-- Fold the clean visible post's raw result limbs into `evmWordIs sp result`
+    while keeping the actual final live stack rooted at `evmSp + 32`. -/
+theorem expHeadroomFinalCleanVisiblePost_to_cleanLiveStackPost
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h : expHeadroomFinalCleanVisiblePost sp evmSp baseWord exponentWord rest ps) :
+    expHeadroomFinalCleanLiveStackPost sp evmSp baseWord exponentWord rest ps := by
+  rw [expHeadroomFinalCleanVisiblePost_unfold] at h
+  obtain ⟨scratchWord, h⟩ := h
+  rw [expHeadroomFinalCleanLiveStackPost_unfold]
+  refine ⟨scratchWord, ?_⟩
+  simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24,
+    signExtend12_32] at h
+  rw [show (sp + 0 : Word) = sp from by bv_omega] at h
+  rw [evmWordIs_sp_limbs_eq_right sp (EvmWord.exp baseWord exponentWord)
+    _ _ _ _ (evmWordIs evmSp baseWord **
+      evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest))
+    rfl rfl rfl rfl] at h
+  xperm_hyp h
+
 /-- Fold the clean visible post's raw result limbs and consumed-base cell into
     stack-shaped assertions. The leftover headroom/scratch frame remains
     explicit because it is still part of the current verified surface. -/
