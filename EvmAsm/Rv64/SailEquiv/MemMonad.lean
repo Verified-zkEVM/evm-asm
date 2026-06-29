@@ -70,4 +70,18 @@ theorem runSail_translateAddr_bare (vAddr : virtaddr) (access : MemoryAccessType
     Pure.pure, EStateM.pure, Bind.bind, bind, EStateM.bind, EStateM.map, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get, bne]
 
+/-- `write_ram` (plain write of a doubleword) reduces to its underlying
+    `writeBytes`: the physical-memory interface decomposes the value into
+    little-endian bytes and returns success. -/
+theorem runSail_write_ram (addr : physaddrbits) (data : BitVec 64) (s : SailState) :
+    runSail (write_ram write_kind.Write_plain (physaddr.Physaddr addr) 8 data ()) s =
+      runSail (PreSail.writeBytes (n := 8) addr.toNat data) s := by
+  rw [writeBytes_effect]
+  unfold write_ram
+  simp [runSail, PreSail.ConcurrencyInterfaceV1.sail_mem_write, PreSail.writeBytes,
+    List.ofFn_succ, List.ofFn_zero,
+    List.forM_cons, List.forM_nil, PreSail.writeByte, modify, modifyGet,
+    MonadStateOf.modifyGet, MonadState.modifyGet, EStateM.modifyGet,
+    Bind.bind, bind, EStateM.bind, Pure.pure, EStateM.pure, Fin.succ]
+
 end EvmAsm.Rv64.SailEquiv
