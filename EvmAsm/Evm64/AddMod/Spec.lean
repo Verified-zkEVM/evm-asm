@@ -24,6 +24,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.Compose.Base
+import EvmAsm.Evm64.AddMod.Compose.ZeroBranch
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
 import EvmAsm.Evm64.EvmWordArith.AddMod
@@ -1396,6 +1397,22 @@ theorem evm_addmod_zero_or_no_overflow_named_stack_spec_within
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     hcallable hbase hdisjoint hCase
 
+/-- Current partial ADDMOD input domain phrased with the runtime zero-test guard.
+
+    The first disjunct matches the OR-fold value computed by
+    `evm_addmod_phase2_n_zero_test`; the second disjunct is the existing
+    nonzero-modulus no-overflow body evidence. -/
+abbrev evmAddModPartialOrGuardDomain
+    (sp base callable_base : Word) (a b N : EvmWord) (v2 v10 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word) : Prop :=
+  (N.getLimbN 0 ||| N.getLimbN 1 ||| N.getLimbN 2 ||| N.getLimbN 3 =
+    (0 : Word)) ∨
+    (a.toNat + b.toNat < 2 ^ 256 ∧
+      evmAddModNoOverflowBodyEvidence sp base callable_base a b N v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+
 /-- Named-domain/named-pre/named-post surface for the current partial ADDMOD
     theorem.
 
@@ -1428,6 +1445,42 @@ theorem evm_addmod_partial_domain_named_stack_spec_within
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     hcallable hbase hdisjoint hDomain
+
+/-- Runtime-guard-domain variant of
+    `evm_addmod_partial_domain_named_stack_spec_within`. This lets callers use
+    the OR-fold guard produced by `evm_addmod_phase2_n_zero_test` directly for
+    the zero-modulus case. -/
+theorem evm_addmod_partial_or_guard_named_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hDomain :
+      evmAddModPartialOrGuardDomain sp base callable_base a b N v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnStackPost sp base a b N) := by
+  apply evm_addmod_partial_domain_named_stack_spec_within
+    sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hcallable hbase hdisjoint
+  cases hDomain with
+  | inl h_or =>
+      exact Or.inl ((addmod_orAll_limbs_eq_zero_iff N).mp h_or)
+  | inr h_body =>
+      exact Or.inr h_body
 
 -- Placeholder: full general `evm_addmod_stack_spec_within` lands in slice evm-asm-sord.
 
