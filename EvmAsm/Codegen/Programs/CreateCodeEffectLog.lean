@@ -52,13 +52,9 @@ def execCodeEffectLogCap : Nat := 131072
     Clobbers t0-t6, a0; preserves s-regs (saved). -/
 def createRecordCodeEffectFunction : String :=
   "create_record_code_effect:\n" ++
-  -- drj99.1.7: an empty deployed code (len 0) is NOT a BAL code change. A CREATE whose initcode
-  -- halts via STOP / RETURN(0,0) deposits 0-byte code; the BAL records `codeChanges: []` for such
-  -- an account (only nonceChanges 0->1). Recording a (has_code_change=1, len 0) effect here adds a
-  -- spurious exec code-effect that the all-accounts code-consistency comparator (bv_fail=46) finds
-  -- unmatched by any BAL codeChange. Record nothing for empty code so the logs agree.
-  "  bnez a2, .Lcrce_nonempty\n" ++
-  "  li a0, 0\n  ret\n" ++
+  -- Record empty-code CREATEs with has_code_change=0 so that EXTCODEHASH/EXTCODESIZE
+  -- (#9525 fix) can find the address and return keccak("")/0 respectively, while the
+  -- bv_fail=46 code-consistency comparator skips records with has_code_change=0.
   ".Lcrce_nonempty:\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
@@ -77,7 +73,9 @@ def createRecordCodeEffectFunction : String :=
   "  beqz t6, .Lcrce_cpa_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lcrce_cpa\n" ++
   ".Lcrce_cpa_d:\n" ++
-  "  li t4, 1; sd t4, 32(t3)                           # has_code_change = 1\n" ++
+  "  li t4, 0; beqz s2, .Lcrce_hcc; li t4, 1\n" ++
+  ".Lcrce_hcc:\n" ++
+  "  sd t4, 32(t3)                           # has_code_change = (code_len != 0) ? 1 : 0\n" ++
   "  sd s2, 40(t3)                                     # code_len\n" ++
   "  addi t5, t3, 48; mv t4, s1; mv t6, s2\n" ++
   ".Lcrce_cpc:\n" ++
