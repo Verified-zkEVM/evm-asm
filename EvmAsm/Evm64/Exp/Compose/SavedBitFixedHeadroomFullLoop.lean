@@ -618,4 +618,114 @@ theorem exp_headroom_entry_to_final_epilogue_framed
   exact hp
 
 
+@[irreducible]
+def expHeadroomFinalVisiblePost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) : Assertion :=
+  fun ps => ∃ (icNew : Word) (scratchWord : EvmWord),
+    (expTwoMulLoopExitControl icNew (icNew = 0) **
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 0)) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 1)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 2)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs evmSp baseWord **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+      expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+        (EvmWord.exp baseWord exponentWord)) ps
+
+theorem expHeadroomFinalVisiblePost_unfold
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    expHeadroomFinalVisiblePost sp evmSp baseWord exponentWord rest =
+      (fun ps => ∃ (icNew : Word) (scratchWord : EvmWord),
+        (expTwoMulLoopExitControl icNew (icNew = 0) **
+          ((.x2 ↦ᵣ sp) **
+           (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+           (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+           ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+              ((EvmWord.exp baseWord exponentWord).getLimbN 0)) **
+           ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ
+              ((EvmWord.exp baseWord exponentWord).getLimbN 1)) **
+           ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ
+              ((EvmWord.exp baseWord exponentWord).getLimbN 2)) **
+           ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ
+              ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+           evmWordIs evmSp baseWord **
+           evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+          expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+            (EvmWord.exp baseWord exponentWord)) ps) := by
+  delta expHeadroomFinalVisiblePost
+  rfl
+
+/-- Expose the folded final framed post as a live-stack view at the final EVM
+    stack pointer (`evmSp + 32`), with the consumed base word and unused
+    headroom/leftover frame still explicit. -/
+theorem expHeadroomFinalEpilogueFramedPost_to_visiblePost
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h : expHeadroomFinalEpilogueFramedPost sp evmSp baseWord exponentWord rest ps) :
+    expHeadroomFinalVisiblePost sp evmSp baseWord exponentWord rest ps := by
+  rw [expHeadroomFinalEpilogueFramedPost_unfold] at h
+  obtain ⟨icNew, scratchWord, h⟩ := h
+  rw [expHeadroomFinalVisiblePost_unfold]
+  refine ⟨icNew, scratchWord, ?_⟩
+  rw [expHeadroomLoopExitFullStackPostFrame_unfold] at h
+  rw [evmStackIs_cons] at h
+  rw [show (evmSp + 32 : Word) = evmSp + signExtend12 (32 : BitVec 12) from by
+    rw [signExtend12_32]] at h
+  rw [expResultWord_getLimbN_self (EvmWord.exp baseWord exponentWord)] at h
+  rw [show (evmSp + 32 : Word) = evmSp + signExtend12 (32 : BitVec 12) from by
+    rw [signExtend12_32]]
+  xperm_hyp h
+
+/-- Entry prefix plus fixed full loop and final epilogue, with the final live
+    EVM stack exposed at `evmSp + 32`. -/
+theorem exp_headroom_entry_to_final_visible_post
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 base : Word)
+    (dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 72 + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (evm_exp_headroom_canonical_appended_mul_code base)
+      ((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       (.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ h7)) **
+       expHeadroomLoopEntryBridgeFrame evmSp v18 vOld dWord eWord rest))
+      (expHeadroomFinalVisiblePost sp evmSp
+        (expResultWord b0 b1 b2 b3) (expResultWord e0 e1 e2 e3) rest) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => expHeadroomFinalEpilogueFramedPost_to_visiblePost hp)
+    (exp_headroom_entry_to_final_epilogue_framed
+      sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 base
+      dWord eWord rest lookahead vOld v18 hbase)
+
+
 end EvmAsm.Evm64.Exp.Compose
