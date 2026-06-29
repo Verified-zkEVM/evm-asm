@@ -6379,6 +6379,31 @@ def wd_addressFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (src
     srcBase.toNat + (srcOff + 21) ≤ 2 ^ 64 ∧
     (∀ k, k < 20 → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
 
+/-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
+    `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
+    leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
+    step (`d2 = (drop (nextOff1+1)).take 20`) and the carried `d1`-facts as pure conjuncts. Named so
+    the field1 ⨾ field2 assembly can reference it without re-transcribing the (large) sepConj. -/
+def wd_field2ConsumePost (base srcBase srcLen structPtr : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (off1 : Nat) (d1 : List Byte) (nextOff1 : Nat) :
+    Assertion :=
+  (((((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** (.x8 ↦ᵣ structPtr) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** regOwn .x12 **
+        (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+        (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+        (.x5 ↦ᵣ ((srcBytes[nextOff1]?.getD 0).zeroExtend 64)) ** bytesRegion srcBase srcBytes **
+        bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+        ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝) **
+      ((.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x11 ↦ᵣ (0 : Word)) **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) **
+    ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
+    ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+      some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
+    ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+      (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
+        some (.bytes d1, srcBytes.drop nextOff1))⌝
+
 /-- **Field-1 ⨾ field-2 seam consumer** (base+152 → base+220): runs field 2's body on field 1's
     *existential* output. Field 2 sits at field 1's next-offset `nextOff1`, so its preconditions
     (`wd_addressFieldPre` at `nextOff1`) are taken as the dependent hypothesis `hf2` (discharged by
@@ -6416,25 +6441,7 @@ theorem wd_field2_consume
           ((.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
             bytesRegion (structPtr + 16) dstBytes)) h)
       (fun h => ∃ d1 nextOff1,
-        ((((((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** (.x8 ↦ᵣ structPtr) **
-              (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
-              (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** regOwn .x12 **
-              (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
-              (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
-              (.x5 ↦ᵣ ((srcBytes[nextOff1]?.getD 0).zeroExtend 64)) ** bytesRegion srcBase srcBytes **
-              bytesRegion (structPtr + 16)
-                (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
-              ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝) **
-            ((.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x11 ↦ᵣ (0 : Word)) **
-              regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) **
-          ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ
-            BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
-          ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
-            some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20),
-              srcBytes.drop (nextOff1 + 21))⌝) **
-          ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
-            (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
-              some (.bytes d1, srcBytes.drop nextOff1))⌝) h) := by
+        wd_field2ConsumePost base srcBase srcLen structPtr srcBytes dstBytes off1 d1 nextOff1 h) := by
   -- pre is `∃ d1 nextOff1, (field1's unified post ** field-2 extra inputs)`; run per witness.
   refine cpsTripleWithin_exists_pre (fun d1 => ?_)
   refine cpsTripleWithin_exists_pre (fun nextOff1 => ?_)
