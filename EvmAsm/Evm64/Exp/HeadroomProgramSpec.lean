@@ -132,4 +132,50 @@ theorem evm_exp_headroom_visible_result_stack_program_spec_within
     (evm_exp_headroom_stack_program_spec_within
       evmSp base baseWord exponentWord rest hbase)
 
+/-- Canonical partial EXP headroom theorem over the concrete appended program,
+    with the postcondition stated in terms of the executable EXP stack runner's
+    successful output. This is the concrete-program counterpart needed by the
+    public opcode wrapper to connect RV64 execution to stack semantics. -/
+theorem evm_exp_headroom_run_stack_program_spec_within
+    (evmSp base : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (out : ExpStackExecutionBridge.ExpStackResult)
+    (hbase : base &&& 1 = 0)
+    (h_run : ExpStackExecutionBridge.runExpStack?
+        { stack := baseWord :: exponentWord :: rest } = some out) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (CodeReq.ofProg base
+        EvmAsm.Evm64.Exp.Compose.evmExpHeadroomCanonicalAppendedMulProgram)
+      (evmExpHeadroomPublicStackPre evmSp baseWord exponentWord rest)
+      (evmExpHeadroomRunStackPost evmSp out) := by
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmExpHeadroomRunStackPost_of_visibleResultStackPost h_run hp)
+    (evm_exp_headroom_visible_result_stack_program_spec_within
+      evmSp base baseWord exponentWord rest hbase)
+
+/-- Canonical partial EXP headroom theorem over the concrete appended program,
+    specialized to the self-computed executable EXP stack-runner output. -/
+theorem evm_exp_headroom_run_stack_self_program_spec_within
+    (evmSp base : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (hbase : base &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (CodeReq.ofProg base
+        EvmAsm.Evm64.Exp.Compose.evmExpHeadroomCanonicalAppendedMulProgram)
+      (evmExpHeadroomPublicStackPre evmSp baseWord exponentWord rest)
+      (evmExpHeadroomRunStackPost evmSp
+        { effects :=
+            { stackWords := [EvmWord.exp baseWord exponentWord]
+              dynamicGas := ExpArgs.expDynamicCostFromArgs
+                (ExpArgs.expArgs baseWord exponentWord)
+              totalGas := ExpArgs.expTotalGasFromArgs
+                (ExpArgs.expArgs baseWord exponentWord) }
+          stack := rest }) := by
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmExpHeadroomVisibleResultStackPost_to_runStackPost_self hp)
+    (evm_exp_headroom_visible_result_stack_program_spec_within
+      evmSp base baseWord exponentWord rest hbase)
+
 end EvmAsm.Evm64
