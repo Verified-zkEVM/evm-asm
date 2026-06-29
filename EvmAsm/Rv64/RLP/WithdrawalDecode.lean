@@ -9587,4 +9587,48 @@ theorem wd_outRegion_carve (outPtr : Word) :
   rw [hL, hR]
   simp only [sepConj_assoc']
 
+/-- **Success-leaf field identities.** From `decodeWithdrawal srcBytes = some w` and the four
+    `decodeAux` facts the success-leaf post carries (for runtime bytes `d0/d1/d3` and address copy),
+    pin (by `decodeAux` determinism against `w`'s encode structure) the stored scalar values to
+    `w`'s fields, the address copy to `w`'s 20-byte address, and the cursor end to `|srcBytes|`. The
+    semantic bridge from the success-leaf post's existential bytes to `wd_outHolds outPtr w …`. -/
+theorem wd_successLeaf_field_ids
+    (srcBytes : List Byte) (w : Withdrawal) (d0 d1 d3 : List Byte) (nextOff0 nextOff1 nextOff3 : Nat)
+    (hdec : decodeWithdrawal srcBytes = some w)
+    (hd0f : ∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0))
+    (hd1f : ∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) = some (.bytes d1, srcBytes.drop nextOff1))
+    (hd2dec : ∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+      some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21)))
+    (hd3f : ∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
+      some (.bytes d3, srcBytes.drop nextOff3)) :
+    Nat.fromBytesBE d0 = w.index ∧ Nat.fromBytesBE d1 = w.validatorIndex ∧
+    Nat.fromBytesBE d3 = w.amount ∧
+    w.address = BitVec.ofNat 160 (Nat.fromBytesBE ((srcBytes.drop (nextOff1 + 1)).take 20)) ∧
+    ((srcBytes.drop (nextOff1 + 1)).take 20).length = 20 ∧
+    nextOff1 + 21 ≤ srcBytes.length := by
+  obtain ⟨D0, D1, D2, D3, hsrc, hc0, hl0, hc1, hl1, h20, hc3, hl3, hidx, hvi, haddr, hamt⟩ :=
+    wd_srcBytes_eq_encode srcBytes w hdec
+  obtain ⟨hsrc2, _⟩ := wd_encode4_payload srcBytes D0 D1 D2 D3 hsrc hl0 hl1 h20 hl3
+  have hdrop1 : srcBytes.drop 1 =
+      encodeBytes D0 ++ (encodeBytes D1 ++ (encodeBytes D2 ++ encodeBytes D3)) := by rw [hsrc2]; rfl
+  have big0 : D0.length < 256 ^ 8 := lt_of_le_of_lt hl0 (by norm_num)
+  have big1 : D1.length < 256 ^ 8 := lt_of_le_of_lt hl1 (by norm_num)
+  have big2 : D2.length < 256 ^ 8 := by rw [h20]; norm_num
+  have big3 : D3.length < 256 ^ 8 := lt_of_le_of_lt hl3 (by norm_num)
+  obtain ⟨hd0eq, hr1⟩ := wd_drop_pin srcBytes 1 nextOff0 d0 D0 _ hd0f hdrop1 big0
+  obtain ⟨hd1eq, hr2⟩ := wd_drop_pin srcBytes nextOff0 nextOff1 d1 D1 _ hd1f hr1 big1
+  obtain ⟨hd2eq, hr3⟩ :=
+    wd_drop_pin srcBytes nextOff1 (nextOff1 + 21) _ D2 (encodeBytes D3) hd2dec hr2 big2
+  obtain ⟨hd3eq, _⟩ := wd_drop_pin srcBytes (nextOff1 + 21) nextOff3 d3 D3 []
+    hd3f (by rw [hr3, List.append_nil]) big3
+  have hencD2 : (encodeBytes D2).length = 21 := by
+    rw [encodeBytes_short_of_length_ne_one D2 (by omega) (by omega)]; simp [h20]
+  have hbound : nextOff1 + 21 ≤ srcBytes.length := by
+    have hl := congrArg List.length hr2
+    rw [List.length_drop, List.length_append, hencD2] at hl
+    omega
+  refine ⟨by rw [hd0eq, hidx], by rw [hd1eq, hvi], by rw [hd3eq, hamt], ?_, ?_, hbound⟩
+  · rw [hd2eq, haddr]
+  · rw [hd2eq, h20]
+
 end EvmAsm.Rv64.RLP
