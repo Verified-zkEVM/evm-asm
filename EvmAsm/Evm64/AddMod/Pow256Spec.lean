@@ -357,6 +357,87 @@ theorem evm_addmod_pow256_plus_one_shift_spec_within
        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := Af
+
   seqFrame P Ap
+
+abbrev evm_addmod_pow256_plus_one_first_call_code (base : Word) (modOff : BitVec 21) : CodeReq :=
+  CodeReq.union (evm_addmod_pow256_plus_one_shift_code base)
+    (CodeReq.singleton (base + 100) (.JAL .x1 modOff))
+
+/-- Prepare `(((-1 mod N) + 1) mod N)` callable-MOD arguments, point `x12` at
+    the callable window, and jump to the MOD body. -/
+theorem evm_addmod_pow256_plus_one_first_call_spec_within
+    (sp base x1Old : Word)
+    (x5Old x6Old x7Old r0 r1 r2 r3 n0 n1 n2 n3 w0 w1 w2 w3 : Word)
+    (modOff : BitVec 21) :
+    let sum0 := r0 + signExtend12 (1 : BitVec 12)
+    let carry0 := if BitVec.ult sum0 (signExtend12 (1 : BitVec 12)) then (1 : Word) else 0
+    let sum1 := r1 + carry0
+    let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+    let sum2 := r2 + carry1
+    let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+    let sum3 := r3 + carry2
+    let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+    cpsTripleWithin 26 base ((base + 100) + signExtend21 modOff)
+      (evm_addmod_pow256_plus_one_first_call_code base modOff)
+      (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0) **
+        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1) **
+        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2) **
+        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3) **
+        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ r3)) **
+       (.x1 ↦ᵣ x1Old))
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) ** (.x5 ↦ᵣ n3) **
+        (.x6 ↦ᵣ sum3) ** (.x7 ↦ᵣ carry3) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ sum0) **
+        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ sum1) **
+        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ sum2) **
+        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ sum3) **
+        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) **
+       (.x1 ↦ᵣ ((base + 100) + 4))) := by
+  dsimp only
+  let sum0 := r0 + signExtend12 (1 : BitVec 12)
+  let carry0 := if BitVec.ult sum0 (signExtend12 (1 : BitVec 12)) then (1 : Word) else 0
+  let sum1 := r1 + carry0
+  let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+  let sum2 := r2 + carry1
+  let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+  let sum3 := r3 + carry2
+  let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+  have S := evm_addmod_pow256_plus_one_shift_spec_within
+    sp base x5Old x6Old x7Old r0 r1 r2 r3 n0 n1 n2 n3 w0 w1 w2 w3
+  have Sf := cpsTripleWithin_frameR (.x1 ↦ᵣ x1Old) (by pcFree) S
+  have J := jal_spec_within .x1 x1Old modOff (base + 100) (by nofun)
+  have Jf := cpsTripleWithin_frameL
+    ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) ** (.x5 ↦ᵣ n3) **
+     (.x6 ↦ᵣ sum3) ** (.x7 ↦ᵣ carry3) **
+     ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+     ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ sum0) **
+     ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ sum1) **
+     ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ sum2) **
+     ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ sum3) **
+     ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+     ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+     ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+     ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3))
+    (by pcFree) J
+  seqFrame Sf Jf
 
 end EvmAsm.Evm64
