@@ -1143,4 +1143,27 @@ theorem cpsBranchWithin_seq_cpsTripleWithin_taken {nSteps1 nSteps2 : Nat}
     exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
       Or.inr ⟨hpc_f1, hQ_f1R⟩⟩
 
+/-- Sequence a triple onto the **not-taken** (fall-through) exit of a branch,
+    keeping the taken exit open.  Bounds add and code requirements are unioned. -/
+theorem cpsBranchWithin_seq_cpsTripleWithin_notTaken {nSteps1 nSteps2 : Nat}
+    {entry mid target exit_t : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 Q_f2 : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr1 P exit_t Q_t1 mid Q_f1)
+    (h2 : cpsTripleWithin nSteps2 mid target cr2 Q_f1 Q_f2) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P exit_t Q_t1 target Q_f2 := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · -- taken: keep the taken exit open.
+    exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inl ⟨hpc_t1, hQ_t1R⟩⟩
+  · -- not-taken: continue into the follow-on triple.
+    have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, hpc2, hQ_f2R⟩ := h2 R hR s1 hcr2' hQ_f1R hpc_f1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+      Or.inr ⟨hpc2, hQ_f2R⟩⟩
+
 end EvmAsm.Rv64

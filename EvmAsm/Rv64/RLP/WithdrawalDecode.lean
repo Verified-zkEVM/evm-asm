@@ -314,6 +314,144 @@ theorem walkInitEmptyFailStatusBranch_notTaken_post
       walkInitNonzeroOpenStatusPost listLen raVal statusOld := by
   rfl
 
+/-- Fall-through prefix tail after the initial zero/nonzero split:
+    `ADD x11,x10,x11; LBU x5,x10,0; LI x6,0xc0`. -/
+def walkInitNonzeroPrefixTailCode (base : Word) : CodeReq :=
+  (CodeReq.singleton (base + 4) (.ADD .x11 .x10 .x11)).union
+    ((CodeReq.singleton (base + 8) (.LBU .x5 .x10 0)).union
+      (CodeReq.singleton (base + 12) (.LI .x6 (0xc0 : Word))))
+
+/-- Code for the empty-input failure arm plus the nonzero prefix tail. -/
+def walkInitEmptyFailOrPrefixCode (base : Word) : CodeReq :=
+  (walkInitEmptyFailStatusCode base).union (walkInitNonzeroPrefixTailCode base)
+
+/-- State after the nonzero walk-init prefix tail has loaded the RLP prefix byte
+    and initialized the `0xc0` list threshold. -/
+def walkInitPrefixLoadedPost
+    (listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  ((.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+    (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
+    (.x5 ↦ᵣ ((listBytes[listOff]'hoff).zeroExtend 64)) **
+    (.x6 ↦ᵣ (0xc0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
+    bytesRegion listBase listBytes ** ⌜listLen ≠ (0 : Word)⌝)
+
+theorem walkInitNonzeroPrefixTail_spec_within
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    cpsTripleWithin 3 (base + 4) (base + 16) (walkInitNonzeroPrefixTailCode base)
+      ((walkInitNonzeroOpenStatusPost listLen raVal (listBase + BitVec.ofNat 64 listOff)) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes)
+      (walkInitPrefixLoadedPost listBase listLen raVal listBytes listOff hoff) := by
+  unfold walkInitNonzeroOpenStatusPost walkInitNonzeroPost failStatusReturnPre
+    statusReturnPre walkInitPrefixLoadedPost walkInitNonzeroPrefixTailCode
+  have hadd := add_spec_gen_rd_eq_rs2_within .x11 .x10
+    (listBase + BitVec.ofNat 64 listOff) listLen (base + 4) (by decide)
+  have hlbu := bytesRegion_lbu_within .x5 .x10 listBase t0Old (base + 8)
+    listBytes listOff (by decide) hsalign hoff hover hvalid
+  have hli := li_spec_gen_within .x6 t1Old (0xc0 : Word) (base + 12) (by decide)
+  have hblk : cpsTripleWithin 3 (base + 4) (base + 16)
+      ((CodeReq.singleton (base + 4) (.ADD .x11 .x10 .x11)).union
+        ((CodeReq.singleton (base + 8) (.LBU .x5 .x10 0)).union
+          (CodeReq.singleton (base + 12) (.LI .x6 (0xc0 : Word)))))
+      ((.x11 ↦ᵣ listLen) ** (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ raVal) ** bytesRegion listBase listBytes)
+      ((.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+        (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
+        (.x5 ↦ᵣ ((listBytes[listOff]'hoff).zeroExtend 64)) **
+        (.x6 ↦ᵣ (0xc0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
+        bytesRegion listBase listBytes) := by
+    runBlock hadd hlbu hli
+  have hframed := cpsTripleWithin_frameR (⌜listLen ≠ (0 : Word)⌝) (by pcFree) hblk
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp) hframed
+
+theorem walkInitEmptyFailStatusCode_disjoint_prefixTail (base : Word) :
+    (walkInitEmptyFailStatusCode base).Disjoint (walkInitNonzeroPrefixTailCode base) := by
+  unfold walkInitEmptyFailStatusCode walkInitNonzeroPrefixTailCode failStatusReturnCode
+    statusReturnCode
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · refine CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+    refine CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+  · refine CodeReq.Disjoint.union_left ?_ ?_
+    · refine CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+      refine CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+    · refine CodeReq.Disjoint.union_right (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+      refine CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+
+/-- WP branch certificate after the first walk-init split and the nonzero prefix
+    tail.  The taken arm is the already-serviced empty-input failure endpoint;
+    the not-taken arm has loaded the prefix and remains open for the classifier. -/
+def walkInitEmptyFailOrPrefixBranch
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    WP.Branch base (walkInitEmptyFailOrPrefixCode base) := by
+  let listPtr := listBase + BitVec.ofNat 64 listOff
+  let br0 := walkInitEmptyFailStatusBranch base listLen raVal listPtr
+  let frame : Assertion := (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes
+  let br := WP.CFG.branchFrameR br0 frame (by
+    dsimp [frame]
+    pcFree)
+  have htail := walkInitNonzeroPrefixTail_spec_within base listBase listLen raVal
+    t0Old t1Old listBytes listOff hsalign hoff hover hvalid
+  unfold walkInitEmptyFailOrPrefixCode
+  exact WP.CFG.branchSeqNotTakenBlockDisjoint
+    (walkInitEmptyFailStatusCode_disjoint_prefixTail base)
+    br
+    htail
+    (by
+      intro h hp
+      dsimp [br, frame, br0, listPtr, WP.CFG.branchFrameR, WP.Branch.frameR] at hp
+      simpa only [listPtr, frame] using hp)
+
+theorem walkInitEmptyFailOrPrefixBranch_pre
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailOrPrefixBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid).pre =
+      (walkInitEmptyFailStatusPre listLen raVal (listBase + BitVec.ofNat 64 listOff) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
+  rfl
+
+theorem walkInitEmptyFailOrPrefixBranch_taken_post
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailOrPrefixBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid).post_t =
+      (walkInitEmptyFailStatusPost listLen raVal **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
+  rfl
+
+theorem walkInitEmptyFailOrPrefixBranch_notTaken_post
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailOrPrefixBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid).post_f =
+      walkInitPrefixLoadedPost listBase listLen raVal listBytes listOff hoff := by
+  rfl
+
 /-! ## Pure decode bridge -/
 
 /-- The decoded withdrawal value described by four already-decoded field byte strings.

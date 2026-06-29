@@ -219,6 +219,22 @@ def seqTakenDisjoint {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion
   post_f := br.post_f
   sound := cpsBranchWithin_seq_cpsTripleWithin_taken hd br.sound (tail.weakenPre hlink).sound
 
+/-- Continue only the not-taken exit of a branch with disjoint code, leaving the
+    taken exit open.  This is the usual shape for fall-through decoder logic. -/
+def seqNotTakenDisjoint {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Triple br.exit_f target cr2 post)
+    (hlink : Entails br.post_f tail.pre) :
+    Branch entry (cr1.union cr2) where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exit_t := br.exit_t
+  post_t := br.post_t
+  exit_f := target
+  post_f := post
+  sound := cpsBranchWithin_seq_cpsTripleWithin_notTaken hd br.sound (tail.weakenPre hlink).sound
+
 end Branch
 
 /-- A multi-exit branch summary. -/

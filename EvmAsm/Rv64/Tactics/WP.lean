@@ -91,6 +91,24 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqTakenBlockDisjoint $hd $br $tail
         (by wp_rv64_link))
 
+/-- Continue a branch's not-taken exit with a WP/CFG tail over disjoint code. -/
+syntax (name := wpRv64BranchSeqNotTakenDisjointTac)
+  "wp_rv64_branch_not_taken_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_branch_not_taken_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqNotTakenDisjoint $hd $br $tail
+        (by wp_rv64_link))
+
+/-- Continue a branch's not-taken exit with a CPS leaf over disjoint code. -/
+syntax (name := wpRv64BranchSeqNotTakenBlockDisjointTac)
+  "wp_rv64_branch_not_taken_block_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_branch_not_taken_block_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqNotTakenBlockDisjoint $hd $br $tail
+        (by wp_rv64_link))
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -147,5 +165,22 @@ example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
     (tail : cpsTripleWithin nTail br.exit_t target cr2 br.post_t post) :
     EvmAsm.Rv64.WP.Branch entry (cr1.union cr2) := by
   wp_rv64_branch_taken_block_disjoint hd, br, tail
+
+example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
+    {tailPre post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tail : cpsTripleWithin nTail br.exit_f target cr2 tailPre post)
+    (hlink : EvmAsm.Rv64.WP.Entails br.post_f tailPre) :
+    EvmAsm.Rv64.WP.Branch entry (cr1.union cr2) := by
+  exact EvmAsm.Rv64.WP.CFG.branchSeqNotTakenBlockDisjoint hd br tail hlink
+
+example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
+    {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tail : cpsTripleWithin nTail br.exit_f target cr2 br.post_f post) :
+    EvmAsm.Rv64.WP.Branch entry (cr1.union cr2) := by
+  wp_rv64_branch_not_taken_block_disjoint hd, br, tail
 
 end EvmAsm.Rv64.Tactics.WPTests

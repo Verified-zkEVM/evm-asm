@@ -109,6 +109,26 @@ def branchSeqTakenBlockDisjoint {nTail : Nat} {entry target : Word}
     Branch entry (cr1.union cr2) :=
   branchSeqTakenDisjoint hd br (block (Entails.refl _) tail) hlink
 
+/-- Continue only the not-taken exit of a branch with disjoint code, leaving the
+    taken exit open. -/
+def branchSeqNotTakenDisjoint {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Cert br.exit_f target cr2 post)
+    (hlink : Entails br.post_f tail.pre) :
+    Branch entry (cr1.union cr2) :=
+  br.seqNotTakenDisjoint hd tail hlink
+
+/-- Continue only the not-taken exit of a branch with a CPS leaf over disjoint code. -/
+def branchSeqNotTakenBlockDisjoint {nTail : Nat} {entry target : Word}
+    {cr1 cr2 : CodeReq} {tailPre post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : cpsTripleWithin nTail br.exit_f target cr2 tailPre post)
+    (hlink : Entails br.post_f tailPre) :
+    Branch entry (cr1.union cr2) :=
+  branchSeqNotTakenDisjoint hd br (block (Entails.refl _) tail) hlink
+
 /-- Join an N-way branch with a uniform continuation bound. -/
 def nbranch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : NBranch entry cr) (tailBound : Nat)
