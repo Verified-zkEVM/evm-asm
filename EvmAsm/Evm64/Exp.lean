@@ -115,6 +115,7 @@ import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalChain
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedSaveRestoreCompose
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomCompose
+import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
@@ -141,4 +142,5 @@ import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
 import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
 import EvmAsm.Evm64.Exp.Layout
 import EvmAsm.Evm64.Exp.Spec
+import EvmAsm.Evm64.Exp.HeadroomProgramSpec
 import EvmAsm.Evm64.Exp.StackExecutionBridge

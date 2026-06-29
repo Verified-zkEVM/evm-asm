@@ -250,6 +250,31 @@ theorem runExpStack?_stackAfterExp
       (fun out => out.effects.stackWords ++ out.stack) =
       some (ExpArgs.stackAfterExp (ExpArgs.expArgs base exponent) rest) := rfl
 
+/-- Semantic stack result for EXP: the executable stack bridge replaces the
+    two operands with `EvmWord.exp base exponent`. -/
+theorem runExpStack?_semantic_stack_after
+    (base exponent : EvmWord) (rest : List EvmWord) :
+    (runExpStack? { stack := base :: exponent :: rest }).map
+      (fun out => out.effects.stackWords ++ out.stack) =
+      some (EvmWord.exp base exponent :: rest) := by
+  rw [runExpStack?_stackAfterExp]
+  rfl
+
+/-- Semantic success form for EXP on a stack with two operands. -/
+theorem runExpStack?_semantic_cons
+    (base exponent : EvmWord) (rest : List EvmWord) :
+    runExpStack? { stack := base :: exponent :: rest } =
+      some
+        { effects :=
+            { stackWords := [EvmWord.exp base exponent]
+              dynamicGas := ExpArgs.expDynamicCostFromArgs
+                (ExpArgs.expArgs base exponent)
+              totalGas := ExpArgs.expTotalGasFromArgs
+                (ExpArgs.expArgs base exponent) }
+          stack := rest } := by
+  rw [runExpStack?_cons]
+  rfl
+
 theorem runExpStack?_gas
     (base exponent : EvmWord) (rest : List EvmWord) :
     (runExpStack? { stack := base :: exponent :: rest }).map

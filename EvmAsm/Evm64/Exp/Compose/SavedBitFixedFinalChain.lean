@@ -53,6 +53,22 @@ def expExpFinalExitR (sp evmSp : Word) (baseWord exponentWord : EvmWord)
       (regOwn .x19 ** regOwn .x20 ** regOwn .x18 ** regOwn .x16 **
        regOwn .x1 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 ** regOwn .x11)) ps
 
+theorem expExpFinalExitR_pcFree
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {a0 a1 a2 a3 : Word} :
+    (expExpFinalExitR sp evmSp baseWord exponentWord a0 a1 a2 a3).pcFree := by
+  intro ps h_post
+  unfold expExpFinalExitR at h_post
+  obtain ⟨icNew, w0, w1, w2, w3, h_post⟩ := h_post
+  exact
+    (pcFree_sepConj expTwoMulLoopExitFullStackPreFrame_pcFree (by pcFree))
+      ps h_post
+
+instance pcFreeInst_expExpFinalExitR
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (a0 a1 a2 a3 : Word) :
+    Assertion.PCFree
+      (expExpFinalExitR sp evmSp baseWord exponentWord a0 a1 a2 a3) :=
+  ⟨expExpFinalExitR_pcFree⟩
+
 /-- Discharge of the residual induction's `hExitU_relaxed` into `expExpFinalExitR`:
     the proven `…_exp_regown` bridge pins the result to `EvmWord.exp`; we close the
     `iterCountNew`/d-scratch existentials. -/
@@ -226,6 +242,58 @@ theorem exp_final_loop_firstIterPreWithResidual
     (exp_final_loop_firstIter_hBody base sp evmSp baseWord exponentWord dWord eWord
       rest lookahead vOld v18 hbase)
 
+/-- Folded final-loop post for the EXP first-iteration surface: the semantic
+    exit result plus the caller stack tail framed at `evmSp + 128`.
+
+This names the long postcondition produced by the residual induction so the
+full EXP wrapper can target a stable assertion instead of repeating the
+existential `expExpFinalExitR` spine at every composition step. -/
+def expFinalLoopFirstIterPost (sp evmSp : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord) : Assertion :=
+  expExpFinalExitR sp (evmSp + signExtend12 (64 : BitVec 12))
+      baseWord exponentWord
+      (baseWord.getLimbN 0) (baseWord.getLimbN 1)
+      (baseWord.getLimbN 2) (baseWord.getLimbN 3) **
+    evmStackIs (evmSp + 128) rest
+
+theorem expFinalLoopFirstIterPost_unfold
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    expFinalLoopFirstIterPost sp evmSp baseWord exponentWord rest =
+      (expExpFinalExitR sp (evmSp + signExtend12 (64 : BitVec 12))
+          baseWord exponentWord
+          (baseWord.getLimbN 0) (baseWord.getLimbN 1)
+          (baseWord.getLimbN 2) (baseWord.getLimbN 3) **
+        evmStackIs (evmSp + 128) rest) := by
+  delta expFinalLoopFirstIterPost
+  rfl
+
+theorem expFinalLoopFirstIterPost_pcFree
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    (expFinalLoopFirstIterPost sp evmSp baseWord exponentWord rest).pcFree := by
+  rw [expFinalLoopFirstIterPost_unfold]
+  exact pcFree_sepConj expExpFinalExitR_pcFree pcFree_evmStackIs
+
+instance pcFreeInst_expFinalLoopFirstIterPost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expFinalLoopFirstIterPost sp evmSp baseWord exponentWord rest) :=
+  ⟨expFinalLoopFirstIterPost_pcFree⟩
+
+/-- Folded-post wrapper for `exp_final_loop_firstIterPreWithResidual`. -/
+theorem exp_final_loop_firstIterPreWithResidual_folded
+    (base sp evmSp : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin ((255 + 1) * 193) (base + 44) (base + 296)
+      (evmExpMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedFirstIterPreWithResidual sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord rest)
+      (expFinalLoopFirstIterPost sp evmSp baseWord exponentWord rest) := by
+  rw [expFinalLoopFirstIterPost_unfold]
+  exact exp_final_loop_firstIterPreWithResidual
+    base sp evmSp baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase
+
 /-- Body-only twin of `exp_final_loop_hBody` (PATH A / arch B): the `n = 255`
     loop body over the loop-body-only code req, so it composes with a custom
     headroom prologue/epilogue (no canonical prologue/epilogue required). -/
@@ -354,5 +422,20 @@ theorem exp_final_loop_firstIterPreWithResidual_bodyonly
   cpsTripleWithin_expTwoMulFixedFirstIterPreWithResidual
     (exp_final_loop_firstIter_hBody_bodyonly base sp evmSp baseWord exponentWord
       dWord eWord rest lookahead vOld v18 hbase)
+
+/-- Body-only folded-post wrapper for `exp_final_loop_firstIterPreWithResidual_bodyonly`. -/
+theorem exp_final_loop_firstIterPreWithResidual_bodyonly_folded
+    (base sp evmSp : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin ((255 + 1) * 193) (base + 44) (base + 296)
+      (expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode base)
+      (expTwoMulFixedFirstIterPreWithResidual sp evmSp v18 vOld
+        baseWord exponentWord dWord eWord rest)
+      (expFinalLoopFirstIterPost sp evmSp baseWord exponentWord rest) := by
+  rw [expFinalLoopFirstIterPost_unfold]
+  exact exp_final_loop_firstIterPreWithResidual_bodyonly
+    base sp evmSp baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase
 
 end EvmAsm.Evm64.Exp.Compose

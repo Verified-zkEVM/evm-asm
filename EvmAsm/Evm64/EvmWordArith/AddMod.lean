@@ -21,7 +21,7 @@
   See `docs/91-addmod-mulmod-survey.md` §1.3, §3, §4 for context.
 -/
 
-import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWordArith.DivCorrect
 
 namespace EvmAsm.Evm64
 
@@ -89,6 +89,10 @@ theorem addmod_correct (a b N : EvmWord) :
       have : (a.toNat + b.toNat) % N.toNat < N.toNat := Nat.mod_lt _ hNpos
       omega
     exact Nat.mod_eq_of_lt hlt
+
+@[simp] theorem addmod_zero (a b : EvmWord) : EvmWord.addmod a b 0 = 0 := by
+  unfold addmod
+  simp
 
 -- ============================================================================
 -- modAdd: pre-reduced ADDMOD helper
@@ -159,6 +163,21 @@ theorem addmod_eq_carry_split (a b N : EvmWord) (h : N ≠ 0) :
       ((if (addCarry a b).fst then 2 ^ 256 else 0) + (addCarry a b).snd.toNat)
         % N.toNat := by
   rw [addmod_correct, if_neg h, ← addCarry_spec]
+
+/-- If `a + b` does not overflow 256 bits, then reducing the truncated EVM word
+    sum is the same as ADDMOD's full-precision sum. This is the semantic bridge
+    for the current ADDMOD skeleton, whose MOD call sees only `a + b`. -/
+theorem mod_truncated_sum_eq_addmod_of_no_overflow (a b N : EvmWord)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256) :
+    EvmWord.mod (a + b) N = EvmWord.addmod a b N := by
+  apply BitVec.eq_of_toNat_eq
+  rw [mod_correct, addmod_correct]
+  by_cases hN : N = 0
+  · simp [hN]
+  · simp only [if_neg hN]
+    have hsum : (a + b).toNat = a.toNat + b.toNat := by
+      rw [BitVec.toNat_add, Nat.mod_eq_of_lt hNoOverflow]
+    rw [hsum]
 
 -- ============================================================================
 -- pow256ModN: 2^256 mod N
