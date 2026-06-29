@@ -1200,4 +1200,36 @@ theorem evm_addmod_no_overflow_domain_canonical_existential_regs_owned_stack_tai
     sp base a b N rest modOff hNoOverflow hbase hdisjoint R hR s hcr
     ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreStack, hR2⟩ hpc
 
+@[irreducible]
+def evmAddModCanonicalPartialOrGuardDomainStackTailPre
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) : Assertion :=
+  evmAddModCanonicalPartialOrGuardExistentialStackTailPre sp base modOff a b N rest
+
+theorem evmAddModCanonicalPartialOrGuardDomainStackTailPre_unfold
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) :
+    evmAddModCanonicalPartialOrGuardDomainStackTailPre sp base modOff a b N rest =
+      evmAddModCanonicalPartialOrGuardExistentialStackTailPre sp base modOff a b N rest := by
+  delta evmAddModCanonicalPartialOrGuardDomainStackTailPre
+  rfl
+
+/-- Canonical-code ADDMOD stack-tail theorem using the runtime OR-guard partial
+    domain hidden-witness precondition. This aliases the current existential
+    guard surface under the domain-tail naming used by callers. -/
+theorem evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within
+    (sp base : Word) (a b N : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModCanonicalPartialOrGuardDomainStackTailPre sp base modOff a b N rest)
+      (evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest) := by
+  rw [evmAddModCanonicalPartialOrGuardDomainStackTailPre_unfold]
+  exact evm_addmod_partial_or_guard_canonical_existential_regs_owned_stack_tail_spec_within
+    sp base a b N rest modOff hbase hdisjoint
+
 end EvmAsm.Evm64
