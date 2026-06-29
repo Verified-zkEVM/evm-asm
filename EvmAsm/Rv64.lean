@@ -10,10 +10,13 @@
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.HintSpecs
 import EvmAsm.Rv64.ControlFlow
+-- WP: backward, soundness-first calculators over bounded CPS triples.
+import EvmAsm.Rv64.WP
 -- RunBlock → SeqFrame → {XCancel → XPerm, PerfTrace, InstructionSpecs} + SpecDb.
 -- LiftSpec → XSimp → XPerm.
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.LiftSpec
+import EvmAsm.Rv64.Tactics.WP
 -- ExtractPure: design stub for #1432 (slice 1, beads evm-asm-bx7).
 import EvmAsm.Rv64.Tactics.ExtractPure
 -- XPermPartial: design stub for #156 (slice 1, beads evm-asm-a7k).
