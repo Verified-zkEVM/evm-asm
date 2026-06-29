@@ -163,8 +163,8 @@ def registry : List OpcodeEntry := [
        "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
        "sp-160..sp-8) so the live EVM stack is preserved")
       (cycleBound := some 34295),
-  entry "EXP" .partly (some "evm_exp_headroom_stack_spec_within")
-      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a canonical headroom stack theorem with ordinary entry-base alignment, old register/scratch values and the internal scratch base existentially packaged, and the final live stack split at evmSp+32; consumed operand/scratch cells and leftover headroom stack cells are weakened to ownership; leftover frame/scratch registers x0, x2, x9, and x5 are also owned in the leftover frame, with remaining returned resources framed explicitly; public evm_exp_stack_spec_within wrapper still pending",
+  entry "EXP" .partly (some "evm_exp_headroom_visible_result_stack_spec_within")
+      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a canonical headroom stack theorem with ordinary entry-base alignment, old register/scratch values and the internal scratch base existentially packaged, and the semantic result stack exposed directly at evmSp+32 as EvmWord.exp base exponent :: rest; consumed operand/scratch cells and leftover headroom stack cells are weakened to ownership, with leftover implementation resources existentially framed; public evm_exp_stack_spec_within wrapper still pending",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
   -- Comparison and bitwise (0x10..0x1d)
@@ -348,7 +348,7 @@ private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
 private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_domain_canonical_existential_regs_owned_stack_tail_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
-private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_stack_spec_within
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_result_stack_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within
