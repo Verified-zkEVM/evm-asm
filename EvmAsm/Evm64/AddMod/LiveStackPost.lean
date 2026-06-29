@@ -336,4 +336,32 @@ theorem evm_addmod_partial_domain_named_return_owned_live_stack_spec_within
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
       hcallable hbase hdisjoint hDomain)
 
+/-- Zero-modulus ADDMOD theorem with the current best live-stack post shape.
+
+    This specializes the partial-domain theorem to the complete `N = 0` branch,
+    avoiding the generic domain hypothesis while keeping the final live stack
+    isolated at `sp + 64` and all consumed operand/return resources owned. -/
+theorem evm_addmod_n0_return_owned_live_stack_spec_within
+    (sp base callable_base : Word)
+    (a b : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b (0 : EvmWord) v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModPartialReturnOwnedLiveStackPost sp a b (0 : EvmWord)) := by
+  exact evm_addmod_partial_domain_named_return_owned_live_stack_spec_within
+    sp base callable_base a b (0 : EvmWord) v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hcallable hbase hdisjoint (Or.inl rfl)
+
 end EvmAsm.Evm64
