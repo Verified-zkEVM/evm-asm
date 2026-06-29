@@ -475,6 +475,32 @@ theorem evm_addmod_n0_return_owned_live_stack_spec_within
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     hcallable hbase hdisjoint (Or.inl rfl)
 
+/-- Zero-modulus ADDMOD theorem with the stronger current live-stack post:
+    the result stack is isolated at `sp + 64` and all leftover registers in the
+    current frame are owned. -/
+theorem evm_addmod_n0_regs_owned_live_stack_spec_within
+    (sp base callable_base : Word)
+    (a b : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b (0 : EvmWord) v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b (0 : EvmWord)) := by
+  exact evm_addmod_partial_domain_named_regs_owned_live_stack_spec_within
+    sp base callable_base a b (0 : EvmWord) v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hcallable hbase hdisjoint (Or.inl rfl)
+
 /-- No-overflow ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the currently composed
@@ -503,6 +529,37 @@ theorem evm_addmod_no_overflow_return_owned_live_stack_spec_within
         nMem shiftMem jMem retMem dMem dloMem scratchUn0)
       (evmAddModPartialReturnOwnedLiveStackPost sp a b N) := by
   exact evm_addmod_partial_domain_named_return_owned_live_stack_spec_within
+    sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hcallable hbase hdisjoint (Or.inr ⟨hNoOverflow, hEvidence⟩)
+
+/-- No-overflow ADDMOD theorem with the stronger current live-stack post:
+    the result stack is isolated at `sp + 64` and all leftover registers in the
+    current frame are owned. -/
+theorem evm_addmod_no_overflow_regs_owned_live_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hEvidence :
+      evmAddModNoOverflowBodyEvidence sp base callable_base a b N v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
+  exact evm_addmod_partial_domain_named_regs_owned_live_stack_spec_within
     sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
