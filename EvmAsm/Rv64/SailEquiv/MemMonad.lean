@@ -27,6 +27,14 @@ theorem untilFuelM_one_pure {α : Type} (g : α → Bool) (init : α) (f : α �
   unfold untilFuelM
   simp [untilFuelM.go]
 
+/-- Monad-generic version of `untilFuelM_one_pure`, for the `SailME` (ExceptT) loop
+    in `vmem_write_addr`/`vmem_read_addr`. -/
+theorem untilFuelM_one_pure_gen {m : Type → Type} [Monad m] [LawfulMonad m] {α : Type}
+    (g : α → Bool) (init : α) (f : α → m α) :
+    untilFuelM 1 (fun x => (Pure.pure (g x) : m Bool)) init f = f init := by
+  unfold untilFuelM
+  simp [untilFuelM.go]
+
 /-- Sail's `writeBytes` stores byte `i` as `v.extractLsb' (8*i) 8`; our reassembly
     lemmas (`MemReduce`) are stated with `extractByte`. They coincide. -/
 theorem extractByte_eq_extractLsb' (v : Word) (i : Nat) :
