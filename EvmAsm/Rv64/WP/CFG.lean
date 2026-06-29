@@ -129,6 +129,21 @@ def branchSeqNotTakenBlockDisjoint {nTail : Nat} {entry target : Word}
     Branch entry (cr1.union cr2) :=
   branchSeqNotTakenDisjoint hd br (block (Entails.refl _) tail) hlink
 
+/-- View a two-way branch as an N-way branch. -/
+def nbranchOfBranch {entry : Word} {cr : CodeReq} (br : Branch entry cr) :
+    NBranch entry cr :=
+  NBranch.ofBranch br
+
+/-- Continue a branch's not-taken exit with an N-way CFG over disjoint code,
+    preserving the taken exit as the first open exit. -/
+def branchSeqNotTakenNBranchDisjoint {entry : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : NBranch br.exit_f cr2)
+    (hlink : Entails br.post_f tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqNotTakenNBranchDisjoint hd tail hlink
+
 /-- Join an N-way branch with a uniform continuation bound. -/
 def nbranch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : NBranch entry cr) (tailBound : Nat)

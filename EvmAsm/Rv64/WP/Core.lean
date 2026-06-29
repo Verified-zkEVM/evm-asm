@@ -255,6 +255,14 @@ def ofSpec {nSteps : Nat} {entry : Word} {cr : CodeReq}
   exits := exits
   sound := h
 
+/-- View a two-exit branch as a multi-exit branch. -/
+def ofBranch {entry : Word} {cr : CodeReq} (br : Branch entry cr) :
+    NBranch entry cr where
+  nSteps := br.nSteps
+  pre := br.pre
+  exits := [(br.exit_t, br.post_t), (br.exit_f, br.post_f)]
+  sound := cpsBranchWithin_as_cpsNBranchWithin br.sound
+
 /-- Join all exits with a uniform continuation bound. -/
 def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : NBranch entry cr) (tailBound : Nat)
@@ -265,6 +273,25 @@ def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
   sound := cpsNBranchWithin_merge br.sound hall
 
 end NBranch
+
+namespace Branch
+
+/-- Continue the not-taken exit of a branch with a multi-exit CFG over disjoint
+    code. The taken exit is preserved as the first open exit, followed by the
+    tail's exits. This is the standard shape for generated decoders that peel
+    off one failure branch and keep walking the fall-through CFG. -/
+def seqNotTakenNBranchDisjoint {entry : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : NBranch br.exit_f cr2)
+    (hlink : Entails br.post_f tail.pre) :
+    NBranch entry (cr1.union cr2) where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exits := (br.exit_t, br.post_t) :: tail.exits
+  sound := cpsBranchWithin_cons_cpsNBranchWithin_with_perm hd hlink br.sound tail.sound
+
+end Branch
 
 end WP
 end EvmAsm.Rv64

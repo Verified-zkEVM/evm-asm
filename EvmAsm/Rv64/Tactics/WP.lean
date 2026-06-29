@@ -109,6 +109,15 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqNotTakenBlockDisjoint $hd $br $tail
         (by wp_rv64_link))
 
+/-- Continue a branch's not-taken exit with an N-way branch over disjoint code. -/
+syntax (name := wpRv64BranchSeqNotTakenNBranchDisjointTac)
+  "wp_rv64_branch_not_taken_nbranch_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_branch_not_taken_nbranch_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqNotTakenNBranchDisjoint $hd $br $tail
+        (by wp_rv64_link))
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -182,5 +191,27 @@ example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
     (tail : cpsTripleWithin nTail br.exit_f target cr2 br.post_f post) :
     EvmAsm.Rv64.WP.Branch entry (cr1.union cr2) := by
   wp_rv64_branch_not_taken_block_disjoint hd, br, tail
+
+example {entry : Word} {cr : CodeReq}
+    (br : EvmAsm.Rv64.WP.Branch entry cr) :
+    EvmAsm.Rv64.WP.NBranch entry cr :=
+  EvmAsm.Rv64.WP.CFG.nbranchOfBranch br
+
+example {entry : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tail : EvmAsm.Rv64.WP.NBranch br.exit_f cr2)
+    (hlink : EvmAsm.Rv64.WP.Entails br.post_f tail.pre) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) :=
+  EvmAsm.Rv64.WP.CFG.branchSeqNotTakenNBranchDisjoint hd br tail hlink
+
+example {nTail : Nat} {entry : Word} {cr1 cr2 : CodeReq}
+    {exits : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tailSound : cpsNBranchWithin nTail br.exit_f cr2 br.post_f exits) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  let tail := EvmAsm.Rv64.WP.NBranch.ofSpec tailSound
+  wp_rv64_branch_not_taken_nbranch_disjoint hd, br, tail
 
 end EvmAsm.Rv64.Tactics.WPTests
