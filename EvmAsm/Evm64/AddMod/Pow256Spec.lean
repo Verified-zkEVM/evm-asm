@@ -656,6 +656,8 @@ abbrev evm_addmod_pow256_plus_one_local_call_restore_code
     (evm_addmod_pow256_prepare_plus_one_mod_args ;;
      evm_addmod_pow256_call_mod modOff)
 
+
+
 /-- The second local pow256 prepare/call/restore suffix is part of the concrete helper program. -/
 theorem evm_addmod_pow256_plus_one_local_call_restore_program_sub
     (base : Word) (modOff : BitVec 21) :
@@ -690,6 +692,42 @@ theorem evm_addmod_pow256_mod_n_callable_sub
       (evm_addmod_pow256_mod_n_with_callable_code base modOff callableCode) a = some i := by
   unfold evm_addmod_pow256_mod_n_with_callable_code
   exact CodeReq.mono_union_right hd (fun _ _ h => h)
+
+abbrev evm_addmod_pow256_minus_one_local_call_restore_with_callable_code
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) : CodeReq :=
+  (evm_addmod_pow256_minus_one_local_call_restore_code base modOff).union callableCode
+
+/-- The first local pow256 helper segment plus callable body is subsumed by the
+    concrete helper+callable code region. -/
+theorem evm_addmod_pow256_minus_one_local_call_restore_with_callable_sub
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq)
+    (hd : (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)).Disjoint callableCode) :
+    ∀ a i, (evm_addmod_pow256_minus_one_local_call_restore_with_callable_code
+        base modOff callableCode) a = some i →
+      (evm_addmod_pow256_mod_n_with_callable_code base modOff callableCode) a = some i := by
+  unfold evm_addmod_pow256_minus_one_local_call_restore_with_callable_code
+  exact CodeReq.union_sub
+    (fun a i h => evm_addmod_pow256_mod_n_program_sub base modOff callableCode a i
+      (evm_addmod_pow256_minus_one_local_call_restore_program_sub base modOff a i h))
+    (evm_addmod_pow256_mod_n_callable_sub base modOff callableCode hd)
+
+abbrev evm_addmod_pow256_plus_one_local_call_restore_with_callable_code
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) : CodeReq :=
+  (evm_addmod_pow256_plus_one_local_call_restore_code base modOff).union callableCode
+
+/-- The second local pow256 helper segment plus callable body is subsumed by the
+    concrete helper+callable code region. -/
+theorem evm_addmod_pow256_plus_one_local_call_restore_with_callable_sub
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq)
+    (hd : (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)).Disjoint callableCode) :
+    ∀ a i, (evm_addmod_pow256_plus_one_local_call_restore_with_callable_code
+        base modOff callableCode) a = some i →
+      (evm_addmod_pow256_mod_n_with_callable_code base modOff callableCode) a = some i := by
+  unfold evm_addmod_pow256_plus_one_local_call_restore_with_callable_code
+  exact CodeReq.union_sub
+    (fun a i h => evm_addmod_pow256_mod_n_program_sub base modOff callableCode a i
+      (evm_addmod_pow256_plus_one_local_call_restore_program_sub base modOff a i h))
+    (evm_addmod_pow256_mod_n_callable_sub base modOff callableCode hd)
 
 /-- First pow256 call/restore block is the left half of the shared helper code. -/
 theorem evm_addmod_pow256_mod_n_shared_code_first_sub
