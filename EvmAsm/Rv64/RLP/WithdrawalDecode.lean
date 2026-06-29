@@ -11250,4 +11250,65 @@ theorem wd_decode_failDispatch
                   (wd_decode_failLmism base srcBase outPtr raVal sp0 s0Old s1Old s2Old srcBytes
                     hbe hbase hsalign hsrcLen0 hsrclt hover0 hvalid0 hnl hhi hllen hlover hlvalid hoff1 htr hlz hmn hsp2 hdec)
 
+/-- **List-form reject (`bgeu prefix, 0xc0, fail`).** A field's prefix-class guard taken on a
+    list prefix (`¬ ult prefix 0xc0`, i.e. `prefix ≥ 0xc0`): one branch step to `failReturn`
+    (`base+304`), then the fail endpoint. The reusable reject arm for every field's list-form
+    check (`x5 = prefix`, `x6 = 0xc0`). -/
+theorem wd_decode_failViaBgeu
+    (base sp0 raVal s0Old s1Old s2Old outPtr srcBase : Word) (srcBytes : List Byte)
+    (raClob s0Clob s1Clob s2Clob a0Old v1 v2 : Word) (idx : Nat) (failOff : BitVec 13)
+    (hge : ¬ BitVec.ult v1 v2)
+    (hidx : idx < withdrawal_decode_prog.length)
+    (hinstr : withdrawal_decode_prog.get ⟨idx, hidx⟩ = .BGEU .x5 .x6 failOff)
+    (hfail : (base + BitVec.ofNat 64 (4 * idx)) + signExtend13 failOff = base + 304)
+    (hdec : decodeWithdrawal srcBytes = none) :
+    cpsTripleWithin (1 + 7) (base + BitVec.ofNat 64 (4 * idx)) (raVal &&& ~~~1)
+      (withdrawal_decode_code base)
+      (((.x5 ↦ᵣ v1) ** (.x6 ↦ᵣ v2)) **
+        ((.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) **
+            (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) **
+            ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)) **
+          regOwn .x11 ** regOwn .x12 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+          bytesRegion srcBase srcBytes ** wd_outOwned outPtr))
+      (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+        wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
+            ⌜decodeWithdrawal srcBytes = some w ∧ w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2)
+              ∧ d2.length = 20⌝) h)) ∨
+         (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+            ⌜decodeWithdrawal srcBytes = none⌝) h))) := by
+  have hbgeu := wd_bgeu_ge base idx .x5 .x6 failOff v1 v2 hge hidx hinstr
+  rw [hfail] at hbgeu
+  have hbf := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ a0Old) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) **
+        (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) **
+        ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)) **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+      bytesRegion srcBase srcBytes ** wd_outOwned outPtr)
+    (by unfold wd_outOwned; pcFree) hbgeu
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun s hp => by
+      have hp2 := sepConj_mono_left
+        (sepConj_mono (regIs_implies_regOwn .x5)
+          (fun s' h' => regIs_implies_regOwn .x6 s' (((sepConj_pure_right s').1 h').1))) s hp
+      unfold wd_scratchOwned
+      xperm_hyp hp2)
+    hbf
+    (wd_decode_failEndpoint base sp0 raVal s0Old s1Old s2Old outPtr srcBase srcBytes
+      raClob s0Clob s1Clob s2Clob a0Old hdec)
+
 end EvmAsm.Rv64.RLP
