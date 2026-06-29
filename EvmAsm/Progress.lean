@@ -54,6 +54,7 @@ import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
 import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
+import EvmAsm.Evm64.Exp.StackExecutionBridge
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Calldata.CopySpec
@@ -150,15 +151,17 @@ def registry : List OpcodeEntry := [
       (some "evm_smod_stack_spec_within")
       ("all-case v4 wrapper result-stack spec; zero divisor discharged, " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
-  entry "ADDMOD" .partly (some "evm_addmod_n0_spec_within")
-      "addmod_correct proven; zero-modulus stack spec done for arbitrary b",
+  entry "ADDMOD" .partly (some "evm_addmod_no_overflow_word_mod_body_stack_spec_within")
+      ("addmod_correct proven; zero-modulus stack spec done for arbitrary b; " ++
+       "no-overflow skeleton composed through legacy MOD no-NOP body proof"),
   entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
       ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
        "n ≤ 2^255 hypothesis); bit-serial 512-bit reducer. Scratchpad " ++
        "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
        "sp-160..sp-8) so the live EVM stack is preserved")
       (cycleBound := some 34295),
-  entry "EXP" .partly none "exp_correct proven; program in active development",
+  entry "EXP" .partly (some "ExpStackExecutionBridge.runExpStack?_semantic_cons")
+      "exp_correct proven; pure executable stack transition names EvmWord.exp; RV64 loop-exit post exposes live-stack view; folded/framed final-loop surface plus canonical appended-code entry/loop surfaces, folded headroom entry post, explicit entry bridge frame, entry-to-first-iteration residual bridge, entry-through-loop composition, and folded canonical epilogue surface ready; wrapper pending",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
   -- Comparison and bitwise (0x10..0x1d)
@@ -340,8 +343,9 @@ private noncomputable abbrev _sdiv_witness       :=
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_stack_spec
 private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
-private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_n0_spec_within
+private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_no_overflow_word_mod_body_stack_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.ExpStackExecutionBridge.runExpStack?_semantic_cons
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within

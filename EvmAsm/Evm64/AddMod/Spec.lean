@@ -26,6 +26,7 @@
 import EvmAsm.Evm64.AddMod.Compose.Base
 import EvmAsm.Evm64.DivMod.Callable
 import EvmAsm.Evm64.DivMod.CallableV1Legacy
+import EvmAsm.Evm64.EvmWordArith.AddMod
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.LiftSpec
 
@@ -187,6 +188,80 @@ private theorem evm_addmod_n0_dispatch_bridge_general
   simp at hpre ⊢
   xperm_hyp hpre
 
+
+/-- Dispatch bridge for ADDMOD with arbitrary modulus.
+
+    The prologue has replaced the second slot by the truncated sum `a + b` and
+    left the carry chain in registers. This bridge folds that limb-level post
+    into the MOD callable precondition for dividend `a + b` and divisor `N`,
+    retaining the original first operand as a frame. -/
+private theorem evm_addmod_dispatch_bridge_general
+    (sp base : Word) (a b N : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 v2 v10 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hn0 : N.getLimbN 0 = n0) (hn1 : N.getLimbN 1 = n1)
+    (hn2 : N.getLimbN 2 = n2) (hn3 : N.getLimbN 3 = n3)
+    (s : PartialState)
+    (hpre :
+      (evmAddModPhase1Phase2LimbPost base sp a0 a1 a2 a3 b0 b1 b2 b3 **
+       (.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((sp + 64) ↦ₘ n0) ** ((sp + 72) ↦ₘ n1) **
+       ((sp + 80) ↦ₘ n2) ** ((sp + 88) ↦ₘ n3) **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0) s) :
+      let sum0 := a0 + b0
+      let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+      let psum1 := a1 + b1
+      let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+      let result1 := psum1 + carry0
+      let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+      let carry1 := carry1a ||| carry1b
+      let psum2 := a2 + b2
+      let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+      let result2 := psum2 + carry1
+      let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+      let carry2 := carry2a ||| carry2b
+      let psum3 := a3 + b3
+      let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+      let result3 := psum3 + carry2
+      let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+      let carry3 := carry3a ||| carry3b
+      (divModStackDispatchPreCallable (sp + 32) (a + b) N ((base + 124) + 4)
+         v2 carry3 carry3b carry3 v10 carry3a
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       evmWordIs sp a) s := by
+  dsimp only
+  rw [divModStackDispatchPreCallable_unfold]
+  rw [evmAddModPhase1Phase2LimbPost_unfold] at hpre
+  have ⟨h0, h1, h2, h3⟩ := EvmWord.add_carry_chain_correct a b
+  simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+    EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3] at h0 h1 h2 h3
+  rw [ha0, hb0] at h0
+  rw [ha1, hb1, ha0, hb0] at h1
+  rw [ha2, hb2, ha1, hb1, ha0, hb0] at h2
+  rw [ha3, hb3, ha2, hb2, ha1, hb1, ha0, hb0] at h3
+  simp only [evmWordIs_sp32_limbs_eq sp (a + b) _ _ _ _ h0 h1 h2 h3,
+    evmWordIs_sp_limbs_eq (sp + 32 + 32) N n0 n1 n2 n3 hn0 hn1 hn2 hn3,
+    evmWordIs_sp_limbs_eq sp a a0 a1 a2 a3 ha0 ha1 ha2 ha3]
+  simp only [BitVec.add_assoc] at hpre ⊢
+  simp only [signExtend12, BitVec.signExtend] at hpre ⊢
+  simp only [show (32 : Word) + 8 = 40 from by bv_omega,
+    show (32 : Word) + 16 = 48 from by bv_omega,
+    show (32 : Word) + 24 = 56 from by bv_omega,
+    show (32 : Word) + 32 = 64 from by bv_omega,
+    show (32 : Word) + 40 = 72 from by bv_omega,
+    show (32 : Word) + 48 = 80 from by bv_omega,
+    show (32 : Word) + 56 = 88 from by bv_omega,
+    show (124 : Word) + 4 = 128 from by bv_omega] at hpre ⊢
+  simp at hpre ⊢
+  xperm_hyp hpre
+
 /-! ## Alignment helpers -/
 
 private theorem addmod_and_not_one_eq (base : BitVec 64) (hbase : base &&& 1 = 0) :
@@ -232,6 +307,418 @@ private theorem addmod_even_and_one_eq_zero (base : BitVec 64) (hbase : base &&&
       exact (Nat.pow_lt_pow_right (by norm_num) hi0).trans_le le_rfl
     rw [h1i, Bool.and_false]
     simp [BitVec.getLsbD_zero]
+
+
+/-! ## ADDMOD through the MOD callable -/
+
+/-- ADDMOD prologue composed with an arbitrary MOD-callable proof.
+
+    This is the common nonzero-modulus spine: the ADDMOD prologue computes the
+    truncated `a + b` and carry registers, then hands `(a + b, N)` to the MOD
+    callable. The theorem is intentionally parameterized by `hStack`, because
+    the legacy MOD callable still exposes branch/domain-specific proofs. -/
+theorem evm_addmod_mod_call_return_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hn0 : N.getLimbN 0 = n0) (hn1 : N.getLimbN 1 = n1)
+    (hn2 : N.getLimbN 2 = n2) (hn3 : N.getLimbN 3 = n3)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hStack :
+      let sum0 := a0 + b0
+      let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+      let psum1 := a1 + b1
+      let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+      let result1 := psum1 + carry0
+      let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+      let carry1 := carry1a ||| carry1b
+      let psum2 := a2 + b2
+      let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+      let result2 := psum2 + carry1
+      let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+      let carry2 := carry2a ||| carry2b
+      let psum3 := a3 + b3
+      let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+      let result3 := psum3 + carry2
+      let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+      let carry3 := carry3a ||| carry3b
+      cpsTripleWithin (unifiedDivBound + 1)
+        callable_base (base + 128) (evm_mod_callable_code_v1 callable_base)
+        (divModStackDispatchPreCallable (sp + 32) (a + b) N ((base + 124) + 4)
+          v2 carry3 carry3b carry3 v10 carry3a
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (modStackDispatchPostCallable (sp + 32) (a + b) N **
+          (.x1 ↦ᵣ ((base + 124) + 4)))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) N **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      ((modStackDispatchPostCallable (sp + 32) (a + b) N **
+          (.x1 ↦ᵣ ((base + 124) + 4))) ** evmWordIs sp a) := by
+  subst hcallable
+  have hmono_prog : ∀ ad i,
+      (evm_addmod_program_code base modOff) ad = some i →
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) ad = some i :=
+    fun ad i h => CodeReq.union_mono_left ad i h
+  have hmono_call : ∀ ad i,
+      (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)) ad = some i →
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) ad = some i :=
+    CodeReq.mono_union_right hdisjoint (fun _ _ h => h)
+  let sum0 := a0 + b0
+  let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+  let psum1 := a1 + b1
+  let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+  let result1 := psum1 + carry0
+  let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+  let carry1 := carry1a ||| carry1b
+  let psum2 := a2 + b2
+  let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+  let result2 := psum2 + carry1
+  let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+  let carry2 := carry2a ||| carry2b
+  let psum3 := a3 + b3
+  let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+  let result3 := psum3 + carry2
+  let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+  let carry3 := carry3a ||| carry3b
+  have hprologue_to_call : cpsTripleWithin (31 + 1) base ((base + 124) + signExtend21 modOff)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) N **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (divModStackDispatchPreCallable (sp + 32) (a + b) N ((base + 124) + 4)
+         v2 carry3 carry3b carry3 v10 carry3a
+         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+       evmWordIs sp a) := by
+    apply cpsTripleWithin_weaken _ _ (cpsTripleWithin_extend_code (hmono := hmono_prog)
+      (cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => hp)
+        (cpsTripleWithin_frameR
+          ((.x2 ↦ᵣ v2) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+           ((sp + 64) ↦ₘ n0) ** ((sp + 72) ↦ₘ n1) **
+           ((sp + 80) ↦ₘ n2) ** ((sp + 88) ↦ₘ n3) **
+             divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+               shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+            (by rw [divScratchValuesCallNoX1_unfold]; pcFree)
+          (evm_addmod_prologue_phase1_phase2_reduce_named_spec_within
+            sp base modOff a0 a1 a2 a3 b0 b1 b2 b3 v7 v6 v5 v11 v1))))
+    · intro _ hp
+      rw [evmWordIs_sp_limbs_eq sp a a0 a1 a2 a3 ha0 ha1 ha2 ha3,
+          evmWordIs_sp32_limbs_eq sp b b0 b1 b2 b3 hb0 hb1 hb2 hb3,
+          evmWordIs_sp64_limbs_eq sp N n0 n1 n2 n3 hn0 hn1 hn2 hn3] at hp
+      xperm_hyp hp
+    · intro s hpost
+      exact evm_addmod_dispatch_bridge_general sp base a b N
+        a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0
+        ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hn0 hn1 hn2 hn3 s hpost
+  dsimp only at hStack
+  have hcall := cpsTripleWithin_extend_code (hmono := hmono_call)
+    (cpsTripleWithin_frameR (evmWordIs sp a) (by pcFree) hStack)
+  exact cpsTripleWithin_seq_same_cr hprologue_to_call hcall
+
+
+/-- Public postcondition for the ADDMOD skeleton under the no-overflow condition.
+
+    The current skeleton feeds the truncated word sum `a + b` into MOD. Under
+    `a.toNat + b.toNat < 2^256`, that is semantically the same as ADDMOD's
+    full-precision sum. -/
+@[irreducible]
+def evmAddModNoOverflowCallReturnPost (sp base : Word) (a b N : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 64)) ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmWordIs (sp + 32) (a + b) **
+  evmWordIs (sp + 64) (EvmWord.addmod a b N) **
+  divScratchOwnCallNoX1 (sp + 32) **
+  (.x1 ↦ᵣ ((base + 124) + 4)) **
+  evmWordIs sp a
+
+theorem evmAddModNoOverflowCallReturnPost_unfold
+    (sp base : Word) (a b N : EvmWord) :
+    evmAddModNoOverflowCallReturnPost sp base a b N =
+      ((.x12 ↦ᵣ (sp + 64)) ** regOwn .x2 **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs (sp + 32) (a + b) **
+       evmWordIs (sp + 64) (EvmWord.addmod a b N) **
+       divScratchOwnCallNoX1 (sp + 32) **
+       (.x1 ↦ᵣ ((base + 124) + 4)) **
+       evmWordIs sp a) := by
+  delta evmAddModNoOverflowCallReturnPost
+  rfl
+
+/-- ADDMOD callable-return stack theorem for the current skeleton under the
+    no-overflow condition. It turns the MOD callable's `EvmWord.mod (a+b) N`
+    result into `EvmWord.addmod a b N`. -/
+theorem evm_addmod_no_overflow_mod_call_return_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hb0 : b.getLimbN 0 = b0) (hb1 : b.getLimbN 1 = b1)
+    (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3)
+    (hn0 : N.getLimbN 0 = n0) (hn1 : N.getLimbN 1 = n1)
+    (hn2 : N.getLimbN 2 = n2) (hn3 : N.getLimbN 3 = n3)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hStack :
+      let sum0 := a0 + b0
+      let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+      let psum1 := a1 + b1
+      let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+      let result1 := psum1 + carry0
+      let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+      let carry1 := carry1a ||| carry1b
+      let psum2 := a2 + b2
+      let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+      let result2 := psum2 + carry1
+      let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+      let carry2 := carry2a ||| carry2b
+      let psum3 := a3 + b3
+      let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+      let result3 := psum3 + carry2
+      let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+      let carry3 := carry3a ||| carry3b
+      cpsTripleWithin (unifiedDivBound + 1)
+        callable_base (base + 128) (evm_mod_callable_code_v1 callable_base)
+        (divModStackDispatchPreCallable (sp + 32) (a + b) N ((base + 124) + 4)
+          v2 carry3 carry3b carry3 v10 carry3a
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (modStackDispatchPostCallable (sp + 32) (a + b) N **
+          (.x1 ↦ᵣ ((base + 124) + 4)))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) N **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnPost sp base a b N) := by
+  have hmain := evm_addmod_mod_call_return_stack_spec_within
+    sp base callable_base a b N
+    a0 a1 a2 a3 b0 b1 b2 b3 n0 n1 n2 n3 v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 hn0 hn1 hn2 hn3 hcallable hdisjoint hStack
+  have hsem := EvmWord.mod_truncated_sum_eq_addmod_of_no_overflow a b N hNoOverflow
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun s hpost => by
+      rw [modStackDispatchPostCallable_unfold] at hpost
+      rw [evmAddModNoOverflowCallReturnPost_unfold]
+      rw [hsem] at hpost
+      simp only [BitVec.add_assoc] at hpost ⊢
+      simp only [show (32 : Word) + 32 = 64 from by bv_omega] at hpost ⊢
+      xperm_hyp hpost)
+    hmain
+
+/-- Word-level wrapper for `evm_addmod_no_overflow_mod_call_return_stack_spec_within`.
+
+    This removes the twelve limb-equality parameters from the public surface;
+    callers still provide the MOD callable proof and the no-overflow hypothesis. -/
+theorem evm_addmod_no_overflow_word_mod_call_return_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hStack :
+      let a0 := a.getLimbN 0
+      let a1 := a.getLimbN 1
+      let a2 := a.getLimbN 2
+      let a3 := a.getLimbN 3
+      let b0 := b.getLimbN 0
+      let b1 := b.getLimbN 1
+      let b2 := b.getLimbN 2
+      let b3 := b.getLimbN 3
+      let sum0 := a0 + b0
+      let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+      let psum1 := a1 + b1
+      let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+      let result1 := psum1 + carry0
+      let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+      let carry1 := carry1a ||| carry1b
+      let psum2 := a2 + b2
+      let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+      let result2 := psum2 + carry1
+      let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+      let carry2 := carry2a ||| carry2b
+      let psum3 := a3 + b3
+      let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+      let result3 := psum3 + carry2
+      let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+      let carry3 := carry3a ||| carry3b
+      cpsTripleWithin (unifiedDivBound + 1)
+        callable_base (base + 128) (evm_mod_callable_code_v1 callable_base)
+        (divModStackDispatchPreCallable (sp + 32) (a + b) N ((base + 124) + 4)
+          v2 carry3 carry3b carry3 v10 carry3a
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (modStackDispatchPostCallable (sp + 32) (a + b) N **
+          (.x1 ↦ᵣ ((base + 124) + 4)))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) N **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnPost sp base a b N) := by
+  exact evm_addmod_no_overflow_mod_call_return_stack_spec_within
+    sp base callable_base a b N
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    (N.getLimbN 0) (N.getLimbN 1) (N.getLimbN 2) (N.getLimbN 3)
+    v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+    hNoOverflow hcallable hdisjoint hStack
+
+/-- No-overflow ADDMOD wrapper that accepts the legacy v1 MOD no-NOP body proof.
+
+The supplied MOD proof stops at `base + nopOff`; this theorem adds the legacy
+callable return adapter and then reuses
+`evm_addmod_no_overflow_word_mod_call_return_stack_spec_within`. -/
+theorem evm_addmod_no_overflow_word_mod_body_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hStack :
+      let a0 := a.getLimbN 0
+      let a1 := a.getLimbN 1
+      let a2 := a.getLimbN 2
+      let a3 := a.getLimbN 3
+      let b0 := b.getLimbN 0
+      let b1 := b.getLimbN 1
+      let b2 := b.getLimbN 2
+      let b3 := b.getLimbN 3
+      let sum0 := a0 + b0
+      let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+      let psum1 := a1 + b1
+      let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+      let result1 := psum1 + carry0
+      let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+      let carry1 := carry1a ||| carry1b
+      let psum2 := a2 + b2
+      let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+      let result2 := psum2 + carry1
+      let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+      let carry2 := carry2a ||| carry2b
+      let psum3 := a3 + b3
+      let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+      let result3 := psum3 + carry2
+      let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+      let carry3 := carry3a ||| carry3b
+      cpsTripleWithin unifiedDivBound
+        callable_base (callable_base + nopOff) (modCode_noNop callable_base)
+        (divModStackDispatchPreCallable (sp + 32) (a + b) N ((base + 124) + 4)
+          v2 carry3 carry3b carry3 v10 carry3a
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        (modStackDispatchPostCallable (sp + 32) (a + b) N **
+          (.x1 ↦ᵣ ((base + 124) + 4)))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) N **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnPost sp base a b N) := by
+  subst hcallable
+  have hraVal_align : (((base + 124 : Word) + 4) &&& ~~~1) = base + 128 := by
+    rw [show (base + 124 : Word) + 4 = base + 128 from by bv_omega]
+    exact addmod_and_not_one_eq _ (addmod_even_and_one_eq_zero base hbase)
+  let a0 := a.getLimbN 0
+  let a1 := a.getLimbN 1
+  let a2 := a.getLimbN 2
+  let a3 := a.getLimbN 3
+  let b0 := b.getLimbN 0
+  let b1 := b.getLimbN 1
+  let b2 := b.getLimbN 2
+  let b3 := b.getLimbN 3
+  let sum0 := a0 + b0
+  let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+  let psum1 := a1 + b1
+  let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+  let result1 := psum1 + carry0
+  let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+  let carry1 := carry1a ||| carry1b
+  let psum2 := a2 + b2
+  let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+  let result2 := psum2 + carry1
+  let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+  let carry2 := carry2a ||| carry2b
+  let psum3 := a3 + b3
+  let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+  let result3 := psum3 + carry2
+  let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+  let carry3 := carry3a ||| carry3b
+  have hcallRaw :=
+    evm_mod_callable_v1_spec_from_noNop_preserving_x1_noX9
+      (sp + 32) ((base + 124) + signExtend21 modOff) ((base + 124) + 4)
+      (a + b) N v2 carry3 carry3b carry3 v10 carry3a
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0 hStack
+  rw [hraVal_align] at hcallRaw
+  exact evm_addmod_no_overflow_word_mod_call_return_stack_spec_within
+    sp base ((base + 124) + signExtend21 modOff) a b N v1 v2 v5 v6 v7 v10 v11
+    modOff q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hNoOverflow rfl hdisjoint hcallRaw
 
 /-! ## ADDMOD N=0 end-to-end spec
 
@@ -498,6 +985,47 @@ theorem evm_addmod_n0_spec_within
         show (124 : Word) + 4 = 128 from by bv_omega] at hpost ⊢
       xperm_hyp hpost)
     (cpsTripleWithin_seq_same_cr hprologue_to_call hcall)
+
+
+/-- Word-level ADDMOD(a, b, 0) zero-modulus stack spec.
+
+    This is the consumer-facing wrapper around `evm_addmod_n0_spec_within`:
+    callers provide only the three stack words, not the individual limb
+    equalities required by the lower-level composition theorem. -/
+theorem evm_addmod_n0_stack_spec_within
+    (sp base callable_base : Word)
+    (a b : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) (0 : EvmWord) **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      ((.x12 ↦ᵣ (sp + 64)) **
+       (.x1 ↦ᵣ ((base + 124) + 4)) **
+       regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) (a + b) **
+       evmWordIs (sp + 64) (0 : EvmWord) **
+         divScratchOwnCallNoX1 (sp + 32)) :=
+  evm_addmod_n0_spec_within sp base callable_base a b
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    rfl rfl rfl rfl rfl rfl rfl rfl hcallable hbase hdisjoint
 
 -- Placeholder: full general `evm_addmod_stack_spec_within` lands in slice evm-asm-sord.
 
