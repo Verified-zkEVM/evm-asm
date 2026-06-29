@@ -10208,4 +10208,58 @@ theorem wd_call_walk_init_empty
   exact cpsCallWithin offset hoffset halign (by pcFree) hdisj
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) hcallee)
 
+/-- **Fail-path front-entry: peel + prologue** (base+0 → base+24). Converts the capstone
+    precondition into the prologue's post (callee-saved registers spilled to the 32-byte frame)
+    with the rest framed as ownership tokens. Peels `wd_frameOwned`'s four cells to the prologue's
+    `memIs` slots; everything else (scratch, a3/a4/a5, a0/a1, output region, input region) rides
+    as a frame. Shared by every walk_init fail path (empty / per-arm). -/
+theorem wd_decode_failPrologue
+    (base srcBase outPtr raVal sp0 s0Old s1Old s2Old : Word) (srcBytes : List Byte) :
+    cpsTripleWithin 6 base (base + 24) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
+        (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)))
+      (((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x1 ↦ᵣ raVal) **
+        (.x8 ↦ᵣ outPtr) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ outPtr) **
+        ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)) **
+        (wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** (.x10 ↦ᵣ srcBase) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x0 ↦ᵣ (0 : Word)) **
+          bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)))) := by
+  refine cpsTripleWithin_weaken (fun h hp => by unfold wd_frameOwned at hp; xperm_hyp hp) (fun _ x => x)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (a := sp0 - 32) (fun m0 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ x => x)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)) ** ((sp0 - 32) ↦ₘ m0) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (a := sp0 - 24) (fun m1 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ x => x)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)) ** ((sp0 - 32) ↦ₘ m0) ** ((sp0 - 24) ↦ₘ m1) ** memOwn (sp0 - 8))
+      (a := sp0 - 16) (fun m2 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ x => x)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)) ** ((sp0 - 32) ↦ₘ m0) ** ((sp0 - 24) ↦ₘ m1) ** ((sp0 - 16) ↦ₘ m2))
+      (a := sp0 - 8) (fun m3 => ?_))
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+          show (sp0 + (-32 : Word)) + 8 = sp0 - 24 from by bv_omega,
+          show (sp0 + (-32 : Word)) + 16 = sp0 - 16 from by bv_omega,
+          show (sp0 + (-32 : Word)) + 24 = sp0 - 8 from by bv_omega,
+          show sp0 + (-32 : Word) = sp0 - 32 from by bv_omega]
+      xperm_hyp hp)
+    (fun _ x => x)
+    (cpsTripleWithin_frameR
+      (wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** (.x10 ↦ᵣ srcBase) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)))
+      (by unfold wd_scratchOwned; pcFree)
+      (wd_decode_prologue base sp0 raVal s0Old s1Old s2Old outPtr m0 m1 m2 m3))
+
 end EvmAsm.Rv64.RLP
