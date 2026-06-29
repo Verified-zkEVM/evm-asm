@@ -6669,6 +6669,20 @@ theorem wd_encode4_payload (srcBytes : List Byte) (d0 d1 d2 d3 : List Byte)
   refine ⟨?_, hP⟩
   rw [hsrc, encode_list_short _ (by rw [hpayload]; omega), hpayload]
 
+/-- **Decode determinism pin.** The runtime `walk_next` reports some `(d, nextOff)` for the item at
+    `off`; if the suffix there is `encodeBytes D ++ rest`, then `decodeAux`'s determinism forces
+    `d = D` and `srcBytes.drop nextOff = rest`. This is how the success leaf's *existential*
+    next-offsets (`nextOff0`/`nextOff1`/`nextOff3`) get pinned to the encode-derived tails, so each
+    field's precondition (`wd_scalarFieldPre`/`wd_addressFieldPre`) can be discharged at it. -/
+theorem wd_drop_pin (srcBytes : List Byte) (off nextOff : Nat) (d D rest : List Byte)
+    (hrt : ∀ m, decodeAux (m + 1) (srcBytes.drop off) = some (.bytes d, srcBytes.drop nextOff))
+    (hdrop : srcBytes.drop off = encodeBytes D ++ rest) (hlen : D.length < 256 ^ 8) :
+    d = D ∧ srcBytes.drop nextOff = rest := by
+  have hpeel := wd_decodeAux_of_encodeBytes_drop srcBytes off D rest hdrop hlen
+  have heq := (hrt 0).symm.trans (hpeel.1 0)
+  rw [Option.some.injEq, Prod.mk.injEq] at heq
+  exact ⟨by injection heq.1, heq.2.trans hpeel.2⟩
+
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
     leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
