@@ -662,6 +662,36 @@ theorem expHeadroomFinalVisiblePost_unfold
   delta expHeadroomFinalVisiblePost
   rfl
 
+theorem expHeadroomFinalVisiblePost_pcFree
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    (expHeadroomFinalVisiblePost sp evmSp baseWord exponentWord rest).pcFree := by
+  intro ps h_post
+  rw [expHeadroomFinalVisiblePost_unfold] at h_post
+  obtain ⟨icNew, scratchWord, h_post⟩ := h_post
+  have hVisible :
+      (((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 0)) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 1)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 2)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs evmSp baseWord **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)).pcFree) := by
+    pcFree
+  exact (pcFree_sepConj expTwoMulLoopExitControl_pcFree
+    (pcFree_sepConj hVisible expHeadroomFinalLoopExtraFrame_pcFree)) ps h_post
+
+instance pcFreeInst_expHeadroomFinalVisiblePost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expHeadroomFinalVisiblePost sp evmSp baseWord exponentWord rest) :=
+  ⟨expHeadroomFinalVisiblePost_pcFree⟩
+
 /-- Expose the folded final framed post as a live-stack view at the final EVM
     stack pointer (`evmSp + 32`), with the consumed base word and unused
     headroom/leftover frame still explicit. -/
