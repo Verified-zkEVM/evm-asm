@@ -6586,6 +6586,56 @@ theorem wd_scalarFieldPre_of_encodeBytes
       simpa using hc
     · rw [hbtoNat]; omega
 
+/-- **Address-field precondition from the encode structure (reverse-decode form).** The address is
+    a fixed 20-byte short string (`encodeBytes D = 0x94 :: D` when `|D| = 20`), so the prefix `0x94`
+    classifies unambiguously: `¬ult 0x80`, `ult 0xb8`, content length `0x94 - 0x80 = 20`, the 21-byte
+    span fits and is accessible. The reverse-decode discharger for the success leaf's `hf2`. -/
+theorem wd_addressFieldPre_of_encodeBytes
+    (srcBase srcLen : Word) (srcBytes : List Byte) (off : Nat) (D rest : List Byte)
+    (hsvalid : ∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hnowrap : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsrclen : srcLen = BitVec.ofNat 64 srcBytes.length)
+    (hdrop : srcBytes.drop off = encodeBytes D ++ rest)
+    (hlen20 : D.length = 20) :
+    wd_addressFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes off := by
+  subst hsrclen
+  have henc : encodeBytes D = BitVec.ofNat 8 (0x80 + 20) :: D := by
+    rw [encodeBytes_short_of_length_ne_one D (by omega) (by omega), hlen20]; rfl
+  have henclen : (encodeBytes D).length = 21 := by rw [henc]; simp [hlen20]
+  have hdroplen : srcBytes.length - off = (encodeBytes D).length + rest.length := by
+    have := congrArg List.length hdrop
+    simpa [List.length_drop, List.length_append] using this
+  have hoff : off < srcBytes.length := by omega
+  have hfit : off + 21 ≤ srcBytes.length := by omega
+  have hover : srcBase.toNat + off < 2 ^ 64 := by omega
+  have hvalidoff : isValidByteAccess (srcBase + BitVec.ofNat 64 off) = true := hsvalid off hoff
+  have hcursor : BitVec.ult (srcBase + BitVec.ofNat 64 off)
+      ((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length) = true := by
+    simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+  have hspanN : (((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length) -
+      (srcBase + BitVec.ofNat 64 off)).toNat = srcBytes.length - off := by
+    simp only [BitVec.toNat_sub, BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+  have h80 : (0x80 : Word).toNat = 128 := by decide
+  have hb8 : (0xb8 : Word).toNat = 184 := by decide
+  have hde : srcBytes.drop off = srcBytes[off]'hoff :: srcBytes.drop (off + 1) :=
+    List.drop_eq_getElem_cons hoff
+  rw [hde, henc, List.cons_append, List.cons.injEq] at hdrop
+  obtain ⟨hbyte, _⟩ := hdrop
+  have hbtoNat : (srcBytes[off]'hoff).toNat = 0x94 := by rw [hbyte]; decide
+  have hbz : ((srcBytes[off]'hoff).zeroExtend 64).toNat = (srcBytes[off]'hoff).toNat := by
+    have := (srcBytes[off]'hoff).isLt; bv_omega
+  have hsubN : ((srcBytes[off]'hoff).zeroExtend 64 - 0x80).toNat
+      = (srcBytes[off]'hoff).toNat - 0x80 := by
+    have := (srcBytes[off]'hoff).isLt; bv_omega
+  refine ⟨hoff, hover, hvalidoff, hcursor, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbtoNat, h80]; omega
+  · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbtoNat, hb8]; omega
+  · omega
+  · simp only [BitVec.ult, decide_eq_true_eq, hsubN, hspanN, hbtoNat]; omega
+  · omega
+  · omega
+  · intro k hk; exact hsvalid (off + 1 + k) (by omega)
+
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
     leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
