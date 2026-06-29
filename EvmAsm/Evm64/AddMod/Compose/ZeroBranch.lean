@@ -299,6 +299,34 @@ theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_word_spec_within
       xperm_hyp hp)
     hRaw
 
+/-- Stack-tail surface for the ADDMOD zero-modulus phase-2 path through
+    epilogue. The explicit zero branch preserves the caller tail and leaves the
+    final live stack headed by the zero result word. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_stack_tail_spec_within
+    (sp v5Old v6Old base : Word) (rest : List EvmWord) :
+    cpsTripleWithin (8 + 4 + 1) base (base + 52)
+      (evm_addmod_phase2_n_zero_test_zero_path_epilogue_code base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       evmStackIs (sp + 32) ((0 : EvmWord) :: rest))
+      ((.x12 ↦ᵣ (sp + signExtend12 (32 : BitVec 12))) **
+       (.x6 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ 0) **
+       evmStackIs (sp + 32) ((0 : EvmWord) :: rest)) := by
+  have hCore :=
+    evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_word_spec_within
+      sp v5Old v6Old base
+  have hFramed := cpsTripleWithin_frameR (evmStackIs (sp + 64) rest)
+    (by pcFree) hCore
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [evmStackIs_cons] at hp
+      simp only [show (sp + 32 + 32 : Word) = sp + 64 from by bv_omega] at hp
+      xperm_hyp hp)
+    (fun _ hp => by
+      rw [evmStackIs_cons]
+      simp only [show (sp + 32 + 32 : Word) = sp + 64 from by bv_omega]
+      xperm_hyp hp)
+    hFramed
+
 /-- ofProg surface for the ADDMOD zero-modulus phase-2 path through epilogue. -/
 theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_ofProg_spec_within
     (sp v5Old v6Old n0 n1 n2 n3 : Word)
