@@ -76,6 +76,84 @@ theorem exp_headroom_epilogue_word_canonical_appended
   intro a i ha
   exact CodeReq.union_mono_left a i ha
 
+/-- Final headroom pointer advance followed by the folded epilogue, stated over
+    the canonical appended-MUL code surface. The precondition is the loop-exit
+    pointer coordinate (`evmSp - 64`) plus the live stack slot that the epilogue
+    overwrites at `evmSp + 32`. -/
+theorem exp_headroom_final_advance_then_epilogue_word_canonical_appended
+    (sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 base : Word) :
+    cpsTripleWithin (1 + 9) (base + 368) (base + 408)
+      (evm_exp_headroom_canonical_appended_mul_code base)
+      ((.x12 ↦ᵣ (evmSp + signExtend12 ((-64) : BitVec 12))) **
+       ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+        ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+        ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+        ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ r3) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       evmWordIs (evmSp + 32) (expResultWord r0 r1 r2 r3)) := by
+  let epilogueFrame : Assertion :=
+    (.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+    ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+    ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+    ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+    ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+    ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+    ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+    ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+    ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)
+  have hPtrBase := exp_headroom_ptr_restore_lifted
+    (evmSp + signExtend12 ((-64) : BitVec 12)) base
+    EvmAsm.Evm64.canonicalExpSquaringMulOff
+    EvmAsm.Evm64.canonicalExpCondMulOff
+    EvmAsm.Evm64.canonicalExpCondMulSkipOff
+    EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff
+  have hPtrCanon :
+      cpsTripleWithin 1 (base + 368) (base + 372)
+        (evm_exp_headroom_canonical_appended_mul_code base)
+        (.x12 ↦ᵣ (evmSp + signExtend12 ((-64) : BitVec 12)))
+        (.x12 ↦ᵣ ((evmSp + signExtend12 ((-64) : BitVec 12)) +
+          signExtend12 (64 : BitVec 12))) := by
+    refine cpsTripleWithin_extend_code ?_ hPtrBase
+    intro a i ha
+    exact CodeReq.union_mono_left a i ha
+  have hPtrFramed := cpsTripleWithin_frameR epilogueFrame (by
+    dsimp [epilogueFrame]
+    pcFree) hPtrCanon
+  have hPtrFramed' :
+      cpsTripleWithin 1 (base + 368) (base + 372)
+        (evm_exp_headroom_canonical_appended_mul_code base)
+        ((.x12 ↦ᵣ (evmSp + signExtend12 ((-64) : BitVec 12))) ** epilogueFrame)
+        ((.x12 ↦ᵣ evmSp) ** epilogueFrame) := by
+    rw [show ((evmSp + signExtend12 ((-64) : BitVec 12)) +
+        signExtend12 (64 : BitVec 12) : Word) = evmSp from by
+      rw [EvmAsm.Evm64.Exp.AddrNorm.exp_se12_neg64, signExtend12_64]
+      bv_omega] at hPtrFramed
+    exact hPtrFramed
+  have hEpilogue := exp_headroom_epilogue_word_canonical_appended
+    sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 base
+  have hSeq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      dsimp [epilogueFrame] at hp ⊢
+      xperm_hyp hp)
+    hPtrFramed' hEpilogue
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      dsimp [epilogueFrame] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hp => hp)
+    hSeq
+
 /-- Entry prefix plus the fixed 256-step loop, with the explicit bridge frame
     folded into the first-iteration residual precondition. This is the main
     headroom body surface before the final epilogue writes the result back. -/
