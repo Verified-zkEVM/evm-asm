@@ -737,6 +737,38 @@ theorem expHeadroomFinalCleanVisiblePost_unfold
   delta expHeadroomFinalCleanVisiblePost
   rfl
 
+theorem expHeadroomFinalCleanVisiblePost_pcFree
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    (expHeadroomFinalCleanVisiblePost sp evmSp baseWord exponentWord rest).pcFree := by
+  intro ps h_post
+  rw [expHeadroomFinalCleanVisiblePost_unfold] at h_post
+  obtain ⟨scratchWord, h_post⟩ := h_post
+  have hControl : (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))).pcFree) := by
+    pcFree
+  have hVisible :
+      (((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 0)) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 1)) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 2)) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ
+          ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs evmSp baseWord **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)).pcFree) := by
+    pcFree
+  exact (pcFree_sepConj hControl
+    (pcFree_sepConj hVisible expHeadroomFinalLoopExtraFrame_pcFree)) ps h_post
+
+instance pcFreeInst_expHeadroomFinalCleanVisiblePost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expHeadroomFinalCleanVisiblePost sp evmSp baseWord exponentWord rest) :=
+  ⟨expHeadroomFinalCleanVisiblePost_pcFree⟩
+
 
 /-- Remove the loop-exit pure condition from the visible post, exposing the final
     loop counter register as the concrete zero word. -/
