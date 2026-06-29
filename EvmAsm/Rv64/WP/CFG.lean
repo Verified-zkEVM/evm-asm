@@ -53,6 +53,27 @@ def seqDisjoint {nSteps : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
     Cert entry exit_ (cr1.union cr2) post :=
   Triple.seqDisjoint hd head tail hlink
 
+/-- Sequential composition where both adjacent regions are already available as
+    CPS triples over one shared persistent code requirement. -/
+def seqBlock {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre midPost tailPre post : Assertion}
+    (head : cpsTripleWithin nHead entry mid cr pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr tailPre post)
+    (hlink : Entails midPost tailPre) :
+    Cert entry exit_ cr post :=
+  seq head (block (Entails.refl _) tail) hlink
+
+/-- Sequential composition where both adjacent regions are already available as
+    CPS triples over disjoint code requirements. -/
+def seqBlockDisjoint {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
+    {pre midPost tailPre post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : cpsTripleWithin nHead entry mid cr1 pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr2 tailPre post)
+    (hlink : Entails midPost tailPre) :
+    Cert entry exit_ (cr1.union cr2) post :=
+  seqDisjoint hd head (block (Entails.refl _) tail) hlink
+
 /-- Join a two-way branch with a continuation for each exit. -/
 def branch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : Branch entry cr)

@@ -14,6 +14,7 @@ import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.WP
+import EvmAsm.Rv64.Tactics.ExtractPure
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.EL.Withdrawal
 
@@ -169,10 +170,10 @@ def failStatusReturnCert (base raVal statusOld : Word) :
   have hli := cpsTripleWithin_frameL (.x1 ↦ᵣ raVal) (by pcFree) hli0
   have hret0 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (base + 4)
   have hret := cpsTripleWithin_frameR (.x10 ↦ᵣ (1 : Word)) (by pcFree) hret0
-  exact WP.CFG.seqDisjoint
+  exact WP.CFG.seqBlockDisjoint
     (CodeReq.Disjoint.singleton (by bv_omega))
     hli
-    (WP.CFG.block (WP.Entails.refl _) hret)
+    hret
     (by wp_rv64_link)
 
 /-- Verified reason-erased failure return block. -/
@@ -347,6 +348,60 @@ def abiPre (inputBase outBase raVal : Word) (input : List Byte) : Assertion :=
 def abiPost (inputBase outBase raVal : Word) (input : List Byte) : Assertion :=
   ((.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion inputBase input **
     resultPost input outBase)
+
+/-- ABI resources preserved by the reason-erased failure endpoint.  The pure
+    failure fact is supplied by the path that selected this endpoint, not by the
+    static schema. -/
+def failStatusReturnAbiFrame (inputBase outBase : Word) (input : List Byte) : Assertion :=
+  ((.x0 ↦ᵣ (0 : Word)) ** bytesRegion inputBase input **
+    bytesRegionAny outBase outputSize ** ⌜decodeWithdrawal input = none⌝)
+
+theorem failStatusReturnAbiFrame_pcFree
+    (inputBase outBase : Word) (input : List Byte) :
+    (failStatusReturnAbiFrame inputBase outBase input).pcFree := by
+  unfold failStatusReturnAbiFrame
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj (bytesRegion_pcFree _ _)
+      (pcFree_sepConj (bytesRegionAny_pcFree _ _) pcFree_pure))
+
+/-- ABI-facing precondition for a failure endpoint reached after a path has
+    established that the pure withdrawal decoder fails. -/
+def failStatusReturnAbiPre
+    (inputBase outBase raVal statusOld : Word) (input : List Byte) : Assertion :=
+  failStatusReturnPre raVal statusOld ** failStatusReturnAbiFrame inputBase outBase input
+
+/-- WP certificate adapting the reason-erased failure endpoint to the public ABI
+    postcondition.  The exact failure reason is intentionally absent; only the
+    pure `decodeWithdrawal input = none` case fact is used to expose the unified
+    postcondition's failure disjunct. -/
+def failStatusReturnAbiCert
+    (base inputBase outBase raVal statusOld : Word) (input : List Byte) :
+    WP.CFG.Cert base (failStatusReturnExit raVal) (failStatusReturnCode base)
+      (abiPost inputBase outBase raVal input) := by
+  have hfail := failStatusReturn_spec_within base raVal statusOld
+  have hframed := cpsTripleWithin_frameR
+    (failStatusReturnAbiFrame inputBase outBase input)
+    (failStatusReturnAbiFrame_pcFree inputBase outBase input) hfail
+  exact WP.CFG.block (by
+    intro h hp
+    have hpCase := hp
+    unfold failStatusReturnPost failStatusReturnAbiFrame at hp hpCase
+    extract_pure hpCase
+    obtain ⟨hdec, _hpRest⟩ := hpCase
+    unfold abiPost
+    rw [resultPost_failure hdec]
+    xperm_hyp hp) hframed
+
+/-- Verified ABI-facing failure endpoint. -/
+theorem failStatusReturn_abiPost_spec_within
+    (base inputBase outBase raVal statusOld : Word) (input : List Byte) :
+    cpsTripleWithin (failStatusReturnAbiCert base inputBase outBase raVal statusOld input).nSteps
+      base (failStatusReturnExit raVal) (failStatusReturnCode base)
+      (failStatusReturnAbiPre inputBase outBase raVal statusOld input)
+      (abiPost inputBase outBase raVal input) :=
+  by
+    unfold failStatusReturnAbiPre
+    exact (failStatusReturnAbiCert base inputBase outBase raVal statusOld input).sound
 
 /-- A WP-facing certificate that a concrete control-flow proof implements the
     withdrawal decoder ABI.  The computed precondition is `cfg.pre`, so generated

@@ -56,6 +56,23 @@ macro_rules
       `(tactic| exact (EvmAsm.Rv64.WP.Triple.seqDisjoint $hd $head $tail
         (by wp_rv64_link)).sound)
 
+/-- Compose two adjacent CPS blocks over one shared persistent code requirement. -/
+syntax (name := wpRv64SeqBlockTac) "wp_rv64_seq_block " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block $head:term, $tail:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqBlock $head $tail
+        (by wp_rv64_link)).sound)
+
+/-- Disjoint-code version of `wp_rv64_seq_block`. -/
+syntax (name := wpRv64SeqBlockDisjointTac)
+  "wp_rv64_seq_block_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block_disjoint $hd:term, $head:term, $tail:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqBlockDisjoint $hd $head $tail
+        (by wp_rv64_link)).sound)
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -80,5 +97,20 @@ example {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     (head : cpsTripleWithin nSteps entry mid cr pre tail.pre) :
     cpsTripleWithin (nSteps + tail.nSteps) entry exit_ cr pre post := by
   wp_rv64_seq head, tail
+
+example {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre midPost post : Assertion}
+    (head : cpsTripleWithin nHead entry mid cr pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr midPost post) :
+    cpsTripleWithin (nHead + nTail) entry exit_ cr pre post := by
+  wp_rv64_seq_block head, tail
+
+example {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
+    {pre midPost post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : cpsTripleWithin nHead entry mid cr1 pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr2 midPost post) :
+    cpsTripleWithin (nHead + nTail) entry exit_ (cr1.union cr2) pre post := by
+  wp_rv64_seq_block_disjoint hd, head, tail
 
 end EvmAsm.Rv64.Tactics.WPTests
