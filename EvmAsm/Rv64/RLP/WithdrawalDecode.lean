@@ -6683,6 +6683,36 @@ theorem wd_drop_pin (srcBytes : List Byte) (off nextOff : Nat) (d D rest : List 
   rw [Option.some.injEq, Prod.mk.injEq] at heq
   exact ⟨by injection heq.1, heq.2.trans hpeel.2⟩
 
+/-- **`walk_init` short-list facts from the payload header.** The one-byte header `0xC0 + |P|`
+    (with `|P| ≤ 48`) classifies as a short list whose span is exactly `srcLen = |srcBytes|`: the
+    three facts `walk_init`'s short-success arm exposes (`h_ge`: `≥ 0xc0`; `h_hi`: `< 0xf8`;
+    `h_exact`: cursor-end span match). Discharges the success leaf's `h_ge`/`h_hi`/`h_exact`. -/
+theorem wd_walkInit_facts (srcBase srcLen : Word) (srcBytes P : List Byte) (h0 : 0 < srcBytes.length)
+    (hsrc : srcBytes = BitVec.ofNat 8 (0xC0 + P.length) :: P)
+    (hP48 : P.length ≤ 48) (hsrclen : srcLen = BitVec.ofNat 64 srcBytes.length) :
+    (¬ BitVec.ult ((srcBytes[0]'h0).zeroExtend 64) (0xc0 : Word) = true) ∧
+    BitVec.ult ((srcBytes[0]'h0).zeroExtend 64) (0xf8 : Word) = true ∧
+    (srcBase + BitVec.ofNat 64 0) +
+        (((srcBytes[0]'h0).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12))
+      = (srcBase + BitVec.ofNat 64 0) + srcLen := by
+  have hb0 : srcBytes[0]'h0 = BitVec.ofNat 8 (0xC0 + P.length) := by simp [hsrc]
+  have hlen1 : srcBytes.length = P.length + 1 := by rw [hsrc]; simp
+  have hbN : (srcBytes[0]'h0).toNat = 0xC0 + P.length := by
+    rw [hb0, BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  have hbz : ((srcBytes[0]'h0).zeroExtend 64).toNat = (srcBytes[0]'h0).toNat := by
+    have := (srcBytes[0]'h0).isLt; bv_omega
+  refine ⟨?_, ?_, ?_⟩
+  · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbN, show (0xc0 : Word).toNat = 192 from by decide]
+    omega
+  · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbN, show (0xf8 : Word).toNat = 248 from by decide]
+    omega
+  · rw [hsrclen, hlen1]
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_add, BitVec.toNat_sub, BitVec.toNat_ofNat, hbz, hbN,
+      show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
+      show ((0xc0 : Word).toNat) = 192 from by decide, show ((1 : Word).toNat) = 1 from by decide]
+    omega
+
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
     leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
