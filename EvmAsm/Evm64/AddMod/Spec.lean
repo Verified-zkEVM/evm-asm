@@ -524,6 +524,56 @@ theorem evmAddModNoOverflowCallReturnPost_to_stackPost
   rw [evmStackIs_triple_flat]
   xperm_hyp h
 
+@[irreducible]
+def evmAddModPartialStackPre
+    (sp : Word) (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+  (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+  (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+  evmStackIs sp [a, b, N] **
+    divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0
+
+theorem evmAddModPartialStackPre_unfold
+    (sp : Word) (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word) :
+    evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0 =
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmStackIs sp [a, b, N] **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0) := by
+  delta evmAddModPartialStackPre
+  rfl
+
+theorem evmAddModPartialStackPre_pcFree
+    (sp : Word) (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word) :
+    (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0).pcFree := by
+  rw [evmAddModPartialStackPre_unfold]
+  pcFree
+
+instance pcFreeInst_evmAddModPartialStackPre
+    (sp : Word) (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word) :
+    Assertion.PCFree
+      (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0) :=
+  ⟨evmAddModPartialStackPre_pcFree sp a b N v1 v2 v5 v6 v7 v10 v11
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0⟩
+
 /-- ADDMOD callable-return stack theorem for the current skeleton under the
     no-overflow condition. It turns the MOD callable's `EvmWord.mod (a+b) N`
     result into `EvmWord.addmod a b N`. -/
@@ -1294,6 +1344,41 @@ theorem evm_addmod_zero_or_no_overflow_word_mod_body_stack3_post_spec_within
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
       hcallable hbase hdisjoint hCase)
+
+/-- Named-pre/named-post surface for the current partial ADDMOD theorem.
+
+    This keeps the zero-or-no-overflow domain split explicit, but packages the
+    register, operand-stack, and scratch precondition behind
+    `evmAddModPartialStackPre`, and returns the folded stack post. -/
+theorem evm_addmod_zero_or_no_overflow_named_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hCase :
+      N = 0 ∨
+      (a.toNat + b.toNat < 2 ^ 256 ∧
+        evmAddModNoOverflowBodyEvidence sp base callable_base a b N v2 v10
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          nMem shiftMem jMem retMem dMem dloMem scratchUn0)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnStackPost sp base a b N) := by
+  rw [evmAddModPartialStackPre_unfold]
+  exact evm_addmod_zero_or_no_overflow_word_mod_body_stack3_post_spec_within
+    sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hcallable hbase hdisjoint hCase
 
 -- Placeholder: full general `evm_addmod_stack_spec_within` lands in slice evm-asm-sord.
 
