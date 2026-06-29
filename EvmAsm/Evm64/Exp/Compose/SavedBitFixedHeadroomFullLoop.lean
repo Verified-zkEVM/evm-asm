@@ -205,6 +205,145 @@ theorem exp_headroom_final_advance_then_epilogue_full_post_stack_canonical_appen
       xcancel_struct hp)
     hFramed
 
+
+@[irreducible]
+def expHeadroomLoopExitFullStackPreFrame
+    (sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop) : Assertion :=
+  expTwoMulLoopExitControl iterCountNew exitCond **
+  ((.x12 ↦ᵣ (evmSp + signExtend12 ((-64) : BitVec 12))) **
+   ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+    ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+    ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+    ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+    ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3))) **
+  evmStackIs evmSp (baseWord :: expResultWord d0 d1 d2 d3 :: rest)
+
+theorem expHeadroomLoopExitFullStackPreFrame_unfold
+    {sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word}
+    {baseWord : EvmWord} {rest : List EvmWord} {exitCond : Prop} :
+    expHeadroomLoopExitFullStackPreFrame
+      sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3
+      baseWord rest exitCond =
+      (expTwoMulLoopExitControl iterCountNew exitCond **
+       ((.x12 ↦ᵣ (evmSp + signExtend12 ((-64) : BitVec 12))) **
+        ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+         ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+         ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+         ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+         ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3))) **
+       evmStackIs evmSp (baseWord :: expResultWord d0 d1 d2 d3 :: rest)) := by
+  delta expHeadroomLoopExitFullStackPreFrame
+  rfl
+
+theorem expHeadroomLoopExitFullStackPreFrame_pcFree
+    {sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word}
+    {baseWord : EvmWord} {rest : List EvmWord} {exitCond : Prop} :
+    (expHeadroomLoopExitFullStackPreFrame
+      sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3
+      baseWord rest exitCond).pcFree := by
+  rw [expHeadroomLoopExitFullStackPreFrame_unfold]
+  pcFree
+
+instance pcFreeInst_expHeadroomLoopExitFullStackPreFrame
+    (sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop) :
+    Assertion.PCFree
+      (expHeadroomLoopExitFullStackPreFrame
+        sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3
+        baseWord rest exitCond) :=
+  ⟨expHeadroomLoopExitFullStackPreFrame_pcFree⟩
+
+@[irreducible]
+def expHeadroomLoopExitFullStackPostFrame
+    (sp evmSp iterCountNew r0 r1 r2 r3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop) : Assertion :=
+  expTwoMulLoopExitControl iterCountNew exitCond **
+  ((.x2 ↦ᵣ sp) **
+   (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+   (.x5 ↦ᵣ r3) **
+   ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+   ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+   ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+   ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+   evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))
+
+theorem expHeadroomLoopExitFullStackPostFrame_unfold
+    {sp evmSp iterCountNew r0 r1 r2 r3 : Word}
+    {baseWord : EvmWord} {rest : List EvmWord} {exitCond : Prop} :
+    expHeadroomLoopExitFullStackPostFrame
+      sp evmSp iterCountNew r0 r1 r2 r3 baseWord rest exitCond =
+      (expTwoMulLoopExitControl iterCountNew exitCond **
+       ((.x2 ↦ᵣ sp) **
+        (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+        (.x5 ↦ᵣ r3) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) := by
+  delta expHeadroomLoopExitFullStackPostFrame
+  rfl
+
+theorem expHeadroomLoopExitFullStackPostFrame_pcFree
+    {sp evmSp iterCountNew r0 r1 r2 r3 : Word}
+    {baseWord : EvmWord} {rest : List EvmWord} {exitCond : Prop} :
+    (expHeadroomLoopExitFullStackPostFrame
+      sp evmSp iterCountNew r0 r1 r2 r3 baseWord rest exitCond).pcFree := by
+  rw [expHeadroomLoopExitFullStackPostFrame_unfold]
+  pcFree
+
+instance pcFreeInst_expHeadroomLoopExitFullStackPostFrame
+    (sp evmSp iterCountNew r0 r1 r2 r3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop) :
+    Assertion.PCFree
+      (expHeadroomLoopExitFullStackPostFrame
+        sp evmSp iterCountNew r0 r1 r2 r3 baseWord rest exitCond) :=
+  ⟨expHeadroomLoopExitFullStackPostFrame_pcFree⟩
+
+/-- Folded headroom loop-exit frame followed by the final pointer advance and
+    epilogue, over the canonical appended-MUL code. -/
+theorem exp_headroom_loop_exit_full_stack_frame_then_final_epilogue_canonical_appended
+    (sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop)
+    (base : Word) :
+    cpsTripleWithin (1 + 9) (base + 368) (base + 408)
+      (evm_exp_headroom_canonical_appended_mul_code base)
+      (expHeadroomLoopExitFullStackPreFrame sp evmSp iterCountNew tOld
+        r0 r1 r2 r3 d0 d1 d2 d3 baseWord rest exitCond)
+      (expHeadroomLoopExitFullStackPostFrame sp evmSp iterCountNew
+        r0 r1 r2 r3 baseWord rest exitCond) := by
+  have h := exp_headroom_final_advance_then_epilogue_full_post_stack_canonical_appended
+    sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3
+    baseWord rest exitCond base
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [expHeadroomLoopExitFullStackPreFrame_unfold] at hp
+      rw [expTwoMulLoopExitStackTailFrame_unfold]
+      rw [evmStackIs_cons] at hp
+      rw [evmStackIs_cons] at hp
+      rw [evmWordIs_sp32_limbs_eq evmSp (expResultWord d0 d1 d2 d3) d0 d1 d2 d3
+        (expResultWord_getLimbN_0 d0 d1 d2 d3)
+        (expResultWord_getLimbN_1 d0 d1 d2 d3)
+        (expResultWord_getLimbN_2 d0 d1 d2 d3)
+        (expResultWord_getLimbN_3 d0 d1 d2 d3)] at hp
+      rw [← show evmSp + signExtend12 (32 : BitVec 12) = evmSp + 32 from by
+        rw [signExtend12_32]] at hp
+      rw [← show evmSp + signExtend12 (40 : BitVec 12) = evmSp + 40 from by
+        rw [signExtend12_40]] at hp
+      rw [← show evmSp + signExtend12 (48 : BitVec 12) = evmSp + 48 from by
+        rw [signExtend12_48]] at hp
+      rw [← show evmSp + signExtend12 (56 : BitVec 12) = evmSp + 56 from by
+        rw [signExtend12_56]] at hp
+      rw [show (evmSp + signExtend12 (32 : BitVec 12) + 32 : Word) = evmSp + 64 from by
+        rw [signExtend12_32]
+        bv_addr] at hp
+      xperm_hyp hp)
+    (fun _ hp => by
+      rw [expHeadroomLoopExitFullStackPostFrame_unfold]
+      xperm_hyp hp)
+    h
+
 /-- Entry prefix plus the fixed 256-step loop, with the explicit bridge frame
     folded into the first-iteration residual precondition. This is the main
     headroom body surface before the final epilogue writes the result back. -/
