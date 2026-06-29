@@ -10149,4 +10149,42 @@ theorem cpsTripleWithin_or_pre {n : Nat} {e1 e2 : Word} {cr : CodeReq} {P1 P2 Q 
   · exact h1 R hR s hcr ⟨hh, hcompat, a, b, hab, hu, hP1, hRb⟩ hpc
   · exact h2 R hR s hcr ⟨hh, hcompat, a, b, hab, hu, hP2, hRb⟩ hpc
 
+/-- **Capstone meta-wiring.** `withdrawal_decode_characterization` reduces to the two decode cases:
+    the `some w` case is `wd_decode_successCase` (proven); the `none` case is supplied as `hfail`
+    (the forward fail-tree triple). Casing on `decodeWithdrawal srcBytes` dispatches; each case
+    provides its own `N`. This isolates the remaining work to exactly the `none`-case triple. -/
+theorem wd_decode_characterization_of_failCase
+    (base srcBase outPtr raVal sp0 s0Old s1Old s2Old : Word) (srcBytes : List Byte)
+    (hfail : base &&& 1 = 0 → base.toNat + 1444 < 2 ^ 64 → srcBase.toNat % 8 = 0 →
+      outPtr.toNat % 8 = 0 → srcBytes.length < 2 ^ 64 → srcBase.toNat + srcBytes.length < 2 ^ 64 →
+      outPtr.toNat + 48 < 2 ^ 64 →
+      (∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) →
+      (∀ k, k < 48 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) →
+      decodeWithdrawal srcBytes = none →
+      ∃ N, cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+        ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
+          (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+          wd_frameOwned sp0 **
+          bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : Byte)))
+        (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+          wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+          wd_frameOwned sp0 **
+          bytesRegion srcBase srcBytes) **
+         (fun h =>
+           (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
+              ⌜decodeWithdrawal srcBytes = some w ∧
+                w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2) ∧ d2.length = 20⌝) h)) ∨
+           (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+              ⌜decodeWithdrawal srcBytes = none⌝) h)))) :
+    withdrawal_decode_characterization base srcBase outPtr raVal sp0 s0Old s1Old s2Old srcBytes := by
+  unfold withdrawal_decode_characterization
+  intro hbe hbase hsalign hostalign hsrclt hnowrap hout48 hsvalid houtvalid
+  by_cases hd : decodeWithdrawal srcBytes = none
+  · exact hfail hbe hbase hsalign hostalign hsrclt hnowrap hout48 hsvalid houtvalid hd
+  · obtain ⟨w, hw⟩ := Option.ne_none_iff_exists'.mp hd
+    exact wd_decode_successCase base srcBase outPtr raVal sp0 s0Old s1Old s2Old srcBytes w
+      hbe hbase hsalign hostalign hsrclt hnowrap hout48 hsvalid houtvalid hw
+
 end EvmAsm.Rv64.RLP
