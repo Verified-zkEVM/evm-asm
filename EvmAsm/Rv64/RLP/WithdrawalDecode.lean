@@ -5477,23 +5477,27 @@ nextOff`), the live struct cell, and a trailing pure bundling the scalar canonic
 (`headD ≠ 0`, `length ≤ 8`) with the `decodeAux` consumption fact that
 `decodeFully_shortList_four` consumes. -/
 
-/-- **Unified field-0-body postcondition** (form-independent), parameterised by the decoded
-    content `d0` and next offset `nextOff`. Spatial atoms in the same order as the per-form
-    variant posts; the single trailing pure bundles the canonicity + the `decodeAux` step. -/
-def wd_field0UnifiedPost (base srcBase endPtr struct : Word) (srcBytes : List (BitVec 8))
-    (off : Nat) (d0 : List Byte) (nextOff : Nat) : Assertion :=
+/-- **Unified scalar-field-body postcondition** (form-independent), shared by the three scalar
+    fields (0/1/3), parameterised by the clobbered `x1` value `x1Val`, the output struct base
+    `struct` and its dword offset `structOff` (0/8/40), and — per form — the decoded content `d0`
+    and next byte offset `nextOff`. Spatial atoms in the same order as the per-form variant posts;
+    the single trailing pure bundles the scalar canonicity (`headD ≠ 0`, `length ≤ 8`) with the
+    `decodeAux` consumption fact `decodeFully_shortList_four` consumes. -/
+def wd_scalarFieldUnifiedPost (x1Val struct : Word) (structOff : BitVec 12)
+    (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (off : Nat)
+    (d0 : List Byte) (nextOff : Nat) : Assertion :=
   ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 nextOff)) **
     (.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE d0)) ** (.x11 ↦ᵣ (0 : Word)) **
-    (.x12 ↦ᵣ BitVec.ofNat 64 d0.length) ** (.x8 ↦ᵣ struct) ** (.x1 ↦ᵣ (base + 88)) **
+    (.x12 ↦ᵣ BitVec.ofNat 64 d0.length) ** (.x8 ↦ᵣ struct) ** (.x1 ↦ᵣ x1Val) **
     (.x0 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
     bytesRegion srcBase srcBytes **
-    ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+    ((struct + signExtend12 structOff) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
     (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) **
   ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
     (∀ m, decodeAux (m + 1) (srcBytes.drop off) = some (.bytes d0, srcBytes.drop nextOff))⌝
 
 /-- **Field-0 single-byte body → unified post.** Re-expresses `wd_decode_field0BodySingleByte`
-    against `wd_field0UnifiedPost` with `d0 = (drop srcOff).take 1` (`= [b]`), `nextOff = srcOff + 1`. -/
+    against `wd_scalarFieldUnifiedPost` with `d0 = (drop srcOff).take 1` (`= [b]`), `nextOff = srcOff + 1`. -/
 theorem wd_decode_field0BodySingleByte_unified
     (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
       struct mOld : Word)
@@ -5518,7 +5522,8 @@ theorem wd_decode_field0BodySingleByte_unified
         (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
         ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ mOld)))
       (fun h => ∃ d0 nextOff,
-        wd_field0UnifiedPost base srcBase endPtr struct srcBytes srcOff d0 nextOff h) := by
+        wd_scalarFieldUnifiedPost (base + 88) struct (0 : BitVec 12) srcBase endPtr
+          srcBytes srcOff d0 nextOff h) := by
   have hv := wd_decode_field0BodySingleByte base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff
     halign52 hdisjW halign88 hdisjC hsalign hoff hover hvalid hin hsingle hbyte
@@ -5539,7 +5544,7 @@ theorem wd_decode_field0BodySingleByte_unified
     (rlpItemDecode_singleByte_offsets srcBase (srcBase + BitVec.ofNat 64 srcOff)
       ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12)) (1 : Word) srcOff
       rfl rfl rfl).1
-  unfold wd_field0UnifiedPost
+  unfold wd_scalarFieldUnifiedPost
   refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
   rw [hlen1, ← hx9]
   have hpf : (⌜0 < 1 ∧ getByteAt srcBytes srcOff ≠ 0 ∧ 1 ≤ 8⌝ **
@@ -5559,7 +5564,7 @@ theorem wd_decode_field0BodySingleByte_unified
   xperm_hyp hsp
 
 /-- **Field-0 short-byte-string body → unified post.** Re-expresses `wd_decode_field0BodyShortBytes`
-    against `wd_field0UnifiedPost` with `d0 = (drop (off+1)).take L`, `nextOff = off + 1 + L`
+    against `wd_scalarFieldUnifiedPost` with `d0 = (drop (off+1)).take L`, `nextOff = off + 1 + L`
     (`L = b - 0x80`); the `decodeAux` step is exactly `rlpItemDecode_shortBytes_decodeAux`. -/
 theorem wd_decode_field0BodyShortBytes_unified
     (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
@@ -5597,7 +5602,8 @@ theorem wd_decode_field0BodyShortBytes_unified
         (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
         ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ mOld)))
       (fun h => ∃ d0 nextOff,
-        wd_field0UnifiedPost base srcBase endPtr struct srcBytes off d0 nextOff h) := by
+        wd_scalarFieldUnifiedPost (base + 88) struct (0 : BitVec 12) srcBase endPtr
+          srcBytes off d0 nextOff h) := by
   have hv := wd_decode_field0BodyShortBytes base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
     halign52 hdisjW halign88 hdisjC hsalign hoff hover hvalid hin hlo hhi hcanon hfit
@@ -5620,7 +5626,7 @@ theorem wd_decode_field0BodyShortBytes_unified
       BitVec.ofNat 64 ((srcBytes[off]'hoff).toNat - 0x80) =
       srcBase + BitVec.ofNat 64 (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
-  unfold wd_field0UnifiedPost
+  unfold wd_scalarFieldUnifiedPost
   refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU⟩
   rw [hlenL, ← hx9]
   have hpf : (⌜0 < (srcBytes[off]'hoff).toNat - 0x80 ∧ getByteAt srcBytes (off + 1) ≠ 0 ∧
@@ -5644,7 +5650,7 @@ theorem wd_decode_field0BodyShortBytes_unified
   xperm_hyp hsp
 
 /-- **Field-0 empty body → unified post.** Re-expresses `wd_decode_field0BodyEmpty` against
-    `wd_field0UnifiedPost` with `d0 = []`, `nextOff = off + 1`: the empty string is the canonical
+    `wd_scalarFieldUnifiedPost` with `d0 = []`, `nextOff = off + 1`: the empty string is the canonical
     encoding of the scalar `0`, so `headD 1 = 1 ≠ 0` vacuously and the stored value is `0`. -/
 theorem wd_decode_field0BodyEmpty_unified
     (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
@@ -5674,7 +5680,8 @@ theorem wd_decode_field0BodyEmpty_unified
         (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
         ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ mOld)))
       (fun h => ∃ d0 nextOff,
-        wd_field0UnifiedPost base srcBase endPtr struct srcBytes off d0 nextOff h) := by
+        wd_scalarFieldUnifiedPost (base + 88) struct (0 : BitVec 12) srcBase endPtr
+          srcBytes off d0 nextOff h) := by
   have hv := wd_decode_field0BodyEmpty base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
     halign52 hdisjW halign88 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty
@@ -5696,7 +5703,7 @@ theorem wd_decode_field0BodyEmpty_unified
   have hx9 : (srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) + BitVec.ofNat 64 0 =
       srcBase + BitVec.ofNat 64 (off + 1) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
-  unfold wd_field0UnifiedPost
+  unfold wd_scalarFieldUnifiedPost
   refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
   rw [hval0, ← hx9, List.length_nil]
   have hpf : (⌜(0 : Nat) = 0⌝ **
@@ -5713,5 +5720,456 @@ theorem wd_decode_field0BodyEmpty_unified
   have hsp := ((sepConj_pure_left _).1 ((sepConj_pure_left _).1
     ((sepConj_pure_left _).1 hpf).2).2).2
   xperm_hyp hsp
+
+/-- **Field-1 single-byte body → unified post.** Re-expresses `wd_decode_field1BodySingleByte`
+    against `wd_scalarFieldUnifiedPost` with `d0 = (drop srcOff).take 1` (`= [b]`), `nextOff = srcOff + 1`. -/
+theorem wd_decode_field1BodySingleByte_unified
+    (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+      struct mOld : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign108 : (base + 108) &&& ~~~1 = base + 108)
+    (hdisjW : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign144 : (base + 144) &&& ~~~1 = base + 144)
+    (hdisjC : (CodeReq.singleton (base + 140) (.JAL .x1 (816 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hsingle : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hbyte : getByteAt srcBytes srcOff ≠ 0) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 1 + 11)) + 2))
+      (base + 96) (base + 152) (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+        ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (8 : BitVec 12)) ↦ₘ mOld)))
+      (fun h => ∃ d0 nextOff,
+        wd_scalarFieldUnifiedPost (base + 144) struct (8 : BitVec 12) srcBase endPtr
+          srcBytes srcOff d0 nextOff h) := by
+  have hv := wd_decode_field1BodySingleByte base srcBase endPtr vOld a0Old a1Old a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff
+    halign108 hdisjW halign144 hdisjC hsalign hoff hover hvalid hin hsingle hbyte
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
+  refine ⟨(srcBytes.drop srcOff).take 1, srcOff + 1, ?_⟩
+  have hd0 : (srcBytes.drop srcOff).take 1 = [srcBytes[srcOff]'hoff] := by
+    rw [drop_eq_cons_of_getElem? (List.getElem?_eq_getElem hoff)]; rfl
+  have hlen1 : ((srcBytes.drop srcOff).take 1).length = 1 := by rw [hd0]; rfl
+  have hlen8 : ((srcBytes.drop srcOff).take 1).length ≤ 8 := by rw [hlen1]; norm_num
+  have hhead : ((srcBytes.drop srcOff).take 1).headD 1 ≠ 0 := by
+    rw [headD_take_drop_eq_getByteAt srcBytes srcOff 1 (by norm_num) hoff]; exact hbyte
+  have hdecU : ∀ m, decodeAux (m + 1) (srcBytes.drop srcOff) =
+      some (.bytes ((srcBytes.drop srcOff).take 1), srcBytes.drop (srcOff + 1)) := by
+    intro m; rw [hd0]
+    exact rlpItemDecode_singleByte_decodeAux (List.getElem?_eq_getElem hoff) hsingle m
+  have hx9 : (srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12) =
+      srcBase + BitVec.ofNat 64 (srcOff + 1) :=
+    (rlpItemDecode_singleByte_offsets srcBase (srcBase + BitVec.ofNat 64 srcOff)
+      ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12)) (1 : Word) srcOff
+      rfl rfl rfl).1
+  unfold wd_scalarFieldUnifiedPost
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  rw [hlen1, ← hx9]
+  have hpf : (⌜0 < 1 ∧ getByteAt srcBytes srcOff ≠ 0 ∧ 1 ≤ 8⌝ **
+      ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝ **
+      ⌜(0 : Word) = (0 : Word)⌝ **
+      ((.x9 ↦ᵣ ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12))) **
+        (.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take 1))) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (BitVec.ofNat 64 1)) ** (.x8 ↦ᵣ struct) **
+        (.x1 ↦ᵣ (base + 144)) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion srcBase srcBytes **
+        ((struct + signExtend12 (8 : BitVec 12)) ↦ₘ
+          BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take 1))) **
+        (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) h := by
+    xperm_hyp hp
+  have hsp := ((sepConj_pure_left _).1 ((sepConj_pure_left _).1
+    ((sepConj_pure_left _).1 hpf).2).2).2
+  xperm_hyp hsp
+
+/-- **Field-1 short-byte-string body → unified post.** Re-expresses `wd_decode_field1BodyShortBytes`
+    against `wd_scalarFieldUnifiedPost` with `d0 = (drop (off+1)).take L`, `nextOff = off + 1 + L`
+    (`L = b - 0x80`); the `decodeAux` step is exactly `rlpItemDecode_shortBytes_decodeAux`. -/
+theorem wd_decode_field1BodyShortBytes_unified
+    (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+      struct mOld : Word)
+    (srcBytes : List (BitVec 8)) (off : Nat)
+    (halign108 : (base + 108) &&& ~~~1 = base + 108)
+    (hdisjW : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign144 : (base + 144) &&& ~~~1 = base + 144)
+    (hdisjC : (CodeReq.singleton (base + 140) (.JAL .x1 (816 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : off < srcBytes.length)
+    (hover : srcBase.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 off) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
+    (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (hcanon : (srcBytes[off]'hoff).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+      ∃ c : BitVec 8, srcBytes[off + 1]? = some c ∧ ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)
+    (hfit : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64 - (0x80 : Word))
+      (endPtr - (srcBase + BitVec.ofNat 64 off)) = true)
+    (hcontentlen : off + 1 + ((srcBytes[off]'hoff).toNat - 0x80) ≤ srcBytes.length)
+    (hcontentover : srcBase.toNat + (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) ≤ 2 ^ 64)
+    (hcontentvalid : ∀ k, k < (srcBytes[off]'hoff).toNat - 0x80 →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1 + k)) = true)
+    (hpos : 0 < (srcBytes[off]'hoff).toNat - 0x80)
+    (hbyte : getByteAt srcBytes (off + 1) ≠ 0)
+    (hlen8 : (srcBytes[off]'hoff).toNat - 0x80 ≤ 8) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) +
+        (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
+      (base + 96) (base + 152) (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+        ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (8 : BitVec 12)) ↦ₘ mOld)))
+      (fun h => ∃ d0 nextOff,
+        wd_scalarFieldUnifiedPost (base + 144) struct (8 : BitVec 12) srcBase endPtr
+          srcBytes off d0 nextOff h) := by
+  have hv := wd_decode_field1BodyShortBytes base srcBase endPtr vOld a0Old a1Old a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
+    halign108 hdisjW halign144 hdisjC hsalign hoff hover hvalid hin hlo hhi hcanon hfit
+    hcontentlen hcontentover hcontentvalid hpos hbyte hlen8
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
+  refine ⟨(srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80),
+          off + 1 + ((srcBytes[off]'hoff).toNat - 0x80), ?_⟩
+  have hoff1 : off + 1 < srcBytes.length := by omega
+  have hlenL : ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)).length =
+      (srcBytes[off]'hoff).toNat - 0x80 := by
+    rw [List.length_take, List.length_drop]; omega
+  have hlen8' : ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)).length ≤ 8 := by
+    rw [hlenL]; exact hlen8
+  have hhead : ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)).headD 1 ≠ 0 := by
+    rw [headD_take_drop_eq_getByteAt srcBytes (off + 1) ((srcBytes[off]'hoff).toNat - 0x80) hpos hoff1]
+    exact hbyte
+  have hdecU := rlpItemDecode_shortBytes_decodeAux (List.getElem?_eq_getElem hoff) hlo hhi
+    hcanon hcontentlen
+  have hx9 : (srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) +
+      BitVec.ofNat 64 ((srcBytes[off]'hoff).toNat - 0x80) =
+      srcBase + BitVec.ofNat 64 (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) := by
+    rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
+  unfold wd_scalarFieldUnifiedPost
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU⟩
+  rw [hlenL, ← hx9]
+  have hpf : (⌜0 < (srcBytes[off]'hoff).toNat - 0x80 ∧ getByteAt srcBytes (off + 1) ≠ 0 ∧
+        (srcBytes[off]'hoff).toNat - 0x80 ≤ 8⌝ **
+      ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝ **
+      ⌜(0 : Word) = (0 : Word)⌝ **
+      ((.x9 ↦ᵣ ((srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) +
+          BitVec.ofNat 64 ((srcBytes[off]'hoff).toNat - 0x80))) **
+        (.x10 ↦ᵣ BitVec.ofNat 64
+          (Nat.fromBytesBE ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ (BitVec.ofNat 64 ((srcBytes[off]'hoff).toNat - 0x80))) ** (.x8 ↦ᵣ struct) **
+        (.x1 ↦ᵣ (base + 144)) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion srcBase srcBytes **
+        ((struct + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64
+          (Nat.fromBytesBE ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)))) **
+        (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) h := by
+    xperm_hyp hp
+  have hsp := ((sepConj_pure_left _).1 ((sepConj_pure_left _).1
+    ((sepConj_pure_left _).1 hpf).2).2).2
+  xperm_hyp hsp
+
+/-- **Field-1 empty body → unified post.** Re-expresses `wd_decode_field1BodyEmpty` against
+    `wd_scalarFieldUnifiedPost` with `d0 = []`, `nextOff = off + 1`: the empty string is the canonical
+    encoding of the scalar `0`, so `headD 1 = 1 ≠ 0` vacuously and the stored value is `0`. -/
+theorem wd_decode_field1BodyEmpty_unified
+    (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+      struct mOld : Word)
+    (srcBytes : List (BitVec 8)) (off : Nat)
+    (halign108 : (base + 108) &&& ~~~1 = base + 108)
+    (hdisjW : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign144 : (base + 144) &&& ~~~1 = base + 144)
+    (hdisjC : (CodeReq.singleton (base + 140) (.JAL .x1 (816 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : off < srcBytes.length)
+    (hover : srcBase.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 off) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
+    (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
+    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) +
+        (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
+      (base + 96) (base + 152) (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+        ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (8 : BitVec 12)) ↦ₘ mOld)))
+      (fun h => ∃ d0 nextOff,
+        wd_scalarFieldUnifiedPost (base + 144) struct (8 : BitVec 12) srcBase endPtr
+          srcBytes off d0 nextOff h) := by
+  have hv := wd_decode_field1BodyEmpty base srcBase endPtr vOld a0Old a1Old a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
+    halign108 hdisjW halign144 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty
+    hoff1 hover1 hvalid1
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
+  rw [hempty] at hp
+  refine ⟨([] : List (BitVec 8)), off + 1, ?_⟩
+  have hhead : ([] : List (BitVec 8)).headD 1 ≠ 0 := by decide
+  have hlen8 : ([] : List (BitVec 8)).length ≤ 8 := by norm_num
+  have hval0 : BitVec.ofNat 64 (Nat.fromBytesBE ([] : List (BitVec 8))) = (0 : Word) := by rfl
+  have hdecU : ∀ m, decodeAux (m + 1) (srcBytes.drop off) =
+      some (.bytes ([] : List (BitVec 8)), srcBytes.drop (off + 1)) := by
+    intro m
+    have h := rlpItemDecode_shortBytes_decodeAux (List.getElem?_eq_getElem hoff) hlo hhi
+      (fun _ => by exfalso; simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at hlo; bv_omega)
+      (by rw [hempty]; omega) m
+    rw [hempty] at h
+    simpa using h
+  have hx9 : (srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) + BitVec.ofNat 64 0 =
+      srcBase + BitVec.ofNat 64 (off + 1) := by
+    rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
+  unfold wd_scalarFieldUnifiedPost
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  rw [hval0, ← hx9, List.length_nil]
+  have hpf : (⌜(0 : Nat) = 0⌝ **
+      ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝ **
+      ⌜(0 : Word) = (0 : Word)⌝ **
+      ((.x9 ↦ᵣ ((srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) +
+          BitVec.ofNat 64 0)) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (BitVec.ofNat 64 0)) **
+        (.x8 ↦ᵣ struct) ** (.x1 ↦ᵣ (base + 144)) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion srcBase srcBytes **
+        ((struct + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word)) **
+        (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) h := by
+    xperm_hyp hp
+  have hsp := ((sepConj_pure_left _).1 ((sepConj_pure_left _).1
+    ((sepConj_pure_left _).1 hpf).2).2).2
+  xperm_hyp hsp
+
+/-- **Field-3 single-byte body → unified post.** Re-expresses `wd_decode_field3BodySingleByte`
+    against `wd_scalarFieldUnifiedPost` with `d0 = (drop srcOff).take 1` (`= [b]`), `nextOff = srcOff + 1`. -/
+theorem wd_decode_field3BodySingleByte_unified
+    (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+      struct mOld : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (halign232 : (base + 232) &&& ~~~1 = base + 232)
+    (hdisjW : (CodeReq.singleton (base + 228) (.JAL .x1 (316 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign268 : (base + 268) &&& ~~~1 = base + 268)
+    (hdisjC : (CodeReq.singleton (base + 264) (.JAL .x1 (692 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hsingle : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hbyte : getByteAt srcBytes srcOff ≠ 0) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 1 + 11)) + 2))
+      (base + 220) (base + 276) (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+        ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (40 : BitVec 12)) ↦ₘ mOld)))
+      (fun h => ∃ d0 nextOff,
+        wd_scalarFieldUnifiedPost (base + 268) struct (40 : BitVec 12) srcBase endPtr
+          srcBytes srcOff d0 nextOff h) := by
+  have hv := wd_decode_field3BodySingleByte base srcBase endPtr vOld a0Old a1Old a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff
+    halign232 hdisjW halign268 hdisjC hsalign hoff hover hvalid hin hsingle hbyte
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
+  refine ⟨(srcBytes.drop srcOff).take 1, srcOff + 1, ?_⟩
+  have hd0 : (srcBytes.drop srcOff).take 1 = [srcBytes[srcOff]'hoff] := by
+    rw [drop_eq_cons_of_getElem? (List.getElem?_eq_getElem hoff)]; rfl
+  have hlen1 : ((srcBytes.drop srcOff).take 1).length = 1 := by rw [hd0]; rfl
+  have hlen8 : ((srcBytes.drop srcOff).take 1).length ≤ 8 := by rw [hlen1]; norm_num
+  have hhead : ((srcBytes.drop srcOff).take 1).headD 1 ≠ 0 := by
+    rw [headD_take_drop_eq_getByteAt srcBytes srcOff 1 (by norm_num) hoff]; exact hbyte
+  have hdecU : ∀ m, decodeAux (m + 1) (srcBytes.drop srcOff) =
+      some (.bytes ((srcBytes.drop srcOff).take 1), srcBytes.drop (srcOff + 1)) := by
+    intro m; rw [hd0]
+    exact rlpItemDecode_singleByte_decodeAux (List.getElem?_eq_getElem hoff) hsingle m
+  have hx9 : (srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12) =
+      srcBase + BitVec.ofNat 64 (srcOff + 1) :=
+    (rlpItemDecode_singleByte_offsets srcBase (srcBase + BitVec.ofNat 64 srcOff)
+      ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12)) (1 : Word) srcOff
+      rfl rfl rfl).1
+  unfold wd_scalarFieldUnifiedPost
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  rw [hlen1, ← hx9]
+  have hpf : (⌜0 < 1 ∧ getByteAt srcBytes srcOff ≠ 0 ∧ 1 ≤ 8⌝ **
+      ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝ **
+      ⌜(0 : Word) = (0 : Word)⌝ **
+      ((.x9 ↦ᵣ ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12))) **
+        (.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take 1))) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (BitVec.ofNat 64 1)) ** (.x8 ↦ᵣ struct) **
+        (.x1 ↦ᵣ (base + 268)) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion srcBase srcBytes **
+        ((struct + signExtend12 (40 : BitVec 12)) ↦ₘ
+          BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take 1))) **
+        (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) h := by
+    xperm_hyp hp
+  have hsp := ((sepConj_pure_left _).1 ((sepConj_pure_left _).1
+    ((sepConj_pure_left _).1 hpf).2).2).2
+  xperm_hyp hsp
+
+/-- **Field-3 short-byte-string body → unified post.** Re-expresses `wd_decode_field3BodyShortBytes`
+    against `wd_scalarFieldUnifiedPost` with `d0 = (drop (off+1)).take L`, `nextOff = off + 1 + L`
+    (`L = b - 0x80`); the `decodeAux` step is exactly `rlpItemDecode_shortBytes_decodeAux`. -/
+theorem wd_decode_field3BodyShortBytes_unified
+    (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+      struct mOld : Word)
+    (srcBytes : List (BitVec 8)) (off : Nat)
+    (halign232 : (base + 232) &&& ~~~1 = base + 232)
+    (hdisjW : (CodeReq.singleton (base + 228) (.JAL .x1 (316 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign268 : (base + 268) &&& ~~~1 = base + 268)
+    (hdisjC : (CodeReq.singleton (base + 264) (.JAL .x1 (692 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : off < srcBytes.length)
+    (hover : srcBase.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 off) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
+    (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (hcanon : (srcBytes[off]'hoff).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+      ∃ c : BitVec 8, srcBytes[off + 1]? = some c ∧ ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)
+    (hfit : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64 - (0x80 : Word))
+      (endPtr - (srcBase + BitVec.ofNat 64 off)) = true)
+    (hcontentlen : off + 1 + ((srcBytes[off]'hoff).toNat - 0x80) ≤ srcBytes.length)
+    (hcontentover : srcBase.toNat + (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) ≤ 2 ^ 64)
+    (hcontentvalid : ∀ k, k < (srcBytes[off]'hoff).toNat - 0x80 →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1 + k)) = true)
+    (hpos : 0 < (srcBytes[off]'hoff).toNat - 0x80)
+    (hbyte : getByteAt srcBytes (off + 1) ≠ 0)
+    (hlen8 : (srcBytes[off]'hoff).toNat - 0x80 ≤ 8) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) +
+        (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
+      (base + 220) (base + 276) (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+        ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (40 : BitVec 12)) ↦ₘ mOld)))
+      (fun h => ∃ d0 nextOff,
+        wd_scalarFieldUnifiedPost (base + 268) struct (40 : BitVec 12) srcBase endPtr
+          srcBytes off d0 nextOff h) := by
+  have hv := wd_decode_field3BodyShortBytes base srcBase endPtr vOld a0Old a1Old a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
+    halign232 hdisjW halign268 hdisjC hsalign hoff hover hvalid hin hlo hhi hcanon hfit
+    hcontentlen hcontentover hcontentvalid hpos hbyte hlen8
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
+  refine ⟨(srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80),
+          off + 1 + ((srcBytes[off]'hoff).toNat - 0x80), ?_⟩
+  have hoff1 : off + 1 < srcBytes.length := by omega
+  have hlenL : ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)).length =
+      (srcBytes[off]'hoff).toNat - 0x80 := by
+    rw [List.length_take, List.length_drop]; omega
+  have hlen8' : ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)).length ≤ 8 := by
+    rw [hlenL]; exact hlen8
+  have hhead : ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)).headD 1 ≠ 0 := by
+    rw [headD_take_drop_eq_getByteAt srcBytes (off + 1) ((srcBytes[off]'hoff).toNat - 0x80) hpos hoff1]
+    exact hbyte
+  have hdecU := rlpItemDecode_shortBytes_decodeAux (List.getElem?_eq_getElem hoff) hlo hhi
+    hcanon hcontentlen
+  have hx9 : (srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) +
+      BitVec.ofNat 64 ((srcBytes[off]'hoff).toNat - 0x80) =
+      srcBase + BitVec.ofNat 64 (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) := by
+    rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
+  unfold wd_scalarFieldUnifiedPost
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU⟩
+  rw [hlenL, ← hx9]
+  have hpf : (⌜0 < (srcBytes[off]'hoff).toNat - 0x80 ∧ getByteAt srcBytes (off + 1) ≠ 0 ∧
+        (srcBytes[off]'hoff).toNat - 0x80 ≤ 8⌝ **
+      ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝ **
+      ⌜(0 : Word) = (0 : Word)⌝ **
+      ((.x9 ↦ᵣ ((srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) +
+          BitVec.ofNat 64 ((srcBytes[off]'hoff).toNat - 0x80))) **
+        (.x10 ↦ᵣ BitVec.ofNat 64
+          (Nat.fromBytesBE ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)))) **
+        (.x11 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ (BitVec.ofNat 64 ((srcBytes[off]'hoff).toNat - 0x80))) ** (.x8 ↦ᵣ struct) **
+        (.x1 ↦ᵣ (base + 268)) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion srcBase srcBytes **
+        ((struct + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64
+          (Nat.fromBytesBE ((srcBytes.drop (off + 1)).take ((srcBytes[off]'hoff).toNat - 0x80)))) **
+        (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) h := by
+    xperm_hyp hp
+  have hsp := ((sepConj_pure_left _).1 ((sepConj_pure_left _).1
+    ((sepConj_pure_left _).1 hpf).2).2).2
+  xperm_hyp hsp
+
+/-- **Field-3 empty body → unified post.** Re-expresses `wd_decode_field3BodyEmpty` against
+    `wd_scalarFieldUnifiedPost` with `d0 = []`, `nextOff = off + 1`: the empty string is the canonical
+    encoding of the scalar `0`, so `headD 1 = 1 ≠ 0` vacuously and the stored value is `0`. -/
+theorem wd_decode_field3BodyEmpty_unified
+    (base srcBase endPtr vOld a0Old a1Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+      struct mOld : Word)
+    (srcBytes : List (BitVec 8)) (off : Nat)
+    (halign232 : (base + 232) &&& ~~~1 = base + 232)
+    (hdisjW : (CodeReq.singleton (base + 228) (.JAL .x1 (316 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign268 : (base + 268) &&& ~~~1 = base + 268)
+    (hdisjC : (CodeReq.singleton (base + 264) (.JAL .x1 (692 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : off < srcBytes.length)
+    (hover : srcBase.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 off) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
+    (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
+    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) +
+        (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
+      (base + 220) (base + 276) (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) **
+        (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+        ((.x8 ↦ᵣ struct) ** ((struct + signExtend12 (40 : BitVec 12)) ↦ₘ mOld)))
+      (fun h => ∃ d0 nextOff,
+        wd_scalarFieldUnifiedPost (base + 268) struct (40 : BitVec 12) srcBase endPtr
+          srcBytes off d0 nextOff h) := by
+  have hv := wd_decode_field3BodyEmpty base srcBase endPtr vOld a0Old a1Old a2Old
+    t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
+    halign232 hdisjW halign268 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty
+    hoff1 hover1 hvalid1
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
+  rw [hempty] at hp
+  refine ⟨([] : List (BitVec 8)), off + 1, ?_⟩
+  have hhead : ([] : List (BitVec 8)).headD 1 ≠ 0 := by decide
+  have hlen8 : ([] : List (BitVec 8)).length ≤ 8 := by norm_num
+  have hval0 : BitVec.ofNat 64 (Nat.fromBytesBE ([] : List (BitVec 8))) = (0 : Word) := by rfl
+  have hdecU : ∀ m, decodeAux (m + 1) (srcBytes.drop off) =
+      some (.bytes ([] : List (BitVec 8)), srcBytes.drop (off + 1)) := by
+    intro m
+    have h := rlpItemDecode_shortBytes_decodeAux (List.getElem?_eq_getElem hoff) hlo hhi
+      (fun _ => by exfalso; simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at hlo; bv_omega)
+      (by rw [hempty]; omega) m
+    rw [hempty] at h
+    simpa using h
+  have hx9 : (srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) + BitVec.ofNat 64 0 =
+      srcBase + BitVec.ofNat 64 (off + 1) := by
+    rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
+  unfold wd_scalarFieldUnifiedPost
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  rw [hval0, ← hx9, List.length_nil]
+  have hpf : (⌜(0 : Nat) = 0⌝ **
+      ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝ **
+      ⌜(0 : Word) = (0 : Word)⌝ **
+      ((.x9 ↦ᵣ ((srcBase + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12)) +
+          BitVec.ofNat 64 0)) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (BitVec.ofNat 64 0)) **
+        (.x8 ↦ᵣ struct) ** (.x1 ↦ᵣ (base + 268)) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** bytesRegion srcBase srcBytes **
+        ((struct + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+        (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) h := by
+    xperm_hyp hp
+  have hsp := ((sepConj_pure_left _).1 ((sepConj_pure_left _).1
+    ((sepConj_pure_left _).1 hpf).2).2).2
+  xperm_hyp hsp
+
 
 end EvmAsm.Rv64.RLP
