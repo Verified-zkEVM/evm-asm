@@ -646,6 +646,34 @@ theorem evm_addmod_pow256_minus_one_local_call_restore_program_sub
      evm_addmod_pow256_call_mod modOff)
 
 
+
+abbrev evm_addmod_pow256_plus_one_local_call_restore_code
+    (base : Word) (modOff : BitVec 21) : CodeReq :=
+  CodeReq.ofProg
+    (base + BitVec.ofNat 64 (4 *
+      (evm_addmod_pow256_prepare_minus_one_mod_args ;;
+       evm_addmod_pow256_call_mod modOff).length))
+    (evm_addmod_pow256_prepare_plus_one_mod_args ;;
+     evm_addmod_pow256_call_mod modOff)
+
+/-- The second local pow256 prepare/call/restore suffix is part of the concrete helper program. -/
+theorem evm_addmod_pow256_plus_one_local_call_restore_program_sub
+    (base : Word) (modOff : BitVec 21) :
+    ∀ a i, (evm_addmod_pow256_plus_one_local_call_restore_code base modOff) a = some i →
+      (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)) a = some i := by
+  unfold evm_addmod_pow256_plus_one_local_call_restore_code evm_addmod_pow256_mod_n
+  exact CodeReq.ofProg_mono_append_right base
+    (evm_addmod_pow256_prepare_minus_one_mod_args ;;
+     evm_addmod_pow256_call_mod modOff)
+    (evm_addmod_pow256_prepare_plus_one_mod_args ;;
+     evm_addmod_pow256_call_mod modOff)
+    (by
+      have hbound : 4 * (evm_addmod_pow256_mod_n modOff).length < 2^64 := by
+        rw [evm_addmod_pow256_mod_n_length]
+        decide
+      unfold evm_addmod_pow256_mod_n at hbound
+      exact hbound)
+
 /-- The concrete pow256 helper program is the left half of the helper+callable code. -/
 theorem evm_addmod_pow256_mod_n_program_sub
     (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) :
