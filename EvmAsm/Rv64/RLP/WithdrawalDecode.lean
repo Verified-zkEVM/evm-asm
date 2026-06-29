@@ -10092,4 +10092,48 @@ theorem wd_outOwned_of_zeroRegion (outPtr : Word) :
       (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))))
     h hp
 
+/-- **walk_init fail arm.** One of the seven nonzero-status arms of the `walk_init` 9-way post
+    (a2 = v ≠ 0: empty / not-a-list / short-mismatch / long-{truncated,leading-zero,non-minimal,
+    mismatch}) routes through the status guard (idx 7) to the fail endpoint. Uniform over the arm's
+    cursor/end values `c`/`e` and its residual fact `P`. Used for all seven fail arms of the
+    walk_init dispatch. -/
+theorem wd_decode_walkInitFailArm
+    (base sp0 raVal s0Old s1Old s2Old structPtr outPtr srcBase : Word) (srcBytes : List Byte)
+    (c e v : Word) (P : Prop) (hv : v ≠ (0 : Word))
+    (hdec : decodeWithdrawal srcBytes = none) :
+    cpsTripleWithin (1 + 7) (base + 28) (raVal &&& ~~~1) (withdrawal_decode_code base)
+      (⌜P⌝ **
+        ((.x12 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ c) ** (.x1 ↦ᵣ (base + 28)) **
+         (.x8 ↦ᵣ structPtr) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+         (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+         ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old) **
+         wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+         bytesRegion srcBase srcBytes ** (.x11 ↦ᵣ e) **
+         bytesRegion outPtr (List.replicate 48 (0 : BitVec 8))))
+      (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+        wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
+            ⌜decodeWithdrawal srcBytes = some w ∧ w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2)
+              ∧ d2.length = 20⌝) h)) ∨
+         (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+            ⌜decodeWithdrawal srcBytes = none⌝) h))) := by
+  refine cpsTripleWithin_weaken (fun s hp => ?_) (fun _ x => x)
+    (wd_decode_failViaBnez12 base sp0 raVal s0Old s1Old s2Old outPtr srcBase srcBytes
+      (base + 28) structPtr s1Old s2Old c v 7 (276 : BitVec 13) hv
+      (by rw [withdrawal_decode_prog_length]; norm_num)
+      (by decide)
+      (by rw [show (4 * 7 : Nat) = 28 from rfl,
+              show signExtend13 (276 : BitVec 13) = (276 : Word) from by decide]; bv_omega)
+      hdec)
+  have hp1 := ((sepConj_pure_left s).1 hp).2
+  have hp2 := (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (regIs_implies_regOwn .x11) (wd_outOwned_of_zeroRegion outPtr))))))))))))))))))) s hp1
+  xperm_hyp hp2
+
 end EvmAsm.Rv64.RLP
