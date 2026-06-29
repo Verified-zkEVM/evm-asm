@@ -10188,4 +10188,24 @@ theorem wd_decode_characterization_of_failCase
     exact wd_decode_successCase base srcBase outPtr raVal sp0 s0Old s1Old s2Old srcBytes w
       hbe hbase hsalign hostalign hsrclt hnowrap hout48 hsvalid houtvalid hw
 
+/-- **Call block: `rlp_walk_init`, empty-list arm.** Like `wd_call_walk_init_short` but uses the
+    `len = 0` leaf (`rlp_walk_init_empty_spec_within`, 3 steps): when `a1 = list_len = 0` the routine
+    returns status `a2 = 2` (empty) without reading any bytes. The reusable walk_init call for the
+    `|srcBytes| = 0` fail path. -/
+theorem wd_call_walk_init_empty
+    (callerPC calleeEntry a2Old vOld : Word) (offset : BitVec 21)
+    (hoffset : callerPC + signExtend21 offset = calleeEntry)
+    (halign : (callerPC + 4) &&& ~~~1 = callerPC + 4)
+    (hdisj : (CodeReq.singleton callerPC (.JAL .x1 offset)).Disjoint
+      (rlp_walk_init_code calleeEntry)) :
+    cpsTripleWithin (1 + 3) callerPC (callerPC + 4)
+      ((CodeReq.singleton callerPC (.JAL .x1 offset)).union (rlp_walk_init_code calleeEntry))
+      ((.x1 ↦ᵣ vOld) **
+        ((.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word))))
+      ((.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (2 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (callerPC + 4))) := by
+  have hcallee := rlp_walk_init_empty_spec_within calleeEntry (callerPC + 4) a2Old
+  exact cpsCallWithin offset hoffset halign (by pcFree) hdisj
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) hcallee)
+
 end EvmAsm.Rv64.RLP
