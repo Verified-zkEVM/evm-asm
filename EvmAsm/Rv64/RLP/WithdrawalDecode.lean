@@ -11086,4 +11086,53 @@ theorem wd_decode_failLmism
         (srcBase + BitVec.ofNat 64 0)
         ((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length) 7 True (by decide) hdec))
 
+/-- A valid byte access address is bounded by `RAM_MEM_END = 0xc0000000` (the largest valid
+    region end) — well below `2^64`, so any small offset added to it cannot wrap. -/
+theorem wd_isValidByteAccess_toNat_le {addr : Word} (h : isValidByteAccess addr = true) :
+    addr.toNat ≤ 0xc0000000 := by
+  simp only [isValidByteAccess_eq, isValidMemAddr_eq, Bool.or_eq_true, Bool.and_eq_true,
+    decide_eq_true_eq, MEM_START, MEM_END, INPUT_MEM_START, INPUT_MEM_END, RAM_MEM_START,
+    RAM_MEM_END] at h
+  omega
+
+/-- **Long-header access facts.** When a long-list prefix (`≥ 0xf8`) header *fits* the input
+    (`h_fits`: declared header-end `≤u` input end) and the buffer base is a valid address (so it
+    is `≤ 0xc0000000`, ruling out 64-bit wraparound of `srcBase + (lol+1)`), the length-of-length
+    bytes `srcBase+1 .. srcBase+1+lol` are in-bounds and valid (`lol = (pfx-0xf7) ∈ [1,8]`). This
+    derives the six length-byte access hypotheses that `llz`/`lmin`/`lmism` need, from the
+    capstone's `hsvalid`/`hnowrap` and `h_fits`. -/
+theorem wd_longHeader_access_facts (srcBase : Word) (srcBytes : List Byte)
+    (hsrcLen0 : 0 < srcBytes.length) (hsrclt : srcBytes.length < 2 ^ 64)
+    (hnowrap : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsvalid : ∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (h_ge_f8 : ¬ BitVec.ult ((srcBytes[0]'hsrcLen0).zeroExtend 64) (0xf8 : Word) = true)
+    (h_fits : ¬ BitVec.ult ((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length)
+      ((srcBase + BitVec.ofNat 64 0) +
+        (((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+      = true) :
+    (0 + 1 < srcBytes.length) ∧ (srcBase.toNat + (0 + 1) < 2 ^ 64) ∧
+    (isValidByteAccess (srcBase + BitVec.ofNat 64 (0 + 1)) = true) ∧
+    (0 + 1 + ((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xf7 : Word)).toNat ≤ srcBytes.length) ∧
+    (srcBase.toNat + (0 + 1 + ((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xf7 : Word)).toNat)
+      ≤ 2 ^ 64) ∧
+    (∀ k, k < ((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xf7 : Word)).toNat →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 (0 + 1 + k)) = true) := by
+  have hb := (srcBytes[0]'hsrcLen0).isLt
+  have hgf := h_ge_f8
+  simp only [BitVec.ult, decide_eq_true_eq, not_lt] at hgf
+  have hfit := h_fits
+  simp only [BitVec.ult, decide_eq_true_eq, not_lt] at hfit
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at hfit
+  have hsb : srcBase.toNat ≤ 0xc0000000 := by
+    have hv0 := hsvalid 0 hsrcLen0
+    rw [show srcBase + BitVec.ofNat 64 0 = srcBase from by bv_omega] at hv0
+    exact wd_isValidByteAccess_toNat_le hv0
+  have hkey : 1 + ((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xf7 : Word)).toNat ≤ srcBytes.length := by
+    bv_omega
+  have hlol1 : 1 ≤ ((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xf7 : Word)).toNat := by bv_omega
+  have hlol8 : ((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by bv_omega
+  refine ⟨by omega, by omega, ?_, by omega, by omega, ?_⟩
+  · exact hsvalid 1 (by omega)
+  · intro k hk; exact hsvalid (0 + 1 + k) (by omega)
+
 end EvmAsm.Rv64.RLP
