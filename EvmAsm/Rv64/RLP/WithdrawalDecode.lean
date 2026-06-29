@@ -6379,6 +6379,40 @@ def wd_addressFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (src
     srcBase.toNat + (srcOff + 21) ≤ 2 ^ 64 ∧
     (∀ k, k < 20 → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
 
+/-- **Scalar-field precondition bundle.** The five side-conditions a scalar-field body dispatcher
+    (`wd_decode_field{0,1,3}Body_unified_regOwn`) requires at its entry offset `srcOff`: the offset
+    is in range, the source pointer does not overflow, the byte access is valid, the cursor is still
+    before the list end, and the prefix byte classifies as one of the three accepted scalar forms
+    (single byte / short canonical string / empty string). Bundling them lets the inter-field seam
+    hypothesis (`hf1`/`hf3`/…) — which the capstone discharges from `decodeWithdrawal = some` — be
+    stated concisely against the *existential* next-offset produced by the previous field. -/
+def wd_scalarFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (srcOff : Nat) : Prop :=
+  ∃ hoff : srcOff < srcBytes.length,
+    srcBase.toNat + srcOff < 2 ^ 64 ∧
+    isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true ∧
+    BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true ∧
+    ((BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+        getByteAt srcBytes srcOff ≠ 0) ∨
+      (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+          ∃ c : BitVec 8, srcBytes[srcOff + 1]? = some c ∧
+            ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) ∧
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true ∧
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).toNat - 0x80) ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 + ((srcBytes[srcOff]'hoff).toNat - 0x80)) ≤ 2 ^ 64 ∧
+        (∀ k, k < (srcBytes[srcOff]'hoff).toNat - 0x80 →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 ∧
+        getByteAt srcBytes (srcOff + 1) ≠ 0 ∧
+        (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
+      (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true))
+
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
     leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
@@ -7380,6 +7414,119 @@ theorem wd_decode_field3Body_unified_seam
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
     (hfull v12 v7 v28 v29 v30 v31)
 
+/-- **Field-3 seam-consumer per-witness post.** Field 3's unified scalar post (∃ d3 nextOff3, written
+    `struct+40`, cursor at field 3's next-offset) with field 2's leftover registers/cells framed
+    through (`x13`/`x14`/`x15`, the `struct+16` address region, `struct+8`, the `⌜prefix<192⌝`), and
+    field 2's `decodeAux` step + field 1's `d1`-facts carried as pure conjuncts. Named so the
+    field2 ⨾ field3 assembly can reference it without re-transcribing the sepConj. -/
+def wd_field3ConsumePost (base srcBase srcLen structPtr : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (off1 : Nat) (d1 : List Byte) (nextOff1 : Nat) :
+    Assertion :=
+  (((fun h => ∃ d3 nextOff3,
+        wd_scalarFieldUnifiedPost (base + 268) structPtr (40 : BitVec 12) srcBase
+          ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21) d3 nextOff3 h) **
+      ((.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+        (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+        bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+        ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+        ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1)))) **
+      ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+        some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
+      ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
+          some (.bytes d1, srcBytes.drop nextOff1))⌝
+
+/-- **Field-2 ⨾ field-3 seam consumer** (base+220 → base+276): runs field 3's body on field 2's
+    existential output. Field 3 sits at the determined offset `nextOff1 + 21` (field 2's next-offset).
+    Its scalar preconditions are taken via `hf3` (discharged by the capstone from
+    `decodeWithdrawal = some`), which depends on both field 1's `d1`-facts and field 2's `decodeAux`
+    step — both extracted from `wd_field2ConsumePost`'s two pure conjuncts via nested
+    `cpsTripleWithin_pure_pre`. Uses the field2-seam-shaped dispatcher
+    (`wd_decode_field3Body_unified_seam`) so the reshape is a plain permutation, frames field 2's
+    leftover registers/cells through field 3, and re-attaches both pures in the post. -/
+theorem wd_field3_consume
+    (base srcBase srcLen structPtr mOld3 : Word) (off1 : Nat)
+    (srcBytes dstBytes : List (BitVec 8))
+    (halign232 : (base + 232) &&& ~~~1 = base + 232)
+    (hdisjW228 : (CodeReq.singleton (base + 228) (.JAL .x1 (316 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign268 : (base + 268) &&& ~~~1 = base + 268)
+    (hdisjC264 : (CodeReq.singleton (base + 264) (.JAL .x1 (692 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hf3 : ∀ (d1 : List Byte) (nextOff1 : Nat),
+      (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
+          some (.bytes d1, srcBytes.drop nextOff1))) →
+      (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+        some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
+      wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21)) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 220) (base + 276)
+      (withdrawal_decode_code base)
+      (fun h => ∃ d1 nextOff1,
+        (wd_field2ConsumePost base srcBase srcLen structPtr srcBytes dstBytes off1 d1 nextOff1 **
+          ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3)) h)
+      (fun h => ∃ d1 nextOff1,
+        wd_field3ConsumePost base srcBase srcLen structPtr srcBytes dstBytes off1 d1 nextOff1 h) := by
+  refine cpsTripleWithin_exists_pre (fun d1 => ?_)
+  refine cpsTripleWithin_exists_pre (fun nextOff1 => ?_)
+  -- `field2post ** struct40` — extract `⌜d1facts⌝` (outermost), then `⌜d2dec⌝`.
+  refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
+    (cpsTripleWithin_pure_pre
+      (P := (((((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** (.x8 ↦ᵣ structPtr) **
+            (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+            (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** regOwn .x12 **
+            (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+            (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+            (.x5 ↦ᵣ ((srcBytes[nextOff1]?.getD 0).zeroExtend 64)) ** bytesRegion srcBase srcBytes **
+            bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+            ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝) **
+          ((.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x11 ↦ᵣ (0 : Word)) **
+            regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) **
+        ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
+        ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+          some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
+        ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3))
+      (fun (hd1facts : d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+          (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
+            some (.bytes d1, srcBytes.drop nextOff1))) => ?_))
+  · simp only [wd_field2ConsumePost] at hs
+    xperm_hyp hs
+  refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
+    (cpsTripleWithin_pure_pre
+      (P := ((((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** (.x8 ↦ᵣ structPtr) **
+            (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+            (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** regOwn .x12 **
+            (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+            (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+            (.x5 ↦ᵣ ((srcBytes[nextOff1]?.getD 0).zeroExtend 64)) ** bytesRegion srcBase srcBytes **
+            bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+            ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝) **
+          ((.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x11 ↦ᵣ (0 : Word)) **
+            regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) **
+        ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
+        ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3))
+      (fun (hd2dec : ∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+          some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) =>
+        ?_))
+  · xperm_hyp hs
+  -- spatial pre now; build field 3 at offset `nextOff1 + 21`, frame field 2's leftovers.
+  obtain ⟨hoff3, hover3, hvalid3, hin3, hform3⟩ := hf3 d1 nextOff1 hd1facts hd2dec
+  have hF3 := wd_decode_field3Body_unified_seam base srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen)
+    (base + 204) (srcBase + BitVec.ofNat 64 (nextOff1 + 21)) (0 : Word)
+    ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (20 : Word) structPtr mOld3 srcBytes (nextOff1 + 21)
+    halign232 hdisjW228 halign268 hdisjC264 hsalign hoff3 hover3 hvalid3 hin3 hform3
+  have hF3framed := cpsTripleWithin_frameR
+    ((.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+      (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+      bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+      ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+      ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1)))
+    (by pcFree) hF3
+  refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => ?_) hF3framed
+  · xperm_hyp hs
+  · exact (sepConj_pure_right s).mpr ⟨(sepConj_pure_right s).mpr ⟨hq, hd2dec⟩, hd1facts⟩
+
 /-! ## M3 proof — success-spine front: prologue ⨾ walk_init call (base+0 → base+28)
 
 The first linear segment of the spine (no branching): the prologue (`wd_decode_prologue`,
@@ -7817,41 +7964,7 @@ theorem wd_decode_headField0
   exact cpsTripleWithin_seq_perm_same_cr (fun s hp => by rw [hcur] at hp; xperm_hyp hp)
     hHEAD hfield0
 
-/-! ## M3 proof — success spine: scalar-field precondition bundle + field0 ⨾ field1 -/
-
-/-- **Scalar-field precondition bundle.** The five side-conditions a scalar-field body dispatcher
-    (`wd_decode_field{0,1,3}Body_unified_regOwn`) requires at its entry offset `srcOff`: the offset
-    is in range, the source pointer does not overflow, the byte access is valid, the cursor is still
-    before the list end, and the prefix byte classifies as one of the three accepted scalar forms
-    (single byte / short canonical string / empty string). Bundling them lets the inter-field seam
-    hypothesis (`hf1`/`hf2`/…) — which the capstone discharges from `decodeWithdrawal = some` — be
-    stated concisely against the *existential* next-offset produced by the previous field. -/
-def wd_scalarFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (srcOff : Nat) : Prop :=
-  ∃ hoff : srcOff < srcBytes.length,
-    srcBase.toNat + srcOff < 2 ^ 64 ∧
-    isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true ∧
-    BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true ∧
-    ((BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
-        getByteAt srcBytes srcOff ≠ 0) ∨
-      (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
-        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
-          ∃ c : BitVec 8, srcBytes[srcOff + 1]? = some c ∧
-            ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) ∧
-        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
-          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true ∧
-        srcOff + 1 + ((srcBytes[srcOff]'hoff).toNat - 0x80) ≤ srcBytes.length ∧
-        srcBase.toNat + (srcOff + 1 + ((srcBytes[srcOff]'hoff).toNat - 0x80)) ≤ 2 ^ 64 ∧
-        (∀ k, k < (srcBytes[srcOff]'hoff).toNat - 0x80 →
-          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
-        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 ∧
-        getByteAt srcBytes (srcOff + 1) ≠ 0 ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
-      (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
-        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true))
+/-! ## M3 proof — success spine: field0 ⨾ field1 -/
 
 /-- **Head ⨾ field 0 ⨾ field 1** (base+0 → base+152): extends `wd_decode_headField0` by field 1's
     body. This is the **form-dependency crux**: field 1 sits at field 0's *existential* next-offset
