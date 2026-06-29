@@ -126,4 +126,30 @@ theorem runSail_checked_mem_write_bare (paddr : physaddr) (data : BitVec 64) (s 
   unfold checked_mem_write
   simp [runSail_bind, h_pac, h_mmio, write_kind_of_flags, runSail_map, h_wr]
 
+/-- **`mem_write_value` fully reduced** (bare-Machine, plain doubleword store): it
+    succeeds (`Ok true`) and produces exactly the `writeBytes` state — the eight
+    little-endian byte slices of `data` written at `addr.toNat … +7`. Composes
+    `mem_write_value → checked_mem_write → write_ram → writeBytes`. -/
+theorem runSail_mem_write_value_bare (addr : physaddrbits) (data : BitVec 64)
+    (s : SailState) (m : BitVec 64)
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mstatus : s.regs.get? Register.mstatus = some m)
+    (h_mprv : _get_Mstatus_MPRV m = 0#1)
+    (h_pac : runSail (phys_access_check (MemoryAccessType.Store mem_payload.Data)
+        page_based_mem_type.PBMT_PMA Privilege.Machine (physaddr.Physaddr addr) 8 false) s
+        = some (Option.none, s))
+    (h_mmio : runSail (within_mmio_writable (physaddr.Physaddr addr) 8) s = some (false, s)) :
+    runSail (mem_write_value (physaddr.Physaddr addr) 8 data
+        (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA false false false) s
+      = some (Result.Ok true,
+        { s with mem :=
+          (((((((s.mem.insert addr.toNat (data.extractLsb' 0 8)).insert
+            (addr.toNat + 1) (data.extractLsb' 8 8)).insert
+            (addr.toNat + 2) (data.extractLsb' 16 8)).insert (addr.toNat + 3) (data.extractLsb' 24 8)).insert
+            (addr.toNat + 4) (data.extractLsb' 32 8)).insert (addr.toNat + 5) (data.extractLsb' 40 8)).insert
+            (addr.toNat + 6) (data.extractLsb' 48 8)).insert (addr.toNat + 7) (data.extractLsb' 56 8) }) := by
+  rw [runSail_mem_write_value_to_checked _ _ _ _ h_priv h_mstatus h_mprv]
+  exact runSail_checked_mem_write_bare (physaddr.Physaddr addr) data s _ h_pac h_mmio
+    ((runSail_write_ram addr data s).trans (writeBytes_effect addr.toNat data s))
+
 end EvmAsm.Rv64.SailEquiv
