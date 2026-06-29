@@ -567,6 +567,153 @@ theorem walkInitEmptyFailOrListCheckNBranch_pre
         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
   rfl
 
+/-- The reason-erased failure endpoint placed at the not-list target. -/
+def walkInitPrefixNotListFailStatusCode (base : Word) : CodeReq :=
+  failStatusReturnCode (base + 164)
+
+/-- Code for the prefix list-check branch with its not-list failure endpoint
+    already serviced. -/
+def walkInitPrefixListCheckOrNotListFailCode (base : Word) : CodeReq :=
+  (walkInitPrefixListCheckCode base).union (walkInitPrefixNotListFailStatusCode base)
+
+/-- Code through empty-input failure, prefix load, list-prefix classification,
+    and the not-list failure endpoint. The list-shaped arm remains open. -/
+def walkInitEmptyFailNotListFailOrListCode (base : Word) : CodeReq :=
+  (walkInitEmptyFailOrPrefixCode base).union
+    (walkInitPrefixListCheckOrNotListFailCode base)
+
+/-- Frame preserved by the not-list failure endpoint. -/
+def walkInitPrefixNotListFailStatusFrame
+    (listBase listLen : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  ((.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+    (.x5 ↦ᵣ walkInitPrefixWord listBytes listOff hoff) ** (.x6 ↦ᵣ (0xc0 : Word)) **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase listBytes **
+    ⌜listLen ≠ (0 : Word)⌝ **
+    ⌜BitVec.ult (walkInitPrefixWord listBytes listOff hoff) (0xc0 : Word)⌝)
+
+/-- Not-list arm after it has run the reason-erased failure status endpoint. -/
+def walkInitPrefixNotListFailStatusPost
+    (listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  failStatusReturnPost raVal **
+    walkInitPrefixNotListFailStatusFrame listBase listLen listBytes listOff hoff
+
+theorem walkInitPrefixNotListFailStatusFrame_pcFree
+    (listBase listLen : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) :
+    (walkInitPrefixNotListFailStatusFrame listBase listLen listBytes listOff hoff).pcFree := by
+  unfold walkInitPrefixNotListFailStatusFrame
+  pcFree
+
+theorem walkInitPrefixNotListFailStatus_spec_within
+    (base listBase listLen raVal : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hoff : listOff < listBytes.length) :
+    cpsTripleWithin (failStatusReturnCert (base + 164) raVal
+        (listBase + BitVec.ofNat 64 listOff)).nSteps
+      (base + 164) (failStatusReturnExit raVal)
+      (walkInitPrefixNotListFailStatusCode base)
+      (walkInitPrefixNotListPost listBase listLen raVal listBytes listOff hoff)
+      (walkInitPrefixNotListFailStatusPost listBase listLen raVal listBytes listOff hoff) := by
+  unfold walkInitPrefixNotListFailStatusCode
+  have hfail := failStatusReturn_spec_within (base + 164) raVal
+    (listBase + BitVec.ofNat 64 listOff)
+  have hframed := cpsTripleWithin_frameR
+    (walkInitPrefixNotListFailStatusFrame listBase listLen listBytes listOff hoff)
+    (walkInitPrefixNotListFailStatusFrame_pcFree listBase listLen listBytes listOff hoff)
+    hfail
+  exact cpsTripleWithin_weaken (fun h hp => by
+      unfold walkInitPrefixNotListPost walkInitPrefixLoadedPost at hp
+      unfold failStatusReturnPre statusReturnPre walkInitPrefixNotListFailStatusFrame
+        walkInitPrefixWord
+      xperm_hyp hp)
+    (fun h hp => by
+      unfold walkInitPrefixNotListFailStatusPost
+      xperm_hyp hp) hframed
+
+theorem walkInitPrefixListCheckCode_disjoint_notListFailStatus (base : Word) :
+    (walkInitPrefixListCheckCode base).Disjoint
+      (walkInitPrefixNotListFailStatusCode base) := by
+  unfold walkInitPrefixListCheckCode walkInitPrefixNotListFailStatusCode
+    failStatusReturnCode statusReturnCode
+  refine CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.singleton (by bv_omega))
+    (CodeReq.Disjoint.singleton (by bv_omega))
+
+theorem walkInitEmptyFailOrPrefixCode_disjoint_notListFailStatus (base : Word) :
+    (walkInitEmptyFailOrPrefixCode base).Disjoint
+      (walkInitPrefixNotListFailStatusCode base) := by
+  unfold walkInitEmptyFailOrPrefixCode walkInitEmptyFailStatusCode failStatusReturnCode
+    statusReturnCode walkInitNonzeroPrefixTailCode walkInitPrefixNotListFailStatusCode
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · refine CodeReq.Disjoint.union_left ?_ ?_
+    · refine CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+    · refine CodeReq.Disjoint.union_left ?_ ?_
+      · refine CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.singleton (by bv_omega))
+          (CodeReq.Disjoint.singleton (by bv_omega))
+      · refine CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.singleton (by bv_omega))
+          (CodeReq.Disjoint.singleton (by bv_omega))
+  · refine CodeReq.Disjoint.union_left ?_ ?_
+    · refine CodeReq.Disjoint.union_right
+        (CodeReq.Disjoint.singleton (by bv_omega))
+        (CodeReq.Disjoint.singleton (by bv_omega))
+    · refine CodeReq.Disjoint.union_left ?_ ?_
+      · refine CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.singleton (by bv_omega))
+          (CodeReq.Disjoint.singleton (by bv_omega))
+      · refine CodeReq.Disjoint.union_right
+          (CodeReq.Disjoint.singleton (by bv_omega))
+          (CodeReq.Disjoint.singleton (by bv_omega))
+
+theorem walkInitEmptyFailOrPrefixCode_disjoint_listCheckOrNotListFail (base : Word) :
+    (walkInitEmptyFailOrPrefixCode base).Disjoint
+      (walkInitPrefixListCheckOrNotListFailCode base) := by
+  unfold walkInitPrefixListCheckOrNotListFailCode
+  exact CodeReq.Disjoint.union_right
+    (walkInitEmptyFailOrPrefixCode_disjoint_listCheck base)
+    (walkInitEmptyFailOrPrefixCode_disjoint_notListFailStatus base)
+
+/-- Multi-exit WP certificate after the first two failure cases have been
+    serviced. Exits are: empty failure returned, not-list failure returned, and
+    list-shaped fall-through. -/
+def walkInitEmptyFailNotListFailOrListNBranch
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    WP.NBranch base (walkInitEmptyFailNotListFailOrListCode base) := by
+  let br := walkInitEmptyFailOrPrefixBranch base listBase listLen raVal t0Old t1Old
+    listBytes listOff hsalign hoff hover hvalid
+  let listBranch := walkInitPrefixListCheckBranch base listBase listLen raVal
+    listBytes listOff hoff
+  have hfail := walkInitPrefixNotListFailStatus_spec_within base listBase listLen raVal
+    listBytes listOff hoff
+  let tail : WP.NBranch (base + 16) (walkInitPrefixListCheckOrNotListFailCode base) := by
+    unfold walkInitPrefixListCheckOrNotListFailCode walkInitPrefixNotListFailStatusCode
+    wp_rv64_branch_taken_block_nbranch_disjoint
+      (walkInitPrefixListCheckCode_disjoint_notListFailStatus base), listBranch, hfail
+  unfold walkInitEmptyFailNotListFailOrListCode
+  wp_rv64_branch_not_taken_nbranch_disjoint
+    (walkInitEmptyFailOrPrefixCode_disjoint_listCheckOrNotListFail base), br, tail
+
+theorem walkInitEmptyFailNotListFailOrListNBranch_pre
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailNotListFailOrListNBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid).pre =
+      (walkInitEmptyFailStatusPre listLen raVal (listBase + BitVec.ofNat 64 listOff) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
+  rfl
+
 /-! ## Pure decode bridge -/
 
 /-- The decoded withdrawal value described by four already-decoded field byte strings.

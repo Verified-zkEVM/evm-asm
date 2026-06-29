@@ -129,6 +129,28 @@ def branchSeqNotTakenBlockDisjoint {nTail : Nat} {entry target : Word}
     Branch entry (cr1.union cr2) :=
   branchSeqNotTakenDisjoint hd br (block (Entails.refl _) tail) hlink
 
+/-- Continue only the taken exit of a branch with disjoint code and expose the
+    resulting two exits as an N-way branch. -/
+def branchSeqTakenNBranchDisjoint {entry target : Word} {cr1 cr2 : CodeReq}
+    {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Cert br.exit_t target cr2 post)
+    (hlink : Entails br.post_t tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqTakenAsNBranchDisjoint hd tail hlink
+
+/-- Continue only the taken exit of a branch with a CPS leaf over disjoint code
+    and expose the resulting two exits as an N-way branch. -/
+def branchSeqTakenBlockNBranchDisjoint {nTail : Nat} {entry target : Word}
+    {cr1 cr2 : CodeReq} {tailPre post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : cpsTripleWithin nTail br.exit_t target cr2 tailPre post)
+    (hlink : Entails br.post_t tailPre) :
+    NBranch entry (cr1.union cr2) :=
+  branchSeqTakenNBranchDisjoint hd br (block (Entails.refl _) tail) hlink
+
 /-- View a two-way branch as an N-way branch. -/
 def nbranchOfBranch {entry : Word} {cr : CodeReq} (br : Branch entry cr) :
     NBranch entry cr :=

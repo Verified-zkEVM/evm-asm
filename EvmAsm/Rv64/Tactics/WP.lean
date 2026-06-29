@@ -109,6 +109,16 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqNotTakenBlockDisjoint $hd $br $tail
         (by wp_rv64_link))
 
+/-- Continue a branch's taken exit with a CPS leaf over disjoint code and expose
+    the resulting branch as an N-way branch. -/
+syntax (name := wpRv64BranchSeqTakenBlockNBranchDisjointTac)
+  "wp_rv64_branch_taken_block_nbranch_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_branch_taken_block_nbranch_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqTakenBlockNBranchDisjoint $hd $br $tail
+        (by wp_rv64_link))
+
 /-- Continue a branch's not-taken exit with an N-way branch over disjoint code. -/
 syntax (name := wpRv64BranchSeqNotTakenNBranchDisjointTac)
   "wp_rv64_branch_not_taken_nbranch_disjoint " term ", " term ", " term : tactic
@@ -191,6 +201,14 @@ example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
     (tail : cpsTripleWithin nTail br.exit_f target cr2 br.post_f post) :
     EvmAsm.Rv64.WP.Branch entry (cr1.union cr2) := by
   wp_rv64_branch_not_taken_block_disjoint hd, br, tail
+
+example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
+    {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tail : cpsTripleWithin nTail br.exit_t target cr2 br.post_t post) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  wp_rv64_branch_taken_block_nbranch_disjoint hd, br, tail
 
 example {entry : Word} {cr : CodeReq}
     (br : EvmAsm.Rv64.WP.Branch entry cr) :

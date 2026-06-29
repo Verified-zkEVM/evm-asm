@@ -276,6 +276,18 @@ end NBranch
 
 namespace Branch
 
+/-- Continue the taken exit of a branch and expose the result as a multi-exit
+    branch. This is the endpoint shape for generated decoders: close one failure
+    arm while keeping the fall-through arm open for later CFG construction. -/
+def seqTakenAsNBranchDisjoint {entry target : Word} {cr1 cr2 : CodeReq}
+    {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Triple br.exit_t target cr2 post)
+    (hlink : Entails br.post_t tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  NBranch.ofBranch (br.seqTakenDisjoint hd tail hlink)
+
 /-- Continue the not-taken exit of a branch with a multi-exit CFG over disjoint
     code. The taken exit is preserved as the first open exit, followed by the
     tail's exits. This is the standard shape for generated decoders that peel
