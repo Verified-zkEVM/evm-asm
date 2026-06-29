@@ -6449,6 +6449,143 @@ def wd_scalarFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (srcO
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
         (srcBytes[srcOff]'hoff).toNat - 0x80 = 0))
 
+/-- **Scalar-field precondition from the encode structure (reverse-decode form).** If the suffix
+    at `off` is `encodeBytes D ++ rest` for a canonical scalar `D` (`headD 1 ≠ 0`, `length ≤ 8`),
+    then `off` satisfies `wd_scalarFieldPre`: the prefix byte classifies as one of the three
+    accepted scalar forms (single byte `<0x80`; short canonical string; empty `0x80`), and all
+    bounds hold. The byte form follows from `encodeBytes D`'s shape; the bounds from source-region
+    validity and `off + |encodeBytes D| ≤ length`. The reverse-decode discharger for the success
+    leaf's `hform0`/`hf1`/`hf3` (after `decodeAux` determinism pins the existential offset). -/
+theorem wd_scalarFieldPre_of_encodeBytes
+    (srcBase srcLen : Word) (srcBytes : List Byte) (off : Nat) (D rest : List Byte)
+    (hsvalid : ∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hnowrap : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsrclen : srcLen = BitVec.ofNat 64 srcBytes.length)
+    (hdrop : srcBytes.drop off = encodeBytes D ++ rest)
+    (hc : D.headD 1 ≠ 0) (hl : D.length ≤ 8) :
+    wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes off := by
+  subst hsrclen
+  have hpos : 0 < (encodeBytes D).length := encodeBytes_nonempty D
+  have hdroplen : srcBytes.length - off = (encodeBytes D).length + rest.length := by
+    have := congrArg List.length hdrop
+    simpa [List.length_drop, List.length_append] using this
+  have hoff : off < srcBytes.length := by omega
+  have hfit : off + (encodeBytes D).length ≤ srcBytes.length := by omega
+  have hover : srcBase.toNat + off < 2 ^ 64 := by omega
+  have hvalidoff : isValidByteAccess (srcBase + BitVec.ofNat 64 off) = true := hsvalid off hoff
+  have hgetb : getByteAt srcBytes off = srcBytes[off]'hoff := by simp [getByteAt, hoff]
+  have hcursor : BitVec.ult (srcBase + BitVec.ofNat 64 off)
+      ((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length) = true := by
+    simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+  have hspanN : (((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length) -
+      (srcBase + BitVec.ofNat 64 off)).toNat = srcBytes.length - off := by
+    simp only [BitVec.toNat_sub, BitVec.toNat_add, BitVec.toNat_ofNat]; omega
+  have h80 : (0x80 : Word).toNat = 128 := by decide
+  have hb8 : (0xb8 : Word).toNat = 184 := by decide
+  have hde : srcBytes.drop off = srcBytes[off]'hoff :: srcBytes.drop (off + 1) :=
+    List.drop_eq_getElem_cons hoff
+  rw [hde] at hdrop
+  refine ⟨hoff, hover, hvalidoff, hcursor, ?_⟩
+  rcases D with _ | ⟨b, _ | ⟨b1, t⟩⟩
+  · -- D = []: empty form (0x80)
+    rw [show encodeBytes ([] : List Byte) = [BitVec.ofNat 8 0x80] from by decide,
+        List.singleton_append, List.cons.injEq] at hdrop
+    obtain ⟨hbyte, _⟩ := hdrop
+    exact Or.inr (Or.inr ⟨by rw [hbyte]; decide, by rw [hbyte]; decide, by rw [hbyte]; decide⟩)
+  · -- D = [b]: single byte (b < 0x80) or short len-1 string (b ≥ 0x80)
+    by_cases hb : b.toNat < 0x80
+    · -- single byte
+      rw [show encodeBytes [b] = [b] from by simp [encodeBytes, hb],
+          List.singleton_append, List.cons.injEq] at hdrop
+      obtain ⟨hbyte, _⟩ := hdrop
+      have hbz : ((srcBytes[off]'hoff).zeroExtend 64).toNat = (srcBytes[off]'hoff).toNat := by
+        have := (srcBytes[off]'hoff).isLt; bv_omega
+      have hbt : (srcBytes[off]'hoff).toNat < 128 := by rw [hbyte]; exact hb
+      refine Or.inl ⟨?_, ?_⟩
+      · simp only [BitVec.ult, decide_eq_true_eq, hbz, h80]; omega
+      · rw [hgetb, hbyte]; simpa using hc
+    · -- short string, len 1
+      rw [Nat.not_lt] at hb
+      have henc : encodeBytes [b] = [BitVec.ofNat 8 0x81, b] := by
+        simp [encodeBytes, Nat.not_lt.mpr hb]
+      have henclen : (encodeBytes [b]).length = 2 := by rw [henc]; rfl
+      rw [henc, List.cons_append, List.cons_append, List.cons.injEq] at hdrop
+      obtain ⟨hbyte, hrest1⟩ := hdrop
+      have hnext1 : srcBytes[off + 1]? = some b := by
+        have : (srcBytes.drop (off + 1))[0]? = some b := by rw [hrest1]; rfl
+        rwa [List.getElem?_drop, Nat.add_zero] at this
+      have hb1lt : off + 1 < srcBytes.length := by omega
+      have hbtoNat : (srcBytes[off]'hoff).toNat = 0x81 := by rw [hbyte]; decide
+      have hgetb1 : srcBytes[off + 1]'hb1lt = b := by
+        rw [List.getElem?_eq_getElem hb1lt] at hnext1; exact Option.some.inj hnext1
+      have hbz : ((srcBytes[off]'hoff).zeroExtend 64).toNat = (srcBytes[off]'hoff).toNat := by
+        have := (srcBytes[off]'hoff).isLt; bv_omega
+      have hsubN : ((srcBytes[off]'hoff).zeroExtend 64 - 0x80).toNat
+          = (srcBytes[off]'hoff).toNat - 0x80 := by
+        have := (srcBytes[off]'hoff).isLt; bv_omega
+      refine Or.inr (Or.inl ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩)
+      · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbtoNat, h80]; omega
+      · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbtoNat, hb8]; omega
+      · intro _
+        refine ⟨b, hnext1, ?_⟩
+        have hbz' : (b.zeroExtend 64).toNat = b.toNat := by have := b.isLt; bv_omega
+        simp only [BitVec.ult, decide_eq_true_eq, hbz', h80]; omega
+      · simp only [BitVec.ult, decide_eq_true_eq, hsubN, hspanN, hbtoNat]; omega
+      · rw [hbtoNat]; omega
+      · rw [hbtoNat]; omega
+      · intro k hk
+        rw [hbtoNat] at hk
+        have hk0 : k = 0 := by omega
+        subst hk0; simpa using hsvalid (off + 1) hb1lt
+      · rw [hbtoNat]; omega
+      · rw [show getByteAt srcBytes (off + 1) = srcBytes[off + 1]'hb1lt from by simp [getByteAt, hb1lt],
+            hgetb1]
+        rintro rfl; revert hb; decide
+      · rw [hbtoNat]; omega
+  · -- D = b :: b1 :: t: short string, len ≥ 2
+    set len := (b :: b1 :: t).length with hlendef
+    have hlen2 : 2 ≤ len := by simp [hlendef]
+    have hle8 : len ≤ 8 := hl
+    have henc : encodeBytes (b :: b1 :: t) = BitVec.ofNat 8 (0x80 + len) :: (b :: b1 :: t) := by
+      rw [encodeBytes_short_of_length_ne_one (b :: b1 :: t) (by omega) (by simp)]
+      simp [hlendef]
+    have henclen : (encodeBytes (b :: b1 :: t)).length = 1 + len := by
+      rw [henc, List.length_cons, ← hlendef]; omega
+    rw [henc, List.cons_append, List.cons.injEq] at hdrop
+    obtain ⟨hbyte, hrest1⟩ := hdrop
+    have hbtoNat : (srcBytes[off]'hoff).toNat = 0x80 + len := by
+      rw [hbyte, BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+    have hb1lt : off + 1 < srcBytes.length := by omega
+    have hgetb1 : srcBytes[off + 1]'hb1lt = b := by
+      have : (srcBytes.drop (off + 1))[0]? = some b := by rw [hrest1]; rfl
+      rw [List.getElem?_drop, Nat.add_zero, List.getElem?_eq_getElem hb1lt] at this
+      exact Option.some.inj this
+    have hbz : ((srcBytes[off]'hoff).zeroExtend 64).toNat = (srcBytes[off]'hoff).toNat := by
+      have := (srcBytes[off]'hoff).isLt; bv_omega
+    have hsubN : ((srcBytes[off]'hoff).zeroExtend 64 - 0x80).toNat
+        = (srcBytes[off]'hoff).toNat - 0x80 := by
+      have := (srcBytes[off]'hoff).isLt; bv_omega
+    refine Or.inr (Or.inl ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩)
+    · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbtoNat, h80]; omega
+    · simp only [BitVec.ult, decide_eq_true_eq, hbz, hbtoNat, hb8]; omega
+    · intro h1
+      exfalso
+      have h2 := congrArg BitVec.toNat h1
+      rw [hsubN, hbtoNat] at h2
+      simp only [show ((1 : BitVec 64).toNat) = 1 from rfl] at h2
+      omega
+    · simp only [BitVec.ult, decide_eq_true_eq, hsubN, hspanN, hbtoNat]; omega
+    · rw [hbtoNat]; omega
+    · rw [hbtoNat]; omega
+    · intro k hk
+      rw [hbtoNat] at hk
+      exact hsvalid (off + 1 + k) (by omega)
+    · rw [hbtoNat]; omega
+    · rw [show getByteAt srcBytes (off + 1) = srcBytes[off + 1]'hb1lt from by simp [getByteAt, hb1lt],
+          hgetb1]
+      simpa using hc
+    · rw [hbtoNat]; omega
+
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
     leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
