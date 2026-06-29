@@ -7527,4 +7527,215 @@ theorem wd_decode_headField0
   exact cpsTripleWithin_seq_perm_same_cr (fun s hp => by rw [hcur] at hp; xperm_hyp hp)
     hHEAD hfield0
 
+/-! ## M3 proof — success spine: scalar-field precondition bundle + field0 ⨾ field1 -/
+
+/-- **Scalar-field precondition bundle.** The five side-conditions a scalar-field body dispatcher
+    (`wd_decode_field{0,1,3}Body_unified_regOwn`) requires at its entry offset `srcOff`: the offset
+    is in range, the source pointer does not overflow, the byte access is valid, the cursor is still
+    before the list end, and the prefix byte classifies as one of the three accepted scalar forms
+    (single byte / short canonical string / empty string). Bundling them lets the inter-field seam
+    hypothesis (`hf1`/`hf2`/…) — which the capstone discharges from `decodeWithdrawal = some` — be
+    stated concisely against the *existential* next-offset produced by the previous field. -/
+def wd_scalarFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (srcOff : Nat) : Prop :=
+  ∃ hoff : srcOff < srcBytes.length,
+    srcBase.toNat + srcOff < 2 ^ 64 ∧
+    isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true ∧
+    BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true ∧
+    ((BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+        getByteAt srcBytes srcOff ≠ 0) ∨
+      (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+          ∃ c : BitVec 8, srcBytes[srcOff + 1]? = some c ∧
+            ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) ∧
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true ∧
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).toNat - 0x80) ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 + ((srcBytes[srcOff]'hoff).toNat - 0x80)) ≤ 2 ^ 64 ∧
+        (∀ k, k < (srcBytes[srcOff]'hoff).toNat - 0x80 →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) ∧
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 ∧
+        getByteAt srcBytes (srcOff + 1) ≠ 0 ∧
+        (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
+      (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true))
+
+/-- **Head ⨾ field 0 ⨾ field 1** (base+0 → base+152): extends `wd_decode_headField0` by field 1's
+    body. This is the **form-dependency crux**: field 1 sits at field 0's *existential* next-offset
+    `nextOff0`, so its preconditions (`wd_scalarFieldPre` at `nextOff0`) cannot be derived from field
+    0's output alone — they are taken as the dependent hypothesis `hf1` (which the capstone will
+    discharge from `decodeWithdrawal = some`, where the input structure pins each field's form).
+    The proof threads the existential `(d0, nextOff0)` through field 1 via
+    `cpsTripleWithin_exists_pre`, extracts field 0's `d0`-facts from the unified post's pure with
+    `cpsTripleWithin_pure_pre`, frames field 0's written `struct+0` cell through field 1, and carries
+    the head's saved-frame leftovers around the whole field-1 segment. -/
+theorem wd_decode_headField01
+    (base sp0 raVal s0Old s1Old s2Old structPtr m0 m1 m2 m3 mOld0 mOld1 : Word)
+    (srcBase srcLen t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8))
+    (halign28 : (base + 28) &&& ~~~1 = base + 28)
+    (hdisjWI : (CodeReq.singleton (base + 24) (.JAL .x1 (308 : BitVec 21))).Disjoint
+      (rlp_walk_init_code (base + 332)))
+    (hsalign : srcBase.toNat % 8 = 0) (hsrcLen0 : 0 < srcBytes.length)
+    (hover0 : srcBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (srcBase + BitVec.ofNat 64 0) = true)
+    (hlen : srcLen ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult ((srcBytes[0]'hsrcLen0).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((srcBytes[0]'hsrcLen0).zeroExtend 64) (0xf8 : Word) = true)
+    (h_exact : (srcBase + BitVec.ofNat 64 0) +
+        (((srcBytes[0]'hsrcLen0).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12))
+      = (srcBase + BitVec.ofNat 64 0) + srcLen)
+    (halign52 : (base + 52) &&& ~~~1 = base + 52)
+    (hdisjW48 : (CodeReq.singleton (base + 48) (.JAL .x1 (496 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign88 : (base + 88) &&& ~~~1 = base + 88)
+    (hdisjC84 : (CodeReq.singleton (base + 84) (.JAL .x1 (872 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hoff1 : 1 < srcBytes.length) (hover1 : srcBase.toNat + 1 < 2 ^ 64)
+    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 1) = true)
+    (hin1 : BitVec.ult (srcBase + BitVec.ofNat 64 1) ((srcBase + BitVec.ofNat 64 0) + srcLen) = true)
+    (hform0 :
+      (BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
+        getByteAt srcBytes 1 ≠ 0) ∨
+      (¬ BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0xb8 : Word) = true ∧
+        ((srcBytes[1]'hoff1).zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+          ∃ c : BitVec 8, srcBytes[1 + 1]? = some c ∧
+            ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) ∧
+        BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64 - (0x80 : Word))
+          (((srcBase + BitVec.ofNat 64 0) + srcLen) - (srcBase + BitVec.ofNat 64 1)) = true ∧
+        1 + 1 + ((srcBytes[1]'hoff1).toNat - 0x80) ≤ srcBytes.length ∧
+        srcBase.toNat + (1 + 1 + ((srcBytes[1]'hoff1).toNat - 0x80)) ≤ 2 ^ 64 ∧
+        (∀ k, k < (srcBytes[1]'hoff1).toNat - 0x80 →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (1 + 1 + k)) = true) ∧
+        0 < (srcBytes[1]'hoff1).toNat - 0x80 ∧
+        getByteAt srcBytes (1 + 1) ≠ 0 ∧
+        (srcBytes[1]'hoff1).toNat - 0x80 ≤ 8) ∨
+      (¬ BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0xb8 : Word) = true ∧
+        (srcBytes[1]'hoff1).toNat - 0x80 = 0 ∧
+        1 + 1 < srcBytes.length ∧ srcBase.toNat + (1 + 1) < 2 ^ 64 ∧
+        isValidByteAccess (srcBase + BitVec.ofNat 64 (1 + 1)) = true))
+    (halign108 : (base + 108) &&& ~~~1 = base + 108)
+    (hdisjW104 : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign144 : (base + 144) &&& ~~~1 = base + 144)
+    (hdisjC140 : (CodeReq.singleton (base + 140) (.JAL .x1 (816 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956)))
+    (hf1 : ∀ (d0 : List Byte) (nextOff0 : Nat),
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
+          some (.bytes d0, srcBytes.drop nextOff0))) →
+      wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0) :
+    cpsTripleWithin (((((6 + (1 + 15)) + 3)) +
+        ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2))) +
+        ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)))
+      base (base + 152) (withdrawal_decode_code base)
+      (((((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ structPtr) **
+        ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ m3)) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ srcLen) ** (.x5 ↦ᵣ t0Old) **
+          (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) **
+          (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)) **
+        ((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ mOld0)) **
+        ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ mOld1))
+      ((fun h => ∃ d0 nextOff0,
+          (((fun h' => ∃ d1 nextOff1,
+              wd_scalarFieldUnifiedPost (base + 144) structPtr (8 : BitVec 12) srcBase
+                ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0 d1 nextOff1 h') **
+            ((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ
+              BitVec.ofNat 64 (Nat.fromBytesBE d0))) **
+            ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+              (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
+                some (.bytes d0, srcBytes.drop nextOff0))⌝) h) **
+        (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+          ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old))) := by
+  -- Field 0's output post (the existential-`(d0,nextOff0)` unified post), abbreviated.
+  have hHF0 := cpsTripleWithin_frameR ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ mOld1)
+    (by pcFree)
+    (wd_decode_headField0 base sp0 raVal s0Old s1Old s2Old structPtr m0 m1 m2 m3 mOld0
+      srcBase srcLen t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes
+      halign28 hdisjWI hsalign hsrcLen0 hover0 hvalid0 hlen h_ge h_hi h_exact
+      halign52 hdisjW48 halign88 hdisjC84 hoff1 hover1 hvalid1 hin1 hform0)
+  -- Per-witness field-1 body: from field 0's unified post (+ the framed struct+8 cell), run field 1.
+  have hbody : ∀ (d0 : List Byte) (nextOff0 : Nat),
+      cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2))
+        (base + 96) (base + 152) (withdrawal_decode_code base)
+        (wd_scalarFieldUnifiedPost (base + 88) structPtr (0 : BitVec 12) srcBase
+            ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes 1 d0 nextOff0 **
+          ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ mOld1))
+        ((((fun h' => ∃ d1 nextOff1,
+              wd_scalarFieldUnifiedPost (base + 144) structPtr (8 : BitVec 12) srcBase
+                ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0 d1 nextOff1 h') **
+            ((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ
+              BitVec.ofNat 64 (Nat.fromBytesBE d0))) **
+            ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+              (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
+                some (.bytes d0, srcBytes.drop nextOff0))⌝)) := by
+    intro d0 nextOff0
+    refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
+      (cpsTripleWithin_pure_pre
+        (P := ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 nextOff0)) **
+          (.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE d0)) ** (.x11 ↦ᵣ (0 : Word)) **
+          (.x12 ↦ᵣ BitVec.ofNat 64 d0.length) ** (.x8 ↦ᵣ structPtr) ** (.x1 ↦ᵣ (base + 88)) **
+          (.x0 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          bytesRegion srcBase srcBytes **
+          ((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+          (.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31) ** ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ mOld1))
+        (fun (hfacts : d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+            (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
+              some (.bytes d0, srcBytes.drop nextOff0))) => ?_))
+    · -- reshape: `USP0 ** struct8cell` ⟶ `(USP0_spatial ** struct8cell) ** ⌜facts⌝`
+      simp only [wd_scalarFieldUnifiedPost] at hs
+      xperm_hyp hs
+    · -- with field-0 facts in hand, apply `hf1` and run field 1, framing struct+0 forward.
+      obtain ⟨hoff', hover', hvalid', hin', hform'⟩ := hf1 d0 nextOff0 hfacts
+      have hF1base := wd_decode_field1Body_unified_regOwn base srcBase
+        ((srcBase + BitVec.ofNat 64 0) + srcLen) (base + 88)
+        (BitVec.ofNat 64 (Nat.fromBytesBE d0)) (0 : Word) (BitVec.ofNat 64 d0.length)
+        structPtr mOld1 srcBytes nextOff0
+        halign108 hdisjW104 halign144 hdisjC140 hsalign hoff' hover' hvalid' hin' hform'
+      have hF1framed := cpsTripleWithin_frameR
+        ((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0))
+        (by pcFree) hF1base
+      refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => ?_) hF1framed
+      · xperm_hyp hs
+      · exact (sepConj_pure_right s).mpr ⟨hq, hfacts⟩
+  -- Thread the existential `(d0, nextOff0)` through field 1, then frame the head leftovers.
+  have hF1core := cpsTripleWithin_exists_pre (fun d0 =>
+    cpsTripleWithin_exists_pre (fun nextOff0 => hbody d0 nextOff0))
+  have hF1 := cpsTripleWithin_frameR
+    (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+      ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)) (by pcFree) hF1core
+  refine cpsTripleWithin_seq_perm_same_cr (fun s hp => ?_) hHF0 hF1
+  -- Seam: field 0's post has the `struct+8` cell *outside* the existential; `hF1core` consumes it
+  -- *inside* — pull it in via `sepConj_exists_left` (twice, for the nested `(d0, nextOff0)`).
+  have hp2 : (((fun s => ∃ d0 nextOff,
+      wd_scalarFieldUnifiedPost (base + 88) structPtr (0 : BitVec 12) srcBase
+        ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes 1 d0 nextOff s) **
+      ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ mOld1)) **
+      (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+        ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old))) s := by
+    xperm_hyp hp
+  obtain ⟨hac, hhl, hdisj, hunion, hAC, hHL⟩ := hp2
+  obtain ⟨d0, hAC1⟩ := sepConj_exists_left hAC
+  obtain ⟨nextOff0, hAC2⟩ := sepConj_exists_left hAC1
+  exact ⟨hac, hhl, hdisj, hunion, ⟨d0, nextOff0, hAC2⟩, hHL⟩
+
 end EvmAsm.Rv64.RLP
