@@ -445,6 +445,50 @@ theorem wd_decode_align_facts (base : Word) (hbe : base &&& 1 = 0) :
    BitAux.word_add_even_andn_one hbe (by decide), BitAux.word_add_even_andn_one hbe (by decide),
    BitAux.word_add_even_andn_one hbe (by decide), BitAux.word_add_even_andn_one hbe (by decide)⟩
 
+/-- **Call-site / callee-code disjointness facts.** Each `jal` instruction (a one-instruction
+    `CodeReq.singleton` at `base + j`) sits strictly before the appended callee block it targets
+    (`rlp_walk_init` at `base+332`, `rlp_walk_next` at `base+544`, `rlp_content_to_u64` at
+    `base+956`), so their `CodeReq`s are disjoint. The 9 `hdisj…` hypotheses the success leaf (and
+    the fail tree) thread, discharged from one base-range fact via `singleton_ofProg` +
+    `ofProg_none_range_len` (the singleton's address is below every callee instruction). -/
+theorem wd_decode_disjoint_facts (base : Word) (hbase : base.toNat + 1444 < 2 ^ 64) :
+    ((CodeReq.singleton (base + 24) (.JAL .x1 (308 : BitVec 21))).Disjoint
+      (rlp_walk_init_code (base + 332))) ∧
+    ((CodeReq.singleton (base + 48) (.JAL .x1 (496 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544))) ∧
+    ((CodeReq.singleton (base + 84) (.JAL .x1 (872 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956))) ∧
+    ((CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544))) ∧
+    ((CodeReq.singleton (base + 140) (.JAL .x1 (816 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956))) ∧
+    ((CodeReq.singleton (base + 160) (.JAL .x1 (384 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544))) ∧
+    ((CodeReq.singleton (base + 228) (.JAL .x1 (316 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544))) ∧
+    ((CodeReq.singleton (base + 264) (.JAL .x1 (692 : BitVec 21))).Disjoint
+      (rlp_content_to_u64_code (base + 956))) ∧
+    ((CodeReq.singleton (base + 284) (.JAL .x1 (260 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544))) :=
+  ⟨CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 332)
+      rlp_walk_init_prog 53 (base + 24) rlp_walk_init_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 544)
+      rlp_walk_next_prog 103 (base + 48) rlp_walk_next_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 956)
+      rlp_content_to_u64_prog 22 (base + 84) rlp_content_to_u64_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 544)
+      rlp_walk_next_prog 103 (base + 104) rlp_walk_next_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 956)
+      rlp_content_to_u64_prog 22 (base + 140) rlp_content_to_u64_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 544)
+      rlp_walk_next_prog 103 (base + 160) rlp_walk_next_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 544)
+      rlp_walk_next_prog 103 (base + 228) rlp_walk_next_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 956)
+      rlp_content_to_u64_prog 22 (base + 264) rlp_content_to_u64_prog_length (fun k hk => by bv_omega)),
+   CodeReq.Disjoint.singleton_ofProg (CodeReq.ofProg_none_range_len (base + 544)
+      rlp_walk_next_prog 103 (base + 284) rlp_walk_next_prog_length (fun k hk => by bv_omega))⟩
+
 /-! ## M3 proof — block 1: prologue over the full program code
 
 The composition proof of `withdrawal_decode_characterization` runs over
