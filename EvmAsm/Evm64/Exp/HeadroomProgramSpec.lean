@@ -37,6 +37,31 @@ theorem evmExpHeadroomCanonicalAppendedMulProgram_byte_length :
     4 * evmExpHeadroomCanonicalAppendedMulProgram.length = 664 := by
   rw [evmExpHeadroomCanonicalAppendedMulProgram_length]
 
+theorem evmExpHeadroomCanonicalAppendedMulProgram_mul_entry_byte_offset :
+    4 * (EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_headroom
+        EvmAsm.Evm64.canonicalExpSquaringMulOff
+        EvmAsm.Evm64.canonicalExpCondMulOff
+        EvmAsm.Evm64.canonicalExpCondMulSkipOff
+        EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff).length = 408 := by
+  rw [EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
+
+theorem evmExpHeadroomCanonicalAppendedMulProgram_mul_entry_addr (base : Word) :
+    base + BitVec.ofNat 64 (4 *
+        (EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_headroom
+          EvmAsm.Evm64.canonicalExpSquaringMulOff
+          EvmAsm.Evm64.canonicalExpCondMulOff
+          EvmAsm.Evm64.canonicalExpCondMulSkipOff
+          EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff).length) =
+      base + 408 := by
+  rw [EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
+  rfl
+
+theorem evmExpHeadroomCanonicalAppendedMulProgram_end_addr (base : Word) :
+    base + BitVec.ofNat 64 (4 * evmExpHeadroomCanonicalAppendedMulProgram.length) =
+      base + 664 := by
+  rw [evmExpHeadroomCanonicalAppendedMulProgram_length]
+  rfl
+
 /-- The canonical headroom EXP code bundle is exactly the code requirement of
     the concrete appended program. -/
 theorem evmExpHeadroomCanonicalAppendedMulCode_eq_ofProg (base : Word) :
@@ -69,16 +94,8 @@ theorem evmExpHeadroomCanonicalAppendedMulCode_eq_ofProg (base : Word) :
             EvmAsm.Evm64.mul_callable) := by
     exact EvmAsm.Rv64.CodeReq.ofProg_append
   rw [hAppend]
-  have hOff : base + BitVec.ofNat 64 (4 *
-        (EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_headroom
-          EvmAsm.Evm64.canonicalExpSquaringMulOff
-          EvmAsm.Evm64.canonicalExpCondMulOff
-          EvmAsm.Evm64.canonicalExpCondMulSkipOff
-          EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff).length) =
-      base + 408 := by
-    rw [EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_headroom_length]
-    rfl
-  rw [hOff, ← EvmAsm.Evm64.mul_callable_code_eq_ofProg]
+  rw [evmExpHeadroomCanonicalAppendedMulProgram_mul_entry_addr,
+    ← EvmAsm.Evm64.mul_callable_code_eq_ofProg]
 
 end Exp.Compose
 
