@@ -603,6 +603,30 @@ theorem evm_exp_headroom_named_live_stack_spec_within
     h0 h1 h2 h3 h4 h5 h6 h7 base
     baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase
 
+/-- Named-pre EXP headroom theorem with the consumed base word weakened to
+    ownership. This is closer to the public binary-op stack post: the live stack
+    starts at `evmSp + 32`, and the old top word is merely owned below it. -/
+theorem evm_exp_headroom_owned_base_live_stack_spec_within
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      h0 h1 h2 h3 h4 h5 h6 h7 base : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 72 + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (EvmAsm.Evm64.Exp.Compose.evm_exp_headroom_canonical_appended_mul_code base)
+      (evmExpHeadroomPre sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+        h0 h1 h2 h3 h4 h5 h6 h7 v18 vOld baseWord exponentWord dWord eWord rest)
+      (EvmAsm.Evm64.Exp.Compose.expHeadroomFinalCleanOwnedBaseLiveStackPost
+        sp evmSp baseWord exponentWord rest) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp =>
+      EvmAsm.Evm64.Exp.Compose.expHeadroomFinalCleanLiveStackPost_to_ownedBasePost hp)
+    (evm_exp_headroom_named_live_stack_spec_within
+      sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      h0 h1 h2 h3 h4 h5 h6 h7 base
+      baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase)
+
 -- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
 
 end EvmAsm.Evm64

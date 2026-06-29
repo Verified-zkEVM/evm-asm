@@ -876,6 +876,95 @@ instance pcFreeInst_expHeadroomFinalCleanLiveStackPost
       (expHeadroomFinalCleanLiveStackPost sp evmSp baseWord exponentWord rest) :=
   ⟨expHeadroomFinalCleanLiveStackPost_pcFree⟩
 
+@[irreducible]
+def expHeadroomFinalCleanOwnedBaseLiveStackPost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) : Assertion :=
+  fun ps => ∃ (scratchWord : EvmWord),
+    (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + 32)) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmWordOwn evmSp **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+      expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+        (EvmWord.exp baseWord exponentWord)) ps
+
+theorem expHeadroomFinalCleanOwnedBaseLiveStackPost_unfold
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    expHeadroomFinalCleanOwnedBaseLiveStackPost sp evmSp baseWord exponentWord rest =
+      (fun ps => ∃ (scratchWord : EvmWord),
+        (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+          ((.x2 ↦ᵣ sp) **
+           (.x12 ↦ᵣ (evmSp + 32)) **
+           (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+           evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+           evmWordOwn evmSp **
+           evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+          expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+            (EvmWord.exp baseWord exponentWord)) ps) := by
+  delta expHeadroomFinalCleanOwnedBaseLiveStackPost
+  rfl
+
+theorem expHeadroomFinalCleanOwnedBaseLiveStackPost_pcFree
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    (expHeadroomFinalCleanOwnedBaseLiveStackPost sp evmSp baseWord exponentWord rest).pcFree := by
+  intro ps h_post
+  rw [expHeadroomFinalCleanOwnedBaseLiveStackPost_unfold] at h_post
+  obtain ⟨scratchWord, h_post⟩ := h_post
+  have hControl : (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))).pcFree) := by
+    pcFree
+  have hVisible :
+      (((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + 32)) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmWordOwn evmSp **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)).pcFree) := by
+    pcFree
+  exact (pcFree_sepConj hControl
+    (pcFree_sepConj hVisible expHeadroomFinalLoopExtraFrame_pcFree)) ps h_post
+
+instance pcFreeInst_expHeadroomFinalCleanOwnedBaseLiveStackPost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expHeadroomFinalCleanOwnedBaseLiveStackPost sp evmSp baseWord exponentWord rest) :=
+  ⟨expHeadroomFinalCleanOwnedBaseLiveStackPost_pcFree⟩
+
+private theorem expHeadroomCleanLiveVisible_to_ownedBase
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    ∀ ps,
+      (((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + 32)) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmWordIs evmSp baseWord **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) ps) →
+      (((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + 32)) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmWordOwn evmSp **
+       evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) ps) := by
+  exact sepConj_mono (fun _ h => h)
+    (sepConj_mono (fun _ h => h)
+      (sepConj_mono (fun _ h => h)
+        (sepConj_mono (fun _ h => h)
+          (sepConj_mono (fun _ h => evmWordIs_to_evmWordOwn h) (fun _ h => h)))))
+
+/-- Weaken the consumed base cell in the clean live-stack post to owned memory. -/
+theorem expHeadroomFinalCleanLiveStackPost_to_ownedBasePost
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h : expHeadroomFinalCleanLiveStackPost sp evmSp baseWord exponentWord rest ps) :
+    expHeadroomFinalCleanOwnedBaseLiveStackPost sp evmSp baseWord exponentWord rest ps := by
+  rw [expHeadroomFinalCleanLiveStackPost_unfold] at h
+  obtain ⟨scratchWord, h⟩ := h
+  rw [expHeadroomFinalCleanOwnedBaseLiveStackPost_unfold]
+  refine ⟨scratchWord, ?_⟩
+  exact sepConj_mono (fun _ h_control => h_control)
+    (sepConj_mono expHeadroomCleanLiveVisible_to_ownedBase (fun _ h_frame => h_frame)) _ h
+
 /-- Fold the clean visible post's raw result limbs into `evmWordIs sp result`
     while keeping the actual final live stack rooted at `evmSp + 32`. -/
 theorem expHeadroomFinalCleanVisiblePost_to_cleanLiveStackPost
