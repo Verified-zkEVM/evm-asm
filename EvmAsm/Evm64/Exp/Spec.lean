@@ -15,6 +15,7 @@ import EvmAsm.Evm64.Stack
 import EvmAsm.Evm64.Exp.Compose.Base
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
 import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFramedLiveStackPost
+import EvmAsm.Evm64.Exp.StackExecutionBridge
 import EvmAsm.Evm64.EvmWordArith.Exp
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -686,6 +687,77 @@ instance pcFreeInst_evmExpHeadroomVisibleResultStackPost
     (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
     Assertion.PCFree (evmExpHeadroomVisibleResultStackPost evmSp baseWord exponentWord rest) :=
   ⟨evmExpHeadroomVisibleResultStackPost_pcFree evmSp baseWord exponentWord rest⟩
+
+@[irreducible]
+def evmExpHeadroomRunStackPost
+    (evmSp : Word)
+    (out : ExpStackExecutionBridge.ExpStackResult) : Assertion :=
+  (((.x12 ↦ᵣ (evmSp + 32)) **
+    evmStackIs (evmSp + 32) (out.effects.stackWords ++ out.stack)) **
+    evmExpHeadroomPublicLeftoverFrame evmSp)
+
+theorem evmExpHeadroomRunStackPost_unfold
+    (evmSp : Word)
+    (out : ExpStackExecutionBridge.ExpStackResult) :
+    evmExpHeadroomRunStackPost evmSp out =
+      ((((.x12 ↦ᵣ (evmSp + 32)) **
+        evmStackIs (evmSp + 32) (out.effects.stackWords ++ out.stack)) **
+        evmExpHeadroomPublicLeftoverFrame evmSp)) := by
+  delta evmExpHeadroomRunStackPost
+  rfl
+
+theorem evmExpHeadroomRunStackPost_pcFree
+    (evmSp : Word)
+    (out : ExpStackExecutionBridge.ExpStackResult) :
+    (evmExpHeadroomRunStackPost evmSp out).pcFree := by
+  rw [evmExpHeadroomRunStackPost_unfold]
+  pcFree
+
+instance pcFreeInst_evmExpHeadroomRunStackPost
+    (evmSp : Word)
+    (out : ExpStackExecutionBridge.ExpStackResult) :
+    Assertion.PCFree (evmExpHeadroomRunStackPost evmSp out) :=
+  ⟨evmExpHeadroomRunStackPost_pcFree evmSp out⟩
+
+theorem evmExpHeadroomVisibleResultStackPost_eq_runStackPost
+    (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (out : ExpStackExecutionBridge.ExpStackResult)
+    (h_run : ExpStackExecutionBridge.runExpStack?
+        { stack := baseWord :: exponentWord :: rest } = some out) :
+    evmExpHeadroomVisibleResultStackPost evmSp baseWord exponentWord rest =
+      evmExpHeadroomRunStackPost evmSp out := by
+  rw [ExpStackExecutionBridge.runExpStack?_semantic_cons] at h_run
+  injection h_run with h_out
+  subst h_out
+  rw [evmExpHeadroomVisibleResultStackPost_unfold,
+    evmExpHeadroomRunStackPost_unfold]
+  rfl
+
+theorem evmExpHeadroomRunStackPost_of_visibleResultStackPost
+    {evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {out : ExpStackExecutionBridge.ExpStackResult} {ps : EvmAsm.Rv64.PartialState}
+    (h_run : ExpStackExecutionBridge.runExpStack?
+        { stack := baseWord :: exponentWord :: rest } = some out)
+    (h_post : evmExpHeadroomVisibleResultStackPost evmSp baseWord exponentWord rest ps) :
+    evmExpHeadroomRunStackPost evmSp out ps := by
+  rw [← evmExpHeadroomVisibleResultStackPost_eq_runStackPost
+    evmSp baseWord exponentWord rest out h_run]
+  exact h_post
+
+theorem evmExpHeadroomVisibleResultStackPost_to_runStackPost_self
+    {evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {ps : EvmAsm.Rv64.PartialState}
+    (h_post : evmExpHeadroomVisibleResultStackPost evmSp baseWord exponentWord rest ps) :
+    evmExpHeadroomRunStackPost evmSp
+        { effects :=
+            { stackWords := [EvmWord.exp baseWord exponentWord]
+              dynamicGas := ExpArgs.expDynamicCostFromArgs
+                (ExpArgs.expArgs baseWord exponentWord)
+              totalGas := ExpArgs.expTotalGasFromArgs
+                (ExpArgs.expArgs baseWord exponentWord) }
+          stack := rest } ps := by
+  exact evmExpHeadroomRunStackPost_of_visibleResultStackPost
+    (ExpStackExecutionBridge.runExpStack?_semantic_cons baseWord exponentWord rest) h_post
 
 theorem evmExpHeadroomPublicStackPost_to_visibleResultStackPost
     {evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
