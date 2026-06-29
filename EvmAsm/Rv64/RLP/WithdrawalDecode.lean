@@ -9,6 +9,7 @@
 
 import EvmAsm.Rv64.WP
 import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.EL.Withdrawal
 
 namespace EvmAsm.Rv64.RLP
@@ -50,6 +51,54 @@ def schema : List FieldLayout :=
   ]
 
 theorem schema_length : schema.length = 4 := rfl
+
+/-! ## Pure decode bridge -/
+
+/-- The decoded withdrawal value described by four already-decoded field byte strings.
+    This is a postcondition/result helper, not part of the static schema. -/
+def fromFieldBytes (d0 d1 d2 d3 : List Byte) : Withdrawal where
+  index := Nat.fromBytesBE d0
+  validatorIndex := Nat.fromBytesBE d1
+  address := BitVec.ofNat 160 (Nat.fromBytesBE d2)
+  amount := Nat.fromBytesBE d3
+
+/-- If the pure RLP decoder sees exactly the four withdrawal byte fields and the
+    field guards match `decodeWithdrawal`'s strict scalar/address contract, then
+    `decodeWithdrawal` succeeds with the value derived from those bytes. -/
+theorem decodeWithdrawal_eq_some_of_decodeFully_fields
+    {input d0 d1 d2 d3 : List Byte}
+    (hfull : decodeFully input = some (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3]))
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal input = some (fromFieldBytes d0 d1 d2 d3) := by
+  unfold decodeWithdrawal fromFieldBytes
+  rw [hfull]
+  simp only [hc0, hl0, hc1, hl1, haddr, hc3, hl3, ne_eq, not_false_eq_true,
+    and_self, if_true]
+
+/-- Short-list walk capstone specialized to withdrawal fields. The hypotheses are
+    exactly the reusable walk/decode bridge facts for four byte-string items plus
+    the strict field guards. -/
+theorem decodeWithdrawal_shortList_four_of_decodeAux (pfx : Byte) (payload : List Byte)
+    (off1 off2 off3 off4 : Nat) (d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, payload.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (payload.drop off1) = some (.bytes d1, payload.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (payload.drop off2) = some (.bytes d2, payload.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (payload.drop off3) = some (.bytes d3, payload.drop off4))
+    (hend : payload.drop off4 = [])
+    (h_min : 2 ≤ payload.length)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal (pfx :: payload) = some (fromFieldBytes d0 d1 d2 d3) := by
+  have hfull := decodeFully_shortList_four pfx payload off1 off2 off3 off4
+    (.bytes d0) (.bytes d1) (.bytes d2) (.bytes d3) h_class h_len h0 h1 h2 h3 hend h_min
+  exact decodeWithdrawal_eq_some_of_decodeFully_fields hfull hc0 hl0 hc1 hl1 haddr hc3 hl3
 
 /-! ## Result bytes, derived from the pure decoder result -/
 
