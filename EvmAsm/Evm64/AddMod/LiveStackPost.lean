@@ -770,6 +770,41 @@ theorem evm_addmod_n0_canonical_existential_regs_owned_live_stack_spec_within
   exact evm_addmod_n0_existential_regs_owned_live_stack_spec_within
     sp base ((base + 124) + signExtend21 modOff) a b modOff rfl hbase hdisjoint
 
+@[irreducible]
+def evmAddModN0ExistentialStackTailPre
+    (sp : Word) (a b : EvmWord) (rest : List EvmWord) : Assertion :=
+  evmAddModN0ExistentialPre sp a b ** evmStackIs (sp + 96) rest
+
+theorem evmAddModN0ExistentialStackTailPre_unfold
+    (sp : Word) (a b : EvmWord) (rest : List EvmWord) :
+    evmAddModN0ExistentialStackTailPre sp a b rest =
+      (evmAddModN0ExistentialPre sp a b ** evmStackIs (sp + 96) rest) := by
+  delta evmAddModN0ExistentialStackTailPre
+  rfl
+
+/-- Canonical-code zero-modulus ADDMOD theorem with an arbitrary caller stack
+    tail preserved through the result stack. -/
+theorem evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within
+    (sp base : Word) (a b : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModN0ExistentialStackTailPre sp a b rest)
+      (evmAddModPartialRegsOwnedLiveStackTailPost sp a b (0 : EvmWord) rest) := by
+  rw [evmAddModN0ExistentialStackTailPre_unfold]
+  have hFramed := cpsTripleWithin_frameR (evmStackIs (sp + 96) rest)
+    pcFree_evmStackIs
+    (evm_addmod_n0_canonical_existential_regs_owned_live_stack_spec_within
+      sp base a b modOff hbase hdisjoint)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmAddModPartialRegsOwnedLiveStackPost_tail_to_tailPost hp)
+    hFramed
+
 /-- No-overflow ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the currently composed
@@ -878,5 +913,47 @@ theorem evm_addmod_no_overflow_canonical_existential_regs_owned_live_stack_spec_
       (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
   exact evm_addmod_no_overflow_existential_regs_owned_live_stack_spec_within
     sp base ((base + 124) + signExtend21 modOff) a b N modOff hNoOverflow rfl hbase hdisjoint
+
+@[irreducible]
+def evmAddModCanonicalNoOverflowExistentialStackTailPre
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) : Assertion :=
+  evmAddModNoOverflowExistentialPre
+    sp base ((base + 124) + signExtend21 modOff) a b N **
+  evmStackIs (sp + 96) rest
+
+theorem evmAddModCanonicalNoOverflowExistentialStackTailPre_unfold
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) :
+    evmAddModCanonicalNoOverflowExistentialStackTailPre sp base modOff a b N rest =
+      (evmAddModNoOverflowExistentialPre
+        sp base ((base + 124) + signExtend21 modOff) a b N **
+       evmStackIs (sp + 96) rest) := by
+  delta evmAddModCanonicalNoOverflowExistentialStackTailPre
+  rfl
+
+/-- Canonical-code no-overflow ADDMOD theorem with an arbitrary caller stack
+    tail preserved through the result stack. -/
+theorem evm_addmod_no_overflow_canonical_existential_regs_owned_stack_tail_spec_within
+    (sp base : Word) (a b N : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModCanonicalNoOverflowExistentialStackTailPre sp base modOff a b N rest)
+      (evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest) := by
+  rw [evmAddModCanonicalNoOverflowExistentialStackTailPre_unfold]
+  have hFramed := cpsTripleWithin_frameR (evmStackIs (sp + 96) rest)
+    pcFree_evmStackIs
+    (evm_addmod_no_overflow_canonical_existential_regs_owned_live_stack_spec_within
+      sp base a b N modOff hNoOverflow hbase hdisjoint)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmAddModPartialRegsOwnedLiveStackPost_tail_to_tailPost hp)
+    hFramed
 
 end EvmAsm.Evm64
