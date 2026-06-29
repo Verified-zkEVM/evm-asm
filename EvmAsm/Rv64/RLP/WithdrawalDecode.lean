@@ -10418,4 +10418,39 @@ theorem wd_decode_failNotlist
         (srcBase + BitVec.ofNat 64 0)
         ((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length) 1 True (by decide) hdec))
 
+/-- **Call block: `rlp_walk_init`, short-list span-mismatch arm.** Uses the short-list-mismatch leaf
+    (`rlp_walk_init_smism_spec_within`, 14 steps): a short-list header whose declared payload span
+    doesn't match the input → status `a2 = 3`. The reusable walk_init call for the short-mismatch
+    fail path (5 scratch registers, like short-success). -/
+theorem wd_call_walk_init_smism
+    (callerPC calleeEntry listBase listLen a2Old t0Old t1Old t2Old t3Old t4Old vOld : Word)
+    (listBytes : List (BitVec 8)) (listOff : Nat) (offset : BitVec 21)
+    (hoffset : callerPC + signExtend21 offset = calleeEntry)
+    (halign : (callerPC + 4) &&& ~~~1 = callerPC + 4)
+    (hdisj : (CodeReq.singleton callerPC (.JAL .x1 offset)).Disjoint
+      (rlp_walk_init_code calleeEntry))
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (hlen : listLen ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_hi : BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (h_smism : (listBase + BitVec.ofNat 64 listOff) +
+        (((listBytes[listOff]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12))
+      ≠ (listBase + BitVec.ofNat 64 listOff) + listLen) :
+    cpsTripleWithin (1 + 14) callerPC (callerPC + 4)
+      ((CodeReq.singleton callerPC (.JAL .x1 offset)).union (rlp_walk_init_code calleeEntry))
+      ((.x1 ↦ᵣ vOld) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) ** (.x12 ↦ᵣ a2Old) **
+         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+         (.x29 ↦ᵣ t4Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase listBytes))
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
+        (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) ** (.x12 ↦ᵣ (3 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (callerPC + 4)) ** bytesRegion listBase listBytes) := by
+  have hcallee := rlp_walk_init_smism_spec_within calleeEntry listBase (callerPC + 4) listLen
+    a2Old t0Old t1Old t2Old t3Old t4Old listBytes listOff hsalign hoff hover hvalid hlen h_ge h_hi h_smism
+  exact cpsCallWithin offset hoffset halign (by pcFree) hdisj
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) hcallee)
+
 end EvmAsm.Rv64.RLP
