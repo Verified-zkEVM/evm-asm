@@ -777,6 +777,24 @@ abbrev evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_prefix_code
   (CodeReq.union (CodeReq.singleton (base + 16) (.LD .x5 .x12 (32 : BitVec 12)))
    (CodeReq.singleton (base + 20) (.SD .x12 .x5 (96 : BitVec 12))))
 
+abbrev evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_prefix_code
+    (base : Word) : CodeReq :=
+  CodeReq.union (evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_prefix_code base)
+  (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x5 .x12 (40 : BitVec 12)))
+   (CodeReq.singleton (base + 28) (.SD .x12 .x5 (104 : BitVec 12))))
+
+abbrev evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_prefix_code
+    (base : Word) : CodeReq :=
+  CodeReq.union (evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_prefix_code base)
+  (CodeReq.union (CodeReq.singleton (base + 32) (.LD .x5 .x12 (48 : BitVec 12)))
+   (CodeReq.singleton (base + 36) (.SD .x12 .x5 (112 : BitVec 12))))
+
+abbrev evm_addmod_pow256_prepare_minus_one_mod_args_tail_full_code
+    (base : Word) : CodeReq :=
+  CodeReq.union (evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_prefix_code base)
+  (CodeReq.union (CodeReq.singleton (base + 40) (.LD .x5 .x12 (56 : BitVec 12)))
+   (CodeReq.singleton (base + 44) (.SD .x12 .x5 (120 : BitVec 12))))
+
 @[irreducible]
 def evmAddModPow256PrepareMinusOneTailStorePrefixPost (sp fill : Word)
     (n0 n1 n2 n3 u0 u1 u2 u3 : Word) : Assertion :=
@@ -810,6 +828,80 @@ def evmAddModPow256PrepareMinusOneTailCopy0PrefixPost (sp fill : Word)
   ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ u1) **
   ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2) **
   ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)
+
+@[irreducible]
+def evmAddModPow256PrepareMinusOneTailCopy1PrefixPost (sp fill : Word)
+    (n0 n1 n2 n3 u2 u3 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n1) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)
+
+@[irreducible]
+def evmAddModPow256PrepareMinusOneTailCopy2PrefixPost (sp fill : Word)
+    (n0 n1 n2 n3 u3 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n2) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)
+
+theorem evmAddModPow256PrepareMinusOneTailCopy2PrefixPost_unfold
+    (sp fill : Word) (n0 n1 n2 n3 u3 : Word) :
+    evmAddModPow256PrepareMinusOneTailCopy2PrefixPost sp fill
+        n0 n1 n2 n3 u3 =
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n2) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)) := by
+  delta evmAddModPow256PrepareMinusOneTailCopy2PrefixPost
+  rfl
+
+theorem evmAddModPow256PrepareMinusOneTailCopy1PrefixPost_unfold
+    (sp fill : Word) (n0 n1 n2 n3 u2 u3 : Word) :
+    evmAddModPow256PrepareMinusOneTailCopy1PrefixPost sp fill
+        n0 n1 n2 n3 u2 u3 =
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n1) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)) := by
+  delta evmAddModPow256PrepareMinusOneTailCopy1PrefixPost
+  rfl
 
 theorem evmAddModPow256PrepareMinusOneTailCopy0PrefixPost_unfold
     (sp fill : Word) (n0 n1 n2 n3 u1 u2 u3 : Word) :
@@ -986,6 +1078,35 @@ theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_spec_within
        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1)) := by
   exact sd_spec_gen_within .x12 .x5 sp n1 u1 104 base
 
+/-- Compose through the second modulus-limb copy into the callable MOD divisor window. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_prefix_spec_within
+    (sp fill base : Word) (n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) :
+    cpsTripleWithin 8 base (base + 32)
+      (evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_prefix_code base)
+      (evmAddModPow256PrepareMinusOneTailPre sp fill
+        n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3)
+      (evmAddModPow256PrepareMinusOneTailCopy1PrefixPost sp fill
+        n0 n1 n2 n3 u2 u3) := by
+  rw [evmAddModPow256PrepareMinusOneTailPre_unfold,
+      evmAddModPow256PrepareMinusOneTailCopy1PrefixPost_unfold]
+  have S0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store0_spec_within
+    sp fill base w0
+  have S1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store1_spec_within
+    sp fill (base + 4) w1
+  have S2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store2_spec_within
+    sp fill (base + 8) w2
+  have S3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store3_spec_within
+    sp fill (base + 12) w3
+  have L0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load0_spec_within
+    sp fill (base + 16) n0
+  have C0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_spec_within
+    sp (base + 20) n0 u0
+  have L1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load1_spec_within
+    sp (base + 24) n0 n1
+  have C1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_spec_within
+    sp (base + 28) n1 u1
+  runBlock S0 S1 S2 S3 L0 C0 L1 C1
+
 /-- Load the third modulus limb while preparing the first overflow-helper MOD call. -/
 theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_load2_spec_within
     (sp base n1 n2 : Word) :
@@ -1008,6 +1129,39 @@ theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_spec_within
        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2)) := by
   exact sd_spec_gen_within .x12 .x5 sp n2 u2 112 base
 
+/-- Compose through the third modulus-limb copy into the callable MOD divisor window. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_prefix_spec_within
+    (sp fill base : Word) (n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) :
+    cpsTripleWithin 10 base (base + 40)
+      (evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_prefix_code base)
+      (evmAddModPow256PrepareMinusOneTailPre sp fill
+        n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3)
+      (evmAddModPow256PrepareMinusOneTailCopy2PrefixPost sp fill
+        n0 n1 n2 n3 u3) := by
+  rw [evmAddModPow256PrepareMinusOneTailPre_unfold,
+      evmAddModPow256PrepareMinusOneTailCopy2PrefixPost_unfold]
+  have S0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store0_spec_within
+    sp fill base w0
+  have S1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store1_spec_within
+    sp fill (base + 4) w1
+  have S2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store2_spec_within
+    sp fill (base + 8) w2
+  have S3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store3_spec_within
+    sp fill (base + 12) w3
+  have L0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load0_spec_within
+    sp fill (base + 16) n0
+  have C0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_spec_within
+    sp (base + 20) n0 u0
+  have L1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load1_spec_within
+    sp (base + 24) n0 n1
+  have C1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_spec_within
+    sp (base + 28) n1 u1
+  have L2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load2_spec_within
+    sp (base + 32) n1 n2
+  have C2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_spec_within
+    sp (base + 36) n2 u2
+  runBlock S0 S1 S2 S3 L0 C0 L1 C1 L2 C2
+
 /-- Load the high modulus limb while preparing the first overflow-helper MOD call. -/
 theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_load3_spec_within
     (sp base n2 n3 : Word) :
@@ -1029,5 +1183,42 @@ theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy3_spec_within
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n3) **
        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := by
   exact sd_spec_gen_within .x12 .x5 sp n3 u3 120 base
+
+/-- Compose the full tail that fills the overflow-helper dividend window and
+    copies the modulus limbs into the callable MOD divisor window. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_full_spec_within
+    (sp fill base : Word) (n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) :
+    cpsTripleWithin 12 base (base + 48)
+      (evm_addmod_pow256_prepare_minus_one_mod_args_tail_full_code base)
+      (evmAddModPow256PrepareMinusOneTailPre sp fill
+        n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3)
+      (evmAddModPow256PrepareMinusOneTailPost sp fill n0 n1 n2 n3) := by
+  rw [evmAddModPow256PrepareMinusOneTailPre_unfold,
+      evmAddModPow256PrepareMinusOneTailPost_unfold]
+  have S0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store0_spec_within
+    sp fill base w0
+  have S1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store1_spec_within
+    sp fill (base + 4) w1
+  have S2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store2_spec_within
+    sp fill (base + 8) w2
+  have S3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store3_spec_within
+    sp fill (base + 12) w3
+  have L0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load0_spec_within
+    sp fill (base + 16) n0
+  have C0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_spec_within
+    sp (base + 20) n0 u0
+  have L1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load1_spec_within
+    sp (base + 24) n0 n1
+  have C1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_spec_within
+    sp (base + 28) n1 u1
+  have L2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load2_spec_within
+    sp (base + 32) n1 n2
+  have C2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_spec_within
+    sp (base + 36) n2 u2
+  have L3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load3_spec_within
+    sp (base + 40) n2 n3
+  have C3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy3_spec_within
+    sp (base + 44) n3 u3
+  runBlock S0 S1 S2 S3 L0 C0 L1 C1 L2 C2 L3 C3
 
 end EvmAsm.Evm64
