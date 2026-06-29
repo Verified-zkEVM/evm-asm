@@ -10062,4 +10062,34 @@ theorem wd_decode_failViaBnez11
     (wd_decode_failEndpoint base sp0 raVal s0Old s1Old s2Old outPtr srcBase srcBytes
       raClob s0Clob s1Clob s2Clob a0Old hdec)
 
+/-- **Pre-zeroed output region ⟹ owned.** The untouched 48-byte output struct weakens to the
+    six-dword ownership tokens `wd_outOwned` — what the fail disjunct (and any reject before a field
+    write) needs. The byte-granular `bytesRegion` is carved into its six dwords and each weakened to
+    `memOwn`. -/
+theorem wd_outOwned_of_zeroRegion (outPtr : Word) :
+    ∀ h, bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)) h → wd_outOwned outPtr h := by
+  have hpk8 : packBytes [0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8] = (0 : Word) := by decide
+  have hL : bytesRegion outPtr (List.replicate 48 (0 : BitVec 8))
+      = ((outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) **
+         ((outPtr + 16) ↦ₘ (0 : Word)) ** ((outPtr + 24) ↦ₘ (0 : Word)) **
+         ((outPtr + 32) ↦ₘ (0 : Word)) ** ((outPtr + 40) ↦ₘ (0 : Word))) := by
+    rw [bytesRegion_eq_cons outPtr _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8 + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8 + 8 + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8 + 8 + 8 + 8) _ (by decide),
+        show (outPtr + 8 + 8 + 8 + 8 + 8 : Word) = outPtr + 40 from by bv_omega,
+        show (outPtr + 8 + 8 + 8 + 8 : Word) = outPtr + 32 from by bv_omega,
+        show (outPtr + 8 + 8 + 8 : Word) = outPtr + 24 from by bv_omega,
+        show (outPtr + 8 + 8 : Word) = outPtr + 16 from by bv_omega]
+    simp [hpk8, sepConj_emp_right']
+  intro h hp
+  rw [hL] at hp
+  unfold wd_outOwned
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))))
+    h hp
+
 end EvmAsm.Rv64.RLP
