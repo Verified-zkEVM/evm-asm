@@ -11,7 +11,9 @@ import EvmAsm.Rv64.WP
 import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.MemRegionStore
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Rv64.Tactics.WP
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.EL.Withdrawal
 
@@ -126,6 +128,63 @@ def prologueCert (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word) :
       (prologuePost sp0 raVal s0Old s1Old s2Old outBase) :=
   WP.CFG.block (WP.Entails.refl _)
     (prologue_spec_within base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3)
+
+/-! ## Failure endpoint -/
+
+/-- Small reason-erased failure return block: set status `1` and return.  This
+    deliberately does not encode why decoding failed; the public postcondition only
+    observes failure as `decodeWithdrawal input = none`. -/
+def failStatusReturn : List Instr :=
+  [ .LI .x10 (1 : Word)
+  , .JALR .x0 .x1 (0 : BitVec 12)
+  ]
+
+theorem failStatusReturn_length : failStatusReturn.length = 2 := rfl
+
+/-- Code requirement for the reason-erased failure return block rooted at `base`.
+    WP certificates keep code as a disjoint union of instruction fetches;
+    `failStatusReturn` remains the executable list shape. -/
+def failStatusReturnCode (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.LI .x10 (1 : Word))).union
+    (CodeReq.singleton (base + 4) (.JALR .x0 .x1 (0 : BitVec 12)))
+
+/-- Return PC used by the failure return block, exactly matching `JALR x0, ra, 0`. -/
+def failStatusReturnExit (raVal : Word) : Word :=
+  (raVal + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)
+
+/-- Internal precondition for the reason-erased failure return block. -/
+def failStatusReturnPre (raVal statusOld : Word) : Assertion :=
+  ((.x1 ↦ᵣ raVal) ** (.x10 ↦ᵣ statusOld))
+
+/-- Internal postcondition for the reason-erased failure return block. -/
+def failStatusReturnPost (raVal : Word) : Assertion :=
+  ((.x1 ↦ᵣ raVal) ** (.x10 ↦ᵣ (1 : Word)))
+
+/-- WP certificate for the reason-erased failure return block. -/
+def failStatusReturnCert (base raVal statusOld : Word) :
+    WP.CFG.Cert base (failStatusReturnExit raVal) (failStatusReturnCode base)
+      (failStatusReturnPost raVal) := by
+  unfold failStatusReturnPost failStatusReturnExit failStatusReturnCode
+  have hli0 := li_spec_gen_within .x10 statusOld (1 : Word) base (by decide)
+  have hli := cpsTripleWithin_frameL (.x1 ↦ᵣ raVal) (by pcFree) hli0
+  have hret0 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (base + 4)
+  have hret := cpsTripleWithin_frameR (.x10 ↦ᵣ (1 : Word)) (by pcFree) hret0
+  exact WP.CFG.seqDisjoint
+    (CodeReq.Disjoint.singleton (by bv_omega))
+    hli
+    (WP.CFG.block (WP.Entails.refl _) hret)
+    (by wp_rv64_link)
+
+/-- Verified reason-erased failure return block. -/
+theorem failStatusReturn_spec_within
+    (base raVal statusOld : Word) :
+    cpsTripleWithin (failStatusReturnCert base raVal statusOld).nSteps base
+      (failStatusReturnExit raVal) (failStatusReturnCode base)
+      (failStatusReturnPre raVal statusOld)
+      (failStatusReturnPost raVal) :=
+  by
+    unfold failStatusReturnPre
+    exact (failStatusReturnCert base raVal statusOld).sound
 
 /-! ## Pure decode bridge -/
 

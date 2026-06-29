@@ -28,14 +28,25 @@ macro_rules
   | `(tactic| wp_rv64 $cfg:term) =>
       `(tactic| exact ($cfg).sound)
 
+/-- Close the midpoint entailment between adjacent WP fragments.  The common
+    case is definitional equality of the head postcondition and tail WP; reordered
+    separation frames fall through to `xperm`. -/
+syntax (name := wpRv64LinkTac) "wp_rv64_link" : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_link) =>
+      `(tactic| first
+        | exact EvmAsm.Rv64.WP.Entails.refl _
+        | intro _ _hp; xperm_hyp _hp)
+
 /-- Compose a head CPS triple with a WP/CFG tail and close the midpoint
-    entailment by separation-conjunction permutation. -/
+    entailment with `wp_rv64_link`. -/
 syntax (name := wpRv64SeqTac) "wp_rv64_seq " term ", " term : tactic
 
 macro_rules
   | `(tactic| wp_rv64_seq $head:term, $tail:term) =>
       `(tactic| exact (EvmAsm.Rv64.WP.Triple.seq $head $tail
-        (by intro _ _hp; xperm_hyp _hp)).sound)
+        (by wp_rv64_link)).sound)
 
 /-- Disjoint-code version of `wp_rv64_seq`. -/
 syntax (name := wpRv64SeqDisjointTac) "wp_rv64_seq_disjoint " term ", " term ", " term : tactic
@@ -43,7 +54,7 @@ syntax (name := wpRv64SeqDisjointTac) "wp_rv64_seq_disjoint " term ", " term ", 
 macro_rules
   | `(tactic| wp_rv64_seq_disjoint $hd:term, $head:term, $tail:term) =>
       `(tactic| exact (EvmAsm.Rv64.WP.Triple.seqDisjoint $hd $head $tail
-        (by intro _ _hp; xperm_hyp _hp)).sound)
+        (by wp_rv64_link)).sound)
 
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
