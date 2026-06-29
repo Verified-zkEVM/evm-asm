@@ -135,6 +135,7 @@ theorem wd_call_walk_next
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -1325,6 +1326,7 @@ theorem wd_call_walknext_field0
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -1892,6 +1894,7 @@ theorem wd_decode_field0Walk (base srcBase endPtr vOld a0Old a1Old a2Old
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -2489,7 +2492,7 @@ theorem wd_decode_field0BodyShortBytes
   have hwalk := wd_decode_field0Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign52 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 hpos⟩)
+    (fun _ _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 hpos⟩)
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi hcanon hfit⟩
   -- collapse the walk's existential `Post` to the short-byte-string instance (explicit post)
@@ -2749,7 +2752,7 @@ theorem wd_decode_field0BodyEmpty
   have hwalk := wd_decode_field0Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign52 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ => ⟨hoff1, hover1, hvalid1⟩)
+    (fun _ _ _ => ⟨hoff1, hover1, hvalid1⟩)
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi
       (fun hc => by
@@ -3182,6 +3185,7 @@ theorem wd_call_walknext_field1
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -3297,6 +3301,7 @@ theorem wd_decode_field1Walk (base srcBase endPtr vOld a0Old a1Old a2Old
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -3508,7 +3513,7 @@ theorem wd_decode_field1BodyShortBytes
   have hwalk := wd_decode_field1Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign108 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 hpos⟩)
+    (fun _ _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 hpos⟩)
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi hcanon hfit⟩
   have hwalkSB : cpsTripleWithin (2 + (1 + 87) + 1) (base + 96) (base + 112)
@@ -3752,7 +3757,7 @@ theorem wd_decode_field1BodyEmpty
   have hwalk := wd_decode_field1Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign108 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ => ⟨hoff1, hover1, hvalid1⟩)
+    (fun _ _ _ => ⟨hoff1, hover1, hvalid1⟩)
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi
       (fun hc => by
@@ -4168,6 +4173,7 @@ theorem wd_call_walknext_field3
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -4281,6 +4287,7 @@ theorem wd_decode_field3Walk (base srcBase endPtr vOld a0Old a1Old a2Old
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -4488,7 +4495,7 @@ theorem wd_decode_field3BodyShortBytes
   have hwalk := wd_decode_field3Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign232 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 hpos⟩)
+    (fun _ _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 hpos⟩)
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi hcanon hfit⟩
   have hwalkSB : cpsTripleWithin (2 + (1 + 87) + 1) (base + 220) (base + 236)
@@ -4728,7 +4735,7 @@ theorem wd_decode_field3BodyEmpty
   have hwalk := wd_decode_field3Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign232 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ => ⟨hoff1, hover1, hvalid1⟩)
+    (fun _ _ _ => ⟨hoff1, hover1, hvalid1⟩)
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi
       (fun hc => by
@@ -4817,6 +4824,7 @@ theorem wd_call_walknext_field2
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -4930,6 +4938,7 @@ theorem wd_decode_field2Walk (base srcBase endPtr vOld a0Old a1Old a2Old
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -5347,7 +5356,7 @@ theorem wd_decode_field2Body
   have hwalk := wd_decode_field2Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign164 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 (by omega)⟩)
+    (fun _ _ _ => ⟨by omega, by omega, by simpa using hcontentvalid 0 (by omega)⟩)
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi
       (fun hc => by exfalso

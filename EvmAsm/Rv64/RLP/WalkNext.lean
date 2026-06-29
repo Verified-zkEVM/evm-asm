@@ -3928,6 +3928,7 @@ theorem rlp_walk_next_spec_within
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        0 < (srcBytes[srcOff]'hoff).toNat - 0x80 →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
@@ -4001,6 +4002,7 @@ theorem rlp_walk_next_spec_within
           by_cases hlen1 : (pfx - (0x80 : Word)) = (1 : Word)
           · -- len = 1; content byte
             obtain ⟨hoff1, hover1, hvalid1⟩ := hss hp80 hpb8
+              (by have hb := (srcBytes[srcOff]'hoff).isLt; bv_omega)
             by_cases hcb : BitVec.ult ((srcBytes[srcOff + 1]'hoff1).zeroExtend 64) (0x80 : Word) = true
             · -- non-canonical single byte (a1 = 6)
               have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
