@@ -8712,6 +8712,234 @@ theorem wd_decode_aritySuccessTail_d3layer
     xperm_hyp hs
   · xperm_hyp hq
 
+/-- **Success-leaf post** (base+0 → ret success): what the whole success path produces. The arity
+    tail's success return (`a0 = x10 = 0`, callee-saved restored, stack popped) plus the framed
+    output cells — field 0/1/3 scalars at struct off 0/8/40, the 20-byte address copy at struct+16
+    — and the four `decodeAux` facts (`d0/d1/d2/d3`) the capstone feeds to
+    `wd_decodeWithdrawal_some_of_srcFacts` to conclude `decodeWithdrawal = some w` and that the
+    output region holds `w`. -/
+def wd_successLeafPost (sp0 raVal s0Old s1Old s2Old structPtr srcBase : Word)
+    (srcBytes dstBytes : List (BitVec 8)) : Assertion :=
+  fun h => ∃ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat)
+      (d3 : List Byte) (nextOff3 : Nat),
+    ((((((((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        (((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** ⌜(2 : Word) = (2 : Word)⌝) **
+          ((.x10 ↦ᵣ (0 : Word)) **
+            (.x2 ↦ᵣ ((sp0 + signExtend12 (-32 : BitVec 12)) + signExtend12 (32 : BitVec 12))) **
+            (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
+        (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+          ⌜(0 : Word) = (0 : Word)⌝ **
+          ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1)) **
+          ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d3)) **
+          (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+          (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+          bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+          ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+          regOwn .x5 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          bytesRegion srcBase srcBytes)) **
+        ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+          (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
+            some (.bytes d0, srcBytes.drop nextOff0))⌝) **
+        ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+          (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
+            some (.bytes d1, srcBytes.drop nextOff1))⌝) **
+        ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+          some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
+        ⌜d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
+          (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
+            some (.bytes d3, srcBytes.drop nextOff3))⌝) h
+
+/-- **Arity-tail consumer** (base+276 → ret): consumes the success field chain's post
+    (`wd_decode_headField0123`'s output) and runs the arity-success tail, producing
+    `wd_successLeafPost`. Peels the six nested existentials (`d0,nextOff0,d1,nextOff1,d3,nextOff3`),
+    extracts the four `decodeAux` facts to discharge `h_end` (taken as a dependent hypothesis the
+    capstone proves from the 4-item span), frames the output cells / address bytes / leftover regs
+    through the tail, and re-attaches the four facts in the post. -/
+theorem wd_decode_arityTail_consume
+    (base sp0 raVal s0Old s1Old s2Old structPtr srcBase srcLen : Word)
+    (srcBytes dstBytes : List (BitVec 8))
+    (halign288 : (base + 288) &&& ~~~1 = base + 288)
+    (hdisj284 : (CodeReq.singleton (base + 284) (.JAL .x1 (260 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (hinstr : withdrawal_decode_prog.get
+        ⟨73, by rw [withdrawal_decode_prog_length]; norm_num⟩ = .BNE .x11 .x6 (12 : BitVec 13))
+    (h_end : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat)
+        (d3 : List Byte) (nextOff3 : Nat),
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0))) →
+      (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
+          some (.bytes d1, srcBytes.drop nextOff1))) →
+      (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+        some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
+      (d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
+          some (.bytes d3, srcBytes.drop nextOff3))) →
+      ¬ BitVec.ult (srcBase + BitVec.ofNat 64 nextOff3)
+        ((srcBase + BitVec.ofNat 64 0) + srcLen)) :
+    cpsTripleWithin ((2 + ((1 + 4) + 1)) + (1 + 8)) (base + 276) (raVal &&& ~~~1)
+      (withdrawal_decode_code base)
+      (fun h => ∃ d0 nextOff0,
+        (((fun h'' => ∃ d1 nextOff1,
+            wd_field3ConsumePost base srcBase srcLen structPtr srcBytes dstBytes nextOff0
+              d1 nextOff1 h'') **
+          (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+            (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+              ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
+          ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+            (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
+              some (.bytes d0, srcBytes.drop nextOff0))⌝) h)
+      (wd_successLeafPost sp0 raVal s0Old s1Old s2Old structPtr srcBase srcBytes dstBytes) := by
+  unfold wd_successLeafPost
+  refine cpsTripleWithin_exists_pre (fun d0 => ?_)
+  refine cpsTripleWithin_exists_pre (fun nextOff0 => ?_)
+  refine cpsTripleWithin_pure_pre (fun hd0facts => ?_)
+  refine cpsTripleWithin_weaken
+    (fun s hs => ((by
+      obtain ⟨d1, h1⟩ := sepConj_exists_left hs
+      obtain ⟨nextOff1, h2⟩ := sepConj_exists_left h1
+      exact ⟨d1, nextOff1, h2⟩) :
+      ∃ d1 nextOff1,
+        (wd_field3ConsumePost base srcBase srcLen structPtr srcBytes dstBytes nextOff0 d1 nextOff1 **
+          (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+            (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+              ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) s))
+    (fun s hq => hq) ?_
+  refine cpsTripleWithin_exists_pre (fun d1 => ?_)
+  refine cpsTripleWithin_exists_pre (fun nextOff1 => ?_)
+  unfold wd_field3ConsumePost
+  refine cpsTripleWithin_weaken (fun s hs => by xperm_hyp hs) (fun s hq => hq)
+    (cpsTripleWithin_pure_pre
+      (P := ((((fun h => ∃ d3 nextOff3,
+              wd_scalarFieldUnifiedPost (base + 268) structPtr (40 : BitVec 12) srcBase
+                ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21) d3 nextOff3 h) **
+            ((.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+              (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+              bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+              ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+              ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1)))) **
+            ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+              some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
+          (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+            (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+              ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+              ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))))
+      (fun (hd1facts : d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+          (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
+            some (.bytes d1, srcBytes.drop nextOff1))) => ?_))
+  refine cpsTripleWithin_weaken (fun s hs => by xperm_hyp hs) (fun s hq => hq)
+    (cpsTripleWithin_pure_pre
+      (P := (((fun h => ∃ d3 nextOff3,
+              wd_scalarFieldUnifiedPost (base + 268) structPtr (40 : BitVec 12) srcBase
+                ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21) d3 nextOff3 h) **
+            ((.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+              (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+              bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+              ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+              ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1)))) **
+            (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+              (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+                ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))))
+      (fun (hd2dec : ∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+          some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) =>
+        ?_))
+  refine cpsTripleWithin_weaken
+    (fun s hs => ((by
+      have hs' : ((fun h => ∃ d3 nextOff3,
+          wd_scalarFieldUnifiedPost (base + 268) structPtr (40 : BitVec 12) srcBase
+            ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21) d3 nextOff3 h) **
+          (((.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+              (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+              bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+              ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+              ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
+            (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+              (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+                ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old))))) s := by xperm_hyp hs
+      obtain ⟨d3, h1⟩ := sepConj_exists_left hs'
+      obtain ⟨nextOff3, h2⟩ := sepConj_exists_left h1
+      exact ⟨d3, nextOff3, h2⟩) :
+      ∃ d3 nextOff3,
+        (wd_scalarFieldUnifiedPost (base + 268) structPtr (40 : BitVec 12) srcBase
+            ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21) d3 nextOff3 **
+          (((.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+              (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+              bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+              ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+              ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
+            (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+              (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+                ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old))))) s))
+    (fun s hq => hq) ?_
+  refine cpsTripleWithin_exists_pre (fun d3 => ?_)
+  refine cpsTripleWithin_exists_pre (fun nextOff3 => ?_)
+  unfold wd_scalarFieldUnifiedPost
+  refine cpsTripleWithin_weaken (fun s hs => by xperm_hyp hs) (fun s hq => hq)
+    (cpsTripleWithin_pure_pre
+      (P := (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 nextOff3)) **
+            (.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE d3)) ** (.x11 ↦ᵣ (0 : Word)) **
+            (.x12 ↦ᵣ BitVec.ofNat 64 d3.length) ** (.x8 ↦ᵣ structPtr) ** (.x1 ↦ᵣ (base + 268)) **
+            (.x0 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+            bytesRegion srcBase srcBytes **
+            ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d3)) **
+            (.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31) **
+          (((.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+              (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+              bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+              ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+              ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
+            (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+              (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+                ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+                ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old))))))
+      (fun (hd3facts : d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
+          (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
+            some (.bytes d3, srcBytes.drop nextOff3))) => ?_))
+  have hend' := h_end d0 nextOff0 d1 nextOff1 d3 nextOff3 hd0facts hd1facts hd2dec hd3facts
+  have htail := wd_decode_aritySuccessTail_regOwn6 base (srcBase + BitVec.ofNat 64 nextOff3)
+    ((srcBase + BitVec.ofNat 64 0) + srcLen) (BitVec.ofNat 64 (Nat.fromBytesBE d3)) (0 : Word)
+    (base + 268) (BitVec.ofNat 64 d3.length) (sp0 + signExtend12 (-32 : BitVec 12)) structPtr
+    raVal s0Old s1Old s2Old hend' halign288 hdisj284 hinstr
+  have htailF := cpsTripleWithin_frameR
+    (((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
+      ⌜(0 : Word) = (0 : Word)⌝ **
+      ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1)) **
+      ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d3)) **
+      (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+      (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+      bytesRegion (structPtr + 16) (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+      ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝ **
+      regOwn .x5 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion srcBase srcBytes)
+    (by pcFree) htail
+  refine cpsTripleWithin_weaken (fun s hs => by xperm_hyp hs) (fun s hq => ?_) htailF
+  exact (sepConj_pure_right s).mpr ⟨(sepConj_pure_right s).mpr ⟨(sepConj_pure_right s).mpr
+    ⟨(sepConj_pure_right s).mpr ⟨hq, hd0facts⟩, hd1facts⟩, hd2dec⟩, hd3facts⟩
+
 /-! ## M3 proof — output carving: the address copy holds field 2's content -/
 
 /-- **`getElem?` of a byte-copy chain.** Position `j` of `copyRangeGen dst src si0 di0 N` is the
