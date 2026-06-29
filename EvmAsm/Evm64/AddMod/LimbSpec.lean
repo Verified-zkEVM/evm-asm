@@ -799,4 +799,92 @@ theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_store3_spec_within
        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill)) := by
   exact sd_spec_gen_within .x12 .x5 sp fill w3 88 base
 
+/-- Load the low modulus limb while preparing the first overflow-helper MOD call. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_load0_spec_within
+    (sp fill base n0 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LD .x5 .x12 (32 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0)) := by
+  exact ld_spec_gen_within .x5 .x12 sp fill n0 32 base (by nofun)
+
+/-- Store the low modulus limb into the callable MOD divisor window. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_spec_within
+    (sp base n0 u0 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (96 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n0) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ u0))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n0) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0)) := by
+  exact sd_spec_gen_within .x12 .x5 sp n0 u0 96 base
+
+/-- Load the second modulus limb while preparing the first overflow-helper MOD call. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_load1_spec_within
+    (sp base n0 n1 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LD .x5 .x12 (40 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n1) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1)) := by
+  exact ld_spec_gen_within .x5 .x12 sp n0 n1 40 base (by nofun)
+
+/-- Store the second modulus limb into the callable MOD divisor window. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_spec_within
+    (sp base n1 u1 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (104 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n1) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ u1))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n1) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1)) := by
+  exact sd_spec_gen_within .x12 .x5 sp n1 u1 104 base
+
+/-- Load the third modulus limb while preparing the first overflow-helper MOD call. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_load2_spec_within
+    (sp base n1 n2 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LD .x5 .x12 (48 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n2) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2)) := by
+  exact ld_spec_gen_within .x5 .x12 sp n1 n2 48 base (by nofun)
+
+/-- Store the third modulus limb into the callable MOD divisor window. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_spec_within
+    (sp base n2 u2 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (112 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n2) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n2) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2)) := by
+  exact sd_spec_gen_within .x12 .x5 sp n2 u2 112 base
+
+/-- Load the high modulus limb while preparing the first overflow-helper MOD call. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_load3_spec_within
+    (sp base n2 n3 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LD .x5 .x12 (56 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3)) := by
+  exact ld_spec_gen_within .x5 .x12 sp n2 n3 56 base (by nofun)
+
+/-- Store the high modulus limb into the callable MOD divisor window. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy3_spec_within
+    (sp base n3 u3 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (120 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := by
+  exact sd_spec_gen_within .x12 .x5 sp n3 u3 120 base
+
 end EvmAsm.Evm64
