@@ -11566,4 +11566,69 @@ theorem wd_decode_field0_lbu_li (base srcBase t0v t1v : Word) (srcBytes : List (
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h14 h15)
 
+/-- **Field-0 list-form reject (concrete witnesses)** (base+56 → ret): from the walk_next-OK state,
+    `lbu prefix ⨾ li 0xc0 ⨾ bgeu prefix,0xc0,fail` taken on a list item (`prefix ≥ 0xc0`) → fail
+    endpoint. Composes `wd_decode_field0_lbu_li` (framed) ⨾ `wd_decode_failViaBgeu`. -/
+theorem wd_decode_field0ListRejectConcrete
+    (base sp0 raVal s0Old s1Old s2Old outPtr srcBase endPtr next len t0v t1v : Word)
+    (srcBytes : List Byte) (srcOff : Nat)
+    (hbe : base &&& 1 = 0) (hbase : base.toNat + 1444 < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (h_list : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (hdec : decodeWithdrawal srcBytes = none) :
+    cpsTripleWithin ((1 + 1) + (1 + 7)) (base + 56) (raVal &&& ~~~1) (withdrawal_decode_code base)
+      (((.x5 ↦ᵣ t0v) ** (.x6 ↦ᵣ t1v) ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (base + 52)) ** bytesRegion srcBase srcBytes) **
+        ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** ⌜(0 : Word) = (0 : Word)⌝ **
+          ⌜rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝) **
+        ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x8 ↦ᵣ outPtr) **
+          (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) **
+          ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old) **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** wd_outOwned outPtr))
+      (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+        wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 ** bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
+            ⌜decodeWithdrawal srcBytes = some w ∧ w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2)
+              ∧ d2.length = 20⌝) h)) ∨
+         (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+            ⌜decodeWithdrawal srcBytes = none⌝) h))) := by
+  -- lbu+li unit, framed with the rest of the state (BULK = arm' regs + saved frame + output)
+  have hunit := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) ** ⌜(0 : Word) = (0 : Word)⌝ **
+      ⌜rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝ **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x1 ↦ᵣ (base + 52)) ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x8 ↦ᵣ outPtr) **
+      (.x18 ↦ᵣ endPtr) **
+      ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old) **
+      regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** wd_outOwned outPtr)
+    (by unfold wd_outOwned; pcFree)
+    (wd_decode_field0_lbu_li base srcBase t0v t1v srcBytes srcOff hsalign hoff hover hvalid)
+  refine cpsTripleWithin_weaken (fun s hp => by xperm_hyp hp) (fun _ x => x)
+    (cpsTripleWithin_seq_perm_same_cr (fun s hp => ?_) hunit
+      (wd_decode_failViaBgeu base sp0 raVal s0Old s1Old s2Old outPtr srcBase srcBytes
+        (base + 52) outPtr (srcBase + BitVec.ofNat 64 srcOff) endPtr next
+        ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word) 16 (240 : BitVec 13) h_list
+        (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+        (by rw [show (4 * 16 : Nat) = 64 from rfl,
+                show signExtend13 (240 : BitVec 13) = (240 : Word) from by decide]; bv_omega)
+        hdec))
+  -- seam: hunit.POST → failViaBgeu.PRE.  Weaken x11↦0→regOwn x11, x12↦len→regOwn x12, drop arm pures.
+  have hp2 := sepConj_mono_right
+    (sepConj_mono_right
+      (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x12)
+          (fun h hr => ((sepConj_pure_left h).1 (((sepConj_pure_left h).1 hr).2)).2)))) s hp
+  xperm_hyp hp2
+
 end EvmAsm.Rv64.RLP
