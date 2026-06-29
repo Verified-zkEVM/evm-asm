@@ -346,7 +346,7 @@ private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
 private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_zero_or_no_overflow_word_mod_body_stack_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
-private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_stack_spec_within
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_clean_visible_stack_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within

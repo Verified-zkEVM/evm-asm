@@ -397,14 +397,30 @@ theorem evm_exp_headroom_clean_visible_stack_spec_within
        evmStackIs evmSp (baseWord :: exponentWord :: rest)))
       (EvmAsm.Evm64.Exp.Compose.expHeadroomFinalCleanVisiblePost
         sp evmSp baseWord exponentWord rest) := by
+  have h := EvmAsm.Evm64.Exp.Compose.exp_headroom_entry_to_final_clean_visible_post
+    sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+    (baseWord.getLimbN 0) (baseWord.getLimbN 1)
+    (baseWord.getLimbN 2) (baseWord.getLimbN 3)
+    (exponentWord.getLimbN 0) (exponentWord.getLimbN 1)
+    (exponentWord.getLimbN 2) (exponentWord.getLimbN 3)
+    h0 h1 h2 h3 h4 h5 h6 h7 base
+    dWord eWord rest lookahead vOld v18 hbase
   exact cpsTripleWithin_weaken
-    (fun _ hp => hp)
-    (fun _ hp =>
-      EvmAsm.Evm64.Exp.Compose.expHeadroomFinalVisiblePost_to_cleanVisiblePost hp)
-    (evm_exp_headroom_visible_stack_spec_within
-      sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
-      h0 h1 h2 h3 h4 h5 h6 h7 base
-      baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase)
+    (fun _ hp => by
+      rw [evmStackIs_cons, evmStackIs_cons] at hp
+      rw [evmWordIs_sp_limbs_eq evmSp baseWord _ _ _ _ rfl rfl rfl rfl] at hp
+      rw [evmWordIs_sp32_limbs_eq evmSp exponentWord _ _ _ _ rfl rfl rfl rfl] at hp
+      rw [show (evmSp + 32 + 32 : Word) = evmSp + 64 from by bv_addr] at hp
+      rw [EvmAsm.Evm64.Exp.Compose.expHeadroomLoopEntryBridgeFrame]
+      simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24,
+        signExtend12_32, signExtend12_40, signExtend12_48, signExtend12_56] at hp ⊢
+      rw [show (evmSp + 0 : Word) = evmSp from by bv_omega]
+      xperm_hyp hp)
+    (fun _ hp => by
+      rw [expResultWord_getLimbN_self baseWord,
+        expResultWord_getLimbN_self exponentWord] at hp
+      exact hp)
+    h
 
 -- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
 
