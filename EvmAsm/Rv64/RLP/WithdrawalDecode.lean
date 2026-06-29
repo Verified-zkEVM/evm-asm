@@ -130,51 +130,82 @@ def prologueCert (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word) :
   WP.CFG.block (WP.Entails.refl _)
     (prologue_spec_within base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3)
 
-/-! ## Failure endpoint -/
+/-! ## Status return endpoints -/
 
-/-- Small reason-erased failure return block: set status `1` and return.  This
-    deliberately does not encode why decoding failed; the public postcondition only
-    observes failure as `decodeWithdrawal input = none`. -/
-def failStatusReturn : List Instr :=
-  [ .LI .x10 (1 : Word)
+/-- Small status-return block: set `a0` to `status` and return through `ra`. -/
+def statusReturn (status : Word) : List Instr :=
+  [ .LI .x10 status
   , .JALR .x0 .x1 (0 : BitVec 12)
   ]
 
-theorem failStatusReturn_length : failStatusReturn.length = 2 := rfl
+theorem statusReturn_length (status : Word) : (statusReturn status).length = 2 := rfl
 
-/-- Code requirement for the reason-erased failure return block rooted at `base`.
-    WP certificates keep code as a disjoint union of instruction fetches;
-    `failStatusReturn` remains the executable list shape. -/
-def failStatusReturnCode (base : Word) : CodeReq :=
-  (CodeReq.singleton base (.LI .x10 (1 : Word))).union
+/-- Code requirement for a status-return block rooted at `base`.  WP certificates
+    keep code as a disjoint union of instruction fetches; `statusReturn` remains
+    the executable list shape. -/
+def statusReturnCode (base status : Word) : CodeReq :=
+  (CodeReq.singleton base (.LI .x10 status)).union
     (CodeReq.singleton (base + 4) (.JALR .x0 .x1 (0 : BitVec 12)))
 
-/-- Return PC used by the failure return block, exactly matching `JALR x0, ra, 0`. -/
-def failStatusReturnExit (raVal : Word) : Word :=
+/-- Return PC used by a status-return block, exactly matching `JALR x0, ra, 0`. -/
+def statusReturnExit (raVal : Word) : Word :=
   (raVal + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)
 
-/-- Internal precondition for the reason-erased failure return block. -/
-def failStatusReturnPre (raVal statusOld : Word) : Assertion :=
+/-- Internal precondition for a status-return block. -/
+def statusReturnPre (raVal statusOld : Word) : Assertion :=
   ((.x1 ↦ᵣ raVal) ** (.x10 ↦ᵣ statusOld))
 
-/-- Internal postcondition for the reason-erased failure return block. -/
-def failStatusReturnPost (raVal : Word) : Assertion :=
-  ((.x1 ↦ᵣ raVal) ** (.x10 ↦ᵣ (1 : Word)))
+/-- Internal postcondition for a status-return block. -/
+def statusReturnPost (raVal status : Word) : Assertion :=
+  ((.x1 ↦ᵣ raVal) ** (.x10 ↦ᵣ status))
 
-/-- WP certificate for the reason-erased failure return block. -/
-def failStatusReturnCert (base raVal statusOld : Word) :
-    WP.CFG.Cert base (failStatusReturnExit raVal) (failStatusReturnCode base)
-      (failStatusReturnPost raVal) := by
-  unfold failStatusReturnPost failStatusReturnExit failStatusReturnCode
-  have hli0 := li_spec_gen_within .x10 statusOld (1 : Word) base (by decide)
+/-- WP certificate for a status-return block. -/
+def statusReturnCert (base raVal statusOld status : Word) :
+    WP.CFG.Cert base (statusReturnExit raVal) (statusReturnCode base status)
+      (statusReturnPost raVal status) := by
+  unfold statusReturnPost statusReturnExit statusReturnCode
+  have hli0 := li_spec_gen_within .x10 statusOld status base (by decide)
   have hli := cpsTripleWithin_frameL (.x1 ↦ᵣ raVal) (by pcFree) hli0
   have hret0 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (base + 4)
-  have hret := cpsTripleWithin_frameR (.x10 ↦ᵣ (1 : Word)) (by pcFree) hret0
+  have hret := cpsTripleWithin_frameR (.x10 ↦ᵣ status) (by pcFree) hret0
   exact WP.CFG.seqBlockDisjoint
     (CodeReq.Disjoint.singleton (by bv_omega))
     hli
     hret
     (by wp_rv64_link)
+
+/-- Verified status-return block. -/
+theorem statusReturn_spec_within (base raVal statusOld status : Word) :
+    cpsTripleWithin (statusReturnCert base raVal statusOld status).nSteps base
+      (statusReturnExit raVal) (statusReturnCode base status)
+      (statusReturnPre raVal statusOld)
+      (statusReturnPost raVal status) :=
+  by
+    unfold statusReturnPre
+    exact (statusReturnCert base raVal statusOld status).sound
+
+/-- Reason-erased failure return block: set status `1` and return. -/
+def failStatusReturn : List Instr :=
+  statusReturn (1 : Word)
+
+theorem failStatusReturn_length : failStatusReturn.length = 2 := rfl
+
+def failStatusReturnCode (base : Word) : CodeReq :=
+  statusReturnCode base (1 : Word)
+
+def failStatusReturnExit (raVal : Word) : Word :=
+  statusReturnExit raVal
+
+def failStatusReturnPre (raVal statusOld : Word) : Assertion :=
+  statusReturnPre raVal statusOld
+
+def failStatusReturnPost (raVal : Word) : Assertion :=
+  statusReturnPost raVal (1 : Word)
+
+def failStatusReturnCert (base raVal statusOld : Word) :
+    WP.CFG.Cert base (failStatusReturnExit raVal) (failStatusReturnCode base)
+      (failStatusReturnPost raVal) :=
+  statusReturnCert base raVal statusOld (1 : Word)
 
 /-- Verified reason-erased failure return block. -/
 theorem failStatusReturn_spec_within
@@ -183,9 +214,39 @@ theorem failStatusReturn_spec_within
       (failStatusReturnExit raVal) (failStatusReturnCode base)
       (failStatusReturnPre raVal statusOld)
       (failStatusReturnPost raVal) :=
-  by
-    unfold failStatusReturnPre
-    exact (failStatusReturnCert base raVal statusOld).sound
+  statusReturn_spec_within base raVal statusOld (1 : Word)
+
+/-- Success return block: set status `0` and return. -/
+def successStatusReturn : List Instr :=
+  statusReturn (0 : Word)
+
+theorem successStatusReturn_length : successStatusReturn.length = 2 := rfl
+
+def successStatusReturnCode (base : Word) : CodeReq :=
+  statusReturnCode base (0 : Word)
+
+def successStatusReturnExit (raVal : Word) : Word :=
+  statusReturnExit raVal
+
+def successStatusReturnPre (raVal statusOld : Word) : Assertion :=
+  statusReturnPre raVal statusOld
+
+def successStatusReturnPost (raVal : Word) : Assertion :=
+  statusReturnPost raVal (0 : Word)
+
+def successStatusReturnCert (base raVal statusOld : Word) :
+    WP.CFG.Cert base (successStatusReturnExit raVal) (successStatusReturnCode base)
+      (successStatusReturnPost raVal) :=
+  statusReturnCert base raVal statusOld (0 : Word)
+
+/-- Verified success return block. -/
+theorem successStatusReturn_spec_within
+    (base raVal statusOld : Word) :
+    cpsTripleWithin (successStatusReturnCert base raVal statusOld).nSteps base
+      (successStatusReturnExit raVal) (successStatusReturnCode base)
+      (successStatusReturnPre raVal statusOld)
+      (successStatusReturnPost raVal) :=
+  statusReturn_spec_within base raVal statusOld (0 : Word)
 
 /-! ## Pure decode bridge -/
 
@@ -385,7 +446,7 @@ def failStatusReturnAbiCert
   exact WP.CFG.block (by
     intro h hp
     have hpCase := hp
-    unfold failStatusReturnPost failStatusReturnAbiFrame at hp hpCase
+    unfold failStatusReturnPost statusReturnPost failStatusReturnAbiFrame at hp hpCase
     extract_pure hpCase
     obtain ⟨hdec, _hpRest⟩ := hpCase
     unfold abiPost
@@ -402,6 +463,60 @@ theorem failStatusReturn_abiPost_spec_within
   by
     unfold failStatusReturnAbiPre
     exact (failStatusReturnAbiCert base inputBase outBase raVal statusOld input).sound
+
+/-- ABI resources preserved by the success endpoint after the field decoders have
+    populated the output struct with the pure decoder result bytes. -/
+def successStatusReturnAbiFrame
+    (inputBase outBase : Word) (input : List Byte) (w : Withdrawal) : Assertion :=
+  ((.x0 ↦ᵣ (0 : Word)) ** bytesRegion inputBase input **
+    bytesRegion outBase (successBytes w) ** ⌜decodeWithdrawal input = some w⌝)
+
+theorem successStatusReturnAbiFrame_pcFree
+    (inputBase outBase : Word) (input : List Byte) (w : Withdrawal) :
+    (successStatusReturnAbiFrame inputBase outBase input w).pcFree := by
+  unfold successStatusReturnAbiFrame
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj (bytesRegion_pcFree _ _)
+      (pcFree_sepConj (bytesRegion_pcFree _ _) pcFree_pure))
+
+/-- ABI-facing precondition for a success endpoint reached after a path has
+    established the decoded withdrawal and written its output bytes. -/
+def successStatusReturnAbiPre
+    (inputBase outBase raVal statusOld : Word) (input : List Byte)
+    (w : Withdrawal) : Assertion :=
+  successStatusReturnPre raVal statusOld ** successStatusReturnAbiFrame inputBase outBase input w
+
+/-- WP certificate adapting the success endpoint to the public ABI postcondition. -/
+def successStatusReturnAbiCert
+    (base inputBase outBase raVal statusOld : Word) (input : List Byte)
+    (w : Withdrawal) :
+    WP.CFG.Cert base (successStatusReturnExit raVal) (successStatusReturnCode base)
+      (abiPost inputBase outBase raVal input) := by
+  have hsuccess := successStatusReturn_spec_within base raVal statusOld
+  have hframed := cpsTripleWithin_frameR
+    (successStatusReturnAbiFrame inputBase outBase input w)
+    (successStatusReturnAbiFrame_pcFree inputBase outBase input w) hsuccess
+  exact WP.CFG.block (by
+    intro h hp
+    have hpCase := hp
+    unfold successStatusReturnPost statusReturnPost successStatusReturnAbiFrame at hp hpCase
+    extract_pure hpCase
+    obtain ⟨hdec, _hpRest⟩ := hpCase
+    unfold abiPost
+    rw [resultPost_success hdec]
+    xperm_hyp hp) hframed
+
+/-- Verified ABI-facing success endpoint. -/
+theorem successStatusReturn_abiPost_spec_within
+    (base inputBase outBase raVal statusOld : Word) (input : List Byte)
+    (w : Withdrawal) :
+    cpsTripleWithin (successStatusReturnAbiCert base inputBase outBase raVal statusOld input w).nSteps
+      base (successStatusReturnExit raVal) (successStatusReturnCode base)
+      (successStatusReturnAbiPre inputBase outBase raVal statusOld input w)
+      (abiPost inputBase outBase raVal input) :=
+  by
+    unfold successStatusReturnAbiPre
+    exact (successStatusReturnAbiCert base inputBase outBase raVal statusOld input w).sound
 
 /-- A WP-facing certificate that a concrete control-flow proof implements the
     withdrawal decoder ABI.  The computed precondition is `cfg.pre`, so generated
