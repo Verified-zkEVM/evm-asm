@@ -1221,4 +1221,43 @@ theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_full_spec_within
     sp (base + 44) n3 u3
   runBlock S0 S1 S2 S3 L0 C0 L1 C1 L2 C2 L3 C3
 
+/-- Compose the full helper that prepares the first callable MOD arguments for
+    the ADDMOD overflow path. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_spec_within
+    (sp base : Word) (x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) :
+    cpsTripleWithin 13 base (base + 52)
+      (evm_addmod_pow256_prepare_minus_one_mod_args_code base)
+      (evmAddModPow256PrepareMinusOnePre sp
+        x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3)
+      (evmAddModPow256PrepareMinusOnePost sp n0 n1 n2 n3) := by
+  rw [evmAddModPow256PrepareMinusOnePre_unfold,
+      evmAddModPow256PrepareMinusOnePost_unfold]
+  have I := evm_addmod_pow256_prepare_minus_one_mod_args_init_spec_within
+    base x5Old
+  have S0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store0_spec_within
+    sp (signExtend12 (4095 : BitVec 12)) (base + 4) w0
+  have S1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store1_spec_within
+    sp (signExtend12 (4095 : BitVec 12)) (base + 8) w1
+  have S2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store2_spec_within
+    sp (signExtend12 (4095 : BitVec 12)) (base + 12) w2
+  have S3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_store3_spec_within
+    sp (signExtend12 (4095 : BitVec 12)) (base + 16) w3
+  have L0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load0_spec_within
+    sp (signExtend12 (4095 : BitVec 12)) (base + 20) n0
+  have C0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_spec_within
+    sp (base + 24) n0 u0
+  have L1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load1_spec_within
+    sp (base + 28) n0 n1
+  have C1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_spec_within
+    sp (base + 32) n1 u1
+  have L2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load2_spec_within
+    sp (base + 36) n1 n2
+  have C2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_spec_within
+    sp (base + 40) n2 u2
+  have L3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load3_spec_within
+    sp (base + 44) n2 n3
+  have C3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy3_spec_within
+    sp (base + 48) n3 u3
+  runBlock I S0 S1 S2 S3 L0 C0 L1 C1 L2 C2 L3 C3
+
 end EvmAsm.Evm64
