@@ -1210,6 +1210,22 @@ abbrev evmAddModNoOverflowBodyEvidence
     (modStackDispatchPostCallable (sp + 32) (a + b) N **
       (.x1 ↦ᵣ ((base + 124) + 4)))
 
+/-- Current complete ADDMOD input domain.
+
+    The full public stack spec must eventually cover every `(a, b, N)`. The
+    theorem below currently covers either the exact zero-modulus branch, or the
+    nonzero-modulus no-overflow branch when the legacy MOD body proof is
+    supplied. -/
+abbrev evmAddModPartialDomain
+    (sp base callable_base : Word) (a b N : EvmWord) (v2 v10 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word) : Prop :=
+  N = 0 ∨
+    (a.toNat + b.toNat < 2 ^ 256 ∧
+      evmAddModNoOverflowBodyEvidence sp base callable_base a b N v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+
 /-- Combined partial ADDMOD stack theorem for the two currently complete
     public surfaces: the exact zero-modulus path, and the no-overflow path
     when supplied with the legacy MOD no-NOP body proof. -/
@@ -1379,6 +1395,39 @@ theorem evm_addmod_zero_or_no_overflow_named_stack_spec_within
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     hcallable hbase hdisjoint hCase
+
+/-- Named-domain/named-pre/named-post surface for the current partial ADDMOD
+    theorem.
+
+    This keeps the remaining incomplete region behind the single
+    `evmAddModPartialDomain` predicate while exposing ordinary stack-shaped
+    pre/post assertions. -/
+theorem evm_addmod_partial_domain_named_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hDomain :
+      evmAddModPartialDomain sp base callable_base a b N v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnStackPost sp base a b N) := by
+  exact evm_addmod_zero_or_no_overflow_named_stack_spec_within
+    sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+    q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0
+    hcallable hbase hdisjoint hDomain
 
 -- Placeholder: full general `evm_addmod_stack_spec_within` lands in slice evm-asm-sord.
 
