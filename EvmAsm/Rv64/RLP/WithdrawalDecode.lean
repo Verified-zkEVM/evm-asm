@@ -1950,6 +1950,33 @@ theorem rlpItemDecode_singleByte_eq {bytes : List (BitVec 8)} {off : Nat}
   · exfalso; have h1 := ll.1
     simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hsingle; bv_omega
 
+/-- **Short-byte-string `next`/`len` determination.** A decode whose prefix byte is in
+    `[0x80, 0xB8)` is forced into the short-byte-string form, so `next = (cursor + 1) + (b − 0x80)`
+    and `len = b − 0x80`: single-byte needs `b < 0x80` (contradicts `¬ ult b 0x80`), and the three
+    larger forms need `b ≥ 0xb8`/`0xc0`/`0xf8` (all contradict `ult b 0xb8`). The short-string
+    analogue of `rlpItemDecode_singleByte_eq`; used in the field body to pin the walk's existential
+    `next`/`len` for a multi-byte (short) scalar/address field. -/
+theorem rlpItemDecode_shortBytes_eq {bytes : List (BitVec 8)} {off : Nat}
+    (hoff : off < bytes.length) {cursor endPtr next len : Word}
+    (hlo : ¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (h : rlpItemDecode bytes off cursor endPtr next len) :
+    next = (cursor + signExtend12 (1 : BitVec 12)) +
+        ((bytes[off]'hoff).zeroExtend 64 - (0x80 : Word)) ∧
+      len = (bytes[off]'hoff).zeroExtend 64 - (0x80 : Word) := by
+  obtain ⟨b, hb, hdisj⟩ := h
+  have hbe : b = bytes[off]'hoff := by
+    rw [List.getElem?_eq_getElem hoff] at hb; exact (Option.some.inj hb).symm
+  rw [← hbe] at hlo hhi
+  rcases hdisj with sb | ⟨_, _, _, _, hn, hl⟩ | ls | sl | ll
+  · exact absurd sb.1 hlo
+  · rw [hbe] at hn hl; exact ⟨hn, hl⟩
+  · exact absurd hhi ls.1
+  · exfalso; have h1 := sl.1
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hhi; bv_omega
+  · exfalso; have h1 := ll.1
+    simp only [BitVec.ult, decide_eq_true_eq, Nat.not_lt] at h1 hhi; bv_omega
+
 /-! ## M3 proof — fail-path bridge foundation
 
 Every reject branch of `withdrawal_decode_prog` must conclude `decodeWithdrawal srcBytes = none`.
