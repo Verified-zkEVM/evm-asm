@@ -82,6 +82,33 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop\n" ++
     ".Lextcodehash_after_same_block:\n" ++
+    -- Check exec_code_effect_log for CREATE'd contract code (extcodehash
+    -- after CREATE: the deployed code is in the log but not in the BAL
+    -- code_changes or the pre-state witness).
+    "  la a0, exec_code_effect_log\n" ++
+    "  la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
+    "  la a2, eahsr_address_scratch\n" ++
+    "  jal ra, find_code_effect_by_address\n" ++
+    "  beqz a0, .Lextcodehash_witness_check\n" ++
+    -- Found CREATE'd code: keccak(code) → hash
+    "  mv t3, a0\n" ++
+    "  ld a1, 40(t3)\n" ++
+    "  addi a0, t3, 48\n" ++
+    "  la a2, rsbd_hash\n" ++
+    "  jal ra, zkvm_keccak256\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
+    "  ld x13, 24(sp)\n" ++
+    "  la t0, rsbd_hash; addi t0, t0, 31; mv t1, x12; li t2, 32\n" ++
+    ".Lextcodehash_create_rev:\n" ++
+    "  beqz t2, .Lextcodehash_create_rev_done\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lextcodehash_create_rev\n" ++
+    ".Lextcodehash_create_rev_done:\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodehash_witness_check:\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
@@ -166,6 +193,26 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop\n" ++
     ".Lextcodesize_after_same_block:\n" ++
+    -- Check exec_code_effect_log for CREATE'd contract code
+    "  la a0, exec_code_effect_log\n" ++
+    "  la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
+    "  la a2, eahsr_address_scratch\n" ++
+    "  jal ra, find_code_effect_by_address\n" ++
+    "  beqz a0, .Lextcodesize_witness_check\n" ++
+    -- Found: return code_len
+    "  ld t1, 40(a0)\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
+    "  ld x13, 24(sp)\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  sd t1, 0(x12)\n" ++
+    "  sd zero, 8(x12)\n" ++
+    "  sd zero, 16(x12)\n" ++
+    "  sd zero, 24(x12)\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodesize_witness_check:\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
