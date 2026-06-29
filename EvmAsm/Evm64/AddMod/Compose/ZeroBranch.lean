@@ -349,6 +349,17 @@ theorem addmod_orAll_limbs_eq_zero_iff (N : EvmWord) :
     rw [h0, h1, h2, h3]
     simp
 
+/-- The ADDMOD zero-test OR-fold of a modulus word is nonzero iff the modulus
+    word itself is nonzero. -/
+theorem addmod_orAll_limbs_ne_zero_iff (N : EvmWord) :
+    (N.getLimbN 0 ||| N.getLimbN 1 ||| N.getLimbN 2 ||| N.getLimbN 3 ≠
+      (0 : Word)) ↔ N ≠ 0 := by
+  constructor
+  · intro h_or hN
+    exact h_or ((addmod_orAll_limbs_eq_zero_iff N).mpr hN)
+  · intro hN h_or
+    exact hN ((addmod_orAll_limbs_eq_zero_iff N).mp h_or)
+
 /-- Stack-tail surface for the ADDMOD zero-modulus phase-2 path through
     epilogue with the zero modulus supplied as a hypothesis. This is the form
     branch composition usually has after extracting the zero-test guard. -/
