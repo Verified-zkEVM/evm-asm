@@ -9892,4 +9892,58 @@ theorem wd_decode_successCase
           hostalign hbase hdlen hdov hdval hnowrap hsvalid hf2 halign232 hdisjW228 halign268
           hdisjC264 hf3 halign288 hdisj284 hinstr h_end))⟩
 
+/-- **Fail endpoint** (base+304 → ret): once any guard has rejected and control reached the
+    `failReturn` block with the saved stack frame intact (and the clobbered scratch / output region
+    surrendered as ownership tokens), the program restores the callee-saved registers, pops the
+    frame, sets `a0 = 1`, and returns — landing in the capstone's *failure* disjunct. The
+    `⌜decodeWithdrawal srcBytes = none⌝` is supplied directly (the capstone's `none` case). -/
+theorem wd_decode_failEndpoint
+    (base sp0 raVal s0Old s1Old s2Old outPtr srcBase : Word) (srcBytes : List Byte)
+    (raClob s0Clob s1Clob s2Clob a0Old : Word)
+    (hdec : decodeWithdrawal srcBytes = none) :
+    cpsTripleWithin 7 (base + 304) (raVal &&& ~~~1) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ a0Old) **
+        ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x1 ↦ᵣ raClob) ** (.x8 ↦ᵣ s0Clob) **
+          (.x9 ↦ᵣ s1Clob) ** (.x18 ↦ᵣ s2Clob) **
+          ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)) **
+        ((.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 ** wd_scratchOwned **
+          regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** bytesRegion srcBase srcBytes **
+          wd_outOwned outPtr))
+      (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+        wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
+            ⌜decodeWithdrawal srcBytes = some w ∧ w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2)
+              ∧ d2.length = 20⌝) h)) ∨
+         (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+            ⌜decodeWithdrawal srcBytes = none⌝) h))) := by
+  have hfr := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 ** wd_scratchOwned **
+      regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** bytesRegion srcBase srcBytes **
+      wd_outOwned outPtr) (by unfold wd_scratchOwned wd_outOwned; pcFree)
+    (wd_decode_failReturn base (sp0 + signExtend12 (-32 : BitVec 12)) raVal s0Old s1Old s2Old
+      raClob s0Clob s1Clob s2Clob a0Old)
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => ?_) hfr
+  rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+      show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide,
+      show (sp0 + (-32 : Word)) + 32 = sp0 from by bv_omega,
+      show (sp0 + (-32 : Word)) + 8 = sp0 - 24 from by bv_omega,
+      show (sp0 + (-32 : Word)) + 16 = sp0 - 16 from by bv_omega,
+      show (sp0 + (-32 : Word)) + 24 = sp0 - 8 from by bv_omega,
+      show sp0 + (-32 : Word) = sp0 - 32 from by bv_omega] at hp
+  have hp2 := sepConj_mono
+    (sepConj_mono (fun _ x => x)
+      (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))))
+    (fun _ x => x) h hp
+  refine sepConj_mono_right (fun s hs => Or.inr hs) h ?_
+  unfold wd_frameOwned
+  have hp3 := (sepConj_pure_right h).mpr ⟨hp2, hdec⟩
+  xperm_hyp hp3
+
 end EvmAsm.Rv64.RLP
