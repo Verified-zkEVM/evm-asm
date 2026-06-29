@@ -117,6 +117,58 @@ theorem evm_addmod_pow256_minus_one_shift_spec_within
   seqFrame Pp Ap
 
 
+abbrev evm_addmod_pow256_minus_one_first_call_code (base : Word) (modOff : BitVec 21) : CodeReq :=
+  CodeReq.union (evm_addmod_pow256_minus_one_shift_code base)
+    (CodeReq.singleton (base + 56) (.JAL .x1 modOff))
+
+/-- Prepare `(-1 mod N)` callable-MOD arguments, point `x12` at the callable window,
+    and jump to the MOD body. -/
+theorem evm_addmod_pow256_minus_one_first_call_spec_within
+    (sp base x1Old x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word)
+    (modOff : BitVec 21) :
+    cpsTripleWithin 15 base ((base + 56) + signExtend21 modOff)
+      (evm_addmod_pow256_minus_one_first_call_code base modOff)
+      ((evmAddModPow256PrepareMinusOnePre sp
+          x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3) **
+       (.x1 ↦ᵣ x1Old))
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) **
+       (.x1 ↦ᵣ ((base + 56) + 4))) := by
+  have S := evm_addmod_pow256_minus_one_shift_spec_within
+    sp base x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3
+  have Sf := cpsTripleWithin_frameR (.x1 ↦ᵣ x1Old) (by pcFree) S
+  have J := jal_spec_within .x1 x1Old modOff (base + 56) (by nofun)
+  have Jf := cpsTripleWithin_frameL
+    ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+     (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+     ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+     ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+     ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+     ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+     ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3))
+    (by pcFree) J
+  seqFrame Sf Jf
+
+
 /-- Compose the full helper that prepares the second callable MOD arguments for
     materializing `2^256 mod N` from the first `(-1 mod N)` remainder. -/
 theorem evm_addmod_pow256_prepare_plus_one_mod_args_spec_within
