@@ -9701,4 +9701,109 @@ theorem wd_successLeafPost_to_success
   unfold wd_scratchOwned wd_frameOwned wd_outHolds
   xperm_hyp hp3
 
+/-- **Capstone-PRE peel.** Converts the capstone precondition (callee-owned scratch/frame
+    tokens + a pre-zeroed 48-byte output struct) into the success-leaf precondition family: peel
+    the seven scratch registers, `a3`/`a4`/`a5`, and the four stack-frame cells to universally
+    quantified concrete values, and carve the output `bytesRegion` into its dword/address cells
+    (via `wd_outRegion_carve`). Given the success-leaf triple for *every* concretization, the
+    triple holds over the capstone precondition. -/
+theorem wd_capstonePre_peel {N : Nat} {Q : Assertion}
+    (base srcBase outPtr raVal sp0 s0Old s1Old s2Old : Word) (srcBytes : List Byte)
+    (hleaf : ∀ (m0 m1 m2 m3 t0Old t1Old t2Old t3Old t4Old t5Old t6Old x13Old x14Old cnt : Word),
+      cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+        (((((((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+          (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ outPtr) **
+          ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ m3)) **
+          ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) **
+            (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+            (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion srcBase srcBytes)) **
+          ((outPtr + signExtend12 (0 : BitVec 12)) ↦ₘ (0 : Word))) **
+          ((outPtr + signExtend12 (8 : BitVec 12)) ↦ₘ (0 : Word))) **
+          ((.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
+            bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)))) **
+          ((outPtr + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)))
+        Q) :
+    cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
+        (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : BitVec 8)))
+      Q := by
+  refine cpsTripleWithin_weaken (fun h hp => by unfold wd_scratchOwned wd_frameOwned at hp; rw [wd_outRegion_carve] at hp; xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x5) (fun v5 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x6) (fun v6 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x7) (fun v7 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x28) (fun v28 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x29) (fun v29 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x30) (fun v30 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x31) (fun v31 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** regOwn .x14 ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x13) (fun v13 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** regOwn .x15 ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x14) (fun v14 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** memOwn (sp0 - 32) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (r := .x15) (fun v15 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** memOwn (sp0 - 24) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (a := sp0 - 32) (fun vm0 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** ((sp0 - 32) ↦ₘ vm0) ** memOwn (sp0 - 16) ** memOwn (sp0 - 8))
+      (a := sp0 - 24) (fun vm1 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** ((sp0 - 32) ↦ₘ vm0) ** ((sp0 - 24) ↦ₘ vm1) ** memOwn (sp0 - 8))
+      (a := sp0 - 16) (fun vm2 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_memIs_to_memOwn
+      (P := (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) ** bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) ** ((outPtr + 40) ↦ₘ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** ((sp0 - 32) ↦ₘ vm0) ** ((sp0 - 24) ↦ₘ vm1) ** ((sp0 - 16) ↦ₘ vm2))
+      (a := sp0 - 8) (fun vm3 => ?_))
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      rw [show srcBase + BitVec.ofNat 64 0 = srcBase from by bv_omega,
+          show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+          show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+          show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+          show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide,
+          show (sp0 + (-32 : Word)) + 8 = sp0 - 24 from by bv_omega,
+          show (sp0 + (-32 : Word)) + 16 = sp0 - 16 from by bv_omega,
+          show (sp0 + (-32 : Word)) + 24 = sp0 - 8 from by bv_omega,
+          show sp0 + (-32 : Word) = sp0 - 32 from by bv_omega,
+          show outPtr + (0 : Word) = outPtr from by bv_omega]
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    (hleaf vm0 vm1 vm2 vm3 v5 v6 v7 v28 v29 v30 v31 v13 v14 v15)
+
 end EvmAsm.Rv64.RLP
