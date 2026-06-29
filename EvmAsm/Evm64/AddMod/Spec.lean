@@ -483,6 +483,47 @@ instance pcFreeInst_evmAddModNoOverflowCallReturnPost
     Assertion.PCFree (evmAddModNoOverflowCallReturnPost sp base a b N) :=
   ⟨evmAddModNoOverflowCallReturnPost_pcFree sp base a b N⟩
 
+@[irreducible]
+def evmAddModNoOverflowCallReturnStackPost (sp base : Word) (a b N : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (sp + 64)) ** regOwn .x2 **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+  evmStackIs sp [a, a + b, EvmWord.addmod a b N] **
+  divScratchOwnCallNoX1 (sp + 32) **
+  (.x1 ↦ᵣ ((base + 124) + 4))
+
+theorem evmAddModNoOverflowCallReturnStackPost_unfold
+    (sp base : Word) (a b N : EvmWord) :
+    evmAddModNoOverflowCallReturnStackPost sp base a b N =
+      ((.x12 ↦ᵣ (sp + 64)) ** regOwn .x2 **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+       evmStackIs sp [a, a + b, EvmWord.addmod a b N] **
+       divScratchOwnCallNoX1 (sp + 32) **
+       (.x1 ↦ᵣ ((base + 124) + 4))) := by
+  delta evmAddModNoOverflowCallReturnStackPost
+  rfl
+
+theorem evmAddModNoOverflowCallReturnStackPost_pcFree
+    (sp base : Word) (a b N : EvmWord) :
+    (evmAddModNoOverflowCallReturnStackPost sp base a b N).pcFree := by
+  rw [evmAddModNoOverflowCallReturnStackPost_unfold]
+  pcFree
+
+instance pcFreeInst_evmAddModNoOverflowCallReturnStackPost
+    (sp base : Word) (a b N : EvmWord) :
+    Assertion.PCFree (evmAddModNoOverflowCallReturnStackPost sp base a b N) :=
+  ⟨evmAddModNoOverflowCallReturnStackPost_pcFree sp base a b N⟩
+
+theorem evmAddModNoOverflowCallReturnPost_to_stackPost
+    {sp base : Word} {a b N : EvmWord} {ps : PartialState}
+    (h : evmAddModNoOverflowCallReturnPost sp base a b N ps) :
+    evmAddModNoOverflowCallReturnStackPost sp base a b N ps := by
+  rw [evmAddModNoOverflowCallReturnPost_unfold] at h
+  rw [evmAddModNoOverflowCallReturnStackPost_unfold]
+  rw [evmStackIs_triple_flat]
+  xperm_hyp h
+
 /-- ADDMOD callable-return stack theorem for the current skeleton under the
     no-overflow condition. It turns the MOD callable's `EvmWord.mod (a+b) N`
     result into `EvmWord.addmod a b N`. -/
@@ -1208,6 +1249,47 @@ theorem evm_addmod_zero_or_no_overflow_word_mod_body_stack3_spec_within
       xperm_hyp hp)
     (fun _ hp => hp)
     (evm_addmod_zero_or_no_overflow_word_mod_body_stack_spec_within
+      sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0
+      hcallable hbase hdisjoint hCase)
+
+/-- Stack-shaped pre/post wrapper for the current partial ADDMOD theorem.
+
+    This is still partial over the zero-or-no-overflow domain, but both the
+    operand precondition and the call-return post expose ordinary EVM stack
+    bundles. Scratch ownership and the legacy MOD callable assumptions remain
+    explicit. -/
+theorem evm_addmod_zero_or_no_overflow_word_mod_body_stack3_post_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hCase :
+      N = 0 ∨
+      (a.toNat + b.toNat < 2 ^ 256 ∧
+        evmAddModNoOverflowBodyEvidence sp base callable_base a b N v2 v10
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          nMem shiftMem jMem retMem dMem dloMem scratchUn0)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmStackIs sp [a, b, N] **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnStackPost sp base a b N) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmAddModNoOverflowCallReturnPost_to_stackPost hp)
+    (evm_addmod_zero_or_no_overflow_word_mod_body_stack3_spec_within
       sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
