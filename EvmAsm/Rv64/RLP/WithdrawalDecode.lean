@@ -688,6 +688,144 @@ theorem wd_walkinit_code_sub (base : Word) :
        show withdrawal_decode_prog.get ⟨6, by rw [withdrawal_decode_prog_length]; norm_num⟩
          = (.JAL .x1 (308 : BitVec 21)) from by decide] at h
 
+/-! ### Field-2 address copy: lifting the verified byte-copy chain into the program
+
+The 20-byte address copy is the appended `withdrawal_copy_routine` (`byteCopyChainInstrs 20 ++
+[ret]`, idx 261..361). Its CodeReq comes from `rlp_copy_chain_gen_spec`, which is stated over
+`byteCopyChainCR` (a `copyIterCR`-union, not an `ofProg`). The bridge below shows
+`byteCopyChainCR b N ⊆ ofProg b (byteCopyChainInstrs N)`, then `wd_copyChainBody_sub` lifts the
+chain at `base + 1044` (= byte `4*261`) into the full program. -/
+
+/-- One copy block's `copyIterCR` is contained in the `ofProg` of its 5 instructions. -/
+private theorem copyIterCR_sub_ofProg_block (b : Word) :
+    ∀ a i, copyIterCR b a = some i →
+      CodeReq.ofProg b [(.LBU .x12 .x13 0 : Instr), .SB .x14 .x12 0, .ADDI .x13 .x13 1,
+        .ADDI .x14 .x14 1, .ADDI .x15 .x15 (-1)] a = some i := by
+  have e : ∀ (k : Nat) (hk : k < 5) (addr : Word), addr = b + BitVec.ofNat 64 (4 * k) →
+      CodeReq.ofProg b [(.LBU .x12 .x13 0 : Instr), .SB .x14 .x12 0, .ADDI .x13 .x13 1,
+        .ADDI .x14 .x14 1, .ADDI .x15 .x15 (-1)] addr
+        = some (([(.LBU .x12 .x13 0 : Instr), .SB .x14 .x12 0, .ADDI .x13 .x13 1,
+            .ADDI .x14 .x14 1, .ADDI .x15 .x15 (-1)]).get ⟨k, hk⟩) :=
+    fun k hk addr ha => CodeReq.ofProg_lookup_addr b
+      [(.LBU .x12 .x13 0 : Instr), .SB .x14 .x12 0, .ADDI .x13 .x13 1, .ADDI .x14 .x14 1,
+        .ADDI .x15 .x15 (-1)] k addr hk (by decide) ha
+  refine CodeReq.union_sub (CodeReq.union_sub (CodeReq.union_sub
+    (CodeReq.union_sub ?_ ?_) ?_) ?_) ?_
+  · exact CodeReq.singleton_mono (e 0 (by decide) b (by bv_omega))
+  · exact CodeReq.singleton_mono (e 1 (by decide) (b + 4) (by bv_omega))
+  · exact CodeReq.singleton_mono (e 2 (by decide) (b + 8) (by bv_omega))
+  · exact CodeReq.singleton_mono (e 3 (by decide) (b + 12) (by bv_omega))
+  · exact CodeReq.singleton_mono (e 4 (by decide) (b + 16) (by bv_omega))
+
+/-- **Bridge: the unrolled copy chain's CodeReq is contained in the `ofProg` of its instructions.**
+    By induction on `N`, reusing `copyIterCR_sub_ofProg_block` and the `ofProg` append lemmas. -/
+theorem byteCopyChainCR_sub_ofProg : ∀ (N : Nat) (b : Word), 4 * (5 * N) < 2 ^ 64 →
+    ∀ a i, byteCopyChainCR b N a = some i →
+      CodeReq.ofProg b (byteCopyChainInstrs N) a = some i := by
+  intro N
+  induction N with
+  | zero => intro b _ a i h; simp [byteCopyChainCR, CodeReq.empty] at h
+  | succ n ih =>
+    intro b hbound a i h
+    rw [byteCopyChainInstrs]
+    rw [byteCopyChainCR] at h
+    refine CodeReq.union_sub ?_ ?_ a i h
+    · intro a' i' hc
+      exact CodeReq.ofProg_mono_append_left b _ _ a' i' (copyIterCR_sub_ofProg_block b a' i' hc)
+    · intro a' i' hc
+      have htail := ih (b + 20) (by omega) a' i' hc
+      have happ := CodeReq.ofProg_mono_append_right b
+        [(.LBU .x12 .x13 0 : Instr), .SB .x14 .x12 0, .ADDI .x13 .x13 1, .ADDI .x14 .x14 1,
+          .ADDI .x15 .x15 (-1)] (byteCopyChainInstrs n)
+        (by rw [List.length_append, byteCopyChainInstrs_length]
+            simp only [List.length_cons, List.length_nil]; omega) a' i'
+      simp only [List.length_cons, List.length_nil] at happ
+      rw [show b + BitVec.ofNat 64 (4 * 5) = b + 20 from by bv_omega] at happ
+      exact happ htail
+
+/-- The appended `withdrawal_copy_routine` (idx 261, byte 1044) is a program segment. -/
+theorem wd_routineBody_sub (base : Word) :
+    ∀ a i, (CodeReq.ofProg (base + 1044) withdrawal_copy_routine) a = some i →
+           withdrawal_decode_code base a = some i := by
+  intro a i h
+  have hrest : withdrawal_decode_prog
+      = (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog
+          ++ rlp_content_to_u64_prog) ++ withdrawal_copy_routine := by
+    simp only [withdrawal_decode_prog, List.append_assoc]
+  have hr := CodeReq.ofProg_mono_append_right base
+    (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog)
+    withdrawal_copy_routine
+    (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
+  rw [show (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog
+        ++ rlp_content_to_u64_prog).length = 261 from by
+        simp [List.length_append, withdrawal_decode_glue_length, rlp_walk_init_prog_length,
+              rlp_walk_next_prog_length, rlp_content_to_u64_prog_length],
+      show base + BitVec.ofNat 64 (4 * 261) = base + 1044 from by bv_omega] at hr
+  rw [withdrawal_decode_code, hrest]
+  exact hr h
+
+/-- The copy routine's 100-instruction chain (idx 261, byte 1044) is a program segment:
+    `byteCopyChainCR (base + 1044) 20 ⊆ withdrawal_decode_code base`. -/
+theorem wd_copyChainBody_sub (base : Word) :
+    ∀ a i, byteCopyChainCR (base + 1044) 20 a = some i →
+           withdrawal_decode_code base a = some i := by
+  intro a i h
+  have h1 := byteCopyChainCR_sub_ofProg 20 (base + 1044) (by norm_num) a i h
+  have h2 := CodeReq.ofProg_mono_append_left (base + 1044) (byteCopyChainInstrs 20)
+    [(.JALR .x0 .x1 (0 : BitVec 12) : Instr)] a i h1
+  exact wd_routineBody_sub base a i h2
+
+/-- The copy routine's terminal `ret` (`jalr x0, ra, 0`) at idx 361 (byte 1444). -/
+theorem wd_copyRoutineRet_lookup (base : Word) :
+    withdrawal_decode_code base (base + 1444) = some (.JALR .x0 .x1 (0 : BitVec 12)) := by
+  apply wd_routineBody_sub
+  have h := CodeReq.ofProg_lookup_addr (base + 1044) withdrawal_copy_routine 100 (base + 1444)
+    (by rw [withdrawal_copy_routine_length]; norm_num) (by rw [withdrawal_copy_routine_length]; norm_num)
+    (by bv_omega)
+  rwa [show withdrawal_copy_routine.get ⟨100, by rw [withdrawal_copy_routine_length]; norm_num⟩
+        = (.JALR .x0 .x1 (0 : BitVec 12)) from by decide] at h
+
+set_option maxRecDepth 8000 in
+/-- **Copy routine leaf spec.** From `x13 = srcBase + off`, `x14 = dstBase + di0`, `x1 = raVal`,
+    `withdrawal_copy_routine` copies 20 bytes `srcBytes[off..off+20)` into the dest region at
+    `[di0, di0+20)` and returns to `raVal &&& ~~~1` (the verified `rlp_copy_chain_gen_spec` chain
+    followed by `ret`, lifted to the full program code). -/
+theorem wd_copy_routine_leaf (base srcBase dstBase raVal v12Old cnt : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (off di0 : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hdalign : dstBase.toNat % 8 = 0)
+    (hsover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsvalid : ∀ i, i < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 i) = true)
+    (hsrc : off + 20 ≤ srcBytes.length) (hdst : di0 + 20 ≤ dstBytes.length)
+    (hdov : dstBase.toNat + dstBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < dstBytes.length → isValidByteAccess (dstBase + BitVec.ofNat 64 i) = true)
+    (hbase : base.toNat + 1444 < 2 ^ 64) :
+    cpsTripleWithin (5 * 20 + 1) (base + 1044) (raVal &&& ~~~1) (withdrawal_decode_code base)
+      ((.x12 ↦ᵣ v12Old) ** (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) **
+        (.x14 ↦ᵣ (dstBase + BitVec.ofNat 64 di0)) ** (.x15 ↦ᵣ cnt) ** (.x1 ↦ᵣ raVal) **
+        bytesRegion srcBase srcBytes ** bytesRegion dstBase dstBytes)
+      ((regOwn .x12) ** (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 (off + 20))) **
+        (.x14 ↦ᵣ (dstBase + BitVec.ofNat 64 (di0 + 20))) ** (regOwn .x15) ** (.x1 ↦ᵣ raVal) **
+        bytesRegion srcBase srcBytes **
+        bytesRegion dstBase (copyRangeGen dstBytes srcBytes off di0 20)) := by
+  have chain := rlp_copy_chain_gen_spec srcBase dstBase srcBytes hsalign hdalign hsover hsvalid
+    20 off di0 cnt v12Old dstBytes (base + 1044) hsrc hdst hdov hdval (by bv_omega)
+  have chain1 := cpsTripleWithin_extend_code (wd_copyChainBody_sub base) chain
+  rw [show (base + 1044) + BitVec.ofNat 64 (20 * 20) = base + 1444 from by bv_omega] at chain1
+  have chain2 := cpsTripleWithin_frameR (.x1 ↦ᵣ raVal) (by pcFree) chain1
+  have hret := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (base + 1444)
+  rw [show ((raVal + signExtend12 (0 : BitVec 12)) &&& ~~~1) = raVal &&& ~~~1 from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+            show raVal + (0 : Word) = raVal from by bv_omega]] at hret
+  have hret1 := cpsTripleWithin_extend_code
+    (CodeReq.singleton_mono (wd_copyRoutineRet_lookup base)) hret
+  have hret2 := cpsTripleWithin_frameR
+    ((regOwn .x12) ** (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 (off + 20))) **
+      (.x14 ↦ᵣ (dstBase + BitVec.ofNat 64 (di0 + 20))) ** (regOwn .x15) **
+      bytesRegion srcBase srcBytes **
+      bytesRegion dstBase (copyRangeGen dstBytes srcBytes off di0 20)) (by pcFree) hret1
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) chain2 hret2
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
 /-- Distribute `**` over a disjunction: a leaf's `Post` is `frame ** (d0 ∨ d1 ∨ …)`; this turns it
     into `(frame ** d0) ∨ (frame ** d1) ∨ …` so the disjuncts can be folded with
     `cpsBranchWithin_or_pre`. (Chain for >2-way.) -/
