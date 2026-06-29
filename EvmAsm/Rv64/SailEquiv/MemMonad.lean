@@ -84,4 +84,25 @@ theorem runSail_write_ram (addr : physaddrbits) (data : BitVec 64) (s : SailStat
     MonadStateOf.modifyGet, MonadState.modifyGet, EStateM.modifyGet,
     Bind.bind, bind, EStateM.bind, Pure.pure, EStateM.pure, Fin.succ]
 
+/-- In Machine privilege with `MPRV = 0`, `mem_write_value` for a plain store
+    (`aq=rl=con=false`) reduces to `checked_mem_write` at `Machine` privilege:
+    `effectivePrivilege` returns `Machine`, the release/conditional alignment guard
+    is skipped, and the post-write callbacks are no-ops. -/
+theorem runSail_mem_write_value_to_checked (paddr : physaddr) (data : BitVec 64)
+    (s : SailState) (m : BitVec 64)
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mstatus : s.regs.get? Register.mstatus = some m)
+    (h_mprv : _get_Mstatus_MPRV m = 0#1) :
+    runSail (mem_write_value paddr 8 data (MemoryAccessType.Store mem_payload.Data)
+        page_based_mem_type.PBMT_PMA false false false) s =
+      runSail (checked_mem_write paddr 8 data (MemoryAccessType.Store mem_payload.Data)
+        page_based_mem_type.PBMT_PMA Privilege.Machine default_meta false false false) s := by
+  unfold mem_write_value mem_write_value_meta mem_write_value_priv_meta
+  simp (config := { decide := true }) [runSail, effectivePrivilege, h_mprv,
+    PreSail.readReg, h_priv, h_mstatus,
+    Pure.pure, EStateM.pure, Bind.bind, bind, EStateM.bind, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get, bne]
+  cases checked_mem_write paddr 8 data (MemoryAccessType.Store mem_payload.Data)
+    page_based_mem_type.PBMT_PMA Privilege.Machine default_meta false false false s <;> rfl
+
 end EvmAsm.Rv64.SailEquiv
