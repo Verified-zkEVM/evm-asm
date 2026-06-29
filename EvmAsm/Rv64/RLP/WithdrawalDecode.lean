@@ -10926,4 +10926,64 @@ theorem wd_decode_failLmin
         (srcBase + BitVec.ofNat 64 0)
         ((srcBase + BitVec.ofNat 64 0) + BitVec.ofNat 64 srcBytes.length) 6 True (by decide) hdec))
 
+/-- **Call block: `rlp_walk_init`, long span-mismatch arm.** Uses the long-mismatch leaf
+    (`rlp_walk_init_lmism_spec_within`): a long-list header (decoded length `≥ 56`) whose declared
+    span doesn't match the input → status `a2 = 7`. The variable spec bound `7·lol+22` (lol = length-of-length
+    `∈ [1,8]`) is bumped to the concrete `78`. Reusable walk_init call (all 7 scratch registers). -/
+theorem wd_call_walk_init_lmism
+    (callerPC calleeEntry listBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old vOld : Word)
+    (listBytes : List (BitVec 8)) (listOff : Nat) (offset : BitVec 21)
+    (hoffset : callerPC + signExtend21 offset = calleeEntry)
+    (halign : (callerPC + 4) &&& ~~~1 = callerPC + 4)
+    (hdisj : (CodeReq.singleton callerPC (.JAL .x1 offset)).Disjoint
+      (rlp_walk_init_code calleeEntry))
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (hlen : listLen ≠ (0 : Word))
+    (h_ge : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (h_ge_f8 : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true)
+    (hllen : listOff + 1 + ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+      ≤ listBytes.length)
+    (hlover : listBase.toNat + (listOff + 1 +
+      ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64)
+    (hlvalid : ∀ k, k < ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+      isValidByteAccess (listBase + BitVec.ofNat 64 (listOff + 1 + k)) = true)
+    (hoff1 : listOff + 1 < listBytes.length)
+    (h_fits : ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+      ((listBase + BitVec.ofNat 64 listOff) +
+        (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+      = true)
+    (h_llz_ne : (listBytes[listOff + 1]'hoff1).zeroExtend 64 ≠ (0 : Word))
+    (h_min : ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
+      ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true)
+    (h_lmism : ((listBase + BitVec.ofNat 64 listOff) +
+        (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) +
+        BitVec.ofNat 64 (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take
+          ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+      ≠ (listBase + BitVec.ofNat 64 listOff) + listLen) :
+    cpsTripleWithin (1 + 80) callerPC (callerPC + 4)
+      ((CodeReq.singleton callerPC (.JAL .x1 offset)).union (rlp_walk_init_code calleeEntry))
+      ((.x1 ↦ᵣ vOld) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) ** (.x12 ↦ᵣ a2Old) **
+         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+         (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+         bytesRegion listBase listBytes))
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
+        (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) ** (.x12 ↦ᵣ (7 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (callerPC + 4)) **
+        bytesRegion listBase listBytes) := by
+  have hbound : 7 * ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat + 24 ≤ 80 := by
+    have hb := (listBytes[listOff]'hoff).isLt
+    have hgf := h_ge_f8
+    simp only [BitVec.ult, decide_eq_true_eq, not_lt] at hgf
+    bv_omega
+  have hcallee := cpsTripleWithin_mono_nSteps hbound
+    (rlp_walk_init_lmism_spec_within calleeEntry listBase (callerPC + 4) listLen a2Old
+      t0Old t1Old t2Old t3Old t4Old t5Old t6Old listBytes listOff hsalign hoff hover hvalid hlen
+      h_ge h_ge_f8 hllen hlover hlvalid hoff1 h_fits h_llz_ne h_min h_lmism)
+  exact cpsCallWithin offset hoffset halign (by pcFree) hdisj
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) hcallee)
+
 end EvmAsm.Rv64.RLP
