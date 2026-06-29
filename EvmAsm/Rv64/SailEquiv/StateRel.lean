@@ -213,6 +213,16 @@ def sailStateWithReg (sSail : SailState) (rd : Reg) (v : BitVec 64) : SailState 
     (sailStateWithReg sSail rd v).mem = sSail.mem := by
   cases rd <;> rfl
 
+/-- An integer-register write doesn't touch `nextPC` (distinct key from every `xN`). -/
+@[simp] theorem sailStateWithReg_get?_nextPC (sSail : SailState) (rd : Reg) (v : BitVec 64) :
+    (sailStateWithReg sSail rd v).regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+  cases rd <;> simp [sailStateWithReg, Std.ExtDHashMap.get?_insert]
+
+/-- An integer-register write doesn't touch `PC` (distinct key from every `xN`). -/
+@[simp] theorem sailStateWithReg_get?_PC (sSail : SailState) (rd : Reg) (v : BitVec 64) :
+    (sailStateWithReg sSail rd v).regs.get? Register.PC = sSail.regs.get? Register.PC := by
+  cases rd <;> simp [sailStateWithReg, Std.ExtDHashMap.get?_insert]
+
 /-- A non-x0 write doesn't touch memory on the Rv64 side either. -/
 @[simp] theorem MachineState_setReg_getMem (sRv : MachineState) (rd : Reg) (v : Word) (a : Word) :
     (sRv.setReg rd v).getMem a = sRv.getMem a := by
@@ -234,5 +244,26 @@ structure StateRel (sRv : MachineState) (sSail : SailState) : Prop where
   /-- Memory agrees: SAIL bytes reconstruct to Rv64 doublewords. -/
   mem_agree : ∀ (a : BitVec 64),
     reconstructDword sSail.mem a.toNat = sRv.getMem a
+
+/-- Inserting the `PC` register preserves `StateRel`: `PC` is not in the tracked
+    integer-register set (`sailRegVal` reads only `x0`..`x31`), and a register
+    insert doesn't touch memory. Mirrors the `nextPC` version used for branches. -/
+theorem stateRel_PC_insert {sRv : MachineState} {sSail : SailState}
+    (hrel : StateRel sRv sSail) (v : BitVec 64) :
+    StateRel sRv { sSail with regs := sSail.regs.insert Register.PC v } :=
+  ⟨fun r => by
+    have ha := hrel.reg_agree r
+    cases r <;> simpa [sailRegVal, Std.ExtDHashMap.get?_insert] using ha,
+   fun a => hrel.mem_agree a⟩
+
+/-- PC-aware abstraction relation: `StateRel` (registers + memory) plus agreement
+    of the committed `PC`.  This is the step-stable relation that holds at each
+    fetch boundary.  It is kept separate from `StateRel` because `execute_*` does
+    not commit `PC` (it writes `nextPC`); only `tick_pc` commits `PC := nextPC`,
+    so `PC` agreement is re-established once per `execute_* ; tick_pc` step. -/
+structure StateRelPC (sRv : MachineState) (sSail : SailState) : Prop extends
+    StateRel sRv sSail where
+  /-- The committed program counter agrees. -/
+  pc_agree : sSail.regs.get? Register.PC = some sRv.pc
 
 end EvmAsm.Rv64.SailEquiv

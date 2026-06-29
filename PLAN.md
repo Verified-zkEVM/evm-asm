@@ -527,6 +527,40 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     `nonleaf_function_spec` (prologue+body+epilogue composition)
   - All new subroutines (handlers, RLP, interpreter) should use this convention.
     The older DivMod ad-hoc convention (x2 as return address) is legacy.
+- **SAIL golden-model equivalence** (`EvmAsm/Rv64/SailEquiv/`): proves our
+  simplified `Rv64` model faithfully implements RISC-V by relating each
+  instruction to the official Sail RISC-V spec (`LeanRV64D`). Anchored on
+  `StateRel` (`StateRel.lean`) — register + memory agreement. Per-class
+  `*_sail_equiv` theorems (ALU/Imm/Shift/MExt/Branch/Mem) relate Sail `execute_*`
+  to `execInstrBr`. Axiom footprint: the 3 classical axioms + the Sail model's
+  `sys_enable_experimental_extensions` (from `LeanRV64D`, present in every
+  SailEquiv proof — this track is outside the `check-axioms.sh` STF witness set).
+  - **PC / control-flow equivalence (DONE this slice).** `StateRel` deliberately
+    omitted PC ("proved separately at step level"); that step theorem was never
+    written, so the branch/jump proofs were *vacuous on PC* (only reg/mem). Now:
+    `StateRelPC` (`StateRel.lean`) = `StateRel` + committed-`PC` agreement (the
+    step-stable, fetch-boundary relation, kept separate because `execute_*` writes
+    only `nextPC`; `tick_pc` commits `PC := nextPC`). `runSail_tick_pc`
+    (`MonadLemmas.lean`) reduces the commit. The 8 branch/jump `*_sail_equiv`
+    theorems (`BranchProofs.lean`) were strengthened to expose
+    `nextPC = (execInstrBr sRv i).pc` (the real **target** check, via the existing
+    `runSail_jump_to` for taken arms and the post-fetch invariant
+    `nextPC = pc+4` for fall-through). `StepProofs.lean` adds the generic
+    `step_of_execute` glue + 8 `*_step_sail_equiv` capstones proving
+    `execute_* ; tick_pc` lands `StateRelPC (execInstrBr sRv i)` — so
+    BEQ/BNE/BLT/BGE/BLTU/BGEU/JAL/JALR now have their **target PC verified against
+    the golden model**. Axiom-clean (track footprint), 0 sorry, no `bv_decide`.
+  - **Remaining.** (1) Thread `nextPC = pc+4` through the non-control classes
+    (ALU/Imm/Shift/MExt/Mem leave `nextPC` untouched) + a uniform `step_sail_equiv`
+    dispatching via `InstrMap.lean` over a decoded instruction. (2) **Memory: the
+    `MemProofs.lean` stubs.** Every load/store is a `*_sail_equiv_stub` that
+    *assumes* an `h_exec` hypothesis (Sail `execute_LOAD/STORE` already succeeds +
+    lands in `StateRel`); discharge it by reducing Sail `vmem_read`/`vmem_write` in
+    bare mode (Machine priv, `satp=0`, aligned). Per maintainer: prove the
+    **forward** direction (evm-asm ⇒ riscv-sail) — always valid since evm-asm
+    issues no misaligned accesses; full both-directions holds only under the
+    alignment precondition `Rv64.step` already enforces
+    (`isValidDwordAccess`/`isValidMemAccess`).
 
 ---
 
