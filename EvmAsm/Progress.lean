@@ -161,8 +161,8 @@ def registry : List OpcodeEntry := [
        "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
        "sp-160..sp-8) so the live EVM stack is preserved")
       (cycleBound := some 34295),
-  entry "EXP" .partly (some "evm_exp_headroom_visible_stack_spec_within")
-      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a Spec-level visible-stack theorem over the ordinary two-operand stack prefix, with consumed-base/headroom/leftover frame cleanup still pending before the public evm_exp_stack_spec_within wrapper",
+  entry "EXP" .partly (some "evm_exp_headroom_clean_visible_stack_spec_within")
+      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a Spec-level clean visible-stack theorem over the ordinary two-operand stack prefix with the loop counter exposed as zero; consumed-base/headroom/leftover frame cleanup is still pending before the public evm_exp_stack_spec_within wrapper",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
   -- Comparison and bitwise (0x10..0x1d)
