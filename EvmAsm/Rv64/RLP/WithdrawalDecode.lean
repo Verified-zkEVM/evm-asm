@@ -8638,6 +8638,80 @@ theorem wd_decode_headField0123
   obtain ⟨d0, nextOff0, hQc⟩ := hQ
   exact ⟨d0, nextOff0, h1, h2, hd, hu, hQc, hC40⟩
 
+/-! ## M3 proof — arity seam (success leaf): `headField0123 ⨾ arity-success tail`
+
+The success field chain (`wd_decode_headField0123`, base+0→276) leaves field 3's content in the
+unified post `wd_scalarFieldUnifiedPost` (struct off 40), with the head frame (`x2` + the
+`sp0-32` stack cells) and the field 0/1 output cells / address bytes framed alongside, all under
+six nested existentials (`d0,nextOff0,d1,nextOff1,d3,nextOff3`). The arity-success tail
+(`wd_decode_aritySuccessTail_regOwn6`, base+276→ret) runs the final `walk_next` end-of-list
+check and the success return. This seam composes them.
+
+It is built bottom-up: the innermost `_d3layer` consumer runs the tail against field 3's unified
+post + the head frame (one `frameR` + `xperm` reshape); the outer wrappers peel the `d1` and
+`d0` existential layers (framing each layer's leftover cells); the top theorem `seq`s the chain
+onto `headField0123` and threads `h_end` (cursor = list end) as a dependent hypothesis the
+capstone discharges from the 4-item span. -/
+
+/-- **Arity-success tail, field-3 layer consumer.** Runs the arity check + success return on
+    field 3's unified post (`wd_scalarFieldUnifiedPost` at struct off 40) together with the saved
+    head frame `HL` (`x2` + the four `sp0-32` stack cells). The tail consumes field 3's
+    `x9/x10/x11/x12/x8/x1/x0` + `regOwn x6` and the head frame; field 3's leftover scratch regs,
+    the `srcBase` byte region, the field-3 output cell, and the `⌜d3 facts⌝` pure are framed
+    through. `h_end` (cursor = list end) is taken directly; the capstone derives it from the
+    4-item span. -/
+theorem wd_decode_aritySuccessTail_d3layer
+    (base sp0 raVal s0Old s1Old s2Old structPtr srcBase srcLen : Word)
+    (srcBytes : List (BitVec 8)) (off3 : Nat)
+    (d3 : List Byte) (nextOff3 : Nat)
+    (h_end : ¬ BitVec.ult (srcBase + BitVec.ofNat 64 nextOff3)
+      ((srcBase + BitVec.ofNat 64 0) + srcLen))
+    (halign288 : (base + 288) &&& ~~~1 = base + 288)
+    (hdisj : (CodeReq.singleton (base + 284) (.JAL .x1 (260 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (hinstr : withdrawal_decode_prog.get
+        ⟨73, by rw [withdrawal_decode_prog_length]; norm_num⟩ = .BNE .x11 .x6 (12 : BitVec 13)) :
+    cpsTripleWithin ((2 + ((1 + 4) + 1)) + (1 + 8)) (base + 276) (raVal &&& ~~~1)
+      (withdrawal_decode_code base)
+      (wd_scalarFieldUnifiedPost (base + 268) structPtr (40 : BitVec 12) srcBase
+          ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes off3 d3 nextOff3 **
+        ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
+          ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+          ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))
+      (((((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        (((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** ⌜(2 : Word) = (2 : Word)⌝) **
+          ((.x10 ↦ᵣ (0 : Word)) **
+            (.x2 ↦ᵣ ((sp0 + signExtend12 (-32 : BitVec 12)) + signExtend12 (32 : BitVec 12))) **
+            (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+            ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
+        (regOwn .x5 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          bytesRegion srcBase srcBytes **
+          ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d3)) **
+          ⌜d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
+            (∀ m, decodeAux (m + 1) (srcBytes.drop off3) =
+              some (.bytes d3, srcBytes.drop nextOff3))⌝))) := by
+  have htail := wd_decode_aritySuccessTail_regOwn6 base (srcBase + BitVec.ofNat 64 nextOff3)
+    ((srcBase + BitVec.ofNat 64 0) + srcLen) (BitVec.ofNat 64 (Nat.fromBytesBE d3)) (0 : Word)
+    (base + 268) (BitVec.ofNat 64 d3.length) (sp0 + signExtend12 (-32 : BitVec 12)) structPtr
+    raVal s0Old s1Old s2Old h_end halign288 hdisj hinstr
+  have htailF := cpsTripleWithin_frameR
+    (regOwn .x5 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion srcBase srcBytes **
+      ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d3)) **
+      ⌜d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop off3) =
+          some (.bytes d3, srcBytes.drop nextOff3))⌝)
+    (by pcFree) htail
+  refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => ?_) htailF
+  · simp only [wd_scalarFieldUnifiedPost] at hs
+    xperm_hyp hs
+  · xperm_hyp hq
+
 /-! ## M3 proof — output carving: the address copy holds field 2's content -/
 
 /-- **`getElem?` of a byte-copy chain.** Position `j` of `copyRangeGen dst src si0 di0 N` is the
