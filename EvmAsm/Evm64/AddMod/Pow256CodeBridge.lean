@@ -277,6 +277,32 @@ theorem evm_addmod_pow256_plus_one_call_restore_with_callable_sub
     (CodeReq.union_sub hCallable hRestore) a i h
 
 
+
+/-- The named shared pow256 call/restore code region is subsumed by the concrete
+    helper program plus callable body. -/
+theorem evm_addmod_pow256_mod_n_shared_code_with_callable_sub
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq)
+    (hd : (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)).Disjoint callableCode) :
+    ∀ a i, (evm_addmod_pow256_mod_n_shared_code base modOff callableCode) a = some i →
+      (evm_addmod_pow256_mod_n_with_callable_code base modOff callableCode) a = some i := by
+  unfold evm_addmod_pow256_mod_n_shared_code
+  exact CodeReq.union_sub
+    (evm_addmod_pow256_minus_one_call_restore_with_callable_sub base modOff callableCode hd)
+    (evm_addmod_pow256_plus_one_call_restore_with_callable_sub base modOff callableCode hd)
+
+/-- Lift any proof over the named shared pow256 code region to the concrete
+    helper program plus callable body. -/
+theorem evm_addmod_pow256_shared_code_extend_to_concrete
+    {nSteps : Nat} {entry exit_ base : Word} {modOff : BitVec 21}
+    {callableCode : CodeReq} {P Q : Assertion}
+    (hd : (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)).Disjoint callableCode)
+    (h : cpsTripleWithin nSteps entry exit_
+      (evm_addmod_pow256_mod_n_shared_code base modOff callableCode) P Q) :
+    cpsTripleWithin nSteps entry exit_
+      (evm_addmod_pow256_mod_n_with_callable_code base modOff callableCode) P Q :=
+  cpsTripleWithin_extend_code
+    (evm_addmod_pow256_mod_n_shared_code_with_callable_sub base modOff callableCode hd) h
+
 /-- Compose both pow256 callable-MOD calls over the concrete helper program plus
     callable body. -/
 theorem evm_addmod_pow256_mod_n_with_callable_code_spec_within
