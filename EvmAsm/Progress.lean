@@ -156,7 +156,7 @@ def registry : List OpcodeEntry := [
   entry "ADDMOD" .partly (some "evm_addmod_partial_domain_named_return_owned_live_stack_spec_within")
       ("addmod_correct proven; zero-modulus stack spec done for arbitrary b; " ++
        "no-overflow skeleton composed through legacy MOD no-NOP body proof; " ++
-       "current partial theorem has named domain plus a final live-stack post at sp+64, with consumed operand cells and the callable return register weakened to ownership and scratch resources framed explicitly; zero-modulus branch is exposed directly as evm_addmod_n0_return_owned_live_stack_spec_within"),
+       "current partial theorem has named domain plus a final live-stack post at sp+64, with consumed operand cells and the callable return register weakened to ownership and scratch resources framed explicitly; zero-modulus and no-overflow branches are exposed directly as evm_addmod_n0_return_owned_live_stack_spec_within and evm_addmod_no_overflow_return_owned_live_stack_spec_within"),
   entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
       ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
        "n ≤ 2^255 hypothesis); bit-serial 512-bit reducer. Scratchpad " ++
