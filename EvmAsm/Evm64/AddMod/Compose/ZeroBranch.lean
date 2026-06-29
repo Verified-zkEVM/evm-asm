@@ -327,6 +327,23 @@ theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_stack_tail_spec_wi
       xperm_hyp hp)
     hFramed
 
+/-- Stack-tail surface for the ADDMOD zero-modulus phase-2 path through
+    epilogue with the zero modulus supplied as a hypothesis. This is the form
+    branch composition usually has after extracting the zero-test guard. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_n_zero_stack_tail_spec_within
+    (sp v5Old v6Old base : Word) (N : EvmWord) (rest : List EvmWord)
+    (hN : N = (0 : EvmWord)) :
+    cpsTripleWithin (8 + 4 + 1) base (base + 52)
+      (evm_addmod_phase2_n_zero_test_zero_path_epilogue_code base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       evmStackIs (sp + 32) (N :: rest))
+      ((.x12 ↦ᵣ (sp + signExtend12 (32 : BitVec 12))) **
+       (.x6 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ 0) **
+       evmStackIs (sp + 32) ((0 : EvmWord) :: rest)) := by
+  subst N
+  exact evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_stack_tail_spec_within
+    sp v5Old v6Old base rest
+
 /-- `ofProg` surface for the word-shaped ADDMOD zero-modulus phase-2 path
     through epilogue. -/
 theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_word_ofProg_spec_within
@@ -362,6 +379,25 @@ theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_stack_tail_ofProg_
   rw [← evm_addmod_phase2_n_zero_test_zero_path_epilogue_code_eq_ofProg]
   exact evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_stack_tail_spec_within
     sp v5Old v6Old base rest
+
+/-- `ofProg` surface for the hypothesis-driven stack-tail ADDMOD
+    zero-modulus phase-2 path through epilogue. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_n_zero_stack_tail_ofProg_spec_within
+    (sp v5Old v6Old base : Word) (N : EvmWord) (rest : List EvmWord)
+    (hN : N = (0 : EvmWord)) :
+    cpsTripleWithin (8 + 4 + 1) base (base + 52)
+      (CodeReq.ofProg base
+        ((evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+          evm_addmod_phase2_zero_path) ;;
+         evm_addmod_epilogue))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       evmStackIs (sp + 32) (N :: rest))
+      ((.x12 ↦ᵣ (sp + signExtend12 (32 : BitVec 12))) **
+       (.x6 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ 0) **
+       evmStackIs (sp + 32) ((0 : EvmWord) :: rest)) := by
+  rw [← evm_addmod_phase2_n_zero_test_zero_path_epilogue_code_eq_ofProg]
+  exact evm_addmod_phase2_n_zero_test_zero_path_epilogue_n_zero_stack_tail_spec_within
+    sp v5Old v6Old base N rest hN
 
 /-- ofProg surface for the ADDMOD zero-modulus phase-2 path through epilogue. -/
 theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_ofProg_spec_within
