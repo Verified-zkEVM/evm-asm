@@ -405,11 +405,15 @@ open EvmAsm.EL in
     validity, `|srcBytes| < 2^64`) are the standard side-conditions the verified leaves require. -/
 def withdrawal_decode_characterization
     (base srcBase outPtr raVal sp0 s0Old s1Old s2Old : Word) (srcBytes : List Byte) : Prop :=
+  base &&& 1 = 0 →
+  base.toNat + 1444 < 2 ^ 64 →
   srcBase.toNat % 8 = 0 →
   outPtr.toNat % 8 = 0 →
   srcBytes.length < 2 ^ 64 →
-  srcBase.toNat + srcBytes.length ≤ 2 ^ 64 →
+  srcBase.toNat + srcBytes.length < 2 ^ 64 →
+  outPtr.toNat + 48 < 2 ^ 64 →
   (∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) →
+  (∀ k, k < 48 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) →
   ∃ N, cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
     -- precondition
     ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
