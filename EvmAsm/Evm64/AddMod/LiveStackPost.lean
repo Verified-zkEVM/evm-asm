@@ -447,6 +447,44 @@ theorem evm_addmod_partial_domain_named_regs_owned_live_stack_spec_within
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
       hcallable hbase hdisjoint hDomain)
 
+/-- Runtime-guard-domain ADDMOD theorem with the final live stack isolated at
+    `sp + 64` and all leftover registers in the current frame weakened to
+    ownership. This is the live-stack counterpart of
+    `evm_addmod_partial_or_guard_named_stack_spec_within`. -/
+theorem evm_addmod_partial_or_guard_named_regs_owned_live_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hDomain :
+      evmAddModPartialOrGuardDomain sp base callable_base a b N v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp =>
+      evmAddModPartialReturnOwnedLiveStackPost_to_regsOwnedLiveStackPost
+        (evmAddModPartialOwnedLiveStackPost_to_returnOwnedLiveStackPost
+          (evmAddModPartialLiveStackPost_to_ownedLiveStackPost
+            (evmAddModNoOverflowCallReturnStackPost_to_liveStackPost hp))))
+    (evm_addmod_partial_or_guard_named_stack_spec_within
+      sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0
+      hcallable hbase hdisjoint hDomain)
+
 /-- Hidden register/scratch witness for the current partial ADDMOD surface. -/
 structure EvmAddModPartialPreWitness where
   v1 : Word
