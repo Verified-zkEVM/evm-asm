@@ -557,6 +557,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     uniformly by the `@[simp] sailStateWithReg_get?_nextPC` helper + `h_nextpc`).
     So every non-memory instruction's equivalence theorem now pins the PC
     behaviour — the prerequisite the uniform step theorem consumes.
+  - **MisalignedAccess trap distinction (DONE).** So memory soundness can be
+    stated cleanly ("unless a misaligned access happens"), `Execution.lean` gains a
+    trap-aware companion to `step` — *without* touching `step`/`stepN` (which
+    underpin `cpsTriple` and ~all proofs). `TrapKind` (`misalignedAccess | other`,
+    extensible) + `StepResult` (`ok | trap`); `isMisalignedAccess` flags an
+    in-range-but-misaligned memory access (splitting the conflated
+    `isValidMemAddr && isAligned*` guard); `stepResult s := if isMisalignedAccess s
+    then .trap .misalignedAccess else stepResultOfOption (step s)`. Bridge
+    `step_eq_stepResult_toOption : step s = (stepResult s).toOption` (+
+    `stepResult_ok_iff`, `isMisalignedAccess_imp_step_none`) connects it to the
+    `step`/`stepN` corpus. Axiom-clean (`propext`/`Quot.sound`), 0 sorry, full
+    `EvmAsm.Rv64` builds untouched.
   - **Remaining.** (1) A uniform `step_sail_equiv` dispatching via `InstrMap.lean`
     over a decoded instruction (composes the per-class results via
     `step_of_execute`; blocked on the memory class below, since it must cover
