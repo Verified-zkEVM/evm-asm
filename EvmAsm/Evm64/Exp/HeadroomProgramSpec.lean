@@ -26,6 +26,17 @@ abbrev evmExpHeadroomCanonicalAppendedMulProgram : Program :=
     EvmAsm.Evm64.canonicalExpMsbSavedBitFixedLoopBackOff ;;
   EvmAsm.Evm64.mul_callable
 
+theorem evmExpHeadroomCanonicalAppendedMulProgram_length :
+    evmExpHeadroomCanonicalAppendedMulProgram.length = 166 := by
+  unfold evmExpHeadroomCanonicalAppendedMulProgram
+  simp only [EvmAsm.Rv64.seq, Program.length_append,
+    EvmAsm.Evm64.evm_exp_msb_saved_bit_two_mul_fixed_headroom_length,
+    EvmAsm.Evm64.mul_callable_length]
+
+theorem evmExpHeadroomCanonicalAppendedMulProgram_byte_length :
+    4 * evmExpHeadroomCanonicalAppendedMulProgram.length = 664 := by
+  rw [evmExpHeadroomCanonicalAppendedMulProgram_length]
+
 /-- The canonical headroom EXP code bundle is exactly the code requirement of
     the concrete appended program. -/
 theorem evmExpHeadroomCanonicalAppendedMulCode_eq_ofProg (base : Word) :
