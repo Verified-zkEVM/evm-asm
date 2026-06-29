@@ -205,6 +205,50 @@ theorem evm_addmod_pow256_callable_then_restore_frame_spec_within
   have R := evm_addmod_pow256_call_mod_restore_frame_spec_within hF sp restoreBase
   exact cpsTripleWithin_seq hd hCallable R
 
+/-- Compose the first pow256 MOD-call setup with an abstract callable body and
+    the frame-pointer restore instruction. -/
+theorem evm_addmod_pow256_minus_one_call_restore_spec_within
+    {nSteps : Nat} {callableCode : CodeReq} {F : Assertion}
+    (hF : F.pcFree)
+    (sp base x1Old x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word)
+    (modOff : BitVec 21)
+    (hdEntry : (evm_addmod_pow256_minus_one_first_call_code base modOff).Disjoint
+      (callableCode.union
+        (CodeReq.singleton ((base + 56) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12)))))
+    (hdRestore : callableCode.Disjoint
+      (CodeReq.singleton ((base + 56) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12))))
+    (hCallable : cpsTripleWithin nSteps ((base + 56) + signExtend21 modOff) ((base + 56) + 4)
+      callableCode
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) **
+       (.x1 ↦ᵣ ((base + 56) + 4)))
+      ((.x12 ↦ᵣ (sp + signExtend12 (96 : BitVec 12))) ** F)) :
+    cpsTripleWithin (15 + (nSteps + 1)) base (((base + 56) + 4) + 4)
+      ((evm_addmod_pow256_minus_one_first_call_code base modOff).union
+        (callableCode.union
+          (CodeReq.singleton ((base + 56) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12)))))
+      ((evmAddModPow256PrepareMinusOnePre sp
+          x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3) **
+       (.x1 ↦ᵣ x1Old))
+      ((.x12 ↦ᵣ sp) ** F) := by
+  have E := evm_addmod_pow256_minus_one_first_call_spec_within
+    sp base x1Old x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 modOff
+  have R := evm_addmod_pow256_callable_then_restore_frame_spec_within
+    hF sp ((base + 56) + signExtend21 modOff) ((base + 56) + 4) hdRestore hCallable
+  exact cpsTripleWithin_seq hdEntry E R
+
 
 /-- Compose the full helper that prepares the second callable MOD arguments for
     materializing `2^256 mod N` from the first `(-1 mod N)` remainder. -/
