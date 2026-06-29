@@ -178,4 +178,117 @@ theorem evm_addmod_phase2_n_zero_test_zero_path_ofProg_spec_within
   exact evm_addmod_phase2_n_zero_test_zero_path_spec_within
     sp v5Old v6Old n0 n1 n2 n3 base hZero
 
+/-- Code bundle for the ADDMOD phase-2 zero-modulus test, zero-store path, and
+    shared epilogue. The epilogue starts at base + 48. -/
+abbrev evm_addmod_phase2_n_zero_test_zero_path_epilogue_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base
+    ((evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+      evm_addmod_phase2_zero_path) ;;
+     evm_addmod_epilogue)
+
+theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_code_eq_ofProg
+    (base : Word) :
+    evm_addmod_phase2_n_zero_test_zero_path_epilogue_code base =
+      CodeReq.ofProg base
+        ((evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+          evm_addmod_phase2_zero_path) ;;
+         evm_addmod_epilogue) := rfl
+
+/-- ADDMOD phase-2 zero-modulus path through the shared epilogue. This
+    composes the explicit zero-modulus branch with the final stack-pointer
+    advance. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_spec_within
+    (sp v5Old v6Old n0 n1 n2 n3 : Word)
+    (base : Word)
+    (hZero : n0 ||| n1 ||| n2 ||| n3 = (0 : Word)) :
+    cpsTripleWithin (8 + 4 + 1) base (base + 52)
+      (evm_addmod_phase2_n_zero_test_zero_path_epilogue_code base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ (sp + signExtend12 (32 : BitVec 12))) **
+       (.x6 ↦ᵣ (n0 ||| n1 ||| n2 ||| n3)) **
+       (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  let prefixProg := evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+    evm_addmod_phase2_zero_path
+  let orAll := n0 ||| n1 ||| n2 ||| n3
+  have hPrefixRaw :=
+    evm_addmod_phase2_n_zero_test_zero_path_ofProg_spec_within
+      sp v5Old v6Old n0 n1 n2 n3 base hZero
+  have hPrefix :
+      cpsTripleWithin (8 + 4) base (base + 48)
+        (evm_addmod_phase2_n_zero_test_zero_path_epilogue_code base)
+        ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+         ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+        ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) **
+         (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ (0 : Word)) **
+         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+         ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ (0 : Word)) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ (0 : Word))) :=
+    cpsTripleWithin_extend_code (h := hPrefixRaw) (hmono := by
+      unfold evm_addmod_phase2_n_zero_test_zero_path_epilogue_code
+      exact CodeReq.ofProg_mono_append_left base prefixProg evm_addmod_epilogue)
+  have hEpilogueRaw := evm_addmod_epilogue_spec_within sp (base + 48)
+  rw [show (base + 48 : Word) + 4 = base + 52 by bv_addr] at hEpilogueRaw
+  have hEpilogue :
+      cpsTripleWithin 1 (base + 48) (base + 52)
+        (evm_addmod_phase2_n_zero_test_zero_path_epilogue_code base)
+        (.x12 ↦ᵣ sp)
+        (.x12 ↦ᵣ (sp + signExtend12 (32 : BitVec 12))) :=
+    cpsTripleWithin_extend_code (h := hEpilogueRaw) (hmono := by
+      unfold evm_addmod_phase2_n_zero_test_zero_path_epilogue_code
+      convert CodeReq.ofProg_mono_append_right base prefixProg evm_addmod_epilogue (by
+        unfold prefixProg evm_addmod_phase2_n_zero_test evm_addmod_phase2_zero_path
+          evm_addmod_epilogue LD OR' SD ADDI single seq
+        decide) using 1)
+  have hEpilogueFramed := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+     ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ (0 : Word)))
+    (by pcFree) hEpilogue
+  have hSeq := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hPrefix hEpilogueFramed
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    hSeq
+
+/-- ofProg surface for the ADDMOD zero-modulus phase-2 path through epilogue. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_ofProg_spec_within
+    (sp v5Old v6Old n0 n1 n2 n3 : Word)
+    (base : Word)
+    (hZero : n0 ||| n1 ||| n2 ||| n3 = (0 : Word)) :
+    cpsTripleWithin (8 + 4 + 1) base (base + 52)
+      (CodeReq.ofProg base
+        ((evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+          evm_addmod_phase2_zero_path) ;;
+         evm_addmod_epilogue))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ (sp + signExtend12 (32 : BitVec 12))) **
+       (.x6 ↦ᵣ (n0 ||| n1 ||| n2 ||| n3)) **
+       (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  rw [← evm_addmod_phase2_n_zero_test_zero_path_epilogue_code_eq_ofProg]
+  exact evm_addmod_phase2_n_zero_test_zero_path_epilogue_spec_within
+    sp v5Old v6Old n0 n1 n2 n3 base hZero
+
 end EvmAsm.Evm64.AddMod.Compose
