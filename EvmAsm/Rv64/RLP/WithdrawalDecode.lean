@@ -4802,4 +4802,44 @@ theorem wd_decode_field2Walk (base srcBase endPtr vOld a0Old a1Old a2Old
   obtain ⟨len, hp2⟩ := sepConj_exists_right hp1
   exact ⟨next, len, by xperm_hyp hp2⟩
 
+/-- **Field-2 reject-check** (idx 42–44, base+168 → base+180): `prefix < 0xc0` (reject list-form
+    items), fail offset 128. The address is a short string so its prefix (0x94 for 20 bytes) is
+    below 0xc0. -/
+theorem wd_decode_field2RejectCheck (base srcBase t0Old t1Old : Word) (srcBytes : List (BitVec 8))
+    (cursorOff : Nat) (halign : srcBase.toNat % 8 = 0) (hi : cursorOff < srcBytes.length)
+    (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true)
+    (hlt : BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)) :
+    cpsTripleWithin 3 (base + 168) (base + 180) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        bytesRegion srcBase srcBytes)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+        (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** (.x6 ↦ᵣ (192 : Word)) **
+        bytesRegion srcBase srcBytes **
+        ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝) := by
+  have h42 := cpsTripleWithin_frameR (.x6 ↦ᵣ t1Old) (by pcFree)
+    (wd_decode_readPrefix base srcBase t0Old srcBytes cursorOff 42
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide) halign hi hover hvalid)
+  rw [show base + BitVec.ofNat 64 168 = base + 168 from by bv_omega,
+      show base + 168 + 4 = base + 172 from by bv_omega] at h42
+  have h43 := cpsTripleWithin_frameL
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+      (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** bytesRegion srcBase srcBytes)
+    (by pcFree)
+    (wd_decode_li base 43 .x6 (192 : Word) t1Old (by decide)
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 172 = base + 172 from by bv_omega,
+      show base + 172 + 4 = base + 176 from by bv_omega] at h43
+  have h44 := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** bytesRegion srcBase srcBytes)
+    (by pcFree)
+    (wd_bgeu_lt base 44 .x5 .x6 (128 : BitVec 13)
+      ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word) hlt
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 176 = base + 176 from by bv_omega,
+      show base + 176 + 4 = base + 180 from by bv_omega] at h44
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_same_cr h42 h43) h44
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
 end EvmAsm.Rv64.RLP
