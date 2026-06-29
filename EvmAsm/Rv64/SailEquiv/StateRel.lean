@@ -241,8 +241,16 @@ def sailStateWithReg (sSail : SailState) (rd : Reg) (v : BitVec 64) : SailState 
 structure StateRel (sRv : MachineState) (sSail : SailState) : Prop where
   /-- Registers agree on all 32 integer registers. -/
   reg_agree : ∀ (r : Reg), sailRegVal sSail r = some (sRv.getReg r)
-  /-- Memory agrees: SAIL bytes reconstruct to Rv64 doublewords. -/
-  mem_agree : ∀ (a : BitVec 64),
+  /-- Memory agrees on **8-aligned doublewords**: the SAIL bytes at `a` reconstruct
+      to the Rv64 doubleword `getMem a`.
+
+      Restricted to 8-aligned `a` because Rv64 `mem` is dword-granular (a store is a
+      single-point `setMem`), so the unrestricted ∀-byte form (overlapping 8-byte
+      windows at every offset) cannot be preserved by a store — the byte write would
+      change the windows at the seven preceding offsets, which the dword-granular
+      `mem` does not track. Distinct 8-aligned dwords are disjoint, so an 8-aligned
+      store *does* preserve this form. -/
+  mem_agree : ∀ (a : BitVec 64), a.toNat % 8 = 0 →
     reconstructDword sSail.mem a.toNat = sRv.getMem a
 
 /-- Inserting the `PC` register preserves `StateRel`: `PC` is not in the tracked
@@ -254,7 +262,7 @@ theorem stateRel_PC_insert {sRv : MachineState} {sSail : SailState}
   ⟨fun r => by
     have ha := hrel.reg_agree r
     cases r <;> simpa [sailRegVal, Std.ExtDHashMap.get?_insert] using ha,
-   fun a => hrel.mem_agree a⟩
+   fun a ha => hrel.mem_agree a ha⟩
 
 /-- PC-aware abstraction relation: `StateRel` (registers + memory) plus agreement
     of the committed `PC`.  This is the step-stable relation that holds at each
