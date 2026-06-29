@@ -105,4 +105,25 @@ theorem runSail_mem_write_value_to_checked (paddr : physaddr) (data : BitVec 64)
   cases checked_mem_write paddr 8 data (MemoryAccessType.Store mem_payload.Data)
     page_based_mem_type.PBMT_PMA Privilege.Machine default_meta false false false s <;> rfl
 
+/-- `runSail` commutes with `Functor.map`. -/
+theorem runSail_map {α β : Type} (f : α → β) (m : SailM α) (s : SailState) :
+    runSail (f <$> m) s = (runSail m s).map (fun p => (f p.1, p.2)) := by
+  simp only [runSail, Functor.map, EStateM.map]
+  cases m s <;> rfl
+
+/-- `checked_mem_write` under the assumed bare-Machine platform context: the
+    access passes the PMP/PMA check (`phys_access_check = none`) and is plain RAM
+    (`within_mmio_writable = false`), so it performs the plain `write_ram` and
+    reports `Ok`. `h_wr` supplies `write_ram`'s reduced result (state `s'`). -/
+theorem runSail_checked_mem_write_bare (paddr : physaddr) (data : BitVec 64) (s s' : SailState)
+    (h_pac : runSail (phys_access_check (MemoryAccessType.Store mem_payload.Data)
+        page_based_mem_type.PBMT_PMA Privilege.Machine paddr 8 false) s = some (Option.none, s))
+    (h_mmio : runSail (within_mmio_writable paddr 8) s = some (false, s))
+    (h_wr : runSail (write_ram write_kind.Write_plain paddr 8 data default_meta) s = some (true, s')) :
+    runSail (checked_mem_write paddr 8 data (MemoryAccessType.Store mem_payload.Data)
+        page_based_mem_type.PBMT_PMA Privilege.Machine default_meta false false false) s =
+      some (Result.Ok true, s') := by
+  unfold checked_mem_write
+  simp [runSail_bind, h_pac, h_mmio, write_kind_of_flags, runSail_map, h_wr]
+
 end EvmAsm.Rv64.SailEquiv
