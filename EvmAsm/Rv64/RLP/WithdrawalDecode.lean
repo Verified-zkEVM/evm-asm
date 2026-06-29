@@ -6557,6 +6557,38 @@ theorem wd_decode_aritySuccessTail
       cursor endPtr cursor hinstr)
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) harity hret
 
+/-- **Arity-success tail, regOwn-`x6` input.** Same as `wd_decode_aritySuccessTail` but takes `x6`
+    as `regOwn` instead of `regIs t1Old` — matching the success field chain's output (field 3 leaves
+    `x6` `regOwn`) at the arity seam. The arity block clobbers `x6` (`li t1,2`), so the post is
+    unchanged; built by one `regIs → regOwn` peel. -/
+theorem wd_decode_aritySuccessTail_regOwn6
+    (base cursor endPtr a0Old a1Old vOld a2Old spF s0Clob raSaved s0Saved s1Saved s2Saved : Word)
+    (h_end : ¬ BitVec.ult cursor endPtr)
+    (halign288 : (base + 288) &&& ~~~1 = base + 288)
+    (hdisj : (CodeReq.singleton (base + 284) (.JAL .x1 (260 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (hinstr : withdrawal_decode_prog.get
+        ⟨73, by rw [withdrawal_decode_prog_length]; norm_num⟩ = .BNE .x11 .x6 (12 : BitVec 13)) :
+    cpsTripleWithin ((2 + ((1 + 4) + 1)) + (1 + 8)) (base + 276) (raSaved &&& ~~~1)
+      (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) **
+        (.x1 ↦ᵣ vOld) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x6) **
+        ((.x2 ↦ᵣ spF) ** (.x8 ↦ᵣ s0Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) **
+          ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved)))
+      (((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        (((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** ⌜(2 : Word) = (2 : Word)⌝) **
+          ((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (spF + signExtend12 (32 : BitVec 12))) **
+            (.x1 ↦ᵣ raSaved) ** (.x8 ↦ᵣ s0Saved) ** (.x9 ↦ᵣ s1Saved) ** (.x18 ↦ᵣ s2Saved) **
+            (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+            ((spF + 24) ↦ₘ s2Saved)))) := by
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := ((.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x1 ↦ᵣ vOld) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) ** ((.x2 ↦ᵣ spF) ** (.x8 ↦ᵣ s0Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved))))
+      (r := .x6) (fun t1Old => ?_))
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (wd_decode_aritySuccessTail base cursor endPtr a0Old a1Old vOld a2Old t1Old spF s0Clob
+      raSaved s0Saved s1Saved s2Saved h_end halign288 hdisj hinstr)
+
 /-! ## M3 proof — field-0 body dispatcher (form-independent)
 
 Collapses the three per-form unified bodies into ONE triple keyed on a form disjunction
