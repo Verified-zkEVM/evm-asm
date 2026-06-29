@@ -98,8 +98,10 @@ theorem evm_exp_headroom_visible_result_stack_program_spec_within
         EvmAsm.Evm64.Exp.Compose.evmExpHeadroomCanonicalAppendedMulProgram)
       (evmExpHeadroomPublicStackPre evmSp baseWord exponentWord rest)
       (evmExpHeadroomVisibleResultStackPost evmSp baseWord exponentWord rest) := by
-  rw [← EvmAsm.Evm64.Exp.Compose.evmExpHeadroomCanonicalAppendedMulCode_eq_ofProg]
-  exact evm_exp_headroom_visible_result_stack_spec_within
-    evmSp base baseWord exponentWord rest hbase
+  exact EvmAsm.Rv64.cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmExpHeadroomPublicStackPost_to_visibleResultStackPost hp)
+    (evm_exp_headroom_stack_program_spec_within
+      evmSp base baseWord exponentWord rest hbase)
 
 end EvmAsm.Evm64
