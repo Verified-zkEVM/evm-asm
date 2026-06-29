@@ -364,6 +364,62 @@ instance pcFreeInst_expHeadroomFinalScratchRegsOwnedLeftoverLiveStackPost
       (expHeadroomFinalScratchRegsOwnedLeftoverLiveStackPost sp evmSp baseWord exponentWord rest) :=
   ⟨expHeadroomFinalScratchRegsOwnedLeftoverLiveStackPost_pcFree sp evmSp baseWord exponentWord rest⟩
 
+@[irreducible]
+def expHeadroomFinalFrameRegsOwnedLeftoverFrame
+    (sp evmSp : Word) : Assertion :=
+  (regOwn .x9 ** (.x0 ↦ᵣ (0 : Word))) **
+    (regOwn .x2 ** regOwn .x5 ** evmWordOwn sp ** evmWordOwn evmSp) **
+    expHeadroomFinalOwnedLoopExtraFrame evmSp
+
+theorem expHeadroomFinalFrameRegsOwnedLeftoverFrame_unfold
+    (sp evmSp : Word) :
+    expHeadroomFinalFrameRegsOwnedLeftoverFrame sp evmSp =
+      ((regOwn .x9 ** (.x0 ↦ᵣ (0 : Word))) **
+        (regOwn .x2 ** regOwn .x5 ** evmWordOwn sp ** evmWordOwn evmSp) **
+        expHeadroomFinalOwnedLoopExtraFrame evmSp) := by
+  delta expHeadroomFinalFrameRegsOwnedLeftoverFrame
+  rfl
+
+theorem expHeadroomFinalFrameRegsOwnedLeftoverFrame_pcFree
+    (sp evmSp : Word) :
+    (expHeadroomFinalFrameRegsOwnedLeftoverFrame sp evmSp).pcFree := by
+  rw [expHeadroomFinalFrameRegsOwnedLeftoverFrame_unfold]
+  pcFree
+
+instance pcFreeInst_expHeadroomFinalFrameRegsOwnedLeftoverFrame
+    (sp evmSp : Word) :
+    Assertion.PCFree (expHeadroomFinalFrameRegsOwnedLeftoverFrame sp evmSp) :=
+  ⟨expHeadroomFinalFrameRegsOwnedLeftoverFrame_pcFree sp evmSp⟩
+
+@[irreducible]
+def expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion :=
+  (((.x12 ↦ᵣ (evmSp + 32)) **
+    evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+    expHeadroomFinalFrameRegsOwnedLeftoverFrame sp evmSp)
+
+theorem expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost_unfold
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost sp evmSp baseWord exponentWord rest =
+      ((((.x12 ↦ᵣ (evmSp + 32)) **
+        evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+        expHeadroomFinalFrameRegsOwnedLeftoverFrame sp evmSp)) := by
+  delta expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost
+  rfl
+
+theorem expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost_pcFree
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    (expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost sp evmSp baseWord exponentWord rest).pcFree := by
+  rw [expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost_unfold]
+  pcFree
+
+instance pcFreeInst_expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost sp evmSp baseWord exponentWord rest) :=
+  ⟨expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost_pcFree sp evmSp baseWord exponentWord rest⟩
+
 private theorem expHeadroomFinalOwnedBaseFrame_to_ownedScratchFrame
     {sp evmSp : Word} {baseWord exponentWord scratchWord : EvmWord} {ps : PartialState}
     (h : expHeadroomFinalOwnedBaseFrame sp evmSp baseWord exponentWord scratchWord ps) :
@@ -502,6 +558,29 @@ theorem expHeadroomFinalCounterOwnedLeftoverLiveStackPost_to_scratchRegsOwnedLef
   rw [expHeadroomFinalScratchRegsOwnedLeftoverLiveStackPost_unfold]
   exact sepConj_mono (fun _ h => h)
     (fun _ h_frame => expHeadroomFinalCounterOwnedLeftoverFrame_to_scratchRegsOwnedLeftoverFrame h_frame) _ h
+
+
+private theorem expHeadroomFinalScratchRegsOwnedLeftoverFrame_to_frameRegsOwnedLeftoverFrame
+    {sp evmSp : Word} {ps : PartialState}
+    (h : expHeadroomFinalScratchRegsOwnedLeftoverFrame sp evmSp ps) :
+    expHeadroomFinalFrameRegsOwnedLeftoverFrame sp evmSp ps := by
+  rw [expHeadroomFinalScratchRegsOwnedLeftoverFrame_unfold] at h
+  rw [expHeadroomFinalFrameRegsOwnedLeftoverFrame_unfold]
+  exact sepConj_mono_right
+    (sepConj_mono_left (sepConj_mono_left (fun st h => regIs_implies_regOwn .x2 st h))) _ h
+
+theorem expHeadroomFinalScratchRegsOwnedLeftoverLiveStackPost_to_frameRegsOwnedLeftoverLiveStackPost
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h :
+      expHeadroomFinalScratchRegsOwnedLeftoverLiveStackPost sp evmSp baseWord exponentWord rest
+        ps) :
+    expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost sp evmSp baseWord exponentWord rest
+        ps := by
+  rw [expHeadroomFinalScratchRegsOwnedLeftoverLiveStackPost_unfold] at h
+  rw [expHeadroomFinalFrameRegsOwnedLeftoverLiveStackPost_unfold]
+  exact sepConj_mono (fun _ h => h)
+    (fun _ h_frame => expHeadroomFinalScratchRegsOwnedLeftoverFrame_to_frameRegsOwnedLeftoverFrame h_frame) _ h
 
 
 theorem expHeadroomFinalCleanOwnedBaseLiveStackPost_to_framedLiveStackPost
