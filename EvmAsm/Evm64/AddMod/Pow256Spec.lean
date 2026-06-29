@@ -1,0 +1,102 @@
+/-
+  EvmAsm.Evm64.AddMod.Pow256Spec
+
+  Composition specs for ADDMOD pow256 helper blocks.
+-/
+
+import EvmAsm.Evm64.AddMod.LimbSpec
+
+open EvmAsm.Rv64.Tactics
+
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
+
+abbrev evm_addmod_pow256_prepare_plus_one_mod_args_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_addmod_pow256_prepare_plus_one_mod_args
+
+/-- Compose the full helper that prepares the second callable MOD arguments for
+    materializing `2^256 mod N` from the first `(-1 mod N)` remainder. -/
+theorem evm_addmod_pow256_prepare_plus_one_mod_args_spec_within
+    (sp base : Word) (x5Old x6Old x7Old r0 r1 r2 r3 n0 n1 n2 n3 w0 w1 w2 w3 : Word) :
+    let sum0 := r0 + signExtend12 (1 : BitVec 12)
+    let carry0 := if BitVec.ult sum0 (signExtend12 (1 : BitVec 12)) then (1 : Word) else 0
+    let sum1 := r1 + carry0
+    let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+    let sum2 := r2 + carry1
+    let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+    let sum3 := r3 + carry2
+    let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+    cpsTripleWithin 24 base (base + 96)
+      (evm_addmod_pow256_prepare_plus_one_mod_args_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ r3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n3) ** (.x6 ↦ᵣ sum3) ** (.x7 ↦ᵣ carry3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ sum0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ sum1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ sum2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ sum3) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := by
+  dsimp only
+  let sum0 := r0 + signExtend12 (1 : BitVec 12)
+  let carry0 := if BitVec.ult sum0 (signExtend12 (1 : BitVec 12)) then (1 : Word) else 0
+  let sum1 := r1 + carry0
+  let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+  let sum2 := r2 + carry1
+  let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+  let sum3 := r3 + carry2
+  let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+  have L0 := ld_spec_gen_within .x5 .x12 sp x5Old r0 96 base (by nofun)
+  have A0 := addi_spec_gen_within .x6 .x5 x6Old r0 1 (base + 4) (by nofun)
+  have C0 := sltiu_spec_gen_within .x7 .x6 x7Old sum0 1 (base + 8) (by nofun)
+  have S0 := sd_spec_gen_within .x12 .x6 sp sum0 w0 64 (base + 12)
+  have L1 := ld_spec_gen_within .x5 .x12 sp r0 r1 104 (base + 16) (by nofun)
+  have A1 := add_spec_gen_within .x6 .x5 .x7 r1 carry0 sum0 (base + 20) (by nofun)
+  have C1 := sltu_spec_gen_rd_eq_rs2_within .x7 .x6 sum1 carry0 (base + 24) (by nofun)
+  have S1 := sd_spec_gen_within .x12 .x6 sp sum1 w1 72 (base + 28)
+  have L2 := ld_spec_gen_within .x5 .x12 sp r1 r2 112 (base + 32) (by nofun)
+  have A2 := add_spec_gen_within .x6 .x5 .x7 r2 carry1 sum1 (base + 36) (by nofun)
+  have C2 := sltu_spec_gen_rd_eq_rs2_within .x7 .x6 sum2 carry1 (base + 40) (by nofun)
+  have S2 := sd_spec_gen_within .x12 .x6 sp sum2 w2 80 (base + 44)
+  have L3 := ld_spec_gen_within .x5 .x12 sp r2 r3 120 (base + 48) (by nofun)
+  have A3 := add_spec_gen_within .x6 .x5 .x7 r3 carry2 sum2 (base + 52) (by nofun)
+  have C3 := sltu_spec_gen_rd_eq_rs2_within .x7 .x6 sum3 carry2 (base + 56) (by nofun)
+  have S3 := sd_spec_gen_within .x12 .x6 sp sum3 w3 88 (base + 60)
+  have N0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load0_spec_within
+    sp r3 (base + 64) n0
+  have D0 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy0_spec_within
+    sp (base + 68) n0 r0
+  have N1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load1_spec_within
+    sp (base + 72) n0 n1
+  have D1 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy1_spec_within
+    sp (base + 76) n1 r1
+  have N2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load2_spec_within
+    sp (base + 80) n1 n2
+  have D2 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy2_spec_within
+    sp (base + 84) n2 r2
+  have N3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_load3_spec_within
+    sp (base + 88) n2 n3
+  have D3 := evm_addmod_pow256_prepare_minus_one_mod_args_tail_copy3_spec_within
+    sp (base + 92) n3 r3
+  simp only [sum0, carry0, sum1, carry1, sum2, carry2, sum3] at *
+  runBlock L0 A0 C0 S0 L1 A1 C1 S1 L2 A2 C2 S2 L3 A3 C3 S3 N0 D0 N1 D1 N2 D2 N3 D3
+
+end EvmAsm.Evm64
