@@ -6375,6 +6375,25 @@ theorem wd_field2_decodeAux (srcBytes : List Byte) (off : Nat) (hoff : off < src
   rw [show off + 21 = off + 1 + 20 from by omega]
   exact h
 
+/-- **Per-field `decodeAux` from an `encodeBytes` prefix (reverse-decode core).** If the suffix
+    `srcBytes.drop off` is exactly `encodeBytes data ++ rest`, then `decodeAux` consumes that one
+    byte-string item, advancing the cursor by `(encodeBytes data).length`; the next suffix is
+    `rest`. The fuel-parametric `∀ m` form holds because a byte string needs only one fuel level
+    (`decodeAux_succ_encodeBytes_append`). This is the workhorse for discharging the success leaf's
+    `decodeAux` hypotheses from `srcBytes = encode (.list […])` (`wd_srcBytes_eq_encode`): peel the
+    payload one field at a time, feeding `rest` (the tail encoding) as the next field's prefix. -/
+theorem wd_decodeAux_of_encodeBytes_drop (srcBytes : List Byte) (off : Nat) (data rest : List Byte)
+    (hdrop : srcBytes.drop off = encodeBytes data ++ rest)
+    (hlen : data.length < 256 ^ 8) :
+    (∀ m, decodeAux (m + 1) (srcBytes.drop off) =
+      some (.bytes data, srcBytes.drop (off + (encodeBytes data).length))) ∧
+    srcBytes.drop (off + (encodeBytes data).length) = rest := by
+  have hnext : srcBytes.drop (off + (encodeBytes data).length) = rest := by
+    rw [← List.drop_drop, hdrop, List.drop_left]
+  refine ⟨fun m => ?_, hnext⟩
+  rw [hdrop, hnext]
+  exact decodeAux_succ_encodeBytes_append m data rest hlen
+
 /-! ## M3 proof — success spine: field1 ⨾ field2 seam consumer -/
 
 /-- **Address-field precondition bundle.** The offset-dependent side-conditions field 2's body
