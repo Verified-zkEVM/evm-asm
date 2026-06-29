@@ -1250,6 +1250,39 @@ theorem evm_addmod_pow256_call_mod_restore_spec_within
       (.x12 ↦ᵣ (sp + signExtend12 (4000 : BitVec 12))) := by
   exact addi_spec_gen_same_within .x12 sp 4000 base (by nofun)
 
+-- ============================================================================
+-- evm_addmod_pow256_prepare_plus_one_mod_args
+-- ============================================================================
+
+abbrev evm_addmod_pow256_prepare_plus_one_mod_args_low_prefix_code (base : Word) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.LD .x5 .x12 (96 : BitVec 12)))
+  (CodeReq.union (CodeReq.singleton (base + 4) (.ADDI .x6 .x5 (1 : BitVec 12)))
+  (CodeReq.union (CodeReq.singleton (base + 8) (.SLTIU .x7 .x6 (1 : BitVec 12)))
+   (CodeReq.singleton (base + 12) (.SD .x12 .x6 (64 : BitVec 12)))))
+
+/-- First four instructions of the plus-one MOD-call setup: load the low
+    remainder limb, add one, compute the carry, and store the low dividend limb. -/
+theorem evm_addmod_pow256_prepare_plus_one_mod_args_low_prefix_spec_within
+    (sp base x5Old x6Old x7Old r0 w0 : Word) :
+    cpsTripleWithin 4 base (base + 16)
+      (evm_addmod_pow256_prepare_plus_one_mod_args_low_prefix_code base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ r0) **
+       (.x6 ↦ᵣ (r0 + signExtend12 (1 : BitVec 12))) **
+       (.x7 ↦ᵣ (if BitVec.ult (r0 + signExtend12 (1 : BitVec 12))
+          (signExtend12 (1 : BitVec 12)) then (1 : Word) else 0)) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ (r0 + signExtend12 (1 : BitVec 12)))) := by
+  have L := ld_spec_gen_within .x5 .x12 sp x5Old r0 96 base (by nofun)
+  have A := addi_spec_gen_within .x6 .x5 x6Old r0 1 (base + 4) (by nofun)
+  have C := sltiu_spec_gen_within .x7 .x6 x7Old
+    (r0 + signExtend12 (1 : BitVec 12)) 1 (base + 8) (by nofun)
+  have S := sd_spec_gen_within .x12 .x6 sp
+    (r0 + signExtend12 (1 : BitVec 12)) w0 64 (base + 12)
+  runBlock L A C S
+
 /-- Compose the full helper that prepares the first callable MOD arguments for
     the ADDMOD overflow path. -/
 theorem evm_addmod_pow256_prepare_minus_one_mod_args_spec_within
