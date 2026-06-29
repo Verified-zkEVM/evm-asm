@@ -6356,6 +6356,123 @@ theorem wd_field2_decodeAux (srcBytes : List Byte) (off : Nat) (hoff : off < src
   rw [show off + 21 = off + 1 + 20 from by omega]
   exact h
 
+/-! ## M3 proof — success spine: field1 ⨾ field2 seam consumer -/
+
+/-- **Address-field precondition bundle.** The offset-dependent side-conditions field 2's body
+    (`wd_decode_field2Body_regOwn`) requires at its entry offset `srcOff`: range, non-overflow,
+    valid access, cursor before end, and the prefix classifies as a **20-byte short string**
+    (`0x94`: `¬ult b 0x80 ∧ ult b 0xb8 ∧ b-0x80 = 20`) that fits, with the full 21-byte span in
+    range and accessible. The global/output-region conditions (`hsalign`, `hstalign`, `hsover`,
+    `hsvalid`, `hdlen`, `hdov`, `hdval`, `hbase`) are *not* offset-dependent and are supplied
+    directly. The companion to `wd_scalarFieldPre` for the address field. -/
+def wd_addressFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (srcOff : Nat) : Prop :=
+  ∃ hoff : srcOff < srcBytes.length,
+    srcBase.toNat + srcOff < 2 ^ 64 ∧
+    isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true ∧
+    BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true ∧
+    ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
+    BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
+    (srcBytes[srcOff]'hoff).toNat - 0x80 = 20 ∧
+    BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+      (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true ∧
+    srcOff + 21 ≤ srcBytes.length ∧
+    srcBase.toNat + (srcOff + 21) ≤ 2 ^ 64 ∧
+    (∀ k, k < 20 → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+
+/-- **Field-1 ⨾ field-2 seam consumer** (base+152 → base+220): runs field 2's body on field 1's
+    *existential* output. Field 2 sits at field 1's next-offset `nextOff1`, so its preconditions
+    (`wd_addressFieldPre` at `nextOff1`) are taken as the dependent hypothesis `hf2` (discharged by
+    the capstone from `decodeWithdrawal = some`). Mirrors `headField01`'s per-witness body: threads
+    `(d1, nextOff1)` through field 2 via `cpsTripleWithin_exists_pre`, extracts field 1's `d1`-facts
+    from the unified post's pure with `cpsTripleWithin_pure_pre`, frames field 1's written `struct+8`
+    cell through field 2, and exposes field 2's `decodeAux` step (`d2 = (drop (nextOff1+1)).take 20`)
+    plus the carried `d1`-facts in the post. The address-copy registers `x13/x14/x15` and the
+    `struct+16` output region are supplied as the extra inputs field 2 consumes. -/
+theorem wd_field2_consume
+    (base srcBase srcLen structPtr x13Old x14Old cnt : Word) (off1 : Nat)
+    (dstBytes : List (BitVec 8))
+    (halign164 : (base + 164) &&& ~~~1 = base + 164)
+    (hdisjW160 : (CodeReq.singleton (base + 160) (.JAL .x1 (384 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign204 : (base + 204) &&& ~~~1 = base + 204)
+    (hsalign : srcBase.toNat % 8 = 0) (hstalign : structPtr.toNat % 8 = 0)
+    (hbase : base.toNat + 1444 < 2 ^ 64)
+    (hdlen : dstBytes.length = 20) (hdov : (structPtr + 16).toNat + 20 < 2 ^ 64)
+    (hdval : ∀ i, i < dstBytes.length →
+      isValidByteAccess ((structPtr + 16) + BitVec.ofNat 64 i) = true)
+    (srcBytes : List (BitVec 8))
+    (hsover' : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsvalid : ∀ i, i < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 i) = true)
+    (hf2 : ∀ (d1 : List Byte) (nextOff1 : Nat),
+      (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
+          some (.bytes d1, srcBytes.drop nextOff1))) →
+      wd_addressFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff1) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) + (3 + 111)) (base + 152) (base + 220)
+      (withdrawal_decode_code base)
+      (fun h => ∃ d1 nextOff1,
+        (wd_scalarFieldUnifiedPost (base + 144) structPtr (8 : BitVec 12) srcBase
+            ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes off1 d1 nextOff1 **
+          ((.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
+            bytesRegion (structPtr + 16) dstBytes)) h)
+      (fun h => ∃ d1 nextOff1,
+        ((((((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** (.x8 ↦ᵣ structPtr) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+              (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (nextOff1 + 21))) ** regOwn .x12 **
+              (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((nextOff1 + 1) + 20))) **
+              (.x14 ↦ᵣ ((structPtr + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+              (.x5 ↦ᵣ ((srcBytes[nextOff1]?.getD 0).zeroExtend 64)) ** bytesRegion srcBase srcBytes **
+              bytesRegion (structPtr + 16)
+                (copyRangeGen dstBytes srcBytes (nextOff1 + 1) 0 20) **
+              ⌜BitVec.ult ((srcBytes[nextOff1]?.getD 0).zeroExtend 64) (192 : Word)⌝) **
+            ((.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x11 ↦ᵣ (0 : Word)) **
+              regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)) **
+          ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ
+            BitVec.ofNat 64 (Nat.fromBytesBE d1))) **
+          ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+            some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20),
+              srcBytes.drop (nextOff1 + 21))⌝) **
+          ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+            (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
+              some (.bytes d1, srcBytes.drop nextOff1))⌝) h) := by
+  -- pre is `∃ d1 nextOff1, (field1's unified post ** field-2 extra inputs)`; run per witness.
+  refine cpsTripleWithin_exists_pre (fun d1 => ?_)
+  refine cpsTripleWithin_exists_pre (fun nextOff1 => ?_)
+  refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
+    (cpsTripleWithin_pure_pre
+      (P := ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 nextOff1)) **
+        (.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE d1)) ** (.x11 ↦ᵣ (0 : Word)) **
+        (.x12 ↦ᵣ BitVec.ofNat 64 d1.length) ** (.x8 ↦ᵣ structPtr) ** (.x1 ↦ᵣ (base + 144)) **
+        (.x0 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        bytesRegion srcBase srcBytes **
+        ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1)) **
+        (.x18 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31) ** ((.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
+          bytesRegion (structPtr + 16) dstBytes))
+      (fun (hfacts : d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+          (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
+            some (.bytes d1, srcBytes.drop nextOff1))) => ?_))
+  · simp only [wd_scalarFieldUnifiedPost] at hs
+    xperm_hyp hs
+  · obtain ⟨hoff', hover', hvalid', hin', hlo', hhi', hlen20', hfit', hcontentlen',
+      hcontentover', hcontentvalid'⟩ := hf2 d1 nextOff1 hfacts
+    have hd2dec := wd_field2_decodeAux srcBytes nextOff1 hoff' hlo' hhi' hlen20' hcontentlen'
+    have hbyteEq : (srcBytes[nextOff1]'hoff').zeroExtend 64 = (srcBytes[nextOff1]?.getD 0).zeroExtend 64 := by
+      rw [List.getElem?_eq_getElem hoff']; rfl
+    have hF2base := wd_decode_field2Body_regOwn base srcBase
+      ((srcBase + BitVec.ofNat 64 0) + srcLen) (base + 144)
+      (BitVec.ofNat 64 (Nat.fromBytesBE d1)) (0 : Word) (BitVec.ofNat 64 d1.length)
+      structPtr x13Old x14Old cnt srcBytes dstBytes nextOff1
+      halign164 hdisjW160 halign204 hsalign hstalign hoff' hover' hvalid' hin' hlo' hhi'
+      hlen20' hfit' hcontentlen' hcontentover' hcontentvalid' hsover' hsvalid hdlen hdov hdval hbase
+    have hF2framed := cpsTripleWithin_frameR
+      ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d1))
+      (by pcFree) hF2base
+    refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => ?_) hF2framed
+    · xperm_hyp hs
+    · rw [hbyteEq] at hq
+      exact (sepConj_pure_right s).mpr ⟨(sepConj_pure_right s).mpr ⟨hq, hd2dec⟩, hfacts⟩
+
 /-! ## M3 proof — success-spine tail: arity ⨾ aritySuccessReturn
 
 A first divide-and-conquer segment of the success spine (built from the return end). The
