@@ -235,6 +235,85 @@ theorem evmAddModPartialOwnedLiveStackPost_to_returnOwnedLiveStackPost
   exact sepConj_mono (fun _ h => h)
     (fun _ h_frame => evmAddModPartialOwnedLiveStackFrame_to_returnOwnedFrame h_frame) _ h
 
+@[irreducible]
+def evmAddModPartialRegsOwnedLiveStackFrame (sp : Word) : Assertion :=
+  regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x10 ** regOwn .x11 ** regOwn .x0 **
+  evmWordOwn sp ** evmWordOwn (sp + 32) **
+  divScratchOwnCallNoX1 (sp + 32) ** regOwn .x1
+
+theorem evmAddModPartialRegsOwnedLiveStackFrame_unfold
+    (sp : Word) :
+    evmAddModPartialRegsOwnedLiveStackFrame sp =
+      (regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x10 ** regOwn .x11 ** regOwn .x0 **
+       evmWordOwn sp ** evmWordOwn (sp + 32) **
+       divScratchOwnCallNoX1 (sp + 32) ** regOwn .x1) := by
+  delta evmAddModPartialRegsOwnedLiveStackFrame
+  rfl
+
+theorem evmAddModPartialRegsOwnedLiveStackFrame_pcFree
+    (sp : Word) :
+    (evmAddModPartialRegsOwnedLiveStackFrame sp).pcFree := by
+  rw [evmAddModPartialRegsOwnedLiveStackFrame_unfold]
+  pcFree
+
+instance pcFreeInst_evmAddModPartialRegsOwnedLiveStackFrame
+    (sp : Word) :
+    Assertion.PCFree (evmAddModPartialRegsOwnedLiveStackFrame sp) :=
+  ⟨evmAddModPartialRegsOwnedLiveStackFrame_pcFree sp⟩
+
+@[irreducible]
+def evmAddModPartialRegsOwnedLiveStackPost
+    (sp : Word) (a b N : EvmWord) : Assertion :=
+  ((.x12 ↦ᵣ (sp + 64)) ** evmStackIs (sp + 64) [EvmWord.addmod a b N]) **
+  evmAddModPartialRegsOwnedLiveStackFrame sp
+
+theorem evmAddModPartialRegsOwnedLiveStackPost_unfold
+    (sp : Word) (a b N : EvmWord) :
+    evmAddModPartialRegsOwnedLiveStackPost sp a b N =
+      (((.x12 ↦ᵣ (sp + 64)) ** evmStackIs (sp + 64) [EvmWord.addmod a b N]) **
+       evmAddModPartialRegsOwnedLiveStackFrame sp) := by
+  delta evmAddModPartialRegsOwnedLiveStackPost
+  rfl
+
+theorem evmAddModPartialRegsOwnedLiveStackPost_pcFree
+    (sp : Word) (a b N : EvmWord) :
+    (evmAddModPartialRegsOwnedLiveStackPost sp a b N).pcFree := by
+  rw [evmAddModPartialRegsOwnedLiveStackPost_unfold]
+  pcFree
+
+instance pcFreeInst_evmAddModPartialRegsOwnedLiveStackPost
+    (sp : Word) (a b N : EvmWord) :
+    Assertion.PCFree (evmAddModPartialRegsOwnedLiveStackPost sp a b N) :=
+  ⟨evmAddModPartialRegsOwnedLiveStackPost_pcFree sp a b N⟩
+
+private theorem evmAddModPartialReturnOwnedLiveStackFrame_to_regsOwnedFrame
+    {sp : Word} {ps : PartialState}
+    (h : evmAddModPartialReturnOwnedLiveStackFrame sp ps) :
+    evmAddModPartialRegsOwnedLiveStackFrame sp ps := by
+  rw [evmAddModPartialReturnOwnedLiveStackFrame_unfold] at h
+  rw [evmAddModPartialRegsOwnedLiveStackFrame_unfold]
+  exact sepConj_mono (fun _ h => h)
+    (sepConj_mono (fun _ h => h)
+      (sepConj_mono (fun _ h => h)
+        (sepConj_mono (fun _ h => h)
+          (sepConj_mono (fun _ h => h)
+            (sepConj_mono (fun _ h => h)
+              (sepConj_mono (fun st h => regIs_implies_regOwn .x0 st h)
+                (sepConj_mono (fun _ h => h)
+                  (sepConj_mono (fun _ h => h)
+                    (sepConj_mono (fun _ h => h) (fun _ h => h)))))))))) _ h
+
+theorem evmAddModPartialReturnOwnedLiveStackPost_to_regsOwnedLiveStackPost
+    {sp : Word} {a b N : EvmWord} {ps : PartialState}
+    (h : evmAddModPartialReturnOwnedLiveStackPost sp a b N ps) :
+    evmAddModPartialRegsOwnedLiveStackPost sp a b N ps := by
+  rw [evmAddModPartialReturnOwnedLiveStackPost_unfold] at h
+  rw [evmAddModPartialRegsOwnedLiveStackPost_unfold]
+  exact sepConj_mono (fun _ h => h)
+    (fun _ h_frame => evmAddModPartialReturnOwnedLiveStackFrame_to_regsOwnedFrame h_frame) _ h
+
 /-- Named-domain ADDMOD theorem with the final live stack isolated at
     `sp + 64`. The old operand cells, scratch ownership, and remaining register
     resources are kept in `evmAddModPartialLiveStackFrame`. -/
@@ -331,6 +410,38 @@ theorem evm_addmod_partial_domain_named_return_owned_live_stack_spec_within
     (fun _ hp => hp)
     (fun _ hp => evmAddModPartialOwnedLiveStackPost_to_returnOwnedLiveStackPost hp)
     (evm_addmod_partial_domain_named_owned_live_stack_spec_within
+      sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0
+      hcallable hbase hdisjoint hDomain)
+
+/-- Named-domain ADDMOD theorem with the final live stack isolated at `sp + 64`
+    and all leftover registers in the current frame weakened to ownership. -/
+theorem evm_addmod_partial_domain_named_regs_owned_live_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hDomain :
+      evmAddModPartialDomain sp base callable_base a b N v2 v10
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialStackPre sp a b N v1 v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmAddModPartialReturnOwnedLiveStackPost_to_regsOwnedLiveStackPost hp)
+    (evm_addmod_partial_domain_named_return_owned_live_stack_spec_within
       sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
