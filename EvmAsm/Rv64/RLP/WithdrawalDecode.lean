@@ -2720,9 +2720,7 @@ theorem wd_decode_field0BodyEmpty
     (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
     (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
     (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
-    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
-    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
-    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0) :
     cpsTripleWithin ((2 + (1 + 87) + 1) +
         (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
       (base + 40) (base + 96) (withdrawal_decode_code base)
@@ -2752,7 +2750,7 @@ theorem wd_decode_field0BodyEmpty
   have hwalk := wd_decode_field0Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign52 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ _ => ⟨hoff1, hover1, hvalid1⟩)
+    (fun _ _ hpos => absurd hempty (by omega))
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi
       (fun hc => by
@@ -3726,9 +3724,7 @@ theorem wd_decode_field1BodyEmpty
     (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
     (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
     (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
-    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
-    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
-    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0) :
     cpsTripleWithin ((2 + (1 + 87) + 1) +
         (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
       (base + 96) (base + 152) (withdrawal_decode_code base)
@@ -3757,7 +3753,7 @@ theorem wd_decode_field1BodyEmpty
   have hwalk := wd_decode_field1Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign108 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ _ => ⟨hoff1, hover1, hvalid1⟩)
+    (fun _ _ hpos => absurd hempty (by omega))
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi
       (fun hc => by
@@ -4704,9 +4700,7 @@ theorem wd_decode_field3BodyEmpty
     (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
     (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
     (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
-    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
-    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
-    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0) :
     cpsTripleWithin ((2 + (1 + 87) + 1) +
         (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
       (base + 220) (base + 276) (withdrawal_decode_code base)
@@ -4735,7 +4729,7 @@ theorem wd_decode_field3BodyEmpty
   have hwalk := wd_decode_field3Walk base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes off halign232 hdisjW hsalign hoff hover
     hvalid
-    (fun _ _ _ => ⟨hoff1, hover1, hvalid1⟩)
+    (fun _ _ hpos => absurd hempty (by omega))
     (fun hns _ => absurd hhi hns) (fun hns => absurd h_f8 hns) hin
     ⟨_, _, rlpItemDecode_of_shortBytes (List.getElem?_eq_getElem hoff) hlo hhi
       (fun hc => by
@@ -5764,9 +5758,7 @@ theorem wd_decode_field0BodyEmpty_unified
     (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
     (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
     (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
-    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
-    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
-    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0) :
     cpsTripleWithin ((2 + (1 + 87) + 1) +
         (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
       (base + 40) (base + 96) (withdrawal_decode_code base)
@@ -5781,7 +5773,6 @@ theorem wd_decode_field0BodyEmpty_unified
   have hv := wd_decode_field0BodyEmpty base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
     halign52 hdisjW halign88 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty
-    hoff1 hover1 hvalid1
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
   rw [hempty] at hp
   refine ⟨([] : List (BitVec 8)), off + 1, ?_⟩
@@ -5989,9 +5980,7 @@ theorem wd_decode_field1BodyEmpty_unified
     (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
     (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
     (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
-    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
-    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
-    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0) :
     cpsTripleWithin ((2 + (1 + 87) + 1) +
         (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
       (base + 96) (base + 152) (withdrawal_decode_code base)
@@ -6006,7 +5995,6 @@ theorem wd_decode_field1BodyEmpty_unified
   have hv := wd_decode_field1BodyEmpty base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
     halign108 hdisjW halign144 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty
-    hoff1 hover1 hvalid1
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
   rw [hempty] at hp
   refine ⟨([] : List (BitVec 8)), off + 1, ?_⟩
@@ -6214,9 +6202,7 @@ theorem wd_decode_field3BodyEmpty_unified
     (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
     (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
     (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
-    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0)
-    (hoff1 : off + 1 < srcBytes.length) (hover1 : srcBase.toNat + (off + 1) < 2 ^ 64)
-    (hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1)) = true) :
+    (hempty : (srcBytes[off]'hoff).toNat - 0x80 = 0) :
     cpsTripleWithin ((2 + (1 + 87) + 1) +
         (7 + (1 + (7 * ((srcBytes[off]'hoff).toNat - 0x80) + 11)) + 2))
       (base + 220) (base + 276) (withdrawal_decode_code base)
@@ -6231,7 +6217,6 @@ theorem wd_decode_field3BodyEmpty_unified
   have hv := wd_decode_field3BodyEmpty base srcBase endPtr vOld a0Old a1Old a2Old
     t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes off
     halign232 hdisjW halign268 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty
-    hoff1 hover1 hvalid1
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) hv
   rw [hempty] at hp
   refine ⟨([] : List (BitVec 8)), off + 1, ?_⟩
@@ -6443,9 +6428,7 @@ def wd_scalarFieldPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8)) (srcO
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true))
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0))
 
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
@@ -6666,9 +6649,7 @@ theorem wd_decode_field0Body_unified
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     ∃ N, cpsTripleWithin N (base + 40) (base + 96) (withdrawal_decode_code base)
       (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
         (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
@@ -6680,7 +6661,7 @@ theorem wd_decode_field0Body_unified
           srcBytes srcOff d0 nextOff h) := by
   rcases hform with ⟨hsingle, hbyte⟩ |
     ⟨hlo, hhi, hcanon, hfit, hcl, hco, hcv, hpos, hbyte, hlen8⟩ |
-    ⟨hlo, hhi, hempty, hoff1, hover1, hvalid1⟩
+    ⟨hlo, hhi, hempty⟩
   · exact ⟨_, wd_decode_field0BodySingleByte_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign52 hdisjW
       halign88 hdisjC hsalign hoff hover hvalid hin hsingle hbyte⟩
@@ -6690,7 +6671,7 @@ theorem wd_decode_field0Body_unified
       hlen8⟩
   · exact ⟨_, wd_decode_field0BodyEmpty_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign52 hdisjW
-      halign88 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty hoff1 hover1 hvalid1⟩
+      halign88 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty⟩
 
 /-- **Field-1 body dispatcher.** Given the field decodes as one of the three canonical scalar
     forms (`hform`: single-byte `b<0x80 ∧ b≠0`; short `0x80≤b<0xb8` + content facts; empty `b=0x80`
@@ -6729,9 +6710,7 @@ theorem wd_decode_field1Body_unified
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     ∃ N, cpsTripleWithin N (base + 96) (base + 152) (withdrawal_decode_code base)
       (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
         (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
@@ -6743,7 +6722,7 @@ theorem wd_decode_field1Body_unified
           srcBytes srcOff d0 nextOff h) := by
   rcases hform with ⟨hsingle, hbyte⟩ |
     ⟨hlo, hhi, hcanon, hfit, hcl, hco, hcv, hpos, hbyte, hlen8⟩ |
-    ⟨hlo, hhi, hempty, hoff1, hover1, hvalid1⟩
+    ⟨hlo, hhi, hempty⟩
   · exact ⟨_, wd_decode_field1BodySingleByte_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign108 hdisjW
       halign144 hdisjC hsalign hoff hover hvalid hin hsingle hbyte⟩
@@ -6753,7 +6732,7 @@ theorem wd_decode_field1Body_unified
       hlen8⟩
   · exact ⟨_, wd_decode_field1BodyEmpty_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign108 hdisjW
-      halign144 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty hoff1 hover1 hvalid1⟩
+      halign144 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty⟩
 
 /-- **Field-3 body dispatcher.** Given the field decodes as one of the three canonical scalar
     forms (`hform`: single-byte `b<0x80 ∧ b≠0`; short `0x80≤b<0xb8` + content facts; empty `b=0x80`
@@ -6792,9 +6771,7 @@ theorem wd_decode_field3Body_unified
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     ∃ N, cpsTripleWithin N (base + 220) (base + 276) (withdrawal_decode_code base)
       (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
         (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
@@ -6806,7 +6783,7 @@ theorem wd_decode_field3Body_unified
           srcBytes srcOff d0 nextOff h) := by
   rcases hform with ⟨hsingle, hbyte⟩ |
     ⟨hlo, hhi, hcanon, hfit, hcl, hco, hcv, hpos, hbyte, hlen8⟩ |
-    ⟨hlo, hhi, hempty, hoff1, hover1, hvalid1⟩
+    ⟨hlo, hhi, hempty⟩
   · exact ⟨_, wd_decode_field3BodySingleByte_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign232 hdisjW
       halign268 hdisjC hsalign hoff hover hvalid hin hsingle hbyte⟩
@@ -6816,7 +6793,7 @@ theorem wd_decode_field3Body_unified
       hlen8⟩
   · exact ⟨_, wd_decode_field3BodyEmpty_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign232 hdisjW
-      halign268 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty hoff1 hover1 hvalid1⟩
+      halign268 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty⟩
 
 /-- **Call block: `rlp_walk_init`.** A `jal ra` at `callerPC` into the verified `rlp_walk_init`
     (appended at `calleeEntry`) classifies the RLP list header and returns to `callerPC + 4` with the
@@ -6994,9 +6971,7 @@ theorem wd_decode_field0Body_unified_fixedN
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 40) (base + 96) (withdrawal_decode_code base)
       (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
         (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
@@ -7008,7 +6983,7 @@ theorem wd_decode_field0Body_unified_fixedN
           srcBytes srcOff d0 nextOff h) := by
   rcases hform with ⟨hsingle, hbyte⟩ |
     ⟨hlo, hhi, hcanon, hfit, hcl, hco, hcv, hpos, hbyte, hlen8⟩ |
-    ⟨hlo, hhi, hempty, hoff1, hover1, hvalid1⟩
+    ⟨hlo, hhi, hempty⟩
   · exact cpsTripleWithin_mono_nSteps (by omega)
       (wd_decode_field0BodySingleByte_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign52 hdisjW
@@ -7021,7 +6996,7 @@ theorem wd_decode_field0Body_unified_fixedN
   · exact cpsTripleWithin_mono_nSteps (by omega)
       (wd_decode_field0BodyEmpty_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign52 hdisjW
-      halign88 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty hoff1 hover1 hvalid1)
+      halign88 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty)
 
 /-- **Field-1 body dispatcher (fixed step bound).** Given the field decodes as one of the three canonical scalar
     forms (`hform`: single-byte `b<0x80 ∧ b≠0`; short `0x80≤b<0xb8` + content facts; empty `b=0x80`
@@ -7060,9 +7035,7 @@ theorem wd_decode_field1Body_unified_fixedN
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 96) (base + 152) (withdrawal_decode_code base)
       (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
         (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
@@ -7074,7 +7047,7 @@ theorem wd_decode_field1Body_unified_fixedN
           srcBytes srcOff d0 nextOff h) := by
   rcases hform with ⟨hsingle, hbyte⟩ |
     ⟨hlo, hhi, hcanon, hfit, hcl, hco, hcv, hpos, hbyte, hlen8⟩ |
-    ⟨hlo, hhi, hempty, hoff1, hover1, hvalid1⟩
+    ⟨hlo, hhi, hempty⟩
   · exact cpsTripleWithin_mono_nSteps (by omega)
       (wd_decode_field1BodySingleByte_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign108 hdisjW
@@ -7087,7 +7060,7 @@ theorem wd_decode_field1Body_unified_fixedN
   · exact cpsTripleWithin_mono_nSteps (by omega)
       (wd_decode_field1BodyEmpty_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign108 hdisjW
-      halign144 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty hoff1 hover1 hvalid1)
+      halign144 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty)
 
 /-- **Field-3 body dispatcher (fixed step bound).** Given the field decodes as one of the three canonical scalar
     forms (`hform`: single-byte `b<0x80 ∧ b≠0`; short `0x80≤b<0xb8` + content facts; empty `b=0x80`
@@ -7126,9 +7099,7 @@ theorem wd_decode_field3Body_unified_fixedN
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 220) (base + 276) (withdrawal_decode_code base)
       (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
         (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
@@ -7140,7 +7111,7 @@ theorem wd_decode_field3Body_unified_fixedN
           srcBytes srcOff d0 nextOff h) := by
   rcases hform with ⟨hsingle, hbyte⟩ |
     ⟨hlo, hhi, hcanon, hfit, hcl, hco, hcv, hpos, hbyte, hlen8⟩ |
-    ⟨hlo, hhi, hempty, hoff1, hover1, hvalid1⟩
+    ⟨hlo, hhi, hempty⟩
   · exact cpsTripleWithin_mono_nSteps (by omega)
       (wd_decode_field3BodySingleByte_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign232 hdisjW
@@ -7153,7 +7124,7 @@ theorem wd_decode_field3Body_unified_fixedN
   · exact cpsTripleWithin_mono_nSteps (by omega)
       (wd_decode_field3BodyEmpty_unified base srcBase endPtr vOld a0Old a1Old a2Old
       t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct mOld srcBytes srcOff halign232 hdisjW
-      halign268 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty hoff1 hover1 hvalid1)
+      halign268 hdisjC hsalign hoff hover hvalid hin hlo hhi hempty)
 
 /-- **Field-1 body dispatcher, regOwn-input.** The seven clobbered scratch registers
     (`x5/x6/x7/x28/x29/x30/x31`) are exposed as `regOwn` instead of `regIs`, so this field's PRE
@@ -7192,9 +7163,7 @@ theorem wd_decode_field1Body_unified_regOwn
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 96) (base + 152) (withdrawal_decode_code base)
       ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** ((struct + signExtend12 (8 : BitVec 12)) ↦ₘ mOld) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
@@ -7273,9 +7242,7 @@ theorem wd_decode_field0Body_unified_regOwn
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 40) (base + 96) (withdrawal_decode_code base)
       ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ mOld) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
@@ -7354,9 +7321,7 @@ theorem wd_decode_field3Body_unified_regOwn
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 220) (base + 276) (withdrawal_decode_code base)
       ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** ((struct + signExtend12 (40 : BitVec 12)) ↦ₘ mOld) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
@@ -7436,9 +7401,7 @@ theorem wd_decode_field3Body_unified_seam
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 220) (base + 276)
       (withdrawal_decode_code base)
       ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
@@ -7900,9 +7863,7 @@ theorem wd_decode_field0Body_unified_regOwn5
         (srcBytes[srcOff]'hoff).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0 ∧
-        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)) :
+        (srcBytes[srcOff]'hoff).toNat - 0x80 = 0)) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2)) (base + 40) (base + 96) (withdrawal_decode_code base)
       ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** ((struct + signExtend12 (0 : BitVec 12)) ↦ₘ mOld) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x28 ** regOwn .x29 ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old))
@@ -7988,9 +7949,7 @@ theorem wd_decode_headField0
         (srcBytes[1]'hoff1).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[1]'hoff1).toNat - 0x80 = 0 ∧
-        1 + 1 < srcBytes.length ∧ srcBase.toNat + (1 + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (1 + 1)) = true)) :
+        (srcBytes[1]'hoff1).toNat - 0x80 = 0)) :
     cpsTripleWithin ((((6 + (1 + 15)) + 3)) +
         ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2))) base (base + 96)
       (withdrawal_decode_code base)
@@ -8085,9 +8044,7 @@ theorem wd_decode_headField01
         (srcBytes[1]'hoff1).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[1]'hoff1).toNat - 0x80 = 0 ∧
-        1 + 1 < srcBytes.length ∧ srcBase.toNat + (1 + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (1 + 1)) = true))
+        (srcBytes[1]'hoff1).toNat - 0x80 = 0))
     (halign108 : (base + 108) &&& ~~~1 = base + 108)
     (hdisjW104 : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
       (rlp_walk_next_code (base + 544)))
@@ -8263,9 +8220,7 @@ theorem wd_decode_headField012
         (srcBytes[1]'hoff1).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[1]'hoff1).toNat - 0x80 = 0 ∧
-        1 + 1 < srcBytes.length ∧ srcBase.toNat + (1 + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (1 + 1)) = true))
+        (srcBytes[1]'hoff1).toNat - 0x80 = 0))
     (halign108 : (base + 108) &&& ~~~1 = base + 108)
     (hdisjW104 : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
       (rlp_walk_next_code (base + 544)))
@@ -8489,9 +8444,7 @@ theorem wd_decode_headField0123
         (srcBytes[1]'hoff1).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[1]'hoff1).toNat - 0x80 = 0 ∧
-        1 + 1 < srcBytes.length ∧ srcBase.toNat + (1 + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (1 + 1)) = true))
+        (srcBytes[1]'hoff1).toNat - 0x80 = 0))
     (halign108 : (base + 108) &&& ~~~1 = base + 108)
     (hdisjW104 : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
       (rlp_walk_next_code (base + 544)))
@@ -9028,9 +8981,7 @@ theorem wd_decode_successLeaf
         (srcBytes[1]'hoff1).toNat - 0x80 ≤ 8) ∨
       (¬ BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0x80 : Word) = true ∧
         BitVec.ult ((srcBytes[1]'hoff1).zeroExtend 64) (0xb8 : Word) = true ∧
-        (srcBytes[1]'hoff1).toNat - 0x80 = 0 ∧
-        1 + 1 < srcBytes.length ∧ srcBase.toNat + (1 + 1) < 2 ^ 64 ∧
-        isValidByteAccess (srcBase + BitVec.ofNat 64 (1 + 1)) = true))
+        (srcBytes[1]'hoff1).toNat - 0x80 = 0))
     (halign108 : (base + 108) &&& ~~~1 = base + 108)
     (hdisjW104 : (CodeReq.singleton (base + 104) (.JAL .x1 (440 : BitVec 21))).Disjoint
       (rlp_walk_next_code (base + 544)))
