@@ -15,6 +15,108 @@ open EvmAsm.Rv64
 abbrev evm_addmod_pow256_prepare_plus_one_mod_args_code (base : Word) : CodeReq :=
   CodeReq.ofProg base evm_addmod_pow256_prepare_plus_one_mod_args
 
+abbrev evm_addmod_pow256_minus_one_shift_code (base : Word) : CodeReq :=
+  CodeReq.union (evm_addmod_pow256_prepare_minus_one_mod_args_code base)
+    (CodeReq.singleton (base + 52) (.ADDI .x12 .x12 (64 : BitVec 12)))
+
+/-- Prepare `(-1 mod N)` callable-MOD arguments and point `x12` at the callable window. -/
+theorem evm_addmod_pow256_minus_one_shift_spec_within
+    (sp base x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) :
+    cpsTripleWithin 14 base (base + 56)
+      (evm_addmod_pow256_minus_one_shift_code base)
+      (evmAddModPow256PrepareMinusOnePre sp
+        x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3)
+      ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := by
+  have P := evm_addmod_pow256_prepare_minus_one_mod_args_spec_within
+    sp base x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3
+  have Pp : cpsTripleWithin 13 base (base + 52)
+      (evm_addmod_pow256_prepare_minus_one_mod_args_code base)
+      (evmAddModPow256PrepareMinusOnePre sp
+        x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3)
+      ((.x12 ↦ᵣ sp) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => hp)
+      (fun _ hp => by
+        rw [evmAddModPow256PrepareMinusOnePost_unfold] at hp
+        exact hp)
+      P
+  have A := addi_spec_gen_same_within .x12 sp 64 (base + 52) (by nofun)
+  have Af := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+     ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+     ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+     ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+     ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+     ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+     ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+     ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+     ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+     ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3))
+    (by pcFree) A
+  have h_exit : (base + 52 : Word) + 4 = base + 56 := by bv_omega
+  rw [h_exit] at Af
+  have Ap : cpsTripleWithin 1 (base + 52) (base + 56)
+      (CodeReq.singleton (base + 52) (.ADDI .x12 .x12 (64 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := Af
+  seqFrame Pp Ap
+
+
 /-- Compose the full helper that prepares the second callable MOD arguments for
     materializing `2^256 mod N` from the first `(-1 mod N)` remainder. -/
 theorem evm_addmod_pow256_prepare_plus_one_mod_args_spec_within
