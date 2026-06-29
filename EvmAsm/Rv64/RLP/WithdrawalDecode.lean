@@ -8638,4 +8638,42 @@ theorem wd_decode_headField0123
   obtain ⟨d0, nextOff0, hQc⟩ := hQ
   exact ⟨d0, nextOff0, h1, h2, hd, hu, hQc, hC40⟩
 
+/-! ## M3 proof — output carving: the address copy holds field 2's content -/
+
+/-- **`getElem?` of a byte-copy chain.** Position `j` of `copyRangeGen dst src si0 di0 N` is the
+    copied source byte when `j ∈ [di0, di0+N)` (and in range), else the untouched `dst[j]?`. -/
+theorem wd_copyRangeGen_getElem? (src : List (BitVec 8)) :
+    ∀ (dst : List (BitVec 8)) (si0 di0 N j : Nat),
+      (copyRangeGen dst src si0 di0 N)[j]? =
+        if di0 ≤ j ∧ j < di0 + N ∧ j < dst.length then some (getByteAt src (si0 + (j - di0)))
+        else dst[j]? := by
+  intro dst si0 di0 N
+  induction N generalizing dst si0 di0 with
+  | zero => intro j; simp only [copyRangeGen, Nat.add_zero]; rw [if_neg (by omega)]
+  | succ n ih =>
+    intro j
+    rw [copyRangeGen, ih, List.getElem?_set, List.length_set]
+    split_ifs <;>
+      first
+        | rfl
+        | omega
+        | rw [List.getElem?_eq_none (by omega)]
+        | (congr 2; omega)
+
+/-- **Byte-copy chain = take/drop of source.** With the destination holding exactly `N` slots and the
+    source range in bounds, copying `N` bytes from `src[si0..]` into all of `dst` (`di0 = 0`) yields
+    exactly `(src.drop si0).take N`. The carving fact for the address field: the 20-byte output region
+    holds field 2's content `d2 = (drop (off+1)).take 20`. -/
+theorem wd_copyRangeGen_eq_take_drop (src dst : List (BitVec 8)) (si0 N : Nat)
+    (hdst : dst.length = N) (hsrc : si0 + N ≤ src.length) :
+    copyRangeGen dst src si0 0 N = (src.drop si0).take N := by
+  apply List.ext_getElem?
+  intro j
+  rw [wd_copyRangeGen_getElem?, hdst, List.getElem?_take]
+  simp only [Nat.zero_le, Nat.zero_add, Nat.sub_zero, true_and, and_self]
+  by_cases hj : j < N
+  · rw [if_pos hj, if_pos hj, getByteAt, dif_pos (show si0 + j < src.length by omega),
+      List.getElem?_drop, List.getElem?_eq_getElem (show si0 + j < src.length by omega)]
+  · rw [if_neg hj, if_neg hj, List.getElem?_eq_none (by omega)]
+
 end EvmAsm.Rv64.RLP
