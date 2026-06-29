@@ -6636,6 +6636,39 @@ theorem wd_addressFieldPre_of_encodeBytes
   · omega
   · intro k hk; exact hsvalid (off + 1 + k) (by omega)
 
+/-- A byte string of length ≤ 55 encodes to at most `length + 1` bytes (1-byte header). -/
+theorem encodeBytes_length_le_succ (d : List Byte) (h : d.length ≤ 55) :
+    (encodeBytes d).length ≤ d.length + 1 := by
+  rcases d with _ | ⟨b, _ | ⟨b1, t⟩⟩
+  · simp [encodeBytes]
+  · by_cases hb : b.toNat < 0x80 <;> simp [encodeBytes, hb]
+  · rw [encodeBytes_short_of_length_ne_one (b :: b1 :: t) h (by simp)]; simp
+
+/-- **Withdrawal payload decomposition.** The RLP encoding of the four-field withdrawal is a
+    one-byte short-list header `0xC0 + |payload|` followed by the concatenated field encodings,
+    with `|payload| ≤ 48 ≤ 55` (so the list is genuinely short). Feeds the success-case reverse
+    bridge: `srcBytes.drop 1` is exactly the payload, peelable field-by-field via
+    `wd_decodeAux_of_encodeBytes_drop`, and the header byte gives `walk_init`'s shortList facts. -/
+theorem wd_encode4_payload (srcBytes : List Byte) (d0 d1 d2 d3 : List Byte)
+    (hsrc : srcBytes = encode (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3]))
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8) (h20 : d2.length = 20) (hl3 : d3.length ≤ 8) :
+    srcBytes = BitVec.ofNat 8 (0xC0 +
+        (encodeBytes d0 ++ (encodeBytes d1 ++ (encodeBytes d2 ++ encodeBytes d3))).length)
+        :: (encodeBytes d0 ++ (encodeBytes d1 ++ (encodeBytes d2 ++ encodeBytes d3)))
+      ∧ (encodeBytes d0 ++ (encodeBytes d1 ++ (encodeBytes d2 ++ encodeBytes d3))).length ≤ 48 := by
+  have hpayload : encode.encodeItems [RLPItem.bytes d0, .bytes d1, .bytes d2, .bytes d3]
+      = encodeBytes d0 ++ (encodeBytes d1 ++ (encodeBytes d2 ++ encodeBytes d3)) := by
+    simp [encode.encodeItems, encode]
+  have hP : (encodeBytes d0 ++ (encodeBytes d1 ++ (encodeBytes d2 ++ encodeBytes d3))).length ≤ 48 := by
+    have e0 := encodeBytes_length_le_succ d0 (by omega)
+    have e1 := encodeBytes_length_le_succ d1 (by omega)
+    have e2 : (encodeBytes d2).length = 21 := by
+      rw [encodeBytes_short_of_length_ne_one d2 (by omega) (by omega)]; simp [h20]
+    have e3 := encodeBytes_length_le_succ d3 (by omega)
+    simp only [List.length_append]; omega
+  refine ⟨?_, hP⟩
+  rw [hsrc, encode_list_short _ (by rw [hpayload]; omega), hpayload]
+
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
     leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
