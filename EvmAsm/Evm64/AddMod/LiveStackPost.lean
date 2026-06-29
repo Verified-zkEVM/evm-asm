@@ -1010,4 +1010,43 @@ theorem evm_addmod_no_overflow_canonical_existential_regs_owned_stack_tail_spec_
     (fun _ hp => evmAddModPartialRegsOwnedLiveStackPost_tail_to_tailPost hp)
     hFramed
 
+@[irreducible]
+def evmAddModCanonicalNoOverflowDomainStackTailPre
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) : Assertion :=
+  fun ps =>
+    a.toNat + b.toNat < 2 ^ 256 ∧
+    evmAddModCanonicalNoOverflowExistentialStackTailPre sp base modOff a b N rest ps
+
+theorem evmAddModCanonicalNoOverflowDomainStackTailPre_unfold
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) :
+    evmAddModCanonicalNoOverflowDomainStackTailPre sp base modOff a b N rest =
+      (fun ps =>
+        a.toNat + b.toNat < 2 ^ 256 ∧
+        evmAddModCanonicalNoOverflowExistentialStackTailPre sp base modOff a b N rest ps) := by
+  delta evmAddModCanonicalNoOverflowDomainStackTailPre
+  rfl
+
+/-- Canonical-code no-overflow ADDMOD theorem with the arithmetic domain fact
+    packaged in the precondition, preserving an arbitrary caller stack tail. -/
+theorem evm_addmod_no_overflow_domain_canonical_existential_regs_owned_stack_tail_spec_within
+    (sp base : Word) (a b N : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModCanonicalNoOverflowDomainStackTailPre sp base modOff a b N rest)
+      (evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest) := by
+  rw [evmAddModCanonicalNoOverflowDomainStackTailPre_unfold]
+  intro R hR s hcr hpre hpc
+  obtain ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreDomain, hR2⟩ := hpre
+  obtain ⟨hNoOverflow, hpreStack⟩ := hpreDomain
+  exact evm_addmod_no_overflow_canonical_existential_regs_owned_stack_tail_spec_within
+    sp base a b N rest modOff hNoOverflow hbase hdisjoint R hR s hcr
+    ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreStack, hR2⟩ hpc
+
 end EvmAsm.Evm64
