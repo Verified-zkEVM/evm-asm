@@ -5226,4 +5226,63 @@ theorem wd_decode_field2RejectCopy (base srcBase struct t0Old t1Old x1Old x13Old
   have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hRej hCopy
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
 
+set_option maxRecDepth 8000 in
+/-- `wd_decode_field2RejectCopy` with `t0`/`t1` (`x5`/`x6`) exposed only as ownership — matches the
+    field-2 walk's `regOwn .x5 ** regOwn .x6` post, so the walk and reject-copy compose directly. -/
+theorem wd_decode_field2RejectCopy_regOwn (base srcBase struct x1Old x13Old x14Old cnt : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hstalign : struct.toNat % 8 = 0)
+    (hoff : srcOff < srcBytes.length) (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hlt : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word))
+    (hsover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsvalid : ∀ i, i < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 i) = true)
+    (hsrc : srcOff + 21 ≤ srcBytes.length) (hdlen : dstBytes.length = 20)
+    (hdov : (struct + 16).toNat + 20 < 2 ^ 64)
+    (hdval : ∀ i, i < dstBytes.length → isValidByteAccess ((struct + 16) + BitVec.ofNat 64 i) = true)
+    (hbase : base.toNat + 1444 < 2 ^ 64) (halign204 : (base + 204) &&& ~~~1 = base + 204) :
+    cpsTripleWithin (3 + 111) (base + 168) (base + 220) (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x1 ↦ᵣ x1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x8 ↦ᵣ struct) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+        (.x12 ↦ᵣ (20 : Word)) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
+        bytesRegion srcBase srcBytes ** bytesRegion (struct + 16) dstBytes) **
+        (regOwn .x5 ** regOwn .x6))
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x8 ↦ᵣ struct) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** regOwn .x12 **
+        (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((srcOff + 1) + 20))) **
+        (.x14 ↦ᵣ ((struct + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+        (.x5 ↦ᵣ ((srcBytes[srcOff]'hoff).zeroExtend 64)) **
+        bytesRegion srcBase srcBytes **
+        bytesRegion (struct + 16) (copyRangeGen dstBytes srcBytes (srcOff + 1) 0 20) **
+        ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝) := by
+  have hgrouped : ∀ t0Old t1Old : Word,
+      cpsTripleWithin (3 + 111) (base + 168) (base + 220) (withdrawal_decode_code base)
+        (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x1 ↦ᵣ x1Old) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x8 ↦ᵣ struct) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+          (.x12 ↦ᵣ (20 : Word)) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
+          bytesRegion srcBase srcBytes ** bytesRegion (struct + 16) dstBytes) **
+          ((.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old)))
+        ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x8 ↦ᵣ struct) **
+          (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+          (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** regOwn .x12 **
+          (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((srcOff + 1) + 20))) **
+          (.x14 ↦ᵣ ((struct + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+          (.x5 ↦ᵣ ((srcBytes[srcOff]'hoff).zeroExtend 64)) **
+          bytesRegion srcBase srcBytes **
+          bytesRegion (struct + 16) (copyRangeGen dstBytes srcBytes (srcOff + 1) 0 20) **
+          ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝) := by
+    intro t0Old t1Old
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (wd_decode_field2RejectCopy base srcBase struct t0Old t1Old x1Old x13Old x14Old cnt
+        srcBytes dstBytes srcOff hsalign hstalign hoff hover hvalid hlt hsover hsvalid hsrc hdlen
+        hdov hdval hbase halign204)
+  have hbody := cpsTripleWithin_exists_pre (fun t0Old : Word =>
+    cpsTripleWithin_exists_pre (fun t1Old : Word => hgrouped t0Old t1Old))
+  refine cpsTripleWithin_weaken (fun s hp => ?_) (fun s hp => ?_) hbody
+  · obtain ⟨hM, hG, hd, hu, hMain, hGrp⟩ := hp
+    obtain ⟨h1, h2, hd2, hu2, ⟨va, ha⟩, vb, hb⟩ := hGrp
+    exact ⟨va, vb, hM, hG, hd, hu, hMain, h1, h2, hd2, hu2, ha, hb⟩
+  · obtain ⟨_, _, h⟩ := hp; exact h
+
 end EvmAsm.Rv64.RLP
