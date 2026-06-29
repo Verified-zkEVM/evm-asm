@@ -965,6 +965,24 @@ theorem evmAddModOrZeroExistentialStackTailPre_unfold
   delta evmAddModOrZeroExistentialStackTailPre
   rfl
 
+@[irreducible]
+def evmAddModOrZeroDomainStackTailPre
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) : Assertion :=
+  fun ps =>
+    N.getLimbN 0 ||| N.getLimbN 1 ||| N.getLimbN 2 ||| N.getLimbN 3 =
+      (0 : Word) ∧
+    evmAddModOrZeroExistentialStackTailPre sp a b N rest ps
+
+theorem evmAddModOrZeroDomainStackTailPre_unfold
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) :
+    evmAddModOrZeroDomainStackTailPre sp a b N rest =
+      (fun ps =>
+        N.getLimbN 0 ||| N.getLimbN 1 ||| N.getLimbN 2 ||| N.getLimbN 3 =
+          (0 : Word) ∧
+        evmAddModOrZeroExistentialStackTailPre sp a b N rest ps) := by
+  delta evmAddModOrZeroDomainStackTailPre
+  rfl
+
 /-- Canonical-code zero-modulus ADDMOD theorem with an arbitrary caller stack
     tail preserved through the result stack. -/
 theorem evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within
@@ -1069,6 +1087,27 @@ theorem evm_addmod_or_zero_canonical_existential_regs_owned_zero_stack_tail_spec
     (fun _ hp => hp)
     (evm_addmod_n0_canonical_existential_regs_owned_zero_stack_tail_spec_within
       sp base a b rest modOff hbase hdisjoint)
+
+/-- Canonical-code ADDMOD theorem for the zero-test branch with the runtime
+    OR-fold guard packaged in the precondition. The result stack is exposed as
+    the concrete zero word. -/
+theorem evm_addmod_or_zero_domain_canonical_existential_regs_owned_zero_stack_tail_spec_within
+    (sp base : Word) (a b N : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModOrZeroDomainStackTailPre sp a b N rest)
+      (evmAddModN0RegsOwnedLiveStackTailPost sp rest) := by
+  rw [evmAddModOrZeroDomainStackTailPre_unfold]
+  intro R hR s hcr hpre hpc
+  obtain ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreDomain, hR2⟩ := hpre
+  exact evm_addmod_or_zero_canonical_existential_regs_owned_zero_stack_tail_spec_within
+    sp base a b N rest modOff hpreDomain.1 hbase hdisjoint R hR s hcr
+    ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreDomain.2, hR2⟩ hpc
 
 /-- No-overflow ADDMOD theorem with the current best live-stack post shape.
 
