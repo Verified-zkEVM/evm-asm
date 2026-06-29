@@ -472,6 +472,17 @@ theorem evmAddModNoOverflowCallReturnPost_unfold
   delta evmAddModNoOverflowCallReturnPost
   rfl
 
+theorem evmAddModNoOverflowCallReturnPost_pcFree
+    (sp base : Word) (a b N : EvmWord) :
+    (evmAddModNoOverflowCallReturnPost sp base a b N).pcFree := by
+  rw [evmAddModNoOverflowCallReturnPost_unfold]
+  pcFree
+
+instance pcFreeInst_evmAddModNoOverflowCallReturnPost
+    (sp base : Word) (a b N : EvmWord) :
+    Assertion.PCFree (evmAddModNoOverflowCallReturnPost sp base a b N) :=
+  ⟨evmAddModNoOverflowCallReturnPost_pcFree sp base a b N⟩
+
 /-- ADDMOD callable-return stack theorem for the current skeleton under the
     no-overflow condition. It turns the MOD callable's `EvmWord.mod (a+b) N`
     result into `EvmWord.addmod a b N`. -/
