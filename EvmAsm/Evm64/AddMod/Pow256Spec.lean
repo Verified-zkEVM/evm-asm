@@ -169,6 +169,26 @@ theorem evm_addmod_pow256_minus_one_first_call_spec_within
   seqFrame Sf Jf
 
 
+/-- Restore the ADDMOD frame pointer after a pow256 callable-MOD return, preserving
+    any PC-free frame. The callable is entered at `sp + 64` and returns with
+    `x12 = sp + 96`; this step applies the `-96` immediate. -/
+theorem evm_addmod_pow256_call_mod_restore_frame_spec_within
+    {F : Assertion} (hF : F.pcFree) (sp base : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.ADDI .x12 .x12 (4000 : BitVec 12)))
+      ((.x12 ↦ᵣ (sp + signExtend12 (96 : BitVec 12))) ** F)
+      ((.x12 ↦ᵣ sp) ** F) := by
+  have R := evm_addmod_pow256_call_mod_restore_spec_within
+    (sp + signExtend12 (96 : BitVec 12)) base
+  have h96 : signExtend12 (96 : BitVec 12) = (96 : Word) := by decide
+  have h4000 : signExtend12 (4000 : BitVec 12) = (-96 : Word) := by decide
+  have h_restore : (sp + signExtend12 (96 : BitVec 12)) + signExtend12 (4000 : BitVec 12) = sp := by
+    rw [h96, h4000]
+    bv_omega
+  rw [h_restore] at R
+  exact cpsTripleWithin_frameR F hF R
+
+
 /-- Compose the full helper that prepares the second callable MOD arguments for
     materializing `2^256 mod N` from the first `(-1 mod N)` remainder. -/
 theorem evm_addmod_pow256_prepare_plus_one_mod_args_spec_within
