@@ -154,6 +154,57 @@ theorem exp_headroom_final_advance_then_epilogue_word_canonical_appended
     (fun _ hp => hp)
     hSeq
 
+/-- Headroom final block with loop-exit control and the caller stack tail framed
+    around the folded epilogue. This is the live-stack-facing form needed after
+    the fixed loop has produced the final accumulator in scratch. -/
+theorem exp_headroom_final_advance_then_epilogue_full_post_stack_canonical_appended
+    (sp evmSp iterCountNew tOld r0 r1 r2 r3 d0 d1 d2 d3 : Word)
+    (baseWord : EvmWord) (rest : List EvmWord) (exitCond : Prop)
+    (base : Word) :
+    let exitControl : Assertion := expTwoMulLoopExitControl iterCountNew exitCond
+    let stackTail : Assertion := expTwoMulLoopExitStackTailFrame evmSp baseWord rest
+    cpsTripleWithin (1 + 9) (base + 368) (base + 408)
+      (evm_exp_headroom_canonical_appended_mul_code base)
+      ((exitControl **
+        ((.x12 ↦ᵣ (evmSp + signExtend12 ((-64) : BitVec 12))) **
+         ((.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ tOld) **
+          ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+          ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+          ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+          ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+          ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ d0) **
+          ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ d1) **
+          ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ d2) **
+          ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ d3)))) **
+       stackTail)
+      (exitControl **
+       ((.x2 ↦ᵣ sp) **
+        (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+        (.x5 ↦ᵣ r3) **
+        ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        evmStackIs evmSp (baseWord :: expResultWord r0 r1 r2 r3 :: rest))) := by
+  intro exitControl stackTail
+  have hBase := exp_headroom_final_advance_then_epilogue_word_canonical_appended
+    sp evmSp tOld r0 r1 r2 r3 d0 d1 d2 d3 base
+  have hFramed := cpsTripleWithin_frameR (exitControl ** stackTail) (by
+    dsimp [exitControl, stackTail]
+    pcFree) hBase
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      dsimp [exitControl, stackTail] at hp ⊢
+      rw [expTwoMulLoopExitStackTailFrame_unfold] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hp => by
+      dsimp [exitControl, stackTail] at hp ⊢
+      rw [expTwoMulLoopExitStackTailFrame_unfold] at hp
+      rw [evmStackIs_cons, evmStackIs_cons]
+      rw [show (evmSp + 32 : Word) + 32 = evmSp + 64 from by bv_addr]
+      xcancel_struct hp)
+    hFramed
+
 /-- Entry prefix plus the fixed 256-step loop, with the explicit bridge frame
     folded into the first-iteration residual precondition. This is the main
     headroom body surface before the final epilogue writes the result back. -/
