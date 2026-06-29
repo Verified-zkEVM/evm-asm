@@ -570,8 +570,9 @@ theorem misaligned_order_one : misaligned_order 1 = (0, 0, 1) := by
   simp only [sys_misaligned_order_decreasing, Bool.false_eq_true, if_false]
   rfl
 
-/-- `bits_of_virtaddr` is the projection out of `Virtaddr`. -/
-@[simp] theorem bits_of_virtaddr_mk (x : BitVec 64) :
+/-- `bits_of_virtaddr` is the projection out of `Virtaddr`. Tagged `sail_step`-only (not a
+    global `@[simp]`) — it is a niche helper for the bare-mode reductions. -/
+@[sail_step] theorem bits_of_virtaddr_mk (x : BitVec 64) :
     bits_of_virtaddr (virtaddr.Virtaddr x) = x := rfl
 
 /-- A 64→64 `zero_extend` is the identity. -/

@@ -1,5 +1,14 @@
 # Sail-zkVM — memory `h_exec` discharge bootstrap
 
+> **⚠ SUPERSEDED (2026-06-29).** Tier A (LD) is complete: the composition described below
+> (`BareModeInv` → `mem_read_load_bare` → `vmem_read_addr` → `vmem_read` → `execute_LOAD`)
+> is all PROVEN, and `ld_sail_equiv` is now unconditional (commit `e34e4b918`). For the
+> next tier use **`docs/agents/sail-tier-c-bootstrap.md`** (sub-doubleword loads). This
+> file is kept for historical context only.
+
+---
+
+
 **For:** the next session. Goal: turn the 11 conditional `MemProofs` `*_sail_equiv`
 lemmas (each assumes `h_exec`) into lemmas proven from a concrete **bare-mode
 precondition bundle**, by writing the layered `vmem_read/write` reduction the original
