@@ -74,6 +74,11 @@ def seqBlockDisjoint {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : Cod
     Cert entry exit_ (cr1.union cr2) post :=
   seqDisjoint hd head (block (Entails.refl _) tail) hlink
 
+/-- Frame both exits of a branch with a PC-free assertion. -/
+def branchFrameR {entry : Word} {cr : CodeReq}
+    (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) : Branch entry cr :=
+  br.frameR F hF
+
 /-- Join a two-way branch with a continuation for each exit. -/
 def branch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : Branch entry cr)
@@ -83,6 +88,26 @@ def branch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (hf : Entails br.post_f notTaken.pre) :
     Cert entry exit_ cr post :=
   br.join taken notTaken ht hf
+
+/-- Continue only the taken exit of a branch with disjoint code, leaving the
+    not-taken exit open. -/
+def branchSeqTakenDisjoint {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Cert br.exit_t target cr2 post)
+    (hlink : Entails br.post_t tail.pre) :
+    Branch entry (cr1.union cr2) :=
+  br.seqTakenDisjoint hd tail hlink
+
+/-- Continue only the taken exit of a branch with a CPS leaf over disjoint code. -/
+def branchSeqTakenBlockDisjoint {nTail : Nat} {entry target : Word}
+    {cr1 cr2 : CodeReq} {tailPre post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : cpsTripleWithin nTail br.exit_t target cr2 tailPre post)
+    (hlink : Entails br.post_t tailPre) :
+    Branch entry (cr1.union cr2) :=
+  branchSeqTakenDisjoint hd br (block (Entails.refl _) tail) hlink
 
 /-- Join an N-way branch with a uniform continuation bound. -/
 def nbranch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}

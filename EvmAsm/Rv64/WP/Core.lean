@@ -174,6 +174,17 @@ def ofSpec {nSteps : Nat} {entry : Word} {cr : CodeReq}
   post_f := post_f
   sound := h
 
+/-- Frame both exits of a branch with a PC-free assertion. -/
+def frameR {entry : Word} {cr : CodeReq}
+    (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) : Branch entry cr where
+  nSteps := br.nSteps
+  pre := br.pre ** F
+  exit_t := br.exit_t
+  post_t := br.post_t ** F
+  exit_f := br.exit_f
+  post_f := br.post_f ** F
+  sound := cpsBranchWithin_frameR F hF br.sound
+
 /-- Join a branch by providing a continuation for each exit.  The branch's
     posts only need to entail the corresponding continuation preconditions. -/
 def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
@@ -190,6 +201,23 @@ def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
       (cpsBranchWithin_weaken (fun _ hp => hp) ht hf br.sound)
       (cpsTripleWithin_mono_nSteps (Nat.le_max_left t.nSteps f.nSteps) t.sound)
       (cpsTripleWithin_mono_nSteps (Nat.le_max_right t.nSteps f.nSteps) f.sound)
+
+/-- Continue only the taken exit of a branch with disjoint code, leaving the
+    not-taken exit open.  This is useful for early failure/success endpoints in
+    generated CFGs. -/
+def seqTakenDisjoint {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Triple br.exit_t target cr2 post)
+    (hlink : Entails br.post_t tail.pre) :
+    Branch entry (cr1.union cr2) where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exit_t := target
+  post_t := post
+  exit_f := br.exit_f
+  post_f := br.post_f
+  sound := cpsBranchWithin_seq_cpsTripleWithin_taken hd br.sound (tail.weakenPre hlink).sound
 
 end Branch
 

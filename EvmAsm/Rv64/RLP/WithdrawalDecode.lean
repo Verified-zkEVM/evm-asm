@@ -16,6 +16,7 @@ import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.WP
 import EvmAsm.Rv64.Tactics.ExtractPure
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
+import EvmAsm.Rv64.RLP.WalkInitWP
 import EvmAsm.EL.Withdrawal
 
 namespace EvmAsm.Rv64.RLP
@@ -247,6 +248,71 @@ theorem successStatusReturn_spec_within
       (successStatusReturnPre raVal statusOld)
       (successStatusReturnPost raVal) :=
   statusReturn_spec_within base raVal statusOld (0 : Word)
+
+/-! ## Walk-init branch endpoint composition -/
+
+/-- Code for the first `rlp_walk_init` branch plus the reason-erased failure
+    endpoint placed at the branch's empty-input target. -/
+def walkInitEmptyFailStatusCode (base : Word) : CodeReq :=
+  (CodeReq.singleton base (.BEQ .x11 .x0 (156 : BitVec 13))).union
+    (failStatusReturnCode (base + 156))
+
+/-- Precondition for the first walk-init branch while carrying just enough
+    status-return state to service the empty-input arm. -/
+def walkInitEmptyFailStatusPre (listLen raVal statusOld : Word) : Assertion :=
+  walkInitZeroNonzeroPre listLen ** failStatusReturnPre raVal statusOld
+
+/-- Empty-input arm after it has run the reason-erased failure status endpoint. -/
+def walkInitEmptyFailStatusPost (listLen raVal : Word) : Assertion :=
+  failStatusReturnPost raVal ** walkInitZeroPost listLen
+
+/-- Nonempty-input arm, left open for the real decoder continuation. -/
+def walkInitNonzeroOpenStatusPost (listLen raVal statusOld : Word) : Assertion :=
+  walkInitNonzeroPost listLen ** failStatusReturnPre raVal statusOld
+
+/-- WP branch certificate for the first `rlp_walk_init` split, with the
+    empty-input arm already continued through the shared failure-status endpoint
+    and the nonzero arm left as a branch exit. -/
+def walkInitEmptyFailStatusBranch (base listLen raVal statusOld : Word) :
+    WP.Branch base (walkInitEmptyFailStatusCode base) := by
+  let br0 : WP.Branch base (CodeReq.singleton base (.BEQ .x11 .x0 (156 : BitVec 13))) :=
+    WP.Branch.ofSpec (walkInitZeroNonzeroBranch_singleton_spec base listLen)
+  let br := WP.CFG.branchFrameR br0 (failStatusReturnPre raVal statusOld) (by
+    unfold failStatusReturnPre statusReturnPre
+    pcFree)
+  have htail0 := failStatusReturn_spec_within (base + 156) raVal statusOld
+  have htail := cpsTripleWithin_frameR (walkInitZeroPost listLen) (by
+    unfold walkInitZeroPost
+    pcFree) htail0
+  unfold walkInitEmptyFailStatusCode failStatusReturnCode
+  exact WP.CFG.branchSeqTakenBlockDisjoint
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega)))
+    br
+    htail
+    (by
+      intro h hp
+      dsimp [br, WP.CFG.branchFrameR, WP.Branch.frameR] at hp
+      xperm_hyp hp)
+
+theorem walkInitEmptyFailStatusBranch_pre
+    (base listLen raVal statusOld : Word) :
+    (walkInitEmptyFailStatusBranch base listLen raVal statusOld).pre =
+      walkInitEmptyFailStatusPre listLen raVal statusOld := by
+  rfl
+
+theorem walkInitEmptyFailStatusBranch_taken_post
+    (base listLen raVal statusOld : Word) :
+    (walkInitEmptyFailStatusBranch base listLen raVal statusOld).post_t =
+      walkInitEmptyFailStatusPost listLen raVal := by
+  rfl
+
+theorem walkInitEmptyFailStatusBranch_notTaken_post
+    (base listLen raVal statusOld : Word) :
+    (walkInitEmptyFailStatusBranch base listLen raVal statusOld).post_f =
+      walkInitNonzeroOpenStatusPost listLen raVal statusOld := by
+  rfl
 
 /-! ## Pure decode bridge -/
 
