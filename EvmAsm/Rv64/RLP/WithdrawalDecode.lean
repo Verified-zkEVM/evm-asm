@@ -5584,7 +5584,8 @@ def wd_scalarFieldUnifiedPost (x1Val struct : Word) (structOff : BitVec 12)
     ((struct + signExtend12 structOff) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0)) **
     (.x18 ↦ᵣ endPtr) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) **
   ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
-    (∀ m, decodeAux (m + 1) (srcBytes.drop off) = some (.bytes d0, srcBytes.drop nextOff))⌝
+    (∀ m, decodeAux (m + 1) (srcBytes.drop off) = some (.bytes d0, srcBytes.drop nextOff)) ∧
+    nextOff ≤ srcBytes.length⌝
 
 /-- **Field-0 single-byte body → unified post.** Re-expresses `wd_decode_field0BodySingleByte`
     against `wd_scalarFieldUnifiedPost` with `d0 = (drop srcOff).take 1` (`= [b]`), `nextOff = srcOff + 1`. -/
@@ -5635,7 +5636,7 @@ theorem wd_decode_field0BodySingleByte_unified
       ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12)) (1 : Word) srcOff
       rfl rfl rfl).1
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU, by omega⟩
   rw [hlen1, ← hx9]
   have hpf : (⌜0 < 1 ∧ getByteAt srcBytes srcOff ≠ 0 ∧ 1 ≤ 8⌝ **
       ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝ **
@@ -5717,7 +5718,7 @@ theorem wd_decode_field0BodyShortBytes_unified
       srcBase + BitVec.ofNat 64 (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU, by omega⟩
   rw [hlenL, ← hx9]
   have hpf : (⌜0 < (srcBytes[off]'hoff).toNat - 0x80 ∧ getByteAt srcBytes (off + 1) ≠ 0 ∧
         (srcBytes[off]'hoff).toNat - 0x80 ≤ 8⌝ **
@@ -5791,7 +5792,7 @@ theorem wd_decode_field0BodyEmpty_unified
       srcBase + BitVec.ofNat 64 (off + 1) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU, by omega⟩
   rw [hval0, ← hx9, List.length_nil]
   have hpf : (⌜(0 : Nat) = 0⌝ **
       ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝ **
@@ -5857,7 +5858,7 @@ theorem wd_decode_field1BodySingleByte_unified
       ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12)) (1 : Word) srcOff
       rfl rfl rfl).1
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU, by omega⟩
   rw [hlen1, ← hx9]
   have hpf : (⌜0 < 1 ∧ getByteAt srcBytes srcOff ≠ 0 ∧ 1 ≤ 8⌝ **
       ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝ **
@@ -5939,7 +5940,7 @@ theorem wd_decode_field1BodyShortBytes_unified
       srcBase + BitVec.ofNat 64 (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU, by omega⟩
   rw [hlenL, ← hx9]
   have hpf : (⌜0 < (srcBytes[off]'hoff).toNat - 0x80 ∧ getByteAt srcBytes (off + 1) ≠ 0 ∧
         (srcBytes[off]'hoff).toNat - 0x80 ≤ 8⌝ **
@@ -6013,7 +6014,7 @@ theorem wd_decode_field1BodyEmpty_unified
       srcBase + BitVec.ofNat 64 (off + 1) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU, by omega⟩
   rw [hval0, ← hx9, List.length_nil]
   have hpf : (⌜(0 : Nat) = 0⌝ **
       ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝ **
@@ -6079,7 +6080,7 @@ theorem wd_decode_field3BodySingleByte_unified
       ((srcBase + BitVec.ofNat 64 srcOff) + signExtend12 (1 : BitVec 12)) (1 : Word) srcOff
       rfl rfl rfl).1
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU, by omega⟩
   rw [hlen1, ← hx9]
   have hpf : (⌜0 < 1 ∧ getByteAt srcBytes srcOff ≠ 0 ∧ 1 ≤ 8⌝ **
       ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝ **
@@ -6161,7 +6162,7 @@ theorem wd_decode_field3BodyShortBytes_unified
       srcBase + BitVec.ofNat 64 (off + 1 + ((srcBytes[off]'hoff).toNat - 0x80)) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8', hdecU, by omega⟩
   rw [hlenL, ← hx9]
   have hpf : (⌜0 < (srcBytes[off]'hoff).toNat - 0x80 ∧ getByteAt srcBytes (off + 1) ≠ 0 ∧
         (srcBytes[off]'hoff).toNat - 0x80 ≤ 8⌝ **
@@ -6235,7 +6236,7 @@ theorem wd_decode_field3BodyEmpty_unified
       srcBase + BitVec.ofNat 64 (off + 1) := by
     rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide]; bv_omega
   unfold wd_scalarFieldUnifiedPost
-  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU⟩
+  refine (sepConj_pure_right h).mpr ⟨?_, hhead, hlen8, hdecU, by omega⟩
   rw [hval0, ← hx9, List.length_nil]
   have hpf : (⌜(0 : Nat) = 0⌝ **
       ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝ **
@@ -6736,7 +6737,7 @@ def wd_field2ConsumePost (base srcBase srcLen structPtr : Word)
       some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
     ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
       (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
-        some (.bytes d1, srcBytes.drop nextOff1))⌝
+        some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length⌝
 
 /-- **Field-1 ⨾ field-2 seam consumer** (base+152 → base+220): runs field 2's body on field 1's
     *existential* output. Field 2 sits at field 1's next-offset `nextOff1`, so its preconditions
@@ -6765,7 +6766,7 @@ theorem wd_field2_consume
     (hf2 : ∀ (d1 : List Byte) (nextOff1 : Nat),
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       wd_addressFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff1) :
     cpsTripleWithin ((2 + (1 + 87) + 1) + (3 + 111)) (base + 152) (base + 220)
       (withdrawal_decode_code base)
@@ -6792,7 +6793,7 @@ theorem wd_field2_consume
           bytesRegion (structPtr + 16) dstBytes))
       (fun (hfacts : d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
           (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
-            some (.bytes d1, srcBytes.drop nextOff1))) => ?_))
+            some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) => ?_))
   · simp only [wd_scalarFieldUnifiedPost] at hs
     xperm_hyp hs
   · obtain ⟨hoff', hover', hvalid', hin', hlo', hhi', hlen20', hfit', hcontentlen',
@@ -7746,7 +7747,7 @@ def wd_field3ConsumePost (base srcBase srcLen structPtr : Word)
         some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
       ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
-          some (.bytes d1, srcBytes.drop nextOff1))⌝
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length⌝
 
 /-- **Field-2 ⨾ field-3 seam consumer** (base+220 → base+276): runs field 3's body on field 2's
     existential output. Field 3 sits at the determined offset `nextOff1 + 21` (field 2's next-offset).
@@ -7769,7 +7770,7 @@ theorem wd_field3_consume
     (hf3 : ∀ (d1 : List Byte) (nextOff1 : Nat),
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
         some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
       wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21)) :
@@ -7801,7 +7802,7 @@ theorem wd_field3_consume
         ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3))
       (fun (hd1facts : d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
           (∀ m, decodeAux (m + 1) (srcBytes.drop off1) =
-            some (.bytes d1, srcBytes.drop nextOff1))) => ?_))
+            some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) => ?_))
   · simp only [wd_field2ConsumePost] at hs
     xperm_hyp hs
   refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
@@ -8337,7 +8338,7 @@ theorem wd_decode_headField01
     (hf1 : ∀ (d0 : List Byte) (nextOff0 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0) :
     cpsTripleWithin (((((6 + (1 + 15)) + 3)) +
         ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2))) +
@@ -8362,7 +8363,7 @@ theorem wd_decode_headField01
               BitVec.ofNat 64 (Nat.fromBytesBE d0))) **
             ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
               (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-                some (.bytes d0, srcBytes.drop nextOff0))⌝) h) **
+                some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) h) **
         (⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
           ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
           ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
@@ -8389,7 +8390,7 @@ theorem wd_decode_headField01
               BitVec.ofNat 64 (Nat.fromBytesBE d0))) **
             ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
               (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-                some (.bytes d0, srcBytes.drop nextOff0))⌝)) := by
+                some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝)) := by
     intro d0 nextOff0
     refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
       (cpsTripleWithin_pure_pre
@@ -8403,7 +8404,7 @@ theorem wd_decode_headField01
           regOwn .x31) ** ((structPtr + signExtend12 (8 : BitVec 12)) ↦ₘ mOld1))
         (fun (hfacts : d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))) => ?_))
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) => ?_))
     · -- reshape: `USP0 ** struct8cell` ⟶ `(USP0_spatial ** struct8cell) ** ⌜facts⌝`
       simp only [wd_scalarFieldUnifiedPost] at hs
       xperm_hyp hs
@@ -8513,7 +8514,7 @@ theorem wd_decode_headField012
     (hf1 : ∀ (d0 : List Byte) (nextOff0 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0)
     (halign164 : (base + 164) &&& ~~~1 = base + 164)
     (hdisjW160 : (CodeReq.singleton (base + 160) (.JAL .x1 (384 : BitVec 21))).Disjoint
@@ -8528,10 +8529,10 @@ theorem wd_decode_headField012
     (hf2 : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       wd_addressFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff1) :
     cpsTripleWithin (((((((6 + (1 + 15)) + 3)) +
         ((2 + (1 + 87) + 1) + (7 + (1 + (7 * 8 + 11)) + 2))) +
@@ -8563,7 +8564,7 @@ theorem wd_decode_headField012
               ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
           ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))⌝) h) := by
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) h) := by
   have hHF01ext := cpsTripleWithin_frameR
     ((.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (structPtr + 16) dstBytes)
     (by pcFree)
@@ -8582,7 +8583,7 @@ theorem wd_decode_headField012
             ((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0))) **
             ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
               (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-                some (.bytes d0, srcBytes.drop nextOff0))⌝) **
+                some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) **
           ((⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
               ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
               ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
@@ -8602,7 +8603,7 @@ theorem wd_decode_headField012
               ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
           ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))⌝) h) := by
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) h) := by
     refine cpsTripleWithin_exists_pre (fun d0 => ?_)
     refine cpsTripleWithin_exists_pre (fun nextOff0 => ?_)
     refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
@@ -8620,7 +8621,7 @@ theorem wd_decode_headField012
               bytesRegion (structPtr + 16) dstBytes))))
         (fun (hd0facts : d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))) => ?_))
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) => ?_))
     · xperm_hyp hs
     · have hcons := wd_field2_consume base srcBase srcLen structPtr x13Old x14Old cnt nextOff0
         dstBytes halign164 hdisjW160 halign204 hsalign hstalign hbase hdlen hdov hdval srcBytes
@@ -8658,7 +8659,7 @@ theorem wd_decode_headField012
           ((structPtr + signExtend12 (0 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d0))) **
           ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))⌝) s) **
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) s) **
       ((⌜(0 : Word) = (0 : Word)⌝ ** (.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
           ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
           ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
@@ -8737,7 +8738,7 @@ theorem wd_decode_headField0123
     (hf1 : ∀ (d0 : List Byte) (nextOff0 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0)
     (halign164 : (base + 164) &&& ~~~1 = base + 164)
     (hdisjW160 : (CodeReq.singleton (base + 160) (.JAL .x1 (384 : BitVec 21))).Disjoint
@@ -8752,10 +8753,10 @@ theorem wd_decode_headField0123
     (hf2 : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       wd_addressFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff1)
     (halign232 : (base + 232) &&& ~~~1 = base + 232)
     (hdisjW228 : (CodeReq.singleton (base + 228) (.JAL .x1 (316 : BitVec 21))).Disjoint
@@ -8766,10 +8767,10 @@ theorem wd_decode_headField0123
     (hf3 : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
         some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
       wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21)) :
@@ -8805,7 +8806,7 @@ theorem wd_decode_headField0123
               ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
           ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))⌝) h) := by
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) h) := by
   have hHF012ext := cpsTripleWithin_frameR
     ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3) (by pcFree)
     (wd_decode_headField012 base sp0 raVal s0Old s1Old s2Old structPtr m0 m1 m2 m3 mOld0 mOld1
@@ -8829,7 +8830,7 @@ theorem wd_decode_headField0123
                 ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
             ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
               (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-                some (.bytes d0, srcBytes.drop nextOff0))⌝) **
+                some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) **
           ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3)) s)
       (fun h => ∃ d0 nextOff0,
         (((fun h'' => ∃ d1 nextOff1,
@@ -8843,7 +8844,7 @@ theorem wd_decode_headField0123
               ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
           ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))⌝) h) := by
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) h) := by
     refine cpsTripleWithin_exists_pre (fun d0 => ?_)
     refine cpsTripleWithin_exists_pre (fun nextOff0 => ?_)
     refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => hq)
@@ -8860,7 +8861,7 @@ theorem wd_decode_headField0123
           ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3)))
         (fun (hd0facts : d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))) => ?_))
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) => ?_))
     · xperm_hyp hs
     · have hcons := wd_field3_consume base srcBase srcLen structPtr mOld3 nextOff0 srcBytes dstBytes
         halign232 hdisjW228 halign268 hdisjC264 hsalign
@@ -8901,7 +8902,7 @@ theorem wd_decode_headField0123
               ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
           ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))⌝) s) **
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) s) **
       ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ mOld3)) s := by
     xperm_hyp hp
   obtain ⟨h1, h2, hd, hu, hQ, hC40⟩ := hp'
@@ -8964,7 +8965,7 @@ theorem wd_decode_aritySuccessTail_d3layer
           ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d3)) **
           ⌜d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop off3) =
-              some (.bytes d3, srcBytes.drop nextOff3))⌝))) := by
+              some (.bytes d3, srcBytes.drop nextOff3)) ∧ nextOff3 ≤ srcBytes.length⌝))) := by
   have htail := wd_decode_aritySuccessTail_regOwn6 base (srcBase + BitVec.ofNat 64 nextOff3)
     ((srcBase + BitVec.ofNat 64 0) + srcLen) (BitVec.ofNat 64 (Nat.fromBytesBE d3)) (0 : Word)
     (base + 268) (BitVec.ofNat 64 d3.length) (sp0 + signExtend12 (-32 : BitVec 12)) structPtr
@@ -8975,7 +8976,7 @@ theorem wd_decode_aritySuccessTail_d3layer
       ((structPtr + signExtend12 (40 : BitVec 12)) ↦ₘ BitVec.ofNat 64 (Nat.fromBytesBE d3)) **
       ⌜d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop off3) =
-          some (.bytes d3, srcBytes.drop nextOff3))⌝)
+          some (.bytes d3, srcBytes.drop nextOff3)) ∧ nextOff3 ≤ srcBytes.length⌝)
     (by pcFree) htail
   refine cpsTripleWithin_weaken (fun s hs => ?_) (fun s hq => ?_) htailF
   · simp only [wd_scalarFieldUnifiedPost] at hs
@@ -9013,15 +9014,15 @@ def wd_successLeafPost (sp0 raVal s0Old s1Old s2Old structPtr srcBase : Word)
           bytesRegion srcBase srcBytes)) **
         ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
           (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-            some (.bytes d0, srcBytes.drop nextOff0))⌝) **
+            some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) **
         ⌜d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
           (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-            some (.bytes d1, srcBytes.drop nextOff1))⌝) **
+            some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length⌝) **
         ⌜∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
           some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))⌝) **
         ⌜d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
           (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
-            some (.bytes d3, srcBytes.drop nextOff3))⌝) h
+            some (.bytes d3, srcBytes.drop nextOff3)) ∧ nextOff3 ≤ srcBytes.length⌝) h
 
 /-- **Arity-tail consumer** (base+276 → ret): consumes the success field chain's post
     (`wd_decode_headField0123`'s output) and runs the arity-success tail, producing
@@ -9040,15 +9041,15 @@ theorem wd_decode_arityTail_consume
     (h_end : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat)
         (d3 : List Byte) (nextOff3 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
-        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0))) →
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
         some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
       (d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
-          some (.bytes d3, srcBytes.drop nextOff3))) →
+          some (.bytes d3, srcBytes.drop nextOff3)) ∧ nextOff3 ≤ srcBytes.length) →
       ¬ BitVec.ult (srcBase + BitVec.ofNat 64 nextOff3)
         ((srcBase + BitVec.ofNat 64 0) + srcLen)) :
     cpsTripleWithin ((2 + ((1 + 4) + 1)) + (1 + 8)) (base + 276) (raVal &&& ~~~1)
@@ -9065,7 +9066,7 @@ theorem wd_decode_arityTail_consume
               ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))) **
           ⌜d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
             (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-              some (.bytes d0, srcBytes.drop nextOff0))⌝) h)
+              some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length⌝) h)
       (wd_successLeafPost sp0 raVal s0Old s1Old s2Old structPtr srcBase srcBytes dstBytes) := by
   unfold wd_successLeafPost
   refine cpsTripleWithin_exists_pre (fun d0 => ?_)
@@ -9108,7 +9109,7 @@ theorem wd_decode_arityTail_consume
               ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)))))
       (fun (hd1facts : d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
           (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-            some (.bytes d1, srcBytes.drop nextOff1))) => ?_))
+            some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) => ?_))
   refine cpsTripleWithin_weaken (fun s hs => by xperm_hyp hs) (fun s hq => hq)
     (cpsTripleWithin_pure_pre
       (P := (((fun h => ∃ d3 nextOff3,
@@ -9188,7 +9189,7 @@ theorem wd_decode_arityTail_consume
                 ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old))))))
       (fun (hd3facts : d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
           (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
-            some (.bytes d3, srcBytes.drop nextOff3))) => ?_))
+            some (.bytes d3, srcBytes.drop nextOff3)) ∧ nextOff3 ≤ srcBytes.length) => ?_))
   have hend' := h_end d0 nextOff0 d1 nextOff1 d3 nextOff3 hd0facts hd1facts hd2dec hd3facts
   have htail := wd_decode_aritySuccessTail_regOwn6 base (srcBase + BitVec.ofNat 64 nextOff3)
     ((srcBase + BitVec.ofNat 64 0) + srcLen) (BitVec.ofNat 64 (Nat.fromBytesBE d3)) (0 : Word)
@@ -9274,7 +9275,7 @@ theorem wd_decode_successLeaf
     (hf1 : ∀ (d0 : List Byte) (nextOff0 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0)
     (halign164 : (base + 164) &&& ~~~1 = base + 164)
     (hdisjW160 : (CodeReq.singleton (base + 160) (.JAL .x1 (384 : BitVec 21))).Disjoint
@@ -9289,10 +9290,10 @@ theorem wd_decode_successLeaf
     (hf2 : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       wd_addressFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff1)
     (halign232 : (base + 232) &&& ~~~1 = base + 232)
     (hdisjW228 : (CodeReq.singleton (base + 228) (.JAL .x1 (316 : BitVec 21))).Disjoint
@@ -9303,10 +9304,10 @@ theorem wd_decode_successLeaf
     (hf3 : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop 1) =
-          some (.bytes d0, srcBytes.drop nextOff0))) →
+          some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
         some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
       wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21))
@@ -9318,15 +9319,15 @@ theorem wd_decode_successLeaf
     (h_end : ∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat)
         (d3 : List Byte) (nextOff3 : Nat),
       (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
-        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0))) →
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0)) ∧ nextOff0 ≤ srcBytes.length) →
       (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) =
-          some (.bytes d1, srcBytes.drop nextOff1))) →
+          some (.bytes d1, srcBytes.drop nextOff1)) ∧ nextOff1 ≤ srcBytes.length) →
       (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
         some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
       (d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
         (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
-          some (.bytes d3, srcBytes.drop nextOff3))) →
+          some (.bytes d3, srcBytes.drop nextOff3)) ∧ nextOff3 ≤ srcBytes.length) →
       ¬ BitVec.ult (srcBase + BitVec.ofNat 64 nextOff3)
         ((srcBase + BitVec.ofNat 64 0) + srcLen)) :
     cpsTripleWithin (((((((((6 + (1 + 15)) + 3)) +
