@@ -525,6 +525,50 @@ theorem evm_addmod_partial_domain_existential_regs_owned_live_stack_spec_within
     hcallable hbase hdisjoint hDomain R hR s hcr
     ⟨hh, hcompat, h1, h2, hdisj, hunion, hStackPre, hR2⟩ hpc
 
+@[irreducible]
+def evmAddModN0ExistentialPre
+    (sp : Word) (a b : EvmWord) : Assertion :=
+  fun ps => ∃ w : EvmAddModPartialPreWitness,
+    evmAddModPartialStackPre sp a b (0 : EvmWord)
+      w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+      w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+      w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps
+
+theorem evmAddModN0ExistentialPre_unfold
+    (sp : Word) (a b : EvmWord) :
+    evmAddModN0ExistentialPre sp a b =
+      (fun ps => ∃ w : EvmAddModPartialPreWitness,
+        evmAddModPartialStackPre sp a b (0 : EvmWord)
+          w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+          w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+          w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps) := by
+  delta evmAddModN0ExistentialPre
+  rfl
+
+@[irreducible]
+def evmAddModNoOverflowExistentialPre
+    (sp base callable_base : Word) (a b N : EvmWord) : Assertion :=
+  fun ps => ∃ w : EvmAddModPartialPreWitness,
+    evmAddModNoOverflowBodyEvidence sp base callable_base a b N w.v2 w.v10
+      w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+      w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ∧
+    evmAddModPartialStackPre sp a b N w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+      w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+      w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps
+
+theorem evmAddModNoOverflowExistentialPre_unfold
+    (sp base callable_base : Word) (a b N : EvmWord) :
+    evmAddModNoOverflowExistentialPre sp base callable_base a b N =
+      (fun ps => ∃ w : EvmAddModPartialPreWitness,
+        evmAddModNoOverflowBodyEvidence sp base callable_base a b N w.v2 w.v10
+          w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+          w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ∧
+        evmAddModPartialStackPre sp a b N w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+          w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+          w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps) := by
+  delta evmAddModNoOverflowExistentialPre
+  rfl
+
 /-- Zero-modulus ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the complete `N = 0` branch,
@@ -578,6 +622,30 @@ theorem evm_addmod_n0_regs_owned_live_stack_spec_within
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     hcallable hbase hdisjoint (Or.inl rfl)
+
+/-- Zero-modulus ADDMOD theorem with implementation register/scratch witnesses
+    hidden in the precondition. -/
+theorem evm_addmod_n0_existential_regs_owned_live_stack_spec_within
+    (sp base callable_base : Word) (a b : EvmWord) (modOff : BitVec 21)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModN0ExistentialPre sp a b)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b (0 : EvmWord)) := by
+  rw [evmAddModN0ExistentialPre_unfold]
+  intro R hR s hcr hpre hpc
+  obtain ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreExists, hR2⟩ := hpre
+  obtain ⟨w, hStackPre⟩ := hpreExists
+  exact evm_addmod_n0_regs_owned_live_stack_spec_within
+    sp base callable_base a b w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11 modOff
+    w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+    w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0
+    hcallable hbase hdisjoint R hR s hcr
+    ⟨hh, hcompat, h1, h2, hdisj, hunion, hStackPre, hR2⟩ hpc
 
 /-- No-overflow ADDMOD theorem with the current best live-stack post shape.
 
@@ -642,5 +710,31 @@ theorem evm_addmod_no_overflow_regs_owned_live_stack_spec_within
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     hcallable hbase hdisjoint (Or.inr ⟨hNoOverflow, hEvidence⟩)
+
+/-- No-overflow ADDMOD theorem with implementation register/scratch witnesses and
+    the legacy MOD body evidence hidden in the precondition. The arithmetic
+    no-overflow fact remains an explicit input-domain hypothesis. -/
+theorem evm_addmod_no_overflow_existential_regs_owned_live_stack_spec_within
+    (sp base callable_base : Word) (a b N : EvmWord) (modOff : BitVec 21)
+    (hNoOverflow : a.toNat + b.toNat < 2 ^ 256)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModNoOverflowExistentialPre sp base callable_base a b N)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
+  rw [evmAddModNoOverflowExistentialPre_unfold]
+  intro R hR s hcr hpre hpc
+  obtain ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreExists, hR2⟩ := hpre
+  obtain ⟨w, hEvidence, hStackPre⟩ := hpreExists
+  exact evm_addmod_no_overflow_regs_owned_live_stack_spec_within
+    sp base callable_base a b N w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11 modOff
+    w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+    w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0
+    hNoOverflow hcallable hbase hdisjoint hEvidence R hR s hcr
+    ⟨hh, hcompat, h1, h2, hdisj, hunion, hStackPre, hR2⟩ hpc
 
 end EvmAsm.Evm64
