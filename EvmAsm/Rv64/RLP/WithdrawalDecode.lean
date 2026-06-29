@@ -5175,4 +5175,55 @@ theorem wd_decode_field2Copy (base srcBase struct x6Old x1Old cursorOld x13Old x
   have h3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h2 hF'
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h3
 
+set_option maxRecDepth 8000 in
+/-- **Field-2 reject-check ⨾ copy** (idx 42–54, base+168 → base+220): the list-form reject
+    (`prefix < 0xc0`) then the 20-byte address copy. Composes `wd_decode_field2RejectCheck` and
+    `wd_decode_field2Copy`; the reject's `x6 = 0xc0` becomes the copy's clobbered `t1`, its `x5`
+    (prefix) and `⌜prefix<192⌝` ride through the copy as a frame. -/
+theorem wd_decode_field2RejectCopy (base srcBase struct t0Old t1Old x1Old x13Old x14Old cnt : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hstalign : struct.toNat % 8 = 0)
+    (hoff : srcOff < srcBytes.length) (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hlt : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word))
+    (hsover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsvalid : ∀ i, i < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 i) = true)
+    (hsrc : srcOff + 21 ≤ srcBytes.length) (hdlen : dstBytes.length = 20)
+    (hdov : (struct + 16).toNat + 20 < 2 ^ 64)
+    (hdval : ∀ i, i < dstBytes.length → isValidByteAccess ((struct + 16) + BitVec.ofNat 64 i) = true)
+    (hbase : base.toNat + 1444 < 2 ^ 64) (halign204 : (base + 204) &&& ~~~1 = base + 204) :
+    cpsTripleWithin (3 + 111) (base + 168) (base + 220) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x1 ↦ᵣ x1Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ struct) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x12 ↦ᵣ (20 : Word)) **
+        (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
+        bytesRegion srcBase srcBytes ** bytesRegion (struct + 16) dstBytes)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x8 ↦ᵣ struct) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** regOwn .x12 **
+        (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((srcOff + 1) + 20))) **
+        (.x14 ↦ᵣ ((struct + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+        (.x5 ↦ᵣ ((srcBytes[srcOff]'hoff).zeroExtend 64)) **
+        bytesRegion srcBase srcBytes **
+        bytesRegion (struct + 16) (copyRangeGen dstBytes srcBytes (srcOff + 1) 0 20) **
+        ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝) := by
+  -- reject-check (idx 42–44), framed with the copy's registers + dest region
+  have hRej := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ x1Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ struct) **
+      (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x12 ↦ᵣ (20 : Word)) **
+      (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes)
+    (by pcFree)
+    (wd_decode_field2RejectCheck base srcBase t0Old t1Old srcBytes srcOff hsalign hoff hover
+      hvalid hlt)
+  -- copy (idx 45–54), framed with x5 (prefix) and the ⌜prefix<192⌝ pure
+  have hCopy := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ ((srcBytes[srcOff]'hoff).zeroExtend 64)) **
+      ⌜BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word)⌝)
+    (by pcFree)
+    (wd_decode_field2Copy base srcBase struct (192 : Word) x1Old
+      (srcBase + BitVec.ofNat 64 srcOff) x13Old x14Old cnt srcBytes dstBytes srcOff
+      hsalign hstalign hsover hsvalid hsrc hdlen hdov hdval hbase halign204)
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hRej hCopy
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
 end EvmAsm.Rv64.RLP
