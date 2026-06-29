@@ -45,3 +45,5 @@ import EvmAsm.Rv64.SailEquiv.BranchProofs
 import EvmAsm.Rv64.SailEquiv.MemProofs
 import EvmAsm.Rv64.SailEquiv.MExtProofs
 import EvmAsm.Rv64.SailEquiv.StepProofs
+import EvmAsm.Rv64.SailEquiv.MemReduce
+import EvmAsm.Rv64.SailEquiv.MemMonad

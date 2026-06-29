@@ -34,7 +34,7 @@ theorem stateRel_nextPC {sRv : MachineState} {sSail : SailState}
   ⟨fun r => by
     have ha := hrel.reg_agree r
     cases r <;> simpa [sailRegVal, Std.ExtDHashMap.get?_insert] using ha,
-   fun a => hrel.mem_agree a⟩
+   fun a ha => hrel.mem_agree a ha⟩
 
 -- Comparison operator equivalences (definitional: SAIL and Lean use the same operations)
 private theorem slt_equiv (a b : BitVec 64) : zopz0zI_s a b = BitVec.slt a b := by
@@ -85,12 +85,12 @@ theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -114,12 +114,12 @@ theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -143,12 +143,12 @@ theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -172,7 +172,7 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
     simp only [h, Bool.not_true]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.mem_agree a⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.mem_agree a ha⟩, ?_⟩
     simp [execInstrBr, MachineState.setPC, h_nextpc,
       show ¬¬BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2) from fun h' => absurd h h']
   · -- slt = false, so !slt = true → taken
@@ -182,7 +182,7 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
 
 theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -206,12 +206,12 @@ theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -235,7 +235,7 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
     simp only [h, Bool.not_true]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.mem_agree a⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.mem_agree a ha⟩, ?_⟩
     simp [execInstrBr, MachineState.setPC, h_nextpc,
       show ¬¬BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2) from fun h' => absurd h h']
   · -- ult = false, so !ult = true → taken
@@ -245,7 +245,7 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a => by simp [execInstrBr, h]; exact hrel.mem_agree a⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
 
 -- ============================================================================
@@ -281,9 +281,9 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
   · intro r
     simpa [execInstrBr, MachineState.setPC]
       using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) rd _ r
-  · intro a
+  · intro a ha
     simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-      using hrel.mem_agree a
+      using hrel.mem_agree a ha
   · simp [execInstrBr, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
 
 private theorem sign_extend_12_eq (imm : BitVec 12) :
@@ -334,9 +334,9 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
   · intro r
     simpa [execInstrBr, MachineState.setPC]
       using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) rd _ r
-  · intro a
+  · intro a ha
     simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
-      using hrel_mid.mem_agree a
+      using hrel_mid.mem_agree a ha
   · simp [execInstrBr, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
 
 end EvmAsm.Rv64.SailEquiv

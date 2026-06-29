@@ -419,6 +419,98 @@ def step (s : MachineState) : Option MachineState :=
     else some (execInstrBr s .ECALL)  -- other ecalls continue
   | some i => some (execInstrBr s i)
 
+-- ============================================================================
+-- Trap-aware step result (distinguishing misaligned access)
+--
+-- `step` collapses every trap to `none`. For stating equivalence/soundness
+-- results cleanly ("unless a misaligned access happens, …") we surface a
+-- misaligned-access trap as a distinct value via `stepResult`, WITHOUT touching
+-- `step`/`stepN` (which underpin the CPS Hoare-triple framework and ~all proofs).
+-- `stepResult` is connected back to `step` by `step_eq_stepResult_toOption`.
+-- ============================================================================
+
+/-- Kinds of trap an interpreter step can raise.
+
+    Deliberately coarse for now: only `misalignedAccess` is distinguished; every
+    other `step`-trap (HALT/EBREAK, decode failure, out-of-range access, bad
+    syscall pointer) is lumped into `other`. **Extensible:** to surface a further
+    kind (e.g. `outOfRange`, `halt`, `decodeFail`) add a constructor here and a
+    corresponding classifier branch in `stepResult` (mirroring `isMisalignedAccess`);
+    `StepResult.toOption` and the `step` bridge are unaffected since they only
+    distinguish `ok` from "any trap". -/
+inductive TrapKind where
+  | misalignedAccess
+  | other
+  deriving DecidableEq, Repr
+
+/-- Outcome of one interpreter step: a successful next state, or a trap. -/
+inductive StepResult where
+  | ok (s : MachineState)
+  | trap (k : TrapKind)
+
+/-- Forget the trap kind, recovering the `Option`-based view used by `step`. -/
+def StepResult.toOption : StepResult → Option MachineState
+  | .ok s   => some s
+  | .trap _ => none
+
+/-- Lift an `Option`-step into a `StepResult`, attributing a `none` to `other`. -/
+def stepResultOfOption : Option MachineState → StepResult
+  | some s => .ok s
+  | none   => .trap .other
+
+@[simp] theorem stepResultOfOption_toOption (o : Option MachineState) :
+    (stepResultOfOption o).toOption = o := by
+  cases o <;> rfl
+
+/-- The current instruction is a memory access that is **in range but misaligned**
+    (the one way a memory `step` can trap that the Sail golden model handles
+    specially). Byte accesses never misalign. -/
+def isMisalignedAccess (s : MachineState) : Bool :=
+  match s.code s.pc with
+  | some (.LD _ rs1 off)  => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned8 a
+  | some (.SD rs1 _ off)  => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned8 a
+  | some (.LW _ rs1 off)  => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned4 a
+  | some (.LWU _ rs1 off) => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned4 a
+  | some (.SW rs1 _ off)  => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned4 a
+  | some (.LH _ rs1 off)  => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned2 a
+  | some (.LHU _ rs1 off) => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned2 a
+  | some (.SH rs1 _ off)  => let a := s.getReg rs1 + signExtend12 off; isValidMemAddr a && !isAligned2 a
+  | _ => false
+
+/-- Trap-aware single step: identical to `step`, except an in-range-but-misaligned
+    memory access yields `.trap .misalignedAccess` rather than being collapsed to
+    `none`. All other outcomes match `step` (success → `.ok`, any other trap →
+    `.trap .other`). See `step_eq_stepResult_toOption` for the precise bridge. -/
+def stepResult (s : MachineState) : StepResult :=
+  if isMisalignedAccess s then .trap .misalignedAccess
+  else stepResultOfOption (step s)
+
+/-- A misaligned access makes `step` trap (return `none`): the access is in range
+    but fails the alignment half of the `isValid*Access` guard. -/
+theorem isMisalignedAccess_imp_step_none {s : MachineState}
+    (h : isMisalignedAccess s = true) : step s = none := by
+  unfold isMisalignedAccess at h
+  unfold step
+  split at h <;>
+    simp_all [isValidDwordAccess, isValidMemAccess, isValidHalfwordAccess,
+      Bool.and_eq_true]
+
+/-- **Bridge.** `stepResult` refines `step`: forgetting the trap kind recovers
+    `step` exactly. Lets results proved with the misaligned distinction transfer to
+    the `step`/`stepN`-based corpus (and vice versa). -/
+theorem step_eq_stepResult_toOption (s : MachineState) :
+    step s = (stepResult s).toOption := by
+  unfold stepResult
+  by_cases h : isMisalignedAccess s
+  · simp [h, StepResult.toOption, isMisalignedAccess_imp_step_none h]
+  · simp [h, stepResultOfOption_toOption]
+
+/-- `stepResult` succeeds exactly when `step` does. -/
+theorem stepResult_ok_iff {s s' : MachineState} :
+    stepResult s = .ok s' ↔ step s = some s' := by
+  rw [step_eq_stepResult_toOption]
+  cases hs : stepResult s <;> simp [StepResult.toOption]
+
 /-- step for non-ECALL, non-EBREAK, non-memory instructions. -/
 @[simp] theorem step_non_ecall_non_mem {s : MachineState} {i : Instr}
     (hfetch : s.code s.pc = some i) (hne : i ≠ .ECALL) (hnb : i ≠ .EBREAK)
@@ -771,5 +863,27 @@ theorem code_stepN {k : Nat} {s s' : MachineState} (h : stepN k s = some s') :
       have h1 := code_step hs
       have h2 := ih h
       rw [h2, h1]
+
+-- ============================================================================
+-- Sanity checks for the trap-aware step result
+-- ============================================================================
+
+/-- An aligned, in-range dword access steps successfully (`.ok`). -/
+example (s : MachineState) (rd rs1 : Reg) (off : BitVec 12)
+    (hcode : s.code s.pc = some (.LD rd rs1 off))
+    (hvalid : isValidDwordAccess (s.getReg rs1 + signExtend12 off) = true) :
+    stepResult s = .ok (execInstrBr s (.LD rd rs1 off)) := by
+  rw [stepResult_ok_iff]; exact step_ld hcode hvalid
+
+/-- An in-range but misaligned dword access surfaces a distinguished
+    `.trap .misalignedAccess` — while plain `step` only sees `none`. -/
+example (s : MachineState) (rd rs1 : Reg) (off : BitVec 12)
+    (hcode : s.code s.pc = some (.LD rd rs1 off))
+    (hrange : isValidMemAddr (s.getReg rs1 + signExtend12 off) = true)
+    (hmis : isAligned8 (s.getReg rs1 + signExtend12 off) = false) :
+    stepResult s = .trap .misalignedAccess ∧ step s = none := by
+  have hm : isMisalignedAccess s = true := by
+    simp only [isMisalignedAccess, hcode]; rw [hrange, hmis]; decide
+  exact ⟨by unfold stepResult; simp [hm], isMisalignedAccess_imp_step_none hm⟩
 
 end EvmAsm.Rv64
