@@ -569,6 +569,36 @@ theorem evmAddModNoOverflowExistentialPre_unfold
   delta evmAddModNoOverflowExistentialPre
   rfl
 
+@[irreducible]
+def evmAddModCanonicalPartialExistentialPre
+    (sp base : Word) (modOff : BitVec 21) (a b N : EvmWord) : Assertion :=
+  evmAddModPartialExistentialPre sp base ((base + 124) + signExtend21 modOff) a b N
+
+theorem evmAddModCanonicalPartialExistentialPre_unfold
+    (sp base : Word) (modOff : BitVec 21) (a b N : EvmWord) :
+    evmAddModCanonicalPartialExistentialPre sp base modOff a b N =
+      evmAddModPartialExistentialPre sp base ((base + 124) + signExtend21 modOff) a b N := by
+  delta evmAddModCanonicalPartialExistentialPre
+  rfl
+
+/-- Current best partial ADDMOD theorem over the canonical combined code shape.
+    The MOD callable base is computed from the ADDMOD call site instead of
+    being carried as a separate theorem parameter. -/
+theorem evm_addmod_partial_domain_canonical_existential_regs_owned_live_stack_spec_within
+    (sp base : Word) (a b N : EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModCanonicalPartialExistentialPre sp base modOff a b N)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
+  rw [evmAddModCanonicalPartialExistentialPre_unfold]
+  exact evm_addmod_partial_domain_existential_regs_owned_live_stack_spec_within
+    sp base ((base + 124) + signExtend21 modOff) a b N modOff rfl hbase hdisjoint
+
 /-- Zero-modulus ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the complete `N = 0` branch,
