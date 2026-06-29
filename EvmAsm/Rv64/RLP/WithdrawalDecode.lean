@@ -6248,4 +6248,28 @@ theorem wd_decodeWithdrawal_some_of_srcFacts
     (off1 - 1) (off2 - 1) (off3 - 1) payload.length hclass hplen hmin h0 h1 h2 h3
     List.drop_length hc0 hl0 hc1 hl1 h20 hc3 hl3
 
+/-- **Field-2 (address) `decodeAux` step.** The address field is a fixed 20-byte short string
+    (prefix `0x94`); its body (`wd_decode_field2Body`) exposes the byte-copy and `rlpItemDecode`
+    but not a `decodeAux` step. This derives the missing step from the same prefix/length facts, so
+    the success chain treats field 2 uniformly with the three scalar fields: content
+    `d2 = (drop (off+1)).take 20` (`d2.length = 20`), consuming `[off, off+21)`. -/
+theorem wd_field2_decodeAux (srcBytes : List Byte) (off : Nat) (hoff : off < srcBytes.length)
+    (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (hlen20 : (srcBytes[off]'hoff).toNat - 0x80 = 20)
+    (hcontentlen : off + 21 ≤ srcBytes.length) :
+    ∀ m, decodeAux (m + 1) (srcBytes.drop off) =
+      some (.bytes ((srcBytes.drop (off + 1)).take 20), srcBytes.drop (off + 21)) := by
+  intro m
+  have h := rlpItemDecode_shortBytes_decodeAux (List.getElem?_eq_getElem hoff) hlo hhi
+    (fun hc => by
+      exfalso
+      have h20 : (srcBytes[off]'hoff).zeroExtend 64 - (0x80 : Word) = (20 : Word) := by
+        have hb := (srcBytes[off]'hoff).isLt; have := hlen20; bv_omega
+      rw [h20] at hc; exact absurd hc (by decide))
+    (by rw [hlen20]; omega) m
+  rw [hlen20] at h
+  rw [show off + 21 = off + 1 + 20 from by omega]
+  exact h
+
 end EvmAsm.Rv64.RLP
