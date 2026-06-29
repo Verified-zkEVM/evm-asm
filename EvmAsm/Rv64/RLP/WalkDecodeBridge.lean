@@ -107,6 +107,27 @@ theorem decodeItems_cons_of_decodeAux (bytes : List Byte) (off nextOff : Nat) (i
   rw [decodeItems_succ_of_ne_nil (n + 1) (bytes.drop off) hne, hitem]
   simp only [Option.bind_eq_bind, Option.bind_some, hrest]
 
+/-- **Reverse of `decodeItems_cons_of_decodeAux`.** A nonempty `decodeItems` run yielding a cons
+    decomposes into the head `decodeAux` step (leaving some rest `r`) followed by a `decodeItems`
+    run over `r`. Monadic-bind inversion of `decodeItems_succ_of_ne_nil`; a backbone of the reverse
+    walk↔`decodeFully` bridge (decomposing a 4-item list back into its per-item `decodeAux` steps,
+    which the capstone success case needs to discharge `wd_decode_successLeaf`'s hypotheses). -/
+theorem decodeItems_cons_inv (bs : List Byte) (item : RLPItem) (items : List RLPItem)
+    (rest' : List Byte) (n : Nat) (hne : bs ≠ [])
+    (h : decodeItems (n + 1) bs = some (item :: items, rest')) :
+    ∃ r, decodeAux n bs = some (item, r) ∧ decodeItems n r = some (items, rest') := by
+  rw [decodeItems_succ_of_ne_nil n bs hne] at h
+  rcases hd : decodeAux n bs with _ | ⟨i, r⟩
+  · simp [hd] at h
+  · simp only [hd, Option.bind_eq_bind, Option.bind_some] at h
+    rcases hr : decodeItems n r with _ | ⟨is, r''⟩
+    · simp [hr] at h
+    · simp only [hr, Option.bind_some, Option.some.injEq, Prod.mk.injEq,
+        List.cons.injEq] at h
+      obtain ⟨⟨hi, his⟩, hr'⟩ := h
+      subst hi his hr'
+      exact ⟨r, rfl, hr⟩
+
 /-- **Four-byte-string-item assembly.** A run of four byte-string items at `off0 < off1 < off2 <
     off3`, each consuming up to the next offset (`hi`, fuel-parametric as the bridges provide),
     and ending exactly at `off4` (`hend`), decodes as the four-item `.bytes` list with no
