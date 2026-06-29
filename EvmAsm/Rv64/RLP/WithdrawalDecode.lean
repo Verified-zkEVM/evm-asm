@@ -6171,5 +6171,81 @@ theorem wd_decode_field3BodyEmpty_unified
     ((sepConj_pure_left _).1 hpf).2).2).2
   xperm_hyp hsp
 
+/-! ## M3 proof — success-path semantic endpoint
+
+The forward success chain, having run the four field bodies, collects the four `decodeAux`
+consumption facts (the unified posts' trailing pures + a derived one for the address) plus the
+per-field canonicity. These two lemmas turn that bundle into `decodeWithdrawal srcBytes = some
+w`: `…_payloadFacts` over the inner payload offsets (the form `decodeFully_shortList_four`
+consumes), and `…_srcFacts` over the raw `srcBytes` offsets the walk actually produces (the
+`srcBytes = pfx :: payload` ⇒ `srcBytes.drop (k+1) = payload.drop k` shift is discharged here, so
+the chain never has to do offset bookkeeping). -/
+
+/-- **Success endpoint over payload offsets.** A short-list prefix `pfx` whose payload is a run of
+    four canonical byte-string items (the `decodeAux` steps `h0..h3`, ending exactly at `off4`)
+    decodes as a withdrawal. Thin composition of `decodeFully_shortList_four` (payload structure)
+    and `decodeWithdrawal_eq_some_of_fields` (canonicity ⇒ `some w`). -/
+theorem wd_decodeWithdrawal_some_of_payloadFacts
+    (pfx : Byte) (payload : List Byte) (d0 d1 d2 d3 : List Byte) (off1 off2 off3 off4 : Nat)
+    (hclass : classifyPrefix pfx = .shortList)
+    (hplen : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hmin : 2 ≤ payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, payload.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (payload.drop off1) = some (.bytes d1, payload.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (payload.drop off2) = some (.bytes d2, payload.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (payload.drop off3) = some (.bytes d3, payload.drop off4))
+    (hend : payload.drop off4 = [])
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (h20 : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal (pfx :: payload) =
+      some { index := Nat.fromBytesBE d0, validatorIndex := Nat.fromBytesBE d1,
+             address := BitVec.ofNat 160 (Nat.fromBytesBE d2), amount := Nat.fromBytesBE d3 } := by
+  refine decodeWithdrawal_eq_some_of_fields (pfx :: payload) d0 d1 d2 d3 ?_ hc0 hl0 hc1 hl1 h20 hc3 hl3
+  exact decodeFully_shortList_four pfx payload off1 off2 off3 off4
+    (.bytes d0) (.bytes d1) (.bytes d2) (.bytes d3) hclass hplen h0 h1 h2 h3 hend hmin
+
+/-- **Success endpoint over `srcBytes` offsets.** The walk produces its `decodeAux` steps over
+    `srcBytes.drop off` with byte offsets into the full input; with `srcBytes = pfx :: payload` the
+    first content byte sits at offset `1`, and consuming exactly `srcBytes.length` bytes (`h3`'s
+    tail) closes the list. Discharges the `srcBytes ↔ payload` offset shift, then delegates to
+    `wd_decodeWithdrawal_some_of_payloadFacts`. The form the forward chain plugs into directly. -/
+theorem wd_decodeWithdrawal_some_of_srcFacts
+    (srcBytes : List Byte) (pfx : Byte) (payload : List Byte)
+    (d0 d1 d2 d3 : List Byte) (off1 off2 off3 : Nat)
+    (hsrc : srcBytes = pfx :: payload)
+    (h1le : 1 ≤ off1) (h2le : 1 ≤ off2) (h3le : 1 ≤ off3)
+    (hclass : classifyPrefix pfx = .shortList)
+    (hplen : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hmin : 2 ≤ payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (srcBytes.drop off1) = some (.bytes d1, srcBytes.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (srcBytes.drop off2) = some (.bytes d2, srcBytes.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (srcBytes.drop off3) =
+      some (.bytes d3, srcBytes.drop srcBytes.length))
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (h20 : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal srcBytes =
+      some { index := Nat.fromBytesBE d0, validatorIndex := Nat.fromBytesBE d1,
+             address := BitVec.ofNat 160 (Nat.fromBytesBE d2), amount := Nat.fromBytesBE d3 } := by
+  subst hsrc
+  -- `(pfx :: payload).drop k = payload.drop (k-1)` for `k ≥ 1`
+  have hd : ∀ k, 1 ≤ k → (pfx :: payload).drop k = payload.drop (k - 1) := fun k hk => by
+    obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
+    rw [List.drop_succ_cons, Nat.add_sub_cancel]
+  have hlen1 : (pfx :: payload).length = payload.length + 1 := by simp
+  -- rewrite the four steps + the closing tail into payload form
+  rw [show (pfx :: payload).drop 1 = payload from by rw [hd 1 (le_refl 1)]; simp] at h0
+  rw [hd off1 h1le] at h0 h1
+  rw [hd off2 h2le] at h1 h2
+  rw [hd off3 h3le] at h2 h3
+  rw [hlen1, hd (payload.length + 1) (by omega)] at h3
+  simp only [Nat.add_sub_cancel] at h3
+  exact wd_decodeWithdrawal_some_of_payloadFacts pfx payload d0 d1 d2 d3
+    (off1 - 1) (off2 - 1) (off3 - 1) payload.length hclass hplen hmin h0 h1 h2 h3
+    List.drop_length hc0 hl0 hc1 hl1 h20 hc3 hl3
 
 end EvmAsm.Rv64.RLP
