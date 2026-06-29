@@ -550,9 +550,17 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     `execute_* ; tick_pc` lands `StateRelPC (execInstrBr sRv i)` — so
     BEQ/BNE/BLT/BGE/BLTU/BGEU/JAL/JALR now have their **target PC verified against
     the golden model**. Axiom-clean (track footprint), 0 sorry, no `bv_decide`.
-  - **Remaining.** (1) Thread `nextPC = pc+4` through the non-control classes
-    (ALU/Imm/Shift/MExt/Mem leave `nextPC` untouched) + a uniform `step_sail_equiv`
-    dispatching via `InstrMap.lean` over a decoded instruction. (2) **Memory: the
+  - **Non-control PC threading (DONE).** All 32 non-control `*_sail_equiv`
+    theorems (ALU/Imm/Shift/MExt — RTYPE/ITYPE/UTYPE/SHIFTIOP/ADDIW/MUL/DIV/REM)
+    now take `h_nextpc : nextPC = pc+4` and additionally conclude
+    `nextPC = pc+4` (these instructions leave `nextPC` untouched; discharged
+    uniformly by the `@[simp] sailStateWithReg_get?_nextPC` helper + `h_nextpc`).
+    So every non-memory instruction's equivalence theorem now pins the PC
+    behaviour — the prerequisite the uniform step theorem consumes.
+  - **Remaining.** (1) A uniform `step_sail_equiv` dispatching via `InstrMap.lean`
+    over a decoded instruction (composes the per-class results via
+    `step_of_execute`; blocked on the memory class below, since it must cover
+    LD/SD). (2) **Memory: the
     `MemProofs.lean` stubs.** Every load/store is a `*_sail_equiv_stub` that
     *assumes* an `h_exec` hypothesis (Sail `execute_LOAD/STORE` already succeeds +
     lands in `StateRel`); discharge it by reducing Sail `vmem_read`/`vmem_write` in
