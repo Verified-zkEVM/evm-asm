@@ -71,6 +71,22 @@ theorem evmExpHeadroomCanonicalAppendedMulCode_eq_ofProg (base : Word) :
 
 end Exp.Compose
 
+/-- Canonical partial EXP headroom stack specification over the concrete
+    appended headroom program rather than the unfolded union code bundle. This
+    is the concrete-program counterpart of `evm_exp_headroom_stack_spec_within`. -/
+theorem evm_exp_headroom_stack_program_spec_within
+    (evmSp base : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (hbase : base &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (CodeReq.ofProg base
+        EvmAsm.Evm64.Exp.Compose.evmExpHeadroomCanonicalAppendedMulProgram)
+      (evmExpHeadroomPublicStackPre evmSp baseWord exponentWord rest)
+      (evmExpHeadroomPublicStackPost evmSp baseWord exponentWord rest) := by
+  rw [← EvmAsm.Evm64.Exp.Compose.evmExpHeadroomCanonicalAppendedMulCode_eq_ofProg]
+  exact evm_exp_headroom_stack_spec_within
+    evmSp base baseWord exponentWord rest hbase
+
 /-- Canonical partial EXP headroom specification over the concrete appended
     headroom program rather than the unfolded union code bundle. -/
 theorem evm_exp_headroom_visible_result_stack_program_spec_within
