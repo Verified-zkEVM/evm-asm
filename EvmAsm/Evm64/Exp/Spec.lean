@@ -935,6 +935,23 @@ theorem evm_exp_headroom_public_stack_shape_spec_within
     (evm_exp_headroom_existential_pre_all_regs_owned_leftover_live_stack_spec_within
       sp evmSp base baseWord exponentWord rest hbase)
 
+/-- EXP headroom public-shaped theorem with the ordinary entry-base alignment
+    hypothesis. The internal proof still needs the loop-entry alignment fact at
+    `base + 116`, derived here from the even entry address. -/
+theorem evm_exp_headroom_public_stack_shape_base_aligned_spec_within
+    (evmSp base : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (hbase : base &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (EvmAsm.Evm64.Exp.Compose.evm_exp_headroom_canonical_appended_mul_code base)
+      (evmExpHeadroomPublicStackPre evmSp baseWord exponentWord rest)
+      (evmExpHeadroomPublicStackPost evmSp baseWord exponentWord rest) := by
+  have hbaseLoop : (base + 72 + 44 : Word) &&& 1 = 0 := by
+    rw [show (base + 72 + 44 : Word) = base + (116 : Word) from by bv_omega]
+    exact EvmAsm.Rv64.BitAux.word_add_even_and_one hbase (by decide)
+  exact evm_exp_headroom_public_stack_shape_spec_within
+    evmSp base baseWord exponentWord rest hbaseLoop
+
 -- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
 
 end EvmAsm.Evm64
