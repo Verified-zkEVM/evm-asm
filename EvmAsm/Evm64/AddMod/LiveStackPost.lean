@@ -631,6 +631,26 @@ theorem evmAddModN0ExistentialPre_unfold
   rfl
 
 @[irreducible]
+def evmAddModOrZeroExistentialPre
+    (sp : Word) (a b N : EvmWord) : Assertion :=
+  fun ps => ∃ w : EvmAddModPartialPreWitness,
+    evmAddModPartialStackPre sp a b N
+      w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+      w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+      w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps
+
+theorem evmAddModOrZeroExistentialPre_unfold
+    (sp : Word) (a b N : EvmWord) :
+    evmAddModOrZeroExistentialPre sp a b N =
+      (fun ps => ∃ w : EvmAddModPartialPreWitness,
+        evmAddModPartialStackPre sp a b N
+          w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+          w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+          w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps) := by
+  delta evmAddModOrZeroExistentialPre
+  rfl
+
+@[irreducible]
 def evmAddModNoOverflowExistentialPre
     (sp base callable_base : Word) (a b N : EvmWord) : Assertion :=
   fun ps => ∃ w : EvmAddModPartialPreWitness,
@@ -933,6 +953,18 @@ theorem evmAddModN0ExistentialStackTailPre_unfold
   delta evmAddModN0ExistentialStackTailPre
   rfl
 
+@[irreducible]
+def evmAddModOrZeroExistentialStackTailPre
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) : Assertion :=
+  evmAddModOrZeroExistentialPre sp a b N ** evmStackIs (sp + 96) rest
+
+theorem evmAddModOrZeroExistentialStackTailPre_unfold
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) :
+    evmAddModOrZeroExistentialStackTailPre sp a b N rest =
+      (evmAddModOrZeroExistentialPre sp a b N ** evmStackIs (sp + 96) rest) := by
+  delta evmAddModOrZeroExistentialStackTailPre
+  rfl
+
 /-- Canonical-code zero-modulus ADDMOD theorem with an arbitrary caller stack
     tail preserved through the result stack. -/
 theorem evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within
@@ -1008,6 +1040,34 @@ theorem evm_addmod_n0_canonical_existential_regs_owned_zero_stack_tail_spec_with
     (fun _ hp => hp)
     (fun _ hp => evmAddModPartialRegsOwnedLiveStackTailPost_n0_to_zeroPost hp)
     (evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within
+      sp base a b rest modOff hbase hdisjoint)
+
+/-- Canonical-code ADDMOD theorem for the zero-test branch, with the modulus
+    supplied in the stack precondition and the runtime OR-fold guard supplied
+    as a hypothesis. The result stack is exposed as the concrete zero word. -/
+theorem evm_addmod_or_zero_canonical_existential_regs_owned_zero_stack_tail_spec_within
+    (sp base : Word) (a b N : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hOr : N.getLimbN 0 ||| N.getLimbN 1 ||| N.getLimbN 2 ||| N.getLimbN 3 =
+      (0 : Word))
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModOrZeroExistentialStackTailPre sp a b N rest)
+      (evmAddModN0RegsOwnedLiveStackTailPost sp rest) := by
+  have hN : N = (0 : EvmWord) := (addmod_orAll_limbs_eq_zero_iff N).mp hOr
+  subst N
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [evmAddModOrZeroExistentialStackTailPre_unfold,
+        evmAddModOrZeroExistentialPre_unfold] at hp
+      rw [evmAddModN0ExistentialStackTailPre_unfold, evmAddModN0ExistentialPre_unfold]
+      exact hp)
+    (fun _ hp => hp)
+    (evm_addmod_n0_canonical_existential_regs_owned_zero_stack_tail_spec_within
       sp base a b rest modOff hbase hdisjoint)
 
 /-- No-overflow ADDMOD theorem with the current best live-stack post shape.
