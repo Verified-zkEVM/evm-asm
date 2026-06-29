@@ -1171,6 +1171,48 @@ theorem evm_addmod_zero_or_no_overflow_word_mod_body_stack_spec_within
         nMem shiftMem jMem retMem dMem dloMem scratchUn0
         hNoOverflow hcallable hbase hdisjoint hStack
 
+/-- Stack-shaped-precondition wrapper for the current partial ADDMOD theorem.
+
+    This keeps the existing zero-or-no-overflow domain split and scratch/callable
+    assumptions, but folds the three input operands into the ordinary ternary
+    EVM stack prefix `evmStackIs sp [a, b, N]`. -/
+theorem evm_addmod_zero_or_no_overflow_word_mod_body_stack3_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hCase :
+      N = 0 ∨
+      (a.toNat + b.toNat < 2 ^ 256 ∧
+        evmAddModNoOverflowBodyEvidence sp base callable_base a b N v2 v10
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          nMem shiftMem jMem retMem dMem dloMem scratchUn0)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmStackIs sp [a, b, N] **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnPost sp base a b N) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [evmStackIs_triple_flat] at hp
+      xperm_hyp hp)
+    (fun _ hp => hp)
+    (evm_addmod_zero_or_no_overflow_word_mod_body_stack_spec_within
+      sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratchUn0
+      hcallable hbase hdisjoint hCase)
+
 -- Placeholder: full general `evm_addmod_stack_spec_within` lands in slice evm-asm-sord.
 
 end EvmAsm.Evm64

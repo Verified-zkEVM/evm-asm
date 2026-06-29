@@ -152,9 +152,10 @@ def registry : List OpcodeEntry := [
       (some "evm_smod_stack_spec_within")
       ("all-case v4 wrapper result-stack spec; zero divisor discharged, " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
-  entry "ADDMOD" .partly (some "evm_addmod_zero_or_no_overflow_word_mod_body_stack_spec_within")
+  entry "ADDMOD" .partly (some "evm_addmod_zero_or_no_overflow_word_mod_body_stack3_spec_within")
       ("addmod_correct proven; zero-modulus stack spec done for arbitrary b; " ++
-       "no-overflow skeleton composed through legacy MOD no-NOP body proof"),
+       "no-overflow skeleton composed through legacy MOD no-NOP body proof; " ++
+       "current partial theorem now accepts the three operands as evmStackIs sp [a,b,N]"),
   entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
       ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
        "n ≤ 2^255 hypothesis); bit-serial 512-bit reducer. Scratchpad " ++
@@ -344,7 +345,7 @@ private noncomputable abbrev _sdiv_witness       :=
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_stack_spec
 private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
-private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_zero_or_no_overflow_word_mod_body_stack_spec_within
+private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_zero_or_no_overflow_word_mod_body_stack3_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
 private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_clean_stack_visible_stack_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
