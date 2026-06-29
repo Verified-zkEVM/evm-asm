@@ -622,6 +622,47 @@ abbrev evm_addmod_pow256_mod_n_shared_code
   (evm_addmod_pow256_minus_one_call_restore_code base modOff callableCode).union
     (evm_addmod_pow256_plus_one_call_restore_code (base + 64) modOff callableCode)
 
+
+abbrev evm_addmod_pow256_mod_n_with_callable_code
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) : CodeReq :=
+  (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)).union callableCode
+
+abbrev evm_addmod_pow256_minus_one_local_call_restore_code
+    (base : Word) (modOff : BitVec 21) : CodeReq :=
+  CodeReq.ofProg base
+    (evm_addmod_pow256_prepare_minus_one_mod_args ;;
+     evm_addmod_pow256_call_mod modOff)
+
+/-- The first local pow256 prepare/call/restore prefix is part of the concrete helper program. -/
+theorem evm_addmod_pow256_minus_one_local_call_restore_program_sub
+    (base : Word) (modOff : BitVec 21) :
+    ∀ a i, (evm_addmod_pow256_minus_one_local_call_restore_code base modOff) a = some i →
+      (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)) a = some i := by
+  unfold evm_addmod_pow256_minus_one_local_call_restore_code evm_addmod_pow256_mod_n
+  exact CodeReq.ofProg_mono_append_left base
+    (evm_addmod_pow256_prepare_minus_one_mod_args ;;
+     evm_addmod_pow256_call_mod modOff)
+    (evm_addmod_pow256_prepare_plus_one_mod_args ;;
+     evm_addmod_pow256_call_mod modOff)
+
+
+/-- The concrete pow256 helper program is the left half of the helper+callable code. -/
+theorem evm_addmod_pow256_mod_n_program_sub
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) :
+    ∀ a i, (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)) a = some i →
+      (evm_addmod_pow256_mod_n_with_callable_code base modOff callableCode) a = some i := by
+  unfold evm_addmod_pow256_mod_n_with_callable_code
+  exact CodeReq.union_mono_left
+
+/-- The callable body is the right half of the helper+callable code. -/
+theorem evm_addmod_pow256_mod_n_callable_sub
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq)
+    (hd : (CodeReq.ofProg base (evm_addmod_pow256_mod_n modOff)).Disjoint callableCode) :
+    ∀ a i, callableCode a = some i →
+      (evm_addmod_pow256_mod_n_with_callable_code base modOff callableCode) a = some i := by
+  unfold evm_addmod_pow256_mod_n_with_callable_code
+  exact CodeReq.mono_union_right hd (fun _ _ h => h)
+
 /-- First pow256 call/restore block is the left half of the shared helper code. -/
 theorem evm_addmod_pow256_mod_n_shared_code_first_sub
     (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) :
