@@ -6335,6 +6335,28 @@ theorem wd_decodeWithdrawal_some_of_srcFacts
     (off1 - 1) (off2 - 1) (off3 - 1) payload.length hclass hplen hmin h0 h1 h2 h3
     List.drop_length hc0 hl0 hc1 hl1 h20 hc3 hl3
 
+/-- **Reverse-decode entry (encode round-trip).** From `decodeWithdrawal srcBytes = some w` the
+    input is exactly the RLP encoding of the four decoded byte-lists, carrying the canonicity the
+    strict decoder enforced and `w`'s fields read off them. The clean entry point for discharging
+    `wd_decode_successLeaf`'s hypotheses in the capstone success case: `decode_eq_some_imp_encode`
+    (no length bound needed) pins `srcBytes = encode (.list […])`, whence the per-field offsets,
+    `decodeAux` steps, byte forms, and bounds follow from the encode structure (`encode_list_short`
+    + `decode_encode_append`). -/
+theorem wd_srcBytes_eq_encode (srcBytes : List Byte) (w : Withdrawal)
+    (h : decodeWithdrawal srcBytes = some w) :
+    ∃ d0 d1 d2 d3 : List Byte,
+      srcBytes = encode (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3]) ∧
+      d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧ d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+      d2.length = 20 ∧ d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
+      w.index = Nat.fromBytesBE d0 ∧ w.validatorIndex = Nat.fromBytesBE d1 ∧
+      w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2) ∧ w.amount = Nat.fromBytesBE d3 := by
+  obtain ⟨d0, d1, d2, d3, hdf, hc0, hl0, hc1, hl1, h20, hc3, hl3, hi, hv, ha, hamt⟩ :=
+    (decodeWithdrawal_eq_some_iff srcBytes w).mp h
+  refine ⟨d0, d1, d2, d3, ?_, hc0, hl0, hc1, hl1, h20, hc3, hl3, hi, hv, ha, hamt⟩
+  have hdec := (decodeFully_eq_some_iff srcBytes _).mp hdf
+  have henc := decode_eq_some_imp_encode srcBytes _ [] hdec
+  simpa using henc
+
 /-- **Field-2 (address) `decodeAux` step.** The address field is a fixed 20-byte short string
     (prefix `0x94`); its body (`wd_decode_field2Body`) exposes the byte-copy and `rlpItemDecode`
     but not a `decodeAux` step. This derives the missing step from the same prefix/length facts, so
