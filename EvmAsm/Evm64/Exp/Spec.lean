@@ -585,6 +585,52 @@ theorem evmExpHeadroomExistentialPre_unfold
   delta evmExpHeadroomExistentialPre
   rfl
 
+@[irreducible]
+def evmExpHeadroomPublicStackPre
+    (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion :=
+  fun ps => ∃ sp : Word,
+    evmExpHeadroomExistentialPre sp evmSp baseWord exponentWord rest ps
+
+theorem evmExpHeadroomPublicStackPre_unfold
+    (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    evmExpHeadroomPublicStackPre evmSp baseWord exponentWord rest =
+      (fun ps => ∃ sp : Word,
+        evmExpHeadroomExistentialPre sp evmSp baseWord exponentWord rest ps) := by
+  delta evmExpHeadroomPublicStackPre
+  rfl
+
+@[irreducible]
+def evmExpHeadroomPublicStackPost
+    (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion :=
+  fun ps => ∃ sp : Word,
+    EvmAsm.Evm64.Exp.Compose.expHeadroomFinalAllRegsOwnedLeftoverLiveStackPost
+      sp evmSp baseWord exponentWord rest ps
+
+theorem evmExpHeadroomPublicStackPost_unfold
+    (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    evmExpHeadroomPublicStackPost evmSp baseWord exponentWord rest =
+      (fun ps => ∃ sp : Word,
+        EvmAsm.Evm64.Exp.Compose.expHeadroomFinalAllRegsOwnedLeftoverLiveStackPost
+          sp evmSp baseWord exponentWord rest ps) := by
+  delta evmExpHeadroomPublicStackPost
+  rfl
+
+theorem evmExpHeadroomPublicStackPost_pcFree
+    (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    (evmExpHeadroomPublicStackPost evmSp baseWord exponentWord rest).pcFree := by
+  intro ps h_post
+  rw [evmExpHeadroomPublicStackPost_unfold] at h_post
+  obtain ⟨sp, h_post⟩ := h_post
+  exact EvmAsm.Evm64.Exp.Compose.expHeadroomFinalAllRegsOwnedLeftoverLiveStackPost_pcFree
+    sp evmSp baseWord exponentWord rest ps h_post
+
+instance pcFreeInst_evmExpHeadroomPublicStackPost
+    (evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree (evmExpHeadroomPublicStackPost evmSp baseWord exponentWord rest) :=
+  ⟨evmExpHeadroomPublicStackPost_pcFree evmSp baseWord exponentWord rest⟩
+
 /-- Headroom full-loop EXP surface with the final live EVM stack rooted at the
     final stack pointer `evmSp + 32`, and the scratch result folded as
     `evmWordIs sp result`. The consumed base cell and headroom/leftover frame
@@ -864,6 +910,30 @@ theorem evm_exp_headroom_existential_pre_all_regs_owned_leftover_live_stack_spec
     sp evmSp w.cOld w.tOld w.c6Old w.c16Old w.c19Old w.m0 w.m1 w.m2 w.m3 w.v6
     w.h0 w.h1 w.h2 w.h3 w.h4 w.h5 w.h6 w.h7 base
     baseWord exponentWord w.dWord w.eWord rest (0 : Word) w.vOld w.v18 hbase
+
+/-- EXP headroom theorem with public-shaped stack pre/post assertions: the
+    visible arguments are the EVM stack pointer, two operands, and stack tail;
+    the internal scratch base and old register/scratch values are existentially
+    packaged. This still targets the verified headroom code surface rather than
+    the final `evm_exp` opcode wrapper. -/
+theorem evm_exp_headroom_public_stack_shape_spec_within
+    (evmSp base : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (hbase : (base + 72 + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (EvmAsm.Evm64.Exp.Compose.evm_exp_headroom_canonical_appended_mul_code base)
+      (evmExpHeadroomPublicStackPre evmSp baseWord exponentWord rest)
+      (evmExpHeadroomPublicStackPost evmSp baseWord exponentWord rest) := by
+  rw [evmExpHeadroomPublicStackPre_unfold]
+  refine EvmAsm.Evm64.Exp.Compose.cpsTripleWithin_exists_pre ?_
+  intro sp
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => by
+      rw [evmExpHeadroomPublicStackPost_unfold]
+      exact ⟨sp, hp⟩)
+    (evm_exp_headroom_existential_pre_all_regs_owned_leftover_live_stack_spec_within
+      sp evmSp base baseWord exponentWord rest hbase)
 
 -- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
 
