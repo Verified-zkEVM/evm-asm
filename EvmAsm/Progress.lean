@@ -53,7 +53,11 @@ import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
+import EvmAsm.Evm64.AddMod.LiveStackPost
 import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
+import EvmAsm.Evm64.Exp.Spec
+import EvmAsm.Evm64.Exp.HeadroomProgramSpec
+import EvmAsm.Evm64.Exp.StackExecutionBridge
 import EvmAsm.Evm64.Env.Wrappers
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Calldata.CopySpec
@@ -150,15 +154,18 @@ def registry : List OpcodeEntry := [
       (some "evm_smod_stack_spec_within")
       ("all-case v4 wrapper result-stack spec; zero divisor discharged, " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
-  entry "ADDMOD" .partly (some "evm_addmod_n0_spec_within")
-      "addmod_correct proven; zero-modulus stack spec done for arbitrary b",
+  entry "ADDMOD" .partly (some "evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within")
+      ("addmod_correct proven; zero-modulus stack spec done for arbitrary b; " ++
+       "no-overflow skeleton composed through legacy MOD no-NOP body proof; " ++
+       "current partial theorem has a final live-stack post at sp+64 preserving an arbitrary caller stack tail, consumed operand cells and all leftover registers in the current frame weakened to ownership, and old register/scratch witnesses packaged in an existential precondition that can carry the runtime OR-fold zero-test guard, with the MOD callable base specialized to the canonical JAL target; zero-modulus and no-overflow branches also have canonical existential stack-tail surfaces evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within and evm_addmod_no_overflow_canonical_existential_regs_owned_stack_tail_spec_within, with explicit zero-result N=0 and OR-zero tail surfaces evm_addmod_n0_canonical_existential_regs_owned_zero_stack_tail_spec_within and evm_addmod_or_zero_domain_canonical_existential_regs_owned_zero_stack_tail_spec_within, plus no-overflow and OR-guard domain-pre surfaces evm_addmod_no_overflow_domain_canonical_existential_regs_owned_stack_tail_spec_within and evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within"),
   entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
       ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
        "n ≤ 2^255 hypothesis); bit-serial 512-bit reducer. Scratchpad " ++
        "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
        "sp-160..sp-8) so the live EVM stack is preserved")
       (cycleBound := some 34295),
-  entry "EXP" .partly none "exp_correct proven; program in active development",
+  entry "EXP" .partly (some "evm_exp_headroom_visible_result_stack_program_spec_within")
+      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a canonical concrete-program theorem over CodeReq.ofProg with ordinary entry-base alignment, old register/scratch values and the internal scratch base existentially packaged, and the semantic result stack exposed directly at evmSp+32 as EvmWord.exp base exponent :: rest; consumed operand/scratch cells and leftover headroom stack cells are weakened to ownership, with leftover implementation resources existentially framed; public evm_exp_stack_spec_within wrapper still pending",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
   -- Comparison and bitwise (0x10..0x1d)
@@ -340,8 +347,9 @@ private noncomputable abbrev _sdiv_witness       :=
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_stack_spec
 private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
-private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_n0_spec_within
+private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_result_stack_program_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within
