@@ -414,7 +414,7 @@ def withdrawal_decode_characterization
   outPtr.toNat + 48 < 2 ^ 64 →
   (∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) →
   (∀ k, k < 48 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) →
-  ∃ N, cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+  cpsTripleWithin 2048 base (raVal &&& ~~~1) (withdrawal_decode_code base)
     -- precondition
     ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
       (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
@@ -9822,7 +9822,7 @@ theorem wd_decode_successCase
     (hsvalid : ∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
     (houtvalid : ∀ k, k < 48 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
     (hdec : decodeWithdrawal srcBytes = some w) :
-    ∃ N, cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+    cpsTripleWithin 2048 base (raVal &&& ~~~1) (withdrawal_decode_code base)
       ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
         (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
         (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
@@ -9879,7 +9879,8 @@ theorem wd_decode_successCase
   have hinstr : withdrawal_decode_prog.get
       ⟨73, by rw [withdrawal_decode_prog_length]; norm_num⟩ = .BNE .x11 .x6 (12 : BitVec 13) := by
     decide
-  exact ⟨_, cpsTripleWithin_weaken (fun _ hp => hp)
+  exact cpsTripleWithin_mono_nSteps (by norm_num)
+    (cpsTripleWithin_weaken (fun _ hp => hp)
     (wd_successLeafPost_to_success sp0 raVal s0Old s1Old s2Old outPtr srcBase srcBytes w hdec)
     (wd_capstonePre_peel base srcBase outPtr raVal sp0 s0Old s1Old s2Old srcBytes
       (fun m0 m1 m2 m3 t0Old t1Old t2Old t3Old t4Old t5Old t6Old x13Old x14Old cnt =>
@@ -9890,7 +9891,7 @@ theorem wd_decode_successCase
           halign52 hdisjW48 halign88 hdisjC84 hoff1 hover1 hvalid1 hin1 hform0
           halign108 hdisjW104 halign144 hdisjC140 hf1 halign164 hdisjW160 halign204
           hostalign hbase hdlen hdov hdval hnowrap hsvalid hf2 halign232 hdisjW228 halign268
-          hdisjC264 hf3 halign288 hdisj284 hinstr h_end))⟩
+          hdisjC264 hf3 halign288 hdisj284 hinstr h_end)))
 
 /-- **Fail endpoint** (base+304 → ret): once any guard has rejected and control reached the
     `failReturn` block with the saved stack frame intact (and the clobbered scratch / output region
@@ -10161,7 +10162,7 @@ theorem wd_decode_characterization_of_failCase
       (∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) →
       (∀ k, k < 48 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) →
       decodeWithdrawal srcBytes = none →
-      ∃ N, cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+      cpsTripleWithin 2048 base (raVal &&& ~~~1) (withdrawal_decode_code base)
         ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
           (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
           (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
