@@ -6272,4 +6272,47 @@ theorem wd_field2_decodeAux (srcBytes : List Byte) (off : Nat) (hoff : off < src
   rw [show off + 21 = off + 1 + 20 from by omega]
   exact h
 
+/-! ## M3 proof — success-spine tail: arity ⨾ aritySuccessReturn
+
+A first divide-and-conquer segment of the success spine (built from the return end). The
+exact-arity check (`wd_decode_arity`, base+276→292, the 5th `walk_next` reports end-of-list when
+the cursor sits at the list end) composes directly with the success return
+(`wd_decode_aritySuccessReturn`, base+292→ret) at the `x11=2 ∧ x6=2` seam — a clean two-block
+seq, no form branching. The full spine becomes `… ⨾ field3 ⨾ wd_decode_aritySuccessTail`. -/
+
+/-- **Arity-success tail** (`arity ⨾ aritySuccessReturn`, base+276 → ret): the cursor `s1` after
+    field 3 equals the list end (`h_end : ¬ ult cursor endPtr`), so the 5th `walk_next` reports
+    end-of-list (status 2), the arity `bne` falls through, `a0 ← 0`, and the routine restores the
+    frame and returns. Frames the saved-register/stack-frame state through the arity block and the
+    `t1`-scratch (`x12`/`x0`) through the return; composed at the `x11=2 ∧ x6=2` seam. -/
+theorem wd_decode_aritySuccessTail
+    (base cursor endPtr a0Old a1Old vOld a2Old t1Old spF s0Clob raSaved s0Saved s1Saved s2Saved :
+      Word)
+    (h_end : ¬ BitVec.ult cursor endPtr)
+    (halign288 : (base + 288) &&& ~~~1 = base + 288)
+    (hdisj : (CodeReq.singleton (base + 284) (.JAL .x1 (260 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (hinstr : withdrawal_decode_prog.get
+        ⟨73, by rw [withdrawal_decode_prog_length]; norm_num⟩ = .BNE .x11 .x6 (12 : BitVec 13)) :
+    cpsTripleWithin ((2 + ((1 + 4) + 1)) + (1 + 8)) (base + 276) (raSaved &&& ~~~1)
+      (withdrawal_decode_code base)
+      (((.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) **
+        (.x1 ↦ᵣ vOld) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ t1Old)) **
+        ((.x2 ↦ᵣ spF) ** (.x8 ↦ᵣ s0Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) **
+          ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved)))
+      (((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        (((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** ⌜(2 : Word) = (2 : Word)⌝) **
+          ((.x10 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (spF + signExtend12 (32 : BitVec 12))) **
+            (.x1 ↦ᵣ raSaved) ** (.x8 ↦ᵣ s0Saved) ** (.x9 ↦ᵣ s1Saved) ** (.x18 ↦ᵣ s2Saved) **
+            (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) ** ((spF + 16) ↦ₘ s1Saved) **
+            ((spF + 24) ↦ₘ s2Saved)))) := by
+  have harity := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spF) ** (.x8 ↦ᵣ s0Clob) ** (spF ↦ₘ raSaved) ** ((spF + 8) ↦ₘ s0Saved) **
+      ((spF + 16) ↦ₘ s1Saved) ** ((spF + 24) ↦ₘ s2Saved)) (by pcFree)
+    (wd_decode_arity base cursor endPtr a0Old a1Old vOld a2Old t1Old h_end halign288 hdisj)
+  have hret := cpsTripleWithin_frameL ((.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) (by pcFree)
+    (wd_decode_aritySuccessReturn base spF raSaved s0Saved s1Saved s2Saved (base + 288) s0Clob
+      cursor endPtr cursor hinstr)
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) harity hret
+
 end EvmAsm.Rv64.RLP
