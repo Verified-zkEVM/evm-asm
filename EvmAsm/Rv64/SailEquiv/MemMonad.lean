@@ -14,6 +14,7 @@ import EvmAsm.Rv64.SailEquiv.MonadLemmas
 import EvmAsm.Rv64.SailEquiv.MemReduce
 
 open Sail
+open LeanRV64D.Functions
 
 namespace EvmAsm.Rv64.SailEquiv
 
@@ -33,5 +34,26 @@ theorem extractByte_eq_extractLsb' (v : Word) (i : Nat) :
   simp only [extractByte, BitVec.extractLsb', Nat.mul_comm i 8]
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight, BitVec.toNat_ofNat]
+
+/-- **Bare-mode address translation.** In Machine privilege with `MPRV = 0` and a
+    non-shadow-stack access, `translateAddr` is the identity: it returns
+    `Ok (Physaddr vaddr, PBMT_PMA, ())` and leaves the state unchanged. -/
+theorem runSail_translateAddr_bare (vAddr : virtaddr) (access : MemoryAccessType mem_payload)
+    (s : SailState) (mstatusVal : BitVec 64)
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mstatus : s.regs.get? Register.mstatus = some mstatusVal)
+    (h_mprv : _get_Mstatus_MPRV mstatusVal = 0#1)
+    (h_ss : is_shadow_stack_access access = Pure.pure false) :
+    runSail (translateAddr vAddr access) s =
+      some (Ok (physaddr.Physaddr (zero_extend (m := 64) (bits_of_virtaddr vAddr)),
+        page_based_mem_type.PBMT_PMA, init_ext_ptw), s) := by
+  unfold translateAddr
+  simp (config := { decide := true }) [runSail, SailME.run, PreSail.PreSailME.run,
+    effectivePrivilege, translationMode, h_ss, h_mprv,
+    PreSail.readReg, h_priv, h_mstatus,
+    ExceptT.run, ExceptT.mk, ExceptT.pure, ExceptT.bind, ExceptT.bindCont, ExceptT.lift,
+    MonadLift.monadLift, monadLift, liftM, Functor.map,
+    Pure.pure, EStateM.pure, Bind.bind, bind, EStateM.bind, EStateM.map, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get, bne]
 
 end EvmAsm.Rv64.SailEquiv
