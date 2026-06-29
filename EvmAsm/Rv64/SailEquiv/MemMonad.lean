@@ -35,6 +35,20 @@ theorem extractByte_eq_extractLsb' (v : Word) (i : Nat) :
   apply BitVec.eq_of_toNat_eq
   simp [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight, BitVec.toNat_ofNat]
 
+/-- State effect of an 8-byte `writeBytes`: registers unchanged; the doubleword's
+    eight little-endian byte slices are written at `addr … addr+7`, everything else
+    left alone. -/
+theorem writeBytes_effect (addr : Nat) (v : BitVec 64) (s : SailState) :
+    runSail (PreSail.writeBytes (n := 8) addr v) s = some (true,
+      { s with mem :=
+        (((((((s.mem.insert addr (v.extractLsb' 0 8)).insert (addr + 1) (v.extractLsb' 8 8)).insert
+          (addr + 2) (v.extractLsb' 16 8)).insert (addr + 3) (v.extractLsb' 24 8)).insert
+          (addr + 4) (v.extractLsb' 32 8)).insert (addr + 5) (v.extractLsb' 40 8)).insert
+          (addr + 6) (v.extractLsb' 48 8)).insert (addr + 7) (v.extractLsb' 56 8) }) := by
+  simp [runSail, PreSail.writeBytes, List.ofFn_succ, List.ofFn_zero, List.forM_cons, List.forM_nil,
+    PreSail.writeByte, modify, modifyGet, MonadStateOf.modifyGet, MonadState.modifyGet,
+    EStateM.modifyGet, Bind.bind, bind, EStateM.bind, Pure.pure, EStateM.pure, Fin.succ]
+
 /-- **Bare-mode address translation.** In Machine privilege with `MPRV = 0` and a
     non-shadow-stack access, `translateAddr` is the identity: it returns
     `Ok (Physaddr vaddr, PBMT_PMA, ())` and leaves the state unchanged. -/
