@@ -16,6 +16,7 @@
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.BitAux
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.AddrNorm
 import EvmAsm.Rv64.MemRegion
@@ -427,6 +428,22 @@ def withdrawal_decode_characterization
             ∧ d2.length = 20⌝) h)) ∨
        (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
           ⌜decodeWithdrawal srcBytes = none⌝) h)))
+
+/-- **Return-point alignment facts.** Every jal-return PC `base + k` (k a multiple of 4) survives
+    the JALR low-bit mask when `base` is even. The 10 `halign…` hypotheses the success leaf (and the
+    fail tree) thread are exactly these, discharged from one base-evenness fact via
+    `BitAux.word_add_even_andn_one`. -/
+theorem wd_decode_align_facts (base : Word) (hbe : base &&& 1 = 0) :
+    ((base + 28) &&& ~~~1 = base + 28) ∧ ((base + 52) &&& ~~~1 = base + 52) ∧
+    ((base + 88) &&& ~~~1 = base + 88) ∧ ((base + 108) &&& ~~~1 = base + 108) ∧
+    ((base + 144) &&& ~~~1 = base + 144) ∧ ((base + 164) &&& ~~~1 = base + 164) ∧
+    ((base + 204) &&& ~~~1 = base + 204) ∧ ((base + 232) &&& ~~~1 = base + 232) ∧
+    ((base + 268) &&& ~~~1 = base + 268) ∧ ((base + 288) &&& ~~~1 = base + 288) :=
+  ⟨BitAux.word_add_even_andn_one hbe (by decide), BitAux.word_add_even_andn_one hbe (by decide),
+   BitAux.word_add_even_andn_one hbe (by decide), BitAux.word_add_even_andn_one hbe (by decide),
+   BitAux.word_add_even_andn_one hbe (by decide), BitAux.word_add_even_andn_one hbe (by decide),
+   BitAux.word_add_even_andn_one hbe (by decide), BitAux.word_add_even_andn_one hbe (by decide),
+   BitAux.word_add_even_andn_one hbe (by decide), BitAux.word_add_even_andn_one hbe (by decide)⟩
 
 /-! ## M3 proof — block 1: prologue over the full program code
 
