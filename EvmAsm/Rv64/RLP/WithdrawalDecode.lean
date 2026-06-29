@@ -5405,4 +5405,65 @@ theorem wd_decode_field2Body
     xperm_hyp hp
   exact ((sepConj_pure_left _).1 ((sepConj_pure_left _).1 hp').2).2
 
+set_option maxRecDepth 8000 in
+/-- **Arity block** (idx 69–72, base+276 → base+292): the exact-arity check's straight-line part —
+    `mv a0,s1; mv a1,s2; jal walk_next; li t1,2`. On the success path the cursor `s1` after field 3
+    equals the list end, so the 5th `walk_next` reports **end-of-list** (status `a1 = 2`, via
+    `rlp_walk_next_end_spec_within` given `h_end : ¬ ult cursor endPtr`). Produces `a1 = 2`, `t1 = 2`
+    for the `bne` guard in `wd_decode_aritySuccessReturn`. -/
+theorem wd_decode_arity (base cursor endPtr a0Old a1Old vOld a2Old t1Old : Word)
+    (h_end : ¬ BitVec.ult cursor endPtr)
+    (halign288 : (base + 288) &&& ~~~1 = base + 288)
+    (hdisj : (CodeReq.singleton (base + 284) (.JAL .x1 (260 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544))) :
+    cpsTripleWithin (2 + ((1 + 4) + 1)) (base + 276) (base + 292) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) **
+        (.x1 ↦ᵣ vOld) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ t1Old))
+      ((.x11 ↦ᵣ (2 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** (.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (base + 288)) ** (.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr)) := by
+  -- A: mv a0,s1 ; mv a1,s2  (idx 69–70)
+  have hA : cpsTripleWithin 2 (base + 276) (base + 284) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr))
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr)) := by
+    have hmv0 := mv_spec_gen_within .x10 .x9 cursor a0Old (base + 276) (by decide)
+    have hmv1 := mv_spec_gen_within .x11 .x18 endPtr a1Old (base + 280) (by decide)
+    runBlock hmv0 hmv1
+  -- B: jal walk_next  (idx 71), end-of-list arm
+  have hoffset : (base + 284) + signExtend21 (260 : BitVec 21) = base + 544 := by
+    rw [show signExtend21 (260 : BitVec 21) = (260 : Word) from by decide]; bv_omega
+  have hleaf : cpsTripleWithin 4 (base + 544) ((base + 284 + 4) &&& ~~~1)
+      (rlp_walk_next_code (base + 544))
+      ((.x1 ↦ᵣ (base + 284 + 4)) **
+        ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word))))
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ (base + 284 + 4))) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
+      (rlp_walk_next_end_spec_within (base + 544) cursor endPtr (base + 284 + 4) a2Old h_end)
+  have hcall := cpsCallWithin (vOld := vOld) (260 : BitVec 21) hoffset
+    (by rw [show base + 284 + 4 = base + 288 from by bv_omega]; exact halign288) (by pcFree)
+    hdisj hleaf
+  have hB := cpsTripleWithin_extend_code (wd_call_code_sub
+    (show withdrawal_decode_code base (base + 284) = some (.JAL .x1 (260 : BitVec 21)) from by
+      have h := wd_prog_lookup base 71 (by rw [withdrawal_decode_prog_length]; norm_num)
+      rw [show base + BitVec.ofNat 64 (4 * 71) = base + 284 from by bv_omega] at h
+      rw [h]; decide)
+    (wd_walkNextBody_sub base)) hcall
+  rw [show base + 284 + 4 = base + 288 from by bv_omega] at hB
+  -- C: li t1,2  (idx 72)
+  have hC := wd_decode_li base 72 .x6 (2 : Word) t1Old (by decide)
+    (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+  rw [show base + BitVec.ofNat 64 (4 * 72) = base + 288 from by bv_omega,
+      show base + 288 + 4 = base + 292 from by bv_omega] at hC
+  -- compose A ⨾ B ⨾ C, framing each step's idle registers
+  have hAf := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ vOld) ** (.x12 ↦ᵣ a2Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ t1Old)) (by pcFree) hA
+  have hBf := cpsTripleWithin_frameR ((.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr) ** (.x6 ↦ᵣ t1Old))
+    (by pcFree) hB
+  have hAB := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hAf hBf
+  have hCf := cpsTripleWithin_frameL
+    ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x1 ↦ᵣ (base + 288)) ** (.x9 ↦ᵣ cursor) ** (.x18 ↦ᵣ endPtr)) (by pcFree) hC
+  have hABC := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hAB hCf
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hABC
+
 end EvmAsm.Rv64.RLP
