@@ -12,6 +12,9 @@
 import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Evm64.Stack
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.XSimp
+import EvmAsm.Rv64.Tactics.RunBlock
 
 open EvmAsm.Rv64.Tactics
 
@@ -579,5 +582,221 @@ theorem evm_addmod_phase2_n_zero_test_spec_within
     (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp)
     composed
+
+-- ============================================================================
+-- evm_addmod_pow256_prepare_minus_one_mod_args
+-- ============================================================================
+
+abbrev evm_addmod_pow256_prepare_minus_one_mod_args_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_addmod_pow256_prepare_minus_one_mod_args
+
+@[irreducible]
+def evmAddModPow256PrepareMinusOnePre (sp : Word)
+    (x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ x5Old) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ u0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ u1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)
+
+theorem evmAddModPow256PrepareMinusOnePre_unfold
+    (sp : Word)
+    (x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) :
+    evmAddModPow256PrepareMinusOnePre sp
+      x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 =
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ x5Old) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ u0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ u1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)) := by
+  delta evmAddModPow256PrepareMinusOnePre
+  rfl
+
+@[irreducible]
+def evmAddModPow256PrepareMinusOnePost (sp : Word)
+    (n0 n1 n2 n3 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)
+
+theorem evmAddModPow256PrepareMinusOnePost_unfold
+    (sp : Word) (n0 n1 n2 n3 : Word) :
+    evmAddModPow256PrepareMinusOnePost sp n0 n1 n2 n3 =
+      ((.x12 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := by
+  delta evmAddModPow256PrepareMinusOnePost
+  rfl
+
+def evm_addmod_pow256_prepare_minus_one_mod_args_tail : Program :=
+  SD .x12 .x5 64 ;;
+  SD .x12 .x5 72 ;;
+  SD .x12 .x5 80 ;;
+  SD .x12 .x5 88 ;;
+  LD .x5 .x12 32 ;;
+  SD .x12 .x5 96 ;;
+  LD .x5 .x12 40 ;;
+  SD .x12 .x5 104 ;;
+  LD .x5 .x12 48 ;;
+  SD .x12 .x5 112 ;;
+  LD .x5 .x12 56 ;;
+  SD .x12 .x5 120
+
+abbrev evm_addmod_pow256_prepare_minus_one_mod_args_tail_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base evm_addmod_pow256_prepare_minus_one_mod_args_tail
+
+@[irreducible]
+def evmAddModPow256PrepareMinusOneTailPre (sp fill : Word)
+    (n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ u0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ u1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)
+
+theorem evmAddModPow256PrepareMinusOneTailPre_unfold
+    (sp fill : Word) (n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 : Word) :
+    evmAddModPow256PrepareMinusOneTailPre sp fill
+      n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 =
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ u0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ u1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ u2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ u3)) := by
+  delta evmAddModPow256PrepareMinusOneTailPre
+  rfl
+
+@[irreducible]
+def evmAddModPow256PrepareMinusOneTailPost (sp fill : Word)
+    (n0 n1 n2 n3 : Word) : Assertion :=
+  (.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n3) **
+  ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+  ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill) **
+  ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+  ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+  ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+  ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)
+
+theorem evmAddModPow256PrepareMinusOneTailPost_unfold
+    (sp fill : Word) (n0 n1 n2 n3 : Word) :
+    evmAddModPow256PrepareMinusOneTailPost sp fill n0 n1 n2 n3 =
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ n3) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill) **
+       ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) := by
+  delta evmAddModPow256PrepareMinusOneTailPost
+  rfl
+
+/-- First store of the overflow-helper MOD-call setup tail. This is a
+    reusable building block for the later composed tail proof. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_store0_spec_within
+    (sp fill base w0 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (64 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ fill)) := by
+  exact sd_spec_gen_within .x12 .x5 sp fill w0 64 base
+
+/-- Second store of the overflow-helper MOD-call setup tail. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_store1_spec_within
+    (sp fill base w1 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (72 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ fill)) := by
+  exact sd_spec_gen_within .x12 .x5 sp fill w1 72 base
+
+/-- Third store of the overflow-helper MOD-call setup tail. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_store2_spec_within
+    (sp fill base w2 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (80 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ fill)) := by
+  exact sd_spec_gen_within .x12 .x5 sp fill w2 80 base
+
+/-- Fourth store of the overflow-helper MOD-call setup tail. -/
+theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_store3_spec_within
+    (sp fill base w3 : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.SD .x12 .x5 (88 : BitVec 12)))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ fill) **
+       ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ fill)) := by
+  exact sd_spec_gen_within .x12 .x5 sp fill w3 88 base
 
 end EvmAsm.Evm64
