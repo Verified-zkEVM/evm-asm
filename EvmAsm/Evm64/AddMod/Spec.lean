@@ -1066,6 +1066,100 @@ theorem evm_addmod_n0_semantic_stack_spec_within
     nMem shiftMem jMem retMem dMem dloMem scratchUn0
     hcallable hbase hdisjoint
 
+
+/-- Evidence needed to take the current no-overflow ADDMOD path through the
+    legacy MOD no-NOP body. This abbreviates the long carry-chain precondition
+    used by `evm_addmod_no_overflow_word_mod_body_stack_spec_within`. -/
+abbrev evmAddModNoOverflowBodyEvidence
+    (sp base callable_base : Word) (a b N : EvmWord) (v2 v10 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word) : Prop :=
+  let a0 := a.getLimbN 0
+  let a1 := a.getLimbN 1
+  let a2 := a.getLimbN 2
+  let a3 := a.getLimbN 3
+  let b0 := b.getLimbN 0
+  let b1 := b.getLimbN 1
+  let b2 := b.getLimbN 2
+  let b3 := b.getLimbN 3
+  let sum0 := a0 + b0
+  let carry0 := if BitVec.ult sum0 b0 then (1 : Word) else 0
+  let psum1 := a1 + b1
+  let carry1a := if BitVec.ult psum1 b1 then (1 : Word) else 0
+  let result1 := psum1 + carry0
+  let carry1b := if BitVec.ult result1 carry0 then (1 : Word) else 0
+  let carry1 := carry1a ||| carry1b
+  let psum2 := a2 + b2
+  let carry2a := if BitVec.ult psum2 b2 then (1 : Word) else 0
+  let result2 := psum2 + carry1
+  let carry2b := if BitVec.ult result2 carry1 then (1 : Word) else 0
+  let carry2 := carry2a ||| carry2b
+  let psum3 := a3 + b3
+  let carry3a := if BitVec.ult psum3 b3 then (1 : Word) else 0
+  let result3 := psum3 + carry2
+  let carry3b := if BitVec.ult result3 carry2 then (1 : Word) else 0
+  let carry3 := carry3a ||| carry3b
+  cpsTripleWithin unifiedDivBound
+    callable_base (callable_base + nopOff) (modCode_noNop callable_base)
+    (divModStackDispatchPreCallable (sp + 32) (a + b) N ((base + 124) + 4)
+      v2 carry3 carry3b carry3 v10 carry3a
+      q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+    (modStackDispatchPostCallable (sp + 32) (a + b) N **
+      (.x1 ↦ᵣ ((base + 124) + 4)))
+
+/-- Combined partial ADDMOD stack theorem for the two currently complete
+    public surfaces: the exact zero-modulus path, and the no-overflow path
+    when supplied with the legacy MOD no-NOP body proof. -/
+theorem evm_addmod_zero_or_no_overflow_word_mod_body_stack_spec_within
+    (sp base callable_base : Word)
+    (a b N : EvmWord) (v1 v2 v5 v6 v7 v10 v11 : Word)
+    (modOff : BitVec 21)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratchUn0 : Word)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base))
+    (hCase :
+      N = 0 ∨
+      (a.toNat + b.toNat < 2 ^ 256 ∧
+        evmAddModNoOverflowBodyEvidence sp base callable_base a b N v2 v10
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          nMem shiftMem jMem retMem dMem dloMem scratchUn0)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ v1) ** (.x2 ↦ᵣ v2) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x0 ↦ᵣ (0 : Word)) **
+       evmWordIs sp a ** evmWordIs (sp + 32) b **
+       evmWordIs (sp + 64) N **
+         divScratchValuesCallNoX1 (sp + 32) q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      (evmAddModNoOverflowCallReturnPost sp base a b N) := by
+  cases hCase with
+  | inl hN =>
+      subst N
+      have hzero := evm_addmod_n0_semantic_stack_spec_within
+        sp base callable_base a b v1 v2 v5 v6 v7 v10 v11 modOff
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0
+        hcallable hbase hdisjoint
+      exact cpsTripleWithin_weaken
+        (fun _ hp => hp)
+        (fun _ hp => by
+          rw [evmAddModNoOverflowCallReturnPost_unfold]
+          xperm_hyp hp)
+        hzero
+  | inr hNonzero =>
+      rcases hNonzero with ⟨hNoOverflow, hStack⟩
+      exact evm_addmod_no_overflow_word_mod_body_stack_spec_within
+        sp base callable_base a b N v1 v2 v5 v6 v7 v10 v11 modOff
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratchUn0
+        hNoOverflow hcallable hbase hdisjoint hStack
+
 -- Placeholder: full general `evm_addmod_stack_spec_within` lands in slice evm-asm-sord.
 
 end EvmAsm.Evm64
