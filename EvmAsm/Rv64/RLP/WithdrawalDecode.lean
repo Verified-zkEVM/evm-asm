@@ -2632,4 +2632,65 @@ theorem wd_decode_field0BodyEmpty
     xperm_hyp hp
   exact ((sepConj_pure_left _).1 ((sepConj_pure_left _).1 hp').2).2
 
+/-! ## M3 proof — field-1 building blocks (idx 24–37, struct+8)
+
+Field 1 (`validatorIndex` @ struct+8) is the same 14-instruction scalar shape as field 0, shifted
+to idx 24–37 (bytes 96–148). The reject-check and scalar-arithmetic runBlocks are re-derived at the
+field-1 offsets (the per-index program lookups pin them to concrete indices); the `idx`-parametric
+blocks (`readPrefix`/`li`/`bgeu`) just take the field-1 indices. -/
+
+/-- **Field-1 reject-check** (idx 28–30, base+112 → base+124): `prefix < 0xc0` (reject list-form
+    items), the field-1 analogue of `wd_decode_field0RejectCheck` (fail offset 184). -/
+theorem wd_decode_field1RejectCheck (base srcBase t0Old t1Old : Word) (srcBytes : List (BitVec 8))
+    (cursorOff : Nat) (halign : srcBase.toNat % 8 = 0) (hi : cursorOff < srcBytes.length)
+    (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true)
+    (hlt : BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)) :
+    cpsTripleWithin 3 (base + 112) (base + 124) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        bytesRegion srcBase srcBytes)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+        (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** (.x6 ↦ᵣ (192 : Word)) **
+        bytesRegion srcBase srcBytes **
+        ⌜BitVec.ult ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word)⌝) := by
+  have h28 := cpsTripleWithin_frameR (.x6 ↦ᵣ t1Old) (by pcFree)
+    (wd_decode_readPrefix base srcBase t0Old srcBytes cursorOff 28
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide) halign hi hover hvalid)
+  rw [show base + BitVec.ofNat 64 112 = base + 112 from by bv_omega,
+      show base + 112 + 4 = base + 116 from by bv_omega] at h28
+  have h29 := cpsTripleWithin_frameL
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+      (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** bytesRegion srcBase srcBytes)
+    (by pcFree)
+    (wd_decode_li base 29 .x6 (192 : Word) t1Old (by decide)
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 116 = base + 116 from by bv_omega,
+      show base + 116 + 4 = base + 120 from by bv_omega] at h29
+  have h30 := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** bytesRegion srcBase srcBytes)
+    (by pcFree)
+    (wd_bgeu_lt base 30 .x5 .x6 (184 : BitVec 13)
+      ((srcBytes[cursorOff]'hi).zeroExtend 64) (192 : Word) hlt
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 120 = base + 120 from by bv_omega,
+      show base + 120 + 4 = base + 124 from by bv_omega] at h30
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_same_cr h28 h29) h30
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
+/-- **Field-1 scalar arithmetic** (idx 31–34, base+124 → base+140): `s1 := advanced`,
+    `a0 := advanced − contentLen` (content pointer), `a1 := contentLen`, `t1 := content pointer` —
+    the field-1 analogue of `wd_decode_scalarArith`. -/
+theorem wd_decode_field1ScalarArith (base advanced contentLen s1Old t1Old a1Old : Word) :
+    cpsTripleWithin 4 (base + 124) (base + 140) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ s1Old) ** (.x10 ↦ᵣ advanced) ** (.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ a1Old) **
+        (.x6 ↦ᵣ t1Old))
+      ((.x9 ↦ᵣ advanced) ** (.x10 ↦ᵣ (advanced - contentLen)) ** (.x12 ↦ᵣ contentLen) **
+        (.x11 ↦ᵣ contentLen) ** (.x6 ↦ᵣ (advanced - contentLen))) := by
+  have hmv0 := mv_spec_gen_within .x9 .x10 advanced s1Old (base + 124) (by decide)
+  have hsub := sub_spec_gen_within .x10 .x9 .x12 advanced contentLen advanced (base + 128) (by decide)
+  have hmv1 := mv_spec_gen_within .x11 .x12 contentLen a1Old (base + 132) (by decide)
+  have hmv2 := mv_spec_gen_within .x6 .x10 (advanced - contentLen) t1Old (base + 136) (by decide)
+  runBlock hmv0 hsub hmv1 hmv2
+
 end EvmAsm.Rv64.RLP
