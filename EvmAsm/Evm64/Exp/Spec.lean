@@ -540,6 +540,51 @@ instance pcFreeInst_evmExpHeadroomPre
   ⟨evmExpHeadroomPre_pcFree sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
     h0 h1 h2 h3 h4 h5 h6 h7 v18 vOld baseWord exponentWord dWord eWord rest⟩
 
+structure EvmExpHeadroomPreWitness where
+  cOld : Word
+  tOld : Word
+  c6Old : Word
+  c16Old : Word
+  c19Old : Word
+  m0 : Word
+  m1 : Word
+  m2 : Word
+  m3 : Word
+  v6 : Word
+  h0 : Word
+  h1 : Word
+  h2 : Word
+  h3 : Word
+  h4 : Word
+  h5 : Word
+  h6 : Word
+  h7 : Word
+  v18 : Word
+  vOld : Word
+  dWord : EvmWord
+  eWord : EvmWord
+
+@[irreducible]
+def evmExpHeadroomExistentialPre
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion :=
+  fun ps => ∃ w : EvmExpHeadroomPreWitness,
+    evmExpHeadroomPre sp evmSp w.cOld w.tOld w.c6Old w.c16Old w.c19Old
+      w.m0 w.m1 w.m2 w.m3 w.v6
+      w.h0 w.h1 w.h2 w.h3 w.h4 w.h5 w.h6 w.h7 w.v18 w.vOld
+      baseWord exponentWord w.dWord w.eWord rest ps
+
+theorem evmExpHeadroomExistentialPre_unfold
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    evmExpHeadroomExistentialPre sp evmSp baseWord exponentWord rest =
+      (fun ps => ∃ w : EvmExpHeadroomPreWitness,
+        evmExpHeadroomPre sp evmSp w.cOld w.tOld w.c6Old w.c16Old w.c19Old
+          w.m0 w.m1 w.m2 w.m3 w.v6
+          w.h0 w.h1 w.h2 w.h3 w.h4 w.h5 w.h6 w.h7 w.v18 w.vOld
+          baseWord exponentWord w.dWord w.eWord rest ps) := by
+  delta evmExpHeadroomExistentialPre
+  rfl
+
 /-- Headroom full-loop EXP surface with the final live EVM stack rooted at the
     final stack pointer `evmSp + 32`, and the scratch result folded as
     `evmWordIs sp result`. The consumed base cell and headroom/leftover frame
@@ -799,6 +844,26 @@ theorem evm_exp_headroom_all_regs_owned_leftover_live_stack_spec_within
       sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
       h0 h1 h2 h3 h4 h5 h6 h7 base
       baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase)
+
+/-- EXP headroom theorem with old register/scratch values hidden behind an
+    existential precondition. The visible precondition keeps only the scratch
+    base pointer, EVM stack pointer, two operands, and stack tail explicit. -/
+theorem evm_exp_headroom_existential_pre_all_regs_owned_leftover_live_stack_spec_within
+    (sp evmSp base : Word)
+    (baseWord exponentWord : EvmWord) (rest : List EvmWord)
+    (hbase : (base + 72 + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (EvmAsm.Evm64.Exp.Compose.evm_exp_headroom_canonical_appended_mul_code base)
+      (evmExpHeadroomExistentialPre sp evmSp baseWord exponentWord rest)
+      (EvmAsm.Evm64.Exp.Compose.expHeadroomFinalAllRegsOwnedLeftoverLiveStackPost
+        sp evmSp baseWord exponentWord rest) := by
+  rw [evmExpHeadroomExistentialPre_unfold]
+  refine EvmAsm.Evm64.Exp.Compose.cpsTripleWithin_exists_pre ?_
+  intro w
+  exact evm_exp_headroom_all_regs_owned_leftover_live_stack_spec_within
+    sp evmSp w.cOld w.tOld w.c6Old w.c16Old w.c19Old w.m0 w.m1 w.m2 w.m3 w.v6
+    w.h0 w.h1 w.h2 w.h3 w.h4 w.h5 w.h6 w.h7 base
+    baseWord exponentWord w.dWord w.eWord rest (0 : Word) w.vOld w.v18 hbase
 
 -- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
 
