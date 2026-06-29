@@ -599,6 +599,83 @@ theorem evm_addmod_partial_domain_canonical_existential_regs_owned_live_stack_sp
   exact evm_addmod_partial_domain_existential_regs_owned_live_stack_spec_within
     sp base ((base + 124) + signExtend21 modOff) a b N modOff rfl hbase hdisjoint
 
+@[irreducible]
+def evmAddModCanonicalPartialExistentialStackTailPre
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) : Assertion :=
+  evmAddModCanonicalPartialExistentialPre sp base modOff a b N **
+  evmStackIs (sp + 96) rest
+
+theorem evmAddModCanonicalPartialExistentialStackTailPre_unfold
+    (sp base : Word) (modOff : BitVec 21)
+    (a b N : EvmWord) (rest : List EvmWord) :
+    evmAddModCanonicalPartialExistentialStackTailPre sp base modOff a b N rest =
+      (evmAddModCanonicalPartialExistentialPre sp base modOff a b N **
+       evmStackIs (sp + 96) rest) := by
+  delta evmAddModCanonicalPartialExistentialStackTailPre
+  rfl
+
+@[irreducible]
+def evmAddModPartialRegsOwnedLiveStackTailPost
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) : Assertion :=
+  ((.x12 ↦ᵣ (sp + 64)) **
+    evmStackIs (sp + 64) (EvmWord.addmod a b N :: rest)) **
+  evmAddModPartialRegsOwnedLiveStackFrame sp
+
+theorem evmAddModPartialRegsOwnedLiveStackTailPost_unfold
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) :
+    evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest =
+      (((.x12 ↦ᵣ (sp + 64)) **
+        evmStackIs (sp + 64) (EvmWord.addmod a b N :: rest)) **
+       evmAddModPartialRegsOwnedLiveStackFrame sp) := by
+  delta evmAddModPartialRegsOwnedLiveStackTailPost
+  rfl
+
+theorem evmAddModPartialRegsOwnedLiveStackTailPost_pcFree
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) :
+    (evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest).pcFree := by
+  rw [evmAddModPartialRegsOwnedLiveStackTailPost_unfold]
+  pcFree
+
+instance pcFreeInst_evmAddModPartialRegsOwnedLiveStackTailPost
+    (sp : Word) (a b N : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree (evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest) :=
+  ⟨evmAddModPartialRegsOwnedLiveStackTailPost_pcFree sp a b N rest⟩
+
+private theorem evmAddModPartialRegsOwnedLiveStackPost_tail_to_tailPost
+    {sp : Word} {a b N : EvmWord} {rest : List EvmWord} {ps : PartialState}
+    (h : (evmAddModPartialRegsOwnedLiveStackPost sp a b N **
+           evmStackIs (sp + 96) rest) ps) :
+    evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest ps := by
+  rw [evmAddModPartialRegsOwnedLiveStackPost_unfold] at h
+  rw [evmStackIs_single] at h
+  rw [evmAddModPartialRegsOwnedLiveStackTailPost_unfold, evmStackIs_cons]
+  rw [show (sp + 64 + 32 : Word) = sp + 96 from by bv_omega]
+  xperm_hyp h
+
+/-- Current partial ADDMOD theorem with an arbitrary caller stack tail framed
+    through the verified zero-or-no-overflow canonical code surface. -/
+theorem evm_addmod_partial_domain_canonical_existential_regs_owned_stack_tail_spec_within
+    (sp base : Word) (a b N : EvmWord) (rest : List EvmWord) (modOff : BitVec 21)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff))) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union
+        (evm_mod_callable_code_v1 ((base + 124) + signExtend21 modOff)))
+      (evmAddModCanonicalPartialExistentialStackTailPre sp base modOff a b N rest)
+      (evmAddModPartialRegsOwnedLiveStackTailPost sp a b N rest) := by
+  rw [evmAddModCanonicalPartialExistentialStackTailPre_unfold]
+  have hFramed := cpsTripleWithin_frameR (evmStackIs (sp + 96) rest)
+    pcFree_evmStackIs
+    (evm_addmod_partial_domain_canonical_existential_regs_owned_live_stack_spec_within
+      sp base a b N modOff hbase hdisjoint)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => evmAddModPartialRegsOwnedLiveStackPost_tail_to_tailPost hp)
+    hFramed
+
 /-- Zero-modulus ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the complete `N = 0` branch,
