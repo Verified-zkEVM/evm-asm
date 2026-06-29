@@ -419,7 +419,8 @@ def withdrawal_decode_characterization
       bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : Byte)))
     -- postcondition: shared frame + (success ∨ failure), anchored on `decodeWithdrawal`
     (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
-      (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+      (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+      wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
       wd_frameOwned sp0 **
       bytesRegion srcBase srcBytes) **
      (fun h =>
