@@ -7090,4 +7090,166 @@ theorem wd_decode_field3Body_unified_regOwn
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
     (hfull v5 v6 v7 v28 v29 v30 v31)
 
+/-! ## M3 proof — success-spine front: prologue ⨾ walk_init call (base+0 → base+28)
+
+The first linear segment of the spine (no branching): the prologue (`wd_decode_prologue`,
+base+0→24, saving ra/s0/s1/s2 and `s0 := a2`) composes with the `rlp_walk_init` call block
+(`wd_call_walk_init` lifted to the program, base+24→28). The call's `walk_init` arguments
+(`a0 = srcBase`, `a1 = srcLen`, scratch, the input region) are framed through the prologue; the
+prologue's saved-register/stack-frame state is framed through the call. Exit at base+28 carries
+`walk_init`'s 9-way classification post, ready for the guard (`bnez a2`) in `wd_decode_walkInitSetup`. -/
+
+/-- **Prologue ⨾ walk_init call** (base+0 → base+28). -/
+theorem wd_decode_prologueWalkInit
+    (base sp0 raVal s0Old s1Old s2Old structPtr m0 m1 m2 m3 : Word)
+    (srcBase srcLen t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8))
+    (halign : (base + 28) &&& ~~~1 = base + 28)
+    (hdisj : (CodeReq.singleton (base + 24) (.JAL .x1 (308 : BitVec 21))).Disjoint
+      (rlp_walk_init_code (base + 332)))
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : 0 < srcBytes.length)
+    (hover : srcBase.toNat + 0 < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 0) = true)
+    (hll_len : ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        0 + 1 + ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ srcBytes.length)
+    (hll_over : ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        srcBase.toNat + (0 + 1 + ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64)
+    (hll_valid : ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ∀ k, k < ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (0 + 1 + k)) = true) :
+    cpsTripleWithin (6 + (1 + 81)) base (base + 28) (withdrawal_decode_code base)
+      (((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ structPtr) **
+        ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ m3)) **
+        ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ srcLen) ** (.x5 ↦ᵣ t0Old) **
+          (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) **
+          (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes))
+      ((
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (base + 28)) ** bytesRegion srcBase srcBytes) **
+       (fun h =>
+         -- empty (a2 = 2)
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ (0 : Word)) **
+            (.x12 ↦ᵣ (2 : Word)) ** ⌜srcLen = (0 : Word)⌝) h) ∨
+         -- not-a-list (a2 = 1)
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (1 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true⌝) h) ∨
+         -- short success (a2 = 0)
+         (((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + signExtend12 (1 : BitVec 12))) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (0 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              (srcBase + BitVec.ofNat 64 0) +
+                (((srcBytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12))
+                = (srcBase + BitVec.ofNat 64 0) + srcLen⌝) h) ∨
+         -- short mismatch (a2 = 3)
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (3 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              (srcBase + BitVec.ofNat 64 0) +
+                (((srcBytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) + signExtend12 (1 : BitVec 12))
+                ≠ (srcBase + BitVec.ofNat 64 0) + srcLen⌝) h) ∨
+         -- long header truncated (a2 = 4)
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (4 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              BitVec.ult ((srcBase + BitVec.ofNat 64 0) + srcLen)
+                ((srcBase + BitVec.ofNat 64 0) +
+                  (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true⌝) h) ∨
+         -- long leading zero (a2 = 5): header fits, but the first length byte is 0
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (5 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((srcBase + BitVec.ofNat 64 0) + srcLen)
+                ((srcBase + BitVec.ofNat 64 0) +
+                  (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              srcBytes[0 + 1]? = some (0 : BitVec 8)⌝) h) ∨
+         -- long non-minimal (a2 = 6): header fits, decoded length < 56
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (6 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((srcBase + BitVec.ofNat 64 0) + srcLen)
+                ((srcBase + BitVec.ofNat 64 0) +
+                  (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (0 + 1)).take
+                ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true⌝) h) ∨
+         -- long mismatch (a2 = 7): decoded ≥ 56 but cursor + decoded ≠ end
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (7 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((srcBase + BitVec.ofNat 64 0) + srcLen)
+                ((srcBase + BitVec.ofNat 64 0) +
+                  (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (0 + 1)).take
+                ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
+              ((srcBase + BitVec.ofNat 64 0) +
+                  (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) +
+                  BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (0 + 1)).take
+                    ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+                ≠ (srcBase + BitVec.ofNat 64 0) + srcLen⌝) h) ∨
+         -- long success (a2 = 0): decoded ≥ 56 and cursor + decoded = end
+         (((.x10 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) +
+              (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))) **
+            (.x11 ↦ᵣ ((srcBase + BitVec.ofNat 64 0) + srcLen)) ** (.x12 ↦ᵣ (0 : Word)) **
+            ⌜srcLen ≠ (0 : Word) ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xc0 : Word) = true ∧
+              ¬ BitVec.ult ((srcBytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true ∧
+              ¬ BitVec.ult ((srcBase + BitVec.ofNat 64 0) + srcLen)
+                ((srcBase + BitVec.ofNat 64 0) +
+                  (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)))
+                = true ∧
+              ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (0 + 1)).take
+                ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) (56 : Word) = true ∧
+              ((srcBase + BitVec.ofNat 64 0) +
+                  (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) +
+                  BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop (0 + 1)).take
+                    ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+                = (srcBase + BitVec.ofNat 64 0) + srcLen⌝) h)))
+       ) **
+       ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x8 ↦ᵣ structPtr) ** (.x9 ↦ᵣ s1Old) **
+        (.x18 ↦ᵣ s2Old) ** ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+        ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old))) := by
+  have hpro := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ srcLen) ** (.x5 ↦ᵣ t0Old) **
+      (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) **
+      (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)
+    (by pcFree) (wd_decode_prologue base sp0 raVal s0Old s1Old s2Old structPtr m0 m1 m2 m3)
+  have hoffset : (base + 24) + signExtend21 (308 : BitVec 21) = base + 332 := by
+    rw [show signExtend21 (308 : BitVec 21) = (308 : Word) from by decide]; bv_omega
+  have hcall := cpsTripleWithin_extend_code (wd_walkinit_code_sub base)
+    (wd_call_walk_init (base + 24) (base + 332) srcBase srcLen structPtr t0Old t1Old t2Old t3Old
+      t4Old t5Old t6Old raVal srcBytes 0 (308 : BitVec 21) hoffset
+      (by rw [show base + 24 + 4 = base + 28 from by bv_omega]; exact halign) hdisj
+      hsalign hoff hover hvalid hll_len hll_over hll_valid)
+  rw [show base + 24 + 4 = base + 28 from by bv_omega] at hcall
+  have hcallF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) ** (.x8 ↦ᵣ structPtr) ** (.x9 ↦ᵣ s1Old) **
+      (.x18 ↦ᵣ s2Old) ** ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ raVal) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ s0Old) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ s1Old) **
+      ((sp0 + signExtend12 (-32 : BitVec 12) + 24) ↦ₘ s2Old)) (by pcFree) hcall
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro hcallF
+
 end EvmAsm.Rv64.RLP
