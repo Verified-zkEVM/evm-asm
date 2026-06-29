@@ -9806,4 +9806,90 @@ theorem wd_capstonePre_peel {N : Nat} {Q : Assertion}
     (fun _ hq => hq)
     (hleaf vm0 vm1 vm2 vm3 v5 v6 v7 v28 v29 v30 v31 v13 v14 v15)
 
+/-- **Capstone success case.** When `decodeWithdrawal srcBytes = some w`, the program runs the
+    success path: discharge every hypothesis of `wd_decode_successLeaf` from the well-formedness
+    side-conditions and the reverse-decode bridge (`wd_walkInit_facts`,
+    `wd_scalarFieldPre_of_encodeBytes`, `wd_decode_success_field_hyps`, the align/disjoint
+    bundles), peel the capstone precondition into the success-leaf family (`wd_capstonePre_peel`),
+    and map the success-leaf post onto the capstone's success disjunct
+    (`wd_successLeafPost_to_success`). -/
+theorem wd_decode_successCase
+    (base srcBase outPtr raVal sp0 s0Old s1Old s2Old : Word) (srcBytes : List Byte) (w : Withdrawal)
+    (hbe : base &&& 1 = 0) (hbase : base.toNat + 1444 < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0) (hostalign : outPtr.toNat % 8 = 0)
+    (hsrclt : srcBytes.length < 2 ^ 64) (hnowrap : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hout48 : outPtr.toNat + 48 < 2 ^ 64)
+    (hsvalid : ∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (houtvalid : ∀ k, k < 48 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hdec : decodeWithdrawal srcBytes = some w) :
+    ∃ N, cpsTripleWithin N base (raVal &&& ~~~1) (withdrawal_decode_code base)
+      ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
+        (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : Byte)))
+      (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+        wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
+            ⌜decodeWithdrawal srcBytes = some w ∧ w.address = BitVec.ofNat 160 (Nat.fromBytesBE d2)
+              ∧ d2.length = 20⌝) h)) ∨
+         (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+            ⌜decodeWithdrawal srcBytes = none⌝) h))) := by
+  obtain ⟨D0, D1, D2, D3, hsrc, hc0, hl0, hc1, hl1, h20, hc3, hl3, hidx, hvi, haddr, hamt⟩ :=
+    wd_srcBytes_eq_encode srcBytes w hdec
+  obtain ⟨hsrc2, hP48⟩ := wd_encode4_payload srcBytes D0 D1 D2 D3 hsrc hl0 hl1 h20 hl3
+  have hsrcLen0 : 0 < srcBytes.length := by rw [hsrc2]; simp
+  have hdrop1 : srcBytes.drop 1 =
+      encodeBytes D0 ++ (encodeBytes D1 ++ (encodeBytes D2 ++ encodeBytes D3)) := by
+    rw [hsrc2]; rfl
+  obtain ⟨h_ge, h_hi, h_exact⟩ :=
+    wd_walkInit_facts srcBase (BitVec.ofNat 64 srcBytes.length) srcBytes
+      (encodeBytes D0 ++ (encodeBytes D1 ++ (encodeBytes D2 ++ encodeBytes D3)))
+      hsrcLen0 hsrc2 hP48 rfl
+  obtain ⟨hoff1, hover1, hvalid1, hin1, hform0⟩ :=
+    wd_scalarFieldPre_of_encodeBytes srcBase (BitVec.ofNat 64 srcBytes.length) srcBytes 1 D0
+      (encodeBytes D1 ++ (encodeBytes D2 ++ encodeBytes D3)) hsvalid hnowrap rfl hdrop1 hc0 hl0
+  obtain ⟨hf1, hf2, hf3, h_end⟩ :=
+    wd_decode_success_field_hyps srcBase (BitVec.ofNat 64 srcBytes.length) srcBytes w
+      hsvalid hnowrap rfl hdec
+  obtain ⟨halign28, halign52, halign88, halign108, halign144, halign164, halign204, halign232,
+    halign268, halign288⟩ := wd_decode_align_facts base hbe
+  obtain ⟨hdisjWI, hdisjW48, hdisjC84, hdisjW104, hdisjC140, hdisjW160, hdisjW228, hdisjC264,
+    hdisj284⟩ := wd_decode_disjoint_facts base hbase
+  have hover0 : srcBase.toNat + 0 < 2 ^ 64 := by have := srcBase.isLt; omega
+  have hlen : BitVec.ofNat 64 srcBytes.length ≠ (0 : Word) := by
+    have ht : (BitVec.ofNat 64 srcBytes.length).toNat = srcBytes.length := by
+      rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt hsrclt
+    intro hc; rw [hc] at ht; simp at ht; omega
+  have hdlen : (List.replicate 20 (0 : BitVec 8)).length = 20 := by simp
+  have hdov : (outPtr + 16).toNat + 20 < 2 ^ 64 := by bv_omega
+  have hofadd : ∀ (a b : Nat),
+      BitVec.ofNat 64 (a + b) = BitVec.ofNat 64 a + BitVec.ofNat 64 b := by
+    intro a b; apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.add_mod]
+  have hdval : ∀ i, i < (List.replicate 20 (0 : BitVec 8)).length →
+      isValidByteAccess ((outPtr + 16) + BitVec.ofNat 64 i) = true := by
+    intro i hi; rw [List.length_replicate] at hi
+    have hv := houtvalid (16 + i) (by omega)
+    rwa [hofadd 16 i, ← BitVec.add_assoc] at hv
+  have hinstr : withdrawal_decode_prog.get
+      ⟨73, by rw [withdrawal_decode_prog_length]; norm_num⟩ = .BNE .x11 .x6 (12 : BitVec 13) := by
+    decide
+  exact ⟨_, cpsTripleWithin_weaken (fun _ hp => hp)
+    (wd_successLeafPost_to_success sp0 raVal s0Old s1Old s2Old outPtr srcBase srcBytes w hdec)
+    (wd_capstonePre_peel base srcBase outPtr raVal sp0 s0Old s1Old s2Old srcBytes
+      (fun m0 m1 m2 m3 t0Old t1Old t2Old t3Old t4Old t5Old t6Old x13Old x14Old cnt =>
+        wd_decode_successLeaf base sp0 raVal s0Old s1Old s2Old outPtr m0 m1 m2 m3 0 0 0
+          srcBase (BitVec.ofNat 64 srcBytes.length) t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+          srcBytes x13Old x14Old cnt (List.replicate 20 (0 : BitVec 8))
+          halign28 hdisjWI hsalign hsrcLen0 hover0 (hsvalid 0 hsrcLen0) hlen h_ge h_hi h_exact
+          halign52 hdisjW48 halign88 hdisjC84 hoff1 hover1 hvalid1 hin1 hform0
+          halign108 hdisjW104 halign144 hdisjC140 hf1 halign164 hdisjW160 halign204
+          hostalign hbase hdlen hdov hdval hnowrap hsvalid hf2 halign232 hdisjW228 halign268
+          hdisjC264 hf3 halign288 hdisj284 hinstr h_end))⟩
+
 end EvmAsm.Rv64.RLP
