@@ -9134,4 +9134,43 @@ theorem wd_copyRangeGen_eq_take_drop (src dst : List (BitVec 8)) (si0 N : Nat)
       List.getElem?_drop, List.getElem?_eq_getElem (show si0 + j < src.length by omega)]
   · rw [if_neg hj, if_neg hj, List.getElem?_eq_none (by omega)]
 
+/-- **Output-region carve.** The pre-zeroed 48-byte output struct splits into the field-0/1 scalar
+    dwords (`@0`, `@8`), the 20-byte address sub-region (`@16`, rounding to dwords `@16/@24/@32`),
+    and the field-3 scalar dword (`@40`) — exactly the shape `wd_decode_successLeaf`'s pre wants
+    (with `dstBytes := replicate 20 0`). Used by the capstone to convert its
+    `bytesRegion outPtr (replicate 48 0)` precondition into the success-leaf input. -/
+theorem wd_outRegion_carve (outPtr : Word) :
+    bytesRegion outPtr (List.replicate 48 (0 : BitVec 8))
+      = ((outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) **
+         bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8)) **
+         ((outPtr + 40) ↦ₘ (0 : Word))) := by
+  have hpk8 : packBytes [0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8] = (0 : Word) := by decide
+  have hpk4 : packBytes [0#8, 0#8, 0#8, 0#8] = (0 : Word) := by decide
+  have hL : bytesRegion outPtr (List.replicate 48 (0 : BitVec 8))
+      = ((outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) **
+         ((outPtr + 16) ↦ₘ (0 : Word)) ** ((outPtr + 24) ↦ₘ (0 : Word)) **
+         ((outPtr + 32) ↦ₘ (0 : Word)) ** ((outPtr + 40) ↦ₘ (0 : Word))) := by
+    rw [bytesRegion_eq_cons outPtr _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8 + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8 + 8 + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 8 + 8 + 8 + 8 + 8) _ (by decide),
+        show (outPtr + 8 + 8 + 8 + 8 + 8 : Word) = outPtr + 40 from by bv_omega,
+        show (outPtr + 8 + 8 + 8 + 8 : Word) = outPtr + 32 from by bv_omega,
+        show (outPtr + 8 + 8 + 8 : Word) = outPtr + 24 from by bv_omega,
+        show (outPtr + 8 + 8 : Word) = outPtr + 16 from by bv_omega]
+    simp [hpk8, sepConj_emp_right']
+  have hR : bytesRegion (outPtr + 16) (List.replicate 20 (0 : BitVec 8))
+      = (((outPtr + 16) ↦ₘ (0 : Word)) ** ((outPtr + 24) ↦ₘ (0 : Word)) **
+         ((outPtr + 32) ↦ₘ (0 : Word))) := by
+    rw [bytesRegion_eq_cons (outPtr + 16) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 16 + 8) _ (by decide),
+        bytesRegion_eq_cons (outPtr + 16 + 8 + 8) _ (by decide),
+        show (outPtr + 16 + 8 + 8 : Word) = outPtr + 32 from by bv_omega,
+        show (outPtr + 16 + 8 : Word) = outPtr + 24 from by bv_omega]
+    simp [hpk8, hpk4, sepConj_emp_right']
+  rw [hL, hR]
+  simp only [sepConj_assoc']
+
 end EvmAsm.Rv64.RLP
