@@ -1,0 +1,181 @@
+/-
+  EvmAsm.Evm64.AddMod.Compose.ZeroBranch
+
+  Composition for the explicit ADDMOD `N = 0` phase-2 branch: the
+  OR-fold/BEQ test followed by the zero-store path. This is a foundation
+  slice for the total ADDMOD runtime, which must branch on zero modulus
+  before choosing between low-sum and carry-aware reduction.
+-/
+
+import EvmAsm.Evm64.AddMod.LimbSpec
+
+namespace EvmAsm.Evm64.AddMod.Compose
+
+open EvmAsm.Rv64.Tactics
+open EvmAsm.Rv64
+open EvmAsm.Evm64
+
+/-- Code bundle for the ADDMOD phase-2 `N = 0` test followed by the zero-store
+    path. The branch offset is fixed to `4`, so the taken BEQ target at
+    `base + 28` is the zero-store block at `base + 32`. -/
+abbrev evm_addmod_phase2_n_zero_test_zero_path_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base
+    (evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+     evm_addmod_phase2_zero_path)
+
+theorem evm_addmod_phase2_n_zero_test_zero_path_code_eq_ofProg
+    (base : Word) :
+    evm_addmod_phase2_n_zero_test_zero_path_code base =
+      CodeReq.ofProg base
+        (evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+         evm_addmod_phase2_zero_path) := rfl
+
+/-- On the ADDMOD `N = 0` branch, the phase-2 zero-test dispatches to the
+    zero-store path and writes the result word as zero. The fall-through branch
+    is eliminated by the explicit `n0 ||| n1 ||| n2 ||| n3 = 0` hypothesis. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_spec_within
+    (sp v5Old v6Old n0 n1 n2 n3 : Word)
+    (base : Word)
+    (hZero : n0 ||| n1 ||| n2 ||| n3 = (0 : Word)) :
+    cpsTripleWithin (8 + 4) base (base + 48)
+      (evm_addmod_phase2_n_zero_test_zero_path_code base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ (n0 ||| n1 ||| n2 ||| n3)) **
+       (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  let orAll := n0 ||| n1 ||| n2 ||| n3
+  have hTestRaw :=
+    evm_addmod_phase2_n_zero_test_spec_within sp v5Old v6Old n0 n1 n2 n3
+      base (4 : BitVec 13)
+  have hTarget : (base + 28 : Word) + signExtend13 (4 : BitVec 13) = base + 32 := by
+    bv_addr
+  rw [hTarget] at hTestRaw
+  have hTest :
+      cpsBranchWithin 8 base (evm_addmod_phase2_n_zero_test_zero_path_code base)
+        ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+         ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+        (base + 32)
+          ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+           ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+           ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+           ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+           ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+           ⌜orAll = 0⌝)
+        (base + 32)
+          ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+           ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+           ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+           ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+           ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+           ⌜orAll ≠ 0⌝) :=
+    cpsBranchWithin_extend_code (h := hTestRaw) (hmono := by
+      unfold evm_addmod_phase2_n_zero_test_zero_path_code
+      exact CodeReq.ofProg_mono_append_left base
+        (evm_addmod_phase2_n_zero_test (4 : BitVec 13))
+        evm_addmod_phase2_zero_path)
+  have hTakenRaw := cpsBranchWithin_takenPath hTest (fun hp hQf => by
+    have hQfNorm :
+        (((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+          ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+          ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+          ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+          ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3)) **
+          ⌜orAll ≠ 0⌝) hp := by
+      xperm_hyp hQf
+    exact ((sepConj_pure_right hp).mp hQfNorm).2 hZero)
+  have hTaken :
+      cpsTripleWithin 8 base (base + 32)
+        (evm_addmod_phase2_n_zero_test_zero_path_code base)
+        ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+         ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+        ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+         ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3)) :=
+    cpsTripleWithin_weaken
+      (fun h hp => hp)
+      (fun h hp => by
+        have hpNorm :
+            (((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+              ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+              ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+              ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+              ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3)) **
+              ⌜orAll = 0⌝) h := by
+          xperm_hyp hp
+        exact ((sepConj_pure_right h).mp hpNorm).1)
+      hTakenRaw
+  have hZeroPathRaw :=
+    evm_addmod_phase2_zero_path_spec_within sp n0 n1 n2 n3 (base + 32)
+  rw [show (base + 32 : Word) + 16 = base + 48 by bv_addr] at hZeroPathRaw
+  have hZeroPath :
+      cpsTripleWithin 4 (base + 32) (base + 48)
+        (evm_addmod_phase2_n_zero_test_zero_path_code base)
+        ((.x12 ↦ᵣ sp) **
+         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+         ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+        ((.x12 ↦ᵣ sp) **
+         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ (0 : Word)) **
+         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+         ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ (0 : Word)) **
+         ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ (0 : Word))) :=
+    cpsTripleWithin_extend_code (h := hZeroPathRaw) (hmono := by
+      rw [evm_addmod_phase2_zero_path_code_eq_ofProg] at *
+      unfold evm_addmod_phase2_n_zero_test_zero_path_code
+      convert CodeReq.ofProg_mono_append_right base
+        (evm_addmod_phase2_n_zero_test (4 : BitVec 13))
+        evm_addmod_phase2_zero_path (by
+          rw [List.length_append, evm_addmod_phase2_n_zero_test_length,
+            evm_addmod_phase2_zero_path_length]
+          norm_num) using 1)
+  have hZeroPathFramed := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ orAll) ** (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0))
+    (by pcFree) hZeroPath
+  have hSeq := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by xperm_hyp hp) hTaken hZeroPathFramed
+  exact cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp)
+    hSeq
+
+/-- `ofProg` surface for the ADDMOD `N = 0` phase-2 test plus zero-store path. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_ofProg_spec_within
+    (sp v5Old v6Old n0 n1 n2 n3 : Word)
+    (base : Word)
+    (hZero : n0 ||| n1 ||| n2 ||| n3 = (0 : Word)) :
+    cpsTripleWithin (8 + 4) base (base + 48)
+      (CodeReq.ofProg base
+        (evm_addmod_phase2_n_zero_test (4 : BitVec 13) ;;
+         evm_addmod_phase2_zero_path))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ (n0 ||| n1 ||| n2 ||| n3)) **
+       (.x5 ↦ᵣ n3) ** (.x0 ↦ᵣ 0) **
+       ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ (0 : Word)) **
+       ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ (0 : Word))) := by
+  rw [← evm_addmod_phase2_n_zero_test_zero_path_code_eq_ofProg]
+  exact evm_addmod_phase2_n_zero_test_zero_path_spec_within
+    sp v5Old v6Old n0 n1 n2 n3 base hZero
+
+end EvmAsm.Evm64.AddMod.Compose
