@@ -11538,4 +11538,32 @@ theorem wd_decode_failField0WalkSeg
           · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
           · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h))))
 
+/-- **lbu prefix ⨾ li 0xc0** (idx 14–15, base+56 → base+64): the prefix read + threshold materialise,
+    over the minimal `x9/x5/x6/bytes` footprint. Shared prefix of field0's list check (pass and
+    reject). -/
+theorem wd_decode_field0_lbu_li (base srcBase t0v t1v : Word) (srcBytes : List (BitVec 8))
+    (cursorOff : Nat) (halign : srcBase.toNat % 8 = 0) (hi : cursorOff < srcBytes.length)
+    (hover : srcBase.toNat + cursorOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 cursorOff) = true) :
+    cpsTripleWithin (1 + 1) (base + 56) (base + 64) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) ** (.x5 ↦ᵣ t0v) ** (.x6 ↦ᵣ t1v) **
+        bytesRegion srcBase srcBytes)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+        (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** (.x6 ↦ᵣ (192 : Word)) **
+        bytesRegion srcBase srcBytes) := by
+  have h14 := cpsTripleWithin_frameR (.x6 ↦ᵣ t1v) (by pcFree)
+    (wd_decode_readPrefix base srcBase t0v srcBytes cursorOff 14
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide) halign hi hover hvalid)
+  rw [show base + BitVec.ofNat 64 (4 * 14) = base + 56 from by bv_omega,
+      show base + 56 + 4 = base + 60 from by bv_omega] at h14
+  have h15 := cpsTripleWithin_frameL
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 cursorOff)) **
+      (.x5 ↦ᵣ ((srcBytes[cursorOff]'hi).zeroExtend 64)) ** bytesRegion srcBase srcBytes) (by pcFree)
+    (wd_decode_li base 15 .x6 (192 : Word) t1v (by decide)
+      (by rw [withdrawal_decode_prog_length]; norm_num) (by decide))
+  rw [show base + BitVec.ofNat 64 (4 * 15) = base + 60 from by bv_omega,
+      show base + 60 + 4 = base + 64 from by bv_omega] at h15
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h14 h15)
+
 end EvmAsm.Rv64.RLP
