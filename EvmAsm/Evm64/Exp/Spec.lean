@@ -422,6 +422,49 @@ theorem evm_exp_headroom_clean_visible_stack_spec_within
       exact hp)
     h
 
+/-- Headroom full-loop EXP surface with the final post folded into stack-shaped
+    assertions: the result scratch is `evmWordIs sp result`, and the consumed
+    base cell plus live result tail are `evmStackIs evmSp (base :: result :: rest)`.
+    The headroom/leftover frame remains explicit pending the public wrapper. -/
+theorem evm_exp_headroom_clean_stack_visible_stack_spec_within
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      h0 h1 h2 h3 h4 h5 h6 h7 base : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 72 + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (EvmAsm.Evm64.Exp.Compose.evm_exp_headroom_canonical_appended_mul_code base)
+      (((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       (.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ h7) **
+       (.x18 ↦ᵣ v18) ** (.x1 ↦ᵣ vOld) **
+       regOwn .x10 ** regOwn .x7 ** regOwn .x11 **
+       evmWordIs (evmSp + signExtend12 ((-64) : BitVec 12)) dWord **
+       evmWordIs (evmSp + signExtend12 ((-32) : BitVec 12)) eWord **
+       evmStackIs evmSp (baseWord :: exponentWord :: rest)))
+      (EvmAsm.Evm64.Exp.Compose.expHeadroomFinalCleanStackVisiblePost
+        sp evmSp baseWord exponentWord rest) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp =>
+      EvmAsm.Evm64.Exp.Compose.expHeadroomFinalCleanVisiblePost_to_cleanStackVisiblePost hp)
+    (evm_exp_headroom_clean_visible_stack_spec_within
+      sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      h0 h1 h2 h3 h4 h5 h6 h7 base
+      baseWord exponentWord dWord eWord rest lookahead vOld v18 hbase)
+
 -- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
 
 end EvmAsm.Evm64

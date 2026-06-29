@@ -769,6 +769,79 @@ instance pcFreeInst_expHeadroomFinalCleanVisiblePost
       (expHeadroomFinalCleanVisiblePost sp evmSp baseWord exponentWord rest) :=
   ⟨expHeadroomFinalCleanVisiblePost_pcFree⟩
 
+@[irreducible]
+def expHeadroomFinalCleanStackVisiblePost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) : Assertion :=
+  fun ps => ∃ (scratchWord : EvmWord),
+    (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+      ((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmStackIs evmSp (baseWord :: EvmWord.exp baseWord exponentWord :: rest)) **
+      expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+        (EvmWord.exp baseWord exponentWord)) ps
+
+theorem expHeadroomFinalCleanStackVisiblePost_unfold
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    expHeadroomFinalCleanStackVisiblePost sp evmSp baseWord exponentWord rest =
+      (fun ps => ∃ (scratchWord : EvmWord),
+        (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+          ((.x2 ↦ᵣ sp) **
+           (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+           (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+           evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+           evmStackIs evmSp (baseWord :: EvmWord.exp baseWord exponentWord :: rest)) **
+          expHeadroomFinalLoopExtraFrame evmSp baseWord exponentWord scratchWord
+            (EvmWord.exp baseWord exponentWord)) ps) := by
+  delta expHeadroomFinalCleanStackVisiblePost
+  rfl
+
+theorem expHeadroomFinalCleanStackVisiblePost_pcFree
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord} :
+    (expHeadroomFinalCleanStackVisiblePost sp evmSp baseWord exponentWord rest).pcFree := by
+  intro ps h_post
+  rw [expHeadroomFinalCleanStackVisiblePost_unfold] at h_post
+  obtain ⟨scratchWord, h_post⟩ := h_post
+  have hControl : (((.x9 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))).pcFree) := by
+    pcFree
+  have hVisible :
+      (((.x2 ↦ᵣ sp) **
+       (.x12 ↦ᵣ (evmSp + signExtend12 (32 : BitVec 12))) **
+       (.x5 ↦ᵣ ((EvmWord.exp baseWord exponentWord).getLimbN 3)) **
+       evmWordIs sp (EvmWord.exp baseWord exponentWord) **
+       evmStackIs evmSp (baseWord :: EvmWord.exp baseWord exponentWord :: rest)).pcFree) := by
+    pcFree
+  exact (pcFree_sepConj hControl
+    (pcFree_sepConj hVisible expHeadroomFinalLoopExtraFrame_pcFree)) ps h_post
+
+instance pcFreeInst_expHeadroomFinalCleanStackVisiblePost
+    (sp evmSp : Word) (baseWord exponentWord : EvmWord) (rest : List EvmWord) :
+    Assertion.PCFree
+      (expHeadroomFinalCleanStackVisiblePost sp evmSp baseWord exponentWord rest) :=
+  ⟨expHeadroomFinalCleanStackVisiblePost_pcFree⟩
+
+/-- Fold the clean visible post's raw result limbs and consumed-base cell into
+    stack-shaped assertions. The leftover headroom/scratch frame remains
+    explicit because it is still part of the current verified surface. -/
+theorem expHeadroomFinalCleanVisiblePost_to_cleanStackVisiblePost
+    {sp evmSp : Word} {baseWord exponentWord : EvmWord} {rest : List EvmWord}
+    {ps : PartialState}
+    (h : expHeadroomFinalCleanVisiblePost sp evmSp baseWord exponentWord rest ps) :
+    expHeadroomFinalCleanStackVisiblePost sp evmSp baseWord exponentWord rest ps := by
+  rw [expHeadroomFinalCleanVisiblePost_unfold] at h
+  obtain ⟨scratchWord, h⟩ := h
+  rw [expHeadroomFinalCleanStackVisiblePost_unfold]
+  refine ⟨scratchWord, ?_⟩
+  simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24] at h
+  rw [show (sp + 0 : Word) = sp from by bv_omega] at h
+  rw [evmWordIs_sp_limbs_eq_right sp (EvmWord.exp baseWord exponentWord)
+    _ _ _ _ (evmWordIs evmSp baseWord **
+      evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest))
+    rfl rfl rfl rfl] at h
+  rw [evmStackIs_cons]
+  xperm_hyp h
+
 
 /-- Remove the loop-exit pure condition from the visible post, exposing the final
     loop counter register as the concrete zero word. -/
@@ -895,6 +968,51 @@ theorem exp_headroom_entry_to_final_clean_visible_post
     (fun _ hp => hp)
     (fun _ hp => expHeadroomFinalVisiblePost_to_cleanVisiblePost hp)
     (exp_headroom_entry_to_final_visible_post
+      sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 base
+      dWord eWord rest lookahead vOld v18 hbase)
+
+/-- Entry prefix plus fixed full loop and final epilogue, with result scratch
+    limbs and the consumed-base/result-tail cells folded into stack-shaped
+    assertions. -/
+theorem exp_headroom_entry_to_final_clean_stack_visible_post
+    (sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 base : Word)
+    (dWord eWord : EvmWord) (rest : List EvmWord)
+    (lookahead vOld v18 : Word)
+    (hbase : (base + 72 + 44 : Word) &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (evm_exp_headroom_canonical_appended_mul_code base)
+      ((((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       (.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 (0 : BitVec 12)) ↦ₘ b0) **
+       ((evmSp + signExtend12 (8 : BitVec 12)) ↦ₘ b1) **
+       ((evmSp + signExtend12 (16 : BitVec 12)) ↦ₘ b2) **
+       ((evmSp + signExtend12 (24 : BitVec 12)) ↦ₘ b3) **
+       ((evmSp + signExtend12 (32 : BitVec 12)) ↦ₘ e0) **
+       ((evmSp + signExtend12 (40 : BitVec 12)) ↦ₘ e1) **
+       ((evmSp + signExtend12 (48 : BitVec 12)) ↦ₘ e2) **
+       ((evmSp + signExtend12 (56 : BitVec 12)) ↦ₘ e3) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ h7)) **
+       expHeadroomLoopEntryBridgeFrame evmSp v18 vOld dWord eWord rest))
+      (expHeadroomFinalCleanStackVisiblePost sp evmSp
+        (expResultWord b0 b1 b2 b3) (expResultWord e0 e1 e2 e3) rest) := by
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun _ hp => expHeadroomFinalCleanVisiblePost_to_cleanStackVisiblePost hp)
+    (exp_headroom_entry_to_final_clean_visible_post
       sp evmSp cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
       b0 b1 b2 b3 e0 e1 e2 e3 h0 h1 h2 h3 h4 h5 h6 h7 base
       dWord eWord rest lookahead vOld v18 hbase)
