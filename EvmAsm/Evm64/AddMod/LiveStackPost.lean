@@ -447,6 +447,84 @@ theorem evm_addmod_partial_domain_named_regs_owned_live_stack_spec_within
       nMem shiftMem jMem retMem dMem dloMem scratchUn0
       hcallable hbase hdisjoint hDomain)
 
+/-- Hidden register/scratch witness for the current partial ADDMOD surface. -/
+structure EvmAddModPartialPreWitness where
+  v1 : Word
+  v2 : Word
+  v5 : Word
+  v6 : Word
+  v7 : Word
+  v10 : Word
+  v11 : Word
+  q0 : Word
+  q1 : Word
+  q2 : Word
+  q3 : Word
+  u0 : Word
+  u1 : Word
+  u2 : Word
+  u3 : Word
+  u4 : Word
+  u5 : Word
+  u6 : Word
+  u7 : Word
+  nMem : Word
+  shiftMem : Word
+  jMem : Word
+  retMem : Word
+  dMem : Word
+  dloMem : Word
+  scratchUn0 : Word
+
+@[irreducible]
+def evmAddModPartialExistentialPre
+    (sp base callable_base : Word) (a b N : EvmWord) : Assertion :=
+  fun ps => ∃ w : EvmAddModPartialPreWitness,
+    evmAddModPartialDomain sp base callable_base a b N w.v2 w.v10
+      w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+      w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ∧
+    evmAddModPartialStackPre sp a b N w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+      w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+      w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps
+
+theorem evmAddModPartialExistentialPre_unfold
+    (sp base callable_base : Word) (a b N : EvmWord) :
+    evmAddModPartialExistentialPre sp base callable_base a b N =
+      (fun ps => ∃ w : EvmAddModPartialPreWitness,
+        evmAddModPartialDomain sp base callable_base a b N w.v2 w.v10
+          w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+          w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ∧
+        evmAddModPartialStackPre sp a b N w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11
+          w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+          w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0 ps) := by
+  delta evmAddModPartialExistentialPre
+  rfl
+
+/-- Current best partial ADDMOD theorem with implementation register/scratch
+    witnesses hidden in the precondition. The precondition still carries the
+    honest zero-or-no-overflow domain restriction. -/
+theorem evm_addmod_partial_domain_existential_regs_owned_live_stack_spec_within
+    (sp base callable_base : Word) (a b N : EvmWord) (modOff : BitVec 21)
+    (hcallable : callable_base = (base + 124) + signExtend21 modOff)
+    (hbase : base &&& 1 = 0)
+    (hdisjoint : (evm_addmod_program_code base modOff).Disjoint
+                   (evm_mod_callable_code_v1 callable_base)) :
+    cpsTripleWithin ((31 + 1) + (unifiedDivBound + 1))
+      base (base + 128)
+      ((evm_addmod_program_code base modOff).union (evm_mod_callable_code_v1 callable_base))
+      (evmAddModPartialExistentialPre sp base callable_base a b N)
+      (evmAddModPartialRegsOwnedLiveStackPost sp a b N) := by
+  rw [evmAddModPartialExistentialPre_unfold]
+  intro R hR s hcr hpre hpc
+  obtain ⟨hh, hcompat, h1, h2, hdisj, hunion, hpreExists, hR2⟩ := hpre
+  obtain ⟨w, hDomain, hStackPre⟩ := hpreExists
+  exact evm_addmod_partial_domain_named_regs_owned_live_stack_spec_within
+    sp base callable_base a b N w.v1 w.v2 w.v5 w.v6 w.v7 w.v10 w.v11 modOff
+    w.q0 w.q1 w.q2 w.q3 w.u0 w.u1 w.u2 w.u3 w.u4 w.u5 w.u6 w.u7
+    w.nMem w.shiftMem w.jMem w.retMem w.dMem w.dloMem w.scratchUn0
+    hcallable hbase hdisjoint hDomain R hR s hcr
+    ⟨hh, hcompat, h1, h2, hdisj, hunion, hStackPre, hR2⟩ hpc
+
 /-- Zero-modulus ADDMOD theorem with the current best live-stack post shape.
 
     This specializes the partial-domain theorem to the complete `N = 0` branch,
