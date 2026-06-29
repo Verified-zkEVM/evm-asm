@@ -10317,4 +10317,33 @@ theorem wd_decode_failEmpty
         xperm_hyp hp)
       hcall hreject)
 
+/-- **Call block: `rlp_walk_init`, not-a-list arm.** Uses the `prefix < 0xc0` leaf
+    (`rlp_walk_init_notlist_spec_within`, 7 steps): a non-list RLP item → status `a2 = 1`. The
+    reusable walk_init call for the not-a-list fail path. -/
+theorem wd_call_walk_init_notlist
+    (callerPC calleeEntry listBase listLen a2Old t0Old t1Old vOld : Word)
+    (listBytes : List (BitVec 8)) (listOff : Nat) (offset : BitVec 21)
+    (hoffset : callerPC + signExtend21 offset = calleeEntry)
+    (halign : (callerPC + 4) &&& ~~~1 = callerPC + 4)
+    (hdisj : (CodeReq.singleton callerPC (.JAL .x1 offset)).Disjoint
+      (rlp_walk_init_code calleeEntry))
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (hlen : listLen ≠ (0 : Word))
+    (h_notlist : BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xc0 : Word) = true) :
+    cpsTripleWithin (1 + 7) callerPC (callerPC + 4)
+      ((CodeReq.singleton callerPC (.JAL .x1 offset)).union (rlp_walk_init_code calleeEntry))
+      ((.x1 ↦ᵣ vOld) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) ** (.x12 ↦ᵣ a2Old) **
+         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase listBytes))
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
+        (.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) ** (.x12 ↦ᵣ (1 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (callerPC + 4)) **
+        bytesRegion listBase listBytes) := by
+  have hcallee := rlp_walk_init_notlist_spec_within calleeEntry listBase (callerPC + 4) listLen
+    a2Old t0Old t1Old listBytes listOff hsalign hoff hover hvalid hlen h_notlist
+  exact cpsCallWithin offset hoffset halign (by pcFree) hdisj
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) hcallee)
+
 end EvmAsm.Rv64.RLP
