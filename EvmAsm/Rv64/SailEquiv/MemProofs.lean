@@ -27,18 +27,10 @@ namespace EvmAsm.Rv64.SailEquiv
 -- Doubleword loads/stores (LD/SD)
 -- ============================================================================
 
-theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
-    (rd rs1 : Reg) (offset : BitVec 12)
-    (h_exec : ∃ sSail',
-      execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8 sSail =
-        .ok RETIRE_SUCCESS sSail' ∧
-      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail') :
-    ∃ sSail',
-      runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8) sSail
-        = some (RETIRE_SUCCESS, sSail') ∧
-      StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail' := by
-  obtain ⟨s', h_ok, hrel'⟩ := h_exec
-  exact ⟨s', by simp [runSail, h_ok], hrel'⟩
+-- `ld_sail_equiv` (doubleword load) is now DISCHARGED unconditionally as
+-- `EvmAsm.Rv64.SailEquiv.ld_sail_equiv` in `VmemReduction.lean` — it takes a real
+-- `StateRel` + `BareModeInv` + per-access bundle instead of the vacuous `h_exec`
+-- hypothesis the other (still-deferred) memory lemmas below carry.
 
 theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
     (rs1 rs2 : Reg) (offset : BitVec 12)
