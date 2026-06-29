@@ -121,6 +121,12 @@ abbrev evm_addmod_pow256_minus_one_first_call_code (base : Word) (modOff : BitVe
   CodeReq.union (evm_addmod_pow256_minus_one_shift_code base)
     (CodeReq.singleton (base + 56) (.JAL .x1 modOff))
 
+abbrev evm_addmod_pow256_minus_one_call_restore_code
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) : CodeReq :=
+  (evm_addmod_pow256_minus_one_first_call_code base modOff).union
+    (callableCode.union
+      (CodeReq.singleton ((base + 56) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12))))
+
 /-- Prepare `(-1 mod N)` callable-MOD arguments, point `x12` at the callable window,
     and jump to the MOD body. -/
 theorem evm_addmod_pow256_minus_one_first_call_spec_within
@@ -236,9 +242,7 @@ theorem evm_addmod_pow256_minus_one_call_restore_spec_within
        (.x1 ↦ᵣ ((base + 56) + 4)))
       ((.x12 ↦ᵣ (sp + signExtend12 (96 : BitVec 12))) ** F)) :
     cpsTripleWithin (15 + (nSteps + 1)) base (((base + 56) + 4) + 4)
-      ((evm_addmod_pow256_minus_one_first_call_code base modOff).union
-        (callableCode.union
-          (CodeReq.singleton ((base + 56) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12)))))
+      (evm_addmod_pow256_minus_one_call_restore_code base modOff callableCode)
       ((evmAddModPow256PrepareMinusOnePre sp
           x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3) **
        (.x1 ↦ᵣ x1Old))
@@ -445,6 +449,12 @@ abbrev evm_addmod_pow256_plus_one_first_call_code (base : Word) (modOff : BitVec
   CodeReq.union (evm_addmod_pow256_plus_one_shift_code base)
     (CodeReq.singleton (base + 100) (.JAL .x1 modOff))
 
+abbrev evm_addmod_pow256_plus_one_call_restore_code
+    (base : Word) (modOff : BitVec 21) (callableCode : CodeReq) : CodeReq :=
+  (evm_addmod_pow256_plus_one_first_call_code base modOff).union
+    (callableCode.union
+      (CodeReq.singleton ((base + 100) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12))))
+
 /-- Prepare `(((-1 mod N) + 1) mod N)` callable-MOD arguments, point `x12` at
     the callable window, and jump to the MOD body. -/
 theorem evm_addmod_pow256_plus_one_first_call_spec_within
@@ -562,9 +572,7 @@ theorem evm_addmod_pow256_plus_one_call_restore_spec_within
          (.x1 ↦ᵣ ((base + 100) + 4)))
         ((.x12 ↦ᵣ (sp + signExtend12 (96 : BitVec 12))) ** F)) :
     cpsTripleWithin (26 + (nSteps + 1)) base (((base + 100) + 4) + 4)
-      ((evm_addmod_pow256_plus_one_first_call_code base modOff).union
-        (callableCode.union
-          (CodeReq.singleton ((base + 100) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12)))))
+      (evm_addmod_pow256_plus_one_call_restore_code base modOff callableCode)
       (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
         ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
         ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
@@ -585,5 +593,113 @@ theorem evm_addmod_pow256_plus_one_call_restore_spec_within
   have R := evm_addmod_pow256_callable_then_restore_frame_spec_within
     hF sp ((base + 100) + signExtend21 modOff) ((base + 100) + 4) hdRestore hCallable
   exact cpsTripleWithin_seq hdEntry E R
+
+abbrev evmAddModPow256PlusOneCallPreFrame (sp x1Old : Word)
+    (x5Old x6Old x7Old r0 r1 r2 r3 n0 n1 n2 n3 w0 w1 w2 w3 : Word) : Assertion :=
+  ((.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+   ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+   ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+   ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+   ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+   ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ w0) **
+   ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ w1) **
+   ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ w2) **
+   ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ w3) **
+   ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ r0) **
+   ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ r1) **
+   ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ r2) **
+   ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ r3)) **
+  (.x1 ↦ᵣ x1Old)
+
+abbrev evm_addmod_pow256_two_call_restore_code
+    (base : Word) (modOff : BitVec 21) (callableCode1 callableCode2 : CodeReq) : CodeReq :=
+  (evm_addmod_pow256_minus_one_call_restore_code base modOff callableCode1).union
+    (evm_addmod_pow256_plus_one_call_restore_code (base + 64) modOff callableCode2)
+
+/-- Compose both pow256 callable-MOD calls and their frame-pointer restore steps.
+    The concrete MOD bodies remain abstract hypotheses. -/
+theorem evm_addmod_pow256_two_call_restore_spec_within
+    {nSteps1 nSteps2 : Nat} {callableCode1 callableCode2 : CodeReq} {F : Assertion}
+    (hF : F.pcFree)
+    (sp base x1Old x1Mid x5Old x5Mid x6Mid x7Mid : Word)
+    (n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3 r0 r1 r2 r3 : Word)
+    (modOff : BitVec 21)
+    (hdFirstEntry : (evm_addmod_pow256_minus_one_first_call_code base modOff).Disjoint
+      (callableCode1.union
+        (CodeReq.singleton ((base + 56) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12)))))
+    (hdFirstRestore : callableCode1.Disjoint
+      (CodeReq.singleton ((base + 56) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12))))
+    (hdSecondEntry : (evm_addmod_pow256_plus_one_first_call_code (base + 64) modOff).Disjoint
+      (callableCode2.union
+        (CodeReq.singleton (((base + 64) + 100) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12)))))
+    (hdSecondRestore : callableCode2.Disjoint
+      (CodeReq.singleton (((base + 64) + 100) + 4) (.ADDI .x12 .x12 (4000 : BitVec 12))))
+    (hdSeq : (evm_addmod_pow256_minus_one_call_restore_code base modOff callableCode1).Disjoint
+      (evm_addmod_pow256_plus_one_call_restore_code (base + 64) modOff callableCode2))
+    (hCallable1 : cpsTripleWithin nSteps1 ((base + 56) + signExtend21 modOff) ((base + 56) + 4)
+      callableCode1
+      (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ n3) **
+        ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ signExtend12 (4095 : BitVec 12)) **
+        ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+        ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+        ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+        ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) **
+       (.x1 ↦ᵣ ((base + 56) + 4)))
+      ((.x12 ↦ᵣ (sp + signExtend12 (96 : BitVec 12))) **
+       evmAddModPow256PlusOneCallPreFrame sp x1Mid
+        x5Mid x6Mid x7Mid r0 r1 r2 r3 n0 n1 n2 n3 w0 w1 w2 w3))
+    (hCallable2 :
+      let sum0 := r0 + signExtend12 (1 : BitVec 12)
+      let carry0 := if BitVec.ult sum0 (signExtend12 (1 : BitVec 12)) then (1 : Word) else 0
+      let sum1 := r1 + carry0
+      let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
+      let sum2 := r2 + carry1
+      let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
+      let sum3 := r3 + carry2
+      let carry3 := if BitVec.ult sum3 carry2 then (1 : Word) else 0
+      cpsTripleWithin nSteps2 (((base + 64) + 100) + signExtend21 modOff) (((base + 64) + 100) + 4)
+        callableCode2
+        (((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) ** (.x5 ↦ᵣ n3) **
+          (.x6 ↦ᵣ sum3) ** (.x7 ↦ᵣ carry3) **
+          ((sp + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+          ((sp + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+          ((sp + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+          ((sp + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+          ((sp + signExtend12 (64 : BitVec 12)) ↦ₘ sum0) **
+          ((sp + signExtend12 (72 : BitVec 12)) ↦ₘ sum1) **
+          ((sp + signExtend12 (80 : BitVec 12)) ↦ₘ sum2) **
+          ((sp + signExtend12 (88 : BitVec 12)) ↦ₘ sum3) **
+          ((sp + signExtend12 (96 : BitVec 12)) ↦ₘ n0) **
+          ((sp + signExtend12 (104 : BitVec 12)) ↦ₘ n1) **
+          ((sp + signExtend12 (112 : BitVec 12)) ↦ₘ n2) **
+          ((sp + signExtend12 (120 : BitVec 12)) ↦ₘ n3)) **
+         (.x1 ↦ᵣ (((base + 64) + 100) + 4)))
+        ((.x12 ↦ᵣ (sp + signExtend12 (96 : BitVec 12))) ** F)) :
+    cpsTripleWithin ((15 + (nSteps1 + 1)) + (26 + (nSteps2 + 1)))
+      base ((((base + 64) + 100) + 4) + 4)
+      (evm_addmod_pow256_two_call_restore_code base modOff callableCode1 callableCode2)
+      ((evmAddModPow256PrepareMinusOnePre sp
+          x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3) **
+       (.x1 ↦ᵣ x1Old))
+      ((.x12 ↦ᵣ sp) ** F) := by
+  have H1 := evm_addmod_pow256_minus_one_call_restore_spec_within
+    (by pcFree) sp base x1Old x5Old n0 n1 n2 n3 w0 w1 w2 w3 u0 u1 u2 u3
+    modOff hdFirstEntry hdFirstRestore hCallable1
+  have H2 := evm_addmod_pow256_plus_one_call_restore_spec_within
+    hF sp (base + 64) x1Mid x5Mid x6Mid x7Mid r0 r1 r2 r3 n0 n1 n2 n3 w0 w1 w2 w3
+    modOff hdSecondEntry hdSecondRestore hCallable2
+  have h_mid : (base + 56 : Word) + 4 + 4 = base + 64 := by bv_omega
+  rw [h_mid] at H1
+  exact cpsTripleWithin_seq_with_perm hdSeq (fun h hp => by
+    dsimp only [evmAddModPow256PlusOneCallPreFrame] at hp
+    exact (sepConj_assoc h).mpr hp) H1 H2
 
 end EvmAsm.Evm64
