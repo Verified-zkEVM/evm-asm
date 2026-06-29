@@ -398,7 +398,8 @@ open EvmAsm.EL in
     - **fails** (`a0 = 1`) with `decodeWithdrawal srcBytes = none`, leaving the output owned.
 
     In both cases `sp`, `ra`, and `s0`/`s1`/`s2` are restored and the input region is intact;
-    `t0..t6` are clobbered. The well-formedness hypotheses (alignment, in-range byte-access
+    `t0..t6` and `a3..a5` (`x13`/`x14`/`x15`, used by the address copy) are clobbered. The
+    well-formedness hypotheses (alignment, in-range byte-access
     validity, `|srcBytes| < 2^64`) are the standard side-conditions the verified leaves require. -/
 def withdrawal_decode_characterization
     (base srcBase outPtr raVal sp0 s0Old s1Old s2Old : Word) (srcBytes : List Byte) : Prop :=
@@ -411,11 +412,13 @@ def withdrawal_decode_characterization
     -- precondition
     ((.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length) ** (.x12 ↦ᵣ outPtr) **
       (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
-      (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** wd_frameOwned sp0 **
+      (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+      wd_frameOwned sp0 **
       bytesRegion srcBase srcBytes ** bytesRegion outPtr (List.replicate 48 (0 : Byte)))
     -- postcondition: shared frame + (success ∨ failure), anchored on `decodeWithdrawal`
     (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
-      (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** wd_frameOwned sp0 **
+      (.x0 ↦ᵣ (0 : Word)) ** wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+      wd_frameOwned sp0 **
       bytesRegion srcBase srcBytes) **
      (fun h =>
        (∃ w d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w d2 **
