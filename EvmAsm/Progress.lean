@@ -162,8 +162,8 @@ def registry : List OpcodeEntry := [
        "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
        "sp-160..sp-8) so the live EVM stack is preserved")
       (cycleBound := some 34295),
-  entry "EXP" .partly (some "evm_exp_headroom_clean_live_stack_spec_within")
-      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a Spec-level clean live-stack theorem over the ordinary two-operand stack prefix with the final stack rooted at evmSp+32; consumed-base and headroom/leftover frame cleanup is still pending before the public evm_exp_stack_spec_within wrapper",
+  entry "EXP" .partly (some "evm_exp_headroom_named_live_stack_spec_within")
+      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a Spec-level named-pre/named-post live-stack theorem over the ordinary two-operand stack prefix with the final stack rooted at evmSp+32; consumed-base and headroom/leftover frame cleanup is still pending before the public evm_exp_stack_spec_within wrapper",
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
   -- Comparison and bitwise (0x10..0x1d)
@@ -347,7 +347,7 @@ private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.evm_smod_stack_spec_within
 private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_domain_named_stack_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
-private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_clean_live_stack_spec_within
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_named_live_stack_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within
