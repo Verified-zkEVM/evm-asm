@@ -1221,6 +1221,35 @@ theorem evm_addmod_pow256_prepare_minus_one_mod_args_tail_full_spec_within
     sp (base + 44) n3 u3
   runBlock S0 S1 S2 S3 L0 C0 L1 C1 L2 C2 L3 C3
 
+abbrev evm_addmod_pow256_call_mod_code (base : Word) (modOff : BitVec 21) : CodeReq :=
+  CodeReq.ofProg base (evm_addmod_pow256_call_mod modOff)
+
+abbrev evm_addmod_pow256_call_mod_enter_code (base : Word) (modOff : BitVec 21) : CodeReq :=
+  CodeReq.union (CodeReq.singleton base (.ADDI .x12 .x12 (64 : BitVec 12)))
+    (CodeReq.singleton (base + 4) (.JAL .x1 modOff))
+
+/-- Enter the callable-MOD work window for the pow256 helper and jump to MOD. -/
+theorem evm_addmod_pow256_call_mod_enter_spec_within
+    (sp x1Old base : Word) (modOff : BitVec 21) :
+    cpsTripleWithin 2 base ((base + 4) + signExtend21 modOff)
+      (evm_addmod_pow256_call_mod_enter_code base modOff)
+      ((.x12 ↦ᵣ sp) ** (.x1 ↦ᵣ x1Old))
+      ((.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) ** (.x1 ↦ᵣ ((base + 4) + 4))) := by
+  have A := addi_spec_gen_same_within .x12 sp 64 base (by nofun)
+  have J := jal_spec_within .x1 x1Old modOff (base + 4) (by nofun)
+  have Jf := cpsTripleWithin_frameL
+    (.x12 ↦ᵣ (sp + signExtend12 (64 : BitVec 12))) (by pcFree) J
+  runBlock A Jf
+
+/-- Restore the ADDMOD frame pointer after a callable-MOD return. -/
+theorem evm_addmod_pow256_call_mod_restore_spec_within
+    (sp base : Word) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.ADDI .x12 .x12 (4000 : BitVec 12)))
+      (.x12 ↦ᵣ sp)
+      (.x12 ↦ᵣ (sp + signExtend12 (4000 : BitVec 12))) := by
+  exact addi_spec_gen_same_within .x12 sp 4000 base (by nofun)
+
 /-- Compose the full helper that prepares the first callable MOD arguments for
     the ADDMOD overflow path. -/
 theorem evm_addmod_pow256_prepare_minus_one_mod_args_spec_within
