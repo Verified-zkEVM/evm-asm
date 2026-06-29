@@ -714,6 +714,210 @@ theorem walkInitEmptyFailNotListFailOrListNBranch_pre
         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
   rfl
 
+/-- Branch certificate for the prefix list-check with the not-list arm already
+    serviced by the reason-erased failure endpoint. -/
+def walkInitPrefixListCheckOrNotListFailBranch
+    (base listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) :
+    WP.Branch (base + 16) (walkInitPrefixListCheckOrNotListFailCode base) := by
+  let br := walkInitPrefixListCheckBranch base listBase listLen raVal listBytes listOff hoff
+  have hfail := walkInitPrefixNotListFailStatus_spec_within base listBase listLen raVal
+    listBytes listOff hoff
+  unfold walkInitPrefixListCheckOrNotListFailCode walkInitPrefixNotListFailStatusCode
+  wp_rv64_branch_taken_block_disjoint
+    (walkInitPrefixListCheckCode_disjoint_notListFailStatus base), br, hfail
+
+/-- The list-shaped fall-through loads the next classifier threshold `0xf8`. -/
+def walkInitListF8Code (base : Word) : CodeReq :=
+  CodeReq.singleton (base + 20) (.LI .x6 (0xf8 : Word))
+
+def walkInitPrefixListCheckNotListFailF8Code (base : Word) : CodeReq :=
+  (walkInitPrefixListCheckOrNotListFailCode base).union (walkInitListF8Code base)
+
+def walkInitShortLongCheckCode (base : Word) : CodeReq :=
+  CodeReq.singleton (base + 24) (.BLTU .x5 .x6 (100 : BitVec 13))
+
+def walkInitPrefixShortLongTailCode (base : Word) : CodeReq :=
+  (walkInitPrefixListCheckNotListFailF8Code base).union (walkInitShortLongCheckCode base)
+
+def walkInitEmptyFailNotListFailShortLongCode (base : Word) : CodeReq :=
+  (walkInitEmptyFailOrPrefixCode base).union (walkInitPrefixShortLongTailCode base)
+
+/-- State after the list-shaped fall-through has prepared the `0xf8` short/long
+    list threshold. -/
+def walkInitPrefixF8Post
+    (listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  ((.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+    (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) **
+    (.x5 ↦ᵣ walkInitPrefixWord listBytes listOff hoff) ** (.x6 ↦ᵣ (0xf8 : Word)) **
+    (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion listBase listBytes **
+    ⌜listLen ≠ (0 : Word)⌝ **
+    ⌜¬ BitVec.ult (walkInitPrefixWord listBytes listOff hoff) (0xc0 : Word)⌝)
+
+def walkInitShortListCandidatePost
+    (listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  walkInitPrefixF8Post listBase listLen raVal listBytes listOff hoff **
+    ⌜BitVec.ult (walkInitPrefixWord listBytes listOff hoff) (0xf8 : Word)⌝
+
+def walkInitLongListCandidatePost
+    (listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  walkInitPrefixF8Post listBase listLen raVal listBytes listOff hoff **
+    ⌜¬ BitVec.ult (walkInitPrefixWord listBytes listOff hoff) (0xf8 : Word)⌝
+
+theorem walkInitPrefixSetF8_spec_within
+    (base listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) :
+    cpsTripleWithin 1 (base + 20) (base + 24) (walkInitListF8Code base)
+      (walkInitPrefixListPost listBase listLen raVal listBytes listOff hoff)
+      (walkInitPrefixF8Post listBase listLen raVal listBytes listOff hoff) := by
+  unfold walkInitListF8Code walkInitPrefixListPost walkInitPrefixLoadedPost
+    walkInitPrefixF8Post walkInitPrefixWord
+  let pfx : Word := (listBytes[listOff]'hoff).zeroExtend 64
+  have hli := li_spec_gen_within .x6 (0xc0 : Word) (0xf8 : Word) (base + 20) (by decide)
+  have hframed := cpsTripleWithin_frameR
+    (((.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+      (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x5 ↦ᵣ pfx) **
+      (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** bytesRegion listBase listBytes **
+      ⌜listLen ≠ (0 : Word)⌝ ** ⌜¬ BitVec.ult pfx (0xc0 : Word)⌝))
+    (by pcFree) hli
+  rw [show (base + 20 : Word) + 4 = base + 24 from by bv_omega] at hframed
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hp => by xperm_hyp hp) hframed
+
+theorem walkInitShortLongCheck_spec_within
+    (base listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) :
+    cpsBranchWithin 1 (base + 24) (walkInitShortLongCheckCode base)
+      (walkInitPrefixF8Post listBase listLen raVal listBytes listOff hoff)
+      (base + 124) (walkInitShortListCandidatePost listBase listLen raVal listBytes listOff hoff)
+      (base + 28) (walkInitLongListCandidatePost listBase listLen raVal listBytes listOff hoff) := by
+  unfold walkInitShortLongCheckCode walkInitPrefixF8Post walkInitShortListCandidatePost
+    walkInitLongListCandidatePost walkInitPrefixWord
+  let pfx : Word := (listBytes[listOff]'hoff).zeroExtend 64
+  have hbr := bltu_spec_gen_within .x5 .x6 (100 : BitVec 13) pfx (0xf8 : Word) (base + 24)
+  rw [show (base + 24) + signExtend13 (100 : BitVec 13) = base + 124 from by
+        rw [show signExtend13 (100 : BitVec 13) = (100 : Word) from by decide]
+        bv_omega,
+      show (base + 24 : Word) + 4 = base + 28 from by bv_omega] at hbr
+  have hframed := cpsBranchWithin_frameR
+    (((.x11 ↦ᵣ ((listBase + BitVec.ofNat 64 listOff) + listLen)) **
+      (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x1 ↦ᵣ raVal) ** bytesRegion listBase listBytes ** ⌜listLen ≠ (0 : Word)⌝ **
+      ⌜¬ BitVec.ult pfx (0xc0 : Word)⌝))
+    (by pcFree) hbr
+  exact cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hp => by unfold walkInitPrefixF8Post walkInitPrefixWord; xperm_hyp hp)
+    (fun h hp => by unfold walkInitPrefixF8Post walkInitPrefixWord; xperm_hyp hp) hframed
+
+def walkInitShortLongCheckBranch
+    (base listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) :
+    WP.Branch (base + 24) (walkInitShortLongCheckCode base) :=
+  WP.Branch.ofSpec
+    (walkInitShortLongCheck_spec_within base listBase listLen raVal listBytes listOff hoff)
+
+theorem walkInitPrefixListCheckOrNotListFailCode_disjoint_listF8 (base : Word) :
+    (walkInitPrefixListCheckOrNotListFailCode base).Disjoint (walkInitListF8Code base) := by
+  unfold walkInitPrefixListCheckOrNotListFailCode walkInitPrefixListCheckCode
+    walkInitPrefixNotListFailStatusCode failStatusReturnCode statusReturnCode walkInitListF8Code
+  refine CodeReq.Disjoint.union_left (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+  refine CodeReq.Disjoint.union_left
+    (CodeReq.Disjoint.singleton (by bv_omega))
+    (CodeReq.Disjoint.singleton (by bv_omega))
+
+theorem walkInitPrefixListCheckNotListFailF8Code_disjoint_shortLong (base : Word) :
+    (walkInitPrefixListCheckNotListFailF8Code base).Disjoint (walkInitShortLongCheckCode base) := by
+  unfold walkInitPrefixListCheckNotListFailF8Code walkInitPrefixListCheckOrNotListFailCode
+    walkInitPrefixListCheckCode walkInitPrefixNotListFailStatusCode failStatusReturnCode
+    statusReturnCode walkInitListF8Code walkInitShortLongCheckCode
+  refine CodeReq.Disjoint.union_left ?_ (CodeReq.Disjoint.singleton (by bv_omega))
+  refine CodeReq.Disjoint.union_left (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+  refine CodeReq.Disjoint.union_left
+    (CodeReq.Disjoint.singleton (by bv_omega))
+    (CodeReq.Disjoint.singleton (by bv_omega))
+
+theorem walkInitEmptyFailOrPrefixCode_disjoint_listF8 (base : Word) :
+    (walkInitEmptyFailOrPrefixCode base).Disjoint (walkInitListF8Code base) := by
+  unfold walkInitEmptyFailOrPrefixCode walkInitEmptyFailStatusCode failStatusReturnCode
+    statusReturnCode walkInitNonzeroPrefixTailCode walkInitListF8Code
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · refine CodeReq.Disjoint.union_left (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+    refine CodeReq.Disjoint.union_left
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+  · refine CodeReq.Disjoint.union_left (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+    refine CodeReq.Disjoint.union_left
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+
+theorem walkInitEmptyFailOrPrefixCode_disjoint_shortLong (base : Word) :
+    (walkInitEmptyFailOrPrefixCode base).Disjoint (walkInitShortLongCheckCode base) := by
+  unfold walkInitEmptyFailOrPrefixCode walkInitEmptyFailStatusCode failStatusReturnCode
+    statusReturnCode walkInitNonzeroPrefixTailCode walkInitShortLongCheckCode
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · refine CodeReq.Disjoint.union_left (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+    refine CodeReq.Disjoint.union_left
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+  · refine CodeReq.Disjoint.union_left (CodeReq.Disjoint.singleton (by bv_omega)) ?_
+    refine CodeReq.Disjoint.union_left
+      (CodeReq.Disjoint.singleton (by bv_omega))
+      (CodeReq.Disjoint.singleton (by bv_omega))
+
+theorem walkInitEmptyFailOrPrefixCode_disjoint_shortLongTail (base : Word) :
+    (walkInitEmptyFailOrPrefixCode base).Disjoint (walkInitPrefixShortLongTailCode base) := by
+  unfold walkInitPrefixShortLongTailCode walkInitPrefixListCheckNotListFailF8Code
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right
+      (walkInitEmptyFailOrPrefixCode_disjoint_listCheckOrNotListFail base)
+      (walkInitEmptyFailOrPrefixCode_disjoint_listF8 base))
+    (walkInitEmptyFailOrPrefixCode_disjoint_shortLong base)
+
+/-- Multi-exit WP certificate after the first list-prefix classifier has reached
+    the short-list versus long-list split. Exits are empty failure, not-list
+    failure, short-list candidate, and long-list candidate. -/
+def walkInitEmptyFailNotListFailShortLongNBranch
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    WP.NBranch base (walkInitEmptyFailNotListFailShortLongCode base) := by
+  let br := walkInitEmptyFailOrPrefixBranch base listBase listLen raVal t0Old t1Old
+    listBytes listOff hsalign hoff hover hvalid
+  let listBranch := walkInitPrefixListCheckOrNotListFailBranch base listBase listLen raVal
+    listBytes listOff hoff
+  have hf8 := walkInitPrefixSetF8_spec_within base listBase listLen raVal
+    listBytes listOff hoff
+  let f8Branch : WP.Branch (base + 16) (walkInitPrefixListCheckNotListFailF8Code base) := by
+    unfold walkInitPrefixListCheckNotListFailF8Code
+    wp_rv64_branch_not_taken_block_disjoint
+      (walkInitPrefixListCheckOrNotListFailCode_disjoint_listF8 base), listBranch, hf8
+  let shortLong := WP.CFG.nbranchOfBranch
+    (walkInitShortLongCheckBranch base listBase listLen raVal listBytes listOff hoff)
+  let tail : WP.NBranch (base + 16) (walkInitPrefixShortLongTailCode base) := by
+    unfold walkInitPrefixShortLongTailCode
+    wp_rv64_branch_not_taken_nbranch_disjoint
+      (walkInitPrefixListCheckNotListFailF8Code_disjoint_shortLong base), f8Branch, shortLong
+  unfold walkInitEmptyFailNotListFailShortLongCode
+  wp_rv64_branch_not_taken_nbranch_disjoint
+    (walkInitEmptyFailOrPrefixCode_disjoint_shortLongTail base), br, tail
+
+theorem walkInitEmptyFailNotListFailShortLongNBranch_pre
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailNotListFailShortLongNBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid).pre =
+      (walkInitEmptyFailStatusPre listLen raVal (listBase + BitVec.ofNat 64 listOff) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
+  rfl
+
 /-! ## Pure decode bridge -/
 
 /-- The decoded withdrawal value described by four already-decoded field byte strings.
