@@ -132,6 +132,7 @@ import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortListValidated
 import EvmAsm.Rv64.RLP.ContentToU256Be
 import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.WalkInit
+import EvmAsm.Rv64.RLP.WalkInitWP
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.Rv64.RLP.WithdrawalDecode

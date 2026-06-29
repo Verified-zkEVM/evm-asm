@@ -9,6 +9,9 @@
 
 import EvmAsm.Rv64.WP
 import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.MemRegionStore
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.EL.Withdrawal
 
@@ -51,6 +54,78 @@ def schema : List FieldLayout :=
   ]
 
 theorem schema_length : schema.length = 4 := rfl
+
+/-! ## Concrete program blocks -/
+
+/-- The 32-byte stack frame base after the withdrawal decoder prologue. -/
+def prologueFrameBase (sp0 : Word) : Word :=
+  sp0 + signExtend12 (-32 : BitVec 12)
+
+/-- Prologue block: allocate a 32-byte frame, save `ra`/`s0`/`s1`/`s2`,
+    and copy the output-struct pointer from `a2` to `s0`. -/
+def prologue : List Instr :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12)
+  , .SD .x2 .x1 (0 : BitVec 12)
+  , .SD .x2 .x8 (8 : BitVec 12)
+  , .SD .x2 .x9 (16 : BitVec 12)
+  , .SD .x2 .x18 (24 : BitVec 12)
+  , .MV .x8 .x12
+  ]
+
+theorem prologue_length : prologue.length = 6 := rfl
+
+/-- Code requirement for the withdrawal decoder prologue rooted at `base`. -/
+def prologueCode (base : Word) : CodeReq :=
+  CodeReq.ofProg base prologue
+
+/-- Machine precondition for the prologue. The four memory cells are the
+    caller-owned stack slots that become the saved frame. -/
+def prologuePre (sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word) : Assertion :=
+  ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+    (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ outBase) **
+    (prologueFrameBase sp0 ↦ₘ m0) **
+    ((prologueFrameBase sp0 + 8) ↦ₘ m1) **
+    ((prologueFrameBase sp0 + 16) ↦ₘ m2) **
+    ((prologueFrameBase sp0 + 24) ↦ₘ m3))
+
+/-- Machine postcondition for the prologue. `s0` now owns the output pointer,
+    `sp` points at the new frame, and the caller-save values are spilled. -/
+def prologuePost (sp0 raVal s0Old s1Old s2Old outBase : Word) : Assertion :=
+  ((.x2 ↦ᵣ prologueFrameBase sp0) ** (.x1 ↦ᵣ raVal) **
+    (.x8 ↦ᵣ outBase) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ outBase) **
+    (prologueFrameBase sp0 ↦ₘ raVal) **
+    ((prologueFrameBase sp0 + 8) ↦ₘ s0Old) **
+    ((prologueFrameBase sp0 + 16) ↦ₘ s1Old) **
+    ((prologueFrameBase sp0 + 24) ↦ₘ s2Old))
+
+/-- Verified prologue block, packaged in the same CPS contract as the rest of
+    the RV64 instruction specs. -/
+theorem prologue_spec_within
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 6 base (base + 24) (prologueCode base)
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3)
+      (prologuePost sp0 raVal s0Old s1Old s2Old outBase) := by
+  unfold prologuePre prologuePost prologueFrameBase
+  have hadd := addi_spec_gen_same_within .x2 sp0 (-32 : BitVec 12) base (by decide)
+  have hsd0 := sd_spec_gen_within .x2 .x1 (sp0 + signExtend12 (-32 : BitVec 12)) raVal m0
+    (0 : BitVec 12) (base + 4)
+  have hsd1 := sd_spec_gen_within .x2 .x8 (sp0 + signExtend12 (-32 : BitVec 12)) s0Old m1
+    (8 : BitVec 12) (base + 8)
+  have hsd2 := sd_spec_gen_within .x2 .x9 (sp0 + signExtend12 (-32 : BitVec 12)) s1Old m2
+    (16 : BitVec 12) (base + 12)
+  have hsd3 := sd_spec_gen_within .x2 .x18 (sp0 + signExtend12 (-32 : BitVec 12)) s2Old m3
+    (24 : BitVec 12) (base + 16)
+  have hmv := mv_spec_gen_within .x8 .x12 outBase s0Old (base + 20) (by decide)
+  simp only [signExtend12_0] at hsd0
+  runBlock hadd hsd0 hsd1 hsd2 hsd3 hmv
+
+/-- WP certificate for the concrete prologue. Later proof-producing code can
+    compose this certificate directly instead of replaying the instruction proof. -/
+def prologueCert (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word) :
+    WP.CFG.Cert base (base + 24) (prologueCode base)
+      (prologuePost sp0 raVal s0Old s1Old s2Old outBase) :=
+  WP.CFG.block (WP.Entails.refl _)
+    (prologue_spec_within base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3)
 
 /-! ## Pure decode bridge -/
 
