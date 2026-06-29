@@ -6714,6 +6714,92 @@ theorem wd_walkInit_facts (srcBase srcLen : Word) (srcBytes P : List Byte) (h0 :
       show ((0xc0 : Word).toNat) = 192 from by decide, show ((1 : Word).toNat) = 1 from by decide]
     omega
 
+/-- **Success-case field preconditions (reverse bridge bundle).** From `decodeWithdrawal srcBytes =
+    some w`, discharge the four dependent hypotheses the success leaf needs (`hf1`/`hf2`/`hf3`/`h_end`).
+    Each peels the encode payload with `wd_drop_pin` (pinning the runtime next-offset to the
+    encode-derived tail) then applies the matching form lemma. `h_end` closes because the d3-facts now
+    carry `nextOff3 ≤ length`, which with `drop nextOff3 = []` (⟹ `≥ length`) pins `nextOff3 = length`. -/
+theorem wd_decode_success_field_hyps (srcBase srcLen : Word) (srcBytes : List Byte) (w : Withdrawal)
+    (hsvalid : ∀ k, k < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hnowrap : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsrclen : srcLen = BitVec.ofNat 64 srcBytes.length)
+    (hdec : decodeWithdrawal srcBytes = some w) :
+    (∀ (d0 : List Byte) (nextOff0 : Nat),
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0)) ∧
+          nextOff0 ≤ srcBytes.length) →
+      wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff0) ∧
+    (∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat),
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0)) ∧
+          nextOff0 ≤ srcBytes.length) →
+      (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) = some (.bytes d1, srcBytes.drop nextOff1)) ∧
+          nextOff1 ≤ srcBytes.length) →
+      wd_addressFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes nextOff1) ∧
+    (∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat),
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0)) ∧
+          nextOff0 ≤ srcBytes.length) →
+      (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) = some (.bytes d1, srcBytes.drop nextOff1)) ∧
+          nextOff1 ≤ srcBytes.length) →
+      (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+        some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
+      wd_scalarFieldPre srcBase ((srcBase + BitVec.ofNat 64 0) + srcLen) srcBytes (nextOff1 + 21)) ∧
+    (∀ (d0 : List Byte) (nextOff0 : Nat) (d1 : List Byte) (nextOff1 : Nat) (d3 : List Byte) (nextOff3 : Nat),
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop 1) = some (.bytes d0, srcBytes.drop nextOff0)) ∧
+          nextOff0 ≤ srcBytes.length) →
+      (d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff0) = some (.bytes d1, srcBytes.drop nextOff1)) ∧
+          nextOff1 ≤ srcBytes.length) →
+      (∀ m, decodeAux (m + 1) (srcBytes.drop nextOff1) =
+        some (.bytes ((srcBytes.drop (nextOff1 + 1)).take 20), srcBytes.drop (nextOff1 + 21))) →
+      (d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 ∧
+        (∀ m, decodeAux (m + 1) (srcBytes.drop (nextOff1 + 21)) =
+          some (.bytes d3, srcBytes.drop nextOff3)) ∧ nextOff3 ≤ srcBytes.length) →
+      ¬ BitVec.ult (srcBase + BitVec.ofNat 64 nextOff3) ((srcBase + BitVec.ofNat 64 0) + srcLen)) := by
+  obtain ⟨D0, D1, D2, D3, hsrc, hc0, hl0, hc1, hl1, h20, hc3, hl3, _, _, _, _⟩ :=
+    wd_srcBytes_eq_encode srcBytes w hdec
+  obtain ⟨hsrc2, _⟩ := wd_encode4_payload srcBytes D0 D1 D2 D3 hsrc hl0 hl1 h20 hl3
+  have hdrop1 : srcBytes.drop 1 =
+      encodeBytes D0 ++ (encodeBytes D1 ++ (encodeBytes D2 ++ encodeBytes D3)) := by rw [hsrc2]; rfl
+  have big0 : D0.length < 256 ^ 8 := lt_of_le_of_lt hl0 (by norm_num)
+  have big1 : D1.length < 256 ^ 8 := lt_of_le_of_lt hl1 (by norm_num)
+  have big2 : D2.length < 256 ^ 8 := by rw [h20]; norm_num
+  have big3 : D3.length < 256 ^ 8 := lt_of_le_of_lt hl3 (by norm_num)
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rintro d0 nextOff0 ⟨_, _, hdec0, _⟩
+    obtain ⟨_, hd1⟩ := wd_drop_pin srcBytes 1 nextOff0 d0 D0 _ hdec0 hdrop1 big0
+    exact wd_scalarFieldPre_of_encodeBytes srcBase srcLen srcBytes nextOff0 D1
+      (encodeBytes D2 ++ encodeBytes D3) hsvalid hnowrap hsrclen hd1 hc1 hl1
+  · rintro d0 nextOff0 d1 nextOff1 ⟨_, _, hdec0, _⟩ ⟨_, _, hdec1, _⟩
+    obtain ⟨_, hd1⟩ := wd_drop_pin srcBytes 1 nextOff0 d0 D0 _ hdec0 hdrop1 big0
+    obtain ⟨_, hd2⟩ := wd_drop_pin srcBytes nextOff0 nextOff1 d1 D1 _ hdec1 hd1 big1
+    exact wd_addressFieldPre_of_encodeBytes srcBase srcLen srcBytes nextOff1 D2
+      (encodeBytes D3) hsvalid hnowrap hsrclen hd2 h20
+  · rintro d0 nextOff0 d1 nextOff1 ⟨_, _, hdec0, _⟩ ⟨_, _, hdec1, _⟩ hdec2
+    obtain ⟨_, hd1⟩ := wd_drop_pin srcBytes 1 nextOff0 d0 D0 _ hdec0 hdrop1 big0
+    obtain ⟨_, hd2⟩ := wd_drop_pin srcBytes nextOff0 nextOff1 d1 D1 _ hdec1 hd1 big1
+    obtain ⟨_, hd3⟩ := wd_drop_pin srcBytes nextOff1 (nextOff1 + 21) _ D2 (encodeBytes D3) hdec2 hd2 big2
+    exact wd_scalarFieldPre_of_encodeBytes srcBase srcLen srcBytes (nextOff1 + 21) D3 []
+      hsvalid hnowrap hsrclen (by rw [hd3, List.append_nil]) hc3 hl3
+  · rintro d0 nextOff0 d1 nextOff1 d3 nextOff3 ⟨_, _, hdec0, _⟩ ⟨_, _, hdec1, _⟩ hdec2 ⟨_, _, hdec3, hbound3⟩
+    obtain ⟨_, hd1⟩ := wd_drop_pin srcBytes 1 nextOff0 d0 D0 _ hdec0 hdrop1 big0
+    obtain ⟨_, hd2⟩ := wd_drop_pin srcBytes nextOff0 nextOff1 d1 D1 _ hdec1 hd1 big1
+    obtain ⟨_, hd3⟩ := wd_drop_pin srcBytes nextOff1 (nextOff1 + 21) _ D2 (encodeBytes D3) hdec2 hd2 big2
+    obtain ⟨_, hd4⟩ := wd_drop_pin srcBytes (nextOff1 + 21) nextOff3 d3 D3 []
+      hdec3 (by rw [hd3, List.append_nil]) big3
+    have hlen0 := congrArg List.length hd4
+    rw [List.length_drop] at hlen0
+    simp only [List.length_nil] at hlen0
+    have heq : nextOff3 = srcBytes.length := by omega
+    subst hsrclen
+    rw [heq]
+    simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat]
+    omega
+
 /-- **Field-2 seam-consumer per-witness post.** Field 2's native body post (cursor advanced to
     `nextOff1 + 21`, the 20-byte address copied into `struct+16`, prefix in `x5`, the messy
     leftover registers), with field 1's written `struct+8` cell carried, plus field 2's `decodeAux`
