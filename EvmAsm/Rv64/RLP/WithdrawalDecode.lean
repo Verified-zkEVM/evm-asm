@@ -29,6 +29,7 @@ import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
+import EvmAsm.Rv64.RLP.ByteCopyChainGen
 import EvmAsm.EL.Withdrawal
 
 namespace EvmAsm.Rv64.RLP
@@ -191,14 +192,15 @@ theorem wd_call_walk_next
 
 `withdrawal_decode_prog` is a single-pass, walk-based parse of an RLP withdrawal into the
 48-byte output struct, **self-contained**: the verified leaf programs `rlp_walk_init_prog`,
-`rlp_walk_next_prog`, `rlp_content_to_u64_prog` are appended after the 83-instruction glue, and
-the glue's `JAL`s target them at concrete PC-relative offsets (since `emitProgram` renders
-`JAL` as `.+N`). Layout (instruction indices):
+`rlp_walk_next_prog`, `rlp_content_to_u64_prog`, and the 20-byte-address `withdrawal_copy_routine`
+are appended after the 83-instruction glue, and the glue's `JAL`s target them at concrete
+PC-relative offsets (since `emitProgram` renders `JAL` as `.+N`). Layout (instruction indices):
 
-  glue            0  .. 82   (83 instrs)
-  rlp_walk_init   83 .. 135  (53)
-  rlp_walk_next   136 .. 238 (103)
-  rlp_content_to_u64  239 .. 260 (22)
+  glue            0   .. 82   (83 instrs)
+  rlp_walk_init   83  .. 135  (53)
+  rlp_walk_next   136 .. 238  (103)
+  rlp_content_to_u64  239 .. 260  (22)
+  copy_routine    261 .. 361  (101 = 100-instr byte-copy chain + `ret`)
 
 Calling convention (drop-in identical to the old `withdrawal_decode`): `a0 = rlp ptr`,
 `a1 = rlp len`, `a2 = struct out ptr`; on return `a0 = 0` success / `a0 = 1` failure;
@@ -206,8 +208,10 @@ Calling convention (drop-in identical to the old `withdrawal_decode`): `a0 = rlp
 `s2 = end`, `t0 = x5`, `t1 = x6` (also the `rlp_content_to_u64` content pointer). -/
 
 /-- The 83-instruction glue: prologue, `walk_init`, four field decodes (`walk_next` →
-    reject-list → `content_to_u64`/20-byte copy → store → advance), an exact-arity check
-    (a 5th `walk_next` must report end-of-list, status 2), then success/fail epilogue. -/
+    reject-list → `content_to_u64` / `jal` to the 20-byte copy routine → store → advance), an
+    exact-arity check (a 5th `walk_next` must report end-of-list, status 2), then success/fail
+    epilogue. (Field 2's address copy is a `jal` to `withdrawal_copy_routine`; idx 51..54 are
+    `nop`s the routine returns into.) -/
 def withdrawal_decode_glue : List Instr :=
   [ -- prologue (0..5)
     .ADDI .x2 .x2 (-32 : BitVec 12),        -- 0  addi sp, sp, -32
@@ -262,13 +266,13 @@ def withdrawal_decode_glue : List Instr :=
     .LI .x6 (20 : Word),                     -- 45 li t1, 20
     .BNE .x12 .x6 (120 : BitVec 13),         -- 46 if contentLen != 20, fail (→ 76)
     .MV .x9 .x10,                            -- 47 mv s1, a0 (cursor := advanced)
-    .SUB .x10 .x9 .x12,                      -- 48 sub a0, s1, a2 (contentPtr)
-    .LD .x5 .x10 (0 : BitVec 12),            -- 49 ld t0, 0(contentPtr)
-    .SD .x8 .x5 (16 : BitVec 12),            -- 50 sd t0, 16(s0)
-    .LD .x5 .x10 (8 : BitVec 12),            -- 51 ld t0, 8(contentPtr)
-    .SD .x8 .x5 (24 : BitVec 12),            -- 52 sd t0, 24(s0)
-    .LWU .x5 .x10 (16 : BitVec 12),          -- 53 lwu t0, 16(contentPtr)
-    .SW .x8 .x5 (32 : BitVec 12),            -- 54 sw t0, 32(s0)
+    .SUB .x13 .x9 .x12,                      -- 48 sub a3, s1, a2 (a3 = contentPtr)
+    .ADDI .x14 .x8 (16 : BitVec 12),         -- 49 addi a4, s0, 16 (a4 = struct+16 dst)
+    .JAL .x1 (844 : BitVec 21),              -- 50 jal ra, copy_routine (→ 261)
+    .ADDI .x0 .x0 (0 : BitVec 12),           -- 51 nop (copy_routine returns here)
+    .ADDI .x0 .x0 (0 : BitVec 12),           -- 52 nop
+    .ADDI .x0 .x0 (0 : BitVec 12),           -- 53 nop
+    .ADDI .x0 .x0 (0 : BitVec 12),           -- 54 nop
     -- field 3: amount @ struct+40 (55..68)
     .MV .x10 .x9,                            -- 55
     .MV .x11 .x18,                           -- 56
@@ -303,17 +307,42 @@ def withdrawal_decode_glue : List Instr :=
     .ADDI .x2 .x2 (32 : BitVec 12),          -- 81 addi sp, sp, 32
     .JALR .x0 .x1 (0 : BitVec 12) ]          -- 82 ret
 
-/-- The full self-contained drop-in: glue ⧺ the three verified leaf programs. The glue's
-    `JAL`s target `rlp_walk_init` (idx 83), `rlp_walk_next` (idx 136), `rlp_content_to_u64`
-    (idx 239) at the offsets above. -/
+/-- The unrolled `N`-byte copy chain as a concrete instruction list (block `j` at offset `20*j`),
+    matching `byteCopyChainCR`: each block is `lbu x12,0(x13); sb x12,0(x14); x13++; x14++; x15--`. -/
+def byteCopyChainInstrs : Nat → List Instr
+  | 0 => []
+  | n + 1 =>
+    [.LBU .x12 .x13 0, .SB .x14 .x12 0, .ADDI .x13 .x13 1, .ADDI .x14 .x14 1,
+     .ADDI .x15 .x15 (-1)] ++ byteCopyChainInstrs n
+
+theorem byteCopyChainInstrs_length (N : Nat) : (byteCopyChainInstrs N).length = 5 * N := by
+  induction N with
+  | zero => rfl
+  | succ n ih => simp only [byteCopyChainInstrs, List.length_append, List.length_cons,
+      List.length_nil, ih]; omega
+
+/-- The appended 20-byte address copy routine: the unrolled 100-instruction copy chain followed
+    by `ret` (`jalr x0, ra, 0`). Entered by `jal ra` from field 2; returns to the link register. -/
+def withdrawal_copy_routine : List Instr :=
+  byteCopyChainInstrs 20 ++ [.JALR .x0 .x1 (0 : BitVec 12)]
+
+theorem withdrawal_copy_routine_length : withdrawal_copy_routine.length = 101 := by
+  simp only [withdrawal_copy_routine, List.length_append, byteCopyChainInstrs_length,
+    List.length_cons, List.length_nil]
+
+/-- The full self-contained drop-in: glue ⧺ the three verified leaf programs ⧺ the copy routine.
+    The glue's `JAL`s target `rlp_walk_init` (idx 83), `rlp_walk_next` (idx 136),
+    `rlp_content_to_u64` (idx 239), and `withdrawal_copy_routine` (idx 261). -/
 def withdrawal_decode_prog : List Instr :=
   withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog
+    ++ withdrawal_copy_routine
 
 theorem withdrawal_decode_glue_length : withdrawal_decode_glue.length = 83 := rfl
 
-theorem withdrawal_decode_prog_length : withdrawal_decode_prog.length = 261 := by
+theorem withdrawal_decode_prog_length : withdrawal_decode_prog.length = 362 := by
   simp only [withdrawal_decode_prog, List.length_append, withdrawal_decode_glue_length,
-    rlp_walk_init_prog_length, rlp_walk_next_prog_length, rlp_content_to_u64_prog_length]
+    rlp_walk_init_prog_length, rlp_walk_next_prog_length, rlp_content_to_u64_prog_length,
+    withdrawal_copy_routine_length]
 
 /-- The drop-in body as a `CodeReq` rooted at `base`. -/
 abbrev withdrawal_decode_code (base : Word) : CodeReq :=
@@ -586,19 +615,23 @@ theorem wd_walkInitBody_sub (base : Word) :
   intro a i hwi
   have hrest : withdrawal_decode_prog
       = withdrawal_decode_glue ++
-          (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog) := by
+          (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog
+            ++ withdrawal_copy_routine) := by
     simp only [withdrawal_decode_prog, List.append_assoc]
   have h1 := CodeReq.ofProg_mono_append_left (base + 332) rlp_walk_init_prog rlp_walk_next_prog
     a i hwi
   have h2 := CodeReq.ofProg_mono_append_left (base + 332)
     (rlp_walk_init_prog ++ rlp_walk_next_prog) rlp_content_to_u64_prog a i h1
+  have h3 := CodeReq.ofProg_mono_append_left (base + 332)
+    (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog) withdrawal_copy_routine
+    a i h2
   have hr := CodeReq.ofProg_mono_append_right base withdrawal_decode_glue
-    (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog)
+    (rlp_walk_init_prog ++ rlp_walk_next_prog ++ rlp_content_to_u64_prog ++ withdrawal_copy_routine)
     (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
   rw [withdrawal_decode_glue_length,
       show base + BitVec.ofNat 64 (4 * 83) = base + 332 from by bv_omega] at hr
   rw [withdrawal_decode_code, hrest]
-  exact hr h2
+  exact hr h3
 
 /-- The appended `rlp_walk_next` body (idx 136, byte 544) is a segment of the program. -/
 theorem wd_walkNextBody_sub (base : Word) :
@@ -607,34 +640,42 @@ theorem wd_walkNextBody_sub (base : Word) :
   intro a i hwn
   have hrest : withdrawal_decode_prog
       = (withdrawal_decode_glue ++ rlp_walk_init_prog) ++
-          (rlp_walk_next_prog ++ rlp_content_to_u64_prog) := by
+          (rlp_walk_next_prog ++ rlp_content_to_u64_prog ++ withdrawal_copy_routine) := by
     simp only [withdrawal_decode_prog, List.append_assoc]
   have h1 := CodeReq.ofProg_mono_append_left (base + 544) rlp_walk_next_prog rlp_content_to_u64_prog
     a i hwn
+  have h2 := CodeReq.ofProg_mono_append_left (base + 544)
+    (rlp_walk_next_prog ++ rlp_content_to_u64_prog) withdrawal_copy_routine a i h1
   have hr := CodeReq.ofProg_mono_append_right base (withdrawal_decode_glue ++ rlp_walk_init_prog)
-    (rlp_walk_next_prog ++ rlp_content_to_u64_prog)
+    (rlp_walk_next_prog ++ rlp_content_to_u64_prog ++ withdrawal_copy_routine)
     (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
   rw [show (withdrawal_decode_glue ++ rlp_walk_init_prog).length = 136 from by
         simp [List.length_append, withdrawal_decode_glue_length, rlp_walk_init_prog_length],
       show base + BitVec.ofNat 64 (4 * 136) = base + 544 from by bv_omega] at hr
   rw [withdrawal_decode_code, hrest]
-  exact hr h1
+  exact hr h2
 
 /-- The appended `rlp_content_to_u64` body (idx 239, byte 956) is a segment of the program. -/
 theorem wd_c2uBody_sub (base : Word) :
     ∀ a i, (rlp_content_to_u64_code (base + 956)) a = some i →
            withdrawal_decode_code base a = some i := by
   intro a i hc
+  have hrest : withdrawal_decode_prog
+      = (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog) ++
+          (rlp_content_to_u64_prog ++ withdrawal_copy_routine) := by
+    simp only [withdrawal_decode_prog, List.append_assoc]
+  have h1 := CodeReq.ofProg_mono_append_left (base + 956) rlp_content_to_u64_prog
+    withdrawal_copy_routine a i hc
   have hr := CodeReq.ofProg_mono_append_right base
-    (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog) rlp_content_to_u64_prog
-    (by simp [List.length_append, withdrawal_decode_glue_length, rlp_walk_init_prog_length,
-              rlp_walk_next_prog_length, rlp_content_to_u64_prog_length]) a i
+    (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog)
+    (rlp_content_to_u64_prog ++ withdrawal_copy_routine)
+    (by rw [← hrest, withdrawal_decode_prog_length]; norm_num) a i
   rw [show (withdrawal_decode_glue ++ rlp_walk_init_prog ++ rlp_walk_next_prog).length = 239 from by
         simp [List.length_append, withdrawal_decode_glue_length, rlp_walk_init_prog_length,
               rlp_walk_next_prog_length],
       show base + BitVec.ofNat 64 (4 * 239) = base + 956 from by bv_omega] at hr
-  rw [withdrawal_decode_code]
-  exact hr hc
+  rw [withdrawal_decode_code, hrest]
+  exact hr h1
 
 /-- Code-lifting for the `walk_init` call (`jal` at idx 6 → body at idx 83), via the toolkit. -/
 theorem wd_walkinit_code_sub (base : Word) :
