@@ -188,6 +188,23 @@ theorem evm_addmod_pow256_call_mod_restore_frame_spec_within
   rw [h_restore] at R
   exact cpsTripleWithin_frameR F hF R
 
+/-- Compose a pow256 callable-MOD body that returns to the restore instruction
+    with the frame-pointer restore step. -/
+theorem evm_addmod_pow256_callable_then_restore_frame_spec_within
+    {nSteps : Nat} {callableCode : CodeReq} {P F : Assertion}
+    (hF : F.pcFree) (sp callableBase restoreBase : Word)
+    (hd : callableCode.Disjoint
+      (CodeReq.singleton restoreBase (.ADDI .x12 .x12 (4000 : BitVec 12))))
+    (hCallable : cpsTripleWithin nSteps callableBase restoreBase callableCode P
+      ((.x12 ↦ᵣ (sp + signExtend12 (96 : BitVec 12))) ** F)) :
+    cpsTripleWithin (nSteps + 1) callableBase (restoreBase + 4)
+      (callableCode.union
+        (CodeReq.singleton restoreBase (.ADDI .x12 .x12 (4000 : BitVec 12))))
+      P
+      ((.x12 ↦ᵣ sp) ** F) := by
+  have R := evm_addmod_pow256_call_mod_restore_frame_spec_within hF sp restoreBase
+  exact cpsTripleWithin_seq hd hCallable R
+
 
 /-- Compose the full helper that prepares the second callable MOD arguments for
     materializing `2^256 mod N` from the first `(-1 mod N)` remainder. -/
