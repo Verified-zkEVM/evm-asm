@@ -9631,4 +9631,70 @@ theorem wd_successLeaf_field_ids
   · rw [hd2eq, haddr]
   · rw [hd2eq, h20]
 
+/-- **Success-leaf post → capstone success disjunct (spatial reshape).** Given
+    `decodeWithdrawal srcBytes = some w`, the success-leaf post (run with the pre-zeroed 20-byte
+    address region) maps to the capstone's shared frame conjoined with the *success* branch of
+    the post disjunction. The reshape: pin the stored scalar/address values to `w`'s fields via
+    `wd_successLeaf_field_ids`, fold the address byte-copy via `wd_copyRangeGen_eq_take_drop`,
+    weaken the clobbered concrete registers/cells to ownership tokens, drop the inert pures, and
+    permute into the shared-frame / `wd_outHolds` shape. -/
+theorem wd_successLeafPost_to_success
+    (sp0 raVal s0Old s1Old s2Old outPtr srcBase : Word)
+    (srcBytes : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal srcBytes = some w) :
+    ∀ h, wd_successLeafPost sp0 raVal s0Old s1Old s2Old outPtr srcBase srcBytes
+        (List.replicate 20 (0 : BitVec 8)) h →
+      (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** regOwn .x11 ** regOwn .x12 **
+        wd_scratchOwned ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+        wd_frameOwned sp0 **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         (∃ w' d2, (((.x10 ↦ᵣ (0 : Word)) ** wd_outHolds outPtr w' d2 **
+            ⌜decodeWithdrawal srcBytes = some w' ∧
+              w'.address = BitVec.ofNat 160 (Nat.fromBytesBE d2) ∧ d2.length = 20⌝) h)) ∨
+         (((.x10 ↦ᵣ (1 : Word)) ** wd_outOwned outPtr **
+            ⌜decodeWithdrawal srcBytes = none⌝) h))) h := by
+  have pdrop : ∀ (P : Prop) (h : PartialState), (⌜P⌝ : Assertion) h → empAssertion h :=
+    fun _ _ hq => hq.1
+  intro h hp
+  unfold wd_successLeafPost at hp
+  obtain ⟨d0, nextOff0, d1, nextOff1, d3, nextOff3, hp⟩ := hp
+  obtain ⟨hp, hd3f⟩ := (sepConj_pure_right h).mp hp
+  obtain ⟨hp, hd2dec⟩ := (sepConj_pure_right h).mp hp
+  obtain ⟨hp, hd1f⟩ := (sepConj_pure_right h).mp hp
+  obtain ⟨hp, hd0f⟩ := (sepConj_pure_right h).mp hp
+  obtain ⟨hi0, hi1, hi3, haddr2, hd2len, hbound⟩ :=
+    wd_successLeaf_field_ids srcBytes w d0 d1 d3 nextOff0 nextOff1 nextOff3 hdec
+      hd0f.2.2.1 hd1f.2.2.1 hd2dec hd3f.2.2.1
+  have hcopy : copyRangeGen (List.replicate 20 (0 : BitVec 8)) srcBytes (nextOff1 + 1) 0 20
+      = (srcBytes.drop (nextOff1 + 1)).take 20 :=
+    wd_copyRangeGen_eq_take_drop srcBytes (List.replicate 20 (0 : BitVec 8)) (nextOff1 + 1) 20
+      (by simp) (by omega)
+  rw [hi0, hi1, hi3, hcopy,
+      show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+      show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide,
+      show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+      show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide] at hp
+  rw [show ((sp0 + (-32 : Word)) + 32) = sp0 from by bv_omega,
+      show ((sp0 + (-32 : Word)) + 8) = sp0 - 24 from by bv_omega,
+      show ((sp0 + (-32 : Word)) + 16) = sp0 - 16 from by bv_omega,
+      show ((sp0 + (-32 : Word)) + 24) = sp0 - 8 from by bv_omega,
+      show (sp0 + (-32 : Word)) = sp0 - 32 from by bv_omega,
+      show (outPtr + (0 : Word)) = outPtr from by bv_omega] at hp
+  have hpw := sepConj_mono
+    (sepConj_mono (sepConj_mono (regIs_implies_regOwn .x12) (fun _ x => x)) (sepConj_mono (sepConj_mono (regIs_implies_regOwn .x11) (sepConj_mono (regIs_implies_regOwn .x6) (pdrop _))) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))))))
+    (sepConj_mono (fun _ x => x) (sepConj_mono (pdrop _) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (regIs_implies_regOwn .x13) (sepConj_mono (regIs_implies_regOwn .x14) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (pdrop _) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (fun _ x => x))))))))))))))))
+    h hp
+  simp only [sepConj_emp_left', sepConj_emp_right'] at hpw
+  have hfacts : decodeWithdrawal srcBytes = some w ∧
+      w.address = BitVec.ofNat 160 (Nat.fromBytesBE ((srcBytes.drop (nextOff1 + 1)).take 20)) ∧
+      ((srcBytes.drop (nextOff1 + 1)).take 20).length = 20 := ⟨hdec, haddr2, hd2len⟩
+  have hp3 := (sepConj_pure_right h).mpr ⟨hpw, hfacts⟩
+  refine sepConj_mono_right
+    (fun s hs => Or.inl ⟨w, (srcBytes.drop (nextOff1 + 1)).take 20, hs⟩) h ?_
+  unfold wd_scratchOwned wd_frameOwned wd_outHolds
+  xperm_hyp hp3
+
 end EvmAsm.Rv64.RLP
