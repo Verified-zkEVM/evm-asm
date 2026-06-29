@@ -265,6 +265,40 @@ theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_spec_within
     (fun h hp => by xperm_hyp hp)
     hSeq
 
+/-- Word-shaped surface for the ADDMOD zero-modulus phase-2 path through
+    epilogue. This folds the four zero result limbs into the stack word slot
+    consumed by the later stack-level ADDMOD composition. -/
+theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_zero_word_spec_within
+    (sp v5Old v6Old base : Word) :
+    cpsTripleWithin (8 + 4 + 1) base (base + 52)
+      (evm_addmod_phase2_n_zero_test_zero_path_epilogue_code base)
+      ((.x12 ↦ᵣ sp) ** (.x6 ↦ᵣ v6Old) ** (.x5 ↦ᵣ v5Old) ** (.x0 ↦ᵣ 0) **
+       evmWordIs (sp + 32) (0 : EvmWord))
+      ((.x12 ↦ᵣ (sp + signExtend12 (32 : BitVec 12))) **
+       (.x6 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ 0) **
+       evmWordIs (sp + 32) (0 : EvmWord)) := by
+  have hRaw :=
+    evm_addmod_phase2_n_zero_test_zero_path_epilogue_spec_within
+      sp v5Old v6Old 0 0 0 0 base (by simp)
+  have hOrZero : ((0 : Word) ||| 0 ||| 0 ||| 0) = (0 : Word) := by decide
+  exact cpsTripleWithin_weaken
+    (fun h hp => by
+      rw [evmWordIs_sp32_limbs_eq sp (0 : EvmWord) 0 0 0 0
+        (EvmWord.getLimbN_zero 0) (EvmWord.getLimbN_zero 1)
+        (EvmWord.getLimbN_zero 2) (EvmWord.getLimbN_zero 3)] at hp
+      simp only [signExtend12_32, signExtend12_40, signExtend12_48,
+        signExtend12_56] at hp ⊢
+      xperm_hyp hp)
+    (fun h hp => by
+      rw [evmWordIs_sp32_limbs_eq sp (0 : EvmWord) 0 0 0 0
+        (EvmWord.getLimbN_zero 0) (EvmWord.getLimbN_zero 1)
+        (EvmWord.getLimbN_zero 2) (EvmWord.getLimbN_zero 3)]
+      simp only [signExtend12_32, signExtend12_40, signExtend12_48,
+        signExtend12_56] at hp ⊢
+      rw [hOrZero] at hp
+      xperm_hyp hp)
+    hRaw
+
 /-- ofProg surface for the ADDMOD zero-modulus phase-2 path through epilogue. -/
 theorem evm_addmod_phase2_n_zero_test_zero_path_epilogue_ofProg_spec_within
     (sp v5Old v6Old n0 n1 n2 n3 : Word)
