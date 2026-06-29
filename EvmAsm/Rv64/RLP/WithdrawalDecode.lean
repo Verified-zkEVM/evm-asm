@@ -10136,4 +10136,17 @@ theorem wd_decode_walkInitFailArm
   have hp2 := (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) (sepConj_mono (regIs_implies_regOwn .x11) (wd_outOwned_of_zeroRegion outPtr))))))))))))))))))) s hp1
   xperm_hyp hp2
 
+/-- **Triple or-elimination.** The straight-line analogue of `cpsBranchWithin_or_pre`: if both
+    `P1` and `P2` run to the same exit/post `Q`, their disjunction does too. Used to route a leaf
+    call's disjunctive status post (after `sepConj_or_elim` distributes the frame) — each disjunct
+    to its handler (reject arm or success continuation). -/
+theorem cpsTripleWithin_or_pre {n : Nat} {e1 e2 : Word} {cr : CodeReq} {P1 P2 Q : Assertion}
+    (h1 : cpsTripleWithin n e1 e2 cr P1 Q) (h2 : cpsTripleWithin n e1 e2 cr P2 Q) :
+    cpsTripleWithin n e1 e2 cr (fun h => P1 h ∨ P2 h) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hh, hcompat, a, b, hab, hu, hPor, hRb⟩ := hPR
+  rcases hPor with hP1 | hP2
+  · exact h1 R hR s hcr ⟨hh, hcompat, a, b, hab, hu, hP1, hRb⟩ hpc
+  · exact h2 R hR s hcr ⟨hh, hcompat, a, b, hab, hu, hP2, hRb⟩ hpc
+
 end EvmAsm.Rv64.RLP
