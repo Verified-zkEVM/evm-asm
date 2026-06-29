@@ -5405,6 +5405,90 @@ theorem wd_decode_field2Body
     xperm_hyp hp
   exact ((sepConj_pure_left _).1 ((sepConj_pure_left _).1 hp').2).2
 
+/-- **Field-2 body dispatcher, regOwn-input.** The seven clobbered scratch registers
+    (`x5/x6/x7/x28/x29/x30/x31`) are exposed as `regOwn` instead of `regIs`, so this field's PRE
+    matches the previous (scalar) field's `regOwn` POST at the field1 ⨾ field2 seam. Field 2's body
+    has a fixed step count (the address is always 20 bytes), so the peel is taken directly off
+    `wd_decode_field2Body` — no `fixedN` intermediate needed. The address-copy bookkeeping registers
+    `x13/x14/x15` stay `regIs` (the capstone owns them and supplies witnesses at the seam). -/
+theorem wd_decode_field2Body_regOwn
+    (base srcBase endPtr vOld a0Old a1Old a2Old struct x13Old x14Old cnt : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (off : Nat)
+    (halign164 : (base + 164) &&& ~~~1 = base + 164)
+    (hdisjW : (CodeReq.singleton (base + 160) (.JAL .x1 (384 : BitVec 21))).Disjoint
+      (rlp_walk_next_code (base + 544)))
+    (halign204 : (base + 204) &&& ~~~1 = base + 204)
+    (hsalign : srcBase.toNat % 8 = 0) (hstalign : struct.toNat % 8 = 0)
+    (hoff : off < srcBytes.length) (hover : srcBase.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 off) = true)
+    (hin : BitVec.ult (srcBase + BitVec.ofNat 64 off) endPtr = true)
+    (hlo : ¬ BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true)
+    (hlen20 : (srcBytes[off]'hoff).toNat - 0x80 = 20)
+    (hfit : BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64 - (0x80 : Word))
+      (endPtr - (srcBase + BitVec.ofNat 64 off)) = true)
+    (hcontentlen : off + 21 ≤ srcBytes.length)
+    (hcontentover : srcBase.toNat + (off + 21) ≤ 2 ^ 64)
+    (hcontentvalid : ∀ k, k < 20 → isValidByteAccess (srcBase + BitVec.ofNat 64 (off + 1 + k)) = true)
+    (hsover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsvalid : ∀ i, i < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 i) = true)
+    (hdlen : dstBytes.length = 20) (hdov : (struct + 16).toNat + 20 < 2 ^ 64)
+    (hdval : ∀ i, i < dstBytes.length → isValidByteAccess ((struct + 16) + BitVec.ofNat 64 i) = true)
+    (hbase : base.toNat + 1444 < 2 ^ 64) :
+    cpsTripleWithin ((2 + (1 + 87) + 1) + (3 + 111)) (base + 152) (base + 220)
+      (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) **
+        (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) **
+        (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31)
+      (((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (off + 21))) ** (.x8 ↦ᵣ struct) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (off + 21))) ** regOwn .x12 **
+        (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((off + 1) + 20))) **
+        (.x14 ↦ᵣ ((struct + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+        (.x5 ↦ᵣ ((srcBytes[off]'hoff).zeroExtend 64)) ** bytesRegion srcBase srcBytes **
+        bytesRegion (struct + 16) (copyRangeGen dstBytes srcBytes (off + 1) 0 20) **
+        ⌜BitVec.ult ((srcBytes[off]'hoff).zeroExtend 64) (192 : Word)⌝) **
+        ((.x18 ↦ᵣ endPtr) ** (.x11 ↦ᵣ (0 : Word)) ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31)) := by
+  have hfull := fun (t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word) =>
+    wd_decode_field2Body base srcBase endPtr vOld a0Old a1Old a2Old
+      t0Old t1Old t2Old t3Old t4Old t5Old t6Old struct x13Old x14Old cnt srcBytes dstBytes off
+      halign164 hdisjW halign204 hsalign hstalign hoff hover hvalid hin hlo hhi hlen20 hfit
+      hcontentlen hcontentover hcontentvalid hsover hsvalid hdlen hdov hdval hbase
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (r := .x5) (fun v5 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes ** (.x5 ↦ᵣ v5) ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (r := .x6) (fun v6 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (r := .x7) (fun v7 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (r := .x28) (fun v28 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** regOwn .x30 ** regOwn .x31)
+      (r := .x29) (fun v29 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** regOwn .x31)
+      (r := .x30) (fun v30 => ?_))
+  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 off)) ** (.x18 ↦ᵣ endPtr) ** (.x10 ↦ᵣ a0Old) ** (.x11 ↦ᵣ a1Old) ** (.x12 ↦ᵣ a2Old) ** (.x1 ↦ᵣ vOld) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ struct) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) ** bytesRegion (struct + 16) dstBytes ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30))
+      (r := .x31) (fun v31 => ?_))
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
+    (hfull v5 v6 v7 v28 v29 v30 v31)
+
 set_option maxRecDepth 8000 in
 /-- **Arity block** (idx 69–72, base+276 → base+292): the exact-arity check's straight-line part —
     `mv a0,s1; mv a1,s2; jal walk_next; li t1,2`. On the success path the cursor `s1` after field 3
