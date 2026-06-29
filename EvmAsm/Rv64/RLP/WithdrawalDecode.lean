@@ -269,10 +269,10 @@ def withdrawal_decode_glue : List Instr :=
     .SUB .x13 .x9 .x12,                      -- 48 sub a3, s1, a2 (a3 = contentPtr)
     .ADDI .x14 .x8 (16 : BitVec 12),         -- 49 addi a4, s0, 16 (a4 = struct+16 dst)
     .JAL .x1 (844 : BitVec 21),              -- 50 jal ra, copy_routine (→ 261)
-    .ADDI .x0 .x0 (0 : BitVec 12),           -- 51 nop (copy_routine returns here)
-    .ADDI .x0 .x0 (0 : BitVec 12),           -- 52 nop
-    .ADDI .x0 .x0 (0 : BitVec 12),           -- 53 nop
-    .ADDI .x0 .x0 (0 : BitVec 12),           -- 54 nop
+    .NOP,                                    -- 51 nop (copy_routine returns here)
+    .NOP,                                    -- 52 nop
+    .NOP,                                    -- 53 nop
+    .NOP,                                    -- 54 nop
     -- field 3: amount @ struct+40 (55..68)
     .MV .x10 .x9,                            -- 55
     .MV .x11 .x18,                           -- 56
@@ -5020,5 +5020,159 @@ theorem wd_decode_field2RejectCheck (base srcBase t0Old t1Old : Word) (srcBytes 
   have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_seq_same_cr h42 h43) h44
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hcomp
+
+set_option maxRecDepth 8000 in
+/-- **Field-2 copy setup** (idx 45–49, base+180 → base+200): `li t1,20`; `bne a2,t1,fail` (not
+    taken since `contentLen = 20`); `mv s1,a0` (cursor := advanced); `sub a3,s1,a2`
+    (`a3 = advanced − 20 = contentPtr`); `addi a4,s0,16` (`a4 = struct+16`, the copy dest). -/
+theorem wd_decode_field2CopyPre (base srcBase struct x6Old cursorOld x13Old x14Old : Word)
+    (srcOff : Nat) :
+    cpsTripleWithin 5 (base + 180) (base + 200) (withdrawal_decode_code base)
+      ((.x6 ↦ᵣ x6Old) ** (.x12 ↦ᵣ (20 : Word)) ** (.x9 ↦ᵣ cursorOld) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x13 ↦ᵣ x13Old) **
+        (.x8 ↦ᵣ struct) ** (.x14 ↦ᵣ x14Old))
+      ((.x6 ↦ᵣ (20 : Word)) ** (.x12 ↦ᵣ (20 : Word)) **
+        (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+        (.x13 ↦ᵣ ((srcBase + BitVec.ofNat 64 (srcOff + 21)) - (20 : Word))) **
+        (.x8 ↦ᵣ struct) ** (.x14 ↦ᵣ (struct + signExtend12 (16 : BitVec 12)))) := by
+  -- A: li t1, 20  (idx 45)
+  have hA := wd_decode_li base 45 .x6 (20 : Word) x6Old (by decide)
+    (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+  rw [show base + BitVec.ofNat 64 (4 * 45) = base + 180 from by bv_omega,
+      show base + 180 + 4 = base + 184 from by bv_omega] at hA
+  -- B: bne a2, t1, fail  (idx 46), not taken (a2 = t1 = 20); drop the ⌜20=20⌝ pure
+  have hB0 := wd_bne_eq base 46 .x12 .x6 (120 : BitVec 13) (20 : Word)
+    (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+  rw [show base + BitVec.ofNat 64 (4 * 46) = base + 184 from by bv_omega,
+      show base + 184 + 4 = base + 188 from by bv_omega] at hB0
+  have hB := cpsTripleWithin_weaken (fun _ h => h)
+    (fun s hp => sepConj_mono_right (fun s' h => ((sepConj_pure_right s').1 h).1) s hp) hB0
+  -- C: mv s1,a0 ; sub a3,s1,a2 ; addi a4,s0,16  (idx 47–49)
+  have hC : cpsTripleWithin 3 (base + 188) (base + 200) (withdrawal_decode_code base)
+      ((.x9 ↦ᵣ cursorOld) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+        (.x12 ↦ᵣ (20 : Word)) ** (.x13 ↦ᵣ x13Old) ** (.x8 ↦ᵣ struct) ** (.x14 ↦ᵣ x14Old))
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x12 ↦ᵣ (20 : Word)) **
+        (.x13 ↦ᵣ ((srcBase + BitVec.ofNat 64 (srcOff + 21)) - (20 : Word))) **
+        (.x8 ↦ᵣ struct) ** (.x14 ↦ᵣ (struct + signExtend12 (16 : BitVec 12)))) := by
+    have hmv := mv_spec_gen_within .x9 .x10 (srcBase + BitVec.ofNat 64 (srcOff + 21)) cursorOld
+      (base + 188) (by decide)
+    have hsub := sub_spec_gen_within .x13 .x9 .x12 (srcBase + BitVec.ofNat 64 (srcOff + 21))
+      (20 : Word) x13Old (base + 192) (by decide)
+    have haddi := addi_spec_gen_within .x14 .x8 x14Old struct (16 : BitVec 12) (base + 196)
+      (by decide)
+    runBlock hmv hsub haddi
+  -- compose A ⨾ B ⨾ C
+  have hAB := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_frameR ((.x12 ↦ᵣ (20 : Word)) ** (.x9 ↦ᵣ cursorOld) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x13 ↦ᵣ x13Old) **
+        (.x8 ↦ᵣ struct) ** (.x14 ↦ᵣ x14Old)) (by pcFree) hA)
+    (cpsTripleWithin_frameR ((.x9 ↦ᵣ cursorOld) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x13 ↦ᵣ x13Old) **
+        (.x8 ↦ᵣ struct) ** (.x14 ↦ᵣ x14Old)) (by pcFree) hB)
+  have hABC := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hAB
+    (cpsTripleWithin_frameL (.x6 ↦ᵣ (20 : Word)) (by pcFree) hC)
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hABC
+
+set_option maxRecDepth 8000 in
+/-- **Field-2 address copy body** (idx 45–54, base+180 → base+220): the copy setup
+    (`wd_decode_field2CopyPre`), then `jal` to `withdrawal_copy_routine` (copies the 20 address
+    bytes `srcBytes[srcOff+1 .. srcOff+21)` into `bytesRegion (struct+16)`), then the 4 `nop`s the
+    routine returns into. The address bytes land in `bytesRegion (struct+16) (copyRangeGen …)`. -/
+theorem wd_decode_field2Copy (base srcBase struct x6Old x1Old cursorOld x13Old x14Old cnt : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hstalign : struct.toNat % 8 = 0)
+    (hsover : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (hsvalid : ∀ i, i < srcBytes.length → isValidByteAccess (srcBase + BitVec.ofNat 64 i) = true)
+    (hsrc : srcOff + 21 ≤ srcBytes.length) (hdlen : dstBytes.length = 20)
+    (hdov : (struct + 16).toNat + 20 < 2 ^ 64)
+    (hdval : ∀ i, i < dstBytes.length → isValidByteAccess ((struct + 16) + BitVec.ofNat 64 i) = true)
+    (hbase : base.toNat + 1444 < 2 ^ 64) (halign204 : (base + 204) &&& ~~~1 = base + 204) :
+    cpsTripleWithin 111 (base + 180) (base + 220) (withdrawal_decode_code base)
+      ((.x6 ↦ᵣ x6Old) ** (.x1 ↦ᵣ x1Old) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ struct) **
+        (.x9 ↦ᵣ cursorOld) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+        (.x12 ↦ᵣ (20 : Word)) ** (.x13 ↦ᵣ x13Old) ** (.x14 ↦ᵣ x14Old) ** (.x15 ↦ᵣ cnt) **
+        bytesRegion srcBase srcBytes ** bytesRegion (struct + 16) dstBytes)
+      ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x8 ↦ᵣ struct) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) **
+        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** regOwn .x12 **
+        (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((srcOff + 1) + 20))) **
+        (.x14 ↦ᵣ ((struct + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+        bytesRegion srcBase srcBytes **
+        bytesRegion (struct + 16) (copyRangeGen dstBytes srcBytes (srcOff + 1) 0 20)) := by
+  -- P0: the setup (idx 45–49), with x13/x14 normalized to chain-ready forms
+  have hP0 := wd_decode_field2CopyPre base srcBase struct x6Old cursorOld x13Old x14Old srcOff
+  rw [show (srcBase + BitVec.ofNat 64 (srcOff + 21)) - (20 : Word)
+        = srcBase + BitVec.ofNat 64 (srcOff + 1) from by bv_omega,
+      show struct + signExtend12 (16 : BitVec 12) = (struct + 16) + BitVec.ofNat 64 0 from by
+        rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]; bv_omega] at hP0
+  have hP0' := cpsTripleWithin_frameR ((.x1 ↦ᵣ x1Old) ** (.x15 ↦ᵣ cnt) ** (.x0 ↦ᵣ (0 : Word)) **
+    bytesRegion srcBase srcBytes ** bytesRegion (struct + 16) dstBytes) (by pcFree) hP0
+  -- D: jal ra, copy_routine  (idx 50)
+  have hjal : withdrawal_decode_code base (base + 200) = some (.JAL .x1 (844 : BitVec 21)) := by
+    have h := wd_prog_lookup base 50 (by rw [withdrawal_decode_prog_length]; norm_num)
+    rwa [show base + BitVec.ofNat 64 (4 * 50) = base + 200 from by bv_omega,
+         show withdrawal_decode_prog.get ⟨50, by rw [withdrawal_decode_prog_length]; norm_num⟩
+           = (.JAL .x1 (844 : BitVec 21)) from by decide] at h
+  have hD0 := jal_spec_within .x1 x1Old (844 : BitVec 21) (base + 200) (by decide)
+  rw [show (base + 200) + signExtend21 (844 : BitVec 21) = base + 1044 from by
+        rw [show signExtend21 (844 : BitVec 21) = (844 : Word) from by decide]; bv_omega,
+      show (base + 200) + 4 = base + 204 from by bv_omega] at hD0
+  have hD := cpsTripleWithin_extend_code (CodeReq.singleton_mono hjal) hD0
+  have hD' := cpsTripleWithin_frameR ((.x6 ↦ᵣ (20 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x8 ↦ᵣ struct) ** (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+    (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x12 ↦ᵣ (20 : Word)) **
+    (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 1))) ** (.x14 ↦ᵣ ((struct + 16) + BitVec.ofNat 64 0)) **
+    (.x15 ↦ᵣ cnt) ** bytesRegion srcBase srcBytes ** bytesRegion (struct + 16) dstBytes)
+    (by pcFree) hD
+  -- E: the copy routine (returns to base+204 via halign204)
+  have hE0 := wd_copy_routine_leaf base srcBase (struct + 16) (base + 204) (20 : Word) cnt
+    srcBytes dstBytes (srcOff + 1) 0 hsalign (by bv_omega) hsover hsvalid (by omega)
+    (by omega) (by rw [hdlen]; exact hdov) hdval hbase
+  rw [halign204] at hE0
+  have hE' := cpsTripleWithin_frameL ((.x6 ↦ᵣ (20 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x8 ↦ᵣ struct) ** (.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+    (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21)))) (by pcFree) hE0
+  -- F: 4 nops (idx 51–54) — emp → emp, lifted to the program code
+  have hnop : ∀ (k : Nat) (hk : k < withdrawal_decode_prog.length),
+      withdrawal_decode_prog.get ⟨k, hk⟩ = .NOP →
+      cpsTripleWithin 1 (base + BitVec.ofNat 64 (4 * k)) (base + BitVec.ofNat 64 (4 * k) + 4)
+        (withdrawal_decode_code base) empAssertion empAssertion := by
+    intro k hk hinstr
+    refine cpsTripleWithin_extend_code ?_ (nop_spec_within (base + BitVec.ofNat 64 (4 * k)))
+    apply CodeReq.singleton_mono
+    have h := wd_prog_lookup base k hk
+    rwa [hinstr] at h
+  have hn51 := hnop 51 (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+  have hn52 := hnop 52 (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+  have hn53 := hnop 53 (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+  have hn54 := hnop 54 (by rw [withdrawal_decode_prog_length]; norm_num) (by decide)
+  rw [show base + BitVec.ofNat 64 (4 * 51) = base + 204 from by bv_omega,
+      show base + 204 + 4 = base + 208 from by bv_omega] at hn51
+  rw [show base + BitVec.ofNat 64 (4 * 52) = base + 208 from by bv_omega,
+      show base + 208 + 4 = base + 212 from by bv_omega] at hn52
+  rw [show base + BitVec.ofNat 64 (4 * 53) = base + 212 from by bv_omega,
+      show base + 212 + 4 = base + 216 from by bv_omega] at hn53
+  rw [show base + BitVec.ofNat 64 (4 * 54) = base + 216 from by bv_omega,
+      show base + 216 + 4 = base + 220 from by bv_omega] at hn54
+  have hF : cpsTripleWithin 4 (base + 204) (base + 220) (withdrawal_decode_code base)
+      empAssertion empAssertion :=
+    cpsTripleWithin_seq_same_cr (cpsTripleWithin_seq_same_cr
+      (cpsTripleWithin_seq_same_cr hn51 hn52) hn53) hn54
+  -- compose P0' ⨾ D' ⨾ E', then thread the post through the nops (emp frame)
+  have h1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hP0' hD'
+  have h2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h1 hE'
+  have hF' := cpsTripleWithin_frameL
+    ((.x9 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) ** (.x8 ↦ᵣ struct) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x6 ↦ᵣ (20 : Word)) ** (.x1 ↦ᵣ (base + 204)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + 21))) **
+      regOwn .x12 ** (.x13 ↦ᵣ (srcBase + BitVec.ofNat 64 ((srcOff + 1) + 20))) **
+      (.x14 ↦ᵣ ((struct + 16) + BitVec.ofNat 64 (0 + 20))) ** regOwn .x15 **
+      bytesRegion srcBase srcBytes **
+      bytesRegion (struct + 16) (copyRangeGen dstBytes srcBytes (srcOff + 1) 0 20))
+    (by pcFree) hF
+  rw [sepConj_emp_right'] at hF'
+  have h3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h2 hF'
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h3
 
 end EvmAsm.Rv64.RLP
