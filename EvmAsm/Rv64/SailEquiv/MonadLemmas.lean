@@ -731,6 +731,20 @@ theorem runSail_get_next_pc {s : SailState} {v : BitVec 64}
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
 
+/-- `tick_pc` commits `PC := nextPC` (the SAIL post-execute PC update) and runs a
+    no-op callback. Given `nextPC = v`, the resulting state has `PC := v` (and
+    `nextPC` unchanged). This is the lemma that lets the post-execute `nextPC`
+    (carrying a branch/jump target) land in the committed `PC`. -/
+theorem runSail_tick_pc {s : SailState} {v : BitVec 64}
+    (h : s.regs.get? Register.nextPC = some v) :
+    runSail (tick_pc ()) s =
+      some ((), { s with regs := s.regs.insert Register.PC v }) := by
+  simp [runSail, tick_pc, pc_write_callback, PreSail.readReg, PreSail.writeReg, h,
+    EStateM.modifyGet, modify, MonadState.modifyGet, modifyGet, MonadStateOf.modifyGet,
+    pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get,
+    Std.ExtDHashMap.get?_insert_self]
+
 -- ============================================================================
 -- jump_to (for branches and jumps)
 -- ============================================================================
