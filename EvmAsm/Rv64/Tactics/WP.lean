@@ -220,19 +220,28 @@ elab "wp_rv64_cert" : tactic => withMainContext do
   unless ← isWpCertLikeGoal goalType do
     throwError "wp_rv64_cert: expected WP.Triple/WP.CFG.Cert, WP.Branch, or WP.NBranch goal"
   let entries := rv64WpCertExt.getState (← getEnv)
+  let mut errors : Array (Name × String) := #[]
   for declName in entries do
     let saved ← saveState
     try
       closeWithWpHint goal declName
       return
-    catch _ =>
+    catch e =>
       restoreState saved
+      let msg ← e.toMessageData.toString
+      errors := errors.push (declName, msg)
       continue
-  throwError m!"wp_rv64_cert: no @[rv64_wp_cert] declaration closed the goal.
+  let mut errMsg := m!"wp_rv64_cert: no @[rv64_wp_cert] declaration closed the goal.
   Tried {entries.size} registered declaration(s).
-  Goal: {goalType}
+  Goal: {goalType}"
+  unless errors.isEmpty do
+    errMsg := errMsg ++ m!"\n  Candidate failures:"
+    for (declName, msg) in errors do
+      errMsg := errMsg ++ m!"\n    {declName}: {msg}"
+  errMsg := errMsg ++ m!"
   Hint: try the intended constructor directly once to expose missing static
   facts, or tag a reusable constructor with @[rv64_wp_cert]."
+  throwError errMsg
 
 attribute [rv64_wp]
   EvmAsm.Rv64.WP.Triple.refl_pre
@@ -1375,6 +1384,18 @@ error: wp_rv64_link: could not close the remaining WP.Entails goal.
 #guard_msgs in
 example {P Q : Assertion} : EvmAsm.Rv64.WP.Entails P Q := by
   wp_rv64_link
+
+/--
+error: wp_rv64_cert: no @[rv64_wp_cert] declaration closed the goal.
+  Tried 0 registered declaration(s).
+  Goal: WP.Triple entry exit_ cr post
+  Hint: try the intended constructor directly once to expose missing static
+  facts, or tag a reusable constructor with @[rv64_wp_cert].
+-/
+#guard_msgs in
+example {entry exit_ : Word} {cr : CodeReq} {post : Assertion} :
+    EvmAsm.Rv64.WP.Triple entry exit_ cr post := by
+  wp_rv64_cert
 
 theorem wp_rv64_dead_test_hint {P : Assertion} (hdead : ∀ h, P h → False) :
     ∀ h, P h → False :=
