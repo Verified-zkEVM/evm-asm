@@ -119,6 +119,59 @@ theorem walkInitShortSuccessDecodedWP_nonempty
       hpre := by
         rw [walkInitShortSuccessFromPrologueCert_pre] }⟩
 
+
+/-- Direct constructor for the decoded-success WP package.  This is the entry
+    point generated callers should use: bind the package once, then continue
+    with `pkg.cert` and `pkg.hpre` rather than manually destructing the pure
+    decoder characterization. -/
+noncomputable def walkInitShortSuccessDecodedWP
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w :=
+  Classical.choice (walkInitShortSuccessDecodedWP_nonempty base sp0 raVal s0Old s1Old s2Old
+    outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin
+    hdalign hdov hdval h_len h_prologue_code h_code_max)
+
+/-- The decoded-success package exposes the same static prologue precondition as
+    the witness-heavy certificate. -/
+theorem walkInitShortSuccessDecodedWP_cert_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov hdval
+      h_len h_prologue_code h_code_max).cert.pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) :=
+  (walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+    inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov hdval h_len
+    h_prologue_code h_code_max).hpre
+
+attribute [rv64_wp]
+  walkInitShortSuccessDecodedWP_cert_pre
+
 end WithdrawalDecode
 
 end EvmAsm.Rv64.RLP
