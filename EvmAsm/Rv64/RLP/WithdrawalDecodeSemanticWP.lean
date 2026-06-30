@@ -494,26 +494,41 @@ def walkInitShortSuccessResolvedCert
     rw [walkInitShortSuccessSemanticNBranch_exits]
   have hBound : input.length < 2 ^ 64 := by
     omega
-  exact WP.CFG.nbranch br 0 (by
-    intro ex hex
-    have hex' := hex
-    rw [hexits] at hex'
-    simp [walkInitShortSuccessSemanticExits] at hex'
-    rcases hex' with hcase | hcase | hcase | hcase
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact (WP.CFG.unreachable (failStatusReturnExit raVal) (successStatusReturnExit raVal)
-        cr (walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase listLen
-          raVal t0Old t1Old outBase input hoff hLen hBound)).sound
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact (WP.CFG.unreachable (failStatusReturnExit raVal) (successStatusReturnExit raVal)
-        cr (walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase
-          listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput)).sound
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact (WP.CFG.exit (successStatusReturnExit raVal) cr (WP.Entails.refl _)).sound
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact (walkInitLongSchemaUnreachableCert (base + 28) (successStatusReturnExit raVal)
-        cr inputBase listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput
-        (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3)).sound)
+  have hexits4 : br.exits =
+      [(failStatusReturnExit raVal,
+          abiPost inputBase outBase raVal input **
+            walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase),
+        (failStatusReturnExit raVal,
+          abiPost inputBase outBase raVal input **
+            walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff),
+        (successStatusReturnExit raVal,
+          walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3),
+        (base + 28,
+          walkInitLongSchemaPost inputBase listLen raVal outBase input hoff)] := by
+    simpa [walkInitShortSuccessSemanticExits] using hexits
+  let tailEmpty : WP.CFG.Cert (failStatusReturnExit raVal) (successStatusReturnExit raVal) cr
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) :=
+    WP.CFG.unreachable (failStatusReturnExit raVal) (successStatusReturnExit raVal) cr
+      (walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase listLen
+        raVal t0Old t1Old outBase input hoff hLen hBound)
+  let tailNotList : WP.CFG.Cert (failStatusReturnExit raVal) (successStatusReturnExit raVal) cr
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) :=
+    WP.CFG.unreachable (failStatusReturnExit raVal) (successStatusReturnExit raVal) cr
+      (walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase
+        listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput)
+  let tailSuccess : WP.CFG.Cert (successStatusReturnExit raVal) (successStatusReturnExit raVal) cr
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) :=
+    WP.CFG.exit (successStatusReturnExit raVal) cr (WP.Entails.refl _)
+  let tailLong : WP.CFG.Cert (base + 28) (successStatusReturnExit raVal) cr
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) :=
+    walkInitLongSchemaUnreachableCert (base + 28) (successStatusReturnExit raVal)
+      cr inputBase listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3)
+  wp_rv64_nbranch_join4_with br, hexits4, 0,
+    tailEmpty, WP.Entails.refl _, by rfl,
+    tailNotList, WP.Entails.refl _, by rfl,
+    tailSuccess, WP.Entails.refl _, by rfl,
+    tailLong, WP.Entails.refl _, by rfl
 
 theorem walkInitShortSuccessResolvedCert_pre
     (base inputBase listLen raVal t0Old t1Old outBase : Word)

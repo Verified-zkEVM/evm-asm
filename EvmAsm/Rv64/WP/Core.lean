@@ -570,6 +570,36 @@ def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
   pre := br.pre
   sound := cpsNBranchWithin_merge br.sound hall
 
+/-- Join exactly four known exits with single-exit continuations. This is the
+    fixed-arity frontend generated CFG proofs use after normalizing an N-branch
+    exit list. -/
+def join4 {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (tailBound : Nat)
+    (t1 : Triple l1 exit_ cr post) (t2 : Triple l2 exit_ cr post)
+    (t3 : Triple l3 exit_ cr post) (t4 : Triple l4 exit_ cr post)
+    (hlink1 : Entails Q1 t1.pre) (hlink2 : Entails Q2 t2.pre)
+    (hlink3 : Entails Q3 t3.pre) (hlink4 : Entails Q4 t4.pre)
+    (h1 : t1.nSteps ≤ tailBound) (h2 : t2.nSteps ≤ tailBound)
+    (h3 : t3.nSteps ≤ tailBound) (h4 : t4.nSteps ≤ tailBound) :
+    Triple entry exit_ cr post :=
+  br.join tailBound (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase | hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ((t1.weakenPre hlink1).monoSteps h1).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ((t2.weakenPre hlink2).monoSteps h2).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ((t3.weakenPre hlink3).monoSteps h3).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ((t4.weakenPre hlink4).monoSteps h4).sound)
+
 end NBranch
 
 namespace Branch

@@ -287,6 +287,16 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_posts4_with $br:term, $hexits:term, $h1:term, $h2:term, $h3:term, $h4:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 $br $hexits $h1 $h2 $h3 $h4)
 
+/-- Join exactly four known exits of an N-way branch, supplying the generated
+    exit-list proof and one continuation per exit. -/
+syntax (name := wpRv64NBranchJoin4WithTac)
+  "wp_rv64_nbranch_join4_with " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join4_with $br:term, $hexits:term, $tailBound:term, $t1:term, $hlink1:term, $h1:term, $t2:term, $hlink2:term, $h2:term, $t3:term, $hlink3:term, $h3:term, $t4:term, $hlink4:term, $h4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin4 $br $hexits $tailBound
+        $t1 $t2 $t3 $t4 $hlink1 $hlink2 $hlink3 $hlink4 $h1 $h2 $h3 $h4)
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -475,6 +485,25 @@ example {entry l1 l2 l3 l4 : Word} {cr : CodeReq}
     (h4 : EvmAsm.Rv64.WP.Entails Q4 Q4') :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   wp_rv64_nbranch_weaken_posts4_with br, hexits, h1, h2, h3, h4
+
+example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (t1 : EvmAsm.Rv64.WP.CFG.Cert l1 exit_ cr post)
+    (t2 : EvmAsm.Rv64.WP.CFG.Cert l2 exit_ cr post)
+    (t3 : EvmAsm.Rv64.WP.CFG.Cert l3 exit_ cr post)
+    (t4 : EvmAsm.Rv64.WP.CFG.Cert l4 exit_ cr post)
+    (hlink1 : EvmAsm.Rv64.WP.Entails Q1 t1.pre)
+    (hlink2 : EvmAsm.Rv64.WP.Entails Q2 t2.pre)
+    (hlink3 : EvmAsm.Rv64.WP.Entails Q3 t3.pre)
+    (hlink4 : EvmAsm.Rv64.WP.Entails Q4 t4.pre) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_nbranch_join4_with br, hexits, Nat.max (Nat.max t1.nSteps t2.nSteps)
+    (Nat.max t3.nSteps t4.nSteps),
+    t1, hlink1, Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _),
+    t2, hlink2, Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _),
+    t3, hlink3, Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _),
+    t4, hlink4, Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)
 
 example {entry head l : Word} {cr1 cr2 : CodeReq}
     {headPost secondPost : Assertion} {others : List (Word × Assertion)}
