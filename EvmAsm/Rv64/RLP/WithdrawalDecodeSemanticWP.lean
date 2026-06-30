@@ -1028,6 +1028,9 @@ theorem prologueCode_disjoint_walkInitEmptyFailNotListFailShortLongCode
     exact walkInitEmptyFailNotListFailShortLongCode_none_below (base + 24) a htail
       (by rw [hbase24]; exact ha)
 
+attribute [rv64_wp_disjoint]
+  prologueCode_disjoint_walkInitEmptyFailNotListFailShortLongCode
+
 /-- The empty-input walk-init status block has no code below its entry address. -/
 theorem walkInitEmptyFailStatusCode_none_below
     (base a : Word) (hcode : base.toNat + 164 < 2 ^ 64) (h : a.toNat < base.toNat) :
@@ -1056,6 +1059,9 @@ theorem prologueCode_disjoint_walkInitEmptyFailStatusCode
     exact walkInitEmptyFailStatusCode_none_below (base + 24) a htail
       (by rw [hbase24]; exact ha)
 
+attribute [rv64_wp_disjoint]
+  prologueCode_disjoint_walkInitEmptyFailStatusCode
+
 /-- Prologue followed by the empty-input walk-init failure split. The taken exit
     carries the semantic `decodeWithdrawal [] = none` failure fact, while the
     nonzero exit remains explicit and contradictory for `listLen = 0`. -/
@@ -1070,20 +1076,10 @@ def walkInitEmptyInputFailureFromPrologueNBranch
   let head := prologueCert base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
   let tail := walkInitEmptyInputFailureNBranch (base + 24) inputBase outBase raVal
     (inputBase + BitVec.ofNat 64 0)
-  have hlink : WP.Entails
-      (prologuePost sp0 raVal s0Old s1Old s2Old outBase ** carryFrame)
-      (tail.pre ** savedFrame) := by
-    dsimp [tail, carryFrame, savedFrame]
-    simp only [walkInitEmptyInputFailureNBranch_pre]
-    exact prologuePostEmptyInputCarry_entails_preFromPrologue sp0 raVal s0Old s1Old s2Old
-      inputBase outBase
-  wp_rv64_seq_block_nbranch_framed_disjoint_with
-    (prologueCode_disjoint_walkInitEmptyFailStatusCode base hprologueCode hcode),
-    head, carryFrame,
+  wp_rv64_seq_block_nbranch_framed_auto head, carryFrame,
     (walkInitEmptyInputPrologueCarryFrame_pcFree inputBase outBase),
     tail, savedFrame,
-    (walkInitAbiFailurePrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old outBase),
-    hlink
+    (walkInitAbiFailurePrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old outBase)
 
 /-- Expanded precondition for the prologue-to-empty-input failure split. -/
 theorem walkInitEmptyInputFailureFromPrologueNBranch_pre
@@ -1382,22 +1378,10 @@ def walkInitAbiFailureFromPrologueNBranch
   let head := prologueCert base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
   let tail := walkInitEmptyNotListAbiFailureNBranch (base + 24) inputBase listLen raVal
     t0Old t1Old outBase input hsalign hoff hover0 hvalid0 hLen hBound
-  have hlink : WP.Entails
-      (prologuePost sp0 raVal s0Old s1Old s2Old outBase ** carryFrame)
-      (tail.pre ** savedFrame) := by
-    dsimp [tail, carryFrame, savedFrame]
-    simp only [walkInitEmptyNotListAbiFailureNBranch_pre,
-      walkInitEmptyFailNotListFailShortLongOutputNBranch_pre]
-    exact prologuePostAbiFailureCarry_entails_preFromPrologue sp0 raVal s0Old s1Old
-      s2Old inputBase listLen t0Old t1Old outBase input
-  wp_rv64_seq_block_nbranch_framed_disjoint_with
-    (prologueCode_disjoint_walkInitEmptyFailNotListFailShortLongCode base
-      hprologueCode hcode),
-    head, carryFrame,
+  wp_rv64_seq_block_nbranch_framed_auto head, carryFrame,
     (walkInitAbiFailurePrologueCarryFrame_pcFree inputBase listLen t0Old t1Old outBase input),
     tail, savedFrame,
-    (walkInitAbiFailurePrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old outBase),
-    hlink
+    (walkInitAbiFailurePrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old outBase)
 
 /-- Expanded precondition for the prologue-to-ABI-failure classifier. -/
 theorem walkInitAbiFailureFromPrologueNBranch_pre
