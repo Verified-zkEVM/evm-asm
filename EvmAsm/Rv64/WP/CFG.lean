@@ -26,6 +26,12 @@ def exit (addr : Word) (cr : CodeReq) {pre post : Assertion}
     (h : Entails pre post) : Cert addr addr cr post :=
   Triple.refl addr cr h
 
+/-- Empty CFG at a join point when the precondition already is the
+    postcondition. -/
+def exitRefl (addr : Word) (cr : CodeReq) (post : Assertion) :
+    Cert addr addr cr post :=
+  exit addr cr (Entails.refl post)
+
 /-- A CFG certificate for an unreachable precondition. -/
 def unreachable (entry exit_ : Word) (cr : CodeReq) {pre post : Assertion}
     (hpre : ∀ h, pre h → False) : Cert entry exit_ cr post :=
@@ -38,6 +44,14 @@ def block {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
     (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
     Cert entry exit_ cr post' :=
   Triple.ofSpec hpost h
+
+/-- A leaf block whose CPS postcondition already matches the
+    certificate postcondition. -/
+def leaf {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {pre post : Assertion}
+    (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
+    Cert entry exit_ cr post :=
+  block (Entails.refl _) h
 
 /-- Frame a single-exit CFG certificate with a PC-free assertion. -/
 def frameR {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
@@ -81,6 +95,18 @@ def changeExit {entry exit_ exit_' : Word} {cr : CodeReq} {post : Assertion}
     (cfg : Cert entry exit_ cr post) (hexit : exit_ = exit_') :
     Cert entry exit_' cr post :=
   cfg.changeExit hexit
+
+/-- `exitRefl` exposes exactly the supplied postcondition as its precondition. -/
+theorem exitRefl_pre (addr : Word) (cr : CodeReq) (post : Assertion) :
+    (exitRefl addr cr post).pre = post :=
+  rfl
+
+/-- `leaf` exposes exactly the source precondition of the CPS proof. -/
+theorem leaf_pre {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {pre post : Assertion}
+    (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
+    (leaf h).pre = pre :=
+  rfl
 
 /-- `weakenPre` exposes exactly the supplied precondition. -/
 theorem weakenPre_pre {entry exit_ : Word} {cr : CodeReq} {post pre' : Assertion}
@@ -139,6 +165,15 @@ def seq {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     Cert entry exit_ cr post :=
   Triple.seq head tail hlink
 
+/-- Sequential composition when the head postcondition is exactly the
+    tail precondition. -/
+def seqExact {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre post : Assertion}
+    (tail : Cert mid exit_ cr post)
+    (head : cpsTripleWithin nSteps entry mid cr pre tail.pre) :
+    Cert entry exit_ cr post :=
+  seq head tail (Entails.refl _)
+
 /-- Sequential composition for disjoint code requirements. -/
 def seqDisjoint {nSteps : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
     {pre midPost post : Assertion}
@@ -149,6 +184,16 @@ def seqDisjoint {nSteps : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
     Cert entry exit_ (cr1.union cr2) post :=
   Triple.seqDisjoint hd head tail hlink
 
+/-- Disjoint-code sequencing when the head postcondition is exactly the
+    tail precondition. -/
+def seqDisjointExact {nSteps : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
+    {pre post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (tail : Cert mid exit_ cr2 post)
+    (head : cpsTripleWithin nSteps entry mid cr1 pre tail.pre) :
+    Cert entry exit_ (cr1.union cr2) post :=
+  seqDisjoint hd head tail (Entails.refl _)
+
 /-- Sequential composition where both adjacent regions are already available as
     CPS triples over one shared persistent code requirement. -/
 def seqBlock {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
@@ -157,7 +202,16 @@ def seqBlock {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     (tail : cpsTripleWithin nTail mid exit_ cr tailPre post)
     (hlink : Entails midPost tailPre) :
     Cert entry exit_ cr post :=
-  seq head (block (Entails.refl _) tail) hlink
+  seq head (leaf tail) hlink
+
+/-- Same-code block sequencing when the first postcondition exactly
+    matches the second precondition. -/
+def seqBlockExact {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre midPost post : Assertion}
+    (head : cpsTripleWithin nHead entry mid cr pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr midPost post) :
+    Cert entry exit_ cr post :=
+  seqBlock head tail (Entails.refl _)
 
 /-- Sequential composition where both adjacent regions are already available as
     CPS triples over disjoint code requirements. -/
@@ -168,7 +222,17 @@ def seqBlockDisjoint {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : Cod
     (tail : cpsTripleWithin nTail mid exit_ cr2 tailPre post)
     (hlink : Entails midPost tailPre) :
     Cert entry exit_ (cr1.union cr2) post :=
-  seqDisjoint hd head (block (Entails.refl _) tail) hlink
+  seqDisjoint hd head (leaf tail) hlink
+
+/-- Disjoint-code block sequencing when the first postcondition exactly
+    matches the second precondition. -/
+def seqBlockDisjointExact {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
+    {pre midPost post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : cpsTripleWithin nHead entry mid cr1 pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr2 midPost post) :
+    Cert entry exit_ (cr1.union cr2) post :=
+  seqBlockDisjoint hd head tail (Entails.refl _)
 
 /-- Sequential composition from a CPS block into an N-way CFG over disjoint code. -/
 def seqBlockNBranchDisjoint {nHead : Nat} {entry mid : Word} {cr1 cr2 : CodeReq}

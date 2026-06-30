@@ -11,8 +11,16 @@ User guide for the frame automation tactics in `EvmAsm/Tactics/`.
 | `xcancel` | `XCancel.lean` | Match/cancel separation logic atoms, compute frame |
 | `xperm` | `XPerm.lean` | Prove `P = Q` for AC-permutations of `sepConj` chains |
 | `xperm_chunked` | `XPermChunked.lean` | Opt-in alias for large-chain permutation experiments |
+| `wp_rv64*` | `Rv64/Tactics/WP.lean` | Compose WP/CFG certificates |
 | `@[spec_gen]` | `SpecDb.lean` | Register instruction specs for auto-resolution |
 | `#spec_db` | `SpecDb.lean` | Print all registered instruction specs |
+
+The WP/CFG tactics are documented in
+[`docs/agents/wp-framework.md`](docs/agents/wp-framework.md). Start there when
+a proof should derive the precondition from a program, postcondition, and known
+control-flow shape. Common exact-midpoint helpers include `wp_rv64_leaf`,
+`wp_rv64_seq_exact`, and `wp_rv64_seq_block_exact`; bounded loop helpers include
+`wp_rv64_loop_nat` and `wp_rv64_loop_nat_sound`.
 
 **For closing arithmetic / address equality goals**, see the grindsets
 documented in [`GRIND.md`](GRIND.md):

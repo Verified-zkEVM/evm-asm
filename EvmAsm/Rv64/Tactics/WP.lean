@@ -150,7 +150,12 @@ elab "wp_rv64_entails" : tactic => withMainContext do
     catch _ =>
       restoreState saved
       continue
-  throwError "wp_rv64_entails: no @[rv64_wp_entails] theorem closed the goal"
+  let goalType ← instantiateMVars (← goal.getType)
+  throwError m!"wp_rv64_entails: no @[rv64_wp_entails] theorem closed the goal.
+  Tried {entries.size} registered theorem(s).
+  Goal: {goalType}
+  Hint: add a small @[rv64_wp_entails] lemma, or expose the assertion shape
+  with `simp only [rv64_wp]`."
 
 /-- Try declarations tagged with `@[rv64_wp_dead]` against the current
     unreachable-exit goal.  Tagged lemmas may have explicit proof arguments;
@@ -178,7 +183,12 @@ elab "wp_rv64_dead_hint" : tactic => withMainContext do
       catch _ =>
         restoreState saved
         continue
-  throwError "wp_rv64_dead_hint: no @[rv64_wp_dead] theorem closed the goal"
+  let goalType ← instantiateMVars (← goal.getType)
+  throwError m!"wp_rv64_dead_hint: no @[rv64_wp_dead] theorem closed the goal.
+  Tried {entries.size} registered theorem(s).
+  Goal: {goalType}
+  Hint: add a contradiction lemma tagged @[rv64_wp_dead], or pass the
+  unreachable proof directly to WP.CFG.unreachable."
 
 /-- Close an unreachable-exit goal, after exposing small WP definitions if
     needed, using declarations tagged with `@[rv64_wp_dead]`. -/
@@ -216,7 +226,11 @@ elab "wp_rv64_cert" : tactic => withMainContext do
     catch _ =>
       restoreState saved
       continue
-  throwError "wp_rv64_cert: no @[rv64_wp_cert] declaration closed the goal"
+  throwError m!"wp_rv64_cert: no @[rv64_wp_cert] declaration closed the goal.
+  Tried {entries.size} registered declaration(s).
+  Goal: {goalType}
+  Hint: try the intended constructor directly once to expose missing static
+  facts, or tag a reusable constructor with @[rv64_wp_cert]."
 
 /-- Close the midpoint entailment between adjacent WP fragments.  The common
     case is definitional equality of the head postcondition and tail WP; semantic
@@ -262,7 +276,12 @@ private def closeDisjointWithHint (goal : MVarId) : TacticM Unit := do
     catch _ =>
       restoreState saved
       continue
-  throwError "wp_rv64_disjoint: no @[rv64_wp_disjoint] theorem closed the goal"
+  let goalType ← instantiateMVars (← goal.getType)
+  throwError m!"wp_rv64_disjoint: no @[rv64_wp_disjoint] theorem closed the goal.
+  Tried {entries.size} registered theorem(s).
+  Goal: {goalType}
+  Hint: add a local disjointness hypothesis or tag a semantic disjointness
+  lemma with @[rv64_wp_disjoint]."
 
 /-- Close a `CodeReq.Disjoint` goal using local hypotheses, declarations
     tagged with `@[rv64_wp_disjoint]`, or the structural prover shared with
@@ -284,9 +303,96 @@ elab "wp_rv64_disjoint" : tactic => withMainContext do
     restoreState savedHint
     let cr1 := goalType.getAppArgs[0]!
     let cr2 := goalType.getAppArgs[1]!
-    let proof ← withTransparency .all <| buildDisjointProof cr1 cr2
-    (← getMainGoal).assign proof
-    replaceMainGoal []
+    try
+      let proof ← withTransparency .all <| buildDisjointProof cr1 cr2
+      (← getMainGoal).assign proof
+      replaceMainGoal []
+    catch e =>
+      throwError m!"wp_rv64_disjoint: no local hypothesis, registered hint, or
+  structural proof closed the goal.
+  Goal: {goalType}
+  Hint: add a local disjointness hypothesis, or tag a semantic disjointness
+  lemma with @[rv64_wp_disjoint].
+  Structural prover error: {← e.toMessageData.toString}"
+
+/-- Lift a leaf CPS proof whose postcondition already matches the CFG
+    postcondition. -/
+syntax (name := wpRv64LeafTac) "wp_rv64_leaf " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_leaf $h:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.leaf $h)
+
+/-- Build an empty CFG at a join point with identical pre/post assertion. -/
+syntax (name := wpRv64ExitReflTac)
+  "wp_rv64_exit_refl " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_exit_refl $addr:term, $cr:term, $post:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.exitRefl $addr $cr $post)
+
+/-- Build a CFG certificate from a head CPS proof and tail certificate when the
+    head postcondition is definitionally the tail precondition. -/
+syntax (name := wpRv64CfgSeqExactTac)
+  "wp_rv64_cfg_seq_exact " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_seq_exact $head:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.seqExact $tail $head)
+
+/-- Disjoint-code version of `wp_rv64_cfg_seq_exact`. -/
+syntax (name := wpRv64CfgSeqDisjointExactTac)
+  "wp_rv64_cfg_seq_disjoint_exact " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_seq_disjoint_exact $hd:term, $head:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.seqDisjointExact $hd $tail $head)
+
+/-- Close a CPS goal from exact head/tail CFG sequencing. -/
+syntax (name := wpRv64SeqExactTac) "wp_rv64_seq_exact " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_exact $head:term, $tail:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqExact $tail $head).sound)
+
+/-- Disjoint-code version of `wp_rv64_seq_exact`. -/
+syntax (name := wpRv64SeqDisjointExactTac)
+  "wp_rv64_seq_disjoint_exact " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_disjoint_exact $hd:term, $head:term, $tail:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqDisjointExact $hd $tail $head).sound)
+
+/-- Package a bounded natural-number loop certificate as a CFG certificate. -/
+syntax (name := wpRv64LoopNatTac) "wp_rv64_loop_nat " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_loop_nat $hcert:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.loopNat $hcert)
+
+/-- Close a CPS goal from a bounded natural-number loop certificate. -/
+syntax (name := wpRv64LoopNatSoundTac) "wp_rv64_loop_nat_sound " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_loop_nat_sound $hcert:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.loopNat $hcert).sound)
+
+/-- Close a CPS goal from two adjacent same-code CPS blocks with exact
+    midpoint. -/
+syntax (name := wpRv64SeqBlockExactTac)
+  "wp_rv64_seq_block_exact " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block_exact $head:term, $tail:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqBlockExact $head $tail).sound)
+
+/-- Disjoint-code version of `wp_rv64_seq_block_exact`. -/
+syntax (name := wpRv64SeqBlockDisjointExactTac)
+  "wp_rv64_seq_block_disjoint_exact " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block_disjoint_exact $hd:term, $head:term, $tail:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqBlockDisjointExact $hd $head $tail).sound)
 
 /-- Frame a single-exit CFG certificate and return the framed certificate. -/
 syntax (name := wpRv64FrameRTac) "wp_rv64_frame " term ", " term ", " term : tactic
@@ -1091,6 +1197,15 @@ example {entry exit_ : Word} {cr : CodeReq} {pre post : Assertion}
     EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
   wp_rv64_unreachable entry, exit_, cr, hpre
 
+example {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq} {pre post : Assertion}
+    (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_leaf h
+
+example {entry : Word} {cr : CodeReq} {post : Assertion} :
+    EvmAsm.Rv64.WP.CFG.Cert entry entry cr post := by
+  wp_rv64_exit_refl entry, cr, post
+
 example {P : Assertion} {A : Prop} (hA : A) :
     EvmAsm.Rv64.WP.Entails P (P ** ⌜A⌝) := by
   wp_rv64_link
@@ -1112,12 +1227,60 @@ example {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     cpsTripleWithin (nSteps + tail.nSteps) entry exit_ cr pre post := by
   wp_rv64_seq head, tail
 
+example {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre post : Assertion}
+    (tail : EvmAsm.Rv64.WP.CFG.Cert mid exit_ cr post)
+    (head : cpsTripleWithin nSteps entry mid cr pre tail.pre) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_cfg_seq_exact head, tail
+
+example {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre post : Assertion}
+    (tail : EvmAsm.Rv64.WP.CFG.Cert mid exit_ cr post)
+    (head : cpsTripleWithin nSteps entry mid cr pre tail.pre) :
+    cpsTripleWithin (nSteps + tail.nSteps) entry exit_ cr pre post := by
+  wp_rv64_seq_exact head, tail
+
+example {nSteps : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
+    {pre post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (tail : EvmAsm.Rv64.WP.CFG.Cert mid exit_ cr2 post)
+    (head : cpsTripleWithin nSteps entry mid cr1 pre tail.pre) :
+    cpsTripleWithin (nSteps + tail.nSteps) entry exit_ (cr1.union cr2) pre post := by
+  wp_rv64_seq_disjoint_exact hd, head, tail
+
 example {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     {pre midPost post : Assertion}
     (head : cpsTripleWithin nHead entry mid cr pre midPost)
     (tail : cpsTripleWithin nTail mid exit_ cr midPost post) :
     cpsTripleWithin (nHead + nTail) entry exit_ cr pre post := by
   wp_rv64_seq_block head, tail
+
+example {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre midPost post : Assertion}
+    (head : cpsTripleWithin nHead entry mid cr pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr midPost post) :
+    cpsTripleWithin (nHead + nTail) entry exit_ cr pre post := by
+  wp_rv64_seq_block_exact head, tail
+
+example {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    {fuel : Nat}
+    (hcert : EvmAsm.Rv64.WP.loopNatCert nHeader nBody nExit
+      header bodyEntry exit_ cr inv bodyPre exitPost post 0 fuel) :
+    EvmAsm.Rv64.WP.CFG.Cert header exit_ cr post := by
+  wp_rv64_loop_nat hcert
+
+example {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    {fuel : Nat}
+    (hcert : EvmAsm.Rv64.WP.loopNatCert nHeader nBody nExit
+      header bodyEntry exit_ cr inv bodyPre exitPost post 0 fuel) :
+    cpsTripleWithin (EvmAsm.Rv64.WP.loopBound nHeader nBody nExit fuel)
+      header exit_ cr (inv 0) post := by
+  wp_rv64_loop_nat_sound hcert
 
 example {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
     {pre midPost post : Assertion}
@@ -1126,6 +1289,14 @@ example {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
     (tail : cpsTripleWithin nTail mid exit_ cr2 midPost post) :
     cpsTripleWithin (nHead + nTail) entry exit_ (cr1.union cr2) pre post := by
   wp_rv64_seq_block_disjoint hd, head, tail
+
+example {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
+    {pre midPost post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : cpsTripleWithin nHead entry mid cr1 pre midPost)
+    (tail : cpsTripleWithin nTail mid exit_ cr2 midPost post) :
+    cpsTripleWithin (nHead + nTail) entry exit_ (cr1.union cr2) pre post := by
+  wp_rv64_seq_block_disjoint_exact hd, head, tail
 
 example {nHead : Nat} {entry mid : Word} {cr1 cr2 : CodeReq}
     {pre midPost : Assertion}
