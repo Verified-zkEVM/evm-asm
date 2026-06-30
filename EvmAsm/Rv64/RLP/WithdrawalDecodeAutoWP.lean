@@ -172,6 +172,21 @@ theorem walkInitShortSuccessDecodedWP_cert_pre
 attribute [rv64_wp]
   walkInitShortSuccessDecodedWP_cert_pre
 
+/-- Nonempty inputs select the reason-erased classifier exits in the zero/nonzero
+    facade. This hides the empty-input singleton branch once a caller has any
+    static nonempty witness. -/
+theorem walkInitZeroNonzeroAbiFailureFromPrologueExits_of_pos
+    (base sp0 raVal s0Old s1Old s2Old outBase : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (hoff : 0 < input.length) :
+    walkInitZeroNonzeroAbiFailureFromPrologueExits base sp0 raVal s0Old s1Old s2Old outBase
+      inputBase listLen t0Old t1Old input =
+      walkInitAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old s2Old outBase
+        inputBase listLen t0Old t1Old input hoff := by
+  cases input with
+  | nil => simp at hoff
+  | cons _ _ => rfl
+
 namespace WalkInitShortSuccessDecodedWP
 
 /-- Result-free schema witnesses extracted by a decoded-success WP package. -/
@@ -237,6 +252,30 @@ theorem failureNBranch_pre
         walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
   unfold failureNBranch
   rw [walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch_pre]
+
+/-- Package-indexed classifier exits normalized to the nonempty, reason-erased
+    shape. The low-level empty/nonempty `match` is discharged by `pkg.hoff`. -/
+theorem failureNBranch_exits
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (pkg.failureNBranch hsalign hover hwin h_len h_prologue_code h_code_max).exits =
+      (walkInitAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old s2Old
+        outBase inputBase listLen t0Old t1Old input pkg.hoff).map
+        (fun ex => (ex.1, ex.2 ** walkInitSchemaScratchFrame)) := by
+  unfold failureNBranch
+  rw [walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch_exits]
+  unfold walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameExits
+  rw [walkInitZeroNonzeroAbiFailureFromPrologueExits_of_pos base sp0 raVal s0Old s1Old
+    s2Old outBase inputBase listLen t0Old t1Old input pkg.hoff]
 
 attribute [rv64_wp]
   failureNBranch_pre
