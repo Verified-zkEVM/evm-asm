@@ -12,56 +12,17 @@ namespace EvmAsm.Evm64.SDiv.Compose
 
 open EvmAsm.Rv64.BitAux
 
-/-- Absolute-value word produced by the SDIV dividend sign/absolute-value
-    prefix, packaged as a named expression so downstream callable-composition
-    proofs do not duplicate the expanded `fromLimbs` term. -/
-def sdivAbsDividendWord
-    (dividendLimb0 dividendLimb1 dividendLimb2 dividendTop : Word) : EvmWord :=
-  let dividendSign := dividendTop >>> (63 : BitVec 6).toNat
-  let dividendMask := (0 : Word) - dividendSign
-  let dividendSum0 := (dividendLimb0 ^^^ dividendMask) + dividendSign
-  let dividendCarry0 :=
-    if BitVec.ult dividendSum0 dividendSign then (1 : Word) else 0
-  let dividendSum1 := (dividendLimb1 ^^^ dividendMask) + dividendCarry0
-  let dividendCarry1 :=
-    if BitVec.ult dividendSum1 dividendCarry0 then (1 : Word) else 0
-  let dividendSum2 := (dividendLimb2 ^^^ dividendMask) + dividendCarry1
-  let dividendCarry2 :=
-    if BitVec.ult dividendSum2 dividendCarry1 then (1 : Word) else 0
-  let dividendSum3 := (dividendTop ^^^ dividendMask) + dividendCarry2
-  EvmWord.fromLimbs fun i : Fin 4 =>
-    match i with
-    | 0 => dividendSum0 | 1 => dividendSum1 | 2 => dividendSum2 | 3 => dividendSum3
-
-/-- Absolute-value word produced by the SDIV divisor sign/absolute-value
-    prefix, paired with `sdivAbsDividendWord` for downstream composition
-    statements that consume `divModStackDispatchPre`. -/
-def sdivAbsDivisorWord
-    (divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word) : EvmWord :=
-  let divisorSign := divisorTop >>> (63 : BitVec 6).toNat
-  let divisorMask := (0 : Word) - divisorSign
-  let divisorSum0 := (divisorLimb0 ^^^ divisorMask) + divisorSign
-  let divisorCarry0 := if BitVec.ult divisorSum0 divisorSign then (1 : Word) else 0
-  let divisorSum1 := (divisorLimb1 ^^^ divisorMask) + divisorCarry0
-  let divisorCarry1 := if BitVec.ult divisorSum1 divisorCarry0 then (1 : Word) else 0
-  let divisorSum2 := (divisorLimb2 ^^^ divisorMask) + divisorCarry1
-  let divisorCarry2 := if BitVec.ult divisorSum2 divisorCarry1 then (1 : Word) else 0
-  let divisorSum3 := (divisorTop ^^^ divisorMask) + divisorCarry2
-  EvmWord.fromLimbs fun i : Fin 4 =>
-    match i with
-    | 0 => divisorSum0 | 1 => divisorSum1 | 2 => divisorSum2 | 3 => divisorSum3
-
-/-- Word produced by conditionally negating the unsigned quotient limbs by the
-    SDIV result sign. This names the memory-result word of the result-sign
-    fixup block before connecting it to the semantic `EvmWord.sdiv` result. -/
-def sdivResultSignFixedWord
-    (dividendTop divisorTop limb0 limb1 limb2 limb3 : Word) : EvmWord :=
-  let resultSign :=
-    (dividendTop >>> (63 : BitVec 6).toNat) ^^^
-      (divisorTop >>> (63 : BitVec 6).toNat)
-  let mask := (0 : Word) - resultSign
-  let sum0 := (limb0 ^^^ mask) + resultSign
-  let carry0 := if BitVec.ult sum0 resultSign then (1 : Word) else 0
+/-- Conditional four-limb two's-complement negation by a Boolean `sign` word.
+    `mask = 0 - sign` is `0` when `sign = 0` and all-ones when `sign = 1`, so a
+    ripple-carry chain over `(limbᵢ ^^^ mask) + carryᵢ₋₁` (seeded with `sign`)
+    yields the source word when `sign = 0` and its two's-complement negation when
+    `sign = 1`. This is the shared kernel of every SDIV/SMOD sign/absolute-value
+    and result-sign-fixup block; the per-operand defs below are thin
+    specializations that only differ in how `sign` is computed. -/
+def rippleNegWord (limb0 limb1 limb2 limb3 sign : Word) : EvmWord :=
+  let mask := (0 : Word) - sign
+  let sum0 := (limb0 ^^^ mask) + sign
+  let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
   let sum1 := (limb1 ^^^ mask) + carry0
   let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
   let sum2 := (limb2 ^^^ mask) + carry1
@@ -70,6 +31,87 @@ def sdivResultSignFixedWord
   EvmWord.fromLimbs fun i : Fin 4 =>
     match i with
     | 0 => sum0 | 1 => sum1 | 2 => sum2 | 3 => sum3
+
+/-- Helper: `-v = ~~~v + 1` (two's complement for EvmWord). -/
+private theorem evmWord_neg_eq_not_add (v : EvmWord) : -v = ~~~v + 1 := by bv_omega
+
+/-- With `sign = 0` the ripple-negation is the identity: it returns the source
+    word assembled from the four limbs. -/
+theorem rippleNegWord_of_sign_zero
+    (limb0 limb1 limb2 limb3 sign : Word) (hSign : sign = 0) :
+    rippleNegWord limb0 limb1 limb2 limb3 sign =
+      EvmWord.fromLimbs fun i : Fin 4 =>
+        match i with
+        | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => limb3 := by
+  subst hSign
+  unfold rippleNegWord
+  simp (config := { zeta := true }) only
+    [show (0 : Word) - 0 = 0 from rfl, ult_zero_false, word_xor_zero, word_add_zero,
+     word_if_false_eq_zero]
+
+/-- With `sign = 1` the ripple-negation computes the two's-complement negation of
+    the word assembled from the four limbs. This is the single proof shared by
+    every SDIV/SMOD `…_eq_neg_word_of_sign_one` wrapper. -/
+theorem rippleNegWord_of_sign_one
+    (limb0 limb1 limb2 limb3 sign : Word) (hSign : sign = 1) :
+    rippleNegWord limb0 limb1 limb2 limb3 sign =
+      -(EvmWord.fromLimbs fun i : Fin 4 =>
+          match i with
+          | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => limb3) := by
+  set v := EvmWord.fromLimbs (fun i : Fin 4 =>
+    match i with | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => limb3) with hv
+  have hv0 : v.getLimb 0 = limb0 := by rw [hv]; exact EvmWord.getLimb_fromLimbs
+  have hv1 : v.getLimb 1 = limb1 := by rw [hv]; exact EvmWord.getLimb_fromLimbs
+  have hv2 : v.getLimb 2 = limb2 := by rw [hv]; exact EvmWord.getLimb_fromLimbs
+  have hv3 : v.getLimb 3 = limb3 := by rw [hv]; exact EvmWord.getLimb_fromLimbs
+  have h1_0 : (1 : EvmWord).getLimb 0 = 1 := by decide
+  have h1_1 : (1 : EvmWord).getLimb 1 = 0 := by decide
+  have h1_2 : (1 : EvmWord).getLimb 2 = 0 := by decide
+  have h1_3 : (1 : EvmWord).getLimb 3 = 0 := by decide
+  have hNot : ∀ i : Fin 4, (~~~v).getLimb i = ~~~(v.getLimb i) :=
+    fun _ => EvmWord.getLimb_not
+  have hadd := EvmWord.add_carry_chain_correct (~~~v) 1
+  simp (config := { zeta := true }) only [hNot, h1_0, h1_1, h1_2, h1_3] at hadd
+  simp (config := { zeta := true }) only [ult_zero_false, word_if_false_eq_zero] at hadd
+  -- Rewrite the carry chain in terms of the raw limbs (not `v.getLimb _`).
+  simp only [hv0, hv1, hv2, hv3] at hadd
+  subst hSign
+  unfold rippleNegWord
+  simp (config := { zeta := true }) only [word_zero_sub_one, word_xor_allOnes]
+  rw [evmWord_neg_eq_not_add, ← EvmWord.fromLimbs_getLimb (~~~v + 1)]
+  apply EvmWord.eq_iff_limbs.mpr; intro ⟨i, hi⟩
+  rw [EvmWord.getLimb_fromLimbs, EvmWord.getLimb_fromLimbs]
+  rcases i with _ | _ | _ | _ | j <;> [skip; skip; skip; skip; omega]
+  all_goals dsimp only []
+  · exact hadd.1.symm
+  · have h := hadd.2.1; simp [BitVec.add_zero] at h; exact h.symm
+  · have h := hadd.2.2.1; simp [BitVec.add_zero] at h; exact h.symm
+  · have h := hadd.2.2.2; simp [BitVec.add_zero] at h; exact h.symm
+
+/-- Absolute-value word produced by the SDIV dividend sign/absolute-value
+    prefix, packaged as a named expression so downstream callable-composition
+    proofs do not duplicate the expanded `fromLimbs` term. -/
+def sdivAbsDividendWord
+    (dividendLimb0 dividendLimb1 dividendLimb2 dividendTop : Word) : EvmWord :=
+  rippleNegWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+    (dividendTop >>> (63 : BitVec 6).toNat)
+
+/-- Absolute-value word produced by the SDIV divisor sign/absolute-value
+    prefix, paired with `sdivAbsDividendWord` for downstream composition
+    statements that consume `divModStackDispatchPre`. -/
+def sdivAbsDivisorWord
+    (divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word) : EvmWord :=
+  rippleNegWord divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+    (divisorTop >>> (63 : BitVec 6).toNat)
+
+/-- Word produced by conditionally negating the unsigned quotient limbs by the
+    SDIV result sign. This names the memory-result word of the result-sign
+    fixup block before connecting it to the semantic `EvmWord.sdiv` result. -/
+def sdivResultSignFixedWord
+    (dividendTop divisorTop limb0 limb1 limb2 limb3 : Word) : EvmWord :=
+  rippleNegWord limb0 limb1 limb2 limb3
+    ((dividendTop >>> (63 : BitVec 6).toNat) ^^^
+      (divisorTop >>> (63 : BitVec 6).toNat))
 
 /-- The SDIV result sign is the XOR of two top-bit extractions, hence it is a
     Boolean word. This keeps later result-sign-fix zero-quotient rewrites from
@@ -185,11 +227,8 @@ theorem sdivAbsDividendWord_of_sign_zero
       EvmWord.fromLimbs fun i : Fin 4 =>
         match i with
         | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => top := by
-  simp only [bv6_63_toNat] at hSign
   unfold sdivAbsDividendWord
-  simp (config := { zeta := true }) only
-    [bv6_63_toNat, hSign, show (0 : Word) - 0 = 0 from rfl, ult_zero_false, word_xor_zero,
-     word_add_zero, word_if_false_eq_zero]
+  exact rippleNegWord_of_sign_zero _ _ _ _ _ hSign
 
 /-- Four concrete `getLimbN` projections assemble back to their source word. -/
 theorem sdivWord_from_getLimbN (v : EvmWord) :
@@ -215,9 +254,6 @@ theorem sdivAbsDividendWord_eq_word_of_sign_zero
   rw [sdivAbsDividendWord_of_sign_zero _ _ _ _ hSign]
   exact sdivWord_from_getLimbN dividend
 
-/-- Helper: `-v = ~~~v + 1` (two's complement for EvmWord). -/
-private theorem evmWord_neg_eq_not_add (v : EvmWord) : -v = ~~~v + 1 := by bv_omega
-
 /-- If the dividend sign bit is one, the SDIV absolute-value helper returns the
     two's-complement negation of the dividend word. -/
 theorem sdivAbsDividendWord_eq_neg_word_of_sign_one
@@ -225,49 +261,8 @@ theorem sdivAbsDividendWord_eq_neg_word_of_sign_one
     (hSign : dividend.getLimbN 3 >>> (63 : BitVec 6).toNat = (1 : Word)) :
     sdivAbsDividendWord (dividend.getLimbN 0) (dividend.getLimbN 1)
       (dividend.getLimbN 2) (dividend.getLimbN 3) = -dividend := by
-  -- getLimbN k = getLimb k for k < 4
-  have hl0 : dividend.getLimbN 0 = dividend.getLimb 0 :=
-    (EvmWord.getLimbN_lt dividend 0 (by omega)).symm
-  have hl1 : dividend.getLimbN 1 = dividend.getLimb 1 :=
-    (EvmWord.getLimbN_lt dividend 1 (by omega)).symm
-  have hl2 : dividend.getLimbN 2 = dividend.getLimb 2 :=
-    (EvmWord.getLimbN_lt dividend 2 (by omega)).symm
-  have hl3 : dividend.getLimbN 3 = dividend.getLimb 3 :=
-    (EvmWord.getLimbN_lt dividend 3 (by omega)).symm
-  -- getLimb of (1 : EvmWord)
-  have h1_0 : (1 : EvmWord).getLimb 0 = 1 := by decide
-  have h1_1 : (1 : EvmWord).getLimb 1 = 0 := by decide
-  have h1_2 : (1 : EvmWord).getLimb 2 = 0 := by decide
-  have h1_3 : (1 : EvmWord).getLimb 3 = 0 := by decide
-  -- getLimb of ~~~dividend = ~~~(getLimb dividend)
-  have hNot : ∀ i : Fin 4, (~~~dividend).getLimb i = ~~~(dividend.getLimb i) :=
-    fun _ => EvmWord.getLimb_not
-  -- Add carry chain for (~~~dividend) + 1; b0=1, b1=b2=b3=0
-  have hadd := EvmWord.add_carry_chain_correct (~~~dividend) 1
-  -- Zeta-reduce the let bindings and substitute concrete limb values
-  -- hadd gives carry chain for (~~~dividend + 1)
-  -- Simplify hadd: substitute limbs, simplify + 0 and ult x 0 = false
-  simp (config := { zeta := true }) only [hNot, h1_0, h1_1, h1_2, h1_3] at hadd
-  -- Extra pass to clean up + 0 and carry_a = 0 terms
-  simp (config := { zeta := true }) only [ult_zero_false, word_if_false_eq_zero] at hadd
-  -- hadd now says (~~~dividend+1).getLimb k = <sdiv-sum-k> for k=0,1,2,3
-  -- Unfold sdivAbsDividendWord; substitute sign=1 → mask=allOnes; NOT the limbs
-  simp only [bv6_63_toNat] at hSign
-  -- Derive sign=1 in getLimb form for use after unfolding
-  have hSignL : dividend.getLimb 3 >>> 63 = 1 := hl3 ▸ hSign
   unfold sdivAbsDividendWord
-  simp (config := { zeta := true }) only [bv6_63_toNat, hSignL, word_zero_sub_one,
-    hl0, hl1, hl2, hl3, word_xor_allOnes]
-  -- Goal: fromLimbs (fun i => match i with | 0 => S0 | ... | 3 => S3) = -dividend
-  rw [evmWord_neg_eq_not_add, ← EvmWord.fromLimbs_getLimb (~~~dividend + 1)]
-  apply EvmWord.eq_iff_limbs.mpr; intro ⟨i, hi⟩
-  rw [EvmWord.getLimb_fromLimbs, EvmWord.getLimb_fromLimbs]
-  rcases i with _ | _ | _ | _ | j <;> [skip; skip; skip; skip; omega]
-  all_goals dsimp only []
-  · exact hadd.1.symm
-  · have h := hadd.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.2; simp [BitVec.add_zero] at h; exact h.symm
+  rw [rippleNegWord_of_sign_one _ _ _ _ _ hSign, sdivWord_from_getLimbN]
 
 /-- If the divisor sign bit is zero, the divisor absolute-value word is just the
     original four-limb word. -/
@@ -278,11 +273,8 @@ theorem sdivAbsDivisorWord_of_sign_zero
       EvmWord.fromLimbs fun i : Fin 4 =>
         match i with
         | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => top := by
-  simp only [bv6_63_toNat] at hSign
   unfold sdivAbsDivisorWord
-  simp (config := { zeta := true }) only
-    [bv6_63_toNat, hSign, show (0 : Word) - 0 = 0 from rfl, ult_zero_false, word_xor_zero,
-     word_add_zero, word_if_false_eq_zero]
+  exact rippleNegWord_of_sign_zero _ _ _ _ _ hSign
 
 /-- Word-shaped variant of `sdivAbsDivisorWord_of_sign_zero`: if the divisor
     sign bit is zero, the SDIV absolute-value helper returns the divisor word. -/
@@ -301,40 +293,8 @@ theorem sdivAbsDivisorWord_eq_neg_word_of_sign_one
     (hSign : divisor.getLimbN 3 >>> (63 : BitVec 6).toNat = (1 : Word)) :
     sdivAbsDivisorWord (divisor.getLimbN 0) (divisor.getLimbN 1)
       (divisor.getLimbN 2) (divisor.getLimbN 3) = -divisor := by
-  have hl0 : divisor.getLimbN 0 = divisor.getLimb 0 :=
-    (EvmWord.getLimbN_lt divisor 0 (by omega)).symm
-  have hl1 : divisor.getLimbN 1 = divisor.getLimb 1 :=
-    (EvmWord.getLimbN_lt divisor 1 (by omega)).symm
-  have hl2 : divisor.getLimbN 2 = divisor.getLimb 2 :=
-    (EvmWord.getLimbN_lt divisor 2 (by omega)).symm
-  have hl3 : divisor.getLimbN 3 = divisor.getLimb 3 :=
-    (EvmWord.getLimbN_lt divisor 3 (by omega)).symm
-  have h1_0 : (1 : EvmWord).getLimb 0 = 1 := by decide
-  have h1_1 : (1 : EvmWord).getLimb 1 = 0 := by decide
-  have h1_2 : (1 : EvmWord).getLimb 2 = 0 := by decide
-  have h1_3 : (1 : EvmWord).getLimb 3 = 0 := by decide
-  have hNot : ∀ i : Fin 4, (~~~divisor).getLimb i = ~~~(divisor.getLimb i) :=
-    fun _ => EvmWord.getLimb_not
-  have hadd := EvmWord.add_carry_chain_correct (~~~divisor) 1
-  -- hadd gives carry chain for (~~~dividend + 1)
-  -- Simplify hadd: substitute limbs, simplify + 0 and ult x 0 = false
-  simp (config := { zeta := true }) only [hNot, h1_0, h1_1, h1_2, h1_3] at hadd
-  -- Extra pass to clean up + 0 and carry_a = 0 terms
-  simp (config := { zeta := true }) only [ult_zero_false, word_if_false_eq_zero] at hadd
-  simp only [bv6_63_toNat] at hSign
-  have hSignL : divisor.getLimb 3 >>> 63 = 1 := hl3 ▸ hSign
   unfold sdivAbsDivisorWord
-  simp (config := { zeta := true }) only [bv6_63_toNat, hSignL, word_zero_sub_one,
-    hl0, hl1, hl2, hl3, word_xor_allOnes]
-  rw [evmWord_neg_eq_not_add, ← EvmWord.fromLimbs_getLimb (~~~divisor + 1)]
-  apply EvmWord.eq_iff_limbs.mpr; intro ⟨i, hi⟩
-  rw [EvmWord.getLimb_fromLimbs, EvmWord.getLimb_fromLimbs]
-  rcases i with _ | _ | _ | _ | j <;> [skip; skip; skip; skip; omega]
-  all_goals dsimp only []
-  · exact hadd.1.symm
-  · have h := hadd.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.2; simp [BitVec.add_zero] at h; exact h.symm
+  rw [rippleNegWord_of_sign_one _ _ _ _ _ hSign, sdivWord_from_getLimbN]
 
 /-- If the SDIV result sign is zero, the result-sign-fix word is just the
     unsigned quotient word assembled from its four limbs. -/
@@ -347,11 +307,8 @@ theorem sdivResultSignFixedWord_of_result_sign_zero
       EvmWord.fromLimbs fun i : Fin 4 =>
         match i with
         | 0 => limb0 | 1 => limb1 | 2 => limb2 | 3 => limb3 := by
-  simp only [bv6_63_toNat] at hSign
   unfold sdivResultSignFixedWord
-  simp (config := { zeta := true }) only
-    [bv6_63_toNat, hSign, show (0 : Word) - 0 = 0 from rfl, ult_zero_false, word_xor_zero,
-     word_add_zero, word_if_false_eq_zero]
+  exact rippleNegWord_of_sign_zero _ _ _ _ _ hSign
 
 /-- Word-shaped variant of `sdivResultSignFixedWord_of_result_sign_zero`: if
     the result sign is zero, the result-sign-fix helper leaves the quotient word
@@ -377,39 +334,8 @@ theorem sdivResultSignFixedWord_eq_neg_word_of_result_sign_one
     sdivResultSignFixedWord dividendTop divisorTop
       (quotient.getLimbN 0) (quotient.getLimbN 1)
       (quotient.getLimbN 2) (quotient.getLimbN 3) = -quotient := by
-  have hl0 : quotient.getLimbN 0 = quotient.getLimb 0 :=
-    (EvmWord.getLimbN_lt quotient 0 (by omega)).symm
-  have hl1 : quotient.getLimbN 1 = quotient.getLimb 1 :=
-    (EvmWord.getLimbN_lt quotient 1 (by omega)).symm
-  have hl2 : quotient.getLimbN 2 = quotient.getLimb 2 :=
-    (EvmWord.getLimbN_lt quotient 2 (by omega)).symm
-  have hl3 : quotient.getLimbN 3 = quotient.getLimb 3 :=
-    (EvmWord.getLimbN_lt quotient 3 (by omega)).symm
-  have h1_0 : (1 : EvmWord).getLimb 0 = 1 := by decide
-  have h1_1 : (1 : EvmWord).getLimb 1 = 0 := by decide
-  have h1_2 : (1 : EvmWord).getLimb 2 = 0 := by decide
-  have h1_3 : (1 : EvmWord).getLimb 3 = 0 := by decide
-  have hNot : ∀ i : Fin 4, (~~~quotient).getLimb i = ~~~(quotient.getLimb i) :=
-    fun _ => EvmWord.getLimb_not
-  have hadd := EvmWord.add_carry_chain_correct (~~~quotient) 1
-  -- hadd gives carry chain for (~~~dividend + 1)
-  -- Simplify hadd: substitute limbs, simplify + 0 and ult x 0 = false
-  simp (config := { zeta := true }) only [hNot, h1_0, h1_1, h1_2, h1_3] at hadd
-  -- Extra pass to clean up + 0 and carry_a = 0 terms
-  simp (config := { zeta := true }) only [ult_zero_false, word_if_false_eq_zero] at hadd
-  simp only [bv6_63_toNat] at hSign
   unfold sdivResultSignFixedWord
-  simp (config := { zeta := true }) only [bv6_63_toNat, hSign, word_zero_sub_one,
-    hl0, hl1, hl2, hl3, word_xor_allOnes]
-  rw [evmWord_neg_eq_not_add, ← EvmWord.fromLimbs_getLimb (~~~quotient + 1)]
-  apply EvmWord.eq_iff_limbs.mpr; intro ⟨i, hi⟩
-  rw [EvmWord.getLimb_fromLimbs, EvmWord.getLimb_fromLimbs]
-  rcases i with _ | _ | _ | _ | j <;> [skip; skip; skip; skip; omega]
-  all_goals dsimp only []
-  · exact hadd.1.symm
-  · have h := hadd.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.2; simp [BitVec.add_zero] at h; exact h.symm
+  rw [rippleNegWord_of_sign_one _ _ _ _ _ hSign, sdivWord_from_getLimbN]
 
 /-- The SDIV divisor absolute-value word is zero when all divisor limbs are
     zero. This discharges the internal bzero-branch hypothesis for the
@@ -708,17 +634,7 @@ theorem sdivAbsDividendWord_limb_sign_split
     stack-level views can fold the four memory atoms into one `evmWordIs`. -/
 def sdivSignFixedWord
     (sign limb0 limb1 limb2 limb3 : Word) : EvmWord :=
-  let mask := (0 : Word) - sign
-  let sum0 := (limb0 ^^^ mask) + sign
-  let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
-  let sum1 := (limb1 ^^^ mask) + carry0
-  let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
-  let sum2 := (limb2 ^^^ mask) + carry1
-  let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
-  let sum3 := (limb3 ^^^ mask) + carry2
-  EvmWord.fromLimbs fun i : Fin 4 =>
-    match i with
-    | 0 => sum0 | 1 => sum1 | 2 => sum2 | 3 => sum3
+  rippleNegWord limb0 limb1 limb2 limb3 sign
 
 /-- If the SDIV result sign is zero, result-sign fixup leaves the quotient
     word unchanged. -/
@@ -727,10 +643,7 @@ theorem sdivSignFixedWord_zero_sign (word : EvmWord) :
       (word.getLimbN 0) (word.getLimbN 1) (word.getLimbN 2) (word.getLimbN 3) =
       word := by
   unfold sdivSignFixedWord
-  simp (config := { zeta := true }) only
-    [show (0 : Word) - 0 = 0 from rfl, ult_zero_false, word_xor_zero, word_add_zero,
-     word_if_false_eq_zero]
-  exact sdivWord_from_getLimbN word
+  rw [rippleNegWord_of_sign_zero _ _ _ _ _ rfl, sdivWord_from_getLimbN]
 
 /-- Conditional result-sign fixup maps a zero quotient to the zero word. -/
 theorem sdivSignFixedWord_zero_quotient
@@ -751,41 +664,9 @@ theorem sdivSignFixedWord_one_sign (word : EvmWord) :
     sdivSignFixedWord 1
       (word.getLimbN 0) (word.getLimbN 1) (word.getLimbN 2) (word.getLimbN 3) =
       ~~~word + 1 := by
-  -- sdivSignFixedWord 1 ... is identical to sdivResultSignFixedWord with resultSign=1
-  -- Use sdivResultSignFixedWord_eq_neg_word_of_result_sign_one + evmWord_neg_eq_not_add
-  -- But sdivSignFixedWord takes (sign, l0, l1, l2, l3) instead of (dTop, vTop, l0..l3)
-  -- They have the same carry chain; use the direct add_carry_chain approach
-  have hl0 : word.getLimbN 0 = word.getLimb 0 :=
-    (EvmWord.getLimbN_lt word 0 (by omega)).symm
-  have hl1 : word.getLimbN 1 = word.getLimb 1 :=
-    (EvmWord.getLimbN_lt word 1 (by omega)).symm
-  have hl2 : word.getLimbN 2 = word.getLimb 2 :=
-    (EvmWord.getLimbN_lt word 2 (by omega)).symm
-  have hl3 : word.getLimbN 3 = word.getLimb 3 :=
-    (EvmWord.getLimbN_lt word 3 (by omega)).symm
-  have h1_0 : (1 : EvmWord).getLimb 0 = 1 := by decide
-  have h1_1 : (1 : EvmWord).getLimb 1 = 0 := by decide
-  have h1_2 : (1 : EvmWord).getLimb 2 = 0 := by decide
-  have h1_3 : (1 : EvmWord).getLimb 3 = 0 := by decide
-  have hNot : ∀ i : Fin 4, (~~~word).getLimb i = ~~~(word.getLimb i) :=
-    fun _ => EvmWord.getLimb_not
-  have hadd := EvmWord.add_carry_chain_correct (~~~word) 1
-  -- hadd gives carry chain for (~~~dividend + 1)
-  -- Simplify hadd: substitute limbs, simplify + 0 and ult x 0 = false
-  simp (config := { zeta := true }) only [hNot, h1_0, h1_1, h1_2, h1_3] at hadd
-  -- Extra pass to clean up + 0 and carry_a = 0 terms
-  simp (config := { zeta := true }) only [ult_zero_false, word_if_false_eq_zero] at hadd
   unfold sdivSignFixedWord
-  simp (config := { zeta := true }) only [word_zero_sub_one, hl0, hl1, hl2, hl3, word_xor_allOnes]
-  rw [← EvmWord.fromLimbs_getLimb (~~~word + 1)]
-  apply EvmWord.eq_iff_limbs.mpr; intro ⟨i, hi⟩
-  rw [EvmWord.getLimb_fromLimbs, EvmWord.getLimb_fromLimbs]
-  rcases i with _ | _ | _ | _ | j <;> [skip; skip; skip; skip; omega]
-  all_goals dsimp only []
-  · exact hadd.1.symm
-  · have h := hadd.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.2; simp [BitVec.add_zero] at h; exact h.symm
+  rw [rippleNegWord_of_sign_one _ _ _ _ _ rfl, sdivWord_from_getLimbN,
+    evmWord_neg_eq_not_add]
 
 /-- Boolean result signs reduce result-sign fixup to either the original
     quotient word or its explicit two's-complement negation. -/
