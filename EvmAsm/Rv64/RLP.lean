@@ -140,3 +140,4 @@ import EvmAsm.Rv64.RLP.WithdrawalDecode
 import EvmAsm.Rv64.RLP.WithdrawalSchemaWP
 import EvmAsm.Rv64.RLP.WithdrawalDecodeFailureWP
 import EvmAsm.Rv64.RLP.WithdrawalDecodeShortWP
+import EvmAsm.Rv64.RLP.WithdrawalDecodeSemanticWP
