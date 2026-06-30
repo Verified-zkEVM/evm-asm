@@ -1300,9 +1300,183 @@ theorem walkInitEmptyFailNotListFailShortLongOutputNBranch_pre
   rw [walkInitEmptyFailNotListFailShortLongOutputNBranch,
     walkInitEmptyFailNotListFailShortLongFramedNBranch_pre_expanded]
 
+/-- Raw empty-input failure exit of the walk-init classifier, including the
+    scratch/input frame that was carried across the classifier. -/
+def walkInitEmptyFailOutputPost
+    (listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) : Assertion :=
+  ((walkInitEmptyFailStatusPost listLen raVal **
+    ((.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes)) **
+    bytesRegionAny outBase outputSize)
+
+/-- Raw not-list failure exit after the reason-erased failure endpoint. -/
+def walkInitNotListFailOutputPost
+    (listBase listLen raVal outBase : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  walkInitPrefixNotListFailStatusPost listBase listLen raVal listBytes listOff hoff **
+    bytesRegionAny outBase outputSize
+
+/-- Raw short-list candidate exit, with the ABI output buffer preserved. -/
+def walkInitShortListOutputPost
+    (listBase listLen raVal outBase : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  walkInitShortListCandidatePost listBase listLen raVal listBytes listOff hoff **
+    bytesRegionAny outBase outputSize
+
+/-- Raw long-list candidate exit, with the ABI output buffer preserved. -/
+def walkInitLongListOutputPost
+    (listBase listLen raVal outBase : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) : Assertion :=
+  walkInitLongListCandidatePost listBase listLen raVal listBytes listOff hoff **
+    bytesRegionAny outBase outputSize
+
+/-- The four raw exits of `walkInitEmptyFailNotListFailShortLongOutputNBranch`,
+    named so generated proof code can target cases rather than list membership. -/
+def walkInitEmptyFailNotListFailShortLongOutputExits
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hoff : listOff < listBytes.length) : List (Word × Assertion) :=
+  [ (failStatusReturnExit raVal,
+      walkInitEmptyFailOutputPost listBase listLen raVal t0Old t1Old outBase listBytes)
+  , (failStatusReturnExit raVal,
+      walkInitNotListFailOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+  , (base + 124,
+      walkInitShortListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+  , (base + 28,
+      walkInitLongListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+  ]
+
+theorem walkInitEmptyFailNotListFailShortLongOutputNBranch_exits
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal t0Old t1Old
+      outBase listBytes listOff hsalign hoff hover hvalid).exits =
+      walkInitEmptyFailNotListFailShortLongOutputExits base listBase listLen raVal t0Old t1Old
+        outBase listBytes listOff hoff := by
+  simp [walkInitEmptyFailNotListFailShortLongOutputNBranch,
+    walkInitEmptyFailNotListFailShortLongFramedNBranch,
+    walkInitEmptyFailNotListFailShortLongNBranch,
+    walkInitEmptyFailOrPrefixBranch, walkInitPrefixListCheckOrNotListFailBranch,
+    walkInitEmptyFailStatusBranch, walkInitPrefixListCheckBranch,
+    walkInitShortLongCheckBranch, walkInitEmptyFailStatusPost,
+    walkInitEmptyFailNotListFailShortLongOutputExits, walkInitEmptyFailOutputPost,
+    walkInitNotListFailOutputPost, walkInitShortListOutputPost, walkInitLongListOutputPost,
+    failStatusReturnExit, statusReturnExit, WP.CFG.nbranchFrameR, WP.NBranch.frameR,
+    WP.CFG.branchFrameR, WP.Branch.frameR, WP.CFG.branchSeqNotTakenNBranchDisjoint,
+    WP.Branch.seqNotTakenNBranchDisjoint, WP.CFG.branchSeqNotTakenBlockDisjoint,
+    WP.CFG.branchSeqTakenBlockDisjoint, WP.CFG.branchSeqNotTakenDisjoint,
+    WP.CFG.branchSeqTakenDisjoint, WP.Branch.seqNotTakenDisjoint,
+    WP.Branch.seqTakenDisjoint, WP.CFG.nbranchOfBranch, WP.NBranch.ofBranch,
+    WP.Branch.ofSpec, WP.CFG.block, WP.Triple.ofSpec]
+
+/-- Case-oriented weakening for the four raw walk-init classifier exits. This is
+    the generated-proof entry point: callers provide one entailment per control
+    case, and the membership-map proof is built here. -/
+def walkInitEmptyFailNotListFailShortLongOutputCaseNBranch
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (emptyPost notListPost shortPost longPost : Assertion)
+    (hEmpty : WP.Entails
+      (walkInitEmptyFailOutputPost listBase listLen raVal t0Old t1Old outBase listBytes)
+      emptyPost)
+    (hNotList : WP.Entails
+      (walkInitNotListFailOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      notListPost)
+    (hShort : WP.Entails
+      (walkInitShortListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      shortPost)
+    (hLong : WP.Entails
+      (walkInitLongListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      longPost) :
+    WP.NBranch base (walkInitEmptyFailNotListFailShortLongCode base) := by
+  let br := walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal
+    t0Old t1Old outBase listBytes listOff hsalign hoff hover hvalid
+  let exits : List (Word × Assertion) :=
+    [ (failStatusReturnExit raVal, emptyPost)
+    , (failStatusReturnExit raVal, notListPost)
+    , (base + 124, shortPost)
+    , (base + 28, longPost)
+    ]
+  exact WP.CFG.nbranchWeakenPosts br exits (by
+    intro ex hex
+    have hex' := hex
+    rw [walkInitEmptyFailNotListFailShortLongOutputNBranch_exits] at hex'
+    simp [walkInitEmptyFailNotListFailShortLongOutputExits] at hex'
+    rcases hex' with hcase | hcase | hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(failStatusReturnExit raVal, emptyPost), by simp [exits], rfl, hEmpty⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(failStatusReturnExit raVal, notListPost), by simp [exits], rfl, hNotList⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(base + 124, shortPost), by simp [exits], rfl, hShort⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(base + 28, longPost), by simp [exits], rfl, hLong⟩)
+
+theorem walkInitEmptyFailNotListFailShortLongOutputCaseNBranch_pre
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (emptyPost notListPost shortPost longPost : Assertion)
+    (hEmpty : WP.Entails
+      (walkInitEmptyFailOutputPost listBase listLen raVal t0Old t1Old outBase listBytes)
+      emptyPost)
+    (hNotList : WP.Entails
+      (walkInitNotListFailOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      notListPost)
+    (hShort : WP.Entails
+      (walkInitShortListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      shortPost)
+    (hLong : WP.Entails
+      (walkInitLongListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      longPost) :
+    (walkInitEmptyFailNotListFailShortLongOutputCaseNBranch base listBase listLen raVal
+      t0Old t1Old outBase listBytes listOff hsalign hoff hover hvalid emptyPost notListPost
+      shortPost longPost hEmpty hNotList hShort hLong).pre =
+      (walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal t0Old t1Old
+        outBase listBytes listOff hsalign hoff hover hvalid).pre := by
+  rfl
+
+theorem walkInitEmptyFailNotListFailShortLongOutputCaseNBranch_exits
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (emptyPost notListPost shortPost longPost : Assertion)
+    (hEmpty : WP.Entails
+      (walkInitEmptyFailOutputPost listBase listLen raVal t0Old t1Old outBase listBytes)
+      emptyPost)
+    (hNotList : WP.Entails
+      (walkInitNotListFailOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      notListPost)
+    (hShort : WP.Entails
+      (walkInitShortListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      shortPost)
+    (hLong : WP.Entails
+      (walkInitLongListOutputPost listBase listLen raVal outBase listBytes listOff hoff)
+      longPost) :
+    (walkInitEmptyFailNotListFailShortLongOutputCaseNBranch base listBase listLen raVal
+      t0Old t1Old outBase listBytes listOff hsalign hoff hover hvalid emptyPost notListPost
+      shortPost longPost hEmpty hNotList hShort hLong).exits =
+      [ (failStatusReturnExit raVal, emptyPost)
+      , (failStatusReturnExit raVal, notListPost)
+      , (base + 124, shortPost)
+      , (base + 28, longPost)
+      ] := by
+  rfl
+
 /-- Turn raw walk-init exits into a caller-provided semantic exit list. The map
-    proof is the only remaining manual input: each raw exit must keep its PC and
-    entail the corresponding semantic postcondition. -/
+    proof remains available for unusual generated control-flow shapes; prefer
+    `walkInitEmptyFailNotListFailShortLongOutputCaseNBranch` when mapping the
+    standard four classifier cases. -/
 def walkInitEmptyFailNotListFailShortLongOutputMappedNBranch
     (base listBase listLen raVal t0Old t1Old outBase : Word)
     (listBytes : List Byte) (listOff : Nat)
