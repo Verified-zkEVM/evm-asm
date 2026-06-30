@@ -33,4 +33,24 @@ initialize Lean.registerBuiltinAttribute {
     Lean.modifyEnv fun env => rv64WpEntailsExt.addEntry env declName
 }
 
+/-- Environment extension storing theorem names tagged with `@[rv64_wp_dead]`.
+    These are contradiction hints for unreachable WP exits. -/
+initialize rv64WpDeadExt : Lean.SimplePersistentEnvExtension Lean.Name (Array Lean.Name) ←
+  Lean.registerSimplePersistentEnvExtension {
+    addEntryFn := fun state declName => state.push declName
+    addImportedFn := fun entries => entries.foldl (init := #[]) fun acc es => acc ++ es
+  }
+
+/-- Dead-exit hint database used by `wp_rv64_dead`. Theorems tagged here should
+    prove goals of shape `∀ h, P h → False`, with all non-target arguments
+    inferable from local hypotheses. -/
+initialize Lean.registerBuiltinAttribute {
+  name := `rv64_wp_dead
+  descr := "WP unreachable-exit hints used by wp_rv64_dead"
+  applicationTime := .afterTypeChecking
+  add := fun declName stx _attrKind => do
+    Lean.Attribute.Builtin.ensureNoArgs stx
+    Lean.modifyEnv fun env => rv64WpDeadExt.addEntry env declName
+}
+
 end EvmAsm.Rv64.Tactics

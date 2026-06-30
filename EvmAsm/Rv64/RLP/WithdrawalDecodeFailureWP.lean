@@ -120,6 +120,8 @@ theorem walkInitEmptyInputNonzeroExit_contradicts
   unfold EvmAsm.Rv64.pure at hPure_prop
   exact hPure_prop.2 rfl
 
+attribute [rv64_wp_dead] walkInitEmptyInputNonzeroExit_contradicts
+
 /-- Resolved empty-input certificate: the impossible nonzero exit is closed by
     contradiction, leaving the semantic failure post as the only result. -/
 def walkInitEmptyInputFailureCert
@@ -127,10 +129,9 @@ def walkInitEmptyInputFailureCert
     WP.CFG.Cert base (failStatusReturnExit raVal) (walkInitEmptyFailStatusCode base)
       (emptyInputFailurePost inputBase outBase raVal) := by
   let br := walkInitEmptyInputFailureNBranch base inputBase outBase raVal statusOld
-  wp_rv64_nbranch_join2_resolve_first_auto br,
+  wp_rv64_nbranch_join2_resolve_first_dead_auto br,
     (walkInitEmptyInputFailureNBranch_exits base inputBase outBase raVal statusOld),
-    (emptyInputFailurePost inputBase outBase raVal),
-    (walkInitEmptyInputNonzeroExit_contradicts inputBase outBase raVal statusOld)
+    (emptyInputFailurePost inputBase outBase raVal)
 
 /-- The resolved empty-input certificate reduces to the shallow walk-init
     empty-input precondition. -/

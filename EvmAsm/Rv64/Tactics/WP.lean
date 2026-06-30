@@ -34,6 +34,15 @@ private def solveMVarWithLocalHyp (mvarId : MVarId) : TacticM Bool := do
   if ← mvarId.isAssigned then
     return true
   let target ← instantiateMVars (← mvarId.getType)
+  let mvarDecl ← mvarId.getDecl
+  unless mvarDecl.userName.isAnonymous do
+    for localDecl in ← getLCtx do
+      unless localDecl.isImplementationDetail do
+        if localDecl.userName == mvarDecl.userName then
+          let localType ← instantiateMVars localDecl.type
+          if ← withoutModifyingState (isDefEq localType target) then
+            mvarId.assign (mkFVar localDecl.fvarId)
+            return true
   unless ← isProp target do
     return false
   for localDecl in ← getLCtx do
@@ -45,17 +54,53 @@ private def solveMVarWithLocalHyp (mvarId : MVarId) : TacticM Bool := do
         return true
   return false
 
-private def closeWithWpEntailsHint (goal : MVarId) (declName : Name) : TacticM Unit := do
+private def localCandidatesForMVar (mvarId : MVarId) : TacticM (Array Expr) := do
+  let target ← instantiateMVars (← mvarId.getType)
+  let mvarDecl ← mvarId.getDecl
+  let mut named : Array Expr := #[]
+  let mut typed : Array Expr := #[]
+  for localDecl in ← getLCtx do
+    unless localDecl.isImplementationDetail do
+      let localType ← instantiateMVars localDecl.type
+      if ← withoutModifyingState (isDefEq localType target) then
+        let localExpr := mkFVar localDecl.fvarId
+        typed := typed.push localExpr
+        if !mvarDecl.userName.isAnonymous && localDecl.userName == mvarDecl.userName then
+          named := named.push localExpr
+  if !named.isEmpty then
+    return named
+  return typed
+
+partial def solveParamMVarsWithLocals (params : Array Expr) (idx : Nat) : TacticM Bool := do
+  if hidx : idx < params.size then
+    let param ← instantiateMVars params[idx]
+    if param.isMVar then
+      let mvarId := param.mvarId!
+      if ← mvarId.isAssigned then
+        solveParamMVarsWithLocals params (idx + 1)
+      else
+        let candidates ← localCandidatesForMVar mvarId
+        for candidate in candidates do
+          let saved ← saveState
+          mvarId.assign candidate
+          if ← solveParamMVarsWithLocals params (idx + 1) then
+            return true
+          restoreState saved
+        return false
+    else
+      solveParamMVarsWithLocals params (idx + 1)
+  else
+    return true
+
+private def closeWithWpHint (goal : MVarId) (declName : Name) : TacticM Unit := do
   let goalType ← instantiateMVars (← goal.getType)
   let hintConst ← mkConstWithFreshMVarLevels declName
   let hintType ← inferType hintConst
   let (params, _, body) ← forallMetaTelescope hintType
   unless ← isDefEq body goalType do
     throwError "hint result does not match goal"
-  for param in params do
-    let param ← instantiateMVars param
-    if param.isMVar then
-      let _ ← solveMVarWithLocalHyp param.mvarId!
+  unless ← solveParamMVarsWithLocals params 0 do
+    throwError "hint parameters were not inferable from local context"
   let proof ← instantiateMVars (mkAppN hintConst params)
   if proof.hasExprMVar then
     throwError "hint left unresolved metavariables"
@@ -75,12 +120,52 @@ elab "wp_rv64_entails" : tactic => withMainContext do
   for declName in entries do
     let saved ← saveState
     try
-      closeWithWpEntailsHint goal declName
+      closeWithWpHint goal declName
       return
     catch _ =>
       restoreState saved
       continue
   throwError "wp_rv64_entails: no @[rv64_wp_entails] theorem closed the goal"
+
+/-- Try declarations tagged with `@[rv64_wp_dead]` against the current
+    unreachable-exit goal.  Tagged lemmas may have explicit proof arguments;
+    generated side goals are discharged from local hypotheses. -/
+elab "wp_rv64_dead_hint" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let goalType ← instantiateMVars (← goal.getType)
+  unless ← isProp goalType do
+    throwError "wp_rv64_dead_hint: expected proposition goal"
+  let entries := rv64WpDeadExt.getState (← getEnv)
+  for declName in entries do
+    let saved ← saveState
+    try
+      closeWithWpHint goal declName
+      return
+    catch _ =>
+      restoreState saved
+      let saved ← saveState
+      try
+        let hint := mkIdent declName
+        evalTactic (← `(tactic| apply $hint:ident <;> assumption))
+        unless (← getGoals).isEmpty do
+          throwError "hint left open goals"
+        return
+      catch _ =>
+        restoreState saved
+        continue
+  throwError "wp_rv64_dead_hint: no @[rv64_wp_dead] theorem closed the goal"
+
+/-- Close an unreachable-exit goal, after exposing small WP definitions if
+    needed, using declarations tagged with `@[rv64_wp_dead]`. -/
+syntax (name := wpRv64DeadTac) "wp_rv64_dead" : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_dead) =>
+      `(tactic| first
+        | wp_rv64_dead_hint
+        | simp only [rv64_wp]; wp_rv64_dead_hint
+        | try dsimp; wp_rv64_dead_hint
+        | try dsimp; simp only [rv64_wp]; wp_rv64_dead_hint)
 
 /-- Close the midpoint entailment between adjacent WP fragments.  The common
     case is definitional equality of the head postcondition and tail WP; semantic
@@ -561,6 +646,17 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveFirst $br $hexits
         (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link) $hdead2)
 
+/-- Join two known exits when the first exit is reachable, synthesizing both
+    the reachable-exit entailment and dead second exit. -/
+syntax (name := wpRv64NBranchJoin2ResolveFirstDeadAutoTac)
+  "wp_rv64_nbranch_join2_resolve_first_dead_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join2_resolve_first_dead_auto $br:term, $hexits:term, $post:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveFirst $br $hexits
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link)
+        (by wp_rv64_dead))
+
 /-- Join exactly two known exits when the second exit is the only reachable one. -/
 syntax (name := wpRv64NBranchJoin2ResolveSecondTac)
   "wp_rv64_nbranch_join2_resolve_second " term ", " term ", " term ", " term : tactic
@@ -577,6 +673,17 @@ syntax (name := wpRv64NBranchJoin2ResolveSecondAutoTac)
 macro_rules
   | `(tactic| wp_rv64_nbranch_join2_resolve_second_auto $br:term, $hexits:term, $hdead1:term, $post:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveSecond $br $hexits $hdead1
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link))
+
+/-- Join two known exits when the second exit is reachable, synthesizing both
+    the dead first exit and reachable-exit entailment. -/
+syntax (name := wpRv64NBranchJoin2ResolveSecondDeadAutoTac)
+  "wp_rv64_nbranch_join2_resolve_second_dead_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join2_resolve_second_dead_auto $br:term, $hexits:term, $post:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveSecond $br $hexits
+        (by wp_rv64_dead)
         (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link))
 
 /-- Join exactly three known exits when the second exit is the only reachable one. -/
@@ -596,6 +703,18 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_join3_resolve_second_auto $br:term, $hexits:term, $hdead1:term, $post:term, $hdead3:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin3ResolveSecond $br $hexits $hdead1
         (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link) $hdead3)
+
+/-- Join three known exits when the second exit is reachable, synthesizing the
+    dead outer exits and reachable-exit entailment. -/
+syntax (name := wpRv64NBranchJoin3ResolveSecondDeadAutoTac)
+  "wp_rv64_nbranch_join3_resolve_second_dead_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join3_resolve_second_dead_auto $br:term, $hexits:term, $post:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin3ResolveSecond $br $hexits
+        (by wp_rv64_dead)
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link)
+        (by wp_rv64_dead))
 
 /-- Join exactly four known exits of an N-way branch, supplying the generated
     exit-list proof and one continuation per exit. -/
@@ -626,6 +745,18 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_join4_resolve_third $br:term, $hexits:term, $hdead1:term, $hdead2:term, $hlink3:term, $hdead4:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin4ResolveThird $br $hexits
         $hdead1 $hdead2 $hlink3 $hdead4)
+
+/-- Join four known exits when the third exit is reachable, synthesizing the
+    dead surrounding exits and reachable-exit entailment. -/
+syntax (name := wpRv64NBranchJoin4ResolveThirdDeadAutoTac)
+  "wp_rv64_nbranch_join4_resolve_third_dead_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join4_resolve_third_dead_auto $br:term, $hexits:term, $post:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin4ResolveThird $br $hexits
+        (by wp_rv64_dead) (by wp_rv64_dead)
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link)
+        (by wp_rv64_dead))
 
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
@@ -658,6 +789,16 @@ example {entry exit_ : Word} {cr : CodeReq} {pre post : Assertion}
 example {P : Assertion} {A : Prop} (hA : A) :
     EvmAsm.Rv64.WP.Entails P (P ** ⌜A⌝) := by
   wp_rv64_link
+
+theorem wp_rv64_dead_test_hint {P : Assertion} (hdead : ∀ h, P h → False) :
+    ∀ h, P h → False :=
+  hdead
+
+attribute [rv64_wp_dead] wp_rv64_dead_test_hint
+
+example {P : Assertion} (hdead : ∀ h, P h → False) :
+    ∀ h, P h → False := by
+  wp_rv64_dead
 
 example {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     {pre post : Assertion}
@@ -860,6 +1001,13 @@ example {entry l1 l2 : Word} {cr : CodeReq} {Q1 Q2 : Assertion}
     EvmAsm.Rv64.WP.CFG.Cert entry l1 cr Q1 := by
   wp_rv64_nbranch_join2_resolve_first_auto br, hexits, Q1, hdead2
 
+example {entry l1 l2 : Word} {cr : CodeReq} {Q1 Q2 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hdead2 : ∀ h, Q2 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l1 cr Q1 := by
+  wp_rv64_nbranch_join2_resolve_first_dead_auto br, hexits, Q1
+
 example {entry l1 l2 : Word} {cr : CodeReq} {post Q1 Q2 : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)
     (hexits : br.exits = [(l1, Q1), (l2, Q2)])
@@ -874,6 +1022,13 @@ example {entry l1 l2 : Word} {cr : CodeReq} {Q1 Q2 : Assertion}
     (hdead1 : ∀ h, Q1 h → False) :
     EvmAsm.Rv64.WP.CFG.Cert entry l2 cr Q2 := by
   wp_rv64_nbranch_join2_resolve_second_auto br, hexits, hdead1, Q2
+
+example {entry l1 l2 : Word} {cr : CodeReq} {Q1 Q2 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hdead1 : ∀ h, Q1 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l2 cr Q2 := by
+  wp_rv64_nbranch_join2_resolve_second_dead_auto br, hexits, Q2
 
 example {entry l1 l2 l3 : Word} {cr : CodeReq} {post Q1 Q2 Q3 : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)
@@ -891,6 +1046,14 @@ example {entry l1 l2 l3 : Word} {cr : CodeReq} {Q1 Q2 Q3 : Assertion}
     (hdead3 : ∀ h, Q3 h → False) :
     EvmAsm.Rv64.WP.CFG.Cert entry l2 cr Q2 := by
   wp_rv64_nbranch_join3_resolve_second_auto br, hexits, hdead1, Q2, hdead3
+
+example {entry l1 l2 l3 : Word} {cr : CodeReq} {Q1 Q2 Q3 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hdead3 : ∀ h, Q3 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l2 cr Q2 := by
+  wp_rv64_nbranch_join3_resolve_second_dead_auto br, hexits, Q2
 
 example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)
@@ -934,6 +1097,15 @@ example {entry l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
     (hdead4 : ∀ h, Q4 h → False) :
     EvmAsm.Rv64.WP.CFG.Cert entry l3 cr post := by
   wp_rv64_nbranch_join4_resolve_third br, hexits, hdead1, hdead2, hlink3, hdead4
+
+example {entry l1 l2 l3 l4 : Word} {cr : CodeReq} {Q1 Q2 Q3 Q4 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hdead2 : ∀ h, Q2 h → False)
+    (hdead4 : ∀ h, Q4 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l3 cr Q3 := by
+  wp_rv64_nbranch_join4_resolve_third_dead_auto br, hexits, Q3
 
 example {entry head l : Word} {cr1 cr2 : CodeReq}
     {headPost secondPost : Assertion} {others : List (Word × Assertion)}

@@ -1120,6 +1120,8 @@ theorem walkInitEmptyInputFailureFromPrologueNonzeroExit_contradicts
   exact walkInitEmptyInputNonzeroExit_contradicts inputBase outBase raVal
     (inputBase + BitVec.ofNat 64 0) hMain hMain_prop
 
+attribute [rv64_wp_dead] walkInitEmptyInputFailureFromPrologueNonzeroExit_contradicts
+
 /-- Prologue followed by the empty-input failure path with the impossible
     nonzero fall-through closed. This is the single-exit form callers should use
     when the input bytes are known to be empty. -/
@@ -1133,13 +1135,11 @@ def walkInitEmptyInputFailureFromPrologueCert
         walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) := by
   let br := walkInitEmptyInputFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
     outBase m0 m1 m2 m3 inputBase hprologueCode hcode
-  wp_rv64_nbranch_join2_resolve_first_auto br,
+  wp_rv64_nbranch_join2_resolve_first_dead_auto br,
     (walkInitEmptyInputFailureFromPrologueNBranch_exits base sp0 raVal s0Old s1Old
       s2Old outBase m0 m1 m2 m3 inputBase hprologueCode hcode),
     (emptyInputFailurePost inputBase outBase raVal **
-      walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase),
-    (walkInitEmptyInputFailureFromPrologueNonzeroExit_contradicts sp0 raVal s0Old s1Old
-      s2Old outBase inputBase)
+      walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
 
 theorem walkInitEmptyInputFailureFromPrologueCert_pre
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
