@@ -600,6 +600,44 @@ def join4 {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     · rcases hcase with ⟨rfl, rfl⟩
       exact ((t4.weakenPre hlink4).monoSteps h4).sound)
 
+/-- Join exactly four known exits, computing the common continuation bound from
+    the supplied continuation certificates. -/
+def join4Max {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (t1 : Triple l1 exit_ cr post) (t2 : Triple l2 exit_ cr post)
+    (t3 : Triple l3 exit_ cr post) (t4 : Triple l4 exit_ cr post)
+    (hlink1 : Entails Q1 t1.pre) (hlink2 : Entails Q2 t2.pre)
+    (hlink3 : Entails Q3 t3.pre) (hlink4 : Entails Q4 t4.pre) :
+    Triple entry exit_ cr post :=
+  br.join4 hexits (Nat.max (Nat.max t1.nSteps t2.nSteps) (Nat.max t3.nSteps t4.nSteps))
+    t1 t2 t3 t4 hlink1 hlink2 hlink3 hlink4
+    (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))
+    (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _))
+    (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _))
+    (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _))
+
+/-- Join exactly four known exits when the third exit is the only reachable one.
+    The other exits are closed by contradictory preconditions, and the third
+    exit is treated as the continuation post. -/
+def join4ResolveThird {entry : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hdead2 : ∀ h, Q2 h → False)
+    (hlink3 : Entails Q3 post)
+    (hdead4 : ∀ h, Q4 h → False) :
+    Triple entry l3 cr post :=
+  br.join4 hexits 0
+    (Triple.unreachable l1 l3 cr (pre := Q1) (post := post) hdead1)
+    (Triple.unreachable l2 l3 cr (pre := Q2) (post := post) hdead2)
+    (Triple.refl l3 cr hlink3)
+    (Triple.unreachable l4 l3 cr (pre := Q4) (post := post) hdead4)
+    (Entails.refl _) (Entails.refl _) (Entails.refl _) (Entails.refl _)
+    (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _)
+
 end NBranch
 
 namespace Branch

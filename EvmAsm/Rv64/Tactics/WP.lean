@@ -297,6 +297,26 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin4 $br $hexits $tailBound
         $t1 $t2 $t3 $t4 $hlink1 $hlink2 $hlink3 $hlink4 $h1 $h2 $h3 $h4)
 
+/-- Join exactly four known exits, computing the common continuation bound from
+    the supplied certificates. -/
+syntax (name := wpRv64NBranchJoin4MaxTac)
+  "wp_rv64_nbranch_join4 " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join4 $br:term, $hexits:term, $t1:term, $hlink1:term, $t2:term, $hlink2:term, $t3:term, $hlink3:term, $t4:term, $hlink4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin4Max $br $hexits
+        $t1 $t2 $t3 $t4 $hlink1 $hlink2 $hlink3 $hlink4)
+
+/-- Join exactly four known exits when the third exit is the only reachable one.
+    The other exits are discharged from contradiction proofs. -/
+syntax (name := wpRv64NBranchJoin4ResolveThirdTac)
+  "wp_rv64_nbranch_join4_resolve_third " term ", " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join4_resolve_third $br:term, $hexits:term, $hdead1:term, $hdead2:term, $hlink3:term, $hdead4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin4ResolveThird $br $hexits
+        $hdead1 $hdead2 $hlink3 $hdead4)
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -504,6 +524,30 @@ example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Asse
     t2, hlink2, Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _),
     t3, hlink3, Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _),
     t4, hlink4, Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)
+
+example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (t1 : EvmAsm.Rv64.WP.CFG.Cert l1 exit_ cr post)
+    (t2 : EvmAsm.Rv64.WP.CFG.Cert l2 exit_ cr post)
+    (t3 : EvmAsm.Rv64.WP.CFG.Cert l3 exit_ cr post)
+    (t4 : EvmAsm.Rv64.WP.CFG.Cert l4 exit_ cr post)
+    (hlink1 : EvmAsm.Rv64.WP.Entails Q1 t1.pre)
+    (hlink2 : EvmAsm.Rv64.WP.Entails Q2 t2.pre)
+    (hlink3 : EvmAsm.Rv64.WP.Entails Q3 t3.pre)
+    (hlink4 : EvmAsm.Rv64.WP.Entails Q4 t4.pre) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_nbranch_join4 br, hexits, t1, hlink1, t2, hlink2, t3, hlink3, t4, hlink4
+
+example {entry l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hdead2 : ∀ h, Q2 h → False)
+    (hlink3 : EvmAsm.Rv64.WP.Entails Q3 post)
+    (hdead4 : ∀ h, Q4 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l3 cr post := by
+  wp_rv64_nbranch_join4_resolve_third br, hexits, hdead1, hdead2, hlink3, hdead4
 
 example {entry head l : Word} {cr1 cr2 : CodeReq}
     {headPost secondPost : Assertion} {others : List (Word × Assertion)}

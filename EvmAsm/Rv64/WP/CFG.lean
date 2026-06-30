@@ -394,6 +394,31 @@ def nbranchJoin4 {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     Cert entry exit_ cr post :=
   br.join4 hexits tailBound t1 t2 t3 t4 hlink1 hlink2 hlink3 hlink4 h1 h2 h3 h4
 
+/-- Join exactly four known exits, computing the common continuation bound from
+    the supplied continuation certificates. -/
+def nbranchJoin4Max {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (t1 : Cert l1 exit_ cr post) (t2 : Cert l2 exit_ cr post)
+    (t3 : Cert l3 exit_ cr post) (t4 : Cert l4 exit_ cr post)
+    (hlink1 : Entails Q1 t1.pre) (hlink2 : Entails Q2 t2.pre)
+    (hlink3 : Entails Q3 t3.pre) (hlink4 : Entails Q4 t4.pre) :
+    Cert entry exit_ cr post :=
+  br.join4Max hexits t1 t2 t3 t4 hlink1 hlink2 hlink3 hlink4
+
+/-- Join exactly four known exits when the third exit is the only reachable one. -/
+def nbranchJoin4ResolveThird {entry : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hdead2 : ∀ h, Q2 h → False)
+    (hlink3 : Entails Q3 post)
+    (hdead4 : ∀ h, Q4 h → False) :
+    Cert entry l3 cr post :=
+  br.join4ResolveThird hexits hdead1 hdead2 hlink3 hdead4
+
 /-- Package an indexed invariant/variant loop as a CFG certificate. -/
 def loopNat {nHeader nBody nExit : Nat}
     {header bodyEntry exit_ : Word} {cr : CodeReq}
