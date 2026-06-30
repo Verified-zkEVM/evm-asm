@@ -961,11 +961,26 @@ macro "withdrawal_decode_failure " hClass:term ", " hLen:term ", " h0:term ", " 
   `(tactic| exact decodeWithdrawal_none_of_shortList_four_leftover_auto
     $hClass $hLen $h0 $h1 $h2 $h3 $hLeftover $hMin)
 
+/-- Schema-concat leftover failure automation for generated WP schema walks.
+    The caller supplies only static field bounds, the schema payload split, and a
+    nonempty leftover; the intermediate `decodeAux` facts are derived internally. -/
+macro "withdrawal_decode_failure " hClass:term ", " hLen:term ", " hl0:term ", " hl1:term ", "
+    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hMin:term : tactic =>
+  `(tactic| exact decodeWithdrawal_none_of_shortList_successFieldSpecs_leftover_auto
+    $hClass $hLen $hl0 $hl1 $haddr $hl3 $hPayload $hTail $hMin)
+
 /-- Same automation, but returning the result-free schema failure predicate used
     by caller-facing WP wrappers. -/
 macro "withdrawal_schema_failure" : tactic =>
   `(tactic| exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).1
     (by withdrawal_decode_failure))
+
+/-- Schema-concat leftover failure automation for result-free schema predicates. -/
+macro "withdrawal_schema_failure " hClass:term ", " hLen:term ", " hl0:term ", " hl1:term ", "
+    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hMin:term : tactic =>
+  `(tactic| exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).1
+    (by withdrawal_decode_failure $hClass, $hLen, $hl0, $hl1, $haddr, $hl3, $hPayload,
+      $hTail, $hMin))
 
 example
     (input : List Byte) (hfull : decodeFully input = none) :
@@ -1015,6 +1030,18 @@ example
   withdrawal_decode_failure h_class, h_len, h0, h1, h2, h3, h_leftover, h_min
 
 example
+    (pfx : Byte) (payload tail d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (h_payload : payload = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (h_tail : tail ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    decodeWithdrawal (pfx :: payload) = none := by
+  withdrawal_decode_failure h_class, h_len, hl0, hl1, haddr, hl3, h_payload, h_tail, h_min
+
+example
     (input : List Byte) (hfull : decodeFully input = none) :
     ¬ successFieldSpecsInput input := by
   withdrawal_schema_failure
@@ -1025,6 +1052,18 @@ example
     (hlen : items.length ≠ 4) :
     ¬ successFieldSpecsInput input := by
   withdrawal_schema_failure
+
+example
+    (pfx : Byte) (payload tail d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (h_payload : payload = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (h_tail : tail ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    ¬ successFieldSpecsInput (pfx :: payload) := by
+  withdrawal_schema_failure h_class, h_len, hl0, hl1, haddr, hl3, h_payload, h_tail, h_min
 
 noncomputable example
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)

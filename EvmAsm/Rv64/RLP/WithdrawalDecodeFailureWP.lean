@@ -7,6 +7,7 @@
 -/
 
 import EvmAsm.Rv64.RLP.WithdrawalDecode
+import EvmAsm.Rv64.RLP.WithdrawalSchemaWP
 
 namespace EvmAsm.Rv64.RLP
 
@@ -326,6 +327,100 @@ theorem decodeWithdrawal_none_of_shortList_four_leftover_auto
     decodeWithdrawal (pfx :: payload) = none :=
   decodeWithdrawal_none_of_shortList_four_leftover pfx payload off1 off2 off3 off4
     d0 d1 d2 d3 h_class h_len h0 h1 h2 h3 h_leftover h_min
+
+/-- Exact-arity failure bridge for generated schema walks.  Once the four
+    withdrawal fields have consumed a strict prefix of the short-list payload,
+    the public semantic result is failure; the exact failure reason remains
+    erased.  The schema itself stays result-free: the field bytes appear only as
+    postcondition witnesses. -/
+theorem decodeWithdrawal_none_of_shortList_successFieldSpecs_leftover
+    (pfx : Byte) (payload tail d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (h_payload : payload = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (h_tail : tail ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    decodeWithdrawal (pfx :: payload) = none := by
+  let off1 := (encodeBytes d0).length
+  let off2 := off1 + (encodeBytes d1).length
+  let off3 := off2 + (encodeBytes d2).length
+  let off4 := off3 + (encodeBytes d3).length
+  have h_payload_norm :
+      payload =
+        encodeBytes d0 ++ (encodeBytes d1 ++ (encodeBytes d2 ++ (encodeBytes d3 ++ tail))) := by
+    rw [h_payload]
+    simp [schemaEncBytes, successFieldSpecs, encode, List.append_assoc]
+  have hd0_lt : d0.length < 256 ^ 8 := by omega
+  have hd1_lt : d1.length < 256 ^ 8 := by omega
+  have hd2_lt : d2.length < 256 ^ 8 := by omega
+  have hd3_lt : d3.length < 256 ^ 8 := by omega
+  have hdrop1 :
+      payload.drop off1 = encodeBytes d1 ++ (encodeBytes d2 ++ (encodeBytes d3 ++ tail)) := by
+    rw [h_payload_norm]
+    dsimp [off1]
+    rw [List.drop_append_length]
+  have hdrop2 : payload.drop off2 = encodeBytes d2 ++ (encodeBytes d3 ++ tail) := by
+    rw [h_payload_norm]
+    dsimp [off1, off2]
+    rw [← List.drop_drop, List.drop_append_length, List.drop_append_length]
+  have hdrop3 : payload.drop off3 = encodeBytes d3 ++ tail := by
+    rw [h_payload_norm]
+    dsimp [off1, off2, off3]
+    rw [← List.drop_drop, ← List.drop_drop]
+    rw [List.drop_append_length, List.drop_append_length, List.drop_append_length]
+  have hdrop4 : payload.drop off4 = tail := by
+    rw [h_payload_norm]
+    dsimp [off1, off2, off3, off4]
+    rw [← List.drop_drop, ← List.drop_drop, ← List.drop_drop]
+    rw [List.drop_append_length, List.drop_append_length, List.drop_append_length,
+      List.drop_append_length]
+  have h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, payload.drop off1) := by
+    intro m
+    rw [h_payload_norm]
+    dsimp [off1]
+    rw [decodeAux_succ_encodeBytes_append m d0
+      (encodeBytes d1 ++ (encodeBytes d2 ++ (encodeBytes d3 ++ tail))) hd0_lt]
+    rw [List.drop_append_length]
+  have h1 : ∀ m, decodeAux (m + 1) (payload.drop off1) =
+      some (.bytes d1, payload.drop off2) := by
+    intro m
+    rw [hdrop1]
+    rw [decodeAux_succ_encodeBytes_append m d1 (encodeBytes d2 ++ (encodeBytes d3 ++ tail))
+      hd1_lt]
+    rw [hdrop2]
+  have h2 : ∀ m, decodeAux (m + 1) (payload.drop off2) =
+      some (.bytes d2, payload.drop off3) := by
+    intro m
+    rw [hdrop2]
+    rw [decodeAux_succ_encodeBytes_append m d2 (encodeBytes d3 ++ tail) hd2_lt]
+    rw [hdrop3]
+  have h3 : ∀ m, decodeAux (m + 1) (payload.drop off3) =
+      some (.bytes d3, payload.drop off4) := by
+    intro m
+    rw [hdrop3]
+    rw [decodeAux_succ_encodeBytes_append m d3 tail hd3_lt]
+    rw [hdrop4]
+  have h_leftover : payload.drop off4 ≠ [] := by
+    rw [hdrop4]
+    exact h_tail
+  exact decodeWithdrawal_none_of_shortList_four_leftover pfx payload off1 off2 off3 off4
+    d0 d1 d2 d3 h_class h_len h0 h1 h2 h3 h_leftover h_min
+
+/-- Implicit-argument facade for tactic use with a schema payload-concat fact. -/
+theorem decodeWithdrawal_none_of_shortList_successFieldSpecs_leftover_auto
+    {pfx : Byte} {payload tail d0 d1 d2 d3 : List Byte}
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (h_payload : payload = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (h_tail : tail ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    decodeWithdrawal (pfx :: payload) = none :=
+  decodeWithdrawal_none_of_shortList_successFieldSpecs_leftover pfx payload tail d0 d1 d2 d3
+    h_class h_len hl0 hl1 haddr hl3 h_payload h_tail h_min
 
 /-- Four decoded byte fields that fail the withdrawal field contract are a
     semantic failure, independent of which guard failed. -/
