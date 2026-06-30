@@ -146,6 +146,187 @@ theorem decodeWithdrawal_none_of_decodeFully_list_length_ne_four
       rw [hitems]
       rfl
 
+/-- A nonempty byte stream cannot decode as zero list-payload items with
+    positive fuel. -/
+theorem decodeItems_ne_empty_of_ne_nil
+    {fuel : Nat} {bs : List Byte}
+    (hfuel : 1 ≤ fuel) (hne : bs ≠ []) :
+    decodeItems fuel bs ≠ some ([], []) := by
+  intro hitems
+  obtain ⟨fuel', rfl⟩ : ∃ fuel', fuel = fuel' + 1 := by
+    cases fuel with
+    | zero => omega
+    | succ fuel' => exact ⟨fuel', rfl⟩
+  rw [decodeItems_succ_of_ne_nil fuel' bs hne] at hitems
+  cases haux : decodeAux fuel' bs with
+  | none =>
+      simp [haux] at hitems
+  | some decoded =>
+      rcases decoded with ⟨item, rest⟩
+      cases hrest : decodeItems fuel' rest with
+      | none =>
+          simp [haux, hrest] at hitems
+      | some decodedRest =>
+          rcases decodedRest with ⟨items, rest'⟩
+          simp [haux, hrest] at hitems
+
+/-- If four byte-string field decoders have succeeded inside a short-list
+    payload but the cursor has not reached the payload end, the withdrawal decode
+    is a reason-erased semantic failure. This is the pure bridge used by the
+    validating exact-arity failure path. -/
+theorem decodeWithdrawal_none_of_shortList_four_leftover
+    (pfx : Byte) (payload : List Byte)
+    (off1 off2 off3 off4 : Nat) (d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, payload.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (payload.drop off1) =
+      some (.bytes d1, payload.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (payload.drop off2) =
+      some (.bytes d2, payload.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (payload.drop off3) =
+      some (.bytes d3, payload.drop off4))
+    (h_leftover : payload.drop off4 ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    decodeWithdrawal (pfx :: payload) = none := by
+  cases hdec : decodeWithdrawal (pfx :: payload) with
+  | none => rfl
+  | some w =>
+      exfalso
+      rcases (decodeWithdrawal_eq_some_iff (pfx :: payload) w).mp hdec with
+        ⟨e0, e1, e2, e3, hfull, _hc0, _hl0, _hc1, _hl1, _haddr, _hc3, _hl3,
+          _hi, _hv, _ha, _hamt⟩
+      have hdecode : decode (pfx :: payload) =
+          some (.list [.bytes e0, .bytes e1, .bytes e2, .bytes e3], []) :=
+        (decodeFully_eq_some_iff (pfx :: payload)
+          (.list [.bytes e0, .bytes e1, .bytes e2, .bytes e3])).1 hfull
+      rw [decode_cons_eq_decodeAux_fuel,
+        show 2 * payload.length + 2 = (2 * payload.length + 1) + 1 by omega,
+        ListDecodeBridge.decodeAux_cons_shortList_eq_decodeListPayload
+          (2 * payload.length + 1) pfx payload h_class] at hdecode
+      have htake : takeBytes payload (rlpPrefixShortListPayloadLen pfx) =
+          some (payload, []) := by
+        rw [h_len, takeBytes_length_ge (le_refl payload.length), List.take_length,
+          List.drop_length]
+      rw [htake] at hdecode
+      change Option.bind (ListDecodeBridge.decodeListPayload (2 * payload.length + 1) payload)
+          (fun items => some (RLPItem.list items, ([] : List Byte))) =
+        some (RLPItem.list [.bytes e0, .bytes e1, .bytes e2, .bytes e3], []) at hdecode
+      have hpayload : ListDecodeBridge.decodeListPayload (2 * payload.length + 1) payload =
+          some [.bytes e0, .bytes e1, .bytes e2, .bytes e3] := by
+        cases hpayload :
+            ListDecodeBridge.decodeListPayload (2 * payload.length + 1) payload with
+        | none =>
+            simp [hpayload] at hdecode
+        | some items =>
+            simpa [hpayload] using hdecode
+      have hitems : decodeItems (2 * payload.length + 1) payload =
+          some ([.bytes e0, .bytes e1, .bytes e2, .bytes e3], []) :=
+        (ListDecodeBridge.decodeListPayload_eq_some_iff
+          (2 * payload.length + 1) payload
+          [.bytes e0, .bytes e1, .bytes e2, .bytes e3]).1 hpayload
+      have hne0 : payload ≠ [] := by
+        intro hnil
+        rw [hnil] at h_min
+        simp at h_min
+      rcases decodeItems_cons_inv payload (.bytes e0)
+          [.bytes e1, .bytes e2, .bytes e3] [] (2 * payload.length) hne0 hitems with
+        ⟨r0, hitem0, htail0⟩
+      have h0fuel : decodeAux (2 * payload.length) payload =
+          some (.bytes d0, payload.drop off1) := by
+        have h := h0 (2 * payload.length - 1)
+        rw [show 2 * payload.length - 1 + 1 = 2 * payload.length by omega] at h
+        exact h
+      have hr0 : r0 = payload.drop off1 := by
+        have hEq := Option.some.inj (hitem0.symm.trans h0fuel)
+        exact congrArg Prod.snd hEq
+      subst r0
+      have htail0' : decodeItems ((2 * payload.length - 1) + 1) (payload.drop off1) =
+          some ([.bytes e1, .bytes e2, .bytes e3], []) := by
+        rw [show 2 * payload.length - 1 + 1 = 2 * payload.length by omega]
+        exact htail0
+      rcases decodeItems_cons_inv (payload.drop off1) (.bytes e1)
+          [.bytes e2, .bytes e3] [] (2 * payload.length - 1)
+          (by
+            intro hnil
+            have hbad := h1 0
+            rw [hnil, decodeAux_nil] at hbad
+            simp at hbad) htail0' with
+        ⟨r1, hitem1, htail1⟩
+      have h1fuel : decodeAux (2 * payload.length - 1) (payload.drop off1) =
+          some (.bytes d1, payload.drop off2) := by
+        have h := h1 (2 * payload.length - 2)
+        rw [show 2 * payload.length - 2 + 1 = 2 * payload.length - 1 by omega] at h
+        exact h
+      have hr1 : r1 = payload.drop off2 := by
+        have hEq := Option.some.inj (hitem1.symm.trans h1fuel)
+        exact congrArg Prod.snd hEq
+      subst r1
+      have htail1' : decodeItems ((2 * payload.length - 2) + 1) (payload.drop off2) =
+          some ([.bytes e2, .bytes e3], []) := by
+        rw [show 2 * payload.length - 2 + 1 = 2 * payload.length - 1 by omega]
+        exact htail1
+      rcases decodeItems_cons_inv (payload.drop off2) (.bytes e2)
+          [.bytes e3] [] (2 * payload.length - 2)
+          (by
+            intro hnil
+            have hbad := h2 0
+            rw [hnil, decodeAux_nil] at hbad
+            simp at hbad) htail1' with
+        ⟨r2, hitem2, htail2⟩
+      have h2fuel : decodeAux (2 * payload.length - 2) (payload.drop off2) =
+          some (.bytes d2, payload.drop off3) := by
+        have h := h2 (2 * payload.length - 3)
+        rw [show 2 * payload.length - 3 + 1 = 2 * payload.length - 2 by omega] at h
+        exact h
+      have hr2 : r2 = payload.drop off3 := by
+        have hEq := Option.some.inj (hitem2.symm.trans h2fuel)
+        exact congrArg Prod.snd hEq
+      subst r2
+      have htail2' : decodeItems ((2 * payload.length - 3) + 1) (payload.drop off3) =
+          some ([.bytes e3], []) := by
+        rw [show 2 * payload.length - 3 + 1 = 2 * payload.length - 2 by omega]
+        exact htail2
+      rcases decodeItems_cons_inv (payload.drop off3) (.bytes e3)
+          [] [] (2 * payload.length - 3)
+          (by
+            intro hnil
+            have hbad := h3 0
+            rw [hnil, decodeAux_nil] at hbad
+            simp at hbad) htail2' with
+        ⟨r3, hitem3, htail3⟩
+      have h3fuel : decodeAux (2 * payload.length - 3) (payload.drop off3) =
+          some (.bytes d3, payload.drop off4) := by
+        have h := h3 (2 * payload.length - 4)
+        rw [show 2 * payload.length - 4 + 1 = 2 * payload.length - 3 by omega] at h
+        exact h
+      have hr3 : r3 = payload.drop off4 := by
+        have hEq := Option.some.inj (hitem3.symm.trans h3fuel)
+        exact congrArg Prod.snd hEq
+      subst r3
+      exact decodeItems_ne_empty_of_ne_nil (fuel := 2 * payload.length - 3)
+        (bs := payload.drop off4) (by omega) h_leftover htail3
+
+/-- Implicit-argument facade for tactic use of
+    `decodeWithdrawal_none_of_shortList_four_leftover`. -/
+theorem decodeWithdrawal_none_of_shortList_four_leftover_auto
+    {pfx : Byte} {payload d0 d1 d2 d3 : List Byte}
+    {off1 off2 off3 off4 : Nat}
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, payload.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (payload.drop off1) =
+      some (.bytes d1, payload.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (payload.drop off2) =
+      some (.bytes d2, payload.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (payload.drop off3) =
+      some (.bytes d3, payload.drop off4))
+    (h_leftover : payload.drop off4 ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    decodeWithdrawal (pfx :: payload) = none :=
+  decodeWithdrawal_none_of_shortList_four_leftover pfx payload off1 off2 off3 off4
+    d0 d1 d2 d3 h_class h_len h0 h1 h2 h3 h_leftover h_min
+
 /-- Four decoded byte fields that fail the withdrawal field contract are a
     semantic failure, independent of which guard failed. -/
 theorem decodeWithdrawal_none_of_decodeFully_fields_not_canonical

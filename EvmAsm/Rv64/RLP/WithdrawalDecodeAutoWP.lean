@@ -954,6 +954,13 @@ macro "withdrawal_decode_failure" : tactic =>
     | exact decodeWithdrawal_none_of_decodeFully_fields_not_canonical (by assumption) (by assumption)
     | exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).2 (by assumption))
 
+/-- Exact-arity leftover failure automation for validated short-list paths.
+    Generated proofs pass the static branch facts produced by the WP walk. -/
+macro "withdrawal_decode_failure " hClass:term ", " hLen:term ", " h0:term ", " h1:term ", "
+    h2:term ", " h3:term ", " hLeftover:term ", " hMin:term : tactic =>
+  `(tactic| exact decodeWithdrawal_none_of_shortList_four_leftover_auto
+    $hClass $hLen $h0 $h1 $h2 $h3 $hLeftover $hMin)
+
 /-- Same automation, but returning the result-free schema failure predicate used
     by caller-facing WP wrappers. -/
 macro "withdrawal_schema_failure" : tactic =>
@@ -989,6 +996,23 @@ example
         d3.headD 1 ≠ 0 ∧ d3.length ≤ 8)) :
     decodeWithdrawal input = none := by
   withdrawal_decode_failure
+
+example
+    (pfx : Byte) (payload d0 d1 d2 d3 : List Byte)
+    (off1 off2 off3 off4 : Nat)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, payload.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (payload.drop off1) =
+      some (.bytes d1, payload.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (payload.drop off2) =
+      some (.bytes d2, payload.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (payload.drop off3) =
+      some (.bytes d3, payload.drop off4))
+    (h_leftover : payload.drop off4 ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    decodeWithdrawal (pfx :: payload) = none := by
+  withdrawal_decode_failure h_class, h_len, h0, h1, h2, h3, h_leftover, h_min
 
 example
     (input : List Byte) (hfull : decodeFully input = none) :
