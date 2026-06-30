@@ -303,6 +303,15 @@ theorem cpsTripleWithin_of_forall_memIs_to_memOwn
   exact h vOld R hR s hcr
     ⟨hp, hcompat, h1, h2, hd12, hunion12, ⟨h3, h4, hd34, hunion34, hP3, hv4⟩, hR2⟩ hpc
 
+/-- Single-atom bounded variant of `cpsTripleWithin_of_forall_memIs_to_memOwn`. -/
+theorem cpsTripleWithin_of_forall_memIs_to_memOwn_single
+    {nSteps : Nat} {entry exit_ a Q} {cr : CodeReq}
+    (h : ∀ vOld, cpsTripleWithin nSteps entry exit_ cr (a ↦ₘ vOld) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (memOwn a) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hunion, ⟨vOld, hv⟩, hR2⟩ := hPR
+  exact h vOld R hR s hcr ⟨hp, hcompat, h1, h2, hd, hunion, hv, hR2⟩ hpc
+
 /-- Branch elimination: if both branch exits lead to the same
     continuation exit with R, merge back into a single cpsTripleWithin.
     All position/code/assertion arguments are implicit — inferred from `hbr`/`h_t`/`h_f`. -/
