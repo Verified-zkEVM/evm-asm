@@ -508,6 +508,15 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   reused, untouched `evm_div_v5`/`evm_mod_v5`. **Status: executable + `#guard`
   functional tests landed** (`FastN1ProgramTest.lean`, both normalization
   paths + dispatch routing validated end-to-end; ~700→~420 step est).
+  **DIV-perf Phase 3 measurement (DONE, branch `perf/div-algorithm-redesign`):**
+  the extended `bench/DivBench.lean` (now consumes `bench/div-weights.json` →
+  one frequency-weighted cost per candidate, plus a 112-operand correctness
+  sweep) confirms the estimate: n=1 drops 693→365 steps, cutting the
+  **real-mainnet n-weighted DIV instruction count 26.9%** (566.6→414.2;
+  n=1 is 49% of divides), correct on 112/112 swept operands, n≥2 fallback only
+  +6 steps. So **`evm_div_v6` is the ranked winner and the recommended next
+  verification target.** Full table + the cheap-dispatch (~−58% ceiling) and
+  n=2 (most-defensible un-captured win) roadmap in `docs/divmod-evm-redesign.md`.
   **Stack-level proof TODO** — composition reuse must first pin the consistent
   (spec, executable, code-bundle) triple: the proven `evm_div_stack_spec` is
   over `divCode` (v1 `divK_div128` block), while executables use v4/v5 div128
