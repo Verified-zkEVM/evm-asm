@@ -938,24 +938,69 @@ theorem successFieldSpecsInput_or_decodeWithdrawal_eq_none
       exact Or.inl
         ((successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some input).2 ⟨w, hdec⟩)
 
+/-- Pure failure automation for the semantic side of withdrawal WP joins. It
+    consumes the common facts produced by validating RLP blocks: failed complete
+    decode, raw decode failure, raw decode with trailing bytes, non-list complete
+    decode, wrong list arity, bad canonical field guards, or a result-free schema
+    negation. -/
+macro "withdrawal_decode_failure" : tactic =>
+  `(tactic| first
+    | assumption
+    | exact decodeWithdrawal_none_of_decodeFully_none (by assumption)
+    | exact decodeWithdrawal_none_of_decode_none (by assumption)
+    | exact decodeWithdrawal_none_of_decode_leftover (by assumption) (by assumption)
+    | exact decodeWithdrawal_none_of_decodeFully_bytes (by assumption)
+    | exact decodeWithdrawal_none_of_decodeFully_list_length_ne_four (by assumption) (by assumption)
+    | exact decodeWithdrawal_none_of_decodeFully_fields_not_canonical (by assumption) (by assumption)
+    | exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).2 (by assumption))
+
+/-- Same automation, but returning the result-free schema failure predicate used
+    by caller-facing WP wrappers. -/
+macro "withdrawal_schema_failure" : tactic =>
+  `(tactic| exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).1
+    (by withdrawal_decode_failure))
+
 example
     (input : List Byte) (hfull : decodeFully input = none) :
     decodeWithdrawal input = none := by
-  exact decodeWithdrawal_none_of_decodeFully_none hfull
+  withdrawal_decode_failure
 
 example
     (input : List Byte) (item : RLPItem) (leftover : List Byte)
     (hdecode : decode input = some (item, leftover))
     (hleftover : leftover ≠ []) :
     decodeWithdrawal input = none := by
-  exact decodeWithdrawal_none_of_decode_leftover hdecode hleftover
+  withdrawal_decode_failure
 
 example
     (input : List Byte) (items : List RLPItem)
     (hfull : decodeFully input = some (.list items))
     (hlen : items.length ≠ 4) :
     decodeWithdrawal input = none := by
-  exact decodeWithdrawal_none_of_decodeFully_list_length_ne_four hfull hlen
+  withdrawal_decode_failure
+
+example
+    (input d0 d1 d2 d3 : List Byte)
+    (hfull : decodeFully input = some (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3]))
+    (hbad : ¬
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        d2.length = 20 ∧
+        d3.headD 1 ≠ 0 ∧ d3.length ≤ 8)) :
+    decodeWithdrawal input = none := by
+  withdrawal_decode_failure
+
+example
+    (input : List Byte) (hfull : decodeFully input = none) :
+    ¬ successFieldSpecsInput input := by
+  withdrawal_schema_failure
+
+example
+    (input : List Byte) (items : List RLPItem)
+    (hfull : decodeFully input = some (.list items))
+    (hlen : items.length ≠ 4) :
+    ¬ successFieldSpecsInput input := by
+  withdrawal_schema_failure
 
 noncomputable example
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
