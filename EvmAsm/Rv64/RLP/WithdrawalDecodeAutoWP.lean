@@ -982,10 +982,61 @@ macro "withdrawal_schema_failure " hClass:term ", " hLen:term ", " hl0:term ", "
     (by withdrawal_decode_failure $hClass, $hLen, $hl0, $hl1, $haddr, $hl3, $hPayload,
       $hTail, $hMin))
 
+/-- Withdrawal-domain WP automation.  This is the tactic generated proofs should
+    use at control-flow joins: it solves pure withdrawal failure/schema facts
+    first, then asks the WP certificate, entailment, and dead-exit databases. -/
+macro "wp_withdrawal_decode_auto" : tactic =>
+  `(tactic| first
+    | withdrawal_decode_failure
+    | withdrawal_schema_failure
+    | assumption
+    | omega
+    | bv_omega
+    | wp_rv64_cert
+    | wp_rv64_link
+    | wp_rv64_dead)
+
+/-- Outcome-splitting withdrawal WP automation.  When the goal is a WP
+    certificate, this first splits on the pure decoder result and exposes the
+    corresponding result-free schema fact before falling back to the generic
+    withdrawal WP driver. -/
+macro "wp_withdrawal_decode_auto " input:term : tactic =>
+  `(tactic| first
+    | wp_withdrawal_decode_cert $input
+    | wp_withdrawal_decode_auto)
+
+/-- Exact-arity leftover overload for generated short-list field walks. -/
+macro "wp_withdrawal_decode_auto " hClass:term ", " hLen:term ", " h0:term ", " h1:term ", "
+    h2:term ", " h3:term ", " hLeftover:term ", " hMin:term : tactic =>
+  `(tactic| first
+    | withdrawal_decode_failure $hClass, $hLen, $h0, $h1, $h2, $h3, $hLeftover, $hMin
+    | wp_withdrawal_decode_auto)
+
+/-- Schema-concat exact-arity leftover overload for generated withdrawal schema
+    walks.  This keeps the schema result-free while deriving the semantic
+    failure fact needed by ABI postconditions. -/
+macro "wp_withdrawal_decode_auto " hClass:term ", " hLen:term ", " hl0:term ", " hl1:term ", "
+    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hMin:term : tactic =>
+  `(tactic| first
+    | withdrawal_schema_failure $hClass, $hLen, $hl0, $hl1, $haddr, $hl3, $hPayload,
+        $hTail, $hMin
+    | withdrawal_decode_failure $hClass, $hLen, $hl0, $hl1, $haddr, $hl3, $hPayload,
+        $hTail, $hMin
+    | wp_withdrawal_decode_auto)
+
 example
     (input : List Byte) (hfull : decodeFully input = none) :
     decodeWithdrawal input = none := by
   withdrawal_decode_failure
+
+example
+    (input : List Byte) (hfull : decodeFully input = none) :
+    decodeWithdrawal input = none := by
+  wp_withdrawal_decode_auto
+
+example (P : Assertion) :
+    WP.Entails P P := by
+  wp_withdrawal_decode_auto
 
 example
     (input : List Byte) (item : RLPItem) (leftover : List Byte)
@@ -1065,6 +1116,18 @@ example
     ¬ successFieldSpecsInput (pfx :: payload) := by
   withdrawal_schema_failure h_class, h_len, hl0, hl1, haddr, hl3, h_payload, h_tail, h_min
 
+example
+    (pfx : Byte) (payload tail d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (h_payload : payload = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (h_tail : tail ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    ¬ successFieldSpecsInput (pfx :: payload) := by
+  wp_withdrawal_decode_auto h_class, h_len, hl0, hl1, haddr, hl3, h_payload, h_tail, h_min
+
 noncomputable example
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
     (inputBase listLen t0Old t1Old : Word)
@@ -1078,7 +1141,7 @@ noncomputable example
     (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
     WP.NBranch base ((prologueCode base).union
       (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
-  wp_withdrawal_decode_cert input
+  wp_withdrawal_decode_auto input
 
 end WithdrawalDecode
 
