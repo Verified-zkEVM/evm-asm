@@ -243,6 +243,42 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_head $br:term, $hpost:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenHeadPost $br (by rfl) $hpost)
 
+/-- Weaken exactly two known exits of an N-way branch. The exits field is
+    expected to reduce definitionally to the two-exit list. -/
+syntax (name := wpRv64NBranchWeakenPosts2Tac)
+  "wp_rv64_nbranch_weaken_posts2 " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts2 $br:term, $h1:term, $h2:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts2 $br (by rfl) $h1 $h2)
+
+/-- Weaken exactly three known exits of an N-way branch. The exits field is
+    expected to reduce definitionally to the three-exit list. -/
+syntax (name := wpRv64NBranchWeakenPosts3Tac)
+  "wp_rv64_nbranch_weaken_posts3 " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts3 $br:term, $h1:term, $h2:term, $h3:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts3 $br (by rfl) $h1 $h2 $h3)
+
+/-- Weaken exactly four known exits of an N-way branch. The exits field is
+    expected to reduce definitionally to the four-exit list. -/
+syntax (name := wpRv64NBranchWeakenPosts4Tac)
+  "wp_rv64_nbranch_weaken_posts4 " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts4 $br:term, $h1:term, $h2:term, $h3:term, $h4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 $br (by rfl) $h1 $h2 $h3 $h4)
+
+/-- Weaken exactly four known exits of an N-way branch, supplying the generated
+    exit-list proof explicitly. -/
+syntax (name := wpRv64NBranchWeakenPosts4WithTac)
+  "wp_rv64_nbranch_weaken_posts4_with " term ", " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts4_with $br:term, $hexits:term, $h1:term, $h2:term, $h3:term, $h4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 $br $hexits $h1 $h2 $h3 $h4)
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -404,6 +440,28 @@ example {entry l : Word} {cr : CodeReq} {headPost headPost' : Assertion}
     (hpost : EvmAsm.Rv64.WP.Entails headPost headPost') :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   exact EvmAsm.Rv64.WP.CFG.nbranchWeakenHeadPost br hexits hpost
+
+example {entry l1 l2 l3 l4 : Word} {cr : CodeReq}
+    {Q1 Q2 Q3 Q4 Q1' Q2' Q3' Q4' : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (h1 : EvmAsm.Rv64.WP.Entails Q1 Q1')
+    (h2 : EvmAsm.Rv64.WP.Entails Q2 Q2')
+    (h3 : EvmAsm.Rv64.WP.Entails Q3 Q3')
+    (h4 : EvmAsm.Rv64.WP.Entails Q4 Q4') :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 br hexits h1 h2 h3 h4
+
+example {entry l1 l2 l3 l4 : Word} {cr : CodeReq}
+    {Q1 Q2 Q3 Q4 Q1' Q2' Q3' Q4' : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (h1 : EvmAsm.Rv64.WP.Entails Q1 Q1')
+    (h2 : EvmAsm.Rv64.WP.Entails Q2 Q2')
+    (h3 : EvmAsm.Rv64.WP.Entails Q3 Q3')
+    (h4 : EvmAsm.Rv64.WP.Entails Q4 Q4') :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  wp_rv64_nbranch_weaken_posts4_with br, hexits, h1, h2, h3, h4
 
 example {entry head l : Word} {cr1 cr2 : CodeReq}
     {headPost secondPost : Assertion} {others : List (Word × Assertion)}

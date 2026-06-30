@@ -226,6 +226,34 @@ def nbranchWeakenPostsCons {entry : Word} {cr : CodeReq}
     NBranch entry cr :=
   br.weakenPostsCons hexits hhead htail
 
+/-- Weaken exactly two known exits of an N-way CFG. -/
+def nbranchWeakenPosts2 {entry : Word} {cr : CodeReq}
+    {l1 l2 : Word} {Q1 Q2 Q1' Q2' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (h1 : Entails Q1 Q1') (h2 : Entails Q2 Q2') :
+    NBranch entry cr :=
+  br.weakenPosts2 hexits h1 h2
+
+/-- Weaken exactly three known exits of an N-way CFG. -/
+def nbranchWeakenPosts3 {entry : Word} {cr : CodeReq}
+    {l1 l2 l3 : Word} {Q1 Q2 Q3 Q1' Q2' Q3' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3)])
+    (h1 : Entails Q1 Q1') (h2 : Entails Q2 Q2') (h3 : Entails Q3 Q3') :
+    NBranch entry cr :=
+  br.weakenPosts3 hexits h1 h2 h3
+
+/-- Weaken exactly four known exits of an N-way CFG. -/
+def nbranchWeakenPosts4 {entry : Word} {cr : CodeReq}
+    {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 Q1' Q2' Q3' Q4' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (h1 : Entails Q1 Q1') (h2 : Entails Q2 Q2') (h3 : Entails Q3 Q3')
+    (h4 : Entails Q4 Q4') :
+    NBranch entry cr :=
+  br.weakenPosts4 hexits h1 h2 h3 h4
+
 /-- Continue a branch's not-taken exit with an N-way CFG over disjoint code,
     preserving the taken exit as the first open exit. -/
 def branchSeqNotTakenNBranchDisjoint {entry : Word} {cr1 cr2 : CodeReq}

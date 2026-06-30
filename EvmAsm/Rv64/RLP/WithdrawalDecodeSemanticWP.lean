@@ -255,38 +255,18 @@ def walkInitShortSuccessSemanticNBranch
   let br := walkInitShortSuccessSchemaNBranch base inputBase listLen raVal t0Old t1Old outBase
     input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr
     hc3 hl3 hinput hcode
-  let exits := walkInitShortSuccessSemanticExits base inputBase listLen raVal t0Old t1Old outBase
-    input d0 d1 d2 d3 hoff
   have hBound : input.length < 2 ^ 64 := by
     omega
-  exact WP.CFG.nbranchWeakenPosts br exits (by
-    intro ex hex
-    have hex' := hex
-    rw [walkInitShortSuccessSchemaNBranch_exits] at hex'
-    simp [walkInitShortSuccessSchemaExits] at hex'
-    rcases hex' with hcase | hcase | hcase | hcase
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(failStatusReturnExit raVal,
-        abiPost inputBase outBase raVal input **
-          walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase), by simp [exits,
-            walkInitShortSuccessSemanticExits], rfl,
-        walkInitEmptyFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal t0Old
-          t1Old outBase input hLen hBound⟩
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(failStatusReturnExit raVal,
-        abiPost inputBase outBase raVal input **
-          walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff), by simp [exits,
-            walkInitShortSuccessSemanticExits], rfl,
-        walkInitNotListFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal outBase
-          input hoff⟩
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(successStatusReturnExit raVal,
-        walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3), by simp [exits,
-          walkInitShortSuccessSemanticExits], rfl, WP.Entails.refl _⟩
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(base + 28,
-        walkInitLongSchemaPost inputBase listLen raVal outBase input hoff), by simp [exits,
-          walkInitShortSuccessSemanticExits], rfl, WP.Entails.refl _⟩)
+  wp_rv64_nbranch_weaken_posts4_with br,
+    (walkInitShortSuccessSchemaNBranch_exits base inputBase listLen raVal t0Old t1Old
+      outBase input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1
+      haddr hc3 hl3 hinput hcode),
+    (walkInitEmptyFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal t0Old
+      t1Old outBase input hLen hBound),
+    (walkInitNotListFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal outBase
+      input hoff),
+    (WP.Entails.refl _),
+    (WP.Entails.refl _)
 
 theorem walkInitShortSuccessSemanticNBranch_pre
     (base inputBase listLen raVal t0Old t1Old outBase : Word)

@@ -374,6 +374,73 @@ def weakenHeadPost {entry : Word} {cr : CodeReq}
   br.weakenPostsCons hexits hhead (fun ex hmem =>
     ⟨ex, hmem, rfl, Entails.refl ex.2⟩)
 
+/-- Weaken exactly two known exits. This is a small-list frontend for
+    `weakenPosts`, avoiding the recurring membership proof in generated CFG
+    adapters. -/
+def weakenPosts2 {entry : Word} {cr : CodeReq}
+    {l1 l2 : Word} {Q1 Q2 Q1' Q2' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (h1 : Entails Q1 Q1') (h2 : Entails Q2 Q2') :
+    NBranch entry cr :=
+  br.weakenPosts [(l1, Q1'), (l2, Q2')] (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l1, Q1), (l2, Q2)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l1, Q1'), by simp, rfl, h1⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l2, Q2'), by simp, rfl, h2⟩)
+
+/-- Weaken exactly three known exits. This is a small-list frontend for
+    `weakenPosts`, avoiding the recurring membership proof in generated CFG
+    adapters. -/
+def weakenPosts3 {entry : Word} {cr : CodeReq}
+    {l1 l2 l3 : Word} {Q1 Q2 Q3 Q1' Q2' Q3' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3)])
+    (h1 : Entails Q1 Q1') (h2 : Entails Q2 Q2') (h3 : Entails Q3 Q3') :
+    NBranch entry cr :=
+  br.weakenPosts [(l1, Q1'), (l2, Q2'), (l3, Q3')] (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l1, Q1), (l2, Q2), (l3, Q3)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l1, Q1'), by simp, rfl, h1⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l2, Q2'), by simp, rfl, h2⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l3, Q3'), by simp, rfl, h3⟩)
+
+/-- Weaken exactly four known exits. This is the common endpoint for generated
+    decoder classifiers: normalize the calculated exits once, then provide one
+    semantic entailment per arm. -/
+def weakenPosts4 {entry : Word} {cr : CodeReq}
+    {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 Q1' Q2' Q3' Q4' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (h1 : Entails Q1 Q1') (h2 : Entails Q2 Q2') (h3 : Entails Q3 Q3')
+    (h4 : Entails Q4 Q4') :
+    NBranch entry cr :=
+  br.weakenPosts [(l1, Q1'), (l2, Q2'), (l3, Q3'), (l4, Q4')] (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase | hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l1, Q1'), by simp, rfl, h1⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l2, Q2'), by simp, rfl, h2⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l3, Q3'), by simp, rfl, h3⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l4, Q4'), by simp, rfl, h4⟩)
+
 /-- Continue the head exit of an N-way branch with a single-exit continuation
     over the same code requirement. -/
 def seqHead {entry l l' : Word} {cr : CodeReq}
