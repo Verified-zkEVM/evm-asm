@@ -1397,26 +1397,10 @@ def walkInitEmptyFailNotListFailShortLongOutputCaseNBranch
     WP.NBranch base (walkInitEmptyFailNotListFailShortLongCode base) := by
   let br := walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal
     t0Old t1Old outBase listBytes listOff hsalign hoff hover hvalid
-  let exits : List (Word × Assertion) :=
-    [ (failStatusReturnExit raVal, emptyPost)
-    , (failStatusReturnExit raVal, notListPost)
-    , (base + 124, shortPost)
-    , (base + 28, longPost)
-    ]
-  exact WP.CFG.nbranchWeakenPosts br exits (by
-    intro ex hex
-    have hex' := hex
-    rw [walkInitEmptyFailNotListFailShortLongOutputNBranch_exits] at hex'
-    simp [walkInitEmptyFailNotListFailShortLongOutputExits] at hex'
-    rcases hex' with hcase | hcase | hcase | hcase
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(failStatusReturnExit raVal, emptyPost), by simp [exits], rfl, hEmpty⟩
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(failStatusReturnExit raVal, notListPost), by simp [exits], rfl, hNotList⟩
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(base + 124, shortPost), by simp [exits], rfl, hShort⟩
-    · rcases hcase with ⟨rfl, rfl⟩
-      exact ⟨(base + 28, longPost), by simp [exits], rfl, hLong⟩)
+  wp_rv64_nbranch_weaken_posts4_with br,
+    (walkInitEmptyFailNotListFailShortLongOutputNBranch_exits base listBase listLen raVal
+      t0Old t1Old outBase listBytes listOff hsalign hoff hover hvalid),
+    hEmpty, hNotList, hShort, hLong
 
 theorem walkInitEmptyFailNotListFailShortLongOutputCaseNBranch_pre
     (base listBase listLen raVal t0Old t1Old outBase : Word)

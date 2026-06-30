@@ -30,6 +30,21 @@ macro_rules
   | `(tactic| wp_rv64 $cfg:term) =>
       `(tactic| exact ($cfg).sound)
 
+private def solveMVarWithLocalHyp (mvarId : MVarId) : TacticM Bool := do
+  if ← mvarId.isAssigned then
+    return true
+  let target ← instantiateMVars (← mvarId.getType)
+  unless ← isProp target do
+    return false
+  for localDecl in ← getLCtx do
+    unless localDecl.isImplementationDetail do
+      let hyp := mkFVar localDecl.fvarId
+      let hypType ← instantiateMVars localDecl.type
+      if ← withoutModifyingState (isDefEq hypType target) then
+        mvarId.assign hyp
+        return true
+  return false
+
 private def closeWithWpEntailsHint (goal : MVarId) (declName : Name) : TacticM Unit := do
   let goalType ← instantiateMVars (← goal.getType)
   let hintConst ← mkConstWithFreshMVarLevels declName
@@ -37,6 +52,10 @@ private def closeWithWpEntailsHint (goal : MVarId) (declName : Name) : TacticM U
   let (params, _, body) ← forallMetaTelescope hintType
   unless ← isDefEq body goalType do
     throwError "hint result does not match goal"
+  for param in params do
+    let param ← instantiateMVars param
+    if param.isMVar then
+      let _ ← solveMVarWithLocalHyp param.mvarId!
   let proof ← instantiateMVars (mkAppN hintConst params)
   if proof.hasExprMVar then
     throwError "hint left unresolved metavariables"
@@ -435,6 +454,17 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_posts2 $br:term, $h1:term, $h2:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts2 $br (by rfl) $h1 $h2)
 
+/-- Weaken exactly two known exits, synthesizing the per-exit entailments with
+    `wp_rv64_link`.  The supplied terms are the replacement postconditions. -/
+syntax (name := wpRv64NBranchWeakenPosts2AutoTac)
+  "wp_rv64_nbranch_weaken_posts2_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts2_auto $br:term, $p1:term, $p2:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts2 $br (by rfl)
+        (show EvmAsm.Rv64.WP.Entails _ $p1 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p2 by wp_rv64_link))
+
 /-- Weaken exactly three known exits of an N-way branch. The exits field is
     expected to reduce definitionally to the three-exit list. -/
 syntax (name := wpRv64NBranchWeakenPosts3Tac)
@@ -443,6 +473,18 @@ syntax (name := wpRv64NBranchWeakenPosts3Tac)
 macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_posts3 $br:term, $h1:term, $h2:term, $h3:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts3 $br (by rfl) $h1 $h2 $h3)
+
+/-- Weaken exactly three known exits, synthesizing the per-exit entailments with
+    `wp_rv64_link`.  The supplied terms are the replacement postconditions. -/
+syntax (name := wpRv64NBranchWeakenPosts3AutoTac)
+  "wp_rv64_nbranch_weaken_posts3_auto " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts3_auto $br:term, $p1:term, $p2:term, $p3:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts3 $br (by rfl)
+        (show EvmAsm.Rv64.WP.Entails _ $p1 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p2 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p3 by wp_rv64_link))
 
 /-- Weaken exactly four known exits of an N-way branch. The exits field is
     expected to reduce definitionally to the four-exit list. -/
@@ -453,6 +495,19 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_posts4 $br:term, $h1:term, $h2:term, $h3:term, $h4:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 $br (by rfl) $h1 $h2 $h3 $h4)
 
+/-- Weaken exactly four known exits, synthesizing the per-exit entailments with
+    `wp_rv64_link`.  The supplied terms are the replacement postconditions. -/
+syntax (name := wpRv64NBranchWeakenPosts4AutoTac)
+  "wp_rv64_nbranch_weaken_posts4_auto " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts4_auto $br:term, $p1:term, $p2:term, $p3:term, $p4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 $br (by rfl)
+        (show EvmAsm.Rv64.WP.Entails _ $p1 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p2 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p3 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p4 by wp_rv64_link))
+
 /-- Weaken exactly four known exits of an N-way branch, supplying the generated
     exit-list proof explicitly. -/
 syntax (name := wpRv64NBranchWeakenPosts4WithTac)
@@ -461,6 +516,19 @@ syntax (name := wpRv64NBranchWeakenPosts4WithTac)
 macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_posts4_with $br:term, $hexits:term, $h1:term, $h2:term, $h3:term, $h4:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 $br $hexits $h1 $h2 $h3 $h4)
+
+/-- Weaken exactly four known exits with an explicit exit-list proof,
+    synthesizing the per-exit entailments with `wp_rv64_link`. -/
+syntax (name := wpRv64NBranchWeakenPosts4WithAutoTac)
+  "wp_rv64_nbranch_weaken_posts4_with_auto " term ", " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts4_with_auto $br:term, $hexits:term, $p1:term, $p2:term, $p3:term, $p4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4 $br $hexits
+        (show EvmAsm.Rv64.WP.Entails _ $p1 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p2 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p3 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p4 by wp_rv64_link))
 
 /-- Join exactly four known exits of an N-way branch, supplying the generated
     exit-list proof and one continuation per exit. -/
@@ -695,6 +763,13 @@ example {entry l1 l2 l3 l4 : Word} {cr : CodeReq}
     (h4 : EvmAsm.Rv64.WP.Entails Q4 Q4') :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   wp_rv64_nbranch_weaken_posts4_with br, hexits, h1, h2, h3, h4
+
+example {entry l1 l2 l3 l4 : Word} {cr : CodeReq}
+    {Q1 Q2 Q3 Q4 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)]) :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  wp_rv64_nbranch_weaken_posts4_with_auto br, hexits, Q1, Q2, Q3, Q4
 
 example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)

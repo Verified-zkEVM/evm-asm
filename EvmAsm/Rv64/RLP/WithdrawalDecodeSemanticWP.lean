@@ -381,6 +381,10 @@ theorem walkInitNotListFailSchemaPost_entails_abiFailureFrame
   simp only [sepConj_emp_right']
   xperm_hyp hpAny
 
+attribute [rv64_wp_entails]
+  walkInitEmptyFailSchemaPost_entails_abiFailureFrame
+  walkInitNotListFailSchemaPost_entails_abiFailureFrame
+
 def walkInitShortSuccessAbiPost
     (inputBase outBase raVal : Word) (input d0 d1 d2 d3 : List Byte) : Assertion :=
   ((abiPost inputBase outBase raVal input **
@@ -616,16 +620,16 @@ def walkInitShortSuccessSemanticNBranch
     hc3 hl3 hinput hcode
   have hBound : input.length < 2 ^ 64 := by
     omega
-  wp_rv64_nbranch_weaken_posts4_with br,
+  wp_rv64_nbranch_weaken_posts4_with_auto br,
     (walkInitShortSuccessSchemaNBranch_exits base inputBase listLen raVal t0Old t1Old
       outBase input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1
       haddr hc3 hl3 hinput hcode),
-    (walkInitEmptyFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal t0Old
-      t1Old outBase input hLen hBound),
-    (walkInitNotListFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal outBase
-      input hoff),
-    (WP.Entails.refl _),
-    (WP.Entails.refl _)
+    (abiPost inputBase outBase raVal input **
+      walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase),
+    (abiPost inputBase outBase raVal input **
+      walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff),
+    (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3),
+    (walkInitLongSchemaPost inputBase listLen raVal outBase input hoff)
 
 theorem walkInitShortSuccessSemanticNBranch_pre
     (base inputBase listLen raVal t0Old t1Old outBase : Word)
