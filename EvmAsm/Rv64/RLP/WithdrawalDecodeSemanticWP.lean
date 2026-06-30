@@ -1008,6 +1008,9 @@ theorem prologueCode_disjoint_walkInitShortSuccessResolvedCode
     exact walkInitShortSuccessResolvedCode_none_below (base + 24) specs a htail
       (by rw [hbase24]; exact ha)
 
+attribute [rv64_wp_disjoint]
+  prologueCode_disjoint_walkInitShortSuccessResolvedCode
+
 /-- Range split between the decoder prologue and the standalone walk-init
     classifier. -/
 theorem prologueCode_disjoint_walkInitEmptyFailNotListFailShortLongCode
@@ -1864,20 +1867,19 @@ def walkInitShortSuccessFromPrologueCert
     (walkInitShortSuccessPrologueCarryFrame_pcFree inputBase listLen t0Old t1Old outBase input)
   let tail0 : WP.CFG.Cert (base + 24) (successStatusReturnExit raVal)
       (walkInitShortSuccessResolvedCode (base + 24) (successFieldSpecs d0 d1 d2 d3))
-      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) :=
-    WP.CFG.block (WP.Entails.refl _) (by
-      simpa [walkInitShortSuccessResolvedCode] using
-        walkInitShortSuccessResolved_spec_within (base + 24) inputBase listLen raVal t0Old
-          t1Old outBase input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval
-          hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput hLen hcode)
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) := by
+    dsimp [walkInitShortSuccessResolvedCode]
+    exact walkInitShortSuccessResolvedCert (base + 24) inputBase listLen raVal t0Old t1Old
+      outBase input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1
+      hl1 haddr hc3 hl3 hinput hLen hcode
   let tail := WP.CFG.frameR tail0 savedFrame
     (walkInitShortSuccessPrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old)
-  exact WP.CFG.seqDisjoint
+  wp_rv64_cfg_cert_seq_disjoint_with
     (prologueCode_disjoint_walkInitShortSuccessResolvedCode base
-      (successFieldSpecs d0 d1 d2 d3) hprologueCode hcode) head.sound tail
+      (successFieldSpecs d0 d1 d2 d3) hprologueCode hcode), head, tail,
     (by
-      dsimp [head, tail, tail0, carryFrame, savedFrame, WP.CFG.frameR, WP.CFG.block,
-        WP.Triple.frameR, WP.Triple.ofSpec]
+      dsimp [head, tail, tail0, carryFrame, savedFrame, WP.CFG.frameR, WP.Triple.frameR]
+      rw [walkInitShortSuccessResolvedCert_pre_expanded]
       simpa using prologuePostShortSuccessCarry_entails_resolvedPre sp0 raVal s0Old s1Old s2Old
         inputBase listLen t0Old t1Old outBase input)
 

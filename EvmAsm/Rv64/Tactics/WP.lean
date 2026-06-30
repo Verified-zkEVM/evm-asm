@@ -212,10 +212,11 @@ private def closeDisjointWithHint (goal : MVarId) : TacticM Unit := do
       continue
   throwError "wp_rv64_disjoint: no @[rv64_wp_disjoint] theorem closed the goal"
 
-/-- Close a `CodeReq.Disjoint` goal using local hypotheses, the structural prover
-    shared with `seqFrame`, or declarations tagged with `@[rv64_wp_disjoint]`.
-    This keeps WP composition proofs from spelling out code-range side
-    conditions for generated straight-line fragments and semantic code ranges. -/
+/-- Close a `CodeReq.Disjoint` goal using local hypotheses, declarations
+    tagged with `@[rv64_wp_disjoint]`, or the structural prover shared with
+    `seqFrame`. This keeps WP composition proofs from spelling out code-range
+    side conditions for generated straight-line fragments and semantic code
+    ranges. -/
 elab "wp_rv64_disjoint" : tactic => withMainContext do
   let goal ← getMainGoal
   let goalType ← instantiateMVars (← goal.getType)
@@ -224,16 +225,16 @@ elab "wp_rv64_disjoint" : tactic => withMainContext do
     throwError "wp_rv64_disjoint: expected CodeReq.Disjoint goal"
   if ← closeDisjointWithLocal goal goalType then
     return
-  let saved ← saveState
+  let savedHint ← saveState
   try
+    closeDisjointWithHint goal
+  catch _ =>
+    restoreState savedHint
     let cr1 := goalType.getAppArgs[0]!
     let cr2 := goalType.getAppArgs[1]!
     let proof ← withTransparency .all <| buildDisjointProof cr1 cr2
-    goal.assign proof
+    (← getMainGoal).assign proof
     replaceMainGoal []
-  catch _ =>
-    restoreState saved
-    closeDisjointWithHint (← getMainGoal)
 
 /-- Frame a single-exit CFG certificate and return the framed certificate. -/
 syntax (name := wpRv64FrameRTac) "wp_rv64_frame " term ", " term ", " term : tactic
@@ -266,6 +267,62 @@ macro_rules
   | `(tactic| wp_rv64_seq_disjoint $hd:term, $head:term, $tail:term) =>
       `(tactic| exact (EvmAsm.Rv64.WP.Triple.seqDisjoint $hd $head $tail
         (by wp_rv64_link)).sound)
+
+/-- Build a single-exit CFG certificate by composing a head CPS triple with a
+    tail certificate over disjoint code, supplying the midpoint entailment. -/
+syntax (name := wpRv64CfgSeqDisjointWithTac)
+  "wp_rv64_cfg_seq_disjoint_with " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_seq_disjoint_with $hd:term, $head:term, $tail:term, $hlink:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.seqDisjoint $hd $head $tail $hlink)
+
+/-- Build a single-exit CFG certificate by composing a head CPS triple with a
+    tail certificate over disjoint code, synthesizing the midpoint entailment. -/
+syntax (name := wpRv64CfgSeqDisjointWithAutoTac)
+  "wp_rv64_cfg_seq_disjoint_with_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_seq_disjoint_with_auto $hd:term, $head:term, $tail:term) =>
+      `(tactic| wp_rv64_cfg_seq_disjoint_with $hd, $head, $tail, (by wp_rv64_link))
+
+/-- Build a single-exit CFG certificate by composing a head CPS triple with a
+    tail certificate over disjoint code, synthesizing disjointness and the
+    midpoint entailment. -/
+syntax (name := wpRv64CfgSeqDisjointAutoTac)
+  "wp_rv64_cfg_seq_disjoint_auto " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_seq_disjoint_auto $head:term, $tail:term) =>
+      `(tactic| wp_rv64_cfg_seq_disjoint_with_auto (by wp_rv64_disjoint), $head, $tail)
+
+/-- Build a single-exit CFG certificate by composing a head certificate with a
+    tail certificate over disjoint code, supplying the midpoint entailment. -/
+syntax (name := wpRv64CfgCertSeqDisjointWithTac)
+  "wp_rv64_cfg_cert_seq_disjoint_with " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_cert_seq_disjoint_with $hd:term, $head:term, $tail:term, $hlink:term) =>
+      `(tactic| wp_rv64_cfg_seq_disjoint_with $hd, ($head).sound, $tail, $hlink)
+
+/-- Build a single-exit CFG certificate by composing a head certificate with a
+    tail certificate over disjoint code, synthesizing the midpoint entailment. -/
+syntax (name := wpRv64CfgCertSeqDisjointWithAutoTac)
+  "wp_rv64_cfg_cert_seq_disjoint_with_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_cert_seq_disjoint_with_auto $hd:term, $head:term, $tail:term) =>
+      `(tactic| wp_rv64_cfg_seq_disjoint_with_auto $hd, ($head).sound, $tail)
+
+/-- Build a single-exit CFG certificate by composing a head certificate with a
+    tail certificate over disjoint code, synthesizing disjointness and the
+    midpoint entailment. -/
+syntax (name := wpRv64CfgCertSeqDisjointAutoTac)
+  "wp_rv64_cfg_cert_seq_disjoint_auto " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_cfg_cert_seq_disjoint_auto $head:term, $tail:term) =>
+      `(tactic| wp_rv64_cfg_seq_disjoint_auto ($head).sound, $tail)
 
 /-- Compose two adjacent CPS blocks over one shared persistent code requirement. -/
 syntax (name := wpRv64SeqBlockTac) "wp_rv64_seq_block " term ", " term : tactic
@@ -875,6 +932,21 @@ example {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
     (tail : cpsTripleWithin nTail mid exit_ cr2 midPost post) :
     cpsTripleWithin (nHead + nTail) entry exit_ (cr1.union cr2) pre post := by
   wp_rv64_seq_block_disjoint hd, head, tail
+
+example {nHead : Nat} {entry mid : Word} {cr1 cr2 : CodeReq}
+    {pre midPost : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : cpsTripleWithin nHead entry mid cr1 pre midPost) :
+    EvmAsm.Rv64.WP.CFG.Cert entry mid (cr1.union cr2) midPost := by
+  let tail := EvmAsm.Rv64.WP.CFG.exit mid cr2 (EvmAsm.Rv64.WP.Entails.refl midPost)
+  wp_rv64_cfg_seq_disjoint_auto head, tail
+
+example {entry mid : Word} {cr1 cr2 : CodeReq} {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : EvmAsm.Rv64.WP.CFG.Cert entry mid cr1 post) :
+    EvmAsm.Rv64.WP.CFG.Cert entry mid (cr1.union cr2) post := by
+  let tail := EvmAsm.Rv64.WP.CFG.exit mid cr2 (EvmAsm.Rv64.WP.Entails.refl post)
+  wp_rv64_cfg_cert_seq_disjoint_auto head, tail
 
 example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
     {tailPre post : Assertion}
