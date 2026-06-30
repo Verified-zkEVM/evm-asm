@@ -437,6 +437,65 @@ def SchemaCanonical : List FieldSpec → Prop
   | [] => True
   | f :: rest => (f.isScalar = true → f.data = [] ∨ f.data.headD 1 ≠ 0) ∧ SchemaCanonical rest
 
+/-- A field descriptor with its validity/drop evidence determines the pure decode fact for that
+    field.  This is machine-independent: the static layout evidence is separate from the decoded
+    payload witness, and scalar canonicality is used only on the scalar success path. -/
+theorem fieldSpecStep_decode_of_valid
+    (bs : List Byte) (O : Nat) (f : FieldSpec)
+    (hsize : (if f.isScalar then f.data.length ≤ 8
+      else (encode (.bytes f.data)).length < 256 ^ 8))
+    (hcanon : f.isScalar = true → f.data = [] ∨ f.data.headD 1 ≠ 0)
+    (hdrop : bs.drop O = encode (.bytes f.data) ++ bs.drop (O + fieldEnc f)) :
+    (if f.isScalar then
+      decodeScalar (bs.drop O) = some (Nat.fromBytesBE f.data, bs.drop (O + fieldEnc f))
+     else
+      decode (bs.drop O) = some (.bytes f.data, bs.drop (O + fieldEnc f))) := by
+  by_cases hscalar : f.isScalar = true
+  · have henc : (encode (.bytes f.data)).length < 256 ^ 8 :=
+      scalarField_encode_size_of_len_le_8 f.data (by simpa [hscalar] using hsize)
+    have hdec : decode (bs.drop O) = some (.bytes f.data, bs.drop (O + fieldEnc f)) := by
+      rw [hdrop]
+      exact decode_encode_append (.bytes f.data) (bs.drop (O + fieldEnc f)) henc
+    have hheadD : f.data.headD (1 : Byte) ≠ (0 : Byte) := by
+      cases hcanon hscalar with
+      | inl hnil => simp [hnil]
+      | inr h => simpa using h
+    have hhead : ¬ f.data.head?.getD (BitVec.ofNat 8 1) = BitVec.ofNat 8 0 := by
+      cases hd : f.data with
+      | nil => simp
+      | cons b _ =>
+          have hb : b ≠ (0 : Byte) := by simpa [hd] using hheadD
+          simpa [hd] using hb
+    simp [hscalar, decodeScalar, hdec, hhead]
+  · have hbyte : f.isScalar = false := by
+      cases hs : f.isScalar with
+      | false => rfl
+      | true => exact False.elim (hscalar hs)
+    have henc : (encode (.bytes f.data)).length < 256 ^ 8 := by
+      simpa [hbyte] using hsize
+    have hdec : decode (bs.drop O) = some (.bytes f.data, bs.drop (O + fieldEnc f)) := by
+      rw [hdrop]
+      exact decode_encode_append (.bytes f.data) (bs.drop (O + fieldEnc f)) henc
+    simpa [hbyte] using hdec
+
+/-- Fold the pure decode facts over a whole successful schema witness.  This mirrors
+    `schemaStep_spec_within`, but it has no machine-side premises and can be used
+    by semantic bridges such as withdrawal decoding. -/
+theorem schemaDecodes_of_valid_canonical
+    (bs : List Byte) :
+    ∀ (specs : List FieldSpec) (O outLen : Nat),
+      SchemaValid bs outLen O specs → SchemaCanonical specs → schemaDecodes bs O specs := by
+  intro specs
+  induction specs with
+  | nil => intro O outLen _ _; simp [schemaDecodes]
+  | cons f rest ih =>
+      intro O outLen hvalid hcanon
+      obtain ⟨hsize, _hImm, _hdst, hdrop, hvalid_tail⟩ := hvalid
+      obtain ⟨hcanon_head, hcanon_tail⟩ := hcanon
+      constructor
+      · exact fieldSpecStep_decode_of_valid bs O f hsize hcanon_head hdrop
+      · exact ih (O + fieldEnc f) outLen hvalid_tail hcanon_tail
+
 /-- Soundness view of `fieldSpecStepCert` with the precondition exposed as `schemaINV`. -/
 theorem fieldSpecStep_spec_within
     (base regionBase outBase : Word) (rOut : Reg)

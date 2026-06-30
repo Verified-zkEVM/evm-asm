@@ -137,3 +137,4 @@ import EvmAsm.Rv64.RLP.WalkInitWP
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.Rv64.RLP.WithdrawalDecode
+import EvmAsm.Rv64.RLP.WithdrawalSchemaWP
