@@ -189,10 +189,7 @@ def ziskTxDecodeDispatchPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # packed status\n" ++
   "  j .Ltdd_pdone\n" ++
-  rlpWalkInitFunction ++ "\n" ++
-  rlpWalkNextFunction ++ "\n" ++
-  rlpContentToU64Function ++ "\n" ++
-  rlpContentToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txLegacyDecodeFunction ++ "\n" ++
   txEip2930DecodeFunction ++ "\n" ++

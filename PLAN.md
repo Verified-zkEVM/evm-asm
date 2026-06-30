@@ -2186,6 +2186,19 @@ calling convention so it is a literal drop-in.
   (transaction/header decoders) and index-based helper replacement remain
   follow-up work.
 
+- ✅ **Codegen consumers route through `rlpWalkHelpersClosure`**: every Codegen
+  `Programs/*.lean` site that previously concatenated the four cursor-walk
+  helpers (`rlpWalkInitFunction ++ rlpWalkNextFunction ++ rlpContentToU64Function
+  ++ rlpContentToU256BeFunction`) by hand now uses the guarded
+  `rlpWalkHelpersClosure` instead (`BlockVerdictV2.lean`, `HeaderDecode.lean`
+  second site, `SeedTxAccessList.lean`, `Tx.lean`, `TxDecode.lean`,
+  `TxDecode1559.lean`, `TxDecode2930.lean`, `TxDecode4844.lean`,
+  `TxDecode7702.lean`). Intentional partial-helper sites are unchanged (e.g.
+  `HeaderDecode.lean`'s first site only needs init/next/u64, not u256). This is
+  a behavior-preserving Codegen composition refactor, not a new Hoare proof:
+  future helper drift among these four is now caught in one place by
+  `rlpWalkHelpersClosure_eq_helpers`.
+
 ---
 
 ## Roadmap: Phases 7-11 (STF — State Transition Function)
