@@ -307,6 +307,66 @@ theorem code_bound_of_max
   unfold specs
   omega
 
+
+/-- Code covered by the prologue-to-success certificate carried by a decoded WP
+    package.  Naming it lets generated proofs talk about the package, not the
+    extracted field witnesses. -/
+def successCode
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w) : CodeReq :=
+  (prologueCode base).union (walkInitShortSuccessResolvedCode (base + 24) pkg.specs)
+
+/-- Postcondition of the package-carried success certificate. -/
+def successPost
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w) : Assertion :=
+  walkInitShortSuccessAbiPost inputBase outBase raVal input pkg.d0 pkg.d1 pkg.d2 pkg.d3 **
+    walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old
+
+/-- Package projection as a WP certificate.  This is registered as a certificate
+    hint so `wp_rv64_cert` can close package-shaped success goals directly. -/
+def successCert
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w) :
+    WP.CFG.Cert base (successStatusReturnExit raVal) pkg.successCode pkg.successPost := by
+  dsimp [successCode, successPost, specs]
+  exact pkg.cert
+
+/-- The package-shaped success certificate reduces to the static caller
+    precondition. -/
+theorem successCert_pre
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w) :
+    pkg.successCert.pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  dsimp [successCert]
+  exact pkg.hpre
+
+attribute [rv64_wp] successCert_pre
+attribute [rv64_wp_cert] successCert
+
+example
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w) :
+    WP.CFG.Cert base (successStatusReturnExit raVal) pkg.successCode pkg.successPost := by
+  wp_rv64_cert
+
 /-- Zero/nonzero classifier facade over the same generated code requirement as a
     decoded-success package.  This removes the last need to reconstruct the
     witness-specific `successFieldSpecs` when composing branch-level automation. -/
@@ -374,6 +434,25 @@ theorem failureNBranch_exits
 
 attribute [rv64_wp]
   failureNBranch_pre
+
+attribute [rv64_wp_cert]
+  failureNBranch
+
+example
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base ((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24) pkg.specs)) := by
+  wp_rv64_cert
 
 end WalkInitShortSuccessDecodedWP
 

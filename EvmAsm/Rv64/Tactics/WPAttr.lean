@@ -75,4 +75,26 @@ initialize Lean.registerBuiltinAttribute {
     Lean.modifyEnv fun env => rv64WpDeadExt.addEntry env declName
 }
 
+
+/-- Environment extension storing theorem/definition names tagged with
+    `@[rv64_wp_cert]`.  These are WP certificate constructors whose arguments
+    can be inferred from the target and local static facts. -/
+initialize rv64WpCertExt : Lean.SimplePersistentEnvExtension Lean.Name (Array Lean.Name) ←
+  Lean.registerSimplePersistentEnvExtension {
+    addEntryFn := fun state declName => state.push declName
+    addImportedFn := fun entries => entries.foldl (init := #[]) fun acc es => acc ++ es
+  }
+
+/-- Certificate hint database used by `wp_rv64_cert`.  Declarations tagged here
+    should return `WP.Triple`/`WP.CFG.Cert`, `WP.Branch`, or `WP.NBranch`, with
+    proof arguments inferable from local hypotheses. -/
+initialize Lean.registerBuiltinAttribute {
+  name := `rv64_wp_cert
+  descr := "WP certificate constructors used by wp_rv64_cert"
+  applicationTime := .afterTypeChecking
+  add := fun declName stx _attrKind => do
+    Lean.Attribute.Builtin.ensureNoArgs stx
+    Lean.modifyEnv fun env => rv64WpCertExt.addEntry env declName
+}
+
 end EvmAsm.Rv64.Tactics

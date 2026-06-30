@@ -167,6 +167,32 @@ macro_rules
         | try dsimp; wp_rv64_dead_hint
         | try dsimp; simp only [rv64_wp]; wp_rv64_dead_hint)
 
+
+private def isWpCertLikeGoal (goalType : Expr) : TacticM Bool := do
+  let goalType ← whnfR goalType
+  return goalType.isAppOfArity ``EvmAsm.Rv64.WP.Triple 4 ||
+    goalType.isAppOfArity ``EvmAsm.Rv64.WP.Branch 2 ||
+    goalType.isAppOfArity ``EvmAsm.Rv64.WP.NBranch 2
+
+/-- Close a WP certificate goal using declarations tagged with `@[rv64_wp_cert]`.
+    The target fixes the program/control-flow shape; remaining proof arguments
+    are filled from local hypotheses by name or exact type. -/
+elab "wp_rv64_cert" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let goalType ← instantiateMVars (← goal.getType)
+  unless ← isWpCertLikeGoal goalType do
+    throwError "wp_rv64_cert: expected WP.Triple/WP.CFG.Cert, WP.Branch, or WP.NBranch goal"
+  let entries := rv64WpCertExt.getState (← getEnv)
+  for declName in entries do
+    let saved ← saveState
+    try
+      closeWithWpHint goal declName
+      return
+    catch _ =>
+      restoreState saved
+      continue
+  throwError "wp_rv64_cert: no @[rv64_wp_cert] declaration closed the goal"
+
 /-- Close the midpoint entailment between adjacent WP fragments.  The common
     case is definitional equality of the head postcondition and tail WP; semantic
     bridge lemmas tagged `@[rv64_wp_entails]` handle generated handoff shapes,
