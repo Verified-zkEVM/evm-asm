@@ -372,6 +372,30 @@ def nbranchSeqSecondNBranchDisjoint {entry head l : Word} {cr1 cr2 : CodeReq}
     NBranch entry (cr1.union cr2) :=
   br.seqSecondNBranchDisjoint hd hexits tail hlink
 
+/-- Continue the third exit of a four-way N-branch with another N-way CFG over
+    disjoint tail code. -/
+def nbranchSeqThirdNBranchDisjoint {entry l1 l2 l3 l4 : Word} {cr1 cr2 : CodeReq}
+    {Q1 Q2 Q3 Q4 : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (tail : NBranch l3 cr2)
+    (hlink : Entails Q3 tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqThirdNBranchDisjoint hd hexits tail hlink
+
+/-- Continue the third exit of a four-way N-branch with a single-exit CFG over
+    disjoint tail code. -/
+def nbranchSeqThirdCertDisjoint {entry l1 l2 l3 l4 l3' : Word} {cr1 cr2 : CodeReq}
+    {Q1 Q2 Q3 Q4 R : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (tail : Cert l3 l3' cr2 R)
+    (hlink : Entails Q3 tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqThirdCertDisjoint hd hexits tail hlink
+
 /-- Join an N-way branch with a uniform continuation bound. -/
 def nbranch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : NBranch entry cr) (tailBound : Nat)

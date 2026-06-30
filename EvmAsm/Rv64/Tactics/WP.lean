@@ -226,6 +226,25 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqSecondNBranchDisjoint $hd $br (by rfl) $tail
         (by wp_rv64_link))
 
+/-- Continue the third exit of a four-way N-branch with a single-exit CFG over
+    disjoint tail code. The exit-list proof is expected to be definitional. -/
+syntax (name := wpRv64NBranchSeqThirdCertDisjointTac)
+  "wp_rv64_nbranch_third_cert_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_third_cert_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqThirdCertDisjoint $hd $br (by rfl) $tail
+        (by wp_rv64_link))
+
+/-- Continue the third exit of a four-way N-branch with a single-exit CFG,
+    supplying the normalized exit-list proof and link entailment explicitly. -/
+syntax (name := wpRv64NBranchSeqThirdCertDisjointWithTac)
+  "wp_rv64_nbranch_third_cert_disjoint_with " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_third_cert_disjoint_with $hd:term, $br:term, $hexits:term, $tail:term, $hlink:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqThirdCertDisjoint $hd $br $hexits $tail $hlink)
+
 /-- Frame every exit of an N-way branch with a PC-free assertion. -/
 syntax (name := wpRv64NBranchFrameRTac)
   "wp_rv64_nbranch_frame " term ", " term ", " term : tactic
@@ -463,6 +482,16 @@ example {nTail : Nat} {entry : Word} {cr1 cr2 : CodeReq}
   let nb := EvmAsm.Rv64.WP.CFG.nbranchOfBranch br
   let tail := EvmAsm.Rv64.WP.NBranch.ofSpec tailSound
   wp_rv64_nbranch_head_nbranch_disjoint hd, nb, tail
+
+example {entry l1 l2 l3 l4 l3' : Word} {cr1 cr2 : CodeReq}
+    {Q1 Q2 Q3 Q4 R : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.NBranch entry cr1)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (tail : EvmAsm.Rv64.WP.CFG.Cert l3 l3' cr2 R)
+    (hlink : EvmAsm.Rv64.WP.Entails Q3 tail.pre) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  wp_rv64_nbranch_third_cert_disjoint_with hd, br, hexits, tail, hlink
 
 example {entry : Word} {cr : CodeReq} {F : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr) (hF : F.pcFree) :

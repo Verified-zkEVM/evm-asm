@@ -221,8 +221,10 @@ def walkInitShortSuccessSchemaNBranch
   let longPost : Assertion :=
     walkInitLongListCandidatePost inputBase listLen raVal input 0 hoff ** F
   have hexits : br.exits =
-      [(failStatusReturnExit raVal, emptyPost), (failStatusReturnExit raVal, notListPost)] ++
-        (base + 124, shortPost) :: [(base + 28, longPost)] := by
+      [(failStatusReturnExit raVal, emptyPost),
+        (failStatusReturnExit raVal, notListPost),
+        (base + 124, shortPost),
+        (base + 28, longPost)] := by
     dsimp [br, F, emptyPost, notListPost, shortPost, longPost]
     rw [walkInitSchemaFrameNBranch_exits]
     rfl
@@ -231,9 +233,7 @@ def walkInitShortSuccessSchemaNBranch
     exact walkInitShortListCandidatePost_schemaWalkInitFrame_entails_walkShortExitPre
       base inputBase listLen raVal outBase input d0 d1 d2 d3 hoff hc0 hl0 hc1 hl1 haddr hc3
       hl3 hinput hsalign hdalign hover hwin hdov hdval hcode
-  wp_rv64_nbranch_exit_cert_disjoint_with hd, br,
-    [(failStatusReturnExit raVal, emptyPost), (failStatusReturnExit raVal, notListPost)],
-    hexits, tailCert, hlink
+  wp_rv64_nbranch_third_cert_disjoint_with hd, br, hexits, tailCert, hlink
 
 theorem walkInitShortSuccessSchemaNBranch_pre
     (base inputBase listLen raVal t0Old t1Old outBase : Word)

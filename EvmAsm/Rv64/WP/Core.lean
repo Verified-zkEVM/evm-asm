@@ -561,6 +561,32 @@ def seqSecondNBranchDisjoint {entry head l : Word} {cr1 cr2 : CodeReq}
       simpa [hexits] using br.sound
     exact cpsNBranchWithin_extend_second_nbranch_disjoint hd hbr (tail.weakenPre hlink).sound
 
+/-- Continue the third exit of a four-way N-branch with another N-way
+    continuation over disjoint tail code, preserving the other three exits. -/
+def seqThirdNBranchDisjoint {entry l1 l2 l3 l4 : Word} {cr1 cr2 : CodeReq}
+    {Q1 Q2 Q3 Q4 : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (tail : NBranch l3 cr2)
+    (hlink : Entails Q3 tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqExitNBranchDisjoint
+    (preExits := [(l1, Q1), (l2, Q2)]) (others := [(l4, Q4)])
+    hd (by simpa using hexits) tail hlink
+
+/-- Continue the third exit of a four-way N-branch with a single-exit
+    continuation over disjoint tail code. -/
+def seqThirdCertDisjoint {entry l1 l2 l3 l4 l3' : Word} {cr1 cr2 : CodeReq}
+    {Q1 Q2 Q3 Q4 R : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)])
+    (tail : Triple l3 l3' cr2 R)
+    (hlink : Entails Q3 tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqThirdNBranchDisjoint hd hexits (NBranch.ofTriple tail) hlink
+
 /-- Join all exits with a uniform continuation bound. -/
 def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : NBranch entry cr) (tailBound : Nat)
