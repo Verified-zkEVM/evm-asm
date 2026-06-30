@@ -465,6 +465,30 @@ def weakenPosts4 {entry : Word} {cr : CodeReq}
     · rcases hcase with ⟨rfl, rfl⟩
       exact ⟨(l4, Q4'), by simp, rfl, h4⟩)
 
+/-- Weaken exactly four known exits while merging the first two exits into one
+    replacement exit. The first two original exits must share the same target. -/
+def weakenPosts4MergeFirstTwo {entry : Word} {cr : CodeReq}
+    {l l3 l4 : Word} {Q1 Q2 Q3 Q4 Q12 Q3' Q4' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l, Q1), (l, Q2), (l3, Q3), (l4, Q4)])
+    (h1 : Entails Q1 Q12) (h2 : Entails Q2 Q12) (h3 : Entails Q3 Q3')
+    (h4 : Entails Q4 Q4') :
+    NBranch entry cr :=
+  br.weakenPosts [(l, Q12), (l3, Q3'), (l4, Q4')] (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l, Q1), (l, Q2), (l3, Q3), (l4, Q4)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase | hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l, Q12), by simp, rfl, h1⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l, Q12), by simp, rfl, h2⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l3, Q3'), by simp, rfl, h3⟩
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact ⟨(l4, Q4'), by simp, rfl, h4⟩)
+
 /-- Continue the head exit of an N-way branch with a single-exit continuation
     over the same code requirement. -/
 def seqHead {entry l l' : Word} {cr : CodeReq}

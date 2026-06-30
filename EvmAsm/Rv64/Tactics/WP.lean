@@ -530,6 +530,19 @@ macro_rules
         (show EvmAsm.Rv64.WP.Entails _ $p3 by wp_rv64_link)
         (show EvmAsm.Rv64.WP.Entails _ $p4 by wp_rv64_link))
 
+/-- Weaken four known exits into three by merging the first two same-target
+    exits, synthesizing the per-exit entailments with `wp_rv64_link`. -/
+syntax (name := wpRv64NBranchWeakenPosts4MergeFirstTwoWithAutoTac)
+  "wp_rv64_nbranch_weaken_posts4_merge_first_two_with_auto " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts4_merge_first_two_with_auto $br:term, $hexits:term, $p12:term, $p3:term, $p4:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts4MergeFirstTwo $br $hexits
+        (show EvmAsm.Rv64.WP.Entails _ $p12 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p12 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p3 by wp_rv64_link)
+        (show EvmAsm.Rv64.WP.Entails _ $p4 by wp_rv64_link))
+
 /-- Join exactly four known exits of an N-way branch, supplying the generated
     exit-list proof and one continuation per exit. -/
 syntax (name := wpRv64NBranchJoin4WithTac)
@@ -770,6 +783,13 @@ example {entry l1 l2 l3 l4 : Word} {cr : CodeReq}
     (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)]) :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   wp_rv64_nbranch_weaken_posts4_with_auto br, hexits, Q1, Q2, Q3, Q4
+
+example {entry l l3 l4 : Word} {cr : CodeReq}
+    {Q Q3 Q4 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l, Q), (l, Q), (l3, Q3), (l4, Q4)]) :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  wp_rv64_nbranch_weaken_posts4_merge_first_two_with_auto br, hexits, Q, Q3, Q4
 
 example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)

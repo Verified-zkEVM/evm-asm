@@ -1532,12 +1532,10 @@ def walkInitAbiFailureReasonErasedFromPrologueNBranch
   let br := walkInitAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old outBase
     m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0 hLen
     hBound hprologueCode hcode
-  wp_rv64_nbranch_weaken_posts4_with_auto br,
+  wp_rv64_nbranch_weaken_posts4_merge_first_two_with_auto br,
     (walkInitAbiFailureFromPrologueNBranch_exits base sp0 raVal s0Old s1Old s2Old outBase
       m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0 hLen
       hBound hprologueCode hcode),
-    (walkInitAbiFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
-      inputBase listLen t0Old t1Old input hoff),
     (walkInitAbiFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
       inputBase listLen t0Old t1Old input hoff),
     (walkInitShortListOutputPost inputBase listLen raVal outBase input 0 hoff **
@@ -1569,9 +1567,6 @@ def walkInitAbiFailureReasonErasedFromPrologueExits
     (inputBase listLen t0Old t1Old : Word)
     (input : List Byte) (hoff : 0 < input.length) : List (Word × Assertion) :=
   [ (failStatusReturnExit raVal,
-      walkInitAbiFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
-        inputBase listLen t0Old t1Old input hoff)
-  , (failStatusReturnExit raVal,
       walkInitAbiFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
         inputBase listLen t0Old t1Old input hoff)
   , ((base + 24) + 124,

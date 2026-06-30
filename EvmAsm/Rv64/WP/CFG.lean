@@ -259,6 +259,17 @@ def nbranchWeakenPosts4 {entry : Word} {cr : CodeReq}
     NBranch entry cr :=
   br.weakenPosts4 hexits h1 h2 h3 h4
 
+/-- Weaken four exits into three by mapping the first two same-target exits to
+    one replacement post. -/
+def nbranchWeakenPosts4MergeFirstTwo {entry : Word} {cr : CodeReq}
+    {l l3 l4 : Word} {Q1 Q2 Q3 Q4 Q12 Q3' Q4' : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l, Q1), (l, Q2), (l3, Q3), (l4, Q4)])
+    (h1 : Entails Q1 Q12) (h2 : Entails Q2 Q12) (h3 : Entails Q3 Q3')
+    (h4 : Entails Q4 Q4') :
+    NBranch entry cr :=
+  br.weakenPosts4MergeFirstTwo hexits h1 h2 h3 h4
+
 /-- Continue a branch's not-taken exit with an N-way CFG over disjoint code,
     preserving the taken exit as the first open exit. -/
 def branchSeqNotTakenNBranchDisjoint {entry : Word} {cr1 cr2 : CodeReq}
