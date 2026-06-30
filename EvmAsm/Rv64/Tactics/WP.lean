@@ -543,6 +543,42 @@ macro_rules
         (show EvmAsm.Rv64.WP.Entails _ $p3 by wp_rv64_link)
         (show EvmAsm.Rv64.WP.Entails _ $p4 by wp_rv64_link))
 
+/-- Join exactly two known exits when the first exit is the only reachable one. -/
+syntax (name := wpRv64NBranchJoin2ResolveFirstTac)
+  "wp_rv64_nbranch_join2_resolve_first " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join2_resolve_first $br:term, $hexits:term, $hlink1:term, $hdead2:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveFirst $br $hexits $hlink1 $hdead2)
+
+/-- Join exactly two known exits when the first exit is the only reachable one,
+    synthesizing the reachable-exit entailment with `wp_rv64_link`. -/
+syntax (name := wpRv64NBranchJoin2ResolveFirstAutoTac)
+  "wp_rv64_nbranch_join2_resolve_first_auto " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join2_resolve_first_auto $br:term, $hexits:term, $post:term, $hdead2:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveFirst $br $hexits
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link) $hdead2)
+
+/-- Join exactly two known exits when the second exit is the only reachable one. -/
+syntax (name := wpRv64NBranchJoin2ResolveSecondTac)
+  "wp_rv64_nbranch_join2_resolve_second " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join2_resolve_second $br:term, $hexits:term, $hdead1:term, $hlink2:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveSecond $br $hexits $hdead1 $hlink2)
+
+/-- Join exactly two known exits when the second exit is the only reachable one,
+    synthesizing the reachable-exit entailment with `wp_rv64_link`. -/
+syntax (name := wpRv64NBranchJoin2ResolveSecondAutoTac)
+  "wp_rv64_nbranch_join2_resolve_second_auto " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join2_resolve_second_auto $br:term, $hexits:term, $hdead1:term, $post:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveSecond $br $hexits $hdead1
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link))
+
 /-- Join exactly four known exits of an N-way branch, supplying the generated
     exit-list proof and one continuation per exit. -/
 syntax (name := wpRv64NBranchJoin4WithTac)
@@ -790,6 +826,36 @@ example {entry l l3 l4 : Word} {cr : CodeReq}
     (hexits : br.exits = [(l, Q), (l, Q), (l3, Q3), (l4, Q4)]) :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   wp_rv64_nbranch_weaken_posts4_merge_first_two_with_auto br, hexits, Q, Q3, Q4
+
+example {entry l1 l2 : Word} {cr : CodeReq} {post Q1 Q2 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hlink1 : EvmAsm.Rv64.WP.Entails Q1 post)
+    (hdead2 : ∀ h, Q2 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l1 cr post := by
+  wp_rv64_nbranch_join2_resolve_first br, hexits, hlink1, hdead2
+
+example {entry l1 l2 : Word} {cr : CodeReq} {Q1 Q2 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hdead2 : ∀ h, Q2 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l1 cr Q1 := by
+  wp_rv64_nbranch_join2_resolve_first_auto br, hexits, Q1, hdead2
+
+example {entry l1 l2 : Word} {cr : CodeReq} {post Q1 Q2 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hlink2 : EvmAsm.Rv64.WP.Entails Q2 post) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l2 cr post := by
+  wp_rv64_nbranch_join2_resolve_second br, hexits, hdead1, hlink2
+
+example {entry l1 l2 : Word} {cr : CodeReq} {Q1 Q2 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hdead1 : ∀ h, Q1 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l2 cr Q2 := by
+  wp_rv64_nbranch_join2_resolve_second_auto br, hexits, hdead1, Q2
 
 example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)

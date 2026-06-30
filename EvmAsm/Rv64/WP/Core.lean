@@ -630,6 +630,48 @@ def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
   pre := br.pre
   sound := cpsNBranchWithin_merge br.sound hall
 
+/-- Join exactly two known exits when the first exit is the only reachable one.
+    The second exit is closed by a contradictory precondition, and the first
+    exit is treated as the continuation post. -/
+def join2ResolveFirst {entry : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 : Word} {Q1 Q2 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hlink1 : Entails Q1 post)
+    (hdead2 : ∀ h, Q2 h → False) :
+    Triple entry l1 cr post :=
+  br.join 0 (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l1, Q1), (l2, Q2)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (Triple.refl l1 cr hlink1).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (Triple.unreachable l2 l1 cr (pre := Q2) (post := post) hdead2).sound)
+
+/-- Join exactly two known exits when the second exit is the only reachable one.
+    The first exit is closed by a contradictory precondition, and the second
+    exit is treated as the continuation post. -/
+def join2ResolveSecond {entry : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 : Word} {Q1 Q2 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hlink2 : Entails Q2 post) :
+    Triple entry l2 cr post :=
+  br.join 0 (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l1, Q1), (l2, Q2)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (Triple.unreachable l1 l2 cr (pre := Q1) (post := post) hdead1).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (Triple.refl l2 cr hlink2).sound)
+
 /-- Join exactly four known exits with single-exit continuations. This is the
     fixed-arity frontend generated CFG proofs use after normalizing an N-branch
     exit list. -/

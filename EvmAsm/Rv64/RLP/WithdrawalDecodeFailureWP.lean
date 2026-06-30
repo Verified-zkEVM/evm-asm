@@ -92,6 +92,54 @@ theorem decodeWithdrawal_none_of_head_lt_c0
           exfalso
           exact decodeFully_ne_list_of_head_lt_c0 pfx rest items h hfull
 
+/-- The shallow empty-input split has a semantic failure head exit and one
+    syntactic nonzero fall-through exit. -/
+theorem walkInitEmptyInputFailureNBranch_exits
+    (base inputBase outBase raVal statusOld : Word) :
+    (walkInitEmptyInputFailureNBranch base inputBase outBase raVal statusOld).exits =
+      [ (failStatusReturnExit raVal, emptyInputFailurePost inputBase outBase raVal)
+      , (base + 4,
+          walkInitNonzeroOpenStatusPost (0 : Word) raVal statusOld **
+            emptyInputAbiFrame inputBase outBase)
+      ] := by
+  rfl
+
+/-- The nonzero fall-through exit of the empty-input specialization is
+    contradictory because it carries `0 != 0`. -/
+theorem walkInitEmptyInputNonzeroExit_contradicts
+    (inputBase outBase raVal statusOld : Word) :
+    ∀ h,
+      (walkInitNonzeroOpenStatusPost (0 : Word) raVal statusOld **
+        emptyInputAbiFrame inputBase outBase) h → False := by
+  intro h hp
+  unfold walkInitNonzeroOpenStatusPost walkInitNonzeroPost at hp
+  rcases hp with ⟨hMain, _hFrame, _hdFrame, _hunionFrame, hMain_prop, _hFrame_prop⟩
+  rcases hMain_prop with ⟨hRegs, _hFail, _hdFail, _hunionFail, hRegs_prop, _hFail_prop⟩
+  rcases hRegs_prop with ⟨_hRegs, hTail, _hdTail, _hunionTail, _hRegs_prop, hTail_prop⟩
+  rcases hTail_prop with ⟨_hX0, _hPure, _hdPure, _hunionPure, _hX0_prop, hPure_prop⟩
+  unfold EvmAsm.Rv64.pure at hPure_prop
+  exact hPure_prop.2 rfl
+
+/-- Resolved empty-input certificate: the impossible nonzero exit is closed by
+    contradiction, leaving the semantic failure post as the only result. -/
+def walkInitEmptyInputFailureCert
+    (base inputBase outBase raVal statusOld : Word) :
+    WP.CFG.Cert base (failStatusReturnExit raVal) (walkInitEmptyFailStatusCode base)
+      (emptyInputFailurePost inputBase outBase raVal) := by
+  let br := walkInitEmptyInputFailureNBranch base inputBase outBase raVal statusOld
+  wp_rv64_nbranch_join2_resolve_first_auto br,
+    (walkInitEmptyInputFailureNBranch_exits base inputBase outBase raVal statusOld),
+    (emptyInputFailurePost inputBase outBase raVal),
+    (walkInitEmptyInputNonzeroExit_contradicts inputBase outBase raVal statusOld)
+
+/-- The resolved empty-input certificate reduces to the shallow walk-init
+    empty-input precondition. -/
+theorem walkInitEmptyInputFailureCert_pre
+    (base inputBase outBase raVal statusOld : Word) :
+    (walkInitEmptyInputFailureCert base inputBase outBase raVal statusOld).pre =
+      (walkInitEmptyInputFailureNBranch base inputBase outBase raVal statusOld).pre := by
+  rfl
+
 /-- Scratch facts preserved by the empty-input failure case after exposing the
     public ABI failure component. -/
 def walkInitEmptyFailAbiFrame (listLen t0Old t1Old : Word) : Assertion :=
