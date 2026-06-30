@@ -102,6 +102,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1V5CarryZero
 import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
 import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Conservation
 import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientCorrect
+import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0ModRemainder
 import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientWordLane
 import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
 import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientLimbs
@@ -447,8 +448,11 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNzMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0Mod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
