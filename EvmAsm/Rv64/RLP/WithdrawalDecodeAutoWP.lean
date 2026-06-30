@@ -1,0 +1,124 @@
+/-
+  EvmAsm.Rv64.RLP.WithdrawalDecodeAutoWP
+
+  Caller-facing WP automation for the withdrawal decoder success path.  The
+  generated schema code still depends on the field byte witnesses, but callers
+  only provide the pure `decodeWithdrawal` result; this module extracts the
+  witnesses and packages the resulting WP certificate.
+-/
+
+import EvmAsm.Rv64.RLP.WithdrawalDecodeSemanticWP
+
+namespace EvmAsm.Rv64.RLP
+
+open EvmAsm.Rv64
+open EvmAsm.EL
+open EvmAsm.EL.RLP
+open EvmAsm.Rv64.Tactics
+
+namespace WithdrawalDecode
+
+theorem schemaSize_successFieldSpecs_le_1392
+    (d0 d1 d2 d3 : List Byte) (haddr : d2.length = 20) :
+    schemaSize (successFieldSpecs d0 d1 d2 d3) <= 1392 := by
+  simp [schemaSize, successFieldSpecs, fieldSize, haddr]
+  split <;> split <;> split <;> omega
+
+theorem successFieldSpecs_input_length_pos
+    (input d0 d1 d2 d3 : List Byte)
+    (hl0 : d0.length <= 8) (hl1 : d1.length <= 8)
+    (haddr : d2.length = 20) (hl3 : d3.length <= 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    0 < input.length := by
+  have hpayload :=
+    schemaEncBytes_successFieldSpecs_length_le_48 d0 d1 d2 d3 hl0 hl1 haddr hl3
+  have hshort : (schemaEncBytes (successFieldSpecs d0 d1 d2 d3)).length <= 55 := by
+    omega
+  subst input
+  rw [encode_list_schemaItems_short (successFieldSpecs d0 d1 d2 d3) hshort]
+  simp
+
+/-- WP package produced from a pure successful withdrawal decode.  The schema
+    remains result-free: the decoded value is related to the postcondition only
+    through `hw`, while the generated code/cert fields are indexed by the byte
+    witnesses extracted from `decodeWithdrawal`. -/
+structure WalkInitShortSuccessDecodedWP
+    (base sp0 raVal s0Old s1Old s2Old outBase : Word)
+    (m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal) where
+  d0 : List Byte
+  d1 : List Byte
+  d2 : List Byte
+  d3 : List Byte
+  hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))
+  hc0 : Not (d0.headD 1 = 0)
+  hl0 : d0.length <= 8
+  hc1 : Not (d1.headD 1 = 0)
+  hl1 : d1.length <= 8
+  haddr : d2.length = 20
+  hc3 : Not (d3.headD 1 = 0)
+  hl3 : d3.length <= 8
+  hw : w = fromFieldBytes d0 d1 d2 d3
+  hoff : 0 < input.length
+  h_schema_size : schemaSize (successFieldSpecs d0 d1 d2 d3) <= 1392
+  cert : WP.CFG.Cert base (successStatusReturnExit raVal)
+    ((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24) (successFieldSpecs d0 d1 d2 d3)))
+    (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3 **
+      walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old)
+  hpre : cert.pre =
+    (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+      walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+
+/-- Decode-driven automation for the prologue-to-success WP slice.  It consumes
+    the pure decoder result and a uniform static code-size bound, then proves that
+    the same generated WP package as the witness-heavy constructor is available. -/
+theorem walkInitShortSuccessDecodedWP_nonempty
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    Nonempty (WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w) := by
+  rcases successFieldSpecs_input_of_decodeWithdrawal_eq_some input w hdec with
+    ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3, hw⟩
+  have hoff := successFieldSpecs_input_length_pos input d0 d1 d2 d3 hl0 hl1 haddr hl3 hinput
+  have h_schema_size := schemaSize_successFieldSpecs_le_1392 d0 d1 d2 d3 haddr
+  have hcode : (base + 24).toNat + 172 + 4 +
+      schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64 := by
+    omega
+  exact ⟨
+    { d0 := d0
+      d1 := d1
+      d2 := d2
+      d3 := d3
+      hinput := hinput
+      hc0 := hc0
+      hl0 := hl0
+      hc1 := hc1
+      hl1 := hl1
+      haddr := haddr
+      hc3 := hc3
+      hl3 := hl3
+      hw := hw
+      hoff := hoff
+      h_schema_size := h_schema_size
+      cert := walkInitShortSuccessFromPrologueCert base sp0 raVal s0Old s1Old s2Old outBase
+        m0 m1 m2 m3 inputBase listLen t0Old t1Old input d0 d1 d2 d3 hsalign hoff hover
+        hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput h_len h_prologue_code
+        hcode
+      hpre := by
+        rw [walkInitShortSuccessFromPrologueCert_pre] }⟩
+
+end WithdrawalDecode
+
+end EvmAsm.Rv64.RLP
