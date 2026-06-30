@@ -93,6 +93,22 @@ theorem walkInitShortSuccessPrologueCarryFrame_pcFree
   unfold walkInitShortSuccessPrologueCarryFrame
   pcFree
 
+/-- Schema scratch registers carried by the success-shaped classifier frame and
+    preserved by failure-only facades. -/
+def walkInitSchemaScratchFrame : Assertion :=
+  (regOwn .x13 ** regOwn .x14 ** regOwn .x15)
+
+theorem walkInitSchemaScratchFrame_pcFree : walkInitSchemaScratchFrame.pcFree := by
+  unfold walkInitSchemaScratchFrame
+  pcFree
+
+theorem bytesRegion_replicate_output_entails_any (outBase : Word) :
+    WP.Entails
+      (bytesRegion outBase (List.replicate outputSize (0 : Byte)))
+      (bytesRegionAny outBase outputSize) := by
+  intro h hp
+  exact ⟨List.replicate outputSize (0 : Byte), by simp [outputSize], hp⟩
+
 /-- Exact midpoint precondition before weakening `x12 ↦ outBase` to
     `regOwn x12`. -/
 def walkInitShortSuccessResolvedPreFromPrologue
@@ -127,6 +143,36 @@ theorem walkInitAbiFailurePrologueCarryFrame_pcFree
     (walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input).pcFree := by
   unfold walkInitAbiFailurePrologueCarryFrame
   pcFree
+
+theorem walkInitShortSuccessPrologueCarryFrame_entails_abiFailureScratchPre
+    (inputBase listLen t0Old t1Old outBase : Word) (input : List Byte) :
+    WP.Entails
+      (walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+      (walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input **
+        walkInitSchemaScratchFrame) := by
+  intro h hp
+  unfold walkInitShortSuccessPrologueCarryFrame at hp
+  unfold walkInitAbiFailurePrologueCarryFrame walkInitSchemaScratchFrame
+  have hpAny := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+        (bytesRegion_replicate_output_entails_any outBase))))))))) h hp
+  xperm_hyp hpAny
+
+theorem prologuePreShortSuccessCarry_entails_abiFailureScratchPre
+    (sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word) (input : List Byte) :
+    WP.Entails
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+      ((prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) **
+        walkInitSchemaScratchFrame) := by
+  intro h hp
+  exact (sepConj_assoc h).mpr
+    (sepConj_mono_right
+      (walkInitShortSuccessPrologueCarryFrame_entails_abiFailureScratchPre inputBase listLen
+        t0Old t1Old outBase input) h hp)
 
 /-- Prologue-owned resources that the ABI-failure classifier does not consume. -/
 def walkInitAbiFailurePrologueSavedFrame
@@ -181,7 +227,8 @@ theorem walkInitEmptyInputPrologueScratchFrame_pcFree (t0Old t1Old : Word) :
 
 -- WP-link automation unfolds these small assertion-shape helpers before `xperm`.
 attribute [rv64_wp] schemaWalkInitFrameFromPrologue walkInitShortSuccessPrologueSavedFrame
-  walkInitShortSuccessPrologueCarryFrame walkInitShortSuccessResolvedPreFromPrologue
+  walkInitShortSuccessPrologueCarryFrame walkInitSchemaScratchFrame
+  walkInitShortSuccessResolvedPreFromPrologue
   walkInitAbiFailurePrologueCarryFrame walkInitAbiFailurePrologueSavedFrame
   walkInitAbiFailurePreFromPrologue walkInitEmptyInputPrologueCarryFrame
   walkInitEmptyInputPreFromPrologue walkInitEmptyInputPrologueScratchFrame emptyInputAbiFrame
@@ -1905,6 +1952,87 @@ theorem walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_exits
   unfold walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch
   simp only [WP.NBranch.extendCode]
   rw [walkInitZeroNonzeroAbiFailureFromPrologueNBranch_exits]
+
+/-- Failure facade over the resolved short-success code, restated with the same
+    success-shaped static caller frame used by the schema-success path.  The
+    added scratch frame is preserved on every exit by WP framing; the local
+    precondition bridge keeps the global WP hint registry narrow. -/
+def walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
+  let br := walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch base sp0 raVal
+    s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs
+    hsalign hover hwin hLen hprologueCode hcode
+  have hpre : WP.Entails
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+      (br.pre ** walkInitSchemaScratchFrame) := by
+    dsimp [br]
+    rw [walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_pre]
+    exact prologuePreShortSuccessCarry_entails_abiFailureScratchPre sp0 raVal s0Old s1Old
+      s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input
+  wp_rv64_nbranch_frame_set_pre br, walkInitSchemaScratchFrame,
+    walkInitSchemaScratchFrame_pcFree,
+    (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+      walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+
+theorem walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch base sp0 raVal
+      s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs
+      hsalign hover hwin hLen hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  rfl
+
+attribute [rv64_wp]
+  walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch_pre
+
+def walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameExits
+    (base sp0 raVal s0Old s1Old s2Old outBase : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) : List (Word × Assertion) :=
+  (walkInitZeroNonzeroAbiFailureFromPrologueExits base sp0 raVal s0Old s1Old s2Old
+    outBase inputBase listLen t0Old t1Old input).map
+    (fun ex => (ex.1, ex.2 ** walkInitSchemaScratchFrame))
+
+theorem walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch base sp0 raVal
+      s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs
+      hsalign hover hwin hLen hprologueCode hcode).exits =
+      walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameExits base sp0 raVal
+        s0Old s1Old s2Old outBase inputBase listLen t0Old t1Old input := by
+  unfold walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch
+  simp only [WP.NBranch.weakenPre, WP.CFG.nbranchFrameR, WP.NBranch.frameR]
+  rw [walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_exits]
+  rfl
 
 /-- Prologue followed by the reduced short-list success WP slice.  The prologue
     carries the walk-init/schema resources to its exit; the tail consumes those

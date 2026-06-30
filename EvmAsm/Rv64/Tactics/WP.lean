@@ -177,6 +177,7 @@ macro_rules
   | `(tactic| wp_rv64_link) =>
       `(tactic| first
         | exact EvmAsm.Rv64.WP.Entails.refl _
+        | assumption
         | wp_rv64_entails
         | simp only [rv64_wp]; wp_rv64_entails
         | dsimp; wp_rv64_entails
@@ -612,6 +613,23 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.NBranch.weakenPre $br
         (show EvmAsm.Rv64.WP.Entails $pre ($br).pre by wp_rv64_link))
 
+/-- Frame every exit of an N-way branch and set an explicit precondition in one
+    generated step.  This is the common shape when a caller frame is preserved
+    across every branch exit, but the source precondition is more structured
+    than the raw framed WP precondition. -/
+syntax (name := wpRv64NBranchFrameSetPreTac)
+  "wp_rv64_nbranch_frame_set_pre " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_frame_set_pre $br:term, $frame:term, $hFrame:term, $pre:term) =>
+      `(tactic|
+        exact EvmAsm.Rv64.WP.NBranch.weakenPre
+          (EvmAsm.Rv64.WP.CFG.nbranchFrameR $br $frame $hFrame)
+          (show EvmAsm.Rv64.WP.Entails $pre
+            (EvmAsm.Rv64.WP.CFG.nbranchFrameR $br $frame $hFrame).pre by
+            dsimp only [EvmAsm.Rv64.WP.CFG.nbranchFrameR, EvmAsm.Rv64.WP.NBranch.frameR]
+            wp_rv64_link))
+
 /-- Extend an N-way branch to a larger code requirement and set an explicit
     precondition in one generated step. -/
 syntax (name := wpRv64NBranchExtendSetPreTac)
@@ -620,9 +638,10 @@ syntax (name := wpRv64NBranchExtendSetPreTac)
 macro_rules
   | `(tactic| wp_rv64_nbranch_extend_set_pre $br:term, $hmono:term, $pre:term) =>
       `(tactic|
-        let br' := EvmAsm.Rv64.WP.NBranch.extendCode $br $hmono
-        exact EvmAsm.Rv64.WP.NBranch.weakenPre br'
-          (show EvmAsm.Rv64.WP.Entails $pre br'.pre by wp_rv64_link))
+        exact EvmAsm.Rv64.WP.NBranch.weakenPre
+          (EvmAsm.Rv64.WP.NBranch.extendCode $br $hmono)
+          (show EvmAsm.Rv64.WP.Entails $pre
+            (EvmAsm.Rv64.WP.NBranch.extendCode $br $hmono).pre by wp_rv64_link))
 
 /-- Weaken the exit postconditions of an N-way branch. -/
 syntax (name := wpRv64NBranchWeakenPostsTac)
@@ -1078,6 +1097,12 @@ example {entry : Word} {cr : CodeReq}
     (br : EvmAsm.Rv64.WP.NBranch entry cr) :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   wp_rv64_nbranch_set_pre br, br.pre
+
+example {entry : Word} {cr : CodeReq} {pre F : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr) (hF : F.pcFree)
+    (hpre : EvmAsm.Rv64.WP.Entails pre (br.pre ** F)) :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  wp_rv64_nbranch_frame_set_pre br, F, hF, pre
 
 example {entry : Word} {cr : CodeReq} {exits' : List (Word × Assertion)}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)
