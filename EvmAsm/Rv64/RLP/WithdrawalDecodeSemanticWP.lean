@@ -113,10 +113,63 @@ theorem walkInitShortSuccessResolvedPreFromPrologue_entails_pre
   unfold walkInitShortSuccessResolvedPreFromPrologue at hp
   exact sepConj_mono_right (schemaWalkInitFrameFromPrologue_entails_schemaWalkInitFrame outBase) h hp
 
+/-- Resources framed across the prologue so the ABI-failure walk-init classifier
+    can start directly at the prologue exit. The output buffer is arbitrary
+    because failure posts only report status, not decoded output bytes. -/
+def walkInitAbiFailurePrologueCarryFrame
+    (inputBase listLen t0Old t1Old outBase : Word) (input : List Byte) : Assertion :=
+  ((.x10 ↦ᵣ (inputBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ listLen) **
+    (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+    bytesRegion inputBase input ** bytesRegionAny outBase outputSize)
+
+theorem walkInitAbiFailurePrologueCarryFrame_pcFree
+    (inputBase listLen t0Old t1Old outBase : Word) (input : List Byte) :
+    (walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input).pcFree := by
+  unfold walkInitAbiFailurePrologueCarryFrame
+  pcFree
+
+/-- Prologue-owned resources that the ABI-failure classifier does not consume. -/
+def walkInitAbiFailurePrologueSavedFrame
+    (sp0 raVal s0Old s1Old s2Old outBase : Word) : Assertion :=
+  ((.x2 ↦ᵣ prologueFrameBase sp0) ** (.x8 ↦ᵣ outBase) ** (.x9 ↦ᵣ s1Old) **
+    (.x18 ↦ᵣ s2Old) ** (.x12 ↦ᵣ outBase) **
+    (prologueFrameBase sp0 ↦ₘ raVal) **
+    ((prologueFrameBase sp0 + 8) ↦ₘ s0Old) **
+    ((prologueFrameBase sp0 + 16) ↦ₘ s1Old) **
+    ((prologueFrameBase sp0 + 24) ↦ₘ s2Old))
+
+theorem walkInitAbiFailurePrologueSavedFrame_pcFree
+    (sp0 raVal s0Old s1Old s2Old outBase : Word) :
+    (walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase).pcFree := by
+  unfold walkInitAbiFailurePrologueSavedFrame
+  pcFree
+
+/-- Exact ABI-failure classifier precondition after the decoder prologue. -/
+def walkInitAbiFailurePreFromPrologue
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte) : Assertion :=
+  ((walkInitEmptyFailStatusPre listLen raVal (inputBase + BitVec.ofNat 64 0) **
+    (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion inputBase input) **
+    bytesRegionAny outBase outputSize)
+
 -- WP-link automation unfolds these small assertion-shape helpers before `xperm`.
 attribute [rv64_wp] schemaWalkInitFrameFromPrologue walkInitShortSuccessPrologueSavedFrame
   walkInitShortSuccessPrologueCarryFrame walkInitShortSuccessResolvedPreFromPrologue
-  walkInitEmptyFailStatusPre walkInitZeroNonzeroPre failStatusReturnPre statusReturnPre
+  walkInitAbiFailurePrologueCarryFrame walkInitAbiFailurePrologueSavedFrame
+  walkInitAbiFailurePreFromPrologue walkInitEmptyNotListAbiFailureNBranch_pre
+  walkInitEmptyFailNotListFailShortLongOutputNBranch_pre walkInitEmptyFailStatusPre
+  walkInitZeroNonzeroPre failStatusReturnPre statusReturnPre
+
+/-- Link the concrete prologue post plus failure-classifier resources to the
+    exact walk-init ABI-failure precondition, preserving prologue-owned state. -/
+theorem prologuePostAbiFailureCarry_entails_preFromPrologue
+    (sp0 raVal s0Old s1Old s2Old inputBase listLen t0Old t1Old outBase : Word)
+    (input : List Byte) :
+    WP.Entails
+      (prologuePost sp0 raVal s0Old s1Old s2Old outBase **
+        walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+      (walkInitAbiFailurePreFromPrologue inputBase listLen raVal t0Old t1Old outBase input **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) := by
+  wp_rv64_link
 
 /-- Link the concrete prologue post plus caller-framed walk-init resources to
     the exact resolved WP precondition, carrying the saved frame as a tail frame. -/
@@ -818,6 +871,81 @@ theorem prologueCode_disjoint_walkInitShortSuccessResolvedCode
   · intro a ha
     exact walkInitShortSuccessResolvedCode_none_below (base + 24) specs a htail
       (by rw [hbase24]; exact ha)
+
+/-- Range split between the decoder prologue and the standalone walk-init
+    classifier. -/
+theorem prologueCode_disjoint_walkInitEmptyFailNotListFailShortLongCode
+    (base : Word)
+    (hprologue : base.toNat + 24 < 2 ^ 64)
+    (htail : (base + 24).toNat + 172 < 2 ^ 64) :
+    (prologueCode base).Disjoint
+      (walkInitEmptyFailNotListFailShortLongCode (base + 24)) := by
+  have hbase24 : (base + 24).toNat = base.toNat + 24 := by
+    bv_omega
+  refine codeReq_disjoint_of_ranges _ _ (base.toNat + 24) ?_ ?_
+  · intro a ha
+    exact prologueCode_none_above base a hprologue ha
+  · intro a ha
+    exact walkInitEmptyFailNotListFailShortLongCode_none_below (base + 24) a htail
+      (by rw [hbase24]; exact ha)
+
+/-- Prologue followed by the ABI-failure classifier. Empty and not-list exits
+    expose reason-erased ABI failure posts; short-list and long-list candidates
+    remain open for later resolution. -/
+def walkInitAbiFailureFromPrologueNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union (walkInitEmptyFailNotListFailShortLongCode (base + 24))) := by
+  let carryFrame := walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old
+    outBase input
+  let savedFrame := walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase
+  let head := prologueCert base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+  let tail := walkInitEmptyNotListAbiFailureNBranch (base + 24) inputBase listLen raVal
+    t0Old t1Old outBase input hsalign hoff hover0 hvalid0 hLen hBound
+  have hlink : WP.Entails
+      (prologuePost sp0 raVal s0Old s1Old s2Old outBase ** carryFrame)
+      (tail.pre ** savedFrame) := by
+    dsimp [tail, carryFrame, savedFrame]
+    simp only [walkInitEmptyNotListAbiFailureNBranch_pre,
+      walkInitEmptyFailNotListFailShortLongOutputNBranch_pre]
+    exact prologuePostAbiFailureCarry_entails_preFromPrologue sp0 raVal s0Old s1Old
+      s2Old inputBase listLen t0Old t1Old outBase input
+  wp_rv64_seq_block_nbranch_framed_disjoint_with
+    (prologueCode_disjoint_walkInitEmptyFailNotListFailShortLongCode base
+      hprologueCode hcode),
+    head, carryFrame,
+    (walkInitAbiFailurePrologueCarryFrame_pcFree inputBase listLen t0Old t1Old outBase input),
+    tail, savedFrame,
+    (walkInitAbiFailurePrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old outBase),
+    hlink
+
+/-- Expanded precondition for the prologue-to-ABI-failure classifier. -/
+theorem walkInitAbiFailureFromPrologueNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    (walkInitAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old outBase
+      m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0 hLen
+      hBound hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  rfl
 
 /-- Prologue followed by the reduced short-list success WP slice.  The prologue
     carries the walk-init/schema resources to its exit; the tail consumes those

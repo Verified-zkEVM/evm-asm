@@ -115,6 +115,55 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.seqBlockNBranchDisjoint $hd $head $tail
         (by wp_rv64_link))
 
+/-- Frame a single-exit head block and an N-way tail, then compose them over
+    disjoint code. This is the common WP handoff shape for generated assembly:
+    caller resources are framed across the head block, callee-save resources are
+    framed across every tail exit, and the midpoint entailment is solved by the
+    WP link automation. -/
+syntax (name := wpRv64SeqBlockNBranchFramedDisjointTac)
+  "wp_rv64_seq_block_nbranch_framed_disjoint " term ", " term ", " term ", " term
+    ", " term ", " term ", " term : tactic
+
+/-- Explicit-link variant of `wp_rv64_seq_block_nbranch_framed_disjoint`.
+    Use this when the generated tail precondition needs a local normalization
+    step before `wp_rv64_link` can see the assertion atoms. -/
+syntax (name := wpRv64SeqBlockNBranchFramedDisjointWithTac)
+  "wp_rv64_seq_block_nbranch_framed_disjoint_with " term ", " term ", " term ", " term
+    ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block_nbranch_framed_disjoint_with $hd:term, $head:term,
+        $headFrame:term, $hHeadFrame:term, $tail:term, $tailFrame:term,
+        $hTailFrame:term, $hlink:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.seqBlockNBranchDisjoint $hd
+        (EvmAsm.Rv64.WP.CFG.frameR $head $headFrame $hHeadFrame).sound
+        (EvmAsm.Rv64.WP.CFG.nbranchFrameR $tail $tailFrame $hTailFrame)
+        $hlink)
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block_nbranch_framed_disjoint $hd:term, $head:term,
+        $headFrame:term, $hHeadFrame:term, $tail:term, $tailFrame:term,
+        $hTailFrame:term) =>
+      `(tactic| wp_rv64_seq_block_nbranch_framed_disjoint_with $hd, $head,
+        $headFrame, $hHeadFrame, $tail, $tailFrame, $hTailFrame,
+        (by
+          dsimp only [EvmAsm.Rv64.WP.CFG.frameR, EvmAsm.Rv64.WP.CFG.nbranchFrameR,
+            EvmAsm.Rv64.WP.Triple.frameR, EvmAsm.Rv64.WP.NBranch.frameR]
+          wp_rv64_link))
+
+/-- Same as `wp_rv64_seq_block_nbranch_framed_disjoint`, with the code
+    disjointness side condition discharged by `wp_rv64_disjoint`. -/
+syntax (name := wpRv64SeqBlockNBranchFramedAutoTac)
+  "wp_rv64_seq_block_nbranch_framed_auto " term ", " term ", " term ", " term
+    ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block_nbranch_framed_auto $head:term, $headFrame:term,
+        $hHeadFrame:term, $tail:term, $tailFrame:term, $hTailFrame:term) =>
+      `(tactic| wp_rv64_seq_block_nbranch_framed_disjoint
+        (by wp_rv64_disjoint), $head, $headFrame, $hHeadFrame, $tail, $tailFrame,
+        $hTailFrame)
+
 /-- Continue a branch's taken exit with a WP/CFG tail over disjoint code. -/
 syntax (name := wpRv64BranchSeqTakenDisjointTac)
   "wp_rv64_branch_taken_disjoint " term ", " term ", " term : tactic
