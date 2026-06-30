@@ -486,6 +486,71 @@ attribute [rv64_wp]
 attribute [rv64_wp_cert]
   failureNBranch
 
+/-- Package-indexed failure branch with the long-list exit already continued
+    through the reason-erased failure return block. -/
+def failureLongNBranch
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base (pkg.successCode.union (failStatusReturnCode ((base + 24) + 28))) := by
+  dsimp [successCode]
+  exact walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
+    base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old
+    input pkg.specs hsalign pkg.hoff (by omega) (hwin 0 pkg.hoff) h_len (by omega)
+    h_prologue_code (pkg.code_bound_of_max h_code_max)
+
+/-- The long-failure package branch keeps the same static success-shaped
+    precondition as the success certificate. -/
+theorem failureLongNBranch_pre
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (pkg.failureLongNBranch hsalign hover hwin h_len h_prologue_code h_code_max).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  simpa [failureLongNBranch] using
+    (walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch_pre
+      base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old
+      input pkg.specs hsalign pkg.hoff (by omega) (hwin 0 pkg.hoff) h_len (by omega)
+      h_prologue_code (pkg.code_bound_of_max h_code_max))
+
+attribute [rv64_wp]
+  failureLongNBranch_pre
+
+attribute [rv64_wp_cert]
+  failureLongNBranch
+
+example
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base (pkg.successCode.union (failStatusReturnCode ((base + 24) + 28))) := by
+  wp_rv64_cert
+
 example
     {base sp0 raVal s0Old s1Old s2Old outBase : Word}
     {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
