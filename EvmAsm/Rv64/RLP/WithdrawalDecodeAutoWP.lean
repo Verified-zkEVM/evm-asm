@@ -172,6 +172,101 @@ theorem walkInitShortSuccessDecodedWP_cert_pre
 attribute [rv64_wp]
   walkInitShortSuccessDecodedWP_cert_pre
 
+/-- Result-free success schemas are exactly the inputs for which the Lean
+    withdrawal decoder returns some value. This keeps the schema predicate free
+    of the decoded result while still characterizing `decodeWithdrawal`. -/
+theorem successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some
+    (input : List Byte) :
+    successFieldSpecsInput input ↔ ∃ w : Withdrawal, decodeWithdrawal input = some w := by
+  constructor
+  · rintro ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3⟩
+    exact ⟨fromFieldBytes d0 d1 d2 d3,
+      decodeWithdrawal_eq_some_of_successFieldSpecs_input input d0 d1 d2 d3
+        hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput⟩
+  · rintro ⟨w, hdec⟩
+    rcases successFieldSpecs_input_of_decodeWithdrawal_eq_some input w hdec with
+      ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3, _hw⟩
+    exact ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3⟩
+
+/-- A result-free success-schema input is enough to produce a decoded-success WP
+    package for some Lean withdrawal result. -/
+theorem walkInitShortSuccessDecodedWP_exists_of_successFieldSpecsInput
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    ∃ w : Withdrawal,
+      Nonempty (WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase
+        m0 m1 m2 m3 inputBase listLen t0Old t1Old input w) := by
+  rcases (successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some input).mp h_success with
+    ⟨w, hdec⟩
+  exact ⟨w, walkInitShortSuccessDecodedWP_nonempty base sp0 raVal s0Old s1Old s2Old outBase
+    m0 m1 m2 m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign
+    hdov hdval h_len h_prologue_code h_code_max⟩
+
+/-- Direct package constructor from the result-free success-schema predicate.
+    The returned Sigma carries the Lean decoded value, but the caller does not
+    put that value into the schema or precondition. -/
+noncomputable def walkInitShortSuccessSchemaInputWP
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    Sigma (fun w : Withdrawal => WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old
+      s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input w) :=
+  let h_pkg := walkInitShortSuccessDecodedWP_exists_of_successFieldSpecsInput base sp0 raVal
+    s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input h_success
+    hsalign hover hwin hdalign hdov hdval h_len h_prologue_code h_code_max
+  Classical.choice (by
+    rcases h_pkg with ⟨w, hpkg⟩
+    exact ⟨⟨w, Classical.choice hpkg⟩⟩)
+
+/-- The result-free success-schema package has the same static prologue
+    precondition as the decoded-result package. -/
+theorem walkInitShortSuccessSchemaInputWP_cert_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (walkInitShortSuccessSchemaInputWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+      h_len h_prologue_code h_code_max).2.cert.pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) :=
+  (walkInitShortSuccessSchemaInputWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+    inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval h_len
+    h_prologue_code h_code_max).2.hpre
+
+attribute [rv64_wp]
+  walkInitShortSuccessSchemaInputWP_cert_pre
+
 /-- Nonempty inputs select the reason-erased classifier exits in the zero/nonzero
     facade. This hides the empty-input singleton branch once a caller has any
     static nonempty witness. -/
