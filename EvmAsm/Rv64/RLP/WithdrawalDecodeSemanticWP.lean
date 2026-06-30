@@ -256,6 +256,15 @@ theorem prologuePostShortSuccessCarry_entails_resolvedPre
     (walkInitShortSuccessResolvedPreFromPrologue_entails_pre inputBase listLen raVal t0Old
       t1Old outBase input) h hpExact
 
+attribute [rv64_wp_entails]
+  schemaWalkInitFrameFromPrologue_entails_schemaWalkInitFrame
+  walkInitShortSuccessResolvedPreFromPrologue_entails_pre
+  prologuePostAbiFailureCarry_entails_preFromPrologue
+  prologuePostEmptyInputCarry_entails_preFromPrologue
+  prologuePreAbiFailureEmptyCarry_entails_emptyScratchPre
+  prologuePostShortSuccessCarry_entails_resolvedPreFromPrologue
+  prologuePostShortSuccessCarry_entails_resolvedPre
+
 def walkInitEmptyFailSchemaAbiFrame (listLen t0Old t1Old outBase : Word) : Assertion :=
   walkInitEmptyFailAbiFrame listLen t0Old t1Old ** schemaWalkInitRegsFrame outBase
 
@@ -1045,6 +1054,29 @@ theorem walkInitEmptyInputFailureFromPrologueFullCodeNBranch_pre
         walkInitEmptyInputPrologueCarryFrame inputBase outBase) := by
   rfl
 
+attribute [rv64_wp] walkInitEmptyInputFailureFromPrologueFullCodeNBranch_pre
+
+/-- Shared-frame precondition bridge for the empty-input full-code branch.  This
+    is the reusable WP hint that lets generated zero/nonzero wrappers set the
+    ABI-failure caller frame without spelling out the scratch-frame proof. -/
+theorem prologuePreAbiFailureEmptyCarry_entails_fullCodeScratchPre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (t0Old t1Old : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    WP.Entails
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase (0 : Word) t0Old t1Old outBase
+          ([] : List Byte))
+      ((walkInitEmptyInputFailureFromPrologueFullCodeNBranch base sp0 raVal s0Old s1Old
+        s2Old outBase m0 m1 m2 m3 inputBase hprologueCode hcode).pre **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old) := by
+  rw [walkInitEmptyInputFailureFromPrologueFullCodeNBranch_pre]
+  exact prologuePreAbiFailureEmptyCarry_entails_emptyScratchPre sp0 raVal s0Old s1Old
+    s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old
+
+attribute [rv64_wp_entails] prologuePreAbiFailureEmptyCarry_entails_fullCodeScratchPre
+
 /-- Extending code preserves the empty-input branch exits definitionally. -/
 theorem walkInitEmptyInputFailureFromPrologueFullCodeNBranch_exits
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
@@ -1072,16 +1104,9 @@ def walkInitEmptyInputFailureFromPrologueSharedFrameNBranch
   let scratchFrame := walkInitEmptyInputPrologueScratchFrame t0Old t1Old
   let br := WP.CFG.nbranchFrameR br0 scratchFrame
     (walkInitEmptyInputPrologueScratchFrame_pcFree t0Old t1Old)
-  have hpre : WP.Entails
-      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
-        walkInitAbiFailurePrologueCarryFrame inputBase (0 : Word) t0Old t1Old outBase
-          ([] : List Byte))
-      br.pre := by
-    dsimp [br, br0, scratchFrame, WP.CFG.nbranchFrameR, WP.NBranch.frameR]
-    rw [walkInitEmptyInputFailureFromPrologueFullCodeNBranch_pre]
-    exact prologuePreAbiFailureEmptyCarry_entails_emptyScratchPre sp0 raVal s0Old s1Old
-      s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old
-  wp_rv64_nbranch_weaken_pre_with br, hpre
+  exact WP.NBranch.weakenPre br
+    (prologuePreAbiFailureEmptyCarry_entails_fullCodeScratchPre base sp0 raVal s0Old
+      s1Old s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode)
 
 /-- Expanded shared-frame precondition for the empty-input full-code path. -/
 theorem walkInitEmptyInputFailureFromPrologueSharedFrameNBranch_pre
@@ -1095,6 +1120,8 @@ theorem walkInitEmptyInputFailureFromPrologueSharedFrameNBranch_pre
         walkInitAbiFailurePrologueCarryFrame inputBase (0 : Word) t0Old t1Old outBase
           ([] : List Byte)) := by
   rfl
+
+attribute [rv64_wp] walkInitEmptyInputFailureFromPrologueSharedFrameNBranch_pre
 
 /-- Prologue followed by the ABI-failure classifier. Empty and not-list exits
     expose reason-erased ABI failure posts; short-list and long-list candidates
@@ -1175,18 +1202,13 @@ def walkInitZeroNonzeroAbiFailureFromPrologueNBranch
   | nil =>
       let br0 := walkInitEmptyInputFailureFromPrologueSharedFrameNBranch base sp0 raVal
         s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode
-      have hpre : WP.Entails
-          (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
-            walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase
-              ([] : List Byte))
-          br0.pre := by
-        dsimp [br0]
-        rw [walkInitEmptyInputFailureFromPrologueSharedFrameNBranch_pre]
-        have hLen0 : listLen = (0 : Word) := by
-          simpa using hLen
-        subst listLen
-        wp_rv64_link
-      wp_rv64_nbranch_weaken_pre_with br0, hpre
+      have hLen0 : listLen = (0 : Word) := by
+        simpa using hLen
+      subst listLen
+      wp_rv64_nbranch_set_pre br0,
+        (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+          walkInitAbiFailurePrologueCarryFrame inputBase (0 : Word) t0Old t1Old outBase
+            ([] : List Byte))
   | cons b rest =>
       have hoff : 0 < (b :: rest).length := by simp
       have hover0 : inputBase.toNat + 0 < 2 ^ 64 := by
@@ -1217,8 +1239,16 @@ theorem walkInitZeroNonzeroAbiFailureFromPrologueNBranch_pre
       (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
         walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
   cases input with
-  | nil => rfl
+  | nil =>
+      have hLen0 : listLen = (0 : Word) := by
+        simpa using hLen
+      subst listLen
+      rfl
   | cons b rest => rfl
+
+attribute [rv64_wp]
+  walkInitAbiFailureFromPrologueNBranch_pre
+  walkInitZeroNonzeroAbiFailureFromPrologueNBranch_pre
 
 /-- Prologue followed by the reduced short-list success WP slice.  The prologue
     carries the walk-init/schema resources to its exit; the tail consumes those

@@ -30,19 +30,61 @@ macro_rules
   | `(tactic| wp_rv64 $cfg:term) =>
       `(tactic| exact ($cfg).sound)
 
+private def closeWithWpEntailsHint (goal : MVarId) (declName : Name) : TacticM Unit := do
+  let goalType ← instantiateMVars (← goal.getType)
+  let hintConst ← mkConstWithFreshMVarLevels declName
+  let hintType ← inferType hintConst
+  let (params, _, body) ← forallMetaTelescope hintType
+  unless ← isDefEq body goalType do
+    throwError "hint result does not match goal"
+  let proof ← instantiateMVars (mkAppN hintConst params)
+  if proof.hasExprMVar then
+    throwError "hint left unresolved metavariables"
+  goal.assign proof
+  replaceMainGoal []
+
+/-- Close a `WP.Entails` goal using declarations tagged with
+    `@[rv64_wp_entails]`.  This is deliberately separate from the `rv64_wp` simp
+    set: simp exposes the assertion shape, then this tactic applies named
+    semantic bridge lemmas whose statements are not rewrite rules. -/
+elab "wp_rv64_entails" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let goalType ← goal.getType
+  unless goalType.isAppOfArity ``EvmAsm.Rv64.WP.Entails 2 do
+    throwError "wp_rv64_entails: expected WP.Entails goal"
+  let entries := rv64WpEntailsExt.getState (← getEnv)
+  for declName in entries do
+    let saved ← saveState
+    try
+      closeWithWpEntailsHint goal declName
+      return
+    catch _ =>
+      restoreState saved
+      continue
+  throwError "wp_rv64_entails: no @[rv64_wp_entails] theorem closed the goal"
+
 /-- Close the midpoint entailment between adjacent WP fragments.  The common
-    case is definitional equality of the head postcondition and tail WP; reordered
-    separation frames fall through to `xperm`. -/
+    case is definitional equality of the head postcondition and tail WP; semantic
+    bridge lemmas tagged `@[rv64_wp_entails]` handle generated handoff shapes,
+    and reordered separation frames fall through to `xperm`. -/
 syntax (name := wpRv64LinkTac) "wp_rv64_link" : tactic
 
 macro_rules
   | `(tactic| wp_rv64_link) =>
       `(tactic| first
         | exact EvmAsm.Rv64.WP.Entails.refl _
+        | wp_rv64_entails
+        | simp only [rv64_wp]; wp_rv64_entails
+        | dsimp; wp_rv64_entails
+        | dsimp; simp only [rv64_wp]; wp_rv64_entails
         | intro _ _hp; xperm_hyp _hp
         | intro _ _hp; xperm_pure _hp
         | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_hyp _hp
-        | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp)
+        | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp
+        | intro _ _hp; dsimp at _hp ⊢; xperm_hyp _hp
+        | intro _ _hp; dsimp at _hp ⊢; xperm_pure _hp
+        | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_hyp _hp
+        | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp)
 
 /-- Close a `CodeReq.Disjoint` goal using the structural prover shared with
     `seqFrame`.  This keeps WP composition proofs from spelling out code-range
@@ -343,6 +385,30 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_pre_with $br:term, $hpre:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.NBranch.weakenPre $br $hpre)
 
+/-- Weaken an N-way branch to an explicitly supplied precondition, solving the
+    entailment through the WP link automation.  Supplying the precondition is
+    important because `WP.NBranch` stores `pre` as a field rather than an index,
+    so the surrounding result type does not determine it. -/
+syntax (name := wpRv64NBranchSetPreTac)
+  "wp_rv64_nbranch_set_pre " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_set_pre $br:term, $pre:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.NBranch.weakenPre $br
+        (show EvmAsm.Rv64.WP.Entails $pre ($br).pre by wp_rv64_link))
+
+/-- Extend an N-way branch to a larger code requirement and set an explicit
+    precondition in one generated step. -/
+syntax (name := wpRv64NBranchExtendSetPreTac)
+  "wp_rv64_nbranch_extend_set_pre " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_extend_set_pre $br:term, $hmono:term, $pre:term) =>
+      `(tactic|
+        let br' := EvmAsm.Rv64.WP.NBranch.extendCode $br $hmono
+        exact EvmAsm.Rv64.WP.NBranch.weakenPre br'
+          (show EvmAsm.Rv64.WP.Entails $pre br'.pre by wp_rv64_link))
+
 /-- Weaken the exit postconditions of an N-way branch. -/
 syntax (name := wpRv64NBranchWeakenPostsTac)
   "wp_rv64_nbranch_weaken_posts " term ", " term ", " term : tactic
@@ -587,6 +653,11 @@ example {entry : Word} {cr : CodeReq} {F : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr) (hF : F.pcFree) :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   wp_rv64_nbranch_frame br, F, hF
+
+example {entry : Word} {cr : CodeReq}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr) :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  wp_rv64_nbranch_set_pre br, br.pre
 
 example {entry : Word} {cr : CodeReq} {exits' : List (Word × Assertion)}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)
