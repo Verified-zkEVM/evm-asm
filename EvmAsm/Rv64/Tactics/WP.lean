@@ -7,9 +7,11 @@
 -/
 
 import Lean
+import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.Tactics.WPAttr
 import EvmAsm.Rv64.WP.CFG
 import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.SeqFrame
 import EvmAsm.Rv64.Tactics.XPermPure
 
@@ -322,6 +324,17 @@ syntax (name := wpRv64LeafTac) "wp_rv64_leaf " term : tactic
 macro_rules
   | `(tactic| wp_rv64_leaf $h:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.leaf $h)
+
+/-- Build a leaf CFG certificate by working backwards from the requested
+    postcondition.  With no arguments, `runBlockFromPost` resolves registered
+    `@[spec_gen_rv64]` specs from the goal's `CodeReq`; with arguments, it uses
+    the supplied bounded specs in forward execution order. -/
+syntax (name := wpRv64LeafSynthTac) "wp_rv64_leaf_synth" ident* : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_leaf_synth $specs:ident*) =>
+      `(tactic| exact @EvmAsm.Rv64.WP.CFG.leaf ?_ _ _ _ ?_ _
+        (by runBlockFromPost $specs*))
 
 /-- Build an empty CFG at a join point with identical pre/post assertion. -/
 syntax (name := wpRv64ExitReflTac)
@@ -1201,6 +1214,25 @@ example {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq} {pre post : Assertion
     (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
     EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
   wp_rv64_leaf h
+
+def wp_rv64_leaf_synth_li_cfg (base imm : Word) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.LI .x5 imm))
+      (.x5 ↦ᵣ imm) := by
+  wp_rv64_leaf_synth
+
+example (base imm : Word) :
+    (wp_rv64_leaf_synth_li_cfg base imm).pre = regOwn .x5 := rfl
+
+def wp_rv64_leaf_synth_addi_manual_cfg (base v : Word) (imm : BitVec 12) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.ADDI .x5 .x5 imm))
+      (.x5 ↦ᵣ (v + signExtend12 imm)) := by
+  let hAddi := addi_spec_same_within .x5 v imm base (by decide)
+  wp_rv64_leaf_synth hAddi
+
+example (base v : Word) (imm : BitVec 12) :
+    (wp_rv64_leaf_synth_addi_manual_cfg base v imm).pre = (.x5 ↦ᵣ v) := rfl
 
 example {entry : Word} {cr : CodeReq} {post : Assertion} :
     EvmAsm.Rv64.WP.CFG.Cert entry entry cr post := by

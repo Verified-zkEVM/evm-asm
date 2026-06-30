@@ -65,12 +65,45 @@ theorem spec :
    usually expose a disjunction such as "success with value" or "failure with
    status", with static guards carried inside the relevant disjuncts.
 
-2. Prove leaf blocks with existing tools.
+2. Synthesize straight-line leaf blocks from the postcondition when possible.
 
-   A leaf proof can be a normal `cpsTripleWithin` from `runBlock`, an existing
-   instruction/block spec, or a hand-written CPS theorem.
+   For a single-exit leaf whose `CodeReq` is a concrete `CodeReq.singleton`,
+   `CodeReq.union`, or `CodeReq.ofProg` tree, prefer `wp_rv64_leaf_synth`.
+   The tactic works backwards from the requested postcondition, resolves
+   registered `@[spec_gen_rv64]` instruction specs, and leaves the computed
+   assertion as `cfg.pre`.
 
-3. Lift leaves into WP certificates.
+   ```lean
+   def loadConstCfg (base imm : Word) :
+       WP.CFG.Cert base (base + 4)
+         (CodeReq.singleton base (.LI .x5 imm))
+         (.x5 ↦ᵣ imm) := by
+     wp_rv64_leaf_synth
+
+   example (base imm : Word) :
+       (loadConstCfg base imm).pre = regOwn .x5 := rfl
+   ```
+
+   When auto-resolution cannot pick the right instruction specs, pass the same
+   already-instantiated specs you would have passed to `runBlock`, in forward
+   execution order:
+
+   ```lean
+   let hAddi := addi_spec_same_within .x5 v imm base (by decide)
+   wp_rv64_leaf_synth hAddi
+   ```
+
+   Current matching is intentionally conservative: the requested postcondition
+   should expose the atoms produced by the instruction specs. If an instruction
+   overwrites a resource whose old value is not mentioned in the postcondition,
+   use an ownership-style spec (`regOwn`/`memOwn`) or pass an explicit spec.
+
+3. Prove remaining leaf blocks with existing tools.
+
+   A leaf proof can still be a normal `cpsTripleWithin` from `runBlock`, an
+   existing instruction/block spec, or a hand-written CPS theorem.
+
+4. Lift manually proven leaves into WP certificates.
 
    Use `WP.CFG.leaf` when the CPS postcondition already matches the
    certificate postcondition. Use `WP.CFG.block hpost` when the leaf needs a
@@ -85,7 +118,7 @@ theorem spec :
      WP.CFG.leaf hBlock
    ```
 
-4. Compose certificates backwards.
+5. Compose certificates backwards.
 
    If the tail certificate has precondition `tailCfg.pre`, prove the preceding
    block with postcondition `tailCfg.pre`, then compose that head proof into
@@ -99,12 +132,12 @@ theorem spec :
    `hLink` is usually `WP.Entails tailActualPre tailCfg.pre`. The tactic
    `wp_rv64_link` can close many identity, registered, or `xperm`-style links.
 
-5. Inspect the generated precondition.
+6. Inspect the generated precondition.
 
    Use `cfg.pre` in the final theorem statement. For interactive debugging,
    `#wp_rv64 cfg` prints the certificate's generated precondition.
 
-6. Finish with the normal CPS theorem.
+7. Finish with the normal CPS theorem.
 
    ```lean
    theorem top_spec :
@@ -116,6 +149,7 @@ theorem spec :
 
 | Need | Constructor or tactic |
 |------|-----------------------|
+| Synthesize a straight-line leaf from postcondition | `wp_rv64_leaf_synth`, `runBlockFromPost` |
 | Lift an exact single-exit CPS proof | `WP.CFG.leaf h`, `wp_rv64_leaf h` |
 | Lift and weaken a CPS proof's postcondition | `WP.CFG.block hpost h` |
 | Empty/reflexive exit certificate | `WP.CFG.exitRefl`, `wp_rv64_exit_refl` |
