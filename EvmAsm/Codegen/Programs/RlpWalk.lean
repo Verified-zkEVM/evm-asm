@@ -41,6 +41,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
+import EvmAsm.Rv64.RLP.ContentToU64
 
 namespace EvmAsm.Codegen
 
@@ -113,36 +114,38 @@ def rlpWalkNextFunction : String :=
     `rlp_field_to_u64`, taking an explicit (ptr, len) instead of
     re-walking the list.
 
+    Emitted from the verified **canonical-strict** body
+    `EvmAsm.Rv64.RLP.rlp_content_to_u64_prog` (proven correct by the four-way
+    dispatch theorem `rlp_content_to_u64_spec_within`, see
+    `EvmAsm/Rv64/RLP/ContentToU64.lean`). Behavior difference from the prior
+    hand-written body that matters for callers: this version enforces RLP
+    scalar canonicality (execution-specs `_deserialize_to_uint`) and rejects a
+    nonzero-length content whose high byte is `0` with a dedicated status `3`
+    (`non-canonical`), where the old body silently accepted it.
+
     Calling convention:
       a0 (input)  : content bytes ptr
       a1 (input)  : content byte length
       ra (input)  : return
       a0 (output) : u64 value (LE register form)
-      a1 (output) : status (0 ok / 2 too long (> 8 bytes))
+      a1 (output) : status (0 ok / 2 too long (> 8 bytes) / 3 non-canonical
+                      (0 < len <= 8 and content[0] == 0))
 
     Frameless leaf. -/
 def rlpContentToU64Function : String :=
-  "rlp_content_to_u64:\n" ++
-  "  li t0, 8\n" ++
-  "  bgtu a1, t0, .Lrcu_too_long\n" ++
-  "  mv t1, a0                  # ptr\n" ++
-  "  mv t2, a1                  # remaining\n" ++
-  "  li a0, 0                   # accumulator\n" ++
-  ".Lrcu_loop:\n" ++
-  "  beqz t2, .Lrcu_done\n" ++
-  "  slli a0, a0, 8\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  or a0, a0, t3\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lrcu_loop\n" ++
-  ".Lrcu_done:\n" ++
-  "  li a1, 0\n" ++
-  "  ret\n" ++
-  ".Lrcu_too_long:\n" ++
-  "  li a0, 0\n" ++
-  "  li a1, 2\n" ++
-  "  ret"
+  "rlp_content_to_u64:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly the
+    verified `rlp_content_to_u64_prog` rendered under its label, so any
+    future hand-edit of `rlpContentToU64Function` that diverges from the
+    verified body fails to typecheck here. -/
+theorem rlpContentToU64Function_eq_verified_prog :
+    rlpContentToU64Function =
+      "rlp_content_to_u64:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_prog :=
+  rfl
+
+#guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 22
 
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 

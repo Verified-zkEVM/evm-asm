@@ -2116,6 +2116,19 @@ what the output memory region may hold **on failure** (`memOwn`, i.e. arbitrary
 content; callers must not read it). Each verified body matches the guest's
 calling convention so it is a literal drop-in.
 
+- ✅ **`rlp_content_to_u64`** (`EvmAsm/Rv64/RLP/ContentToU64.lean`): verified
+  22-instruction canonical-strict drop-in body `rlp_content_to_u64_prog`, all
+  four paths proved (too-long / non-canonical / empty / success) and combined
+  into the unified dispatch `rlp_content_to_u64_spec_within`. **Bridged into
+  Codegen**: `rlpContentToU64Function` (`EvmAsm/Codegen/Programs/RlpWalk.lean`)
+  now emits `rlp_content_to_u64_prog` via `emitProgram`, with a kernel-checked
+  `rfl` drift guard (`rlpContentToU64Function_eq_verified_prog`) tying the
+  Codegen string to the verified body. Status `a1`: `0` ok / `2` too long
+  (`len > 8`) / `3` non-canonical (`0 < len ≤ 8 ∧ content[0] = 0`) — the
+  canonical-strict status `3` is new vs. the old lenient hand-written string.
+  Axiom-clean (3 classical), 0 sorry. First bridge from verified `Rv64.RLP`
+  code into Codegen; `rlp_content_to_u256_be` is the natural next target.
+
 - ⏳ **`rlp_content_to_u256_be`** (`EvmAsm/Rv64/RLP/ContentToU256Be.lean`):
   faithful 21-instruction drop-in body `rlp_content_to_u256_be_prog`.
   - ✅ **Content-too-long failure path** (`len > 32`):
