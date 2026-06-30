@@ -137,6 +137,27 @@ theorem decodeWithdrawal_eq_some {pfx : Byte} {payload : List Byte}
     chain.decodeAux0 chain.decodeAux1 chain.decodeAux2 chain.decodeAux3 chain.hend chain.h_min
     chain.hc0 chain.hl0 chain.hc1 chain.hl1 chain.haddr chain.hc3 chain.hl3
 
+/-- Success chains choose the success side of a result-free schema split. -/
+theorem successFieldSpecsInput_or_not {pfx : Byte} {payload : List Byte}
+    (chain : SuccessDecodeChain pfx payload) :
+    WithdrawalDecode.successFieldSpecsInput chain.input ∨
+      ¬ WithdrawalDecode.successFieldSpecsInput chain.input :=
+  Or.inl chain.successFieldSpecsInput
+
+/-- Success chains choose the decoded-success side of a reason-erased decode split. -/
+theorem decodeWithdrawal_some_or_none {pfx : Byte} {payload : List Byte}
+    (chain : SuccessDecodeChain pfx payload) :
+    (∃ w : Withdrawal, decodeWithdrawal chain.input = some w) ∨
+      decodeWithdrawal chain.input = none :=
+  Or.inl ⟨chain.value, chain.decodeWithdrawal_eq_some⟩
+
+/-- Success chains can also feed joins that only distinguish schema success from
+    semantic failure. -/
+theorem successFieldSpecsInput_or_decodeWithdrawal_none {pfx : Byte} {payload : List Byte}
+    (chain : SuccessDecodeChain pfx payload) :
+    WithdrawalDecode.successFieldSpecsInput chain.input ∨ decodeWithdrawal chain.input = none :=
+  Or.inl chain.successFieldSpecsInput
+
 /-- Result-free WP package projected from a success decode chain. -/
 noncomputable def wpPackage {pfx : Byte} {payload : List Byte}
     (chain : SuccessDecodeChain pfx payload)
@@ -388,7 +409,77 @@ theorem not_successFieldSpecsInput {pfx : Byte} {payload : List Byte}
   (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput chain.input).1
     chain.decodeWithdrawal_eq_none
 
+/-- Exact-arity leftover chains choose the failure side of a result-free schema split. -/
+theorem successFieldSpecsInput_or_not {pfx : Byte} {payload : List Byte}
+    (chain : LeftoverDecodeChain pfx payload) :
+    successFieldSpecsInput chain.input ∨ ¬ successFieldSpecsInput chain.input :=
+  Or.inr chain.not_successFieldSpecsInput
+
+/-- Exact-arity leftover chains choose the reason-erased failure side of a decode split. -/
+theorem decodeWithdrawal_some_or_none {pfx : Byte} {payload : List Byte}
+    (chain : LeftoverDecodeChain pfx payload) :
+    (∃ w : Withdrawal, decodeWithdrawal chain.input = some w) ∨
+      decodeWithdrawal chain.input = none :=
+  Or.inr chain.decodeWithdrawal_eq_none
+
+/-- Exact-arity leftover chains can feed joins that only distinguish schema
+    success from semantic failure. -/
+theorem successFieldSpecsInput_or_decodeWithdrawal_none {pfx : Byte} {payload : List Byte}
+    (chain : LeftoverDecodeChain pfx payload) :
+    successFieldSpecsInput chain.input ∨ decodeWithdrawal chain.input = none :=
+  Or.inr chain.decodeWithdrawal_eq_none
+
 end LeftoverDecodeChain
+
+/-- Branch-join outcome for generated exact-arity withdrawal walks.  The failure
+    case deliberately carries no precise failure reason: downstream WP code only
+    needs to distinguish schema success from reason-erased semantic failure. -/
+inductive DecodeChainOutcome (pfx : Byte) (payload : List Byte) where
+  | success (chain : SuccessDecodeChain pfx payload)
+  | leftover (chain : LeftoverDecodeChain pfx payload)
+
+namespace DecodeChainOutcome
+
+/-- Full RLP input represented by a chain outcome. -/
+def input {pfx : Byte} {payload : List Byte} (_outcome : DecodeChainOutcome pfx payload) :
+    List Byte :=
+  pfx :: payload
+
+/-- Project the result-free schema split needed by control-flow joins. -/
+theorem successFieldSpecsInput_or_not {pfx : Byte} {payload : List Byte}
+    (outcome : DecodeChainOutcome pfx payload) :
+    successFieldSpecsInput outcome.input ∨ ¬ successFieldSpecsInput outcome.input := by
+  cases outcome with
+  | success chain =>
+      simpa [input, SuccessDecodeChain.input] using chain.successFieldSpecsInput_or_not
+  | leftover chain =>
+      simpa [input, LeftoverDecodeChain.input] using chain.successFieldSpecsInput_or_not
+
+/-- Project the reason-erased semantic decode split needed by ABI-level joins. -/
+theorem decodeWithdrawal_some_or_none {pfx : Byte} {payload : List Byte}
+    (outcome : DecodeChainOutcome pfx payload) :
+    (∃ w : Withdrawal, decodeWithdrawal outcome.input = some w) ∨
+      decodeWithdrawal outcome.input = none := by
+  cases outcome with
+  | success chain =>
+      simpa [input, SuccessDecodeChain.input] using chain.decodeWithdrawal_some_or_none
+  | leftover chain =>
+      simpa [input, LeftoverDecodeChain.input] using chain.decodeWithdrawal_some_or_none
+
+/-- Project the join fact that keeps schema success result-free while erasing
+    the precise failure reason. -/
+theorem successFieldSpecsInput_or_decodeWithdrawal_none {pfx : Byte} {payload : List Byte}
+    (outcome : DecodeChainOutcome pfx payload) :
+    successFieldSpecsInput outcome.input ∨ decodeWithdrawal outcome.input = none := by
+  cases outcome with
+  | success chain =>
+      simpa [input, SuccessDecodeChain.input] using
+        chain.successFieldSpecsInput_or_decodeWithdrawal_none
+  | leftover chain =>
+      simpa [input, LeftoverDecodeChain.input] using
+        chain.successFieldSpecsInput_or_decodeWithdrawal_none
+
+end DecodeChainOutcome
 
 /-- Synthesize a successful withdrawal decode chain from the generated local
     `decode`, classifier, length, and field-guard facts. -/
@@ -491,7 +582,53 @@ macro "wp_withdrawal_decode_chain " chain:term : tactic =>
     | exact ($chain).decodeWithdrawal_eq_some
     | exact ($chain).not_successFieldSpecsInput
     | exact ($chain).decodeWithdrawal_eq_none
+    | exact ($chain).successFieldSpecsInput_or_not
+    | exact ($chain).decodeWithdrawal_some_or_none
+    | exact ($chain).successFieldSpecsInput_or_decodeWithdrawal_none
+    | left; exact ($chain).successFieldSpecsInput
+    | left; exact ⟨($chain).value, ($chain).decodeWithdrawal_eq_some⟩
+    | right; exact ($chain).not_successFieldSpecsInput
+    | right; exact ($chain).decodeWithdrawal_eq_none
     | wp_rv64_cert
+    | wp_withdrawal_decode_auto)
+
+open Lean Elab Tactic
+
+/-- Context-driven chain WP automation.  It scans local hypotheses for already
+    bundled success/leftover chain objects, projects the needed pure fact, and
+    then falls back to the generic withdrawal WP driver. -/
+elab "wp_withdrawal_decode_chain" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for localDecl in lctx do
+    if localDecl.isImplementationDetail then
+      continue
+    let id := Lean.mkIdent localDecl.userName
+    try
+      evalTactic (← `(tactic| wp_withdrawal_decode_chain $id:ident; done))
+      return
+    catch _ =>
+      (Pure.pure PUnit.unit : TacticM PUnit)
+  try
+    evalTactic (← `(tactic| wp_withdrawal_decode_auto; done))
+  catch _ =>
+    throwError "wp_withdrawal_decode_chain: no local decode chain or withdrawal WP hint closed the goal"
+
+/-- Outcome-driven WP automation for a bundled `DecodeChainOutcome` or a `Sum`
+    of success/leftover chains.  The tactic splits the outcome once and delegates
+    each branch to the chain-object WP driver. -/
+macro "wp_withdrawal_decode_outcome " outcome:term : tactic =>
+  `(tactic| first
+    | exact ($outcome).successFieldSpecsInput_or_not
+    | exact ($outcome).decodeWithdrawal_some_or_none
+    | exact ($outcome).successFieldSpecsInput_or_decodeWithdrawal_none
+    | have h_outcome := $outcome
+      cases h_outcome with
+      | success chain => wp_withdrawal_decode_chain chain
+      | leftover chain => wp_withdrawal_decode_chain chain
+    | have h_outcome := $outcome
+      cases h_outcome with
+      | inl chain => wp_withdrawal_decode_chain chain
+      | inr chain => wp_withdrawal_decode_chain chain
     | wp_withdrawal_decode_auto)
 
 example
@@ -530,9 +667,31 @@ example
   wp_withdrawal_decode_chain chain
 
 example
+    {pfx : Byte} {payload : List Byte} (chain : SuccessDecodeChain pfx payload) :
+    successFieldSpecsInput chain.input := by
+  wp_withdrawal_decode_chain
+
+example
     {pfx : Byte} {payload : List Byte} (chain : LeftoverDecodeChain pfx payload) :
     decodeWithdrawal chain.input = none := by
   wp_withdrawal_decode_chain chain
+
+example
+    {pfx : Byte} {payload : List Byte} (chain : LeftoverDecodeChain pfx payload) :
+    successFieldSpecsInput chain.input ∨ ¬ successFieldSpecsInput chain.input := by
+  wp_withdrawal_decode_chain
+
+example
+    {pfx : Byte} {payload : List Byte} (outcome : DecodeChainOutcome pfx payload) :
+    successFieldSpecsInput outcome.input ∨ decodeWithdrawal outcome.input = none := by
+  wp_withdrawal_decode_outcome outcome
+
+example
+    {pfx : Byte} {payload : List Byte}
+    (outcome : Sum (SuccessDecodeChain pfx payload) (LeftoverDecodeChain pfx payload)) :
+    (∃ w : Withdrawal, decodeWithdrawal (pfx :: payload) = some w) ∨
+      decodeWithdrawal (pfx :: payload) = none := by
+  wp_withdrawal_decode_outcome outcome
 
 noncomputable example
     {pfx : Byte} {payload : List Byte} (chain : SuccessDecodeChain pfx payload)
