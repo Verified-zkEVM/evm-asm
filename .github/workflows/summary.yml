@@ -2,7 +2,7 @@ name: 'PR Summary'
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -16,6 +16,7 @@ permissions:
 jobs:
   summarize:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       # Pre-steps: own checkout so we can compute the deterministic
       # PROGRESS.md base↔head delta before the summary action runs its
@@ -40,7 +41,7 @@ jobs:
           # augmented instructions file passed to the summary action.
           #
           # SECURITY (pull_request_target hardening). This workflow runs with a
-          # WRITE token + the GEMINI_API_KEY secret and checks out the PR head,
+          # WRITE token + the OPENROUTER_KEY secret and checks out the PR head,
           # so executing the PR's own copy of progress-delta.sh would let a
           # malicious PR exfiltrate the secret / abuse the token. The script
           # only READS committed PROGRESS.md blobs via `git show`, so running the
@@ -91,14 +92,10 @@ jobs:
         uses: alexanderlhicks/lean-summary-workflow@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          api_key: ${{ secrets.GEMINI_API_KEY }}
-          provider: gemini  # or: anthropic, openai
-          model: gemini-3-flash-preview  # or: claude-sonnet-4-6, gpt-5.4-mini
+          api_key: ${{ secrets.OPENROUTER_KEY }}
+          # model: inherits the action default (deepseek/deepseek-v4-flash).
+          #        Set `model: <openrouter-slug>` here to override for this repo only.
           github_repository: ${{ github.repository }}
           pr_number: ${{ github.event.pull_request.number }}
-          # NOTE: input name change pending — see lean-summary-workflow PR
-          # that renames `style_guide_path` → `additional_instructions_path`.
-          # When that lands, swap the line below and drop this NOTE.
           additional_instructions_path: '/tmp/augmented-instructions.md'
           validate_title: 'true'
-          # upstream_path: 'ToMathlib/'
