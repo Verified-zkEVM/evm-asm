@@ -283,6 +283,31 @@ macro_rules
   | `(tactic| wp_rv64_norm at $h:ident) =>
       `(tactic| try dsimp at $h:ident; try simp only [rv64_wp] at $h:ident)
 
+/-- Final diagnostic fallback for `wp_rv64_link`.  It runs only after the
+    concrete link-closing alternatives have failed, so the message names the
+    exact remaining entailment rather than asking the user to rediscover it by
+    replaying constructors manually. -/
+elab "wp_rv64_link_fail" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let goalType ← instantiateMVars (← goal.getType)
+  let goalTypeWhnf ← whnfR goalType
+  unless goalTypeWhnf.isAppOfArity ``EvmAsm.Rv64.WP.Entails 2 do
+    throwError m!"wp_rv64_link: expected WP.Entails goal.
+  Goal: {goalType}"
+  let lhs := goalTypeWhnf.getAppArgs[0]!
+  let rhs := goalTypeWhnf.getAppArgs[1]!
+  let entries := rv64WpEntailsExt.getState (← getEnv)
+  throwError m!"wp_rv64_link: could not close the remaining WP.Entails goal.
+  Tried reflexivity, local assumptions, Branch/CFG projection rewrites,
+  rv64_wp normalization, xperm_pure, and {entries.size} registered
+  @[rv64_wp_entails] theorem(s).
+  Source: {lhs}
+  Target: {rhs}
+  Hint: inspect whether the source and target differ by a missing projection
+  rewrite such as WP.CFG.leaf_pre, by a frame permutation that xperm_pure
+  cannot see, or by a reusable semantic bridge that should be tagged
+  @[rv64_wp_entails]."
+
 /-- Close the midpoint entailment between adjacent WP fragments.  The common
     case is definitional equality of the head postcondition and tail WP; semantic
     bridge lemmas tagged `@[rv64_wp_entails]` handle generated handoff shapes,
@@ -314,7 +339,8 @@ macro_rules
         | wp_rv64_norm; wp_rv64_entails
         | simp only [rv64_wp]; wp_rv64_entails
         | try dsimp; wp_rv64_entails
-        | try dsimp; try simp only [rv64_wp]; wp_rv64_entails)
+        | try dsimp; try simp only [rv64_wp]; wp_rv64_entails
+        | wp_rv64_link_fail)
 
 
 private def closeDisjointWithLocal (goal : MVarId) (goalType : Expr) : TacticM Bool := do
@@ -1332,6 +1358,22 @@ example {entry : Word} {cr : CodeReq} {post : Assertion} :
 
 example {P : Assertion} {A : Prop} (hA : A) :
     EvmAsm.Rv64.WP.Entails P (P ** ⌜A⌝) := by
+  wp_rv64_link
+
+/--
+error: wp_rv64_link: could not close the remaining WP.Entails goal.
+  Tried reflexivity, local assumptions, Branch/CFG projection rewrites,
+  rv64_wp normalization, xperm_pure, and 0 registered
+  @[rv64_wp_entails] theorem(s).
+  Source: P
+  Target: Q
+  Hint: inspect whether the source and target differ by a missing projection
+  rewrite such as WP.CFG.leaf_pre, by a frame permutation that xperm_pure
+  cannot see, or by a reusable semantic bridge that should be tagged
+  @[rv64_wp_entails].
+-/
+#guard_msgs in
+example {P Q : Assertion} : EvmAsm.Rv64.WP.Entails P Q := by
   wp_rv64_link
 
 theorem wp_rv64_dead_test_hint {P : Assertion} (hdead : ∀ h, P h → False) :

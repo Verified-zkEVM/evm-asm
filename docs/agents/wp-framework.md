@@ -466,13 +466,14 @@ caller needs to distinguish it.
 - If a constructor still does not infer, try it directly once. The resulting
   goals usually show which entry, exit, code requirement, or postcondition did
   not infer.
-- If `wp_rv64_link` fails, normalize only the relevant helper definitions with
-  `simp only [rv64_wp]`, then use `xperm_pure` or a small named entailment lemma.
-  It already handles the common branch-link projection shape from
-  `WP.Branch.frameR_*`/`WP.Branch.ofSpec_*` posts into CFG preconditions such as
-  `WP.CFG.leaf_pre`. As a debugging fallback, reproduce the projection manually:
-  rewrite the branch post at the hypothesis, rewrite the CFG precondition in the
-  target, then call `xperm_pure hp`.
+- If `wp_rv64_link` fails, read the `Source:` and `Target:` assertions in the
+  diagnostic before changing the proof. Normalize only the relevant helper
+  definitions with `simp only [rv64_wp]`, then use `xperm_pure` or a small named
+  entailment lemma. It already handles the common branch-link projection shape
+  from `WP.Branch.frameR_*`/`WP.Branch.ofSpec_*` posts into CFG preconditions
+  such as `WP.CFG.leaf_pre`. As a debugging fallback, reproduce the projection
+  manually: rewrite the branch post at the hypothesis, rewrite the CFG
+  precondition in the target, then call `xperm_pure hp`.
 - `extract_pure_deep` and `xperm_pure` use a two-phase pure extraction pass.
   They handle pure facts buried behind framed `**` chains, and `xperm_pure`
   remains the preferred link tactic when either side contains `⌜...⌝` atoms.
