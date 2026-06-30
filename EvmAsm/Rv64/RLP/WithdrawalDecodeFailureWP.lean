@@ -92,6 +92,86 @@ theorem decodeWithdrawal_none_of_head_lt_c0
           exfalso
           exact decodeFully_ne_list_of_head_lt_c0 pfx rest items h hfull
 
+/-- A failed complete RLP decode is a reason-erased withdrawal failure. -/
+theorem decodeWithdrawal_none_of_decodeFully_none
+    {input : List Byte} (hfull : decodeFully input = none) :
+    decodeWithdrawal input = none := by
+  unfold decodeWithdrawal
+  rw [hfull]
+
+/-- A failed raw RLP decode is a reason-erased withdrawal failure. -/
+theorem decodeWithdrawal_none_of_decode_none
+    {input : List Byte} (hdecode : decode input = none) :
+    decodeWithdrawal input = none :=
+  decodeWithdrawal_none_of_decodeFully_none (decodeFully_eq_none_of_decode_none hdecode)
+
+/-- A raw RLP decode with trailing input is a reason-erased withdrawal failure. -/
+theorem decodeWithdrawal_none_of_decode_leftover
+    {input leftover : List Byte} {item : RLPItem}
+    (hdecode : decode input = some (item, leftover))
+    (hleftover : leftover ≠ []) :
+    decodeWithdrawal input = none :=
+  decodeWithdrawal_none_of_decodeFully_none
+    (decodeFully_eq_none_of_decode_leftover hdecode hleftover)
+
+/-- A complete RLP bytes item cannot be a withdrawal list. -/
+theorem decodeWithdrawal_none_of_decodeFully_bytes
+    {input data : List Byte} (hfull : decodeFully input = some (.bytes data)) :
+    decodeWithdrawal input = none := by
+  unfold decodeWithdrawal
+  rw [hfull]
+
+/-- A completely decoded list with the wrong arity is rejected by
+    `decodeWithdrawal`; the precise failure reason is intentionally erased. -/
+theorem decodeWithdrawal_none_of_decodeFully_list_length_ne_four
+    {input : List Byte} {items : List RLPItem}
+    (hfull : decodeFully input = some (.list items))
+    (hlen : items.length ≠ 4) :
+    decodeWithdrawal input = none := by
+  cases hdec : decodeWithdrawal input with
+  | none => rfl
+  | some w =>
+      exfalso
+      rcases (decodeWithdrawal_eq_some_iff input w).mp hdec with
+        ⟨d0, d1, d2, d3, hfull', _hc0, _hl0, _hc1, _hl1, _haddr, _hc3, _hl3,
+          _hi, _hv, _ha, _hamt⟩
+      have hsome : some (RLPItem.list items) =
+          some (RLPItem.list [RLPItem.bytes d0, RLPItem.bytes d1, RLPItem.bytes d2,
+            RLPItem.bytes d3]) :=
+        hfull.symm.trans hfull'
+      have hitems : items = [RLPItem.bytes d0, RLPItem.bytes d1, RLPItem.bytes d2,
+          RLPItem.bytes d3] := by
+        simpa using hsome
+      apply hlen
+      rw [hitems]
+      rfl
+
+/-- Four decoded byte fields that fail the withdrawal field contract are a
+    semantic failure, independent of which guard failed. -/
+theorem decodeWithdrawal_none_of_decodeFully_fields_not_canonical
+    {input d0 d1 d2 d3 : List Byte}
+    (hfull : decodeFully input = some (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3]))
+    (hbad : ¬
+      (d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+        d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+        d2.length = 20 ∧
+        d3.headD 1 ≠ 0 ∧ d3.length ≤ 8)) :
+    decodeWithdrawal input = none := by
+  cases hdec : decodeWithdrawal input with
+  | none => rfl
+  | some _w =>
+      exfalso
+      unfold decodeWithdrawal at hdec
+      rw [hfull] at hdec
+      simp at hdec
+      have hgood :
+          d0.headD 1 ≠ 0 ∧ d0.length ≤ 8 ∧
+            d1.headD 1 ≠ 0 ∧ d1.length ≤ 8 ∧
+            d2.length = 20 ∧
+            d3.headD 1 ≠ 0 ∧ d3.length ≤ 8 := by
+        simpa [List.headD_eq_head?] using hdec.1
+      exact hbad hgood
+
 /-- The shallow empty-input split has a semantic failure head exit and one
     syntactic nonzero fall-through exit. -/
 theorem walkInitEmptyInputFailureNBranch_exits
