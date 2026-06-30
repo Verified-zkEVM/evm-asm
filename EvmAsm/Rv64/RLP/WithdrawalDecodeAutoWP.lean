@@ -172,6 +172,38 @@ theorem walkInitShortSuccessDecodedWP_cert_pre
 attribute [rv64_wp]
   walkInitShortSuccessDecodedWP_cert_pre
 
+attribute [rv64_wp_cert]
+  walkInitShortSuccessFromPrologueCert
+
+-- Regression: `wp_rv64_cert` derives the exact generated-code bound from a
+-- uniform static schema-size cap and local arithmetic facts.
+example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input d0 d1 d2 d3 : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hoff : 0 < input.length)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_schema_size : schemaSize (successFieldSpecs d0 d1 d2 d3) <= 1392)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      ((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) (successFieldSpecs d0 d1 d2 d3)))
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3 **
+        walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old) := by
+  wp_rv64_cert
+
 /-- Result-free success schemas are exactly the inputs for which the Lean
     withdrawal decoder returns some value. This keeps the schema predicate free
     of the decoded result while still characterizing `decodeWithdrawal`. -/

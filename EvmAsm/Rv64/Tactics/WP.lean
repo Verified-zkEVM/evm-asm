@@ -71,6 +71,26 @@ private def localCandidatesForMVar (mvarId : MVarId) : TacticM (Array Expr) := d
     return named
   return typed
 
+private def solveMVarByWpParamTactics (mvarId : MVarId) : TacticM Bool := do
+  if ← mvarId.isAssigned then
+    return true
+  mvarId.withContext do
+    let target ← instantiateMVars (← mvarId.getType)
+    unless ← isProp target do
+      return false
+    let saved ← saveState
+    let originalGoals ← getGoals
+    try
+      replaceMainGoal [mvarId]
+      evalTactic (← `(tactic| first | assumption | omega | bv_omega))
+      unless (← getGoals).isEmpty do
+        throwError "wp parameter tactic left open goals"
+      setGoals originalGoals
+      return true
+    catch _ =>
+      restoreState saved
+      return false
+
 partial def solveParamMVarsWithLocals (params : Array Expr) (idx : Nat) : TacticM Bool := do
   if hidx : idx < params.size then
     let param ← instantiateMVars params[idx]
@@ -86,6 +106,11 @@ partial def solveParamMVarsWithLocals (params : Array Expr) (idx : Nat) : Tactic
           if ← solveParamMVarsWithLocals params (idx + 1) then
             return true
           restoreState saved
+        let saved ← saveState
+        if ← solveMVarByWpParamTactics mvarId then
+          if ← solveParamMVarsWithLocals params (idx + 1) then
+            return true
+        restoreState saved
         return false
     else
       solveParamMVarsWithLocals params (idx + 1)
