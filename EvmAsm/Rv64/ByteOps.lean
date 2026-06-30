@@ -9,7 +9,6 @@ import EvmAsm.Rv64.CPSSpec
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.FinCases
 import Mathlib.Data.Fintype.Basic
-import Std.Tactic.BVDecide
 
 namespace EvmAsm.Rv64
 
@@ -20,24 +19,52 @@ theorem byteOffset_lt_8 {addr : Word} : byteOffset addr < 8 := by
   exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
 /-- Aligning a byte address down to its containing doubleword gives byte
-    offset zero. -/
+    offset zero.  (`(addr &&& ~~~7) &&& 7 = addr &&& (~~~7 &&& 7) = addr &&& 0 = 0`.) -/
 theorem alignToDword_byteOffset_zero (addr : Word) :
     byteOffset (alignToDword addr) = 0 := by
   unfold byteOffset alignToDword
-  bv_decide
+  rw [BitVec.and_assoc, show (~~~7#64 &&& 7#64) = 0#64 from by decide, BitVec.and_zero]
+  rfl
 
-/-- Aligning an already dword-aligned address is idempotent. -/
+/-- Aligning an already dword-aligned address is idempotent
+    (`(addr &&& ~~~7) &&& ~~~7 = addr &&& (~~~7 &&& ~~~7) = addr &&& ~~~7`). -/
 theorem alignToDword_idempotent (addr : Word) :
     alignToDword (alignToDword addr) = alignToDword addr := by
   unfold alignToDword
-  bv_decide
+  rw [BitVec.and_assoc, BitVec.and_self]
 
-/-- The aligned base plus the byte offset reconstructs the original address. -/
+/-- The aligned base plus the byte offset reconstructs the original address, in `Nat` form.
+    Disjoint-bit decomposition (proved WITHOUT `bv_decide`): the aligned base holds the high
+    bits (`addr.toNat / 8 * 8`), the byte offset the low 3 bits (`addr.toNat % 8`). -/
+theorem alignToDword_add_byteOffset_toNat (addr : Word) :
+    (alignToDword addr).toNat + byteOffset addr = addr.toNat := by
+  unfold alignToDword byteOffset
+  simp only [BitVec.toNat_and, BitVec.toNat_not, BitVec.toNat_ofNat,
+             show (7 : Nat) % 2 ^ 64 = 7 from rfl]
+  have hlo : addr.toNat &&& 7 = addr.toNat % 8 := by
+    have h := Nat.and_two_pow_sub_one_eq_mod addr.toNat 3
+    simpa using h
+  have hhi_mod : (addr.toNat &&& (2 ^ 64 - 1 - 7)) % 8 = 0 := by
+    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_mod_two_pow,
+        show (2 ^ 64 - 1 - 7 : Nat) % 2 ^ 3 = 0 from by decide]
+    simp
+  have hhi_div : (addr.toNat &&& (2 ^ 64 - 1 - 7)) / 8 = addr.toNat / 8 := by
+    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_div_two_pow,
+        show (2 ^ 64 - 1 - 7 : Nat) / 2 ^ 3 = 2 ^ 61 - 1 from by decide]
+    exact Nat.and_two_pow_sub_one_of_lt_two_pow (by have := addr.isLt; omega)
+  have hhi : addr.toNat &&& (2 ^ 64 - 1 - 7) = addr.toNat / 8 * 8 := by
+    have heucl := Nat.div_add_mod (addr.toNat &&& (2 ^ 64 - 1 - 7)) 8
+    omega
+  rw [hlo, hhi]; omega
+
+/-- The aligned base plus the byte offset reconstructs the original address (BitVec form),
+    derived from the `Nat` decomposition above — no `bv_decide`. -/
 theorem alignToDword_add_byteOffset (addr : Word) :
     alignToDword addr + BitVec.ofNat 64 (byteOffset addr) = addr := by
-  unfold alignToDword byteOffset
-  rw [BitVec.ofNat_toNat]
-  bv_decide
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt (show byteOffset addr < 2 ^ 64 from by have := byteOffset_lt_8 (addr := addr); omega),
+      alignToDword_add_byteOffset_toNat addr, Nat.mod_eq_of_lt addr.isLt]
 
 /-! ## extractByte / replaceByte algebra
 
