@@ -216,7 +216,7 @@ theorem spec :
 | Need | Constructor or tactic |
 |------|-----------------------|
 | Synthesize a straight-line leaf from postcondition | `wp_rv64_leaf_synth`, `runBlockFromPost` |
-| Expose WP certificate projections in a link goal | `wp_rv64_norm`, projection rewrites such as `WP.Branch.frameR_post_t` and `WP.CFG.leaf_pre` |
+| Close branch/CFG projection links | `wp_rv64_link`; it handles common `WP.Branch.frameR_*`/`WP.Branch.ofSpec_*` posts into CFG preconditions such as `WP.CFG.leaf_pre` |
 | Lift an exact single-exit CPS proof | `WP.CFG.leaf h`, `wp_rv64_leaf h` |
 | Lift and weaken a CPS proof's postcondition | `WP.CFG.block hpost h` |
 | Empty/reflexive exit certificate | `WP.CFG.exitRefl`, `wp_rv64_exit_refl` |
@@ -442,11 +442,11 @@ caller needs to distinguish it.
   not infer.
 - If `wp_rv64_link` fails, normalize only the relevant helper definitions with
   `simp only [rv64_wp]`, then use `xperm_pure` or a small named entailment lemma.
-  When the goal contains local projections like `br.post_t h` or `tail.pre h`,
-  rewrite the projection explicitly before permutation. The checked branch-link
-  example in `EvmAsm/Rv64/WP/Examples.lean` uses
-  `rw [WP.Branch.frameR_post_t, WP.Branch.ofSpec_post_t] at hp`, then
-  `rw [WP.CFG.leaf_pre]`, then `xperm_pure hp`.
+  It already handles the common branch-link projection shape from
+  `WP.Branch.frameR_*`/`WP.Branch.ofSpec_*` posts into CFG preconditions such as
+  `WP.CFG.leaf_pre`. As a debugging fallback, reproduce the projection manually:
+  rewrite the branch post at the hypothesis, rewrite the CFG precondition in the
+  target, then call `xperm_pure hp`.
 - `extract_pure_deep` and `xperm_pure` use a two-phase pure extraction pass.
   They handle pure facts buried behind framed `**` chains, and `xperm_pure`
   remains the preferred link tactic when either side contains `⌜...⌝` atoms.
