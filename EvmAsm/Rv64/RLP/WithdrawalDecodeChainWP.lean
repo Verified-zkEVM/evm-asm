@@ -935,6 +935,63 @@ elab "wp_withdrawal_decode_walk" : tactic => withMainContext do
               restoreState saved
   throwError "wp_withdrawal_decode_walk: no four-field withdrawal decode walk closed the goal"
 
+
+private def successFieldSpecsInputArg? (e : Expr) : Option Expr :=
+  if e.isAppOfArity ``EvmAsm.Rv64.RLP.WithdrawalDecode.successFieldSpecsInput 1 then
+    some e.getAppArgs[0]!
+  else
+    none
+
+private def decodeWithdrawalNoneArg? (e : Expr) : Option Expr := do
+  let (lhs, rhs) ← eqSides? e
+  guard (lhs.isAppOfArity ``EvmAsm.EL.decodeWithdrawal 1)
+  guard (rhs.isAppOfArity ``Option.none 1)
+  some lhs.getAppArgs[0]!
+
+private def isResultFreeDecodeSplitLocalType (e : Expr) : TacticM Bool := do
+  unless e.isAppOfArity ``Or 2 do
+    return false
+  let args := e.getAppArgs
+  let some successInput := successFieldSpecsInputArg? args[0]! | return false
+  let some failureInput := decodeWithdrawalNoneArg? args[1]! | return false
+  sameExpr successInput failureInput
+
+/-- Consume a result-free branch join of the form
+    `successFieldSpecsInput input ∨ decodeWithdrawal input = none`.  The success
+    branch exposes the schema predicate, while the failure branch exposes only
+    the reason-erased semantic failure fact. -/
+elab "wp_withdrawal_decode_split" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for localDecl in lctx do
+    if localDecl.isImplementationDetail then
+      continue
+    let localType ← whnfR (← instantiateMVars localDecl.type)
+    unless ← isResultFreeDecodeSplitLocalType localType do
+      continue
+    let id := Lean.mkIdent localDecl.userName
+    try
+      evalTactic (← `(tactic|
+        cases $id:ident with
+        | inl h_success =>
+            first
+            | exact h_success
+            | exact (successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some _).mp h_success
+            | left; exact h_success
+            | left; exact (successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some _).mp h_success
+            | wp_withdrawal_decode_auto
+        | inr h_failure =>
+            first
+            | exact h_failure
+            | exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).1 h_failure
+            | right; exact h_failure
+            | right; exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).1 h_failure
+            | wp_withdrawal_decode_auto
+        done))
+      return
+    catch _ =>
+      (Pure.pure PUnit.unit : TacticM PUnit)
+  throwError "wp_withdrawal_decode_split: no result-free schema/failure split closed the goal"
+
 private def isDecodeChainLocalType (e : Expr) : Bool :=
   e.isAppOfArity ``SuccessDecodeChain 2 ||
     e.isAppOfArity ``LeftoverDecodeChain 2 ||
@@ -957,6 +1014,11 @@ elab "wp_withdrawal_decode_chain" : tactic => withMainContext do
       return
     catch _ =>
       (Pure.pure PUnit.unit : TacticM PUnit)
+  try
+    evalTactic (← `(tactic| wp_withdrawal_decode_split; done))
+    return
+  catch _ =>
+    (Pure.pure PUnit.unit : TacticM PUnit)
   try
     evalTactic (← `(tactic| wp_withdrawal_decode_walk; done))
     return
@@ -1008,6 +1070,11 @@ elab "wp_withdrawal_decode_outcome" : tactic => withMainContext do
       return
     catch _ =>
       (Pure.pure PUnit.unit : TacticM PUnit)
+  try
+    evalTactic (← `(tactic| wp_withdrawal_decode_split; done))
+    return
+  catch _ =>
+    (Pure.pure PUnit.unit : TacticM PUnit)
   try
     evalTactic (← `(tactic| wp_withdrawal_decode_walk; done))
   catch _ =>
@@ -1103,6 +1170,17 @@ example
     (min_fact : 2 ≤ payload.length) :
     (∃ w : Withdrawal, decodeWithdrawal (pfx :: payload) = some w) ∨
       decodeWithdrawal (pfx :: payload) = none := by
+  wp_withdrawal_decode_outcome
+
+
+example (input : List Byte)
+    (h_split : successFieldSpecsInput input ∨ decodeWithdrawal input = none) :
+    (∃ w : Withdrawal, decodeWithdrawal input = some w) ∨ decodeWithdrawal input = none := by
+  wp_withdrawal_decode_split
+
+example (input : List Byte)
+    (h_split : successFieldSpecsInput input ∨ decodeWithdrawal input = none) :
+    successFieldSpecsInput input ∨ decodeWithdrawal input = none := by
   wp_withdrawal_decode_outcome
 
 example
