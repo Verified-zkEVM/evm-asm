@@ -18,23 +18,24 @@
   cycles. This harness surfaces both axes so the optimization objective can be
   the frequency-weighted (instructions + paging) cost, not instructions alone.
 
-  Phase 3 (this extension): reads `bench/div-weights.json` (the empirical
-  mainnet DIV/MOD operand distribution — 138,601 unsigned division ops over 32
-  blocks) and emits a single frequency-weighted dynamic-instruction cost per
-  candidate program, so algorithm candidates can be ranked under the REAL
-  workload rather than a guessed one. Two weighted metrics are reported:
+  Phase 3 (this extension): ranks DIV/MOD algorithm candidates under the REAL
+  mainnet workload (Phase-2 trace: 138,601 unsigned division ops, 32 blocks)
+  rather than a guessed distribution. Metrics, in order of trustworthiness:
 
-    * n-weighted  — Σ_n (divisor-word-count fraction n_k) · steps(rep_n).
-      EXACT for candidates whose cost depends only on divisor word-count `n`
-      (the current `evm_div_v5` and the `evm_div_v6` n=1 fast path both dispatch
-      on `n` alone), so this is the faithful before/after headline.
-    * partition-weighted — Σ_class (partition fraction) · steps(rep_class) over
-      the non-overlapping {b0, a<b, pow2¬a<b, genuine n1..n4} partition. This is
-      the metric a *cheap-dispatch* front-end (b=0 / a<b / pow2 early-outs, not
-      yet built) is designed to minimize; for v5/v6 (which have no a<b or pow2
-      fast path) it ≈ the n-weighted number.
+    * PRIMARY — operand-sampled mean: the true mean step count over a
+      frequency-weighted sample of REAL mainnet (a,b) pairs
+      (`bench/div-operands-sample.txt`, from `scripts/sample-div-operands.py`).
+      No representative-bias: it captures the within-`n` variation (normalization
+      shift, dividend size, a<b/pow2 sub-cases). This is the faithful headline.
+    * CROSS-CHECK — representative point estimate: Σ_n (n_k fraction)·steps(rep_n)
+      and the partition-weighted variant, using ONE operand per class. NOT exact
+      — step count varies within a fixed `n` (e.g. v5 n=2 spans ~528..634, v6 n=1
+      ~347..369) and the reps skew expensive (full-width dividend, small
+      divisors). Kept to sanity-check the sampled mean and to give the per-class
+      breakdown the (not-yet-built) cheap-dispatch candidate will be ranked on.
 
-  Run:  lake env lean bench/DivBench.lean
+  Run:  python3 scripts/sample-div-operands.py   # regenerate the sample (once)
+        lake env lean bench/DivBench.lean
   (needs `lake build EvmAsm.Evm64.DivMod.FastN1Program EvmAsm.Evm64.DivMod.Program
    EvmAsm.Rv64.Execution EvmAsm.Evm64.Basic`)
 -/
@@ -145,6 +146,20 @@ def benchDiv (prog : Program) (exitPC : Word) (a b : BitVec 256) : Report :=
       , memOps := acc.loads + acc.stores, dwords := acc.dwords.length
       , pages := acc.pages.length, ok := false, correct := false }
 
+/-- MOD variant: same harness, but the result at spBase+32 is the remainder, so
+    correctness checks against `a % b` (EVM `MOD`: `b=0 → 0`). -/
+def benchMod (prog : Program) (exitPC : Word) (a b : BitVec 256) : Report :=
+  match runTally exitPC 20000 (mkState prog a b) {} with
+  | (acc, some s) =>
+      let expected := if b == 0 then 0 else a.toNat % b.toNat
+      { steps := acc.steps, loads := acc.loads, stores := acc.stores
+      , memOps := acc.loads + acc.stores, dwords := acc.dwords.length
+      , pages := acc.pages.length, ok := true, correct := readResult s = expected }
+  | (acc, none) =>
+      { steps := acc.steps, loads := acc.loads, stores := acc.stores
+      , memOps := acc.loads + acc.stores, dwords := acc.dwords.length
+      , pages := acc.pages.length, ok := false, correct := false }
+
 -- ============================================================================
 -- Candidates and representative operands
 -- ============================================================================
@@ -161,6 +176,13 @@ def candidates : List Candidate :=
   [ { name := "evm_div(v4)",  prog := evm_div,    exitPC := 1068 }
   , { name := "evm_div_v5",   prog := evm_div_v5, exitPC := 1068 }
   , { name := "evm_div_v6",   prog := evm_div_v6, exitPC := 1884 } ]
+
+/-- MOD candidates. `evm_mod`/`evm_mod_v5` exit at the index-267 NOP (byte 1068);
+    `evm_mod_v6` (which inserts `divK_fastDenorm`, +7) exits at index 478
+    (byte 1912). -/
+def modCandidates : List Candidate :=
+  [ { name := "evm_mod(v4)",  prog := evm_mod,    exitPC := 1068 }
+  , { name := "evm_mod_v6",   prog := evm_mod_v6, exitPC := 1912 } ]
 
 /-- A full-width dividend used for every "a ≥ b" representative. -/
 def numA : BitVec 256 := 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
@@ -212,6 +234,41 @@ def loadWeights : IO Json := do
   IO.ofExcept (Json.parse s)
 
 -- ============================================================================
+-- Operand sample (bench/div-operands-sample.txt) — real mainnet (a,b) pairs
+-- ============================================================================
+
+/-- Parsed `bench/div-operands-sample.txt`: a frequency-weighted sample of real
+    mainnet operands (decimal `a b` per line; "# DIV n"/"# MOD n" section heads),
+    produced by `scripts/sample-div-operands.py`. Running the harness over these
+    gives a TRUE mean step count — no representative-bias. -/
+structure Sample where
+  divs : Array (BitVec 256 × BitVec 256) := #[]
+  mods : Array (BitVec 256 × BitVec 256) := #[]
+
+def parseSample (txt : String) : Sample := Id.run do
+  let mut sect := 0    -- 1 = DIV, 2 = MOD
+  let mut divs : Array (BitVec 256 × BitVec 256) := #[]
+  let mut mods : Array (BitVec 256 × BitVec 256) := #[]
+  for raw in txt.splitOn "\n" do
+    let line := raw.trim
+    if line.isEmpty then continue
+    else if line.startsWith "# DIV" then sect := 1
+    else if line.startsWith "# MOD" then sect := 2
+    else
+      match line.splitOn " " with
+      | [as, bs] =>
+        let a : BitVec 256 := BitVec.ofNat 256 (as.toNat!)
+        let b : BitVec 256 := BitVec.ofNat 256 (bs.toNat!)
+        if sect == 1 then divs := divs.push (a, b)
+        else if sect == 2 then mods := mods.push (a, b)
+      | _ => pure ()
+  return { divs, mods }
+
+def loadSample : IO Sample := do
+  let s ← IO.FS.readFile "bench/div-operands-sample.txt"
+  return parseSample s
+
+-- ============================================================================
 -- Reporting
 -- ============================================================================
 
@@ -219,12 +276,16 @@ def loadWeights : IO Json := do
 def pad (w : Nat) (s : String) : String :=
   if s.length < w then s ++ String.mk (List.replicate (w - s.length) ' ') else s
 
-/-- 2-decimal float string (avoids scientific notation for small sums). -/
+/-- 2-decimal float string (avoids scientific notation for small sums).
+    Handles negatives: `Float.toUInt64` floors negatives to 0, so format the
+    magnitude and prepend a sign (otherwise a regression prints as "0.00"). -/
 def f2 (x : Float) : String :=
-  let scaled := (x * 100.0 + 0.5).toUInt64.toNat
+  let neg := x < 0.0
+  let ax := if neg then -x else x
+  let scaled := (ax * 100.0 + 0.5).toUInt64.toNat
   let whole := scaled / 100
   let frac  := scaled % 100
-  s!"{whole}.{if frac < 10 then "0" else ""}{frac}"
+  s!"{if neg then "-" else ""}{whole}.{if frac < 10 then "0" else ""}{frac}"
 
 def main : IO Unit := do
   let j ← loadWeights
@@ -246,9 +307,53 @@ def main : IO Unit := do
         acc ++ pad 14 (s!"{rep.steps}{if rep.correct then "" else "✗"}")) ""
       IO.println (pad 18 s!"{cls}" ++ row)
 
-  -- n-weighted cost (EXACT for v5/v6): Σ n_k · steps(rep_n).
-  IO.println "\n=== Frequency-weighted cost (mainnet divmod, 138,601 ops) ==="
-  IO.println (pad 28 "metric" ++ candidates.foldl (fun acc c => acc ++ pad 14 c.name) "")
+  -- PRIMARY metric: true mean step count over a frequency-weighted sample of
+  -- REAL mainnet operands (bench/div-operands-sample.txt). This has no
+  -- representative-bias — it captures the within-n variation (normalization
+  -- shift, dividend size, a<b/pow2 sub-cases) that a single rep per class
+  -- cannot. This is the faithful before/after headline.
+  let smp ← loadSample
+  IO.println s!"\n=== PRIMARY: operand-sampled mean steps ({smp.divs.size} real DIV ops) ==="
+  let divMeans ← candidates.mapM (fun c => do
+    let mut tot := 0
+    let mut bad := 0
+    for (a, b) in smp.divs do
+      let r := benchDiv c.prog c.exitPC a b
+      tot := tot + r.steps
+      if !(r.ok && r.correct) then bad := bad + 1
+    pure (Float.ofNat tot / Float.ofNat smp.divs.size, bad))
+  for (c, (m, bad)) in candidates.zip divMeans do
+    let note := if bad == 0 then "  (all correct)" else s!"  ({bad} WRONG)"
+    IO.println (s!"  {pad 14 c.name}  mean = {pad 8 (f2 m)} steps" ++ note)
+  let dBase := (divMeans[0]!).1
+  let dV6 := (divMeans[2]!).1
+  IO.println s!"  → evm_div_v6 vs deployed evm_div: {f2 ((dBase - dV6) / dBase * 100.0)}% fewer steps"
+
+  -- MOD: measured, not inferred (evm_mod_v6 carries an extra +7 denorm).
+  IO.println s!"\n=== Operand-sampled mean steps — MOD ({smp.mods.size} real MOD ops) ==="
+  let modMeans ← modCandidates.mapM (fun c => do
+    let mut tot := 0
+    let mut bad := 0
+    for (a, b) in smp.mods do
+      let r := benchMod c.prog c.exitPC a b
+      tot := tot + r.steps
+      if !(r.ok && r.correct) then bad := bad + 1
+    pure (Float.ofNat tot / Float.ofNat smp.mods.size, bad))
+  for (c, (m, bad)) in modCandidates.zip modMeans do
+    let note := if bad == 0 then "  (all correct)" else s!"  ({bad} WRONG)"
+    IO.println (s!"  {pad 14 c.name}  mean = {pad 8 (f2 m)} steps" ++ note)
+  let mBase := (modMeans[0]!).1
+  let mV6 := (modMeans[1]!).1
+  IO.println s!"  → evm_mod_v6 vs deployed evm_mod: {f2 ((mBase - mV6) / mBase * 100.0)}% fewer steps"
+
+  -- CROSS-CHECK (NOT the headline): representative point estimate — one operand
+  -- per divisor word-count. NOT exact: step count varies within a fixed n with
+  -- the normalization shift and dividend (v5 n=2 spans ~528..634; v6 n=1 spans
+  -- ~347..369), and these reps (full-width dividend, small divisors) skew to the
+  -- expensive end. Kept only to cross-check the sampled mean and to provide the
+  -- per-class breakdown the cheap-dispatch candidate will be ranked against.
+  IO.println "\n=== Representative-weighted point estimate (cross-check, not headline) ==="
+  IO.println (pad 32 "metric" ++ candidates.foldl (fun acc c => acc ++ pad 14 c.name) "")
   let nWeights ← (List.range 5).mapM (fun k => IO.ofExcept (jPath dm [s!"n{k}"]))
   let nRow ← candidates.mapM (fun c => do
     let mut tot := 0.0
@@ -256,10 +361,10 @@ def main : IO Unit := do
       let rep := benchDiv c.prog c.exitPC r.a r.b
       tot := tot + nWeights[n]! * Float.ofNat rep.steps
     pure tot)
-  IO.println (pad 28 "n-weighted avg steps"
+  IO.println (pad 32 "n-weighted (reps)"
     ++ (nRow.foldl (fun acc x => acc ++ pad 14 (f2 x)) ""))
 
-  -- partition-weighted cost (framework for cheap-dispatch candidate).
+  -- partition-weighted cost (framework for the cheap-dispatch candidate).
   let partKeys := ["b0","a_lt_b","pow2_not_altb","genuine_n1","genuine_n2","genuine_n3","genuine_n4"]
   let partW ← partKeys.mapM (fun k => IO.ofExcept (jPath dm ["partition", k]))
   let pRow ← candidates.mapM (fun c => do
@@ -270,15 +375,8 @@ def main : IO Unit := do
       tot := tot + partW[i]! * Float.ofNat rep.steps
       i := i + 1
     pure tot)
-  IO.println (pad 28 "partition-weighted avg steps"
+  IO.println (pad 32 "partition-weighted (reps)"
     ++ (pRow.foldl (fun acc x => acc ++ pad 14 (f2 x)) ""))
-
-  -- Headline delta vs the deployed baseline.
-  IO.println ""
-  let base := nRow[0]!
-  for (c, x) in candidates.zip nRow do
-    let pct := if base == 0.0 then 0.0 else (base - x) / base * 100.0
-    IO.println s!"  {pad 14 c.name}  n-weighted = {f2 x}  ({f2 pct}% vs deployed evm_div)"
 
   -- Correctness sweep: de-risks recommending v6 for verification by checking
   -- every dispatch corner against `a / b` over a broad operand grid.
