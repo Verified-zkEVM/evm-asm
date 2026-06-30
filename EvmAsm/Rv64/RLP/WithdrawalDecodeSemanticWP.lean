@@ -731,6 +731,64 @@ theorem walkInitLongSchemaPost_contradicts_successFieldSpecs_input
     _hPrefix_prop, hPure_prop⟩
   exact hPure_prop.2 hlt
 
+/-- Dead-exit hint for the empty-input failure case. The witness-free
+    `successFieldSpecsInput` hypothesis is generated once by the outcome splitter
+    and then consumed by `wp_rv64_dead`. -/
+theorem walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64) (_h_success : successFieldSpecsInput input) :
+    ∀ h,
+      (abiPost inputBase outBase raVal input **
+        walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase) h → False :=
+  walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase listLen raVal
+    t0Old t1Old outBase input hoff hLen hBound
+
+/-- Dead-exit hint for the not-list failure case, parameterized by the
+    result-free success-schema predicate rather than explicit field witnesses. -/
+theorem walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs
+    (inputBase listLen raVal outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) (h_success : successFieldSpecsInput input) :
+    ∀ h,
+      (abiPost inputBase outBase raVal input **
+        walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff) h → False := by
+  rcases h_success with
+    ⟨d0, d1, d2, d3, hinput, _hc0, hl0, _hc1, hl1, haddr, _hc3, hl3⟩
+  exact walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase listLen
+    raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput
+
+/-- Dead-exit hint for the merged reason-erased failure post under a known
+    success-schema input. -/
+theorem walkInitShortSuccessFailureReasonPost_contradicts_successFieldSpecs
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64) (h_success : successFieldSpecsInput input) :
+    ∀ h,
+      walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
+        input hoff h → False := by
+  rcases h_success with
+    ⟨d0, d1, d2, d3, hinput, _hc0, hl0, _hc1, hl1, haddr, _hc3, hl3⟩
+  exact walkInitShortSuccessFailureReasonPost_contradicts_successFieldSpecs_input inputBase
+    listLen raVal t0Old t1Old outBase input d0 d1 d2 d3 hoff hLen hBound hl0 hl1 haddr
+    hl3 hinput
+
+/-- Dead-exit hint for the long-list candidate under a known short-list
+    success-schema input. -/
+theorem walkInitLongSchemaPost_contradicts_successFieldSpecs
+    (inputBase listLen raVal outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) (h_success : successFieldSpecsInput input) :
+    ∀ h, walkInitLongSchemaPost inputBase listLen raVal outBase input hoff h → False := by
+  rcases h_success with
+    ⟨d0, d1, d2, d3, hinput, _hc0, hl0, _hc1, hl1, haddr, _hc3, hl3⟩
+  exact walkInitLongSchemaPost_contradicts_successFieldSpecs_input inputBase listLen raVal
+    outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput
+
+attribute [rv64_wp_dead]
+  walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs
+  walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs
+  walkInitShortSuccessFailureReasonPost_contradicts_successFieldSpecs
+  walkInitLongSchemaPost_contradicts_successFieldSpecs
+
 /-- WP continuation for the dead long-list exit under a short-list success witness.
     The target and code requirement are parameters so generated joins can reuse
     the certificate in whatever larger CFG they are constructing. -/
@@ -947,6 +1005,8 @@ def walkInitShortSuccessResolvedCert
     rw [walkInitShortSuccessSemanticNBranch_exits]
   have hBound : input.length < 2 ^ 64 := by
     omega
+  have h_success : successFieldSpecsInput input :=
+    ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3⟩
   have hexits3 : br.exits =
       [(failStatusReturnExit raVal,
           walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
@@ -956,13 +1016,8 @@ def walkInitShortSuccessResolvedCert
         (base + 28,
           walkInitLongSchemaPost inputBase listLen raVal outBase input hoff)] := by
     simpa [walkInitShortSuccessSemanticExits] using hexits
-  wp_rv64_nbranch_join3_resolve_second_auto br, hexits3,
-    (walkInitShortSuccessFailureReasonPost_contradicts_successFieldSpecs_input inputBase
-      listLen raVal t0Old t1Old outBase input d0 d1 d2 d3 hoff hLen hBound hl0 hl1 haddr
-      hl3 hinput),
-    (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3),
-    (walkInitLongSchemaPost_contradicts_successFieldSpecs_input inputBase listLen raVal
-      outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput)
+  wp_rv64_nbranch_join3_resolve_second_dead_auto br, hexits3,
+    (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3)
 
 theorem walkInitShortSuccessResolvedCert_pre
     (base inputBase listLen raVal t0Old t1Old outBase : Word)
