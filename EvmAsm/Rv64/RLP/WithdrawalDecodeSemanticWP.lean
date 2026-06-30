@@ -922,6 +922,30 @@ def walkInitShortSuccessResolvedCode (base : Word) (specs : List FieldSpec) : Co
 
 attribute [rv64_wp] walkInitShortSuccessResolvedCode
 
+/-- The base walk-init classifier code is a prefix of the resolved short-success
+    code. This lets failure-only classifier facades be reused over the larger
+    success-capable code requirement. -/
+theorem walkInitEmptyFailNotListFailShortLongCode_mono_resolvedCode
+    (base : Word) (specs : List FieldSpec) :
+    ∀ a i,
+      walkInitEmptyFailNotListFailShortLongCode base a = some i →
+        walkInitShortSuccessResolvedCode base specs a = some i := by
+  intro a i h
+  unfold walkInitShortSuccessResolvedCode
+  exact CodeReq.union_mono_left a i h
+
+/-- Prologue plus the base walk-init classifier is a prefix of prologue plus the
+    resolved short-success code. -/
+theorem prologueWalkInitClassifierCode_mono_resolvedCode
+    (base : Word) (specs : List FieldSpec) :
+    ∀ a i,
+      ((prologueCode base).union
+        (walkInitEmptyFailNotListFailShortLongCode (base + 24))) a = some i →
+        ((prologueCode base).union
+          (walkInitShortSuccessResolvedCode (base + 24) specs)) a = some i :=
+  CodeReq.union_mono_tail
+    (walkInitEmptyFailNotListFailShortLongCode_mono_resolvedCode (base + 24) specs)
+
 /-- The decoder prologue occupies exactly the first six 4-byte instructions. -/
 theorem prologueCode_none_above (base a : Word)
     (hbound : base.toNat + 24 < 2 ^ 64) (h : base.toNat + 24 ≤ a.toNat) :
@@ -1814,6 +1838,73 @@ theorem walkInitZeroNonzeroAbiFailureFromPrologueNBranch_exits
       subst listLen
       rfl
   | cons b rest => rfl
+
+/-- The zero/nonzero ABI-failure facade lifted to the same code requirement as
+    the resolved short-success slice. The precondition and exits are unchanged;
+    only the persistent code requirement is enlarged. -/
+def walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
+  let br := walkInitZeroNonzeroAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old
+    s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hover hwin hLen
+    hprologueCode (by omega)
+  wp_rv64_nbranch_extend_code br,
+    (prologueWalkInitClassifierCode_mono_resolvedCode base specs)
+
+/-- The resolved-code zero/nonzero facade has the same static precondition as
+    the classifier-code facade. -/
+theorem walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch base sp0 raVal s0Old s1Old
+      s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs hsalign hover hwin
+      hLen hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  unfold walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch
+  simp only [WP.NBranch.extendCode]
+  rw [walkInitZeroNonzeroAbiFailureFromPrologueNBranch_pre]
+
+attribute [rv64_wp]
+  walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_pre
+
+/-- Lifting the zero/nonzero facade to the resolved code requirement preserves
+    its input-indexed exits. -/
+theorem walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch base sp0 raVal s0Old s1Old
+      s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs hsalign hover hwin
+      hLen hprologueCode hcode).exits =
+      walkInitZeroNonzeroAbiFailureFromPrologueExits base sp0 raVal s0Old s1Old s2Old
+        outBase inputBase listLen t0Old t1Old input := by
+  unfold walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch
+  simp only [WP.NBranch.extendCode]
+  rw [walkInitZeroNonzeroAbiFailureFromPrologueNBranch_exits]
 
 /-- Prologue followed by the reduced short-list success WP slice.  The prologue
     carries the walk-init/schema resources to its exit; the tail consumes those
