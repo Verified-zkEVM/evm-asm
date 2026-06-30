@@ -393,6 +393,24 @@ def seqHeadNBranchDisjoint {entry l : Word} {cr1 cr2 : CodeReq}
       simpa [hexits] using br.sound
     exact cpsNBranchWithin_extend_head_nbranch_disjoint hd hbr (tail.weakenPre hlink).sound
 
+/-- Continue an arbitrary exit of an N-way branch with another N-way continuation
+    over disjoint tail code, preserving the exits before and after it. -/
+def seqExitNBranchDisjoint {entry l : Word} {cr1 cr2 : CodeReq}
+    {Q : Assertion} {preExits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = preExits ++ (l, Q) :: others)
+    (tail : NBranch l cr2)
+    (hlink : Entails Q tail.pre) :
+    NBranch entry (cr1.union cr2) where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exits := (preExits ++ tail.exits) ++ others
+  sound := by
+    have hbr : cpsNBranchWithin br.nSteps entry cr1 br.pre (preExits ++ (l, Q) :: others) := by
+      simpa [hexits] using br.sound
+    exact cpsNBranchWithin_extend_prefixed_nbranch_disjoint hd hbr (tail.weakenPre hlink).sound
+
 /-- Preserve the first exit of an N-way branch and continue the second exit with
     another N-way continuation over disjoint tail code. -/
 def seqSecondNBranchDisjoint {entry head l : Word} {cr1 cr2 : CodeReq}

@@ -157,6 +157,16 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqHeadNBranchDisjoint $hd $br (by rfl) $tail
         (by wp_rv64_link))
 
+/-- Continue an arbitrary exit with another N-way branch over disjoint code.
+    The preExits argument is the list of exits to preserve before the selected exit. -/
+syntax (name := wpRv64NBranchSeqExitNBranchDisjointTac)
+  "wp_rv64_nbranch_exit_nbranch_disjoint " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_exit_nbranch_disjoint $hd:term, $br:term, $preExits:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqExitNBranchDisjoint
+        (preExits := $preExits) $hd $br (by rfl) $tail (by wp_rv64_link))
+
 /-- Preserve the first exit and continue the second exit with another N-way branch
     over disjoint code. The tactic expects the exits field to reduce to a two-cons prefix. -/
 syntax (name := wpRv64NBranchSeqSecondNBranchDisjointTac)

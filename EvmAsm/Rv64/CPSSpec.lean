@@ -688,6 +688,40 @@ theorem cpsNBranchWithin_extend_head_nbranch_disjoint {nSteps1 nSteps2 : Nat}
       exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
         ex, List.mem_append_right exits htail, hpc1, hQF⟩
 
+/-- Extend an arbitrary exit of a bounded N-branch with another bounded N-branch
+    over disjoint tail code. Exits before the selected one are preserved as a
+    prefix, and exits after it are preserved as a suffix. -/
+theorem cpsNBranchWithin_extend_prefixed_nbranch_disjoint {nSteps1 nSteps2 : Nat}
+    {entry l : Word} {cr1 cr2 : CodeReq}
+    {P Q : Assertion}
+    {preExits exits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (hbr : cpsNBranchWithin nSteps1 entry cr1 P (preExits ++ (l, Q) :: others))
+    (hseq : cpsNBranchWithin nSteps2 l cr2 Q exits) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P
+      ((preExits ++ exits) ++ others) := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQF⟩ :=
+    hbr F hF s hcr1 hPF hpc
+  rw [List.mem_append] at hmem
+  cases hmem with
+  | inl hprefix =>
+      exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+        ex, List.mem_append_left others (List.mem_append_left exits hprefix), hpc1, hQF⟩
+  | inr htail =>
+      cases htail with
+      | head =>
+          have hcr2p := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+          obtain ⟨k2, hk2, s2, hstep2, ex2, hmem2, hpc2, hRF⟩ :=
+            hseq F hF s1 hcr2p hQF hpc1
+          exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+            ex2, List.mem_append_left others (List.mem_append_right preExits hmem2), hpc2, hRF⟩
+      | tail _ htailRest =>
+          exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+            ex, List.mem_append_right (preExits ++ exits) htailRest, hpc1, hQF⟩
+
 /-- Extend the second exit of a bounded N-branch with another bounded N-branch
     over disjoint tail code, preserving the first exit. This supports generated
     left-to-right CFG proofs that classify one early exit and continue the

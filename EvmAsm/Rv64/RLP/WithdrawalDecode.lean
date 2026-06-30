@@ -1014,15 +1014,17 @@ def walkInitEmptyFailThenNonzeroShortLongNBranch
     WP.NBranch base (walkInitEmptyFailThenNonzeroShortLongCode base) := by
   let listPtr := listBase + BitVec.ofNat 64 listOff
   let frame : Assertion := (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes
-  let br0 := WP.CFG.nbranchOfBranch (walkInitEmptyFailStatusBranch base listLen raVal listPtr)
+  let statusBranch := walkInitEmptyFailStatusBranch base listLen raVal listPtr
+  let br0 := WP.CFG.nbranchOfBranch statusBranch
   let br := WP.CFG.nbranchFrameR br0 frame (by
     dsimp [frame]
     pcFree)
   let tail := walkInitNonzeroNotListFailShortLongNBranch base listBase listLen raVal
     t0Old t1Old listBytes listOff hsalign hoff hover hvalid
   unfold walkInitEmptyFailThenNonzeroShortLongCode
-  wp_rv64_nbranch_second_nbranch_disjoint
-    (walkInitEmptyFailStatusCode_disjoint_nonzeroNotListFailShortLong base), br, tail
+  wp_rv64_nbranch_exit_nbranch_disjoint
+    (walkInitEmptyFailStatusCode_disjoint_nonzeroNotListFailShortLong base), br,
+    [(statusBranch.exit_t, (statusBranch.post_t ** frame))], tail
 
 theorem walkInitEmptyFailThenNonzeroShortLongNBranch_pre
     (base listBase listLen raVal t0Old t1Old : Word)
