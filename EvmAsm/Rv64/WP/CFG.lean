@@ -156,6 +156,20 @@ def nbranchOfBranch {entry : Word} {cr : CodeReq} (br : Branch entry cr) :
     NBranch entry cr :=
   NBranch.ofBranch br
 
+/-- Frame every exit of an N-way CFG with a PC-free assertion. -/
+def nbranchFrameR {entry : Word} {cr : CodeReq}
+    (br : NBranch entry cr) (F : Assertion) (hF : F.pcFree) :
+    NBranch entry cr :=
+  br.frameR F hF
+
+/-- Weaken the exit postconditions of an N-way CFG. -/
+def nbranchWeakenPosts {entry : Word} {cr : CodeReq}
+    (br : NBranch entry cr) (exits' : List (Word × Assertion))
+    (hmap : ∀ ex ∈ br.exits, ∃ ex' ∈ exits',
+      ex'.1 = ex.1 ∧ Entails ex.2 ex'.2) :
+    NBranch entry cr :=
+  br.weakenPosts exits' hmap
+
 /-- Continue a branch's not-taken exit with an N-way CFG over disjoint code,
     preserving the taken exit as the first open exit. -/
 def branchSeqNotTakenNBranchDisjoint {entry : Word} {cr1 cr2 : CodeReq}

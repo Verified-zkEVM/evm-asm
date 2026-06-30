@@ -919,6 +919,48 @@ theorem walkInitEmptyFailNotListFailShortLongNBranch_pre
         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
   rfl
 
+/-- Uniformly frame the symbolic walk-init classifier. Generated decoder proofs
+    use this after WP reduction to carry caller-owned resources, such as the ABI
+    output buffer, across every still-open exit. -/
+def walkInitEmptyFailNotListFailShortLongFramedNBranch
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (F : Assertion) (hF : F.pcFree) :
+    WP.NBranch base (walkInitEmptyFailNotListFailShortLongCode base) := by
+  let br := walkInitEmptyFailNotListFailShortLongNBranch base listBase listLen raVal
+    t0Old t1Old listBytes listOff hsalign hoff hover hvalid
+  wp_rv64_nbranch_frame br, F, hF
+
+theorem walkInitEmptyFailNotListFailShortLongFramedNBranch_pre
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (F : Assertion) (hF : F.pcFree) :
+    (walkInitEmptyFailNotListFailShortLongFramedNBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid F hF).pre =
+      ((walkInitEmptyFailNotListFailShortLongNBranch base listBase listLen raVal t0Old t1Old
+        listBytes listOff hsalign hoff hover hvalid).pre ** F) := by
+  rfl
+
+theorem walkInitEmptyFailNotListFailShortLongFramedNBranch_pre_expanded
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (F : Assertion) (hF : F.pcFree) :
+    (walkInitEmptyFailNotListFailShortLongFramedNBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid F hF).pre =
+      ((walkInitEmptyFailStatusPre listLen raVal (listBase + BitVec.ofNat 64 listOff) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) ** F) := by
+  rw [walkInitEmptyFailNotListFailShortLongFramedNBranch_pre,
+    walkInitEmptyFailNotListFailShortLongNBranch_pre]
+
 /-! ## Pure decode bridge -/
 
 /-- The decoded withdrawal value described by four already-decoded field byte strings.
@@ -1036,6 +1078,68 @@ theorem bytesRegionAny_pcFree (base : Word) (n : Nat) :
 
 instance (base : Word) (n : Nat) : Assertion.PCFree (bytesRegionAny base n) :=
   ⟨bytesRegionAny_pcFree base n⟩
+
+/-- Walk-init classifier with the ABI output buffer framed across every exit. -/
+def walkInitEmptyFailNotListFailShortLongOutputNBranch
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    WP.NBranch base (walkInitEmptyFailNotListFailShortLongCode base) :=
+  walkInitEmptyFailNotListFailShortLongFramedNBranch base listBase listLen raVal
+    t0Old t1Old listBytes listOff hsalign hoff hover hvalid
+    (bytesRegionAny outBase outputSize) (bytesRegionAny_pcFree outBase outputSize)
+
+theorem walkInitEmptyFailNotListFailShortLongOutputNBranch_pre
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal t0Old t1Old
+      outBase listBytes listOff hsalign hoff hover hvalid).pre =
+      ((walkInitEmptyFailStatusPre listLen raVal (listBase + BitVec.ofNat 64 listOff) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) **
+        bytesRegionAny outBase outputSize) := by
+  rw [walkInitEmptyFailNotListFailShortLongOutputNBranch,
+    walkInitEmptyFailNotListFailShortLongFramedNBranch_pre_expanded]
+
+/-- Turn raw walk-init exits into a caller-provided semantic exit list. The map
+    proof is the only remaining manual input: each raw exit must keep its PC and
+    entail the corresponding semantic postcondition. -/
+def walkInitEmptyFailNotListFailShortLongOutputMappedNBranch
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (exits : List (Word × Assertion))
+    (hmap : ∀ ex ∈
+      (walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal t0Old t1Old
+        outBase listBytes listOff hsalign hoff hover hvalid).exits,
+      ∃ ex' ∈ exits, ex'.1 = ex.1 ∧ WP.Entails ex.2 ex'.2) :
+    WP.NBranch base (walkInitEmptyFailNotListFailShortLongCode base) := by
+  let br := walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal
+    t0Old t1Old outBase listBytes listOff hsalign hoff hover hvalid
+  wp_rv64_nbranch_weaken_posts br, exits, hmap
+
+theorem walkInitEmptyFailNotListFailShortLongOutputMappedNBranch_pre
+    (base listBase listLen raVal t0Old t1Old outBase : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (exits : List (Word × Assertion))
+    (hmap : ∀ ex ∈
+      (walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal t0Old t1Old
+        outBase listBytes listOff hsalign hoff hover hvalid).exits,
+      ∃ ex' ∈ exits, ex'.1 = ex.1 ∧ WP.Entails ex.2 ex'.2) :
+    (walkInitEmptyFailNotListFailShortLongOutputMappedNBranch base listBase listLen raVal
+      t0Old t1Old outBase listBytes listOff hsalign hoff hover hvalid exits hmap).pre =
+      (walkInitEmptyFailNotListFailShortLongOutputNBranch base listBase listLen raVal t0Old t1Old
+        outBase listBytes listOff hsalign hoff hover hvalid).pre := by
+  rfl
 
 /-- Result portion of the ABI postcondition.  Success is exactly
     `decodeWithdrawal input = some w`; failure is exactly `decodeWithdrawal input = none`.

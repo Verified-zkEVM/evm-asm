@@ -271,6 +271,28 @@ def weakenPre {entry : Word} {cr : CodeReq} {pre' : Assertion}
   exits := br.exits
   sound := cpsNBranchWithin_weaken_pre hpre br.sound
 
+/-- Frame every exit of an N-way branch with a PC-free assertion. -/
+def frameR {entry : Word} {cr : CodeReq}
+    (br : NBranch entry cr) (F : Assertion) (hF : F.pcFree) : NBranch entry cr where
+  nSteps := br.nSteps
+  pre := br.pre ** F
+  exits := br.exits.map (fun ex => (ex.1, ex.2 ** F))
+  sound := cpsNBranchWithin_frameR hF br.sound
+
+/-- Weaken the postconditions of an N-way branch without changing its step
+    bound or computed precondition. This is the WP-facing form of
+    cpsNBranchWithin_weaken_posts, useful after symbolic control-flow
+    construction has reduced the remaining work to per-exit semantic facts. -/
+def weakenPosts {entry : Word} {cr : CodeReq}
+    (br : NBranch entry cr) (exits' : List (Word × Assertion))
+    (hmap : ∀ ex ∈ br.exits, ∃ ex' ∈ exits',
+      ex'.1 = ex.1 ∧ Entails ex.2 ex'.2) :
+    NBranch entry cr where
+  nSteps := br.nSteps
+  pre := br.pre
+  exits := exits'
+  sound := cpsNBranchWithin_weaken_posts br.sound hmap
+
 /-- Continue the head exit of an N-way branch with a single-exit continuation
     over the same code requirement. -/
 def seqHead {entry l l' : Word} {cr : CodeReq}

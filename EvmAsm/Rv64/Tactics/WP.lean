@@ -148,6 +148,22 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqHeadNBranchDisjoint $hd $br (by rfl) $tail
         (by wp_rv64_link))
 
+/-- Frame every exit of an N-way branch with a PC-free assertion. -/
+syntax (name := wpRv64NBranchFrameRTac)
+  "wp_rv64_nbranch_frame " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_frame $br:term, $F:term, $hF:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchFrameR $br $F $hF)
+
+/-- Weaken the exit postconditions of an N-way branch. -/
+syntax (name := wpRv64NBranchWeakenPostsTac)
+  "wp_rv64_nbranch_weaken_posts " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_posts $br:term, $exits:term, $hmap:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts $br $exits $hmap)
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -270,5 +286,17 @@ example {nTail : Nat} {entry : Word} {cr1 cr2 : CodeReq}
   let nb := EvmAsm.Rv64.WP.CFG.nbranchOfBranch br
   let tail := EvmAsm.Rv64.WP.NBranch.ofSpec tailSound
   wp_rv64_nbranch_head_nbranch_disjoint hd, nb, tail
+
+example {entry : Word} {cr : CodeReq} {F : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr) (hF : F.pcFree) :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  wp_rv64_nbranch_frame br, F, hF
+
+example {entry : Word} {cr : CodeReq} {exits' : List (Word × Assertion)}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hmap : ∀ ex ∈ br.exits, ∃ ex' ∈ exits',
+      ex'.1 = ex.1 ∧ EvmAsm.Rv64.WP.Entails ex.2 ex'.2) :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  wp_rv64_nbranch_weaken_posts br, exits', hmap
 
 end EvmAsm.Rv64.Tactics.WPTests
