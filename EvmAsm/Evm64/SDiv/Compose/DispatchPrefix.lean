@@ -51,7 +51,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCode
     rw [saveRaDivCallDispatchReadyPost_unfold]
     dsimp only at hq ⊢
     rw [divModStackDispatchPreNoX1_unfold_explicit_sdiv]
-    simp [sdivAbsDividendWord, sdivAbsDivisorWord, EvmWord.getLimbN,
+    simp [sdivAbsDividendWord, sdivAbsDivisorWord, rippleNegWord, EvmWord.getLimbN,
       EvmWord.getLimb_fromLimbs] at hq ⊢
     xperm_hyp hq) hPrefix
 
@@ -150,7 +150,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCodeV4
     rw [saveRaDivCallDispatchReadyPost_unfold]
     dsimp only at hq ⊢
     rw [divModStackDispatchPreNoX1_unfold_explicit_sdiv]
-    simp [sdivAbsDividendWord, sdivAbsDivisorWord, EvmWord.getLimbN,
+    simp [sdivAbsDividendWord, sdivAbsDivisorWord, rippleNegWord, EvmWord.getLimbN,
       EvmWord.getLimb_fromLimbs] at hq ⊢
     xperm_hyp hq) hPrefix
 
