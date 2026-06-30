@@ -137,6 +137,46 @@ theorem decodeItems_four_of_decodeAux (bytes : List Byte)
   exact decodeItems_cons_of_decodeAux bytes off0 off1 item0 _ [] (k + 3)
     (hne (h0 0)) (h0 (k + 3)) s1
 
+/-- Prepend one decoded item to a recursive `decodeItems` run, phrased as a
+    direct remainder chain instead of byte-offset drops.  This is the shape
+    produced by validating WP field posts. -/
+theorem decodeItems_cons_of_decodeAux_chain (bs bsNext : List Byte)
+    (item : RLPItem) (items : List RLPItem) (rest' : List Byte) (n : Nat)
+    (hne : bs ≠ [])
+    (hitem : decodeAux (n + 1) bs = some (item, bsNext))
+    (hrest : decodeItems (n + 1) bsNext = some (items, rest')) :
+    decodeItems (n + 2) bs = some (item :: items, rest') := by
+  rw [decodeItems_succ_of_ne_nil (n + 1) bs hne, hitem]
+  simp only [Option.bind_eq_bind, Option.bind_some, hrest]
+
+/-- Four byte-string item decodes compose to a four-item list payload, using
+    only the successor remainders.  This avoids exposing synthetic offsets in
+    generated WP proofs. -/
+theorem decodeItems_four_of_decodeAux_chain
+    (bs0 bs1 bs2 bs3 bs4 : List Byte)
+    (item0 item1 item2 item3 : RLPItem) (k : Nat)
+    (h0 : ∀ m, decodeAux (m + 1) bs0 = some (item0, bs1))
+    (h1 : ∀ m, decodeAux (m + 1) bs1 = some (item1, bs2))
+    (h2 : ∀ m, decodeAux (m + 1) bs2 = some (item2, bs3))
+    (h3 : ∀ m, decodeAux (m + 1) bs3 = some (item3, bs4))
+    (hend : bs4 = []) :
+    decodeItems (k + 5) bs0 = some ([item0, item1, item2, item3], []) := by
+  have hne : ∀ {bs item r}, decodeAux 1 bs = some (item, r) → bs ≠ [] := by
+    intro bs item r h hnil
+    rw [hnil, decodeAux_nil] at h
+    simp at h
+  have base : decodeItems (k + 1) bs4 = some ([], []) := by
+    rw [hend]
+    rfl
+  have s3 := decodeItems_cons_of_decodeAux_chain bs3 bs4 item3 [] [] k
+    (hne (h3 0)) (h3 k) base
+  have s2 := decodeItems_cons_of_decodeAux_chain bs2 bs3 item2 _ [] (k + 1)
+    (hne (h2 0)) (h2 (k + 1)) s3
+  have s1 := decodeItems_cons_of_decodeAux_chain bs1 bs2 item1 _ [] (k + 2)
+    (hne (h1 0)) (h1 (k + 2)) s2
+  exact decodeItems_cons_of_decodeAux_chain bs0 bs1 item0 _ [] (k + 3)
+    (hne (h0 0)) (h0 (k + 3)) s1
+
 /-- One `decodeItems` step over a single-byte item at offset `off`. -/
 theorem decodeItems_cons_singleByte (bytes : List Byte) (off : Nat) (b : Byte)
     (items : List RLPItem) (rest' : List Byte) (n : Nat)
@@ -177,6 +217,106 @@ theorem decodeItems_cons_shortBytes (bytes : List Byte) (off : Nat) (b : Byte)
   rw [hrest]
   rfl
 
+
+/-! ## Bridges from WP field posts -/
+
+/-- A successful single-byte `decode` result can be reused at any positive
+    `decodeAux` fuel.  Validating WP field posts often expose `decode`, while
+    the list-level bridge composes `decodeAux`; this theorem is the lossless
+    adapter between those views. -/
+theorem decodeAux_singleByte_all_fuel_of_decode
+    (pfx : Byte) (rest data rest' : List Byte)
+    (h_class : classifyPrefix pfx = .singleByte)
+    (hdecode : decode (pfx :: rest) = some (.bytes data, rest')) :
+    ∀ m, decodeAux (m + 1) (pfx :: rest) = some (.bytes data, rest') := by
+  rw [decode_cons_eq_decodeAux_fuel] at hdecode
+  have hdecode' :
+      decodeAux ((2 * rest.length + 1) + 1) (pfx :: rest) =
+        some (.bytes data, rest') := by
+    have hfuel : (2 * rest.length + 1) + 1 = 2 * rest.length + 2 := by omega
+    rw [hfuel]
+    exact hdecode
+  have hwitness :=
+    (ByteStringDecodeBridge.decodeAux_cons_singleByte_eq_some_iff
+      (2 * rest.length + 1) pfx rest h_class data rest').mp hdecode'
+  intro m
+  exact (ByteStringDecodeBridge.decodeAux_cons_singleByte_eq_some_iff
+    m pfx rest h_class data rest').mpr hwitness
+
+/-- A successful short-byte-string `decode` result can be reused at any
+    positive `decodeAux` fuel.  This lets generated WP proofs turn the pure
+    field-post fact from a validating branch into the shape consumed by
+    `decodeItems_four_of_decodeAux` and `decodeFully_shortList_four`. -/
+theorem decodeAux_shortBytes_all_fuel_of_decode
+    (pfx : Byte) (rest data rest' : List Byte)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hdecode : decode (pfx :: rest) = some (.bytes data, rest')) :
+    ∀ m, decodeAux (m + 1) (pfx :: rest) = some (.bytes data, rest') := by
+  rw [decode_cons_eq_decodeAux_fuel] at hdecode
+  have hdecode' :
+      decodeAux ((2 * rest.length + 1) + 1) (pfx :: rest) =
+        some (.bytes data, rest') := by
+    have hfuel : (2 * rest.length + 1) + 1 = 2 * rest.length + 2 := by omega
+    rw [hfuel]
+    exact hdecode
+  have hwitness :=
+    (ByteStringDecodeBridge.decodeAux_cons_shortBytes_eq_some_iff
+      (2 * rest.length + 1) pfx rest h_class data rest').mp hdecode'
+  intro m
+  exact (ByteStringDecodeBridge.decodeAux_cons_shortBytes_eq_some_iff
+    m pfx rest h_class data rest').mpr hwitness
+
+/-- Any successful byte-string `decode` result is stable for every positive
+    `decodeAux` fuel. This is the field-post adapter used by WP-generated
+    validating walks; callers do not need to expose the precise byte prefix
+    class at semantic joins. -/
+theorem decodeAux_bytes_all_fuel_of_decode
+    (pfx : Byte) (rest data rest' : List Byte)
+    (hdecode : decode (pfx :: rest) = some (.bytes data, rest')) :
+    ∀ m, decodeAux (m + 1) (pfx :: rest) = some (.bytes data, rest') := by
+  intro m
+  unfold decode at hdecode
+  unfold decodeAux at hdecode ⊢
+  by_cases h80 : pfx.toNat < 0x80
+  · simp [h80] at hdecode ⊢
+    exact hdecode
+  · by_cases hB7 : pfx.toNat ≤ 0xB7
+    · simp [h80, hB7] at hdecode ⊢
+      exact hdecode
+    · by_cases hBF : pfx.toNat ≤ 0xBF
+      · simp [h80, hB7, hBF] at hdecode ⊢
+        exact hdecode
+      · by_cases hF7 : pfx.toNat ≤ 0xF7
+        · simp [h80, hB7, hBF, hF7] at hdecode ⊢
+          cases htake : takeBytes rest (pfx.toNat - 0xC0) with
+          | none => simp [htake] at hdecode
+          | some pair =>
+              rcases pair with ⟨payload, tail⟩
+              simp [htake] at hdecode
+              cases hitems : decodeItems (2 * rest.length + 1) payload with
+              | none => simp [hitems] at hdecode
+              | some decoded =>
+                  rcases decoded with ⟨items, leftover⟩
+                  cases h_empty : List.isEmpty leftover <;> simp [hitems] at hdecode
+        · simp [h80, hB7, hBF, hF7] at hdecode ⊢
+          cases hread : readLength rest (pfx.toNat - 0xF7) with
+          | none => simp [hread] at hdecode
+          | some pair =>
+              rcases pair with ⟨lenVal, rest1⟩
+              by_cases hcanon : lenVal ≤ 55
+              · simp [hread, hcanon] at hdecode
+              · simp [hread, hcanon] at hdecode
+                cases htake : takeBytes rest1 lenVal with
+                | none => simp [htake] at hdecode
+                | some pair2 =>
+                    rcases pair2 with ⟨payload, tail⟩
+                    simp [htake] at hdecode
+                    cases hitems : decodeItems (2 * rest.length + 1) payload with
+                    | none => simp [hitems] at hdecode
+                    | some decoded =>
+                        rcases decoded with ⟨items, leftover⟩
+                        cases h_empty : List.isEmpty leftover <;> simp [hitems] at hdecode
+
 /-! ## Capstone: outer short list of four byte-string items -/
 
 /-- A short-list payload made of four decoded items is a full four-item RLP list. -/
@@ -209,6 +349,34 @@ theorem decodeFully_shortList_four (pfx : Byte) (payload : List Byte)
       have hfour := decodeItems_four_of_decodeAux payload 0 off1 off2 off3 off4
         item0 item1 item2 item3 k h0' h1 h2 h3 hend
       rwa [List.drop_zero] at hfour
+  simp [decodeFully, hdec]
+
+/-- A short-list payload made of four decoded items is a full four-item RLP
+    list, phrased over a remainder chain rather than offset drops. -/
+theorem decodeFully_shortList_four_chain (pfx : Byte) (payload r1 r2 r3 r4 : List Byte)
+    (item0 item1 item2 item3 : RLPItem)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (item0, r1))
+    (h1 : ∀ m, decodeAux (m + 1) r1 = some (item1, r2))
+    (h2 : ∀ m, decodeAux (m + 1) r2 = some (item2, r3))
+    (h3 : ∀ m, decodeAux (m + 1) r3 = some (item3, r4))
+    (hend : r4 = [])
+    (h_min : 2 ≤ payload.length) :
+    decodeFully (pfx :: payload) = some (.list [item0, item1, item2, item3]) := by
+  have hdec : decode (pfx :: payload) = some (.list [item0, item1, item2, item3], []) := by
+    rw [decode_cons_eq_decodeAux_fuel,
+      show 2 * payload.length + 2 = (2 * payload.length + 1) + 1 from by omega]
+    refine (ListDecodeBridge.decodeAux_cons_shortList_eq_some_iff
+      (2 * payload.length + 1) pfx payload h_class
+      [item0, item1, item2, item3] []).mpr ?_
+    refine ⟨payload, ?_, ?_⟩
+    · rw [h_len, takeBytes_length_ge (le_refl payload.length), List.take_length, List.drop_length]
+    · apply ListDecodeBridge.decodeListPayload_eq_some_of_decodeItems_empty
+      obtain ⟨k, hk⟩ : ∃ k, 2 * payload.length + 1 = k + 5 := ⟨2 * payload.length - 4, by omega⟩
+      rw [hk]
+      exact decodeItems_four_of_decodeAux_chain payload r1 r2 r3 r4
+        item0 item1 item2 item3 k h0 h1 h2 h3 hend
   simp [decodeFully, hdec]
 
 end EvmAsm.Rv64.RLP

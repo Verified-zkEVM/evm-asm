@@ -1170,6 +1170,24 @@ theorem successFieldSpecsInput_or_decodeWithdrawal_eq_none
       exact Or.inl
         ((successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some input).2 ⟨w, hdec⟩)
 
+/-- Convert a validating field-post `decode` fact into the fuel-polymorphic
+    `decodeAux` continuation consumed by the short-list WP bridge. -/
+macro "wp_rlp_field_decode_aux " hDecode:term : tactic =>
+  `(tactic| exact decodeAux_bytes_all_fuel_of_decode _ _ _ _ $hDecode)
+
+/-- Exact-arity leftover failure automation for WP-generated validating field
+    walks.  It derives all four `decodeAux` continuations from local field-post
+    `decode` facts, then applies the chain-shaped withdrawal failure bridge. -/
+macro "withdrawal_decode_failure_chain " hClass:term ", " hLen:term ", " hDec0:term ", "
+    hDec1:term ", " hDec2:term ", " hDec3:term ", " hLeftover:term ", " hMin:term : tactic =>
+  `(tactic| exact decodeWithdrawal_none_of_shortList_four_leftover_chain_auto
+    $hClass $hLen
+    (by wp_rlp_field_decode_aux $hDec0)
+    (by wp_rlp_field_decode_aux $hDec1)
+    (by wp_rlp_field_decode_aux $hDec2)
+    (by wp_rlp_field_decode_aux $hDec3)
+    $hLeftover $hMin)
+
 /-- Pure failure automation for the semantic side of withdrawal WP joins. It
     consumes the common facts produced by validating RLP blocks: failed complete
     decode, raw decode failure, raw decode with trailing bytes, non-list complete
@@ -1238,6 +1256,16 @@ macro "wp_withdrawal_decode_auto " input:term : tactic =>
     | wp_withdrawal_decode_cert $input
     | wp_withdrawal_decode_auto)
 
+/-- Chain-shaped exact-arity leftover overload for generated validating field walks.
+    The four field `decodeAux` continuations are built automatically from the
+    WP field-post `decode` facts. -/
+macro "wp_withdrawal_decode_chain_auto " hClass:term ", " hLen:term ", " hDec0:term ", "
+    hDec1:term ", " hDec2:term ", " hDec3:term ", " hLeftover:term ", " hMin:term : tactic =>
+  `(tactic| first
+    | withdrawal_decode_failure_chain $hClass, $hLen, $hDec0, $hDec1, $hDec2, $hDec3,
+        $hLeftover, $hMin
+    | wp_withdrawal_decode_auto)
+
 /-- Exact-arity leftover overload for generated short-list field walks. -/
 macro "wp_withdrawal_decode_auto " hClass:term ", " hLen:term ", " h0:term ", " h1:term ", "
     h2:term ", " h3:term ", " hLeftover:term ", " hMin:term : tactic =>
@@ -1301,6 +1329,25 @@ example
         d3.headD 1 ≠ 0 ∧ d3.length ≤ 8)) :
     decodeWithdrawal input = none := by
   withdrawal_decode_failure
+
+example
+    (p0 : Byte) (r0 d0 r1 : List Byte)
+    (hdec0 : decode (p0 :: r0) = some (.bytes d0, r1)) :
+    ∀ m, decodeAux (m + 1) (p0 :: r0) = some (.bytes d0, r1) := by
+  wp_rlp_field_decode_aux hdec0
+
+example
+    (pfx p0 p1 p2 p3 : Byte) (r0 r1 r2 r3 r4 d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = (p0 :: r0).length)
+    (hdec0 : decode (p0 :: r0) = some (.bytes d0, p1 :: r1))
+    (hdec1 : decode (p1 :: r1) = some (.bytes d1, p2 :: r2))
+    (hdec2 : decode (p2 :: r2) = some (.bytes d2, p3 :: r3))
+    (hdec3 : decode (p3 :: r3) = some (.bytes d3, r4))
+    (h_leftover : r4 ≠ [])
+    (h_min : 2 ≤ (p0 :: r0).length) :
+    decodeWithdrawal (pfx :: p0 :: r0) = none := by
+  wp_withdrawal_decode_chain_auto h_class, h_len, hdec0, hdec1, hdec2, hdec3, h_leftover, h_min
 
 example
     (pfx : Byte) (payload d0 d1 d2 d3 : List Byte)
