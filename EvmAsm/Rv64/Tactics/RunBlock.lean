@@ -1108,6 +1108,85 @@ private def countSingleInstrSpecs? (specs : Array Expr) : MetaM (Option Nat) := 
     count := count + 1
   return some count
 
+private structure SingleInstrHint where
+  proof : Expr
+  addr : Expr
+  instr : Expr
+
+private def singleInstrHint? (spec : Expr) : MetaM (Option SingleInstrHint) := do
+  let specType ← instantiateMVars (← inferType spec)
+  let some (_, _, _, specCr, _, _) ← parseCpsTripleWithin? specType
+    | return none
+  match ← extractCrEntries specCr with
+  | [(addr, instr)] => return some { proof := spec, addr := addr, instr := instr }
+  | _ => return none
+
+private def findHintIdxForInstr (hints : Array (SingleInstrHint × Bool))
+    (addr instr : Expr) : MetaM (Option Nat) := do
+  for i in [:hints.size] do
+    if let some entry := hints[i]? then
+      if entry.2 then
+        let hint := entry.1
+        let isMatch ← withoutModifyingState do
+          withReducible do
+            let addrOk ← isDefEq hint.addr addr
+            if !addrOk then
+              return false
+            isDefEq hint.instr instr
+        if isMatch then
+          return some i
+  return none
+
+private def mkSingleInstrHints (specs : Array Expr) : MetaM (Array (SingleInstrHint × Bool)) := do
+  let mut hints := #[]
+  for spec in specs do
+    let some hint ← singleInstrHint? spec
+      | throwError "runBlockFromPost: partial-hint mode only accepts single-instruction specs.
+          Hint: pass a complete explicit spec list/composite spec, or give only single-instruction hints and let auto mode resolve the rest."
+    hints := hints.push (hint, true)
+  return hints
+
+private def synthesizeSpecsAndPreFromPostWithHints
+    (goalPost goalCr : Expr) (hintSpecs : Array Expr) : MetaM (Array Expr × Expr) := do
+  let instrAtoms ← extractCrEntries goalCr
+  if instrAtoms.isEmpty then
+    throwError "runBlockFromPost: no instructions found in the goal's CodeReq.
+        The CodeReq must contain CodeReq.singleton/union/ofProg entries."
+  let mut hints ← mkSingleInstrHints hintSpecs
+  let mut currentAtoms ← flattenSepConj goalPost
+  let mut specsForward : List Expr := []
+  let mut resolvedCount : Nat := 0
+  let totalCount := instrAtoms.length
+  for (addr, instr) in instrAtoms.reverse do
+    try
+      let spec ←
+        match ← findHintIdxForInstr hints addr instr with
+        | some hintIdx =>
+            let some entry := hints[hintIdx]?
+              | throwError "runBlockFromPost: internal error - selected hint index is out of bounds"
+            let hint := entry.1
+            hints := hints.set! hintIdx (hint, false)
+            trace[runBlock] "post-driven using explicit hint for {instr} at {addr}"
+            Pure.pure hint.proof
+        | none =>
+            resolveSpecForInstrFromPost instr addr currentAtoms
+      currentAtoms ← retreatState currentAtoms spec
+      specsForward := spec :: specsForward
+      resolvedCount := resolvedCount + 1
+    catch e =>
+      let eMsg ← e.toMessageData.format
+      throwError "{eMsg}
+  Progress: resolved {resolvedCount} of {totalCount} bounded instruction spec(s) backwards before failure."
+  for i in [:hints.size] do
+    if let some entry := hints[i]? then
+      if entry.2 then
+        let hint := entry.1
+        throwError "runBlockFromPost: explicit single-instruction hint was not used.
+          Hint CodeReq entry: {hint.addr} ↦ {hint.instr}
+          Hint: make sure the hint's address/instruction appears in the goal CodeReq, or use a complete manual spec list."
+  let pre ← buildSepConjChain currentAtoms
+  return (specsForward.toArray, pre)
+
 private def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Array Expr × Expr) := do
   let instrAtoms ← extractCrEntries goalCr
   if instrAtoms.isEmpty then
@@ -1138,14 +1217,18 @@ private def runBlockFromPostCore (specs : Array Expr) (goalPost goalCr : Expr) :
         try normalizeSpecWithinAddresses spec
         catch _ => Pure.pure spec
       let goalEntries ← extractCrEntries goalCr
-      unless goalEntries.isEmpty do
-        if let some singleInstrCount ← countSingleInstrSpecs? processedSpecs then
-          if singleInstrCount != goalEntries.length then
-            throwError "runBlockFromPost: manual mode received {singleInstrCount} single-instruction spec(s) for {goalEntries.length} instruction(s) in the goal CodeReq.
-              Explicit manual specs are treated as the complete block, not as partial hints.
-              Pass one spec for every instruction in forward execution order, use a composite spec whose CodeReq covers the whole block, or omit all specs to use post-driven auto mode."
-      let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
-      Pure.pure (processedSpecs, synthPre)
+      if goalEntries.isEmpty then
+        let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
+        Pure.pure (processedSpecs, synthPre)
+      else if let some singleInstrCount ← countSingleInstrSpecs? processedSpecs then
+        if singleInstrCount == goalEntries.length then
+          let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
+          Pure.pure (processedSpecs, synthPre)
+        else
+          synthesizeSpecsAndPreFromPostWithHints goalPost goalCr processedSpecs
+      else
+        let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
+        Pure.pure (processedSpecs, synthPre)
   runBlockWithinCore resolvedSpecs synthPre (goalCr := some goalCr)
 
 private def autoResolveAndComposeWithin (goalPre : Expr) (goalCr : Expr) : MetaM Expr :=
@@ -1259,11 +1342,12 @@ elab "runBlock" specs:ident* : tactic => withMainContext do
 
 /-- Verify a straight-line leaf block by working backwards from the requested
     postcondition.  With no arguments, the tactic resolves registered
-    `@[spec_gen_rv64]` instruction specs from the goal's `CodeReq`; with
-    arguments, it treats them as already-instantiated bounded specs in forward
-    execution order.  The goal may leave the precondition and step bound as
-    metavariables, which lets `WP.CFG.leaf` expose the synthesized precondition
-    as `cfg.pre`. -/
+    `@[spec_gen_rv64]` instruction specs from the goal's `CodeReq`. With a full
+    explicit spec list, it uses those specs in forward execution order. With a
+    shorter list of single-instruction specs, it treats them as hints and
+    resolves the remaining instructions automatically. The goal may leave the
+    precondition and step bound as metavariables, which lets `WP.CFG.leaf`
+    expose the synthesized precondition as `cfg.pre`. -/
 elab "runBlockFromPost" specs:ident* : tactic => withMainContext do
   withTraceNode `runBlock.perf (fun _ => return m!"runBlockFromPost") do
     let mvarGoal ← getMainGoal

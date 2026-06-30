@@ -386,8 +386,9 @@ macro_rules
 
 /-- Build a leaf CFG certificate by working backwards from the requested
     postcondition.  With no arguments, `runBlockFromPost` resolves registered
-    `@[spec_gen_rv64]` specs from the goal's `CodeReq`; with arguments, it uses
-    the supplied bounded specs in forward execution order. -/
+    `@[spec_gen_rv64]` specs from the goal's `CodeReq`; with arguments, a full
+    explicit spec list is manual mode and a shorter single-instruction list is
+    used as partial hints for otherwise automatic synthesis. -/
 syntax (name := wpRv64LeafSynthTac) "wp_rv64_leaf_synth" ident* : tactic
 
 macro_rules
@@ -1292,6 +1293,16 @@ def wp_rv64_leaf_synth_addi_manual_cfg (base v : Word) (imm : BitVec 12) :
 
 example (base v : Word) (imm : BitVec 12) :
     (wp_rv64_leaf_synth_addi_manual_cfg base v imm).pre = (.x5 ↦ᵣ v) := rfl
+
+def wp_rv64_leaf_synth_partial_hint_cfg (base v : Word) (imm : BitVec 12) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 8)
+      (CodeReq.ofProg base [(.LI .x5 v), (.ADDI .x5 .x5 imm)])
+      (.x5 ↦ᵣ (v + signExtend12 imm)) := by
+  let hAddi := addi_spec_same_within .x5 v imm (base + 4) (by decide)
+  wp_rv64_leaf_synth hAddi
+
+example (base v : Word) (imm : BitVec 12) :
+    (wp_rv64_leaf_synth_partial_hint_cfg base v imm).pre = regOwn .x5 := rfl
 
 def wp_rv64_leaf_synth_addi_own_cfg (base v : Word) (imm : BitVec 12) :
     EvmAsm.Rv64.WP.CFG.Cert base (base + 4)

@@ -111,18 +111,18 @@ register or memory cells, unresolved old values are generalized to `regOwn` or
 `memOwn` precondition atoms. Most users should call `wp_rv64_leaf_synth` on a
 `WP.CFG.Cert` goal instead.
 
-With explicit specs, manual mode treats the arguments as the complete block in
-forward execution order. Do not pass only the hard instructions as hints. If the
-`CodeReq` is concrete and all supplied specs are single-instruction specs,
-`runBlockFromPost` reports a count mismatch when the manual list is shorter or
-longer than the block.
+With explicit specs, a full single-instruction list is complete manual mode in
+forward execution order. A shorter list of single-instruction specs is treated as
+partial hints: each hint is matched by address and instruction, while the rest of
+the concrete `CodeReq` is resolved automatically. Composite specs still represent
+the complete block. Unmatched hints are reported with their CodeReq entry.
 
 ### Requirements
 
 - Goal must be a `cpsTriple entry exit pre post`
 - **Auto mode**: precondition must contain `instrAt` (`↦ᵢ`) atoms with concrete
   instruction constructors (e.g., `.ADD .x7 .x7 .x6`)
-- **Manual mode**: each argument must be a `cpsTriple` proof, and the argument list covers the complete block unless a composite spec covers multiple instructions
+- **Manual/hint mode**: each argument must be a `cpsTriple` proof; a full single-instruction list covers the complete block, a shorter single-instruction list gives partial hints, and a composite spec covers the complete block
 
 ### Debugging
 
