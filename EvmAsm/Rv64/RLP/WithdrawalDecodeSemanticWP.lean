@@ -2736,6 +2736,71 @@ theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccess
   rw [walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch_exits]
   rfl
 
+/-- Input-indexed reason-erased failure facade over the resolved short-success
+    code with the long-list fall-through continued through the shared failure
+    return. Empty input uses the zero arm and simply extends the code
+    requirement with the unused long-failure block; nonempty input uses the
+    long-failure-resolving classifier. -/
+def walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    WP.NBranch base
+      (((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) specs)).union
+        (failStatusReturnCode ((base + 24) + 28))) := by
+  cases input with
+  | nil =>
+      let br := walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch
+        base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old
+        t1Old [] specs hsalign hover hwin hLen hprologueCode hcode
+      exact EvmAsm.Rv64.WP.NBranch.extendCode br (by
+        intro a i h
+        exact CodeReq.union_mono_left a i h)
+  | cons b rest =>
+      have hoff : 0 < (b :: rest).length := by simp
+      exact walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
+        base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old
+        t1Old (b :: rest) specs hsalign hoff (by omega) (hwin 0 hoff) hLen (by omega)
+        hprologueCode hcode
+
+/-- The input-indexed long-failure facade has the same success-shaped static
+    caller precondition as the success certificate. -/
+theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
+      base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old
+      input specs hsalign hover hwin hLen hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  cases input with
+  | nil =>
+      unfold walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
+      simp only [WP.NBranch.extendCode]
+      rw [walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch_pre]
+  | cons b rest =>
+      exact walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch_pre
+        base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old
+        t1Old (b :: rest) specs hsalign (by simp) (by omega) (hwin 0 (by simp)) hLen
+        (by omega) hprologueCode hcode
+
+attribute [rv64_wp]
+  walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch_pre
+
 /-- Prologue followed by the reduced short-list success WP slice.  The prologue
     carries the walk-init/schema resources to its exit; the tail consumes those
     resources and returns the ABI success post while preserving the saved frame. -/

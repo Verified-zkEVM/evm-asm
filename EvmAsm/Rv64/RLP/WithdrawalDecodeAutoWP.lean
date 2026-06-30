@@ -1127,6 +1127,7 @@ noncomputable example
 -- size bound, without reconstructing the precise success witnesses.
 attribute [rv64_wp_cert]
   walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch
+  walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
 
 noncomputable example
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
@@ -1141,6 +1142,22 @@ noncomputable example
     (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
     WP.NBranch base ((prologueCode base).union
       (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
+  wp_rv64_cert
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_schema_size : schemaSize specs <= 1392)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base (((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24) specs)).union
+      (failStatusReturnCode ((base + 24) + 28))) := by
   wp_rv64_cert
 
 theorem successFieldSpecsInput_or_decodeWithdrawal_eq_none
@@ -1363,6 +1380,22 @@ noncomputable example
     (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
     WP.NBranch base ((prologueCode base).union
       (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
+  wp_withdrawal_decode_auto input
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_schema_size : schemaSize specs <= 1392)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base (((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24) specs)).union
+      (failStatusReturnCode ((base + 24) + 28))) := by
   wp_withdrawal_decode_auto input
 
 
