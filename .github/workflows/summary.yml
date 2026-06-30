@@ -2,7 +2,7 @@ name: 'PR Summary'
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -16,6 +16,7 @@ permissions:
 jobs:
   summarize:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       # Pre-steps: own checkout so we can compute the deterministic
       # PROGRESS.md base↔head delta before the summary action runs its
@@ -92,10 +93,9 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           api_key: ${{ secrets.OPENROUTER_KEY }}
-          # Any OpenRouter slug. google/gemma-4-26b-a4b-it is ~8x cheaper if you prefer.
-          model: google/gemini-3-flash-preview
+          # model: inherits the action default (deepseek/deepseek-v4-flash).
+          #        Set `model: <openrouter-slug>` here to override for this repo only.
           github_repository: ${{ github.repository }}
           pr_number: ${{ github.event.pull_request.number }}
           additional_instructions_path: '/tmp/augmented-instructions.md'
           validate_title: 'true'
-          # upstream_path: 'ToMathlib/'
