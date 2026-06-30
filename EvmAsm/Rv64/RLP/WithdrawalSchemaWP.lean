@@ -10,6 +10,7 @@
 import EvmAsm.Rv64.RLP.WithdrawalDecode
 import EvmAsm.Rv64.RLP.SchemaWP
 import EvmAsm.Rv64.RLP.SchemaFoldConcat
+import EvmAsm.Rv64.RLP.SchemaListEncode
 
 namespace EvmAsm.Rv64.RLP
 
@@ -104,6 +105,89 @@ theorem successFieldSpecs_decodes_of_concat
   SchemaWP.schemaDecodes_of_valid_canonical bs (successFieldSpecs d0 d1 d2 d3) O outputSize
     (successFieldSpecs_schemaValid_of_concat bs tail d0 d1 d2 d3 O hl0 hl1 haddr hl3 hconcat)
     (successFieldSpecs_schemaCanonical d0 d1 d2 d3 hc0 hc1 hc3)
+
+private theorem encode_bytes_length_le_9_of_length_le_8 (d : List Byte) (h : d.length ≤ 8) :
+    (encode (.bytes d)).length ≤ 9 := by
+  unfold encode encodeBytes
+  cases d with
+  | nil => simp
+  | cons b tail =>
+      cases tail with
+      | nil =>
+          by_cases hb : b.toNat < 0x80 <;> simp [hb]
+      | cons c tail =>
+          have htail : tail.length ≤ 6 := by simpa using h
+          have hshort : tail.length + 1 + 1 ≤ 55 := by omega
+          simp [hshort]
+          omega
+
+private theorem encode_bytes_length_le_21_of_length_eq_20 (d : List Byte) (h : d.length = 20) :
+    (encode (.bytes d)).length ≤ 21 := by
+  cases d with
+  | nil => simp at h
+  | cons b tail =>
+      cases tail with
+      | nil => simp at h
+      | cons c tail =>
+          simp at h
+          unfold encode encodeBytes
+          have htail : tail.length ≤ 53 := by omega
+          simp [htail]
+          omega
+
+private theorem schemaEncBytes_successFieldSpecs_length_le_48
+    (d0 d1 d2 d3 : List Byte)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8) :
+    (schemaEncBytes (successFieldSpecs d0 d1 d2 d3)).length ≤ 48 := by
+  have h0 := encode_bytes_length_le_9_of_length_le_8 d0 hl0
+  have h1 := encode_bytes_length_le_9_of_length_le_8 d1 hl1
+  have h2 := encode_bytes_length_le_21_of_length_eq_20 d2 haddr
+  have h3 := encode_bytes_length_le_9_of_length_le_8 d3 hl3
+  simp [schemaEncBytes, successFieldSpecs]
+  omega
+
+private theorem encode_successFieldSpecs_length_lt_256_pow_8
+    (d0 d1 d2 d3 : List Byte)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8) :
+    (encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))).length < 256 ^ 8 := by
+  have hpayload := schemaEncBytes_successFieldSpecs_length_le_48 d0 d1 d2 d3 hl0 hl1 haddr hl3
+  have hshort : (schemaEncBytes (successFieldSpecs d0 d1 d2 d3)).length ≤ 55 := by omega
+  rw [encode_list_schemaItems_short (successFieldSpecs d0 d1 d2 d3) hshort]
+  simp
+  omega
+
+/-- The success witness list characterizes the pure withdrawal decoder.  This is
+    the semantic bridge used by the ABI postcondition; the static schema still
+    contains no decoded result. -/
+theorem decodeWithdrawal_encode_successFieldSpecs
+    (d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal (encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) =
+      some (fromFieldBytes d0 d1 d2 d3) := by
+  have hfull : decodeFully (encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) =
+      some (.list [.bytes d0, .bytes d1, .bytes d2, .bytes d3]) := by
+    have hsize := encode_successFieldSpecs_length_lt_256_pow_8 d0 d1 d2 d3 hl0 hl1 haddr hl3
+    simpa [schemaItems, successFieldSpecs] using
+      (decodeFully_encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))) hsize)
+  exact decodeWithdrawal_eq_some_of_decodeFully_fields hfull hc0 hl0 hc1 hl1 haddr hc3 hl3
+
+/-- Same bridge as `decodeWithdrawal_encode_successFieldSpecs`, but for callers
+    that carry the encoded-list equality as a hypothesis. -/
+theorem decodeWithdrawal_eq_some_of_successFieldSpecs_input
+    (input d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    decodeWithdrawal input = some (fromFieldBytes d0 d1 d2 d3) := by
+  rw [hinput]
+  exact decodeWithdrawal_encode_successFieldSpecs d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3
 
 /-- WP certificate for the successful withdrawal field walk, built from the four
     field byte witnesses plus one payload concatenation fact.  This is the
