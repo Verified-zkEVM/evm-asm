@@ -319,6 +319,14 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_frame $br:term, $F:term, $hF:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchFrameR $br $F $hF)
 
+/-- Extend an N-way branch to a larger persistent code requirement. -/
+syntax (name := wpRv64NBranchExtendCodeTac)
+  "wp_rv64_nbranch_extend_code " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_extend_code $br:term, $hmono:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.NBranch.extendCode $br $hmono)
+
 /-- Weaken the exit postconditions of an N-way branch. -/
 syntax (name := wpRv64NBranchWeakenPostsTac)
   "wp_rv64_nbranch_weaken_posts " term ", " term ", " term : tactic

@@ -336,6 +336,16 @@ def weakenPre {entry : Word} {cr : CodeReq} {pre' : Assertion}
   exits := br.exits
   sound := cpsNBranchWithin_weaken_pre hpre br.sound
 
+/-- Extend an N-way branch to a larger persistent code requirement. -/
+def extendCode {entry : Word} {cr cr' : CodeReq}
+    (br : NBranch entry cr)
+    (hmono : ∀ a i, cr a = some i → cr' a = some i) :
+    NBranch entry cr' where
+  nSteps := br.nSteps
+  pre := br.pre
+  exits := br.exits
+  sound := cpsNBranchWithin_extend_code hmono br.sound
+
 /-- Frame every exit of an N-way branch with a PC-free assertion. -/
 def frameR {entry : Word} {cr : CodeReq}
     (br : NBranch entry cr) (F : Assertion) (hF : F.pcFree) : NBranch entry cr where

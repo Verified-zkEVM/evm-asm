@@ -988,6 +988,51 @@ theorem walkInitEmptyInputFailureFromPrologueNBranch_pre
         walkInitEmptyInputPrologueCarryFrame inputBase outBase) := by
   rfl
 
+/-- Empty-input path stated over the full walk-init classifier code. This lets
+    later zero/nonzero wrappers use one code requirement for both empty and
+    nonempty inputs. -/
+def walkInitEmptyInputFailureFromPrologueFullCodeNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitEmptyFailNotListFailShortLongCode (base + 24))) := by
+  let br := walkInitEmptyInputFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
+    outBase m0 m1 m2 m3 inputBase hprologueCode (by omega)
+  wp_rv64_nbranch_extend_code br, (by
+    intro a i h
+    cases hprologue : prologueCode base a with
+    | none =>
+        simp only [CodeReq.union, hprologue] at h ⊢
+        unfold walkInitEmptyFailNotListFailShortLongCode walkInitEmptyFailOrPrefixCode
+        exact CodeReq.union_mono_left a i (CodeReq.union_mono_left a i h)
+    | some instr =>
+        simp only [CodeReq.union, hprologue] at h ⊢
+        exact h)
+
+/-- Expanded precondition for the empty-input path over the full classifier code. -/
+theorem walkInitEmptyInputFailureFromPrologueFullCodeNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    (walkInitEmptyInputFailureFromPrologueFullCodeNBranch base sp0 raVal s0Old s1Old s2Old
+      outBase m0 m1 m2 m3 inputBase hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitEmptyInputPrologueCarryFrame inputBase outBase) := by
+  rfl
+
+/-- Extending code preserves the empty-input branch exits definitionally. -/
+theorem walkInitEmptyInputFailureFromPrologueFullCodeNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    (walkInitEmptyInputFailureFromPrologueFullCodeNBranch base sp0 raVal s0Old s1Old s2Old
+      outBase m0 m1 m2 m3 inputBase hprologueCode hcode).exits =
+      (walkInitEmptyInputFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
+        outBase m0 m1 m2 m3 inputBase hprologueCode (by omega)).exits := by
+  rfl
+
 /-- Prologue followed by the ABI-failure classifier. Empty and not-list exits
     expose reason-erased ABI failure posts; short-list and long-list candidates
     remain open for later resolution. -/
