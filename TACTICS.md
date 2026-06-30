@@ -18,7 +18,8 @@ User guide for the frame automation tactics in `EvmAsm/Tactics/`.
 The WP/CFG tactics are documented in
 [`docs/agents/wp-framework.md`](docs/agents/wp-framework.md). Start there when
 a proof should derive the precondition from a program, postcondition, and known
-control-flow shape.
+control-flow shape. Common exact-midpoint helpers include `wp_rv64_leaf`,
+`wp_rv64_seq_exact`, and `wp_rv64_seq_block_exact`.
 
 **For closing arithmetic / address equality goals**, see the grindsets
 documented in [`GRIND.md`](GRIND.md):
