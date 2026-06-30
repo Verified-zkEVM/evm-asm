@@ -952,6 +952,7 @@ macro "withdrawal_decode_failure" : tactic =>
     | exact decodeWithdrawal_none_of_decodeFully_bytes (by assumption)
     | exact decodeWithdrawal_none_of_decodeFully_list_length_ne_four (by assumption) (by assumption)
     | exact decodeWithdrawal_none_of_decodeFully_fields_not_canonical (by assumption) (by assumption)
+    | exact decodeWithdrawal_none_of_walkInitPrefixWord_not_lt_f8 _ (by assumption) (by assumption)
     | exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).2 (by assumption))
 
 /-- Exact-arity leftover failure automation for validated short-list paths.
@@ -1031,6 +1032,12 @@ example
 
 example
     (input : List Byte) (hfull : decodeFully input = none) :
+    decodeWithdrawal input = none := by
+  wp_withdrawal_decode_auto
+
+example
+    (input : List Byte) (hoff : 0 < input.length)
+    (hnot : ¬ BitVec.ult (walkInitPrefixWord input 0 hoff) (0xf8 : Word)) :
     decodeWithdrawal input = none := by
   wp_withdrawal_decode_auto
 
@@ -1142,6 +1149,23 @@ noncomputable example
     WP.NBranch base ((prologueCode base).union
       (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
   wp_withdrawal_decode_auto input
+
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_bound : input.length < 2 ^ 64)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    WP.NBranch base (((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24) specs)).union
+      (failStatusReturnCode ((base + 24) + 28))) := by
+  wp_withdrawal_decode_auto
 
 end WithdrawalDecode
 

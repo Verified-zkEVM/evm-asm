@@ -525,6 +525,110 @@ theorem walkInitPrefixWord_not_lt_c0_of_successFieldSpecs_input
   simp [walkInitPrefixWord, encode_list_schemaItems_short, hshort, BitVec.ult]
   omega
 
+/-- A long-list prefix at walk-init cannot be a canonical withdrawal success
+    encoding: successful withdrawal encodings are short-list encodings. -/
+theorem decodeWithdrawal_none_of_walkInitPrefixWord_not_lt_f8
+    (input : List Byte) (hoff : 0 < input.length)
+    (hnot : ¬ BitVec.ult (walkInitPrefixWord input 0 hoff) (0xf8 : Word)) :
+    decodeWithdrawal input = none := by
+  exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput input).2 (by
+    intro h_success
+    rcases h_success with
+      ⟨d0, d1, d2, d3, hinput, _hc0, hl0, _hc1, hl1, haddr, _hc3, hl3⟩
+    exact hnot
+      (walkInitPrefixWord_lt_f8_of_successFieldSpecs_input input d0 d1 d2 d3 hoff
+        hl0 hl1 haddr hl3 hinput))
+
+/-- Non-ABI resources left over when a long-list walk-init candidate is continued
+    through the reason-erased failure return block. -/
+def walkInitLongListFailFrame
+    (inputBase listLen : Word) (input : List Byte) (hoff : 0 < input.length) : Assertion :=
+  ((.x11 ↦ᵣ ((inputBase + BitVec.ofNat 64 0) + listLen)) **
+    (.x5 ↦ᵣ walkInitPrefixWord input 0 hoff) ** (.x6 ↦ᵣ (0xf8 : Word)) **
+    ⌜listLen ≠ (0 : Word)⌝ **
+    ⌜¬ BitVec.ult (walkInitPrefixWord input 0 hoff) (0xc0 : Word)⌝ **
+    ⌜¬ BitVec.ult (walkInitPrefixWord input 0 hoff) (0xf8 : Word)⌝)
+
+theorem walkInitLongListFailFrame_pcFree
+    (inputBase listLen : Word) (input : List Byte) (hoff : 0 < input.length) :
+    (walkInitLongListFailFrame inputBase listLen input hoff).pcFree := by
+  unfold walkInitLongListFailFrame
+  pcFree
+
+/-- Long-list classifier candidates imply pure decoder failure and therefore can
+    hand off to the generic ABI failure-return block. -/
+theorem walkInitLongListOutputPost_entails_failStatusReturnAbiPre
+    (inputBase listLen raVal outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) :
+    WP.Entails
+      (walkInitLongListOutputPost inputBase listLen raVal outBase input 0 hoff)
+      (failStatusReturnAbiPre inputBase outBase raVal (inputBase + BitVec.ofNat 64 0) input **
+        walkInitLongListFailFrame inputBase listLen input hoff) := by
+  intro h hp
+  have hpCase := hp
+  unfold walkInitLongListOutputPost walkInitLongListCandidatePost at hpCase
+  rcases hpCase with ⟨hLong, _hOut, _hdOut, _hunionOut, hLong_prop, _hOut_prop⟩
+  rcases hLong_prop with ⟨_hPrefix, _hPure, _hdPure, _hunionPure,
+    _hPrefix_prop, hPure_prop⟩
+  have hdec : decodeWithdrawal input = none :=
+    decodeWithdrawal_none_of_walkInitPrefixWord_not_lt_f8 input hoff hPure_prop.2
+  unfold walkInitLongListOutputPost walkInitLongListCandidatePost walkInitPrefixF8Post at hp
+  unfold failStatusReturnAbiPre failStatusReturnPre statusReturnPre failStatusReturnAbiFrame
+    walkInitLongListFailFrame
+  rw [show (⌜decodeWithdrawal input = none⌝ : Assertion) = empAssertion by
+    funext h
+    unfold EvmAsm.Rv64.pure EvmAsm.Rv64.empAssertion
+    apply propext
+    constructor
+    · intro h_p
+      exact h_p.1
+    · intro h_empty
+      exact ⟨h_empty, hdec⟩]
+  simp only [sepConj_emp_right']
+  xperm_hyp hp
+
+/-- Framed version used by generated CFG joins. -/
+theorem walkInitLongListOutputPost_frame_entails_failStatusReturnAbiPre
+    (inputBase listLen raVal outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) (F : Assertion) :
+    WP.Entails
+      (walkInitLongListOutputPost inputBase listLen raVal outBase input 0 hoff ** F)
+      ((failStatusReturnAbiPre inputBase outBase raVal (inputBase + BitVec.ofNat 64 0) input **
+        walkInitLongListFailFrame inputBase listLen input hoff) ** F) := by
+  intro h hp
+  exact sepConj_mono_left
+    (walkInitLongListOutputPost_entails_failStatusReturnAbiPre inputBase listLen raVal
+      outBase input hoff) h hp
+
+attribute [rv64_wp_entails]
+  walkInitLongListOutputPost_entails_failStatusReturnAbiPre
+  walkInitLongListOutputPost_frame_entails_failStatusReturnAbiPre
+
+/-- Failure-return certificate for the long-list candidate exit, preserving the
+    non-ABI candidate facts as a frame. -/
+def walkInitLongListFailReturnCert
+    (base inputBase listLen raVal outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) :
+    WP.CFG.Cert base (failStatusReturnExit raVal) (failStatusReturnCode base)
+      (abiPost inputBase outBase raVal input **
+        walkInitLongListFailFrame inputBase listLen input hoff) :=
+  WP.CFG.frameR
+    (failStatusReturnAbiCert base inputBase outBase raVal
+      (inputBase + BitVec.ofNat 64 0) input)
+    (walkInitLongListFailFrame inputBase listLen input hoff)
+    (walkInitLongListFailFrame_pcFree inputBase listLen input hoff)
+
+theorem walkInitLongListFailReturnCert_pre
+    (base inputBase listLen raVal outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) :
+    (walkInitLongListFailReturnCert base inputBase listLen raVal outBase input hoff).pre =
+      (failStatusReturnAbiPre inputBase outBase raVal (inputBase + BitVec.ofNat 64 0) input **
+        walkInitLongListFailFrame inputBase listLen input hoff) := by
+  rfl
+
+attribute [rv64_wp] walkInitLongListFailReturnCert_pre
+attribute [rv64_wp_cert] walkInitLongListFailReturnCert
+
 /-- The empty-input semantic failure exit is unreachable for a nonempty short-list
     success witness whose length was loaded into `listLen`. -/
 theorem walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input
@@ -969,6 +1073,155 @@ def walkInitShortSuccessResolvedCode (base : Word) (specs : List FieldSpec) : Co
 
 attribute [rv64_wp] walkInitShortSuccessResolvedCode
 
+/-- The walk-init classifier has no instruction at the long-list fall-through
+    where the reason-erased failure return block is placed. -/
+theorem walkInitEmptyFailNotListFailShortLongCode_none_at_longFailReturn0
+    (base : Word) :
+    walkInitEmptyFailNotListFailShortLongCode base (base + 28) = none := by
+  unfold walkInitEmptyFailNotListFailShortLongCode walkInitEmptyFailOrPrefixCode
+    walkInitEmptyFailStatusCode failStatusReturnCode statusReturnCode
+    walkInitNonzeroPrefixTailCode walkInitPrefixShortLongTailCode
+    walkInitPrefixListCheckNotListFailF8Code walkInitPrefixListCheckOrNotListFailCode
+    walkInitPrefixListCheckCode walkInitPrefixNotListFailStatusCode walkInitListF8Code
+    walkInitShortLongCheckCode
+  have h0 : CodeReq.singleton base (.BEQ .x11 .x0 (156 : BitVec 13)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h156 : CodeReq.singleton (base + 156) (.LI .x10 (1 : Word)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h160 : CodeReq.singleton (base + 156 + 4) (.JALR .x0 .x1 (0 : BitVec 12)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h4 : CodeReq.singleton (base + 4) (.ADD .x11 .x10 .x11) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h8 : CodeReq.singleton (base + 8) (.LBU .x5 .x10 0) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h12 : CodeReq.singleton (base + 12) (.LI .x6 (0xc0 : Word)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h16 : CodeReq.singleton (base + 16) (.BLTU .x5 .x6 (148 : BitVec 13)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h164 : CodeReq.singleton (base + 164) (.LI .x10 (1 : Word)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h168 : CodeReq.singleton (base + 164 + 4) (.JALR .x0 .x1 (0 : BitVec 12)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have hFail164 : failStatusReturnCode (base + 164) (base + 28) = none := by
+    unfold failStatusReturnCode statusReturnCode
+    simp only [CodeReq.union, h164, h168]
+  have h20 : CodeReq.singleton (base + 20) (.LI .x6 (0xf8 : Word)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h24 : CodeReq.singleton (base + 24) (.BLTU .x5 .x6 (100 : BitVec 13)) (base + 28) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  simp only [CodeReq.union, h0, h156, h160, h4, h8, h12, h16, hFail164, h20, h24]
+
+theorem walkInitEmptyFailNotListFailShortLongCode_none_at_longFailReturn1
+    (base : Word) :
+    walkInitEmptyFailNotListFailShortLongCode base (base + 32) = none := by
+  unfold walkInitEmptyFailNotListFailShortLongCode walkInitEmptyFailOrPrefixCode
+    walkInitEmptyFailStatusCode failStatusReturnCode statusReturnCode
+    walkInitNonzeroPrefixTailCode walkInitPrefixShortLongTailCode
+    walkInitPrefixListCheckNotListFailF8Code walkInitPrefixListCheckOrNotListFailCode
+    walkInitPrefixListCheckCode walkInitPrefixNotListFailStatusCode walkInitListF8Code
+    walkInitShortLongCheckCode
+  have h0 : CodeReq.singleton base (.BEQ .x11 .x0 (156 : BitVec 13)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h156 : CodeReq.singleton (base + 156) (.LI .x10 (1 : Word)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h160 : CodeReq.singleton (base + 156 + 4) (.JALR .x0 .x1 (0 : BitVec 12)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h4 : CodeReq.singleton (base + 4) (.ADD .x11 .x10 .x11) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h8 : CodeReq.singleton (base + 8) (.LBU .x5 .x10 0) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h12 : CodeReq.singleton (base + 12) (.LI .x6 (0xc0 : Word)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h16 : CodeReq.singleton (base + 16) (.BLTU .x5 .x6 (148 : BitVec 13)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h164 : CodeReq.singleton (base + 164) (.LI .x10 (1 : Word)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h168 : CodeReq.singleton (base + 164 + 4) (.JALR .x0 .x1 (0 : BitVec 12)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have hFail164 : failStatusReturnCode (base + 164) (base + 32) = none := by
+    unfold failStatusReturnCode statusReturnCode
+    simp only [CodeReq.union, h164, h168]
+  have h20 : CodeReq.singleton (base + 20) (.LI .x6 (0xf8 : Word)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h24 : CodeReq.singleton (base + 24) (.BLTU .x5 .x6 (100 : BitVec 13)) (base + 32) = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  simp only [CodeReq.union, h0, h156, h160, h4, h8, h12, h16, hFail164, h20, h24]
+
+/-- The resolved short-success code also leaves the long-list failure return
+    landing pad free. -/
+theorem walkInitShortSuccessResolvedCode_none_at_longFailReturn0
+    (base : Word) (specs : List FieldSpec)
+    (hcode : base.toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    walkInitShortSuccessResolvedCode base specs (base + 28) = none := by
+  have hbase172 : (base + 172).toNat = base.toNat + 172 := by
+    bv_omega
+  have h0 := walkInitEmptyFailNotListFailShortLongCode_none_at_longFailReturn0 base
+  have h1 : walkInitShortSuccessJumpCode base (base + 28) = none := by
+    unfold walkInitShortSuccessJumpCode
+    exact CodeReq.singleton_miss (by bv_omega)
+  have h2 :
+      ((schemaCursorInitCode (base + 172)).union
+        ((schemaCR (base + 172 + 4) .x8 specs).union
+          (successStatusReturnCode
+            ((base + 172 + 4) + BitVec.ofNat 64 (schemaSize specs)))))
+        (base + 28) = none :=
+    schemaCursorInitSuccessReturnTail_none_below (base + 172) .x8 specs (base + 28)
+      (by rw [hbase172]; omega) (by rw [hbase172]; bv_omega)
+  unfold walkInitShortSuccessResolvedCode
+  simp only [CodeReq.union, h0, h1]
+  exact h2
+
+theorem walkInitShortSuccessResolvedCode_none_at_longFailReturn1
+    (base : Word) (specs : List FieldSpec)
+    (hcode : base.toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    walkInitShortSuccessResolvedCode base specs (base + 32) = none := by
+  have hbase172 : (base + 172).toNat = base.toNat + 172 := by
+    bv_omega
+  have h0 := walkInitEmptyFailNotListFailShortLongCode_none_at_longFailReturn1 base
+  have h1 : walkInitShortSuccessJumpCode base (base + 32) = none := by
+    unfold walkInitShortSuccessJumpCode
+    exact CodeReq.singleton_miss (by bv_omega)
+  have h2 :
+      ((schemaCursorInitCode (base + 172)).union
+        ((schemaCR (base + 172 + 4) .x8 specs).union
+          (successStatusReturnCode
+            ((base + 172 + 4) + BitVec.ofNat 64 (schemaSize specs)))))
+        (base + 32) = none :=
+    schemaCursorInitSuccessReturnTail_none_below (base + 172) .x8 specs (base + 32)
+      (by rw [hbase172]; omega) (by rw [hbase172]; bv_omega)
+  unfold walkInitShortSuccessResolvedCode
+  simp only [CodeReq.union, h0, h1]
+  exact h2
+
+theorem walkInitShortSuccessResolvedCode_disjoint_longFailReturn
+    (base : Word) (specs : List FieldSpec)
+    (hcode : base.toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitShortSuccessResolvedCode base specs).Disjoint
+      (failStatusReturnCode (base + 28)) := by
+  intro a
+  by_cases h28 : a = base + 28
+  · left
+    subst a
+    exact walkInitShortSuccessResolvedCode_none_at_longFailReturn0 base specs hcode
+  · by_cases h32 : a = base + 32
+    · left
+      subst a
+      exact walkInitShortSuccessResolvedCode_none_at_longFailReturn1 base specs hcode
+    · right
+      unfold failStatusReturnCode statusReturnCode
+      have h0 : CodeReq.singleton (base + 28) (.LI .x10 (1 : Word)) a = none :=
+        CodeReq.singleton_miss h28
+      have h1 : CodeReq.singleton (base + 28 + 4) (.JALR .x0 .x1 (0 : BitVec 12)) a = none :=
+        CodeReq.singleton_miss (by
+          intro h_eq
+          apply h32
+          rw [h_eq]
+          bv_omega)
+      simp only [CodeReq.union, h0, h1]
+
+attribute [rv64_wp_disjoint]
+  walkInitShortSuccessResolvedCode_disjoint_longFailReturn
+
 /-- The base walk-init classifier code is a prefix of the resolved short-success
     code. This lets failure-only classifier facades be reused over the larger
     success-capable code requirement. -/
@@ -1081,6 +1334,32 @@ theorem prologueCode_disjoint_walkInitShortSuccessResolvedCode
 
 attribute [rv64_wp_disjoint]
   prologueCode_disjoint_walkInitShortSuccessResolvedCode
+
+/-- Prologue plus resolved short-success code is disjoint from the long-list
+    failure return block. -/
+theorem prologueShortSuccessResolvedCode_disjoint_longFailReturn
+    (base : Word) (specs : List FieldSpec)
+    (hprologue : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    ((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24) specs)).Disjoint
+      (failStatusReturnCode ((base + 24) + 28)) := by
+  refine CodeReq.Disjoint.union_left ?h_prologue ?h_tail
+  · have hbase24 : (base + 24).toNat = base.toNat + 24 := by
+      bv_omega
+    have hfail : (((base + 24) + 28).toNat = (base + 24).toNat + 28) := by
+      bv_omega
+    refine codeReq_disjoint_of_ranges _ _ (base.toNat + 24) ?_ ?_
+    · intro a ha
+      exact prologueCode_none_above base a hprologue ha
+    · intro a ha
+      unfold failStatusReturnCode
+      exact statusReturnCode_none_below ((base + 24) + 28) (1 : Word) a
+        (by rw [hfail]; omega) (by rw [hfail, hbase24]; omega)
+  · exact walkInitShortSuccessResolvedCode_disjoint_longFailReturn (base + 24) specs hcode
+
+attribute [rv64_wp_disjoint]
+  prologueShortSuccessResolvedCode_disjoint_longFailReturn
 
 /-- Range split between the decoder prologue and the standalone walk-init
     classifier. -/
@@ -1808,6 +2087,98 @@ theorem walkInitAbiFailureReasonErasedFromPrologueNBranch_exits
       walkInitAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old s2Old
         outBase inputBase listLen t0Old t1Old input hoff := by
   rfl
+
+
+/-- Nonempty reason-erased failure classifier over resolved short-success code,
+    with the long-list fall-through continued through the shared failure return
+    block. The short-list candidate remains open for schema validation. -/
+def walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    WP.NBranch base
+      (((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) specs)).union
+        (failStatusReturnCode ((base + 24) + 28))) := by
+  let br0 := walkInitAbiFailureReasonErasedFromPrologueNBranch base sp0 raVal s0Old s1Old
+    s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0
+    hvalid0 hLen hBound hprologueCode (by omega)
+  let br := EvmAsm.Rv64.WP.NBranch.extendCode br0
+    (prologueWalkInitClassifierCode_mono_resolvedCode base specs)
+  let savedFrame := walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase
+  let tail0 := walkInitLongListFailReturnCert ((base + 24) + 28) inputBase listLen raVal
+    outBase input hoff
+  let tail := WP.CFG.frameR tail0 savedFrame
+    (walkInitAbiFailurePrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old outBase)
+  have hexits : br.exits =
+      [(failStatusReturnExit raVal,
+          walkInitAbiFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
+            inputBase listLen t0Old t1Old input hoff),
+        ((base + 24) + 124,
+          walkInitShortListOutputPost inputBase listLen raVal outBase input 0 hoff **
+            savedFrame),
+        ((base + 24) + 28,
+          walkInitLongListOutputPost inputBase listLen raVal outBase input 0 hoff **
+            savedFrame)] := by
+    change br0.exits =
+      [(failStatusReturnExit raVal,
+          walkInitAbiFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
+            inputBase listLen t0Old t1Old input hoff),
+        ((base + 24) + 124,
+          walkInitShortListOutputPost inputBase listLen raVal outBase input 0 hoff **
+            savedFrame),
+        ((base + 24) + 28,
+          walkInitLongListOutputPost inputBase listLen raVal outBase input 0 hoff **
+            savedFrame)]
+    dsimp [br0, savedFrame]
+    rw [walkInitAbiFailureReasonErasedFromPrologueNBranch_exits]
+    rfl
+  exact WP.CFG.nbranchSeqExitCertDisjoint
+    (preExits :=
+      [(failStatusReturnExit raVal,
+          walkInitAbiFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
+            inputBase listLen t0Old t1Old input hoff),
+        ((base + 24) + 124,
+          walkInitShortListOutputPost inputBase listLen raVal outBase input 0 hoff **
+            savedFrame)])
+    (prologueShortSuccessResolvedCode_disjoint_longFailReturn base specs hprologueCode hcode)
+    br hexits tail
+    (by
+      dsimp [tail, tail0, savedFrame, WP.CFG.frameR, WP.Triple.frameR]
+      exact walkInitLongListOutputPost_frame_entails_failStatusReturnAbiPre inputBase listLen
+        raVal outBase input hoff savedFrame)
+
+theorem walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureNBranch base sp0 raVal
+      s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs
+      hsalign hoff hover0 hvalid0 hLen hBound hprologueCode hcode).pre =
+      (walkInitAbiFailureReasonErasedFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
+        outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0
+        hLen hBound hprologueCode (by omega)).pre := by
+  rfl
+
+attribute [rv64_wp]
+  walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureNBranch_pre
+
+attribute [rv64_wp_cert]
+  walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureNBranch
 
 /-- Prologue followed by the ABI-failure classifier, with the empty/nonempty
     split selected from the concrete input bytes. Callers supply only static
