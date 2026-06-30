@@ -263,6 +263,84 @@ def ofBranch {entry : Word} {cr : CodeReq} (br : Branch entry cr) :
   exits := [(br.exit_t, br.post_t), (br.exit_f, br.post_f)]
   sound := cpsBranchWithin_as_cpsNBranchWithin br.sound
 
+/-- Weaken the computed precondition of an N-way branch. -/
+def weakenPre {entry : Word} {cr : CodeReq} {pre' : Assertion}
+    (br : NBranch entry cr) (hpre : Entails pre' br.pre) : NBranch entry cr where
+  nSteps := br.nSteps
+  pre := pre'
+  exits := br.exits
+  sound := cpsNBranchWithin_weaken_pre hpre br.sound
+
+/-- Continue the head exit of an N-way branch with a single-exit continuation
+    over the same code requirement. -/
+def seqHead {entry l l' : Word} {cr : CodeReq}
+    {Q R : Assertion} {others : List (Word × Assertion)}
+    (br : NBranch entry cr)
+    (hexits : br.exits = (l, Q) :: others)
+    (tail : Triple l l' cr R)
+    (hlink : Entails Q tail.pre) :
+    NBranch entry cr where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exits := (l', R) :: others
+  sound := by
+    have hbr : cpsNBranchWithin br.nSteps entry cr br.pre ((l, Q) :: others) := by
+      simpa [hexits] using br.sound
+    exact cpsNBranchWithin_extend_head hbr (tail.weakenPre hlink).sound
+
+/-- Continue the head exit of an N-way branch with a single-exit continuation
+    over disjoint tail code. -/
+def seqHeadDisjoint {entry l l' : Word} {cr1 cr2 : CodeReq}
+    {Q R : Assertion} {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = (l, Q) :: others)
+    (tail : Triple l l' cr2 R)
+    (hlink : Entails Q tail.pre) :
+    NBranch entry (cr1.union cr2) where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exits := (l', R) :: others
+  sound := by
+    have hbr : cpsNBranchWithin br.nSteps entry cr1 br.pre ((l, Q) :: others) := by
+      simpa [hexits] using br.sound
+    exact cpsNBranchWithin_extend_head_disjoint hd hbr (tail.weakenPre hlink).sound
+
+/-- Continue the head exit of an N-way branch with another N-way continuation
+    over the same code requirement. -/
+def seqHeadNBranch {entry l : Word} {cr : CodeReq}
+    {Q : Assertion} {others : List (Word × Assertion)}
+    (br : NBranch entry cr)
+    (hexits : br.exits = (l, Q) :: others)
+    (tail : NBranch l cr)
+    (hlink : Entails Q tail.pre) :
+    NBranch entry cr where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exits := tail.exits ++ others
+  sound := by
+    have hbr : cpsNBranchWithin br.nSteps entry cr br.pre ((l, Q) :: others) := by
+      simpa [hexits] using br.sound
+    exact cpsNBranchWithin_extend_head_nbranch hbr (tail.weakenPre hlink).sound
+
+/-- Continue the head exit of an N-way branch with another N-way continuation
+    over disjoint tail code. -/
+def seqHeadNBranchDisjoint {entry l : Word} {cr1 cr2 : CodeReq}
+    {Q : Assertion} {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = (l, Q) :: others)
+    (tail : NBranch l cr2)
+    (hlink : Entails Q tail.pre) :
+    NBranch entry (cr1.union cr2) where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exits := tail.exits ++ others
+  sound := by
+    have hbr : cpsNBranchWithin br.nSteps entry cr1 br.pre ((l, Q) :: others) := by
+      simpa [hexits] using br.sound
+    exact cpsNBranchWithin_extend_head_nbranch_disjoint hd hbr (tail.weakenPre hlink).sound
+
 /-- Join all exits with a uniform continuation bound. -/
 def join {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : NBranch entry cr) (tailBound : Nat)

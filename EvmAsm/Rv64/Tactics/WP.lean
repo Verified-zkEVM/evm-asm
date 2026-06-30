@@ -128,6 +128,26 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqNotTakenNBranchDisjoint $hd $br $tail
         (by wp_rv64_link))
 
+/-- Continue the head exit of an N-way branch with a CPS leaf over disjoint code.
+    The tactic expects the N-branch exits field to reduce to a cons. -/
+syntax (name := wpRv64NBranchSeqHeadBlockDisjointTac)
+  "wp_rv64_nbranch_head_block_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_head_block_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqHeadBlockDisjoint $hd $br (by rfl) $tail
+        (by wp_rv64_link))
+
+/-- Continue the head exit of an N-way branch with another N-way branch over
+    disjoint code. The tactic expects the N-branch exits field to reduce to a cons. -/
+syntax (name := wpRv64NBranchSeqHeadNBranchDisjointTac)
+  "wp_rv64_nbranch_head_nbranch_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_head_nbranch_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqHeadNBranchDisjoint $hd $br (by rfl) $tail
+        (by wp_rv64_link))
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -231,5 +251,24 @@ example {nTail : Nat} {entry : Word} {cr1 cr2 : CodeReq}
     EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
   let tail := EvmAsm.Rv64.WP.NBranch.ofSpec tailSound
   wp_rv64_branch_not_taken_nbranch_disjoint hd, br, tail
+
+example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
+    {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tail : cpsTripleWithin nTail br.exit_t target cr2 br.post_t post) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  let nb := EvmAsm.Rv64.WP.CFG.nbranchOfBranch br
+  wp_rv64_nbranch_head_block_disjoint hd, nb, tail
+
+example {nTail : Nat} {entry : Word} {cr1 cr2 : CodeReq}
+    {exits : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tailSound : cpsNBranchWithin nTail br.exit_t cr2 br.post_t exits) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  let nb := EvmAsm.Rv64.WP.CFG.nbranchOfBranch br
+  let tail := EvmAsm.Rv64.WP.NBranch.ofSpec tailSound
+  wp_rv64_nbranch_head_nbranch_disjoint hd, nb, tail
 
 end EvmAsm.Rv64.Tactics.WPTests

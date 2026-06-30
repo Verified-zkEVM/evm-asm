@@ -166,6 +166,73 @@ def branchSeqNotTakenNBranchDisjoint {entry : Word} {cr1 cr2 : CodeReq}
     NBranch entry (cr1.union cr2) :=
   br.seqNotTakenNBranchDisjoint hd tail hlink
 
+/-- Continue the head exit of an N-way CFG over the same code requirement. -/
+def nbranchSeqHead {entry l l' : Word} {cr : CodeReq}
+    {headPost post : Assertion} {others : List (Word × Assertion)}
+    (br : NBranch entry cr)
+    (hexits : br.exits = (l, headPost) :: others)
+    (tail : Cert l l' cr post)
+    (hlink : Entails headPost tail.pre) :
+    NBranch entry cr :=
+  br.seqHead hexits tail hlink
+
+/-- Continue the head exit of an N-way CFG with a CPS leaf over the same code
+    requirement. -/
+def nbranchSeqHeadBlock {nTail : Nat} {entry l l' : Word} {cr : CodeReq}
+    {headPost tailPre post : Assertion} {others : List (Word × Assertion)}
+    (br : NBranch entry cr)
+    (hexits : br.exits = (l, headPost) :: others)
+    (tail : cpsTripleWithin nTail l l' cr tailPre post)
+    (hlink : Entails headPost tailPre) :
+    NBranch entry cr :=
+  nbranchSeqHead br hexits (block (Entails.refl _) tail) hlink
+
+/-- Continue the head exit of an N-way CFG over disjoint tail code. -/
+def nbranchSeqHeadDisjoint {entry l l' : Word} {cr1 cr2 : CodeReq}
+    {headPost post : Assertion} {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = (l, headPost) :: others)
+    (tail : Cert l l' cr2 post)
+    (hlink : Entails headPost tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqHeadDisjoint hd hexits tail hlink
+
+/-- Continue the head exit of an N-way CFG with a CPS leaf over disjoint tail code. -/
+def nbranchSeqHeadBlockDisjoint {nTail : Nat} {entry l l' : Word}
+    {cr1 cr2 : CodeReq} {headPost tailPre post : Assertion}
+    {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = (l, headPost) :: others)
+    (tail : cpsTripleWithin nTail l l' cr2 tailPre post)
+    (hlink : Entails headPost tailPre) :
+    NBranch entry (cr1.union cr2) :=
+  nbranchSeqHeadDisjoint hd br hexits (block (Entails.refl _) tail) hlink
+
+/-- Continue the head exit of an N-way CFG with another N-way CFG over the same
+    code requirement. -/
+def nbranchSeqHeadNBranch {entry l : Word} {cr : CodeReq}
+    {headPost : Assertion} {others : List (Word × Assertion)}
+    (br : NBranch entry cr)
+    (hexits : br.exits = (l, headPost) :: others)
+    (tail : NBranch l cr)
+    (hlink : Entails headPost tail.pre) :
+    NBranch entry cr :=
+  br.seqHeadNBranch hexits tail hlink
+
+/-- Continue the head exit of an N-way CFG with another N-way CFG over disjoint
+    tail code. -/
+def nbranchSeqHeadNBranchDisjoint {entry l : Word} {cr1 cr2 : CodeReq}
+    {headPost : Assertion} {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = (l, headPost) :: others)
+    (tail : NBranch l cr2)
+    (hlink : Entails headPost tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqHeadNBranchDisjoint hd hexits tail hlink
+
 /-- Join an N-way branch with a uniform continuation bound. -/
 def nbranch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (br : NBranch entry cr) (tailBound : Nat)

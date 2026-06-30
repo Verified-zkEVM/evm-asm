@@ -694,10 +694,11 @@ def walkInitEmptyFailNotListFailOrListNBranch
     listBytes listOff hoff
   have hfail := walkInitPrefixNotListFailStatus_spec_within base listBase listLen raVal
     listBytes listOff hoff
+  let listTail0 := WP.CFG.nbranchOfBranch listBranch
   let tail : WP.NBranch (base + 16) (walkInitPrefixListCheckOrNotListFailCode base) := by
     unfold walkInitPrefixListCheckOrNotListFailCode walkInitPrefixNotListFailStatusCode
-    wp_rv64_branch_taken_block_nbranch_disjoint
-      (walkInitPrefixListCheckCode_disjoint_notListFailStatus base), listBranch, hfail
+    wp_rv64_nbranch_head_block_disjoint
+      (walkInitPrefixListCheckCode_disjoint_notListFailStatus base), listTail0, hfail
   unfold walkInitEmptyFailNotListFailOrListCode
   wp_rv64_branch_not_taken_nbranch_disjoint
     (walkInitEmptyFailOrPrefixCode_disjoint_listCheckOrNotListFail base), br, tail
