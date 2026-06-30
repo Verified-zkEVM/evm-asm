@@ -1150,6 +1150,82 @@ theorem walkInitEmptyInputFailureFromPrologueSharedFrameNBranch_exits
         s2Old outBase inputBase t0Old t1Old := by
   rfl
 
+/-- Case-oriented weakening for the two empty-input prologue exits. Generated
+    callers provide one entailment per exit and get the membership-map proof for
+    free. -/
+def walkInitEmptyInputFailureFromPrologueSharedFrameCaseNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (t0Old t1Old : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64)
+    (emptyPost nonzeroPost : Assertion)
+    (hEmpty : WP.Entails
+      ((emptyInputFailurePost inputBase outBase raVal **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old)
+      emptyPost)
+    (hNonzero : WP.Entails
+      (((walkInitNonzeroOpenStatusPost (0 : Word) raVal
+        (inputBase + BitVec.ofNat 64 0) ** emptyInputAbiFrame inputBase outBase) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old)
+      nonzeroPost) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitEmptyFailNotListFailShortLongCode (base + 24))) := by
+  let br := walkInitEmptyInputFailureFromPrologueSharedFrameNBranch base sp0 raVal s0Old
+    s1Old s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode
+  wp_rv64_nbranch_weaken_posts2 br, hEmpty, hNonzero
+
+theorem walkInitEmptyInputFailureFromPrologueSharedFrameCaseNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (t0Old t1Old : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64)
+    (emptyPost nonzeroPost : Assertion)
+    (hEmpty : WP.Entails
+      ((emptyInputFailurePost inputBase outBase raVal **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old)
+      emptyPost)
+    (hNonzero : WP.Entails
+      (((walkInitNonzeroOpenStatusPost (0 : Word) raVal
+        (inputBase + BitVec.ofNat 64 0) ** emptyInputAbiFrame inputBase outBase) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old)
+      nonzeroPost) :
+    (walkInitEmptyInputFailureFromPrologueSharedFrameCaseNBranch base sp0 raVal s0Old
+      s1Old s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode
+      emptyPost nonzeroPost hEmpty hNonzero).pre =
+      (walkInitEmptyInputFailureFromPrologueSharedFrameNBranch base sp0 raVal s0Old s1Old
+        s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode).pre := by
+  rfl
+
+theorem walkInitEmptyInputFailureFromPrologueSharedFrameCaseNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (t0Old t1Old : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64)
+    (emptyPost nonzeroPost : Assertion)
+    (hEmpty : WP.Entails
+      ((emptyInputFailurePost inputBase outBase raVal **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old)
+      emptyPost)
+    (hNonzero : WP.Entails
+      (((walkInitNonzeroOpenStatusPost (0 : Word) raVal
+        (inputBase + BitVec.ofNat 64 0) ** emptyInputAbiFrame inputBase outBase) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old)
+      nonzeroPost) :
+    (walkInitEmptyInputFailureFromPrologueSharedFrameCaseNBranch base sp0 raVal s0Old
+      s1Old s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode
+      emptyPost nonzeroPost hEmpty hNonzero).exits =
+      [ (failStatusReturnExit raVal, emptyPost)
+      , ((base + 24) + 4, nonzeroPost)
+      ] := by
+  rfl
+
 /-- Prologue followed by the ABI-failure classifier. Empty and not-list exits
     expose reason-erased ABI failure posts; short-list and long-list candidates
     remain open for later resolution. -/
@@ -1245,6 +1321,125 @@ theorem walkInitAbiFailureFromPrologueNBranch_exits
       hBound hprologueCode hcode).exits =
       walkInitAbiFailureFromPrologueExits base sp0 raVal s0Old s1Old s2Old outBase
         inputBase listLen t0Old t1Old input hoff := by
+  rfl
+
+/-- Case-oriented weakening for the four nonempty prologue classifier exits. This
+    is the prologue-level analogue of the raw walk-init case mapper. -/
+def walkInitAbiFailureFromPrologueCaseNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64)
+    (emptyPost notListPost shortPost longPost : Assertion)
+    (hEmpty : WP.Entails
+      ((abiPost inputBase outBase raVal input **
+        walkInitEmptyFailAbiFrame listLen t0Old t1Old) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      emptyPost)
+    (hNotList : WP.Entails
+      ((abiPost inputBase outBase raVal input **
+        walkInitNotListFailAbiFrame inputBase listLen input 0 hoff) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      notListPost)
+    (hShort : WP.Entails
+      (walkInitShortListOutputPost inputBase listLen raVal outBase input 0 hoff **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      shortPost)
+    (hLong : WP.Entails
+      (walkInitLongListOutputPost inputBase listLen raVal outBase input 0 hoff **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      longPost) :
+    WP.NBranch base
+      ((prologueCode base).union (walkInitEmptyFailNotListFailShortLongCode (base + 24))) := by
+  let br := walkInitAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old outBase
+    m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0 hLen
+    hBound hprologueCode hcode
+  wp_rv64_nbranch_weaken_posts4 br, hEmpty, hNotList, hShort, hLong
+
+theorem walkInitAbiFailureFromPrologueCaseNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64)
+    (emptyPost notListPost shortPost longPost : Assertion)
+    (hEmpty : WP.Entails
+      ((abiPost inputBase outBase raVal input **
+        walkInitEmptyFailAbiFrame listLen t0Old t1Old) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      emptyPost)
+    (hNotList : WP.Entails
+      ((abiPost inputBase outBase raVal input **
+        walkInitNotListFailAbiFrame inputBase listLen input 0 hoff) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      notListPost)
+    (hShort : WP.Entails
+      (walkInitShortListOutputPost inputBase listLen raVal outBase input 0 hoff **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      shortPost)
+    (hLong : WP.Entails
+      (walkInitLongListOutputPost inputBase listLen raVal outBase input 0 hoff **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      longPost) :
+    (walkInitAbiFailureFromPrologueCaseNBranch base sp0 raVal s0Old s1Old s2Old outBase
+      m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0 hLen
+      hBound hprologueCode hcode emptyPost notListPost shortPost longPost hEmpty hNotList
+      hShort hLong).pre =
+      (walkInitAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old outBase
+        m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0 hLen
+        hBound hprologueCode hcode).pre := by
+  rfl
+
+theorem walkInitAbiFailureFromPrologueCaseNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover0 : inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64)
+    (emptyPost notListPost shortPost longPost : Assertion)
+    (hEmpty : WP.Entails
+      ((abiPost inputBase outBase raVal input **
+        walkInitEmptyFailAbiFrame listLen t0Old t1Old) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      emptyPost)
+    (hNotList : WP.Entails
+      ((abiPost inputBase outBase raVal input **
+        walkInitNotListFailAbiFrame inputBase listLen input 0 hoff) **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      notListPost)
+    (hShort : WP.Entails
+      (walkInitShortListOutputPost inputBase listLen raVal outBase input 0 hoff **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      shortPost)
+    (hLong : WP.Entails
+      (walkInitLongListOutputPost inputBase listLen raVal outBase input 0 hoff **
+        walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase)
+      longPost) :
+    (walkInitAbiFailureFromPrologueCaseNBranch base sp0 raVal s0Old s1Old s2Old outBase
+      m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hoff hover0 hvalid0 hLen
+      hBound hprologueCode hcode emptyPost notListPost shortPost longPost hEmpty hNotList
+      hShort hLong).exits =
+      [ (failStatusReturnExit raVal, emptyPost)
+      , (failStatusReturnExit raVal, notListPost)
+      , ((base + 24) + 124, shortPost)
+      , ((base + 24) + 28, longPost)
+      ] := by
   rfl
 
 /-- Prologue followed by the ABI-failure classifier, with the empty/nonempty
