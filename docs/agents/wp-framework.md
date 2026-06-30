@@ -423,6 +423,28 @@ certificate constructors change. The wrapper also provides small-list helpers
 such as `join2ResolveFirst`, `join3ResolveSecond`, and `join4ResolveThird` for
 common decoder joins where all but one exit is contradictory.
 
+For a generated two-way branch, use `Branch2Spec` to keep the expected labels
+and local posts in one typed value, then prove that the kernel branch certificate
+matches that generated shape. The helper can resolve either side as the join:
+
+```lean
+let shape : Branch2Spec := {
+  taken := { label := takenLabel, post := takenPost },
+  fallthrough := { label := failLabel, post := failPost }
+}
+
+have hshape : shape.Matches br := by
+  -- usually `simp [shape, ...projection lemmas...]`
+  ...
+
+let topTaken : WP.CFG.Cert entry shape.taken.label cr finalPost :=
+  shape.joinTaken br hshape hlinkTaken hdeadFail
+```
+
+`Branch2Spec` is still only control-flow shape: labels plus assertion names. Do
+not add decoded values, success booleans, or failure reasons to it. Put runtime
+outcomes inside `takenPost`, `failPost`, or the final disjunctive postcondition.
+
 Bad inputs:
 
 - decoded result values in the schema
