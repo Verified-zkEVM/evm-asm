@@ -172,6 +172,77 @@ theorem walkInitShortSuccessDecodedWP_cert_pre
 attribute [rv64_wp]
   walkInitShortSuccessDecodedWP_cert_pre
 
+namespace WalkInitShortSuccessDecodedWP
+
+/-- Result-free schema witnesses extracted by a decoded-success WP package. -/
+def specs
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w) : List FieldSpec :=
+  successFieldSpecs pkg.d0 pkg.d1 pkg.d2 pkg.d3
+
+/-- The decoded package's generated success schema fits under the public max-code
+    bound used by `walkInitShortSuccessDecodedWP`. -/
+theorem code_bound_of_max
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (base + 24).toNat + 172 + 4 + schemaSize pkg.specs + 8 < 2 ^ 64 := by
+  have h_schema_size := pkg.h_schema_size
+  unfold specs
+  omega
+
+/-- Zero/nonzero classifier facade over the same generated code requirement as a
+    decoded-success package.  This removes the last need to reconstruct the
+    witness-specific `successFieldSpecs` when composing branch-level automation. -/
+def failureNBranch
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base ((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24) pkg.specs)) :=
+  walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch base sp0 raVal
+    s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input pkg.specs
+    hsalign hover hwin h_len h_prologue_code (pkg.code_bound_of_max h_code_max)
+
+/-- The package-indexed zero/nonzero facade has the same static precondition as
+    the decoded success certificate. -/
+theorem failureNBranch_pre
+    {base sp0 raVal s0Old s1Old s2Old outBase : Word}
+    {m0 m1 m2 m3 inputBase listLen t0Old t1Old : Word}
+    {input : List Byte} {w : Withdrawal}
+    (pkg : WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (pkg.failureNBranch hsalign hover hwin h_len h_prologue_code h_code_max).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  unfold failureNBranch
+  rw [walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch_pre]
+
+attribute [rv64_wp]
+  failureNBranch_pre
+
+end WalkInitShortSuccessDecodedWP
+
 end WithdrawalDecode
 
 end EvmAsm.Rv64.RLP
