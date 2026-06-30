@@ -273,6 +273,22 @@ def walkInitNotListFailSchemaAbiFrame
     (hoff : 0 < input.length) : Assertion :=
   walkInitNotListFailAbiFrame inputBase listLen input 0 hoff ** schemaWalkInitRegsFrame outBase
 
+/-- Scratch facts preserved by either short-success semantic failure arm. The
+    ABI component is already reason-erased; this hides whether the classifier
+    failed because the input was empty or because the prefix was not a list. -/
+def walkInitShortSuccessFailureReasonFrame
+    (inputBase listLen t0Old t1Old outBase : Word)
+    (input : List Byte) (hoff : 0 < input.length) : Assertion :=
+  fun h =>
+    walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase h ∨
+      walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff h
+
+def walkInitShortSuccessFailureReasonPost
+    (inputBase listLen raVal t0Old t1Old outBase : Word)
+    (input : List Byte) (hoff : 0 < input.length) : Assertion :=
+  abiPost inputBase outBase raVal input **
+    walkInitShortSuccessFailureReasonFrame inputBase listLen t0Old t1Old outBase input hoff
+
 /-- Empty-input branch, with the schema handoff frame weakened to the public ABI
     failure post plus preserved scratch facts. -/
 theorem walkInitEmptyFailSchemaPost_entails_abiFailureFrame
@@ -385,6 +401,45 @@ attribute [rv64_wp_entails]
   walkInitEmptyFailSchemaPost_entails_abiFailureFrame
   walkInitNotListFailSchemaPost_entails_abiFailureFrame
 
+theorem walkInitEmptyFailSchemaPost_entails_reasonPost
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64) :
+    WP.Entails
+      ((walkInitEmptyFailStatusPost listLen raVal **
+        ((.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion inputBase input)) **
+        schemaWalkInitFrame outBase)
+      (walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
+        input hoff) :=
+  WP.Entails.trans
+    (walkInitEmptyFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal t0Old
+      t1Old outBase input hLen hBound)
+    (by
+      intro h hp
+      unfold walkInitShortSuccessFailureReasonPost walkInitShortSuccessFailureReasonFrame
+      exact sepConj_mono_right (fun h hp => Or.inl hp) h hp)
+
+theorem walkInitNotListFailSchemaPost_entails_reasonPost
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) :
+    WP.Entails
+      (walkInitPrefixNotListFailStatusPost inputBase listLen raVal input 0 hoff **
+        schemaWalkInitFrame outBase)
+      (walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
+        input hoff) :=
+  WP.Entails.trans
+    (walkInitNotListFailSchemaPost_entails_abiFailureFrame inputBase listLen raVal
+      outBase input hoff)
+    (by
+      intro h hp
+      unfold walkInitShortSuccessFailureReasonPost walkInitShortSuccessFailureReasonFrame
+      exact sepConj_mono_right (fun h hp => Or.inr hp) h hp)
+
+attribute [rv64_wp_entails]
+  walkInitEmptyFailSchemaPost_entails_reasonPost
+  walkInitNotListFailSchemaPost_entails_reasonPost
+
 def walkInitShortSuccessAbiPost
     (inputBase outBase raVal : Word) (input d0 d1 d2 d3 : List Byte) : Assertion :=
   ((abiPost inputBase outBase raVal input **
@@ -484,6 +539,29 @@ theorem walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input
   rw [hnlt] at hlt
   contradiction
 
+/-- The reason-erased semantic failure exit is unreachable for a short-list
+    success witness. -/
+theorem walkInitShortSuccessFailureReasonPost_contradicts_successFieldSpecs_input
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input d0 d1 d2 d3 : List Byte)
+    (hoff : 0 < input.length) (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    ∀ h,
+      walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
+        input hoff h → False := by
+  intro h hp
+  unfold walkInitShortSuccessFailureReasonPost walkInitShortSuccessFailureReasonFrame at hp
+  rcases hp with ⟨hAbi, hFrame, hd, hunion, hAbi_prop, hFrame_prop⟩
+  rcases hFrame_prop with hEmpty | hNotList
+  · exact walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase
+      listLen raVal t0Old t1Old outBase input hoff hLen hBound h
+      ⟨hAbi, hFrame, hd, hunion, hAbi_prop, hEmpty⟩
+  · exact walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase
+      listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput h
+      ⟨hAbi, hFrame, hd, hunion, hAbi_prop, hNotList⟩
+
 /-- The long-list exit is unreachable when the input is the short-list encoding
     of successful withdrawal field witnesses. -/
 theorem walkInitLongSchemaPost_contradicts_successFieldSpecs_input
@@ -577,20 +655,17 @@ def walkInitShortSuccessSemanticExits
     (input d0 d1 d2 d3 : List Byte) (hoff : 0 < input.length) :
     List (Word × Assertion) :=
   [ (failStatusReturnExit raVal,
-      abiPost inputBase outBase raVal input **
-        walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase)
-  , (failStatusReturnExit raVal,
-      abiPost inputBase outBase raVal input **
-        walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff)
+      walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
+        input hoff)
   , (successStatusReturnExit raVal,
       walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3)
   , (base + 28,
       walkInitLongSchemaPost inputBase listLen raVal outBase input hoff)
   ]
 
-/-- Prefix classifier with semantic failure exits and the short-list success path
-    continued through the generated result-free schema WP tail. The long-list
-    exit remains open. -/
+/-- Prefix classifier with reason-erased semantic failure exits and the short-list
+    success path continued through the generated result-free schema WP tail. The
+    long-list exit remains open. -/
 def walkInitShortSuccessSemanticNBranch
     (base inputBase listLen raVal t0Old t1Old outBase : Word)
     (input d0 d1 d2 d3 : List Byte)
@@ -620,14 +695,12 @@ def walkInitShortSuccessSemanticNBranch
     hc3 hl3 hinput hcode
   have hBound : input.length < 2 ^ 64 := by
     omega
-  wp_rv64_nbranch_weaken_posts4_with_auto br,
+  wp_rv64_nbranch_weaken_posts4_merge_first_two_with_auto br,
     (walkInitShortSuccessSchemaNBranch_exits base inputBase listLen raVal t0Old t1Old
       outBase input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1
       haddr hc3 hl3 hinput hcode),
-    (abiPost inputBase outBase raVal input **
-      walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase),
-    (abiPost inputBase outBase raVal input **
-      walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff),
+    (walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
+      input hoff),
     (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3),
     (walkInitLongSchemaPost inputBase listLen raVal outBase input hoff)
 
@@ -723,24 +796,20 @@ def walkInitShortSuccessResolvedCert
     rw [walkInitShortSuccessSemanticNBranch_exits]
   have hBound : input.length < 2 ^ 64 := by
     omega
-  have hexits4 : br.exits =
+  have hexits3 : br.exits =
       [(failStatusReturnExit raVal,
-          abiPost inputBase outBase raVal input **
-            walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase),
-        (failStatusReturnExit raVal,
-          abiPost inputBase outBase raVal input **
-            walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff),
+          walkInitShortSuccessFailureReasonPost inputBase listLen raVal t0Old t1Old outBase
+            input hoff),
         (successStatusReturnExit raVal,
           walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3),
         (base + 28,
           walkInitLongSchemaPost inputBase listLen raVal outBase input hoff)] := by
     simpa [walkInitShortSuccessSemanticExits] using hexits
-  wp_rv64_nbranch_join4_resolve_third br, hexits4,
-    (walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase listLen
-      raVal t0Old t1Old outBase input hoff hLen hBound),
-    (walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase
-      listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput),
-    (WP.Entails.refl _),
+  wp_rv64_nbranch_join3_resolve_second_auto br, hexits3,
+    (walkInitShortSuccessFailureReasonPost_contradicts_successFieldSpecs_input inputBase
+      listLen raVal t0Old t1Old outBase input d0 d1 d2 d3 hoff hLen hBound hl0 hl1 haddr
+      hl3 hinput),
+    (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3),
     (walkInitLongSchemaPost_contradicts_successFieldSpecs_input inputBase listLen raVal
       outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput)
 

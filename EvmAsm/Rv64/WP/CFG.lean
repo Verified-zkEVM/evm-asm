@@ -434,6 +434,17 @@ def nbranchJoin2ResolveSecond {entry : Word} {cr : CodeReq} {post : Assertion}
     Cert entry l2 cr post :=
   br.join2ResolveSecond hexits hdead1 hlink2
 
+/-- Join exactly three known exits when the second exit is the only reachable one. -/
+def nbranchJoin3ResolveSecond {entry : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 l3 : Word} {Q1 Q2 Q3 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hlink2 : Entails Q2 post)
+    (hdead3 : ∀ h, Q3 h → False) :
+    Cert entry l2 cr post :=
+  br.join3ResolveSecond hexits hdead1 hlink2 hdead3
+
 /-- Join exactly four known exits with single-exit continuations. -/
 def nbranchJoin4 {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     {l1 l2 l3 l4 : Word} {Q1 Q2 Q3 Q4 : Assertion}

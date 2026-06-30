@@ -672,6 +672,30 @@ def join2ResolveSecond {entry : Word} {cr : CodeReq} {post : Assertion}
     · rcases hcase with ⟨rfl, rfl⟩
       exact (Triple.refl l2 cr hlink2).sound)
 
+/-- Join exactly three known exits when the second exit is the only reachable one.
+    The first and third exits are closed by contradictory preconditions, and the
+    second exit is treated as the continuation post. -/
+def join3ResolveSecond {entry : Word} {cr : CodeReq} {post : Assertion}
+    {l1 l2 l3 : Word} {Q1 Q2 Q3 : Assertion}
+    (br : NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hlink2 : Entails Q2 post)
+    (hdead3 : ∀ h, Q3 h → False) :
+    Triple entry l2 cr post :=
+  br.join 0 (by
+    intro ex hmem
+    have hmem' : ex ∈ [(l1, Q1), (l2, Q2), (l3, Q3)] := by
+      simpa [hexits] using hmem
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem'
+    rcases hmem' with hcase | hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (Triple.unreachable l1 l2 cr (pre := Q1) (post := post) hdead1).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (Triple.refl l2 cr hlink2).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (Triple.unreachable l3 l2 cr (pre := Q3) (post := post) hdead3).sound)
+
 /-- Join exactly four known exits with single-exit continuations. This is the
     fixed-arity frontend generated CFG proofs use after normalizing an N-branch
     exit list. -/

@@ -579,6 +579,24 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin2ResolveSecond $br $hexits $hdead1
         (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link))
 
+/-- Join exactly three known exits when the second exit is the only reachable one. -/
+syntax (name := wpRv64NBranchJoin3ResolveSecondTac)
+  "wp_rv64_nbranch_join3_resolve_second " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join3_resolve_second $br:term, $hexits:term, $hdead1:term, $hlink2:term, $hdead3:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin3ResolveSecond $br $hexits $hdead1 $hlink2 $hdead3)
+
+/-- Join exactly three known exits when the second exit is the only reachable one,
+    synthesizing the reachable-exit entailment with `wp_rv64_link`. -/
+syntax (name := wpRv64NBranchJoin3ResolveSecondAutoTac)
+  "wp_rv64_nbranch_join3_resolve_second_auto " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_join3_resolve_second_auto $br:term, $hexits:term, $hdead1:term, $post:term, $hdead3:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchJoin3ResolveSecond $br $hexits $hdead1
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link) $hdead3)
+
 /-- Join exactly four known exits of an N-way branch, supplying the generated
     exit-list proof and one continuation per exit. -/
 syntax (name := wpRv64NBranchJoin4WithTac)
@@ -856,6 +874,23 @@ example {entry l1 l2 : Word} {cr : CodeReq} {Q1 Q2 : Assertion}
     (hdead1 : ∀ h, Q1 h → False) :
     EvmAsm.Rv64.WP.CFG.Cert entry l2 cr Q2 := by
   wp_rv64_nbranch_join2_resolve_second_auto br, hexits, hdead1, Q2
+
+example {entry l1 l2 l3 : Word} {cr : CodeReq} {post Q1 Q2 Q3 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hlink2 : EvmAsm.Rv64.WP.Entails Q2 post)
+    (hdead3 : ∀ h, Q3 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l2 cr post := by
+  wp_rv64_nbranch_join3_resolve_second br, hexits, hdead1, hlink2, hdead3
+
+example {entry l1 l2 l3 : Word} {cr : CodeReq} {Q1 Q2 Q3 : Assertion}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3)])
+    (hdead1 : ∀ h, Q1 h → False)
+    (hdead3 : ∀ h, Q3 h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry l2 cr Q2 := by
+  wp_rv64_nbranch_join3_resolve_second_auto br, hexits, hdead1, Q2, hdead3
 
 example {entry exit_ l1 l2 l3 l4 : Word} {cr : CodeReq} {post Q1 Q2 Q3 Q4 : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr)
