@@ -74,12 +74,14 @@ import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.WP.CFG
 import EvmAsm.Rv64.BitAux
 import EvmAsm.Rv64.Tactics.WP
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.XPerm
 import EvmAsm.Rv64.Tactics.SeqFrame
+import EvmAsm.Rv64.Tactics.WP
 
 namespace EvmAsm.Rv64.RLP
 
@@ -429,5 +431,238 @@ theorem rlp_field0_to_u64_content_call_success_spec_within
     refine cpsTripleWithin_seq_perm_same_cr ?_ s4 hF'; intro h hp; xperm_hyp hp
   refine cpsTripleWithin_mono_nSteps (by ring_nf; omega)
     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) s5)
+
+/-! ## Branch composition slice: idx 4..14, starting at the branch immediately
+after `rlp_walk_next` returns (`BNE x11 x0 -> parse_fail`), through either the
+success-path call composition proved above or the `parse_fail` fallback.
+
+This exercises the `WP.CFG` branch/leaf layer (`docs/agents/wp-framework.md`):
+the `BNE` header becomes a `WP.Branch`, the `parse_fail` tail is synthesized
+from its postcondition with `wp_rv64_leaf_synth`, and the two continuations
+are joined with `WP.CFG.branch`. The starting state is still a generic
+post-`rlp_walk_next` state (`x11` is a free status word, not yet produced by
+composing the real `jal ra, rlp_walk_next` call) — composing that call is
+left to a follow-up, per the module header's "Remaining work" list. -/
+
+/-- The `parse_fail` leaf body (idx 11..14): on a nonzero `rlp_walk_next`
+status, set `a0 = 0`, `a1 = 1`, restore `ra` from `x13`, and return. -/
+def rlp_field0_to_u64_parse_fail_prog : List Instr :=
+  [ .LI .x10 (0 : Word), .LI .x11 (1 : Word), .MV .x1 .x13, .JALR .x0 .x1 0 ]
+
+theorem rlp_field0_to_u64_parse_fail_prog_length :
+    rlp_field0_to_u64_parse_fail_prog.length = 4 := rfl
+
+/-- WP-synthesized `parse_fail` leaf certificate. The `LI x10`/`LI x11`/`MV x1
+x13` specs are passed explicitly (in forward execution order) so the
+synthesized precondition exposes the *named* old values `advancedOld` /
+`walkNextStatusOld` / `x1Old` instead of falling back to `regOwn` — this
+keeps the certificate composable with the caller's exact pre-branch register
+state without an extra `regIs`-to-`regOwn` conversion at the call site. The
+trailing `JALR` is resolved automatically: its only atom (`x1`) is already
+pinned to `savedRa` by the preceding `MV`. -/
+def rlp_field0_to_u64_parse_fail_cert
+    (addr savedRa advancedOld walkNextStatusOld x1Old : Word) :
+    WP.CFG.Cert addr (savedRa &&& ~~~1)
+      (CodeReq.ofProg addr rlp_field0_to_u64_parse_fail_prog)
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x13 ↦ᵣ savedRa) **
+        (.x1 ↦ᵣ savedRa)) := by
+  unfold rlp_field0_to_u64_parse_fail_prog
+  let hLi10 := li_spec_gen_within .x10 advancedOld (0 : Word) addr (by decide)
+  let hLi11 := li_spec_gen_within .x11 walkNextStatusOld (1 : Word) (addr + 4) (by decide)
+  let hMv := mv_spec_gen_within .x1 .x13 savedRa x1Old (addr + 8) (by decide)
+  let hJalr := jalr_x0_spec_gen_within .x1 savedRa (0 : BitVec 12) (addr + 12)
+  wp_rv64_leaf_synth hLi10 hLi11 hMv hJalr
+
+/-- The `parse_fail` leaf, lifted from its own minimal `CodeReq.ofProg` into
+the full `rlp_field0_to_u64_code base` (idx 11, i.e. `base + 44`). -/
+def rlp_field0_to_u64_parse_fail_cert_in_code
+    (base savedRa advancedOld walkNextStatusOld x1Old : Word) :
+    WP.CFG.Cert (base + 44) (savedRa &&& ~~~1) (rlp_field0_to_u64_code base)
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x13 ↦ᵣ savedRa) **
+        (.x1 ↦ᵣ savedRa)) :=
+  WP.CFG.extendCode
+    (rlp_field0_to_u64_parse_fail_cert (base + 44) savedRa advancedOld walkNextStatusOld x1Old)
+    (CodeReq.ofProg_mono_sub base (base + 44) rlp_field0_to_u64_prog
+      rlp_field0_to_u64_parse_fail_prog 11 (by bv_omega) (by rfl)
+      (by rw [rlp_field0_to_u64_prog_length, rlp_field0_to_u64_parse_fail_prog_length])
+      (by rw [rlp_field0_to_u64_prog_length]; norm_num))
+
+/--
+**`rlp_field0_to_u64` — branch composition** (idx 4..14, `base+16 → savedRa
+&&& ~~~1`).
+
+Starting at the branch immediately after `rlp_walk_next` returns (`x10` the
+advanced cursor, `x11` a free post-walk status word, `x12` the content
+length), this composes the `BNE x11 x0 -> parse_fail` header with the two
+open continuations:
+
+* not-taken (`x11 = 0`): the success-path call composition proved above
+  (`rlp_field0_to_u64_content_call_success_spec_within`), reaching the
+  wrapper's overall success outcome (`x11 = 0`, decoded value in `x10`).
+* taken (`x11 ≠ 0`): the `parse_fail` leaf, synthesized with
+  `wp_rv64_leaf_synth`, reaching status `x11 = 1`, `x10 = 0`.
+
+The two outcomes are already mutually exclusive by their `x10`/`x11` shape
+(`x11 = 0` vs. `x11 = 1`), so the postcondition does not need an extra static
+guard atom to disambiguate them; a `WP.CFG.branch`-composed postcondition
+cannot carry one anyway, since neither continuation certificate is proved
+under an assumption about `walkNextStatus`'s value. The static hypotheses
+about `srcBytes`/`srcOff`/`len` mirror the precondition the eventual
+`rlp_walk_next` call composition would establish on the success path; per the
+`AGENTS.md` spec-design convention they stay in the precondition as static
+facts rather than gating which disjunct the postcondition selects. -/
+theorem rlp_field0_to_u64_branch_spec_within
+    (base srcBase savedRa x1Val t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (advanced contentLen walkNextStatus : Word)
+    (srcOff len : Nat)
+    (hbase0 : base &&& (1 : Word) = 0)
+    (hlen0 : 0 < len) (hlen8 : len ≤ 8)
+    (hsalign : srcBase.toNat % 8 = 0) (hsoff : srcOff < srcBytes.length)
+    (hcanon : srcBytes[srcOff]'hsoff ≠ 0)
+    (hslen : srcOff + len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
+    (hadvanced : advanced = srcBase + BitVec.ofNat 64 (srcOff + len))
+    (hcontentLen : contentLen = BitVec.ofNat 64 len) :
+    cpsTripleWithin (7 * len + 18) (base + 16) (savedRa &&& ~~~1)
+      ((rlp_field0_to_u64_code base).union (rlp_content_to_u64_code (base + (1536 : Word))))
+      ((.x10 ↦ᵣ advanced) ** (.x11 ↦ᵣ walkNextStatus) ** (.x12 ↦ᵣ contentLen) **
+        (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
+      (fun h =>
+        ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+            (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) **
+            regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+            (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+            (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes) h ∨
+        ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ contentLen) **
+            (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+            (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+            (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes) h) := by
+  subst hadvanced; subst hcontentLen
+  set CR := (rlp_field0_to_u64_code base).union (rlp_content_to_u64_code (base + (1536 : Word)))
+    with hCR
+  set contentLen : Word := BitVec.ofNat 64 len with hcontentLen
+  -- The BNE header (idx 4, base+16): taken (x11 ≠ 0) -> base+44 (parse_fail);
+  -- not-taken (x11 = 0) -> base+20 (idx 5, the success-path entry above).
+  have hbr0 := bne_spec_gen_within .x11 .x0 (28 : BitVec 13) walkNextStatus (0 : Word) (base + 16)
+  simp only [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide] at hbr0
+  rw [show (base + 16 + 28 : Word) = base + 44 from by bv_omega,
+      show (base + 16 + 4 : Word) = base + 20 from by bv_omega] at hbr0
+  have hbrF := cpsBranchWithin_frameR
+    ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) ** (.x12 ↦ᵣ contentLen) **
+      (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+      (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
+    (by pcFree) hbr0
+  have hmono4 : ∀ a i,
+      (CodeReq.singleton (base + 16) (.BNE .x11 .x0 (28 : BitVec 13))) a = some i →
+      CR a = some i :=
+    fun a i h => CodeReq.union_mono_left a i
+      (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base rlp_field0_to_u64_prog 4 (base + 16)
+        (by rw [rlp_field0_to_u64_prog_length]; norm_num)
+        (by rw [rlp_field0_to_u64_prog_length]; norm_num) (by bv_omega)) a i h)
+  have hbrCR := cpsBranchWithin_extend_code hmono4 hbrF
+  -- Re-state with the pure status fact moved to the very front of each post.
+  -- `extract_pure`'s current bubbling rules (`sepConj_pure_mid_left/right`) only
+  -- reach a pure atom buried at depth ≤ 1 in a right-associated `**` chain (the
+  -- general depth-≥2 case is a documented gap, GH #1435/evm-asm-22a); putting the
+  -- pure at depth 0 sidesteps that gap, since `xperm_hyp` itself is depth-agnostic.
+  have hbrCR' :
+      cpsBranchWithin 1 (base + 16) CR
+        ((.x11 ↦ᵣ walkNextStatus) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) ** (.x12 ↦ᵣ contentLen) **
+          (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
+        (base + 44)
+        (⌜walkNextStatus ≠ (0 : Word)⌝ **
+          (.x11 ↦ᵣ walkNextStatus) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) ** (.x12 ↦ᵣ contentLen) **
+          (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
+        (base + 20)
+        (⌜walkNextStatus = (0 : Word)⌝ **
+          (.x11 ↦ᵣ walkNextStatus) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) ** (.x12 ↦ᵣ contentLen) **
+          (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes) :=
+    cpsBranchWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp)
+      (fun h hp => by xperm_hyp hp) hbrCR
+  let br0 : WP.Branch (base + 16) CR := WP.Branch.ofSpec hbrCR'
+  -- The shared join postcondition: success (x11 = 0) or parse_fail (x11 = 1).
+  let finalPost : Assertion := fun h =>
+    (((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ contentLen) ** (.x13 ↦ᵣ savedRa) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+        (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes) h ∨
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ contentLen) **
+        (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ savedRa) ** bytesRegion srcBase srcBytes) h)
+  -- Not-taken continuation: the success-path call composition proved above.
+  have hsuccess := rlp_field0_to_u64_content_call_success_spec_within base srcBase savedRa
+    x1Val t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes
+    (srcBase + BitVec.ofNat 64 (srcOff + len)) contentLen srcOff len hbase0 hlen0 hlen8 hsalign
+    hsoff hcanon hslen hsover hsvalid rfl hcontentLen
+  let successCert : WP.CFG.Cert (base + 20) (savedRa &&& ~~~1) CR finalPost :=
+    WP.CFG.weakenPost (WP.CFG.leaf hsuccess) (fun h hp => Or.inl hp)
+  -- Taken continuation: the parse_fail leaf, extended into `CR` and framed
+  -- with the registers/bytes the leaf does not touch.
+  let failCertInCR : WP.CFG.Cert (base + 44) (savedRa &&& ~~~1) CR
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x13 ↦ᵣ savedRa) ** (.x1 ↦ᵣ savedRa)) :=
+    WP.CFG.extendCode
+      (rlp_field0_to_u64_parse_fail_cert_in_code base savedRa
+        (srcBase + BitVec.ofNat 64 (srcOff + len)) walkNextStatus x1Val)
+      (fun a i h => CodeReq.union_mono_left a i h)
+  let failCertFramed :=
+    WP.CFG.frameR failCertInCR
+      ((.x12 ↦ᵣ contentLen) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)
+      (by pcFree)
+  let failCert : WP.CFG.Cert (base + 44) (savedRa &&& ~~~1) CR finalPost :=
+    WP.CFG.weakenPost failCertFramed (fun h hp => Or.inr (by xperm_hyp hp))
+  -- Stated against the explicit (already-reduced) `post_f`/`post_t` shape rather
+  -- than the opaque `br0.post_f`/`br0.post_t` projections, so `extract_pure` sees
+  -- a literal `sepConj`/`⌜·⌝` term to rewrite; `WP.CFG.branch` below still accepts
+  -- these via defeq against `br0`'s fields.
+  have hlinkNotTaken :
+      WP.Entails
+        (⌜walkNextStatus = (0 : Word)⌝ **
+          (.x11 ↦ᵣ walkNextStatus) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) ** (.x12 ↦ᵣ contentLen) **
+          (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
+        successCert.pre := by
+    intro h hp
+    extract_pure hp
+    obtain ⟨heq, hp⟩ := hp
+    subst heq
+    xperm_hyp hp
+  have hlinkTaken :
+      WP.Entails
+        (⌜walkNextStatus ≠ (0 : Word)⌝ **
+          (.x11 ↦ᵣ walkNextStatus) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + len))) ** (.x12 ↦ᵣ contentLen) **
+          (.x13 ↦ᵣ savedRa) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x1 ↦ᵣ x1Val) ** bytesRegion srcBase srcBytes)
+        failCert.pre := by
+    intro h hp
+    extract_pure hp
+    obtain ⟨_hne, hp⟩ := hp
+    xperm_hyp hp
+  have hcert := WP.CFG.branch br0 failCert successCert hlinkTaken hlinkNotTaken
+  have hns : hcert.nSteps = 1 + Nat.max failCert.nSteps successCert.nSteps := rfl
+  have hnsFail : failCert.nSteps = 4 := rfl
+  have hnsSuccess : successCert.nSteps = 7 * len + 17 := rfl
+  refine cpsTripleWithin_mono_nSteps (by rw [hns, hnsFail, hnsSuccess]; omega)
+    (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hp => hp) hcert.sound)
 
 end EvmAsm.Rv64.RLP
