@@ -293,6 +293,31 @@ This is not a Lean syntax requirement. It is the information a proof-producing
 agent should have available before it emits WP code. `post` names refer to Lean
 assertion definitions or local hypotheses, not to decoded runtime values.
 
+The Lean-side wrapper for this information is `WP.GeneratedCFG.OpenCFG`:
+
+```lean
+import EvmAsm.Rv64.WP.GeneratedCFG
+
+open EvmAsm.Rv64.WP.GeneratedCFG
+
+let g : OpenCFG entry cr := OpenCFG.ofNBranch branchSummary
+```
+
+`OpenCFG` stores both the kernel-checked `WP.NBranch` certificate and the
+expected generated exit list. Use the stored exit list for skeleton steps:
+
+```lean
+let g1 := g.seqHeadNBranchDisjoint hd hexits tail hlink
+let g2 := g1.weakenPosts3 hexits' h1 h2 h3
+let top := g2.join tailBound hall
+```
+
+The point is that `hexits` now talks about the generated list `g.exits`, not an
+unfolded internal field. That keeps generated proofs stable as the low-level
+certificate constructors change. The wrapper also provides small-list helpers
+such as `join2ResolveFirst`, `join3ResolveSecond`, and `join4ResolveThird` for
+common decoder joins where all but one exit is contradictory.
+
 Bad inputs:
 
 - decoded result values in the schema
