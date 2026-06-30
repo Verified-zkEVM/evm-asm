@@ -19,7 +19,8 @@ The WP/CFG tactics are documented in
 [`docs/agents/wp-framework.md`](docs/agents/wp-framework.md). Start there when
 a proof should derive the precondition from a program, postcondition, and known
 control-flow shape. Common exact-midpoint helpers include `wp_rv64_leaf`,
-`wp_rv64_seq_exact`, and `wp_rv64_seq_block_exact`.
+`wp_rv64_seq_exact`, and `wp_rv64_seq_block_exact`; bounded loop helpers include
+`wp_rv64_loop_nat` and `wp_rv64_loop_nat_sound`.
 
 **For closing arithmetic / address equality goals**, see the grindsets
 documented in [`GRIND.md`](GRIND.md):

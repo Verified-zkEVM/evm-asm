@@ -186,12 +186,32 @@ have hLoop :
   -- prove the header branch, body triple, exit-post entailment, and tail certs
   ...
 
-let loopCfg : WP.CFG.Cert header exit_ cr finalPost :=
-  WP.CFG.loopNat hLoop
+let loopCfg : WP.CFG.Cert header exit_ cr finalPost := by
+  wp_rv64_loop_nat hLoop
 ```
 
 The generated precondition is `inv 0`, and the generated budget is
-`WP.loopBound nHeader nBody nExit fuel`.
+`WP.loopBound nHeader nBody nExit fuel`. To close the CPS theorem directly,
+use `wp_rv64_loop_nat_sound hLoop`.
+
+For `fuel + 1`, `loopNatCert` asks for four obligations at the current index:
+
+- Header branch:
+  `cpsBranchWithin ... (inv i) bodyEntry (bodyPre i) exit_ (exitPost i)`.
+  The loop header either enters the body or exits early.
+- Body progress:
+  `cpsTripleWithin ... bodyEntry header ... (bodyPre i) (inv (i + 1))`.
+  The body reestablishes the invariant at the next index.
+- Early-exit handoff:
+  `WP.Entails (exitPost i) finalPost`.
+  An early exit already satisfies the public postcondition.
+- Recursive tail:
+  `loopNatCert ... (i + 1) fuel`.
+  The remaining iterations start from the next invariant.
+
+For `fuel = 0`, there is no header/body split. The caller supplies the final
+forced-exit triple from `inv i` to the public postcondition. See
+`EvmAsm/Rv64/WP/Examples.lean` for one- and two-iteration certificate shapes.
 
 ## Automation hooks
 
@@ -272,6 +292,31 @@ static_facts:
 This is not a Lean syntax requirement. It is the information a proof-producing
 agent should have available before it emits WP code. `post` names refer to Lean
 assertion definitions or local hypotheses, not to decoded runtime values.
+
+The Lean-side wrapper for this information is `WP.GeneratedCFG.OpenCFG`:
+
+```lean
+import EvmAsm.Rv64.WP.GeneratedCFG
+
+open EvmAsm.Rv64.WP.GeneratedCFG
+
+let g : OpenCFG entry cr := OpenCFG.ofNBranch branchSummary
+```
+
+`OpenCFG` stores both the kernel-checked `WP.NBranch` certificate and the
+expected generated exit list. Use the stored exit list for skeleton steps:
+
+```lean
+let g1 := g.seqHeadNBranchDisjoint hd hexits tail hlink
+let g2 := g1.weakenPosts3 hexits' h1 h2 h3
+let top := g2.join tailBound hall
+```
+
+The point is that `hexits` now talks about the generated list `g.exits`, not an
+unfolded internal field. That keeps generated proofs stable as the low-level
+certificate constructors change. The wrapper also provides small-list helpers
+such as `join2ResolveFirst`, `join3ResolveSecond`, and `join4ResolveThird` for
+common decoder joins where all but one exit is contradictory.
 
 Bad inputs:
 

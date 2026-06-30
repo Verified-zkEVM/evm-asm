@@ -72,6 +72,92 @@ example {nHeader nBody nExit : Nat}
       header exit_ cr (inv 0) post :=
   (CFG.loopNat hcert).sound
 
+/-- A one-iteration loop certificate shows the four obligations introduced by
+    `loopNatCert`: header branch, body progress, early-exit handoff, and final
+    forced-exit proof. -/
+def oneIterationLoopCfg {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    (hHeader0 : cpsBranchWithin nHeader header cr (inv 0)
+      bodyEntry (bodyPre 0) exit_ (exitPost 0))
+    (hBody0 : cpsTripleWithin nBody bodyEntry header cr
+      (bodyPre 0) (inv 1))
+    (hExit0 : Entails (exitPost 0) post)
+    (hFinal1 : cpsTripleWithin nExit header exit_ cr (inv 1) post) :
+    CFG.Cert header exit_ cr post :=
+  let hcert : loopNatCert nHeader nBody nExit header bodyEntry exit_ cr
+      inv bodyPre exitPost post 0 1 := by
+    change cpsBranchWithin nHeader header cr (inv 0)
+        bodyEntry (bodyPre 0) exit_ (exitPost 0) ∧
+      cpsTripleWithin nBody bodyEntry header cr (bodyPre 0) (inv 1) ∧
+      Entails (exitPost 0) post ∧
+      cpsTripleWithin nExit header exit_ cr (inv 1) post
+    exact ⟨hHeader0, hBody0, hExit0, hFinal1⟩
+  CFG.loopNat hcert
+
+example {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    (hHeader0 : cpsBranchWithin nHeader header cr (inv 0)
+      bodyEntry (bodyPre 0) exit_ (exitPost 0))
+    (hBody0 : cpsTripleWithin nBody bodyEntry header cr
+      (bodyPre 0) (inv 1))
+    (hExit0 : Entails (exitPost 0) post)
+    (hFinal1 : cpsTripleWithin nExit header exit_ cr (inv 1) post) :
+    (oneIterationLoopCfg hHeader0 hBody0 hExit0 hFinal1).pre = inv 0 :=
+  rfl
+
+/-- A two-iteration loop certificate demonstrates how the recursive tail is
+    just the same four obligations at the next invariant index. -/
+def twoIterationLoopCfg {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    (hHeader0 : cpsBranchWithin nHeader header cr (inv 0)
+      bodyEntry (bodyPre 0) exit_ (exitPost 0))
+    (hBody0 : cpsTripleWithin nBody bodyEntry header cr
+      (bodyPre 0) (inv 1))
+    (hExit0 : Entails (exitPost 0) post)
+    (hHeader1 : cpsBranchWithin nHeader header cr (inv 1)
+      bodyEntry (bodyPre 1) exit_ (exitPost 1))
+    (hBody1 : cpsTripleWithin nBody bodyEntry header cr
+      (bodyPre 1) (inv 2))
+    (hExit1 : Entails (exitPost 1) post)
+    (hFinal2 : cpsTripleWithin nExit header exit_ cr (inv 2) post) :
+    CFG.Cert header exit_ cr post :=
+  let hcert : loopNatCert nHeader nBody nExit header bodyEntry exit_ cr
+      inv bodyPre exitPost post 0 2 := by
+    change cpsBranchWithin nHeader header cr (inv 0)
+        bodyEntry (bodyPre 0) exit_ (exitPost 0) ∧
+      cpsTripleWithin nBody bodyEntry header cr (bodyPre 0) (inv 1) ∧
+      Entails (exitPost 0) post ∧
+      (cpsBranchWithin nHeader header cr (inv 1)
+        bodyEntry (bodyPre 1) exit_ (exitPost 1) ∧
+      cpsTripleWithin nBody bodyEntry header cr (bodyPre 1) (inv 2) ∧
+      Entails (exitPost 1) post ∧
+      cpsTripleWithin nExit header exit_ cr (inv 2) post)
+    exact ⟨hHeader0, hBody0, hExit0,
+      hHeader1, hBody1, hExit1, hFinal2⟩
+  CFG.loopNat hcert
+
+example {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    (hHeader0 : cpsBranchWithin nHeader header cr (inv 0)
+      bodyEntry (bodyPre 0) exit_ (exitPost 0))
+    (hBody0 : cpsTripleWithin nBody bodyEntry header cr
+      (bodyPre 0) (inv 1))
+    (hExit0 : Entails (exitPost 0) post)
+    (hHeader1 : cpsBranchWithin nHeader header cr (inv 1)
+      bodyEntry (bodyPre 1) exit_ (exitPost 1))
+    (hBody1 : cpsTripleWithin nBody bodyEntry header cr
+      (bodyPre 1) (inv 2))
+    (hExit1 : Entails (exitPost 1) post)
+    (hFinal2 : cpsTripleWithin nExit header exit_ cr (inv 2) post) :
+    (twoIterationLoopCfg hHeader0 hBody0 hExit0
+      hHeader1 hBody1 hExit1 hFinal2).nSteps =
+        loopBound nHeader nBody nExit 2 :=
+  rfl
+
 end Examples
 end WP
 end EvmAsm.Rv64
