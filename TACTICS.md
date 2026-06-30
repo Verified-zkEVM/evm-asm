@@ -18,9 +18,11 @@ User guide for the frame automation tactics in `EvmAsm/Tactics/`.
 The WP/CFG tactics are documented in
 [`docs/agents/wp-framework.md`](docs/agents/wp-framework.md). Start there when
 a proof should derive the precondition from a program, postcondition, and known
-control-flow shape. Common exact-midpoint helpers include `wp_rv64_leaf`,
-`wp_rv64_seq_exact`, and `wp_rv64_seq_block_exact`; bounded loop helpers include
-`wp_rv64_loop_nat` and `wp_rv64_loop_nat_sound`.
+control-flow shape. For straight-line leaves, start with `wp_rv64_leaf_synth`;
+it works backwards from the requested postcondition and exposes the computed
+precondition as `cfg.pre`. Common exact-midpoint helpers include
+`wp_rv64_leaf`, `wp_rv64_seq_exact`, and `wp_rv64_seq_block_exact`; bounded
+loop helpers include `wp_rv64_loop_nat` and `wp_rv64_loop_nat_sound`.
 
 **For closing arithmetic / address equality goals**, see the grindsets
 documented in [`GRIND.md`](GRIND.md):
@@ -98,6 +100,16 @@ theorem add_limb_carry_spec ... := by
   have s2 := add_limb_carry_spec_phase2 ...
   runBlock s1 s2
 ```
+
+### Post-driven WP leaf mode
+
+`runBlockFromPost` is the lower-level tactic used by `wp_rv64_leaf_synth`. It
+expects a bounded CPS goal whose precondition and step bound may be metavariables,
+for example `cpsTripleWithin ?n entry exit cr ?pre post`, and computes `?pre`
+by matching registered specs backwards from `post`. For simple overwritten
+register or memory cells, unresolved old values are generalized to `regOwn` or
+`memOwn` precondition atoms. Most users should call `wp_rv64_leaf_synth` on a
+`WP.CFG.Cert` goal instead.
 
 ### Requirements
 
