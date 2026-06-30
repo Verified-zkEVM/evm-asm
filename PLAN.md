@@ -508,6 +508,19 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   reused, untouched `evm_div_v5`/`evm_mod_v5`. **Status: executable + `#guard`
   functional tests landed** (`FastN1ProgramTest.lean`, both normalization
   paths + dispatch routing validated end-to-end; ~700→~420 step est).
+  **DIV-perf Phase 3 measurement (DONE, branch `perf/div-algorithm-redesign`):**
+  the extended `bench/DivBench.lean` now runs the verified `step` semantics over
+  a **frequency-weighted sample of 800 real mainnet DIV + 400 MOD operands**
+  (`scripts/sample-div-operands.py` → `bench/div-operands-sample.txt`) and
+  reports the TRUE mean step count (no representative-bias), with a representative
+  weighted point estimate kept only as a cross-check. **Measured result:
+  `evm_div_v6` = 399.1 mean steps vs deployed 551.5 → −27.6% DIV; `evm_mod_v6` =
+  406.5 vs 609.5 → −33.3% MOD** (MOD gains more — n=1 is 68% of MOD). Correct on
+  all 1200 sampled ops + the 112 corner sweep. (`evm_div_v5` is a −1.08%
+  regression vs v4 — fallback core only.) So **`evm_div_v6`/`evm_mod_v6` are the
+  ranked winners and the recommended next verification target.** Full table + the
+  cheap-dispatch (~−50% off v6, to be measured) and n=2 (most-defensible
+  un-captured win, 18.2%) roadmap in `docs/divmod-evm-redesign.md`.
   **Stack-level proof TODO** — composition reuse must first pin the consistent
   (spec, executable, code-bundle) triple: the proven `evm_div_stack_spec` is
   over `divCode` (v1 `divK_div128` block), while executables use v4/v5 div128
