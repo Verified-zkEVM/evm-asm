@@ -704,13 +704,67 @@ theorem walkInitShortSuccessDecodedFailureNBranch_exits
     h_len h_prologue_code h_code_max).failureNBranch_exits hsalign hover hwin h_len h_prologue_code
     h_code_max
 
+/-- Decoded-result failure branch with the long-list exit already continued
+    through the reason-erased ABI failure return. -/
+noncomputable def walkInitShortSuccessDecodedLongFailureNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode.union
+        (failStatusReturnCode ((base + 24) + 28))) :=
+  (walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+    inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).failureLongNBranch hsalign hover hwin h_len
+    h_prologue_code h_code_max
+
+/-- The decoded-result long-failure branch has the same static prologue
+    precondition as the success certificate. -/
+theorem walkInitShortSuccessDecodedLongFailureNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (walkInitShortSuccessDecodedLongFailureNBranch base sp0 raVal s0Old s1Old s2Old outBase
+      m0 m1 m2 m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign
+      hdov hdval h_len h_prologue_code h_code_max).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  exact (walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+    m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).failureLongNBranch_pre hsalign hover hwin h_len
+    h_prologue_code h_code_max
+
 attribute [rv64_wp]
   walkInitShortSuccessDecodedCert_pre
   walkInitShortSuccessDecodedFailureNBranch_pre
+  walkInitShortSuccessDecodedLongFailureNBranch_pre
 
 attribute [rv64_wp_cert]
   walkInitShortSuccessDecodedCert
   walkInitShortSuccessDecodedFailureNBranch
+  walkInitShortSuccessDecodedLongFailureNBranch
 
 noncomputable example
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
@@ -754,6 +808,27 @@ noncomputable example
         (walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
           m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov
           hdval h_len h_prologue_code h_code_max).specs)) := by
+  wp_rv64_cert
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode.union
+        (failStatusReturnCode ((base + 24) + 28))) := by
   wp_rv64_cert
 
 /-- Result-free package projection from a successful schema-input predicate.
@@ -917,14 +992,68 @@ theorem walkInitShortSuccessSchemaInputFailureNBranch_exits
     h_len h_prologue_code h_code_max).failureNBranch_exits hsalign hover hwin h_len h_prologue_code
     h_code_max
 
+/-- Result-free schema-input failure branch with the long-list exit already
+    continued through the reason-erased ABI failure return. -/
+noncomputable def walkInitShortSuccessSchemaInputLongFailureNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+        m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode.union
+        (failStatusReturnCode ((base + 24) + 28))) :=
+  (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+    m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).failureLongNBranch hsalign hover hwin h_len
+    h_prologue_code h_code_max
+
+/-- The result-free schema-input long-failure branch has the same static
+    prologue precondition as the success certificate. -/
+theorem walkInitShortSuccessSchemaInputLongFailureNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (walkInitShortSuccessSchemaInputLongFailureNBranch base sp0 raVal s0Old s1Old s2Old
+      outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover
+      hwin hdalign hdov hdval h_len h_prologue_code h_code_max).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  exact (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+    m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).failureLongNBranch_pre hsalign hover hwin h_len
+    h_prologue_code h_code_max
+
 
 attribute [rv64_wp]
   walkInitShortSuccessSchemaInputCert_pre
   walkInitShortSuccessSchemaInputFailureNBranch_pre
+  walkInitShortSuccessSchemaInputLongFailureNBranch_pre
 
 attribute [rv64_wp_cert]
   walkInitShortSuccessSchemaInputCert
   walkInitShortSuccessSchemaInputFailureNBranch
+  walkInitShortSuccessSchemaInputLongFailureNBranch
 
 noncomputable example
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
@@ -968,6 +1097,27 @@ noncomputable example
         (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
           m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
           hdval h_len h_prologue_code h_code_max).specs)) := by
+  wp_rv64_cert
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+        m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode.union
+        (failStatusReturnCode ((base + 24) + 28))) := by
   wp_rv64_cert
 
 
@@ -1231,6 +1381,48 @@ noncomputable example
       (walkInitShortSuccessResolvedCode (base + 24) specs)).union
       (failStatusReturnCode ((base + 24) + 28))) := by
   wp_withdrawal_decode_auto
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((walkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input w hdec hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode.union
+        (failStatusReturnCode ((base + 24) + 28))) := by
+  wp_withdrawal_decode_auto input
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+        m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode.union
+        (failStatusReturnCode ((base + 24) + 28))) := by
+  wp_withdrawal_decode_auto input
 
 end WithdrawalDecode
 
