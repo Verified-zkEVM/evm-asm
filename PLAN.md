@@ -2199,6 +2199,24 @@ calling convention so it is a literal drop-in.
   future helper drift among these four is now caught in one place by
   `rlpWalkHelpersClosure_eq_helpers`.
 
+- ⏳ **`rlp_field0_to_u64` call-composition slice** (`EvmAsm/Rv64/RLP/Field0ToU64.lean`):
+  first caller-level verification step composing the cursor-walk leaves
+  (`rlp_walk_init`, `rlp_walk_next`, `rlp_content_to_u64`) into a small wrapper
+  that decodes RLP list field 0 as a canonical `u64`, exercising the WP
+  call-composition machinery (`WP.cpsCallWithin`) for the first time in this
+  repo. Lands the wrapper `Program` + fixed-offset code layout (wrapper at
+  `base`, `rlp_walk_init` at `base+0x100`, `rlp_walk_next` at `base+0x300`,
+  `rlp_content_to_u64` at `base+0x600`) with pairwise disjointness lemmas, and
+  a proved success-path theorem
+  (`rlp_field0_to_u64_content_call_success_spec_within`) composing the
+  `jal ra, rlp_content_to_u64` call after a hypothetical post-`rlp_walk_next`-
+  success state, concluding status `0` and the decoded `Nat.fromBytesBE`
+  value. Axiom-clean, 0 sorry. **Remaining work** (bead `evm-asm-zvgxe`, P0):
+  lift the `rlp_walk_init`/`rlp_walk_next` calls the same way and combine with
+  the two failure branches into one unified `rlp_field0_to_u64_spec_within`
+  top theorem with a 4-way disjunctive postcondition. Does **not** yet replace
+  Codegen's unverified `rlp_field_to_u64` (`EvmAsm/Codegen/Programs/Tx.lean`).
+
 ---
 
 ## Roadmap: Phases 7-11 (STF — State Transition Function)
