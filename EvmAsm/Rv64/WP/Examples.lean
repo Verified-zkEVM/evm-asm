@@ -25,11 +25,20 @@ def addiTwiceCfg (base v : Word) (imm1 imm2 : BitVec 12) :
   exact CFG.seqDisjoint
     (CodeReq.Disjoint.singleton (by bv_omega))
     head
-    (CFG.block (Entails.refl _) tailSpec)
+    (CFG.leaf tailSpec)
     (Entails.refl _)
 
 example (base v : Word) (imm1 imm2 : BitVec 12) :
     (addiTwiceCfg base v imm1 imm2).pre = (.x5 ↦ᵣ v) := rfl
+
+/-- Exact sequencing removes the midpoint entailment when the head postcondition
+    is definitionally the generated tail precondition. -/
+example {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre post : Assertion}
+    (tail : CFG.Cert mid exit_ cr post)
+    (head : cpsTripleWithin nSteps entry mid cr pre tail.pre) :
+    CFG.Cert entry exit_ cr post :=
+  CFG.seqExact tail head
 
 example (base v : Word) (imm1 imm2 : BitVec 12) :
     cpsTripleWithin 2 base ((base + 4) + 4)

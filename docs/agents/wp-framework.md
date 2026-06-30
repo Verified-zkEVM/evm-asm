@@ -72,7 +72,9 @@ theorem spec :
 
 3. Lift leaves into WP certificates.
 
-   Use `WP.CFG.block` for a single-exit CPS proof:
+   Use `WP.CFG.leaf` when the CPS postcondition already matches the
+   certificate postcondition. Use `WP.CFG.block hpost` when the leaf needs a
+   final postcondition weakening.
 
    ```lean
    have hBlock :
@@ -80,7 +82,7 @@ theorem spec :
      runBlock
 
    let blockCfg : WP.CFG.Cert entry exit_ cr blockPost :=
-     WP.CFG.block (WP.Entails.refl _) hBlock
+     WP.CFG.leaf hBlock
    ```
 
 4. Compose certificates backwards.
@@ -114,8 +116,10 @@ theorem spec :
 
 | Need | Constructor or tactic |
 |------|-----------------------|
-| Lift an existing single-exit CPS proof | `WP.CFG.block (WP.Entails.refl _) h` |
-| Empty/reflexive exit certificate | `WP.CFG.exit` |
+| Lift an exact single-exit CPS proof | `WP.CFG.leaf h`, `wp_rv64_leaf h` |
+| Lift and weaken a CPS proof's postcondition | `WP.CFG.block hpost h` |
+| Empty/reflexive exit certificate | `WP.CFG.exitRefl`, `wp_rv64_exit_refl` |
+| Empty exit with postcondition weakening | `WP.CFG.exit` |
 | Impossible path | `WP.CFG.unreachable` |
 | Add a separation-logic frame | `WP.CFG.frameR` |
 | Weaken the generated precondition | `WP.CFG.weakenPre`, `wp_rv64_weaken_pre` |
@@ -124,8 +128,11 @@ theorem spec :
 | Enlarge the code requirement | `WP.CFG.extendCode`, `wp_rv64_extend_code` |
 | Change entry or exit addresses by equality | `WP.CFG.changeEntry`, `WP.CFG.changeExit` |
 | Compose a head CPS proof into a tail certificate | `WP.CFG.seq`, `wp_rv64_seq` |
+| Compose when the midpoint is exact | `WP.CFG.seqExact`, `wp_rv64_seq_exact` |
 | Compose with disjoint code reqs | `WP.CFG.seqDisjoint`, `wp_rv64_seq_disjoint` |
+| Disjoint exact midpoint | `WP.CFG.seqDisjointExact`, `wp_rv64_seq_disjoint_exact` |
 | Compose two raw CPS block proofs | `WP.CFG.seqBlock`, `WP.CFG.seqBlockDisjoint` |
+| Raw blocks with exact midpoint | `WP.CFG.seqBlockExact`, `WP.CFG.seqBlockDisjointExact` |
 
 The `wp_rv64_*` tactics are thin wrappers around the constructors. They are
 useful when Lean can infer most arguments from the goal, especially after the
@@ -225,6 +232,47 @@ Good inputs:
 - loop header, body, exit labels, invariant family, and fuel bound
 - static facts such as length bounds, pointer alignment, and code disjointness
 
+A useful generated-CFG sketch looks like this:
+
+```text
+routine: WithdrawalDecode
+entry: prologue
+exit: done
+blocks:
+  prologue:
+    start: base
+    end: walk_init
+    code: prologueCode
+    post: prologuePost
+    successors: [walk_init]
+  walk_init:
+    kind: nbranch
+    exits:
+      - label: empty_input_fail
+        post: walkInitEmptyPost
+      - label: long_list_fail
+        post: walkInitLongListPost
+      - label: fields_start
+        post: walkInitSuccessPost
+joins:
+  done:
+    post: withdrawalDecodeDisjPost
+loops:
+  field_walk:
+    header: fields_start
+    body: field_body
+    exit: fields_done
+    invariant: fieldWalkInv
+    fuel: 4
+static_facts:
+  - code_disjoint_prologue_walk
+  - input_len_bound
+```
+
+This is not a Lean syntax requirement. It is the information a proof-producing
+agent should have available before it emits WP code. `post` names refer to Lean
+assertion definitions or local hypotheses, not to decoded runtime values.
+
 Bad inputs:
 
 - decoded result values in the schema
@@ -240,7 +288,10 @@ caller needs to distinguish it.
 ## Debugging
 
 - If a generated precondition is unclear, inspect `#wp_rv64 cfg`.
-- If `wp_rv64_cert` fails, try the constructor directly once. The resulting
+- If `wp_rv64_cert`, `wp_rv64_link`, `wp_rv64_dead`, or `wp_rv64_disjoint`
+  fails, read the diagnostic first. It reports the goal shape, how many
+  registered hints were tried, and the usual next action.
+- If a constructor still does not infer, try it directly once. The resulting
   goals usually show which entry, exit, code requirement, or postcondition did
   not infer.
 - If `wp_rv64_link` fails, normalize only the relevant helper definitions with
