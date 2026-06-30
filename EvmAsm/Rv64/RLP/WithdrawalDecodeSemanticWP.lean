@@ -1328,6 +1328,35 @@ def walkInitEmptyInputFailureFromPrologueSharedFramePost
     walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) **
     walkInitEmptyInputPrologueScratchFrame t0Old t1Old
 
+/-- Empty-input failure post normalized to the same ABI-plus-reason-frame shape
+    as the nonempty reason-erased failure classifier. -/
+def walkInitEmptyInputFailureReasonPostFromPrologue
+    (sp0 raVal s0Old s1Old s2Old outBase inputBase : Word)
+    (t0Old t1Old : Word) : Assertion :=
+  (abiPost inputBase outBase raVal ([] : List Byte) **
+    walkInitEmptyFailAbiFrame (0 : Word) t0Old t1Old) **
+    walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase
+
+/-- The empty-input branch carries no relevant failure reason: expose only the
+    public ABI failure post plus the generic zero-case reason frame. -/
+theorem walkInitEmptyInputFailureFromPrologueSharedFramePost_entails_reasonPost
+    (sp0 raVal s0Old s1Old s2Old outBase inputBase : Word)
+    (t0Old t1Old : Word) :
+    WP.Entails
+      (walkInitEmptyInputFailureFromPrologueSharedFramePost sp0 raVal s0Old s1Old s2Old
+        outBase inputBase t0Old t1Old)
+      (walkInitEmptyInputFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old outBase
+        inputBase t0Old t1Old) := by
+  intro h hp
+  unfold walkInitEmptyInputFailureFromPrologueSharedFramePost emptyInputFailurePost
+    walkInitEmptyInputPrologueScratchFrame at hp
+  unfold walkInitEmptyInputFailureReasonPostFromPrologue walkInitEmptyFailAbiFrame abiPost
+  rw [resultPost_failure decodeWithdrawal_nil]
+  xperm_hyp hp
+
+attribute [rv64_wp_entails]
+  walkInitEmptyInputFailureFromPrologueSharedFramePost_entails_reasonPost
+
 /-- Resolved empty-input path over the full classifier code with the same
     scratch-register caller frame as the nonempty classifier. -/
 def walkInitEmptyInputFailureFromPrologueSharedFrameCert
@@ -1886,6 +1915,107 @@ theorem walkInitZeroNonzeroAbiFailureFromPrologueNBranch_exits
       rfl
   | cons b rest => rfl
 
+/-- Input-indexed exits with empty input normalized to the same
+    ABI-plus-reason-frame style as the nonempty reason-erased classifier. -/
+def walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueExits
+    (base sp0 raVal s0Old s1Old s2Old outBase : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) : List (Word × Assertion) :=
+  match input with
+  | [] =>
+      [ (failStatusReturnExit raVal,
+          walkInitEmptyInputFailureReasonPostFromPrologue sp0 raVal s0Old s1Old s2Old
+            outBase inputBase t0Old t1Old) ]
+  | b :: rest =>
+      walkInitAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old s2Old
+        outBase inputBase listLen t0Old t1Old (b :: rest) (by simp)
+
+/-- Zero/nonzero failure facade with the empty-input exit reason-erased too.
+    This keeps the same static precondition and code as the classifier facade,
+    but avoids exposing the precise empty-failure post shape to generated joins. -/
+def walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitEmptyFailNotListFailShortLongCode (base + 24))) := by
+  let br := walkInitZeroNonzeroAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old
+    s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hover hwin hLen
+    hprologueCode hcode
+  cases input with
+  | nil =>
+      have hLen0 : listLen = (0 : Word) := by
+        simpa using hLen
+      subst listLen
+      exact WP.CFG.nbranchWeakenHeadPost br (by
+        dsimp [br]
+        rw [walkInitZeroNonzeroAbiFailureFromPrologueNBranch_exits]
+        rfl)
+        (walkInitEmptyInputFailureFromPrologueSharedFramePost_entails_reasonPost sp0 raVal
+          s0Old s1Old s2Old outBase inputBase t0Old t1Old)
+  | cons _ _ =>
+      exact br
+
+/-- The reason-erased zero/nonzero facade preserves the original static
+    precondition. -/
+theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch base sp0 raVal s0Old
+      s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hover
+      hwin hLen hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  cases input with
+  | nil =>
+      have hLen0 : listLen = (0 : Word) := by
+        simpa using hLen
+      subst listLen
+      rfl
+  | cons _ _ => rfl
+
+attribute [rv64_wp]
+  walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch_pre
+
+/-- The reason-erased zero/nonzero facade exposes normalized empty exits and
+    keeps the nonempty reason-erased classifier exits unchanged. -/
+theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch base sp0 raVal s0Old
+      s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hover
+      hwin hLen hprologueCode hcode).exits =
+      walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old
+        s2Old outBase inputBase listLen t0Old t1Old input := by
+  cases input with
+  | nil =>
+      have hLen0 : listLen = (0 : Word) := by
+        simpa using hLen
+      subst listLen
+      rfl
+  | cons _ _ => rfl
+
 /-- The zero/nonzero ABI-failure facade lifted to the same code requirement as
     the resolved short-success slice. The precondition and exits are unchanged;
     only the persistent code requirement is enlarged. -/
@@ -1952,6 +2082,70 @@ theorem walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_exits
   unfold walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch
   simp only [WP.NBranch.extendCode]
   rw [walkInitZeroNonzeroAbiFailureFromPrologueNBranch_exits]
+
+/-- The reason-erased zero/nonzero facade lifted to the resolved short-success
+    code requirement.  This is the preferred failure-side shape for generated
+    joins: empty input and nonempty classifier failures have the same
+    reason-erased ABI style, while short/long candidates stay open. -/
+def walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
+  let br := walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch base sp0 raVal
+    s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input
+    hsalign hover hwin hLen hprologueCode (by omega)
+  wp_rv64_nbranch_extend_code br,
+    (prologueWalkInitClassifierCode_mono_resolvedCode base specs)
+
+theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch base sp0 raVal
+      s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs
+      hsalign hover hwin hLen hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  unfold walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch
+  simp only [WP.NBranch.extendCode]
+  rw [walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch_pre]
+
+attribute [rv64_wp]
+  walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch_pre
+
+theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch base sp0 raVal
+      s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input specs
+      hsalign hover hwin hLen hprologueCode hcode).exits =
+      walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old
+        s2Old outBase inputBase listLen t0Old t1Old input := by
+  unfold walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch
+  simp only [WP.NBranch.extendCode]
+  rw [walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueNBranch_exits]
 
 /-- Failure facade over the resolved short-success code, restated with the same
     success-shaped static caller frame used by the schema-success path.  The
@@ -2032,6 +2226,86 @@ theorem walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch
   unfold walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch
   simp only [WP.NBranch.weakenPre, WP.CFG.nbranchFrameR, WP.NBranch.frameR]
   rw [walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeNBranch_exits]
+  rfl
+
+/-- Reason-erased failure facade over the resolved short-success code, in the
+    same success-shaped caller frame as the schema-success path.  Prefer this
+    over the raw fallback when generated joins do not care why decoding failed. -/
+def walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) specs)) := by
+  let br := walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch base
+    sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input
+    specs hsalign hover hwin hLen hprologueCode hcode
+  have hpre : WP.Entails
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+      (br.pre ** walkInitSchemaScratchFrame) := by
+    dsimp [br]
+    rw [walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch_pre]
+    exact prologuePreShortSuccessCarry_entails_abiFailureScratchPre sp0 raVal s0Old s1Old
+      s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input
+  wp_rv64_nbranch_frame_set_pre br, walkInitSchemaScratchFrame,
+    walkInitSchemaScratchFrame_pcFree,
+    (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+      walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+
+theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch
+      base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old
+      input specs hsalign hover hwin hLen hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  rfl
+
+attribute [rv64_wp]
+  walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch_pre
+
+def walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameExits
+    (base sp0 raVal s0Old s1Old s2Old outBase : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) : List (Word × Assertion) :=
+  (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old
+    s2Old outBase inputBase listLen t0Old t1Old input).map
+    (fun ex => (ex.1, ex.2 ** walkInitSchemaScratchFrame))
+
+theorem walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte) (specs : List FieldSpec)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch
+      base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old
+      input specs hsalign hover hwin hLen hprologueCode hcode).exits =
+      walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameExits base
+        sp0 raVal s0Old s1Old s2Old outBase inputBase listLen t0Old t1Old input := by
+  unfold walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch
+  simp only [WP.NBranch.weakenPre, WP.CFG.nbranchFrameR, WP.NBranch.frameR]
+  rw [walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeNBranch_exits]
   rfl
 
 /-- Prologue followed by the reduced short-list success WP slice.  The prologue

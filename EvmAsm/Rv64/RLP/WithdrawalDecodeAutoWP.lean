@@ -895,7 +895,7 @@ noncomputable example
 -- back to the coarse ABI failure branch when they only know a static schema
 -- size bound, without reconstructing the precise success witnesses.
 attribute [rv64_wp_cert]
-  walkInitZeroNonzeroAbiFailureFromPrologueResolvedCodeSuccessFrameNBranch
+  walkInitZeroNonzeroAbiFailureReasonErasedFromPrologueResolvedCodeSuccessFrameNBranch
 
 noncomputable example
     (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
