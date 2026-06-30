@@ -62,6 +62,8 @@ def classify(records, op_filter, signed):
     pow2_by_n = collections.Counter()    # pow2 divisors, keyed by divisor word-count
     altb_by_n = collections.Counter()    # a<b cases, keyed by divisor word-count
     genuine_by_n = collections.Counter() # NOT cheap (real schoolbook work), by word-count
+    part = collections.Counter()         # non-overlapping precedence partition
+    pow2_byte_aligned = 0                # pow2 divisor == 2^(8k): byte-extraction idiom
     total = a_lt_b = pow2 = b_zero = cheap = 0
     for r in records:
         if r["op"] not in op_filter:
@@ -76,6 +78,7 @@ def classify(records, op_filter, signed):
         if b == 0:
             b_zero += 1
             cheap += 1
+            part["b0"] += 1
         else:
             is_p2 = is_pow2(b)
             is_lt = a < b
@@ -85,17 +88,27 @@ def classify(records, op_filter, signed):
             if is_p2:
                 pow2 += 1
                 pow2_by_n[nb] += 1
+                if (b.bit_length() - 1) % 8 == 0:   # divisor == 2^(8k)
+                    pow2_byte_aligned += 1
             if is_lt or is_p2:
                 cheap += 1
             else:
                 genuine_by_n[nb] += 1
+            # non-overlapping precedence partition: a<b > pow2 > genuine-by-n
+            if is_lt:
+                part["a_lt_b"] += 1
+            elif is_p2:
+                part["pow2_not_altb"] += 1
+            else:
+                part[f"genuine_n{nb}"] += 1
             if b in NAMED:
                 named[NAMED[b]] += 1
     return {
         "total": total, "n_div": n_div, "n_dvd": n_dvd, "joint": joint,
         "named": named, "a_lt_b": a_lt_b, "pow2": pow2, "b_zero": b_zero,
         "cheap": cheap, "pow2_by_n": pow2_by_n, "altb_by_n": altb_by_n,
-        "genuine_by_n": genuine_by_n,
+        "genuine_by_n": genuine_by_n, "part": part,
+        "pow2_byte_aligned": pow2_byte_aligned,
     }
 
 
@@ -121,9 +134,16 @@ def report(label, st, kind):
         c = st["n_dvd"].get(n, 0)
         print(f"    m={n}: {c:8d}  {pct(c, t)}")
     print(f"  a < b (quotient 0):   {st['a_lt_b']:8d}  {pct(st['a_lt_b'], t)}")
-    print(f"  divisor power-of-two: {st['pow2']:8d}  {pct(st['pow2'], t)}")
+    print(f"  divisor power-of-two: {st['pow2']:8d}  {pct(st['pow2'], t)}"
+          f"   (of which 2^(8k) byte-extraction: {st['pow2_byte_aligned']}"
+          f" {pct(st['pow2_byte_aligned'], st['pow2']) if st['pow2'] else ''})")
     print(f"  divisor == 0:         {st['b_zero']:8d}  {pct(st['b_zero'], t)}")
     print(f"  CHEAP (a<b | pow2 | b=0): {st['cheap']:8d}  {pct(st['cheap'], t)}")
+    print("  NON-OVERLAPPING partition (a<b > pow2 > genuine-by-n; sums to 100%):")
+    for k in ("b0", "a_lt_b", "pow2_not_altb",
+              "genuine_n1", "genuine_n2", "genuine_n3", "genuine_n4"):
+        c = st["part"].get(k, 0)
+        print(f"    {k:16s}: {c:8d}  {pct(c, t)}")
     print("  top notable constant divisors:")
     for name, c in st["named"].most_common(12):
         print(f"    {name:14s}: {c:8d}  {pct(c, t)}")
@@ -147,6 +167,13 @@ def weights_block(st):
         "pow2_frac": st["pow2"] / t,
         "b_zero_frac": st["b_zero"] / t,
         "cheap_frac": st["cheap"] / t,
+        "pow2_byte_aligned_frac": st["pow2_byte_aligned"] / t,  # divisor==2^(8k): byte-extraction
+        # NON-OVERLAPPING partition of ALL divides (sums to 1.0): precedence
+        # a<b > pow2 > genuine-by-n. THIS is what Phase 3 should weight against;
+        # do NOT add a_lt_b_frac+pow2_frac (they overlap ~15pp).
+        "partition": {k: st["part"].get(k, 0) / t for k in
+                      ("b0", "a_lt_b", "pow2_not_altb",
+                       "genuine_n1", "genuine_n2", "genuine_n3", "genuine_n4")},
         # genuine (non-cheap) schoolbook work as a fraction of ALL divides, by
         # divisor word-count -- the dispatch the Phase 3 algorithm must optimize.
         "genuine_by_n": {str(n): st["genuine_by_n"].get(n, 0) / t for n in range(5)},
