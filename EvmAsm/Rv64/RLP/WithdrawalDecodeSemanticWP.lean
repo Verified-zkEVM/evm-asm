@@ -1154,6 +1154,72 @@ theorem walkInitAbiFailureFromPrologueNBranch_pre
         walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
   rfl
 
+/-- Prologue followed by the ABI-failure classifier, with the empty/nonempty
+    split selected from the concrete input bytes. Callers supply only static
+    length and memory-validity facts; the WP facade chooses the empty path for
+    `[]` and the classifier path for nonempty input. -/
+def walkInitZeroNonzeroAbiFailureFromPrologueNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitEmptyFailNotListFailShortLongCode (base + 24))) := by
+  cases input with
+  | nil =>
+      let br0 := walkInitEmptyInputFailureFromPrologueSharedFrameNBranch base sp0 raVal
+        s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode
+      have hpre : WP.Entails
+          (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+            walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase
+              ([] : List Byte))
+          br0.pre := by
+        dsimp [br0]
+        rw [walkInitEmptyInputFailureFromPrologueSharedFrameNBranch_pre]
+        have hLen0 : listLen = (0 : Word) := by
+          simpa using hLen
+        subst listLen
+        wp_rv64_link
+      wp_rv64_nbranch_weaken_pre_with br0, hpre
+  | cons b rest =>
+      have hoff : 0 < (b :: rest).length := by simp
+      have hover0 : inputBase.toNat + 0 < 2 ^ 64 := by
+        omega
+      have hvalid0 : isValidByteAccess (inputBase + BitVec.ofNat 64 0) = true :=
+        hwin 0 hoff
+      have hBound : (b :: rest).length < 2 ^ 64 := by
+        omega
+      exact walkInitAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
+        outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old (b :: rest) hsalign hoff
+        hover0 hvalid0 hLen hBound hprologueCode hcode
+
+/-- Fully reduced precondition for the input-indexed empty/nonempty ABI-failure
+    facade. It is static and contains no pre-decoded branch/result fact. -/
+theorem walkInitZeroNonzeroAbiFailureFromPrologueNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    (walkInitZeroNonzeroAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
+      outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old input hsalign hover hwin hLen
+      hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  cases input with
+  | nil => rfl
+  | cons b rest => rfl
+
 /-- Prologue followed by the reduced short-list success WP slice.  The prologue
     carries the walk-init/schema resources to its exit; the tail consumes those
     resources and returns the ABI success post while preserving the saved frame. -/
