@@ -688,6 +688,40 @@ theorem cpsNBranchWithin_extend_head_nbranch_disjoint {nSteps1 nSteps2 : Nat}
       exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
         ex, List.mem_append_right exits htail, hpc1, hQF⟩
 
+/-- Extend the second exit of a bounded N-branch with another bounded N-branch
+    over disjoint tail code, preserving the first exit. This supports generated
+    left-to-right CFG proofs that classify one early exit and continue the
+    fall-through arm. -/
+theorem cpsNBranchWithin_extend_second_nbranch_disjoint {nSteps1 nSteps2 : Nat}
+    {entry head l : Word} {cr1 cr2 : CodeReq}
+    {P H Q : Assertion}
+    {exits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (hbr : cpsNBranchWithin nSteps1 entry cr1 P ((head, H) :: (l, Q) :: others))
+    (hseq : cpsNBranchWithin nSteps2 l cr2 Q exits) :
+    cpsNBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P
+      ((head, H) :: (exits ++ others)) := by
+  intro F hF s hcr hPF hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQF⟩ :=
+    hbr F hF s hcr1 hPF hpc
+  cases hmem with
+  | head =>
+      exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+        (head, H), List.Mem.head _, hpc1, hQF⟩
+  | tail _ htail =>
+      cases htail with
+      | head =>
+          have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+          obtain ⟨k2, hk2, s2, hstep2, ex2, hmem2, hpc2, hRF⟩ :=
+            hseq F hF s1 hcr2' hQF hpc1
+          exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+            ex2, List.Mem.tail _ (List.mem_append_left others hmem2), hpc2, hRF⟩
+      | tail _ htailRest =>
+          exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+            ex, List.Mem.tail _ (List.mem_append_right exits htailRest), hpc1, hQF⟩
+
 /-- Bounded sequence with the same CodeReq: a triple followed by an N-branch. -/
 theorem cpsTripleWithin_seq_cpsNBranchWithin_same_cr {nSteps1 nSteps2 : Nat}
     {entry mid : Word} {cr : CodeReq}

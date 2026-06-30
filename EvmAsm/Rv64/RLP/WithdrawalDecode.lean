@@ -389,6 +389,29 @@ theorem walkInitEmptyFailStatusCode_disjoint_prefixTail (base : Word) :
         (CodeReq.Disjoint.singleton (by bv_omega))
         (CodeReq.Disjoint.singleton (by bv_omega))
 
+theorem walkInitEmptyFailStatusCode_disjoint_singleton
+    (base a : Word) (i : Instr)
+    (h0 : base ≠ a) (h156 : base + 156 ≠ a) (h160 : base + 160 ≠ a) :
+    (walkInitEmptyFailStatusCode base).Disjoint (CodeReq.singleton a i) := by
+  unfold walkInitEmptyFailStatusCode failStatusReturnCode statusReturnCode
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · exact CodeReq.Disjoint.singleton h0
+  · refine CodeReq.Disjoint.union_left ?_ ?_
+    · exact CodeReq.Disjoint.singleton h156
+    · rw [show base + 156 + 4 = base + 160 from by bv_omega]
+      exact CodeReq.Disjoint.singleton h160
+
+theorem walkInitNonzeroPrefixTailCode_disjoint_singleton
+    (base a : Word) (i : Instr)
+    (h4 : base + 4 ≠ a) (h8 : base + 8 ≠ a) (h12 : base + 12 ≠ a) :
+    (walkInitNonzeroPrefixTailCode base).Disjoint (CodeReq.singleton a i) := by
+  unfold walkInitNonzeroPrefixTailCode
+  refine CodeReq.Disjoint.union_left ?_ ?_
+  · exact CodeReq.Disjoint.singleton h4
+  · refine CodeReq.Disjoint.union_left ?_ ?_
+    · exact CodeReq.Disjoint.singleton h8
+    · exact CodeReq.Disjoint.singleton h12
+
 /-- WP branch certificate after the first walk-init split and the nonzero prefix
     tail.  The taken arm is the already-serviced empty-input failure endpoint;
     the not-taken arm has loaded the prefix and remains open for the classifier. -/
@@ -744,6 +767,12 @@ def walkInitPrefixShortLongTailCode (base : Word) : CodeReq :=
 def walkInitEmptyFailNotListFailShortLongCode (base : Word) : CodeReq :=
   (walkInitEmptyFailOrPrefixCode base).union (walkInitPrefixShortLongTailCode base)
 
+def walkInitNonzeroNotListFailShortLongCode (base : Word) : CodeReq :=
+  (walkInitNonzeroPrefixTailCode base).union (walkInitPrefixShortLongTailCode base)
+
+def walkInitEmptyFailThenNonzeroShortLongCode (base : Word) : CodeReq :=
+  (walkInitEmptyFailStatusCode base).union (walkInitNonzeroNotListFailShortLongCode base)
+
 /-- State after the list-shaped fall-through has prepared the `0xf8` short/long
     list threshold. -/
 def walkInitPrefixF8Post
@@ -876,6 +905,136 @@ theorem walkInitEmptyFailOrPrefixCode_disjoint_shortLongTail (base : Word) :
       (walkInitEmptyFailOrPrefixCode_disjoint_listCheckOrNotListFail base)
       (walkInitEmptyFailOrPrefixCode_disjoint_listF8 base))
     (walkInitEmptyFailOrPrefixCode_disjoint_shortLong base)
+
+theorem walkInitNonzeroPrefixTailCode_disjoint_prefixShortLongTail (base : Word) :
+    (walkInitNonzeroPrefixTailCode base).Disjoint (walkInitPrefixShortLongTailCode base) := by
+  unfold walkInitPrefixShortLongTailCode walkInitPrefixListCheckNotListFailF8Code
+    walkInitPrefixListCheckOrNotListFailCode walkInitPrefixListCheckCode
+    walkInitPrefixNotListFailStatusCode failStatusReturnCode statusReturnCode
+    walkInitListF8Code walkInitShortLongCheckCode
+  have d16 := walkInitNonzeroPrefixTailCode_disjoint_singleton base (base + 16) (.BLTU .x5 .x6 (148 : BitVec 13))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d164 := walkInitNonzeroPrefixTailCode_disjoint_singleton base (base + 164) (.LI .x10 (1 : Word))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d168 := walkInitNonzeroPrefixTailCode_disjoint_singleton base (base + 164 + 4) (.JALR .x0 .x1 (0 : BitVec 12))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d20 := walkInitNonzeroPrefixTailCode_disjoint_singleton base (base + 20) (.LI .x6 (0xf8 : Word))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d24 := walkInitNonzeroPrefixTailCode_disjoint_singleton base (base + 24) (.BLTU .x5 .x6 (100 : BitVec 13))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.union_right d16 (CodeReq.Disjoint.union_right d164 d168)) d20) d24
+
+theorem walkInitEmptyFailStatusCode_disjoint_prefixShortLongTail (base : Word) :
+    (walkInitEmptyFailStatusCode base).Disjoint (walkInitPrefixShortLongTailCode base) := by
+  unfold walkInitPrefixShortLongTailCode walkInitPrefixListCheckNotListFailF8Code
+    walkInitPrefixListCheckOrNotListFailCode walkInitPrefixListCheckCode
+    walkInitPrefixNotListFailStatusCode failStatusReturnCode statusReturnCode
+    walkInitListF8Code walkInitShortLongCheckCode
+  have d16 := walkInitEmptyFailStatusCode_disjoint_singleton base (base + 16) (.BLTU .x5 .x6 (148 : BitVec 13))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d164 := walkInitEmptyFailStatusCode_disjoint_singleton base (base + 164) (.LI .x10 (1 : Word))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d168 := walkInitEmptyFailStatusCode_disjoint_singleton base (base + 164 + 4) (.JALR .x0 .x1 (0 : BitVec 12))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d20 := walkInitEmptyFailStatusCode_disjoint_singleton base (base + 20) (.LI .x6 (0xf8 : Word))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  have d24 := walkInitEmptyFailStatusCode_disjoint_singleton base (base + 24) (.BLTU .x5 .x6 (100 : BitVec 13))
+    (by bv_omega) (by bv_omega) (by bv_omega)
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right
+      (CodeReq.Disjoint.union_right d16 (CodeReq.Disjoint.union_right d164 d168)) d20) d24
+
+theorem walkInitEmptyFailStatusCode_disjoint_nonzeroNotListFailShortLong (base : Word) :
+    (walkInitEmptyFailStatusCode base).Disjoint
+      (walkInitNonzeroNotListFailShortLongCode base) := by
+  unfold walkInitNonzeroNotListFailShortLongCode
+  exact CodeReq.Disjoint.union_right
+    (walkInitEmptyFailStatusCode_disjoint_prefixTail base)
+    (walkInitEmptyFailStatusCode_disjoint_prefixShortLongTail base)
+
+/-- Tail classifier from the already-loaded prefix at base + 16 through the
+    not-list failure endpoint and the short-list/long-list split. -/
+def walkInitPrefixShortLongTailNBranch
+    (base listBase listLen raVal : Word) (listBytes : List Byte)
+    (listOff : Nat) (hoff : listOff < listBytes.length) :
+    WP.NBranch (base + 16) (walkInitPrefixShortLongTailCode base) := by
+  let listBranch := walkInitPrefixListCheckOrNotListFailBranch base listBase listLen raVal
+    listBytes listOff hoff
+  have hf8 := walkInitPrefixSetF8_spec_within base listBase listLen raVal
+    listBytes listOff hoff
+  let f8Branch : WP.Branch (base + 16) (walkInitPrefixListCheckNotListFailF8Code base) := by
+    unfold walkInitPrefixListCheckNotListFailF8Code
+    wp_rv64_branch_not_taken_block_disjoint
+      (walkInitPrefixListCheckOrNotListFailCode_disjoint_listF8 base), listBranch, hf8
+  let shortLong := WP.CFG.nbranchOfBranch
+    (walkInitShortLongCheckBranch base listBase listLen raVal listBytes listOff hoff)
+  unfold walkInitPrefixShortLongTailCode
+  wp_rv64_branch_not_taken_nbranch_disjoint
+    (walkInitPrefixListCheckNotListFailF8Code_disjoint_shortLong base), f8Branch, shortLong
+
+/-- Nonzero walk-init tail: load the first prefix byte, service the not-list
+    failure endpoint, and expose short-list/long-list candidates. -/
+def walkInitNonzeroNotListFailShortLongNBranch
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    WP.NBranch (base + 4) (walkInitNonzeroNotListFailShortLongCode base) := by
+  have hprefix := walkInitNonzeroPrefixTail_spec_within base listBase listLen raVal
+    t0Old t1Old listBytes listOff hsalign hoff hover hvalid
+  let tail := walkInitPrefixShortLongTailNBranch base listBase listLen raVal
+    listBytes listOff hoff
+  unfold walkInitNonzeroNotListFailShortLongCode
+  wp_rv64_seq_block_nbranch_disjoint
+    (walkInitNonzeroPrefixTailCode_disjoint_prefixShortLongTail base), hprefix, tail
+
+theorem walkInitNonzeroNotListFailShortLongNBranch_pre
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitNonzeroNotListFailShortLongNBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid).pre =
+      ((walkInitNonzeroOpenStatusPost listLen raVal (listBase + BitVec.ofNat 64 listOff)) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
+  rfl
+
+/-- Same classifier as walkInitEmptyFailNotListFailShortLongNBranch, but built
+    by preserving the empty-input head exit and continuing the nonzero second exit. -/
+def walkInitEmptyFailThenNonzeroShortLongNBranch
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    WP.NBranch base (walkInitEmptyFailThenNonzeroShortLongCode base) := by
+  let listPtr := listBase + BitVec.ofNat 64 listOff
+  let frame : Assertion := (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes
+  let br0 := WP.CFG.nbranchOfBranch (walkInitEmptyFailStatusBranch base listLen raVal listPtr)
+  let br := WP.CFG.nbranchFrameR br0 frame (by
+    dsimp [frame]
+    pcFree)
+  let tail := walkInitNonzeroNotListFailShortLongNBranch base listBase listLen raVal
+    t0Old t1Old listBytes listOff hsalign hoff hover hvalid
+  unfold walkInitEmptyFailThenNonzeroShortLongCode
+  wp_rv64_nbranch_second_nbranch_disjoint
+    (walkInitEmptyFailStatusCode_disjoint_nonzeroNotListFailShortLong base), br, tail
+
+theorem walkInitEmptyFailThenNonzeroShortLongNBranch_pre
+    (base listBase listLen raVal t0Old t1Old : Word)
+    (listBytes : List Byte) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0) (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true) :
+    (walkInitEmptyFailThenNonzeroShortLongNBranch base listBase listLen raVal t0Old t1Old
+      listBytes listOff hsalign hoff hover hvalid).pre =
+      (walkInitEmptyFailStatusPre listLen raVal (listBase + BitVec.ofNat 64 listOff) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion listBase listBytes) := by
+  rfl
 
 /-- Multi-exit WP certificate after the first list-prefix classifier has reached
     the short-list versus long-list split. Exits are empty failure, not-list

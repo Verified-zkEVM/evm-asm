@@ -73,6 +73,15 @@ macro_rules
       `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqBlockDisjoint $hd $head $tail
         (by wp_rv64_link)).sound)
 
+/-- Compose a CPS block with an N-way CFG over disjoint code. -/
+syntax (name := wpRv64SeqBlockNBranchDisjointTac)
+  "wp_rv64_seq_block_nbranch_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_seq_block_nbranch_disjoint $hd:term, $head:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.seqBlockNBranchDisjoint $hd $head $tail
+        (by wp_rv64_link))
+
 /-- Continue a branch's taken exit with a WP/CFG tail over disjoint code. -/
 syntax (name := wpRv64BranchSeqTakenDisjointTac)
   "wp_rv64_branch_taken_disjoint " term ", " term ", " term : tactic
@@ -146,6 +155,16 @@ syntax (name := wpRv64NBranchSeqHeadNBranchDisjointTac)
 macro_rules
   | `(tactic| wp_rv64_nbranch_head_nbranch_disjoint $hd:term, $br:term, $tail:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqHeadNBranchDisjoint $hd $br (by rfl) $tail
+        (by wp_rv64_link))
+
+/-- Preserve the first exit and continue the second exit with another N-way branch
+    over disjoint code. The tactic expects the exits field to reduce to a two-cons prefix. -/
+syntax (name := wpRv64NBranchSeqSecondNBranchDisjointTac)
+  "wp_rv64_nbranch_second_nbranch_disjoint " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_second_nbranch_disjoint $hd:term, $br:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqSecondNBranchDisjoint $hd $br (by rfl) $tail
         (by wp_rv64_link))
 
 /-- Frame every exit of an N-way branch with a PC-free assertion. -/
@@ -315,5 +334,15 @@ example {entry l : Word} {cr : CodeReq} {headPost headPost' : Assertion}
     (hpost : EvmAsm.Rv64.WP.Entails headPost headPost') :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   exact EvmAsm.Rv64.WP.CFG.nbranchWeakenHeadPost br hexits hpost
+
+example {entry head l : Word} {cr1 cr2 : CodeReq}
+    {headPost secondPost : Assertion} {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.NBranch entry cr1)
+    (hexits : br.exits = (head, headPost) :: (l, secondPost) :: others)
+    (tail : EvmAsm.Rv64.WP.NBranch l cr2)
+    (hlink : EvmAsm.Rv64.WP.Entails secondPost tail.pre) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  exact EvmAsm.Rv64.WP.CFG.nbranchSeqSecondNBranchDisjoint hd br hexits tail hlink
 
 end EvmAsm.Rv64.Tactics.WPTests

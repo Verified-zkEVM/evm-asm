@@ -74,6 +74,20 @@ def seqBlockDisjoint {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : Cod
     Cert entry exit_ (cr1.union cr2) post :=
   seqDisjoint hd head (block (Entails.refl _) tail) hlink
 
+/-- Sequential composition from a CPS block into an N-way CFG over disjoint code. -/
+def seqBlockNBranchDisjoint {nHead : Nat} {entry mid : Word} {cr1 cr2 : CodeReq}
+    {pre midPost : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : cpsTripleWithin nHead entry mid cr1 pre midPost)
+    (tail : NBranch mid cr2)
+    (hlink : Entails midPost tail.pre) :
+    NBranch entry (cr1.union cr2) where
+  nSteps := nHead + tail.nSteps
+  pre := pre
+  exits := tail.exits
+  sound := cpsTripleWithin_seq_cpsNBranchWithin hd
+    (cpsTripleWithin_weaken (fun _ hp => hp) hlink head) tail.sound
+
 /-- Frame both exits of a branch with a PC-free assertion. -/
 def branchFrameR {entry : Word} {cr : CodeReq}
     (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) : Branch entry cr :=
@@ -267,6 +281,18 @@ def nbranchSeqHeadNBranchDisjoint {entry l : Word} {cr1 cr2 : CodeReq}
     (hlink : Entails headPost tail.pre) :
     NBranch entry (cr1.union cr2) :=
   br.seqHeadNBranchDisjoint hd hexits tail hlink
+
+/-- Preserve the first exit and continue the second exit with another N-way CFG
+    over disjoint tail code. -/
+def nbranchSeqSecondNBranchDisjoint {entry head l : Word} {cr1 cr2 : CodeReq}
+    {headPost secondPost : Assertion} {others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = (head, headPost) :: (l, secondPost) :: others)
+    (tail : NBranch l cr2)
+    (hlink : Entails secondPost tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  br.seqSecondNBranchDisjoint hd hexits tail hlink
 
 /-- Join an N-way branch with a uniform continuation bound. -/
 def nbranch {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
