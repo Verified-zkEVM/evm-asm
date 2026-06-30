@@ -1089,6 +1089,49 @@ theorem topCertSound_disj
   certSound_disj (topCert base inputBase raVal a2Old t0Old t1Old input
     h_len_word halign hover0 hvalid)
 
+/-- RLP-generic bridge from a static length bound to the length-word
+    nonzero side condition `topCert` needs. Any caller that already knows
+    `input.length < 2 ^ 64` (true of every realistic input) gets the witness
+    for free instead of having to construct it by hand. -/
+theorem lenWord_ne_zero_of_nonempty_of_lt
+    {input : List Byte}
+    (h_nonempty : input ≠ [])
+    (h_len_lt : input.length < 2 ^ 64) :
+    BitVec.ofNat 64 input.length ≠ (0 : Word) := by
+  have hpos : 0 < input.length := List.length_pos_of_ne_nil h_nonempty
+  intro heq
+  have htoNat : (BitVec.ofNat 64 input.length).toNat = (0 : Word).toNat :=
+    congrArg BitVec.toNat heq
+  simp [BitVec.toNat_ofNat] at htoNat
+  omega
+
+/-- Caller-friendly top certificate: a static length bound replaces the
+    manual length-word nonzero witness required by `topCert`. -/
+def topCertStatic
+    (base inputBase raVal a2Old t0Old t1Old : Word) (input : List Byte)
+    (h_len_lt : input.length < 2 ^ 64)
+    (halign : input ≠ [] → inputBase.toNat % 8 = 0)
+    (hover0 : input ≠ [] → inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid : input ≠ [] → isValidByteAccess inputBase = true) :
+    Cert base (returnExit raVal) (code base) inputBase raVal input :=
+  topCert base inputBase raVal a2Old t0Old t1Old input
+    (fun h_nonempty => lenWord_ne_zero_of_nonempty_of_lt h_nonempty h_len_lt)
+    halign hover0 hvalid
+
+theorem topCertStaticSound_disj
+    (base inputBase raVal a2Old t0Old t1Old : Word) (input : List Byte)
+    (h_len_lt : input.length < 2 ^ 64)
+    (halign : input ≠ [] → inputBase.toNat % 8 = 0)
+    (hover0 : input ≠ [] → inputBase.toNat + 0 < 2 ^ 64)
+    (hvalid : input ≠ [] → isValidByteAccess inputBase = true) :
+    cpsTripleWithin
+      (topCertStatic base inputBase raVal a2Old t0Old t1Old input h_len_lt halign hover0 hvalid).nSteps
+      base (returnExit raVal) (code base)
+      (topCertStatic base inputBase raVal a2Old t0Old t1Old input h_len_lt halign hover0 hvalid).pre
+      (abiDisjPost inputBase raVal input) :=
+  certSound_disj (topCertStatic base inputBase raVal a2Old t0Old t1Old input
+    h_len_lt halign hover0 hvalid)
+
 /-- RLP-generic tactic for small prefix range side conditions. -/
 macro "wp_rlp_range" : tactic =>
   `(tactic|
