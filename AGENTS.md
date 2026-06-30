@@ -370,6 +370,10 @@ doc only when its trigger applies** — they are reference material, not require
   proof architecture, Compose file splitting, file-size guardrail, benchmark-history branch.
   **Load when:** writing/restructuring `runBlock`/`seqFrame`/`xperm`/`xcancel`, designing a
   callable shim, working on a new opcode's three-level proof, or interpreting benchmark history.
+- [`docs/agents/wp-framework.md`](docs/agents/wp-framework.md) — Rv64 weakest-precondition
+  certificates, CFG composition, branch/join/loop patterns, and automation attributes.
+  **Load when:** composing Rv64 assembly proofs with `WP.CFG`, adding WP automation, using
+  generated control-flow descriptions, or proving top-level disjunctive decoder specs.
 - [`docs/agents/proof-patterns.md`](docs/agents/proof-patterns.md) — Bundling postconditions
   with `let` + `@[irreducible]`, adapter signatures with deep let-chains, `linarith` vs
   `omega`, pure-Nat sub-lemmas for `maxRecDepth` avoidance, end-to-end composition with
