@@ -393,38 +393,38 @@ end LeftoverDecodeChain
 /-- Synthesize a successful withdrawal decode chain from the generated local
     `decode`, classifier, length, and field-guard facts. -/
 macro "withdrawal_success_decode_chain" : tactic => do
-  let hClass := Lean.mkIdent `h_class
-  let hLen := Lean.mkIdent `h_len
-  let hDec0 := Lean.mkIdent `hdec0
-  let hDec1 := Lean.mkIdent `hdec1
-  let hDec2 := Lean.mkIdent `hdec2
-  let hDec3 := Lean.mkIdent `hdec3
-  let hEnd := Lean.mkIdent `hend
-  let hMin := Lean.mkIdent `h_min
-  let hC0 := Lean.mkIdent `hc0
-  let hL0 := Lean.mkIdent `hl0
-  let hC1 := Lean.mkIdent `hc1
-  let hL1 := Lean.mkIdent `hl1
-  let hAddr := Lean.mkIdent `haddr
-  let hC3 := Lean.mkIdent `hc3
-  let hL3 := Lean.mkIdent `hl3
-  `(tactic| exact SuccessDecodeChain.ofLocalFacts $hClass:ident $hLen:ident $hDec0:ident
-    $hDec1:ident $hDec2:ident $hDec3:ident $hEnd:ident $hMin:ident $hC0:ident
-    $hL0:ident $hC1:ident $hL1:ident $hAddr:ident $hC3:ident $hL3:ident)
+  let h_class_stx := Lean.mkIdent `h_class
+  let h_len_stx := Lean.mkIdent `h_len
+  let h_dec0_stx := Lean.mkIdent `hdec0
+  let h_dec1_stx := Lean.mkIdent `hdec1
+  let h_dec2_stx := Lean.mkIdent `hdec2
+  let h_dec3_stx := Lean.mkIdent `hdec3
+  let h_end_stx := Lean.mkIdent `hend
+  let h_min_stx := Lean.mkIdent `h_min
+  let h_c0_stx := Lean.mkIdent `hc0
+  let h_l0_stx := Lean.mkIdent `hl0
+  let h_c1_stx := Lean.mkIdent `hc1
+  let h_l1_stx := Lean.mkIdent `hl1
+  let h_addr_stx := Lean.mkIdent `haddr
+  let h_c3_stx := Lean.mkIdent `hc3
+  let h_l3_stx := Lean.mkIdent `hl3
+  `(tactic| exact SuccessDecodeChain.ofLocalFacts $h_class_stx:ident $h_len_stx:ident $h_dec0_stx:ident
+    $h_dec1_stx:ident $h_dec2_stx:ident $h_dec3_stx:ident $h_end_stx:ident $h_min_stx:ident $h_c0_stx:ident
+    $h_l0_stx:ident $h_c1_stx:ident $h_l1_stx:ident $h_addr_stx:ident $h_c3_stx:ident $h_l3_stx:ident)
 
 /-- Synthesize an exact-arity leftover failure chain from generated local
     `decode`, classifier, length, and leftover facts. -/
 macro "withdrawal_leftover_decode_chain" : tactic => do
-  let hClass := Lean.mkIdent `h_class
-  let hLen := Lean.mkIdent `h_len
-  let hDec0 := Lean.mkIdent `hdec0
-  let hDec1 := Lean.mkIdent `hdec1
-  let hDec2 := Lean.mkIdent `hdec2
-  let hDec3 := Lean.mkIdent `hdec3
-  let hLeftover := Lean.mkIdent `h_leftover
-  let hMin := Lean.mkIdent `h_min
-  `(tactic| exact LeftoverDecodeChain.ofLocalFacts $hClass:ident $hLen:ident $hDec0:ident
-    $hDec1:ident $hDec2:ident $hDec3:ident $hLeftover:ident $hMin:ident)
+  let h_class_stx := Lean.mkIdent `h_class
+  let h_len_stx := Lean.mkIdent `h_len
+  let h_dec0_stx := Lean.mkIdent `hdec0
+  let h_dec1_stx := Lean.mkIdent `hdec1
+  let h_dec2_stx := Lean.mkIdent `hdec2
+  let h_dec3_stx := Lean.mkIdent `hdec3
+  let h_leftover_stx := Lean.mkIdent `h_leftover
+  let h_min_stx := Lean.mkIdent `h_min
+  `(tactic| exact LeftoverDecodeChain.ofLocalFacts $h_class_stx:ident $h_len_stx:ident $h_dec0_stx:ident
+    $h_dec1_stx:ident $h_dec2_stx:ident $h_dec3_stx:ident $h_leftover_stx:ident $h_min_stx:ident)
 
 /-- Context-driven WP automation for generated successful field-walk proofs.
     It derives semantic success or the result-free schema fact from the standard
@@ -432,30 +432,30 @@ macro "withdrawal_leftover_decode_chain" : tactic => do
     databases. Use the argument-taking `wp_withdrawal_decode_chain_auto` when a
     generated proof uses nonstandard names. -/
 macro "wp_withdrawal_decode_success_chain" : tactic => do
-  let hClass := Lean.mkIdent `h_class
-  let hLen := Lean.mkIdent `h_len
-  let hDec0 := Lean.mkIdent `hdec0
-  let hDec1 := Lean.mkIdent `hdec1
-  let hDec2 := Lean.mkIdent `hdec2
-  let hDec3 := Lean.mkIdent `hdec3
-  let hEnd := Lean.mkIdent `hend
-  let hMin := Lean.mkIdent `h_min
-  let hC0 := Lean.mkIdent `hc0
-  let hL0 := Lean.mkIdent `hl0
-  let hC1 := Lean.mkIdent `hc1
-  let hL1 := Lean.mkIdent `hl1
-  let hAddr := Lean.mkIdent `haddr
-  let hC3 := Lean.mkIdent `hc3
-  let hL3 := Lean.mkIdent `hl3
+  let h_class_stx := Lean.mkIdent `h_class
+  let h_len_stx := Lean.mkIdent `h_len
+  let h_dec0_stx := Lean.mkIdent `hdec0
+  let h_dec1_stx := Lean.mkIdent `hdec1
+  let h_dec2_stx := Lean.mkIdent `hdec2
+  let h_dec3_stx := Lean.mkIdent `hdec3
+  let h_end_stx := Lean.mkIdent `hend
+  let h_min_stx := Lean.mkIdent `h_min
+  let h_c0_stx := Lean.mkIdent `hc0
+  let h_l0_stx := Lean.mkIdent `hl0
+  let h_c1_stx := Lean.mkIdent `hc1
+  let h_l1_stx := Lean.mkIdent `hl1
+  let h_addr_stx := Lean.mkIdent `haddr
+  let h_c3_stx := Lean.mkIdent `hc3
+  let h_l3_stx := Lean.mkIdent `hl3
   `(tactic| first
-    | exact (SuccessDecodeChain.ofLocalFacts $hClass:ident $hLen:ident $hDec0:ident
-        $hDec1:ident $hDec2:ident $hDec3:ident $hEnd:ident $hMin:ident $hC0:ident
-        $hL0:ident $hC1:ident $hL1:ident $hAddr:ident $hC3:ident
-        $hL3:ident).successFieldSpecsInput
-    | exact (SuccessDecodeChain.ofLocalFacts $hClass:ident $hLen:ident $hDec0:ident
-        $hDec1:ident $hDec2:ident $hDec3:ident $hEnd:ident $hMin:ident $hC0:ident
-        $hL0:ident $hC1:ident $hL1:ident $hAddr:ident $hC3:ident
-        $hL3:ident).decodeWithdrawal_eq_some
+    | exact (SuccessDecodeChain.ofLocalFacts $h_class_stx:ident $h_len_stx:ident $h_dec0_stx:ident
+        $h_dec1_stx:ident $h_dec2_stx:ident $h_dec3_stx:ident $h_end_stx:ident $h_min_stx:ident $h_c0_stx:ident
+        $h_l0_stx:ident $h_c1_stx:ident $h_l1_stx:ident $h_addr_stx:ident $h_c3_stx:ident
+        $h_l3_stx:ident).successFieldSpecsInput
+    | exact (SuccessDecodeChain.ofLocalFacts $h_class_stx:ident $h_len_stx:ident $h_dec0_stx:ident
+        $h_dec1_stx:ident $h_dec2_stx:ident $h_dec3_stx:ident $h_end_stx:ident $h_min_stx:ident $h_c0_stx:ident
+        $h_l0_stx:ident $h_c1_stx:ident $h_l1_stx:ident $h_addr_stx:ident $h_c3_stx:ident
+        $h_l3_stx:ident).decodeWithdrawal_eq_some
     | wp_rv64_cert
     | wp_withdrawal_decode_auto)
 
@@ -463,21 +463,34 @@ macro "wp_withdrawal_decode_success_chain" : tactic => do
     proofs. It derives the reason-erased semantic/schema failure facts from the
     standard local names, then falls through to the WP databases. -/
 macro "wp_withdrawal_decode_leftover_chain" : tactic => do
-  let hClass := Lean.mkIdent `h_class
-  let hLen := Lean.mkIdent `h_len
-  let hDec0 := Lean.mkIdent `hdec0
-  let hDec1 := Lean.mkIdent `hdec1
-  let hDec2 := Lean.mkIdent `hdec2
-  let hDec3 := Lean.mkIdent `hdec3
-  let hLeftover := Lean.mkIdent `h_leftover
-  let hMin := Lean.mkIdent `h_min
+  let h_class_stx := Lean.mkIdent `h_class
+  let h_len_stx := Lean.mkIdent `h_len
+  let h_dec0_stx := Lean.mkIdent `hdec0
+  let h_dec1_stx := Lean.mkIdent `hdec1
+  let h_dec2_stx := Lean.mkIdent `hdec2
+  let h_dec3_stx := Lean.mkIdent `hdec3
+  let h_leftover_stx := Lean.mkIdent `h_leftover
+  let h_min_stx := Lean.mkIdent `h_min
   `(tactic| first
-    | exact (LeftoverDecodeChain.ofLocalFacts $hClass:ident $hLen:ident $hDec0:ident
-        $hDec1:ident $hDec2:ident $hDec3:ident $hLeftover:ident
-        $hMin:ident).not_successFieldSpecsInput
-    | exact (LeftoverDecodeChain.ofLocalFacts $hClass:ident $hLen:ident $hDec0:ident
-        $hDec1:ident $hDec2:ident $hDec3:ident $hLeftover:ident
-        $hMin:ident).decodeWithdrawal_eq_none
+    | exact (LeftoverDecodeChain.ofLocalFacts $h_class_stx:ident $h_len_stx:ident $h_dec0_stx:ident
+        $h_dec1_stx:ident $h_dec2_stx:ident $h_dec3_stx:ident $h_leftover_stx:ident
+        $h_min_stx:ident).not_successFieldSpecsInput
+    | exact (LeftoverDecodeChain.ofLocalFacts $h_class_stx:ident $h_len_stx:ident $h_dec0_stx:ident
+        $h_dec1_stx:ident $h_dec2_stx:ident $h_dec3_stx:ident $h_leftover_stx:ident
+        $h_min_stx:ident).decodeWithdrawal_eq_none
+    | wp_rv64_cert
+    | wp_withdrawal_decode_auto)
+
+/-- Chain-object WP automation.  Generated proofs that already bundled the field
+    walk into a `SuccessDecodeChain` or `LeftoverDecodeChain` can pass the bundle
+    once; the tactic projects the semantic/schema fact or delegates to the WP
+    certificate database. -/
+macro "wp_withdrawal_decode_chain " chain:term : tactic =>
+  `(tactic| first
+    | exact ($chain).successFieldSpecsInput
+    | exact ($chain).decodeWithdrawal_eq_some
+    | exact ($chain).not_successFieldSpecsInput
+    | exact ($chain).decodeWithdrawal_eq_none
     | wp_rv64_cert
     | wp_withdrawal_decode_auto)
 
@@ -510,6 +523,16 @@ example
     (h_min : 2 ≤ payload.length) :
     decodeWithdrawal (pfx :: payload) = none := by
   wp_withdrawal_decode_leftover_chain
+
+example
+    {pfx : Byte} {payload : List Byte} (chain : SuccessDecodeChain pfx payload) :
+    successFieldSpecsInput chain.input := by
+  wp_withdrawal_decode_chain chain
+
+example
+    {pfx : Byte} {payload : List Byte} (chain : LeftoverDecodeChain pfx payload) :
+    decodeWithdrawal chain.input = none := by
+  wp_withdrawal_decode_chain chain
 
 noncomputable example
     {pfx : Byte} {payload : List Byte} (chain : SuccessDecodeChain pfx payload)
