@@ -52,4 +52,16 @@ theorem schemaConcat_of_encode_list_short (bs : List Byte) (specs : List FieldSp
   rw [← List.drop_drop, hbs, encode_list_schemaItems_short specs hlen]
   simp
 
+/-- **Payload slice from a complete short-list input.** A caller carrying the full
+    encoded-list equality can expose the schema payload at offset `1` without
+    manually inventing a concat witness. -/
+theorem schemaConcat_of_encoded_list_short (bs : List Byte) (specs : List FieldSpec)
+    (hlen : (schemaEncBytes specs).length ≤ 55)
+    (hinput : bs = encode (.list (schemaItems specs))) :
+    bs.drop 1 = schemaEncBytes specs ++ ([] : List Byte) := by
+  have hbs : bs.drop 0 = encode (.list (schemaItems specs)) ++ ([] : List Byte) := by
+    rw [hinput]
+    simp
+  simpa using schemaConcat_of_encode_list_short bs specs 0 ([] : List Byte) hlen hbs
+
 end EvmAsm.Rv64.RLP

@@ -159,6 +159,19 @@ private theorem encode_successFieldSpecs_length_lt_256_pow_8
   simp
   omega
 
+/-- A complete encoded withdrawal success witness exposes the schema payload at
+    offset `1`.  This is the pure input-slicing automation used by the WP
+    wrappers below, so callers do not need to hand-write a concat premise. -/
+theorem successFieldSpecs_concat_of_input
+    (bs d0 d1 d2 d3 : List Byte)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    bs.drop 1 = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ ([] : List Byte) := by
+  have hpayload := schemaEncBytes_successFieldSpecs_length_le_48 d0 d1 d2 d3 hl0 hl1 haddr hl3
+  have hshort : (schemaEncBytes (successFieldSpecs d0 d1 d2 d3)).length ≤ 55 := by omega
+  exact schemaConcat_of_encoded_list_short bs (successFieldSpecs d0 d1 d2 d3) hshort hinput
+
 /-- The success witness list characterizes the pure withdrawal decoder.  This is
     the semantic bridge used by the ABI postcondition; the static schema still
     contains no decoded result. -/
@@ -286,6 +299,60 @@ theorem successFieldSpecsStepCertOfConcat_pre
       schemaINV regionBase outBase rOut bs O outBytes := by
   rfl
 
+/-- Success-path schema WP certificate for a complete short-list encoded
+    withdrawal input.  This uses the generic `SchemaWP` encoded-list constructor
+    and fixes the payload offset to `1`. -/
+def successFieldSpecsStepCertOfInput
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs outBytes d0 d1 d2 d3 : List Byte)
+    (hout : outBytes.length = outputSize)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) < 2 ^ 64) :
+    WP.CFG.Cert base (base + BitVec.ofNat 64 (schemaSize (successFieldSpecs d0 d1 d2 d3)))
+      (schemaCR base rOut (successFieldSpecs d0 d1 d2 d3))
+      (schemaINV regionBase outBase rOut bs (1 + schemaEnc (successFieldSpecs d0 d1 d2 d3))
+        (schemaOut outBytes (successFieldSpecs d0 d1 d2 d3))) := by
+  have hcore : ∀ f, f ∈ successFieldSpecs d0 d1 d2 d3 → fieldCoreValid outBytes.length f := by
+    rw [hout]
+    exact successFieldSpecs_coreValid d0 d1 d2 d3 hl0 hl1 haddr hl3
+  have hcanon := successFieldSpecs_schemaCanonical d0 d1 d2 d3 hc0 hc1 hc3
+  have hpayload := schemaEncBytes_successFieldSpecs_length_le_48 d0 d1 d2 d3 hl0 hl1 haddr hl3
+  have hshort : (schemaEncBytes (successFieldSpecs d0 d1 d2 d3)).length ≤ 55 := by omega
+  exact SchemaWP.schemaStepCertOfEncodedListShort base regionBase outBase rOut bs outBytes
+    (successFieldSpecs d0 d1 d2 d3) hcore hcanon hshort hinput halign hdalign hover hwin
+    hdov hdval hcode
+
+/-- The encoded-input schema wrapper computes the initial schema invariant at payload offset `1`. -/
+theorem successFieldSpecsStepCertOfInput_pre
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs outBytes d0 d1 d2 d3 : List Byte)
+    (hout : outBytes.length = outputSize)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) < 2 ^ 64) :
+    (successFieldSpecsStepCertOfInput base regionBase outBase rOut bs outBytes d0 d1 d2 d3
+      hout hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov hdval hcode).pre =
+      schemaINV regionBase outBase rOut bs 1 outBytes := by
+  unfold successFieldSpecsStepCertOfInput
+  rfl
+
 /-- Success-path schema WP certificate whose postcondition is already the
     semantic ABI byte layout.  The only output-side precondition is the static
     zeroed 48-byte output struct; the raw `schemaOut` fold is discharged by
@@ -343,6 +410,62 @@ theorem successFieldSpecsStepSuccessBytesCertOfConcat_pre
     (successFieldSpecsStepSuccessBytesCertOfConcat base regionBase outBase rOut bs tail d0 d1 d2
       d3 O hc0 hl0 hc1 hl1 haddr hc3 hl3 hconcat halign hdalign hover hwin hdov hdval hcode).pre =
       schemaINV regionBase outBase rOut bs O (List.replicate outputSize (0 : Byte)) := by
+  rfl
+
+/-- Encoded-input version of the success-bytes schema WP certificate. -/
+def successFieldSpecsStepSuccessBytesCertOfInput
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) < 2 ^ 64) :
+    WP.CFG.Cert base (base + BitVec.ofNat 64 (schemaSize (successFieldSpecs d0 d1 d2 d3)))
+      (schemaCR base rOut (successFieldSpecs d0 d1 d2 d3))
+      (schemaINV regionBase outBase rOut bs (1 + schemaEnc (successFieldSpecs d0 d1 d2 d3))
+        (successBytes (fromFieldBytes d0 d1 d2 d3))) := by
+  let outBytes := List.replicate outputSize (0 : Byte)
+  have hout : outBytes.length = outputSize := by
+    simp [outBytes]
+  have hdov' : outBase.toNat + outBytes.length < 2 ^ 64 := by
+    simpa [outBytes, outputSize] using hdov
+  have hdval' : ∀ i, i < outBytes.length →
+      isValidByteAccess (outBase + BitVec.ofNat 64 i) = true := by
+    intro i hi
+    exact hdval i (by simpa [outBytes, outputSize] using hi)
+  have cert := successFieldSpecsStepCertOfInput base regionBase outBase rOut bs outBytes
+    d0 d1 d2 d3 hout hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin
+    hdov' hdval' hcode
+  exact cert.weakenPost (by
+    intro h hp
+    rw [← successFieldSpecs_schemaOut_zeroed_eq_successBytes d0 d1 d2 d3 haddr]
+    simpa [outBytes] using hp)
+
+/-- The encoded-input success-bytes wrapper computes the zeroed-output schema invariant. -/
+theorem successFieldSpecsStepSuccessBytesCertOfInput_pre
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) < 2 ^ 64) :
+    (successFieldSpecsStepSuccessBytesCertOfInput base regionBase outBase rOut bs d0 d1 d2
+      d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov hdval hcode).pre =
+      schemaINV regionBase outBase rOut bs 1 (List.replicate outputSize (0 : Byte)) := by
   rfl
 
 /-- A status-return block rooted at `base` has no code requirements below `base`. -/
@@ -517,6 +640,58 @@ theorem successFieldSpecsReturnAbiCertOfConcat_pre
         (.x1 ↦ᵣ raVal)) := by
   unfold successFieldSpecsReturnAbiCertOfConcat
   rfl
+
+/-- Caller-facing success-path WP certificate for a full short-list-encoded
+    withdrawal.  The schema payload slice is derived from `hinput` internally,
+    leaving only static memory/code facts and the success witnesses as inputs. -/
+def successFieldSpecsReturnAbiCertOfInput
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      ((schemaCR base .x8 (successFieldSpecs d0 d1 d2 d3)).union
+        (successStatusReturnCode
+          (base + BitVec.ofNat 64 (schemaSize (successFieldSpecs d0 d1 d2 d3)))))
+      (abiPost regionBase outBase raVal bs **
+        successSchemaReturnFrame regionBase outBase
+          (1 + schemaEnc (successFieldSpecs d0 d1 d2 d3))) :=
+  successFieldSpecsReturnAbiCertOfConcat base regionBase outBase raVal bs ([] : List Byte)
+    d0 d1 d2 d3 1 hc0 hl0 hc1 hl1 haddr hc3 hl3
+    (successFieldSpecs_concat_of_input bs d0 d1 d2 d3 hl0 hl1 haddr hl3 hinput)
+    hinput halign hdalign hover hwin hdov hdval hcode
+
+/-- The encoded-input success wrapper computes the expected initial precondition:
+    schema invariant at payload offset `1`, plus the preserved return address. -/
+theorem successFieldSpecsReturnAbiCertOfInput_pre
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (successFieldSpecsReturnAbiCertOfInput base regionBase outBase raVal bs d0 d1 d2 d3
+      hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov hdval hcode).pre =
+      (schemaINV regionBase outBase .x8 bs 1 (List.replicate outputSize (0 : Byte)) **
+        (.x1 ↦ᵣ raVal)) := by
+  unfold successFieldSpecsReturnAbiCertOfInput
+  rw [successFieldSpecsReturnAbiCertOfConcat_pre]
 
 end WithdrawalDecode
 

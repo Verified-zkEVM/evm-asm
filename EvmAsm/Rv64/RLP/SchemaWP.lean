@@ -8,6 +8,7 @@
 -/
 
 import EvmAsm.Rv64.RLP.SchemaFold
+import EvmAsm.Rv64.RLP.SchemaListEncode
 import EvmAsm.Rv64.WP.CFG
 
 namespace EvmAsm.Rv64.RLP
@@ -707,6 +708,59 @@ theorem schemaStepCert_pre
     (hcode : base.toNat + schemaSize specs < 2 ^ 64) :
     (schemaStepCert base regionBase outBase rOut bs O outBytes specs hvalid hcanon halign hdalign
       hover hwin hdov hdval hcode).pre = schemaINV regionBase outBase rOut bs O outBytes :=
+  rfl
+
+/-- Build `SchemaValid` for a complete short-list-encoded schema input.
+    The schema payload starts after the one-byte list header, so the WP offset is `1`. -/
+theorem schemaValid_of_encoded_list_short
+    (bs : List Byte) (outLen : Nat) (specs : List FieldSpec)
+    (hcore : ∀ f, f ∈ specs → fieldCoreValid outLen f)
+    (hlen : (schemaEncBytes specs).length ≤ 55)
+    (hinput : bs = encode (.list (schemaItems specs))) :
+    SchemaValid bs outLen 1 specs :=
+  schemaValid_of_concat bs outLen ([] : List Byte) specs 1 hcore
+    (schemaConcat_of_encoded_list_short bs specs hlen hinput)
+
+/-- WP certificate for a whole schema whose input is the complete short-list
+    encoding of the field items.  This removes the caller-side payload concat
+    proof and exposes the reduced precondition at offset `1`. -/
+def schemaStepCertOfEncodedListShort
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs outBytes : List Byte) (specs : List FieldSpec)
+    (hcore : ∀ f, f ∈ specs → fieldCoreValid outBytes.length f)
+    (hcanon : SchemaCanonical specs)
+    (hlen : (schemaEncBytes specs).length ≤ 55)
+    (hinput : bs = encode (.list (schemaItems specs)))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize specs < 2 ^ 64) :
+    WP.CFG.Cert base (base + BitVec.ofNat 64 (schemaSize specs))
+      (schemaCR base rOut specs)
+      (schemaINV regionBase outBase rOut bs (1 + schemaEnc specs) (schemaOut outBytes specs)) :=
+  schemaStepCert base regionBase outBase rOut bs 1 outBytes specs
+    (schemaValid_of_encoded_list_short bs outBytes.length specs hcore hlen hinput)
+    hcanon halign hdalign hover hwin hdov hdval hcode
+
+/-- The encoded-list schema certificate computes the schema invariant at payload offset `1`. -/
+theorem schemaStepCertOfEncodedListShort_pre
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs outBytes : List Byte) (specs : List FieldSpec)
+    (hcore : ∀ f, f ∈ specs → fieldCoreValid outBytes.length f)
+    (hcanon : SchemaCanonical specs)
+    (hlen : (schemaEncBytes specs).length ≤ 55)
+    (hinput : bs = encode (.list (schemaItems specs)))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize specs < 2 ^ 64) :
+    (schemaStepCertOfEncodedListShort base regionBase outBase rOut bs outBytes specs hcore hcanon
+      hlen hinput halign hdalign hover hwin hdov hdval hcode).pre =
+      schemaINV regionBase outBase rOut bs 1 outBytes :=
   rfl
 
 
