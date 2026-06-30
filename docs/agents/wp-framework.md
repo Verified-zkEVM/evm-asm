@@ -162,6 +162,50 @@ theorem spec :
      wp_rv64 cfg
    ```
 
+8. Add a caller-facing wrapper if the raw certificate exposes mechanical
+   proof plumbing.
+
+   The certificate closest to the control flow may need side conditions that
+   are artifacts of the WP proof, not the interface callers should see. For
+   example, an entry branch may ask for a nonzero machine word version of an
+   input length:
+
+   ```lean
+   input ≠ [] → BitVec.ofNat 64 input.length ≠ (0 : Word)
+   ```
+
+   That fact is useful to prove the branch takes the nonempty path, but callers
+   usually know a simpler static fact such as:
+
+   ```lean
+   input.length < 2 ^ 64
+   ```
+
+   Keep the raw `topCert` available for composition, then publish a thin
+   wrapper that derives the mechanical side condition from the static one:
+
+   ```lean
+   theorem lenWord_ne_zero_of_nonempty_of_lt
+       (h_nonempty : input ≠ [])
+       (h_len_lt : input.length < 2 ^ 64) :
+       BitVec.ofNat 64 input.length ≠ (0 : Word) := ...
+
+   def topCertStatic ... (h_len_lt : input.length < 2 ^ 64) ... :
+       WP.CFG.Cert entry exit_ cr post :=
+     topCert ... (fun h_nonempty =>
+       lenWord_ne_zero_of_nonempty_of_lt h_nonempty h_len_lt) ...
+
+   theorem topCertStaticSound_disj ... :
+       cpsTripleWithin
+         (topCertStatic ...).nSteps entry exit_ cr
+         (topCertStatic ...).pre disjPost :=
+     certSound_disj (topCertStatic ...)
+   ```
+
+   This wrapper should still keep runtime outcomes in the postcondition. It is
+   only for hiding mechanical WP facts behind static caller facts, not for
+   selecting a success or failure branch in the precondition.
+
 ## Common constructors
 
 | Need | Constructor or tactic |
@@ -400,5 +444,8 @@ caller needs to distinguish it.
 
 - `EvmAsm/Rv64/WP/Examples.lean` for small certificates and loops.
 - `EvmAsm/Rv64/Tactics/WP.lean` for the tactic macros and their tests.
+- `EvmAsm/Rv64/RLP/PrefixDecodeWP.lean` for a compact decoder with synthesized
+  leaves, branch joins, a disjunctive postcondition, and a caller-facing wrapper
+  theorem (`topCertStaticSound_disj`) over the raw WP certificate.
 - `EvmAsm/Rv64/RLP/WithdrawalDecode.lean` and adjacent files for a larger
   decoder proof that uses a disjunctive postcondition.
