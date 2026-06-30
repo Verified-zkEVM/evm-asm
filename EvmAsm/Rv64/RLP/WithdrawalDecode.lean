@@ -1587,25 +1587,35 @@ def emptyInputFailurePost (inputBase outBase raVal : Word) : Assertion :=
 def walkInitEmptyInputFailureNBranch
     (base inputBase outBase raVal statusOld : Word) :
     WP.NBranch base (walkInitEmptyFailStatusCode base) := by
-  let frame := emptyInputDecodeFrame inputBase outBase
+  let frame := emptyInputAbiFrame inputBase outBase
   let br := walkInitEmptyFailOrNonzeroFramedNBranch base (0 : Word) raVal statusOld
-    frame (emptyInputDecodeFrame_pcFree inputBase outBase)
+    frame (emptyInputAbiFrame_pcFree inputBase outBase)
   have hhead : WP.Entails
       (walkInitEmptyFailStatusPost (0 : Word) raVal ** frame)
       (emptyInputFailurePost inputBase outBase raVal) := by
     intro h hp
     unfold emptyInputFailurePost
     dsimp [frame] at hp
-    unfold emptyInputDecodeFrame emptyInputAbiFrame walkInitEmptyFailStatusPost
-      failStatusReturnPost statusReturnPost walkInitZeroPost at hp
-    exact hp
+    unfold emptyInputAbiFrame walkInitEmptyFailStatusPost failStatusReturnPost statusReturnPost
+      walkInitZeroPost at hp
+    rw [show (⌜decodeWithdrawal ([] : List Byte) = none⌝ : Assertion) = empAssertion by
+      funext h
+      unfold EvmAsm.Rv64.pure EvmAsm.Rv64.empAssertion
+      apply propext
+      constructor
+      · intro h_p
+        exact h_p.1
+      · intro h_empty
+        exact ⟨h_empty, decodeWithdrawal_nil⟩]
+    simp only [sepConj_emp_right']
+    simpa using hp
   exact WP.CFG.nbranchWeakenHeadPost br (by rfl) hhead
 
 theorem walkInitEmptyInputFailureNBranch_pre
     (base inputBase outBase raVal statusOld : Word) :
     (walkInitEmptyInputFailureNBranch base inputBase outBase raVal statusOld).pre =
       (walkInitEmptyFailStatusPre (0 : Word) raVal statusOld **
-        emptyInputDecodeFrame inputBase outBase) := by
+        emptyInputAbiFrame inputBase outBase) := by
   rfl
 
 /-- ABI resources preserved by the reason-erased failure endpoint.  The pure

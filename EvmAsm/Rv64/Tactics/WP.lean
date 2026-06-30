@@ -327,6 +327,22 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_extend_code $br:term, $hmono:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.NBranch.extendCode $br $hmono)
 
+/-- Weaken an N-way branch precondition, solving the entailment with `wp_rv64_link`. -/
+syntax (name := wpRv64NBranchWeakenPreTac)
+  "wp_rv64_nbranch_weaken_pre " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_pre $br:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.NBranch.weakenPre $br (by wp_rv64_link))
+
+/-- Weaken an N-way branch precondition with an explicit entailment proof. -/
+syntax (name := wpRv64NBranchWeakenPreWithTac)
+  "wp_rv64_nbranch_weaken_pre_with " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_pre_with $br:term, $hpre:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.NBranch.weakenPre $br $hpre)
+
 /-- Weaken the exit postconditions of an N-way branch. -/
 syntax (name := wpRv64NBranchWeakenPostsTac)
   "wp_rv64_nbranch_weaken_posts " term ", " term ", " term : tactic

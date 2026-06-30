@@ -154,27 +154,37 @@ def walkInitAbiFailurePreFromPrologue
 /-- Resources framed across the prologue for the `input = []` walk-init split. -/
 def walkInitEmptyInputPrologueCarryFrame (inputBase outBase : Word) : Assertion :=
   ((.x10 ↦ᵣ (inputBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ (0 : Word)) **
-    (.x0 ↦ᵣ (0 : Word)) ** emptyInputDecodeFrame inputBase outBase)
+    (.x0 ↦ᵣ (0 : Word)) ** emptyInputAbiFrame inputBase outBase)
 
 theorem walkInitEmptyInputPrologueCarryFrame_pcFree (inputBase outBase : Word) :
     (walkInitEmptyInputPrologueCarryFrame inputBase outBase).pcFree := by
   unfold walkInitEmptyInputPrologueCarryFrame
   exact pcFree_sepConj pcFree_regIs
     (pcFree_sepConj pcFree_regIs
-      (pcFree_sepConj pcFree_regIs (emptyInputDecodeFrame_pcFree inputBase outBase)))
+      (pcFree_sepConj pcFree_regIs (emptyInputAbiFrame_pcFree inputBase outBase)))
 
 /-- Exact empty-input walk-init precondition after the decoder prologue. -/
 def walkInitEmptyInputPreFromPrologue
     (inputBase outBase raVal : Word) : Assertion :=
   walkInitEmptyFailStatusPre (0 : Word) raVal (inputBase + BitVec.ofNat 64 0) **
-    emptyInputDecodeFrame inputBase outBase
+    emptyInputAbiFrame inputBase outBase
+
+/-- Scratch registers carried across the empty-input path to match the nonempty
+    classifier's static caller frame. -/
+def walkInitEmptyInputPrologueScratchFrame (t0Old t1Old : Word) : Assertion :=
+  ((.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old))
+
+theorem walkInitEmptyInputPrologueScratchFrame_pcFree (t0Old t1Old : Word) :
+    (walkInitEmptyInputPrologueScratchFrame t0Old t1Old).pcFree := by
+  unfold walkInitEmptyInputPrologueScratchFrame
+  pcFree
 
 -- WP-link automation unfolds these small assertion-shape helpers before `xperm`.
 attribute [rv64_wp] schemaWalkInitFrameFromPrologue walkInitShortSuccessPrologueSavedFrame
   walkInitShortSuccessPrologueCarryFrame walkInitShortSuccessResolvedPreFromPrologue
   walkInitAbiFailurePrologueCarryFrame walkInitAbiFailurePrologueSavedFrame
   walkInitAbiFailurePreFromPrologue walkInitEmptyInputPrologueCarryFrame
-  walkInitEmptyInputPreFromPrologue emptyInputDecodeFrame emptyInputAbiFrame
+  walkInitEmptyInputPreFromPrologue walkInitEmptyInputPrologueScratchFrame emptyInputAbiFrame
   walkInitEmptyNotListAbiFailureNBranch_pre walkInitEmptyInputFailureNBranch_pre
   walkInitEmptyFailNotListFailShortLongOutputNBranch_pre walkInitEmptyFailStatusPre
   walkInitZeroNonzeroPre failStatusReturnPre statusReturnPre
@@ -200,6 +210,19 @@ theorem prologuePostEmptyInputCarry_entails_preFromPrologue
         walkInitEmptyInputPrologueCarryFrame inputBase outBase)
       (walkInitEmptyInputPreFromPrologue inputBase outBase raVal **
         walkInitAbiFailurePrologueSavedFrame sp0 raVal s0Old s1Old s2Old outBase) := by
+  wp_rv64_link
+
+/-- The empty-input caller frame is the ABI-failure caller frame specialized to
+    zero length and empty bytes, with `x5`/`x6` preserved as scratch frame. -/
+theorem prologuePreAbiFailureEmptyCarry_entails_emptyScratchPre
+    (sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old : Word) :
+    WP.Entails
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase (0 : Word) t0Old t1Old outBase
+          ([] : List Byte))
+      ((prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitEmptyInputPrologueCarryFrame inputBase outBase) **
+        walkInitEmptyInputPrologueScratchFrame t0Old t1Old) := by
   wp_rv64_link
 
 /-- Link the concrete prologue post plus caller-framed walk-init resources to
@@ -1031,6 +1054,46 @@ theorem walkInitEmptyInputFailureFromPrologueFullCodeNBranch_exits
       outBase m0 m1 m2 m3 inputBase hprologueCode hcode).exits =
       (walkInitEmptyInputFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
         outBase m0 m1 m2 m3 inputBase hprologueCode (by omega)).exits := by
+  rfl
+
+/-- Empty-input path with the same scratch-register caller frame as the nonempty
+    ABI-failure classifier. The precondition is the nonempty classifier frame
+    specialized to `listLen = 0` and `input = []`. -/
+def walkInitEmptyInputFailureFromPrologueSharedFrameNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (t0Old t1Old : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    WP.NBranch base
+      ((prologueCode base).union
+        (walkInitEmptyFailNotListFailShortLongCode (base + 24))) := by
+  let br0 := walkInitEmptyInputFailureFromPrologueFullCodeNBranch base sp0 raVal s0Old s1Old
+    s2Old outBase m0 m1 m2 m3 inputBase hprologueCode hcode
+  let scratchFrame := walkInitEmptyInputPrologueScratchFrame t0Old t1Old
+  let br := WP.CFG.nbranchFrameR br0 scratchFrame
+    (walkInitEmptyInputPrologueScratchFrame_pcFree t0Old t1Old)
+  have hpre : WP.Entails
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase (0 : Word) t0Old t1Old outBase
+          ([] : List Byte))
+      br.pre := by
+    dsimp [br, br0, scratchFrame, WP.CFG.nbranchFrameR, WP.NBranch.frameR]
+    rw [walkInitEmptyInputFailureFromPrologueFullCodeNBranch_pre]
+    exact prologuePreAbiFailureEmptyCarry_entails_emptyScratchPre sp0 raVal s0Old s1Old
+      s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old
+  wp_rv64_nbranch_weaken_pre_with br, hpre
+
+/-- Expanded shared-frame precondition for the empty-input full-code path. -/
+theorem walkInitEmptyInputFailureFromPrologueSharedFrameNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase : Word)
+    (t0Old t1Old : Word)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 < 2 ^ 64) :
+    (walkInitEmptyInputFailureFromPrologueSharedFrameNBranch base sp0 raVal s0Old s1Old
+      s2Old outBase m0 m1 m2 m3 inputBase t0Old t1Old hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitAbiFailurePrologueCarryFrame inputBase (0 : Word) t0Old t1Old outBase
+          ([] : List Byte)) := by
   rfl
 
 /-- Prologue followed by the ABI-failure classifier. Empty and not-list exits
