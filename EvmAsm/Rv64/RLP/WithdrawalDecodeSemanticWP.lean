@@ -19,6 +19,8 @@ open EvmAsm.Rv64.Tactics
 
 namespace WithdrawalDecode
 
+attribute [rv64_wp] prologuePost prologueFrameBase
+
 /-- Schema scratch registers preserved on failure exits after the output bytes
     have been consumed by the public ABI post. -/
 def schemaWalkInitRegsFrame (outBase : Word) : Assertion :=
@@ -39,6 +41,113 @@ theorem schemaWalkInitFrame_entails_anyFrame (outBase : Word) :
   exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
     (sepConj_mono_right (sepConj_mono_right (fun h hp =>
       ⟨List.replicate outputSize (0 : Byte), by simp [outputSize], hp⟩))))) h hp
+
+/-- Schema handoff frame in the exact shape produced after the decoder prologue:
+    `s0`/`x8` and `a2`/`x12` both hold the output pointer.  The public schema
+    handoff only needs `regOwn x12`, so this frame is an entry-composition
+    helper, not a separate schema requirement. -/
+def schemaWalkInitFrameFromPrologue (outBase : Word) : Assertion :=
+  ((.x8 ↦ᵣ outBase) ** (.x12 ↦ᵣ outBase) ** regOwn .x13 ** regOwn .x14 **
+    regOwn .x15 ** bytesRegion outBase (List.replicate outputSize (0 : Byte)))
+
+theorem schemaWalkInitFrameFromPrologue_pcFree (outBase : Word) :
+    (schemaWalkInitFrameFromPrologue outBase).pcFree := by
+  unfold schemaWalkInitFrameFromPrologue
+  pcFree
+
+theorem schemaWalkInitFrameFromPrologue_entails_schemaWalkInitFrame (outBase : Word) :
+    WP.Entails (schemaWalkInitFrameFromPrologue outBase) (schemaWalkInitFrame outBase) := by
+  intro h hp
+  unfold schemaWalkInitFrameFromPrologue at hp
+  unfold schemaWalkInitFrame
+  exact sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x12 outBase)) h hp
+
+/-- Callee-save and stack resources produced by the prologue and preserved through
+    the short-list success slice. -/
+def walkInitShortSuccessPrologueSavedFrame
+    (sp0 raVal s0Old s1Old s2Old : Word) : Assertion :=
+  ((.x2 ↦ᵣ prologueFrameBase sp0) ** (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) **
+    (prologueFrameBase sp0 ↦ₘ raVal) **
+    ((prologueFrameBase sp0 + 8) ↦ₘ s0Old) **
+    ((prologueFrameBase sp0 + 16) ↦ₘ s1Old) **
+    ((prologueFrameBase sp0 + 24) ↦ₘ s2Old))
+
+theorem walkInitShortSuccessPrologueSavedFrame_pcFree
+    (sp0 raVal s0Old s1Old s2Old : Word) :
+    (walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old).pcFree := by
+  unfold walkInitShortSuccessPrologueSavedFrame
+  pcFree
+
+/-- Resources framed across the prologue so the walk-init/schema WP slice can
+    start immediately at the prologue exit. -/
+def walkInitShortSuccessPrologueCarryFrame
+    (inputBase listLen t0Old t1Old outBase : Word) (input : List Byte) : Assertion :=
+  ((.x10 ↦ᵣ (inputBase + BitVec.ofNat 64 0)) ** (.x11 ↦ᵣ listLen) **
+    (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+    regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** bytesRegion inputBase input **
+    bytesRegion outBase (List.replicate outputSize (0 : Byte)))
+
+theorem walkInitShortSuccessPrologueCarryFrame_pcFree
+    (inputBase listLen t0Old t1Old outBase : Word) (input : List Byte) :
+    (walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input).pcFree := by
+  unfold walkInitShortSuccessPrologueCarryFrame
+  pcFree
+
+/-- Exact midpoint precondition before weakening `x12 ↦ outBase` to
+    `regOwn x12`. -/
+def walkInitShortSuccessResolvedPreFromPrologue
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte) : Assertion :=
+  ((walkInitEmptyFailStatusPre listLen raVal (inputBase + BitVec.ofNat 64 0) **
+    (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion inputBase input) **
+    schemaWalkInitFrameFromPrologue outBase)
+
+theorem walkInitShortSuccessResolvedPreFromPrologue_entails_pre
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte) :
+    WP.Entails
+      (walkInitShortSuccessResolvedPreFromPrologue inputBase listLen raVal t0Old t1Old
+        outBase input)
+      (((walkInitEmptyFailStatusPre listLen raVal (inputBase + BitVec.ofNat 64 0) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion inputBase input) **
+        schemaWalkInitFrame outBase)) := by
+  intro h hp
+  unfold walkInitShortSuccessResolvedPreFromPrologue at hp
+  exact sepConj_mono_right (schemaWalkInitFrameFromPrologue_entails_schemaWalkInitFrame outBase) h hp
+
+-- WP-link automation unfolds these small assertion-shape helpers before `xperm`.
+attribute [rv64_wp] schemaWalkInitFrameFromPrologue walkInitShortSuccessPrologueSavedFrame
+  walkInitShortSuccessPrologueCarryFrame walkInitShortSuccessResolvedPreFromPrologue
+  walkInitEmptyFailStatusPre walkInitZeroNonzeroPre failStatusReturnPre statusReturnPre
+
+/-- Link the concrete prologue post plus caller-framed walk-init resources to
+    the exact resolved WP precondition, carrying the saved frame as a tail frame. -/
+theorem prologuePostShortSuccessCarry_entails_resolvedPreFromPrologue
+    (sp0 raVal s0Old s1Old s2Old inputBase listLen t0Old t1Old outBase : Word)
+    (input : List Byte) :
+    WP.Entails
+      (prologuePost sp0 raVal s0Old s1Old s2Old outBase **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+      (walkInitShortSuccessResolvedPreFromPrologue inputBase listLen raVal t0Old t1Old outBase
+        input ** walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old) := by
+  wp_rv64_link
+
+/-- Public handoff link from the prologue post to the reduced resolved WP
+    precondition, with the prologue saved frame preserved for later epilogue work. -/
+theorem prologuePostShortSuccessCarry_entails_resolvedPre
+    (sp0 raVal s0Old s1Old s2Old inputBase listLen t0Old t1Old outBase : Word)
+    (input : List Byte) :
+    WP.Entails
+      (prologuePost sp0 raVal s0Old s1Old s2Old outBase **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input)
+      ((((walkInitEmptyFailStatusPre listLen raVal (inputBase + BitVec.ofNat 64 0) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion inputBase input) **
+        schemaWalkInitFrame outBase) **
+        walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old)) := by
+  intro h hp
+  have hpExact := prologuePostShortSuccessCarry_entails_resolvedPreFromPrologue
+    sp0 raVal s0Old s1Old s2Old inputBase listLen t0Old t1Old outBase input h hp
+  exact sepConj_mono_left
+    (walkInitShortSuccessResolvedPreFromPrologue_entails_pre inputBase listLen raVal t0Old
+      t1Old outBase input) h hpExact
 
 def walkInitEmptyFailSchemaAbiFrame (listLen t0Old t1Old outBase : Word) : Assertion :=
   walkInitEmptyFailAbiFrame listLen t0Old t1Old ** schemaWalkInitRegsFrame outBase

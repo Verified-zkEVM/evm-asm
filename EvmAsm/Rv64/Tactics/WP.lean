@@ -7,6 +7,7 @@
 -/
 
 import Lean
+import EvmAsm.Rv64.Tactics.WPAttr
 import EvmAsm.Rv64.WP.CFG
 import EvmAsm.Rv64.WP.Call
 import EvmAsm.Rv64.Tactics.XPermPure
@@ -38,7 +39,9 @@ macro_rules
       `(tactic| first
         | exact EvmAsm.Rv64.WP.Entails.refl _
         | intro _ _hp; xperm_hyp _hp
-        | intro _ _hp; xperm_pure _hp)
+        | intro _ _hp; xperm_pure _hp
+        | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_hyp _hp
+        | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp)
 
 /-- Frame a single-exit CFG certificate and return the framed certificate. -/
 syntax (name := wpRv64FrameRTac) "wp_rv64_frame " term ", " term ", " term : tactic
