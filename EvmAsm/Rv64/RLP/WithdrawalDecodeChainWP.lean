@@ -594,6 +594,11 @@ macro "wp_withdrawal_decode_chain " chain:term : tactic =>
 
 open Lean Meta Elab Tactic
 
+private def isDecodeChainLocalType (e : Expr) : Bool :=
+  e.isAppOfArity ``SuccessDecodeChain 2 ||
+    e.isAppOfArity ``LeftoverDecodeChain 2 ||
+    e.isAppOfArity ``DecodeChainOutcome 2
+
 /-- Context-driven chain WP automation.  It scans local hypotheses for already
     bundled success/leftover chain objects, projects the needed pure fact, and
     then falls back to the generic withdrawal WP driver. -/
@@ -601,6 +606,9 @@ elab "wp_withdrawal_decode_chain" : tactic => withMainContext do
   let lctx ← getLCtx
   for localDecl in lctx do
     if localDecl.isImplementationDetail then
+      continue
+    let localType ← whnfR (← instantiateMVars localDecl.type)
+    unless isDecodeChainLocalType localType do
       continue
     let id := Lean.mkIdent localDecl.userName
     try
@@ -710,6 +718,11 @@ example
     {pfx : Byte} {payload : List Byte} (outcome : DecodeChainOutcome pfx payload) :
     successFieldSpecsInput outcome.input ∨ decodeWithdrawal outcome.input = none := by
   wp_withdrawal_decode_outcome outcome
+
+example
+    {pfx : Byte} {payload : List Byte} (outcome : DecodeChainOutcome pfx payload) :
+    successFieldSpecsInput outcome.input ∨ decodeWithdrawal outcome.input = none := by
+  wp_withdrawal_decode_chain
 
 example
     {pfx : Byte} {payload : List Byte} (outcome : DecodeChainOutcome pfx payload) :
