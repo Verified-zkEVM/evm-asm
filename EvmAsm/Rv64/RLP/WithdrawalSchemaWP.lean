@@ -204,6 +204,85 @@ theorem decodeWithdrawal_eq_some_of_successFieldSpecs_input
   rw [hinput]
   exact decodeWithdrawal_encode_successFieldSpecs d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3
 
+/-- Result-free predicate saying that `input` is the canonical encoded withdrawal
+    success schema for some four field byte strings.  It intentionally carries no
+    decoded `Withdrawal` value. -/
+def successFieldSpecsInput (input : List Byte) : Prop :=
+  ∃ d0 d1 d2 d3 : List Byte,
+    input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))
+      ∧ d0.headD 1 ≠ 0 ∧ d0.length ≤ 8
+      ∧ d1.headD 1 ≠ 0 ∧ d1.length ≤ 8
+      ∧ d2.length = 20
+      ∧ d3.headD 1 ≠ 0 ∧ d3.length ≤ 8
+
+/-- Any successful pure withdrawal decode exposes exactly the result-free success
+    schema encoding for its four byte fields.  This is the reverse bridge needed
+    by WP callers that case-split on `decodeWithdrawal input`, without putting
+    the decoded value into the static schema. -/
+theorem successFieldSpecs_input_of_decodeWithdrawal_eq_some
+    (input : List Byte) (w : Withdrawal)
+    (hdec : decodeWithdrawal input = some w) :
+    ∃ d0 d1 d2 d3 : List Byte,
+      input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))
+        ∧ d0.headD 1 ≠ 0 ∧ d0.length ≤ 8
+        ∧ d1.headD 1 ≠ 0 ∧ d1.length ≤ 8
+        ∧ d2.length = 20
+        ∧ d3.headD 1 ≠ 0 ∧ d3.length ≤ 8
+        ∧ w = fromFieldBytes d0 d1 d2 d3 := by
+  rcases (decodeWithdrawal_eq_some_iff input w).mp hdec with
+    ⟨d0, d1, d2, d3, hfull, hc0, hl0, hc1, hl1, haddr, hc3, hl3, hi, hv, ha, hamt⟩
+  have hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))) := by
+    have hbound := encode_successFieldSpecs_length_lt_256_pow_8 d0 d1 d2 d3 hl0 hl1 haddr hl3
+    exact (decodeFully_eq_encode input (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))
+      hbound).mp (by simpa [schemaItems, successFieldSpecs] using hfull)
+  have hw : w = fromFieldBytes d0 d1 d2 d3 := by
+    cases w
+    simp [fromFieldBytes] at hi hv ha hamt ⊢
+    exact ⟨hi, hv, ha, hamt⟩
+  exact ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3, hw⟩
+
+/-- Success of the pure decoder is equivalent to the existence of canonical
+    field-byte witnesses whose result-free schema encoding is the input and
+    whose bytes compute the returned value. -/
+theorem decodeWithdrawal_eq_some_iff_successFieldSpecs_input
+    (input : List Byte) (w : Withdrawal) :
+    decodeWithdrawal input = some w ↔
+      ∃ d0 d1 d2 d3 : List Byte,
+        input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))
+          ∧ d0.headD 1 ≠ 0 ∧ d0.length ≤ 8
+          ∧ d1.headD 1 ≠ 0 ∧ d1.length ≤ 8
+          ∧ d2.length = 20
+          ∧ d3.headD 1 ≠ 0 ∧ d3.length ≤ 8
+          ∧ w = fromFieldBytes d0 d1 d2 d3 := by
+  constructor
+  · exact successFieldSpecs_input_of_decodeWithdrawal_eq_some input w
+  · rintro ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3, hw⟩
+    rw [hw]
+    exact decodeWithdrawal_eq_some_of_successFieldSpecs_input input d0 d1 d2 d3
+      hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput
+
+/-- Failure is reason-erased: the pure decoder fails exactly when the input is not
+    any canonical success-schema encoding. -/
+theorem decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput
+    (input : List Byte) :
+    decodeWithdrawal input = none ↔ ¬ successFieldSpecsInput input := by
+  constructor
+  · intro hnone hsucc
+    rcases hsucc with
+      ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3⟩
+    have hsome := decodeWithdrawal_eq_some_of_successFieldSpecs_input input d0 d1 d2 d3
+      hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput
+    rw [hnone] at hsome
+    contradiction
+  · intro hnot
+    cases hdec : decodeWithdrawal input with
+    | none => rfl
+    | some w =>
+        exfalso
+        rcases successFieldSpecs_input_of_decodeWithdrawal_eq_some input w hdec with
+          ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3, _hw⟩
+        exact hnot ⟨d0, d1, d2, d3, hinput, hc0, hl0, hc1, hl1, haddr, hc3, hl3⟩
+
 private theorem exists_eq_list_of_length_eq_20 (d : List Byte) (h : d.length = 20) :
     ∃ b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 : Byte,
       d = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9,
