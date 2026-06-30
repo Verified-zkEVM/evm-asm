@@ -1170,23 +1170,75 @@ theorem successFieldSpecsInput_or_decodeWithdrawal_eq_none
       exact Or.inl
         ((successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some input).2 ⟨w, hdec⟩)
 
+/-- Result-free schema-success bridge for generated validating field walks.  The
+    decoded result is used only as an existential witness for the semantic
+    characterization of `successFieldSpecsInput`; the schema predicate itself
+    remains result-free. -/
+theorem successFieldSpecsInput_of_shortList_four_decode_chain
+    {pfx : Byte} {payload r1 r2 r3 r4 d0 d1 d2 d3 : List Byte}
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, r1))
+    (h1 : ∀ m, decodeAux (m + 1) r1 = some (.bytes d1, r2))
+    (h2 : ∀ m, decodeAux (m + 1) r2 = some (.bytes d2, r3))
+    (h3 : ∀ m, decodeAux (m + 1) r3 = some (.bytes d3, r4))
+    (hend : r4 = [])
+    (h_min : 2 ≤ payload.length)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    successFieldSpecsInput (pfx :: payload) :=
+  (successFieldSpecsInput_iff_exists_decodeWithdrawal_eq_some (pfx :: payload)).2
+    ⟨fromFieldBytes d0 d1 d2 d3,
+      decodeWithdrawal_shortList_four_of_decodeAux_chain_auto h_class h_len h0 h1 h2 h3 hend
+        h_min hc0 hl0 hc1 hl1 haddr hc3 hl3⟩
+
 /-- Convert a validating field-post `decode` fact into the fuel-polymorphic
     `decodeAux` continuation consumed by the short-list WP bridge. -/
 macro "wp_rlp_field_decode_aux " hDecode:term : tactic =>
   `(tactic| exact decodeAux_bytes_all_fuel_of_decode _ _ _ _ $hDecode)
 
+/-- Exact-arity success automation for WP-generated validating field walks.  It
+    derives the four `decodeAux` continuations from field-post `decode` facts and
+    applies the withdrawal success bridge. -/
+macro "withdrawal_decode_success_chain " hclass:term ", " hlen:term ", " hdec0:term ", "
+    hdec1:term ", " hdec2:term ", " hdec3:term ", " hend:term ", " hmin:term ", "
+    hc0:term ", " hl0:term ", " hc1:term ", " hl1:term ", " haddr:term ", "
+    hc3:term ", " hl3:term : tactic =>
+  `(tactic| exact decodeWithdrawal_shortList_four_of_decodeAux_chain_auto
+    $hclass $hlen
+    (by wp_rlp_field_decode_aux $hdec0)
+    (by wp_rlp_field_decode_aux $hdec1)
+    (by wp_rlp_field_decode_aux $hdec2)
+    (by wp_rlp_field_decode_aux $hdec3)
+    $hend $hmin $hc0 $hl0 $hc1 $hl1 $haddr $hc3 $hl3)
+
+/-- Result-free schema-success automation for WP-generated validating field walks. -/
+macro "withdrawal_schema_success_chain " hclass:term ", " hlen:term ", " hdec0:term ", "
+    hdec1:term ", " hdec2:term ", " hdec3:term ", " hend:term ", " hmin:term ", "
+    hc0:term ", " hl0:term ", " hc1:term ", " hl1:term ", " haddr:term ", "
+    hc3:term ", " hl3:term : tactic =>
+  `(tactic| exact successFieldSpecsInput_of_shortList_four_decode_chain
+    $hclass $hlen
+    (by wp_rlp_field_decode_aux $hdec0)
+    (by wp_rlp_field_decode_aux $hdec1)
+    (by wp_rlp_field_decode_aux $hdec2)
+    (by wp_rlp_field_decode_aux $hdec3)
+    $hend $hmin $hc0 $hl0 $hc1 $hl1 $haddr $hc3 $hl3)
+
 /-- Exact-arity leftover failure automation for WP-generated validating field
     walks.  It derives all four `decodeAux` continuations from local field-post
     `decode` facts, then applies the chain-shaped withdrawal failure bridge. -/
-macro "withdrawal_decode_failure_chain " hClass:term ", " hLen:term ", " hDec0:term ", "
-    hDec1:term ", " hDec2:term ", " hDec3:term ", " hLeftover:term ", " hMin:term : tactic =>
+macro "withdrawal_decode_failure_chain " hclass:term ", " hlen:term ", " hdec0:term ", "
+    hdec1:term ", " hdec2:term ", " hdec3:term ", " hleftover:term ", " hmin:term : tactic =>
   `(tactic| exact decodeWithdrawal_none_of_shortList_four_leftover_chain_auto
-    $hClass $hLen
-    (by wp_rlp_field_decode_aux $hDec0)
-    (by wp_rlp_field_decode_aux $hDec1)
-    (by wp_rlp_field_decode_aux $hDec2)
-    (by wp_rlp_field_decode_aux $hDec3)
-    $hLeftover $hMin)
+    $hclass $hlen
+    (by wp_rlp_field_decode_aux $hdec0)
+    (by wp_rlp_field_decode_aux $hdec1)
+    (by wp_rlp_field_decode_aux $hdec2)
+    (by wp_rlp_field_decode_aux $hdec3)
+    $hleftover $hmin)
 
 /-- Pure failure automation for the semantic side of withdrawal WP joins. It
     consumes the common facts produced by validating RLP blocks: failed complete
@@ -1207,18 +1259,18 @@ macro "withdrawal_decode_failure" : tactic =>
 
 /-- Exact-arity leftover failure automation for validated short-list paths.
     Generated proofs pass the static branch facts produced by the WP walk. -/
-macro "withdrawal_decode_failure " hClass:term ", " hLen:term ", " h0:term ", " h1:term ", "
-    h2:term ", " h3:term ", " hLeftover:term ", " hMin:term : tactic =>
+macro "withdrawal_decode_failure " hclass:term ", " hlen:term ", " h0:term ", " h1:term ", "
+    h2:term ", " h3:term ", " hleftover:term ", " hmin:term : tactic =>
   `(tactic| exact decodeWithdrawal_none_of_shortList_four_leftover_auto
-    $hClass $hLen $h0 $h1 $h2 $h3 $hLeftover $hMin)
+    $hclass $hlen $h0 $h1 $h2 $h3 $hleftover $hmin)
 
 /-- Schema-concat leftover failure automation for generated WP schema walks.
     The caller supplies only static field bounds, the schema payload split, and a
     nonempty leftover; the intermediate `decodeAux` facts are derived internally. -/
-macro "withdrawal_decode_failure " hClass:term ", " hLen:term ", " hl0:term ", " hl1:term ", "
-    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hMin:term : tactic =>
+macro "withdrawal_decode_failure " hclass:term ", " hlen:term ", " hl0:term ", " hl1:term ", "
+    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hmin:term : tactic =>
   `(tactic| exact decodeWithdrawal_none_of_shortList_successFieldSpecs_leftover_auto
-    $hClass $hLen $hl0 $hl1 $haddr $hl3 $hPayload $hTail $hMin)
+    $hclass $hlen $hl0 $hl1 $haddr $hl3 $hPayload $hTail $hmin)
 
 /-- Same automation, but returning the result-free schema failure predicate used
     by caller-facing WP wrappers. -/
@@ -1227,11 +1279,11 @@ macro "withdrawal_schema_failure" : tactic =>
     (by withdrawal_decode_failure))
 
 /-- Schema-concat leftover failure automation for result-free schema predicates. -/
-macro "withdrawal_schema_failure " hClass:term ", " hLen:term ", " hl0:term ", " hl1:term ", "
-    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hMin:term : tactic =>
+macro "withdrawal_schema_failure " hclass:term ", " hlen:term ", " hl0:term ", " hl1:term ", "
+    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hmin:term : tactic =>
   `(tactic| exact (decodeWithdrawal_eq_none_iff_not_successFieldSpecsInput _).1
-    (by withdrawal_decode_failure $hClass, $hLen, $hl0, $hl1, $haddr, $hl3, $hPayload,
-      $hTail, $hMin))
+    (by withdrawal_decode_failure $hclass, $hlen, $hl0, $hl1, $haddr, $hl3, $hPayload,
+      $hTail, $hmin))
 
 /-- Withdrawal-domain WP automation.  This is the tactic generated proofs should
     use at control-flow joins: it solves pure withdrawal failure/schema facts
@@ -1256,33 +1308,47 @@ macro "wp_withdrawal_decode_auto " input:term : tactic =>
     | wp_withdrawal_decode_cert $input
     | wp_withdrawal_decode_auto)
 
+/-- Chain-shaped exact-arity success overload for generated validating field walks.
+    It can close either the semantic `decodeWithdrawal = some ...` goal or the
+    result-free `successFieldSpecsInput` goal. -/
+macro "wp_withdrawal_decode_chain_auto " hclass:term ", " hlen:term ", " hdec0:term ", "
+    hdec1:term ", " hdec2:term ", " hdec3:term ", " hend:term ", " hmin:term ", "
+    hc0:term ", " hl0:term ", " hc1:term ", " hl1:term ", " haddr:term ", "
+    hc3:term ", " hl3:term : tactic =>
+  `(tactic| first
+    | withdrawal_schema_success_chain $hclass, $hlen, $hdec0, $hdec1, $hdec2, $hdec3,
+        $hend, $hmin, $hc0, $hl0, $hc1, $hl1, $haddr, $hc3, $hl3
+    | withdrawal_decode_success_chain $hclass, $hlen, $hdec0, $hdec1, $hdec2, $hdec3,
+        $hend, $hmin, $hc0, $hl0, $hc1, $hl1, $haddr, $hc3, $hl3
+    | wp_withdrawal_decode_auto)
+
 /-- Chain-shaped exact-arity leftover overload for generated validating field walks.
     The four field `decodeAux` continuations are built automatically from the
     WP field-post `decode` facts. -/
-macro "wp_withdrawal_decode_chain_auto " hClass:term ", " hLen:term ", " hDec0:term ", "
-    hDec1:term ", " hDec2:term ", " hDec3:term ", " hLeftover:term ", " hMin:term : tactic =>
+macro "wp_withdrawal_decode_chain_auto " hclass:term ", " hlen:term ", " hdec0:term ", "
+    hdec1:term ", " hdec2:term ", " hdec3:term ", " hleftover:term ", " hmin:term : tactic =>
   `(tactic| first
-    | withdrawal_decode_failure_chain $hClass, $hLen, $hDec0, $hDec1, $hDec2, $hDec3,
-        $hLeftover, $hMin
+    | withdrawal_decode_failure_chain $hclass, $hlen, $hdec0, $hdec1, $hdec2, $hdec3,
+        $hleftover, $hmin
     | wp_withdrawal_decode_auto)
 
 /-- Exact-arity leftover overload for generated short-list field walks. -/
-macro "wp_withdrawal_decode_auto " hClass:term ", " hLen:term ", " h0:term ", " h1:term ", "
-    h2:term ", " h3:term ", " hLeftover:term ", " hMin:term : tactic =>
+macro "wp_withdrawal_decode_auto " hclass:term ", " hlen:term ", " h0:term ", " h1:term ", "
+    h2:term ", " h3:term ", " hleftover:term ", " hmin:term : tactic =>
   `(tactic| first
-    | withdrawal_decode_failure $hClass, $hLen, $h0, $h1, $h2, $h3, $hLeftover, $hMin
+    | withdrawal_decode_failure $hclass, $hlen, $h0, $h1, $h2, $h3, $hleftover, $hmin
     | wp_withdrawal_decode_auto)
 
 /-- Schema-concat exact-arity leftover overload for generated withdrawal schema
     walks.  This keeps the schema result-free while deriving the semantic
     failure fact needed by ABI postconditions. -/
-macro "wp_withdrawal_decode_auto " hClass:term ", " hLen:term ", " hl0:term ", " hl1:term ", "
-    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hMin:term : tactic =>
+macro "wp_withdrawal_decode_auto " hclass:term ", " hlen:term ", " hl0:term ", " hl1:term ", "
+    haddr:term ", " hl3:term ", " hPayload:term ", " hTail:term ", " hmin:term : tactic =>
   `(tactic| first
-    | withdrawal_schema_failure $hClass, $hLen, $hl0, $hl1, $haddr, $hl3, $hPayload,
-        $hTail, $hMin
-    | withdrawal_decode_failure $hClass, $hLen, $hl0, $hl1, $haddr, $hl3, $hPayload,
-        $hTail, $hMin
+    | withdrawal_schema_failure $hclass, $hlen, $hl0, $hl1, $haddr, $hl3, $hPayload,
+        $hTail, $hmin
+    | withdrawal_decode_failure $hclass, $hlen, $hl0, $hl1, $haddr, $hl3, $hPayload,
+        $hTail, $hmin
     | wp_withdrawal_decode_auto)
 
 example
@@ -1348,6 +1414,42 @@ example
     (h_min : 2 ≤ (p0 :: r0).length) :
     decodeWithdrawal (pfx :: p0 :: r0) = none := by
   wp_withdrawal_decode_chain_auto h_class, h_len, hdec0, hdec1, hdec2, hdec3, h_leftover, h_min
+
+example
+    (pfx p0 p1 p2 p3 : Byte) (r0 r1 r2 r3 d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = (p0 :: r0).length)
+    (hdec0 : decode (p0 :: r0) = some (.bytes d0, p1 :: r1))
+    (hdec1 : decode (p1 :: r1) = some (.bytes d1, p2 :: r2))
+    (hdec2 : decode (p2 :: r2) = some (.bytes d2, p3 :: r3))
+    (hdec3 : decode (p3 :: r3) = some (.bytes d3, []))
+    (h_end : ([] : List Byte) = [])
+    (h_min : 2 ≤ (p0 :: r0).length)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal (pfx :: p0 :: r0) = some (fromFieldBytes d0 d1 d2 d3) := by
+  wp_withdrawal_decode_chain_auto h_class, h_len, hdec0, hdec1, hdec2, hdec3, h_end, h_min,
+    hc0, hl0, hc1, hl1, haddr, hc3, hl3
+
+example
+    (pfx p0 p1 p2 p3 : Byte) (r0 r1 r2 r3 d0 d1 d2 d3 : List Byte)
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = (p0 :: r0).length)
+    (hdec0 : decode (p0 :: r0) = some (.bytes d0, p1 :: r1))
+    (hdec1 : decode (p1 :: r1) = some (.bytes d1, p2 :: r2))
+    (hdec2 : decode (p2 :: r2) = some (.bytes d2, p3 :: r3))
+    (hdec3 : decode (p3 :: r3) = some (.bytes d3, []))
+    (h_end : ([] : List Byte) = [])
+    (h_min : 2 ≤ (p0 :: r0).length)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    successFieldSpecsInput (pfx :: p0 :: r0) := by
+  wp_withdrawal_decode_chain_auto h_class, h_len, hdec0, hdec1, hdec2, hdec3, h_end, h_min,
+    hc0, hl0, hc1, hl1, haddr, hc3, hl3
 
 example
     (pfx : Byte) (payload d0 d1 d2 d3 : List Byte)

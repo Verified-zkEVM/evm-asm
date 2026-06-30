@@ -1191,6 +1191,25 @@ theorem decodeWithdrawal_shortList_four_of_decodeAux_chain
     (.bytes d0) (.bytes d1) (.bytes d2) (.bytes d3) h_class h_len h0 h1 h2 h3 hend h_min
   exact decodeWithdrawal_eq_some_of_decodeFully_fields hfull hc0 hl0 hc1 hl1 haddr hc3 hl3
 
+/-- Implicit-argument facade for tactic use of the chain-shaped success bridge. -/
+theorem decodeWithdrawal_shortList_four_of_decodeAux_chain_auto
+    {pfx : Byte} {payload r1 r2 r3 r4 d0 d1 d2 d3 : List Byte}
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (h0 : ∀ m, decodeAux (m + 1) payload = some (.bytes d0, r1))
+    (h1 : ∀ m, decodeAux (m + 1) r1 = some (.bytes d1, r2))
+    (h2 : ∀ m, decodeAux (m + 1) r2 = some (.bytes d2, r3))
+    (h3 : ∀ m, decodeAux (m + 1) r3 = some (.bytes d3, r4))
+    (hend : r4 = [])
+    (h_min : 2 ≤ payload.length)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    decodeWithdrawal (pfx :: payload) = some (fromFieldBytes d0 d1 d2 d3) :=
+  decodeWithdrawal_shortList_four_of_decodeAux_chain pfx payload r1 r2 r3 r4 d0 d1 d2 d3
+    h_class h_len h0 h1 h2 h3 hend h_min hc0 hl0 hc1 hl1 haddr hc3 hl3
+
 /-- The pure withdrawal decoder rejects empty input. -/
 theorem decodeWithdrawal_nil : decodeWithdrawal ([] : List Byte) = none := by
   rfl
