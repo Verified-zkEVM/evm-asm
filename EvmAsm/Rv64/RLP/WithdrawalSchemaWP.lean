@@ -11,6 +11,7 @@ import EvmAsm.Rv64.RLP.WithdrawalDecode
 import EvmAsm.Rv64.RLP.SchemaWP
 import EvmAsm.Rv64.RLP.SchemaFoldConcat
 import EvmAsm.Rv64.RLP.SchemaListEncode
+import EvmAsm.Rv64.Tactics.DropPure
 
 namespace EvmAsm.Rv64.RLP
 
@@ -645,6 +646,15 @@ theorem schemaCursorInitCode_none_above (base a : Word)
     have := congrArg BitVec.toNat h_eq
     omega)
 
+theorem schemaCursorInitCode_none_below (base a : Word)
+    (h : a.toNat < base.toNat) :
+    schemaCursorInitCode base a = none := by
+  unfold schemaCursorInitCode
+  exact CodeReq.singleton_miss (by
+    intro h_eq
+    have := congrArg BitVec.toNat h_eq
+    omega)
+
 theorem schemaCursorInitCode_disjoint_schemaCR
     (base : Word) (rOut : Reg) (specs : List FieldSpec)
     (hcode : base.toNat + 4 + schemaSize specs < 2 ^ 64) :
@@ -688,6 +698,71 @@ theorem schemaCursorInitCode_disjoint_successReturnTail
   · exact schemaCursorInitCode_disjoint_successStatusReturnCode base
       ((base + 4) + BitVec.ofNat 64 (schemaSize specs)) (by rw [hret]; omega)
       (by rw [hret]; omega)
+
+theorem schemaCursorInitSuccessReturnTail_none_below
+    (base : Word) (rOut : Reg) (specs : List FieldSpec) (a : Word)
+    (hcode : base.toNat + 4 + schemaSize specs + 8 < 2 ^ 64)
+    (hlt : a.toNat < base.toNat) :
+    ((schemaCursorInitCode base).union
+      ((schemaCR (base + 4) rOut specs).union
+        (successStatusReturnCode
+          ((base + 4) + BitVec.ofNat 64 (schemaSize specs))))) a = none := by
+  have hbase4 : (base + 4).toNat = base.toNat + 4 := by
+    bv_omega
+  have hret : ((base + 4) + BitVec.ofNat 64 (schemaSize specs)).toNat =
+      base.toNat + 4 + schemaSize specs := by
+    bv_omega
+  have h0 : schemaCursorInitCode base a = none :=
+    schemaCursorInitCode_none_below base a hlt
+  have hschema : schemaCR (base + 4) rOut specs a = none :=
+    schemaCR_none_below rOut specs (base + 4) a (by rw [hbase4]; omega)
+      (by rw [hbase4]; omega)
+  have hstatus : successStatusReturnCode ((base + 4) + BitVec.ofNat 64 (schemaSize specs)) a = none := by
+    unfold successStatusReturnCode
+    exact statusReturnCode_none_below ((base + 4) + BitVec.ofNat 64 (schemaSize specs))
+      (0 : Word) a (by rw [hret]; omega) (by rw [hret]; omega)
+  simp only [CodeReq.union, h0]
+  rw [hschema]
+  exact hstatus
+
+/-- Free landing-pad jump used to move the walk-init short-list success exit out
+    of the classifier code range before running generated schema code. -/
+def walkInitShortSuccessJumpCode (base : Word) : CodeReq :=
+  CodeReq.singleton (base + 124) (.JAL .x0 (48 : BitVec 21))
+
+theorem walkInitShortSuccessJumpCode_disjoint_successReturnTail
+    (base : Word) (rOut : Reg) (specs : List FieldSpec)
+    (hcode : base.toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (walkInitShortSuccessJumpCode base).Disjoint
+      ((schemaCursorInitCode (base + 172)).union
+        ((schemaCR (base + 172 + 4) rOut specs).union
+          (successStatusReturnCode
+            ((base + 172 + 4) + BitVec.ofNat 64 (schemaSize specs))))) := by
+  have hbase172 : (base + 172).toNat = base.toNat + 172 := by
+    bv_omega
+  refine codeReq_disjoint_of_ranges _ _ (base.toNat + 172) ?_ ?_
+  · intro a ha
+    unfold walkInitShortSuccessJumpCode
+    exact CodeReq.singleton_miss (by
+      intro h_eq
+      have := congrArg BitVec.toNat h_eq
+      bv_omega)
+  · intro a ha
+    exact schemaCursorInitSuccessReturnTail_none_below (base + 172) rOut specs a
+      (by rw [hbase172]; omega) (by rw [hbase172]; exact ha)
+
+/-- Extra resources a walk-init success candidate must carry in order to hand off
+    to the generated schema WP code.  The output buffer is intentionally fixed
+    to zeros because the current schema certificate proves updates from a zeroed
+    ABI result struct. -/
+def schemaWalkInitFrame (outBase : Word) : Assertion :=
+  ((.x8 ↦ᵣ outBase) ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+    regOwn .x15 ** bytesRegion outBase (List.replicate outputSize (0 : Byte)))
+
+theorem schemaWalkInitFrame_pcFree (outBase : Word) :
+    (schemaWalkInitFrame outBase).pcFree := by
+  unfold schemaWalkInitFrame
+  pcFree
 
 /-- Automated success-path WP certificate: a generated field-schema walk followed
     by the success return shim. The schema remains result-free; the decoded
@@ -902,6 +977,208 @@ theorem successFieldSpecsReturnAbiCertOfInputFromListStart_pre
         (List.replicate outputSize (0 : Byte)) := by
   unfold successFieldSpecsReturnAbiCertOfInputFromListStart
   rfl
+
+/-- The same list-start success cert, preserving the `x6 = 0xf8` scratch value
+    produced by the short-list classifier. This is the exact tail shape needed
+    when composing from `walkInitShortListCandidatePost`. -/
+def successFieldSpecsReturnAbiCertOfInputFromListStartF8
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      ((schemaCursorInitCode base).union
+        ((schemaCR (base + 4) .x8 (successFieldSpecs d0 d1 d2 d3)).union
+          (successStatusReturnCode
+            ((base + 4) + BitVec.ofNat 64 (schemaSize (successFieldSpecs d0 d1 d2 d3))))))
+      ((abiPost regionBase outBase raVal bs **
+        successSchemaReturnFrame regionBase outBase
+          (1 + schemaEnc (successFieldSpecs d0 d1 d2 d3))) **
+        (.x6 ↦ᵣ (0xf8 : Word))) :=
+  (successFieldSpecsReturnAbiCertOfInputFromListStart base regionBase outBase raVal bs
+    d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov
+    hdval hcode).frameR (.x6 ↦ᵣ (0xf8 : Word)) (by pcFree)
+
+theorem successFieldSpecsReturnAbiCertOfInputFromListStartF8_pre
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (successFieldSpecsReturnAbiCertOfInputFromListStartF8 base regionBase outBase raVal bs
+      d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov
+      hdval hcode).pre =
+      (schemaCursorInitPre regionBase outBase raVal bs 0
+        (List.replicate outputSize (0 : Byte)) ** (.x6 ↦ᵣ (0xf8 : Word))) := by
+  unfold successFieldSpecsReturnAbiCertOfInputFromListStartF8
+  change ((successFieldSpecsReturnAbiCertOfInputFromListStart base regionBase outBase raVal bs
+      d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov
+      hdval hcode).pre ** (.x6 ↦ᵣ (0xf8 : Word))) =
+    (schemaCursorInitPre regionBase outBase raVal bs 0
+      (List.replicate outputSize (0 : Byte)) ** (.x6 ↦ᵣ (0xf8 : Word)))
+  rw [successFieldSpecsReturnAbiCertOfInputFromListStart_pre]
+
+/-- Short-list success continuation from the walk-init success label.  The label
+    at `base + 124` contains only a jump island; generated schema code starts at
+    `base + 172`, after the classifier/failure-return code range. -/
+def successFieldSpecsReturnAbiCertOfInputFromWalkShortExit
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + 172 + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.CFG.Cert (base + 124) (successStatusReturnExit raVal)
+      ((walkInitShortSuccessJumpCode base).union
+        ((schemaCursorInitCode (base + 172)).union
+          ((schemaCR (base + 172 + 4) .x8 (successFieldSpecs d0 d1 d2 d3)).union
+            (successStatusReturnCode
+              ((base + 172 + 4) + BitVec.ofNat 64
+                (schemaSize (successFieldSpecs d0 d1 d2 d3)))))))
+      ((abiPost regionBase outBase raVal bs **
+        successSchemaReturnFrame regionBase outBase
+          (1 + schemaEnc (successFieldSpecs d0 d1 d2 d3))) **
+        (.x6 ↦ᵣ (0xf8 : Word))) := by
+  let specs := successFieldSpecs d0 d1 d2 d3
+  let tailBase : Word := base + 172
+  let tailPre : Assertion :=
+    schemaCursorInitPre regionBase outBase raVal bs 0
+      (List.replicate outputSize (0 : Byte)) ** (.x6 ↦ᵣ (0xf8 : Word))
+  have htailCode : tailBase.toNat + 4 + schemaSize specs + 8 < 2 ^ 64 := by
+    have hbase172 : tailBase.toNat = base.toNat + 172 := by
+      dsimp [tailBase]
+      bv_omega
+    rw [hbase172]
+    dsimp [specs] at hcode ⊢
+    omega
+  let tail := successFieldSpecsReturnAbiCertOfInputFromListStartF8 tailBase regionBase outBase
+    raVal bs d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin
+    hdov hdval htailCode
+  have hjal := jal_x0_spec_gen_within (48 : BitVec 21) (base + 124)
+  have htarget : (base + 124) + signExtend21 (48 : BitVec 21) = tailBase := by
+    dsimp [tailBase]
+    simp [signExtend21]
+    bv_omega
+  rw [htarget] at hjal
+  let jump := (WP.CFG.block (WP.Entails.refl _) hjal).frameR tailPre (by
+    dsimp [tailPre]
+    unfold schemaCursorInitPre schemaCursorInitRestNoX13
+    pcFree)
+  have hd : (walkInitShortSuccessJumpCode base).Disjoint
+      ((schemaCursorInitCode tailBase).union
+        ((schemaCR (tailBase + 4) .x8 specs).union
+          (successStatusReturnCode
+            ((tailBase + 4) + BitVec.ofNat 64 (schemaSize specs))))) := by
+    dsimp [tailBase, specs]
+    exact walkInitShortSuccessJumpCode_disjoint_successReturnTail base .x8
+      (successFieldSpecs d0 d1 d2 d3) (by simpa [Nat.add_assoc] using hcode)
+  exact WP.CFG.seqDisjoint hd jump.sound tail (by
+    intro h hp
+    dsimp [tailPre] at hp
+    rw [successFieldSpecsReturnAbiCertOfInputFromListStartF8_pre]
+    simpa [sepConj_emp_left'] using hp)
+
+theorem successFieldSpecsReturnAbiCertOfInputFromWalkShortExit_pre
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + 172 + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (successFieldSpecsReturnAbiCertOfInputFromWalkShortExit base regionBase outBase raVal bs
+      d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov
+      hdval hcode).pre =
+      (empAssertion **
+        (schemaCursorInitPre regionBase outBase raVal bs 0
+          (List.replicate outputSize (0 : Byte)) ** (.x6 ↦ᵣ (0xf8 : Word)))) := by
+  unfold successFieldSpecsReturnAbiCertOfInputFromWalkShortExit
+  rfl
+
+/-- Link proof from the raw short-list classifier post, framed with the schema
+    handoff resources, to the F8-framed generated success tail precondition. -/
+theorem walkInitShortListCandidatePost_schemaWalkInitFrame_entails_tailPre
+    (inputBase listLen raVal outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) :
+    WP.Entails
+      (walkInitShortListCandidatePost inputBase listLen raVal input 0 hoff **
+        schemaWalkInitFrame outBase)
+      (schemaCursorInitPre inputBase outBase raVal input 0
+        (List.replicate outputSize (0 : Byte)) ** (.x6 ↦ᵣ (0xf8 : Word))) := by
+  intro h hp
+  unfold walkInitShortListCandidatePost walkInitPrefixF8Post schemaWalkInitFrame at hp
+  unfold schemaCursorInitPre schemaCursorInitRestNoX13
+  drop_pure hp
+  let pfx : Word := walkInitPrefixWord input 0 hoff
+  let endPtr : Word := (inputBase + BitVec.ofNat 64 0) + listLen
+  change
+    (((((.x10 ↦ᵣ (inputBase + BitVec.ofNat 64 0)) **
+        (((regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x11) **
+          (regOwn .x12) ** (regOwn .x14) ** (regOwn .x15) ** bytesRegion inputBase input) **
+         ((.x8 ↦ᵣ outBase) ** bytesRegion outBase (List.replicate outputSize (0 : Byte))) **
+         (.x1 ↦ᵣ raVal))) ** regOwn .x13) ** (.x6 ↦ᵣ (0xf8 : Word))) h)
+  have w1 := sepConj_mono_left (regIs_to_regOwn .x11 endPtr) h hp
+  have w2 := sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_left (regIs_to_regOwn .x5 pfx))) h w1
+  xperm_hyp w2
+
+/-- The same link, targeting the computed precondition of the jump-island short
+    success continuation. -/
+theorem walkInitShortListCandidatePost_schemaWalkInitFrame_entails_walkShortExitPre
+    (base inputBase listLen raVal outBase : Word) (input d0 d1 d2 d3 : List Byte)
+    (hoff : 0 < input.length)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : inputBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + 172 + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.Entails
+      (walkInitShortListCandidatePost inputBase listLen raVal input 0 hoff **
+        schemaWalkInitFrame outBase)
+      (successFieldSpecsReturnAbiCertOfInputFromWalkShortExit base inputBase outBase raVal input
+        d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov
+        hdval hcode).pre := by
+  intro h hp
+  rw [successFieldSpecsReturnAbiCertOfInputFromWalkShortExit_pre]
+  have htail := walkInitShortListCandidatePost_schemaWalkInitFrame_entails_tailPre
+    inputBase listLen raVal outBase input hoff h hp
+  exact (sepConj_emp_left h).mpr htail
 
 end WithdrawalDecode
 
