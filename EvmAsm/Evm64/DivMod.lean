@@ -79,6 +79,7 @@ import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
 import EvmAsm.Evm64.DivMod.Compose.BodyV6
 import EvmAsm.Evm64.DivMod.Compose.DispatchV6
 import EvmAsm.Evm64.DivMod.Compose.V5ReuseV6
+import EvmAsm.Evm64.DivMod.Compose.V5ReuseModV6
 import EvmAsm.Evm64.DivMod.Compose.V6QuotientBridge
 import EvmAsm.Evm64.DivMod.Compose.V6ChainModelBridge
 import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
@@ -443,6 +444,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelected
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
