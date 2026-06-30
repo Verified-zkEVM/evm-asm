@@ -11,6 +11,8 @@
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortBytesValidatedAt
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.WPAttr
+import EvmAsm.Rv64.WP.CFG
 
 namespace EvmAsm.Rv64
 
@@ -202,6 +204,176 @@ theorem rlp_decode_shortBytes_advance_at_clean
     off1 off2 succOff base e2_target h_class hns hLfit htarget hd_phase3 hd_bltu succPC hsuccPC hd_add
   rw [advance_cursor_clean regionBase O (rlpPrefixShortBytesPayloadLen pfx)] at h
   exact h
+
+/-! ## WP certificate wrapper -/
+
+/-- Code requirement for validating shortBytes decode-and-advance. -/
+def validatingShortBytesAdvanceCR
+    (base e2Target succPC : Word) (off1 off2 succOff : BitVec 13) : CodeReq :=
+  (((((rlp_phase1_step_code 0x80 off1 base).union
+      (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+     (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+    (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).union
+    (CodeReq.singleton succPC (.ADD .x13 .x13 .x11)))
+
+/-- Computed precondition for validating shortBytes decode-and-advance. -/
+def validatingShortBytesAdvancePre
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v10 v11Old v12Old v14Old regionBase : Word) : Assertion :=
+  ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+    (.x11 ↦ᵣ v11Old) ** (.x12 ↦ᵣ v12Old) **
+    (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
+    (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs)
+
+/-- Success postcondition for validating shortBytes decode-and-advance. -/
+def validatingShortBytesAdvanceSuccessPost
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v12Old v14Old regionBase : Word) : Assertion :=
+  ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+    (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
+    (.x12 ↦ᵣ v12Old) **
+    (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 (O + 1 + rlpPrefixShortBytesPayloadLen pfx))) **
+    (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+    bytesRegion regionBase bs **
+    ⌜decode (pfx :: rest)
+      = some (.bytes (rest.take (rlpPrefixShortBytesPayloadLen pfx)),
+              rest.drop (rlpPrefixShortBytesPayloadLen pfx))⌝)
+
+/-- Failure postcondition for validating shortBytes decode-and-advance. -/
+def validatingShortBytesAdvanceFailurePost
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v12Old v14Old regionBase : Word) : Assertion :=
+  ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+    (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
+    (.x12 ↦ᵣ v12Old) **
+    (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+    (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+    bytesRegion regionBase bs ** ⌜decode (pfx :: rest) = none⌝)
+
+/-- WP branch certificate for validating shortBytes decode-and-advance.
+    The taken exit is success; the fall-through exit is failure. -/
+def validatingShortBytesAdvanceBranch
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v10 v11Old v12Old v14Old regionBase : Word)
+    (off1 off2 succOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_add : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               (CodeReq.singleton succPC (.ADD .x13 .x13 .x11))) :
+    WP.Branch base (validatingShortBytesAdvanceCR base e2Target succPC off1 off2 succOff) :=
+  WP.Branch.ofSpec
+    (rlp_decode_shortBytes_advance_at_clean pfx rest bs O v10 v11Old v12Old v14Old regionBase
+      off1 off2 succOff base e2Target h_class hns h_lfit h_target h_phase3 h_bltu succPC
+      h_succ_pc h_add)
+
+/-- The validating advance branch computes the named precondition. -/
+theorem validatingShortBytesAdvanceBranch_pre
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v10 v11Old v12Old v14Old regionBase : Word)
+    (off1 off2 succOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_add : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               (CodeReq.singleton succPC (.ADD .x13 .x13 .x11))) :
+    (validatingShortBytesAdvanceBranch pfx rest bs O v10 v11Old v12Old v14Old regionBase
+      off1 off2 succOff base e2Target h_class hns h_lfit h_target h_phase3 h_bltu succPC
+      h_succ_pc h_add).pre =
+      validatingShortBytesAdvancePre pfx rest bs O v10 v11Old v12Old v14Old regionBase := by
+  rfl
+
+/-- The validating advance branch's taken exit is success. -/
+theorem validatingShortBytesAdvanceBranch_exit_t
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v10 v11Old v12Old v14Old regionBase : Word)
+    (off1 off2 succOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_add : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               (CodeReq.singleton succPC (.ADD .x13 .x13 .x11))) :
+    (validatingShortBytesAdvanceBranch pfx rest bs O v10 v11Old v12Old v14Old regionBase
+      off1 off2 succOff base e2Target h_class hns h_lfit h_target h_phase3 h_bltu succPC
+      h_succ_pc h_add).exit_t = succPC + 4 := by
+  rfl
+
+/-- The validating advance branch's fall-through exit is failure. -/
+theorem validatingShortBytesAdvanceBranch_exit_f
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v10 v11Old v12Old v14Old regionBase : Word)
+    (off1 off2 succOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_add : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               (CodeReq.singleton succPC (.ADD .x13 .x13 .x11))) :
+    (validatingShortBytesAdvanceBranch pfx rest bs O v10 v11Old v12Old v14Old regionBase
+      off1 off2 succOff base e2Target h_class hns h_lfit h_target h_phase3 h_bltu succPC
+      h_succ_pc h_add).exit_f = e2Target + 12 := by
+  rfl
+
+attribute [rv64_wp]
+  validatingShortBytesAdvanceBranch_pre
+  validatingShortBytesAdvanceBranch_exit_t
+  validatingShortBytesAdvanceBranch_exit_f
+
+attribute [rv64_wp_cert]
+  validatingShortBytesAdvanceBranch
 
 end RLP
 

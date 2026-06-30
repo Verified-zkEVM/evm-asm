@@ -20,6 +20,7 @@ import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortBytesValidatedAt
 import EvmAsm.Rv64.RLP.UnifiedFieldBytesCopy
 import EvmAsm.Rv64.RLP.ValidatingFieldWalk
 import EvmAsm.Rv64.WP.CFG
+import EvmAsm.Rv64.Tactics.WPAttr
 
 namespace EvmAsm.Rv64.RLP
 
@@ -398,5 +399,305 @@ theorem rlp_decode_shortBytes_bytescopy_at
           (pcFree_sepConj pcFree_regIs pcFree_pure))))
         copyRaw)
   exact cpsBranchWithin_seq_cpsTripleWithin_taken hd_copy armWithLenF copyF
+
+/-! ## WP certificate wrapper -/
+
+/-- Code requirement for the validating fixed-length short-bytes copy unit. -/
+def validatingShortBytesCopyCR
+    (base e2Target succPC : Word) (expectedN : Nat) (rOut : Reg) (fieldImm : BitVec 12)
+    (off1 off2 succOff lenFailOff : BitVec 13) : CodeReq :=
+  ((((((rlp_phase1_step_code 0x80 off1 base).union
+      (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+     (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+    (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).union
+    ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+      (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))).union
+    ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+      (byteCopyChainCR (succPC + 8 + 4) expectedN)))
+
+/-- Computed precondition for the validating fixed-length short-bytes copy unit. -/
+def validatingShortBytesCopyPre
+    (pfx : Byte) (rest bs : List Byte) (O : Nat)
+    (v10 v11Old v12Old v14Old regionBase : Word)
+    (rOut : Reg) (outBase : Word) (outBytes : List Byte) : Assertion :=
+  (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ v10) **
+    (.x11 ↦ᵣ v11Old) ** (.x12 ↦ᵣ v12Old) **
+    (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (.x14 ↦ᵣ v14Old) **
+    (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) ** bytesRegion regionBase bs) **
+   ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
+
+/-- Success postcondition for the validating fixed-length short-bytes copy unit. -/
+def validatingShortBytesCopySuccessPost
+    (pfx : Byte) (_rest bs : List Byte) (O expectedN : Nat)
+    (regionBase : Word) (rOut : Reg) (outBase : Word) (outBytes : List Byte) (di0 : Nat) :
+    Assertion :=
+  ((((regOwn .x12) **
+      (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 ((O + 1) + expectedN))) **
+      (.x14 ↦ᵣ (outBase + BitVec.ofNat 64 (di0 + expectedN))) **
+      (regOwn .x15) ** (rOut ↦ᵣ outBase) ** bytesRegion regionBase bs **
+      bytesRegion outBase (copyRangeGen outBytes bs (O + 1) di0 expectedN)) **
+    ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+      (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
+      ⌜rlpPrefixShortBytesPayloadLen pfx = expectedN⌝)))
+
+/-- Failure postcondition for the validating fixed-length short-bytes copy unit. -/
+def validatingShortBytesCopyFailurePost
+    (pfx : Byte) (rest bs : List Byte) (O expectedN : Nat)
+    (v12Old v14Old regionBase : Word) (rOut : Reg) (outBase : Word)
+    (outBytes : List Byte) : Assertion :=
+  (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+    (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) **
+    (.x12 ↦ᵣ v12Old) **
+    (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+    (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+    bytesRegion regionBase bs **
+    ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) **
+   ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes))
+
+/-- WP branch certificate for the validating fixed-length short-bytes copy unit.
+    This packages the raw `cpsBranchWithin` theorem as a calculator object, so a
+    generated schema fold can compose the unit through `wp_rv64_cert`. -/
+def validatingShortBytesCopyBranch
+    (pfx : Byte) (rest bs : List Byte) (O expectedN : Nat)
+    (v10 v11Old v12Old v14Old : Word)
+    (regionBase : Word) (rOut : Reg) (outBase : Word) (fieldImm : BitVec 12)
+    (outBytes : List Byte) (di0 : Nat)
+    (off1 off2 succOff lenFailOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_exp11 : expectedN < 2 ^ 11)
+    (h_pl64 : rlpPrefixShortBytesPayloadLen pfx < 2 ^ 64)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_len_fail : (succPC + 4) + signExtend13 lenFailOff = e2Target + 12)
+    (h_salign : regionBase.toNat % 8 = 0) (h_dalign : outBase.toNat % 8 = 0)
+    (h_sover : regionBase.toNat + bs.length < 2 ^ 64)
+    (h_svalid : ∀ i, i < bs.length →
+      isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (h_src : (O + 1) + expectedN ≤ bs.length)
+    (h_dst : di0 + expectedN ≤ outBytes.length)
+    (h_dov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (h_dval : ∀ i, i < outBytes.length →
+      isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_code : (succPC + 8).toNat + (4 + 20 * expectedN) < 2 ^ 64)
+    (h_imm : signExtend12 fieldImm = BitVec.ofNat 64 di0)
+    (h_addibne : (CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).Disjoint
+                  (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))
+    (h_lencheck : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                 (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff))))
+    (h_copy : (((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).union
+                 ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                   (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))).Disjoint
+               ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+                 (byteCopyChainCR (succPC + 8 + 4) expectedN))) :
+    WP.Branch base
+      (validatingShortBytesCopyCR base e2Target succPC expectedN rOut fieldImm
+        off1 off2 succOff lenFailOff) :=
+  WP.Branch.ofSpec
+    (rlp_decode_shortBytes_bytescopy_at pfx rest bs O expectedN v10 v11Old v12Old v14Old
+      regionBase rOut outBase fieldImm outBytes di0 off1 off2 succOff lenFailOff base e2Target
+      h_class hns h_lfit h_target h_exp11 h_pl64 h_phase3 h_bltu succPC h_succ_pc h_len_fail
+      h_salign h_dalign h_sover h_svalid h_src h_dst h_dov h_dval h_code h_imm h_addibne
+      h_lencheck h_copy)
+
+/-- The validating-copy branch computes the named precondition. -/
+theorem validatingShortBytesCopyBranch_pre
+    (pfx : Byte) (rest bs : List Byte) (O expectedN : Nat)
+    (v10 v11Old v12Old v14Old : Word)
+    (regionBase : Word) (rOut : Reg) (outBase : Word) (fieldImm : BitVec 12)
+    (outBytes : List Byte) (di0 : Nat)
+    (off1 off2 succOff lenFailOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_exp11 : expectedN < 2 ^ 11)
+    (h_pl64 : rlpPrefixShortBytesPayloadLen pfx < 2 ^ 64)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_len_fail : (succPC + 4) + signExtend13 lenFailOff = e2Target + 12)
+    (h_salign : regionBase.toNat % 8 = 0) (h_dalign : outBase.toNat % 8 = 0)
+    (h_sover : regionBase.toNat + bs.length < 2 ^ 64)
+    (h_svalid : ∀ i, i < bs.length →
+      isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (h_src : (O + 1) + expectedN ≤ bs.length)
+    (h_dst : di0 + expectedN ≤ outBytes.length)
+    (h_dov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (h_dval : ∀ i, i < outBytes.length →
+      isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_code : (succPC + 8).toNat + (4 + 20 * expectedN) < 2 ^ 64)
+    (h_imm : signExtend12 fieldImm = BitVec.ofNat 64 di0)
+    (h_addibne : (CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).Disjoint
+                  (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))
+    (h_lencheck : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                 (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff))))
+    (h_copy : (((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).union
+                 ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                   (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))).Disjoint
+               ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+                 (byteCopyChainCR (succPC + 8 + 4) expectedN))) :
+    (validatingShortBytesCopyBranch pfx rest bs O expectedN v10 v11Old v12Old v14Old
+      regionBase rOut outBase fieldImm outBytes di0 off1 off2 succOff lenFailOff base e2Target
+      h_class hns h_lfit h_target h_exp11 h_pl64 h_phase3 h_bltu succPC h_succ_pc h_len_fail
+      h_salign h_dalign h_sover h_svalid h_src h_dst h_dov h_dval h_code h_imm h_addibne
+      h_lencheck h_copy).pre =
+      validatingShortBytesCopyPre pfx rest bs O v10 v11Old v12Old v14Old regionBase rOut
+        outBase outBytes := by
+  rfl
+
+/-- The validating-copy branch's taken exit is the copied-success path. -/
+theorem validatingShortBytesCopyBranch_exit_t
+    (pfx : Byte) (rest bs : List Byte) (O expectedN : Nat)
+    (v10 v11Old v12Old v14Old : Word)
+    (regionBase : Word) (rOut : Reg) (outBase : Word) (fieldImm : BitVec 12)
+    (outBytes : List Byte) (di0 : Nat)
+    (off1 off2 succOff lenFailOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_exp11 : expectedN < 2 ^ 11)
+    (h_pl64 : rlpPrefixShortBytesPayloadLen pfx < 2 ^ 64)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_len_fail : (succPC + 4) + signExtend13 lenFailOff = e2Target + 12)
+    (h_salign : regionBase.toNat % 8 = 0) (h_dalign : outBase.toNat % 8 = 0)
+    (h_sover : regionBase.toNat + bs.length < 2 ^ 64)
+    (h_svalid : ∀ i, i < bs.length →
+      isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (h_src : (O + 1) + expectedN ≤ bs.length)
+    (h_dst : di0 + expectedN ≤ outBytes.length)
+    (h_dov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (h_dval : ∀ i, i < outBytes.length →
+      isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_code : (succPC + 8).toNat + (4 + 20 * expectedN) < 2 ^ 64)
+    (h_imm : signExtend12 fieldImm = BitVec.ofNat 64 di0)
+    (h_addibne : (CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).Disjoint
+                  (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))
+    (h_lencheck : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                 (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff))))
+    (h_copy : (((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).union
+                 ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                   (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))).Disjoint
+               ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+                 (byteCopyChainCR (succPC + 8 + 4) expectedN))) :
+    (validatingShortBytesCopyBranch pfx rest bs O expectedN v10 v11Old v12Old v14Old
+      regionBase rOut outBase fieldImm outBytes di0 off1 off2 succOff lenFailOff base e2Target
+      h_class hns h_lfit h_target h_exp11 h_pl64 h_phase3 h_bltu succPC h_succ_pc h_len_fail
+      h_salign h_dalign h_sover h_svalid h_src h_dst h_dov h_dval h_code h_imm h_addibne
+      h_lencheck h_copy).exit_t =
+      succPC + 8 + 4 + BitVec.ofNat 64 (20 * expectedN) := by
+  rfl
+
+/-- The validating-copy branch's not-taken exit is the shared validation-failure path. -/
+theorem validatingShortBytesCopyBranch_exit_f
+    (pfx : Byte) (rest bs : List Byte) (O expectedN : Nat)
+    (v10 v11Old v12Old v14Old : Word)
+    (regionBase : Word) (rOut : Reg) (outBase : Word) (fieldImm : BitVec 12)
+    (outBytes : List Byte) (di0 : Nat)
+    (off1 off2 succOff lenFailOff : BitVec 13) (base e2Target : Word)
+    (h_class : classifyPrefix pfx = .shortBytes)
+    (hns : rlpPrefixShortBytesPayloadLen pfx ≠ 1)
+    (h_lfit : (pfx :: rest).length < 2 ^ 64)
+    (h_target : (base + 8 + 4) + signExtend13 off2 = e2Target)
+    (h_exp11 : expectedN < 2 ^ 11)
+    (h_pl64 : rlpPrefixShortBytesPayloadLen pfx < 2 ^ 64)
+    (h_phase3 : ((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).Disjoint
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog))
+    (h_bltu : (((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).Disjoint
+               (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff)))
+    (succPC : Word)
+    (h_succ_pc : (e2Target + 8) + signExtend13 succOff = succPC)
+    (h_len_fail : (succPC + 4) + signExtend13 lenFailOff = e2Target + 12)
+    (h_salign : regionBase.toNat % 8 = 0) (h_dalign : outBase.toNat % 8 = 0)
+    (h_sover : regionBase.toNat + bs.length < 2 ^ 64)
+    (h_svalid : ∀ i, i < bs.length →
+      isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (h_src : (O + 1) + expectedN ≤ bs.length)
+    (h_dst : di0 + expectedN ≤ outBytes.length)
+    (h_dov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (h_dval : ∀ i, i < outBytes.length →
+      isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_code : (succPC + 8).toNat + (4 + 20 * expectedN) < 2 ^ 64)
+    (h_imm : signExtend12 fieldImm = BitVec.ofNat 64 di0)
+    (h_addibne : (CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).Disjoint
+                  (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))
+    (h_lencheck : ((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).Disjoint
+               ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                 (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff))))
+    (h_copy : (((((rlp_phase1_step_code 0x80 off1 base).union
+                    (rlp_phase1_step_code 0xB8 off2 (base + 8))).union
+                 (CodeReq.ofProg e2Target rlp_phase3_short_string_prog)).union
+                 (CodeReq.singleton (e2Target + 8) (.BLTU .x11 .x15 succOff))).union
+                 ((CodeReq.singleton succPC (.ADDI .x10 .x0 (BitVec.ofNat 12 expectedN))).union
+                   (CodeReq.singleton (succPC + 4) (.BNE .x11 .x10 lenFailOff)))).Disjoint
+               ((CodeReq.singleton (succPC + 8) (.ADDI .x14 rOut fieldImm)).union
+                 (byteCopyChainCR (succPC + 8 + 4) expectedN))) :
+    (validatingShortBytesCopyBranch pfx rest bs O expectedN v10 v11Old v12Old v14Old
+      regionBase rOut outBase fieldImm outBytes di0 off1 off2 succOff lenFailOff base e2Target
+      h_class hns h_lfit h_target h_exp11 h_pl64 h_phase3 h_bltu succPC h_succ_pc h_len_fail
+      h_salign h_dalign h_sover h_svalid h_src h_dst h_dov h_dval h_code h_imm h_addibne
+      h_lencheck h_copy).exit_f = e2Target + 12 := by
+  rfl
+
+attribute [rv64_wp]
+  validatingShortBytesCopyBranch_pre
+  validatingShortBytesCopyBranch_exit_t
+  validatingShortBytesCopyBranch_exit_f
+
+attribute [rv64_wp_cert]
+  validatingShortBytesCopyBranch
+
 
 end EvmAsm.Rv64.RLP
