@@ -33,7 +33,7 @@ theorem resultSignFixPost_sdivResultSign_word
         (sdivResultSignFixedWord dividendTop divisorTop limb0 limb1 limb2 limb3)) := by
   dsimp only
   rw [resultSignFixPost_unfold, evmWordIs_sp_unfold]
-  unfold sdivResultSignFixedWord
+  unfold sdivResultSignFixedWord rippleNegWord
   dsimp only
   simp only [EvmAsm.Rv64.signExtend12_0, EvmAsm.Rv64.signExtend12_8,
     EvmAsm.Rv64.signExtend12_16, EvmAsm.Rv64.signExtend12_24,

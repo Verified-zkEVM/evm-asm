@@ -10,8 +10,6 @@ namespace EvmAsm.Evm64.SMod.Compose
 
 open EvmAsm.Rv64.BitAux
 
-private theorem evmWord_neg_eq_not_add (v : EvmWord) : -v = ~~~v + 1 := by bv_omega
-
 /-- Absolute-value word produced by the SMOD dividend sign/absolute-value
     prefix. The computation matches SDIV; SMOD differs only in the final result
     sign, which follows the dividend sign. -/
@@ -31,18 +29,8 @@ def smodAbsDivisorWord
     SMOD result sign. For SMOD, the result sign is the dividend sign bit. -/
 def smodResultSignFixedWord
     (dividendTop limb0 limb1 limb2 limb3 : Word) : EvmWord :=
-  let resultSign := dividendTop >>> (63 : BitVec 6).toNat
-  let mask := (0 : Word) - resultSign
-  let sum0 := (limb0 ^^^ mask) + resultSign
-  let carry0 := if BitVec.ult sum0 resultSign then (1 : Word) else 0
-  let sum1 := (limb1 ^^^ mask) + carry0
-  let carry1 := if BitVec.ult sum1 carry0 then (1 : Word) else 0
-  let sum2 := (limb2 ^^^ mask) + carry1
-  let carry2 := if BitVec.ult sum2 carry1 then (1 : Word) else 0
-  let sum3 := (limb3 ^^^ mask) + carry2
-  EvmWord.fromLimbs fun i : Fin 4 =>
-    match i with
-    | 0 => sum0 | 1 => sum1 | 2 => sum2 | 3 => sum3
+  EvmAsm.Evm64.SDiv.Compose.rippleNegWord limb0 limb1 limb2 limb3
+    (dividendTop >>> (63 : BitVec 6).toNat)
 
 /-- The SMOD result sign is the dividend top bit, hence it is a Boolean word. -/
 theorem smodResultSign_bool (dividendTop : Word) :
@@ -168,12 +156,9 @@ theorem smodResultSignFixedWord_eq_word_of_result_sign_zero
     smodResultSignFixedWord dividendTop
       (modulus.getLimbN 0) (modulus.getLimbN 1)
       (modulus.getLimbN 2) (modulus.getLimbN 3) = modulus := by
-  simp only [bv6_63_toNat] at hSign
   unfold smodResultSignFixedWord
-  simp (config := { zeta := true }) only
-    [bv6_63_toNat, hSign, show (0 : Word) - 0 = 0 from rfl, ult_zero_false, word_xor_zero,
-     word_add_zero, word_if_false_eq_zero]
-  exact EvmAsm.Evm64.SDiv.Compose.sdivWord_from_getLimbN modulus
+  rw [EvmAsm.Evm64.SDiv.Compose.rippleNegWord_of_sign_zero _ _ _ _ _ hSign,
+    EvmAsm.Evm64.SDiv.Compose.sdivWord_from_getLimbN]
 
 /-- If the SMOD result sign is one, the result-sign-fix helper returns the
     two's-complement negation of the unsigned modulo word. -/
@@ -183,37 +168,9 @@ theorem smodResultSignFixedWord_eq_neg_word_of_result_sign_one
     smodResultSignFixedWord dividendTop
       (modulus.getLimbN 0) (modulus.getLimbN 1)
       (modulus.getLimbN 2) (modulus.getLimbN 3) = -modulus := by
-  have hl0 : modulus.getLimbN 0 = modulus.getLimb 0 :=
-    (EvmWord.getLimbN_lt modulus 0 (by omega)).symm
-  have hl1 : modulus.getLimbN 1 = modulus.getLimb 1 :=
-    (EvmWord.getLimbN_lt modulus 1 (by omega)).symm
-  have hl2 : modulus.getLimbN 2 = modulus.getLimb 2 :=
-    (EvmWord.getLimbN_lt modulus 2 (by omega)).symm
-  have hl3 : modulus.getLimbN 3 = modulus.getLimb 3 :=
-    (EvmWord.getLimbN_lt modulus 3 (by omega)).symm
-  have h1_0 : (1 : EvmWord).getLimb 0 = 1 := by decide
-  have h1_1 : (1 : EvmWord).getLimb 1 = 0 := by decide
-  have h1_2 : (1 : EvmWord).getLimb 2 = 0 := by decide
-  have h1_3 : (1 : EvmWord).getLimb 3 = 0 := by decide
-  have hNot : ∀ i : Fin 4, (~~~modulus).getLimb i = ~~~(modulus.getLimb i) :=
-    fun _ => EvmWord.getLimb_not
-  have hadd := EvmWord.add_carry_chain_correct (~~~modulus) 1
-  simp (config := { zeta := true }) only [hNot, h1_0, h1_1, h1_2, h1_3] at hadd
-  simp (config := { zeta := true }) only [ult_zero_false, word_if_false_eq_zero] at hadd
-  simp only [bv6_63_toNat] at hSign
-  have hSignL : dividendTop >>> 63 = 1 := hSign
   unfold smodResultSignFixedWord
-  simp (config := { zeta := true }) only [bv6_63_toNat, hSignL, word_zero_sub_one,
-    hl0, hl1, hl2, hl3, word_xor_allOnes]
-  rw [evmWord_neg_eq_not_add, ← EvmWord.fromLimbs_getLimb (~~~modulus + 1)]
-  apply EvmWord.eq_iff_limbs.mpr; intro ⟨i, hi⟩
-  rw [EvmWord.getLimb_fromLimbs, EvmWord.getLimb_fromLimbs]
-  rcases i with _ | _ | _ | _ | j <;> [skip; skip; skip; skip; omega]
-  all_goals dsimp only []
-  · exact hadd.1.symm
-  · have h := hadd.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.1; simp [BitVec.add_zero] at h; exact h.symm
-  · have h := hadd.2.2.2; simp [BitVec.add_zero] at h; exact h.symm
+  rw [EvmAsm.Evm64.SDiv.Compose.rippleNegWord_of_sign_one _ _ _ _ _ hSign,
+    EvmAsm.Evm64.SDiv.Compose.sdivWord_from_getLimbN]
 
 /-- The SMOD dividend absolute-value word is zero exactly for the zero
     dividend. -/

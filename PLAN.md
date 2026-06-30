@@ -440,11 +440,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     two `@[grind →]`) that dedup the inline JALR-mask (`&&& ~~~1` / `&&& 1 = 0`)
     parity proofs; `Exp/AddrNorm.addrAligned` and the two `SDiv/Compose/Base`
     mask lemmas now delegate to them.
-  - **Deferred:** factoring the 4 near-identical multi-limb two's-complement
-    `…AbsWord …= -v` proofs (`SDiv`/`SMod` `Compose/Words.lean`) into one shared
-    lemma is blocked by their 4 separate underlying definitions — a clean DRY
-    needs unifying those defs into a shared `rippleNegWord` function (a larger
-    refactor; the 4 proofs are correct/kernel-checkable as-is).
+  - **DONE (PR #9536, issue #266):** the near-identical multi-limb
+    two's-complement `…= -v` proofs in `SDiv`/`SMod` `Compose/Words.lean` are now
+    factored behind one shared `rippleNegWord limb0 limb1 limb2 limb3 sign` kernel
+    + two generic lemmas (`rippleNegWord_of_sign_{one,zero}`). The five concrete
+    defs (`sdivAbsDividendWord`, `sdivAbsDivisorWord`, `sdivResultSignFixedWord`,
+    `sdivSignFixedWord`, `smodResultSignFixedWord`) became thin `rippleNegWord`
+    applications and the per-operand proofs collapsed to 2-line wrappers (net
+    −162 lines; def names/statements unchanged so name-level consumers were
+    untouched; axiom footprint unchanged). The DIV/MOD main-loop dedup half of
+    #266 remains a separate, larger `DivMod/LoopBody*` refactor.
 - **Execution Layer specs** (`EvmAsm/EL/`): Pure Lean specs for Ethereum
   data structures, independent of RISC-V. Currently:
   - `EL/RLP/` — RLP encoding/decoding with round-trip proofs (`decide`)

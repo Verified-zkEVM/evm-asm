@@ -94,10 +94,11 @@ jobs:
       - name: DRIFT.md ledger drift check
         run: scripts/check-drift.sh
 
-      # Kernel-truth trust-base audit: bv_decide axioms allowed, but any NEW
-      # native_decide trust axiom (or sorry) reaching a witnessed proof fails.
-      # Pre-existing native_decide owners are grandfathered in
-      # scripts/axiom-allow.txt (a burndown list). Needs oleans → runs after build.
+      # Kernel-truth trust-base audit: any bv_decide OR native_decide trust
+      # axiom (or sorry) reaching a witnessed proof fails. Both were fully
+      # eliminated (bv_decide 290->0, native_decide 206->0) and tightened to
+      # FORBIDDEN (2026-06-02; see scripts/check-axioms.sh); scripts/axiom-allow.txt
+      # is an empty burndown — any NEW such owner fails. Needs oleans → runs after build.
       - name: Axiom audit (no bv_decide / native_decide trust axioms; classical-only TCB)
         run: scripts/check-axioms.sh
 

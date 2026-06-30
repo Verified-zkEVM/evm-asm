@@ -30,7 +30,7 @@ theorem resultSignFixPost_evmWordIs
         (.x10 ↦ᵣ mask) ** (.x7 ↦ᵣ sum3) ** (.x11 ↦ᵣ carry3) **
         evmWordIs sp (sdivSignFixedWord sign limb0 limb1 limb2 limb3))) := by
   rw [resultSignFixPost_unfold]
-  dsimp only [sdivSignFixedWord]
+  dsimp only [sdivSignFixedWord, rippleNegWord]
   let mask := (0 : Word) - sign
   let sum0 := (limb0 ^^^ mask) + sign
   let carry0 := if BitVec.ult sum0 sign then (1 : Word) else 0
