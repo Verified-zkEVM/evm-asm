@@ -164,6 +164,15 @@ macro_rules
   | `(tactic| wp_rv64_nbranch_weaken_posts $br:term, $exits:term, $hmap:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenPosts $br $exits $hmap)
 
+/-- Weaken the head exit of an N-way branch. The tactic expects the exits field
+    to reduce to a cons. -/
+syntax (name := wpRv64NBranchWeakenHeadPostTac)
+  "wp_rv64_nbranch_weaken_head " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_weaken_head $br:term, $hpost:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchWeakenHeadPost $br (by rfl) $hpost)
+
 /-- Display the computed precondition field of a WP/CFG certificate. -/
 syntax (name := wpRv64Cmd) "#wp_rv64 " term : command
 
@@ -298,5 +307,13 @@ example {entry : Word} {cr : CodeReq} {exits' : List (Word × Assertion)}
       ex'.1 = ex.1 ∧ EvmAsm.Rv64.WP.Entails ex.2 ex'.2) :
     EvmAsm.Rv64.WP.NBranch entry cr := by
   wp_rv64_nbranch_weaken_posts br, exits', hmap
+
+example {entry l : Word} {cr : CodeReq} {headPost headPost' : Assertion}
+    {others : List (Word × Assertion)}
+    (br : EvmAsm.Rv64.WP.NBranch entry cr)
+    (hexits : br.exits = (l, headPost) :: others)
+    (hpost : EvmAsm.Rv64.WP.Entails headPost headPost') :
+    EvmAsm.Rv64.WP.NBranch entry cr := by
+  exact EvmAsm.Rv64.WP.CFG.nbranchWeakenHeadPost br hexits hpost
 
 end EvmAsm.Rv64.Tactics.WPTests

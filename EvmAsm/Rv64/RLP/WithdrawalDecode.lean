@@ -1009,6 +1009,10 @@ theorem decodeWithdrawal_shortList_four_of_decodeAux (pfx : Byte) (payload : Lis
     (.bytes d0) (.bytes d1) (.bytes d2) (.bytes d3) h_class h_len h0 h1 h2 h3 hend h_min
   exact decodeWithdrawal_eq_some_of_decodeFully_fields hfull hc0 hl0 hc1 hl1 haddr hc3 hl3
 
+/-- The pure withdrawal decoder rejects empty input. -/
+theorem decodeWithdrawal_nil : decodeWithdrawal ([] : List Byte) = none := by
+  rfl
+
 /-! ## Result bytes, derived from the pure decoder result -/
 
 /-- Eight little-endian bytes of a 64-bit word. -/
@@ -1078,6 +1082,36 @@ theorem bytesRegionAny_pcFree (base : Word) (n : Nat) :
 
 instance (base : Word) (n : Nat) : Assertion.PCFree (bytesRegionAny base n) :=
   ⟨bytesRegionAny_pcFree base n⟩
+
+/-- Zero/nonzero walk-init split with an arbitrary caller frame carried across both
+    exits. Unlike the deeper prefix classifier, this certificate needs no prefix
+    readability hypotheses, so it is usable for the empty-input ABI path. -/
+def walkInitEmptyFailOrNonzeroFramedNBranch
+    (base listLen raVal statusOld : Word) (F : Assertion) (hF : F.pcFree) :
+    WP.NBranch base (walkInitEmptyFailStatusCode base) := by
+  let br := WP.CFG.nbranchOfBranch (walkInitEmptyFailStatusBranch base listLen raVal statusOld)
+  wp_rv64_nbranch_frame br, F, hF
+
+theorem walkInitEmptyFailOrNonzeroFramedNBranch_pre
+    (base listLen raVal statusOld : Word) (F : Assertion) (hF : F.pcFree) :
+    (walkInitEmptyFailOrNonzeroFramedNBranch base listLen raVal statusOld F hF).pre =
+      (walkInitEmptyFailStatusPre listLen raVal statusOld ** F) := by
+  rfl
+
+/-- Zero/nonzero walk-init split carrying the ABI output buffer across both exits. -/
+def walkInitEmptyFailOrNonzeroOutputNBranch
+    (base listLen raVal statusOld outBase : Word) :
+    WP.NBranch base (walkInitEmptyFailStatusCode base) :=
+  walkInitEmptyFailOrNonzeroFramedNBranch base listLen raVal statusOld
+    (bytesRegionAny outBase outputSize) (bytesRegionAny_pcFree outBase outputSize)
+
+theorem walkInitEmptyFailOrNonzeroOutputNBranch_pre
+    (base listLen raVal statusOld outBase : Word) :
+    (walkInitEmptyFailOrNonzeroOutputNBranch base listLen raVal statusOld outBase).pre =
+      (walkInitEmptyFailStatusPre listLen raVal statusOld **
+        bytesRegionAny outBase outputSize) := by
+  rw [walkInitEmptyFailOrNonzeroOutputNBranch,
+    walkInitEmptyFailOrNonzeroFramedNBranch_pre]
 
 /-- Walk-init classifier with the ABI output buffer framed across every exit. -/
 def walkInitEmptyFailNotListFailShortLongOutputNBranch
@@ -1169,6 +1203,15 @@ theorem resultPost_failure {input : List Byte} {outBase : Word}
   unfold resultPost
   rw [hdec]
 
+/-- ABI resources carried by the zero/nonzero split for the empty input case. -/
+def emptyInputAbiFrame (inputBase outBase : Word) : Assertion :=
+  bytesRegion inputBase [] ** bytesRegionAny outBase outputSize
+
+theorem emptyInputAbiFrame_pcFree (inputBase outBase : Word) :
+    (emptyInputAbiFrame inputBase outBase).pcFree := by
+  unfold emptyInputAbiFrame
+  exact pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegionAny_pcFree _ _)
+
 /-- A minimal ABI precondition for a withdrawal decoder entry.  A concrete
     program proof may strengthen this with scratch registers, stack cells, or
     helper-code frames through the WP precondition. -/
@@ -1184,6 +1227,51 @@ def abiPre (inputBase outBase raVal : Word) (input : List Byte) : Assertion :=
 def abiPost (inputBase outBase raVal : Word) (input : List Byte) : Assertion :=
   ((.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion inputBase input **
     resultPost input outBase)
+
+/-- Empty-input resources plus the pure decoder failure fact. -/
+def emptyInputDecodeFrame (inputBase outBase : Word) : Assertion :=
+  emptyInputAbiFrame inputBase outBase ** ⌜decodeWithdrawal ([] : List Byte) = none⌝
+
+theorem emptyInputDecodeFrame_pcFree (inputBase outBase : Word) :
+    (emptyInputDecodeFrame inputBase outBase).pcFree := by
+  unfold emptyInputDecodeFrame
+  exact pcFree_sepConj (emptyInputAbiFrame_pcFree inputBase outBase) pcFree_pure
+
+/-- Strong post for the empty-input walk-init failure arm. It keeps the exact
+    resource spine produced by the shallow walk-init slice and adds the pure
+    Lean decoder failure fact. -/
+def emptyInputFailurePost (inputBase outBase raVal : Word) : Assertion :=
+  ((((.x1 ↦ᵣ raVal) ** (.x10 ↦ᵣ (1 : Word))) ** (.x11 ↦ᵣ (0 : Word)) **
+      (.x0 ↦ᵣ (0 : Word)) ** ⌜(0 : Word) = (0 : Word)⌝) **
+    (bytesRegion inputBase [] ** bytesRegionAny outBase outputSize) **
+    ⌜decodeWithdrawal ([] : List Byte) = none⌝)
+
+/-- The shallow walk-init WP split specialized to empty input, with its head exit
+    mapped to a semantic failure post carrying decodeWithdrawal_nil. The nonzero
+    exit remains open and impossible under the zero length value. -/
+def walkInitEmptyInputFailureNBranch
+    (base inputBase outBase raVal statusOld : Word) :
+    WP.NBranch base (walkInitEmptyFailStatusCode base) := by
+  let frame := emptyInputDecodeFrame inputBase outBase
+  let br := walkInitEmptyFailOrNonzeroFramedNBranch base (0 : Word) raVal statusOld
+    frame (emptyInputDecodeFrame_pcFree inputBase outBase)
+  have hhead : WP.Entails
+      (walkInitEmptyFailStatusPost (0 : Word) raVal ** frame)
+      (emptyInputFailurePost inputBase outBase raVal) := by
+    intro h hp
+    unfold emptyInputFailurePost
+    dsimp [frame] at hp
+    unfold emptyInputDecodeFrame emptyInputAbiFrame walkInitEmptyFailStatusPost
+      failStatusReturnPost statusReturnPost walkInitZeroPost at hp
+    exact hp
+  exact WP.CFG.nbranchWeakenHeadPost br (by rfl) hhead
+
+theorem walkInitEmptyInputFailureNBranch_pre
+    (base inputBase outBase raVal statusOld : Word) :
+    (walkInitEmptyInputFailureNBranch base inputBase outBase raVal statusOld).pre =
+      (walkInitEmptyFailStatusPre (0 : Word) raVal statusOld **
+        emptyInputDecodeFrame inputBase outBase) := by
+  rfl
 
 /-- ABI resources preserved by the reason-erased failure endpoint.  The pure
     failure fact is supplied by the path that selected this endpoint, not by the

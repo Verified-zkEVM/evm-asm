@@ -293,6 +293,36 @@ def weakenPosts {entry : Word} {cr : CodeReq}
   exits := exits'
   sound := cpsNBranchWithin_weaken_posts br.sound hmap
 
+/-- Weaken the head exit and optionally remap the tail exits of an N-way branch.
+    This avoids rebuilding the low-level membership map when a generated proof
+    consumes exits from left to right. -/
+def weakenPostsCons {entry : Word} {cr : CodeReq}
+    {l : Word} {Q Q' : Assertion} {others others' : List (Word × Assertion)}
+    (br : NBranch entry cr) (hexits : br.exits = (l, Q) :: others)
+    (hhead : Entails Q Q')
+    (htail : ∀ ex ∈ others, ∃ ex' ∈ others',
+      ex'.1 = ex.1 ∧ Entails ex.2 ex'.2) :
+    NBranch entry cr :=
+  br.weakenPosts ((l, Q') :: others') (by
+    intro ex hmem
+    have hmem' : ex ∈ (l, Q) :: others := by
+      simpa [hexits] using hmem
+    cases hmem' with
+    | head =>
+        exact ⟨(l, Q'), by simp, rfl, hhead⟩
+    | tail _ htailmem =>
+        obtain ⟨ex', hmemEx', heq, hent⟩ := htail ex htailmem
+        exact ⟨ex', List.mem_cons_of_mem _ hmemEx', heq, hent⟩)
+
+/-- Weaken only the head exit of an N-way branch, preserving every tail exit. -/
+def weakenHeadPost {entry : Word} {cr : CodeReq}
+    {l : Word} {Q Q' : Assertion} {others : List (Word × Assertion)}
+    (br : NBranch entry cr) (hexits : br.exits = (l, Q) :: others)
+    (hhead : Entails Q Q') :
+    NBranch entry cr :=
+  br.weakenPostsCons hexits hhead (fun ex hmem =>
+    ⟨ex, hmem, rfl, Entails.refl ex.2⟩)
+
 /-- Continue the head exit of an N-way branch with a single-exit continuation
     over the same code requirement. -/
 def seqHead {entry l l' : Word} {cr : CodeReq}

@@ -170,6 +170,27 @@ def nbranchWeakenPosts {entry : Word} {cr : CodeReq}
     NBranch entry cr :=
   br.weakenPosts exits' hmap
 
+/-- Weaken the head exit of an N-way CFG, preserving the tail exits. -/
+def nbranchWeakenHeadPost {entry : Word} {cr : CodeReq}
+    {l : Word} {headPost headPost' : Assertion} {others : List (Word × Assertion)}
+    (br : NBranch entry cr)
+    (hexits : br.exits = (l, headPost) :: others)
+    (hhead : Entails headPost headPost') :
+    NBranch entry cr :=
+  br.weakenHeadPost hexits hhead
+
+/-- Weaken the head exit and remap the tail exits of an N-way CFG. -/
+def nbranchWeakenPostsCons {entry : Word} {cr : CodeReq}
+    {l : Word} {headPost headPost' : Assertion}
+    {others others' : List (Word × Assertion)}
+    (br : NBranch entry cr)
+    (hexits : br.exits = (l, headPost) :: others)
+    (hhead : Entails headPost headPost')
+    (htail : ∀ ex ∈ others, ∃ ex' ∈ others',
+      ex'.1 = ex.1 ∧ Entails ex.2 ex'.2) :
+    NBranch entry cr :=
+  br.weakenPostsCons hexits hhead htail
+
 /-- Continue a branch's not-taken exit with an N-way CFG over disjoint code,
     preserving the taken exit as the first open exit. -/
 def branchSeqNotTakenNBranchDisjoint {entry : Word} {cr1 cr2 : CodeReq}
