@@ -32,7 +32,7 @@
     [110..119] divK_div_epilogue          (10)   — store quotient
     [120..204] divK_div128_v5             (85)   — fast path's own divide
     [205..557] evm_div_v5                 (353)  — reused n≥2 / zero path
-  Exit PC = index 472 (the embedded v5's NOP), byte offset 1888.
+  Exit PC = index 471 (the embedded v5's NOP), byte offset 1884.
 
   `evm_mod_v6` inserts `divK_fastDenorm` (7) before the MOD epilogue, shifting
   everything below it by 7.
