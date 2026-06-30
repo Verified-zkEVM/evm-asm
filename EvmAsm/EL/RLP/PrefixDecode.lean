@@ -9,6 +9,22 @@ import EvmAsm.EL.RLP.Prefix
 
 namespace EvmAsm.EL.RLP
 
+/-- Minimal semantic target for an executable prefix decoder.
+
+It reports the RLP prefix class and the number of header bytes before the
+payload. Empty input has no prefix to classify. -/
+def decodePrefixInfo (input : List Byte) : Option (PrefixClass × Nat) :=
+  match input with
+  | [] => none
+  | pfx :: _ => some (classifyPrefix pfx, rlpPrefixHeaderBytes pfx)
+
+theorem decodePrefixInfo_nil :
+    decodePrefixInfo ([] : List Byte) = none := rfl
+
+theorem decodePrefixInfo_cons (pfx : Byte) (rest : List Byte) :
+    decodePrefixInfo (pfx :: rest) =
+      some (classifyPrefix pfx, rlpPrefixHeaderBytes pfx) := rfl
+
 /-- A classified single-byte prefix selects the single-byte `decodeAux` branch. -/
 theorem decodeAux_cons_singleByte_of_classifyPrefix
     (nDepth : Nat) (pfx : Byte) (rest : List Byte)
