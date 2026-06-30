@@ -181,6 +181,80 @@ theorem walkInitPrefixWord_lt_f8_of_successFieldSpecs_input
   simp [walkInitPrefixWord, encode_list_schemaItems_short, hshort, BitVec.ult]
   omega
 
+theorem walkInitPrefixWord_not_lt_c0_of_successFieldSpecs_input
+    (input d0 d1 d2 d3 : List Byte) (hoff : 0 < input.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    BitVec.ult (walkInitPrefixWord input 0 hoff) (0xc0 : Word) = false := by
+  have hpayload := schemaEncBytes_successFieldSpecs_length_le_48 d0 d1 d2 d3 hl0 hl1 haddr hl3
+  have hshort : (schemaEncBytes (successFieldSpecs d0 d1 d2 d3)).length ≤ 55 := by
+    omega
+  subst input
+  simp [walkInitPrefixWord, encode_list_schemaItems_short, hshort, BitVec.ult]
+  omega
+
+/-- The empty-input semantic failure exit is unreachable for a nonempty short-list
+    success witness whose length was loaded into `listLen`. -/
+theorem walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input
+    (inputBase listLen raVal t0Old t1Old outBase : Word) (input : List Byte)
+    (hoff : 0 < input.length) (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hBound : input.length < 2 ^ 64) :
+    ∀ h,
+      (abiPost inputBase outBase raVal input **
+        walkInitEmptyFailSchemaAbiFrame listLen t0Old t1Old outBase) h → False := by
+  intro h hp
+  unfold walkInitEmptyFailSchemaAbiFrame walkInitEmptyFailAbiFrame at hp
+  rcases hp with ⟨_hAbi, hFrame, _hdFrame, _hunionFrame, _hAbi_prop, hFrame_prop⟩
+  rcases hFrame_prop with ⟨hEmpty, _hSchema, _hdSchema, _hunionSchema,
+    hEmpty_prop, _hSchema_prop⟩
+  rcases hEmpty_prop with ⟨_hLenReg, hRest1, _hdRest1, _hunionRest1,
+    _hLenReg_prop, hRest1_prop⟩
+  rcases hRest1_prop with ⟨_hX5, hRest2, _hdRest2, _hunionRest2,
+    _hX5_prop, hRest2_prop⟩
+  rcases hRest2_prop with ⟨_hX6, hPure, _hdPure, _hunionPure,
+    _hX6_prop, hPure_prop⟩
+  have hzero : listLen = (0 : Word) := hPure_prop.2
+  have hLengthZero : input.length = 0 := by
+    have heq : BitVec.ofNat 64 input.length = (0 : Word) := by
+      rw [← hLen]
+      exact hzero
+    have htn := congrArg BitVec.toNat heq
+    simp only [BitVec.toNat_ofNat, show (0 : Word).toNat = 0 from by decide] at htn
+    rw [Nat.mod_eq_of_lt hBound] at htn
+    exact htn
+  omega
+
+/-- The not-list semantic failure exit is unreachable for a short-list success
+    witness, because its first byte is a list prefix. -/
+theorem walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input
+    (inputBase listLen raVal outBase : Word) (input d0 d1 d2 d3 : List Byte)
+    (hoff : 0 < input.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    ∀ h,
+      (abiPost inputBase outBase raVal input **
+        walkInitNotListFailSchemaAbiFrame inputBase listLen outBase input hoff) h → False := by
+  intro h hp
+  have hnlt := walkInitPrefixWord_not_lt_c0_of_successFieldSpecs_input input d0 d1 d2 d3 hoff
+    hl0 hl1 haddr hl3 hinput
+  unfold walkInitNotListFailSchemaAbiFrame walkInitNotListFailAbiFrame at hp
+  rcases hp with ⟨_hAbi, hFrame, _hdFrame, _hunionFrame, _hAbi_prop, hFrame_prop⟩
+  rcases hFrame_prop with ⟨hNotList, _hSchema, _hdSchema, _hunionSchema,
+    hNotList_prop, _hSchema_prop⟩
+  rcases hNotList_prop with ⟨_hX11, hRest1, _hdRest1, _hunionRest1,
+    _hX11_prop, hRest1_prop⟩
+  rcases hRest1_prop with ⟨_hX5, hRest2, _hdRest2, _hunionRest2,
+    _hX5_prop, hRest2_prop⟩
+  rcases hRest2_prop with ⟨_hX6, hRest3, _hdRest3, _hunionRest3,
+    _hX6_prop, hRest3_prop⟩
+  rcases hRest3_prop with ⟨_hNonzero, hLt, _hdLt, _hunionLt,
+    _hNonzero_prop, hLt_prop⟩
+  have hlt : BitVec.ult (walkInitPrefixWord input 0 hoff) (0xc0 : Word) = true := hLt_prop.2
+  rw [hnlt] at hlt
+  contradiction
+
 /-- The long-list exit is unreachable when the input is the short-list encoding
     of successful withdrawal field witnesses. -/
 theorem walkInitLongSchemaPost_contradicts_successFieldSpecs_input
@@ -373,6 +447,97 @@ theorem walkInitShortSuccessSemanticNBranch_exits
       hl3 hinput hLen hcode).exits =
       walkInitShortSuccessSemanticExits base inputBase listLen raVal t0Old t1Old outBase input
         d0 d1 d2 d3 hoff := by
+  rfl
+
+/-- The short-success semantic classifier joined to a single success post.  The
+    empty, not-list, and long-list exits are closed by contradiction from the
+    success witness; the only reachable exit is the schema success post. -/
+def walkInitShortSuccessResolvedCert
+    (base inputBase listLen raVal t0Old t1Old outBase : Word)
+    (input d0 d1 d2 d3 : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hcode : base.toNat + 172 + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      ((walkInitEmptyFailNotListFailShortLongCode base).union
+        ((walkInitShortSuccessJumpCode base).union
+          ((schemaCursorInitCode (base + 172)).union
+            ((schemaCR (base + 172 + 4) .x8 (successFieldSpecs d0 d1 d2 d3)).union
+              (successStatusReturnCode
+                ((base + 172 + 4) + BitVec.ofNat 64
+                  (schemaSize (successFieldSpecs d0 d1 d2 d3))))))))
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) := by
+  let cr := ((walkInitEmptyFailNotListFailShortLongCode base).union
+    ((walkInitShortSuccessJumpCode base).union
+      ((schemaCursorInitCode (base + 172)).union
+        ((schemaCR (base + 172 + 4) .x8 (successFieldSpecs d0 d1 d2 d3)).union
+          (successStatusReturnCode
+            ((base + 172 + 4) + BitVec.ofNat 64
+              (schemaSize (successFieldSpecs d0 d1 d2 d3))))))))
+  let br := walkInitShortSuccessSemanticNBranch base inputBase listLen raVal t0Old t1Old outBase
+    input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr
+    hc3 hl3 hinput hLen hcode
+  have hexits : br.exits =
+      walkInitShortSuccessSemanticExits base inputBase listLen raVal t0Old t1Old outBase input
+        d0 d1 d2 d3 hoff := by
+    dsimp [br]
+    rw [walkInitShortSuccessSemanticNBranch_exits]
+  have hBound : input.length < 2 ^ 64 := by
+    omega
+  exact WP.CFG.nbranch br 0 (by
+    intro ex hex
+    have hex' := hex
+    rw [hexits] at hex'
+    simp [walkInitShortSuccessSemanticExits] at hex'
+    rcases hex' with hcase | hcase | hcase | hcase
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (WP.CFG.unreachable (failStatusReturnExit raVal) (successStatusReturnExit raVal)
+        cr (walkInitEmptyFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase listLen
+          raVal t0Old t1Old outBase input hoff hLen hBound)).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (WP.CFG.unreachable (failStatusReturnExit raVal) (successStatusReturnExit raVal)
+        cr (walkInitNotListFailSchemaAbiPost_contradicts_successFieldSpecs_input inputBase
+          listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput)).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (WP.CFG.exit (successStatusReturnExit raVal) cr (WP.Entails.refl _)).sound
+    · rcases hcase with ⟨rfl, rfl⟩
+      exact (walkInitLongSchemaUnreachableCert (base + 28) (successStatusReturnExit raVal)
+        cr inputBase listLen raVal outBase input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput
+        (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3)).sound)
+
+theorem walkInitShortSuccessResolvedCert_pre
+    (base inputBase listLen raVal t0Old t1Old outBase : Word)
+    (input d0 d1 d2 d3 : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hcode : base.toNat + 172 + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (walkInitShortSuccessResolvedCert base inputBase listLen raVal t0Old t1Old outBase input
+      d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr hc3
+      hl3 hinput hLen hcode).pre =
+      (walkInitShortSuccessSemanticNBranch base inputBase listLen raVal t0Old t1Old outBase input
+        d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr hc3
+        hl3 hinput hLen hcode).pre := by
+  unfold walkInitShortSuccessResolvedCert
   rfl
 
 end WithdrawalDecode
