@@ -106,8 +106,10 @@ theorem add_limb_carry_spec ... := by
 `runBlockFromPost` is the lower-level tactic used by `wp_rv64_leaf_synth`. It
 expects a bounded CPS goal whose precondition and step bound may be metavariables,
 for example `cpsTripleWithin ?n entry exit cr ?pre post`, and computes `?pre`
-by matching registered specs backwards from `post`. Most users should call
-`wp_rv64_leaf_synth` on a `WP.CFG.Cert` goal instead.
+by matching registered specs backwards from `post`. For simple overwritten
+register or memory cells, unresolved old values are generalized to `regOwn` or
+`memOwn` precondition atoms. Most users should call `wp_rv64_leaf_synth` on a
+`WP.CFG.Cert` goal instead.
 
 ### Requirements
 

@@ -824,10 +824,135 @@ private def consumePostAtoms (neededAtoms : List Expr) (currentAtoms : List Expr
     rest := eraseAtomIdx rest idx
   return rest.toList
 
+private inductive OwnershipKind where
+  | reg (r : Expr)
+  | mem (addr : Expr)
+
+private def OwnershipKind.ruleConst (single : Bool) : OwnershipKind → Name
+  | .reg _ =>
+      if single then
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn_single
+      else
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn
+  | .mem _ =>
+      if single then
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_memIs_to_memOwn_single
+      else
+        ``EvmAsm.Rv64.cpsTripleWithin_of_forall_memIs_to_memOwn
+
+private def OwnershipKind.key : OwnershipKind → Expr
+  | .reg r => r
+  | .mem addr => addr
+
+private def isExactMVar (mvarId : MVarId) (e : Expr) : Bool :=
+  let e := e.consumeMData
+  e.isMVar && e.mvarId! == mvarId
+
+private def exprContainsMVar (mvarId : MVarId) (e : Expr) : Bool :=
+  (e.find? fun e => isExactMVar mvarId e).isSome
+
+private def replaceMVar (mvarId : MVarId) (replacement : Expr) (e : Expr) : Expr :=
+  e.replace fun e =>
+    if isExactMVar mvarId e then some replacement else none
+
+private def ownershipKindForOldValueAtom? (mvarId : MVarId) (atom : Expr) : Option OwnershipKind :=
+  if atom.isAppOfArity ``EvmAsm.Rv64.regIs 2 then
+    let r := atom.getAppArgs[0]!
+    let v := atom.getAppArgs[1]!
+    if isExactMVar mvarId v && !exprContainsMVar mvarId r then
+      some (.reg r)
+    else
+      none
+  else if atom.isAppOfArity ``EvmAsm.Rv64.memIs 2 then
+    let addr := atom.getAppArgs[0]!
+    let v := atom.getAppArgs[1]!
+    if isExactMVar mvarId v && !exprContainsMVar mvarId addr then
+      some (.mem addr)
+    else
+      none
+  else
+    none
+
+private def findOwnershipGeneralization? (mvarId : MVarId) (preAtoms : List Expr)
+    (post : Expr) : MetaM (Option (Nat × OwnershipKind)) := do
+  if exprContainsMVar mvarId post then
+    return none
+  let mut found : Option (Nat × OwnershipKind) := none
+  for h : i in [:preAtoms.length] do
+    let atom := preAtoms[i]
+    if let some kind := ownershipKindForOldValueAtom? mvarId atom then
+      if found.isSome then
+        throwError "runBlockFromPost: data parameter occurs as more than one old-value ownership candidate: {← mvarId.getType}"
+      found := some (i, kind)
+    else if exprContainsMVar mvarId atom then
+      return none
+  return found
+
+private def orderPreForOwnership (preAtoms : List Expr) (idx : Nat) : MetaM (Expr × Expr × Bool) := do
+  let oldAtom := preAtoms[idx]!
+  let frameAtoms := eraseAtomIdx preAtoms.toArray idx |>.toList
+  let frame ← buildSepConjChain frameAtoms
+  let orderedPre ←
+    if frameAtoms.isEmpty then
+      Pure.pure oldAtom
+    else
+      Pure.pure (mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) frame oldAtom)
+  return (frame, orderedPre, frameAtoms.isEmpty)
+
+private def reorderPreForOwnership (proof : Expr) (orderedPre : Expr) : MetaM Expr := do
+  let proofType ← instantiateMVars (← inferType proof)
+  let some (nSteps, entry, exit_, cr, pre, post) ← parseCpsTripleWithin? proofType
+    | throwError "runBlockFromPost: internal error - ownership candidate is not a cpsTripleWithin"
+  if ← withoutModifyingState (isDefEq pre orderedPre) then
+    return proof
+  let hpre ← mkPermLambda orderedPre pre
+  let hpost ← mkIdLambda post
+  return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
+    #[nSteps, entry, exit_, cr, pre, orderedPre, post, post, hpre, hpost, proof]
+
+private def applyOwnershipGeneralization (proof : Expr) (mvarId : MVarId)
+    (kind : OwnershipKind) (frame : Expr) (single : Bool) : MetaM Expr := do
+  let proofType ← instantiateMVars (← inferType proof)
+  let some (nSteps, entry, exit_, cr, _pre, post) ← parseCpsTripleWithin? proofType
+    | throwError "runBlockFromPost: internal error - ownership candidate is not a cpsTripleWithin"
+  let valueType ← instantiateMVars (← mvarId.getType)
+  withLocalDeclD `vOld valueType fun vOld => do
+    let body := replaceMVar mvarId vOld proof
+    let h ← mkLambdaFVars #[vOld] body
+    let rule := mkConst (kind.ruleConst single)
+    let result :=
+      if single then
+        mkAppN rule #[nSteps, entry, exit_, kind.key, post, cr, h]
+      else
+        mkAppN rule #[nSteps, entry, exit_, kind.key, frame, post, cr, h]
+    instantiateMVars result
+
+private partial def generalizeOwnershipParams (proof : Expr) (params : Array Expr) : MetaM Expr := do
+  let mut result := proof
+  for param in params do
+    if !param.isMVar then continue
+    let mvarId := param.mvarId!
+    if ← mvarId.isAssigned then continue
+    let paramType ← instantiateMVars (← mvarId.getType)
+    if ← isProp paramType then
+      continue
+    let resultType ← instantiateMVars (← inferType result)
+    let some (_, _, _, _, pre, post) ← parseCpsTripleWithin? resultType
+      | throwError "runBlockFromPost: internal error - synthesized spec is not a cpsTripleWithin"
+    let preAtoms ← flattenSepConj pre
+    let some (idx, kind) ← findOwnershipGeneralization? mvarId preAtoms post
+      | throwError "post matched but left data parameter unconstrained: {paramType}
+          Hint: unsupported unresolved data parameters must occur exactly as one old `regIs`/`memIs` value in the precondition and nowhere in the postcondition; otherwise pass an explicit spec."
+    let (frame, orderedPre, single) ← orderPreForOwnership preAtoms idx
+    let reordered ← reorderPreForOwnership result orderedPre
+    result ← applyOwnershipGeneralization reordered mvarId kind frame single
+  return result
+
 /-- Instantiate a registered single-instruction spec by matching its
     postcondition against the current desired postcondition.  Unlike forward
-    `runBlock`, this starts from the post and rejects candidates that would
-    leave data parameters, such as an old destination value, unconstrained. -/
+    `runBlock`, this starts from the post and turns unconstrained old register
+    or memory values into `regOwn`/`memOwn` preconditions when the spec shape is
+    unambiguous. -/
 private def tryInstantiateSpecFromPost (specName : Name) (instrExpr instrAddr : Expr)
     (currentAtoms : List Expr) : MetaM Expr := do
   let specConst := mkConst specName
@@ -852,12 +977,11 @@ private def tryInstantiateSpecFromPost (specName : Name) (instrExpr instrAddr : 
     if ← isProp paramType then
       let solved ← solveObligation mvarId
       unless solved do
-        throwError "cannot solve proof obligation: {paramType}\n\
+        throwError "cannot solve proof obligation: {paramType}
           Hint: Add the obligation as a hypothesis, or pass an already-instantiated spec."
-    else
-      throwError "post matched but left data parameter unconstrained: {paramType}\n\
-          Hint: use an ownership-style spec such as `regOwn`/`memOwn`, or pass an explicit spec."
   let proof ← instantiateMVars (mkAppN specConst params)
+  let proof ← generalizeOwnershipParams proof params
+  let proof ← instantiateMVars proof
   if proof.hasExprMVar then
     throwError "post matched but the instantiated proof still contains metavariables"
   let proofType ← instantiateMVars (← inferType proof)

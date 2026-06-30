@@ -94,9 +94,26 @@ theorem spec :
    ```
 
    Current matching is intentionally conservative: the requested postcondition
-   should expose the atoms produced by the instruction specs. If an instruction
-   overwrites a resource whose old value is not mentioned in the postcondition,
-   use an ownership-style spec (`regOwn`/`memOwn`) or pass an explicit spec.
+   should expose the atoms produced by the instruction specs. When a registered
+   spec has one unresolved old-value atom such as `rd ↦ᵣ vOld` or
+   `addr ↦ₘ memOld`, `wp_rv64_leaf_synth` turns it into `regOwn rd` or
+   `memOwn addr` automatically. If an unresolved data parameter appears in a
+   computed address, in the postcondition, or in more than one atom, pass an
+   explicit spec.
+
+   ```lean
+   def addiOwnCfg (base v : Word) (imm : BitVec 12) :
+       WP.CFG.Cert base (base + 4)
+         (CodeReq.singleton base (.ADDI .x6 .x5 imm))
+         ((.x5 ↦ᵣ v) ** (.x6 ↦ᵣ (v + signExtend12 imm))) := by
+     wp_rv64_leaf_synth
+
+   example (base v : Word) (imm : BitVec 12) :
+       (addiOwnCfg base v imm).pre = ((.x5 ↦ᵣ v) ** regOwn .x6) := rfl
+   ```
+
+   The checked examples in `EvmAsm.Rv64.Tactics.WP` also include an `SD`
+   leaf whose old memory cell is synthesized as `memOwn`.
 
 3. Prove remaining leaf blocks with existing tools.
 

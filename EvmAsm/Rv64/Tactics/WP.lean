@@ -1234,6 +1234,28 @@ def wp_rv64_leaf_synth_addi_manual_cfg (base v : Word) (imm : BitVec 12) :
 example (base v : Word) (imm : BitVec 12) :
     (wp_rv64_leaf_synth_addi_manual_cfg base v imm).pre = (.x5 ↦ᵣ v) := rfl
 
+def wp_rv64_leaf_synth_addi_own_cfg (base v : Word) (imm : BitVec 12) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.ADDI .x6 .x5 imm))
+      ((.x5 ↦ᵣ v) ** (.x6 ↦ᵣ (v + signExtend12 imm))) := by
+  wp_rv64_leaf_synth
+
+example (base v : Word) (imm : BitVec 12) :
+    (wp_rv64_leaf_synth_addi_own_cfg base v imm).pre =
+      ((.x5 ↦ᵣ v) ** regOwn .x6) := rfl
+
+def wp_rv64_leaf_synth_sd_own_cfg (base addr data : Word) (offset : BitVec 12) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.SD .x5 .x6 offset))
+      ((.x5 ↦ᵣ addr) ** (.x6 ↦ᵣ data) **
+        ((addr + signExtend12 offset) ↦ₘ data)) := by
+  wp_rv64_leaf_synth
+
+example (base addr data : Word) (offset : BitVec 12) :
+    (wp_rv64_leaf_synth_sd_own_cfg base addr data offset).pre =
+      ((.x5 ↦ᵣ addr) ** (.x6 ↦ᵣ data) **
+        memOwn (addr + signExtend12 offset)) := rfl
+
 example {entry : Word} {cr : CodeReq} {post : Assertion} :
     EvmAsm.Rv64.WP.CFG.Cert entry entry cr post := by
   wp_rv64_exit_refl entry, cr, post
