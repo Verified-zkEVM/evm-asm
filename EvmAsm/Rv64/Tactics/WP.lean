@@ -10,11 +10,12 @@ import Lean
 import EvmAsm.Rv64.Tactics.WPAttr
 import EvmAsm.Rv64.WP.CFG
 import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.Tactics.SeqFrame
 import EvmAsm.Rv64.Tactics.XPermPure
 
 namespace EvmAsm.Rv64.Tactics
 
-open Lean Elab Tactic
+open Lean Meta Elab Tactic
 
 /-- Close a `cpsTripleWithin` goal with a `WP.Triple`/`WP.CFG.Cert`.
 
@@ -42,6 +43,19 @@ macro_rules
         | intro _ _hp; xperm_pure _hp
         | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_hyp _hp
         | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp)
+
+/-- Close a `CodeReq.Disjoint` goal using the structural prover shared with
+    `seqFrame`.  This keeps WP composition proofs from spelling out code-range
+    side conditions for generated straight-line fragments. -/
+elab "wp_rv64_disjoint" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let goalType ← goal.getType
+  unless goalType.isAppOfArity ``EvmAsm.Rv64.CodeReq.Disjoint 2 do
+    throwError "wp_rv64_disjoint: expected CodeReq.Disjoint goal"
+  let cr1 := goalType.getAppArgs[0]!
+  let cr2 := goalType.getAppArgs[1]!
+  let proof ← withTransparency .all <| buildDisjointProof cr1 cr2
+  goal.assign proof
 
 /-- Frame a single-exit CFG certificate and return the framed certificate. -/
 syntax (name := wpRv64FrameRTac) "wp_rv64_frame " term ", " term ", " term : tactic
@@ -605,5 +619,11 @@ example {entry l l' : Word} {cr1 cr2 : CodeReq}
     (hlink : EvmAsm.Rv64.WP.Entails exitPost tail.pre) :
     EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
   wp_rv64_nbranch_exit_cert_disjoint_with hd, br, preExits, hexits, tail, hlink
+
+example :
+    EvmAsm.Rv64.CodeReq.Disjoint
+      (EvmAsm.Rv64.CodeReq.singleton (0 : Word) (.ADDI .x1 .x0 (0 : BitVec 12)))
+      (EvmAsm.Rv64.CodeReq.singleton (4 : Word) (.ADDI .x2 .x0 (0 : BitVec 12))) := by
+  wp_rv64_disjoint
 
 end EvmAsm.Rv64.Tactics.WPTests

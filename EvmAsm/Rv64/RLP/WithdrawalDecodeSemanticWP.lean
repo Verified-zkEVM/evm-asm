@@ -719,6 +719,186 @@ theorem walkInitShortSuccessResolved_spec_within
     d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr hc3
     hl3 hinput hLen hcode).sound
 
+
+/-- Code covered by the resolved short-list success WP slice.  This aliases the
+    generated union so higher-level WP composition can name the tail as a unit. -/
+def walkInitShortSuccessResolvedCode (base : Word) (specs : List FieldSpec) : CodeReq :=
+  ((walkInitEmptyFailNotListFailShortLongCode base).union
+    ((walkInitShortSuccessJumpCode base).union
+      ((schemaCursorInitCode (base + 172)).union
+        ((schemaCR (base + 172 + 4) .x8 specs).union
+          (successStatusReturnCode
+            ((base + 172 + 4) + BitVec.ofNat 64 (schemaSize specs)))))))
+
+
+attribute [rv64_wp] walkInitShortSuccessResolvedCode
+
+/-- The decoder prologue occupies exactly the first six 4-byte instructions. -/
+theorem prologueCode_none_above (base a : Word)
+    (hbound : base.toNat + 24 < 2 ^ 64) (h : base.toNat + 24 ≤ a.toNat) :
+    prologueCode base a = none := by
+  unfold prologueCode
+  exact CodeReq.ofProg_none_range_len base prologue 6 a prologue_length (fun k hk => by
+    bv_omega)
+
+/-- The walk-init classifier prefix used by the short-success slice has no code
+    below its entry address, assuming its code range does not wrap. -/
+theorem walkInitEmptyFailNotListFailShortLongCode_none_below
+    (base a : Word) (hcode : base.toNat + 172 < 2 ^ 64) (h : a.toNat < base.toNat) :
+    walkInitEmptyFailNotListFailShortLongCode base a = none := by
+  unfold walkInitEmptyFailNotListFailShortLongCode walkInitEmptyFailOrPrefixCode
+    walkInitEmptyFailStatusCode failStatusReturnCode statusReturnCode
+    walkInitNonzeroPrefixTailCode walkInitPrefixShortLongTailCode
+    walkInitPrefixListCheckNotListFailF8Code walkInitPrefixListCheckOrNotListFailCode
+    walkInitPrefixListCheckCode walkInitPrefixNotListFailStatusCode walkInitListF8Code
+    walkInitShortLongCheckCode
+  have h0 : CodeReq.singleton base (.BEQ .x11 .x0 (156 : BitVec 13)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h156 : CodeReq.singleton (base + 156) (.LI .x10 (1 : Word)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h160 : CodeReq.singleton (base + 156 + 4) (.JALR .x0 .x1 (0 : BitVec 12)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h4 : CodeReq.singleton (base + 4) (.ADD .x11 .x10 .x11) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h8 : CodeReq.singleton (base + 8) (.LBU .x5 .x10 0) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h12 : CodeReq.singleton (base + 12) (.LI .x6 (0xc0 : Word)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h16 : CodeReq.singleton (base + 16) (.BLTU .x5 .x6 (148 : BitVec 13)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h164 : CodeReq.singleton (base + 164) (.LI .x10 (1 : Word)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h168 : CodeReq.singleton (base + 164 + 4) (.JALR .x0 .x1 (0 : BitVec 12)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h20 : CodeReq.singleton (base + 20) (.LI .x6 (0xf8 : Word)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  have h24 : CodeReq.singleton (base + 24) (.BLTU .x5 .x6 (100 : BitVec 13)) a = none :=
+    CodeReq.singleton_miss (by bv_omega)
+  simp only [failStatusReturnCode, statusReturnCode, CodeReq.union,
+    h0, h156, h160, h4, h8, h12, h16, h164, h168, h20, h24]
+
+/-- The resolved short-success tail has no code below its entry address. -/
+theorem walkInitShortSuccessResolvedCode_none_below
+    (base : Word) (specs : List FieldSpec) (a : Word)
+    (hcode : base.toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64)
+    (h : a.toNat < base.toNat) :
+    walkInitShortSuccessResolvedCode base specs a = none := by
+  have hbase172 : (base + 172).toNat = base.toNat + 172 := by
+    bv_omega
+  have h0 : walkInitEmptyFailNotListFailShortLongCode base a = none :=
+    walkInitEmptyFailNotListFailShortLongCode_none_below base a (by omega) h
+  have h1 : walkInitShortSuccessJumpCode base a = none := by
+    unfold walkInitShortSuccessJumpCode
+    exact CodeReq.singleton_miss (by
+      intro h_eq
+      have := congrArg BitVec.toNat h_eq
+      bv_omega)
+  have h2 :
+      ((schemaCursorInitCode (base + 172)).union
+        ((schemaCR (base + 172 + 4) .x8 specs).union
+          (successStatusReturnCode
+            ((base + 172 + 4) + BitVec.ofNat 64 (schemaSize specs))))) a = none :=
+    schemaCursorInitSuccessReturnTail_none_below (base + 172) .x8 specs a
+      (by rw [hbase172]; omega) (by rw [hbase172]; omega)
+  unfold walkInitShortSuccessResolvedCode
+  simp only [CodeReq.union, h0, h1]
+  exact h2
+
+/-- Range split between the prologue and the resolved short-success tail. -/
+theorem prologueCode_disjoint_walkInitShortSuccessResolvedCode
+    (base : Word) (specs : List FieldSpec)
+    (hprologue : base.toNat + 24 < 2 ^ 64)
+    (htail : (base + 24).toNat + 172 + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (prologueCode base).Disjoint (walkInitShortSuccessResolvedCode (base + 24) specs) := by
+  have hbase24 : (base + 24).toNat = base.toNat + 24 := by
+    bv_omega
+  refine codeReq_disjoint_of_ranges _ _ (base.toNat + 24) ?_ ?_
+  · intro a ha
+    exact prologueCode_none_above base a hprologue ha
+  · intro a ha
+    exact walkInitShortSuccessResolvedCode_none_below (base + 24) specs a htail
+      (by rw [hbase24]; exact ha)
+
+/-- Prologue followed by the reduced short-list success WP slice.  The prologue
+    carries the walk-init/schema resources to its exit; the tail consumes those
+    resources and returns the ABI success post while preserving the saved frame. -/
+def walkInitShortSuccessFromPrologueCert
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input d0 d1 d2 d3 : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 +
+      schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      ((prologueCode base).union
+        (walkInitShortSuccessResolvedCode (base + 24) (successFieldSpecs d0 d1 d2 d3)))
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3 **
+        walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old) := by
+  let carryFrame := walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old
+    outBase input
+  let savedFrame := walkInitShortSuccessPrologueSavedFrame sp0 raVal s0Old s1Old s2Old
+  let head := WP.CFG.frameR
+    (prologueCert base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3)
+    carryFrame
+    (walkInitShortSuccessPrologueCarryFrame_pcFree inputBase listLen t0Old t1Old outBase input)
+  let tail0 : WP.CFG.Cert (base + 24) (successStatusReturnExit raVal)
+      (walkInitShortSuccessResolvedCode (base + 24) (successFieldSpecs d0 d1 d2 d3))
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) :=
+    WP.CFG.block (WP.Entails.refl _) (by
+      simpa [walkInitShortSuccessResolvedCode] using
+        walkInitShortSuccessResolved_spec_within (base + 24) inputBase listLen raVal t0Old
+          t1Old outBase input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval
+          hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput hLen hcode)
+  let tail := WP.CFG.frameR tail0 savedFrame
+    (walkInitShortSuccessPrologueSavedFrame_pcFree sp0 raVal s0Old s1Old s2Old)
+  exact WP.CFG.seqDisjoint
+    (prologueCode_disjoint_walkInitShortSuccessResolvedCode base
+      (successFieldSpecs d0 d1 d2 d3) hprologueCode hcode) head.sound tail
+    (by
+      dsimp [head, tail, tail0, carryFrame, savedFrame, WP.CFG.frameR, WP.CFG.block,
+        WP.Triple.frameR, WP.Triple.ofSpec]
+      simpa using prologuePostShortSuccessCarry_entails_resolvedPre sp0 raVal s0Old s1Old s2Old
+        inputBase listLen t0Old t1Old outBase input)
+
+/-- Expanded precondition for the prologue-to-short-success certificate. -/
+theorem walkInitShortSuccessFromPrologueCert_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input d0 d1 d2 d3 : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hprologueCode : base.toNat + 24 < 2 ^ 64)
+    (hcode : (base + 24).toNat + 172 + 4 +
+      schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (walkInitShortSuccessFromPrologueCert base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+      m3 inputBase listLen t0Old t1Old input d0 d1 d2 d3 hsalign hoff hover hwin hdalign
+      hdov hdval hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput hLen hprologueCode hcode).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  rfl
+
 end WithdrawalDecode
 
 end EvmAsm.Rv64.RLP
