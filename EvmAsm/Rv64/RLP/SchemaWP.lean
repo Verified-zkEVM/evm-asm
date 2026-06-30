@@ -431,6 +431,226 @@ def fieldSpecStepCert
     exact byteFieldSpecStepCert base regionBase outBase rOut bs O outBytes f hbyte hsize hImm hdst
       halign hdalign hover hwin hdov hdval hcode hdrop
 
+/-- Scalar canonicality side conditions for a successful schema witness.  This is deliberately
+    separate from the static layout: it talks about the field bytes being proved on a success path. -/
+def SchemaCanonical : List FieldSpec → Prop
+  | [] => True
+  | f :: rest => (f.isScalar = true → f.data = [] ∨ f.data.headD 1 ≠ 0) ∧ SchemaCanonical rest
+
+/-- Soundness view of `fieldSpecStepCert` with the precondition exposed as `schemaINV`. -/
+theorem fieldSpecStep_spec_within
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs : List Byte) (O : Nat) (outBytes : List Byte) (f : FieldSpec)
+    (hsize : (if f.isScalar then f.data.length ≤ 8
+      else (encode (.bytes f.data)).length < 256 ^ 8))
+    (hcanon : f.isScalar = true → f.data = [] ∨ f.data.headD 1 ≠ 0)
+    (hImm : signExtend12 f.imm = BitVec.ofNat 64 f.di)
+    (hdst : f.di + fieldWriteLen f ≤ outBytes.length)
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + fieldSize f < 2 ^ 64)
+    (hdrop : bs.drop O = encode (.bytes f.data) ++ bs.drop (O + fieldEnc f)) :
+    cpsTripleWithin (fieldSteps f) base (base + BitVec.ofNat 64 (fieldSize f))
+      (fieldCR base rOut f)
+      (schemaINV regionBase outBase rOut bs O outBytes)
+      (schemaINV regionBase outBase rOut bs (O + fieldEnc f) (fieldUpdate outBytes f)) := by
+  by_cases hscalar : f.isScalar = true
+  · have hlen8 : f.data.length ≤ 8 := by
+      simpa [hscalar] using hsize
+    have hdst8 : f.di + 8 ≤ outBytes.length := by
+      simpa [fieldWriteLen, hscalar] using hdst
+    have hcode_scalar : base.toNat + (if f.data = [] then 248 else 280) < 2 ^ 64 := by
+      simpa [fieldSize, hscalar] using hcode
+    by_cases hnil : f.data = []
+    · have hexit : base + 148 + 4 + BitVec.ofNat 64 (12 * 8) = base + BitVec.ofNat 64 248 := by
+        bv_omega
+      have hcode_empty : base.toNat + (148 + 4 + 12 * 8) < 2 ^ 64 := by
+        simpa [hnil] using hcode_scalar
+      have hdrop_empty : bs.drop O = encode (.bytes ([] : List Byte)) ++ bs.drop (O + fieldEnc f) := by
+        simpa [hnil] using hdrop
+      have hspec := (((WP.CFG.block
+        (scalarFieldPost_entails_schemaINV regionBase outBase rOut bs O ([] : List Byte) outBytes f.di)
+        (unified_empty_scalar_field_decode_and_store_region_fully_canonical base regionBase rOut
+          outBase f.imm bs O (bs.drop (O + fieldEnc f)) outBytes f.di halign hover hwin hdrop_empty
+          hdalign hdst8 hdov hdval hImm hcode_empty).1).changeExit hexit).weakenPre
+        (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
+      simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hscalar, hnil] using hspec
+    · have hlen1 : 1 ≤ f.data.length := by
+        cases hd : f.data with
+        | nil => exact False.elim (hnil hd)
+        | cons _ _ => simp
+      have hhead : f.data.headD 1 ≠ 0 := by
+        cases hcanon hscalar with
+        | inl h => exact False.elim (hnil h)
+        | inr h => exact h
+      have henc : (encode (.bytes f.data)).length < 256 ^ 8 :=
+        scalarField_encode_size_of_len_le_8 f.data hlen8
+      have hcode_data : base.toNat + 280 < 2 ^ 64 := by
+        simpa [hnil] using hcode_scalar
+      have hexit : base + 180 + 4 + BitVec.ofNat 64 (12 * 8) = base + BitVec.ofNat 64 280 := by
+        bv_omega
+      have hspec := (((WP.CFG.block
+        (scalarFieldPost_entails_schemaINV regionBase outBase rOut bs O f.data outBytes f.di)
+        (unified_scalar_field_decode_and_store_region_fully_canonical base regionBase rOut outBase
+          f.imm bs O f.data (bs.drop (O + fieldEnc f)) outBytes f.di hlen1 hlen8 hhead henc
+          halign hdalign hover hwin hImm hdst8 hdov hdval hcode_data hdrop).1).changeExit hexit).weakenPre
+        (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
+      simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hscalar, hnil] using hspec
+  · have hbyte : f.isScalar = false := by
+      cases hs : f.isScalar with
+      | false => rfl
+      | true => exact False.elim (hscalar hs)
+    have hsize_data : (encode (.bytes f.data)).length < 256 ^ 8 := by
+      simpa [hbyte] using hsize
+    have hdst_data : f.di + f.data.length ≤ outBytes.length := by
+      simpa [fieldWriteLen, hbyte] using hdst
+    have hcode_data : base.toNat + (148 + 4 + 20 * f.data.length) < 2 ^ 64 := by
+      simpa [fieldSize, hbyte] using hcode
+    have hexit : base + 148 + 4 + BitVec.ofNat 64 (20 * f.data.length)
+        = base + BitVec.ofNat 64 (fieldSize f) := by
+      simp [fieldSize, hbyte]
+      bv_omega
+    by_cases hnil : f.data = []
+    · have hdrop_empty : bs.drop O = encode (.bytes ([] : List Byte)) ++ bs.drop (O + fieldEnc f) := by
+        simpa [hnil] using hdrop
+      have hdst_empty : f.di + ([] : List Byte).length ≤ outBytes.length := by
+        simpa [hnil] using hdst_data
+      have hcode_empty : base.toNat + (148 + 4 + 20 * ([] : List Byte).length) < 2 ^ 64 := by
+        simpa [hnil] using hcode_data
+      have hexit_empty : base + 148 + 4 + BitVec.ofNat 64 (20 * ([] : List Byte).length)
+          = base + BitVec.ofNat 64 (fieldSize f) := by
+        simpa [hnil] using hexit
+      have hspec := (((WP.CFG.block
+        (byteFieldPost_entails_schemaINV regionBase outBase rOut bs O ([] : List Byte) outBytes f.di)
+        (unified_empty_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+          f.imm bs O (bs.drop (O + fieldEnc f)) outBytes f.di halign hdalign hover hwin hImm hdst_empty
+          hdov hdval hcode_empty hdrop_empty).1).changeExit hexit_empty).weakenPre
+        (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
+      simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hbyte, hnil] using hspec
+    · by_cases hshort : f.data.length ≤ 55
+      · have hlen1 : 1 ≤ f.data.length := by
+          cases hd : f.data with
+          | nil => exact False.elim (hnil hd)
+          | cons _ _ => simp
+        have hspec := (((WP.CFG.block
+          (byteFieldPost_entails_schemaINV regionBase outBase rOut bs O f.data outBytes f.di)
+          (unified_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase f.imm
+            bs O f.data (bs.drop (O + fieldEnc f)) outBytes f.di hlen1 hshort hsize_data halign
+            hdalign hover hwin hImm hdst_data hdov hdval hcode_data hdrop).1).changeExit hexit).weakenPre
+          (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
+        simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hbyte, hnil] using hspec
+      · have hlong : 55 < f.data.length := by omega
+        have hspec := (((WP.CFG.block
+          (byteFieldPost_entails_schemaINV regionBase outBase rOut bs O f.data outBytes f.di)
+          (unified_long_bytes_field_decode_and_copy_fully_canonical base regionBase rOut outBase
+            f.imm bs O f.data (bs.drop (O + fieldEnc f)) outBytes f.di hlong hsize_data halign
+            hdalign hover hwin hImm hdst_data hdov hdval hcode_data hdrop).1).changeExit hexit).weakenPre
+          (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
+        simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hbyte, hnil] using hspec
+
+
+/-- CPS theorem for a whole schema: the program/post pair reduces to the initial schema invariant. -/
+theorem schemaStep_spec_within
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs : List Byte) (O : Nat) (outBytes : List Byte) (specs : List FieldSpec)
+    (hvalid : SchemaValid bs outBytes.length O specs)
+    (hcanon : SchemaCanonical specs)
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize specs < 2 ^ 64) :
+    cpsTripleWithin (schemaSteps specs) base (base + BitVec.ofNat 64 (schemaSize specs))
+      (schemaCR base rOut specs)
+      (schemaINV regionBase outBase rOut bs O outBytes)
+      (schemaINV regionBase outBase rOut bs (O + schemaEnc specs) (schemaOut outBytes specs)) := by
+  induction specs generalizing base O outBytes with
+  | nil =>
+      simpa [schemaSteps, schemaSize, schemaCR, schemaEnc, schemaOut] using
+        (cpsTripleWithin_refl (addr := base)
+          (P := schemaINV regionBase outBase rOut bs O outBytes)
+          (Q := schemaINV regionBase outBase rOut bs O outBytes)
+          (fun h hp => hp))
+  | cons f rest ih =>
+      obtain ⟨hsize, hImm, hdst, hdrop, hvalid_tail⟩ := hvalid
+      obtain ⟨hcanon_head, hcanon_tail⟩ := hcanon
+      have hfield_code : base.toNat + fieldSize f < 2 ^ 64 := by
+        have hsz : schemaSize (f :: rest) = fieldSize f + schemaSize rest := rfl
+        omega
+      have hfield := fieldSpecStep_spec_within base regionBase outBase rOut bs O outBytes f hsize
+        hcanon_head hImm hdst halign hdalign hover hwin hdov hdval hfield_code hdrop
+      have hbase_tail : (base + BitVec.ofNat 64 (fieldSize f)).toNat = base.toNat + fieldSize f := by
+        bv_omega
+      have hcode_tail : (base + BitVec.ofNat 64 (fieldSize f)).toNat + schemaSize rest < 2 ^ 64 := by
+        rw [hbase_tail]
+        have hsz : schemaSize (f :: rest) = fieldSize f + schemaSize rest := rfl
+        omega
+      have hvalid_tail_step : SchemaValid bs (fieldUpdate outBytes f).length (O + fieldEnc f) rest := by
+        simpa [fieldUpdate_length] using hvalid_tail
+      have hdov_tail : outBase.toNat + (fieldUpdate outBytes f).length < 2 ^ 64 := by
+        simpa [fieldUpdate_length] using hdov
+      have hdval_tail : ∀ i, i < (fieldUpdate outBytes f).length →
+          isValidByteAccess (outBase + BitVec.ofNat 64 i) = true := by
+        intro i hi
+        exact hdval i (by simpa [fieldUpdate_length] using hi)
+      have htail := ih (base := base + BitVec.ofNat 64 (fieldSize f))
+        (O := O + fieldEnc f) (outBytes := fieldUpdate outBytes f)
+        hvalid_tail_step hcanon_tail hdov_tail hdval_tail hcode_tail
+      have hd : (fieldCR base rOut f).Disjoint
+          (schemaCR (base + BitVec.ofNat 64 (fieldSize f)) rOut rest) := by
+        refine codeReq_disjoint_of_ranges _ _ (base.toNat + fieldSize f) ?_ ?_
+        · intro a ha
+          exact fieldCR_none_above base rOut f a hfield_code ha
+        · intro a ha
+          exact schemaCR_none_below rOut rest (base + BitVec.ofNat 64 (fieldSize f)) a
+            hcode_tail (by rw [hbase_tail]; exact ha)
+      have hseq := cpsTripleWithin_seq hd hfield htail
+      have hexit : base + BitVec.ofNat 64 (fieldSize f) + BitVec.ofNat 64 (schemaSize rest) =
+          base + BitVec.ofNat 64 (fieldSize f + schemaSize rest) := by
+        bv_omega
+      rw [hexit] at hseq
+      simpa [schemaSteps, schemaSize, schemaCR, schemaEnc, schemaOut, Nat.add_assoc] using hseq
+
+/-- WP certificate for a whole schema, exposing the reduced precondition as the certificate pre. -/
+def schemaStepCert
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs : List Byte) (O : Nat) (outBytes : List Byte) (specs : List FieldSpec)
+    (hvalid : SchemaValid bs outBytes.length O specs)
+    (hcanon : SchemaCanonical specs)
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize specs < 2 ^ 64) :
+    WP.CFG.Cert base (base + BitVec.ofNat 64 (schemaSize specs))
+      (schemaCR base rOut specs)
+      (schemaINV regionBase outBase rOut bs (O + schemaEnc specs) (schemaOut outBytes specs)) :=
+  WP.CFG.block (WP.Entails.refl _)
+    (schemaStep_spec_within base regionBase outBase rOut bs O outBytes specs hvalid hcanon
+      halign hdalign hover hwin hdov hdval hcode)
+
+/-- The computed WP precondition of schemaStepCert is the schema invariant before the schema. -/
+theorem schemaStepCert_pre
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs : List Byte) (O : Nat) (outBytes : List Byte) (specs : List FieldSpec)
+    (hvalid : SchemaValid bs outBytes.length O specs)
+    (hcanon : SchemaCanonical specs)
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outBytes.length < 2 ^ 64)
+    (hdval : ∀ i, i < outBytes.length → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize specs < 2 ^ 64) :
+    (schemaStepCert base regionBase outBase rOut bs O outBytes specs hvalid hcanon halign hdalign
+      hover hwin hdov hdval hcode).pre = schemaINV regionBase outBase rOut bs O outBytes :=
+  rfl
+
+
 /-- Pure decode fact paired with `fieldSpecStepCert`. -/
 theorem fieldSpecStep_decode
     (base regionBase outBase : Word) (rOut : Reg)
