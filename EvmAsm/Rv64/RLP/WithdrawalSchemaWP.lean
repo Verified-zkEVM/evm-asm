@@ -550,6 +550,145 @@ theorem successSchemaReturnFrame_pcFree
   unfold successSchemaReturnFrame
   pcFree
 
+/-- One-instruction bridge from a list value pointer in `x10` to the schema
+    cursor convention (`x13 = inputBase + O + 1`). -/
+def schemaCursorInitCode (base : Word) : CodeReq :=
+  CodeReq.singleton base (.ADDI .x13 .x10 (1 : BitVec 12))
+
+def schemaCursorInitRestNoX13
+    (regionBase outBase raVal : Word) (bs outBytes : List Byte) : Assertion :=
+  (((regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x11) **
+    (regOwn .x12) ** (regOwn .x14) ** (regOwn .x15) ** bytesRegion regionBase bs) **
+   ((.x8 ↦ᵣ outBase) ** bytesRegion outBase outBytes) ** (.x1 ↦ᵣ raVal))
+
+/-- Precondition for `schemaCursorInitCode`: `x10` points at the RLP list value
+    start, `x13` is arbitrary, and the remaining schema resources are owned. -/
+def schemaCursorInitPre
+    (regionBase outBase raVal : Word) (bs : List Byte) (O : Nat)
+    (outBytes : List Byte) : Assertion :=
+  ((.x10 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+    schemaCursorInitRestNoX13 regionBase outBase raVal bs outBytes) ** regOwn .x13
+
+def schemaCursorInitPostRest
+    (regionBase outBase raVal : Word) (bs : List Byte) (O : Nat)
+    (outBytes : List Byte) : Assertion :=
+  (((regOwn .x5) ** (.x0 ↦ᵣ (0 : Word)) ** (regOwn .x11) **
+    (regOwn .x12) ** (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 (O + 1))) **
+    (regOwn .x14) ** (regOwn .x15) ** bytesRegion regionBase bs) **
+   ((.x8 ↦ᵣ outBase) ** bytesRegion outBase outBytes) ** (.x1 ↦ᵣ raVal))
+
+theorem schemaCursorInitPostRest_entails_schemaINV
+    (regionBase outBase raVal : Word) (bs : List Byte) (O : Nat)
+    (outBytes : List Byte) :
+    WP.Entails
+      ((.x10 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        schemaCursorInitPostRest regionBase outBase raVal bs O outBytes)
+      (schemaINV regionBase outBase .x8 bs (O + 1) outBytes ** (.x1 ↦ᵣ raVal)) := by
+  intro h hp
+  have hpOwn : (regOwn .x10 **
+      schemaCursorInitPostRest regionBase outBase raVal bs O outBytes) h :=
+    sepConj_mono_left (regIs_to_regOwn .x10 (regionBase + BitVec.ofNat 64 O)) h hp
+  unfold schemaCursorInitPostRest at hpOwn
+  unfold schemaINV
+  xperm_hyp hpOwn
+
+/-- WP bridge from `x10 = inputBase + O` to the schema cursor precondition at
+    payload offset `O + 1`.  This is the handoff from the outer-list classifier
+    to generated schema field code. -/
+def schemaCursorInitCert
+    (base regionBase outBase raVal : Word) (bs : List Byte) (O : Nat)
+    (outBytes : List Byte) :
+    WP.CFG.Cert base (base + 4) (schemaCursorInitCode base)
+      (schemaINV regionBase outBase .x8 bs (O + 1) outBytes ** (.x1 ↦ᵣ raVal)) := by
+  have hspec : cpsTripleWithin 1 base (base + 4) (schemaCursorInitCode base)
+      (schemaCursorInitPre regionBase outBase raVal bs O outBytes)
+      ((.x10 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        schemaCursorInitPostRest regionBase outBase raVal bs O outBytes) := by
+    unfold schemaCursorInitPre schemaCursorInitCode
+    refine cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x13)
+      (P := (.x10 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) **
+        schemaCursorInitRestNoX13 regionBase outBase raVal bs outBytes) ?_
+    intro oldX13
+    have hadd := addi_spec_gen_within .x13 .x10 oldX13
+      (regionBase + BitVec.ofNat 64 O) (1 : BitVec 12) base (by decide)
+    have hframed := cpsTripleWithin_frameR
+      (schemaCursorInitRestNoX13 regionBase outBase raVal bs outBytes)
+      (by unfold schemaCursorInitRestNoX13; pcFree) hadd
+    refine cpsTripleWithin_weaken ?_ ?_ hframed
+    · intro h hp
+      unfold schemaCursorInitRestNoX13 at hp ⊢
+      xperm_hyp hp
+    · intro h hp
+      unfold schemaCursorInitRestNoX13 at hp
+      unfold schemaCursorInitPostRest
+      rw [show (regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12) =
+          regionBase + BitVec.ofNat 64 (O + 1) by
+            rw [show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+            bv_omega] at hp
+      xperm_hyp hp
+  exact WP.CFG.block
+    (schemaCursorInitPostRest_entails_schemaINV regionBase outBase raVal bs O outBytes) hspec
+
+theorem schemaCursorInitCert_pre
+    (base regionBase outBase raVal : Word) (bs : List Byte) (O : Nat)
+    (outBytes : List Byte) :
+    (schemaCursorInitCert base regionBase outBase raVal bs O outBytes).pre =
+      schemaCursorInitPre regionBase outBase raVal bs O outBytes := by
+  rfl
+
+theorem schemaCursorInitCode_none_above (base a : Word)
+    (h : base.toNat + 4 ≤ a.toNat) :
+    schemaCursorInitCode base a = none := by
+  unfold schemaCursorInitCode
+  exact CodeReq.singleton_miss (by
+    intro h_eq
+    have := congrArg BitVec.toNat h_eq
+    omega)
+
+theorem schemaCursorInitCode_disjoint_schemaCR
+    (base : Word) (rOut : Reg) (specs : List FieldSpec)
+    (hcode : base.toNat + 4 + schemaSize specs < 2 ^ 64) :
+    (schemaCursorInitCode base).Disjoint (schemaCR (base + 4) rOut specs) := by
+  have hbase4 : (base + 4).toNat = base.toNat + 4 := by
+    bv_omega
+  refine codeReq_disjoint_of_ranges _ _ (base.toNat + 4) ?_ ?_
+  · intro a ha
+    exact schemaCursorInitCode_none_above base a ha
+  · intro a ha
+    exact schemaCR_none_below rOut specs (base + 4) a (by rw [hbase4]; omega)
+      (by rw [hbase4]; exact ha)
+
+theorem schemaCursorInitCode_disjoint_successStatusReturnCode
+    (base statusBase : Word) :
+    base.toNat + 4 ≤ statusBase.toNat →
+    statusBase.toNat + 8 < 2 ^ 64 →
+    (schemaCursorInitCode base).Disjoint (successStatusReturnCode statusBase) := by
+  intro hle hcode
+  refine codeReq_disjoint_of_ranges _ _ (base.toNat + 4) ?_ ?_
+  · intro a ha
+    exact schemaCursorInitCode_none_above base a ha
+  · intro a ha
+    unfold successStatusReturnCode
+    exact statusReturnCode_none_below statusBase (0 : Word) a hcode (by omega)
+
+theorem schemaCursorInitCode_disjoint_successReturnTail
+    (base : Word) (rOut : Reg) (specs : List FieldSpec)
+    (hcode : base.toNat + 4 + schemaSize specs + 8 < 2 ^ 64) :
+    (schemaCursorInitCode base).Disjoint
+      ((schemaCR (base + 4) rOut specs).union
+        (successStatusReturnCode
+          ((base + 4) + BitVec.ofNat 64 (schemaSize specs)))) := by
+  have hbase4 : (base + 4).toNat = base.toNat + 4 := by
+    bv_omega
+  have hret : ((base + 4) + BitVec.ofNat 64 (schemaSize specs)).toNat =
+      base.toNat + 4 + schemaSize specs := by
+    bv_omega
+  refine CodeReq.Disjoint.union_right ?h_schema ?h_return
+  · exact schemaCursorInitCode_disjoint_schemaCR base rOut specs (by omega)
+  · exact schemaCursorInitCode_disjoint_successStatusReturnCode base
+      ((base + 4) + BitVec.ofNat 64 (schemaSize specs)) (by rw [hret]; omega)
+      (by rw [hret]; omega)
+
 /-- Automated success-path WP certificate: a generated field-schema walk followed
     by the success return shim. The schema remains result-free; the decoded
     withdrawal appears only through the success witnesses and the ABI post. -/
@@ -692,6 +831,77 @@ theorem successFieldSpecsReturnAbiCertOfInput_pre
         (.x1 ↦ᵣ raVal)) := by
   unfold successFieldSpecsReturnAbiCertOfInput
   rw [successFieldSpecsReturnAbiCertOfConcat_pre]
+
+/-- Caller-facing success-path certificate for a walk-init success candidate:
+    `x10` points to the list value start, so the first instruction initializes
+    the schema cursor (`x13`) and then the generic generated schema/return
+    certificate takes over. -/
+def successFieldSpecsReturnAbiCertOfInputFromListStart
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      ((schemaCursorInitCode base).union
+        ((schemaCR (base + 4) .x8 (successFieldSpecs d0 d1 d2 d3)).union
+          (successStatusReturnCode
+            ((base + 4) + BitVec.ofNat 64 (schemaSize (successFieldSpecs d0 d1 d2 d3))))))
+      (abiPost regionBase outBase raVal bs **
+        successSchemaReturnFrame regionBase outBase
+          (1 + schemaEnc (successFieldSpecs d0 d1 d2 d3))) := by
+  let specs := successFieldSpecs d0 d1 d2 d3
+  have htailCode : (base + 4).toNat + schemaSize specs + 8 < 2 ^ 64 := by
+    have hbase4 : (base + 4).toNat = base.toNat + 4 := by
+      bv_omega
+    rw [hbase4]
+    dsimp [specs] at hcode ⊢
+    omega
+  let head := schemaCursorInitCert base regionBase outBase raVal bs 0
+    (List.replicate outputSize (0 : Byte))
+  let tail := successFieldSpecsReturnAbiCertOfInput (base + 4) regionBase outBase raVal
+    bs d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov
+    hdval htailCode
+  have hd : (schemaCursorInitCode base).Disjoint
+      ((schemaCR (base + 4) .x8 specs).union
+        (successStatusReturnCode
+          ((base + 4) + BitVec.ofNat 64 (schemaSize specs)))) := by
+    exact schemaCursorInitCode_disjoint_successReturnTail base .x8 specs (by
+      dsimp [specs] at hcode ⊢
+      exact hcode)
+  exact WP.CFG.seqDisjoint hd head.sound tail (by
+    rw [successFieldSpecsReturnAbiCertOfInput_pre]
+    exact WP.Entails.refl _)
+
+theorem successFieldSpecsReturnAbiCertOfInputFromListStart_pre
+    (base regionBase outBase raVal : Word)
+    (bs d0 d1 d2 d3 : List Byte)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (successFieldSpecsReturnAbiCertOfInputFromListStart base regionBase outBase raVal bs
+      d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput halign hdalign hover hwin hdov
+      hdval hcode).pre =
+      schemaCursorInitPre regionBase outBase raVal bs 0
+        (List.replicate outputSize (0 : Byte)) := by
+  unfold successFieldSpecsReturnAbiCertOfInputFromListStart
+  rfl
 
 end WithdrawalDecode
 
