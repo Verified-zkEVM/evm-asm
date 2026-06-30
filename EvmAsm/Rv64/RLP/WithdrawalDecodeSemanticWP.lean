@@ -1631,9 +1631,9 @@ def walkInitZeroNonzeroAbiFailureFromPrologueNBranch
         hwin 0 hoff
       have hBound : (b :: rest).length < 2 ^ 64 := by
         omega
-      exact walkInitAbiFailureFromPrologueNBranch base sp0 raVal s0Old s1Old s2Old
-        outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old (b :: rest) hsalign hoff
-        hover0 hvalid0 hLen hBound hprologueCode hcode
+      exact walkInitAbiFailureReasonErasedFromPrologueNBranch base sp0 raVal s0Old s1Old
+        s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old (b :: rest) hsalign
+        hoff hover0 hvalid0 hLen hBound hprologueCode hcode
 
 /-- Fully reduced precondition for the input-indexed empty/nonempty ABI-failure
     facade. It is static and contains no pre-decoded branch/result fact. -/
@@ -1666,7 +1666,7 @@ attribute [rv64_wp]
   walkInitZeroNonzeroAbiFailureFromPrologueNBranch_pre
 
 /-- Input-indexed exits for the zero/nonzero prologue facade. Empty input keeps
-    the two-way zero/nonzero split; nonempty input exposes the four semantic
+    the two-way zero/nonzero split; nonempty input exposes reason-erased
     classifier exits. -/
 def walkInitZeroNonzeroAbiFailureFromPrologueExits
     (base sp0 raVal s0Old s1Old s2Old outBase : Word)
@@ -1677,7 +1677,7 @@ def walkInitZeroNonzeroAbiFailureFromPrologueExits
       walkInitEmptyInputFailureFromPrologueSharedFrameExits base sp0 raVal s0Old s1Old
         s2Old outBase inputBase t0Old t1Old
   | b :: rest =>
-      walkInitAbiFailureFromPrologueExits base sp0 raVal s0Old s1Old s2Old outBase
+      walkInitAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old s2Old outBase
         inputBase listLen t0Old t1Old (b :: rest) (by simp)
 
 theorem walkInitZeroNonzeroAbiFailureFromPrologueNBranch_exits
