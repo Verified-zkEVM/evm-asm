@@ -363,6 +363,20 @@ macro_rules
   | `(tactic| wp_rv64_seq_disjoint_exact $hd:term, $head:term, $tail:term) =>
       `(tactic| exact (EvmAsm.Rv64.WP.CFG.seqDisjointExact $hd $tail $head).sound)
 
+/-- Package a bounded natural-number loop certificate as a CFG certificate. -/
+syntax (name := wpRv64LoopNatTac) "wp_rv64_loop_nat " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_loop_nat $hcert:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.loopNat $hcert)
+
+/-- Close a CPS goal from a bounded natural-number loop certificate. -/
+syntax (name := wpRv64LoopNatSoundTac) "wp_rv64_loop_nat_sound " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_loop_nat_sound $hcert:term) =>
+      `(tactic| exact (EvmAsm.Rv64.WP.CFG.loopNat $hcert).sound)
+
 /-- Close a CPS goal from two adjacent same-code CPS blocks with exact
     midpoint. -/
 syntax (name := wpRv64SeqBlockExactTac)
@@ -1248,6 +1262,25 @@ example {nHead nTail : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     (tail : cpsTripleWithin nTail mid exit_ cr midPost post) :
     cpsTripleWithin (nHead + nTail) entry exit_ cr pre post := by
   wp_rv64_seq_block_exact head, tail
+
+example {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    {fuel : Nat}
+    (hcert : EvmAsm.Rv64.WP.loopNatCert nHeader nBody nExit
+      header bodyEntry exit_ cr inv bodyPre exitPost post 0 fuel) :
+    EvmAsm.Rv64.WP.CFG.Cert header exit_ cr post := by
+  wp_rv64_loop_nat hcert
+
+example {nHeader nBody nExit : Nat}
+    {header bodyEntry exit_ : Word} {cr : CodeReq}
+    {inv bodyPre exitPost : Nat → Assertion} {post : Assertion}
+    {fuel : Nat}
+    (hcert : EvmAsm.Rv64.WP.loopNatCert nHeader nBody nExit
+      header bodyEntry exit_ cr inv bodyPre exitPost post 0 fuel) :
+    cpsTripleWithin (EvmAsm.Rv64.WP.loopBound nHeader nBody nExit fuel)
+      header exit_ cr (inv 0) post := by
+  wp_rv64_loop_nat_sound hcert
 
 example {nHead nTail : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
     {pre midPost post : Assertion}
