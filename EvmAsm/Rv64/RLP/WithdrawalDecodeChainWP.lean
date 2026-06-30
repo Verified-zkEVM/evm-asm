@@ -592,7 +592,7 @@ macro "wp_withdrawal_decode_chain " chain:term : tactic =>
     | wp_rv64_cert
     | wp_withdrawal_decode_auto)
 
-open Lean Elab Tactic
+open Lean Meta Elab Tactic
 
 /-- Context-driven chain WP automation.  It scans local hypotheses for already
     bundled success/leftover chain objects, projects the needed pure fact, and
@@ -630,6 +630,31 @@ macro "wp_withdrawal_decode_outcome " outcome:term : tactic =>
       | inl chain => wp_withdrawal_decode_chain chain
       | inr chain => wp_withdrawal_decode_chain chain
     | wp_withdrawal_decode_auto)
+
+private def isDecodeChainOutcomeLocalType (e : Expr) : Bool :=
+  e.isAppOfArity ``DecodeChainOutcome 2 ||
+    (e.isAppOfArity ``Sum 2 &&
+      e.getAppArgs[0]!.isAppOfArity ``SuccessDecodeChain 2 &&
+      e.getAppArgs[1]!.isAppOfArity ``LeftoverDecodeChain 2)
+
+/-- Context-driven outcome WP automation.  Generated proofs that already bundled
+    a branch join as a `DecodeChainOutcome` or `Sum` can leave the term implicit;
+    the tactic finds the local outcome and delegates to `wp_withdrawal_decode_outcome outcome`. -/
+elab "wp_withdrawal_decode_outcome" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for localDecl in lctx do
+    if localDecl.isImplementationDetail then
+      continue
+    let localType ← whnfR (← instantiateMVars localDecl.type)
+    unless isDecodeChainOutcomeLocalType localType do
+      continue
+    let id := Lean.mkIdent localDecl.userName
+    try
+      evalTactic (← `(tactic| wp_withdrawal_decode_outcome $id:ident; done))
+      return
+    catch _ =>
+      (Pure.pure PUnit.unit : TacticM PUnit)
+  throwError "wp_withdrawal_decode_outcome: no local decode-chain outcome closed the goal"
 
 example
     {pfx : Byte} {payload r1 r2 r3 r4 d0 d1 d2 d3 : List Byte}
@@ -687,11 +712,23 @@ example
   wp_withdrawal_decode_outcome outcome
 
 example
+    {pfx : Byte} {payload : List Byte} (outcome : DecodeChainOutcome pfx payload) :
+    successFieldSpecsInput outcome.input ∨ decodeWithdrawal outcome.input = none := by
+  wp_withdrawal_decode_outcome
+
+example
     {pfx : Byte} {payload : List Byte}
     (outcome : Sum (SuccessDecodeChain pfx payload) (LeftoverDecodeChain pfx payload)) :
     (∃ w : Withdrawal, decodeWithdrawal (pfx :: payload) = some w) ∨
       decodeWithdrawal (pfx :: payload) = none := by
   wp_withdrawal_decode_outcome outcome
+
+example
+    {pfx : Byte} {payload : List Byte}
+    (outcome : Sum (SuccessDecodeChain pfx payload) (LeftoverDecodeChain pfx payload)) :
+    (∃ w : Withdrawal, decodeWithdrawal (pfx :: payload) = some w) ∨
+      decodeWithdrawal (pfx :: payload) = none := by
+  wp_withdrawal_decode_outcome
 
 noncomputable example
     {pfx : Byte} {payload : List Byte} (chain : SuccessDecodeChain pfx payload)
