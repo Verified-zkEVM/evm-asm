@@ -540,6 +540,76 @@ theorem walkInitShortSuccessResolvedCert_pre
   unfold walkInitShortSuccessResolvedCert
   rfl
 
+
+/-- Fully reduced WP precondition for the short-list success classifier.  The
+    precondition is still result-free: it contains the input bytes, the loaded
+    length, scratch registers, and the zeroed schema handoff frame, but no
+    decoded withdrawal value. -/
+theorem walkInitShortSuccessResolvedCert_pre_expanded
+    (base inputBase listLen raVal t0Old t1Old outBase : Word)
+    (input d0 d1 d2 d3 : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hcode : base.toNat + 172 + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (walkInitShortSuccessResolvedCert base inputBase listLen raVal t0Old t1Old outBase input
+      d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr hc3
+      hl3 hinput hLen hcode).pre =
+      ((walkInitEmptyFailStatusPre listLen raVal (inputBase + BitVec.ofNat 64 0) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion inputBase input) **
+        schemaWalkInitFrame outBase) := by
+  rw [walkInitShortSuccessResolvedCert_pre,
+    walkInitShortSuccessSemanticNBranch_pre,
+    walkInitShortSuccessSchemaNBranch_pre]
+
+/-- Traditional CPS statement for the resolved short-list success slice, using
+    the fully reduced WP precondition. -/
+theorem walkInitShortSuccessResolved_spec_within
+    (base inputBase listLen raVal t0Old t1Old outBase : Word)
+    (input d0 d1 d2 d3 : List Byte)
+    (hsalign : inputBase.toNat % 8 = 0) (hoff : 0 < input.length)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : ∀ i, i < input.length → isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (hLen : listLen = BitVec.ofNat 64 input.length)
+    (hcode : base.toNat + 172 + 4 + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    cpsTripleWithin
+      (walkInitShortSuccessResolvedCert base inputBase listLen raVal t0Old t1Old outBase input
+        d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr hc3
+        hl3 hinput hLen hcode).nSteps
+      base (successStatusReturnExit raVal)
+      ((walkInitEmptyFailNotListFailShortLongCode base).union
+        ((walkInitShortSuccessJumpCode base).union
+          ((schemaCursorInitCode (base + 172)).union
+            ((schemaCR (base + 172 + 4) .x8 (successFieldSpecs d0 d1 d2 d3)).union
+              (successStatusReturnCode
+                ((base + 172 + 4) + BitVec.ofNat 64
+                  (schemaSize (successFieldSpecs d0 d1 d2 d3))))))))
+      (((walkInitEmptyFailStatusPre listLen raVal (inputBase + BitVec.ofNat 64 0) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** bytesRegion inputBase input) **
+        schemaWalkInitFrame outBase))
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) := by
+  rw [← walkInitShortSuccessResolvedCert_pre_expanded]
+  exact (walkInitShortSuccessResolvedCert base inputBase listLen raVal t0Old t1Old outBase input
+    d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1 hl1 haddr hc3
+    hl3 hinput hLen hcode).sound
+
 end WithdrawalDecode
 
 end EvmAsm.Rv64.RLP
