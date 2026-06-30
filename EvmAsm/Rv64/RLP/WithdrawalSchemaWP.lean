@@ -1180,6 +1180,9 @@ theorem walkInitShortListCandidatePost_schemaWalkInitFrame_entails_walkShortExit
     inputBase listLen raVal outBase input hoff h hp
   exact (sepConj_emp_left h).mpr htail
 
+attribute [rv64_wp_entails]
+  walkInitShortListCandidatePost_schemaWalkInitFrame_entails_walkShortExitPre
+
 end WithdrawalDecode
 
 end EvmAsm.Rv64.RLP

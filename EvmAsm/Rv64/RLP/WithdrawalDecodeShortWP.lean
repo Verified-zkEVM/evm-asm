@@ -129,6 +129,9 @@ theorem walkInitEmptyFailNotListFailShortLongCode_disjoint_shortSuccessTail
     (walkInitEmptyFailNotListFailShortLongCode_disjoint_shortSuccessJump base)
     (walkInitEmptyFailNotListFailShortLongCode_disjoint_schemaTail base specs hcode)
 
+attribute [rv64_wp_disjoint]
+  walkInitEmptyFailNotListFailShortLongCode_disjoint_shortSuccessTail
+
 theorem walkInitSchemaFrameNBranch_exits
     (base inputBase listLen raVal t0Old t1Old outBase : Word)
     (input : List Byte) (hoff : 0 < input.length)
@@ -201,15 +204,6 @@ def walkInitShortSuccessSchemaNBranch
   let tailCert := successFieldSpecsReturnAbiCertOfInputFromWalkShortExit base inputBase outBase
     raVal input d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput hsalign hdalign hover
     hwin hdov hdval hcode
-  have hd : (walkInitEmptyFailNotListFailShortLongCode base).Disjoint
-      ((walkInitShortSuccessJumpCode base).union
-        ((schemaCursorInitCode (base + 172)).union
-          ((schemaCR (base + 172 + 4) .x8 (successFieldSpecs d0 d1 d2 d3)).union
-            (successStatusReturnCode
-              ((base + 172 + 4) + BitVec.ofNat 64
-                (schemaSize (successFieldSpecs d0 d1 d2 d3))))))) := by
-    exact walkInitEmptyFailNotListFailShortLongCode_disjoint_shortSuccessTail base
-      (successFieldSpecs d0 d1 d2 d3) hcode
   let F := schemaWalkInitFrame outBase
   let emptyPost : Assertion :=
     (walkInitEmptyFailStatusPost listLen raVal **
@@ -228,12 +222,7 @@ def walkInitShortSuccessSchemaNBranch
     dsimp [br, F, emptyPost, notListPost, shortPost, longPost]
     rw [walkInitSchemaFrameNBranch_exits]
     rfl
-  have hlink : WP.Entails shortPost tailCert.pre := by
-    dsimp [tailCert]
-    exact walkInitShortListCandidatePost_schemaWalkInitFrame_entails_walkShortExitPre
-      base inputBase listLen raVal outBase input d0 d1 d2 d3 hoff hc0 hl0 hc1 hl1 haddr hc3
-      hl3 hinput hsalign hdalign hover hwin hdov hdval hcode
-  wp_rv64_nbranch_third_cert_disjoint_with hd, br, hexits, tailCert, hlink
+  wp_rv64_nbranch_third_cert_auto br, hexits, tailCert
 
 theorem walkInitShortSuccessSchemaNBranch_pre
     (base inputBase listLen raVal t0Old t1Old outBase : Word)

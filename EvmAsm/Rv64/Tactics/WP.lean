@@ -190,18 +190,50 @@ macro_rules
         | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_hyp _hp
         | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp)
 
-/-- Close a `CodeReq.Disjoint` goal using the structural prover shared with
-    `seqFrame`.  This keeps WP composition proofs from spelling out code-range
-    side conditions for generated straight-line fragments. -/
+private def closeDisjointWithLocal (goal : MVarId) (goalType : Expr) : TacticM Bool := do
+  for localDecl in ← getLCtx do
+    unless localDecl.isImplementationDetail do
+      let localType ← instantiateMVars localDecl.type
+      if ← withoutModifyingState (isDefEq localType goalType) then
+        goal.assign (mkFVar localDecl.fvarId)
+        replaceMainGoal []
+        return true
+  return false
+
+private def closeDisjointWithHint (goal : MVarId) : TacticM Unit := do
+  let entries := rv64WpDisjointExt.getState (← getEnv)
+  for declName in entries do
+    let saved ← saveState
+    try
+      closeWithWpHint goal declName
+      return
+    catch _ =>
+      restoreState saved
+      continue
+  throwError "wp_rv64_disjoint: no @[rv64_wp_disjoint] theorem closed the goal"
+
+/-- Close a `CodeReq.Disjoint` goal using local hypotheses, the structural prover
+    shared with `seqFrame`, or declarations tagged with `@[rv64_wp_disjoint]`.
+    This keeps WP composition proofs from spelling out code-range side
+    conditions for generated straight-line fragments and semantic code ranges. -/
 elab "wp_rv64_disjoint" : tactic => withMainContext do
   let goal ← getMainGoal
-  let goalType ← goal.getType
+  let goalType ← instantiateMVars (← goal.getType)
+  let goalType ← whnfR goalType
   unless goalType.isAppOfArity ``EvmAsm.Rv64.CodeReq.Disjoint 2 do
     throwError "wp_rv64_disjoint: expected CodeReq.Disjoint goal"
-  let cr1 := goalType.getAppArgs[0]!
-  let cr2 := goalType.getAppArgs[1]!
-  let proof ← withTransparency .all <| buildDisjointProof cr1 cr2
-  goal.assign proof
+  if ← closeDisjointWithLocal goal goalType then
+    return
+  let saved ← saveState
+  try
+    let cr1 := goalType.getAppArgs[0]!
+    let cr2 := goalType.getAppArgs[1]!
+    let proof ← withTransparency .all <| buildDisjointProof cr1 cr2
+    goal.assign proof
+    replaceMainGoal []
+  catch _ =>
+    restoreState saved
+    closeDisjointWithHint (← getMainGoal)
 
 /-- Frame a single-exit CFG certificate and return the framed certificate. -/
 syntax (name := wpRv64FrameRTac) "wp_rv64_frame " term ", " term ", " term : tactic
@@ -456,6 +488,28 @@ syntax (name := wpRv64NBranchSeqThirdCertDisjointWithTac)
 macro_rules
   | `(tactic| wp_rv64_nbranch_third_cert_disjoint_with $hd:term, $br:term, $hexits:term, $tail:term, $hlink:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqThirdCertDisjoint $hd $br $hexits $tail $hlink)
+
+/-- Continue the third exit of a four-way N-branch with a single-exit CFG,
+    supplying the normalized exit-list proof and synthesizing the midpoint
+    entailment with `wp_rv64_link`. -/
+syntax (name := wpRv64NBranchSeqThirdCertDisjointWithAutoTac)
+  "wp_rv64_nbranch_third_cert_disjoint_with_auto " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_third_cert_disjoint_with_auto $hd:term, $br:term, $hexits:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqThirdCertDisjoint $hd $br $hexits $tail
+        (by wp_rv64_link))
+
+/-- Continue the third exit of a four-way N-branch with a single-exit CFG,
+    synthesizing both the code disjointness side condition and midpoint
+    entailment. -/
+syntax (name := wpRv64NBranchSeqThirdCertAutoTac)
+  "wp_rv64_nbranch_third_cert_auto " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_third_cert_auto $br:term, $hexits:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqThirdCertDisjoint
+        (by wp_rv64_disjoint) $br $hexits $tail (by wp_rv64_link))
 
 /-- Frame every exit of an N-way branch with a PC-free assertion. -/
 syntax (name := wpRv64NBranchFrameRTac)
@@ -924,6 +978,24 @@ example {entry l1 l2 l3 l4 l3' : Word} {cr1 cr2 : CodeReq}
     (hlink : EvmAsm.Rv64.WP.Entails Q3 tail.pre) :
     EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
   wp_rv64_nbranch_third_cert_disjoint_with hd, br, hexits, tail, hlink
+
+example {entry l1 l2 l3 l4 : Word} {cr1 cr2 : CodeReq}
+    {Q1 Q2 Q3 Q4 : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.NBranch entry cr1)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)]) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  let tail := EvmAsm.Rv64.WP.CFG.exit l3 cr2 (EvmAsm.Rv64.WP.Entails.refl Q3)
+  wp_rv64_nbranch_third_cert_disjoint_with_auto hd, br, hexits, tail
+
+example {entry l1 l2 l3 l4 : Word} {cr1 cr2 : CodeReq}
+    {Q1 Q2 Q3 Q4 : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.NBranch entry cr1)
+    (hexits : br.exits = [(l1, Q1), (l2, Q2), (l3, Q3), (l4, Q4)]) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  let tail := EvmAsm.Rv64.WP.CFG.exit l3 cr2 (EvmAsm.Rv64.WP.Entails.refl Q3)
+  wp_rv64_nbranch_third_cert_auto br, hexits, tail
 
 example {entry : Word} {cr : CodeReq} {F : Assertion}
     (br : EvmAsm.Rv64.WP.NBranch entry cr) (hF : F.pcFree) :

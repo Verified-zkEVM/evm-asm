@@ -33,6 +33,28 @@ initialize Lean.registerBuiltinAttribute {
     Lean.modifyEnv fun env => rv64WpEntailsExt.addEntry env declName
 }
 
+/-- Environment extension storing theorem names tagged with
+    `@[rv64_wp_disjoint]`. These are code-range disjointness hints for WP
+    composition side conditions that are too semantic for the structural prover. -/
+initialize rv64WpDisjointExt : Lean.SimplePersistentEnvExtension Lean.Name (Array Lean.Name) ←
+  Lean.registerSimplePersistentEnvExtension {
+    addEntryFn := fun state declName => state.push declName
+    addImportedFn := fun entries => entries.foldl (init := #[]) fun acc es => acc ++ es
+  }
+
+/-- Disjointness hint database used by `wp_rv64_disjoint` after local hypotheses
+    and structural code-shape proving. Theorems tagged here should prove goals
+    of shape `CodeReq.Disjoint cr1 cr2`, with side conditions inferable from
+    the local context. -/
+initialize Lean.registerBuiltinAttribute {
+  name := `rv64_wp_disjoint
+  descr := "WP code disjointness hints used by wp_rv64_disjoint"
+  applicationTime := .afterTypeChecking
+  add := fun declName stx _attrKind => do
+    Lean.Attribute.Builtin.ensureNoArgs stx
+    Lean.modifyEnv fun env => rv64WpDisjointExt.addEntry env declName
+}
+
 /-- Environment extension storing theorem names tagged with `@[rv64_wp_dead]`.
     These are contradiction hints for unreachable WP exits. -/
 initialize rv64WpDeadExt : Lean.SimplePersistentEnvExtension Lean.Name (Array Lean.Name) ←
