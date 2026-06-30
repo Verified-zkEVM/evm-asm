@@ -189,6 +189,52 @@ theorem decodeWithdrawal_eq_some_of_successFieldSpecs_input
   rw [hinput]
   exact decodeWithdrawal_encode_successFieldSpecs d0 d1 d2 d3 hc0 hl0 hc1 hl1 haddr hc3 hl3
 
+private theorem exists_eq_list_of_length_eq_20 (d : List Byte) (h : d.length = 20) :
+    ∃ b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 : Byte,
+      d = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9,
+        b10, b11, b12, b13, b14, b15, b16, b17, b18, b19] := by
+  rcases d with _ | ⟨b0, d⟩; · simp at h
+  rcases d with _ | ⟨b1, d⟩; · simp at h
+  rcases d with _ | ⟨b2, d⟩; · simp at h
+  rcases d with _ | ⟨b3, d⟩; · simp at h
+  rcases d with _ | ⟨b4, d⟩; · simp at h
+  rcases d with _ | ⟨b5, d⟩; · simp at h
+  rcases d with _ | ⟨b6, d⟩; · simp at h
+  rcases d with _ | ⟨b7, d⟩; · simp at h
+  rcases d with _ | ⟨b8, d⟩; · simp at h
+  rcases d with _ | ⟨b9, d⟩; · simp at h
+  rcases d with _ | ⟨b10, d⟩; · simp at h
+  rcases d with _ | ⟨b11, d⟩; · simp at h
+  rcases d with _ | ⟨b12, d⟩; · simp at h
+  rcases d with _ | ⟨b13, d⟩; · simp at h
+  rcases d with _ | ⟨b14, d⟩; · simp at h
+  rcases d with _ | ⟨b15, d⟩; · simp at h
+  rcases d with _ | ⟨b16, d⟩; · simp at h
+  rcases d with _ | ⟨b17, d⟩; · simp at h
+  rcases d with _ | ⟨b18, d⟩; · simp at h
+  rcases d with _ | ⟨b19, d⟩; · simp at h
+  rcases d with _ | ⟨_b20, _d⟩
+  · exact ⟨b0, b1, b2, b3, b4, b5, b6, b7, b8, b9,
+      b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, rfl⟩
+  · simp at h
+
+local macro "withdrawal_schema_output_norm" : tactic =>
+  `(tactic| (simp [schemaOut, fieldUpdate, successFieldSpecs, outputSize, successBytes,
+      fromFieldBytes, u64LEBytes, spillRange, copyRangeGen, getByteAt, addressBEBytes,
+      Nat.fromBytesBE] <;> bv_omega))
+
+/-- The successful schema field walk writes exactly the ABI success bytes when
+    started from a zeroed output struct.  This hides the field-update fold from
+    callers: generated WP proofs can target the semantic postcondition directly. -/
+theorem successFieldSpecs_schemaOut_zeroed_eq_successBytes
+    (d0 d1 d2 d3 : List Byte) (haddr : d2.length = 20) :
+    schemaOut (List.replicate outputSize (0 : Byte)) (successFieldSpecs d0 d1 d2 d3) =
+      successBytes (fromFieldBytes d0 d1 d2 d3) := by
+  obtain ⟨b0, b1, b2, b3, b4, b5, b6, b7, b8, b9,
+    b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, rfl⟩ :=
+    exists_eq_list_of_length_eq_20 d2 haddr
+  withdrawal_schema_output_norm
+
 /-- WP certificate for the successful withdrawal field walk, built from the four
     field byte witnesses plus one payload concatenation fact.  This is the
     withdrawal-specialized entry point to the generic schema WP fold. -/
@@ -237,6 +283,65 @@ theorem successFieldSpecsStepCertOfConcat_pre
     (successFieldSpecsStepCertOfConcat base regionBase outBase rOut bs tail outBytes d0 d1 d2 d3 O
       hout hc0 hl0 hc1 hl1 haddr hc3 hl3 hconcat halign hdalign hover hwin hdov hdval hcode).pre =
       schemaINV regionBase outBase rOut bs O outBytes := by
+  rfl
+
+/-- Success-path schema WP certificate whose postcondition is already the
+    semantic ABI byte layout.  The only output-side precondition is the static
+    zeroed 48-byte output struct; the raw `schemaOut` fold is discharged by
+    `successFieldSpecs_schemaOut_zeroed_eq_successBytes`. -/
+def successFieldSpecsStepSuccessBytesCertOfConcat
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs tail d0 d1 d2 d3 : List Byte) (O : Nat)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hconcat : bs.drop O = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) < 2 ^ 64) :
+    WP.CFG.Cert base (base + BitVec.ofNat 64 (schemaSize (successFieldSpecs d0 d1 d2 d3)))
+      (schemaCR base rOut (successFieldSpecs d0 d1 d2 d3))
+      (schemaINV regionBase outBase rOut bs (O + schemaEnc (successFieldSpecs d0 d1 d2 d3))
+        (successBytes (fromFieldBytes d0 d1 d2 d3))) := by
+  let outBytes := List.replicate outputSize (0 : Byte)
+  have hout : outBytes.length = outputSize := by
+    simp [outBytes]
+  have hdov' : outBase.toNat + outBytes.length < 2 ^ 64 := by
+    simpa [outBytes, outputSize] using hdov
+  have hdval' : ∀ i, i < outBytes.length →
+      isValidByteAccess (outBase + BitVec.ofNat 64 i) = true := by
+    intro i hi
+    exact hdval i (by simpa [outBytes, outputSize] using hi)
+  have cert := successFieldSpecsStepCertOfConcat base regionBase outBase rOut bs tail outBytes
+    d0 d1 d2 d3 O hout hc0 hl0 hc1 hl1 haddr hc3 hl3 hconcat halign hdalign hover hwin
+    hdov' hdval' hcode
+  exact cert.weakenPost (by
+    intro h hp
+    rw [← successFieldSpecs_schemaOut_zeroed_eq_successBytes d0 d1 d2 d3 haddr]
+    simpa [outBytes] using hp)
+
+/-- The success-bytes wrapper computes the zeroed-output schema invariant as its WP precondition. -/
+theorem successFieldSpecsStepSuccessBytesCertOfConcat_pre
+    (base regionBase outBase : Word) (rOut : Reg)
+    (bs tail d0 d1 d2 d3 : List Byte) (O : Nat)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hconcat : bs.drop O = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) < 2 ^ 64) :
+    (successFieldSpecsStepSuccessBytesCertOfConcat base regionBase outBase rOut bs tail d0 d1 d2
+      d3 O hc0 hl0 hc1 hl1 haddr hc3 hl3 hconcat halign hdalign hover hwin hdov hdval hcode).pre =
+      schemaINV regionBase outBase rOut bs O (List.replicate outputSize (0 : Byte)) := by
   rfl
 
 end WithdrawalDecode
