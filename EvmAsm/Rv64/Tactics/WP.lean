@@ -234,6 +234,55 @@ elab "wp_rv64_cert" : tactic => withMainContext do
   Hint: try the intended constructor directly once to expose missing static
   facts, or tag a reusable constructor with @[rv64_wp_cert]."
 
+attribute [rv64_wp]
+  EvmAsm.Rv64.WP.Triple.refl_pre
+  EvmAsm.Rv64.WP.Triple.unreachable_pre
+  EvmAsm.Rv64.WP.Triple.ofSpec_pre
+  EvmAsm.Rv64.WP.Triple.weakenPre_pre
+  EvmAsm.Rv64.WP.Triple.weakenPost_pre
+  EvmAsm.Rv64.WP.Triple.monoSteps_pre
+  EvmAsm.Rv64.WP.Triple.extendCode_pre
+  EvmAsm.Rv64.WP.Triple.frameR_pre
+  EvmAsm.Rv64.WP.Triple.changeEntry_pre
+  EvmAsm.Rv64.WP.Triple.changeExit_pre
+  EvmAsm.Rv64.WP.Triple.seq_pre
+  EvmAsm.Rv64.WP.Triple.seqDisjoint_pre
+  EvmAsm.Rv64.WP.CFG.exitRefl_pre
+  EvmAsm.Rv64.WP.CFG.block_pre
+  EvmAsm.Rv64.WP.CFG.leaf_pre
+  EvmAsm.Rv64.WP.CFG.frameR_pre
+  EvmAsm.Rv64.WP.CFG.weakenPre_pre
+  EvmAsm.Rv64.WP.CFG.weakenPost_pre
+  EvmAsm.Rv64.WP.CFG.monoSteps_pre
+  EvmAsm.Rv64.WP.CFG.extendCode_pre
+  EvmAsm.Rv64.WP.CFG.changeEntry_pre
+  EvmAsm.Rv64.WP.CFG.changeExit_pre
+  EvmAsm.Rv64.WP.Branch.ofSpec_pre
+  EvmAsm.Rv64.WP.Branch.ofSpec_exit_t
+  EvmAsm.Rv64.WP.Branch.ofSpec_post_t
+  EvmAsm.Rv64.WP.Branch.ofSpec_exit_f
+  EvmAsm.Rv64.WP.Branch.ofSpec_post_f
+  EvmAsm.Rv64.WP.Branch.frameR_pre
+  EvmAsm.Rv64.WP.Branch.frameR_exit_t
+  EvmAsm.Rv64.WP.Branch.frameR_post_t
+  EvmAsm.Rv64.WP.Branch.frameR_exit_f
+  EvmAsm.Rv64.WP.Branch.frameR_post_f
+  EvmAsm.Rv64.WP.Branch.join_pre
+  EvmAsm.Rv64.WP.Branch.seqTakenDisjoint_pre
+  EvmAsm.Rv64.WP.Branch.seqNotTakenDisjoint_pre
+  EvmAsm.Rv64.WP.Branch.seqTakenBranchConvergeDisjoint_pre
+
+/-- Expose small WP certificate projections before using separation-logic
+    permutation or pure-extraction tactics. -/
+syntax (name := wpRv64NormTac) "wp_rv64_norm" : tactic
+syntax (name := wpRv64NormAtTac) "wp_rv64_norm" " at " ident : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_norm) =>
+      `(tactic| try dsimp; try simp only [rv64_wp])
+  | `(tactic| wp_rv64_norm at $h:ident) =>
+      `(tactic| try dsimp at $h:ident; try simp only [rv64_wp] at $h:ident)
+
 /-- Close the midpoint entailment between adjacent WP fragments.  The common
     case is definitional equality of the head postcondition and tail WP; semantic
     bridge lemmas tagged `@[rv64_wp_entails]` handle generated handoff shapes,
@@ -242,21 +291,22 @@ syntax (name := wpRv64LinkTac) "wp_rv64_link" : tactic
 
 macro_rules
   | `(tactic| wp_rv64_link) =>
-      `(tactic| first
+      `(tactic| solve
         | exact EvmAsm.Rv64.WP.Entails.refl _
         | assumption
-        | wp_rv64_entails
-        | simp only [rv64_wp]; wp_rv64_entails
-        | dsimp; wp_rv64_entails
-        | dsimp; simp only [rv64_wp]; wp_rv64_entails
-        | intro _ _hp; xperm_hyp _hp
         | intro _ _hp; xperm_pure _hp
-        | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_hyp _hp
+        | intro _ _hp; try rw [EvmAsm.Rv64.WP.Branch.frameR_post_t, EvmAsm.Rv64.WP.Branch.ofSpec_post_t] at _hp; try rw [EvmAsm.Rv64.WP.Branch.frameR_post_f, EvmAsm.Rv64.WP.Branch.ofSpec_post_f] at _hp; try rw [EvmAsm.Rv64.WP.CFG.extendCode_pre]; try rw [EvmAsm.Rv64.WP.CFG.weakenPost_pre]; try rw [EvmAsm.Rv64.WP.CFG.frameR_pre]; try rw [EvmAsm.Rv64.WP.CFG.leaf_pre]; try rw [EvmAsm.Rv64.WP.CFG.block_pre]; xperm_pure _hp
+        | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp
+        | intro _ _hp; wp_rv64_norm at _hp; wp_rv64_norm; xperm_pure _hp
+        | intro _ _hp; try dsimp at _hp ⊢; try simp only [rv64_wp] at _hp ⊢; xperm_pure _hp
         | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp
-        | intro _ _hp; dsimp at _hp ⊢; xperm_hyp _hp
-        | intro _ _hp; dsimp at _hp ⊢; xperm_pure _hp
-        | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_hyp _hp
-        | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp)
+        | intro _ _hp; try dsimp at _hp ⊢; xperm_pure _hp
+        | wp_rv64_entails
+        | wp_rv64_norm; wp_rv64_entails
+        | simp only [rv64_wp]; wp_rv64_entails
+        | try dsimp; wp_rv64_entails
+        | try dsimp; try simp only [rv64_wp]; wp_rv64_entails)
+
 
 private def closeDisjointWithLocal (goal : MVarId) (goalType : Expr) : TacticM Bool := do
   for localDecl in ← getLCtx do

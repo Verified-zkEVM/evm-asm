@@ -101,11 +101,25 @@ theorem exitRefl_pre (addr : Word) (cr : CodeReq) (post : Assertion) :
     (exitRefl addr cr post).pre = post :=
   rfl
 
+/-- `block` exposes exactly the source precondition of the CPS proof. -/
+theorem block_pre {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {pre post post' : Assertion}
+    (hpost : Entails post post')
+    (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
+    (block hpost h).pre = pre :=
+  rfl
+
 /-- `leaf` exposes exactly the source precondition of the CPS proof. -/
 theorem leaf_pre {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
     {pre post : Assertion}
     (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
     (leaf h).pre = pre :=
+  rfl
+
+/-- `frameR` appends exactly the supplied frame to the generated precondition. -/
+theorem frameR_pre {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) (F : Assertion) (hF : F.pcFree) :
+    (frameR cfg F hF).pre = (cfg.pre ** F) :=
   rfl
 
 /-- `weakenPre` exposes exactly the supplied precondition. -/

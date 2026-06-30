@@ -6,6 +6,7 @@
 
 import EvmAsm.Rv64.InstructionSpecs
 import EvmAsm.Rv64.WP.CFG
+import EvmAsm.Rv64.Tactics.WP
 
 namespace EvmAsm.Rv64
 namespace WP
@@ -59,6 +60,36 @@ example {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     cpsTripleWithin (br.nSteps + Nat.max taken.nSteps notTaken.nSteps)
       entry exit_ cr br.pre post :=
   (CFG.branch br taken notTaken ht hf).sound
+
+/-- Branch links may need to unfold certificate projections and permute framed
+    resources. This models composing an independently-stated continuation whose
+    precondition has the same atoms as the branch post in a different order. -/
+example {nBranch nTaken nFail : Nat}
+    {entry takenExit failExit exit_ : Word} {cr : CodeReq}
+    {branchPre takenPost failPost finalPost frame : Assertion}
+    (h_frame : frame.pcFree)
+    (hBranch : cpsBranchWithin nBranch entry cr branchPre
+      takenExit takenPost failExit failPost)
+    (hTaken : cpsTripleWithin nTaken takenExit exit_ cr
+      (frame ** takenPost) finalPost)
+    (hFail : cpsTripleWithin nFail failExit exit_ cr
+      (frame ** failPost) finalPost) :
+    CFG.Cert entry exit_ cr finalPost := by
+  let br0 := Branch.ofSpec hBranch
+  let br := Branch.frameR br0 frame h_frame
+  let takenCert : CFG.Cert br.exit_t exit_ cr finalPost := CFG.leaf hTaken
+  let failCert : CFG.Cert br.exit_f exit_ cr finalPost := CFG.leaf hFail
+  have h_taken_link : Entails br.post_t takenCert.pre := by
+    intro h hp
+    rw [Branch.frameR_post_t, Branch.ofSpec_post_t] at hp
+    rw [CFG.leaf_pre]
+    xperm_pure hp
+  have h_fail_link : Entails br.post_f failCert.pre := by
+    intro h hp
+    rw [Branch.frameR_post_f, Branch.ofSpec_post_f] at hp
+    rw [CFG.leaf_pre]
+    xperm_pure hp
+  exact CFG.branch br takenCert failCert h_taken_link h_fail_link
 
 /-- Loop shape: a supplied indexed invariant and finite variant produce a
     regular CPS triple whose precondition is `inv 0`. -/

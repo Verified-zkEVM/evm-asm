@@ -1,27 +1,25 @@
 /-
-# `extract_pure` — slice 2 of #1432 (beads evm-asm-455)
+# `extract_pure` / `extract_pure_deep` — slice 2 of #1432
 
 Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 
-This file implements the `extract_pure` tactic designed in slice 1
-(beads evm-asm-bx7). Slice 3 (beads evm-asm-8f5) will rewrite the call
-sites listed in the slice-1 design notes to use this tactic.
+This file implements the pure-extraction tactics designed in slice 1
+(beads evm-asm-bx7).
 
 ## Overview
 
-`extract_pure h` rewrites a hypothesis `h : (… ** ⌜P⌝ ** … ** ⌜Q⌝ ** …) s`
+`extract_pure_deep h` rewrites a hypothesis `h : (… ** ⌜P⌝ ** … ** ⌜Q⌝ ** …) s`
 into a chain of `∧` applications by AC-normalising the `sepConj` chain and
 applying `sepConj_pure_left` / `sepConj_pure_right` to bubble pure atoms
 out. After the rewrite, the user can `obtain` directly without manually
 walking the chain.
 
-The implementation is a one-liner `simp only [...]` macro: it relies on
-the AC equalities `sepConj_assoc'`, `sepConj_comm'`, `sepConj_left_comm'`
-already used by `sep_perm`, plus the two pure-extraction biconditionals
-`sepConj_pure_left` and `sepConj_pure_right` (proved in `SepLogic.lean`),
-plus the `empAssertion` collapse rules.
+`extract_pure h` is retained as the shallow compatibility tactic. It performs
+the original one-pass rewrite only, which lets existing proofs continue to
+rely on their old local conjunction shape. New automation should prefer
+`extract_pure_deep`.
 
-We deliberately keep the surface small: callers say `extract_pure h`,
+We deliberately keep the surface small: callers say `extract_pure_deep h`,
 then use plain `obtain ⟨hP, hQ, …, hRest⟩ := h` to name the extracted
 purities. The richer `with ⟨…⟩` / `using P` forms sketched in slice 1
 are not needed in practice — `obtain` already provides them.
@@ -72,22 +70,47 @@ fires at the outer `s` and converts it to a `∧`.
 Tracked under beads `evm-asm-22a` / GH #1435.
 -/
 
-/-- `extract_pure h` rewrites a separation-logic hypothesis
-    `h : (A₁ ** … ** Aₙ) s` into a `∧`-chain whose left conjuncts are
-    the pure atoms (`⌜P⌝`) extracted from the chain and whose tail is
-    the remaining resource assertion applied to `s`.
+theorem sepConj_pure_pure_eq {P Q : Prop} :
+    (⌜P⌝ ** ⌜Q⌝) = ⌜P ∧ Q⌝ := by
+  funext h
+  rw [EvmAsm.Rv64.sepConj_pure_left]
+  unfold EvmAsm.Rv64.pure
+  apply propext
+  constructor
+  · intro h_pq
+    exact ⟨h_pq.2.1, h_pq.1, h_pq.2.2⟩
+  · intro h_pq
+    exact ⟨h_pq.2.1, h_pq.1, h_pq.2.2⟩
 
-    After `extract_pure h`, follow up with `obtain ⟨hP₁, …, hPₖ, hRest⟩ := h`
-    to name the extracted purities and the resource tail.
+theorem sepConj_pure_pure_left_eq {P Q : Prop} {R : Assertion} :
+    (⌜P⌝ ** ⌜Q⌝ ** R) = (⌜P ∧ Q⌝ ** R) := by
+  rw [← EvmAsm.Rv64.sepConj_assoc', sepConj_pure_pure_eq]
 
-    Example:
-    ```
-    example (s : PartialState) (R : Assertion) (P Q : Prop)
-        (h : (R ** ⌜P⌝ ** ⌜Q⌝) s) : P ∧ Q := by
-      extract_pure h
-      exact ⟨h.1, h.2.1⟩
-    ```
-    -/
+theorem sepConj_pure_mid_left_eq {P : Assertion} {Q : Prop} {R : Assertion} :
+    (P ** ⌜Q⌝ ** R) = (⌜Q⌝ ** P ** R) := by
+  rw [← EvmAsm.Rv64.sepConj_assoc', ← EvmAsm.Rv64.sepConj_assoc',
+    EvmAsm.Rv64.sepConj_comm' P (⌜Q⌝)]
+
+theorem sepConj_pure_mid_right_eq {P R : Assertion} {Q : Prop} :
+    (P ** R ** ⌜Q⌝) = (⌜Q⌝ ** P ** R) := by
+  rw [EvmAsm.Rv64.sepConj_comm' R (⌜Q⌝), ← EvmAsm.Rv64.sepConj_assoc',
+    EvmAsm.Rv64.sepConj_comm' P (⌜Q⌝), EvmAsm.Rv64.sepConj_assoc']
+
+theorem sepConj_pure_mid_assoc_eq {P R : Assertion} {Q : Prop} :
+    ((P ** ⌜Q⌝) ** R) = (⌜Q⌝ ** P ** R) := by
+  rw [EvmAsm.Rv64.sepConj_assoc']
+  exact sepConj_pure_mid_left_eq
+
+theorem sepConj_pure_head_assoc_eq {P : Prop} {Q R : Assertion} :
+    ((⌜P⌝ ** Q) ** R) = (⌜P⌝ ** (Q ** R)) := by
+  exact EvmAsm.Rv64.sepConj_assoc' (⌜P⌝) Q R
+
+/-- Compatibility tactic with the original shallow extraction behavior.
+
+    `extract_pure h` extracts pure atoms reachable by the state-applied `↔`
+    lemmas, but it does not recursively rewrite nested assertion subterms.
+    This preserves the old local shape expected by existing downstream proofs.
+    New automation should generally use `extract_pure_deep`. -/
 macro "extract_pure" h:ident : tactic =>
   `(tactic|
       simp only
@@ -99,6 +122,42 @@ macro "extract_pure" h:ident : tactic =>
         , EvmAsm.Rv64.sepConj_emp_left'
         , EvmAsm.Rv64.sepConj_emp_right'
         ] at $h:ident)
+
+/-- `extract_pure_deep h` rewrites a separation-logic hypothesis
+    `h : (A₁ ** … ** Aₙ) s` into a `∧`-chain whose left conjuncts are
+    the pure atoms (`⌜P⌝`) extracted from the chain and whose tail is
+    the remaining resource assertion applied to `s`.
+
+    Unlike `extract_pure`, this tactic also rewrites nested assertion
+    subterms, so it can reach pure atoms buried under long framed `**` chains.
+
+    After `extract_pure_deep h`, follow up with
+    `obtain ⟨hP₁, …, hPₖ, hRest⟩ := h` to name the extracted purities and
+    the resource tail.
+
+    Example:
+    ```
+    example (s : PartialState) (R : Assertion) (P Q : Prop)
+        (h : (R ** ⌜P⌝ ** ⌜Q⌝) s) : P ∧ Q := by
+      extract_pure_deep h
+      exact ⟨h.1, h.2.1⟩
+    ``` -/
+macro "extract_pure_deep" h:ident : tactic =>
+  `(tactic|
+      extract_pure $h:ident <;>
+      try simp only
+        [ EvmAsm.Rv64.Tactics.sepConj_pure_pure_left_eq
+        , EvmAsm.Rv64.Tactics.sepConj_pure_pure_eq
+        , EvmAsm.Rv64.Tactics.sepConj_pure_mid_assoc_eq
+        , EvmAsm.Rv64.Tactics.sepConj_pure_head_assoc_eq
+        , EvmAsm.Rv64.sepConj_pure_right
+        , EvmAsm.Rv64.sepConj_pure_left
+        , EvmAsm.Rv64.Tactics.sepConj_pure_mid_left
+        , EvmAsm.Rv64.Tactics.sepConj_pure_mid_right
+        , EvmAsm.Rv64.sepConj_emp_left'
+        , EvmAsm.Rv64.sepConj_emp_right'
+        ] at $h:ident)
+
 
 end EvmAsm.Rv64.Tactics
 
@@ -144,5 +203,23 @@ example (s : PartialState) (P Q R : Prop) (A : Assertion)
     (h : ((⌜P⌝ ** A) ** (⌜Q⌝ ** ⌜R⌝)) s) : P ∧ Q ∧ R := by
   extract_pure h
   refine ⟨?_, ?_, ?_⟩ <;> simp_all
+
+/-- Pure atom buried under a long framed chain. -/
+example (s : PartialState) (P : Prop) (A B C D : Assertion)
+    (h : (A ** (B ** (C ** (⌜P⌝ ** D)))) s) : P := by
+  extract_pure_deep h
+  exact h.1
+
+/-- Pure atom behind the frame shape produced by branch framing. -/
+example (s : PartialState) (P : Prop) (A B C D : Assertion)
+    (h : ((A ** B ** ⌜P⌝) ** (C ** D)) s) : P := by
+  extract_pure_deep h
+  simp_all
+
+/-- Multiple pure atoms interleaved with resources. -/
+example (s : PartialState) (P Q : Prop) (R₁ R₂ : Assertion)
+    (h : (R₁ ** ⌜P⌝ ** R₂ ** ⌜Q⌝) s) : P ∧ Q := by
+  extract_pure_deep h
+  simp_all
 
 end EvmAsm.Rv64.Tactics.ExtractPureTests

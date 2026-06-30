@@ -111,12 +111,18 @@ register or memory cells, unresolved old values are generalized to `regOwn` or
 `memOwn` precondition atoms. Most users should call `wp_rv64_leaf_synth` on a
 `WP.CFG.Cert` goal instead.
 
+With explicit specs, manual mode treats the arguments as the complete block in
+forward execution order. Do not pass only the hard instructions as hints. If the
+`CodeReq` is concrete and all supplied specs are single-instruction specs,
+`runBlockFromPost` reports a count mismatch when the manual list is shorter or
+longer than the block.
+
 ### Requirements
 
 - Goal must be a `cpsTriple entry exit pre post`
 - **Auto mode**: precondition must contain `instrAt` (`↦ᵢ`) atoms with concrete
   instruction constructors (e.g., `.ADD .x7 .x7 .x6`)
-- **Manual mode**: each argument must be a `cpsTriple` proof
+- **Manual mode**: each argument must be a `cpsTriple` proof, and the argument list covers the complete block unless a composite spec covers multiple instructions
 
 ### Debugging
 
@@ -191,31 +197,32 @@ The current implementation deliberately routes through the existing proved
 remain source-compatible as the chunk partitioning backend evolves; keep using
 plain `xperm_hyp` for ordinary small permutations.
 
-## extract_pure
+## extract_pure_deep and extract_pure
 
-Drains pure (`⌜P⌝`) atoms out of a separation-logic hypothesis so they
-can be obtained directly. Replaces the long `obtain ⟨_, _, _, _, _, h⟩ := h`
-chain that was previously needed to walk past every resource atom to reach
-a buried pure assertion.
+`extract_pure_deep h` drains pure (`⌜P⌝`) atoms out of a separation-logic
+hypothesis so they can be obtained directly. It reaches pure atoms buried
+inside long framed `**` chains, replacing the old hand-written
+`obtain ⟨_, _, _, _, _, h⟩ := h` walks.
 
 ```lean
 example (s : PartialState) (R : Assertion) (P Q : Prop)
     (h : (R ** ⌜P⌝ ** ⌜Q⌝) s) : P ∧ Q := by
-  extract_pure h
+  extract_pure_deep h
   exact ⟨h.1, h.2.1⟩
 ```
 
-After `extract_pure h`, `h` has type `P₁ ∧ … ∧ Pₖ ∧ (resourceTail s)` —
-the pure atoms are exposed as the leading conjuncts. Defined in
-`EvmAsm/Rv64/Tactics/ExtractPure.lean`. Implemented as a `simp only`
-macro using left-associativity normalisation plus the
-`sepConj_pure_left/right/mid_*` iff lemmas.
+After `extract_pure_deep h`, `h` has type
+`P₁ ∧ … ∧ Pₖ ∧ (resourceTail s)`: the pure atoms are exposed as leading
+conjuncts. `extract_pure h` remains available as the shallow compatibility
+pass with the original local shape; use it when maintaining older proofs that
+expect that shape. New WP and CFG automation should use `extract_pure_deep`.
+Both are defined in `EvmAsm/Rv64/Tactics/ExtractPure.lean`.
 
 ## drop_pure
 
-Sibling of `extract_pure` that *discards* the pure atoms instead of
+Sibling of the pure-extraction tactics that *discards* the pure atoms instead of
 exposing them, rebinding the hypothesis to the bare resource tail.
-Useful when the goal has no pure atoms (so neither `extract_pure` +
+Useful when the goal has no pure atoms (so neither `extract_pure_deep` +
 `obtain` nor `xperm_pure` compose cleanly): after `drop_pure h`, a
 follow-up `xperm_hyp h` works directly with no destructuring.
 
@@ -227,7 +234,7 @@ example (s : PartialState) (P : Prop) (R₁ R₂ : Assertion)
 ```
 
 Defined in `EvmAsm/Rv64/Tactics/DropPure.lean`. Reuses
-`extract_pure`'s normalisation lemmas plus a small projection loop
+the pure-extraction normalisation lemmas plus a small projection loop
 that peels `.2` off `h` until no `And` remains.
 
 ## @[spec_gen] and #spec_db

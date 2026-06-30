@@ -86,7 +86,9 @@ theorem spec :
 
    When auto-resolution cannot pick the right instruction specs, pass the same
    already-instantiated specs you would have passed to `runBlock`, in forward
-   execution order:
+   execution order. Supplying any explicit specs switches to manual mode for the
+   whole leaf, so the list must cover the complete block unless one argument is
+   a composite spec for the complete block:
 
    ```lean
    let hAddi := addi_spec_same_within .x5 v imm base (by decide)
@@ -94,7 +96,10 @@ theorem spec :
    ```
 
    Current matching is intentionally conservative: the requested postcondition
-   should expose the atoms produced by the instruction specs. When a registered
+   should expose the atoms produced by the instruction specs. If a concrete
+   leaf has four instructions and you pass three single-instruction specs,
+   `runBlockFromPost` reports that manual mode received the wrong number of
+   specs instead of failing later at the computed exit address. When a registered
    spec has one unresolved old-value atom such as `rd ↦ᵣ vOld` or
    `addr ↦ₘ memOld`, `wp_rv64_leaf_synth` turns it into `regOwn rd` or
    `memOwn addr` automatically. If an unresolved data parameter appears in a
@@ -211,6 +216,7 @@ theorem spec :
 | Need | Constructor or tactic |
 |------|-----------------------|
 | Synthesize a straight-line leaf from postcondition | `wp_rv64_leaf_synth`, `runBlockFromPost` |
+| Expose WP certificate projections in a link goal | `wp_rv64_norm`, projection rewrites such as `WP.Branch.frameR_post_t` and `WP.CFG.leaf_pre` |
 | Lift an exact single-exit CPS proof | `WP.CFG.leaf h`, `wp_rv64_leaf h` |
 | Lift and weaken a CPS proof's postcondition | `WP.CFG.block hpost h` |
 | Empty/reflexive exit certificate | `WP.CFG.exitRefl`, `wp_rv64_exit_refl` |
@@ -435,7 +441,17 @@ caller needs to distinguish it.
   goals usually show which entry, exit, code requirement, or postcondition did
   not infer.
 - If `wp_rv64_link` fails, normalize only the relevant helper definitions with
-  `simp only [rv64_wp]`, then use `xperm` or a small named entailment lemma.
+  `simp only [rv64_wp]`, then use `xperm_pure` or a small named entailment lemma.
+  When the goal contains local projections like `br.post_t h` or `tail.pre h`,
+  rewrite the projection explicitly before permutation. The checked branch-link
+  example in `EvmAsm/Rv64/WP/Examples.lean` uses
+  `rw [WP.Branch.frameR_post_t, WP.Branch.ofSpec_post_t] at hp`, then
+  `rw [WP.CFG.leaf_pre]`, then `xperm_pure hp`.
+- `extract_pure_deep` and `xperm_pure` use a two-phase pure extraction pass.
+  They handle pure facts buried behind framed `**` chains, and `xperm_pure`
+  remains the preferred link tactic when either side contains `⌜...⌝` atoms.
+  `extract_pure` is the shallow compatibility pass for older proofs; do not
+  use it in new WP automation unless preserving that older shape is the point.
 - If a branch join expands a large postcondition, fold it behind an
   `@[irreducible]` helper before asking `xperm` or `wp_rv64_link` to solve it.
 - If a disjointness goal is recurring, add a small `@[rv64_wp_disjoint]` lemma.

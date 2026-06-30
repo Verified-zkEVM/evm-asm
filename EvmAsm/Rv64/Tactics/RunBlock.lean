@@ -1096,6 +1096,18 @@ private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) :
   if cr' == cr then return []  -- No progress, give up
   extractCrEntries cr'
 
+private def countSingleInstrSpecs? (specs : Array Expr) : MetaM (Option Nat) := do
+  let mut count := 0
+  for spec in specs do
+    let specType ← inferType spec
+    let some (_, _, _, specCr, _, _) ← parseCpsTripleWithin? specType
+      | return none
+    let entries ← extractCrEntries specCr
+    if entries.length != 1 then
+      return none
+    count := count + 1
+  return some count
+
 private def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Array Expr × Expr) := do
   let instrAtoms ← extractCrEntries goalCr
   if instrAtoms.isEmpty then
@@ -1125,6 +1137,13 @@ private def runBlockFromPostCore (specs : Array Expr) (goalPost goalCr : Expr) :
       let processedSpecs ← specs.mapM fun spec => do
         try normalizeSpecWithinAddresses spec
         catch _ => Pure.pure spec
+      let goalEntries ← extractCrEntries goalCr
+      unless goalEntries.isEmpty do
+        if let some singleInstrCount ← countSingleInstrSpecs? processedSpecs then
+          if singleInstrCount != goalEntries.length then
+            throwError "runBlockFromPost: manual mode received {singleInstrCount} single-instruction spec(s) for {goalEntries.length} instruction(s) in the goal CodeReq.
+              Explicit manual specs are treated as the complete block, not as partial hints.
+              Pass one spec for every instruction in forward execution order, use a composite spec whose CodeReq covers the whole block, or omit all specs to use post-driven auto mode."
       let synthPre ← synthesizePreFromResolvedSpecs processedSpecs goalPost
       Pure.pure (processedSpecs, synthPre)
   runBlockWithinCore resolvedSpecs synthPre (goalCr := some goalCr)

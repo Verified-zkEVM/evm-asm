@@ -169,6 +169,77 @@ def seqDisjoint {nSteps : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
   pre := pre
   sound := cpsTripleWithin_seq_with_perm hd hlink head tail.sound
 
+/-- Projection lemmas used by WP link normalization. -/
+theorem refl_pre (addr : Word) (cr : CodeReq) {pre post : Assertion}
+    (h : Entails pre post) :
+    (refl addr cr h).pre = pre :=
+  rfl
+
+theorem unreachable_pre (entry exit_ : Word) (cr : CodeReq) {pre post : Assertion}
+    (hpre : ∀ h, pre h → False) :
+    (@unreachable entry exit_ cr pre post hpre).pre = pre :=
+  rfl
+
+theorem ofSpec_pre {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {pre post post' : Assertion}
+    (hpost : Entails post post')
+    (h : cpsTripleWithin nSteps entry exit_ cr pre post) :
+    (ofSpec hpost h).pre = pre :=
+  rfl
+
+theorem weakenPre_pre {entry exit_ : Word} {cr : CodeReq} {post pre' : Assertion}
+    (t : Triple entry exit_ cr post) (hpre : Entails pre' t.pre) :
+    (weakenPre t hpre).pre = pre' :=
+  rfl
+
+theorem weakenPost_pre {entry exit_ : Word} {cr : CodeReq} {post post' : Assertion}
+    (t : Triple entry exit_ cr post) (hpost : Entails post post') :
+    (weakenPost t hpost).pre = t.pre :=
+  rfl
+
+theorem monoSteps_pre {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (t : Triple entry exit_ cr post) {nSteps' : Nat} (hle : t.nSteps ≤ nSteps') :
+    (monoSteps t hle).pre = t.pre :=
+  rfl
+
+theorem extendCode_pre {entry exit_ : Word} {cr cr' : CodeReq} {post : Assertion}
+    (t : Triple entry exit_ cr post)
+    (hmono : ∀ a i, cr a = some i → cr' a = some i) :
+    (extendCode t hmono).pre = t.pre :=
+  rfl
+
+theorem frameR_pre {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (t : Triple entry exit_ cr post) (F : Assertion) (hF : F.pcFree) :
+    (frameR t F hF).pre = (t.pre ** F) :=
+  rfl
+
+theorem changeEntry_pre {entry entry' exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (t : Triple entry exit_ cr post) (hentry : entry' = entry) :
+    (changeEntry t hentry).pre = t.pre :=
+  rfl
+
+theorem changeExit_pre {entry exit_ exit_' : Word} {cr : CodeReq} {post : Assertion}
+    (t : Triple entry exit_ cr post) (hexit : exit_ = exit_') :
+    (changeExit t hexit).pre = t.pre :=
+  rfl
+
+theorem seq_pre {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
+    {pre midPost post : Assertion}
+    (head : cpsTripleWithin nSteps entry mid cr pre midPost)
+    (tail : Triple mid exit_ cr post)
+    (hlink : Entails midPost tail.pre) :
+    (seq head tail hlink).pre = pre :=
+  rfl
+
+theorem seqDisjoint_pre {nSteps : Nat} {entry mid exit_ : Word} {cr1 cr2 : CodeReq}
+    {pre midPost post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (head : cpsTripleWithin nSteps entry mid cr1 pre midPost)
+    (tail : Triple mid exit_ cr2 post)
+    (hlink : Entails midPost tail.pre) :
+    (seqDisjoint hd head tail hlink).pre = pre :=
+  rfl
+
 end Triple
 
 /-- A two-exit branch summary consumable by the WP join rule. -/
@@ -283,6 +354,104 @@ def seqTakenBranchConvergeDisjoint {entry : Word} {cr1 cr2 : CodeReq}
     exact cpsBranchWithin_seq_cpsBranchWithin_taken_converge hd br.sound
       (cpsBranchWithin_weaken hlink (fun _ hp => hp) (fun _ hp => hp) htail)
       hf1 hf2
+
+/-- Projection lemmas used by WP link normalization. -/
+theorem ofSpec_pre {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {pre : Assertion} {exit_t : Word} {post_t : Assertion}
+    {exit_f : Word} {post_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr pre exit_t post_t exit_f post_f) :
+    (ofSpec h).pre = pre :=
+  rfl
+
+theorem ofSpec_exit_t {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {pre : Assertion} {exit_t : Word} {post_t : Assertion}
+    {exit_f : Word} {post_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr pre exit_t post_t exit_f post_f) :
+    (ofSpec h).exit_t = exit_t :=
+  rfl
+
+theorem ofSpec_post_t {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {pre : Assertion} {exit_t : Word} {post_t : Assertion}
+    {exit_f : Word} {post_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr pre exit_t post_t exit_f post_f) :
+    (ofSpec h).post_t = post_t :=
+  rfl
+
+theorem ofSpec_exit_f {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {pre : Assertion} {exit_t : Word} {post_t : Assertion}
+    {exit_f : Word} {post_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr pre exit_t post_t exit_f post_f) :
+    (ofSpec h).exit_f = exit_f :=
+  rfl
+
+theorem ofSpec_post_f {nSteps : Nat} {entry : Word} {cr : CodeReq}
+    {pre : Assertion} {exit_t : Word} {post_t : Assertion}
+    {exit_f : Word} {post_f : Assertion}
+    (h : cpsBranchWithin nSteps entry cr pre exit_t post_t exit_f post_f) :
+    (ofSpec h).post_f = post_f :=
+  rfl
+
+theorem frameR_pre {entry : Word} {cr : CodeReq}
+    (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) :
+    (frameR br F hF).pre = (br.pre ** F) :=
+  rfl
+
+theorem frameR_exit_t {entry : Word} {cr : CodeReq}
+    (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) :
+    (frameR br F hF).exit_t = br.exit_t :=
+  rfl
+
+theorem frameR_post_t {entry : Word} {cr : CodeReq}
+    (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) :
+    (frameR br F hF).post_t = (br.post_t ** F) :=
+  rfl
+
+theorem frameR_exit_f {entry : Word} {cr : CodeReq}
+    (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) :
+    (frameR br F hF).exit_f = br.exit_f :=
+  rfl
+
+theorem frameR_post_f {entry : Word} {cr : CodeReq}
+    (br : Branch entry cr) (F : Assertion) (hF : F.pcFree) :
+    (frameR br F hF).post_f = (br.post_f ** F) :=
+  rfl
+
+theorem join_pre {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (br : Branch entry cr)
+    (t : Triple br.exit_t exit_ cr post)
+    (f : Triple br.exit_f exit_ cr post)
+    (ht : Entails br.post_t t.pre)
+    (hf : Entails br.post_f f.pre) :
+    (join br t f ht hf).pre = br.pre :=
+  rfl
+
+theorem seqTakenDisjoint_pre {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Triple br.exit_t target cr2 post)
+    (hlink : Entails br.post_t tail.pre) :
+    (seqTakenDisjoint hd br tail hlink).pre = br.pre :=
+  rfl
+
+theorem seqNotTakenDisjoint_pre {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Triple br.exit_f target cr2 post)
+    (hlink : Entails br.post_f tail.pre) :
+    (seqNotTakenDisjoint hd br tail hlink).pre = br.pre :=
+  rfl
+
+theorem seqTakenBranchConvergeDisjoint_pre {entry : Word} {cr1 cr2 : CodeReq}
+    {failPost : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Branch br.exit_t cr2)
+    (hfail : tail.exit_t = br.exit_f)
+    (hlink : Entails br.post_t tail.pre)
+    (hf1 : Entails br.post_f failPost)
+    (hf2 : Entails tail.post_t failPost) :
+    (seqTakenBranchConvergeDisjoint hd br tail hfail hlink hf1 hf2).pre = br.pre :=
+  rfl
 
 end Branch
 
