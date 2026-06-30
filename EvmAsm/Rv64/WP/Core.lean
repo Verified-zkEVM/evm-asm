@@ -101,6 +101,14 @@ def extendCode {entry exit_ : Word} {cr cr' : CodeReq} {post : Assertion}
   pre := t.pre
   sound := cpsTripleWithin_extend_code hmono t.sound
 
+/-- Frame a single-exit WP result with a PC-free assertion. -/
+def frameR {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (t : Triple entry exit_ cr post) (F : Assertion) (hF : F.pcFree) :
+    Triple entry exit_ cr (post ** F) where
+  nSteps := t.nSteps
+  pre := t.pre ** F
+  sound := cpsTripleWithin_frameR F hF t.sound
+
 /-- Rewrite the entry address of a WP result. -/
 def changeEntry {entry entry' exit_ : Word} {cr : CodeReq} {post : Assertion}
     (t : Triple entry exit_ cr post) (hentry : entry' = entry) :

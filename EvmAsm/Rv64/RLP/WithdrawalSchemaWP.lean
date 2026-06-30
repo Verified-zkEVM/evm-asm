@@ -17,6 +17,7 @@ namespace EvmAsm.Rv64.RLP
 open EvmAsm.Rv64
 open EvmAsm.EL
 open EvmAsm.EL.RLP
+open EvmAsm.Rv64.Tactics
 
 namespace WithdrawalDecode
 
@@ -342,6 +343,179 @@ theorem successFieldSpecsStepSuccessBytesCertOfConcat_pre
     (successFieldSpecsStepSuccessBytesCertOfConcat base regionBase outBase rOut bs tail d0 d1 d2
       d3 O hc0 hl0 hc1 hl1 haddr hc3 hl3 hconcat halign hdalign hover hwin hdov hdval hcode).pre =
       schemaINV regionBase outBase rOut bs O (List.replicate outputSize (0 : Byte)) := by
+  rfl
+
+/-- A status-return block rooted at `base` has no code requirements below `base`. -/
+theorem statusReturnCode_none_below (base status a : Word)
+    (hcode : base.toNat + 8 < 2 ^ 64) (hlt : a.toNat < base.toNat) :
+    statusReturnCode base status a = none := by
+  have hne_base : a ≠ base := by
+    intro h
+    have := congrArg BitVec.toNat h
+    omega
+  have hbase_false : (a == base) = false := by
+    rw [Bool.eq_false_iff]
+    intro h
+    rw [beq_iff_eq] at h
+    exact hne_base h
+  have hnext_false : (a == base + 4#64) = false := by
+    rw [Bool.eq_false_iff]
+    intro h
+    rw [beq_iff_eq] at h
+    bv_omega
+  simp [statusReturnCode, CodeReq.union, CodeReq.singleton, hbase_false, hnext_false]
+
+/-- The schema walk code range is disjoint from a status-return block placed
+    immediately after it. -/
+theorem schemaCR_disjoint_statusReturnCode (rOut : Reg) (specs : List FieldSpec)
+    (base status : Word)
+    (hcode : base.toNat + schemaSize specs + 8 < 2 ^ 64) :
+    (schemaCR base rOut specs).Disjoint
+      (statusReturnCode (base + BitVec.ofNat 64 (schemaSize specs)) status) := by
+  have hbase : (base + BitVec.ofNat 64 (schemaSize specs)).toNat =
+      base.toNat + schemaSize specs := by
+    bv_omega
+  refine codeReq_disjoint_of_ranges _ _ (base.toNat + schemaSize specs) ?_ ?_
+  · intro a ha
+    exact schemaCR_none_above rOut specs base a (by omega) ha
+  · intro a ha
+    exact statusReturnCode_none_below (base + BitVec.ofNat 64 (schemaSize specs)) status a
+      (by rw [hbase]; omega) (by rw [hbase]; exact ha)
+
+/-- Success endpoint precondition with the incoming status register abstracted as
+    `regOwn`. Generated schema-walk callers should not need to provide the old
+    status value because the endpoint overwrites it. -/
+def successStatusReturnAbiRegOwnPre
+    (inputBase outBase raVal : Word) (input : List Byte) (w : Withdrawal) : Assertion :=
+  (((.x1 ↦ᵣ raVal) ** successStatusReturnAbiFrame inputBase outBase input w) ** regOwn .x10)
+
+/-- ABI-facing success endpoint that consumes `regOwn .x10` instead of a
+    concrete old status value. -/
+def successStatusReturnAbiRegOwnCert
+    (base inputBase outBase raVal : Word) (input : List Byte) (w : Withdrawal) :
+    WP.CFG.Cert base (successStatusReturnExit raVal) (successStatusReturnCode base)
+      (abiPost inputBase outBase raVal input) := by
+  exact WP.CFG.block (WP.Entails.refl _)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10)
+      (P := (.x1 ↦ᵣ raVal) ** successStatusReturnAbiFrame inputBase outBase input w)
+      (by
+        intro statusOld
+        have hs := successStatusReturn_abiPost_spec_within base inputBase outBase raVal statusOld
+          input w
+        exact cpsTripleWithin_weaken (fun h hp => by
+          unfold successStatusReturnAbiPre successStatusReturnPre statusReturnPre
+          xperm_hyp hp) (fun _ hp => hp) hs))
+
+/-- The reg-own success endpoint computes the value-independent ABI precondition. -/
+theorem successStatusReturnAbiRegOwnCert_pre
+    (base inputBase outBase raVal : Word) (input : List Byte) (w : Withdrawal) :
+    (successStatusReturnAbiRegOwnCert base inputBase outBase raVal input w).pre =
+      successStatusReturnAbiRegOwnPre inputBase outBase raVal input w := by
+  rfl
+
+/-- Scratch resources left after the successful schema walk and framed through
+    the status-return endpoint. The output pointer is held in `s0` (`x8`), as
+    established by the withdrawal decoder prologue. -/
+def successSchemaReturnFrame (regionBase outBase : Word) (O : Nat) : Assertion :=
+  ((regOwn .x5) ** (regOwn .x11) ** (regOwn .x12) **
+    (.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 O)) ** (regOwn .x14) **
+    (regOwn .x15) ** (.x8 ↦ᵣ outBase))
+
+theorem successSchemaReturnFrame_pcFree
+    (regionBase outBase : Word) (O : Nat) :
+    (successSchemaReturnFrame regionBase outBase O).pcFree := by
+  unfold successSchemaReturnFrame
+  pcFree
+
+/-- Automated success-path WP certificate: a generated field-schema walk followed
+    by the success return shim. The schema remains result-free; the decoded
+    withdrawal appears only through the success witnesses and the ABI post. -/
+def successFieldSpecsReturnAbiCertOfConcat
+    (base regionBase outBase raVal : Word)
+    (bs tail d0 d1 d2 d3 : List Byte) (O : Nat)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hconcat : bs.drop O = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      ((schemaCR base .x8 (successFieldSpecs d0 d1 d2 d3)).union
+        (successStatusReturnCode
+          (base + BitVec.ofNat 64 (schemaSize (successFieldSpecs d0 d1 d2 d3)))))
+      (abiPost regionBase outBase raVal bs **
+        successSchemaReturnFrame regionBase outBase
+          (O + schemaEnc (successFieldSpecs d0 d1 d2 d3))) := by
+  let specs := successFieldSpecs d0 d1 d2 d3
+  let w := fromFieldBytes d0 d1 d2 d3
+  have hdec : decodeWithdrawal bs = some w := by
+    exact decodeWithdrawal_eq_some_of_successFieldSpecs_input bs d0 d1 d2 d3
+      hc0 hl0 hc1 hl1 haddr hc3 hl3 hinput
+  have hschemaCode : base.toNat + schemaSize specs < 2 ^ 64 := by
+    dsimp [specs] at hcode ⊢
+    omega
+  have schemaCert := successFieldSpecsStepSuccessBytesCertOfConcat base regionBase outBase .x8
+    bs tail d0 d1 d2 d3 O hc0 hl0 hc1 hl1 haddr hc3 hl3 hconcat halign hdalign hover
+    hwin hdov hdval hschemaCode
+  let schemaWithRa := WP.CFG.frameR schemaCert (.x1 ↦ᵣ raVal) (by pcFree)
+  have schemaStrong :
+      WP.CFG.Cert base (base + BitVec.ofNat 64 (schemaSize specs)) (schemaCR base .x8 specs)
+        (successStatusReturnAbiRegOwnPre regionBase outBase raVal bs w **
+          successSchemaReturnFrame regionBase outBase (O + schemaEnc specs)) := by
+    exact schemaWithRa.weakenPost (by
+      intro h hp
+      unfold schemaINV at hp
+      unfold successStatusReturnAbiRegOwnPre successStatusReturnAbiFrame successSchemaReturnFrame
+      rw [show (⌜decodeWithdrawal bs = some w⌝ : Assertion) = empAssertion by
+        funext h
+        unfold EvmAsm.Rv64.pure EvmAsm.Rv64.empAssertion
+        apply propext
+        constructor
+        · intro h_p
+          exact h_p.1
+        · intro h_empty
+          exact ⟨h_empty, hdec⟩]
+      simp only [sepConj_emp_right']
+      xperm_hyp hp)
+  let retBase := base + BitVec.ofNat 64 (schemaSize specs)
+  let tailCert := (successStatusReturnAbiRegOwnCert retBase regionBase outBase raVal bs w).frameR
+    (successSchemaReturnFrame regionBase outBase (O + schemaEnc specs))
+    (successSchemaReturnFrame_pcFree regionBase outBase (O + schemaEnc specs))
+  have hd : (schemaCR base .x8 specs).Disjoint (successStatusReturnCode retBase) := by
+    dsimp [retBase, specs]
+    exact schemaCR_disjoint_statusReturnCode .x8 (successFieldSpecs d0 d1 d2 d3) base (0 : Word)
+      (by simpa [successStatusReturnCode] using hcode)
+  exact WP.CFG.seqDisjoint hd schemaStrong.sound tailCert (WP.Entails.refl _)
+
+/-- The composed success-path certificate reduces to the initial schema invariant
+    plus the preserved return address; no decoded result appears in the precondition. -/
+theorem successFieldSpecsReturnAbiCertOfConcat_pre
+    (base regionBase outBase raVal : Word)
+    (bs tail d0 d1 d2 d3 : List Byte) (O : Nat)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8)
+    (hconcat : bs.drop O = schemaEncBytes (successFieldSpecs d0 d1 d2 d3) ++ tail)
+    (hinput : bs = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (halign : regionBase.toNat % 8 = 0) (hdalign : outBase.toNat % 8 = 0)
+    (hover : regionBase.toNat + bs.length < 2 ^ 64)
+    (hwin : ∀ i, i < bs.length → isValidByteAccess (regionBase + BitVec.ofNat 64 i) = true)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : ∀ i, i < outputSize → isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (hcode : base.toNat + schemaSize (successFieldSpecs d0 d1 d2 d3) + 8 < 2 ^ 64) :
+    (successFieldSpecsReturnAbiCertOfConcat base regionBase outBase raVal bs tail d0 d1 d2 d3 O
+      hc0 hl0 hc1 hl1 haddr hc3 hl3 hconcat hinput halign hdalign hover hwin hdov hdval
+      hcode).pre =
+      (schemaINV regionBase outBase .x8 bs O (List.replicate outputSize (0 : Byte)) **
+        (.x1 ↦ᵣ raVal)) := by
+  unfold successFieldSpecsReturnAbiCertOfConcat
   rfl
 
 end WithdrawalDecode

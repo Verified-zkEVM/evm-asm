@@ -9,7 +9,7 @@
 import Lean
 import EvmAsm.Rv64.WP.CFG
 import EvmAsm.Rv64.WP.Call
-import EvmAsm.Rv64.Tactics.XSimp
+import EvmAsm.Rv64.Tactics.XPermPure
 
 namespace EvmAsm.Rv64.Tactics
 
@@ -37,7 +37,15 @@ macro_rules
   | `(tactic| wp_rv64_link) =>
       `(tactic| first
         | exact EvmAsm.Rv64.WP.Entails.refl _
-        | intro _ _hp; xperm_hyp _hp)
+        | intro _ _hp; xperm_hyp _hp
+        | intro _ _hp; xperm_pure _hp)
+
+/-- Frame a single-exit CFG certificate and return the framed certificate. -/
+syntax (name := wpRv64FrameRTac) "wp_rv64_frame " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_frame $cfg:term, $F:term, $hF:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.frameR $cfg $F $hF)
 
 /-- Compose a head CPS triple with a WP/CFG tail and close the midpoint
     entailment with `wp_rv64_link`. -/
@@ -230,6 +238,15 @@ example {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     (cfg : EvmAsm.Rv64.WP.Triple entry exit_ cr post) :
     cpsTripleWithin cfg.nSteps entry exit_ cr cfg.pre post := by
   wp_rv64 cfg
+
+example {entry exit_ : Word} {cr : CodeReq} {post F : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post) (hF : F.pcFree) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr (post ** F) := by
+  wp_rv64_frame cfg, F, hF
+
+example {P : Assertion} {A : Prop} (hA : A) :
+    EvmAsm.Rv64.WP.Entails P (P ** ⌜A⌝) := by
+  wp_rv64_link
 
 example {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     {pre post : Assertion}

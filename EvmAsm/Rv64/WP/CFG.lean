@@ -34,6 +34,12 @@ def block {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
     Cert entry exit_ cr post' :=
   Triple.ofSpec hpost h
 
+/-- Frame a single-exit CFG certificate with a PC-free assertion. -/
+def frameR {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) (F : Assertion) (hF : F.pcFree) :
+    Cert entry exit_ cr (post ** F) :=
+  cfg.frameR F hF
+
 /-- Sequential composition with one shared persistent code requirement. -/
 def seq {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     {pre midPost post : Assertion}
