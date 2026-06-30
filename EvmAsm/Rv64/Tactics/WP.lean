@@ -100,7 +100,18 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqTakenBlockDisjoint $hd $br $tail
         (by wp_rv64_link))
 
-/-- Continue a branch's not-taken exit with a WP/CFG tail over disjoint code. -/
+/-- Continue a branch taken exit with another branch, merging both failure exits
+    into the explicit shared failure post. The exit equality is expected to be
+    definitional. -/
+syntax (name := wpRv64BranchSeqTakenBranchConvergeDisjointTac)
+  "wp_rv64_branch_taken_branch_converge_disjoint " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_branch_taken_branch_converge_disjoint $hd:term, $br:term, $tail:term, $failPost:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.branchSeqTakenBranchConvergeDisjoint
+        (failPost := $failPost) $hd $br $tail (by rfl)
+        (by wp_rv64_link) (by wp_rv64_link) (by wp_rv64_link))
+
 syntax (name := wpRv64BranchSeqNotTakenDisjointTac)
   "wp_rv64_branch_not_taken_disjoint " term ", " term ", " term : tactic
 
@@ -283,6 +294,16 @@ example {nTail : Nat} {entry target : Word} {cr1 cr2 : CodeReq}
     (tail : cpsTripleWithin nTail br.exit_t target cr2 br.post_t post) :
     EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
   wp_rv64_branch_taken_block_nbranch_disjoint hd, br, tail
+
+example {nTail : Nat} {entry succ : Word} {cr1 cr2 : CodeReq}
+    {succPost : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.Branch entry cr1)
+    (tailSound : cpsBranchWithin nTail br.exit_t cr2 br.post_t
+      br.exit_f br.post_f succ succPost) :
+    EvmAsm.Rv64.WP.Branch entry (cr1.union cr2) := by
+  let tail := EvmAsm.Rv64.WP.Branch.ofSpec tailSound
+  wp_rv64_branch_taken_branch_converge_disjoint hd, br, tail, br.post_f
 
 example {entry : Word} {cr : CodeReq}
     (br : EvmAsm.Rv64.WP.Branch entry cr) :

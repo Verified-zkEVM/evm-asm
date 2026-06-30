@@ -235,6 +235,33 @@ def seqNotTakenDisjoint {entry target : Word} {cr1 cr2 : CodeReq} {post : Assert
   post_f := post
   sound := cpsBranchWithin_seq_cpsTripleWithin_notTaken hd br.sound (tail.weakenPre hlink).sound
 
+/-- Continue the taken exit with another branch whose taken exit converges with
+    the first branch fall exit as one shared failure case. The second branch fall
+    exit becomes the success exit of the composed branch. -/
+def seqTakenBranchConvergeDisjoint {entry : Word} {cr1 cr2 : CodeReq}
+    {failPost : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Branch br.exit_t cr2)
+    (hfail : tail.exit_t = br.exit_f)
+    (hlink : Entails br.post_t tail.pre)
+    (hf1 : Entails br.post_f failPost)
+    (hf2 : Entails tail.post_t failPost) :
+    Branch entry (cr1.union cr2) where
+  nSteps := br.nSteps + tail.nSteps
+  pre := br.pre
+  exit_t := tail.exit_f
+  post_t := tail.post_f
+  exit_f := br.exit_f
+  post_f := failPost
+  sound := by
+    have htail : cpsBranchWithin tail.nSteps br.exit_t cr2 tail.pre
+        br.exit_f tail.post_t tail.exit_f tail.post_f := by
+      simpa [hfail] using tail.sound
+    exact cpsBranchWithin_seq_cpsBranchWithin_taken_converge hd br.sound
+      (cpsBranchWithin_weaken hlink (fun _ hp => hp) (fun _ hp => hp) htail)
+      hf1 hf2
+
 end Branch
 
 /-- A multi-exit branch summary. -/

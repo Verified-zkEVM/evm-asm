@@ -123,6 +123,21 @@ def branchSeqTakenBlockDisjoint {nTail : Nat} {entry target : Word}
     Branch entry (cr1.union cr2) :=
   branchSeqTakenDisjoint hd br (block (Entails.refl _) tail) hlink
 
+/-- Continue the taken exit with another branch and merge both failure exits into
+    one failure post. This is the WP form of a decoder parse followed by a
+    validation branch. -/
+def branchSeqTakenBranchConvergeDisjoint {entry : Word} {cr1 cr2 : CodeReq}
+    {failPost : Assertion}
+    (hd : cr1.Disjoint cr2)
+    (br : Branch entry cr1)
+    (tail : Branch br.exit_t cr2)
+    (hfail : tail.exit_t = br.exit_f)
+    (hlink : Entails br.post_t tail.pre)
+    (hf1 : Entails br.post_f failPost)
+    (hf2 : Entails tail.post_t failPost) :
+    Branch entry (cr1.union cr2) :=
+  br.seqTakenBranchConvergeDisjoint hd tail hfail hlink hf1 hf2
+
 /-- Continue only the not-taken exit of a branch with disjoint code, leaving the
     taken exit open. -/
 def branchSeqNotTakenDisjoint {entry target : Word} {cr1 cr2 : CodeReq} {post : Assertion}

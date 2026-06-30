@@ -19,6 +19,7 @@
 import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortBytesValidatedAt
 import EvmAsm.Rv64.RLP.UnifiedFieldBytesCopy
 import EvmAsm.Rv64.RLP.ValidatingFieldWalk
+import EvmAsm.Rv64.WP.CFG
 
 namespace EvmAsm.Rv64.RLP
 
@@ -33,36 +34,6 @@ private theorem bytescopy_ptr_eq (regionBase : Word) (O : Nat) :
     = regionBase + BitVec.ofNat 64 (O + 1) := by
   rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
       show (1 : Word) = BitVec.ofNat 64 1 from rfl, BitVec.add_assoc, ← BitVec.ofNat_add]
-
-/-- Sequence a branch onto the TAKEN exit of a branch, converging the follow-on branch's TAKEN exit
-    with the first branch's fall exit onto a shared fail exit `exitF`. Used to bolt a length-equality
-    check onto a validating decode's success so that *both* a malformed field (the decoder's bound
-    failure) and a wrong-length field converge on the one `a0 ≠ 0` exit. -/
-theorem cpsBranchWithin_seq_cpsBranchWithin_taken_conv {n1 n2 : Nat}
-    {entry mid succ exitF : Word} {cr1 cr2 : CodeReq} (hd : cr1.Disjoint cr2)
-    {P Q_t1 Q_f1 Q_t2 Q_succ Q_f : Assertion}
-    (h1 : cpsBranchWithin n1 entry cr1 P mid Q_t1 exitF Q_f1)
-    (h2 : cpsBranchWithin n2 mid cr2 Q_t1 exitF Q_t2 succ Q_succ)
-    (hf1 : ∀ h, Q_f1 h → Q_f h) (hf2 : ∀ h, Q_t2 h → Q_f h) :
-    cpsBranchWithin (n1 + n2) entry (cr1.union cr2) P succ Q_succ exitF Q_f := by
-  intro R hR s hcr hPR hpc
-  rw [CodeReq.union_satisfiedBy hd] at hcr
-  obtain ⟨hcr1, hcr2⟩ := hcr
-  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
-  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
-  · have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
-    obtain ⟨k2, hk2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr2' hQ_t1R hpc_t1
-    rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_succR⟩
-    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
-        Or.inr ⟨hpc_t2, by
-          obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
-          exact ⟨hp, hcompat, sepConj_mono_left hf2 hp hpq⟩⟩⟩
-    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
-        Or.inl ⟨hpc_f2, hQ_succR⟩⟩
-  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1, hstep1,
-      Or.inr ⟨hpc_f1, by
-        obtain ⟨hp, hcompat, hpq⟩ := hQ_f1R
-        exact ⟨hp, hcompat, sepConj_mono_left hf1 hp hpq⟩⟩⟩
 
 /-- Merge two pure facts carried in the two top-level operands of a separating conjunction into a
     single conjunctive pure: `(R1 ** ⌜P⌝) ** (R2 ** ⌜Q⌝) ⟹ (R1 ** R2) ** ⌜P ∧ Q⌝`. General in
@@ -326,40 +297,68 @@ theorem rlp_decode_shortBytes_bytescopy_at
   -- The length check on the success exit.
   have lenCheck := rlp_shortBytes_length_check pfx rest bs O expectedN v12Old v14Old regionBase
     succPC lenFailOff (e2_target + 12) hlenfail hexp11 (by omega) hpl64 hd_addibne
-  -- Converge: arm fall (decode = none) and length-check fail (payloadLen ≠ expectedN).
-  have armWithLen := cpsBranchWithin_seq_cpsBranchWithin_taken_conv hd_lencheck decAt lenCheck
-      (fun h hp => by
-        show ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
-            (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
-            (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
-            (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
-            bytesRegion regionBase bs **
-            ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) h
-        extract_pure hp
-        obtain ⟨hnone, hst⟩ := hp
-        have hst' := sepConj_mono_left (sepConj_mono_left (sepConj_mono_left (sepConj_mono_left
-          (sepConj_mono_left (sepConj_mono_left
-            (sepConj_mono_right (regIs_implies_regOwn .x10))))))) h hst
-        have hg := (sepConj_pure_right h).2 ⟨hst',
-          (Or.inl hnone : decode (pfx :: rest) = none
-            ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN)⟩
-        xperm_hyp hg)
-      (fun h hp => by
-        show ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
-            (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
-            (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
-            (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
-            bytesRegion regionBase bs **
-            ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) h
-        extract_pure hp
-        obtain ⟨hne, hst⟩ := hp
-        have hst' := sepConj_mono_left (sepConj_mono_left (sepConj_mono_left (sepConj_mono_left
-          (sepConj_mono_left (sepConj_mono_left
-            (sepConj_mono_right (regIs_implies_regOwn .x10))))))) h hst
-        have hg := (sepConj_pure_right h).2 ⟨hst',
-          (Or.inr hne : decode (pfx :: rest) = none
-            ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN)⟩
-        xperm_hyp hg)
+  -- Converge: arm fall (decode = none) and length-check fail (payloadLen != expectedN).
+  let failPost : Assertion :=
+    ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+      (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+      (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+      (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+      bytesRegion regionBase bs **
+      ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝)
+  have decodeFailToShared : EvmAsm.Rv64.WP.Entails
+      (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ ((0 : Word) + signExtend12 (0xB8 : BitVec 12))) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+        bytesRegion regionBase bs ** ⌜decode (pfx :: rest) = none⌝)) failPost := by
+    intro h hp
+    show ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+        bytesRegion regionBase bs **
+        ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) h
+    extract_pure hp
+    obtain ⟨hnone, hst⟩ := hp
+    have hstNext := sepConj_mono_left (sepConj_mono_left (sepConj_mono_left (sepConj_mono_left
+      (sepConj_mono_left (sepConj_mono_left
+        (sepConj_mono_right (regIs_implies_regOwn .x10))))))) h hst
+    have hg := (sepConj_pure_right h).2 ⟨hstNext,
+      (Or.inl hnone : decode (pfx :: rest) = none
+        ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN)⟩
+    xperm_hyp hg
+  have lenFailToShared : EvmAsm.Rv64.WP.Entails
+      (((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 expectedN)) **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+        bytesRegion regionBase bs ** ⌜rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝)) failPost := by
+    intro h hp
+    show ((.x5 ↦ᵣ pfx.zeroExtend 64) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+        (.x11 ↦ᵣ (BitVec.ofNat 64 (rlpPrefixShortBytesPayloadLen pfx))) ** (.x12 ↦ᵣ v12Old) **
+        (.x13 ↦ᵣ ((regionBase + BitVec.ofNat 64 O) + signExtend12 (1 : BitVec 12))) **
+        (.x14 ↦ᵣ v14Old) ** (.x15 ↦ᵣ (BitVec.ofNat 64 (pfx :: rest).length)) **
+        bytesRegion regionBase bs **
+        ⌜decode (pfx :: rest) = none ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN⌝) h
+    extract_pure hp
+    obtain ⟨hne, hst⟩ := hp
+    have hstNext := sepConj_mono_left (sepConj_mono_left (sepConj_mono_left (sepConj_mono_left
+      (sepConj_mono_left (sepConj_mono_left
+        (sepConj_mono_right (regIs_implies_regOwn .x10))))))) h hst
+    have hg := (sepConj_pure_right h).2 ⟨hstNext,
+      (Or.inr hne : decode (pfx :: rest) = none
+        ∨ rlpPrefixShortBytesPayloadLen pfx ≠ expectedN)⟩
+    xperm_hyp hg
+  have armWithLen : cpsBranchWithin (7 + 2) base _ _
+      (succPC + 8) _ (e2_target + 12) failPost :=
+    (EvmAsm.Rv64.WP.CFG.branchSeqTakenBranchConvergeDisjoint
+      (failPost := failPost) hd_lencheck
+      (EvmAsm.Rv64.WP.Branch.ofSpec decAt)
+      (EvmAsm.Rv64.WP.Branch.ofSpec lenCheck)
+      (by rfl) (EvmAsm.Rv64.WP.Entails.refl _)
+      decodeFailToShared lenFailToShared).sound
   -- Frame the output pointer + region onto both exits of armWithLen.
   have armWithLenF := cpsBranchWithin_frameR
     ((rOut ↦ᵣ outBase) ** bytesRegion outBase outBytes)

@@ -1264,6 +1264,39 @@ theorem cpsBranchWithin_seq_cpsTripleWithin_taken {nSteps1 nSteps2 : Nat}
     exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
       Or.inr ⟨hpc_f1, hQ_f1R⟩⟩
 
+/-- Sequence a branch onto the taken exit of a branch, converging the first branch
+    fall exit and the second branch taken exit onto one shared failure exit. The
+    second branch fall exit is the resulting success exit. This is the standard
+    decoder shape for parse-success followed by a validating check where malformed
+    input and check failure are one postcondition case. -/
+theorem cpsBranchWithin_seq_cpsBranchWithin_taken_converge {nSteps1 nSteps2 : Nat}
+    {entry mid succ fail : Word} {cr1 cr2 : CodeReq}
+    (hd : cr1.Disjoint cr2)
+    {P Q_t1 Q_f1 Q_t2 Q_succ Q_fail : Assertion}
+    (h1 : cpsBranchWithin nSteps1 entry cr1 P mid Q_t1 fail Q_f1)
+    (h2 : cpsBranchWithin nSteps2 mid cr2 Q_t1 fail Q_t2 succ Q_succ)
+    (hf1 : ∀ h, Q_f1 h → Q_fail h)
+    (hf2 : ∀ h, Q_t2 h → Q_fail h) :
+    cpsBranchWithin (nSteps1 + nSteps2) entry (cr1.union cr2) P succ Q_succ fail Q_fail := by
+  intro R hR s hcr hPR hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hbranch1⟩ := h1 R hR s hcr1 hPR hpc
+  rcases hbranch1 with ⟨hpc_t1, hQ_t1R⟩ | ⟨hpc_f1, hQ_f1R⟩
+  · have hcr2Next := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+    obtain ⟨k2, hk2, s2, hstep2, hbranch2⟩ := h2 R hR s1 hcr2Next hQ_t1R hpc_t1
+    rcases hbranch2 with ⟨hpc_t2, hQ_t2R⟩ | ⟨hpc_f2, hQ_succR⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inr ⟨hpc_t2, by
+          obtain ⟨hp, hcompat, hpq⟩ := hQ_t2R
+          exact ⟨hp, hcompat, sepConj_mono_left hf2 hp hpq⟩⟩⟩
+    · exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2, stepN_add_eq hstep1 hstep2,
+        Or.inl ⟨hpc_f2, hQ_succR⟩⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right nSteps1 nSteps2), s1, hstep1,
+      Or.inr ⟨hpc_f1, by
+        obtain ⟨hp, hcompat, hpq⟩ := hQ_f1R
+        exact ⟨hp, hcompat, sepConj_mono_left hf1 hp hpq⟩⟩⟩
+
 /-- Sequence a triple onto the **not-taken** (fall-through) exit of a branch,
     keeping the taken exit open.  Bounds add and code requirements are unioned. -/
 theorem cpsBranchWithin_seq_cpsTripleWithin_notTaken {nSteps1 nSteps2 : Nat}
