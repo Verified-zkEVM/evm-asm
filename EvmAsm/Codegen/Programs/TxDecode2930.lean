@@ -224,10 +224,7 @@ def ziskTxEip2930DecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lt29_pdone\n" ++
-  rlpWalkInitFunction ++ "\n" ++
-  rlpWalkNextFunction ++ "\n" ++
-  rlpContentToU64Function ++ "\n" ++
-  rlpContentToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txEip2930DecodeFunction ++ "\n" ++
   ".Lt29_pdone:"
 

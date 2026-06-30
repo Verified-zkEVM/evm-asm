@@ -309,10 +309,7 @@ def ziskHeaderExtendedDecodePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lhed_pdone\n" ++
-  rlpWalkInitFunction ++ "\n" ++
-  rlpWalkNextFunction ++ "\n" ++
-  rlpContentToU64Function ++ "\n" ++
-  rlpContentToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   ".Lhed_pdone:"
 

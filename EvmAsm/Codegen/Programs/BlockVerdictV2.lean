@@ -94,10 +94,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Cursor-walk RLP primitives required by the tx/header decoders below
     -- (same drift class as the contract-dispatch helpers above: these are
     -- embedded in the guest closure but not this debug ELF, so mirror them).
-    rlpWalkInitFunction ++ "\n" ++
-    rlpWalkNextFunction ++ "\n" ++
-    rlpContentToU64Function ++ "\n" ++
-    rlpContentToU256BeFunction ++ "\n" ++
+    rlpWalkHelpersClosure ++ "\n" ++
     txEip2930DecodeFunction ++ "\n" ++
     txEip1559DecodeFunction ++ "\n" ++
     txEip7702DecodeFunction ++ "\n" ++
@@ -233,10 +230,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- Cursor-walk RLP primitives (single-pass decode; used by the tx/header
   -- decoders invoked from the verdict pipeline). Peer to the index-based
   -- primitives above; linked here so the guest resolves these symbols.
-  rlpWalkInitFunction ++ "\n" ++
-  rlpWalkNextFunction ++ "\n" ++
-  rlpContentToU64Function ++ "\n" ++
-  rlpContentToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
   mptNodeSlotEncodeFunction ++ "\n" ++
   bytesToNibblesFunction ++ "\n" ++
