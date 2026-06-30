@@ -45,6 +45,91 @@ def frameR {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
     Cert entry exit_ cr (post ** F) :=
   cfg.frameR F hF
 
+/-- Weaken the computed precondition of a single-exit CFG certificate. -/
+def weakenPre {entry exit_ : Word} {cr : CodeReq} {post pre' : Assertion}
+    (cfg : Cert entry exit_ cr post) (hpre : Entails pre' cfg.pre) :
+    Cert entry exit_ cr post :=
+  cfg.weakenPre hpre
+
+/-- Weaken the continuation postcondition of a single-exit CFG certificate. -/
+def weakenPost {entry exit_ : Word} {cr : CodeReq} {post post' : Assertion}
+    (cfg : Cert entry exit_ cr post) (hpost : Entails post post') :
+    Cert entry exit_ cr post' :=
+  cfg.weakenPost hpost
+
+/-- Increase the step budget of a single-exit CFG certificate. -/
+def monoSteps {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) {nSteps' : Nat} (hle : cfg.nSteps ≤ nSteps') :
+    Cert entry exit_ cr post :=
+  cfg.monoSteps hle
+
+/-- Extend a single-exit CFG certificate to a larger persistent code requirement. -/
+def extendCode {entry exit_ : Word} {cr cr' : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post)
+    (hmono : ∀ a i, cr a = some i → cr' a = some i) :
+    Cert entry exit_ cr' post :=
+  cfg.extendCode hmono
+
+/-- Rewrite the entry address of a single-exit CFG certificate. -/
+def changeEntry {entry entry' exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) (hentry : entry' = entry) :
+    Cert entry' exit_ cr post :=
+  cfg.changeEntry hentry
+
+/-- Rewrite the exit address of a single-exit CFG certificate. -/
+def changeExit {entry exit_ exit_' : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) (hexit : exit_ = exit_') :
+    Cert entry exit_' cr post :=
+  cfg.changeExit hexit
+
+/-- `weakenPre` exposes exactly the supplied precondition. -/
+theorem weakenPre_pre {entry exit_ : Word} {cr : CodeReq} {post pre' : Assertion}
+    (cfg : Cert entry exit_ cr post) (hpre : Entails pre' cfg.pre) :
+    (weakenPre cfg hpre).pre = pre' :=
+  rfl
+
+/-- `weakenPost` preserves the computed precondition. -/
+theorem weakenPost_pre {entry exit_ : Word} {cr : CodeReq} {post post' : Assertion}
+    (cfg : Cert entry exit_ cr post) (hpost : Entails post post') :
+    (weakenPost cfg hpost).pre = cfg.pre :=
+  rfl
+
+/-- `monoSteps` preserves the computed precondition. -/
+theorem monoSteps_pre {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) {nSteps' : Nat} (hle : cfg.nSteps ≤ nSteps') :
+    (monoSteps cfg hle).pre = cfg.pre :=
+  rfl
+
+/-- `extendCode` preserves the computed precondition. -/
+theorem extendCode_pre {entry exit_ : Word} {cr cr' : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post)
+    (hmono : ∀ a i, cr a = some i → cr' a = some i) :
+    (extendCode cfg hmono).pre = cfg.pre :=
+  rfl
+
+/-- `changeEntry` preserves the computed precondition. -/
+theorem changeEntry_pre {entry entry' exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) (hentry : entry' = entry) :
+    (changeEntry cfg hentry).pre = cfg.pre :=
+  rfl
+
+/-- `changeExit` preserves the computed precondition. -/
+theorem changeExit_pre {entry exit_ exit_' : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post) (hexit : exit_ = exit_') :
+    (changeExit cfg hexit).pre = cfg.pre :=
+  rfl
+
+example {entry exit_ : Word} {cr : CodeReq} {post post' : Assertion}
+    (cfg : Cert entry exit_ cr post) (hpost : Entails post post') :
+    Cert entry exit_ cr post' :=
+  weakenPost cfg hpost
+
+example {entry exit_ : Word} {cr cr' : CodeReq} {post : Assertion}
+    (cfg : Cert entry exit_ cr post)
+    (hmono : ∀ a i, cr a = some i → cr' a = some i) :
+    (extendCode cfg hmono).pre = cfg.pre :=
+  extendCode_pre cfg hmono
+
 /-- Sequential composition with one shared persistent code requirement. -/
 def seq {nSteps : Nat} {entry mid exit_ : Word} {cr : CodeReq}
     {pre midPost post : Assertion}

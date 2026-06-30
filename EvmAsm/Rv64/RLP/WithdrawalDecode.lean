@@ -1562,6 +1562,32 @@ theorem resultPost_failure {input : List Byte} {outBase : Word}
   unfold resultPost
   rw [hdec]
 
+/-- Disjunctive public view of the ABI result.  The success side carries a
+    decoded withdrawal witness and its output bytes; the failure side carries
+    only the reason-erased `decodeWithdrawal input = none` fact. -/
+def resultDisjPost (input : List Byte) (outBase : Word) : Assertion :=
+  fun h =>
+    (∃ w : Withdrawal,
+      ((.x10 ↦ᵣ (0 : Word)) ** bytesRegion outBase (successBytes w) **
+        ⌜decodeWithdrawal input = some w⌝) h) ∨
+    (((.x10 ↦ᵣ (1 : Word)) ** bytesRegionAny outBase outputSize **
+      ⌜decodeWithdrawal input = none⌝) h)
+
+/-- The stronger match-shaped result post implies the explicit disjunctive view. -/
+theorem resultPost_entails_resultDisjPost
+    (input : List Byte) (outBase : Word) :
+    WP.Entails (resultPost input outBase) (resultDisjPost input outBase) := by
+  intro h hp
+  unfold resultPost at hp
+  unfold resultDisjPost
+  cases hdec : decodeWithdrawal input with
+  | none =>
+      rw [hdec] at hp
+      exact Or.inr hp
+  | some w =>
+      rw [hdec] at hp
+      exact Or.inl ⟨w, hp⟩
+
 /-- ABI resources carried by the zero/nonzero split for the empty input case. -/
 def emptyInputAbiFrame (inputBase outBase : Word) : Assertion :=
   bytesRegion inputBase [] ** bytesRegionAny outBase outputSize
@@ -1586,6 +1612,26 @@ def abiPre (inputBase outBase raVal : Word) (input : List Byte) : Assertion :=
 def abiPost (inputBase outBase raVal : Word) (input : List Byte) : Assertion :=
   ((.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion inputBase input **
     resultPost input outBase)
+
+/-- ABI postcondition with an explicit success/failure disjunction over the Lean
+    decoder result.  This is the public characterization shape; `abiPost` above
+    is kept as the stronger match-shaped implementation post used by existing
+    proofs. -/
+def abiDisjPost (inputBase outBase raVal : Word) (input : List Byte) : Assertion :=
+  ((.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion inputBase input **
+    resultDisjPost input outBase)
+
+/-- The existing ABI postcondition implies the explicit disjunctive view. -/
+theorem abiPost_entails_abiDisjPost
+    (inputBase outBase raVal : Word) (input : List Byte) :
+    WP.Entails (abiPost inputBase outBase raVal input)
+      (abiDisjPost inputBase outBase raVal input) := by
+  intro h hp
+  unfold abiPost at hp
+  unfold abiDisjPost
+  exact sepConj_mono_right
+    (sepConj_mono_right
+      (sepConj_mono_right (resultPost_entails_resultDisjPost input outBase))) h hp
 
 /-- Empty-input resources plus the pure decoder failure fact. -/
 def emptyInputDecodeFrame (inputBase outBase : Word) : Assertion :=
@@ -1767,6 +1813,53 @@ theorem certSound {entry exit_ : Word} {cr : CodeReq}
     (cert : Cert entry exit_ cr inputBase outBase raVal input) :
     cpsTripleWithin cert.nSteps entry exit_ cr cert.pre
       (abiPost inputBase outBase raVal input) :=
+  cert.sound
+
+/-- ABI-facing certificate with the explicit disjunctive success/failure post. -/
+abbrev DisjCert (entry exit_ : Word) (cr : CodeReq)
+    (inputBase outBase raVal : Word) (input : List Byte) :=
+  WP.CFG.Cert entry exit_ cr (abiDisjPost inputBase outBase raVal input)
+
+/-- The computed precondition of a disjunctive withdrawal decoder certificate. -/
+def disjCertPre {entry exit_ : Word} {cr : CodeReq}
+    {inputBase outBase raVal : Word} {input : List Byte}
+    (cert : DisjCert entry exit_ cr inputBase outBase raVal input) : Assertion :=
+  cert.pre
+
+/-- Any existing ABI-facing certificate can be viewed through the explicit
+    disjunctive postcondition without changing its WP precondition. -/
+def toDisjCert {entry exit_ : Word} {cr : CodeReq}
+    {inputBase outBase raVal : Word} {input : List Byte}
+    (cert : Cert entry exit_ cr inputBase outBase raVal input) :
+    DisjCert entry exit_ cr inputBase outBase raVal input :=
+  WP.CFG.weakenPost cert (abiPost_entails_abiDisjPost inputBase outBase raVal input)
+
+/-- Viewing an existing certificate through the disjunctive post preserves the
+    computed weakest precondition. -/
+theorem toDisjCert_pre {entry exit_ : Word} {cr : CodeReq}
+    {inputBase outBase raVal : Word} {input : List Byte}
+    (cert : Cert entry exit_ cr inputBase outBase raVal input) :
+    (toDisjCert cert).pre = cert.pre :=
+  rfl
+
+/-- Top-level disjunctive characterization theorem: an implementation certified
+    against `abiPost` also proves the RISC-V code returns the same success/failure
+    case as the Lean `decodeWithdrawal` function. -/
+theorem certSound_disj {entry exit_ : Word} {cr : CodeReq}
+    {inputBase outBase raVal : Word} {input : List Byte}
+    (cert : Cert entry exit_ cr inputBase outBase raVal input) :
+    cpsTripleWithin cert.nSteps entry exit_ cr cert.pre
+      (abiDisjPost inputBase outBase raVal input) :=
+  cpsTripleWithin_weaken (fun _ hp => hp)
+    (abiPost_entails_abiDisjPost inputBase outBase raVal input) cert.sound
+
+/-- Soundness theorem for certificates that are built directly against the
+    explicit disjunctive post. -/
+theorem disjCertSound {entry exit_ : Word} {cr : CodeReq}
+    {inputBase outBase raVal : Word} {input : List Byte}
+    (cert : DisjCert entry exit_ cr inputBase outBase raVal input) :
+    cpsTripleWithin cert.nSteps entry exit_ cr cert.pre
+      (abiDisjPost inputBase outBase raVal input) :=
   cert.sound
 
 /-- Package an implementation triple as a withdrawal decoder certificate. -/

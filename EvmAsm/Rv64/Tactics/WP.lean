@@ -295,6 +295,78 @@ macro_rules
   | `(tactic| wp_rv64_frame $cfg:term, $F:term, $hF:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.frameR $cfg $F $hF)
 
+/-- Weaken a single-exit CFG certificate's computed precondition. -/
+syntax (name := wpRv64WeakenPreTac) "wp_rv64_weaken_pre " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_weaken_pre $cfg:term, $hpre:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.weakenPre $cfg $hpre)
+
+/-- Weaken a single-exit CFG certificate to an explicitly supplied
+    precondition, synthesizing the entailment with `wp_rv64_link`. -/
+syntax (name := wpRv64SetPreTac) "wp_rv64_set_pre " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_set_pre $cfg:term, $pre:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.weakenPre $cfg
+        (show EvmAsm.Rv64.WP.Entails $pre ($cfg).pre by wp_rv64_link))
+
+/-- Weaken a single-exit CFG certificate's continuation postcondition. -/
+syntax (name := wpRv64WeakenPostTac) "wp_rv64_weaken_post " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_weaken_post $cfg:term, $hpost:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.weakenPost $cfg $hpost)
+
+/-- Weaken a single-exit CFG certificate to an explicitly supplied
+    postcondition, synthesizing the entailment with `wp_rv64_link`. -/
+syntax (name := wpRv64SetPostTac) "wp_rv64_set_post " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_set_post $cfg:term, $post:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.weakenPost $cfg
+        (show EvmAsm.Rv64.WP.Entails _ $post by wp_rv64_link))
+
+/-- Increase a single-exit CFG certificate's step budget. -/
+syntax (name := wpRv64MonoStepsTac) "wp_rv64_mono_steps " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_mono_steps $cfg:term, $hle:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.monoSteps $cfg $hle)
+
+/-- Extend a single-exit CFG certificate to a larger persistent code requirement. -/
+syntax (name := wpRv64ExtendCodeTac) "wp_rv64_extend_code " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_extend_code $cfg:term, $hmono:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.extendCode $cfg $hmono)
+
+/-- Extend a single-exit CFG certificate and set an explicit precondition in
+    one generated step. -/
+syntax (name := wpRv64ExtendSetPreTac)
+  "wp_rv64_extend_set_pre " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_extend_set_pre $cfg:term, $hmono:term, $pre:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.weakenPre
+        (EvmAsm.Rv64.WP.CFG.extendCode $cfg $hmono)
+        (show EvmAsm.Rv64.WP.Entails $pre
+          (EvmAsm.Rv64.WP.CFG.extendCode $cfg $hmono).pre by wp_rv64_link))
+
+/-- Rewrite a single-exit CFG certificate's entry address. -/
+syntax (name := wpRv64ChangeEntryTac) "wp_rv64_change_entry " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_change_entry $cfg:term, $hentry:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.changeEntry $cfg $hentry)
+
+/-- Rewrite a single-exit CFG certificate's exit address. -/
+syntax (name := wpRv64ChangeExitTac) "wp_rv64_change_exit " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_change_exit $cfg:term, $hexit:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.changeExit $cfg $hexit)
+
 /-- Build a certificate for an unreachable precondition. -/
 syntax (name := wpRv64UnreachableTac)
   "wp_rv64_unreachable " term ", " term ", " term ", " term : tactic
@@ -961,6 +1033,58 @@ example {entry exit_ : Word} {cr : CodeReq} {post F : Assertion}
     (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post) (hF : F.pcFree) :
     EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr (post ** F) := by
   wp_rv64_frame cfg, F, hF
+
+example {entry exit_ : Word} {cr : CodeReq} {pre post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post)
+    (hpre : EvmAsm.Rv64.WP.Entails pre cfg.pre) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_weaken_pre cfg, hpre
+
+example {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_set_pre cfg, cfg.pre
+
+example {entry exit_ : Word} {cr : CodeReq} {post post' : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post)
+    (hpost : EvmAsm.Rv64.WP.Entails post post') :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post' := by
+  wp_rv64_weaken_post cfg, hpost
+
+example {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_set_post cfg, post
+
+example {entry exit_ : Word} {cr : CodeReq} {post : Assertion} {nSteps' : Nat}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post)
+    (hle : cfg.nSteps ≤ nSteps') :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_mono_steps cfg, hle
+
+example {entry exit_ : Word} {cr cr' : CodeReq} {post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post)
+    (hmono : ∀ a i, cr a = some i → cr' a = some i) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr' post := by
+  wp_rv64_extend_code cfg, hmono
+
+example {entry exit_ : Word} {cr cr' : CodeReq} {post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post)
+    (hmono : ∀ a i, cr a = some i → cr' a = some i) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr' post := by
+  wp_rv64_extend_set_pre cfg, hmono, cfg.pre
+
+example {entry entry' exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post)
+    (hentry : entry' = entry) :
+    EvmAsm.Rv64.WP.CFG.Cert entry' exit_ cr post := by
+  wp_rv64_change_entry cfg, hentry
+
+example {entry exit_ exit_' : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post)
+    (hexit : exit_ = exit_') :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_' cr post := by
+  wp_rv64_change_exit cfg, hexit
 
 example {entry exit_ : Word} {cr : CodeReq} {pre post : Assertion}
     (hpre : ∀ h, pre h → False) :
