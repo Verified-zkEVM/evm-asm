@@ -290,6 +290,22 @@ def ofSpec {nSteps : Nat} {entry : Word} {cr : CodeReq}
   exits := exits
   sound := h
 
+/-- View a single-exit WP triple as a singleton multi-exit branch. -/
+def ofTriple {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Triple entry exit_ cr post) :
+    NBranch entry cr :=
+  ofSpec (cpsTripleWithin_as_cpsNBranchWithin cfg.sound)
+
+theorem ofTriple_pre {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Triple entry exit_ cr post) :
+    (ofTriple cfg).pre = cfg.pre := by
+  rfl
+
+theorem ofTriple_exits {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : Triple entry exit_ cr post) :
+    (ofTriple cfg).exits = [(exit_, post)] := by
+  rfl
+
 /-- View a two-exit branch as a multi-exit branch. -/
 def ofBranch {entry : Word} {cr : CodeReq} (br : Branch entry cr) :
     NBranch entry cr where

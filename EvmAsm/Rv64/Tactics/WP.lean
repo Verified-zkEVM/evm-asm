@@ -186,6 +186,28 @@ macro_rules
       `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqExitNBranchDisjoint
         (preExits := $preExits) $hd $br (by rfl) $tail (by wp_rv64_link))
 
+/-- Continue an arbitrary exit with a single-exit CFG certificate over disjoint
+    code. The preExits argument is the list of exits to preserve before the
+    selected exit, and the exits field is expected to reduce definitionally. -/
+syntax (name := wpRv64NBranchSeqExitCertDisjointTac)
+  "wp_rv64_nbranch_exit_cert_disjoint " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_exit_cert_disjoint $hd:term, $br:term, $preExits:term, $tail:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqExitCertDisjoint
+        (preExits := $preExits) $hd $br (by rfl) $tail (by wp_rv64_link))
+
+/-- Continue an arbitrary exit with a single-exit CFG certificate, supplying the
+    generated exit-list proof and link entailment explicitly. This is the useful
+    endpoint for proof-producing code that normalizes exits with a local lemma. -/
+syntax (name := wpRv64NBranchSeqExitCertDisjointWithTac)
+  "wp_rv64_nbranch_exit_cert_disjoint_with " term ", " term ", " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_nbranch_exit_cert_disjoint_with $hd:term, $br:term, $preExits:term, $hexits:term, $tail:term, $hlink:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.nbranchSeqExitCertDisjoint
+        (preExits := $preExits) $hd $br $hexits $tail $hlink)
+
 /-- Preserve the first exit and continue the second exit with another N-way branch
     over disjoint code. The tactic expects the exits field to reduce to a two-cons prefix. -/
 syntax (name := wpRv64NBranchSeqSecondNBranchDisjointTac)
@@ -392,5 +414,20 @@ example {entry head l : Word} {cr1 cr2 : CodeReq}
     (hlink : EvmAsm.Rv64.WP.Entails secondPost tail.pre) :
     EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
   exact EvmAsm.Rv64.WP.CFG.nbranchSeqSecondNBranchDisjoint hd br hexits tail hlink
+
+example {entry exit_ : Word} {cr : CodeReq} {post : Assertion}
+    (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post) :
+    EvmAsm.Rv64.WP.NBranch entry cr :=
+  EvmAsm.Rv64.WP.NBranch.ofTriple cfg
+
+example {entry l l' : Word} {cr1 cr2 : CodeReq}
+    {exitPost post : Assertion} {preExits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : EvmAsm.Rv64.WP.NBranch entry cr1)
+    (hexits : br.exits = preExits ++ (l, exitPost) :: others)
+    (tail : EvmAsm.Rv64.WP.CFG.Cert l l' cr2 post)
+    (hlink : EvmAsm.Rv64.WP.Entails exitPost tail.pre) :
+    EvmAsm.Rv64.WP.NBranch entry (cr1.union cr2) := by
+  wp_rv64_nbranch_exit_cert_disjoint_with hd, br, preExits, hexits, tail, hlink
 
 end EvmAsm.Rv64.Tactics.WPTests

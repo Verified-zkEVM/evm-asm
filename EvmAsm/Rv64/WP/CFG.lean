@@ -315,6 +315,18 @@ def nbranchSeqExitNBranchDisjoint {entry l : Word} {cr1 cr2 : CodeReq}
     NBranch entry (cr1.union cr2) :=
   br.seqExitNBranchDisjoint hd hexits tail hlink
 
+/-- Continue an arbitrary exit of an N-way CFG with a single-exit certificate
+    over disjoint tail code, preserving the exits before and after it. -/
+def nbranchSeqExitCertDisjoint {entry l l' : Word} {cr1 cr2 : CodeReq}
+    {exitPost post : Assertion} {preExits others : List (Word × Assertion)}
+    (hd : cr1.Disjoint cr2)
+    (br : NBranch entry cr1)
+    (hexits : br.exits = preExits ++ (l, exitPost) :: others)
+    (tail : Cert l l' cr2 post)
+    (hlink : Entails exitPost tail.pre) :
+    NBranch entry (cr1.union cr2) :=
+  nbranchSeqExitNBranchDisjoint hd br hexits (NBranch.ofTriple tail) hlink
+
 /-- Preserve the first exit and continue the second exit with another N-way CFG
     over disjoint tail code. -/
 def nbranchSeqSecondNBranchDisjoint {entry head l : Word} {cr1 cr2 : CodeReq}
