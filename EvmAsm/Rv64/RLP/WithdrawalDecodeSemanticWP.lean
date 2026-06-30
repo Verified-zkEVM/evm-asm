@@ -168,6 +168,66 @@ def walkInitLongSchemaPost
     (hoff : 0 < input.length) : Assertion :=
   walkInitLongListCandidatePost inputBase listLen raVal input 0 hoff ** schemaWalkInitFrame outBase
 
+theorem walkInitPrefixWord_lt_f8_of_successFieldSpecs_input
+    (input d0 d1 d2 d3 : List Byte) (hoff : 0 < input.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    BitVec.ult (walkInitPrefixWord input 0 hoff) (0xf8 : Word) = true := by
+  have hpayload := schemaEncBytes_successFieldSpecs_length_le_48 d0 d1 d2 d3 hl0 hl1 haddr hl3
+  have hshort : (schemaEncBytes (successFieldSpecs d0 d1 d2 d3)).length ≤ 55 := by
+    omega
+  subst input
+  simp [walkInitPrefixWord, encode_list_schemaItems_short, hshort, BitVec.ult]
+  omega
+
+/-- The long-list exit is unreachable when the input is the short-list encoding
+    of successful withdrawal field witnesses. -/
+theorem walkInitLongSchemaPost_contradicts_successFieldSpecs_input
+    (inputBase listLen raVal outBase : Word) (input d0 d1 d2 d3 : List Byte)
+    (hoff : 0 < input.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3)))) :
+    ∀ h, walkInitLongSchemaPost inputBase listLen raVal outBase input hoff h → False := by
+  intro h hp
+  have hlt := walkInitPrefixWord_lt_f8_of_successFieldSpecs_input input d0 d1 d2 d3 hoff
+    hl0 hl1 haddr hl3 hinput
+  unfold walkInitLongSchemaPost walkInitLongListCandidatePost at hp
+  rcases hp with ⟨hLong, _hSchema, _hd, _hunion, hLong_prop, _hSchema_prop⟩
+  rcases hLong_prop with ⟨_hPrefix, _hPure, _hdPure, _hunionPure,
+    _hPrefix_prop, hPure_prop⟩
+  exact hPure_prop.2 hlt
+
+/-- WP continuation for the dead long-list exit under a short-list success witness.
+    The target and code requirement are parameters so generated joins can reuse
+    the certificate in whatever larger CFG they are constructing. -/
+def walkInitLongSchemaUnreachableCert
+    (entry target : Word) (cr : CodeReq)
+    (inputBase listLen raVal outBase : Word) (input d0 d1 d2 d3 : List Byte)
+    (hoff : 0 < input.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (post : Assertion) :
+    WP.CFG.Cert entry target cr post :=
+  WP.CFG.unreachable entry target cr
+    (walkInitLongSchemaPost_contradicts_successFieldSpecs_input inputBase listLen raVal outBase
+      input d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput)
+
+theorem walkInitLongSchemaUnreachableCert_pre
+    (entry target : Word) (cr : CodeReq)
+    (inputBase listLen raVal outBase : Word) (input d0 d1 d2 d3 : List Byte)
+    (hoff : 0 < input.length)
+    (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20) (hl3 : d3.length ≤ 8)
+    (hinput : input = encode (.list (schemaItems (successFieldSpecs d0 d1 d2 d3))))
+    (post : Assertion) :
+    (walkInitLongSchemaUnreachableCert entry target cr inputBase listLen raVal outBase input
+      d0 d1 d2 d3 hoff hl0 hl1 haddr hl3 hinput post).pre =
+      walkInitLongSchemaPost inputBase listLen raVal outBase input hoff := by
+  rfl
+
 def walkInitShortSuccessSchemaExits
     (base inputBase listLen raVal t0Old t1Old outBase : Word)
     (input d0 d1 d2 d3 : List Byte) (hoff : 0 < input.length) :

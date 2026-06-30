@@ -137,7 +137,7 @@ private theorem encode_bytes_length_le_21_of_length_eq_20 (d : List Byte) (h : d
           simp [htail]
           omega
 
-private theorem schemaEncBytes_successFieldSpecs_length_le_48
+theorem schemaEncBytes_successFieldSpecs_length_le_48
     (d0 d1 d2 d3 : List Byte)
     (hl0 : d0.length ≤ 8) (hl1 : d1.length ≤ 8)
     (haddr : d2.length = 20) (hl3 : d3.length ≤ 8) :

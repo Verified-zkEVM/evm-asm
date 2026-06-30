@@ -26,6 +26,11 @@ def exit (addr : Word) (cr : CodeReq) {pre post : Assertion}
     (h : Entails pre post) : Cert addr addr cr post :=
   Triple.refl addr cr h
 
+/-- A CFG certificate for an unreachable precondition. -/
+def unreachable (entry exit_ : Word) (cr : CodeReq) {pre post : Assertion}
+    (hpre : ∀ h, pre h → False) : Cert entry exit_ cr post :=
+  Triple.unreachable entry exit_ cr hpre
+
 /-- A leaf block whose CPS spec is already available. -/
 def block {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
     {pre post post' : Assertion}

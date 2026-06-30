@@ -47,6 +47,14 @@ macro_rules
   | `(tactic| wp_rv64_frame $cfg:term, $F:term, $hF:term) =>
       `(tactic| exact EvmAsm.Rv64.WP.CFG.frameR $cfg $F $hF)
 
+/-- Build a certificate for an unreachable precondition. -/
+syntax (name := wpRv64UnreachableTac)
+  "wp_rv64_unreachable " term ", " term ", " term ", " term : tactic
+
+macro_rules
+  | `(tactic| wp_rv64_unreachable $entry:term, $exit:term, $cr:term, $hpre:term) =>
+      `(tactic| exact EvmAsm.Rv64.WP.CFG.unreachable $entry $exit $cr $hpre)
+
 /-- Compose a head CPS triple with a WP/CFG tail and close the midpoint
     entailment with `wp_rv64_link`. -/
 syntax (name := wpRv64SeqTac) "wp_rv64_seq " term ", " term : tactic
@@ -301,6 +309,11 @@ example {entry exit_ : Word} {cr : CodeReq} {post F : Assertion}
     (cfg : EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post) (hF : F.pcFree) :
     EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr (post ** F) := by
   wp_rv64_frame cfg, F, hF
+
+example {entry exit_ : Word} {cr : CodeReq} {pre post : Assertion}
+    (hpre : ∀ h, pre h → False) :
+    EvmAsm.Rv64.WP.CFG.Cert entry exit_ cr post := by
+  wp_rv64_unreachable entry, exit_, cr, hpre
 
 example {P : Assertion} {A : Prop} (hA : A) :
     EvmAsm.Rv64.WP.Entails P (P ** ⌜A⌝) := by

@@ -57,6 +57,20 @@ def refl (addr : Word) (cr : CodeReq) {pre post : Assertion}
       obtain ⟨hp, hcompat, hpq⟩ := hPR
       exact ⟨hp, hcompat, sepConj_mono_left h hp hpq⟩⟩
 
+/-- A WP continuation for an unreachable state. If the computed precondition is
+    contradictory, any exit/postcondition follows without executing code. This
+    is useful when generated control-flow keeps syntactic exits whose path
+    guards are inconsistent with the current input witness. -/
+def unreachable (entry exit_ : Word) (cr : CodeReq) {pre post : Assertion}
+    (hpre : ∀ h, pre h → False) : Triple entry exit_ cr post where
+  nSteps := 0
+  pre := pre
+  sound := by
+    intro R _hR s _hcr hPR _hpc
+    obtain ⟨hp, _hcompat, hpq⟩ := hPR
+    obtain ⟨hprePart, _hRPart, _hd, _hunion, hpreSat, _hRSat⟩ := hpq
+    exact False.elim (hpre hprePart hpreSat)
+
 /-- Lift an already-proved CPS triple into a WP result, weakening its
     postcondition to the requested continuation post. -/
 def ofSpec {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
