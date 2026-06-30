@@ -517,6 +517,39 @@ macro "withdrawal_leftover_decode_chain" : tactic => do
   `(tactic| exact LeftoverDecodeChain.ofLocalFacts $h_class_stx:ident $h_len_stx:ident $h_dec0_stx:ident
     $h_dec1_stx:ident $h_dec2_stx:ident $h_dec3_stx:ident $h_leftover_stx:ident $h_min_stx:ident)
 
+/-- Synthesize a success outcome from the generated local names. -/
+macro "withdrawal_success_decode_outcome" : tactic =>
+  `(tactic| exact DecodeChainOutcome.success (by withdrawal_success_decode_chain))
+
+/-- Synthesize an exact-arity leftover outcome from the generated local names. -/
+macro "withdrawal_leftover_decode_outcome" : tactic =>
+  `(tactic| exact DecodeChainOutcome.leftover (by withdrawal_leftover_decode_chain))
+
+/-- Synthesize whichever exact-arity withdrawal outcome is available in the
+    current generated branch context. -/
+macro "withdrawal_decode_outcome" : tactic =>
+  `(tactic| first
+    | withdrawal_success_decode_outcome
+    | withdrawal_leftover_decode_outcome)
+
+/-- Explicit success-outcome constructor for generated proofs with nonstandard
+    local names. -/
+macro "withdrawal_success_decode_outcome " hclass:term ", " hlen:term ", " hdec0:term ", "
+    hdec1:term ", " hdec2:term ", " hdec3:term ", " hend:term ", " hmin:term ", "
+    hc0:term ", " hl0:term ", " hc1:term ", " hl1:term ", " haddr:term ", "
+    hc3:term ", " hl3:term : tactic =>
+  `(tactic| exact DecodeChainOutcome.success (SuccessDecodeChain.ofLocalFacts
+    $hclass $hlen $hdec0 $hdec1 $hdec2 $hdec3 $hend $hmin $hc0 $hl0 $hc1 $hl1
+    $haddr $hc3 $hl3))
+
+/-- Explicit leftover-outcome constructor for generated proofs with nonstandard
+    local names. -/
+macro "withdrawal_leftover_decode_outcome " hclass:term ", " hlen:term ", " hdec0:term ", "
+    hdec1:term ", " hdec2:term ", " hdec3:term ", " hleftover:term ", "
+    hmin:term : tactic =>
+  `(tactic| exact DecodeChainOutcome.leftover (LeftoverDecodeChain.ofLocalFacts
+    $hclass $hlen $hdec0 $hdec1 $hdec2 $hdec3 $hleftover $hmin))
+
 /-- Context-driven WP automation for generated successful field-walk proofs.
     It derives semantic success or the result-free schema fact from the standard
     local names, then falls through to the WP certificate/link/dead-exit
@@ -689,10 +722,40 @@ example
     (hdec1 : decode r1 = some (.bytes d1, r2))
     (hdec2 : decode r2 = some (.bytes d2, r3))
     (hdec3 : decode r3 = some (.bytes d3, r4))
+    (hend : r4 = [])
+    (h_min : 2 ≤ payload.length)
+    (hc0 : d0.headD 1 ≠ 0) (hl0 : d0.length ≤ 8)
+    (hc1 : d1.headD 1 ≠ 0) (hl1 : d1.length ≤ 8)
+    (haddr : d2.length = 20)
+    (hc3 : d3.headD 1 ≠ 0) (hl3 : d3.length ≤ 8) :
+    DecodeChainOutcome pfx payload := by
+  withdrawal_decode_outcome
+
+example
+    {pfx : Byte} {payload r1 r2 r3 r4 d0 d1 d2 d3 : List Byte}
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hdec0 : decode payload = some (.bytes d0, r1))
+    (hdec1 : decode r1 = some (.bytes d1, r2))
+    (hdec2 : decode r2 = some (.bytes d2, r3))
+    (hdec3 : decode r3 = some (.bytes d3, r4))
     (h_leftover : r4 ≠ [])
     (h_min : 2 ≤ payload.length) :
     decodeWithdrawal (pfx :: payload) = none := by
   wp_withdrawal_decode_leftover_chain
+
+example
+    {pfx : Byte} {payload r1 r2 r3 r4 d0 d1 d2 d3 : List Byte}
+    (h_class : classifyPrefix pfx = .shortList)
+    (h_len : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (hdec0 : decode payload = some (.bytes d0, r1))
+    (hdec1 : decode r1 = some (.bytes d1, r2))
+    (hdec2 : decode r2 = some (.bytes d2, r3))
+    (hdec3 : decode r3 = some (.bytes d3, r4))
+    (h_leftover : r4 ≠ [])
+    (h_min : 2 ≤ payload.length) :
+    DecodeChainOutcome pfx payload := by
+  withdrawal_decode_outcome
 
 example
     {pfx : Byte} {payload : List Byte} (chain : SuccessDecodeChain pfx payload) :
