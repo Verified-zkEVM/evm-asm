@@ -627,6 +627,314 @@ macro "wp_withdrawal_decode_chain " chain:term : tactic =>
 
 open Lean Meta Elab Tactic
 
+private def getNatLitVal? (e : Expr) : Option Nat :=
+  match e with
+  | .lit (.natVal n) => some n
+  | _ =>
+      if e.isAppOfArity ``OfNat.ofNat 3 then
+        match e.getAppArgs[1]! with
+        | .lit (.natVal n) => some n
+        | _ => none
+      else
+        none
+
+private def sameExpr (a b : Expr) : TacticM Bool :=
+  withoutModifyingState (isDefEq a b)
+
+private def eqSides? (e : Expr) : Option (Expr × Expr) :=
+  if e.isAppOfArity ``Eq 3 then
+    let args := e.getAppArgs
+    some (args[1]!, args[2]!)
+  else
+    none
+
+private def isConst (e : Expr) (name : Name) : Bool :=
+  match e.getAppFn with
+  | .const n _ => n == name
+  | _ => false
+
+private def listLengthArg? (e : Expr) : Option Expr :=
+  if e.isAppOfArity ``List.length 2 then
+    some e.getAppArgs[1]!
+  else
+    none
+
+private def listNil? (e : Expr) : Bool :=
+  e.isAppOfArity ``List.nil 1
+
+private structure NamedClassFact where
+  name : Name
+  pfx : Expr
+
+private structure NamedLenFact where
+  name : Name
+  pfx : Expr
+  payload : Expr
+
+private structure NamedDecodeFact where
+  name : Name
+  input : Expr
+  data : Expr
+  rest : Expr
+
+private structure NamedEndFact where
+  name : Name
+  rest : Expr
+
+private structure NamedMinFact where
+  name : Name
+  payload : Expr
+
+private structure NamedHeadNeZeroFact where
+  name : Name
+  data : Expr
+
+private structure NamedLenLeFact where
+  name : Name
+  data : Expr
+  bound : Nat
+
+private structure NamedLenEqFact where
+  name : Name
+  data : Expr
+  value : Nat
+
+private structure WalkFactDb where
+  classes : Array NamedClassFact := #[]
+  lens : Array NamedLenFact := #[]
+  decodes : Array NamedDecodeFact := #[]
+  ends : Array NamedEndFact := #[]
+  leftovers : Array NamedEndFact := #[]
+  mins : Array NamedMinFact := #[]
+  headNeZeros : Array NamedHeadNeZeroFact := #[]
+  lenLes : Array NamedLenLeFact := #[]
+  lenEqs : Array NamedLenEqFact := #[]
+
+private def parseClassFact? (name : Name) (type : Expr) : Option NamedClassFact := do
+  let (lhs, rhs) ← eqSides? type
+  guard (lhs.isAppOfArity ``EvmAsm.EL.RLP.classifyPrefix 1)
+  guard (isConst rhs ``EvmAsm.EL.RLP.PrefixClass.shortList)
+  some { name := name, pfx := lhs.getAppArgs[0]! }
+
+private def parseLenFact? (name : Name) (type : Expr) : Option NamedLenFact := do
+  let (lhs, rhs) ← eqSides? type
+  guard (lhs.isAppOfArity ``EvmAsm.EL.RLP.rlpPrefixShortListPayloadLen 1)
+  let payload ← listLengthArg? rhs
+  some { name := name, pfx := lhs.getAppArgs[0]!, payload := payload }
+
+private def parseDecodeFact? (name : Name) (type : Expr) : Option NamedDecodeFact := do
+  let (lhs, rhs) ← eqSides? type
+  guard (lhs.isAppOfArity ``EvmAsm.EL.RLP.decode 1)
+  guard (rhs.isAppOfArity ``Option.some 2)
+  let pair := rhs.getAppArgs[1]!
+  guard (pair.isAppOfArity ``Prod.mk 4)
+  let item := pair.getAppArgs[2]!
+  guard (item.isAppOfArity ``EvmAsm.EL.RLP.RLPItem.bytes 1)
+  some {
+    name := name
+    input := lhs.getAppArgs[0]!
+    data := item.getAppArgs[0]!
+    rest := pair.getAppArgs[3]!
+  }
+
+private def parseEndFact? (name : Name) (type : Expr) : Option NamedEndFact := do
+  let (lhs, rhs) ← eqSides? type
+  guard (listNil? rhs)
+  some { name := name, rest := lhs }
+
+private def parseLeftoverFact? (name : Name) (type : Expr) : Option NamedEndFact := do
+  guard (type.isAppOfArity ``Ne 3)
+  let args := type.getAppArgs
+  guard (listNil? args[2]!)
+  some { name := name, rest := args[1]! }
+
+private def parseMinFact? (name : Name) (type : Expr) : Option NamedMinFact := do
+  guard (type.isAppOfArity ``LE.le 4)
+  let args := type.getAppArgs
+  guard (getNatLitVal? args[2]! == some 2)
+  let payload ← listLengthArg? args[3]!
+  some { name := name, payload := payload }
+
+private def parseHeadNeZeroFact? (name : Name) (type : Expr) : Option NamedHeadNeZeroFact := do
+  guard (type.isAppOfArity ``Ne 3)
+  let args := type.getAppArgs
+  guard (args[1]!.isAppOfArity ``List.headD 3)
+  guard (getNatLitVal? args[1]!.getAppArgs[2]! == some 1)
+  guard (getNatLitVal? args[2]! == some 0)
+  some { name := name, data := args[1]!.getAppArgs[1]! }
+
+private def parseLenLeFact? (name : Name) (type : Expr) : Option NamedLenLeFact := do
+  guard (type.isAppOfArity ``LE.le 4)
+  let args := type.getAppArgs
+  let data ← listLengthArg? args[2]!
+  let bound ← getNatLitVal? args[3]!
+  some { name := name, data := data, bound := bound }
+
+private def parseLenEqFact? (name : Name) (type : Expr) : Option NamedLenEqFact := do
+  let (lhs, rhs) ← eqSides? type
+  let data ← listLengthArg? lhs
+  let value ← getNatLitVal? rhs
+  some { name := name, data := data, value := value }
+
+private def collectWalkFactDb : TacticM WalkFactDb := do
+  let mut db : WalkFactDb := {}
+  for localDecl in ← getLCtx do
+    if localDecl.isImplementationDetail then
+      continue
+    let type ← instantiateMVars localDecl.type
+    let name := localDecl.userName
+    if let some fact := parseClassFact? name type then
+      db := { db with classes := db.classes.push fact }
+    if let some fact := parseLenFact? name type then
+      db := { db with lens := db.lens.push fact }
+    if let some fact := parseDecodeFact? name type then
+      db := { db with decodes := db.decodes.push fact }
+    if let some fact := parseEndFact? name type then
+      db := { db with ends := db.ends.push fact }
+    if let some fact := parseLeftoverFact? name type then
+      db := { db with leftovers := db.leftovers.push fact }
+    if let some fact := parseMinFact? name type then
+      db := { db with mins := db.mins.push fact }
+    if let some fact := parseHeadNeZeroFact? name type then
+      db := { db with headNeZeros := db.headNeZeros.push fact }
+    if let some fact := parseLenLeFact? name type then
+      db := { db with lenLes := db.lenLes.push fact }
+    if let some fact := parseLenEqFact? name type then
+      db := { db with lenEqs := db.lenEqs.push fact }
+  return db
+
+private def findClassFact? (db : WalkFactDb) (pfx : Expr) : TacticM (Option Name) := do
+  for fact in db.classes do
+    if ← sameExpr fact.pfx pfx then
+      return some fact.name
+  return none
+
+private def findDecodeFrom? (db : WalkFactDb) (input : Expr) :
+    TacticM (Array NamedDecodeFact) := do
+  let mut out := #[]
+  for fact in db.decodes do
+    if ← sameExpr fact.input input then
+      out := out.push fact
+  return out
+
+private def findEndFact? (facts : Array NamedEndFact) (rest : Expr) :
+    TacticM (Option Name) := do
+  for fact in facts do
+    if ← sameExpr fact.rest rest then
+      return some fact.name
+  return none
+
+private def findMinFact? (db : WalkFactDb) (payload : Expr) : TacticM (Option Name) := do
+  for fact in db.mins do
+    if ← sameExpr fact.payload payload then
+      return some fact.name
+  return none
+
+private def findHeadNeZeroFact? (db : WalkFactDb) (data : Expr) :
+    TacticM (Option Name) := do
+  for fact in db.headNeZeros do
+    if ← sameExpr fact.data data then
+      return some fact.name
+  return none
+
+private def findLenLeFact? (db : WalkFactDb) (data : Expr) (bound : Nat) :
+    TacticM (Option Name) := do
+  for fact in db.lenLes do
+    if fact.bound == bound then
+      if ← sameExpr fact.data data then
+        return some fact.name
+  return none
+
+private def findLenEqFact? (db : WalkFactDb) (data : Expr) (value : Nat) :
+    TacticM (Option Name) := do
+  for fact in db.lenEqs do
+    if fact.value == value then
+      if ← sameExpr fact.data data then
+        return some fact.name
+  return none
+
+private def factIdent (name : Name) : TSyntax `term :=
+  ⟨mkIdent name⟩
+
+private def tryCloseWithSuccessWalk (className lenName dec0Name dec1Name dec2Name dec3Name endName minName
+    canon0Name len0Name canon1Name len1Name addrName canon3Name len3Name : Name) : TacticM Unit := do
+  let className := factIdent className
+  let lenName := factIdent lenName
+  let dec0Name := factIdent dec0Name
+  let dec1Name := factIdent dec1Name
+  let dec2Name := factIdent dec2Name
+  let dec3Name := factIdent dec3Name
+  let endName := factIdent endName
+  let minName := factIdent minName
+  let canon0Name := factIdent canon0Name
+  let len0Name := factIdent len0Name
+  let canon1Name := factIdent canon1Name
+  let len1Name := factIdent len1Name
+  let addrName := factIdent addrName
+  let canon3Name := factIdent canon3Name
+  let len3Name := factIdent len3Name
+  evalTactic (← `(tactic|
+    wp_withdrawal_decode_chain (SuccessDecodeChain.ofLocalFacts
+      $className $lenName $dec0Name $dec1Name $dec2Name $dec3Name $endName $minName $canon0Name $len0Name $canon1Name
+      $len1Name $addrName $canon3Name $len3Name); done))
+
+private def tryCloseWithLeftoverWalk (className lenName dec0Name dec1Name dec2Name dec3Name leftoverName
+    minName : Name) : TacticM Unit := do
+  let className := factIdent className
+  let lenName := factIdent lenName
+  let dec0Name := factIdent dec0Name
+  let dec1Name := factIdent dec1Name
+  let dec2Name := factIdent dec2Name
+  let dec3Name := factIdent dec3Name
+  let leftoverName := factIdent leftoverName
+  let minName := factIdent minName
+  evalTactic (← `(tactic|
+    wp_withdrawal_decode_chain (LeftoverDecodeChain.ofLocalFacts
+      $className $lenName $dec0Name $dec1Name $dec2Name $dec3Name $leftoverName $minName); done))
+
+/-- Type-directed WP automation for generated four-field withdrawal walks.
+    It finds the local classifier, short-list length, field `decode` chain, and
+    either the success guards or leftover fact, then delegates to the existing
+    chain-object WP driver.  This avoids threading a manual `DecodeChainOutcome`
+    through branch joins. -/
+elab "wp_withdrawal_decode_walk" : tactic => withMainContext do
+  let db ← collectWalkFactDb
+  for lenFact in db.lens do
+    let some className ← findClassFact? db lenFact.pfx | continue
+    let dec0s ← findDecodeFrom? db lenFact.payload
+    for dec0 in dec0s do
+      let dec1s ← findDecodeFrom? db dec0.rest
+      for dec1 in dec1s do
+        let dec2s ← findDecodeFrom? db dec1.rest
+        for dec2 in dec2s do
+          let dec3s ← findDecodeFrom? db dec2.rest
+          for dec3 in dec3s do
+            let some minName ← findMinFact? db lenFact.payload | continue
+            let saved ← saveState
+            try
+              let some endName ← findEndFact? db.ends dec3.rest | throwError "no end fact"
+              let some canon0Name ← findHeadNeZeroFact? db dec0.data | throwError "no field 0 canonicality fact"
+              let some len0Name ← findLenLeFact? db dec0.data 8 | throwError "no field 0 length fact"
+              let some canon1Name ← findHeadNeZeroFact? db dec1.data | throwError "no field 1 canonicality fact"
+              let some len1Name ← findLenLeFact? db dec1.data 8 | throwError "no field 1 length fact"
+              let some addrName ← findLenEqFact? db dec2.data 20 | throwError "no address length fact"
+              let some canon3Name ← findHeadNeZeroFact? db dec3.data | throwError "no field 3 canonicality fact"
+              let some len3Name ← findLenLeFact? db dec3.data 8 | throwError "no field 3 length fact"
+              tryCloseWithSuccessWalk className lenFact.name dec0.name dec1.name dec2.name dec3.name
+                endName minName canon0Name len0Name canon1Name len1Name addrName canon3Name len3Name
+              return
+            catch _ =>
+              restoreState saved
+            let saved ← saveState
+            try
+              let some leftoverName ← findEndFact? db.leftovers dec3.rest | throwError "no leftover fact"
+              tryCloseWithLeftoverWalk className lenFact.name dec0.name dec1.name dec2.name dec3.name
+                leftoverName minName
+              return
+            catch _ =>
+              restoreState saved
+  throwError "wp_withdrawal_decode_walk: no four-field withdrawal decode walk closed the goal"
+
 private def isDecodeChainLocalType (e : Expr) : Bool :=
   e.isAppOfArity ``SuccessDecodeChain 2 ||
     e.isAppOfArity ``LeftoverDecodeChain 2 ||
@@ -649,6 +957,11 @@ elab "wp_withdrawal_decode_chain" : tactic => withMainContext do
       return
     catch _ =>
       (Pure.pure PUnit.unit : TacticM PUnit)
+  try
+    evalTactic (← `(tactic| wp_withdrawal_decode_walk; done))
+    return
+  catch _ =>
+    (Pure.pure PUnit.unit : TacticM PUnit)
   try
     evalTactic (← `(tactic| wp_withdrawal_decode_auto; done))
   catch _ =>
@@ -695,7 +1008,10 @@ elab "wp_withdrawal_decode_outcome" : tactic => withMainContext do
       return
     catch _ =>
       (Pure.pure PUnit.unit : TacticM PUnit)
-  throwError "wp_withdrawal_decode_outcome: no local decode-chain outcome closed the goal"
+  try
+    evalTactic (← `(tactic| wp_withdrawal_decode_walk; done))
+  catch _ =>
+    throwError "wp_withdrawal_decode_outcome: no local decode-chain outcome closed the goal"
 
 example
     {pfx : Byte} {payload r1 r2 r3 r4 d0 d1 d2 d3 : List Byte}
@@ -756,6 +1072,38 @@ example
     (h_min : 2 ≤ payload.length) :
     DecodeChainOutcome pfx payload := by
   withdrawal_decode_outcome
+
+
+example
+    {pfx : Byte} {payload rem1 rem2 rem3 rem4 field0 field1 field2 field3 : List Byte}
+    (class_fact : classifyPrefix pfx = .shortList)
+    (len_fact : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (decode0_fact : decode payload = some (.bytes field0, rem1))
+    (decode1_fact : decode rem1 = some (.bytes field1, rem2))
+    (decode2_fact : decode rem2 = some (.bytes field2, rem3))
+    (decode3_fact : decode rem3 = some (.bytes field3, rem4))
+    (end_fact : rem4 = [])
+    (min_fact : 2 ≤ payload.length)
+    (canon0_fact : field0.headD 1 ≠ 0) (len0_fact : field0.length ≤ 8)
+    (canon1_fact : field1.headD 1 ≠ 0) (len1_fact : field1.length ≤ 8)
+    (addr_fact : field2.length = 20)
+    (canon3_fact : field3.headD 1 ≠ 0) (len3_fact : field3.length ≤ 8) :
+    successFieldSpecsInput (pfx :: payload) ∨ decodeWithdrawal (pfx :: payload) = none := by
+  wp_withdrawal_decode_walk
+
+example
+    {pfx : Byte} {payload rem1 rem2 rem3 rem4 field0 field1 field2 field3 : List Byte}
+    (class_fact : classifyPrefix pfx = .shortList)
+    (len_fact : rlpPrefixShortListPayloadLen pfx = payload.length)
+    (decode0_fact : decode payload = some (.bytes field0, rem1))
+    (decode1_fact : decode rem1 = some (.bytes field1, rem2))
+    (decode2_fact : decode rem2 = some (.bytes field2, rem3))
+    (decode3_fact : decode rem3 = some (.bytes field3, rem4))
+    (leftover_fact : rem4 ≠ [])
+    (min_fact : 2 ≤ payload.length) :
+    (∃ w : Withdrawal, decodeWithdrawal (pfx :: payload) = some w) ∨
+      decodeWithdrawal (pfx :: payload) = none := by
+  wp_withdrawal_decode_outcome
 
 example
     {pfx : Byte} {payload : List Byte} (chain : SuccessDecodeChain pfx payload) :
