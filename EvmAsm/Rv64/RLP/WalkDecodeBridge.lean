@@ -317,6 +317,19 @@ theorem decodeAux_bytes_all_fuel_of_decode
                         rcases decoded with ⟨items, leftover⟩
                         cases h_empty : List.isEmpty leftover <;> simp [hitems] at hdecode
 
+/-- List-shaped facade for `decodeAux_bytes_all_fuel_of_decode`.  Generated
+    chain witnesses usually expose the current remainder as one list, not as a
+    syntactic `pfx :: rest`; this theorem hides the nonempty decomposition. -/
+theorem decodeAux_bytes_all_fuel_of_decode_list
+    (bs data rest' : List Byte)
+    (hdecode : decode bs = some (.bytes data, rest')) :
+    ∀ m, decodeAux (m + 1) bs = some (.bytes data, rest') := by
+  cases bs with
+  | nil =>
+      simp [decode, decodeAux] at hdecode
+  | cons pfx rest =>
+      exact decodeAux_bytes_all_fuel_of_decode pfx rest data rest' hdecode
+
 /-! ## Capstone: outer short list of four byte-string items -/
 
 /-- A short-list payload made of four decoded items is a full four-item RLP list. -/
