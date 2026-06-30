@@ -99,6 +99,7 @@ import EvmAsm.Rv64.RLP.UnifiedHeteroFieldWalk
 import EvmAsm.Rv64.RLP.UnifiedScalarFieldRegionCanonical
 import EvmAsm.Rv64.RLP.UnifiedFieldUnitFullyCanonical
 import EvmAsm.Rv64.RLP.SchemaFold
+import EvmAsm.Rv64.RLP.SchemaWP
 import EvmAsm.Rv64.RLP.SchemaScalarValues
 import EvmAsm.Rv64.RLP.SchemaFoldConcat
 import EvmAsm.Rv64.RLP.SchemaListEncode
@@ -132,4 +133,13 @@ import EvmAsm.Rv64.RLP.UnifiedDecodeItemShortListValidated
 import EvmAsm.Rv64.RLP.ContentToU256Be
 import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.WalkInit
+import EvmAsm.Rv64.RLP.WalkInitWP
 import EvmAsm.Rv64.RLP.WalkNext
+import EvmAsm.Rv64.RLP.WalkDecodeBridge
+import EvmAsm.Rv64.RLP.WithdrawalDecode
+import EvmAsm.Rv64.RLP.WithdrawalSchemaWP
+import EvmAsm.Rv64.RLP.WithdrawalDecodeFailureWP
+import EvmAsm.Rv64.RLP.WithdrawalDecodeShortWP
+import EvmAsm.Rv64.RLP.WithdrawalDecodeSemanticWP
+import EvmAsm.Rv64.RLP.WithdrawalDecodeAutoWP
+import EvmAsm.Rv64.RLP.WithdrawalDecodeChainWP

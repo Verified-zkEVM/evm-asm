@@ -16,6 +16,8 @@
 
 import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.WPAttr
+import EvmAsm.Rv64.WP.CFG
 
 namespace EvmAsm.Rv64.RLP
 
@@ -65,5 +67,59 @@ theorem rlp_exact_arity_check (b regionBase : Word) (rEnd : Reg) (cursor listEnd
     rw [show ((regionBase + BitVec.ofNat 64 cursor = regionBase + BitVec.ofNat 64 listEnd))
           = (cursor = listEnd) from propext (ptr_eq_iff_ofNat regionBase cursor listEnd hc hl)] at hp
     exact hp
+
+/-! ## WP certificate wrapper -/
+
+/-- Code requirement for the exact-arity list-end check. -/
+def exactArityCR (base : Word) (rEnd : Reg) (failOff : BitVec 13) : CodeReq :=
+  CodeReq.singleton base (.BNE .x13 rEnd failOff)
+
+/-- Computed precondition for the exact-arity list-end check. -/
+def exactArityPre (regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat) : Assertion :=
+  ((.x13 ↦ᵣ (regionBase + BitVec.ofNat 64 cursor)) **
+    (rEnd ↦ᵣ (regionBase + BitVec.ofNat 64 listEnd)))
+
+/-- Failure postcondition for the exact-arity list-end check. -/
+def exactArityFailurePost (regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat) : Assertion :=
+  (exactArityPre regionBase rEnd cursor listEnd ** ⌜cursor ≠ listEnd⌝)
+
+/-- Success postcondition for the exact-arity list-end check. -/
+def exactAritySuccessPost (regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat) : Assertion :=
+  (exactArityPre regionBase rEnd cursor listEnd ** ⌜cursor = listEnd⌝)
+
+/-- WP branch certificate for the exact-arity list-end check.
+    The taken exit is failure (`cursor ≠ listEnd`); the fall-through exit is success. -/
+def exactArityBranch (base regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat)
+    (failOff : BitVec 13) (hc : cursor < 2 ^ 64) (hl : listEnd < 2 ^ 64) :
+    WP.Branch base (exactArityCR base rEnd failOff) :=
+  WP.Branch.ofSpec (rlp_exact_arity_check base regionBase rEnd cursor listEnd failOff hc hl)
+
+/-- The exact-arity branch computes the named precondition. -/
+theorem exactArityBranch_pre (base regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat)
+    (failOff : BitVec 13) (hc : cursor < 2 ^ 64) (hl : listEnd < 2 ^ 64) :
+    (exactArityBranch base regionBase rEnd cursor listEnd failOff hc hl).pre =
+      exactArityPre regionBase rEnd cursor listEnd := by
+  rfl
+
+/-- The exact-arity branch's taken exit is the failure target. -/
+theorem exactArityBranch_exit_t (base regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat)
+    (failOff : BitVec 13) (hc : cursor < 2 ^ 64) (hl : listEnd < 2 ^ 64) :
+    (exactArityBranch base regionBase rEnd cursor listEnd failOff hc hl).exit_t =
+      base + signExtend13 failOff := by
+  rfl
+
+/-- The exact-arity branch's fall-through exit is success. -/
+theorem exactArityBranch_exit_f (base regionBase : Word) (rEnd : Reg) (cursor listEnd : Nat)
+    (failOff : BitVec 13) (hc : cursor < 2 ^ 64) (hl : listEnd < 2 ^ 64) :
+    (exactArityBranch base regionBase rEnd cursor listEnd failOff hc hl).exit_f = base + 4 := by
+  rfl
+
+attribute [rv64_wp]
+  exactArityBranch_pre
+  exactArityBranch_exit_t
+  exactArityBranch_exit_f
+
+attribute [rv64_wp_cert]
+  exactArityBranch
 
 end EvmAsm.Rv64.RLP
