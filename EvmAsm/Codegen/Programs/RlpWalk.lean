@@ -42,6 +42,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.ContentToU64
+import EvmAsm.Rv64.RLP.ContentToU256Be
 
 namespace EvmAsm.Codegen
 
@@ -155,38 +156,43 @@ theorem rlpContentToU64Function_eq_verified_prog :
     `rlp_field_to_u256_be`, taking an explicit (ptr, len, out)
     instead of re-walking the list.
 
+    Emitted from the verified **canonical-strict** body
+    `EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog` (proven correct by the
+    four-way dispatch theorem `rlp_content_to_u256_be_spec_within`, see
+    `EvmAsm/Rv64/RLP/ContentToU256Be.lean`). Behavior difference from the
+    prior hand-written body that matters for callers: this version enforces
+    RLP scalar canonicality (execution-specs `_deserialize_to_uint`) and
+    rejects a nonzero-length content whose high byte is `0` with a dedicated
+    status `3` (non-canonical), where the old body silently right-aligned it.
+
     Calling convention:
       a0 (input)  : content bytes ptr
       a1 (input)  : content byte length
       a2 (input)  : 32-byte u256 BE output ptr (right-aligned)
       ra (input)  : return
-      a0 (output) : status (0 ok / 2 too long (> 32 bytes))
+      a0 (output) : status
+                      0 ok (canonical: len = 0, or len <= 32 and content[0] != 0)
+                      2 too long (len > 32)
+                      3 non-canonical (0 < len <= 32 and content[0] == 0)
 
-    The output is always zeroed first, so fail / too-long paths
-    leave a zero u256.  Frameless leaf. -/
+    The output is always zeroed first, so fail / too-long / non-canonical
+    paths leave a zero u256. Frameless leaf. -/
 def rlpContentToU256BeFunction : String :=
   "rlp_content_to_u256_be:\n" ++
-  "  sd zero,  0(a2); sd zero,  8(a2); sd zero, 16(a2); sd zero, 24(a2)\n" ++
-  "  li t0, 32\n" ++
-  "  bgtu a1, t0, .Lrc256_too_long\n" ++
-  "  sub t0, t0, a1             # 32 - len\n" ++
-  "  add t1, a2, t0             # dst start (right-aligned)\n" ++
-  "  mv t2, a0                  # src ptr\n" ++
-  "  mv t3, a1                  # remaining\n" ++
-  ".Lrc256_copy:\n" ++
-  "  beqz t3, .Lrc256_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  sb  t4, 0(t1)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lrc256_copy\n" ++
-  ".Lrc256_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lrc256_too_long:\n" ++
-  "  li a0, 2\n" ++
-  "  ret"
+    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly the
+    verified `rlp_content_to_u256_be_prog` rendered under its label, so any
+    future hand-edit of `rlpContentToU256BeFunction` that diverges from the
+    verified body fails to typecheck here. -/
+theorem rlpContentToU256BeFunction_eq_verified_prog :
+    rlpContentToU256BeFunction =
+      "rlp_content_to_u256_be:\n" ++
+        emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog :=
+  rfl
+
+#guard rlpContentToU256BeFunction.startsWith "rlp_content_to_u256_be:\n"
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
 /-! The four cursor-walk primitives concatenated as a single helper block.
 

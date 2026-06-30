@@ -2129,16 +2129,22 @@ calling convention so it is a literal drop-in.
   Axiom-clean (3 classical), 0 sorry. First bridge from verified `Rv64.RLP`
   code into Codegen; `rlp_content_to_u256_be` is the natural next target.
 
-- ⏳ **`rlp_content_to_u256_be`** (`EvmAsm/Rv64/RLP/ContentToU256Be.lean`):
-  faithful 21-instruction drop-in body `rlp_content_to_u256_be_prog`.
-  - ✅ **Content-too-long failure path** (`len > 32`):
-    `rlp_content_to_u256_be_too_long_spec_within` — complete leaf-function
-    triple `cpsTripleWithin 8 base (raVal &&& ~~~1)`. Inputs `a0`/`a1`/`a2`
-    (content ptr / len / out ptr); returns `a0 = 2`; the 32-byte output region
-    at `a2` is returned to the caller as `memOwnU256` (`memOwn` ×4 — arbitrary
-    content). Axiom-clean (3 classical), 0 sorry.
-  - ⏳ **Success path** (`len ≤ 32`, the right-aligned big-endian copy loop) —
-    follow-up; reuse the `ByteCopyIter`/`ByteCopyChain` counted-copy infra.
+- ✅ **`rlp_content_to_u256_be`** (`EvmAsm/Rv64/RLP/ContentToU256Be.lean`):
+  faithful 26-instruction canonical-strict drop-in body
+  `rlp_content_to_u256_be_prog`, all four paths proved (too-long /
+  non-canonical / empty / success) and combined into the unified dispatch
+  `rlp_content_to_u256_be_spec_within` (bound `7*len+16`). **Bridged into
+  Codegen**: `rlpContentToU256BeFunction` (`EvmAsm/Codegen/Programs/RlpWalk.lean`)
+  now emits `rlp_content_to_u256_be_prog` via `emitProgram`, with a
+  kernel-checked `rfl` drift guard
+  (`rlpContentToU256BeFunction_eq_verified_prog`) tying the Codegen string to
+  the verified body. Status `a0`: `0` ok / `2` too long (`len > 32`) / `3`
+  non-canonical (`0 < len ≤ 32 ∧ content[0] = 0`) — the canonical-strict
+  status `3` is new vs. the old lenient hand-written string, which silently
+  right-aligned leading-zero scalars. Axiom-clean (3 classical), 0 sorry. This
+  completes both cursor-walk content helper bridges (`u64`, `u256` here);
+  larger caller verification (transaction/header decoders) remains follow-up
+  work.
 
 - ✅ **`rlp_walk_next`** (`EvmAsm/Rv64/RLP/WalkNext.lean`): verified 103-instruction
   drop-in (`rlp_walk_next_prog`), all 18 reachable paths proved as leaf `cpsTripleWithin`
