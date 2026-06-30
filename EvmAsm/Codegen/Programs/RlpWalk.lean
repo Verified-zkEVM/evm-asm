@@ -78,6 +78,18 @@ open EvmAsm.Rv64
 def rlpWalkInitFunction : String :=
   "rlp_walk_init:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_init_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly the
+    verified `rlp_walk_init_prog` rendered under its label, so any future
+    hand-edit of `rlpWalkInitFunction` that diverges from the verified body
+    fails to typecheck here. -/
+theorem rlpWalkInitFunction_eq_verified_prog :
+    rlpWalkInitFunction =
+      "rlp_walk_init:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_init_prog :=
+  rfl
+
+#guard rlpWalkInitFunction.startsWith "rlp_walk_init:\n"
+#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
+
 /-! ## rlp_walk_next -- advance cursor past one item, report content (STRICT)
 
     Decode the single item at the cursor, advance the cursor past it, and return
@@ -106,6 +118,18 @@ def rlpWalkInitFunction : String :=
     Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2. -/
 def rlpWalkNextFunction : String :=
   "rlp_walk_next:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_next_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly the
+    verified `rlp_walk_next_prog` rendered under its label, so any future
+    hand-edit of `rlpWalkNextFunction` that diverges from the verified body
+    fails to typecheck here. -/
+theorem rlpWalkNextFunction_eq_verified_prog :
+    rlpWalkNextFunction =
+      "rlp_walk_next:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_next_prog :=
+  rfl
+
+#guard rlpWalkNextFunction.startsWith "rlp_walk_next:\n"
+#guard EvmAsm.Rv64.RLP.rlp_walk_next_prog.length = 103
 
 /-! ## rlp_content_to_u64 -- big-endian content bytes -> u64
 
@@ -206,5 +230,20 @@ def rlpWalkHelpersClosure : String :=
   rlpWalkNextFunction ++ "\n" ++
   rlpContentToU64Function ++ "\n" ++
   rlpContentToU256BeFunction
+
+/-- Kernel-checked drift guard: the closure is exactly the concatenation of
+    the four guarded helper definitions, so future edits cannot quietly
+    bypass one of them (each helper is itself tied to its verified Rv64
+    program by `rlpWalkInitFunction_eq_verified_prog`,
+    `rlpWalkNextFunction_eq_verified_prog`,
+    `rlpContentToU64Function_eq_verified_prog`, and
+    `rlpContentToU256BeFunction_eq_verified_prog`). -/
+theorem rlpWalkHelpersClosure_eq_helpers :
+    rlpWalkHelpersClosure =
+      rlpWalkInitFunction ++ "\n" ++
+      rlpWalkNextFunction ++ "\n" ++
+      rlpContentToU64Function ++ "\n" ++
+      rlpContentToU256BeFunction :=
+  rfl
 
 end EvmAsm.Codegen

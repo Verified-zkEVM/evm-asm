@@ -2161,6 +2161,18 @@ calling convention so it is a literal drop-in.
   200/200 spike. (Beads `evm-asm-enb37` unified theorem; `evm-asm-rpeko` overflow-robust
   bound + `a1=3` ¬∃.)
 
+- ✅ **Codegen drift accounting complete for all four cursor-walk helpers**:
+  `rlpWalkInitFunction` and `rlpWalkNextFunction` (`EvmAsm/Codegen/Programs/RlpWalk.lean`)
+  now carry the same kernel-checked `rfl` drift guards as the two content
+  helpers above (`rlpWalkInitFunction_eq_verified_prog`,
+  `rlpWalkNextFunction_eq_verified_prog`), tying the emitted strings to
+  `rlp_walk_init_prog` / `rlp_walk_next_prog`. `rlpWalkHelpersClosure_eq_helpers`
+  ties the four-helper closure to the four guarded definitions, so a future
+  edit cannot quietly swap one out unnoticed. This is Codegen drift
+  accounting only — no new Hoare proofs; caller verification
+  (transaction/header decoders) and index-based helper replacement remain
+  follow-up work.
+
 ---
 
 ## Roadmap: Phases 7-11 (STF — State Transition Function)
