@@ -454,8 +454,224 @@ example
       (walkInitShortSuccessResolvedCode (base + 24) pkg.specs)) := by
   wp_rv64_cert
 
+
 end WalkInitShortSuccessDecodedWP
 
+/-- Result-free package projection from a successful schema-input predicate.
+    Generated callers can keep the schema predicate free of decoded results and
+    still obtain the concrete decoded-success WP package when they need to name
+    its code or postcondition. -/
+noncomputable def walkInitShortSuccessSchemaInputPkg
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WalkInitShortSuccessDecodedWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3
+      inputBase listLen t0Old t1Old input
+      (walkInitShortSuccessSchemaInputWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).1 :=
+  (walkInitShortSuccessSchemaInputWP base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+    m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).2
+
+/-- Success certificate projected directly from the result-free schema predicate. -/
+noncomputable def walkInitShortSuccessSchemaInputCert
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode
+      (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successPost :=
+  (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+    m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).successCert
+
+/-- The result-free schema-input success cert has the static prologue
+    precondition. -/
+theorem walkInitShortSuccessSchemaInputCert_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (walkInitShortSuccessSchemaInputCert base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+      m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+      h_len h_prologue_code h_code_max).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  exact (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+    m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).successCert_pre
+
+/-- Failure classifier branch over the same resolved code as the result-free
+    schema-input success package.  This is useful when a generated proof keeps a
+    zero/nonzero disjunction in the CFG before selecting the success exit. -/
+noncomputable def walkInitShortSuccessSchemaInputFailureNBranch
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base ((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24)
+        (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+          m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+          hdval h_len h_prologue_code h_code_max).specs)) :=
+  (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+    m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).failureNBranch hsalign hover hwin h_len h_prologue_code
+    h_code_max
+
+/-- The result-free schema-input failure branch has the same static prologue
+    precondition as the success cert. -/
+theorem walkInitShortSuccessSchemaInputFailureNBranch_pre
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (walkInitShortSuccessSchemaInputFailureNBranch base sp0 raVal s0Old s1Old s2Old outBase
+      m0 m1 m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign
+      hdov hdval h_len h_prologue_code h_code_max).pre =
+      (prologuePre sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 **
+        walkInitShortSuccessPrologueCarryFrame inputBase listLen t0Old t1Old outBase input) := by
+  exact (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+    m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).failureNBranch_pre hsalign hover hwin h_len h_prologue_code
+    h_code_max
+
+/-- Result-free schema-input failure exits normalized to the nonempty,
+    reason-erased classifier shape. -/
+theorem walkInitShortSuccessSchemaInputFailureNBranch_exits
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    (walkInitShortSuccessSchemaInputFailureNBranch base sp0 raVal s0Old s1Old s2Old outBase
+      m0 m1 m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign
+      hdov hdval h_len h_prologue_code h_code_max).exits =
+      (walkInitAbiFailureReasonErasedFromPrologueExits base sp0 raVal s0Old s1Old s2Old
+        outBase inputBase listLen t0Old t1Old input
+        (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+          m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+          hdval h_len h_prologue_code h_code_max).hoff).map
+        (fun ex => (ex.1, ex.2 ** walkInitSchemaScratchFrame)) := by
+  exact (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+    m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov hdval
+    h_len h_prologue_code h_code_max).failureNBranch_exits hsalign hover hwin h_len h_prologue_code
+    h_code_max
+
+
+attribute [rv64_wp]
+  walkInitShortSuccessSchemaInputCert_pre
+  walkInitShortSuccessSchemaInputFailureNBranch_pre
+
+attribute [rv64_wp_cert]
+  walkInitShortSuccessSchemaInputCert
+  walkInitShortSuccessSchemaInputFailureNBranch
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.CFG.Cert base (successStatusReturnExit raVal)
+      (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successCode
+      (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2
+        m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+        hdval h_len h_prologue_code h_code_max).successPost := by
+  wp_rv64_cert
+
+noncomputable example
+    (base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 : Word)
+    (inputBase listLen t0Old t1Old : Word)
+    (input : List Byte)
+    (h_success : successFieldSpecsInput input)
+    (hsalign : inputBase.toNat % 8 = 0)
+    (hover : inputBase.toNat + input.length < 2 ^ 64)
+    (hwin : forall i, i < input.length -> isValidByteAccess (inputBase + BitVec.ofNat 64 i) = true)
+    (hdalign : outBase.toNat % 8 = 0)
+    (hdov : outBase.toNat + outputSize < 2 ^ 64)
+    (hdval : forall i, i < outputSize -> isValidByteAccess (outBase + BitVec.ofNat 64 i) = true)
+    (h_len : listLen = BitVec.ofNat 64 input.length)
+    (h_prologue_code : base.toNat + 24 < 2 ^ 64)
+    (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
+    WP.NBranch base ((prologueCode base).union
+      (walkInitShortSuccessResolvedCode (base + 24)
+        (walkInitShortSuccessSchemaInputPkg base sp0 raVal s0Old s1Old s2Old outBase m0 m1
+          m2 m3 inputBase listLen t0Old t1Old input h_success hsalign hover hwin hdalign hdov
+          hdval h_len h_prologue_code h_code_max).specs)) := by
+  wp_rv64_cert
+
 end WithdrawalDecode
+
 
 end EvmAsm.Rv64.RLP
