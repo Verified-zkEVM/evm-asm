@@ -731,7 +731,8 @@ def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`        — typed-tx detector
-      - `rlp_field_to_u256_be` helper    — u256 field extractor
+      - RlpWalk cursor helpers           — field bounds
+      - `rlp_content_to_u256_be` helper  — canonical u256 content decoder
 
     Calling convention:
       a0 (input)  : tx_bytes ptr (encoded form)
@@ -746,13 +747,15 @@ def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
         3 : max_fee field extraction failed (typed only)
 
     Both outputs zeroed on failure. Uses two 8-byte `.data`
-    scratch slots (`tegp_type`, `tegp_inner_off`). -/
+    scratch slots (`tegp_type`, `tegp_inner_off`). Non-canonical integer
+    encodings are rejected by the content decoder. -/
 def txExtractGasPricingFunction : String :=
   "tx_extract_gas_pricing:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # max_priority_fee out (32B)\n" ++
@@ -771,23 +774,28 @@ def txExtractGasPricingFunction : String :=
   ".Ltegp_after_dispatch:\n" ++
   "  la t0, tegp_type;      ld s4, 0(t0)    # type → s4\n" ++
   "  la t0, tegp_inner_off; ld t5, 0(t0)\n" ++
-  "  add s5, s0, t5                          # inner_ptr → s5\n" ++
-  "  sub s6, s1, t5                          # inner_len → s6\n" ++
+  "  add a0, s0, t5                          # inner_ptr\n" ++
+  "  sub a1, s1, t5                          # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ltegp_p_fail\n" ++
+  "  mv s5, a0                               # cursor\n" ++
+  "  mv s6, a1                               # end\n" ++
   "  # Determine first u256 field index.\n" ++
   "  # Legacy: gas_price=1. 2930: gas_price=2. 1559/4844/7702: max_priority=2.\n" ++
   "  li t0, 0\n" ++
   "  beq s4, t0, .Ltegp_p_legacy\n" ++
-  "  li t1, 2                              # typed: index 2\n" ++
+  txExtractWalkFieldAsm ".Ltegp_p_fail" 2 ++
   "  j .Ltegp_p_have\n" ++
   ".Ltegp_p_legacy:\n" ++
-  "  li t1, 1                              # legacy: index 1\n" ++
+  txExtractWalkFieldAsm ".Ltegp_p_fail" 1 ++
   ".Ltegp_p_have:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv s7, a0                               # cursor after first fee field\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  mv a2, s2\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  beqz a0, .Ltegp_after_p\n" ++
+  ".Ltegp_p_fail:\n" ++
   "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
   "  li a0, 2\n" ++
   "  j .Ltegp_ret\n" ++
@@ -802,13 +810,15 @@ def txExtractGasPricingFunction : String :=
   "  li a0, 0\n" ++
   "  j .Ltegp_ret\n" ++
   ".Ltegp_typed_fee:\n" ++
-  "  # Type 2/3/4: max_fee = field 3.\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  li a2, 3\n" ++
-  "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  # Type 2/3/4: max_fee = next field after max_priority.\n" ++
+  "  mv s5, s7\n" ++
+  txExtractWalkFieldAsm ".Ltegp_fee_fail" 0 ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  mv a2, s3\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  beqz a0, .Ltegp_ok\n" ++
+  ".Ltegp_fee_fail:\n" ++
   "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
   "  li a0, 3\n" ++
   "  j .Ltegp_ret\n" ++
@@ -818,7 +828,8 @@ def txExtractGasPricingFunction : String :=
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_gas_pricing`: probe BuildUnit. Reads (tx_len,
@@ -835,19 +846,13 @@ def ziskTxExtractGasPricingPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltegp_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   ".Ltegp_pdone:"
 
 def ziskTxExtractGasPricingDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
   ".balign 8\n" ++
   "tegp_type:\n" ++
   "  .zero 8\n" ++
@@ -951,8 +956,7 @@ def ziskTxEffectiveGasPricingPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltefgp_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
@@ -964,11 +968,6 @@ def ziskTxEffectiveGasPricingPrologue : String :=
 
 def ziskTxEffectiveGasPricingDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
   ".balign 8\n" ++
   "tegp_type:\n" ++
   "  .zero 8\n" ++
