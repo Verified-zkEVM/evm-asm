@@ -193,7 +193,7 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
                   authorization conservatively contribute zero. -/
 def txEip7702ExistingAuthorityRefundFunction : String :=
   "tx_eip7702_existing_authority_refund:\n" ++
-  "  addi sp, sp, -144\n" ++
+  "  addi sp, sp, -160\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
@@ -339,78 +339,47 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   ".Lteer_next:\n" ++
   "  addi s8, s8, 1; j .Lteer_loop\n" ++
   ".Lteer_same_authority_try:\n" ++
-  "  mv a0, s5; mv a1, s6; li a2, 0; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
-  "  la t0, teer_tuple_len; ld s11, 0(t0)\n" ++
-  "  mv a0, s9; mv a1, s11; li a2, 0; la a3, teer_auth_chain\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_same_first_chain_ok; bne t1, s4, .Lteer_single_loop_setup\n" ++
-  ".Lteer_same_first_chain_ok:\n" ++
-  "  mv a0, s9; mv a1, s11; li a2, 2; la a3, teer_first_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_first_nonce; ld t1, 0(t0); li t2, -1; beq t1, t2, .Lteer_single_loop_setup\n" ++
-  "  mv a0, s9; mv a1, s11; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_single_loop_setup\n" ++
-  "  mv a0, s9; mv a1, s11; la a2, teer_first_authority; la a3, teer_recover_scratch\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteer_single_loop_setup\n" ++
+  "  sd a0, 112(sp); sd a1, 120(sp); li s8, 0\n" ++
+  ".Lteer_same_loop:\n" ++
+  "  beq s8, s7, .Lteer_same_after_scan\n" ++
+  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_single_loop_setup\n" ++
+  "  sd a0, 112(sp); sub s9, a0, a2; sd a2, 136(sp)\n" ++
+  "  mv a0, s9; ld a1, 136(sp); jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteer_single_loop_setup\n" ++
+  "  sd a0, 128(sp); sd a1, 144(sp)\n" ++
+  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_single_loop_setup\n" ++
+  "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lteer_single_loop_setup\n" ++
+  "  mv t1, a0; beqz t1, .Lteer_same_chain_ok; bne t1, s4, .Lteer_single_loop_setup\n" ++
+  ".Lteer_same_chain_ok:\n" ++
+  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_single_loop_setup\n" ++
+  "  sd a0, 128(sp); li t2, 20; bne a2, t2, .Lteer_single_loop_setup\n" ++
+  "  sub s11, a0, a2; sd s11, 152(sp)\n" ++
+  "  ld a0, 128(sp); ld a1, 144(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_single_loop_setup\n" ++
+  "  sd a0, 128(sp); sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lteer_single_loop_setup\n" ++
+  "  mv t2, a0; beqz s8, .Lteer_same_first_nonce_check\n" ++
+  "  la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s8; bne t2, t1, .Lteer_single_loop_setup\n" ++
+  "  j .Lteer_same_nonce_ok\n" ++
+  ".Lteer_same_first_nonce_check:\n" ++
+  "  li t1, -1; beq t2, t1, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_first_nonce; sd t2, 0(t0)\n" ++
+  ".Lteer_same_nonce_ok:\n" ++
+  "  bnez s8, .Lteer_same_recover_current\n" ++
+  "  mv a0, s9; ld a1, 136(sp); la a2, teer_first_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, teer_first_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bne t2, t1, .Lteer_single_loop_setup\n" ++
-  "  addi t0, s7, -1; mv a0, s5; mv a1, s6; mv a2, t0; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
-  "  la t0, teer_tuple_len; ld s11, 0(t0)\n" ++
-  "  mv a0, s9; mv a1, s11; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
-  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
-  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_single_loop_setup\n" ++
-  "  lbu t3, 2(t2); bnez t3, .Lteer_single_loop_setup\n" ++
-  "  addi t2, t2, 3; la t0, teer_target_off; ld t4, 0(t0); add t4, s9, t4; li t5, 20\n" ++
-  ".Lteer_same_final_marker_cmp:\n" ++
-  "  beqz t5, .Lteer_same_loop_start\n" ++
-  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_single_loop_setup\n" ++
-  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_same_final_marker_cmp\n" ++
-  ".Lteer_same_loop_start:\n" ++
-  "  li s8, 0\n" ++
-  ".Lteer_same_loop:\n" ++
-  "  beq s8, s7, .Lteer_same_compute_refund\n" ++
-  "  mv a0, s5; mv a1, s6; mv a2, s8; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
-  "  la t0, teer_tuple_len; ld s11, 0(t0)\n" ++
-  "  mv a0, s9; mv a1, s11; li a2, 0; la a3, teer_auth_chain\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_same_chain_ok; bne t1, s4, .Lteer_single_loop_setup\n" ++
-  ".Lteer_same_chain_ok:\n" ++
-  "  mv a0, s9; mv a1, s11; li a2, 2; la a3, teer_auth_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s8; la t0, teer_auth_nonce; ld t2, 0(t0); bne t2, t1, .Lteer_single_loop_setup\n" ++
-  "  mv a0, s9; mv a1, s11; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_single_loop_setup\n" ++
-  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_single_loop_setup\n" ++
-  "  mv a0, s9; mv a1, s11; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
+  "  j .Lteer_same_next\n" ++
+  ".Lteer_same_recover_current:\n" ++
+  "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteer_single_loop_setup\n" ++
   "  la t0, teer_authority; la t1, teer_first_authority; li t2, 20\n" ++
@@ -420,6 +389,26 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lteer_same_authority_cmp\n" ++
   ".Lteer_same_next:\n" ++
   "  addi s8, s8, 1; j .Lteer_same_loop\n" ++
+  ".Lteer_same_after_scan:\n" ++
+  "  mv a0, s2; mv a1, s3; la a2, teer_first_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteer_single_loop_setup\n" ++
+  "  ld t2, 48(t0); la t0, teer_first_nonce; ld t1, 0(t0); add t1, t1, s7; bne t2, t1, .Lteer_single_loop_setup\n" ++
+  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteer_single_loop_setup\n" ++
+  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lteer_single_loop_setup\n" ++
+  "  ld t2, 64(t0); la t4, teer_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
+  "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lteer_single_loop_setup\n" ++
+  "  lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lteer_single_loop_setup\n" ++
+  "  lbu t3, 2(t2); bnez t3, .Lteer_single_loop_setup\n" ++
+  "  addi t2, t2, 3; ld t4, 152(sp); li t5, 20\n" ++
+  ".Lteer_same_final_marker_cmp:\n" ++
+  "  beqz t5, .Lteer_same_compute_refund\n" ++
+  "  lbu t3, 0(t2); lbu t6, 0(t4); bne t3, t6, .Lteer_single_loop_setup\n" ++
+  "  addi t2, t2, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lteer_same_final_marker_cmp\n" ++
   ".Lteer_same_compute_refund:\n" ++
   "  la t0, teer_records_ptr; ld t0, 0(t0); beqz t0, .Lteer_single_loop_setup\n" ++
   "  la t1, bfa_index; ld t1, 0(t1); slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; add t2, t0, t2\n" ++
@@ -440,7 +429,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 144\n" ++
+  "  addi sp, sp, 160\n" ++
   "  ret"
 
 
