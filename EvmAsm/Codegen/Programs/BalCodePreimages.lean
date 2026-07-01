@@ -1288,11 +1288,22 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbcc_next_tx\n" ++
   "  la t0, bsg_tx_type; ld t1, 0(t0); bnez t1, .Lbcc_next_tx\n" ++
-  "  la t0, bsg_change_ptr; ld t3, 0(t0); la t0, bsg_change_item_len; ld t2, 0(t0)\n" ++
-  "  mv a0, t3; mv a1, t2; li a2, 3; la a3, bsg_to_off; la a4, bsg_to_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbcc_next_tx\n" ++
-  "  la t0, bsg_change_ptr; ld t3, 0(t0)\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_change_ptr; sd a0, 0(t0); la t0, bsg_change_item_len; sd a1, 0(t0)\n" ++
+  "  # field 0 = nonce; save content bounds, decode only for top-level creation.\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_change_ptr; sd a0, 0(t0); sub t1, a0, a2; la t0, bsg_data_off; sd t1, 0(t0); la t0, bsg_data_len; sd a2, 0(t0)\n" ++
+  "  # skip fields 1 and 2, then read field 3 = to.\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbcc_next_tx; la t0, bsg_change_ptr; sd a0, 0(t0)\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbcc_next_tx; la t0, bsg_change_ptr; sd a0, 0(t0)\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbcc_next_tx\n" ++
+  "  sub t1, a0, a2; la t0, bsg_to_off; sd t1, 0(t0); la t0, bsg_to_len; sd a2, 0(t0)\n" ++
   "  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; beq t1, t2, .Lbcc_internal_create\n" ++
   "  bnez t1, .Lbcc_next_tx\n" ++
   "  # Top-level legacy contract creation: compare target with CREATE(sender, nonce).\n" ++
@@ -1302,9 +1313,10 @@ def balCodePreimagesValidFunction : String :=
   "  li t0, 65; mul t1, s8, t0; add t2, t1, t0; bgtu t2, t5, .Lbcc_next_tx\n" ++
   "  add a0, t4, t1; addi a0, a0, 1       # skip SEC1 0x04 prefix\n" ++
   "  la a1, bbcv_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0)\n" ++
-  "  li a2, 0; la a3, bsg_tx_nonce; jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_data_off; ld a0, 0(t0); la t0, bsg_data_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lbcc_next_tx\n" ++
+  "  la t0, bsg_tx_nonce; sd a0, 0(t0)\n" ++
   "  la a0, bbcv_sender_addr; la t0, bsg_tx_nonce; ld a1, 0(t0); la a2, bbcv_create_addr\n" ++
   "  jal ra, address_compute_create\n" ++
   "  la t0, bbcv_create_addr; li t1, 0\n" ++
@@ -1317,8 +1329,7 @@ def balCodePreimagesValidFunction : String :=
   ".Lbcc_internal_create:\n" ++
   "  jal ra, bal_codes_contains_create_opcode\n" ++
   "  beqz a0, .Lbcc_next_tx\n" ++
-  "  la t0, bsg_change_ptr; ld t3, 0(t0)\n" ++
-  "  la t0, bsg_to_off; ld t1, 0(t0); add t3, t3, t1\n" ++
+  "  la t0, bsg_to_off; ld t3, 0(t0)\n" ++
   "  la t0, bsr_kbuf            # RLP([to, 0]) buffer\n" ++
   "  li t1, 0xd6; sb t1, 0(t0)\n" ++
   "  li t1, 0x94; sb t1, 1(t0)\n" ++
