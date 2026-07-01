@@ -142,6 +142,7 @@ import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipModWordLane
+import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModWordLane
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
 import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
