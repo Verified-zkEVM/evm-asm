@@ -51,7 +51,6 @@ precondition; the excluded domain is **unverified**.
 | Opcode | Why not (yet) fully proven |
 |---|---|
 | `SDIV` | callable+dispatch shim; evm_sdiv_stack_spec_within conditional on hStack (discharged for divisor=0 and n=1/2/3/n4-call-skip); blocked on DIV/MOD spec-layer migration (bead evm-asm-9iqmw) |
-| `MOD` | stack spec parametric over ModStackSpecCase (bzero / n=1,2,3, all require b.getLimbN 3 = 0); n=4 path not covered. Executable evm_mod uses divK_div128_v4 (PR #4992). Full-domain unconditional closure tracked by bead evm-asm-9iqmw / gh-61 |
 | `SMOD` | all-case v4 wrapper result-stack spec; zero divisor discharged, nonzero path still parameterized by unsigned-MOD callable h_stack |
 
 ### 🟡 `partly` opcodes — no complete top-level triple yet
