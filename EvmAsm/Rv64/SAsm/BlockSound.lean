@@ -90,9 +90,7 @@ theorem execInstrRF_sound {i : Instr} (reg : Region) (hreg : reg.wf)
     (hok : instrOk i = true)
     (rf : RegFile) (base : Word)
     (hvc : match loadSem i with
-      | some l =>
-          ((rf.get l.rs1 + signExtend12 l.ofs) - reg.base).toNat
-            < reg.bytes.length
+      | some l => reg.loadOk (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
       | none => True) :
     cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base i)
       ((regFileIs rf) ** bytesRegion reg.base reg.bytes)

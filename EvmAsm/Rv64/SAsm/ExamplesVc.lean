@@ -179,13 +179,12 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
   case region => exact hwf
   case rlpIsList.load.mem =>
     rintro rf ⟨hx10, hne⟩
-    refine ⟨?_, trivial, trivial⟩
-    show ((rf.get .x10 + signExtend12 (0 : BitVec 12))
-      - (rlpIsListFn inBase bs).region.base).toNat
-      < (rlpIsListFn inBase bs).region.bytes.length
-    rw [show (rlpIsListFn inBase bs).region = Region.mk inBase bs from rfl]
+    refine ⟨⟨one_dvd _, ?_⟩, trivial, trivial⟩
+    show ((rf.get .x10 + signExtend12 (0 : BitVec 12)) - inBase).toNat + 1
+      ≤ bs.length
     rw [haddr rf hx10]
-    exact List.length_pos_iff.mpr hne
+    have := List.length_pos_iff.mpr hne
+    omega
   case rlpIsList.post =>
     intro rf' h
     show rf'.get .x10 = (if (bs.headD 0).toNat < 0xc0 then 0 else 1)
@@ -230,6 +229,54 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
         RegFile.get_set_self _ .x6 _ (by decide),
         hbyte rf₁ hx10] at hcond
       rw [if_neg (fun hlt => hcond (hult.mpr hlt))]
+
+-- ============================================================================
+-- Wider loads (Milestone M5b): SSZ-style u32 offset read
+-- ============================================================================
+
+/-- Read the little-endian u32 at byte offset 4 of an SSZ-style input into
+    a1 — the shape of an SSZ offset-table walk (`decode_validation_bit`). -/
+def sszReadOffsetFn (inBase : Word) (bs : List (BitVec 8)) : Fn where
+  name := "sszReadOffset"
+  region := ⟨inBase, bs⟩
+  pre := fun rf => rf.get .x10 = inBase ∧ 8 ≤ bs.length
+  post := fun rf => rf.get .x11
+    = BitVec.zeroExtend 64
+        (bs.getD 7 0 ++ bs.getD 6 0 ++ bs.getD 5 0 ++ bs.getD 4 0)
+  body := .block "load" [.LWU .x11 .x10 4]
+
+theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
+    (hwf : (Region.mk inBase bs).wf) (base : Word) :
+    (sszReadOffsetFn inBase bs).Spec base := by
+  have haddr : ∀ rf : RegFile, rf.get .x10 = inBase →
+      ((rf.get .x10 + signExtend12 (4 : BitVec 12)) - inBase).toNat = 4 := by
+    intro rf h
+    rw [h, show signExtend12 (4 : BitVec 12) = (4 : Word) from by decide]
+    bv_omega
+  vcgen
+  case region => exact hwf
+  case sszReadOffset.load.mem =>
+    rintro rf ⟨hx10, hlen⟩
+    refine ⟨⟨?_, ?_⟩, trivial⟩
+    · show (4 : Nat) ∣ ((rf.get .x10 + signExtend12 (4 : BitVec 12)) - inBase).toNat
+      rw [haddr rf hx10]
+    · show ((rf.get .x10 + signExtend12 (4 : BitVec 12)) - inBase).toNat + 4
+        ≤ bs.length
+      rw [haddr rf hx10]
+      omega
+  case sszReadOffset.post =>
+    rintro rf' ⟨rf₀, ⟨hx10, hlen⟩, rfl⟩
+    show RegFile.get _ .x11 = _
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem]
+    rw [RegFile.get_set_self _ .x11 _ (by decide)]
+    rw [hx10, show signExtend12 (4 : BitVec 12) = (4 : Word) from by decide]
+    show BitVec.zeroExtend 64 (Region.word32At ⟨inBase, bs⟩ (inBase + 4)) = _
+    unfold Region.word32At Region.byteAt
+    rw [show inBase + 4 + 3 - inBase = (7 : Word) from by bv_omega,
+      show inBase + 4 + 2 - inBase = (6 : Word) from by bv_omega,
+      show inBase + 4 + 1 - inBase = (5 : Word) from by bv_omega,
+      show inBase + 4 - inBase = (4 : Word) from by bv_omega]
+    rfl
 
 end ExamplesVc
 end SAsm

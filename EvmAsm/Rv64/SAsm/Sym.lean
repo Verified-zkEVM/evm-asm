@@ -18,6 +18,7 @@
 -/
 
 import EvmAsm.Rv64.Execution
+import EvmAsm.Rv64.ByteOps
 import EvmAsm.Rv64.SAsm.RegFile
 
 namespace EvmAsm.Rv64
@@ -41,6 +42,21 @@ def Region.empty : Region := ⟨0, []⟩
     VCs rule that out). -/
 def Region.byteAt (reg : Region) (addr : Word) : BitVec 8 :=
   reg.bytes.getD (addr - reg.base).toNat 0
+
+/-- Read the little-endian 32-bit word at a 4-aligned absolute address. -/
+def Region.word32At (reg : Region) (addr : Word) : BitVec 32 :=
+  reg.byteAt (addr + 3) ++ reg.byteAt (addr + 2)
+    ++ reg.byteAt (addr + 1) ++ reg.byteAt addr
+
+/-- Read the dword (as its packed cell) at an 8-aligned absolute address. -/
+def Region.dwordAt (reg : Region) (addr : Word) : Word :=
+  packBytes ((reg.bytes.drop (addr - reg.base).toNat).take 8)
+
+/-- Address side condition of an `n`-byte load: the index is `n`-aligned
+    within the region and the whole access fits. -/
+def Region.loadOk (reg : Region) (addr : Word) (n : Nat) : Prop :=
+  n ∣ (addr - reg.base).toNat
+    ∧ (addr - reg.base).toNat + n ≤ reg.bytes.length
 
 /-- Region well-formedness: dword-aligned base, no address wrap, and every
     byte within the machine's valid memory range.  Decidable for concrete
@@ -113,20 +129,24 @@ def aluSem : Instr → Option AluOp
   -- Everything else (memory, control flow, system) is not a block leaf.
   | _ => none
 
-/-- Classification of a byte load from the function's read-only region:
-    destination, address register, immediate offset, and how the byte
-    extends to a word. -/
+/-- Classification of a load from the function's read-only region:
+    destination, address register, immediate offset, access width in bytes,
+    and the loaded (extended) word as a function of region and address. -/
 structure LoadOp where
   rd : Reg
   rs1 : Reg
   ofs : BitVec 12
-  ext : BitVec 8 → Word
+  nbytes : Nat
+  val : Region → Word → Word
 
-/-- Classify a byte load.  `LBU`/`LB` only in M5a; wider loads arrive with
-    multi-byte region reads. -/
+/-- Classify a load.  Bytes, 32-bit words, and dwords; halfwords can be
+    added the same way when a user needs them. -/
 def loadSem : Instr → Option LoadOp
-  | .LBU rd rs1 ofs => some ⟨rd, rs1, ofs, fun b => b.zeroExtend 64⟩
-  | .LB  rd rs1 ofs => some ⟨rd, rs1, ofs, fun b => b.signExtend 64⟩
+  | .LBU rd rs1 ofs => some ⟨rd, rs1, ofs, 1, fun reg a => (reg.byteAt a).zeroExtend 64⟩
+  | .LB  rd rs1 ofs => some ⟨rd, rs1, ofs, 1, fun reg a => (reg.byteAt a).signExtend 64⟩
+  | .LW  rd rs1 ofs => some ⟨rd, rs1, ofs, 4, fun reg a => (reg.word32At a).signExtend 64⟩
+  | .LWU rd rs1 ofs => some ⟨rd, rs1, ofs, 4, fun reg a => (reg.word32At a).zeroExtend 64⟩
+  | .LD  rd rs1 ofs => some ⟨rd, rs1, ofs, 8, fun reg a => reg.dwordAt a⟩
   | _ => none
 
 /-- Symbolic execution of one instruction over the register file, reading
@@ -137,7 +157,7 @@ def execInstrRF (reg : Region) (rf : RegFile) (i : Instr) : RegFile :=
   | some op => rf.set op.rd (op.f rf.get)
   | none =>
     match loadSem i with
-    | some l => rf.set l.rd (l.ext (reg.byteAt (rf.get l.rs1 + signExtend12 l.ofs)))
+    | some l => rf.set l.rd (l.val reg (rf.get l.rs1 + signExtend12 l.ofs))
     | none => rf
 
 /-- Supported-and-exposed check for a block leaf instruction: the instruction
@@ -171,8 +191,7 @@ def blockVCs (reg : Region) (rf : RegFile) : List Instr → Prop
   | [] => True
   | i :: is =>
       (match loadSem i with
-       | some l =>
-           ((rf.get l.rs1 + signExtend12 l.ofs) - reg.base).toNat < reg.bytes.length
+       | some l => reg.loadOk (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
        | none => True)
       ∧ blockVCs reg (execInstrRF reg rf i) is
 
