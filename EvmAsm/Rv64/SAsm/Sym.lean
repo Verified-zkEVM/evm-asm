@@ -23,6 +23,37 @@ import EvmAsm.Rv64.SAsm.RegFile
 namespace EvmAsm.Rv64
 namespace SAsm
 
+-- ============================================================================
+-- Read-only byte regions (docs/sasm-design.md §3.3)
+-- ============================================================================
+
+/-- A read-only byte buffer owned by an SAsm function: `bytes` live at the
+    dword-aligned `base`.  The degenerate `Region.empty` is the default for
+    functions that touch no memory. -/
+structure Region where
+  base : Word
+  bytes : List (BitVec 8)
+
+/-- The no-memory region (its assertion is `empAssertion`). -/
+def Region.empty : Region := ⟨0, []⟩
+
+/-- Read the byte at an absolute address (junk when out of range; the block
+    VCs rule that out). -/
+def Region.byteAt (reg : Region) (addr : Word) : BitVec 8 :=
+  reg.bytes.getD (addr - reg.base).toNat 0
+
+/-- Region well-formedness: dword-aligned base, no address wrap, and every
+    byte within the machine's valid memory range.  Decidable for concrete
+    regions (`decide`); `omega`/`bv_omega` for symbolic ones. -/
+def Region.wf (reg : Region) : Prop :=
+  reg.base.toNat % 8 = 0 ∧
+  reg.base.toNat + reg.bytes.length < 2 ^ 64 ∧
+  ∀ k, k < reg.bytes.length → isValidMemAddr (reg.base + BitVec.ofNat 64 k) = true
+
+instance (reg : Region) : Decidable reg.wf := by
+  unfold Region.wf
+  infer_instance
+
 /-- Classification of a supported straight-line instruction: destination,
     sources, and result as a function of the register valuation. -/
 structure AluOp where
@@ -82,13 +113,32 @@ def aluSem : Instr → Option AluOp
   -- Everything else (memory, control flow, system) is not a block leaf.
   | _ => none
 
-/-- Symbolic execution of one instruction over the register file.
-    Unsupported instructions are the identity; they are ruled out by
-    `instrOk`, which the VC generator enforces. -/
-def execInstrRF (rf : RegFile) (i : Instr) : RegFile :=
+/-- Classification of a byte load from the function's read-only region:
+    destination, address register, immediate offset, and how the byte
+    extends to a word. -/
+structure LoadOp where
+  rd : Reg
+  rs1 : Reg
+  ofs : BitVec 12
+  ext : BitVec 8 → Word
+
+/-- Classify a byte load.  `LBU`/`LB` only in M5a; wider loads arrive with
+    multi-byte region reads. -/
+def loadSem : Instr → Option LoadOp
+  | .LBU rd rs1 ofs => some ⟨rd, rs1, ofs, fun b => b.zeroExtend 64⟩
+  | .LB  rd rs1 ofs => some ⟨rd, rs1, ofs, fun b => b.signExtend 64⟩
+  | _ => none
+
+/-- Symbolic execution of one instruction over the register file, reading
+    byte loads from `reg`.  Unsupported instructions are the identity; they
+    are ruled out by `instrOk`, which the VC generator enforces. -/
+def execInstrRF (reg : Region) (rf : RegFile) (i : Instr) : RegFile :=
   match aluSem i with
   | some op => rf.set op.rd (op.f rf.get)
-  | none => rf
+  | none =>
+    match loadSem i with
+    | some l => rf.set l.rd (l.ext (reg.byteAt (rf.get l.rs1 + signExtend12 l.ofs)))
+    | none => rf
 
 /-- Supported-and-exposed check for a block leaf instruction: the instruction
     is in the supported subset, writes an exposed register (or x0), and reads
@@ -98,21 +148,58 @@ def instrOk (i : Instr) : Bool :=
   | some op =>
       (Reg.isExposed op.rd || op.rd == .x0)
         && op.srcs.all (fun r => Reg.isExposed r || r == .x0)
-  | none => false
+  | none =>
+    match loadSem i with
+    | some l =>
+        (Reg.isExposed l.rd || l.rd == .x0)
+          && (Reg.isExposed l.rs1 || l.rs1 == .x0)
+    | none => false
 
 /-- Forward symbolic execution of a straight-line block. -/
-def execBlock (rf : RegFile) : List Instr → RegFile
+def execBlock (reg : Region) (rf : RegFile) : List Instr → RegFile
   | [] => rf
-  | i :: is => execBlock (execInstrRF rf i) is
+  | i :: is => execBlock reg (execInstrRF reg rf i) is
 
 /-- Every instruction of the block is a supported, exposure-respecting leaf. -/
 def blockOk (instrs : List Instr) : Bool :=
   instrs.all instrOk
 
-@[simp] theorem execBlock_nil (rf : RegFile) : execBlock rf [] = rf := rfl
+/-- Address side conditions of a block's loads, threaded through the
+    symbolic execution: every load's effective address indexes into the
+    region. -/
+def blockVCs (reg : Region) (rf : RegFile) : List Instr → Prop
+  | [] => True
+  | i :: is =>
+      (match loadSem i with
+       | some l =>
+           ((rf.get l.rs1 + signExtend12 l.ofs) - reg.base).toNat < reg.bytes.length
+       | none => True)
+      ∧ blockVCs reg (execInstrRF reg rf i) is
 
-@[simp] theorem execBlock_cons (rf : RegFile) (i : Instr) (is : List Instr) :
-    execBlock rf (i :: is) = execBlock (execInstrRF rf i) is := rfl
+/-- Whether a block contains any load (decides whether a `.mem` VC is
+    emitted at all). -/
+def hasLoad (instrs : List Instr) : Bool :=
+  instrs.any (fun i => (loadSem i).isSome)
+
+/-- Blocks without loads have no memory side conditions. -/
+theorem blockVCs_of_not_hasLoad (reg : Region) (rf : RegFile)
+    (instrs : List Instr) (h : hasLoad instrs = false) :
+    blockVCs reg rf instrs := by
+  induction instrs generalizing rf with
+  | nil => trivial
+  | cons i is ih =>
+      simp only [hasLoad, List.any_cons, Bool.or_eq_false_iff] at h
+      refine ⟨?_, ih _ (by simp [hasLoad, h.2])⟩
+      cases hl : loadSem i with
+      | none => trivial
+      | some l => simp [hl] at h
+
+@[simp] theorem execBlock_nil (reg : Region) (rf : RegFile) :
+    execBlock reg rf [] = rf := rfl
+
+@[simp] theorem execBlock_cons (reg : Region) (rf : RegFile) (i : Instr)
+    (is : List Instr) :
+    execBlock reg rf (i :: is) = execBlock reg (execInstrRF reg rf i) is := rfl
 
 end SAsm
 end EvmAsm.Rv64
