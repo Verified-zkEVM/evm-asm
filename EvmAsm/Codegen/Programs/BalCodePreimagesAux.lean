@@ -26,41 +26,54 @@ def balCodePreimagesAuxFunctions : String :=
   "  mv s4, a4                  # BAL len\n" ++
   "  jal ra, bal_codes_contains_create_opcode\n" ++
   "  beqz a0, .Lbicc_no\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, bbcv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbicc_no\n" ++
-  "  la t0, bbcv_count; ld s5, 0(t0)\n" ++
-  "  li s6, 0                  # BAL row index\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbicc_no\n" ++
+  "  mv s5, a0                 # BAL row cursor\n" ++
+  "  mv s6, a1                 # BAL row end\n" ++
   ".Lbicc_row_loop:\n" ++
-  "  beq s6, s5, .Lbicc_no\n" ++
-  "  mv a0, s3; mv a1, s4; mv a2, s6; la a3, bbcv_off; la a4, bbcv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbicc_next_row\n" ++
-  "  la t0, bbcv_off; ld t1, 0(t0); add s7, s3, t1     # row ptr\n" ++
-  "  la t0, bbcv_size; ld s8, 0(t0)                    # row len\n" ++
-  "  mv a0, s7; mv a1, s8; li a2, 0; la a3, bbcv_addr_off; la a4, bbcv_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbicc_next_row\n" ++
-  "  la t0, bbcv_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbicc_next_row\n" ++
-  "  la t0, bbcv_addr_off; ld t1, 0(t0); add s9, s7, t1 # creator address ptr\n" ++
-  "  mv a0, s7; mv a1, s8; li a2, 4; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbicc_next_row\n" ++
-  "  la t0, bbcv_field_off; ld t1, 0(t0); add s10, s7, t1 # nonce_changes ptr\n" ++
-  "  la t0, bbcv_field_len; ld s11, 0(t0)                  # nonce_changes len\n" ++
-  "  mv a0, s10; mv a1, s11; la a2, bbcv_field_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbicc_next_row\n" ++
-  "  la t0, bbcv_field_count; ld t1, 0(t0); beqz t1, .Lbicc_next_row\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbicc_no\n" ++
+  "  bnez a1, .Lbicc_no\n" ++
+  "  mv s5, a0; sub s7, a0, a2 # row ptr\n" ++
+  "  mv s8, a2                 # row len\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbicc_next_row\n" ++
+  "  mv s10, a0                # row field cursor\n" ++
+  "  mv s11, a1                # row field end\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbicc_next_row\n" ++
+  "  li t2, 20; bne a2, t2, .Lbicc_next_row\n" ++
+  "  sub s9, a0, a2            # creator address ptr\n" ++
+  "  mv s10, a0; li s8, 3\n" ++
+  ".Lbicc_skip_to_nonce_changes:\n" ++
+  "  beqz s8, .Lbicc_nonce_changes_ready\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbicc_next_row\n" ++
+  "  mv s10, a0; addi s8, s8, -1; j .Lbicc_skip_to_nonce_changes\n" ++
+  ".Lbicc_nonce_changes_ready:\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbicc_next_row\n" ++
+  "  sub s10, a0, a2           # nonce_changes ptr\n" ++
+  "  mv s11, a2                # nonce_changes len\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbicc_next_row\n" ++
+  "  mv s10, a0; mv s11, a1\n" ++
   "  # Use the first nonce change: [block_access_index, new_nonce].\n" ++
-  "  mv a0, s10; mv a1, s11; mv a2, zero; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbicc_next_row\n" ++
-  "  la t0, bbcv_field_off; ld t1, 0(t0); add a0, s10, t1\n" ++
-  "  la t0, bbcv_field_len; ld a1, 0(t0); li a2, 1; la a3, bsg_tx_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lbicc_next_row\n" ++
-  "  la t0, bsg_tx_nonce; ld a1, 0(t0); beqz a1, .Lbicc_next_row\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbicc_next_row\n" ++
+  "  sub s10, a0, a2; mv s11, a2\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbicc_next_row\n" ++
+  "  mv s10, a0; mv s11, a1\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbicc_next_row\n" ++
+  "  mv s10, a0\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbicc_next_row\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lbicc_next_row\n" ++
+  "  mv a1, a0; beqz a1, .Lbicc_next_row\n" ++
   "  addi a1, a1, -1           # pre_nonce = new_nonce - 1\n" ++
   "  mv a0, s9; la a2, bbcv_create_addr\n" ++
   "  jal ra, address_compute_create\n" ++
@@ -72,7 +85,7 @@ def balCodePreimagesAuxFunctions : String :=
   "  bne t3, t4, .Lbicc_next_row\n" ++
   "  addi t1, t1, 1; j .Lbicc_cmp_addr\n" ++
   ".Lbicc_next_row:\n" ++
-  "  addi s6, s6, 1; j .Lbicc_row_loop\n" ++
+  "  j .Lbicc_row_loop\n" ++
   ".Lbicc_yes:\n" ++
   "  li a0, 1; j .Lbicc_ret\n" ++
   ".Lbicc_no:\n" ++
