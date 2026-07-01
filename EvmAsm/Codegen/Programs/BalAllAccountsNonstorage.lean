@@ -36,8 +36,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
-import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 
@@ -56,7 +55,7 @@ open EvmAsm.Rv64
     A BAL account whose address item is not exactly 20 bytes is skipped. -/
 def balAllAccountsNonstorageConsistentFunction : String :=
   "bal_all_accounts_nonstorage_consistent:\n" ++
-  "  addi sp, sp, -96\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
@@ -66,23 +65,21 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   "  mv s3, a3                   # effect record count\n" ++
   "  mv s4, a4                   # skip-list ptr\n" ++
   "  mv s10, a5                  # skip-list count\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, c3ns_acct_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lc3ns_fail\n" ++
-  "  la t0, c3ns_acct_count; ld s6, 0(t0)   # account count\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc3ns_fail\n" ++
+  "  sd a0, 96(sp); sd a1, 104(sp)\n" ++
   "  li s5, 0                    # account index\n" ++
   ".Lc3ns_loop:\n" ++
-  "  beq s5, s6, .Lc3ns_ok\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s5; la a3, c3ns_acct_off; la a4, c3ns_acct_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc3ns_fail\n" ++
-  "  la t0, c3ns_acct_off; ld t1, 0(t0); add s7, s0, t1   # AccountChanges ptr\n" ++
-  "  la t0, c3ns_acct_len; ld s8, 0(t0)                   # AccountChanges len\n" ++
-  "  mv a0, s7; mv a1, s8; li a2, 0; la a3, c3ns_addr_off; la a4, c3ns_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item                            # item 0 = address\n" ++
-  "  bnez a0, .Lc3ns_fail\n" ++
-  "  la t0, c3ns_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lc3ns_next   # not 20B -> skip\n" ++
-  "  la t0, c3ns_addr_off; ld t1, 0(t0); add s9, s7, t1   # addr ptr (20B BE)\n" ++
+  "  ld t0, 96(sp); ld t1, 104(sp); beq t0, t1, .Lc3ns_ok\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc3ns_fail\n" ++
+  "  sd a0, 96(sp); sub s7, a0, a2; mv s8, a2   # AccountChanges ptr/len\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc3ns_fail\n" ++
+  "  jal ra, rlp_walk_next                            # item 0 = address\n" ++
+  "  bnez a1, .Lc3ns_fail\n" ++
+  "  li t2, 20; bne a2, t2, .Lc3ns_next   # not 20B -> skip\n" ++
+  "  sub s9, a0, a2   # addr ptr (20B BE)\n" ++
   "  # --- skip gas/value-coupled accounts {sender,recipient,coinbase} (checked on the gas path) ---\n" ++
   "  li t4, 0                                 # skip-list entry index\n" ++
   ".Lc3ns_skloop:\n" ++
@@ -167,7 +164,7 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret"
 
 /-- `zisk_bal_all_accounts_nonstorage_consistent`: focused probe.
@@ -194,20 +191,12 @@ def ziskBalAllAccountsNonstorageConsistentPrologue : String :=
   balAllAccountsNonstorageConsistentFunction ++ "\n" ++
   balAccountNonstorageConsistentFunction ++ "\n" ++
   balAccountNonstorageFinalsFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lc3ns_pdone:"
 
 def ziskBalAllAccountsNonstorageConsistentDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "c3ns_acct_count:\n  .zero 8\n" ++
-  "c3ns_acct_off:\n  .zero 8\n" ++
-  "c3ns_acct_len:\n  .zero 8\n" ++
-  "c3ns_addr_off:\n  .zero 8\n" ++
-  "c3ns_addr_len:\n  .zero 8\n" ++
   "c3ns_lenient_notfound:\n  .zero 8\n" ++   -- bmvmx.5.5.1 (A2a): 0 strict (single-tx), 1 lenient (multi-tx)
   ziskBalAccountNonstorageConsistentDataSection  -- c2nsc_finals + c2nsf_* + rfu scratch
 
