@@ -152,6 +152,7 @@ def ziskBalAccountRecordArrayPrologue : String :=
   "  j .Lbara_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
