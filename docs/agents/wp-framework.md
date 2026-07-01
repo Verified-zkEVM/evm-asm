@@ -108,7 +108,9 @@ theorem spec :
    `addr ↦ₘ memOld`, `wp_rv64_leaf_synth` turns it into `regOwn rd` or
    `memOwn addr` automatically. If an unresolved data parameter appears in a
    computed address, in the postcondition, or in more than one atom, pass an
-   explicit spec.
+   explicit spec. When synthesis fails, the diagnostic names the instruction,
+   address, candidate specs, missing postcondition atom, and how many bounded
+   instructions were resolved before the failure.
 
    ```lean
    def addiOwnCfg (base v : Word) (imm : BitVec 12) :
