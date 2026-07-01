@@ -48,8 +48,59 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 
+def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : String :=
+  -- Value-bearing CALL/CALLCODE to a precompile still runs the generic-call
+  -- caller-balance check before entering the precompile. On insufficient
+  -- balance, execution-specs charges the net value-call gas and returns 0.
+  "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+  "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+  "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+  "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+  "  beqz t3, .L" ++ tag ++ "_precompile_balok\n" ++
+  "  ld t3, 584(x20)\n" ++
+  "  beqz t3, .L" ++ tag ++ "_precompile_balok\n" ++
+  "  la t0, cd_value_be\n" ++
+  "  addi t1, x12, " ++ toString (valueOff+31) ++ "\n" ++
+  "  li t2, 32\n" ++
+  ".L" ++ tag ++ "_precompile_val:\n" ++
+  "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n" ++
+  "  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
+  "  bnez t2, .L" ++ tag ++ "_precompile_val\n" ++
+  "  addi t0, x20, 63\n  la t1, cd_balance_be\n  li t2, 32\n" ++
+  ".L" ++ tag ++ "_precompile_livebal:\n" ++
+  "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n" ++
+  "  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
+  "  bnez t2, .L" ++ tag ++ "_precompile_livebal\n" ++
+  "  la t0, cd_balance_be\n" ++
+  "  la t1, cd_value_be\n" ++
+  "  li t2, 32\n" ++
+  ".L" ++ tag ++ "_precompile_cmp:\n" ++
+  "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
+  "  bltu t3, t4, .L" ++ tag ++ "_precompile_insuffbal\n" ++
+  "  bltu t4, t3, .L" ++ tag ++ "_precompile_balok\n" ++
+  "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
+  "  bnez t2, .L" ++ tag ++ "_precompile_cmp\n" ++
+  ".L" ++ tag ++ "_precompile_balok:\n" ++
+  "  j .L" ++ tag ++ "_precompile_dispatch\n" ++
+  ".L" ++ tag ++ "_precompile_insuffbal:\n" ++
+  "  li t0, 6700\n" ++
+  "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
+  "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  "  j .dispatch_loop\n" ++
+  ".L" ++ tag ++ "_precompile_dispatch:\n"
+
 def basicPrecompileCallTail
       (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
+      (valueOff? : Option Nat)
       (fallThroughAsm : String) : String :=
     -- Stack top at entry is the call gas word. The destination
     -- address is the next word for both CALL and STATICCALL. EVM
@@ -146,6 +197,17 @@ def basicPrecompileCallTail
     "  bnez x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "  li x15, 1\n" ++
     "  bltu x14, x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
+    "  li x15, 0x12\n" ++
+    "  bgeu x15, x14, .L" ++ tag ++ "_supported_precompile\n" ++
+    "  li x15, 0x100\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_supported_precompile\n" ++
+    "  li x15, 0x101\n" ++
+    "  beq x14, x15, .L" ++ tag ++ "_supported_precompile\n" ++
+    "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
+    ".L" ++ tag ++ "_supported_precompile:\n" ++
+    (match valueOff? with
+    | none => ".L" ++ tag ++ "_precompile_dispatch:\n"
+    | some valueOff => precompileValueBalanceGateAsm tag netPopBytes valueOff) ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
     "  li x15, 5\n" ++
