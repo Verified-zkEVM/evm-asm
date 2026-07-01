@@ -14,7 +14,7 @@
   It composes existing, verified building blocks:
     - tx_extract_to_address  (K101)  -> is_creation, handling per-type `to` index
     - tx_type_dispatch       (K40)   -> tx type + inner-RLP offset (for the type-4 auth list)
-    - rlp_list_nth_item / rlp_list_count_items -> EIP-7702 authorization_list count
+    - RlpWalk / rlp_list_count_items -> EIP-7702 authorization_list count
     - eip8037_tx_state_gas   (g8zeq.1.3) -> the canonical settlement (intrinsic + 0 - 0)
 
   It is intentionally standalone and UNWIRED: g8zeq.1.4.3 will call it per-tx to
@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
@@ -36,6 +37,23 @@ import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
+private def repeatAsm : Nat -> String -> String
+  | 0, _ => ""
+  | n + 1, s => s ++ repeatAsm n s
+
+private def rlpWalkSkipAsm (failLabel : String) (n : Nat) (cursorReg endReg : String) : String :=
+  repeatAsm n <|
+    "  mv a0, " ++ cursorReg ++ "; mv a1, " ++ endReg ++
+    "; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++
+    "; mv " ++ cursorReg ++ ", a0\n"
+
+private def rlpWalkFieldAsm
+    (failLabel : String) (n : Nat) (cursorReg endReg ptrReg lenReg : String) : String :=
+  rlpWalkSkipAsm failLabel n cursorReg endReg ++
+  "  mv a0, " ++ cursorReg ++ "; mv a1, " ++ endReg ++
+  "; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++ "\n" ++
+  "  sub " ++ ptrReg ++ ", a0, a2; mv " ++ lenReg ++ ", a2\n"
 
 /-! ## tx_intrinsic_state_gas
 
@@ -52,13 +70,14 @@ open EvmAsm.Rv64
          underflow here because state_refund = 0)
 
     Scratch: tis_to_buf (20B `to`, unused output), tis_is_creation, tis_type,
-    tis_inner_off, tis_auth_off, tis_auth_len, tis_auth_count, plus the tea_*
+    tis_inner_off, tis_auth_count, plus the tea_*
     slots consumed internally by tx_extract_to_address. -/
 def txIntrinsicStateGasFunction : String :=
   "tx_intrinsic_state_gas:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # out ptr\n" ++
@@ -76,12 +95,11 @@ def txIntrinsicStateGasFunction : String :=
   "  la t0, tis_inner_off; ld t1, 0(t0)\n" ++
   "  add a0, s0, t1              # inner RLP ptr\n" ++
   "  sub a1, s1, t1              # inner RLP len\n" ++
-  "  li a2, 9; la a3, tis_auth_off; la a4, tis_auth_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltisg_fail2\n" ++
-  "  la t0, tis_inner_off; ld t1, 0(t0); add t1, s0, t1   # inner RLP ptr\n" ++
-  "  la t0, tis_auth_off; ld t2, 0(t0); add a0, t1, t2    # auth_list ptr\n" ++
-  "  la t0, tis_auth_len; ld a1, 0(t0); la a2, tis_auth_count\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ltisg_fail2\n" ++
+  "  mv s5, a0; mv s6, a1\n" ++
+  rlpWalkFieldAsm ".Ltisg_fail2" 9 "s5" "s6" "a0" "a1" ++
+  "  la a2, tis_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Ltisg_fail2\n" ++
   "  la t0, tis_auth_count; ld s3, 0(t0)\n" ++
@@ -108,7 +126,8 @@ def txIntrinsicStateGasFunction : String :=
   ".Ltisg_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-- `zisk_tx_intrinsic_state_gas`: focused probe.
@@ -131,7 +150,7 @@ def ziskTxIntrinsicStateGasPrologue : String :=
   txIntrinsicStateGasFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
   ".Ltisg_pdone:"
@@ -147,8 +166,6 @@ def ziskTxIntrinsicStateGasDataSection : String :=
   "tis_is_creation:\n  .zero 8\n" ++
   "tis_type:\n  .zero 8\n" ++
   "tis_inner_off:\n  .zero 8\n" ++
-  "tis_auth_off:\n  .zero 8\n" ++
-  "tis_auth_len:\n  .zero 8\n" ++
   "tis_auth_count:\n  .zero 8"
 
 def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
@@ -194,11 +211,10 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  bnez a0, .Lteer_done\n" ++
   "  la t0, teer_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lteer_done\n" ++
   "  la t0, teer_inner_off; ld t1, 0(t0); add s5, s0, t1; sub s6, s1, t1\n" ++
-  "  mv a0, s5; mv a1, s6; li a2, 9; la a3, teer_auth_off; la a4, teer_auth_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_done\n" ++
-  "  la t0, teer_auth_off; ld t1, 0(t0); add s5, s5, t1     # auth list ptr\n" ++
-  "  la t0, teer_auth_len; ld s6, 0(t0)                     # auth list len\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteer_done\n" ++
+  "  mv s5, a0; mv s6, a1\n" ++
+  rlpWalkFieldAsm ".Lteer_done" 9 "s5" "s6" "s5" "s6" ++
   "  mv a0, s5; mv a1, s6; la a2, teer_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lteer_done\n" ++
@@ -471,12 +487,11 @@ def blockVerdictReceiptGasEip8037AdjustFunction : String :=
   "  bnez a0, .Lbvrga_next\n" ++
   "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvrga_next\n" ++
   "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvrga_next\n" ++
-  "  add a0, s10, t0; sub a1, s11, t0; li a2, 9; la a3, bvrga_auth_off; la a4, bvrga_auth_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbvrga_next\n" ++
-  "  la t0, bvrga_inner_off; ld t1, 0(t0); add t1, s10, t1\n" ++
-  "  la t0, bvrga_auth_off; ld t2, 0(t0); add a0, t1, t2\n" ++
-  "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
+  "  add a0, s10, t0; sub a1, s11, t0; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbvrga_next\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  rlpWalkFieldAsm ".Lbvrga_next" 9 "s8" "s9" "a0" "a1" ++
+  "  la a2, bvrga_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvrga_next\n" ++
   -- bbow4.7: full-gas-consumption type-4 rows can be floor-dominated. When
@@ -665,12 +680,11 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
   "  bnez a0, .Lbvf4ar_next\n" ++
   "  la t0, bvrga_type; ld t0, 0(t0); li t1, 4; bne t0, t1, .Lbvf4ar_next\n" ++
   "  la t0, bvrga_inner_off; ld t0, 0(t0); bgtu t0, s11, .Lbvf4ar_next\n" ++
-  "  add a0, s10, t0; sub a1, s11, t0; li a2, 9; la a3, bvrga_auth_off; la a4, bvrga_auth_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbvf4ar_next\n" ++
-  "  la t0, bvrga_inner_off; ld t1, 0(t0); add t1, s10, t1\n" ++
-  "  la t0, bvrga_auth_off; ld t2, 0(t0); add a0, t1, t2\n" ++
-  "  la t0, bvrga_auth_len; ld a1, 0(t0); la a2, bvrga_auth_count\n" ++
+  "  add a0, s10, t0; sub a1, s11, t0; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbvf4ar_next\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  rlpWalkFieldAsm ".Lbvf4ar_next" 9 "s8" "s9" "a0" "a1" ++
+  "  la a2, bvrga_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbvf4ar_next\n" ++
   "  slli t0, s6, 3\n" ++
@@ -857,11 +871,10 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  bnez a0, .Lteanse_done\n" ++
   "  la t0, teer_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lteanse_done\n" ++
   "  la t0, teer_inner_off; ld t1, 0(t0); bgtu t1, s1, .Lteanse_done; add s5, s0, t1; sub s6, s1, t1\n" ++
-  "  mv a0, s5; mv a1, s6; li a2, 9; la a3, teer_auth_off; la a4, teer_auth_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteanse_done\n" ++
-  "  la t0, teer_auth_off; ld t1, 0(t0); add s5, s5, t1\n" ++
-  "  la t0, teer_auth_len; ld s6, 0(t0)\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteanse_done\n" ++
+  "  mv s5, a0; mv s6, a1\n" ++
+  rlpWalkFieldAsm ".Lteanse_done" 9 "s5" "s6" "s5" "s6" ++
   "  mv a0, s5; mv a1, s6; la a2, teer_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lteanse_done\n" ++
@@ -993,6 +1006,7 @@ def ziskBlockVerdictTxStateGasArrayPrologue : String :=
   txIntrinsicStateGasFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
@@ -1028,13 +1042,9 @@ def ziskBlockVerdictTxStateGasArrayDataSection : String :=
   "tis_is_creation:\n  .zero 8\n" ++
   "tis_type:\n  .zero 8\n" ++
   "tis_inner_off:\n  .zero 8\n" ++
-  "tis_auth_off:\n  .zero 8\n" ++
-  "tis_auth_len:\n  .zero 8\n" ++
   "tis_auth_count:\n  .zero 8\n" ++
   "teer_type:\n  .zero 8\n" ++
   "teer_inner_off:\n  .zero 8\n" ++
-  "teer_auth_off:\n  .zero 8\n" ++
-  "teer_auth_len:\n  .zero 8\n" ++
   "teer_auth_count:\n  .zero 8\n" ++
   "teer_records_ptr:\n  .zero 8\n" ++
   "teer_tuple_off:\n  .zero 8\n" ++
