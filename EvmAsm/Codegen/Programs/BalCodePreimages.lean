@@ -77,14 +77,14 @@ def balCodePreimagesValidFunction : String :=
   "  # Some EEST fixture plumbing passes the parent block RLP here. Normalize\n" ++
   "  # to the header RLP if item 0 is itself a header list rather than the\n" ++
   "  # 32-byte parent_hash field of an already-normalized header.\n" ++
-  "  mv a0, s2; mv a1, s3; li a2, 0; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbbcv_parent_header_done\n" ++
-  "  la t0, bbcv_field_len; ld t1, 0(t0); li t2, 32; beq t1, t2, .Lbbcv_parent_header_done\n" ++
-  "  mv a0, s2; mv a1, s3; li a2, 0; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbbcv_parent_header_done\n" ++
-  "  la t0, bbcv_field_off; ld t2, 0(t0); la t0, bbcv_field_len; ld t1, 0(t0); add s2, s2, t2; mv s3, t1\n" ++
+  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbbcv_parent_header_done\n" ++
+  "  mv s11, a0                  # item-0 start; rlp_walk_next clobbers t*\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbbcv_parent_header_done\n" ++
+  "  li t2, 32; beq a2, t2, .Lbbcv_parent_header_done\n" ++
+  "  sub s3, a0, s11             # full encoded span of item 0\n" ++
+  "  mv s2, s11                  # parent block item 0 is the header RLP\n" ++
   ".Lbbcv_parent_header_done:\n" ++
   "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbbcv_parse_fail\n" ++
