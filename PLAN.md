@@ -2473,11 +2473,13 @@ generic Stmt.sound, Fn + vcgen, verified calls (FnHandle in the AST,
 caller-shaped Stmt.soundR/Fn.SpecR via cpsCallWithin, Fn.toHandle leaf
 packaging), and read-only byte regions (Region in Fn/FnHandle, LBU/LB in
 the block engine with per-block .mem VCs, region-carrying asrtM triples,
-RLP-prefix-classification demo over a symbolic input buffer), and wider
-read-only loads (LW/LWU/LD with aligned in-range VCs; SSZ-style u32
-offset-read demo). Remaining: M5b-2 (.rw regions + stores; ra-spill
-prologue for multi-level call trees; LH/LHU), then port an SSZ routine
-from Stateless/.
+RLP-prefix-classification demo over a symbolic input buffer), wider
+read-only loads (LW/LWU/LD with aligned in-range VCs), and the **first
+real port**: `readChainIdFn` (Stateless/SSZ/Decode/ChainIdSAsm.lean), a
+fully verified `read_chain_id` reading byte-wise — the original's
+misaligned LWU/LD trap under the Lean model (bug bead evm-asm-iwzun).
+Remaining: M5b-2 (.rw regions + stores; ra-spill prologue for multi-level
+call trees; LH/LHU), then more Stateless/SSZ ports.
 
 ## Stateless Guest (parallel STF track)
 
