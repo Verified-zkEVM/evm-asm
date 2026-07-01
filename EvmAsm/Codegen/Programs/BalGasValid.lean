@@ -20,12 +20,12 @@
 
   Division-free test: bal_items > gas_limit/2000  ⟺  bal_items*2000 > gas_limit.
 
-  Composes rlp_item_span (full sub-item spans, for nesting) + rlp_list_count_items.
+  Uses the cursor walker to count the BAL rows and the per-account storage lists.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -36,48 +36,56 @@ open EvmAsm.Rv64
     a0 (output) = 0 (valid) / 1 (gas-limit exceeded) / 2 (parse error). -/
 def balGasValidFunction : String :=
   "bal_gas_valid:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   "  mv s0, a0                   # BAL ptr\n" ++
   "  mv s1, a1                   # BAL len\n" ++
   "  mv s2, a2                   # gas_limit\n" ++
-  "  # n_accounts = rlp_list_count_items(BAL)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, bgv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_count; ld s3, 0(t0)    # s3 = n_accounts\n" ++
-  "  li s4, 0                          # s4 = bal_items\n" ++
-  "  li s5, 0                          # s5 = i\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbgv_fail\n" ++
+  "  mv s3, a0                   # BAL row cursor\n" ++
+  "  mv s5, a1                   # BAL row end\n" ++
+  "  li s4, 0                    # s4 = bal_items\n" ++
   ".Lbgv_loop:\n" ++
-  "  beq s5, s3, .Lbgv_done\n" ++
-  "  # account span = rlp_item_span(BAL, i)\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s5; la a3, bgv_off; la a4, bgv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_off; ld t1, 0(t0); add s6, s0, t1    # account_ptr\n" ++
-  "  la t0, bgv_size; ld t1, 0(t0); la t2, bgv_acctlen; sd t1, 0(t2)  # account_len\n" ++
-  "  addi s4, s4, 1                    # +1 for the address\n" ++
-  "  # + count(item 1 = storage_changes)\n" ++
-  "  mv a0, s6; la t0, bgv_acctlen; ld a1, 0(t0); li a2, 1; la a3, bgv_off; la a4, bgv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_off; ld t1, 0(t0); add a0, s6, t1\n" ++
-  "  la t0, bgv_size; ld a1, 0(t0); la a2, bgv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_count; ld t1, 0(t0); add s4, s4, t1\n" ++
-  "  # + count(item 2 = storage_reads)\n" ++
-  "  mv a0, s6; la t0, bgv_acctlen; ld a1, 0(t0); li a2, 2; la a3, bgv_off; la a4, bgv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_off; ld t1, 0(t0); add a0, s6, t1\n" ++
-  "  la t0, bgv_size; ld a1, 0(t0); la a2, bgv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbgv_fail\n" ++
-  "  la t0, bgv_count; ld t1, 0(t0); add s4, s4, t1\n" ++
-  "  addi s5, s5, 1; j .Lbgv_loop\n" ++
+  "  mv a0, s3; mv a1, s5; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbgv_done\n" ++
+  "  bnez a1, .Lbgv_fail\n" ++
+  "  mv s3, a0; sub s6, a0, a2  # account_ptr\n" ++
+  "  mv s7, a2                  # account_len\n" ++
+  "  addi s4, s4, 1             # +1 for the address\n" ++
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbgv_fail\n" ++
+  "  mv s8, a0                  # account field cursor\n" ++
+  "  mv s9, a1                  # account field end\n" ++
+  "  jal ra, rlp_walk_next      # item 0 = address\n" ++
+  "  bnez a1, .Lbgv_fail\n" ++
+  "  mv s8, a0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next # item 1 = storage_changes\n" ++
+  "  bnez a1, .Lbgv_fail\n" ++
+  "  mv s8, a0; sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbgv_fail\n" ++
+  "  mv s10, a0; mv s11, a1\n" ++
+  ".Lbgv_count_storage_changes:\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbgv_storage_reads\n" ++
+  "  bnez a1, .Lbgv_fail\n" ++
+  "  mv s10, a0; addi s4, s4, 1; j .Lbgv_count_storage_changes\n" ++
+  ".Lbgv_storage_reads:\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next # item 2 = storage_reads\n" ++
+  "  bnez a1, .Lbgv_fail\n" ++
+  "  mv s8, a0; sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbgv_fail\n" ++
+  "  mv s10, a0; mv s11, a1\n" ++
+  ".Lbgv_count_storage_reads:\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbgv_loop\n" ++
+  "  bnez a1, .Lbgv_fail\n" ++
+  "  mv s10, a0; addi s4, s4, 1; j .Lbgv_count_storage_reads\n" ++
   ".Lbgv_done:\n" ++
   "  # invalid iff bal_items*2000 > gas_limit\n" ++
   "  li t0, 2000; mul t1, s4, t0\n" ++
@@ -90,8 +98,9 @@ def balGasValidFunction : String :=
   ".Lbgv_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret"
 
 /-! ## bgv_u32le -- read a little-endian u32 byte-wise (a0=ptr -> a0). Leaf. -/
@@ -137,9 +146,16 @@ def balSectionInfoFunction : String :=
   "  add t1, s1, a0              # bal_end\n" ++
   "  ld t0, 0(s3); sub t1, t1, t0\n" ++
   "  sd t1, 0(s4)\n" ++
-  "  mv a0, t0; mv a1, t1; mv a2, s5\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbsi_fail\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbsi_fail\n" ++
+  "  mv s1, a0; mv s2, a1; li s0, 0\n" ++
+  ".Lbsi_count_loop:\n" ++
+  "  mv a0, s1; mv a1, s2; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbsi_count_done\n" ++
+  "  bnez a1, .Lbsi_fail\n" ++
+  "  mv s1, a0; addi s0, s0, 1; j .Lbsi_count_loop\n" ++
+  ".Lbsi_count_done:\n" ++
+  "  sd s0, 0(s5)\n" ++
   "  li a0, 0; j .Lbsi_ret\n" ++
   ".Lbsi_fail:\n" ++
   "  li a0, 1\n" ++
@@ -162,9 +178,8 @@ def ziskBalSectionInfoPrologue : String :=
   "  jal ra, bal_section_info\n" ++
   "  li t0, 0xa0010000; sd a0, 0(t0)\n" ++
   "  j .Lbsi_pdone\n" ++
-  rlpItemSizeFunction ++ "\n" ++
-  rlpItemSpanFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
+
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
@@ -192,9 +207,8 @@ def ziskBalGasValidPrologue : String :=
   "  jal ra, bal_gas_valid\n" ++
   "  li t0, 0xa0010000; sd a0, 0(t0)\n" ++
   "  j .Lbgv_pdone\n" ++
-  rlpItemSizeFunction ++ "\n" ++
-  rlpItemSpanFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
+
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
