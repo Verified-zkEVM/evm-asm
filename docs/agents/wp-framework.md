@@ -127,6 +127,14 @@ theorem spec :
    `ADD` leaf whose clobbered destination is synthesized as `regOwn`, and an
    `SD` leaf whose old memory cell is synthesized as `memOwn`.
 
+   Unlike the `LI x5 v; ADDI x5 x5 imm` shape above, a two-instruction leaf
+   whose registered specs are all generalized (e.g. `LI x5 imm; SLTIU x6 x5 1`)
+   needs no manual hints at all: `wp_rv64_leaf_synth` resolves both
+   instructions backwards from the postcondition and synthesizes `regOwn` for
+   both `x5` and `x6` in one pass. Manual hints are only needed when a
+   registered spec is not general enough to match the requested postcondition
+   directly, as with `ADDI` reusing its own destination as input above.
+
 3. Prove remaining leaf blocks with existing tools.
 
    A leaf proof can still be a normal `cpsTripleWithin` from `runBlock`, an

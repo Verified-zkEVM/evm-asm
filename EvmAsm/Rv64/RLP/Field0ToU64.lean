@@ -75,6 +75,7 @@ import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.WP.Call
 import EvmAsm.Rv64.BitAux
+import EvmAsm.Rv64.Tactics.WP
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.XPerm
@@ -127,6 +128,65 @@ theorem rlp_field0_to_u64_prog_length : rlp_field0_to_u64_prog.length = 15 := rf
 abbrev rlp_field0_to_u64_code (base : Word) : CodeReq :=
   CodeReq.ofProg base rlp_field0_to_u64_prog
 
+/-- Shared parse-failure tail: zero the value, set wrapper status 1, restore
+the caller ra from x13, and return. This is the target of both wrapper
+parse-failure branches. -/
+def rlp_field0_to_u64_parse_fail_tail_prog : List Instr :=
+  [ .LI .x10 (0 : Word),
+    .LI .x11 (1 : Word),
+    .MV .x1 .x13,
+    .JALR .x0 .x1 0 ]
+
+theorem rlp_field0_to_u64_parse_fail_tail_prog_length :
+    rlp_field0_to_u64_parse_fail_tail_prog.length = 4 := rfl
+
+def rlp_field0_to_u64_parse_fail_tail_code (base : Word) : CodeReq :=
+  CodeReq.ofProg base rlp_field0_to_u64_parse_fail_tail_prog
+
+def rlp_field0_to_u64_parse_fail_exit (savedRa : Word) : Word :=
+  savedRa &&& ~~~(1 : Word)
+
+def rlp_field0_to_u64_parse_fail_post (savedRa : Word) : Assertion :=
+  ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) **
+    (.x1 ↦ᵣ savedRa) ** (.x13 ↦ᵣ savedRa))
+
+/-- WP-synthesized certificate for the common parse-failure tail. The
+precondition is computed from the final postcondition by wp_rv64_leaf_synth;
+no hand-written instruction sequencing is needed for this straight-line block. -/
+def rlp_field0_to_u64_parse_fail_tail_cert (base savedRa : Word) :
+    WP.CFG.Cert base (rlp_field0_to_u64_parse_fail_exit savedRa)
+      (rlp_field0_to_u64_parse_fail_tail_code base)
+      (rlp_field0_to_u64_parse_fail_post savedRa) := by
+  unfold rlp_field0_to_u64_parse_fail_exit
+    rlp_field0_to_u64_parse_fail_tail_code
+    rlp_field0_to_u64_parse_fail_tail_prog
+    rlp_field0_to_u64_parse_fail_post
+  wp_rv64_leaf_synth
+
+theorem rlp_field0_to_u64_parse_fail_tail_cert_pre (base savedRa : Word) :
+    (rlp_field0_to_u64_parse_fail_tail_cert base savedRa).pre =
+      (regOwn .x10 ** regOwn .x11 ** (.x13 ↦ᵣ savedRa) ** regOwn .x1) := rfl
+
+/-- The parse-failure tail certificate, lifted from its four-instruction slice
+into the full wrapper CodeReq at index 11. -/
+def rlp_field0_to_u64_parse_fail_cert (base savedRa : Word) :
+    WP.CFG.Cert (base + 44) (rlp_field0_to_u64_parse_fail_exit savedRa)
+      (rlp_field0_to_u64_code base) (rlp_field0_to_u64_parse_fail_post savedRa) :=
+  WP.CFG.extendCode (rlp_field0_to_u64_parse_fail_tail_cert (base + 44) savedRa)
+    (CodeReq.ofProg_mono_sub base (base + 44) rlp_field0_to_u64_prog
+      rlp_field0_to_u64_parse_fail_tail_prog 11
+      (by bv_omega) (by decide) (by decide) (by decide))
+
+/-- Verified common parse-failure tail of rlp_field0_to_u64. -/
+theorem rlp_field0_to_u64_parse_fail_spec_within (base savedRa : Word) :
+    cpsTripleWithin (rlp_field0_to_u64_parse_fail_cert base savedRa).nSteps
+      (base + 44) (rlp_field0_to_u64_parse_fail_exit savedRa)
+      (rlp_field0_to_u64_code base)
+      (regOwn .x10 ** regOwn .x11 ** (.x13 ↦ᵣ savedRa) ** regOwn .x1)
+      (rlp_field0_to_u64_parse_fail_post savedRa) := by
+  rw [← rlp_field0_to_u64_parse_fail_tail_cert_pre (base + 44) savedRa]
+  exact (rlp_field0_to_u64_parse_fail_cert base savedRa).sound
+
 /-- The full deployed layout: wrapper plus the three verified callees, at the
 fixed offsets documented in the module header. Used for the planned unified
 top theorem; the call-composition slice proved in this file works over the
@@ -136,6 +196,20 @@ def rlp_field0_to_u64_full_code (base : Word) : CodeReq :=
   ((rlp_field0_to_u64_code base).union (rlp_walk_init_code (base + (256 : Word)))).union
     ((rlp_walk_next_code (base + (768 : Word))).union
       (rlp_content_to_u64_code (base + (1536 : Word))))
+
+/-- Contiguous deployable image for the fixed-offset wrapper layout.
+
+The NOP gaps place the callees at the exact addresses used by the wrapper's
+PC-relative JAL instructions: walk_init at +0x100, walk_next at +0x300, and
+content_to_u64 at +0x600. -/
+def rlp_field0_to_u64_full_prog : List Instr :=
+  rlp_field0_to_u64_prog ++
+    List.replicate 49 .NOP ++
+    rlp_walk_init_prog ++
+    List.replicate 75 .NOP ++
+    rlp_walk_next_prog ++
+    List.replicate 89 .NOP ++
+    rlp_content_to_u64_prog
 
 /-! ## Layout sanity: the four fixed-offset regions are pairwise disjoint. -/
 
