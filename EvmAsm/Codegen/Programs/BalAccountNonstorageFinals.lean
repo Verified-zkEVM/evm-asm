@@ -17,8 +17,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
-import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -37,7 +36,7 @@ open EvmAsm.Rv64
       +72 code_len  (byte length of the final code field, RLP-encoded form) -/
 def balAccountNonstorageFinalsFunction : String :=
   "bal_account_nonstorage_finals:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0                   # AccountChanges ptr\n" ++
@@ -45,66 +44,87 @@ def balAccountNonstorageFinalsFunction : String :=
   "  mv s2, a2                   # out ptr\n" ++
   "  sd zero, 0(s2); sd zero, 40(s2); sd zero, 56(s2); sd zero, 64(s2); sd zero, 72(s2)\n" ++
   "  sd zero, 8(s2); sd zero, 16(s2); sd zero, 24(s2); sd zero, 32(s2); sd zero, 48(s2)\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2nsf_fail\n" ++
+  "  sd a0, 48(sp); sd a1, 56(sp)\n" ++
+  "  # Skip address, storage_changes, storage_reads.\n" ++
+  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 48(sp)\n" ++
+  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 48(sp)\n" ++
+  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 48(sp)\n" ++
   "  # --- balance_changes = item 3; final post_balance = item 1 of its last tuple ---\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3; la a3, c2nsf_off; la a4, c2nsf_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); add s3, s0, t1     # balance_changes ptr\n" ++
-  "  la t0, c2nsf_len; ld s4, 0(t0)\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, c2nsf_cnt; jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_cnt; ld t1, 0(t0); beqz t1, .Lc2nsf_nonce\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  mv a0, s3; mv a1, s4; mv a2, t1; la a3, c2nsf_toff; la a4, c2nsf_tlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_toff; ld t1, 0(t0); add a0, s3, t1    # last tuple ptr\n" ++
-  "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
-  "  li a2, 1; addi a3, s2, 8; jal ra, rlp_field_to_u256_be   # post_balance -> out+8\n" ++
+  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sd a0, 48(sp); sub s3, a0, a2; mv s4, a2\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2nsf_fail\n" ++
+  "  beq a0, a1, .Lc2nsf_nonce\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
+  ".Lc2nsf_balance_last_loop:\n" ++
+  "  ld t0, 64(sp); ld t1, 72(sp); beq t0, t1, .Lc2nsf_balance_have_last\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sd a0, 64(sp); sub s3, a0, a2; mv s4, a2\n" ++
+  "  j .Lc2nsf_balance_last_loop\n" ++
+  ".Lc2nsf_balance_have_last:\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2nsf_fail\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 64(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2; addi a2, s2, 8; jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Lc2nsf_fail\n" ++
   "  li t0, 1; sd t0, 0(s2)\n" ++
   "  # --- nonce_changes = item 4; final new_nonce = item 1 of its last tuple (u64) ---\n" ++
   ".Lc2nsf_nonce:\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4; la a3, c2nsf_off; la a4, c2nsf_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); add s3, s0, t1     # nonce_changes ptr\n" ++
-  "  la t0, c2nsf_len; ld s4, 0(t0)\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, c2nsf_cnt; jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_cnt; ld t1, 0(t0); beqz t1, .Lc2nsf_code\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  mv a0, s3; mv a1, s4; mv a2, t1; la a3, c2nsf_toff; la a4, c2nsf_tlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_toff; ld t1, 0(t0); add a0, s3, t1\n" ++
-  "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
-  "  li a2, 1; addi a3, s2, 48; jal ra, rlp_field_to_u64    # post_nonce -> out+48\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
+  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sd a0, 48(sp); sub s3, a0, a2; mv s4, a2\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2nsf_fail\n" ++
+  "  beq a0, a1, .Lc2nsf_code\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
+  ".Lc2nsf_nonce_last_loop:\n" ++
+  "  ld t0, 64(sp); ld t1, 72(sp); beq t0, t1, .Lc2nsf_nonce_have_last\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sd a0, 64(sp); sub s3, a0, a2; mv s4, a2\n" ++
+  "  j .Lc2nsf_nonce_last_loop\n" ++
+  ".Lc2nsf_nonce_have_last:\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2nsf_fail\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 64(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sd a0, 48(s2)\n" ++
   "  li t0, 1; sd t0, 40(s2)\n" ++
   "  # --- code_changes = item 5; locate item 1 of its last tuple (no conversion) ---\n" ++
   ".Lc2nsf_code:\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5; la a3, c2nsf_off; la a4, c2nsf_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_off; ld t1, 0(t0); add s3, s0, t1     # code_changes ptr\n" ++
-  "  la t0, c2nsf_len; ld s4, 0(t0)\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, c2nsf_cnt; jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_cnt; ld t1, 0(t0); beqz t1, .Lc2nsf_ok\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  mv a0, s3; mv a1, s4; mv a2, t1; la a3, c2nsf_toff; la a4, c2nsf_tlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_toff; ld t1, 0(t0); add s4, s3, t1    # last code tuple ptr; keep across call\n" ++
-  "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
-  "  mv a0, s4; li a2, 1; la a3, c2nsf_coff; la a4, c2nsf_clen\n" ++
-  "  jal ra, rlp_list_nth_item                          # code field within the tuple\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  la t0, c2nsf_coff; ld t3, 0(t0); add t3, s4, t3    # absolute code field ptr\n" ++
-  "  sub t3, t3, s0                                      # offset relative to AccountChanges\n" ++
-  "  sd t3, 64(s2)\n" ++
-  "  la t0, c2nsf_clen; ld t3, 0(t0); sd t3, 72(s2)\n" ++
+  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sub s3, a0, a2; mv s4, a2\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2nsf_fail\n" ++
+  "  beq a0, a1, .Lc2nsf_ok\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
+  ".Lc2nsf_code_last_loop:\n" ++
+  "  ld t0, 64(sp); ld t1, 72(sp); beq t0, t1, .Lc2nsf_code_have_last\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sd a0, 64(sp); sub s3, a0, a2; mv s4, a2\n" ++
+  "  j .Lc2nsf_code_last_loop\n" ++
+  ".Lc2nsf_code_have_last:\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2nsf_fail\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 64(sp)\n" ++
+  "  ld t3, 64(sp); ld a1, 72(sp); mv a0, t3; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2nsf_fail\n" ++
+  "  sub t4, t3, s0; sd t4, 64(s2)\n" ++
+  "  sub t4, a0, t3; sd t4, 72(s2)\n" ++
   "  li t0, 1; sd t0, 56(s2)\n" ++
   ".Lc2nsf_ok:\n" ++
   "  li a0, 0; j .Lc2nsf_ret\n" ++
@@ -113,7 +133,7 @@ def balAccountNonstorageFinalsFunction : String :=
   ".Lc2nsf_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_bal_account_nonstorage_finals`: focused probe.
@@ -132,23 +152,11 @@ def ziskBalAccountNonstorageFinalsPrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lc2nsf_pdone\n" ++
   balAccountNonstorageFinalsFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lc2nsf_pdone:"
 
 def ziskBalAccountNonstorageFinalsDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "c2nsf_off:\n  .zero 8\n" ++
-  "c2nsf_len:\n  .zero 8\n" ++
-  "c2nsf_cnt:\n  .zero 8\n" ++
-  "c2nsf_toff:\n  .zero 8\n" ++
-  "c2nsf_tlen:\n  .zero 8\n" ++
-  "c2nsf_coff:\n  .zero 8\n" ++
-  "c2nsf_clen:\n  .zero 8\n" ++
-  ziskRlpFieldToU64DataSection   -- rfu_offset/rfu_length scratch for rlp_field_to_u256_be/u64
+  ""
 
 def ziskBalAccountNonstorageFinalsProbeUnit : BuildUnit := {
   body        := NOP
