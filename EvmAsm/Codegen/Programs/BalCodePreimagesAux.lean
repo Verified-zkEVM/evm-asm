@@ -115,46 +115,59 @@ def balCodePreimagesAuxFunctions : String :=
   "  mv a0, s1; mv a1, s2; la a2, bbcv_create2_salt\n" ++
   "  jal ra, bal_codes_find_create2_push4_salt\n" ++
   "  beqz a0, .Lbic2_no\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, bbcv_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbic2_no\n" ++
-  "  la t0, bbcv_count; ld s5, 0(t0)\n" ++
-  "  li s6, 0                  # BAL row index\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbic2_no\n" ++
+  "  mv s5, a0                 # BAL row cursor\n" ++
+  "  mv s6, a1                 # BAL row end\n" ++
   ".Lbic2_row_loop:\n" ++
-  "  beq s6, s5, .Lbic2_no\n" ++
-  "  mv a0, s3; mv a1, s4; mv a2, s6; la a3, bbcv_off; la a4, bbcv_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbic2_next_row\n" ++
-  "  la t0, bbcv_off; ld t1, 0(t0); add s7, s3, t1     # row ptr\n" ++
-  "  la t0, bbcv_size; ld s8, 0(t0)                    # row len\n" ++
-  "  mv a0, s7; mv a1, s8; li a2, 0; la a3, bbcv_addr_off; la a4, bbcv_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbic2_next_row\n" ++
-  "  la t0, bbcv_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbic2_next_row\n" ++
-  "  la t0, bbcv_addr_off; ld t1, 0(t0); add s9, s7, t1 # creator address ptr\n" ++
-  "  mv a0, s7; mv a1, s8; li a2, 4; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbic2_check_storage\n" ++
-  "  la t0, bbcv_field_off; ld t1, 0(t0); add a0, s7, t1\n" ++
-  "  la t0, bbcv_field_len; ld a1, 0(t0); la a2, bbcv_field_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbic2_check_storage\n" ++
-  "  la t0, bbcv_field_count; ld t1, 0(t0); bnez t1, .Lbic2_try_creator\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbic2_no\n" ++
+  "  bnez a1, .Lbic2_no\n" ++
+  "  mv s5, a0; sub s7, a0, a2 # row ptr\n" ++
+  "  mv s8, a2                 # row len\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbic2_next_row\n" ++
+  "  mv s10, a0                # row field cursor\n" ++
+  "  mv s11, a1                # row field end\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbic2_next_row\n" ++
+  "  li t2, 20; bne a2, t2, .Lbic2_next_row\n" ++
+  "  sub s9, a0, a2            # creator address ptr\n" ++
+  "  mv s10, a0\n" ++
+  "  # Check field 4 nonce_changes first.\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbic2_next_row\n" ++
+  "  mv s10, a0\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbic2_check_storage\n" ++
+  "  sub s7, a0, a2; mv s8, a2 # storage_changes ptr/len for fallback\n" ++
+  "  mv s10, a0\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbic2_next_row\n" ++
+  "  mv s10, a0\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbic2_check_storage\n" ++
+  "  mv s10, a0\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbic2_check_storage\n" ++
+  "  sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbic2_check_storage\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  beqz a1, .Lbic2_try_creator\n" ++
+  "  j .Lbic2_check_storage\n" ++
   ".Lbic2_check_storage:\n" ++
-  "  mv a0, s7; mv a1, s8; li a2, 2; la a3, bbcv_field_off; la a4, bbcv_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbic2_next_row\n" ++
-  "  la t0, bbcv_field_off; ld t1, 0(t0); add a0, s7, t1\n" ++
-  "  la t0, bbcv_field_len; ld a1, 0(t0); la a2, bbcv_field_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbic2_next_row\n" ++
-  "  la t0, bbcv_field_count; ld t1, 0(t0); beqz t1, .Lbic2_next_row\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbic2_next_row\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbic2_next_row\n" ++
+  "  bnez a1, .Lbic2_next_row\n" ++
   ".Lbic2_try_creator:\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s9; la a4, bbcv_create2_salt\n" ++
   "  jal ra, bal_try_create2_initcodes\n" ++
   "  bnez a0, .Lbic2_yes\n" ++
   ".Lbic2_next_row:\n" ++
-  "  addi s6, s6, 1; j .Lbic2_row_loop\n" ++
+  "  j .Lbic2_row_loop\n" ++
   ".Lbic2_yes:\n" ++
   "  li a0, 1; j .Lbic2_ret\n" ++
   ".Lbic2_no:\n" ++
