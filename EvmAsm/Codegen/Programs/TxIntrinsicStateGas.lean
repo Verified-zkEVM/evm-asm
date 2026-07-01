@@ -193,7 +193,7 @@ def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
                   authorization conservatively contribute zero. -/
 def txEip7702ExistingAuthorityRefundFunction : String :=
   "tx_eip7702_existing_authority_refund:\n" ++
-  "  addi sp, sp, -128\n" ++
+  "  addi sp, sp, -144\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
@@ -221,30 +221,35 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, teer_auth_count; ld s7, 0(t0)\n" ++
   "  li t0, 1; bgtu s7, t0, .Lteer_same_authority_try\n" ++
   ".Lteer_single_loop_setup:\n" ++
-  "  li s8, 0\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteer_done\n" ++
+  "  mv s5, a0; mv s6, a1; li s8, 0\n" ++
   ".Lteer_loop:\n" ++
   "  beq s8, s7, .Lteer_done\n" ++
-  "  mv a0, s5; mv a1, s6; mv a2, s8; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
-  "  la t0, teer_tuple_len; ld t2, 0(t0)\n" ++
-  "  mv a0, s9; mv a1, t2; li a2, 0; la a3, teer_auth_chain\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteer_chain_ok; bne t1, s4, .Lteer_next\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_done\n" ++
+  "  mv s5, a0; sub s9, a0, a2; sd a2, 136(sp)\n" ++
+  "  mv a0, s9; ld a1, 136(sp); jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteer_next\n" ++
+  "  sd a0, 112(sp); sd a1, 120(sp)\n" ++
+  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_next\n" ++
+  "  sd a0, 112(sp); sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lteer_next\n" ++
+  "  mv t1, a0; beqz t1, .Lteer_chain_ok; bne t1, s4, .Lteer_next\n" ++
   ".Lteer_chain_ok:\n" ++
-  "  la t0, teer_tuple_len; ld t2, 0(t0)\n" ++
-  "  mv a0, s9; mv a1, t2; li a2, 2; la a3, teer_auth_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, teer_auth_nonce; ld t1, 0(t0); li t2, -1; beq t1, t2, .Lteer_next\n" ++
-  "  la t0, teer_tuple_len; ld a1, 0(t0); mv a0, s9; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteer_next\n" ++
-  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteer_next\n" ++
-  "  la t0, teer_target_off; ld t0, 0(t0); add s11, s9, t0\n" ++
-  "  la t0, teer_tuple_len; ld a1, 0(t0); mv a0, s9; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
+  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_next\n" ++
+  "  sd a0, 112(sp); li t2, 20; bne a2, t2, .Lteer_next\n" ++
+  "  sub s11, a0, a2\n" ++
+  "  ld a0, 112(sp); ld a1, 120(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteer_next\n" ++
+  "  sd a0, 112(sp); sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lteer_next\n" ++
+  "  mv t1, a0; li t2, -1; beq t1, t2, .Lteer_next\n" ++
+  "  mv a0, s9; ld a1, 136(sp); la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteer_next\n" ++
   "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
@@ -323,10 +328,10 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  la t0, c2nsf_off; ld t1, 0(t0); la t2, teer_acct_ptr; ld t2, 0(t2); add t1, t2, t1\n" ++
   "  la t0, c2nsf_toff; ld t3, 0(t0); add a0, t1, t3\n" ++
   "  la t0, c2nsf_tlen; ld a1, 0(t0)\n" ++
-  "  li a2, 0; addi a3, sp, 112\n" ++
+  "  li a2, 0; addi a3, sp, 128\n" ++
   "  jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Lteer_next\n" ++
-  "  ld t0, 112(sp); ld t1, 104(sp); bgeu t0, t1, .Lteer_next\n" ++
+  "  ld t0, 128(sp); ld t1, 104(sp); bgeu t0, t1, .Lteer_next\n" ++
   ".Lteer_refund_match:\n" ++
   "  li t3, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "\n" ++
   "  add s10, s10, t3; j .Lteer_next\n" ++
@@ -435,7 +440,7 @@ def txEip7702ExistingAuthorityRefundFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 128\n" ++
+  "  addi sp, sp, 144\n" ++
   "  ret"
 
 
