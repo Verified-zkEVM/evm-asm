@@ -8,9 +8,9 @@
     K120  account_extract_balance  (field 1, u256 BE)
     K123  account_is_empty         (EIP-161 emptiness)
 
-  All three compose `rlp_field_to_u64` (K34), `rlp_field_to_u256_be`
-  (K35), and `rlp_list_nth_item` (K20) — which remain in
-  `Programs/Tx.lean` and `Programs/RlpRead.lean`.
+  `account_is_empty` uses the cursor-walk helpers from `Programs/RlpWalk.lean`.
+  The remaining standalone field predicates in this file still use indexed RLP
+  access through `rlp_list_nth_item` where they perform one-off lookups.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
@@ -18,6 +18,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.U256
@@ -54,10 +55,10 @@ open EvmAsm.Rv64.Program
 
       0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
 
-    Composes:
-      - PR-K20 `rlp_list_nth_item`         — field bounds
-      - existing `rlp_field_to_u64`        — nonce
-      - existing `rlp_field_to_u256_be`    — balance
+    Composes a single RLP cursor walk over the four account fields:
+      - field 0 content decoded by rlp_content_to_u64 for nonce
+      - field 1 content decoded by rlp_content_to_u256_be for balance
+      - field 3 content copied/compared directly for code_hash
 
     Calling convention:
       a0 (input)  : account_rlp ptr
@@ -68,47 +69,51 @@ open EvmAsm.Rv64.Program
         0 : success — predicate written to *out
         1 : RLP parse failure / field missing / wrong width
 
-    Uses 8 + 32 + 8 + 8 + 32 = 88 bytes of `.data` scratch
-    (`aie_nonce` u64, `aie_balance` 32 B, `aie_offset` + `aie_length`,
-    `aie_empty_code_hash` constant). -/
+    Uses `.data` scratch for `aie_nonce` (u64), `aie_balance` (32 B), and the
+    `aie_empty_code_hash` constant. The probe data section also carries legacy
+    offset/length cells for sibling indexed helpers. -/
 def accountIsEmptyFunction : String :=
   "account_is_empty:\n" ++
-  "  addi sp, sp, -32\n" ++
+  "  addi sp, sp, -48\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0                   # account_ptr\n" ++
   "  mv s1, a1                   # account_len\n" ++
   "  mv s2, a2                   # out u64 ptr\n" ++
   "  sd zero, 0(s2)\n" ++
-  "  # Step 1: nonce (field 0) → aie_nonce.\n" ++
+  "  # Step 1: initialize the account field cursor.\n" ++
   "  mv a0, s0; mv a1, s1\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, aie_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Laie_parse_fail\n" ++
-  "  la t0, aie_nonce; ld t1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Laie_parse_fail\n" ++
+  "  mv s3, a0                   # cursor\n" ++
+  "  mv s4, a1                   # end\n" ++
+  "  # Step 2: nonce (field 0) -> aie_nonce.\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail\n" ++
+  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Laie_parse_fail\n" ++
+  "  la t0, aie_nonce; sd a0, 0(t0)\n" ++
+  "  mv t1, a0\n" ++
   "  bnez t1, .Laie_not_empty\n" ++
-  "  # Step 2: balance (field 1, u256 BE) → aie_balance.\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, aie_balance\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  # Step 3: balance (field 1, u256 BE) -> aie_balance.\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail\n" ++
+  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2; la a2, aie_balance\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  bnez a0, .Laie_parse_fail\n" ++
   "  la t0, aie_balance\n" ++
   "  ld t1,  0(t0); bnez t1, .Laie_not_empty\n" ++
   "  ld t1,  8(t0); bnez t1, .Laie_not_empty\n" ++
   "  ld t1, 16(t0); bnez t1, .Laie_not_empty\n" ++
   "  ld t1, 24(t0); bnez t1, .Laie_not_empty\n" ++
-  "  # Step 3: code_hash (field 3) compared against EMPTY_CODE_HASH.\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  li a2, 3\n" ++
-  "  la a3, aie_offset; la a4, aie_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Laie_parse_fail\n" ++
-  "  la t0, aie_length; ld t1, 0(t0)\n" ++
+  "  # Step 4: skip storage_root (field 2).\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail; mv s3, a0\n" ++
+  "  # Step 5: code_hash (field 3) compared against EMPTY_CODE_HASH.\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Laie_parse_fail\n" ++
+  "  mv t1, a2\n" ++
   "  li t2, 32\n" ++
   "  bne t1, t2, .Laie_parse_fail\n" ++
-  "  la t0, aie_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
+  "  sub t3, a0, a2\n" ++
   "  la t4, aie_empty_code_hash\n" ++
   "  ld t5,  0(t3); ld t6,  0(t4); bne t5, t6, .Laie_not_empty\n" ++
   "  ld t5,  8(t3); ld t6,  8(t4); bne t5, t6, .Laie_not_empty\n" ++
@@ -129,7 +134,8 @@ def accountIsEmptyFunction : String :=
   ".Laie_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
   "  ret"
 
 /-- `zisk_account_is_empty`: probe BuildUnit. Reads
@@ -145,9 +151,7 @@ def ziskAccountIsEmptyPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Laie_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   accountIsEmptyFunction ++ "\n" ++
   ".Laie_pdone:"
 
