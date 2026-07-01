@@ -2467,7 +2467,9 @@ and a `vcgen` tactic that reduces a function spec to labeled *pure* VCs via a
 structurally-recursive generator + one generic soundness theorem (recursion-
 safe by construction). Milestones M1–M5 in the design doc; M1 = AST +
 flattener, M2 = block symbolic engine + soundness, M3 = structural soundness
-+ `vcgen`, M4 = calls, M5 = mutable regions + RLP-style demo.
++ `vcgen`, M4 = calls, M5 = mutable regions + RLP-style demo. **M1–M3 done**
+(2026-07-01): AST/flattener, block engine + soundness, generic Stmt.sound,
+Fn + vcgen, end-to-end demos (clampFn, countFn) axiom-clean.
 
 ## Stateless Guest (parallel STF track)
 
