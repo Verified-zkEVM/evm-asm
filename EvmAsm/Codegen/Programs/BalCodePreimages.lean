@@ -1198,11 +1198,17 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbcs_next_tx\n" ++
   "  la t0, bsg_tx_type; ld t1, 0(t0); bnez t1, .Lbcs_next_tx\n" ++
-  "  mv a0, s9; mv a1, s8; li a2, 5; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbcs_next_tx\n" ++
-  "  la t0, bsg_data_off; ld t1, 0(t0); add s10, s9, t1\n" ++
-  "  la t0, bsg_data_len; ld t2, 0(t0)\n" ++
+  "  mv a0, s9; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbcs_next_tx\n" ++
+  "  mv s10, a0                 # legacy tx field cursor\n" ++
+  "  mv s8, a1                  # legacy tx field end; tx len no longer needed\n" ++
+  "  li s7, 6                   # walk through item 5 = data\n" ++
+  ".Lbcs_data_walk:\n" ++
+  "  mv a0, s10; mv a1, s8; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbcs_next_tx\n" ++
+  "  mv s10, a0; addi s7, s7, -1; bnez s7, .Lbcs_data_walk\n" ++
+  "  sub s10, a0, a2            # data content ptr\n" ++
+  "  mv t2, a2                  # data content len\n" ++
   "  li t3, 22; bltu t2, t3, .Lbcs_next_tx\n" ++
   "  sub t4, t2, t3             # max start offset\n" ++
   "  li t5, 0                   # scan offset\n" ++
