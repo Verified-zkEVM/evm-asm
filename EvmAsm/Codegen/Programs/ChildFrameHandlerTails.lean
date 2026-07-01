@@ -507,10 +507,11 @@ def basicPrecompileCallTail
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    chargePrecompileGasConstAsm 50000 "x16" "x17" ++
+    "  li x16, 50000\n" ++
+    bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_kzg_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 192 ++
-    kzgVersionedHashGateAsm ++
+    kzgVersionedHashGateAsm (".L" ++ tag ++ "_bn254_kfail") ++
     "  sb x0, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -527,10 +528,10 @@ def basicPrecompileCallTail
     "  mv x13, s9\n" ++
     "  mv x10, s10\n" ++
     "  mv x12, s11\n" ++
-    "  bnez x16, 1f\n" ++
+    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  lbu x16, " ++ toString precompileFrameBls12G2OutputOff ++ "(x15)\n" ++
-    "  beqz x16, 1f\n" ++
+    "  beqz x16, .L" ++ tag ++ "_bn254_kfail\n" ++
     precompileSuccessKzgPointEvalAsm
       (tag ++ "_kzg_point_eval_success") outOffsetOff outSizeOff ++
     -- P256VERIFY: execution-specs charges fixed gas before the exact length
