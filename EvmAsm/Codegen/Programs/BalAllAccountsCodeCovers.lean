@@ -27,7 +27,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -39,37 +39,35 @@ open EvmAsm.Rv64
     a0 (output) = 0 every changed code-effect's account is present in the BAL / 1 reject. -/
 def balAllAccountsCodeCoversFunction : String :=
   "bal_all_accounts_code_covers:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
   "  mv s0, a0                   # BAL section ptr\n" ++
   "  mv s1, a1                   # BAL section len\n" ++
   "  mv s2, a2                   # code-effect array base\n" ++
   "  mv s3, a3                   # record count\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, bacov_acct_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbacov_fail\n" ++
-  "  la t0, bacov_acct_count; ld s4, 0(t0)   # BAL account count\n" ++
   "  mv s5, s2                    # rec_ptr = effect base\n" ++
   "  li s6, 0                     # record index k\n" ++
   ".Lbacov_eloop:\n" ++
   "  beq s6, s3, .Lbacov_ok\n" ++
   "  ld t0, 32(s5); beqz t0, .Lbacov_advance   # has_code_change == 0 -> no obligation\n" ++
   "  # changed: scan BAL accounts for one whose item-0 address == effect record address (s5+0)\n" ++
-  "  li s7, 0                     # BAL account scan index\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbacov_fail\n" ++
+  "  mv s7, a0                    # BAL cursor\n" ++
+  "  mv s8, a1                    # BAL end\n" ++
   ".Lbacov_sloop:\n" ++
-  "  beq s7, s4, .Lbacov_fail     # scanned all, no BAL account -> reject (omitted created/destroyed account)\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s7; la a3, bacov_acct_off; la a4, bacov_acct_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbacov_fail        # malformed BAL list -> reject\n" ++
-  "  la t0, bacov_acct_off; ld t1, 0(t0); add t2, s0, t1   # AccountChanges[scan] ptr\n" ++
-  "  mv a0, t2; la t0, bacov_acct_len; ld a1, 0(t0); li a2, 0; la a3, bacov_addr_off; la a4, bacov_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item                              # item 0 = address\n" ++
-  "  bnez a0, .Lbacov_fail        # malformed account -> reject\n" ++
-  "  la t0, bacov_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbacov_sadv   # not 20B -> not a match\n" ++
-  "  la t0, bacov_acct_off; ld t1, 0(t0); add t2, s0, t1    # recompute AccountChanges ptr\n" ++
-  "  la t0, bacov_addr_off; ld t1, 0(t0); add t2, t2, t1    # BAL addr ptr (20B BE)\n" ++
+  "  beq s7, s8, .Lbacov_fail     # scanned all, no BAL account -> reject (omitted created/destroyed account)\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbacov_fail        # malformed BAL list -> reject\n" ++
+  "  mv s7, a0; sub t2, a0, a2    # AccountChanges ptr/len = t2/a2\n" ++
+  "  mv a0, t2; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbacov_fail\n" ++
+  "  jal ra, rlp_walk_next                              # item 0 = address\n" ++
+  "  bnez a1, .Lbacov_fail        # malformed account -> reject\n" ++
+  "  li t2, 20; bne a2, t2, .Lbacov_sadv   # not 20B -> not a match\n" ++
+  "  sub t2, a0, a2               # BAL addr ptr (20B BE)\n" ++
   "  li t3, 0\n" ++
   ".Lbacov_acmp:\n" ++
   "  li t4, 20; beq t3, t4, .Lbacov_advance   # all 20 equal -> account present -> obligation met\n" ++
@@ -90,8 +88,8 @@ def balAllAccountsCodeCoversFunction : String :=
   ".Lbacov_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret"
 
 /-- `zisk_bal_all_accounts_code_covers`: focused probe.
@@ -114,19 +112,13 @@ def ziskBalAllAccountsCodeCoversPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lbacov_pdone\n" ++
   balAllAccountsCodeCoversFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lbacov_pdone:"
 
-/-- Scratch cells for `bal_all_accounts_code_covers` (reusable: linked into the probe
-    AND the block_verdict data section when the comparator is wired into the verdict). -/
+/-- Scratch cells for `bal_all_accounts_code_covers` (currently empty; kept as a
+    reusable hook for the probe and verdict data sections). -/
 def balAllAccountsCodeCoversData : String :=
-  ".balign 8\n" ++
-  "bacov_acct_count:\n  .zero 8\n" ++
-  "bacov_acct_off:\n  .zero 8\n" ++
-  "bacov_acct_len:\n  .zero 8\n" ++
-  "bacov_addr_off:\n  .zero 8\n" ++
-  "bacov_addr_len:\n  .zero 8\n"
+  ""
 
 def ziskBalAllAccountsCodeCoversDataSection : String :=
   ".section .data\n" ++
