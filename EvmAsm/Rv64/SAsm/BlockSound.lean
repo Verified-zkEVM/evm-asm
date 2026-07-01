@@ -104,7 +104,7 @@ theorem execInstrRF_sound {i : Instr} (hok : instrOk i = true)
     to its symbolic image.  `hlen` rules out address wrap-around (any real
     block is vastly shorter). -/
 theorem execBlock_sound (instrs : List Instr) (rf : RegFile) (base : Word)
-    (hok : blockOk instrs = true) (hlen : instrs.length < 2 ^ 61) :
+    (hok : blockOk instrs = true) (hlen : 4 * instrs.length < 2 ^ 64) :
     cpsTripleWithin instrs.length base (base + BitVec.ofNat 64 (4 * instrs.length))
       (CodeReq.ofProg base instrs)
       (regFileIs rf) (regFileIs (execBlock rf instrs)) := by
@@ -116,7 +116,7 @@ theorem execBlock_sound (instrs : List Instr) (rf : RegFile) (base : Word)
   | cons i rest ih =>
       simp only [blockOk, List.all_cons, Bool.and_eq_true] at hok
       obtain ⟨hoki, hokr⟩ := hok
-      have hlenr : rest.length < 2 ^ 61 := by
+      have hlenr : 4 * rest.length < 2 ^ 64 := by
         simp only [List.length_cons] at hlen; omega
       have h1 := execInstrRF_sound hoki rf base
       have h2 := ih (execInstrRF rf i) (base + 4) hokr hlenr
