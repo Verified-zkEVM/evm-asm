@@ -1475,6 +1475,31 @@ example (base v : Word) :
     (wp_rv64_leaf_synth_sltiu_zero_cfg base v).pre =
       ((.x5 ↦ᵣ v) ** regOwn .x6) := rfl
 
+-- `LI x5, imm; SLTIU x6, x5, 1` loads an arbitrary word into `x5`, then classifies
+-- whether it is zero into `x6`, exercising post-driven synthesis across two instructions.
+def wp_rv64_leaf_synth_li_sltiu_zero_cfg (base imm : Word) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 8)
+      (CodeReq.ofProg base
+        [ .LI .x5 imm,
+          .SLTIU .x6 .x5 (1 : BitVec 12) ])
+      ((.x5 ↦ᵣ imm) **
+        (.x6 ↦ᵣ (if BitVec.ult imm (signExtend12 (1 : BitVec 12)) then (1 : Word) else (0 : Word)))) := by
+  wp_rv64_leaf_synth
+
+example (base imm : Word) :
+    (wp_rv64_leaf_synth_li_sltiu_zero_cfg base imm).pre =
+      (regOwn .x5 ** regOwn .x6) := rfl
+
+-- Restated via `sltiu_one_zero_classifier`: `x6` ends up `1` iff the loaded word is `0`.
+example (base imm : Word) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 8)
+      (CodeReq.ofProg base
+        [ .LI .x5 imm,
+          .SLTIU .x6 .x5 (1 : BitVec 12) ])
+      ((.x5 ↦ᵣ imm) ** (.x6 ↦ᵣ (if imm = 0 then (1 : Word) else (0 : Word)))) := by
+  have h := wp_rv64_leaf_synth_li_sltiu_zero_cfg base imm
+  rwa [sltiu_one_zero_classifier] at h
+
 example {entry : Word} {cr : CodeReq} {post : Assertion} :
     EvmAsm.Rv64.WP.CFG.Cert entry entry cr post := by
   wp_rv64_exit_refl entry, cr, post
