@@ -16,6 +16,7 @@ import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.RlpWalk
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 
@@ -39,16 +40,20 @@ def baapDeleteSingleLeafStorageFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  sd s5, 48(sp)\n" ++
   "  mv s0, a0                   # account\n" ++
   "  mv s1, a1                   # account len\n" ++
   "  mv s2, a2                   # slot key\n" ++
   "  mv s3, a3                   # out account\n" ++
   "  mv s4, a4                   # out len\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2; la a3, aps_off; la a4, aps_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaapdsl_fail\n" ++
-  "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lbaapdsl_fail\n" ++
-  "  la t0, aps_off; ld t1, 0(t0); add t1, s0, t1; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaapdsl_fail\n" ++
+  "  mv s5, a1                    # account list end\n" ++
+  "  mv a1, s5; jal ra, rlp_walk_next; bnez a1, .Lbaapdsl_fail\n" ++
+  "  mv a1, s5; jal ra, rlp_walk_next; bnez a1, .Lbaapdsl_fail\n" ++
+  "  mv a1, s5; jal ra, rlp_walk_next; bnez a1, .Lbaapdsl_fail\n" ++
+  "  li t2, 32; bne a2, t2, .Lbaapdsl_fail\n" ++
+  "  sub t1, a0, a2; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
   "  # Deleting from an empty storage trie is a no-op.\n" ++
   "  mv t2, t1; la t3, aps_empty_root; li t4, 32\n" ++
   ".Lbaapdsl_empty_cmp:\n" ++
@@ -91,6 +96,7 @@ def baapDeleteSingleLeafStorageFunction : String :=
   ".Lbaapdsl_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  ld s5, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret"
 
@@ -528,6 +534,7 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   mptStateRootInsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   ".Lbaap_pdone:"
