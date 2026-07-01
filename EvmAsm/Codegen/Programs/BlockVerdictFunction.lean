@@ -1212,10 +1212,15 @@ def blockVerdictFunction : String :=
   -- *** REQUIRES EEST SWEEP *** : CHANGES verdict accept/reject for CREATE/CREATE2 and 7702
   -- blocks — @pirapira must run EEST at scale to confirm before finalizing. Inert (no code_change
   -- declared) for plain transfer / non-deploying blocks; exec_code_effect_log is empty pre-.8c.
+  -- If runtime replay could not materialize a gas/effect arena, this redundant
+  -- exec-vs-BAL code check has incomplete evidence. The authenticated state-root
+  -- replay remains binding, matching the nonstorage/storage runtime-log guards below.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_code_consistent\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  la a2, exec_code_effect_log; la t0, exec_code_effect_count; ld a3, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_code_consistent\n" ++
   "  bnez a0, .Lbv_bal_code_consistent_fail\n" ++
+  ".Lbv_after_code_consistent:\n" ++
   -- bmvmx.1.6.7: recipient storage_reads exec consistency. storage_reads (AccountChanges
   -- item 2) is consensus-bound but NOT in the state root, so verify every BAL read slot
   -- was actually accessed by the recipient (appears in the exec log). bvcd_acct_ptr/len
