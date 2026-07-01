@@ -280,4 +280,52 @@ theorem n4_addback_un_val256_eq_amod_double (a b : EvmWord)
     (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b) (n4CallAddbackBeqU4 a b)
     huTop hc3 hcarry_zero hcarry2_one hq_ge2 hBnz hqHat
 
+/-- From the addback semantic (`q_out = qTrue`), the corrected quotient's `toNat`
+    equals `a.toNat / b.toNat`.  Feeds the overestimate bridge's `hqHat_mul_le` /
+    `hqHat_ge` bounds for the MOD addback getLimbN composition. -/
+theorem n4CallAddbackBeqQOutV5_toNat_eq_div (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHoldsV5 a b) :
+    (n4CallAddbackBeqQOutV5 a b).toNat = a.toNat / b.toNat := by
+  unfold n4CallAddbackBeqSemanticHoldsV5 n4CallAddbackBeqQTrue at hsem
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) = a.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = b.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  rw [ha_val, hb_val] at hsem
+  have hdiv_toNat : (EvmWord.div a b).toNat = a.toNat / b.toNat := by
+    unfold EvmWord.div; rw [if_neg hbnz]; exact BitVec.toNat_udiv
+  omega
+
+/-- The two overestimate-bridge bounds for the corrected quotient `q_out`, on the
+    original (un-normalized) `a`/`b` limbs.  Since `q_out` is the exact quotient
+    (`n4CallAddbackBeqQOutV5_toNat_eq_div`), the trial-multiplication bound and the
+    ge-bound both hold on the nose.  These are exactly the `hqHat_mul_le` /
+    `hqHat_ge` arguments of `denorm_limbN_eq_mod_of_overestimate_getLimbN` when it
+    is applied with `qHat := q_out` in the n=4 MOD addback getLimbN lane. -/
+theorem n4CallAddbackBeqQOutV5_bridge_bounds (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHoldsV5 a b) :
+    (n4CallAddbackBeqQOutV5 a b).toNat *
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≤
+      val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) ∧
+    val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) /
+        val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) ≤
+      (n4CallAddbackBeqQOutV5 a b).toNat := by
+  have hq := n4CallAddbackBeqQOutV5_toNat_eq_div a b hbnz hsem
+  have ha_val : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) = a.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_val : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) = b.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  rw [ha_val, hb_val, hq]
+  exact ⟨Nat.div_mul_le_self a.toNat b.toNat, le_refl _⟩
+
 end EvmAsm.Evm64
