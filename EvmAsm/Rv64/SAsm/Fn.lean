@@ -27,6 +27,9 @@ structure Fn where
   pre : Reach
   post : Reach
   body : Stmt
+  /-- The function's read-only byte region (`Region.empty` when no memory
+      is touched). -/
+  region : Region := Region.empty
 
 namespace Fn
 
@@ -44,7 +47,7 @@ def codeReq (f : Fn) (base : Word) : CodeReq :=
     `body.steps` machine steps. -/
 def Spec (f : Fn) (base : Word) : Prop :=
   cpsTripleWithin f.body.steps base (base + BitVec.ofNat 64 (4 * f.body.size))
-    (f.codeReq base) (asrtOf f.pre) (asrtOf f.post)
+    (f.codeReq base) (asrtM f.region f.pre) (asrtM f.region f.post)
 
 /-- The function's labeled verification conditions:
     - `<name>.flat`: offsets fit and the code does not wrap (decidable;
@@ -54,19 +57,19 @@ def Spec (f : Fn) (base : Word) : Prop :=
 def vcs (f : Fn) : List VC :=
   ⟨f.name ++ ".flat", f.body.callFree = true ∧ f.body.offsetsOk = true
       ∧ 4 * f.body.size < 2 ^ 64⟩ ::
-  (f.body.vcs (f.name ++ ".") f.pre ++
-   [⟨f.name ++ ".post", ∀ rf, f.body.sp f.pre rf → f.post rf⟩])
+  (Stmt.vcs f.region f.body (f.name ++ ".") f.pre ++
+   [⟨f.name ++ ".post",
+      ∀ rf, Stmt.sp f.region f.body f.pre rf → f.post rf⟩])
 
 /-- Soundness: the labeled pure VCs imply the CPS triple. -/
-theorem sound (f : Fn) (base : Word) (h : VCs.Hold f.vcs) : f.Spec base := by
+theorem sound (f : Fn) (base : Word) (hreg : f.region.wf)
+    (h : VCs.Hold f.vcs) : f.Spec base := by
   have hflat := h.head
-  have hbody := Stmt.sound f.body base (f.name ++ ".") f.pre
+  have hbody := Stmt.sound f.region f.body base (f.name ++ ".") f.pre hreg
     hflat.1 hflat.2.1 hflat.2.2 (fun _ _ hc => hc) h.tail.left
   have hpost := h.tail.right.head
   exact cpsTripleWithin_weaken (fun _ hp => hp)
-    (fun hp hh => by
-      obtain ⟨rf, hrf, hsp⟩ := hh
-      exact ⟨rf, hrf, hpost rf hsp⟩)
+    (asrtM_mono (fun rf hsp => hpost rf hsp))
     hbody
 
 -- ============================================================================
@@ -78,25 +81,27 @@ theorem sound (f : Fn) (base : Word) (h : VCs.Hold f.vcs) : f.Spec base := by
     that must contain the body's code and every callee's code. -/
 def SpecR (f : Fn) (base : Word) (cr : CodeReq) : Prop :=
   cpsTripleWithin f.body.steps base (base + BitVec.ofNat 64 (4 * f.body.size))
-    cr (asrtR f.pre) (asrtR f.post)
+    cr (asrtR f.region f.pre) (asrtR f.region f.post)
 
 /-- VCs of a caller-shaped function (no `callFree` requirement). -/
 def vcsR (f : Fn) : List VC :=
   ⟨f.name ++ ".flat", f.body.offsetsOk = true ∧ 4 * f.body.size < 2 ^ 64⟩ ::
-  (f.body.vcs (f.name ++ ".") f.pre ++
-   [⟨f.name ++ ".post", ∀ rf, f.body.sp f.pre rf → f.post rf⟩])
+  (Stmt.vcs f.region f.body (f.name ++ ".") f.pre ++
+   [⟨f.name ++ ".post",
+      ∀ rf, Stmt.sp f.region f.body f.pre rf → f.post rf⟩])
 
 /-- Caller-shaped soundness.  `hcode`/`hcallees` locate the body's and the
     callees' code inside `cr`; `hcalls` are the call sites' address side
     conditions (`decide`/`bv_omega` for concrete or relative layouts). -/
 theorem soundR (f : Fn) (base : Word) (cr : CodeReq)
+    (hreg : f.region.wf)
     (hcode : ∀ a i, CodeReq.ofProg base (f.body.flatten base) a = some i →
       cr a = some i)
-    (hcallees : f.body.CalleesIn cr)
+    (hcallees : f.body.CalleesIn f.region cr)
     (hcalls : f.body.callsOk base)
     (h : VCs.Hold f.vcsR) : f.SpecR base cr := by
   have hflat := h.head
-  have hbody := Stmt.soundR f.body base (f.name ++ ".") f.pre
+  have hbody := Stmt.soundR f.region f.body base (f.name ++ ".") f.pre hreg
     hflat.1 hflat.2 hcode hcallees hcalls h.tail.left
   have hpost := h.tail.right.head
   exact cpsTripleWithin_weaken (fun _ hp => hp)
@@ -145,18 +150,18 @@ theorem retSpec (f : Fn) (base : Word) (hspec : f.Spec base)
     ∀ ret : Word, (ret &&& ~~~(1 : Word)) = ret →
       cpsTripleWithin (f.body.steps + 1) base ret
         (CodeReq.ofProg base (f.programRet base))
-        ((.x1 ↦ᵣ ret) ** asrtOf f.pre)
-        ((.x1 ↦ᵣ ret) ** asrtOf f.post) := by
+        ((.x1 ↦ᵣ ret) ** asrtM f.region f.pre)
+        ((.x1 ↦ᵣ ret) ** asrtM f.region f.post) := by
   intro ret halign
   have hla : (f.body.flatten base).length = f.body.size := Stmt.flatten_length ..
   -- body triple, framed with the untouched return address
   have h1 := cpsTripleWithin_frameR (.x1 ↦ᵣ ret) (by pcFree) hspec
-  rw [sepConj_comm' (asrtOf f.pre), sepConj_comm' (asrtOf f.post)] at h1
+  rw [sepConj_comm' (asrtM f.region f.pre), sepConj_comm' (asrtM f.region f.post)] at h1
   have h1' := cpsTripleWithin_extend_code
     (ofProg_mono_left (p2 := [.JALR .x0 .x1 0])) h1
   -- return epilogue
   have h2 := jalr_ret_spec (base + BitVec.ofNat 64 (4 * f.body.size)) ret halign
-    (pcFree_asrtOf f.post)
+    (pcFree_asrtM f.region f.post)
   have h2' := cpsTripleWithin_extend_code
     (fun a i h => ofProg_mono_right (p1 := f.body.flatten base)
       (p2 := [.JALR .x0 .x1 0])
@@ -171,6 +176,7 @@ def toHandle (f : Fn) (base : Word) (hspec : f.Spec base)
   entry := base
   code := CodeReq.ofProg base (f.programRet base)
   nSteps := f.body.steps + 1
+  region := f.region
   pre := f.pre
   post := f.post
   sound := f.retSpec base hspec hsz

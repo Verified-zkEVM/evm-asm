@@ -10,6 +10,7 @@ import EvmAsm.Rv64.SAsm.Ast
 import EvmAsm.Rv64.SAsm.Flatten
 import EvmAsm.Rv64.SAsm.Sym
 import EvmAsm.Rv64.SAsm.RegFileSep
+import EvmAsm.Rv64.SAsm.RegionSound
 import EvmAsm.Rv64.SAsm.BlockSound
 import EvmAsm.Rv64.SAsm.Vc
 import EvmAsm.Rv64.SAsm.CtrlSpecs

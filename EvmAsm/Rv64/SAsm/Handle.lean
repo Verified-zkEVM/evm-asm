@@ -14,7 +14,7 @@
 -/
 
 import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Rv64.SAsm.RegFileSep
+import EvmAsm.Rv64.SAsm.RegionSound
 
 namespace EvmAsm.Rv64
 namespace SAsm
@@ -27,12 +27,13 @@ structure FnHandle where
   entry : Word
   code : CodeReq
   nSteps : Nat
+  region : Region
   pre : Reach
   post : Reach
   sound : ∀ ret : Word, (ret &&& ~~~(1 : Word)) = ret →
     cpsTripleWithin nSteps entry ret code
-      ((.x1 ↦ᵣ ret) ** asrtOf pre)
-      ((.x1 ↦ᵣ ret) ** asrtOf post)
+      ((.x1 ↦ᵣ ret) ** asrtM region pre)
+      ((.x1 ↦ᵣ ret) ** asrtM region post)
 
 /-- A stub handle with an unsatisfiable precondition: lets `Stmt` values
     mention a routine that is not verified yet.  Any call to it generates
@@ -41,14 +42,14 @@ def FnHandle.stub (entry : Word) : FnHandle where
   entry := entry
   code := CodeReq.empty
   nSteps := 0
+  region := Region.empty
   pre := fun _ => False
   post := fun _ => True
   sound := by
     intro ret _ R hR s hcr hPR hpc
-    exact absurd hPR (by
-      rintro ⟨hp, -, h1, -, -, -, hP1, -⟩
-      obtain ⟨-, -, -, -, -, ⟨rf, -, hfalse⟩⟩ := hP1
-      exact hfalse)
+    obtain ⟨hp, hcompat, h1, h2, hd, hu, hP1, hR2⟩ := hPR
+    obtain ⟨h1a, h1b, hd1, hu1, hx1, hM⟩ := hP1
+    exact (asrtM_unsat (fun _ hf => hf) h1b hM).elim
 
 end SAsm
 end EvmAsm.Rv64

@@ -17,6 +17,7 @@
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SAsm.Sym
 import EvmAsm.Rv64.SAsm.RegFileSep
+import EvmAsm.Rv64.SAsm.RegionSound
 
 namespace EvmAsm.Rv64
 namespace SAsm
@@ -38,10 +39,10 @@ theorem aluSem_agree {i : Instr} {op : AluOp} (h : aluSem i = some op) :
   cases i <;> simp only [aluSem, reduceCtorEq] at h <;>
     (injection h with h; subst h; intro g g' hgg;
      simp only [List.forall_mem_cons] at hgg;
-     dsimp only;
-     (try rw [hgg.1]);
-     (try rw [hgg.2.1]);
-     all_goals rfl)
+     first
+       | (dsimp only; rw [hgg.1, hgg.2.1])
+       | (dsimp only; rw [hgg.1])
+       | dsimp only)
 
 /-- Classified instructions are not ECALL/EBREAK and touch no memory, so they
     step via `execInstrBr`. -/
@@ -83,31 +84,53 @@ theorem regFile_alu_spec_within (i : Instr) (op : AluOp) (rf : RegFile) (base : 
       rw [hx0', RegFile.set_x0]
       exact holdsFor_pcFree_setPC (pcFree_sepConj (pcFree_regFileIs rf) hR) hPR
 
-/-- Single-instruction spec, dispatched through `instrOk`/`execInstrRF`. -/
-theorem execInstrRF_sound {i : Instr} (hok : instrOk i = true)
-    (rf : RegFile) (base : Word) :
+/-- Single-instruction spec, dispatched through `instrOk`/`execInstrRF`:
+    ALU instructions leave the region framed; loads read from it. -/
+theorem execInstrRF_sound {i : Instr} (reg : Region) (hreg : reg.wf)
+    (hok : instrOk i = true)
+    (rf : RegFile) (base : Word)
+    (hvc : match loadSem i with
+      | some l =>
+          ((rf.get l.rs1 + signExtend12 l.ofs) - reg.base).toNat
+            < reg.bytes.length
+      | none => True) :
     cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base i)
-      (regFileIs rf) (regFileIs (execInstrRF rf i)) := by
+      ((regFileIs rf) ** bytesRegion reg.base reg.bytes)
+      ((regFileIs (execInstrRF reg rf i)) ** bytesRegion reg.base reg.bytes) := by
   cases hsem : aluSem i with
-  | none => simp [instrOk, hsem] at hok
+  | none =>
+      cases hload : loadSem i with
+      | none => simp [instrOk, hsem, hload] at hok
+      | some l =>
+          simp only [instrOk, hsem, hload, Bool.and_eq_true] at hok
+          simp only [hload] at hvc
+          simp only [execInstrRF, hsem, hload]
+          exact regFile_load_spec_within i l reg rf base hload hreg
+            hok.1 hok.2 hvc
   | some op =>
       simp only [instrOk, hsem, Bool.and_eq_true] at hok
       obtain ⟨hrd, hsrcs⟩ := hok
       simp only [execInstrRF, hsem]
-      exact regFile_alu_spec_within i op rf base hsem hrd
-        (fun r hr => by
-          have := List.all_eq_true.mp hsrcs r hr
-          simpa using this)
+      exact cpsTripleWithin_frameR (bytesRegion reg.base reg.bytes)
+        (bytesRegion_pcFree _ _)
+        (regFile_alu_spec_within i op rf base hsem hrd
+          (fun r hr => by
+            have := List.all_eq_true.mp hsrcs r hr
+            simpa using this))
 
 /-- Block soundness: a supported straight-line block satisfies a bounded CPS
     triple under its own `CodeReq.ofProg`, moving the exposed register file
     to its symbolic image.  `hlen` rules out address wrap-around (any real
     block is vastly shorter). -/
-theorem execBlock_sound (instrs : List Instr) (rf : RegFile) (base : Word)
-    (hok : blockOk instrs = true) (hlen : 4 * instrs.length < 2 ^ 64) :
+theorem execBlock_sound (reg : Region) (instrs : List Instr) (rf : RegFile)
+    (base : Word)
+    (hreg : reg.wf) (hok : blockOk instrs = true)
+    (hvcs : blockVCs reg rf instrs)
+    (hlen : 4 * instrs.length < 2 ^ 64) :
     cpsTripleWithin instrs.length base (base + BitVec.ofNat 64 (4 * instrs.length))
       (CodeReq.ofProg base instrs)
-      (regFileIs rf) (regFileIs (execBlock rf instrs)) := by
+      ((regFileIs rf) ** bytesRegion reg.base reg.bytes)
+      ((regFileIs (execBlock reg rf instrs)) ** bytesRegion reg.base reg.bytes) := by
   induction instrs generalizing rf base with
   | nil =>
       intro R hR s hcr hPR hpc
@@ -116,10 +139,11 @@ theorem execBlock_sound (instrs : List Instr) (rf : RegFile) (base : Word)
   | cons i rest ih =>
       simp only [blockOk, List.all_cons, Bool.and_eq_true] at hok
       obtain ⟨hoki, hokr⟩ := hok
+      obtain ⟨hvc1, hvcr⟩ := hvcs
       have hlenr : 4 * rest.length < 2 ^ 64 := by
         simp only [List.length_cons] at hlen; omega
-      have h1 := execInstrRF_sound hoki rf base
-      have h2 := ih (execInstrRF rf i) (base + 4) hokr hlenr
+      have h1 := execInstrRF_sound reg hreg hoki rf base hvc1
+      have h2 := ih (execInstrRF reg rf i) (base + 4) hokr hvcr hlenr
       have hd : (CodeReq.singleton base i).Disjoint
           (CodeReq.ofProg (base + 4) rest) := by
         intro a
