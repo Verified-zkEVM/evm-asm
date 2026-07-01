@@ -288,11 +288,17 @@ def balAccountApplyPostFieldsFunction : String :=
   "  # storage trie is empty: build all storage insert descriptors and apply\n" ++
   "  # them together so the intermediate trie root need not be in the witness.\n" ++
   "  # Final zero slot values are trie-default no-ops for an empty storage trie.\n" ++
-  "  mv a0, s6; mv a1, s7; li a2, 2; la a3, aps_off; la a4, aps_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lbaap_fail\n" ++
-  "  la t0, aps_off; ld t1, 0(t0); add t1, s6, t1; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s10, a1\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  li t2, 32; bne a2, t2, .Lbaap_fail\n" ++
+  "  sub t1, a0, a2; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
   "  la t2, aps_empty_root; li t3, 32\n" ++
   ".Lbaap_empty_cmp:\n" ++
   "  beqz t3, .Lbaap_empty_ok\n" ++
