@@ -211,8 +211,7 @@ def ziskBalStorageMatchesExecLogPrologue : String :=
   "  sd a0, 16(s0)\n" ++
   "  j .Lbsme_probe_done\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   balStorageMatchesExecLogFunction ++ "\n" ++
   ".Lbsme_probe_done:"
 

@@ -33,7 +33,7 @@ open EvmAsm.Rv64
       +48 post_nonce (u64)
       +56 has_code
       +64 code_off  (offset of the final code field RELATIVE to a0; 0 if none)
-      +72 code_len  (byte length of the final code field, RLP-encoded form) -/
+      +72 code_len  (byte length of the final code field content) -/
 def balAccountNonstorageFinalsFunction : String :=
   "bal_account_nonstorage_finals:\n" ++
   "  addi sp, sp, -80\n" ++
@@ -123,8 +123,8 @@ def balAccountNonstorageFinalsFunction : String :=
   "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 64(sp)\n" ++
   "  ld t3, 64(sp); ld a1, 72(sp); mv a0, t3; jal ra, rlp_walk_next\n" ++
   "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sub t4, t3, s0; sd t4, 64(s2)\n" ++
-  "  sub t4, a0, t3; sd t4, 72(s2)\n" ++
+  "  sub t4, a0, a2; sub t4, t4, s0; sd t4, 64(s2)\n" ++
+  "  sd a2, 72(s2)\n" ++
   "  li t0, 1; sd t0, 56(s2)\n" ++
   ".Lc2nsf_ok:\n" ++
   "  li a0, 0; j .Lc2nsf_ret\n" ++

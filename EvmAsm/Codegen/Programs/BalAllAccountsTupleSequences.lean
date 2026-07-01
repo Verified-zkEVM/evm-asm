@@ -25,7 +25,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
@@ -47,10 +47,11 @@ def balAllAccountsTupleSequencesConsistentFunction : String :=
   "  li a6, 1                    # legacy ABI: one skipped recipient\n" ++
   "  j bal_all_accounts_tuple_sequences_consistent_skip_list\n" ++
   "bal_all_accounts_tuple_sequences_consistent_skip_list:\n" ++
-  "  addi sp, sp, -112\n" ++
+  "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
+  "  sd s11, 96(sp)\n" ++
   "  mv s0, a0                   # BAL section ptr\n" ++
   "  mv s1, a1                   # BAL section len\n" ++
   "  mv s2, a2                   # exec-log base\n" ++
@@ -58,27 +59,25 @@ def balAllAccountsTupleSequencesConsistentFunction : String :=
   "  mv s4, a4                   # exec_log_txindex base\n" ++
   "  mv s5, a5                   # skip-list ptr (32-byte-strided 20B BE entries)\n" ++
   "  mv s10, a6                  # skip-list count\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, batsc_acct_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbatsc_fail\n" ++
-  "  la t0, batsc_acct_count; ld s6, 0(t0)   # account count\n" ++
-  "  li s7, 0                    # account index\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbatsc_fail\n" ++
+  "  mv s6, a0                   # BAL cursor\n" ++
+  "  mv s7, a1                   # BAL end\n" ++
   ".Lbatsc_loop:\n" ++
-  "  beq s7, s6, .Lbatsc_ok\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s7; la a3, batsc_acct_off; la a4, batsc_acct_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbatsc_fail\n" ++
-  "  la t0, batsc_acct_off; ld t1, 0(t0); add s8, s0, t1   # AccountChanges ptr\n" ++
-  "  la t0, batsc_acct_len; ld s9, 0(t0)                   # AccountChanges len\n" ++
-  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, batsc_addr_off; la a4, batsc_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item                             # item 0 = address\n" ++
-  "  bnez a0, .Lbatsc_fail\n" ++
-  "  la t0, batsc_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbatsc_next   # not 20B -> skip\n" ++
+  "  beq s6, s7, .Lbatsc_ok\n" ++
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbatsc_fail\n" ++
+  "  mv s6, a0; sub s8, a0, a2; mv s9, a2   # AccountChanges ptr/len\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbatsc_fail\n" ++
+  "  jal ra, rlp_walk_next                             # item 0 = address\n" ++
+  "  bnez a1, .Lbatsc_fail\n" ++
+  "  li t2, 20; bne a2, t2, .Lbatsc_next   # not 20B -> skip\n" ++
+  "  sub s11, a0, a2             # addr ptr (20B BE)\n" ++
   -- EIP-2935/EIP-4788 modeled-system rows are checked here too: the
   -- account-level comparator merges captured system storage rows with the user
   -- exec log, so forged system tuple sequences reject precisely instead of being
   -- hidden behind a modeled-account bypass.
-  "  la t0, batsc_addr_off; ld t1, 0(t0); add t3, s8, t1   # addr ptr (20B BE)\n" ++
   "  li t4, 0                    # skip-list index\n" ++
   ".Lbatsc_skip_outer:\n" ++
   "  beq t4, s10, .Lbatsc_callee # not in skip-list -> check it\n" ++
@@ -86,7 +85,7 @@ def balAllAccountsTupleSequencesConsistentFunction : String :=
   "  li t6, 0                    # byte index\n" ++
   ".Lbatsc_skip_cmp:\n" ++
   "  li a0, 20; beq t6, a0, .Lbatsc_next      # all 20 bytes equal skip entry -> skip\n" ++
-  "  add a0, t3, t6; lbu a1, 0(a0)\n" ++
+  "  add a0, s11, t6; lbu a1, 0(a0)\n" ++
   "  add a0, t5, t6; lbu a2, 0(a0)\n" ++
   "  bne a1, a2, .Lbatsc_skip_advance\n" ++
   "  addi t6, t6, 1; j .Lbatsc_skip_cmp\n" ++
@@ -94,14 +93,14 @@ def balAllAccountsTupleSequencesConsistentFunction : String :=
   "  addi t4, t4, 1; j .Lbatsc_skip_outer\n" ++
 
   ".Lbatsc_callee:\n" ++
-  "  la t0, batsc_addr_off; ld t1, 0(t0); add a0, s8, t1   # addr ptr (re-derive across calls)\n" ++
+  "  mv a0, s11                              # addr ptr (20B BE)\n" ++
   "  la a1, batsc_key\n" ++
   "  jal ra, bal_addr_to_exec_log_key           # batsc_key = addr byte-reversed (LE callee key)\n" ++
   "  mv a0, s8; mv a1, s9; la a2, batsc_key; mv a3, s2; mv a4, s3; mv a5, s4\n" ++
   "  jal ra, account_tuple_sequences_consistent\n" ++
   "  bnez a0, .Lbatsc_fail\n" ++
   ".Lbatsc_next:\n" ++
-  "  addi s7, s7, 1; j .Lbatsc_loop\n" ++
+  "  j .Lbatsc_loop\n" ++
   ".Lbatsc_ok:\n" ++
   "  li a0, 0; j .Lbatsc_ret\n" ++
   ".Lbatsc_fail:\n" ++
@@ -110,7 +109,8 @@ def balAllAccountsTupleSequencesConsistentFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
+  "  ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 128\n" ++
   "  ret"
 
 /-- `zisk_bal_all_accounts_tuple_sequences_consistent`: focused probe.
@@ -140,6 +140,7 @@ def ziskBalAllAccountsTupleSequencesConsistentPrologue : String :=
   execLogSlotTuplesFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   balAddrToExecLogKeyFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
@@ -186,6 +187,7 @@ def ziskBalAllAccountsTupleSequencesConsistentSkipListPrologue : String :=
   execLogSlotTuplesFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   balAddrToExecLogKeyFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
@@ -193,12 +195,6 @@ def ziskBalAllAccountsTupleSequencesConsistentSkipListPrologue : String :=
 
 def ziskBalAllAccountsTupleSequencesConsistentDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "batsc_acct_count:\n  .zero 8\n" ++
-  "batsc_acct_off:\n  .zero 8\n" ++
-  "batsc_acct_len:\n  .zero 8\n" ++
-  "batsc_addr_off:\n  .zero 8\n" ++
-  "batsc_addr_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "batsc_key:\n  .zero 32\n" ++ "\n" ++
   accountTupleSequencesConsistentData ++ "\n" ++   -- atsc_* + tuple buffers

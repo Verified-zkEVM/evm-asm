@@ -1027,18 +1027,48 @@ def blockVerdictFunction : String :=
   "  addi t0, t0, 1; j .Lbv_rnc_scan\n" ++
   ".Lbv_rnc_check:\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
-  "  li a2, 4; la a3, bv_rcf_off; la a4, bv_rcf_len   # nonce_changes\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbv_recipient_code_check               # malformed/absent -> skip (conservative)\n" ++
-  -- rlp_list_nth_item returns a *list* item's full encoded size (incl. prefix), so an empty
-  -- list (0xc0) is len==1; only len>1 means the list carries entries (a claimed change).
-  "  la t0, bv_rcf_len; ld t0, 0(t0); li t1, 1; bgtu t0, t1, .Lbv_bal_recipient_field_fail\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbv_recipient_code_check               # malformed/absent -> skip (conservative)\n" ++
+  "  la t0, bv_rcf_off; sd a0, 0(t0); la t0, bv_rcf_len; sd a1, 0(t0)\n" ++
+  "  # Walk to item 4 = nonce_changes.\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_recipient_code_check; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_recipient_code_check; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_recipient_code_check; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_recipient_code_check; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_recipient_code_check\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbv_bal_recipient_field_fail\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbv_recipient_code_check\n" ++
+  "  j .Lbv_bal_recipient_field_fail\n" ++
   ".Lbv_recipient_code_check:\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
-  "  li a2, 5; la a3, bv_rcf_off; la a4, bv_rcf_len   # code_changes\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbv_after_tx_gas_precharge             # malformed/absent -> skip (conservative)\n" ++
-  "  la t0, bv_rcf_len; ld t0, 0(t0); li t1, 1; bgtu t0, t1, .Lbv_bal_recipient_field_fail\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbv_after_tx_gas_precharge             # malformed/absent -> skip (conservative)\n" ++
+  "  la t0, bv_rcf_off; sd a0, 0(t0); la t0, bv_rcf_len; sd a1, 0(t0)\n" ++
+  "  # Walk to item 5 = code_changes.\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbv_after_tx_gas_precharge\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbv_bal_recipient_field_fail\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  j .Lbv_bal_recipient_field_fail\n" ++
   -- bmvmx.1.6.4.3: all-accounts storage exec-vs-BAL. Every NON-recipient BAL account's
   -- storage_changes must match the exec log — forward (every claimed change reproduced) AND
   -- reverse (every net change claimed) — keyed on each account's LE callee exec-log key.

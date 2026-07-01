@@ -39,7 +39,7 @@ def balAccountDescriptorArrayFunction : String :=
   "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
   "  mv s0, a0                   # BAL list ptr\n" ++
   "  mv s1, a1                   # BAL list len\n" ++
   "  mv s2, a2                   # account records\n" ++
@@ -49,22 +49,23 @@ def balAccountDescriptorArrayFunction : String :=
   "  mv s6, a6                   # value cursor\n" ++
   "  la t0, baada_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, baada_fail_index; sd zero, 0(t0)\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaada_fail_nth\n" ++
+  "  mv s0, a0                   # BAL AccountChanges cursor\n" ++
+  "  mv s1, a1                   # BAL AccountChanges end\n" ++
   "  li s7, 0                    # i\n" ++
   ".Lbaada_loop:\n" ++
   "  beq s7, s3, .Lbaada_ok\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaada_fail_nth\n" ++
+  "  mv s0, a0; sub s9, a0, a2; mv s10, a2   # AccountChanges[i] ptr/len\n" ++
   "  slli t0, s7, 4; slli t1, s7, 3; add t0, t0, t1; add t0, s2, t0\n" ++
   "  ld a0, 0(t0)                # account ptr\n" ++
   "  ld a1, 8(t0)                # account len\n" ++
   "  ld a4, 16(t0)               # is_insert\n" ++
   "  mv s8, t0                   # record ptr, preserved across classifier\n" ++
   "  li t1, 3; beq a4, t1, .Lbaada_readonly\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s7\n" ++
-  "  la a3, baada_item_off; la a4, baada_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaada_fail_nth\n" ++
-  "  la t1, baada_item_off; ld t1, 0(t1); add a2, s0, t1\n" ++
-  "  la t1, baada_item_len; ld a3, 0(t1)\n" ++
-  "  mv a0, a2; mv a1, a3; jal ra, bal_account_has_state_change\n" ++
+  "  mv a0, s9; mv a1, s10; jal ra, bal_account_has_state_change\n" ++
   "  li t1, 1; beq a0, t1, .Lbaada_changed\n" ++
   "  bnez a0, .Lbaada_fail_desc\n" ++
   "  ld t1, 0(s8); sd s5, 0(s4); li t2, 64; sd t2, 8(s4); sd t1, 16(s4)\n" ++
@@ -74,8 +75,7 @@ def balAccountDescriptorArrayFunction : String :=
   "  ld t1, 8(s8); sd t1, 24(s4); li t2, 3; sd t2, 32(s4); j .Lbaada_desc_done\n" ++
   ".Lbaada_changed:\n" ++
   "  ld a0, 0(s8); ld a1, 8(s8); ld a4, 16(s8)\n" ++
-  "  la t1, baada_item_off; ld t1, 0(t1); add a2, s0, t1\n" ++
-  "  la t1, baada_item_len; ld a3, 0(t1)\n" ++
+  "  mv a2, s9; mv a3, s10\n" ++
   "  mv a5, s4; mv a6, s5; mv a7, s6\n" ++
   "  jal ra, bal_account_change_descriptor\n" ++
   "  bnez a0, .Lbaada_fail_desc\n" ++
@@ -97,7 +97,7 @@ def balAccountDescriptorArrayFunction : String :=
   ".Lbaada_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 112\n" ++
   "  ret"
 
@@ -190,6 +190,7 @@ def balAccountDescriptorArrayDeps : String :=
   nodeDbAppendFunction ++ "\n" ++
   mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
@@ -351,6 +352,7 @@ def ziskBalAccountDescriptorArrayDataSection : String :=
   "baap_slot_changes_count:\n  .zero 8\n" ++
   "baap_val_off:\n  .zero 8\n" ++
   "baap_val_len:\n  .zero 8\n" ++
+  "baap_val_ptr:\n  .zero 8\n" ++
   "baap_code_list_off:\n  .zero 8\n" ++
   "baap_code_list_len:\n  .zero 8\n" ++
   "baap_code_list_ptr:\n  .zero 8\n" ++
@@ -389,8 +391,6 @@ def ziskBalAccountDescriptorArrayDataSection : String :=
   "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
   "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   "bacv_fail_code:\n  .zero 8\n" ++
-  "baada_item_off:\n  .zero 8\n" ++
-  "baada_item_len:\n  .zero 8\n" ++
   "baada_fail_code:\n  .zero 8\n" ++
   "baada_fail_index:\n  .zero 8\n" ++
   "baada_records:\n  .zero 768\n" ++

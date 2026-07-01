@@ -30,7 +30,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 
@@ -119,10 +119,7 @@ def ziskBalAccountNonstorageConsistentPrologue : String :=
   "  j .Lc2nsc_pdone\n" ++
   balAccountNonstorageConsistentFunction ++ "\n" ++
   balAccountNonstorageFinalsFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lc2nsc_pdone:"
 
 def ziskBalAccountNonstorageConsistentDataSection : String :=

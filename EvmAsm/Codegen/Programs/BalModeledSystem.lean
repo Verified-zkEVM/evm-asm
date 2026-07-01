@@ -6,7 +6,7 @@
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -24,11 +24,12 @@ def balAccountIsModeledSystemFunction : String :=
   "  addi sp, sp, -32\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
   "  mv s0, a0\n" ++
-  "  li a2, 0; la a3, bams_addr_off; la a4, bams_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbams_parse_fail\n" ++
-  "  la t0, bams_addr_len; ld t0, 0(t0); li t1, 20; bne t0, t1, .Lbams_no\n" ++
-  "  la t0, bams_addr_off; ld t0, 0(t0); add t0, s0, t0; la t5, bams_addr_ptr; sd t0, 0(t5)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbams_parse_fail\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbams_parse_fail\n" ++
+  "  li t1, 20; bne a2, t1, .Lbams_no\n" ++
+  "  sub t0, a0, a2; la t5, bams_addr_ptr; sd t0, 0(t5)\n" ++
   "  la t1, bams_addr_2935; li t2, 20\n" ++
   ".Lbams_cmp_2935:\n" ++
   "  beqz t2, .Lbams_yes_2935\n" ++
@@ -55,8 +56,6 @@ def balAccountIsModeledSystemFunction : String :=
 
 def ziskBalAccountIsModeledSystemDataSection : String :=
   ".balign 8\n" ++
-  "bams_addr_off:\n  .zero 8\n" ++
-  "bams_addr_len:\n  .zero 8\n" ++
   "bams_addr_ptr:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bams_addr_2935:\n" ++
