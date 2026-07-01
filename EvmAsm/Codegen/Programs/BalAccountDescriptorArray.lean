@@ -190,6 +190,7 @@ def balAccountDescriptorArrayDeps : String :=
   nodeDbAppendFunction ++ "\n" ++
   mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
