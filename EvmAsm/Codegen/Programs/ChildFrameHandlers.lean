@@ -116,17 +116,17 @@ def childFrameHandlers
     , opcodes := [0xf1]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n" ++ staticContextValueTransferGuardAsm 64
     , body := []
-    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 callFallThrough) }
+    , tail := .custom (basicPrecompileCallTail "call_target" 192 96 128 160 192 (some 64) callFallThrough) }
   , { label := "h_CALLCODE"
     , opcodes := [0xf2]
     , preBody := stackUnderflowGuardAsm 7 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 callcodeFallThrough) }
+    , tail := .custom (basicPrecompileCallTail "callcode_target" 192 96 128 160 192 (some 64) callcodeFallThrough) }
   , { label := "h_DELEGATECALL"
     , opcodes := [0xf4]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "delegatecall_target" 160 64 96 128 160 delegateFallThrough) }
+    , tail := .custom (basicPrecompileCallTail "delegatecall_target" 160 64 96 128 160 none delegateFallThrough) }
   , { label := "h_CREATE2"
     , opcodes := [0xf5]
     , preBody := stackUnderflowGuardAsm 4 ++ "\n" ++ staticContextWriteGuardAsm
@@ -136,7 +136,7 @@ def childFrameHandlers
     , opcodes := [0xfa]
     , preBody := stackUnderflowGuardAsm 6 ++ "\n"
     , body := []
-    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160 staticFallThrough) } ]
+    , tail := .custom (basicPrecompileCallTail "staticcall_target" 160 64 96 128 160 none staticFallThrough) } ]
 
 /-- M20 arithmetic no-op handlers.
 
