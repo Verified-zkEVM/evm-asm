@@ -120,6 +120,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
   "  mv s0, a0                   # original account ptr\n" ++
   "  mv s1, a1                   # original account len\n" ++
   "  mv s2, a2                   # AccountChanges ptr\n" ++
@@ -140,25 +141,39 @@ def balAccountApplyPostFieldsFunction : String :=
   "  bnez a0, .Lbaap_fail\n" ++
   "  # Apply the final BAL code change first, when present. CodeChanges items are\n" ++
   "  # [blockAccessIndex, newCode]; the account field stores keccak256(newCode).\n" ++
-  "  mv a0, s2; mv a1, s3; li a2, 5; la a3, baap_code_list_off; la a4, baap_code_list_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_code_list_off; ld t0, 0(t0); add t0, s2, t0; la t1, baap_code_list_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, baap_code_list_len; ld a1, 0(t1); mv a0, t0; la a2, baap_code_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_code_count; ld t0, 0(t0); beqz t0, .Lbaap_storage_gate\n" ++
-  "  addi a2, t0, -1; la t1, baap_code_list_ptr; ld a0, 0(t1); la t1, baap_code_list_len; ld a1, 0(t1)\n" ++
-  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_code_list_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, baap_item_len; ld t1, 0(t1); la t2, baap_code_item_ptr; sd t0, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 1; la a3, baap_code_off; la a4, baap_code_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_code_item_ptr; ld t0, 0(t0); la t1, baap_code_off; ld t1, 0(t1); add a0, t0, t1\n" ++
-  "  la t1, baap_code_len; ld a1, 0(t1); la a2, baap_code_hash\n" ++
+  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1; li s10, 5\n" ++
+  ".Lbaap_code_field_skip:\n" ++
+  "  beqz s10, .Lbaap_code_field_ready\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0; addi s10, s10, -1; j .Lbaap_code_field_skip\n" ++
+  ".Lbaap_code_field_ready:\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_code_list_ptr; sd t0, 0(t1); la t1, baap_code_list_len; sd a2, 0(t1)\n" ++
+  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1; li s10, 0\n" ++
+  ".Lbaap_code_last_loop:\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbaap_code_last_done\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0; sub t0, a0, a2; la t1, baap_code_item_ptr; sd t0, 0(t1); la t1, baap_item_len; sd a2, 0(t1); li s10, 1\n" ++
+  "  j .Lbaap_code_last_loop\n" ++
+  ".Lbaap_code_last_done:\n" ++
+  "  beqz s10, .Lbaap_storage_gate\n" ++
+  "  la t0, baap_code_item_ptr; ld a0, 0(t0); la t0, baap_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2; la a2, baap_code_hash\n" ++
   "  jal ra, zkvm_keccak256\n" ++
   "  la a0, baap_code_hash; li a1, 32; la a2, aab_enc; la a3, aab_enc_len\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
@@ -467,6 +482,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 96\n" ++
   "  ret"
 
