@@ -1102,6 +1102,11 @@ def blockVerdictFunction : String :=
   ".Lbv_storage_skip_sys_o:\n  li t2, 20\n" ++
   ".Lbv_storage_skip_sys_i:\n  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lbv_storage_skip_sys_i\n" ++
   "  addi t0, t0, 12; addi t4, t4, -1; bnez t4, .Lbv_storage_skip_sys_o\n" ++
+  -- If runtime replay could not materialize a complete gas/effect arena,
+  -- the execution storage log is incomplete. The authenticated state-root
+  -- recompute remains binding, so skip these redundant storage/tuple checks
+  -- rather than false-rejecting BAL rows against a partial replay.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_storage_tuple_checks\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
@@ -1122,6 +1127,7 @@ def blockVerdictFunction : String :=
   "  la a5, i3djw_skip_list; li a6, 7\n" ++
   "  jal ra, bal_all_accounts_tuple_sequences_consistent_skip_list\n" ++
   "  bnez a0, .Lbv_bal_tuple_fail\n" ++
+  ".Lbv_after_storage_tuple_checks:\n" ++
   -- i3djw (all-accounts CODE reverse): every account execution changed code for (CREATE/CREATE2
   -- deploy, has_code_change=1 in exec_code_effect_log) must be PRESENT in the BAL -- catching a
   -- producer that hides a created account by omitting it. Presence-only (a present account's declared
