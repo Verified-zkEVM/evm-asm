@@ -272,6 +272,9 @@ def runtimeSameBlockDelegationCodeData : String :=
   "rsbd_hash:
   .zero 32
 " ++
+  "eahsr_same_tx_empty_flag:
+  .zero 8
+" ++
   "ecc_old_active:
   .zero 8
 " ++

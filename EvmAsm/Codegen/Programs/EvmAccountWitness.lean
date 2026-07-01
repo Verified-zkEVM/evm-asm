@@ -109,6 +109,30 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop\n" ++
     ".Lextcodehash_witness_check:\n" ++
+    "  la t0, eahsr_same_tx_empty_flag; sd zero, 0(t0)\n" ++
+    "  la t0, exec_nonstorage_effect_count; ld t2, 0(t0)\n" ++
+    "  beqz t2, .Lextcodehash_witness_state\n" ++
+    "  la t1, exec_nonstorage_effect_log; li t3, 112; mul t3, t2, t3; add t1, t1, t3\n" ++
+    ".Lextcodehash_nse_scan:\n" ++
+    "  addi t1, t1, -112\n" ++
+    "  la t4, eahsr_address_scratch; li t5, 0\n" ++
+    ".Lextcodehash_nse_addr_cmp:\n" ++
+    "  li t6, 20; beq t5, t6, .Lextcodehash_nse_match\n" ++
+    "  add a0, t1, t5; lbu a0, 0(a0)\n" ++
+    "  add a1, t4, t5; lbu a1, 0(a1)\n" ++
+    "  bne a0, a1, .Lextcodehash_nse_next\n" ++
+    "  addi t5, t5, 1; j .Lextcodehash_nse_addr_cmp\n" ++
+    ".Lextcodehash_nse_next:\n" ++
+    "  addi t2, t2, -1; bnez t2, .Lextcodehash_nse_scan\n" ++
+    "  j .Lextcodehash_witness_state\n" ++
+    ".Lextcodehash_nse_match:\n" ++
+    "  ld t4, 64(t1); ld t5, 72(t1); or t4, t4, t5\n" ++
+    "  ld t5, 80(t1); or t4, t4, t5\n" ++
+    "  ld t5, 88(t1); or t4, t4, t5\n" ++
+    "  ld t5, 104(t1); or t4, t4, t5\n" ++
+    "  beqz t4, .Lextcodehash_witness_state\n" ++
+    "  li t4, 1; la t5, eahsr_same_tx_empty_flag; sd t4, 0(t5)\n" ++
+    ".Lextcodehash_witness_state:\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
@@ -132,6 +156,18 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
     "  ld x13, 24(sp)\n" ++
+    -- If the pre-state witness says the account is absent (EXTCODEHASH = 0),
+    -- a precomputed same-transaction balance/nonce effect means the account
+    -- now exists with empty code, so EIP-1052 returns EMPTY_CODE_HASH.
+    "  la t0, rsbd_hash; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2\n" ++
+    "  ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+    "  bnez t1, .Lextcodehash_witness_copy\n" ++
+    "  la t0, eahsr_same_tx_empty_flag; ld t0, 0(t0); beqz t0, .Lextcodehash_witness_copy\n" ++
+    "  la t0, eahsr_empty_code_hash; la t1, rsbd_hash; li t2, 32\n" ++
+    ".Lextcodehash_same_tx_empty_hash:\n" ++
+    "  beqz t2, .Lextcodehash_witness_copy\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lextcodehash_same_tx_empty_hash\n" ++
+    ".Lextcodehash_witness_copy:\n" ++
     "  la t0, rsbd_hash; addi t0, t0, 31; mv t1, x12; li t2, 32\n" ++
     ".Lextcodehash_witness_rev:\n" ++
     "  beqz t2, .Lextcodehash_witness_rev_done\n" ++
