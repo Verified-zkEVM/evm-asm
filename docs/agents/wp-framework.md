@@ -502,6 +502,18 @@ caller needs to distinguish it.
 ## Debugging
 
 - If a generated precondition is unclear, inspect `#wp_rv64 cfg`.
+- If a `wp_rv64_leaf_synth` success is surprising, enable the narrow success
+  trace locally:
+
+  ```lean
+  set_option trace.runBlock.leafSynth true in
+  example ... := by
+    wp_rv64_leaf_synth
+  ```
+
+  The trace is silent by default in normal builds. When enabled, it reports the
+  registered spec matched for each instruction, synthesized `regOwn`/`memOwn`
+  atoms, and the final predecessor assertion.
 - If `wp_rv64_cert`, `wp_rv64_link`, `wp_rv64_dead`, or `wp_rv64_disjoint`
   fails, read the diagnostic first. It reports the goal shape, how many
   registered hints were tried, and the usual next action. When registered

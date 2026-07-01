@@ -139,6 +139,19 @@ This shows:
 - Which spec was selected
 - Composition progress
 
+For post-driven leaf synthesis, use the narrower trace class when you want the
+success path without the full `runBlock` trace:
+
+```lean
+set_option trace.runBlock.leafSynth true in
+example ... := by
+  wp_rv64_leaf_synth
+```
+
+This is silent by default during `lake build`. When enabled locally, it reports
+the matched registered specs, any synthesized `regOwn`/`memOwn` atoms, and the
+final predecessor assertion.
+
 ### Common failure modes
 
 | Symptom | Cause | Fix |
