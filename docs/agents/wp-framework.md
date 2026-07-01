@@ -123,8 +123,9 @@ theorem spec :
        (addiOwnCfg base v imm).pre = ((.x5 ↦ᵣ v) ** regOwn .x6) := rfl
    ```
 
-   The checked examples in `EvmAsm.Rv64.Tactics.WP` also include an `SD`
-   leaf whose old memory cell is synthesized as `memOwn`.
+   The checked examples in `EvmAsm.Rv64.Tactics.WP` also include an all-distinct
+   `ADD` leaf whose clobbered destination is synthesized as `regOwn`, and an
+   `SD` leaf whose old memory cell is synthesized as `memOwn`.
 
 3. Prove remaining leaf blocks with existing tools.
 
