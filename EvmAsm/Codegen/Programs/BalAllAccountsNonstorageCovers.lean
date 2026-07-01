@@ -26,7 +26,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 
 namespace EvmAsm.Codegen
@@ -52,10 +52,10 @@ def balAllAccountsNonstorageCoversFunction : String :=
   "  mv s3, a3                   # effect record count\n" ++
   "  mv s4, a4                   # skip-list ptr\n" ++
   "  mv s10, a5                  # skip-list count\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, c3cov_acct_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lc3cov_fail\n" ++
-  "  la t0, c3cov_acct_count; ld s5, 0(t0)   # BAL account count\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc3cov_fail\n" ++
+  "  mv s5, a0                   # BAL account cursor\n" ++
+  "  mv s8, a1                   # BAL account end\n" ++
   "  # bmvmx.5.5.7.3 step c: LINEARIZED via a matched-bitmap, removing the old O(BAL*agg) inner\n" ++
   "  # BAL scan (the last O(N^2) barrier blocking the effect-log cap lift). The effect agg is now\n" ++
   "  # SORTED + deduplicated (every caller routes through nonstorage_effect_aggregate), so:\n" ++
@@ -74,18 +74,17 @@ def balAllAccountsNonstorageCoversFunction : String :=
   "  addi t1, t1, 1; j .Lc3cov_clr\n" ++
   ".Lc3cov_clrdone:\n" ++
   "  # --- Phase 1: mark each agg entry that some BAL account's address binary-searches to ---\n" ++
-  "  li s8, 0                    # BAL account index k\n" ++
   ".Lc3cov_mloop:\n" ++
-  "  beq s8, s5, .Lc3cov_mdone\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s8; la a3, c3cov_acct_off; la a4, c3cov_acct_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc3cov_fail       # malformed BAL list -> reject\n" ++
-  "  la t0, c3cov_acct_off; ld t1, 0(t0); add s9, s0, t1   # AccountChanges[k] ptr\n" ++
-  "  mv a0, s9; la t0, c3cov_acct_len; ld a1, 0(t0); li a2, 0; la a3, c3cov_addr_off; la a4, c3cov_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item                              # item 0 = address\n" ++
-  "  bnez a0, .Lc3cov_fail       # malformed account -> reject\n" ++
-  "  la t0, c3cov_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lc3cov_madv   # not 20B -> covers nothing\n" ++
-  "  la t0, c3cov_addr_off; ld t1, 0(t0); add s7, s9, t1    # BAL addr ptr (20B BE) = search target\n" ++
+  "  beq s5, s8, .Lc3cov_mdone\n" ++
+  "  mv a0, s5; mv a1, s8; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc3cov_fail       # malformed BAL list -> reject\n" ++
+  "  mv s5, a0; sub s9, a0, a2; mv s6, a2   # AccountChanges ptr/len\n" ++
+  "  mv a0, s9; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc3cov_fail       # malformed account -> reject\n" ++
+  "  jal ra, rlp_walk_next                              # item 0 = address\n" ++
+  "  bnez a1, .Lc3cov_fail       # malformed account -> reject\n" ++
+  "  li t2, 20; bne a2, t2, .Lc3cov_madv   # not 20B -> covers nothing\n" ++
+  "  sub s7, a0, a2              # BAL addr ptr (20B BE) = search target\n" ++
   "  li t4, 0                                 # lo\n" ++
   "  mv a3, s3                                # hi = effect count\n" ++
   ".Lc3cov_bs:\n" ++
@@ -107,7 +106,7 @@ def balAllAccountsNonstorageCoversFunction : String :=
   ".Lc3cov_bsfound:\n" ++
   "  la t0, c3cov_covered; add t0, t0, a4; li t1, 1; sb t1, 0(t0)   # covered[mid] = 1\n" ++
   ".Lc3cov_madv:\n" ++
-  "  addi s8, s8, 1; j .Lc3cov_mloop\n" ++
+  "  j .Lc3cov_mloop\n" ++
   ".Lc3cov_mdone:\n" ++
   "  # --- Phase 2: every net-changed non-skip agg entry must be covered ---\n" ++
   "  li s6, 0                    # effect index j\n" ++
@@ -175,18 +174,12 @@ def ziskBalAllAccountsNonstorageCoversPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lc3cov_pdone\n" ++
   balAllAccountsNonstorageCoversFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lc3cov_pdone:"
 
 def ziskBalAllAccountsNonstorageCoversDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "c3cov_acct_count:\n  .zero 8\n" ++
-  "c3cov_acct_off:\n  .zero 8\n" ++
-  "c3cov_acct_len:\n  .zero 8\n" ++
-  "c3cov_addr_off:\n  .zero 8\n" ++
-  "c3cov_addr_len:\n  .zero 8\n" ++
   -- bmvmx.5.5.7.3 step c: per-agg-entry "covered by some BAL account" bitmap (1 byte/entry),
   -- indexed by agg index, so it MUST be at least nonstorageEffectLogCap bytes.
   "c3cov_covered:\n  .zero " ++ toString nonstorageEffectLogCap ++ "\n"
