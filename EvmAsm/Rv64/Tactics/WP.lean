@@ -1416,6 +1416,16 @@ example (base v : Word) (imm : BitVec 12) :
     (wp_rv64_leaf_synth_addi_own_cfg base v imm).pre =
       ((.x5 ↦ᵣ v) ** regOwn .x6) := rfl
 
+def wp_rv64_leaf_synth_add_own_cfg (base v1 v2 : Word) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.ADD .x7 .x5 .x6))
+      ((.x5 ↦ᵣ v1) ** (.x6 ↦ᵣ v2) ** (.x7 ↦ᵣ (v1 + v2))) := by
+  wp_rv64_leaf_synth
+
+example (base v1 v2 : Word) :
+    (wp_rv64_leaf_synth_add_own_cfg base v1 v2).pre =
+      ((.x5 ↦ᵣ v1) ** (.x6 ↦ᵣ v2) ** regOwn .x7) := rfl
+
 def wp_rv64_leaf_synth_sd_own_cfg (base addr data : Word) (offset : BitVec 12) :
     EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
       (CodeReq.singleton base (.SD .x5 .x6 offset))
