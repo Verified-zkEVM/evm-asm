@@ -462,7 +462,10 @@ caller needs to distinguish it.
 - If a generated precondition is unclear, inspect `#wp_rv64 cfg`.
 - If `wp_rv64_cert`, `wp_rv64_link`, `wp_rv64_dead`, or `wp_rv64_disjoint`
   fails, read the diagnostic first. It reports the goal shape, how many
-  registered hints were tried, and the usual next action.
+  registered hints were tried, and the usual next action. When registered
+  certificate constructors were tried, `wp_rv64_cert` also reports each
+  candidate failure, such as a result-shape mismatch or an uninferable static
+  side condition.
 - If a constructor still does not infer, try it directly once. The resulting
   goals usually show which entry, exit, code requirement, or postcondition did
   not infer.
