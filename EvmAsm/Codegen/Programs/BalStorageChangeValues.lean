@@ -19,7 +19,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -35,48 +35,50 @@ open EvmAsm.Rv64
       a0 = count of (key, value) pairs written (0 on parse failure — conservative).
 
     For each `storage_changes` entry: key = item 0; value = item 1 of the LAST
-    tuple of item 1. Pointers are recomputed after each `rlp_list_nth_item` /
-    `rlp_list_count_items` call (those clobber the a/t registers). `s3` (the
-    storage_changes list ptr) and the scratch offsets survive across the calls. -/
+    tuple of item 1. Lists are consumed with cursor walks so each entry/tuple is
+    visited once. -/
 def balStorageChangeValuesFunction : String :=
   "bal_storage_change_values:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   "  mv s0, a0                    # account ptr\n" ++
   "  mv s1, a1                    # account len\n" ++
   "  mv s2, a2                    # out keys ptr\n" ++
   "  la t0, bscv_vptr; sd a3, 0(t0)   # out values ptr (data label, s-regs are full)\n" ++
   -- storage_changes = account item 1.
-  "  mv a0, s0; mv a1, s1; li a2, 1; la a3, bscv_scoff; la a4, bscv_sclen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
-  "  la t0, bscv_scoff; ld t0, 0(t0); add s3, s0, t0   # sc_ptr\n" ++
-  "  la t0, bscv_sclen; ld s4, 0(t0)                   # sc_len\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, bscv_cnt\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
-  "  la t0, bscv_cnt; ld s5, 0(t0)                     # entry count\n" ++
-  "  mv s6, zero                  # i\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbscv_fail\n" ++
+  "  mv s3, a1                    # account end\n" ++
+  "  jal ra, rlp_walk_next        # item 0 = address\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  mv a1, s3; jal ra, rlp_walk_next                  # item 1 = storage_changes\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbscv_fail\n" ++
+  "  mv s3, a0                    # storage_changes cursor\n" ++
+  "  mv s4, a1                    # storage_changes end\n" ++
+  "  mv s5, zero                  # count written\n" ++
   ".Lbscv_loop:\n" ++
-  "  beq s6, s5, .Lbscv_done\n" ++
+  "  beq s3, s4, .Lbscv_done\n" ++
   -- entry = nth(storage_changes, i).
-  "  mv a0, s3; mv a1, s4; mv a2, s6; la a3, bscv_eoff; la a4, bscv_elen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
-  "  la t0, bscv_eoff; ld t0, 0(t0); add t1, s3, t0    # entry ptr\n" ++
-  "  la t0, bscv_elen; ld t2, 0(t0)                    # entry len\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  mv s3, a0; sub s7, a0, a2; mv s8, a2              # entry ptr/len\n" ++
   -- key = nth(entry, 0).
-  "  mv a0, t1; mv a1, t2; li a2, 0; la a3, bscv_koff; la a4, bscv_klen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
-  "  la t0, bscv_eoff; ld t0, 0(t0); add t1, s3, t0    # recompute entry ptr\n" ++
-  "  la t0, bscv_koff; ld t3, 0(t0); add t1, t1, t3    # key bytes ptr\n" ++
-  "  la t0, bscv_klen; ld t4, 0(t0)                    # key byte len\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbscv_fail\n" ++
+  "  mv s9, a1                    # entry end\n" ++
+  "  jal ra, rlp_walk_next        # key = item 0\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  mv s10, a0                   # cursor after key\n" ++
+  "  sub t1, a0, a2               # key bytes ptr\n" ++
+  "  mv t4, a2                    # key byte len\n" ++
   "  li t5, 32; bgtu t4, t5, .Lbscv_fail\n" ++
-  -- write key into keys[i] (= s2 + i*32), left-padded.
-  "  slli t0, s6, 5; add t6, s2, t0                    # key dst base\n" ++
+  -- write key into keys[count] (= s2 + count*32), left-padded.
+  "  slli t0, s5, 5; add t6, s2, t0                    # key dst base\n" ++
   "  mv t0, t6; li t5, 32\n" ++
   ".Lbscv_kzero:\n" ++
   "  beqz t5, .Lbscv_kzdone\n  sb zero, 0(t0); addi t0, t0, 1; addi t5, t5, -1; j .Lbscv_kzero\n" ++
@@ -86,46 +88,32 @@ def balStorageChangeValuesFunction : String :=
   "  beqz t4, .Lbscv_kcdone\n  lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lbscv_kcopy\n" ++
   ".Lbscv_kcdone:\n" ++
   -- value_list = nth(entry, 1).
-  "  la t0, bscv_eoff; ld t0, 0(t0); add t1, s3, t0    # entry ptr\n" ++
-  "  la t0, bscv_elen; ld t2, 0(t0)                    # entry len\n" ++
-  "  mv a0, t1; mv a1, t2; li a2, 1; la a3, bscv_voff; la a4, bscv_vlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
-  -- tuple_count = count_items(value_list).
-  "  la t0, bscv_eoff; ld t0, 0(t0); add t1, s3, t0\n" ++
-  "  la t0, bscv_voff; ld t3, 0(t0); add t1, t1, t3    # value_list ptr\n" ++
-  "  la t0, bscv_vlen; ld t2, 0(t0)\n" ++
-  "  mv a0, t1; mv a1, t2; la a2, bscv_vcnt\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
-  "  la t0, bscv_vcnt; ld t3, 0(t0)\n" ++
-  "  beqz t3, .Lbscv_fail                              # no tuples -> malformed\n" ++
-  "  addi t3, t3, -1                                   # last tuple index\n" ++
-  "  la t0, bscv_lastidx; sd t3, 0(t0)\n" ++
-  -- last_tuple = nth(value_list, last).
-  "  la t0, bscv_eoff; ld t0, 0(t0); add t1, s3, t0\n" ++
-  "  la t0, bscv_voff; ld t3, 0(t0); add t1, t1, t3    # value_list ptr\n" ++
-  "  la t0, bscv_vlen; ld t2, 0(t0)\n" ++
-  "  la t0, bscv_lastidx; ld a2, 0(t0)\n" ++
-  "  mv a0, t1; mv a1, t2; la a3, bscv_toff; la a4, bscv_tlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
+  "  mv a0, s10; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbscv_fail\n" ++
+  "  beq a0, a1, .Lbscv_fail       # no tuples -> malformed\n" ++
+  "  mv s10, a0; mv s11, a1        # value_list cursor/end\n" ++
+  ".Lbscv_vlist_loop:\n" ++
+  "  beq s10, s11, .Lbscv_vlist_done\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  mv s10, a0; sub s7, a0, a2; mv s8, a2             # last tuple ptr/len\n" ++
+  "  j .Lbscv_vlist_loop\n" ++
+  ".Lbscv_vlist_done:\n" ++
   -- new_value = nth(last_tuple, 1).
-  "  la t0, bscv_eoff; ld t0, 0(t0); add t1, s3, t0\n" ++
-  "  la t0, bscv_voff; ld t3, 0(t0); add t1, t1, t3    # value_list ptr\n" ++
-  "  la t0, bscv_toff; ld t3, 0(t0); add t1, t1, t3    # tuple ptr\n" ++
-  "  la t0, bscv_tlen; ld t2, 0(t0)\n" ++
-  "  mv a0, t1; mv a1, t2; li a2, 1; la a3, bscv_noff; la a4, bscv_nlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbscv_fail\n" ++
-  "  la t0, bscv_eoff; ld t0, 0(t0); add t1, s3, t0\n" ++
-  "  la t0, bscv_voff; ld t3, 0(t0); add t1, t1, t3    # value_list ptr\n" ++
-  "  la t0, bscv_toff; ld t3, 0(t0); add t1, t1, t3    # tuple ptr\n" ++
-  "  la t0, bscv_noff; ld t3, 0(t0); add t1, t1, t3    # new_value bytes ptr\n" ++
-  "  la t0, bscv_nlen; ld t4, 0(t0)                    # new_value byte len\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbscv_fail\n" ++
+  "  mv s9, a1                                        # tuple end\n" ++
+  "  jal ra, rlp_walk_next                            # item 0 = tx_index\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  mv a1, s9; jal ra, rlp_walk_next                 # item 1 = new_value\n" ++
+  "  bnez a1, .Lbscv_fail\n" ++
+  "  sub t1, a0, a2                                   # new_value bytes ptr\n" ++
+  "  mv t4, a2                                        # new_value byte len\n" ++
   "  li t5, 32; bgtu t4, t5, .Lbscv_fail\n" ++
-  -- write value into values[i] (= bscv_vptr + i*32), left-padded.
-  "  la t0, bscv_vptr; ld t6, 0(t0); slli t0, s6, 5; add t6, t6, t0   # value dst base\n" ++
+  -- write value into values[count] (= bscv_vptr + count*32), left-padded.
+  "  la t0, bscv_vptr; ld t6, 0(t0); slli t0, s5, 5; add t6, t6, t0   # value dst base\n" ++
   "  mv t0, t6; li t5, 32\n" ++
   ".Lbscv_vzero:\n" ++
   "  beqz t5, .Lbscv_vzdone\n  sb zero, 0(t0); addi t0, t0, 1; addi t5, t5, -1; j .Lbscv_vzero\n" ++
@@ -134,7 +122,7 @@ def balStorageChangeValuesFunction : String :=
   ".Lbscv_vcopy:\n" ++
   "  beqz t4, .Lbscv_vcdone\n  lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lbscv_vcopy\n" ++
   ".Lbscv_vcdone:\n" ++
-  "  addi s6, s6, 1; j .Lbscv_loop\n" ++
+  "  addi s5, s5, 1; j .Lbscv_loop\n" ++
   ".Lbscv_done:\n" ++
   "  mv a0, s5\n" ++
   "  j .Lbscv_ret\n" ++
@@ -144,21 +132,14 @@ def balStorageChangeValuesFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
+  "  addi sp, sp, 128\n" ++
   "  ret"
 
 /-- Scratch data for `bal_storage_change_values`. -/
 def balStorageChangeValuesData : String :=
   ".balign 8\n" ++
-  "bscv_vptr:\n  .zero 8\n" ++
-  "bscv_scoff:\n  .zero 8\n" ++ "bscv_sclen:\n  .zero 8\n" ++
-  "bscv_cnt:\n  .zero 8\n" ++
-  "bscv_eoff:\n  .zero 8\n" ++ "bscv_elen:\n  .zero 8\n" ++
-  "bscv_koff:\n  .zero 8\n" ++ "bscv_klen:\n  .zero 8\n" ++
-  "bscv_voff:\n  .zero 8\n" ++ "bscv_vlen:\n  .zero 8\n" ++
-  "bscv_vcnt:\n  .zero 8\n" ++ "bscv_lastidx:\n  .zero 8\n" ++
-  "bscv_toff:\n  .zero 8\n" ++ "bscv_tlen:\n  .zero 8\n" ++
-  "bscv_noff:\n  .zero 8\n" ++ "bscv_nlen:\n  .zero 8\n"
+  "bscv_vptr:\n  .zero 8\n"
 
 /-- `zisk_bal_storage_change_values`: probe over a hand-encoded AccountChanges
     with two storage_changes entries:
@@ -213,8 +194,7 @@ def ziskBalStorageChangeValuesPrologue : String :=
   "  la t0, bscv_ovals; lbu t1, 63(t0); sd t1, 32(s0)\n" ++  -- val1[31] (0x33)
   "  j .Lbscv_probe_done\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lbscv_probe_done:"
 
 def ziskBalStorageChangeValuesDataSection : String :=

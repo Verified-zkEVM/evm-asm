@@ -339,8 +339,7 @@ def ziskBalStorageCoversExecLogPrologue : String :=
   "  sd a0, 16(s0)\n" ++
   "  j .Lbsce_probe_done\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   balStorageCoversExecLogFunction ++ "\n" ++
   ".Lbsce_probe_done:"
 
