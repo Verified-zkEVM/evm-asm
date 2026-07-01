@@ -251,6 +251,7 @@ def callDescendFallThrough
   "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++
   "  la t0, cd_burn_log_pending\n  sd x0, 0(t0)\n" ++
   "  la t0, cd_xfer_log_burn\n  sd x0, 0(t0)\n" ++
+  "  mv s10, x10                           # preserve parent PC through CALL fallthrough helpers\n" ++
   -- drj99.1 (failed-inner rollback): DISARM the value-CALL non-storage-effect pre-snapshot at every
   -- CALL entry. A value-bearing CALL records the caller-debit + callee-credit NON-STORAGE effects in
   -- the parent BEFORE `jal call_frame_descend`, but the spec (interpreter.py process_message +
@@ -809,6 +810,7 @@ def callDescendFallThrough
   "  j .Lcd_empty_" ++ tag ++ "\n" ++
   -- fail (status 2/3/4): pop args, push 0
   ".Lcd_fail_" ++ tag ++ ":\n" ++
+  "  mv x10, s10                           # restore parent PC before direct CALL failure resume\n" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
   "  addi x10, x10, 1\n" ++
@@ -931,6 +933,7 @@ def callDescendFallThrough
   -- x12 still = parent stack top; emitPendingXferLog saves/restores it before the pop below.
   emitPendingXferLog "empty_" ++
   emitPendingBurnLog "empty_" ++
+  "  mv x10, s10                           # restore parent PC before empty CALL resume\n" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  li t0, 1\n" ++
   "  sd t0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
@@ -969,6 +972,7 @@ def callDescendFallThrough
      "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
      "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
      "  snez t3, t3\n  sd t3, 88(t2)\n") ++                        -- value_nonzero
+  "  mv x10, s10                           # restore parent PC for frame_save_regs\n" ++
   "  la a1, cd_desc\n" ++
   "  jal ra, call_frame_descend\n" ++
   -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is

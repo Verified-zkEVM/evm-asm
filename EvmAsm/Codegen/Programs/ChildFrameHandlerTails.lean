@@ -139,13 +139,13 @@ def basicPrecompileCallTail
     ) else "") ++
     "  ld x14, 32(x12)\n" ++
     "  ld x15, 40(x12)\n" ++
-    "  bnez x15, 1f\n" ++
+    "  bnez x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "  ld x15, 48(x12)\n" ++
     "  slli x15, x15, 32\n" ++
     "  srli x15, x15, 32\n" ++
-    "  bnez x15, 1f\n" ++
+    "  bnez x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "  li x15, 1\n" ++
-    "  bltu x14, x15, 1f\n" ++
+    "  bltu x14, x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
     "  li x15, 5\n" ++
@@ -180,7 +180,7 @@ def basicPrecompileCallTail
     "  beq x14, x15, .L" ++ tag ++ "_p256verify\n" ++
     "  li x15, 0x101\n" ++
     "  beq x14, x15, 12f\n" ++
-    "  j 1f\n" ++
+    "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "11:\n" ++
     "  la x15, evm_precompile_frame\n" ++
     "  li x16, 1\n" ++
@@ -1057,6 +1057,11 @@ def basicPrecompileCallTail
     "  addi x23, x23, -1\n" ++
     "  bnez x23, 38b\n" ++
     "  j 7b\n" ++
-    "1:\n" ++ fallThroughAsm
+    ".L" ++ tag ++ "_nonprecompile_fallthrough:\n" ++
+    "1:\n" ++
+    "  mv x13, s9\n" ++
+    "  mv x10, s10\n" ++
+    "  mv x12, s11\n" ++
+    fallThroughAsm
 
 end EvmAsm.Codegen

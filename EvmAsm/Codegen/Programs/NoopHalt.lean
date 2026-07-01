@@ -46,7 +46,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  sd x0, 0(t1)\n" ++
     (if kind == 2 then
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
-      "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
+      "  li a0, 0\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, frame_return\n" ++
       -- coc3g.9.3.4: refund CREATE new-account state gas (183600) after frame_return.
       -- Flag was cleared above so CallFrameReturn's credit doesn't fire; apply here.
@@ -120,17 +120,17 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  la t0, nse_create_post_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
       ".Lrr_crendow_" ++ toString kind ++ ":\n" ++
       "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lrr_crendow_" ++ toString kind ++ "\n" ++
-      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+      "  addi sp, sp, -48\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n  sd x14, 24(sp)\n  sd x15, 32(sp)\n" ++
       "  la a0, create_address_be\n  la a1, nse_zero_bal\n  la a2, nse_create_post_bal\n  li a3, 0\n  li a4, 1\n" ++
       "  jal ra, record_nonstorage_effect\n" ++
-      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  ld x14, 24(sp)\n  ld x15, 32(sp)\n  addi sp, sp, 48\n" ++
       -- drj99.1 part 1: a SUCCESSFUL CREATE deposit must pass success=1 to frame_return so the child
       -- frame's recorded effects (the created-account nonstorage record just appended, plus state-gas /
       -- refund / warmth / bloom) are KEPT. a0=0 is frame_return's REVERT signal: it truncated
       -- exec_nonstorage_effect_count back to the pre-child snapshot, ERASING the created-account record
       -- (record fired but log_count dropped to 0). The pushed success word is overwritten by the derived
       -- address below, so a0=1 here is purely the keep-effects signal (not the CREATE result).
-      "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
+      "  li a0, 1\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, frame_return\n" ++
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
       ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
