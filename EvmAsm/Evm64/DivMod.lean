@@ -463,6 +463,16 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNormMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxExactX1Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombosMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallExactBorrowCarryMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxExactBorrowCarryMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosBorrowCarryMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarryMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosBorrowCarryNamedMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarryNamedMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedBorrowCarryCasesMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedBorrowCarryMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopSelectedBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
