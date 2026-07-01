@@ -855,7 +855,7 @@ def blockVerdictTxStateGasArrayFunction : String :=
     effect used by the all-accounts non-storage comparators. -/
 def eip7702AuthNonstorageEffectsFunction : String :=
   "eip7702_auth_nonstorage_effects:\n" ++
-  "  addi sp, sp, -112\n" ++
+  "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
@@ -878,27 +878,34 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  mv a0, s5; mv a1, s6; la a2, teer_auth_count\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lteanse_done\n" ++
-  "  la t0, teer_auth_count; ld s7, 0(t0); li s8, 0\n" ++
+  "  la t0, teer_auth_count; ld s7, 0(t0)\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteanse_done\n" ++
+  "  mv s5, a0; mv s6, a1; li s8, 0\n" ++
   ".Lteanse_loop:\n" ++
   "  beq s8, s7, .Lteanse_done\n" ++
-  "  mv a0, s5; mv a1, s6; mv a2, s8; la a3, teer_tuple_off; la a4, teer_tuple_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_tuple_off; ld t1, 0(t0); add s9, s5, t1\n" ++
-  "  la t0, teer_tuple_len; ld s10, 0(t0)\n" ++
-  "  mv a0, s9; mv a1, s10; li a2, 0; la a3, teer_auth_chain\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_auth_chain; ld t1, 0(t0); beqz t1, .Lteanse_chain_ok; bne t1, s4, .Lteanse_next\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteanse_done\n" ++
+  "  mv s5, a0; sub s9, a0, a2; mv s10, a2\n" ++
+  "  mv a0, s9; mv a1, s10; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteanse_next\n" ++
+  "  sd a0, 104(sp); sd a1, 112(sp)\n" ++
+  "  ld a0, 104(sp); ld a1, 112(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteanse_next\n" ++
+  "  sd a0, 104(sp); sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lteanse_next\n" ++
+  "  mv t1, a0; beqz t1, .Lteanse_chain_ok; bne t1, s4, .Lteanse_next\n" ++
   ".Lteanse_chain_ok:\n" ++
-  "  mv a0, s9; mv a1, s10; li a2, 2; la a3, teer_auth_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_auth_nonce; ld s11, 0(t0); li t2, -1; beq s11, t2, .Lteanse_next\n" ++
-  "  mv a0, s9; mv a1, s10; li a2, 1; la a3, teer_target_off; la a4, teer_target_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_target_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lteanse_next\n" ++
+  "  ld a0, 104(sp); ld a1, 112(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteanse_next\n" ++
+  "  sd a0, 104(sp); li t2, 20; bne a2, t2, .Lteanse_next\n" ++
+  "  ld a0, 104(sp); ld a1, 112(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lteanse_next\n" ++
+  "  sd a0, 104(sp); sub a0, a0, a2; mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lteanse_next\n" ++
+  "  mv s11, a0; li t2, -1; beq s11, t2, .Lteanse_next\n" ++
   "  mv a0, s9; mv a1, s10; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteanse_next\n" ++
@@ -946,7 +953,7 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
+  "  addi sp, sp, 128\n" ++
   "  ret"
 
 def blockVerdictEip7702AuthNonstorageEffectsArrayFunction : String :=
