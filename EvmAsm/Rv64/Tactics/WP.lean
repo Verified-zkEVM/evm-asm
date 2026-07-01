@@ -134,6 +134,29 @@ private def closeWithWpHint (goal : MVarId) (declName : Name) : TacticM Unit := 
   goal.assign proof
   replaceMainGoal []
 
+private def appendWpHintFailures (errMsg : MessageData)
+    (errors : Array (Name × String)) : MessageData :=
+  if errors.isEmpty then
+    errMsg
+  else
+    errors.foldl
+      (fun errMsg error => errMsg ++ m!"\n    {error.fst}: {error.snd}")
+      (errMsg ++ m!"\n  Candidate failures:")
+
+private def collectWpHintFailures (goal : MVarId) (entries : Array Name) :
+    TacticM (Array (Name × String)) := do
+  let mut errors : Array (Name × String) := #[]
+  for declName in entries do
+    let saved ← saveState
+    try
+      closeWithWpHint goal declName
+      restoreState saved
+    catch e =>
+      restoreState saved
+      let msg ← e.toMessageData.toString
+      errors := errors.push (declName, msg)
+  return errors
+
 /-- Close a `WP.Entails` goal using declarations tagged with
     `@[rv64_wp_entails]`.  This is deliberately separate from the `rv64_wp` simp
     set: simp exposes the assertion shape, then this tactic applies named
@@ -144,20 +167,24 @@ elab "wp_rv64_entails" : tactic => withMainContext do
   unless goalType.isAppOfArity ``EvmAsm.Rv64.WP.Entails 2 do
     throwError "wp_rv64_entails: expected WP.Entails goal"
   let entries := rv64WpEntailsExt.getState (← getEnv)
+  let mut errors : Array (Name × String) := #[]
   for declName in entries do
     let saved ← saveState
     try
       closeWithWpHint goal declName
       return
-    catch _ =>
+    catch e =>
       restoreState saved
+      let msg ← e.toMessageData.toString
+      errors := errors.push (declName, msg)
       continue
   let goalType ← instantiateMVars (← goal.getType)
-  throwError m!"wp_rv64_entails: no @[rv64_wp_entails] theorem closed the goal.
+  let errMsg := appendWpHintFailures m!"wp_rv64_entails: no @[rv64_wp_entails] theorem closed the goal.
   Tried {entries.size} registered theorem(s).
-  Goal: {goalType}
+  Goal: {goalType}" errors
+  throwError (errMsg ++ m!"
   Hint: add a small @[rv64_wp_entails] lemma, or expose the assertion shape
-  with `simp only [rv64_wp]`."
+  with `simp only [rv64_wp]`.")
 
 /-- Try declarations tagged with `@[rv64_wp_dead]` against the current
     unreachable-exit goal.  Tagged lemmas may have explicit proof arguments;
@@ -168,13 +195,15 @@ elab "wp_rv64_dead_hint" : tactic => withMainContext do
   unless ← isProp goalType do
     throwError "wp_rv64_dead_hint: expected proposition goal"
   let entries := rv64WpDeadExt.getState (← getEnv)
+  let mut errors : Array (Name × String) := #[]
   for declName in entries do
     let saved ← saveState
     try
       closeWithWpHint goal declName
       return
-    catch _ =>
+    catch eHint =>
       restoreState saved
+      let hintMsg ← eHint.toMessageData.toString
       let saved ← saveState
       try
         let hint := mkIdent declName
@@ -182,15 +211,20 @@ elab "wp_rv64_dead_hint" : tactic => withMainContext do
         unless (← getGoals).isEmpty do
           throwError "hint left open goals"
         return
-      catch _ =>
+      catch eApply =>
         restoreState saved
+        let applyMsg ← eApply.toMessageData.toString
+        errors := errors.push
+          (declName, "closeWithWpHint: " ++ hintMsg ++
+            "\n      fallback apply: " ++ applyMsg)
         continue
   let goalType ← instantiateMVars (← goal.getType)
-  throwError m!"wp_rv64_dead_hint: no @[rv64_wp_dead] theorem closed the goal.
+  let errMsg := appendWpHintFailures m!"wp_rv64_dead_hint: no @[rv64_wp_dead] theorem closed the goal.
   Tried {entries.size} registered theorem(s).
-  Goal: {goalType}
+  Goal: {goalType}" errors
+  throwError (errMsg ++ m!"
   Hint: add a contradiction lemma tagged @[rv64_wp_dead], or pass the
-  unreachable proof directly to WP.CFG.unreachable."
+  unreachable proof directly to WP.CFG.unreachable.")
 
 /-- Close an unreachable-exit goal, after exposing small WP definitions if
     needed, using declarations tagged with `@[rv64_wp_dead]`. -/
@@ -234,10 +268,7 @@ elab "wp_rv64_cert" : tactic => withMainContext do
   let mut errMsg := m!"wp_rv64_cert: no @[rv64_wp_cert] declaration closed the goal.
   Tried {entries.size} registered declaration(s).
   Goal: {goalType}"
-  unless errors.isEmpty do
-    errMsg := errMsg ++ m!"\n  Candidate failures:"
-    for (declName, msg) in errors do
-      errMsg := errMsg ++ m!"\n    {declName}: {msg}"
+  errMsg := appendWpHintFailures errMsg errors
   errMsg := errMsg ++ m!"
   Hint: try the intended constructor directly once to expose missing static
   facts, or tag a reusable constructor with @[rv64_wp_cert]."
@@ -306,16 +337,18 @@ elab "wp_rv64_link_fail" : tactic => withMainContext do
   let lhs := goalTypeWhnf.getAppArgs[0]!
   let rhs := goalTypeWhnf.getAppArgs[1]!
   let entries := rv64WpEntailsExt.getState (← getEnv)
-  throwError m!"wp_rv64_link: could not close the remaining WP.Entails goal.
+  let errors ← collectWpHintFailures goal entries
+  let errMsg := appendWpHintFailures m!"wp_rv64_link: could not close the remaining WP.Entails goal.
   Tried reflexivity, local assumptions, Branch/CFG projection rewrites,
   rv64_wp normalization, xperm_pure, and {entries.size} registered
   @[rv64_wp_entails] theorem(s).
   Source: {lhs}
-  Target: {rhs}
+  Target: {rhs}" errors
+  throwError (errMsg ++ m!"
   Hint: inspect whether the source and target differ by a missing projection
   rewrite such as WP.CFG.leaf_pre, by a frame permutation that xperm_pure
   cannot see, or by a reusable semantic bridge that should be tagged
-  @[rv64_wp_entails]."
+  @[rv64_wp_entails].")
 
 /-- Close the midpoint entailment between adjacent WP fragments.  The common
     case is definitional equality of the head postcondition and tail WP; semantic
@@ -364,20 +397,24 @@ private def closeDisjointWithLocal (goal : MVarId) (goalType : Expr) : TacticM B
 
 private def closeDisjointWithHint (goal : MVarId) : TacticM Unit := do
   let entries := rv64WpDisjointExt.getState (← getEnv)
+  let mut errors : Array (Name × String) := #[]
   for declName in entries do
     let saved ← saveState
     try
       closeWithWpHint goal declName
       return
-    catch _ =>
+    catch e =>
       restoreState saved
+      let msg ← e.toMessageData.toString
+      errors := errors.push (declName, msg)
       continue
   let goalType ← instantiateMVars (← goal.getType)
-  throwError m!"wp_rv64_disjoint: no @[rv64_wp_disjoint] theorem closed the goal.
+  let errMsg := appendWpHintFailures m!"wp_rv64_disjoint: no @[rv64_wp_disjoint] theorem closed the goal.
   Tried {entries.size} registered theorem(s).
-  Goal: {goalType}
+  Goal: {goalType}" errors
+  throwError (errMsg ++ m!"
   Hint: add a local disjointness hypothesis or tag a semantic disjointness
-  lemma with @[rv64_wp_disjoint]."
+  lemma with @[rv64_wp_disjoint].")
 
 /-- Close a `CodeReq.Disjoint` goal using local hypotheses, declarations
     tagged with `@[rv64_wp_disjoint]`, or the structural prover shared with
@@ -392,10 +429,11 @@ elab "wp_rv64_disjoint" : tactic => withMainContext do
     throwError "wp_rv64_disjoint: expected CodeReq.Disjoint goal"
   if ← closeDisjointWithLocal goal goalType then
     return
+  let hintEntries := rv64WpDisjointExt.getState (← getEnv)
   let savedHint ← saveState
   try
     closeDisjointWithHint goal
-  catch _ =>
+  catch hintError =>
     restoreState savedHint
     let cr1 := goalType.getAppArgs[0]!
     let cr2 := goalType.getAppArgs[1]!
@@ -404,12 +442,19 @@ elab "wp_rv64_disjoint" : tactic => withMainContext do
       (← getMainGoal).assign proof
       replaceMainGoal []
     catch e =>
-      throwError m!"wp_rv64_disjoint: no local hypothesis, registered hint, or
+      let mut errMsg := m!"wp_rv64_disjoint: no local hypothesis, registered hint, or
   structural proof closed the goal.
   Goal: {goalType}
   Hint: add a local disjointness hypothesis, or tag a semantic disjointness
-  lemma with @[rv64_wp_disjoint].
+  lemma with @[rv64_wp_disjoint]."
+      unless hintEntries.isEmpty do
+        let hintMsg ← hintError.toMessageData.toString
+        errMsg := errMsg ++ m!"
+  Registered hint prover error:
+  {hintMsg}"
+      errMsg := errMsg ++ m!"
   Structural prover error: {← e.toMessageData.toString}"
+      throwError errMsg
 
 /-- Lift a leaf CPS proof whose postcondition already matches the CFG
     postcondition. -/
