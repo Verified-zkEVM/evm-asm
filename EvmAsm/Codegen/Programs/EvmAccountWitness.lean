@@ -82,6 +82,31 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     "  j .dispatch_loop\n" ++
     ".Lextcodehash_after_same_block:\n" ++
+    -- During initcode, ADDRESS denotes the account being created. It exists
+    -- for EIP-1052 but has no deployed code yet, so EXTCODEHASH(ADDRESS)
+    -- returns EMPTY_CODE_HASH rather than the pre-state witness result.
+    "  la t0, evm_call_depth\n  ld t0, 0(t0)\n" ++
+    "  la t1, create_frame_flag\n  slli t2, t0, 3\n  add t1, t1, t2\n  ld t1, 0(t1)\n" ++
+    "  beqz t1, .Lextcodehash_not_create_self\n" ++
+    "  la t0, eahsr_address_scratch\n  addi t1, x20, 19\n  li t2, 20\n" ++
+    ".Lextcodehash_create_self_cmp:\n" ++
+    "  beqz t2, .Lextcodehash_create_self_empty\n" ++
+    "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lextcodehash_not_create_self\n" ++
+    "  addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; j .Lextcodehash_create_self_cmp\n" ++
+    ".Lextcodehash_create_self_empty:\n" ++
+    "  ld x10, 0(sp)\n" ++
+    "  ld x12, 8(sp)\n" ++
+    "  ld x21, 16(sp)\n" ++
+    "  ld x13, 24(sp)\n" ++
+    "  la t0, eahsr_empty_code_hash; addi t0, t0, 31; mv t1, x12; li t2, 32\n" ++
+    ".Lextcodehash_create_self_rev:\n" ++
+    "  beqz t2, .Lextcodehash_create_self_done\n" ++
+    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lextcodehash_create_self_rev\n" ++
+    ".Lextcodehash_create_self_done:\n" ++
+    "  addi sp, sp, 32\n" ++
+    "  addi x10, x10, 1\n" ++
+    "  j .dispatch_loop\n" ++
+    ".Lextcodehash_not_create_self:\n" ++
     -- Check exec_code_effect_log for CREATE'd contract code (extcodehash
     -- after CREATE: the deployed code is in the log but not in the BAL
     -- code_changes or the pre-state witness).
