@@ -64,6 +64,7 @@ import EvmAsm.Rv64.Tactics.SpecDb
 open Lean Meta Elab Tactic
 
 initialize registerTraceClass `runBlock (inherited := true)
+initialize registerTraceClass `runBlock.leafSynth (inherited := true)
 
 namespace EvmAsm.Rv64.Tactics
 
@@ -844,6 +845,10 @@ private def OwnershipKind.key : OwnershipKind → Expr
   | .reg r => r
   | .mem addr => addr
 
+private def OwnershipKind.traceMsg : OwnershipKind → MetaM MessageData
+  | .reg r => return m!"regOwn {← instantiateMVars r}"
+  | .mem addr => return m!"memOwn {← instantiateMVars addr}"
+
 private def isExactMVar (mvarId : MVarId) (e : Expr) : Bool :=
   let e := e.consumeMData
   e.isMVar && e.mvarId! == mvarId
@@ -943,6 +948,7 @@ private partial def generalizeOwnershipParams (proof : Expr) (params : Array Exp
     let some (idx, kind) ← findOwnershipGeneralization? mvarId preAtoms post
       | throwError "post matched but left data parameter unconstrained: {paramType}
           Hint: unsupported unresolved data parameters must occur exactly as one old `regIs`/`memIs` value in the precondition and nowhere in the postcondition; otherwise pass an explicit spec."
+    trace[runBlock.leafSynth] "synthesized {← kind.traceMsg} for old-value parameter of type {paramType}"
     let (frame, orderedPre, single) ← orderPreForOwnership preAtoms idx
     let reordered ← reorderPreForOwnership result orderedPre
     result ← applyOwnershipGeneralization reordered mvarId kind frame single
@@ -1009,6 +1015,7 @@ private def resolveSpecForInstrFromPost (instrExpr instrAddr : Expr)
     try
       let result ← tryInstantiateSpecFromPost entry.specName instrExpr instrAddr currentAtoms
       trace[runBlock] "  post-driven resolved with {entry.specName}"
+      trace[runBlock.leafSynth] "matched {entry.specName} for {instrName} at {instrAddr}"
       return result
     catch e =>
       restoreState saved
@@ -1185,6 +1192,7 @@ private def synthesizeSpecsAndPreFromPostWithHints
           Hint CodeReq entry: {hint.addr} ↦ {hint.instr}
           Hint: make sure the hint's address/instruction appears in the goal CodeReq, or use a complete manual spec list."
   let pre ← buildSepConjChain currentAtoms
+  trace[runBlock.leafSynth] "synthesized predecessor assertion:\n  {pre}"
   return (specsForward.toArray, pre)
 
 private def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Array Expr × Expr) := do
@@ -1206,6 +1214,7 @@ private def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Arra
       let eMsg ← e.toMessageData.format
       throwError "{eMsg}\n  Progress: resolved {resolvedCount} of {totalCount} bounded instruction spec(s) backwards before failure."
   let pre ← buildSepConjChain currentAtoms
+  trace[runBlock.leafSynth] "synthesized predecessor assertion:\n  {pre}"
   return (specsForward.toArray, pre)
 
 private def runBlockFromPostCore (specs : Array Expr) (goalPost goalCr : Expr) : MetaM Expr := do

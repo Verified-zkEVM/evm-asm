@@ -1416,6 +1416,20 @@ example (base v : Word) (imm : BitVec 12) :
     (wp_rv64_leaf_synth_addi_own_cfg base v imm).pre =
       ((.x5 ↦ᵣ v) ** regOwn .x6) := rfl
 
+/--
+trace: [runBlock.leafSynth] synthesized regOwn Reg.x6 for old-value parameter of type Word
+[runBlock.leafSynth] matched EvmAsm.Rv64.addi_spec_gen_within for EvmAsm.Rv64.Instr.ADDI at base
+[runBlock.leafSynth] synthesized predecessor assertion:
+      (Reg.x5 ↦ᵣ v) ** regOwn Reg.x6
+-/
+#guard_msgs in
+set_option trace.runBlock.leafSynth true in
+example (base v : Word) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.ADDI .x6 .x5 (1 : BitVec 12)))
+      ((.x5 ↦ᵣ v) ** (.x6 ↦ᵣ (v + signExtend12 (1 : BitVec 12)))) := by
+  wp_rv64_leaf_synth
+
 def wp_rv64_leaf_synth_add_own_cfg (base v1 v2 : Word) :
     EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
       (CodeReq.singleton base (.ADD .x7 .x5 .x6))
