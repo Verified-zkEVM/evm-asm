@@ -108,7 +108,9 @@ theorem spec :
    `addr ↦ₘ memOld`, `wp_rv64_leaf_synth` turns it into `regOwn rd` or
    `memOwn addr` automatically. If an unresolved data parameter appears in a
    computed address, in the postcondition, or in more than one atom, pass an
-   explicit spec.
+   explicit spec. When synthesis fails, the diagnostic names the instruction,
+   address, candidate specs, missing postcondition atom, and how many bounded
+   instructions were resolved before the failure.
 
    ```lean
    def addiOwnCfg (base v : Word) (imm : BitVec 12) :
@@ -445,6 +447,45 @@ let topTaken : WP.CFG.Cert entry shape.taken.label cr finalPost :=
 not add decoded values, success booleans, or failure reasons to it. Put runtime
 outcomes inside `takenPost`, `failPost`, or the final disjunctive postcondition.
 
+For a generated bounded loop, use `LoopNatSpec` to keep the generated labels,
+budgets, fuel, invariant names, and local posts together. The actual loop proof
+is still the explicit kernel-checked `WP.loopNatCert`; the generated wrapper
+only packages that proof as a `WP.CFG.Cert` or one-exit `OpenCFG` and exposes
+the computed precondition and bound:
+
+```lean
+let loopShape : LoopNatSpec := {
+  header := headerLabel,
+  bodyEntry := bodyLabel,
+  exitLabel := exitLabel,
+  nHeader := nHeader,
+  nBody := nBody,
+  nExit := nExit,
+  fuel := fuel,
+  inv := inv,
+  bodyPre := bodyPre,
+  exitPost := exitPost,
+  post := finalPost
+}
+
+have hLoop :
+    WP.loopNatCert loopShape.nHeader loopShape.nBody loopShape.nExit
+      loopShape.header loopShape.bodyEntry loopShape.exitLabel cr
+      loopShape.inv loopShape.bodyPre loopShape.exitPost loopShape.post
+      0 loopShape.fuel := by
+  -- prove the header branch, body progress, exit-post handoff, and tail
+  ...
+
+let loopCfg : WP.CFG.Cert loopShape.header loopShape.exitLabel cr loopShape.post :=
+  loopShape.toCert hLoop
+
+example : loopCfg.pre = loopShape.pre := rfl
+```
+
+`LoopNatSpec` does not infer invariants or decide which runtime exit occurs.
+It is a generated-control-flow record for the labels and assertion families the
+proof producer already chose.
+
 Bad inputs:
 
 - decoded result values in the schema
@@ -462,17 +503,22 @@ caller needs to distinguish it.
 - If a generated precondition is unclear, inspect `#wp_rv64 cfg`.
 - If `wp_rv64_cert`, `wp_rv64_link`, `wp_rv64_dead`, or `wp_rv64_disjoint`
   fails, read the diagnostic first. It reports the goal shape, how many
-  registered hints were tried, and the usual next action.
+  registered hints were tried, and the usual next action. When registered
+  hints were tried, the final diagnostic reports each candidate failure, such
+  as a result-shape mismatch, unresolved metavariables, or an uninferable
+  static side condition. For `wp_rv64_disjoint`, the final failure also keeps
+  the structural prover error after the registered-hint summary.
 - If a constructor still does not infer, try it directly once. The resulting
   goals usually show which entry, exit, code requirement, or postcondition did
   not infer.
-- If `wp_rv64_link` fails, normalize only the relevant helper definitions with
-  `simp only [rv64_wp]`, then use `xperm_pure` or a small named entailment lemma.
-  It already handles the common branch-link projection shape from
-  `WP.Branch.frameR_*`/`WP.Branch.ofSpec_*` posts into CFG preconditions such as
-  `WP.CFG.leaf_pre`. As a debugging fallback, reproduce the projection manually:
-  rewrite the branch post at the hypothesis, rewrite the CFG precondition in the
-  target, then call `xperm_pure hp`.
+- If `wp_rv64_link` fails, read the `Source:` and `Target:` assertions in the
+  diagnostic before changing the proof. Normalize only the relevant helper
+  definitions with `simp only [rv64_wp]`, then use `xperm_pure` or a small named
+  entailment lemma. It already handles the common branch-link projection shape
+  from `WP.Branch.frameR_*`/`WP.Branch.ofSpec_*` posts into CFG preconditions
+  such as `WP.CFG.leaf_pre`. As a debugging fallback, reproduce the projection
+  manually: rewrite the branch post at the hypothesis, rewrite the CFG
+  precondition in the target, then call `xperm_pure hp`.
 - `extract_pure_deep` and `xperm_pure` use a two-phase pure extraction pass.
   They handle pure facts buried behind framed `**` chains, and `xperm_pure`
   remains the preferred link tactic when either side contains `⌜...⌝` atoms.
