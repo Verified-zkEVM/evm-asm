@@ -175,26 +175,40 @@ def balCodePreimagesCreateCollisionFunctions : String :=
   "  jal ra, tx_type_dispatch\n" ++
   "  bnez a0, .Lbctc2_next_tx\n" ++
   "  la t0, bsg_tx_type; ld t1, 0(t0); bnez t1, .Lbctc2_next_tx\n" ++
-  "  mv a0, s9; mv a1, s8; li a2, 3; la a3, bsg_to_off; la a4, bsg_to_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbctc2_next_tx\n" ++
-  "  la t0, bsg_to_len; ld t1, 0(t0); bnez t1, .Lbctc2_next_tx\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbctc2_next_tx\n" ++
+  "  la t0, bsg_change_ptr; sd a0, 0(t0); la t0, bsg_change_item_len; sd a1, 0(t0)\n" ++
+  "  # field 0 = nonce; save content bounds for CREATE(sender, nonce).\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbctc2_next_tx\n" ++
+  "  la t0, bsg_change_ptr; sd a0, 0(t0); sub t1, a0, a2; la t0, bsg_data_off; sd t1, 0(t0); la t0, bsg_data_len; sd a2, 0(t0)\n" ++
+  "  # skip fields 1 and 2, then require field 3 = to to be empty.\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbctc2_next_tx; la t0, bsg_change_ptr; sd a0, 0(t0)\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbctc2_next_tx; la t0, bsg_change_ptr; sd a0, 0(t0)\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbctc2_next_tx\n" ++
+  "  bnez a2, .Lbctc2_next_tx; la t0, bsg_change_ptr; sd a0, 0(t0)\n" ++
   "  la t0, bv_public_keys_ptr; ld t4, 0(t0)\n" ++
   "  la t0, bv_public_keys_len; ld t5, 0(t0)\n" ++
   "  beqz t4, .Lbctc2_next_tx\n" ++
   "  li t0, 65; mul t1, s6, t0; add t2, t1, t0; bgtu t2, t5, .Lbctc2_next_tx\n" ++
   "  add a0, t4, t1; addi a0, a0, 1\n" ++
   "  la a1, bbcv_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  mv a0, s9; mv a1, s8; li a2, 0; la a3, bsg_tx_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lbctc2_next_tx\n" ++
+  "  la t0, bsg_data_off; ld a0, 0(t0); la t0, bsg_data_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  bnez a1, .Lbctc2_next_tx\n" ++
+  "  la t0, bsg_tx_nonce; sd a0, 0(t0)\n" ++
   "  la a0, bbcv_sender_addr; la t0, bsg_tx_nonce; ld a1, 0(t0); la a2, bbcv_create_addr\n" ++
   "  jal ra, address_compute_create\n" ++
-  "  mv a0, s9; mv a1, s8; li a2, 5; la a3, bsg_data_off; la a4, bsg_data_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbctc2_next_tx\n" ++
-  "  la t0, bsg_data_off; ld t1, 0(t0); add s10, s9, t1\n" ++
-  "  la t0, bsg_data_len; ld s11, 0(t0)\n" ++
+  "  # skip field 4, then read field 5 = data/initcode.\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbctc2_next_tx; la t0, bsg_change_ptr; sd a0, 0(t0)\n" ++
+  "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbctc2_next_tx\n" ++
+  "  sub s10, a0, a2; mv s11, a2\n" ++
   "  mv a0, s0; la a1, bbcv_create_addr; mv a2, s10; mv a3, s11\n" ++
   "  jal ra, bal_tx_initcode_contains_create2_target\n" ++
   "  bnez a0, .Lbctc2_yes\n" ++

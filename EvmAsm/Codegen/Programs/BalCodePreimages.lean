@@ -5,7 +5,6 @@
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.BalCodePreimagesAux
