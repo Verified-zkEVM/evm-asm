@@ -1026,6 +1026,22 @@ def blockVerdictFunction : String :=
   "  li t3, 0xf5; beq t2, t3, .Lbv_recipient_nc_done\n" ++   -- CREATE2
   "  addi t0, t0, 1; j .Lbv_rnc_scan\n" ++
   ".Lbv_rnc_check:\n" ++
+  -- CALLCODE/DELEGATECALL can execute CREATE/CREATE2 in delegated code while
+  -- keeping ADDRESS = recipient. The recipient bytecode need not contain CREATE,
+  -- but execution records the nonce bump in the non-storage effect log. In that
+  -- case skip only the nonce-list unchanged shortcut; still check code_changes.
+  "  la t0, exec_nonstorage_effect_count\n  ld t2, 0(t0)\n" ++
+  "  beqz t2, .Lbv_rnc_no_exec_effect\n" ++
+  "  la t0, exec_nonstorage_effect_log\n" ++
+  ".Lbv_rnc_effect_scan:\n" ++
+  "  la t1, bv_simple_transfer_tx; addi t1, t1, 72; mv t3, t0; li t4, 20\n" ++
+  ".Lbv_rnc_effect_cmp:\n" ++
+  "  beqz t4, .Lbv_recipient_code_check\n" ++
+  "  lbu t5, 0(t1); lbu t6, 0(t3); bne t5, t6, .Lbv_rnc_effect_next\n" ++
+  "  addi t1, t1, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lbv_rnc_effect_cmp\n" ++
+  ".Lbv_rnc_effect_next:\n" ++
+  "  addi t0, t0, 112; addi t2, t2, -1; bnez t2, .Lbv_rnc_effect_scan\n" ++
+  ".Lbv_rnc_no_exec_effect:\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
   "  jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbv_recipient_code_check               # malformed/absent -> skip (conservative)\n" ++
