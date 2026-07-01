@@ -28,7 +28,7 @@ open EvmAsm.Rv64 EvmWord
     conditions.  The four limbs of `EvmWord.mod a b` are the funnel-shift-down of
     the normalized mulsub result by the normalization shift. -/
 theorem n4_call_skip_mod_getLimbN_v5 (a b : EvmWord)
-    (hbnz : b ≠ 0)
+    (_hbnz : b ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
     (hb3nz : b.getLimbN 3 ≠ 0)
     (hborrow : isSkipBorrowN4CallV4Evm a b)
@@ -72,7 +72,6 @@ theorem n4_call_skip_mod_getLimbN_v5 (a b : EvmWord)
   have hclz_le := clzResult_fst_toNat_le (b.getLimbN 3)
   have hshift_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
     by_contra h
-    push_neg at h
     apply hshift_nz
     apply BitVec.eq_of_toNat_eq
     rw [show (0 : Word).toNat = 0 from rfl]
