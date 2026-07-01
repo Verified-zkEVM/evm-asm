@@ -97,6 +97,7 @@ def ziskBalAccountNthDescriptorPrologue : String :=
   bytesToNibblesFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++

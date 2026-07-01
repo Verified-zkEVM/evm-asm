@@ -14,7 +14,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Mpt
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -34,11 +34,12 @@ def balAccountPathFunction : String :=
   "  mv s0, a0                   # account-change ptr\n" ++
   "  mv s1, a2                   # out path ptr\n" ++
   "  # field 0 = address bytes.\n" ++
-  "  li a2, 0; la a3, bacp_off; la a4, bacp_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbacp_fail\n" ++
-  "  la t0, bacp_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbacp_fail\n" ++
-  "  la t0, bacp_off; ld t0, 0(t0); add a0, s0, t0\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbacp_fail\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbacp_fail\n" ++
+  "  li t2, 20; bne a2, t2, .Lbacp_fail\n" ++
+  "  sub a0, a0, a2\n" ++
   "  li a1, 20; la a2, bacp_hash\n" ++
   "  jal ra, zkvm_keccak256\n" ++
   "  la a0, bacp_hash; li a1, 32; mv a2, s1\n" ++
@@ -68,7 +69,7 @@ def ziskBalAccountPathPrologue : String :=
   "  li t0, 0xa0010000; sd a0, 0(t0)   # status at OUTPUT+0\n" ++
   "  j .Lbacp_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   bytesToNibblesFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   ".Lbacp_pdone:"
@@ -77,8 +78,6 @@ def ziskBalAccountPathDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "zk3_state:\n  .zero 200\n" ++
-  "bacp_off:\n  .zero 8\n" ++
-  "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bacp_hash:\n  .zero 32"
 

@@ -92,6 +92,7 @@ def ziskBalAccountChangeValuePrologue : String :=
   bytesToNibblesFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpEncodeUintBeFunction ++ "\n" ++
   rlpEncodeListPrefixFunction ++ "\n" ++
   rlpItemSizeFunction ++ "\n" ++
@@ -109,9 +110,6 @@ def ziskBalAccountChangeValuePrologue : String :=
 def ziskBalAccountChangeValueDataSection : String :=
   ziskBalAccountApplyPostFieldsDataSection ++ "\n" ++
   ".balign 8\n" ++
-  "bacp_off:\n  .zero 8\n" ++
-  "bacp_len:\n  .zero 8\n" ++
-  ".balign 32\n" ++
   "bacp_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bacv_fail_code:\n  .zero 8\n" ++

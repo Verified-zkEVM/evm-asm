@@ -138,6 +138,7 @@ def ziskBalAccountStateRootPrologue : String :=
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
@@ -278,9 +279,6 @@ def ziskBalAccountStateRootDataSection : String :=
   "baap_storage_paths:\n  .zero 32768\n" ++
   "baap_storage_delete_paths:\n  .zero 32768\n" ++
   "baap_storage_values:\n  .zero 32768\n" ++
-  "bacp_off:\n  .zero 8\n" ++
-  "bacp_len:\n  .zero 8\n" ++
-  ".balign 32\n" ++
   "bacp_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baacd_value_len:\n  .zero 8\n" ++
