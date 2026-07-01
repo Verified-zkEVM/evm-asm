@@ -187,25 +187,39 @@ def balAccountApplyPostFieldsFunction : String :=
   "  # writes still affect the post-state account even without balance/nonce\n" ++
   "  # changes; an empty storage_changes list falls through unchanged.\n" ++
   ".Lbaap_try_storage:\n" ++
-  "  mv a0, s2; mv a1, s3; li a2, 1; la a3, baap_sc_off; la a4, baap_sc_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_sc_off; ld t0, 0(t0); add t0, s2, t0; la t1, baap_sc_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, baap_sc_len; ld a1, 0(t1); mv a0, t0; la a2, baap_sc_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_sc_count; ld t0, 0(t0); beqz t0, .Lbaap_nonce\n" ++
-  "  li t1, 1; bne t0, t1, .Lbaap_multi_storage\n" ++
+  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_sc_ptr; sd t0, 0(t1); la t1, baap_sc_len; sd a2, 0(t1)\n" ++
+  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1; li s10, 0\n" ++
+  ".Lbaap_sc_count_loop:\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbaap_sc_count_done\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0; addi s10, s10, 1; j .Lbaap_sc_count_loop\n" ++
+  ".Lbaap_sc_count_done:\n" ++
+  "  la t0, baap_sc_count; sd s10, 0(t0); beqz s10, .Lbaap_nonce\n" ++
+  "  la t0, baap_sc_ptr; ld a0, 0(t0); la t0, baap_sc_len; ld a1, 0(t0); jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  "  li t1, 1; bne s10, t1, .Lbaap_multi_storage\n" ++
   ".Lbaap_one_storage:\n" ++
-  "  la t1, baap_sc_ptr; ld a0, 0(t1); la t1, baap_sc_len; ld a1, 0(t1); li a2, 0\n" ++
-  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_sc_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, baap_item_len; ld t1, 0(t1); la t2, baap_code_item_ptr; sd t0, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 0; la a3, baap_val_off; la a4, baap_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_code_item_ptr; sd t0, 0(t1); la t1, baap_item_len; sd a2, 0(t1)\n" ++
+  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_val_ptr; sd t0, 0(t1); la t1, baap_val_len; sd a2, 0(t1)\n" ++
   "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
   "  la t0, baap_slot; li t1, 0\n" ++
   ".Lbaap_slot_zero:\n" ++
@@ -213,34 +227,45 @@ def balAccountApplyPostFieldsFunction : String :=
   "  add t3, t0, t1; sb zero, 0(t3); addi t1, t1, 1; j .Lbaap_slot_zero\n" ++
   ".Lbaap_slot_zero_done:\n" ++
   "  la t0, baap_val_len; ld t1, 0(t0); li t2, 32; sub t2, t2, t1; la t3, baap_slot; add t3, t3, t2\n" ++
-  "  la t0, baap_code_item_ptr; ld t0, 0(t0); la t2, baap_val_off; ld t2, 0(t2); add t0, t0, t2\n" ++
+  "  la t0, baap_val_ptr; ld t0, 0(t0)\n" ++
   ".Lbaap_slot_cp:\n" ++
   "  beqz t1, .Lbaap_slot_done\n" ++
   "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, 1; addi t3, t3, 1; addi t1, t1, -1; j .Lbaap_slot_cp\n" ++
   ".Lbaap_slot_done:\n" ++
-  "  la t0, baap_sc_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, baap_item_len; ld t1, 0(t1); mv a0, t0; mv a1, t1; li a2, 1\n" ++
-  "  la a3, baap_slot_changes_off; la a4, baap_slot_changes_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_sc_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, baap_slot_changes_off; ld t1, 0(t1); add t0, t0, t1; la t2, baap_slot_changes_ptr; sd t0, 0(t2)\n" ++
-  "  la t1, baap_slot_changes_len; ld a1, 0(t1); mv a0, t0; la a2, baap_slot_changes_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_slot_changes_count; ld t0, 0(t0); beqz t0, .Lbaap_fail\n" ++
-  "  addi a2, t0, -1; la t1, baap_slot_changes_ptr; ld a0, 0(t1); la t1, baap_slot_changes_len; ld a1, 0(t1)\n" ++
-  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_slot_changes_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, baap_item_len; ld t1, 0(t1); mv a0, t0; mv a1, t1; li a2, 1; la a3, baap_val_off; la a4, baap_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_code_item_ptr; ld a0, 0(t0); la t0, baap_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_slot_changes_ptr; sd t0, 0(t1); la t1, baap_slot_changes_len; sd a2, 0(t1)\n" ++
+  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1; li s10, 0\n" ++
+  ".Lbaap_one_slot_change_last_loop:\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbaap_one_slot_change_last_done\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0; sub t0, a0, a2; la t1, baap_code_item_ptr; sd t0, 0(t1); la t1, baap_item_len; sd a2, 0(t1); li s10, 1\n" ++
+  "  j .Lbaap_one_slot_change_last_loop\n" ++
+  ".Lbaap_one_slot_change_last_done:\n" ++
+  "  beqz s10, .Lbaap_fail\n" ++
+  "  la t0, baap_code_item_ptr; ld a0, 0(t0); la t0, baap_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s8, a0; mv s9, a1\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_val_ptr; sd t0, 0(t1); la t1, baap_val_len; sd a2, 0(t1)\n" ++
   "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
   "  beqz t0, .Lbaap_one_storage_delete\n" ++
-  "  la t1, baap_slot_changes_ptr; ld t1, 0(t1); la t2, baap_item_off; ld t2, 0(t2); add t1, t1, t2\n" ++
-  "  la t2, baap_val_off; ld t2, 0(t2); add a3, t1, t2\n" ++
+  "  la t1, baap_val_ptr; ld a3, 0(t1)\n" ++
   "  mv a4, t0\n" ++
   ".Lbaap_one_value_strip_zero:\n" ++
   "  beqz a4, .Lbaap_one_storage_delete\n" ++
@@ -288,15 +313,15 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1)\n" ++
   "  beq t0, t1, .Lbaap_multi_apply\n" ++
   "  li t2, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t2, .Lbaap_fail\n" ++
-  "  la t1, baap_sc_ptr; ld a0, 0(t1); la t1, baap_sc_len; ld a1, 0(t1); mv a2, t0\n" ++
-  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_sc_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, baap_item_len; ld t1, 0(t1); la t2, baap_code_item_ptr; sd t0, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 0; la a3, baap_val_off; la a4, baap_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv s8, a0; sub t0, a0, a2; la t1, baap_code_item_ptr; sd t0, 0(t1); la t1, baap_item_len; sd a2, 0(t1)\n" ++
+  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s10, a1\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_val_ptr; sd t0, 0(t1); la t1, baap_val_len; sd a2, 0(t1)\n" ++
   "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
   "  la t0, baap_slot; li t1, 0\n" ++
   ".Lbaap_mslot_zero:\n" ++
@@ -304,32 +329,42 @@ def balAccountApplyPostFieldsFunction : String :=
   "  add t3, t0, t1; sb zero, 0(t3); addi t1, t1, 1; j .Lbaap_mslot_zero\n" ++
   ".Lbaap_mslot_zero_done:\n" ++
   "  la t0, baap_val_len; ld t1, 0(t0); li t2, 32; sub t2, t2, t1; la t3, baap_slot; add t3, t3, t2\n" ++
-  "  la t0, baap_code_item_ptr; ld t0, 0(t0); la t2, baap_val_off; ld t2, 0(t2); add t0, t0, t2\n" ++
+  "  la t0, baap_val_ptr; ld t0, 0(t0)\n" ++
   ".Lbaap_mslot_cp:\n" ++
   "  beqz t1, .Lbaap_mslot_done\n" ++
   "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, 1; addi t3, t3, 1; addi t1, t1, -1; j .Lbaap_mslot_cp\n" ++
   ".Lbaap_mslot_done:\n" ++
-  "  la t0, baap_code_item_ptr; ld t0, 0(t0); la t1, baap_item_len; ld t1, 0(t1); mv a0, t0; mv a1, t1; li a2, 1\n" ++
-  "  la a3, baap_slot_changes_off; la a4, baap_slot_changes_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_code_item_ptr; ld t0, 0(t0); la t1, baap_slot_changes_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t2, baap_slot_changes_ptr; sd t0, 0(t2)\n" ++
-  "  la t1, baap_slot_changes_len; ld a1, 0(t1); mv a0, t0; la a2, baap_slot_changes_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_code_item_ptr; ld a0, 0(t0); la t0, baap_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s10, a1\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_slot_changes_ptr; sd t0, 0(t1); la t1, baap_slot_changes_len; sd a2, 0(t1)\n" ++
+  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s10, a1; la t0, baap_slot_changes_count; sd zero, 0(t0)\n" ++
+  ".Lbaap_multi_slot_change_last_loop:\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbaap_multi_slot_change_last_done\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_code_item_ptr; sd t0, 0(t1); la t1, baap_item_len; sd a2, 0(t1); li t0, 1; la t1, baap_slot_changes_count; sd t0, 0(t1)\n" ++
+  "  j .Lbaap_multi_slot_change_last_loop\n" ++
+  ".Lbaap_multi_slot_change_last_done:\n" ++
   "  la t0, baap_slot_changes_count; ld t0, 0(t0); beqz t0, .Lbaap_fail\n" ++
-  "  addi a2, t0, -1; la t1, baap_slot_changes_ptr; ld a0, 0(t1); la t1, baap_slot_changes_len; ld a1, 0(t1)\n" ++
-  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
-  "  la t0, baap_slot_changes_ptr; ld t0, 0(t0); la t1, baap_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, baap_item_len; ld t1, 0(t1); mv a0, t0; mv a1, t1; li a2, 1; la a3, baap_val_off; la a4, baap_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaap_fail\n" ++
+  "  la t0, baap_code_item_ptr; ld a0, 0(t0); la t0, baap_item_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s10, a1\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; la t1, baap_val_ptr; sd t0, 0(t1); la t1, baap_val_len; sd a2, 0(t1)\n" ++
   "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
-  "  la t1, baap_slot_changes_ptr; ld t1, 0(t1); la t2, baap_item_off; ld t2, 0(t2); add t1, t1, t2\n" ++
-  "  la t2, baap_val_off; ld t2, 0(t2); add a0, t1, t2\n" ++
+  "  la t1, baap_val_ptr; ld a0, 0(t1)\n" ++
   "  mv a1, t0; la t2, baap_storage_value_cursor; ld a2, 0(t2); la a3, aab_enc_len\n" ++
   ".Lbaap_multi_value_strip_zero:\n" ++
   "  beqz a1, .Lbaap_multi_zero_value\n" ++
@@ -621,6 +656,7 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_slot_changes_count:\n  .zero 8\n" ++
   "baap_val_off:\n  .zero 8\n" ++
   "baap_val_len:\n  .zero 8\n" ++
+  "baap_val_ptr:\n  .zero 8\n" ++
   "baap_code_list_off:\n  .zero 8\n" ++
   "baap_code_list_len:\n  .zero 8\n" ++
   "baap_code_list_ptr:\n  .zero 8\n" ++
