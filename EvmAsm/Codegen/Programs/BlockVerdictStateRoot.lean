@@ -75,9 +75,10 @@ open EvmAsm.Rv64
     a0 (output) = 0 ok / 1 conservative (any miss / unsupported case). -/
 def blockStateRootFunction : String :=
   "block_state_root:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd s5, 40(sp)\n" ++
+  "  sd s6, 48(sp); sd s7, 56(sp)\n" ++
   "  la t0, bsr_root_p; sd a0, 0(t0)\n" ++
   "  la t0, bsr_wit_p;  sd a1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;   sd a2, 0(t0)\n" ++
@@ -115,18 +116,20 @@ def blockStateRootFunction : String :=
   "  # BAL storage replay reads the shared witness globals.\n" ++
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
+  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_init; bnez a2, .Lbsr_cons_bal_desc\n" ++
+  "  mv s6, a0; mv s7, a1       # BAL cursor/end for sequential row copy\n" ++
   "  li s0, 0                     # scan BAL records; append only changed accounts\n" ++
   ".Lbsr_bal_copy:\n" ++
   "  la t6, bsr_bal_count; ld t6, 0(t6); beq s0, t6, .Lbsr_bal_copied\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
   "  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_load_item\n" ++
   ".Lbsr_bal_copy_load_item:\n" ++
-  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0); mv a2, s0\n" ++
-  "  la a3, baada_item_off; la a4, baada_item_len\n" ++
-  "  jal ra, rlp_list_nth_item; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbsr_cons_bal_desc\n" ++
+  "  mv s6, a0\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_start; ld t0, 0(t0); la t1, baada_item_off; ld t1, 0(t1); add a2, t0, t1\n" ++
-  "  la t1, baada_item_len; ld a3, 0(t1); ld a4, 16(t3)\n" ++
+  "  ld a0, 0(t3); ld a1, 8(t3); mv a3, a2; sub a2, s6, a3; ld a4, 16(t3)\n" ++
   "  la t0, bsr_bal_item_ptr; sd a2, 0(t0); la t0, bsr_bal_item_len; sd a3, 0(t0)\n" ++
   "  mv a0, a2; mv a1, a3; jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_system2935\n  li t0, 2; beq a0, t0, .Lbsr_bal_copy_system4788\n  bnez a0, .Lbsr_cons_bal_desc\n" ++
@@ -139,10 +142,13 @@ def blockStateRootFunction : String :=
   "  jal ra, bal_account_change_descriptor; bnez a0, .Lbsr_cons_bal_desc\n" ++
   "  la t0, bsr_changed_account_count; ld t1, 0(t0); li t2, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t1, t2, .Lbsr_changed_addr_record_skip\n" ++
   "  slli t2, t1, 5; la t3, bsr_changed_accounts; add t3, t3, t2\n" ++
-  "  la t4, bsr_bal_item_ptr; ld a0, 0(t4); la t4, bsr_bal_item_len; ld a1, 0(t4); li a2, 0; la a3, baada_item_off; la a4, baada_item_len\n" ++
-  "  jal ra, rlp_list_nth_item; bnez a0, .Lbsr_cons_bal_desc\n" ++
-  "  la t4, baada_item_len; ld t4, 0(t4); li t5, 20; bne t4, t5, .Lbsr_cons_bal_desc\n" ++
-  "  la t4, bsr_bal_item_ptr; ld t4, 0(t4); la t5, baada_item_off; ld t5, 0(t5); add t4, t4, t5\n" ++
+  "  la t4, bsr_bal_item_ptr; ld a0, 0(t4); la t4, bsr_bal_item_len; ld a1, 0(t4)\n" ++
+  "  jal ra, rlp_walk_init; bnez a2, .Lbsr_cons_bal_desc\n" ++
+  "  jal ra, rlp_walk_next; bnez a1, .Lbsr_cons_bal_desc\n" ++
+  "  li t5, 20; bne a2, t5, .Lbsr_cons_bal_desc\n" ++
+  "  sub t4, a0, a2\n" ++
+  "  la t0, bsr_changed_account_count; ld t1, 0(t0)\n" ++
+  "  slli t2, t1, 5; la t3, bsr_changed_accounts; add t3, t3, t2\n" ++
   "  li t5, 0\n" ++
   ".Lbsr_changed_addr_copy:\n" ++
   "  li t6, 20; beq t5, t6, .Lbsr_changed_addr_pad\n" ++
@@ -304,7 +310,8 @@ def blockStateRootFunction : String :=
   ".Lbsr_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s6, 48(sp); ld s7, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
 
 /-! ## stateless_verdict_v2 -- real-SSZ glue calling block_verdict (system writes). -/
