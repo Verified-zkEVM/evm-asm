@@ -76,7 +76,7 @@ def balAllAccountsCodeCoversFunction : String :=
   "  bne t5, t6, .Lbacov_sadv\n" ++
   "  addi t3, t3, 1; j .Lbacov_acmp\n" ++
   ".Lbacov_sadv:\n" ++
-  "  addi s7, s7, 1; j .Lbacov_sloop\n" ++
+  "  j .Lbacov_sloop\n" ++
   ".Lbacov_advance:\n" ++
   "  ld t0, 40(s5); addi t0, t0, 7; andi t0, t0, -8; addi t0, t0, 48   # record size = 48 + roundup8(code_len)\n" ++
   "  add s5, s5, t0\n" ++
