@@ -45,6 +45,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
@@ -67,23 +68,21 @@ def balAllAccountsCodeConsistentFunction : String :=
   "  mv s1, a1                   # BAL section len\n" ++
   "  mv s2, a2                   # code-effect array base\n" ++
   "  mv s3, a3                   # record count\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, baac_acct_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbaac_fail\n" ++
-  "  la t0, baac_acct_count; ld s4, 0(t0)   # account count\n" ++
-  "  li s5, 0                    # account index\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaac_fail\n" ++
+  "  mv s4, a0                   # BAL account cursor\n" ++
+  "  mv s5, a1                   # BAL account end\n" ++
   ".Lbaac_loop:\n" ++
-  "  beq s5, s4, .Lbaac_ok\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s5; la a3, baac_acct_off; la a4, baac_acct_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbaac_fail\n" ++
-  "  la t0, baac_acct_off; ld t1, 0(t0); add s6, s0, t1   # AccountChanges ptr\n" ++
-  "  la t0, baac_acct_len; ld s7, 0(t0)                   # AccountChanges len\n" ++
-  "  mv a0, s6; mv a1, s7; li a2, 0; la a3, baac_addr_off; la a4, baac_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item                            # item 0 = address\n" ++
-  "  bnez a0, .Lbaac_fail\n" ++
-  "  la t0, baac_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbaac_next   # not 20B -> skip\n" ++
-  "  la t0, baac_addr_off; ld t1, 0(t0); add s8, s6, t1   # addr ptr (20B BE)\n" ++
+  "  beq s4, s5, .Lbaac_ok\n" ++
+  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaac_fail\n" ++
+  "  mv s4, a0; sub s6, a0, a2; mv s7, a2   # AccountChanges ptr/len\n" ++
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaac_fail\n" ++
+  "  jal ra, rlp_walk_next                            # item 0 = address\n" ++
+  "  bnez a1, .Lbaac_fail\n" ++
+  "  li t2, 20; bne a2, t2, .Lbaac_next   # not 20B -> skip\n" ++
+  "  sub s8, a0, a2              # addr ptr (20B BE)\n" ++
   "  # --- find this account's code-effect by 20-byte address (variable-stride scan) ---\n" ++
   "  mv t0, s2                    # rec_ptr = effect base\n" ++
   "  li t1, 0                     # record index k\n" ++
@@ -112,7 +111,7 @@ def balAllAccountsCodeConsistentFunction : String :=
   "  # preimages for existing accounts, so only matched exec effects are byte-checked here.\n" ++
   "  j .Lbaac_next\n" ++
   ".Lbaac_next:\n" ++
-  "  addi s5, s5, 1; j .Lbaac_loop\n" ++
+  "  j .Lbaac_loop\n" ++
   ".Lbaac_ok:\n" ++
   "  li a0, 0; j .Lbaac_ret\n" ++
   ".Lbaac_fail:\n" ++
@@ -146,6 +145,7 @@ def ziskBalAllAccountsCodeConsistentPrologue : String :=
   balAllAccountsCodeConsistentFunction ++ "\n" ++
   balAccountCodeConsistentFunction ++ "\n" ++
   balAccountNonstorageFinalsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
@@ -155,11 +155,6 @@ def ziskBalAllAccountsCodeConsistentPrologue : String :=
 def ziskBalAllAccountsCodeConsistentDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  "baac_acct_count:\n  .zero 8\n" ++
-  "baac_acct_off:\n  .zero 8\n" ++
-  "baac_acct_len:\n  .zero 8\n" ++
-  "baac_addr_off:\n  .zero 8\n" ++
-  "baac_addr_len:\n  .zero 8\n" ++
   ziskBalAccountCodeConsistentDataSection  -- bacc_finals + c2nsf_* + rfu scratch
 
 def ziskBalAllAccountsCodeConsistentProbeUnit : BuildUnit := {
