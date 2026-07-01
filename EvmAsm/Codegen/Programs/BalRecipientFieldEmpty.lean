@@ -5,29 +5,27 @@
   asserts that a self-contained CALL recipient's BAL `nonce_changes` (AccountChanges item 4)
   and `code_changes` (item 5) are EMPTY RLP lists — a pre-existing contract executing no
   CREATE/CREATE2 changes neither field, so a non-empty list claims a change execution did
-  not make. The emptiness test relies on a soundness-critical detail of `rlp_list_nth_item`:
-  for a *list* item it returns the FULL encoded size (including the 1-byte prefix), so an
-  empty list `0xc0` yields len==1 (NOT 0). The verdict therefore rejects only when len>1.
+  not make.
 
-  This probe locks that contract in: it hand-builds two AccountChanges (all-empty trailing
-  fields; and one with a non-empty nonce_changes) and asserts the len `rlp_list_nth_item`
-  returns for items 4 and 5. A regression here (e.g. content-length semantics) would either
-  mass-false-reject every contract recipient or silently accept fabricated nonce/code claims.
+  This probe locks the cursor-walk version of that contract: it hand-builds two
+  AccountChanges (all-empty trailing fields; and one with a non-empty nonce_changes) and
+  checks that walking an empty list immediately returns end-of-list, while walking a
+  non-empty nonce_changes list exposes its first element.
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-- `zisk_bal_recipient_field_empty`: validate the empty-list len semantics the verdict relies on.
+/-- `zisk_bal_recipient_field_empty`: validate the empty-list walk semantics the verdict uses.
     Output (at 0xa0010000):
-      +0  status of rlp_list_nth_item(empty AccountChanges, item 4)  -> 0
-      +8  len  of nonce_changes (item 4) when empty (0xc0)           -> 1
-      +16 len  of code_changes  (item 5) when empty (0xc0)           -> 1
-      +24 len  of nonce_changes (item 4) when non-empty (0xc1 0x05)  -> 2  (>1 => verdict rejects) -/
+      +0  first walk status for empty nonce_changes (item 4)         -> 2
+      +8  first walk status for empty code_changes  (item 5)         -> 2
+      +16 first walk status for non-empty nonce_changes              -> 0
+      +24 len of first non-empty nonce_changes element               -> 1 -/
 def ziskBalRecipientFieldEmptyPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -52,21 +50,29 @@ def ziskBalRecipientFieldEmptyPrologue : String :=
   "  li t1, 0xc0; sb t1, 22(t0); sb t1, 23(t0); sb t1, 24(t0)\n" ++
   "  li t1, 0xc1; sb t1, 25(t0); li t1, 0x05; sb t1, 26(t0)\n" ++
   "  li t1, 0xc0; sb t1, 27(t0)\n" ++
-  -- nth(empty, 4): status -> +0, len -> +8.
-  "  la a0, brfe_empty; li a1, 27; li a2, 4; la a3, brfe_off; la a4, brfe_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  sd a0, 0(s0)\n" ++
-  "  la t0, brfe_len; ld t0, 0(t0); sd t0, 8(s0)\n" ++
-  -- nth(empty, 5): len -> +16.
-  "  la a0, brfe_empty; li a1, 27; li a2, 5; la a3, brfe_off; la a4, brfe_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  la t0, brfe_len; ld t0, 0(t0); sd t0, 16(s0)\n" ++
-  -- nth(nonempty, 4): len -> +24.
-  "  la a0, brfe_nonempty; li a1, 28; li a2, 4; la a3, brfe_off; la a4, brfe_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  la t0, brfe_len; ld t0, 0(t0); sd t0, 24(s0)\n" ++
+  -- empty nonce_changes item 4: first inner walk status -> +0.
+  "  la a0, brfe_empty; li a1, 27; jal ra, rlp_walk_init\n" ++
+  "  la t0, brfe_off; sd a0, 0(t0); la t0, brfe_len; sd a1, 0(t0)\n" ++
+  "  li s1, 5\n" ++
+  "5:\n  la t0, brfe_off; ld a0, 0(t0); la t0, brfe_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  la t0, brfe_off; sd a0, 0(t0); addi s1, s1, -1; bnez s1, 5b\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init; jal ra, rlp_walk_next; sd a1, 0(s0)\n" ++
+  -- empty code_changes item 5: first inner walk status -> +8.
+  "  la a0, brfe_empty; li a1, 27; jal ra, rlp_walk_init\n" ++
+  "  la t0, brfe_off; sd a0, 0(t0); la t0, brfe_len; sd a1, 0(t0)\n" ++
+  "  li s1, 6\n" ++
+  "6:\n  la t0, brfe_off; ld a0, 0(t0); la t0, brfe_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  la t0, brfe_off; sd a0, 0(t0); addi s1, s1, -1; bnez s1, 6b\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init; jal ra, rlp_walk_next; sd a1, 8(s0)\n" ++
+  -- non-empty nonce_changes item 4: first inner walk status/len -> +16/+24.
+  "  la a0, brfe_nonempty; li a1, 28; jal ra, rlp_walk_init\n" ++
+  "  la t0, brfe_off; sd a0, 0(t0); la t0, brfe_len; sd a1, 0(t0)\n" ++
+  "  li s1, 5\n" ++
+  "7:\n  la t0, brfe_off; ld a0, 0(t0); la t0, brfe_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  la t0, brfe_off; sd a0, 0(t0); addi s1, s1, -1; bnez s1, 7b\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init; jal ra, rlp_walk_next; sd a1, 16(s0); sd a2, 24(s0)\n" ++
   "  j .Lbrfe_done\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lbrfe_done:"
 
 def ziskBalRecipientFieldEmptyDataSection : String :=
