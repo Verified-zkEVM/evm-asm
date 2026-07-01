@@ -463,9 +463,10 @@ caller needs to distinguish it.
 - If `wp_rv64_cert`, `wp_rv64_link`, `wp_rv64_dead`, or `wp_rv64_disjoint`
   fails, read the diagnostic first. It reports the goal shape, how many
   registered hints were tried, and the usual next action. When registered
-  certificate constructors were tried, `wp_rv64_cert` also reports each
-  candidate failure, such as a result-shape mismatch or an uninferable static
-  side condition.
+  hints were tried, the final diagnostic reports each candidate failure, such
+  as a result-shape mismatch, unresolved metavariables, or an uninferable
+  static side condition. For `wp_rv64_disjoint`, the final failure also keeps
+  the structural prover error after the registered-hint summary.
 - If a constructor still does not infer, try it directly once. The resulting
   goals usually show which entry, exit, code requirement, or postcondition did
   not infer.
