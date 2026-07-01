@@ -84,22 +84,26 @@ theorem spec :
        (loadConstCfg base imm).pre = regOwn .x5 := rfl
    ```
 
-   When auto-resolution cannot pick the right instruction specs, pass the same
-   already-instantiated specs you would have passed to `runBlock`, in forward
-   execution order. Supplying any explicit specs switches to manual mode for the
-   whole leaf, so the list must cover the complete block unless one argument is
-   a composite spec for the complete block:
+   When auto-resolution cannot pick the right instruction specs, pass
+   already-instantiated single-instruction specs as partial hints. Hints are
+   matched by address and instruction, and the remaining instructions are still
+   resolved backwards from the postcondition. A full single-instruction list is
+   treated as complete manual mode in forward execution order; a composite spec
+   is also treated as the complete block.
 
    ```lean
-   let hAddi := addi_spec_same_within .x5 v imm base (by decide)
+   let hAddi := addi_spec_same_within .x5 v imm (base + 4) (by decide)
    wp_rv64_leaf_synth hAddi
    ```
 
+   In that shape, a two-instruction `CodeReq.ofProg base [LI x5 v, ADDI x5 x5 imm]`
+   can use `hAddi` for the second instruction while auto-resolution computes the
+   predecessor through the first instruction.
+
    Current matching is intentionally conservative: the requested postcondition
-   should expose the atoms produced by the instruction specs. If a concrete
-   leaf has four instructions and you pass three single-instruction specs,
-   `runBlockFromPost` reports that manual mode received the wrong number of
-   specs instead of failing later at the computed exit address. When a registered
+   should expose the atoms produced by the instruction specs. If an explicit
+   single-instruction hint does not match an address/instruction in the goal
+   `CodeReq`, `runBlockFromPost` reports the unused hint. When a registered
    spec has one unresolved old-value atom such as `rd ↦ᵣ vOld` or
    `addr ↦ₘ memOld`, `wp_rv64_leaf_synth` turns it into `regOwn rd` or
    `memOwn addr` automatically. If an unresolved data parameter appears in a
