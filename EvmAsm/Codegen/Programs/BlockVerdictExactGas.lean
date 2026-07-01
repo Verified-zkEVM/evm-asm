@@ -293,7 +293,9 @@ def blockVerdictExactGasCheck : String :=
   "  bgtu t2, a0, .Lbv_block_gas_used_over_fail\n" ++
   "  la t0, bv_exact_expected_gas_used; sd t2, 0(t0)\n" ++
   "  la t0, bvgr_block_gas_increments; sd t2, 0(t0)\n" ++
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t3, 1; bne t1, t3, .Lbv_exact_wip_header_skip_receipt_store\n" ++
   "  la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
+  ".Lbv_exact_wip_header_skip_receipt_store:\n" ++
   "  la t0, bv_exact_block_status; sd zero, 0(t0)\n" ++
   ".Lbv_block_gas_used_exact_ok:\n" ++
   "  la t2, bv_exact_header_gas_used; ld t1, 0(t2)           # reload across helper clobbers\n" ++
