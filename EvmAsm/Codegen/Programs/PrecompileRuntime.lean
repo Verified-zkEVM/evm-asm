@@ -32,6 +32,19 @@ def chargePrecompileGasConstAsm (cost : Nat)
   "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
   chargePrecompileGasAsm costReg remainingReg
 
+def chargePrecompileGasWithAllotmentAsm
+    (tag costReg remainingReg : String) : String :=
+  "  jal x1, bn254_call_allotment\n" ++
+  "  bltu x22, " ++ costReg ++ ", .L" ++ tag ++ "_bn254_fail_burn\n" ++
+  "  ld " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
+  "  sd " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n"
+
+def chargePrecompileGasConstWithAllotmentAsm (tag : String) (cost : Nat)
+    (costReg remainingReg : String) : String :=
+  "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
+  chargePrecompileGasWithAllotmentAsm tag costReg remainingReg
+
 def stageEcrecoverInputAsm
     (inOffsetOff inSizeOff : Nat) : String :=
   "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
@@ -295,6 +308,18 @@ def chargePrecompileWordGasAsm
   "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
   "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
   chargePrecompileGasAsm costReg scratchReg
+
+def chargePrecompileWordGasWithAllotmentAsm
+    (tag : String) (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 31\n" ++
+  "  add " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bltu " ++ costReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
+  "  srli " ++ costReg ++ ", " ++ costReg ++ ", 5\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString perWordGas ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
+  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  chargePrecompileGasWithAllotmentAsm tag costReg scratchReg
 
 def stagePrecompileInputWindowAsm
     (tag : String) (inOffsetOff inSizeOff frameOff sourceOff byteLen : Nat) : String :=
