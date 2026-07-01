@@ -39,10 +39,10 @@ theorem aluSem_agree {i : Instr} {op : AluOp} (h : aluSem i = some op) :
   cases i <;> simp only [aluSem, reduceCtorEq] at h <;>
     (injection h with h; subst h; intro g g' hgg;
      simp only [List.forall_mem_cons] at hgg;
-     dsimp only;
-     (try rw [hgg.1]);
-     (try rw [hgg.2.1]);
-     all_goals rfl)
+     first
+       | (dsimp only; rw [hgg.1, hgg.2.1])
+       | (dsimp only; rw [hgg.1])
+       | dsimp only)
 
 /-- Classified instructions are not ECALL/EBREAK and touch no memory, so they
     step via `execInstrBr`. -/

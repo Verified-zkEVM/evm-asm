@@ -155,7 +155,7 @@ theorem Stmt.sound (reg : Region) (s : Stmt) (base : Word) (pfx : String)
       have hmem : ∀ rf, reach rf → blockVCs reg rf is := by
         by_cases hl : hasLoad is
         · have ht := hvcs.tail
-          simp only [Stmt.vcs, hl, if_true] at ht
+          simp only [hl, if_true] at ht
           exact ht.head
         · exact fun rf _ =>
             blockVCs_of_not_hasLoad reg rf is (by simpa using hl)
