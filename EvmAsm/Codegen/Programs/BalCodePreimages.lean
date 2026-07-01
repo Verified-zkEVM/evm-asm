@@ -1041,23 +1041,22 @@ def balCodePreimagesValidFunction : String :=
   "  la t0, bv_bal_start; ld s3, 0(t0)\n" ++
   "  la t0, bv_bal_len; ld s4, 0(t0)\n" ++
   "  beqz s3, .Lbsbd_no\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, bbcv_scan_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++
-  "  la t0, bbcv_scan_count; ld s5, 0(t0)\n" ++
-  "  li s6, 0\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbsbd_no\n" ++
+  "  mv s5, a0                  # BAL row cursor\n" ++
+  "  mv s6, a1                  # BAL row end\n" ++
   ".Lbsbd_loop:\n" ++
-  "  beq s6, s5, .Lbsbd_no\n" ++
-  "  mv a0, s3; mv a1, s4; mv a2, s6; la a3, bbcv_scan_off; la a4, bbcv_scan_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++
-  "  la t0, bbcv_scan_off; ld t1, 0(t0); add s7, s3, t1\n" ++
-  "  la t0, bbcv_scan_size; ld s8, 0(t0)\n" ++
-  "  mv a0, s7; mv a1, s8; li a2, 0; la a3, bbcv_scan_addr_off; la a4, bbcv_scan_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++
-  "  la t0, bbcv_scan_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbsbd_next\n" ++
-  "  la t0, bbcv_scan_addr_off; ld t1, 0(t0); add s9, s7, t1\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbsbd_no\n" ++
+  "  bnez a1, .Lbsbd_no\n" ++
+  "  mv s5, a0; sub s7, a0, a2 # BAL account row ptr\n" ++
+  "  mv s8, a2                 # BAL account row len\n" ++
+  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbsbd_no\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbsbd_no\n" ++
+  "  li t2, 20; bne a2, t2, .Lbsbd_next\n" ++
+  "  sub s9, a0, a2            # row address ptr\n" ++
   "  mv a0, s0; mv a1, s9\n" ++
   "  jal ra, bbcv_addr_eq20\n" ++
   "  beqz a0, .Lbsbd_next\n" ++
@@ -1145,7 +1144,6 @@ def balCodePreimagesValidFunction : String :=
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
   ".Lbsbd_next:\n" ++
-  "  addi s6, s6, 1\n" ++
   "  j .Lbsbd_loop\n" ++
   ".Lbsbd_no:\n" ++
   "  li a0, 1\n" ++
