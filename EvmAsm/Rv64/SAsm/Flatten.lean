@@ -33,8 +33,9 @@ def brOfs (n : Nat) : BitVec 13 := BitVec.ofNat 13 (4 * n)
 /-- Byte distance of `n` instructions forward, as a jump offset (21-bit). -/
 def jFwd (n : Nat) : BitVec 21 := BitVec.ofNat 21 (4 * n)
 
-/-- Byte distance of `n` instructions backward, as a jump offset (21-bit). -/
-def jBack (n : Nat) : BitVec 21 := BitVec.ofInt 21 (-(4 * (n : Int)))
+/-- Byte distance of `n` instructions backward, as a jump offset (21-bit),
+    in two's complement (`0 < 4*n ≤ 2^20` for a valid backward branch). -/
+def jBack (n : Nat) : BitVec 21 := BitVec.ofNat 21 (2 ^ 21 - 4 * n)
 
 /-- Flatten a statement placed at address `addr` to machine instructions.
     `addr` is only consulted by `call` (to compute the pc-relative JAL
