@@ -592,4 +592,351 @@ theorem n4_call_addback_beq_mod_getLimbN_v5_single (a b : EvmWord)
   simp only [shift, antiShift, hmodS, hanti_toNat_mod, hab0, hab1, hab2, hab3]
   exact h_limbs
 
+/-- **n=4 MOD call+addback-beq getLimbN, double-addback branch (carry = 0).**
+    Mirror of `n4_call_addback_beq_mod_getLimbN_v5_single` for the double-addback
+    branch: the four limbs of `EvmWord.mod a b` are the funnel-shift-down of the
+    twice-corrected remainder `ab'`.  Same composition — overestimate bridge with
+    `q_out = a/b` plus `ab' = mulsubN4 q_out …` by `val256` injectivity (both
+    `val256` equal `aD % aV`, from the committed double crux). -/
+theorem n4_call_addback_beq_mod_getLimbN_v5_double (a b : EvmWord)
+    (hbnz : b ≠ 0)
+    (hb3nz : b.getLimbN 3 ≠ 0)
+    (hshift_nz : (clzResult (b.getLimbN 3)).1 ≠ 0)
+    (hsem : n4CallAddbackBeqSemanticHoldsV5 a b)
+    (hcall : isCallTrialN4 (a.getLimbN 3) (b.getLimbN 2) (b.getLimbN 3))
+    (hborrow_ult : BitVec.ult (n4CallAddbackBeqU4 a b)
+        (mulsubN4 (n4CallAddbackBeqQHatV5 a b)
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.2)
+    (hcarry_zero :
+      addbackN4_carry
+        (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).1
+        (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.1
+        (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.1
+        (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+          (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+          (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+          (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.1
+        (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b) = 0)
+    (hcarry2_one :
+      addbackN4_carry
+        (addbackN4
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.1
+          (n4CallAddbackBeqU4 a b -
+            (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+              (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+              (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+              (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.2)
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)).1
+        (addbackN4
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.1
+          (n4CallAddbackBeqU4 a b -
+            (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+              (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+              (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+              (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.2)
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)).2.1
+        (addbackN4
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.1
+          (n4CallAddbackBeqU4 a b -
+            (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+              (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+              (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+              (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.2)
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)).2.2.1
+        (addbackN4
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.1
+          (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+            (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+            (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+            (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.1
+          (n4CallAddbackBeqU4 a b -
+            (mulsubN4 (n4CallAddbackBeqQHatV5 a b) (n4CallAddbackBeqB0Prime b)
+              (n4CallAddbackBeqB1Prime b) (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+              (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+              (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)).2.2.2.2)
+          (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+          (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)).2.2.2.1
+        (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+        (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b) = 1)
+    (hq_ge2 : 2 ≤ (n4CallAddbackBeqQHatV5 a b).toNat)
+    (hBnz : aV b ≠ 0)
+    (huTop : (n4CallAddbackBeqU4 a b).toNat + 1 < 2 ^ 64)
+    (hqHat : (n4CallAddbackBeqQHatV5 a b).toNat = aD a b / aV b + 2) :
+    let shift := (clzResult (b.getLimbN 3)).1.toNat % 64
+    let antiShift :=
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64
+    let ms := mulsubN4 (n4CallAddbackBeqQHatV5 a b)
+      (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+      (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
+      (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)
+    let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1
+      (n4CallAddbackBeqU4 a b - ms.2.2.2.2)
+      (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+    let ab' := addbackN4 ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 ab.2.2.2.2
+      (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
+      (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
+    (EvmWord.mod a b).getLimbN 0 = ((ab'.1 >>> shift) ||| (ab'.2.1 <<< antiShift)) ∧
+    (EvmWord.mod a b).getLimbN 1 = ((ab'.2.1 >>> shift) ||| (ab'.2.2.1 <<< antiShift)) ∧
+    (EvmWord.mod a b).getLimbN 2 = ((ab'.2.2.1 >>> shift) ||| (ab'.2.2.2.1 <<< antiShift)) ∧
+    (EvmWord.mod a b).getLimbN 3 = (ab'.2.2.2.1 >>> shift) := by
+  intro shift antiShift ms ab ab'
+  have hclz_le := clzResult_fst_toNat_le (b.getLimbN 3)
+  have hshift_pos : 0 < (clzResult (b.getLimbN 3)).1.toNat := by
+    by_contra h; apply hshift_nz; apply BitVec.eq_of_toNat_eq
+    rw [show (0 : Word).toNat = 0 from rfl]; omega
+  have hshift_lt_64 : (clzResult (b.getLimbN 3)).1.toNat < 64 := by omega
+  have hmod_eq : (clzResult (b.getLimbN 3)).1.toNat % 64 =
+      (clzResult (b.getLimbN 3)).1.toNat := by omega
+  have hanti_toNat_mod :
+      (signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1).toNat % 64 =
+      64 - (clzResult (b.getLimbN 3)).1.toNat := by
+    have h0se12 : signExtend12 (0 : BitVec 12) - (clzResult (b.getLimbN 3)).1 =
+        -((clzResult (b.getLimbN 3)).1) := by rw [signExtend12_0]; simp
+    rw [h0se12, BitVec.toNat_neg]
+    have : ((clzResult (b.getLimbN 3)).1).toNat ≤ 2 ^ 64 := by
+      have := ((clzResult (b.getLimbN 3)).1).isLt; omega
+    omega
+  have hb3_bound : (b.getLimbN 3).toNat <
+      2 ^ (64 - (clzResult (b.getLimbN 3)).1.toNat) :=
+    clzResult_fst_top_bound (b.getLimbN 3)
+  have hval_ab' := n4_addback_un_val256_eq_amod_double a b hb3nz hshift_nz hcall
+    hborrow_ult hcarry_zero hcarry2_one hq_ge2 hBnz huTop hqHat
+  simp only at hval_ab'
+  have hqout := n4CallAddbackBeqQOutV5_toNat_eq_div a b hbnz hsem
+  obtain ⟨hmul_le, hge⟩ := n4CallAddbackBeqQOutV5_bridge_bounds a b hbnz hsem
+  have hscaleU := u_val256_eq_scaled_with_overflow (a.getLimbN 0) (a.getLimbN 1)
+    (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 3) hshift_nz
+  have hscaleB := b3_prime_val256_eq_scaled (b.getLimbN 0) (b.getLimbN 1)
+    (b.getLimbN 2) (b.getLimbN 3) hshift_nz
+  simp only [hmod_eq, hanti_toNat_mod] at hscaleU hscaleB
+  have ha_toNat : val256 (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+      = a.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat a
+  have hb_toNat : val256 (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+      = b.toNat := by
+    simp only [← EvmWord.getLimb_as_getLimbN_0, ← EvmWord.getLimb_as_getLimbN_1,
+               ← EvmWord.getLimb_as_getLimbN_2, ← EvmWord.getLimb_as_getLimbN_3]
+    exact EvmWord.val256_eq_toNat b
+  rw [ha_toNat] at hscaleU
+  rw [hb_toNat] at hscaleB
+  have hU0 := n4CallAddbackBeqU0_eq_direct (a := a) hshift_nz
+  have hU1 := n4CallAddbackBeqU1_eq_direct (a := a) hshift_nz
+  have hU2 := n4CallAddbackBeqU2_eq_direct (a := a) hshift_nz
+  have hU3 := n4CallAddbackBeqU3_eq_direct (a := a) hshift_nz
+  have hU4 := n4CallAddbackBeqU4_eq_direct (a := a) hshift_nz
+  have hB0 := n4CallAddbackBeqB0Prime_eq_direct hshift_nz
+  have hB1 := n4CallAddbackBeqB1Prime_eq_direct hshift_nz
+  have hB2 := n4CallAddbackBeqB2Prime_eq_direct hshift_nz
+  have hB3 := n4CallAddbackBeqB3Prime_eq_direct hshift_nz
+  set s := (clzResult (b.getLimbN 3)).1.toNat with hs_def
+  have hq_raw : (n4CallAddbackBeqQOutV5 a b).toNat =
+      (val256 ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))
+        + ((a.getLimbN 3) >>> (64 - s)).toNat * 2 ^ 256) /
+      val256 ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))) := by
+    rw [hscaleU, hscaleB, hqout, Nat.mul_div_mul_right _ _ (Nat.two_pow_pos s)]
+  have hBnz_raw : val256 ((b.getLimbN 0) <<< s)
+      (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+      (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+      (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))) ≠ 0 := by
+    rw [hscaleB]
+    have : 0 < b.toNat := by
+      rcases Nat.eq_zero_or_pos b.toNat with h | h
+      · exact absurd (BitVec.eq_of_toNat_eq (by rw [h]; rfl)) hbnz
+      · exact h
+    positivity
+  have hval_msN := mulsub_exact_val256_low4 (n4CallAddbackBeqQOutV5 a b)
+    ((b.getLimbN 0) <<< s)
+    (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+    (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+    (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s)))
+    ((a.getLimbN 0) <<< s)
+    (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+    (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+    (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))
+    ((a.getLimbN 3) >>> (64 - s))
+    hBnz_raw hq_raw
+  have haD : aD a b =
+      val256 ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))
+        + ((a.getLimbN 3) >>> (64 - s)).toNat * 2 ^ 256 := by
+    simp only [aD, hU0, hU1, hU2, hU3, hU4]
+  have haV : aV b =
+      val256 ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))) := by
+    simp only [aV, hB0, hB1, hB2, hB3]
+  rw [haD, haV] at hval_ab'
+  have hval_eq : val256 ab'.1 ab'.2.1 ab'.2.2.1 ab'.2.2.2.1 =
+      val256
+        (mulsubN4 (n4CallAddbackBeqQOutV5 a b)
+          ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s)))
+          ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))).1
+        (mulsubN4 (n4CallAddbackBeqQOutV5 a b)
+          ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s)))
+          ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))).2.1
+        (mulsubN4 (n4CallAddbackBeqQOutV5 a b)
+          ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s)))
+          ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))).2.2.1
+        (mulsubN4 (n4CallAddbackBeqQOutV5 a b)
+          ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s)))
+          ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))).2.2.2.1 := by
+    rw [hval_ab', hval_msN]
+  obtain ⟨hab0, hab1, hab2, hab3⟩ := val256_inj hval_eq
+  have hc3 : (mulsubN4 (n4CallAddbackBeqQOutV5 a b)
+      ((b.getLimbN 0) <<< s)
+      (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+      (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+      (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s)))
+      ((a.getLimbN 0) <<< s)
+      (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+      (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+      (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))).2.2.2.2.toNat ≤
+      ((a.getLimbN 3) >>> (64 - s)).toNat := by
+    have hcons := mulsubN4_val256_eq (n4CallAddbackBeqQOutV5 a b)
+      ((b.getLimbN 0) <<< s)
+      (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+      (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+      (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s)))
+      ((a.getLimbN 0) <<< s)
+      (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+      (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+      (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))
+    simp only at hcons
+    have hqmod : (n4CallAddbackBeqQOutV5 a b).toNat *
+        val256 ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))) +
+        (val256 ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))
+          + ((a.getLimbN 3) >>> (64 - s)).toNat * 2 ^ 256) %
+        val256 ((b.getLimbN 0) <<< s)
+          (((b.getLimbN 1) <<< s) ||| ((b.getLimbN 0) >>> (64 - s)))
+          (((b.getLimbN 2) <<< s) ||| ((b.getLimbN 1) >>> (64 - s)))
+          (((b.getLimbN 3) <<< s) ||| ((b.getLimbN 2) >>> (64 - s))) =
+        val256 ((a.getLimbN 0) <<< s)
+          (((a.getLimbN 1) <<< s) ||| ((a.getLimbN 0) >>> (64 - s)))
+          (((a.getLimbN 2) <<< s) ||| ((a.getLimbN 1) >>> (64 - s)))
+          (((a.getLimbN 3) <<< s) ||| ((a.getLimbN 2) >>> (64 - s)))
+          + ((a.getLimbN 3) >>> (64 - s)).toNat * 2 ^ 256 := by
+      rw [hq_raw, Nat.mul_comm]; exact Nat.div_add_mod _ _
+    omega
+  have h_limbs := denorm_limbN_eq_mod_of_overestimate_getLimbN (a := a) (b := b)
+    (qHat := n4CallAddbackBeqQOutV5 a b) (s := s)
+    hshift_pos hshift_lt_64 hb3_bound hmul_le hge hb3nz hc3
+  have hmodS : (clzResult (b.getLimbN 3)).1.toNat % 64 = s := by omega
+  simp only [shift, antiShift, hmodS, hanti_toNat_mod, hab0, hab1, hab2, hab3]
+  exact h_limbs
+
 end EvmAsm.Evm64
