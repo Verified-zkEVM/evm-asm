@@ -993,28 +993,26 @@ def balCodePreimagesValidFunction : String :=
   "  mv s0, a0                  # needle address ptr\n" ++
   "  la t0, bv_bal_start; ld s1, 0(t0)\n" ++
   "  la t0, bv_bal_len; ld s2, 0(t0)\n" ++
-  "  mv a0, s1; mv a1, s2; la a2, bbcv_scan_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbbcba_no\n" ++
-  "  la t0, bbcv_scan_count; ld s3, 0(t0)\n" ++
-  "  li s4, 0\n" ++
+  "  mv a0, s1; mv a1, s2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbbcba_no\n" ++
+  "  mv s3, a0                  # BAL row cursor\n" ++
+  "  mv s4, a1                  # BAL row end\n" ++
   ".Lbbcba_loop:\n" ++
-  "  beq s4, s3, .Lbbcba_no\n" ++
-  "  mv a0, s1; mv a1, s2; mv a2, s4; la a3, bbcv_scan_off; la a4, bbcv_scan_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbbcba_no\n" ++
-  "  la t0, bbcv_scan_off; ld t1, 0(t0); add s5, s1, t1\n" ++
-  "  la t0, bbcv_scan_size; ld s6, 0(t0)\n" ++
-  "  mv a0, s5; mv a1, s6; li a2, 0; la a3, bbcv_scan_addr_off; la a4, bbcv_scan_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbbcba_no\n" ++
-  "  la t0, bbcv_scan_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbbcba_next\n" ++
-  "  la t0, bbcv_scan_addr_off; ld t1, 0(t0); add s7, s5, t1\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next\n" ++
+  "  li t0, 2; beq a1, t0, .Lbbcba_no\n" ++
+  "  bnez a1, .Lbbcba_no\n" ++
+  "  mv s3, a0; sub s5, a0, a2 # BAL account row ptr\n" ++
+  "  mv s6, a2                 # BAL account row len\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbbcba_no\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbbcba_no\n" ++
+  "  li t2, 20; bne a2, t2, .Lbbcba_next\n" ++
+  "  sub s7, a0, a2            # row address ptr\n" ++
   "  mv a0, s0; mv a1, s7\n" ++
   "  jal ra, bbcv_addr_eq20\n" ++
   "  bnez a0, .Lbbcba_yes\n" ++
   ".Lbbcba_next:\n" ++
-  "  addi s4, s4, 1\n" ++
   "  j .Lbbcba_loop\n" ++
   ".Lbbcba_yes:\n" ++
   "  li a0, 1; j .Lbbcba_ret\n" ++
