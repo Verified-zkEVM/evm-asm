@@ -73,33 +73,14 @@ theorem Hold.append_intro {v₁ v₂ : List VC}
 end VCs
 
 -- ============================================================================
--- Reachable sets and their assertion embedding
--- ============================================================================
-
-/-- A set of register files: the pure abstraction of the machine state
-    between SAsm nodes. -/
-def Reach := RegFile → Prop
-
-/-- Embed a reachable set as an assertion: some register file in the set
-    owns the exposed registers. -/
-def asrtOf (reach : Reach) : Assertion :=
-  fun h => ∃ rf, regFileIs rf h ∧ reach rf
-
-theorem pcFree_asrtOf (reach : Reach) : (asrtOf reach).pcFree := by
-  intro h hp
-  obtain ⟨rf, hrf, -⟩ := hp
-  rw [hrf]
-  rfl
-
--- ============================================================================
 -- The reachable-set transformer
 -- ============================================================================
 
 namespace Stmt
 
 /-- Strongest-postcondition transformer over the exposed register file.
-    `call` is completed in Milestone M4; until then its `vcs` emit an
-    unprovable labeled goal, so the transformer's value is irrelevant. -/
+    A `call` replaces the reachable set by the callee's postcondition (the
+    callee owns the whole exposed file; ghost data relates them). -/
 def sp : Stmt → Reach → Reach
   | block _ is, reach => fun rf' => ∃ rf, reach rf ∧ rf' = execBlock rf is
   | seq a b, reach => b.sp (a.sp reach)
@@ -111,7 +92,7 @@ def sp : Stmt → Reach → Reach
   | assert _ P, reach => fun rf => reach rf ∧ P rf
   | «while» _ c fuel inv _, _ =>
       fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf
-  | call _ _, _ => fun _ => False
+  | call _ f, _ => fun rf => f.post rf
 
 /-- Labeled verification conditions of a statement, given the reachable set
     at its entry.  `pfx` is the path prefix for labels. -/
@@ -134,8 +115,8 @@ def vcs : Stmt → String → Reach → List VC
       ⟨pfx ++ lbl ++ ".exhausted", ∀ rf, inv fuel rf → ¬ c.holds rf⟩ ::
       b.vcs (pfx ++ lbl ++ ".body.")
         (fun rf => ∃ i, i < fuel ∧ inv i rf ∧ c.holds rf)
-  | call lbl _, pfx, _ =>
-      [⟨pfx ++ lbl ++ ".call_unsupported_until_M4", False⟩]
+  | call lbl f, pfx, reach =>
+      [⟨pfx ++ lbl ++ ".pre", ∀ rf, reach rf → f.pre rf⟩]
 
 /-- Exact step bound of a statement (docs/sasm-design.md §3.5; the loop bound
     is `WP.loopBound`). -/
@@ -146,7 +127,7 @@ def steps : Stmt → Nat
   | when _ _ b => 1 + b.steps
   | assert _ _ => 0
   | «while» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
-  | call _ _ => 0
+  | call _ f => 1 + f.nSteps
 
 /-- `sp` is monotone in the reachable set. -/
 theorem sp_mono (s : Stmt) {r₁ r₂ : Reach} (h : ∀ rf, r₁ rf → r₂ rf) :
@@ -169,8 +150,8 @@ theorem sp_mono (s : Stmt) {r₁ r₂ : Reach} (h : ∀ rf, r₁ rf → r₂ rf)
       exact fun rf hr => ⟨h rf hr.1, hr.2⟩
   | «while» lbl c fuel inv b ihb =>
       exact fun rf hr => hr
-  | call lbl callee =>
-      exact fun rf hr => hr.elim
+  | call lbl f =>
+      exact fun rf hr => hr
 
 /-- `vcs` is antitone in the reachable set: obligations proven for a larger
     reachable set cover any smaller one.  Used to specialize loop-body VCs
@@ -209,8 +190,24 @@ theorem vcs_antitone (s : Stmt) (pfx : String) {r₁ r₂ : Reach}
       · exact hvcs.tail.head
       · exact hvcs.tail.tail.head
       · exact hvcs.tail.tail.tail vc hvc
-  | call lbl callee =>
-      exact fun vc hvc => hvcs vc (by simpa [vcs] using hvc)
+  | call lbl f =>
+      intro vc hvc
+      simp only [vcs, List.mem_singleton] at hvc
+      subst hvc
+      exact fun rf hr => hvcs.head rf (h rf hr)
+
+/-- The callee code of every call site is contained in `cr`.  Stated
+    structurally (rather than as a union of `CodeReq`s) so sub-statement
+    obligations project out without overlap side conditions. -/
+def CalleesIn (s : Stmt) (cr : CodeReq) : Prop :=
+  match s with
+  | block _ _ => True
+  | seq a b => a.CalleesIn cr ∧ b.CalleesIn cr
+  | ite _ _ t e => t.CalleesIn cr ∧ e.CalleesIn cr
+  | when _ _ b => b.CalleesIn cr
+  | assert _ _ => True
+  | «while» _ _ _ _ b => b.CalleesIn cr
+  | call _ f => ∀ a i, f.code a = some i → cr a = some i
 
 end Stmt
 

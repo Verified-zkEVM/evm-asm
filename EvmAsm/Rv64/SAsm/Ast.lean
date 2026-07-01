@@ -16,6 +16,7 @@
 
 import EvmAsm.Rv64.Instructions
 import EvmAsm.Rv64.SAsm.RegFile
+import EvmAsm.Rv64.SAsm.Handle
 
 namespace EvmAsm.Rv64
 namespace SAsm
@@ -116,10 +117,11 @@ inductive Stmt where
       emits initialization, preservation, and fuel-exhaustion VCs. -/
   | «while»  (label : String) (c : Cond) (fuel : Nat)
            (inv : Nat → RegFile → Prop) (body : Stmt)
-  /-- Direct call (`jal ra, callee`) to a routine at a fixed entry address.
-      The callee's interface (pre/post in the C-like ABI) is looked up at
-      verification time; see docs/sasm-design.md §3.6. -/
-  | call   (label : String) (callee : Word)
+  /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
+      interface (docs/sasm-design.md §3.6).  The handle carries the callee's
+      pre/post in the C-like ABI; the VC generator emits one `.pre`
+      obligation per call site. -/
+  | call   (label : String) (f : FnHandle)
 
 namespace Stmt
 
@@ -139,6 +141,18 @@ def size : Stmt → Nat
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
+
+/-- A statement makes no calls.  Call-free bodies get the stronger leaf
+    soundness theorem (every non-exposed register, including `ra`, is left
+    untouched and framed), which is what `Fn.toHandle` packages. -/
+def callFree : Stmt → Bool
+  | block _ _         => true
+  | seq a b           => a.callFree && b.callFree
+  | ite _ _ t e       => t.callFree && e.callFree
+  | when _ _ b        => b.callFree
+  | assert _ _        => true
+  | «while» _ _ _ _ b => b.callFree
+  | call _ _          => false
 
 end Stmt
 

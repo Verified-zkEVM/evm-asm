@@ -50,7 +50,8 @@ def Spec (f : Fn) (base : Word) : Prop :=
     - the body's VCs;
     - `<name>.post`: the strongest postcondition entails the stated one. -/
 def vcs (f : Fn) : List VC :=
-  ⟨f.name ++ ".flat", f.body.offsetsOk = true ∧ 4 * f.body.size < 2 ^ 64⟩ ::
+  ⟨f.name ++ ".flat", f.body.callFree = true ∧ f.body.offsetsOk = true
+      ∧ 4 * f.body.size < 2 ^ 64⟩ ::
   (f.body.vcs (f.name ++ ".") f.pre ++
    [⟨f.name ++ ".post", ∀ rf, f.body.sp f.pre rf → f.post rf⟩])
 
@@ -58,7 +59,7 @@ def vcs (f : Fn) : List VC :=
 theorem sound (f : Fn) (base : Word) (h : VCs.Hold f.vcs) : f.Spec base := by
   have hflat := h.head
   have hbody := Stmt.sound f.body base (f.name ++ ".") f.pre
-    hflat.1 hflat.2 (fun _ _ hc => hc) h.tail.left
+    hflat.1 hflat.2.1 hflat.2.2 (fun _ _ hc => hc) h.tail.left
   have hpost := h.tail.right.head
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (fun hp hh => by

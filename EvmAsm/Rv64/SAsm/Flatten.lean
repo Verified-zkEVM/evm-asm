@@ -57,8 +57,8 @@ def flatten (addr : Word) : Stmt → List Instr
   | «while» _ c _ _ b =>
       c.neg.toInstr (brOfs (b.size + 2))
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
-  | call _ callee =>
-      [.JAL .x1 (BitVec.setWidth 21 (callee - addr))]
+  | call _ f =>
+      [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
 
 /-- The flattened code of a statement occupies exactly `size` slots. -/
 theorem flatten_length (s : Stmt) (addr : Word) :
@@ -97,6 +97,25 @@ def offsetsOk : Stmt → Bool
            && decide (4 * (b.size + 1) ≤ 2^20)
            && b.offsetsOk
   | call _ _ => true
+
+/-- Address-aware side conditions of the call sites of a statement placed at
+    `addr`: each `jal` offset round-trips through its 21-bit immediate, the
+    return address is aligned, and the callee's code does not sit on the
+    call instruction itself.  Decidable for concrete layouts (`decide`),
+    `bv_omega` for relative ones. -/
+def callsOk : Stmt → Word → Prop
+  | block _ _, _ => True
+  | seq a b, addr =>
+      a.callsOk addr ∧ b.callsOk (addr + BitVec.ofNat 64 (4 * a.size))
+  | ite _ _ t e, addr =>
+      t.callsOk (addr + 4) ∧ e.callsOk (addr + BitVec.ofNat 64 (4 * (t.size + 2)))
+  | when _ _ b, addr => b.callsOk (addr + 4)
+  | assert _ _, _ => True
+  | «while» _ _ _ _ b, addr => b.callsOk (addr + 4)
+  | call _ f, addr =>
+      addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
+      ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
+      ∧ f.code addr = none
 
 end Stmt
 end SAsm

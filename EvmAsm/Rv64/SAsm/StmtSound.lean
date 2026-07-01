@@ -134,6 +134,7 @@ theorem Cond.wf_neg (c : Cond) : c.neg.wf = c.wf := by
     discharges them by `decide`. -/
 theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
     {cr : CodeReq}
+    (hleaf : s.callFree = true)
     (hofs : s.offsetsOk = true)
     (hsz : 4 * s.size < 2 ^ 64)
     (hcode : ∀ a i, CodeReq.ofProg base (s.flatten base) a = some i → cr a = some i)
@@ -150,6 +151,7 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       exact cpsTripleWithin_weaken (fun _ hp => hp)
         (fun hp hh => ⟨execBlock rf is, hh, rf, hreach, rfl⟩) h'
   | seq a b iha ihb =>
+      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       simp only [Stmt.offsetsOk, Bool.and_eq_true] at hofs
       simp only [Stmt.size] at hsz
       have hsza : 4 * a.size < 2 ^ 64 := by omega
@@ -168,15 +170,16 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
           (by rw [hla, Stmt.flatten_length]; omega)
         rw [hla]
         exact h
-      have h1 := iha base pfx reach hofs.1 hsza hcode_a hvcs.left
+      have h1 := iha base pfx reach hleaf.1 hofs.1 hsza hcode_a hvcs.left
       have h2 := ihb (base + BitVec.ofNat 64 (4 * a.size)) pfx (a.sp reach)
-        hofs.2 hszb hcode_b hvcs.right
+        hleaf.2 hofs.2 hszb hcode_b hvcs.right
       have h3 := cpsTripleWithin_seq_same_cr h1 h2
       rw [addr_shift] at h3
       have : 4 * a.size + 4 * b.size = 4 * (a.size + b.size) := by omega
       rw [this] at h3
       exact h3
   | ite lbl c t e iht ihe =>
+      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
       obtain ⟨⟨⟨⟨hwf, hofsT⟩, hofsJ⟩, hOT⟩, hOE⟩ := hofs
       simp only [Stmt.size] at hsz
@@ -248,7 +251,7 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       have hbr' := cpsBranchWithin_extend_code hcode_br hbr
       -- Then-arm: t's code then the skip jump
       have ht := iht (base + 4) (pfx ++ lbl ++ ".t.")
-        (fun rf => reach rf ∧ c.holds rf) hOT (by omega) hcode_t hvcs.left
+        (fun rf => reach rf ∧ c.holds rf) hleaf.1 hOT (by omega) hcode_t hvcs.left
       rw [haddr1] at ht
       have hjal := jal0_spec_pcFree (Stmt.jFwd (e.size + 1))
         (base + BitVec.ofNat 64 (4 * (t.size + 1)))
@@ -258,7 +261,7 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       have htj := cpsTripleWithin_seq_same_cr ht hjal'
       -- Else-arm
       have he := ihe (base + BitVec.ofNat 64 (4 * (t.size + 2))) (pfx ++ lbl ++ ".e.")
-        (fun rf => reach rf ∧ ¬ c.holds rf) hOE (by omega) hcode_e hvcs.right
+        (fun rf => reach rf ∧ ¬ c.holds rf) hleaf.2 hOE (by omega) hcode_e hvcs.right
       rw [haddr3] at he
       -- Weaken branch posts: neg-condition denotations and arm preconditions
       have hbr'' : cpsBranchWithin 1 base cr (asrtOf reach)
@@ -312,7 +315,8 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       rw [signExtend13_brOfs hofsB] at hbr
       have hbr' := cpsBranchWithin_extend_code hcode_br hbr
       have hb := ihb (base + 4) (pfx ++ lbl ++ ".")
-        (fun rf => reach rf ∧ c.holds rf) hOB (by omega) hcode_b hvcs
+        (fun rf => reach rf ∧ c.holds rf) (by simpa [Stmt.callFree] using hleaf)
+        hOB (by omega) hcode_b hvcs
       rw [show (base + 4) + BitVec.ofNat 64 (4 * b.size)
           = base + BitVec.ofNat 64 (4 * (b.size + 1)) from by bv_omega] at hb
       -- taken (¬c): skip directly to the exit
@@ -420,7 +424,8 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
             (asrtOf fun rf => inv (i + 1) rf) := by
         intro i hi
         have hb := ihb (base + 4) (pfx ++ lbl ++ ".body.")
-          (fun rf => inv i rf ∧ c.holds rf) hOB (by omega) hcode_b
+          (fun rf => inv i rf ∧ c.holds rf) (by simpa [Stmt.callFree] using hleaf)
+          hOB (by omega) hcode_b
           (Stmt.vcs_antitone b _ (fun rf hr => ⟨i, hi, hr.1, hr.2⟩) hBodyVcs)
         have hjal := jal0_spec_pcFree (Stmt.jBack (b.size + 1))
           ((base + 4) + BitVec.ofNat 64 (4 * b.size))
@@ -480,8 +485,8 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
           exact ⟨rf, hrf, hInvInit rf hr⟩)
         (fun _ hp => hp)
         hsound
-  | call lbl callee =>
-      exact (hvcs _ (List.mem_singleton_self _)).elim
+  | call lbl f =>
+      exact absurd hleaf (by simp [Stmt.callFree])
 
 end SAsm
 end EvmAsm.Rv64

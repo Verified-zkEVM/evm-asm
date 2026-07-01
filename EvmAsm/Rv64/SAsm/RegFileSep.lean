@@ -36,6 +36,21 @@ theorem pcFree_regFileIs (rf : RegFile) : (regFileIs rf).pcFree := by
   rw [hp]
   rfl
 
+/-- A set of register files: the pure abstraction of the machine state
+    between SAsm nodes. -/
+def Reach := RegFile → Prop
+
+/-- Embed a reachable set as an assertion: some register file in the set
+    owns the exposed registers. -/
+def asrtOf (reach : Reach) : Assertion :=
+  fun h => ∃ rf, regFileIs rf h ∧ reach rf
+
+theorem pcFree_asrtOf (reach : Reach) : (asrtOf reach).pcFree := by
+  intro h hp
+  obtain ⟨rf, hrf, -⟩ := hp
+  rw [hrf]
+  rfl
+
 /-- Extract exposed-register values from a framed `regFileIs`. -/
 theorem holdsFor_regFileIs_getReg {rf : RegFile} {R : Assertion} {s : MachineState}
     (hPR : ((regFileIs rf) ** R).holdsFor s)
