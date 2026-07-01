@@ -347,6 +347,8 @@ import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0DivLimb
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
+import EvmAsm.Evm64.DivMod.Spec.N3V5ModRemainder
+import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShapeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
