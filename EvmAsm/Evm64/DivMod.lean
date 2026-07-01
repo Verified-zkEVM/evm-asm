@@ -347,6 +347,8 @@ import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0Quotient
 import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0DivLimb
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
+import EvmAsm.Evm64.DivMod.Spec.N3V5ModRemainder
+import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShapeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5NormScaled
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShape
@@ -454,6 +456,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloop
+import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
