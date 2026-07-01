@@ -2467,12 +2467,15 @@ and a `vcgen` tactic that reduces a function spec to labeled *pure* VCs via a
 structurally-recursive generator + one generic soundness theorem (recursion-
 safe by construction). Milestones M1–M5 in the design doc; M1 = AST +
 flattener, M2 = block symbolic engine + soundness, M3 = structural soundness
-+ `vcgen`, M4 = calls, M5 = mutable regions + RLP-style demo. **M1–M4 done**
-(M1–M3 2026-07-01, M4 2026-07-02): AST/flattener, block engine + soundness,
++ `vcgen`, M4 = calls, M5 = regions. **M1–M4 + M5a done** (M1–M3
+2026-07-01, M4 + M5a 2026-07-02): AST/flattener, block engine + soundness,
 generic Stmt.sound, Fn + vcgen, verified calls (FnHandle in the AST,
 caller-shaped Stmt.soundR/Fn.SpecR via cpsCallWithin, Fn.toHandle leaf
-packaging, caller demo). Remaining: M5 (.ro loads → .rw regions, RLP demo);
-multi-level call trees need the ra-spill prologue (M5 stack memory).
+packaging), and read-only byte regions (Region in Fn/FnHandle, LBU/LB in
+the block engine with per-block .mem VCs, region-carrying asrtM triples,
+RLP-prefix-classification demo over a symbolic input buffer). Remaining:
+M5b (.rw regions + stores; ra-spill prologue for multi-level call trees;
+wider loads), then port an SSZ routine from Stateless/.
 
 ## Stateless Guest (parallel STF track)
 

@@ -6,7 +6,7 @@
   can be verified via `WP.cpsCallWithin` against the callee's `FnHandle`.
 
   Compared to the leaf theorem, the pre/postcondition is
-  `asrtR reach := asrtOf reach ** regOwn .x1`: `ra` is owned throughout but
+  `asrtR reg reach := asrtOf reach ** regOwn .x1`: `ra` is owned throughout but
   its *value* is only tracked across call-free segments internally — after a
   call it holds the call's return address, which the shape deliberately
   forgets.  Call-free bodies should keep using `Stmt.sound` (via `Fn.sound`)
@@ -22,24 +22,22 @@ import EvmAsm.Rv64.WP.Call
 namespace EvmAsm.Rv64
 namespace SAsm
 
-/-- Caller-shaped embedding of a reachable set: the exposed register file
-    plus ownership of `ra`. -/
-def asrtR (reach : Reach) : Assertion :=
-  asrtOf reach ** regOwn .x1
+/-- Caller-shaped embedding of a reachable set: the exposed register file,
+    the function's read-only region, plus ownership of `ra`. -/
+def asrtR (reg : Region) (reach : Reach) : Assertion :=
+  asrtM reg reach ** regOwn .x1
 
-theorem pcFree_asrtR (reach : Reach) : (asrtR reach).pcFree :=
-  pcFree_sepConj (pcFree_asrtOf _) pcFree_regOwn
+theorem pcFree_asrtR (reg : Region) (reach : Reach) : (asrtR reg reach).pcFree :=
+  pcFree_sepConj (pcFree_asrtM _ _) pcFree_regOwn
 
-theorem asrtR_mono {r₁ r₂ : Reach} (h : ∀ rf, r₁ rf → r₂ rf) :
-    ∀ hp, asrtR r₁ hp → asrtR r₂ hp :=
-  fun hp => sepConj_mono_left (fun hq hh => by
-    obtain ⟨rf, hrf, hr⟩ := hh
-    exact ⟨rf, hrf, h rf hr⟩) hp
+theorem asrtR_mono {reg : Region} {r₁ r₂ : Reach} (h : ∀ rf, r₁ rf → r₂ rf) :
+    ∀ hp, asrtR reg r₁ hp → asrtR reg r₂ hp :=
+  fun hp => sepConj_mono_left (asrtM_mono h) hp
 
-theorem asrtR_unsat {r : Reach} (h : ∀ rf, r rf → False) :
-    ∀ hp, asrtR r hp → False := by
-  rintro hp ⟨h1, h2, -, -, ⟨rf, -, hr⟩, -⟩
-  exact h rf hr
+theorem asrtR_unsat {reg : Region} {r : Reach} (h : ∀ rf, r rf → False) :
+    ∀ hp, asrtR reg r hp → False := by
+  rintro hp ⟨h1, h2, -, -, hM, -⟩
+  exact asrtM_unsat h h1 hM
 
 /-- Eliminate the unknown `ra` value of an `asrtR`-shaped precondition. -/
 theorem cpsTripleWithin_regOwn_right_pre {n : Nat} {entry exit_ : Word}
@@ -56,23 +54,24 @@ theorem cpsTripleWithin_regOwn_right_pre {n : Nat} {entry exit_ : Word}
     satisfies a bounded CPS triple at `asrtR` granularity, provided the
     ambient `cr` also contains every callee's code (`hcallees`) and the call
     sites' address side-conditions hold (`hcalls`). -/
-theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
-    {cr : CodeReq}
+theorem Stmt.soundR (reg : Region) (s : Stmt) (base : Word) (pfx : String)
+    (reach : Reach) {cr : CodeReq}
+    (hreg : reg.wf)
     (hofs : s.offsetsOk = true)
     (hsz : 4 * s.size < 2 ^ 64)
     (hcode : ∀ a i, CodeReq.ofProg base (s.flatten base) a = some i → cr a = some i)
-    (hcallees : s.CalleesIn cr)
+    (hcallees : s.CalleesIn reg cr)
     (hcalls : s.callsOk base)
-    (hvcs : VCs.Hold (s.vcs pfx reach)) :
+    (hvcs : VCs.Hold (Stmt.vcs reg s pfx reach)) :
     cpsTripleWithin s.steps base (base + BitVec.ofNat 64 (4 * s.size)) cr
-      (asrtR reach) (asrtR (s.sp reach)) := by
+      (asrtR reg reach) (asrtR reg (Stmt.sp reg s reach)) := by
   induction s generalizing base pfx reach cr with
   | block lbl is =>
       exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
-        (Stmt.sound (.block lbl is) base pfx reach rfl hofs hsz hcode hvcs)
+        (Stmt.sound reg (.block lbl is) base pfx reach hreg rfl hofs hsz hcode hvcs)
   | assert lbl P =>
       exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
-        (Stmt.sound (.assert lbl P) base pfx reach rfl hofs hsz hcode hvcs)
+        (Stmt.sound reg (.assert lbl P) base pfx reach hreg rfl hofs hsz hcode hvcs)
   | seq a b iha ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true] at hofs
       simp only [Stmt.size] at hsz
@@ -95,7 +94,7 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
         rw [hla]
         exact h
       have h1 := iha base pfx reach hofs.1 hsza hcode_a hcallees_a hcalls_a hvcs.left
-      have h2 := ihb (base + BitVec.ofNat 64 (4 * a.size)) pfx (a.sp reach)
+      have h2 := ihb (base + BitVec.ofNat 64 (4 * a.size)) pfx (Stmt.sp reg a reach)
         hofs.2 hszb hcode_b hcallees_b hcalls_b hvcs.right
       have h3 := cpsTripleWithin_seq_same_cr h1 h2
       rw [addr_shift] at h3
@@ -171,14 +170,15 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
         (by rw [Cond.wf_neg]; exact hwf)
       rw [signExtend13_brOfs hofsT] at hbr
       have hbr' := cpsBranchWithin_frameR (regOwn .x1) pcFree_regOwn
-        (cpsBranchWithin_extend_code hcode_br hbr)
+        (cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_br hbr))
       have ht := iht (base + 4) (pfx ++ lbl ++ ".t.")
         (fun rf => reach rf ∧ c.holds rf) hOT (by omega) hcode_t
         hcallees_t hcalls_t hvcs.left
       rw [haddr1] at ht
       have hjal := jal0_spec_pcFree (Stmt.jFwd (e.size + 1))
         (base + BitVec.ofNat 64 (4 * (t.size + 1)))
-        (pcFree_asrtR (t.sp fun rf => reach rf ∧ c.holds rf))
+        (pcFree_asrtR reg (Stmt.sp reg t fun rf => reach rf ∧ c.holds rf))
       rw [signExtend21_jFwd hofsJ, haddr2] at hjal
       have hjal' := cpsTripleWithin_extend_code hcode_jal hjal
       have htj := cpsTripleWithin_seq_same_cr ht hjal'
@@ -186,10 +186,10 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
         (fun rf => reach rf ∧ ¬ c.holds rf) hOE (by omega) hcode_e
         hcallees_e hcalls_e hvcs.right
       rw [haddr3] at he
-      have hbr'' : cpsBranchWithin 1 base cr (asrtR reach)
+      have hbr'' : cpsBranchWithin 1 base cr (asrtR reg reach)
           (base + BitVec.ofNat 64 (4 * (t.size + 2)))
-            (asrtR fun rf => reach rf ∧ ¬ c.holds rf)
-          (base + 4) (asrtR fun rf => reach rf ∧ c.holds rf) := by
+            (asrtR reg fun rf => reach rf ∧ ¬ c.holds rf)
+          (base + 4) (asrtR reg fun rf => reach rf ∧ c.holds rf) := by
         refine cpsBranchWithin_weaken (fun _ hp => hp) ?_ ?_ hbr'
         · exact asrtR_mono (fun rf hh =>
             ⟨hh.1, (Cond.holds_neg c rf).mp hh.2⟩)
@@ -199,16 +199,16 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       have harmE : cpsTripleWithin (max (t.steps + 1) e.steps)
           (base + BitVec.ofNat 64 (4 * (t.size + 2)))
           (base + BitVec.ofNat 64 (4 * (t.size + e.size + 2))) cr
-          (asrtR fun rf => reach rf ∧ ¬ c.holds rf)
-          (asrtR (Stmt.sp (.ite lbl c t e) reach)) := by
+          (asrtR reg fun rf => reach rf ∧ ¬ c.holds rf)
+          (asrtR reg (Stmt.sp reg (.ite lbl c t e) reach)) := by
         refine cpsTripleWithin_mono_nSteps (Nat.le_max_right _ _)
           (cpsTripleWithin_weaken (fun _ hp => hp) ?_ he)
         exact asrtR_mono (fun rf hsp => Or.inr hsp)
       have harmT : cpsTripleWithin (max (t.steps + 1) e.steps)
           (base + 4)
           (base + BitVec.ofNat 64 (4 * (t.size + e.size + 2))) cr
-          (asrtR fun rf => reach rf ∧ c.holds rf)
-          (asrtR (Stmt.sp (.ite lbl c t e) reach)) := by
+          (asrtR reg fun rf => reach rf ∧ c.holds rf)
+          (asrtR reg (Stmt.sp reg (.ite lbl c t e) reach)) := by
         refine cpsTripleWithin_mono_nSteps (Nat.le_max_left _ _)
           (cpsTripleWithin_weaken (fun _ hp => hp) ?_ htj)
         exact asrtR_mono (fun rf hsp => Or.inl hsp)
@@ -233,7 +233,8 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
         (by rw [Cond.wf_neg]; exact hwf)
       rw [signExtend13_brOfs hofsB] at hbr
       have hbr' := cpsBranchWithin_frameR (regOwn .x1) pcFree_regOwn
-        (cpsBranchWithin_extend_code hcode_br hbr)
+        (cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_br hbr))
       have hb := ihb (base + 4) (pfx ++ lbl ++ ".")
         (fun rf => reach rf ∧ c.holds rf)
         hOB (by omega) hcode_b hcallees hcalls hvcs
@@ -242,16 +243,16 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       have hskip : cpsTripleWithin b.steps
           (base + BitVec.ofNat 64 (4 * (b.size + 1)))
           (base + BitVec.ofNat 64 (4 * (b.size + 1))) cr
-          (asrtR fun rf => reach rf ∧ c.neg.holds rf)
-          (asrtR (Stmt.sp (.when lbl c b) reach)) := by
+          (asrtR reg fun rf => reach rf ∧ c.neg.holds rf)
+          (asrtR reg (Stmt.sp reg (.when lbl c b) reach)) := by
         apply cpsTripleWithin_mono_nSteps (Nat.zero_le _)
         apply cpsTripleWithin_entails
         exact asrtR_mono (fun rf hh =>
           Or.inr ⟨hh.1, (Cond.holds_neg c rf).mp hh.2⟩)
       have hbody : cpsTripleWithin b.steps (base + 4)
           (base + BitVec.ofNat 64 (4 * (b.size + 1))) cr
-          (asrtR fun rf => reach rf ∧ ¬ c.neg.holds rf)
-          (asrtR (Stmt.sp (.when lbl c b) reach)) := by
+          (asrtR reg fun rf => reach rf ∧ ¬ c.neg.holds rf)
+          (asrtR reg (Stmt.sp reg (.when lbl c b) reach)) := by
         refine cpsTripleWithin_weaken ?_ ?_ hb
         · exact asrtR_mono (fun rf hh =>
             ⟨hh.1, Decidable.of_not_not
@@ -264,7 +265,7 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       simp only [Stmt.size] at hsz
       have hInvInit : ∀ rf, reach rf → inv 0 rf := hvcs.head
       have hInvStep : ∀ i, i < fuel →
-          ∀ rf', b.sp (fun rf => inv i rf ∧ c.holds rf) rf' → inv (i + 1) rf' :=
+          ∀ rf', Stmt.sp reg b (fun rf => inv i rf ∧ c.holds rf) rf' → inv (i + 1) rf' :=
         hvcs.tail.head
       have hExhausted : ∀ rf, inv fuel rf → ¬ c.holds rf := hvcs.tail.tail.head
       have hBodyVcs := hvcs.tail.tail.tail
@@ -300,16 +301,17 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       have hbodyEnd : (base + 4) + BitVec.ofNat 64 (4 * b.size)
           = base + BitVec.ofNat 64 (4 * (b.size + 1)) := by bv_omega
       have hheader : ∀ (r : Reach),
-          cpsBranchWithin 1 base cr (asrtR r)
+          cpsBranchWithin 1 base cr (asrtR reg r)
             (base + BitVec.ofNat 64 (4 * (b.size + 2)))
-              (asrtR fun rf => r rf ∧ ¬ c.holds rf)
-            (base + 4) (asrtR fun rf => r rf ∧ c.holds rf) := by
+              (asrtR reg fun rf => r rf ∧ ¬ c.holds rf)
+            (base + 4) (asrtR reg fun rf => r rf ∧ c.holds rf) := by
         intro r
         have hbr := branch_spec_asrt c.neg (Stmt.brOfs (b.size + 2)) r base
           (by rw [Cond.wf_neg]; exact hwf)
         rw [signExtend13_brOfs hofsHdr] at hbr
         have hbr' := cpsBranchWithin_frameR (regOwn .x1) pcFree_regOwn
-          (cpsBranchWithin_extend_code hcode_br hbr)
+          (cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+            (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_br hbr))
         refine cpsBranchWithin_weaken (fun _ hp => hp) ?_ ?_ hbr'
         · exact asrtR_mono (fun rf hh =>
             ⟨hh.1, (Cond.holds_neg c rf).mp hh.2⟩)
@@ -318,16 +320,16 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
               (fun hcc => hh.2 ((Cond.holds_neg c rf).mpr hcc))⟩)
       have hbodyStep : ∀ i, i < fuel →
           cpsTripleWithin (b.steps + 1) (base + 4) base cr
-            (asrtR fun rf => inv i rf ∧ c.holds rf)
-            (asrtR fun rf => inv (i + 1) rf) := by
+            (asrtR reg fun rf => inv i rf ∧ c.holds rf)
+            (asrtR reg fun rf => inv (i + 1) rf) := by
         intro i hi
         have hb := ihb (base + 4) (pfx ++ lbl ++ ".body.")
           (fun rf => inv i rf ∧ c.holds rf)
           hOB (by omega) hcode_b hcallees hcalls
-          (Stmt.vcs_antitone b _ (fun rf hr => ⟨i, hi, hr.1, hr.2⟩) hBodyVcs)
+          (Stmt.vcs_antitone reg b _ (fun rf hr => ⟨i, hi, hr.1, hr.2⟩) hBodyVcs)
         have hjal := jal0_spec_pcFree (Stmt.jBack (b.size + 1))
           ((base + 4) + BitVec.ofNat 64 (4 * b.size))
-          (pcFree_asrtR (b.sp fun rf => inv i rf ∧ c.holds rf))
+          (pcFree_asrtR reg (Stmt.sp reg b fun rf => inv i rf ∧ c.holds rf))
         rw [hbodyEnd, add_jBack base (b.size + 1) (by omega) hofsBack] at hjal
         rw [← hbodyEnd] at hjal
         have hjal' := cpsTripleWithin_extend_code hcode_jal hjal
@@ -337,10 +339,10 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       have hcert : ∀ fuel' start, start + fuel' = fuel →
           WP.loopNatCert 1 (b.steps + 1) 1 base (base + 4)
             (base + BitVec.ofNat 64 (4 * (b.size + 2))) cr
-            (fun i => asrtR fun rf => inv i rf)
-            (fun i => asrtR fun rf => inv i rf ∧ c.holds rf)
-            (fun i => asrtR fun rf => inv i rf ∧ ¬ c.holds rf)
-            (asrtR fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf)
+            (fun i => asrtR reg fun rf => inv i rf)
+            (fun i => asrtR reg fun rf => inv i rf ∧ c.holds rf)
+            (fun i => asrtR reg fun rf => inv i rf ∧ ¬ c.holds rf)
+            (asrtR reg fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf)
             start fuel' := by
         intro fuel'
         induction fuel' with
@@ -350,15 +352,15 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
             have hexit : cpsTripleWithin 0
                 (base + BitVec.ofNat 64 (4 * (b.size + 2)))
                 (base + BitVec.ofNat 64 (4 * (b.size + 2))) cr
-                (asrtR fun rf => inv start rf ∧ ¬ c.holds rf)
-                (asrtR fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
+                (asrtR reg fun rf => inv start rf ∧ ¬ c.holds rf)
+                (asrtR reg fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
               cpsTripleWithin_entails (asrtR_mono (fun rf hh =>
                 ⟨⟨start, by omega, hh.1⟩, hh.2⟩))
             have hsf : start = fuel := by omega
             have hdead : cpsTripleWithin 0 (base + 4)
                 (base + BitVec.ofNat 64 (4 * (b.size + 2))) cr
-                (asrtR fun rf => inv start rf ∧ c.holds rf)
-                (asrtR fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
+                (asrtR reg fun rf => inv start rf ∧ c.holds rf)
+                (asrtR reg fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
               cpsTripleWithin_unreachable (asrtR_unsat (fun rf hh =>
                 hExhausted rf (hsf ▸ hh.1) hh.2))
             exact cpsBranchWithin_merge_same_cr
@@ -375,13 +377,14 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
         hsound
   | call lbl f =>
       obtain ⟨hoffset, halign, hnotself⟩ := hcalls
+      obtain ⟨hcalleeCode, hregeq⟩ := hcallees
       have hpreVC : ∀ rf, reach rf → f.pre rf := hvcs _ (List.mem_singleton_self _)
       -- callee triple, retargeted at the aligned return address
       have hret' : cpsTripleWithin f.nSteps f.entry ((base + 4) &&& ~~~(1 : Word))
           f.code
-          ((.x1 ↦ᵣ (base + 4)) ** asrtOf f.pre)
-          ((.x1 ↦ᵣ (base + 4)) ** asrtOf f.post) := by
-        rw [halign]
+          ((.x1 ↦ᵣ (base + 4)) ** asrtM reg f.pre)
+          ((.x1 ↦ᵣ (base + 4)) ** asrtM reg f.post) := by
+        rw [halign, ← hregeq]
         exact f.sound (base + 4) halign
       have hdisj : (CodeReq.singleton base
           (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).Disjoint f.code := by
@@ -401,7 +404,7 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
             (.JAL .x1 (BitVec.setWidth 21 (f.entry - base))) a with
         | none =>
             rw [hs] at h
-            exact hcallees a i h
+            exact hcalleeCode a i h
         | some j =>
             rw [hs] at h
             apply hcode a i
@@ -413,12 +416,12 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       -- the framed call triple, for each old value of ra
       have hcall : ∀ vOld : Word,
           cpsTripleWithin (1 + f.nSteps) base (base + 4) cr
-            ((asrtOf f.pre) ** (.x1 ↦ᵣ vOld))
-            ((asrtOf (Stmt.sp (.call lbl f) reach)) ** regOwn .x1) := by
+            ((asrtM reg f.pre) ** (.x1 ↦ᵣ vOld))
+            ((asrtM reg (Stmt.sp reg (.call lbl f) reach)) ** regOwn .x1) := by
         intro vOld
         have h := WP.cpsCallWithin (vOld := vOld)
           (BitVec.setWidth 21 (f.entry - base)) hoffset halign
-          (pcFree_asrtOf f.pre) hdisj hret'
+          (pcFree_asrtM reg f.pre) hdisj hret'
         have h' := cpsTripleWithin_extend_code hmono h
         refine cpsTripleWithin_weaken ?_ ?_ h'
         · intro hp hh
@@ -429,11 +432,9 @@ theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
           exact sepConj_mono_right (fun hq hx => ⟨base + 4, hx⟩) hp hh
       -- assemble: eliminate the unknown ra value, weaken the entry reach
       have hfinal : cpsTripleWithin (1 + f.nSteps) base (base + 4) cr
-          (asrtR reach) (asrtR (Stmt.sp (.call lbl f) reach)) := by
+          (asrtR reg reach) (asrtR reg (Stmt.sp reg (.call lbl f) reach)) := by
         refine cpsTripleWithin_weaken
-          (sepConj_mono_left (fun hq hh => by
-            obtain ⟨rf, hrf, hr⟩ := hh
-            exact ⟨rf, hrf, hpreVC rf hr⟩))
+          (sepConj_mono_left (asrtM_mono (fun rf hr => hpreVC rf hr)))
           (fun _ hp => hp)
           (cpsTripleWithin_regOwn_right_pre hcall)
       simp only [Stmt.steps, Stmt.size, Nat.mul_one]

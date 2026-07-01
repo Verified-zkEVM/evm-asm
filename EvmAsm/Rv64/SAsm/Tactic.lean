@@ -104,26 +104,41 @@ elab "vcgen" : tactic => do
     -- Caller-shaped goal: code/callee containment and call-site address
     -- side conditions become their own named goals.
     evalTactic (← `(tactic|
-      refine EvmAsm.Rv64.SAsm.Fn.soundR _ _ _ ?code ?callees ?calls ?_))
+      refine EvmAsm.Rv64.SAsm.Fn.soundR _ _ _ ?region ?code ?callees ?calls ?_))
   else
-    evalTactic (← `(tactic| refine EvmAsm.Rv64.SAsm.Fn.sound _ _ ?_))
+    evalTactic (← `(tactic| refine EvmAsm.Rv64.SAsm.Fn.sound _ _ ?region ?_))
   let gs ← getGoals
   let mut out : List MVarId := []
+  let tryDecide (g : MVarId) : TacticM Bool := g.withContext do
+    try
+      let t ← g.getType
+      -- Only accept when the decision procedure genuinely evaluates to
+      -- `true` (mkDecideProof alone can produce kernel-rejected proofs on
+      -- goals with free variables that do not reduce away).
+      let d ← mkDecide t
+      let r ← withDefault <| whnf d
+      unless r.isConstOf ``Bool.true do
+        return false
+      let prf ← mkDecideProof t
+      g.assign prf
+      Pure.pure true
+    catch _ =>
+      Pure.pure false
   for g in gs do
     if (← g.getType).isAppOfArity ``VCs.Hold 1 then
       -- Split the VC list; auto-discharge decidable bookkeeping goals
       -- (kernel `decide`; free variables are fine because the checked
       -- terms reduce them away).
       for g' in ← vcCases g do
-        let closed ← g'.withContext do
-          try
-            let prf ← mkDecideProof (← g'.getType)
-            g'.assign prf
-            Pure.pure true
-          catch _ =>
-            Pure.pure false
-        unless closed do
+        unless ← tryDecide g' do
           out := out ++ [g']
+    else if (← g.getTag).getRoot == `region then
+      -- Region well-formedness is decidable for concrete regions.  Do NOT
+      -- attempt `decide` on the other side goals: they quantify over full
+      -- `Word`s, which is "decidable" by 2^64-case analysis and would melt
+      -- the kernel.
+      unless ← tryDecide g do
+        out := out ++ [g]
     else
       out := out ++ [g]
   replaceMainGoal out

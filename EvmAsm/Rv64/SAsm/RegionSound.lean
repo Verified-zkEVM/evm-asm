@@ -133,5 +133,45 @@ theorem regFile_load_spec_within (i : Instr) (l : LoadOp) (reg : Region)
         (pcFree_sepConj (pcFree_sepConj (pcFree_regFileIs _)
           (bytesRegion_pcFree _ _)) hR) hPR
 
+-- ============================================================================
+-- The region-carrying reachable-set embedding
+-- ============================================================================
+
+/-- Leaf-shaped embedding of a reachable set: the exposed register file plus
+    the function's read-only region. -/
+def asrtM (reg : Region) (reach : Reach) : Assertion :=
+  asrtOf reach ** bytesRegion reg.base reg.bytes
+
+theorem pcFree_asrtM (reg : Region) (reach : Reach) : (asrtM reg reach).pcFree :=
+  pcFree_sepConj (pcFree_asrtOf _) (bytesRegion_pcFree _ _)
+
+theorem asrtM_mono {reg : Region} {r₁ r₂ : Reach} (h : ∀ rf, r₁ rf → r₂ rf) :
+    ∀ hp, asrtM reg r₁ hp → asrtM reg r₂ hp :=
+  fun hp => sepConj_mono_left (fun hq hh => by
+    obtain ⟨rf, hrf, hr⟩ := hh
+    exact ⟨rf, hrf, h rf hr⟩) hp
+
+theorem asrtM_unsat {reg : Region} {r : Reach} (h : ∀ rf, r rf → False) :
+    ∀ hp, asrtM reg r hp → False := by
+  rintro hp ⟨h1, h2, -, -, ⟨rf, -, hr⟩, -⟩
+  exact h rf hr
+
+/-- Split an `asrtM` precondition into a per-register-file family with the
+    region alongside. -/
+theorem cpsTripleWithin_exists_pre_M {n : Nat} {entry exit_ : Word}
+    {cr : CodeReq} {reg : Region} {reach : Reach} {Q : Assertion}
+    (h : ∀ rf, reach rf → cpsTripleWithin n entry exit_ cr
+      ((regFileIs rf) ** bytesRegion reg.base reg.bytes) Q) :
+    cpsTripleWithin n entry exit_ cr (asrtM reg reach) Q := by
+  intro R hR s hcr hPR hpc
+  rw [show asrtM reg reach
+    = (asrtOf reach ** bytesRegion reg.base reg.bytes) from rfl,
+    sepConj_assoc'] at hPR
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, hrf1, hreach⟩, hR2⟩ := hPR
+  have hPR' : ((regFileIs rf) ** (bytesRegion reg.base reg.bytes ** R)).holdsFor s :=
+    ⟨hp, hcompat, h1, h2, hd, hu, hrf1, hR2⟩
+  rw [← sepConj_assoc'] at hPR'
+  exact h rf hreach R hR s hcr hPR' hpc
+
 end SAsm
 end EvmAsm.Rv64
