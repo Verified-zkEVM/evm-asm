@@ -1,159 +1,83 @@
 /-
-  EvmAsm.Rv64.SAsm.StmtSound
+  EvmAsm.Rv64.SAsm.StmtSoundCall
 
-  The generic soundness theorem of the SAsm VC generator: for every
-  statement, if its labeled pure VCs hold then the flattened code satisfies
-  a bounded CPS triple from `asrtOf reach` to `asrtOf (s.sp reach)`.
+  Caller-shaped soundness of the SAsm VC generator: like `Stmt.sound`, but
+  the triple carries ownership of `ra` (`regOwn .x1`) so that `call` nodes
+  can be verified via `WP.cpsCallWithin` against the callee's `FnHandle`.
 
-  Proven once, by structural induction on `Stmt`; each constructor maps onto
-  an existing WP combinator (docs/sasm-design.md §3.5).  The whole statement
-  runs against one ambient `cr` that merely *contains* the flattened code
-  (`hcode`), so no disjointness obligation ever reaches a user: sequential
-  splits use `cpsTripleWithin_seq_same_cr` plus `CodeReq.ofProg` containment.
+  Compared to the leaf theorem, the pre/postcondition is
+  `asrtR reach := asrtOf reach ** regOwn .x1`: `ra` is owned throughout but
+  its *value* is only tracked across call-free segments internally — after a
+  call it holds the call's return address, which the shape deliberately
+  forgets.  Call-free bodies should keep using `Stmt.sound` (via `Fn.sound`)
+  so they can be packaged as `FnHandle`s (`Fn.toHandle`), where `ra`
+  invariance matters.
+
+  Design: docs/sasm-design.md §3.6 (Milestone M4).
 -/
 
-import EvmAsm.Rv64.SAsm.BlockSound
-import EvmAsm.Rv64.SAsm.CtrlSpecs
+import EvmAsm.Rv64.SAsm.StmtSound
+import EvmAsm.Rv64.WP.Call
 
 namespace EvmAsm.Rv64
 namespace SAsm
 
--- ============================================================================
--- CodeReq.ofProg containment lemmas
--- ============================================================================
+/-- Caller-shaped embedding of a reachable set: the exposed register file
+    plus ownership of `ra`. -/
+def asrtR (reach : Reach) : Assertion :=
+  asrtOf reach ** regOwn .x1
 
-/-- An address mapped by `ofProg` lies at some instruction slot. -/
-theorem ofProg_some_range {base : Word} {prog : List Instr} {a : Word} {i : Instr}
-    (h : CodeReq.ofProg base prog a = some i) :
-    ∃ k, k < prog.length ∧ a = base + BitVec.ofNat 64 (4 * k) := by
-  induction prog generalizing base with
-  | nil => exact absurd h (by simp [CodeReq.ofProg_nil, CodeReq.empty])
-  | cons j rest ih =>
-      rw [CodeReq.ofProg_cons] at h
-      simp only [CodeReq.union, CodeReq.singleton] at h
-      by_cases ha : a = base
-      · refine ⟨0, by simp, ?_⟩
-        rw [ha]
-        simp
-      · rw [if_neg (by simpa using ha)] at h
-        obtain ⟨k, hk, hak⟩ := ih h
-        refine ⟨k + 1, by simpa using Nat.succ_lt_succ hk, ?_⟩
-        rw [hak]
-        bv_omega
+theorem pcFree_asrtR (reach : Reach) : (asrtR reach).pcFree :=
+  pcFree_sepConj (pcFree_asrtOf _) pcFree_regOwn
 
-/-- Code of a list prefix is contained in the whole list's `ofProg`. -/
-theorem ofProg_mono_left {base : Word} {p1 p2 : List Instr} :
-    ∀ a i, CodeReq.ofProg base p1 a = some i →
-      CodeReq.ofProg base (p1 ++ p2) a = some i := by
-  intro a i h
-  rw [CodeReq.ofProg_append]
-  simp only [CodeReq.union, h]
+theorem asrtR_mono {r₁ r₂ : Reach} (h : ∀ rf, r₁ rf → r₂ rf) :
+    ∀ hp, asrtR r₁ hp → asrtR r₂ hp :=
+  fun hp => sepConj_mono_left (fun hq hh => by
+    obtain ⟨rf, hrf, hr⟩ := hh
+    exact ⟨rf, hrf, h rf hr⟩) hp
 
-/-- Code of a list suffix is contained in the whole list's `ofProg`,
-    provided the total footprint does not wrap the address space. -/
-theorem ofProg_mono_right {base : Word} {p1 p2 : List Instr}
-    (hlen : 4 * (p1.length + p2.length) ≤ 2 ^ 64) :
-    ∀ a i, CodeReq.ofProg (base + BitVec.ofNat 64 (4 * p1.length)) p2 a = some i →
-      CodeReq.ofProg base (p1 ++ p2) a = some i := by
-  intro a i h
-  rw [CodeReq.ofProg_append]
-  have hnone : CodeReq.ofProg base p1 a = none := by
-    apply CodeReq.ofProg_none_range
-    intro k hk heq
-    obtain ⟨j, hj, hja⟩ := ofProg_some_range h
-    rw [heq, addr_shift] at hja
-    have htn := congrArg BitVec.toNat hja
-    simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at htn
-    have hb := base.isLt
-    omega
-  simp only [CodeReq.union, hnone, h]
+theorem asrtR_unsat {r : Reach} (h : ∀ rf, r rf → False) :
+    ∀ hp, asrtR r hp → False := by
+  rintro hp ⟨h1, h2, -, -, ⟨rf, -, hr⟩, -⟩
+  exact h rf hr
 
-/-- The head instruction of a `cons` program is contained in its `ofProg`. -/
-theorem ofProg_head {base : Word} {i : Instr} {rest : List Instr} :
-    ∀ a j, CodeReq.singleton base i a = some j →
-      CodeReq.ofProg base (i :: rest) a = some j := by
-  intro a j h
-  rw [CodeReq.ofProg_cons]
-  simp only [CodeReq.union, h]
-
-/-- The tail of a `cons` program is contained in its `ofProg` (no wrap). -/
-theorem ofProg_cons_tail {base : Word} {i : Instr} {rest : List Instr}
-    (hlen : 4 * (rest.length + 1) ≤ 2 ^ 64) :
-    ∀ a j, CodeReq.ofProg (base + 4) rest a = some j →
-      CodeReq.ofProg base (i :: rest) a = some j := by
-  intro a j h
-  exact ofProg_mono_right (p1 := [i])
-    (by simpa [Nat.add_comm] using hlen) a j (by simpa using h)
-
--- ============================================================================
--- Reach-level helper triples
--- ============================================================================
-
-/-- Split an `asrtOf` precondition into a per-register-file family. -/
-theorem cpsTripleWithin_exists_pre {n : Nat} {entry exit_ : Word} {cr : CodeReq}
-    {reach : Reach} {Q : Assertion}
-    (h : ∀ rf, reach rf → cpsTripleWithin n entry exit_ cr (regFileIs rf) Q) :
-    cpsTripleWithin n entry exit_ cr (asrtOf reach) Q := by
-  intro R hR s hcr hPR hpc
-  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, hrf1, hreach⟩, hR2⟩ := hPR
-  exact h rf hreach R hR s hcr ⟨hp, hcompat, h1, h2, hd, hu, hrf1, hR2⟩ hpc
-
-/-- Zero-step triple from a pointwise entailment. -/
-theorem cpsTripleWithin_entails {entry : Word} {cr : CodeReq} {P Q : Assertion}
-    (h : ∀ hp, P hp → Q hp) :
-    cpsTripleWithin 0 entry entry cr P Q := by
-  intro R hR s hcr hPR hpc
-  refine ⟨0, Nat.le_refl 0, s, rfl, hpc, ?_⟩
-  obtain ⟨hp, hcompat, hpq⟩ := hPR
-  exact ⟨hp, hcompat, sepConj_mono_left h hp hpq⟩
-
-/-- Any triple holds from an unsatisfiable precondition. -/
-theorem cpsTripleWithin_unreachable {n : Nat} {entry exit_ : Word} {cr : CodeReq}
-    {P Q : Assertion} (h : ∀ hp, P hp → False) :
-    cpsTripleWithin n entry exit_ cr P Q := by
+/-- Eliminate the unknown `ra` value of an `asrtR`-shaped precondition. -/
+theorem cpsTripleWithin_regOwn_right_pre {n : Nat} {entry exit_ : Word}
+    {cr : CodeReq} {P Q : Assertion} {r : Reg}
+    (h : ∀ v : Word, cpsTripleWithin n entry exit_ cr (P ** (r ↦ᵣ v)) Q) :
+    cpsTripleWithin n entry exit_ cr (P ** regOwn r) Q := by
   intro R hR s hcr hPR hpc
   obtain ⟨hp, hcompat, h1, h2, hd, hu, hP1, hR2⟩ := hPR
-  exact absurd hP1 (h h1)
+  obtain ⟨h1a, h1b, hd1, hu1, hPa, ⟨v, hv⟩⟩ := hP1
+  exact h v R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu, ⟨h1a, h1b, hd1, hu1, hPa, hv⟩, hR2⟩ hpc
 
-/-- `wf` is invariant under condition negation. -/
-theorem Cond.wf_neg (c : Cond) : c.neg.wf = c.wf := by
-  cases c <;> rfl
-
--- ============================================================================
--- The generic soundness theorem
--- ============================================================================
-
-/-- Soundness of the SAsm VC generator (docs/sasm-design.md §3.5): if the
-    labeled VCs of `s` hold, the flattened code of `s` placed at `base`
-    satisfies a bounded CPS triple from `asrtOf reach` to
-    `asrtOf (s.sp reach)`, within `s.steps` machine steps, under any code
-    requirement `cr` containing the flattened code.
-
-    `hofs` (offsets fit their immediates) and `hsz` (the function does not
-    wrap the address space) are decidable per program; `Fn.sound` (M3)
-    discharges them by `decide`. -/
-theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
+/-- Caller-shaped soundness (Milestone M4): the flattened code of `s`
+    satisfies a bounded CPS triple at `asrtR` granularity, provided the
+    ambient `cr` also contains every callee's code (`hcallees`) and the call
+    sites' address side-conditions hold (`hcalls`). -/
+theorem Stmt.soundR (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
     {cr : CodeReq}
-    (hleaf : s.callFree = true)
     (hofs : s.offsetsOk = true)
     (hsz : 4 * s.size < 2 ^ 64)
     (hcode : ∀ a i, CodeReq.ofProg base (s.flatten base) a = some i → cr a = some i)
+    (hcallees : s.CalleesIn cr)
+    (hcalls : s.callsOk base)
     (hvcs : VCs.Hold (s.vcs pfx reach)) :
     cpsTripleWithin s.steps base (base + BitVec.ofNat 64 (4 * s.size)) cr
-      (asrtOf reach) (asrtOf (s.sp reach)) := by
+      (asrtR reach) (asrtR (s.sp reach)) := by
   induction s generalizing base pfx reach cr with
   | block lbl is =>
-      have hok : blockOk is = true := hvcs _ (List.mem_singleton_self _)
-      apply cpsTripleWithin_exists_pre
-      intro rf hreach
-      have h := execBlock_sound is rf base hok (by simpa [Stmt.size] using hsz)
-      have h' := cpsTripleWithin_extend_code hcode h
-      exact cpsTripleWithin_weaken (fun _ hp => hp)
-        (fun hp hh => ⟨execBlock rf is, hh, rf, hreach, rfl⟩) h'
+      exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
+        (Stmt.sound (.block lbl is) base pfx reach rfl hofs hsz hcode hvcs)
+  | assert lbl P =>
+      exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
+        (Stmt.sound (.assert lbl P) base pfx reach rfl hofs hsz hcode hvcs)
   | seq a b iha ihb =>
-      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       simp only [Stmt.offsetsOk, Bool.and_eq_true] at hofs
       simp only [Stmt.size] at hsz
+      obtain ⟨hcallees_a, hcallees_b⟩ := hcallees
+      obtain ⟨hcalls_a, hcalls_b⟩ := hcalls
       have hsza : 4 * a.size < 2 ^ 64 := by omega
       have hszb : 4 * b.size < 2 ^ 64 := by omega
       have hla : (a.flatten base).length = a.size := Stmt.flatten_length a base
@@ -170,20 +94,20 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
           (by rw [hla, Stmt.flatten_length]; omega)
         rw [hla]
         exact h
-      have h1 := iha base pfx reach hleaf.1 hofs.1 hsza hcode_a hvcs.left
+      have h1 := iha base pfx reach hofs.1 hsza hcode_a hcallees_a hcalls_a hvcs.left
       have h2 := ihb (base + BitVec.ofNat 64 (4 * a.size)) pfx (a.sp reach)
-        hleaf.2 hofs.2 hszb hcode_b hvcs.right
+        hofs.2 hszb hcode_b hcallees_b hcalls_b hvcs.right
       have h3 := cpsTripleWithin_seq_same_cr h1 h2
       rw [addr_shift] at h3
       have : 4 * a.size + 4 * b.size = 4 * (a.size + b.size) := by omega
       rw [this] at h3
       exact h3
   | ite lbl c t e iht ihe =>
-      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
       obtain ⟨⟨⟨⟨hwf, hofsT⟩, hofsJ⟩, hOT⟩, hOE⟩ := hofs
+      obtain ⟨hcallees_t, hcallees_e⟩ := hcallees
+      obtain ⟨hcalls_t, hcalls_e⟩ := hcalls
       simp only [Stmt.size] at hsz
-      -- Layout facts
       have hlt : (t.flatten (base + 4)).length = t.size := Stmt.flatten_length ..
       have haddr1 : (base + 4) + BitVec.ofNat 64 (4 * t.size)
           = base + BitVec.ofNat 64 (4 * (t.size + 1)) := by bv_omega
@@ -195,7 +119,6 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
           = base + BitVec.ofNat 64 (4 * (t.size + e.size + 2)) := by bv_omega
       have haddr4 : (base + BitVec.ofNat 64 (4 * (t.size + 1))) + 4
           = base + BitVec.ofNat 64 (4 * (t.size + 2)) := by bv_omega
-      -- Code containment for the four regions
       have hflat : Stmt.flatten base (.ite lbl c t e)
           = (c.neg.toInstr (Stmt.brOfs (t.size + 2)))
             :: (t.flatten (base + 4)
@@ -244,55 +167,51 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
           (by rw [Stmt.flatten_length]; omega)
         rw [haddr4]
         exact h
-      -- Branch spec at the header
       have hbr := branch_spec_asrt c.neg (Stmt.brOfs (t.size + 2)) reach base
         (by rw [Cond.wf_neg]; exact hwf)
       rw [signExtend13_brOfs hofsT] at hbr
-      have hbr' := cpsBranchWithin_extend_code hcode_br hbr
-      -- Then-arm: t's code then the skip jump
+      have hbr' := cpsBranchWithin_frameR (regOwn .x1) pcFree_regOwn
+        (cpsBranchWithin_extend_code hcode_br hbr)
       have ht := iht (base + 4) (pfx ++ lbl ++ ".t.")
-        (fun rf => reach rf ∧ c.holds rf) hleaf.1 hOT (by omega) hcode_t hvcs.left
+        (fun rf => reach rf ∧ c.holds rf) hOT (by omega) hcode_t
+        hcallees_t hcalls_t hvcs.left
       rw [haddr1] at ht
       have hjal := jal0_spec_pcFree (Stmt.jFwd (e.size + 1))
         (base + BitVec.ofNat 64 (4 * (t.size + 1)))
-        (pcFree_asrtOf (t.sp fun rf => reach rf ∧ c.holds rf))
+        (pcFree_asrtR (t.sp fun rf => reach rf ∧ c.holds rf))
       rw [signExtend21_jFwd hofsJ, haddr2] at hjal
       have hjal' := cpsTripleWithin_extend_code hcode_jal hjal
       have htj := cpsTripleWithin_seq_same_cr ht hjal'
-      -- Else-arm
       have he := ihe (base + BitVec.ofNat 64 (4 * (t.size + 2))) (pfx ++ lbl ++ ".e.")
-        (fun rf => reach rf ∧ ¬ c.holds rf) hleaf.2 hOE (by omega) hcode_e hvcs.right
+        (fun rf => reach rf ∧ ¬ c.holds rf) hOE (by omega) hcode_e
+        hcallees_e hcalls_e hvcs.right
       rw [haddr3] at he
-      -- Weaken branch posts: neg-condition denotations and arm preconditions
-      have hbr'' : cpsBranchWithin 1 base cr (asrtOf reach)
+      have hbr'' : cpsBranchWithin 1 base cr (asrtR reach)
           (base + BitVec.ofNat 64 (4 * (t.size + 2)))
-            (asrtOf fun rf => reach rf ∧ ¬ c.holds rf)
-          (base + 4) (asrtOf fun rf => reach rf ∧ c.holds rf) := by
+            (asrtR fun rf => reach rf ∧ ¬ c.holds rf)
+          (base + 4) (asrtR fun rf => reach rf ∧ c.holds rf) := by
         refine cpsBranchWithin_weaken (fun _ hp => hp) ?_ ?_ hbr'
-        · rintro hp ⟨rf, hrf, hr, hnc⟩
-          exact ⟨rf, hrf, hr, (Cond.holds_neg c rf).mp hnc⟩
-        · rintro hp ⟨rf, hrf, hr, hnc⟩
-          exact ⟨rf, hrf, hr,
-            Decidable.of_not_not (fun hcc => hnc ((Cond.holds_neg c rf).mpr hcc))⟩
-      -- Merge: taken exit is the else entry, not-taken is the then entry
+        · exact asrtR_mono (fun rf hh =>
+            ⟨hh.1, (Cond.holds_neg c rf).mp hh.2⟩)
+        · exact asrtR_mono (fun rf hh =>
+            ⟨hh.1, Decidable.of_not_not
+              (fun hcc => hh.2 ((Cond.holds_neg c rf).mpr hcc))⟩)
       have harmE : cpsTripleWithin (max (t.steps + 1) e.steps)
           (base + BitVec.ofNat 64 (4 * (t.size + 2)))
           (base + BitVec.ofNat 64 (4 * (t.size + e.size + 2))) cr
-          (asrtOf fun rf => reach rf ∧ ¬ c.holds rf)
-          (asrtOf (Stmt.sp (.ite lbl c t e) reach)) := by
+          (asrtR fun rf => reach rf ∧ ¬ c.holds rf)
+          (asrtR (Stmt.sp (.ite lbl c t e) reach)) := by
         refine cpsTripleWithin_mono_nSteps (Nat.le_max_right _ _)
           (cpsTripleWithin_weaken (fun _ hp => hp) ?_ he)
-        rintro hp ⟨rf, hrf, hsp⟩
-        exact ⟨rf, hrf, Or.inr hsp⟩
+        exact asrtR_mono (fun rf hsp => Or.inr hsp)
       have harmT : cpsTripleWithin (max (t.steps + 1) e.steps)
           (base + 4)
           (base + BitVec.ofNat 64 (4 * (t.size + e.size + 2))) cr
-          (asrtOf fun rf => reach rf ∧ c.holds rf)
-          (asrtOf (Stmt.sp (.ite lbl c t e) reach)) := by
+          (asrtR fun rf => reach rf ∧ c.holds rf)
+          (asrtR (Stmt.sp (.ite lbl c t e) reach)) := by
         refine cpsTripleWithin_mono_nSteps (Nat.le_max_left _ _)
           (cpsTripleWithin_weaken (fun _ hp => hp) ?_ htj)
-        rintro hp ⟨rf, hrf, hsp⟩
-        exact ⟨rf, hrf, Or.inl hsp⟩
+        exact asrtR_mono (fun rf hsp => Or.inl hsp)
       exact cpsBranchWithin_merge_same_cr hbr'' harmE harmT
   | «when» lbl c b ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
@@ -313,58 +232,42 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
       have hbr := branch_spec_asrt c.neg (Stmt.brOfs (b.size + 1)) reach base
         (by rw [Cond.wf_neg]; exact hwf)
       rw [signExtend13_brOfs hofsB] at hbr
-      have hbr' := cpsBranchWithin_extend_code hcode_br hbr
+      have hbr' := cpsBranchWithin_frameR (regOwn .x1) pcFree_regOwn
+        (cpsBranchWithin_extend_code hcode_br hbr)
       have hb := ihb (base + 4) (pfx ++ lbl ++ ".")
-        (fun rf => reach rf ∧ c.holds rf) (by simpa [Stmt.callFree] using hleaf)
-        hOB (by omega) hcode_b hvcs
+        (fun rf => reach rf ∧ c.holds rf)
+        hOB (by omega) hcode_b hcallees hcalls hvcs
       rw [show (base + 4) + BitVec.ofNat 64 (4 * b.size)
           = base + BitVec.ofNat 64 (4 * (b.size + 1)) from by bv_omega] at hb
-      -- taken (¬c): skip directly to the exit
       have hskip : cpsTripleWithin b.steps
           (base + BitVec.ofNat 64 (4 * (b.size + 1)))
           (base + BitVec.ofNat 64 (4 * (b.size + 1))) cr
-          (asrtOf fun rf => reach rf ∧ c.neg.holds rf)
-          (asrtOf (Stmt.sp (.when lbl c b) reach)) := by
+          (asrtR fun rf => reach rf ∧ c.neg.holds rf)
+          (asrtR (Stmt.sp (.when lbl c b) reach)) := by
         apply cpsTripleWithin_mono_nSteps (Nat.zero_le _)
         apply cpsTripleWithin_entails
-        rintro hp ⟨rf, hrf, hr, hnc⟩
-        exact ⟨rf, hrf, Or.inr ⟨hr, (Cond.holds_neg c rf).mp hnc⟩⟩
-      -- not-taken (c): run the body
+        exact asrtR_mono (fun rf hh =>
+          Or.inr ⟨hh.1, (Cond.holds_neg c rf).mp hh.2⟩)
       have hbody : cpsTripleWithin b.steps (base + 4)
           (base + BitVec.ofNat 64 (4 * (b.size + 1))) cr
-          (asrtOf fun rf => reach rf ∧ ¬ c.neg.holds rf)
-          (asrtOf (Stmt.sp (.when lbl c b) reach)) := by
+          (asrtR fun rf => reach rf ∧ ¬ c.neg.holds rf)
+          (asrtR (Stmt.sp (.when lbl c b) reach)) := by
         refine cpsTripleWithin_weaken ?_ ?_ hb
-        · rintro hp ⟨rf, hrf, hr, hnc⟩
-          exact ⟨rf, hrf, hr,
-            Decidable.of_not_not (fun hcc => hnc ((Cond.holds_neg c rf).mpr hcc))⟩
-        · rintro hp ⟨rf, hrf, hsp⟩
-          exact ⟨rf, hrf, Or.inl hsp⟩
+        · exact asrtR_mono (fun rf hh =>
+            ⟨hh.1, Decidable.of_not_not
+              (fun hcc => hh.2 ((Cond.holds_neg c rf).mpr hcc))⟩)
+        · exact asrtR_mono (fun rf hsp => Or.inl hsp)
       exact cpsBranchWithin_merge_same_cr hbr' hskip hbody
-  | assert lbl P =>
-      have hvc := hvcs _ (List.mem_singleton_self _)
-      have h : cpsTripleWithin 0 base base cr (asrtOf reach)
-          (asrtOf (Stmt.sp (.assert lbl P) reach)) :=
-        cpsTripleWithin_entails (fun hp hh => by
-          obtain ⟨rf, hrf, hr⟩ := hh
-          exact ⟨rf, hrf, hr, hvc rf hr⟩)
-      have hz : base + BitVec.ofNat 64 (4 * Stmt.size (.assert lbl P)) = base := by
-        simp [Stmt.size]
-      simp only [Stmt.steps]
-      rw [hz]
-      exact h
   | «while» lbl c fuel inv b ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
       obtain ⟨⟨⟨hwf, hofsHdr⟩, hofsBack⟩, hOB⟩ := hofs
       simp only [Stmt.size] at hsz
-      -- VC pieces
       have hInvInit : ∀ rf, reach rf → inv 0 rf := hvcs.head
       have hInvStep : ∀ i, i < fuel →
           ∀ rf', b.sp (fun rf => inv i rf ∧ c.holds rf) rf' → inv (i + 1) rf' :=
         hvcs.tail.head
       have hExhausted : ∀ rf, inv fuel rf → ¬ c.holds rf := hvcs.tail.tail.head
       have hBodyVcs := hvcs.tail.tail.tail
-      -- Code containment
       have hlenAll : 4 * ((b.flatten (base + 4)
           ++ [Instr.JAL Reg.x0 (Stmt.jBack (b.size + 1))]).length + 1) ≤ 2 ^ 64 := by
         simp only [List.length_append, List.length_cons, List.length_nil,
@@ -394,99 +297,149 @@ theorem Stmt.sound (s : Stmt) (base : Word) (pfx : String) (reach : Reach)
           (by simp only [List.length_cons, List.length_nil, Stmt.flatten_length]; omega)
         rw [Stmt.flatten_length]
         exact ofProg_head a' i h
-      -- Loop skeleton addresses
       have hbodyEnd : (base + 4) + BitVec.ofNat 64 (4 * b.size)
           = base + BitVec.ofNat 64 (4 * (b.size + 1)) := by bv_omega
-      -- Header branch at any invariant index
       have hheader : ∀ (r : Reach),
-          cpsBranchWithin 1 base cr (asrtOf r)
+          cpsBranchWithin 1 base cr (asrtR r)
             (base + BitVec.ofNat 64 (4 * (b.size + 2)))
-              (asrtOf fun rf => r rf ∧ ¬ c.holds rf)
-            (base + 4) (asrtOf fun rf => r rf ∧ c.holds rf) := by
+              (asrtR fun rf => r rf ∧ ¬ c.holds rf)
+            (base + 4) (asrtR fun rf => r rf ∧ c.holds rf) := by
         intro r
         have hbr := branch_spec_asrt c.neg (Stmt.brOfs (b.size + 2)) r base
           (by rw [Cond.wf_neg]; exact hwf)
         rw [signExtend13_brOfs hofsHdr] at hbr
-        have hbr' := cpsBranchWithin_extend_code hcode_br hbr
-        exact cpsBranchWithin_weaken (fun _ hp => hp)
-          (fun hp hh => by
-            obtain ⟨rf, hrf, hr, hnc⟩ := hh
-            exact ⟨rf, hrf, hr, (Cond.holds_neg c rf).mp hnc⟩)
-          (fun hp hh => by
-            obtain ⟨rf, hrf, hr, hnc⟩ := hh
-            exact ⟨rf, hrf, hr,
-              Decidable.of_not_not (fun hcc => hnc ((Cond.holds_neg c rf).mpr hcc))⟩)
-          hbr'
-      -- Body + back-jump triple for each iteration index
+        have hbr' := cpsBranchWithin_frameR (regOwn .x1) pcFree_regOwn
+          (cpsBranchWithin_extend_code hcode_br hbr)
+        refine cpsBranchWithin_weaken (fun _ hp => hp) ?_ ?_ hbr'
+        · exact asrtR_mono (fun rf hh =>
+            ⟨hh.1, (Cond.holds_neg c rf).mp hh.2⟩)
+        · exact asrtR_mono (fun rf hh =>
+            ⟨hh.1, Decidable.of_not_not
+              (fun hcc => hh.2 ((Cond.holds_neg c rf).mpr hcc))⟩)
       have hbodyStep : ∀ i, i < fuel →
           cpsTripleWithin (b.steps + 1) (base + 4) base cr
-            (asrtOf fun rf => inv i rf ∧ c.holds rf)
-            (asrtOf fun rf => inv (i + 1) rf) := by
+            (asrtR fun rf => inv i rf ∧ c.holds rf)
+            (asrtR fun rf => inv (i + 1) rf) := by
         intro i hi
         have hb := ihb (base + 4) (pfx ++ lbl ++ ".body.")
-          (fun rf => inv i rf ∧ c.holds rf) (by simpa [Stmt.callFree] using hleaf)
-          hOB (by omega) hcode_b
+          (fun rf => inv i rf ∧ c.holds rf)
+          hOB (by omega) hcode_b hcallees hcalls
           (Stmt.vcs_antitone b _ (fun rf hr => ⟨i, hi, hr.1, hr.2⟩) hBodyVcs)
         have hjal := jal0_spec_pcFree (Stmt.jBack (b.size + 1))
           ((base + 4) + BitVec.ofNat 64 (4 * b.size))
-          (pcFree_asrtOf (b.sp fun rf => inv i rf ∧ c.holds rf))
+          (pcFree_asrtR (b.sp fun rf => inv i rf ∧ c.holds rf))
         rw [hbodyEnd, add_jBack base (b.size + 1) (by omega) hofsBack] at hjal
         rw [← hbodyEnd] at hjal
         have hjal' := cpsTripleWithin_extend_code hcode_jal hjal
         have hseq := cpsTripleWithin_seq_same_cr hb hjal'
         exact cpsTripleWithin_weaken (fun _ hp => hp)
-          (fun hp hh => by
-            obtain ⟨rf, hrf, hsp⟩ := hh
-            exact ⟨rf, hrf, hInvStep i hi rf hsp⟩) hseq
-      -- The loop certificate, by downward recursion on the remaining fuel
+          (asrtR_mono (fun rf hsp => hInvStep i hi rf hsp)) hseq
       have hcert : ∀ fuel' start, start + fuel' = fuel →
           WP.loopNatCert 1 (b.steps + 1) 1 base (base + 4)
             (base + BitVec.ofNat 64 (4 * (b.size + 2))) cr
-            (fun i => asrtOf fun rf => inv i rf)
-            (fun i => asrtOf fun rf => inv i rf ∧ c.holds rf)
-            (fun i => asrtOf fun rf => inv i rf ∧ ¬ c.holds rf)
-            (asrtOf fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf)
+            (fun i => asrtR fun rf => inv i rf)
+            (fun i => asrtR fun rf => inv i rf ∧ c.holds rf)
+            (fun i => asrtR fun rf => inv i rf ∧ ¬ c.holds rf)
+            (asrtR fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf)
             start fuel' := by
         intro fuel'
         induction fuel' with
         | zero =>
             intro start hstart
-            -- Forced exit: the header must fall out (fuel exhausted)
             simp only [WP.loopNatCert]
             have hexit : cpsTripleWithin 0
                 (base + BitVec.ofNat 64 (4 * (b.size + 2)))
                 (base + BitVec.ofNat 64 (4 * (b.size + 2))) cr
-                (asrtOf fun rf => inv start rf ∧ ¬ c.holds rf)
-                (asrtOf fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
-              cpsTripleWithin_entails (fun hp hh => by
-                obtain ⟨rf, hrf, hr, hnc⟩ := hh
-                exact ⟨rf, hrf, ⟨start, by omega, hr⟩, hnc⟩)
+                (asrtR fun rf => inv start rf ∧ ¬ c.holds rf)
+                (asrtR fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
+              cpsTripleWithin_entails (asrtR_mono (fun rf hh =>
+                ⟨⟨start, by omega, hh.1⟩, hh.2⟩))
             have hsf : start = fuel := by omega
             have hdead : cpsTripleWithin 0 (base + 4)
                 (base + BitVec.ofNat 64 (4 * (b.size + 2))) cr
-                (asrtOf fun rf => inv start rf ∧ c.holds rf)
-                (asrtOf fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
-              cpsTripleWithin_unreachable (fun hp hh => by
-                obtain ⟨rf, hrf, hr, hc⟩ := hh
-                exact hExhausted rf (hsf ▸ hr) hc)
+                (asrtR fun rf => inv start rf ∧ c.holds rf)
+                (asrtR fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf) :=
+              cpsTripleWithin_unreachable (asrtR_unsat (fun rf hh =>
+                hExhausted rf (hsf ▸ hh.1) hh.2))
             exact cpsBranchWithin_merge_same_cr
               (cpsBranchWithin_swap (hheader (fun rf => inv start rf))) hdead hexit
         | succ fuel' ih =>
             intro start hstart
             refine ⟨cpsBranchWithin_swap (hheader (fun rf => inv start rf)),
               hbodyStep start (by omega), ?_, ih (start + 1) (by omega)⟩
-            intro hp hh
-            obtain ⟨rf, hrf, hr, hnc⟩ := hh
-            exact ⟨rf, hrf, ⟨start, by omega, hr⟩, hnc⟩
+            exact asrtR_mono (fun rf hh => ⟨⟨start, by omega, hh.1⟩, hh.2⟩)
       have hsound := WP.loopNatCert_sound (hcert fuel 0 (by omega))
       exact cpsTripleWithin_weaken
-        (fun hp hh => by
-          obtain ⟨rf, hrf, hr⟩ := hh
-          exact ⟨rf, hrf, hInvInit rf hr⟩)
+        (asrtR_mono (fun rf hr => hInvInit rf hr))
         (fun _ hp => hp)
         hsound
   | call lbl f =>
-      exact absurd hleaf (by simp [Stmt.callFree])
+      obtain ⟨hoffset, halign, hnotself⟩ := hcalls
+      have hpreVC : ∀ rf, reach rf → f.pre rf := hvcs _ (List.mem_singleton_self _)
+      -- callee triple, retargeted at the aligned return address
+      have hret' : cpsTripleWithin f.nSteps f.entry ((base + 4) &&& ~~~(1 : Word))
+          f.code
+          ((.x1 ↦ᵣ (base + 4)) ** asrtOf f.pre)
+          ((.x1 ↦ᵣ (base + 4)) ** asrtOf f.post) := by
+        rw [halign]
+        exact f.sound (base + 4) halign
+      have hdisj : (CodeReq.singleton base
+          (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).Disjoint f.code := by
+        intro a
+        by_cases ha : a = base
+        · subst ha
+          exact Or.inr hnotself
+        · left
+          simp [CodeReq.singleton, ha]
+      have hmono : ∀ a i,
+          ((CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).union f.code) a = some i →
+          cr a = some i := by
+        intro a i h
+        simp only [CodeReq.union] at h
+        cases hs : CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base))) a with
+        | none =>
+            rw [hs] at h
+            exact hcallees a i h
+        | some j =>
+            rw [hs] at h
+            apply hcode a i
+            rw [show Stmt.flatten base (.call lbl f)
+              = [.JAL .x1 (BitVec.setWidth 21 (f.entry - base))] from rfl,
+              CodeReq.ofProg_singleton]
+            rw [hs]
+            exact h
+      -- the framed call triple, for each old value of ra
+      have hcall : ∀ vOld : Word,
+          cpsTripleWithin (1 + f.nSteps) base (base + 4) cr
+            ((asrtOf f.pre) ** (.x1 ↦ᵣ vOld))
+            ((asrtOf (Stmt.sp (.call lbl f) reach)) ** regOwn .x1) := by
+        intro vOld
+        have h := WP.cpsCallWithin (vOld := vOld)
+          (BitVec.setWidth 21 (f.entry - base)) hoffset halign
+          (pcFree_asrtOf f.pre) hdisj hret'
+        have h' := cpsTripleWithin_extend_code hmono h
+        refine cpsTripleWithin_weaken ?_ ?_ h'
+        · intro hp hh
+          rw [sepConj_comm'] at hh
+          exact hh
+        · intro hp hh
+          rw [sepConj_comm' (.x1 ↦ᵣ (base + 4))] at hh
+          exact sepConj_mono_right (fun hq hx => ⟨base + 4, hx⟩) hp hh
+      -- assemble: eliminate the unknown ra value, weaken the entry reach
+      have hfinal : cpsTripleWithin (1 + f.nSteps) base (base + 4) cr
+          (asrtR reach) (asrtR (Stmt.sp (.call lbl f) reach)) := by
+        refine cpsTripleWithin_weaken
+          (sepConj_mono_left (fun hq hh => by
+            obtain ⟨rf, hrf, hr⟩ := hh
+            exact ⟨rf, hrf, hpreVC rf hr⟩))
+          (fun _ hp => hp)
+          (cpsTripleWithin_regOwn_right_pre hcall)
+      simp only [Stmt.steps, Stmt.size, Nat.mul_one]
+      have h4 : base + BitVec.ofNat 64 4 = base + 4 := rfl
+      rw [h4]
+      exact hfinal
 
 end SAsm
 end EvmAsm.Rv64

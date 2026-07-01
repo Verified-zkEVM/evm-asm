@@ -14,6 +14,8 @@ import EvmAsm.Rv64.SAsm.BlockSound
 import EvmAsm.Rv64.SAsm.Vc
 import EvmAsm.Rv64.SAsm.CtrlSpecs
 import EvmAsm.Rv64.SAsm.StmtSound
+import EvmAsm.Rv64.SAsm.Handle
+import EvmAsm.Rv64.SAsm.StmtSoundCall
 import EvmAsm.Rv64.SAsm.Fn
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Rv64.SAsm.Examples

@@ -99,23 +99,34 @@ private partial def vcCases (g : MVarId) : MetaM (List MVarId) := do
     verification condition.  Decidable bookkeeping VCs are closed with
     `decide`; the remaining goals carry their path labels as case names. -/
 elab "vcgen" : tactic => do
-  evalTactic (← `(tactic| refine EvmAsm.Rv64.SAsm.Fn.sound _ _ ?_))
-  let g ← getMainGoal
-  let gs ← vcCases g
-  -- Auto-discharge decidable bookkeeping goals (kernel `decide`; free
-  -- variables are fine because the checked terms reduce them away).
-  let mut remaining : List MVarId := []
+  let tgt ← getMainTarget
+  if tgt.isAppOf ``Fn.SpecR then
+    -- Caller-shaped goal: code/callee containment and call-site address
+    -- side conditions become their own named goals.
+    evalTactic (← `(tactic|
+      refine EvmAsm.Rv64.SAsm.Fn.soundR _ _ _ ?code ?callees ?calls ?_))
+  else
+    evalTactic (← `(tactic| refine EvmAsm.Rv64.SAsm.Fn.sound _ _ ?_))
+  let gs ← getGoals
+  let mut out : List MVarId := []
   for g in gs do
-    let closed ← g.withContext do
-      try
-        let prf ← mkDecideProof (← g.getType)
-        g.assign prf
-        Pure.pure true
-      catch _ =>
-        Pure.pure false
-    unless closed do
-      remaining := remaining ++ [g]
-  replaceMainGoal remaining
+    if (← g.getType).isAppOfArity ``VCs.Hold 1 then
+      -- Split the VC list; auto-discharge decidable bookkeeping goals
+      -- (kernel `decide`; free variables are fine because the checked
+      -- terms reduce them away).
+      for g' in ← vcCases g do
+        let closed ← g'.withContext do
+          try
+            let prf ← mkDecideProof (← g'.getType)
+            g'.assign prf
+            Pure.pure true
+          catch _ =>
+            Pure.pure false
+        unless closed do
+          out := out ++ [g']
+    else
+      out := out ++ [g]
+  replaceMainGoal out
 
 end SAsm
 end EvmAsm.Rv64

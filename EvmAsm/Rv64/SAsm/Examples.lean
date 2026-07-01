@@ -62,9 +62,9 @@ private def demoIte : Stmt :=
    .JAL .x0 (8 : BitVec 21),
    .MV .x12 .x11]
 
-/- A call resolves to a pc-relative JAL. -/
+/- A call resolves to a pc-relative JAL (stub handle: layout-only demo). -/
 private def demoCall : Stmt :=
-  .block "arg" [.LI .x10 42] ;;; .call "helper" 0x2000
+  .block "arg" [.LI .x10 42] ;;; .call "helper" (.stub 0x2000)
 
 #guard demoCall.size = 2
 #guard demoCall.flatten 0x1800 =
