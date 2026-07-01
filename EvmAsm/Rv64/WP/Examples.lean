@@ -80,15 +80,9 @@ example {nBranch nTaken nFail : Nat}
   let takenCert : CFG.Cert br.exit_t exit_ cr finalPost := CFG.leaf hTaken
   let failCert : CFG.Cert br.exit_f exit_ cr finalPost := CFG.leaf hFail
   have h_taken_link : Entails br.post_t takenCert.pre := by
-    intro h hp
-    rw [Branch.frameR_post_t, Branch.ofSpec_post_t] at hp
-    rw [CFG.leaf_pre]
-    xperm_pure hp
+    wp_rv64_link
   have h_fail_link : Entails br.post_f failCert.pre := by
-    intro h hp
-    rw [Branch.frameR_post_f, Branch.ofSpec_post_f] at hp
-    rw [CFG.leaf_pre]
-    xperm_pure hp
+    wp_rv64_link
   exact CFG.branch br takenCert failCert h_taken_link h_fail_link
 
 /-- Loop shape: a supplied indexed invariant and finite variant produce a

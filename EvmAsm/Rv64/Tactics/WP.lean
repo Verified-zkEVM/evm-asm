@@ -294,13 +294,22 @@ macro_rules
       `(tactic| solve
         | exact EvmAsm.Rv64.WP.Entails.refl _
         | assumption
-        | intro _ _hp; xperm_pure _hp
-        | intro _ _hp; try rw [EvmAsm.Rv64.WP.Branch.frameR_post_t, EvmAsm.Rv64.WP.Branch.ofSpec_post_t] at _hp; try rw [EvmAsm.Rv64.WP.Branch.frameR_post_f, EvmAsm.Rv64.WP.Branch.ofSpec_post_f] at _hp; try rw [EvmAsm.Rv64.WP.CFG.extendCode_pre]; try rw [EvmAsm.Rv64.WP.CFG.weakenPost_pre]; try rw [EvmAsm.Rv64.WP.CFG.frameR_pre]; try rw [EvmAsm.Rv64.WP.CFG.leaf_pre]; try rw [EvmAsm.Rv64.WP.CFG.block_pre]; xperm_pure _hp
-        | intro _ _hp; dsimp at _hp ⊢; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp
-        | intro _ _hp; wp_rv64_norm at _hp; wp_rv64_norm; xperm_pure _hp
-        | intro _ _hp; try dsimp at _hp ⊢; try simp only [rv64_wp] at _hp ⊢; xperm_pure _hp
-        | intro _ _hp; simp only [rv64_wp] at _hp ⊢; xperm_pure _hp
-        | intro _ _hp; try dsimp at _hp ⊢; xperm_pure _hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_t, EvmAsm.Rv64.WP.Branch.ofSpec_post_t] at hp; rw [EvmAsm.Rv64.WP.CFG.leaf_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_f, EvmAsm.Rv64.WP.Branch.ofSpec_post_f] at hp; rw [EvmAsm.Rv64.WP.CFG.leaf_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_t, EvmAsm.Rv64.WP.Branch.ofSpec_post_t] at hp; rw [EvmAsm.Rv64.WP.CFG.block_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_f, EvmAsm.Rv64.WP.Branch.ofSpec_post_f] at hp; rw [EvmAsm.Rv64.WP.CFG.block_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_t, EvmAsm.Rv64.WP.Branch.ofSpec_post_t] at hp; rw [EvmAsm.Rv64.WP.CFG.frameR_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_f, EvmAsm.Rv64.WP.Branch.ofSpec_post_f] at hp; rw [EvmAsm.Rv64.WP.CFG.frameR_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_t, EvmAsm.Rv64.WP.Branch.ofSpec_post_t] at hp; rw [EvmAsm.Rv64.WP.CFG.extendCode_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_f, EvmAsm.Rv64.WP.Branch.ofSpec_post_f] at hp; rw [EvmAsm.Rv64.WP.CFG.extendCode_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_t, EvmAsm.Rv64.WP.Branch.ofSpec_post_t] at hp; rw [EvmAsm.Rv64.WP.CFG.weakenPost_pre]; xperm_pure hp
+        | intro h hp; rw [EvmAsm.Rv64.WP.Branch.frameR_post_f, EvmAsm.Rv64.WP.Branch.ofSpec_post_f] at hp; rw [EvmAsm.Rv64.WP.CFG.weakenPost_pre]; xperm_pure hp
+        | intro h hp; dsimp at hp ⊢; simp only [rv64_wp] at hp ⊢; xperm_pure hp
+        | intro h hp; wp_rv64_norm at hp; wp_rv64_norm; xperm_pure hp
+        | intro h hp; try dsimp at hp ⊢; try simp only [rv64_wp] at hp ⊢; xperm_pure hp
+        | intro h hp; simp only [rv64_wp] at hp ⊢; xperm_pure hp
+        | intro h hp; try dsimp at hp ⊢; xperm_pure hp
+        | intro h hp; xperm_pure hp
         | wp_rv64_entails
         | wp_rv64_norm; wp_rv64_entails
         | simp only [rv64_wp]; wp_rv64_entails
