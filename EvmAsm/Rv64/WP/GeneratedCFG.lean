@@ -27,6 +27,25 @@ structure Branch2Spec where
   taken : ExitSpec
   fallthrough : ExitSpec
 
+/-- A generated bounded natural-number loop summary.
+
+    The generated shape records labels, step budgets, fuel, and the assertion
+    names used by the loop rule.  Runtime success/failure data still belongs in
+    `post`, `exitPost`, or the invariant assertions, not in the shape fields as
+    decoded values. -/
+structure LoopNatSpec where
+  header : Word
+  bodyEntry : Word
+  exitLabel : Word
+  nHeader : Nat
+  nBody : Nat
+  nExit : Nat
+  fuel : Nat
+  inv : Nat → Assertion
+  bodyPre : Nat → Assertion
+  exitPost : Nat → Assertion
+  post : Assertion
+
 namespace Branch2Spec
 
 /-- Exit list represented by a generated two-way branch summary. -/
@@ -310,6 +329,56 @@ def join4ResolveThird {entry : Word} {cr : CodeReq} {post : Assertion}
 
 end OpenCFG
 
+namespace LoopNatSpec
+
+/-- The generated precondition of a bounded loop shape. -/
+def pre (spec : LoopNatSpec) : Assertion :=
+  spec.inv 0
+
+/-- The generated step bound of a bounded loop shape. -/
+def bound (spec : LoopNatSpec) : Nat :=
+  loopBound spec.nHeader spec.nBody spec.nExit spec.fuel
+
+/-- Package a generated loop shape and the kernel-checked loop obligations as a
+    single-exit CFG certificate. -/
+def toCert (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    CFG.Cert spec.header spec.exitLabel cr spec.post :=
+  CFG.loopNat hcert
+
+/-- View a generated loop shape as an `OpenCFG` with one generated exit. -/
+def toOpenCFG (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    OpenCFG spec.header cr :=
+  OpenCFG.ofCert (spec.toCert hcert)
+
+@[simp] theorem toCert_pre (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    (spec.toCert hcert).pre = spec.pre :=
+  rfl
+
+@[simp] theorem toCert_nSteps (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    (spec.toCert hcert).nSteps = spec.bound :=
+  rfl
+
+@[simp] theorem toOpenCFG_exits (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    (spec.toOpenCFG hcert).exits = [(spec.exitLabel, spec.post)] :=
+  rfl
+
+end LoopNatSpec
+
 namespace Branch2Spec
 
 /-- Build an `OpenCFG` branch skeleton from a generated two-exit shape and a
@@ -379,6 +448,27 @@ example {entry l : Word} {cr1 cr2 : CodeReq}
     (hlink : Entails headPost tail.pre) :
     ((g.seqHeadNBranchDisjoint hd hexits tail hlink).exits =
       tail.exits ++ others) :=
+  rfl
+
+example (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    (spec.toCert hcert).pre = spec.pre :=
+  rfl
+
+example (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    (spec.toCert hcert).nSteps = spec.bound :=
+  rfl
+
+example (spec : LoopNatSpec) {cr : CodeReq}
+    (hcert : loopNatCert spec.nHeader spec.nBody spec.nExit
+      spec.header spec.bodyEntry spec.exitLabel cr
+      spec.inv spec.bodyPre spec.exitPost spec.post 0 spec.fuel) :
+    (spec.toOpenCFG hcert).exits = [(spec.exitLabel, spec.post)] :=
   rfl
 
 end OpenCFG

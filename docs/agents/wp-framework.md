@@ -445,6 +445,45 @@ let topTaken : WP.CFG.Cert entry shape.taken.label cr finalPost :=
 not add decoded values, success booleans, or failure reasons to it. Put runtime
 outcomes inside `takenPost`, `failPost`, or the final disjunctive postcondition.
 
+For a generated bounded loop, use `LoopNatSpec` to keep the generated labels,
+budgets, fuel, invariant names, and local posts together. The actual loop proof
+is still the explicit kernel-checked `WP.loopNatCert`; the generated wrapper
+only packages that proof as a `WP.CFG.Cert` or one-exit `OpenCFG` and exposes
+the computed precondition and bound:
+
+```lean
+let loopShape : LoopNatSpec := {
+  header := headerLabel,
+  bodyEntry := bodyLabel,
+  exitLabel := exitLabel,
+  nHeader := nHeader,
+  nBody := nBody,
+  nExit := nExit,
+  fuel := fuel,
+  inv := inv,
+  bodyPre := bodyPre,
+  exitPost := exitPost,
+  post := finalPost
+}
+
+have hLoop :
+    WP.loopNatCert loopShape.nHeader loopShape.nBody loopShape.nExit
+      loopShape.header loopShape.bodyEntry loopShape.exitLabel cr
+      loopShape.inv loopShape.bodyPre loopShape.exitPost loopShape.post
+      0 loopShape.fuel := by
+  -- prove the header branch, body progress, exit-post handoff, and tail
+  ...
+
+let loopCfg : WP.CFG.Cert loopShape.header loopShape.exitLabel cr loopShape.post :=
+  loopShape.toCert hLoop
+
+example : loopCfg.pre = loopShape.pre := rfl
+```
+
+`LoopNatSpec` does not infer invariants or decide which runtime exit occurs.
+It is a generated-control-flow record for the labels and assertion families the
+proof producer already chose.
+
 Bad inputs:
 
 - decoded result values in the schema
