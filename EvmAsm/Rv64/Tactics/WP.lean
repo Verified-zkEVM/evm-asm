@@ -1364,6 +1364,28 @@ def wp_rv64_leaf_synth_li_cfg (base imm : Word) :
 example (base imm : Word) :
     (wp_rv64_leaf_synth_li_cfg base imm).pre = regOwn .x5 := rfl
 
+/--
+error: runBlockFromPost: no spec could be instantiated backwards for `EvmAsm.Rv64.Instr.LI` at base.
+  Tried 2 candidate(s):
+    EvmAsm.Rv64.li_spec_gen_within: runBlockFromPost: could not match postcondition atom while resolving EvmAsm.Rv64.li_spec_gen_within:
+  EvmAsm.Rv64.Reg.x5 ↦ᵣ imm
+    EvmAsm.Rv64.li_spec_gen_own_within: runBlockFromPost: could not match postcondition atom while resolving EvmAsm.Rv64.li_spec_gen_own_within:
+  EvmAsm.Rv64.Reg.x5 ↦ᵣ imm
+  Hint: strengthen the requested postcondition with the atoms produced by this instruction,
+    use an ownership-style spec for overwritten resources, or pass explicit spec hypotheses.
+  Progress: resolved 0 of 1 bounded instruction spec(s) backwards before failure.
+---
+error: unsolved goals
+base imm : Word
+⊢ WP.CFG.Cert base (base + 4) (CodeReq.singleton base (Instr.LI Reg.x5 imm)) (Reg.x6 ↦ᵣ imm)
+-/
+#guard_msgs in
+example {base imm : Word} :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.LI .x5 imm))
+      (.x6 ↦ᵣ imm) := by
+  wp_rv64_leaf_synth
+
 def wp_rv64_leaf_synth_addi_manual_cfg (base v : Word) (imm : BitVec 12) :
     EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
       (CodeReq.singleton base (.ADDI .x5 .x5 imm))
