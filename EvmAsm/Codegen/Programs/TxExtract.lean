@@ -13,8 +13,10 @@
     K108  tx_extract_gas_pricing   (gas_price / max_fee / priority_fee)
 
   Each takes a tx-bytes ptr + length and returns the specific
-  field via caller-supplied output buffer(s). Compose K20 / K34 /
-  K35 helpers from `RlpRead.lean` + `Tx.lean`.
+  field via caller-supplied output buffer(s). Newer extractors use
+  `RlpWalk.lean` cursor helpers for ordered field access; older
+  access-list helpers still compose K20 / K34 / K35 helpers from
+  `RlpRead.lean` + `Tx.lean`.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
@@ -22,6 +24,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256GasPricing
@@ -30,6 +33,19 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
+
+private def repeatAsm : Nat -> String -> String
+  | 0, _ => ""
+  | n + 1, s => s ++ repeatAsm n s
+
+private def txExtractWalkSkipAsm (failLabel : String) (n : Nat) : String :=
+  repeatAsm n <|
+    "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++ "; mv s5, a0\n"
+
+private def txExtractWalkFieldAsm (failLabel : String) (n : Nat) : String :=
+  txExtractWalkSkipAsm failLabel n ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, " ++ failLabel ++ "\n" ++
+  "  sub t6, a0, a2              # content ptr\n"
 
 /-! ## tx_type_dispatch -- PR-K40 typed-tx prefix detector
 
@@ -308,7 +324,7 @@ def ziskTxExtractNonceAndGasProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`   — typed-tx detector
-      - PR-K20 `rlp_list_nth_item`  — field extractor
+      - RlpWalk cursor helpers      — field extractor
 
     Useful for `apply_body` (CREATE vs CALL routing) and for any
     pre-EVM check that needs the recipient without doing a full
@@ -325,13 +341,13 @@ def ziskTxExtractNonceAndGasProbeUnit : BuildUnit := {
         1 : tx_type_dispatch failed
         2 : `to` field extraction failed (not 0 or 20 B)
 
-    Uses two 8-byte `.data` scratch slots
-    (`tea_type` + `tea_inner_off`) plus K20's offset/length pair. -/
+    Uses two 8-byte `.data` scratch slots (`tea_type` + `tea_inner_off`). -/
 def txExtractToAddressFunction : String :=
   "tx_extract_to_address:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_bytes ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # 20B out ptr\n" ++
@@ -348,42 +364,32 @@ def txExtractToAddressFunction : String :=
   "  li a0, 1\n" ++
   "  j .Ltea_ret\n" ++
   ".Ltea_after_dispatch:\n" ++
-  "  la t0, tea_type;      ld t4, 0(t0)    # type\n" ++
+  "  la t0, tea_type;      ld s4, 0(t0)    # type\n" ++
   "  la t0, tea_inner_off; ld t5, 0(t0)    # inner_off\n" ++
-  "  add t6, s0, t5                         # inner_ptr\n" ++
-  "  sub t3, s1, t5                         # inner_len\n" ++
-  "  # Determine field index based on type.\n" ++
-  "  # type 0 → 3, type 1 → 4, type 2/3/4 → 5.\n" ++
+  "  add a0, s0, t5                         # inner_ptr\n" ++
+  "  sub a1, s1, t5                         # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ltea_field_fail\n" ++
+  "  mv s5, a0                              # cursor\n" ++
+  "  mv s6, a1                              # end\n" ++
+  "  # Determine field index based on type: 0 -> 3, 1 -> 4, 2/3/4 -> 5.\n" ++
   "  li t0, 0\n" ++
-  "  beq t4, t0, .Ltea_legacy_idx\n" ++
+  "  beq s4, t0, .Ltea_legacy_idx\n" ++
   "  li t0, 1\n" ++
-  "  beq t4, t0, .Ltea_t1_idx\n" ++
-  "  li t1, 5                              # type 2,3,4\n" ++
-  "  j .Ltea_have_idx\n" ++
+  "  beq s4, t0, .Ltea_t1_idx\n" ++
+  txExtractWalkFieldAsm ".Ltea_field_fail" 5 ++
+  "  j .Ltea_have_field\n" ++
   ".Ltea_legacy_idx:\n" ++
-  "  li t1, 3\n" ++
-  "  j .Ltea_have_idx\n" ++
+  txExtractWalkFieldAsm ".Ltea_field_fail" 3 ++
+  "  j .Ltea_have_field\n" ++
   ".Ltea_t1_idx:\n" ++
-  "  li t1, 4\n" ++
-  ".Ltea_have_idx:\n" ++
-  "  # rlp_list_nth_item(inner_ptr, inner_len, idx, &off, &len)\n" ++
-  "  mv a0, t6\n" ++
-  "  mv a1, t3\n" ++
-  "  mv a2, t1\n" ++
-  "  la a3, tea_field_off\n" ++
-  "  la a4, tea_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Ltea_field_fail\n" ++
-  "  la t0, tea_field_len; ld t2, 0(t0)\n" ++
+  txExtractWalkFieldAsm ".Ltea_field_fail" 4 ++
+  ".Ltea_have_field:\n" ++
+  "  mv t2, a2                    # content length\n" ++
   "  beqz t2, .Ltea_creation\n" ++
   "  li t1, 20\n" ++
   "  bne t2, t1, .Ltea_field_fail\n" ++
-  "  # Copy 20 bytes from (inner_ptr + field_off) to s2.\n" ++
-  "  # We lost inner_ptr (t6); recompute from s0 + tea_inner_off.\n" ++
-  "  la t0, tea_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5\n" ++
-  "  la t0, tea_field_off; ld t4, 0(t0)\n" ++
-  "  add t6, t6, t4\n" ++
+  "  # Copy 20 bytes from content pointer t6 to s2.\n" ++
   "  ld t0,  0(t6); sd t0,  0(s2)\n" ++
   "  ld t0,  8(t6); sd t0,  8(s2)\n" ++
   "  lwu t0, 16(t6); sw t0, 16(s2)\n" ++
@@ -400,7 +406,8 @@ def txExtractToAddressFunction : String :=
   ".Ltea_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_to_address`: probe BuildUnit. Reads
@@ -422,7 +429,7 @@ def ziskTxExtractToAddressPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Ltea_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractToAddressFunction ++ "\n" ++
   ".Ltea_pdone:"
@@ -433,10 +440,6 @@ def ziskTxExtractToAddressDataSection : String :=
   "tea_type:\n" ++
   "  .zero 8\n" ++
   "tea_inner_off:\n" ++
-  "  .zero 8\n" ++
-  "tea_field_off:\n" ++
-  "  .zero 8\n" ++
-  "tea_field_len:\n" ++
   "  .zero 8"
 
 def ziskTxExtractToAddressProbeUnit : BuildUnit := {
@@ -462,7 +465,8 @@ def ziskTxExtractToAddressProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`        — typed-tx detector
-      - PR-K-rlp_field_to_u256_be helper — u256 BE field extraction
+      - RlpWalk cursor helpers           — field extraction
+      - canonical content-to-u256 helper — u256 BE decoding
 
     Useful for balance checks (`sender_balance >= value + gas_cost`)
     and for the priority-fee credit path. Together with PR-K101
@@ -484,9 +488,10 @@ def ziskTxExtractToAddressProbeUnit : BuildUnit := {
     slots (`tev_type`, `tev_inner_off`). -/
 def txExtractValueFunction : String :=
   "tx_extract_value:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # 32B out ptr\n" ++
@@ -503,29 +508,31 @@ def txExtractValueFunction : String :=
   ".Ltev_after_dispatch:\n" ++
   "  la t0, tev_type;      ld s3, 0(t0)    # type → s3\n" ++
   "  la t0, tev_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5                          # inner_ptr\n" ++
-  "  sub t4, s1, t5                          # inner_len\n" ++
+  "  add a0, s0, t5                          # inner_ptr\n" ++
+  "  sub a1, s1, t5                          # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Ltev_field_fail\n" ++
+  "  mv s5, a0                               # cursor\n" ++
+  "  mv s6, a1                               # end\n" ++
   "  # Determine field index.\n" ++
   "  li t0, 0\n" ++
   "  beq s3, t0, .Ltev_legacy_idx\n" ++
   "  li t0, 1\n" ++
   "  beq s3, t0, .Ltev_t1_idx\n" ++
-  "  li t1, 6                              # type 2/3/4: value = 6\n" ++
-  "  j .Ltev_have_idx\n" ++
+  txExtractWalkFieldAsm ".Ltev_field_fail" 6 ++
+  "  j .Ltev_have_field\n" ++
   ".Ltev_legacy_idx:\n" ++
-  "  li t1, 4                              # legacy: value = 4\n" ++
-  "  j .Ltev_have_idx\n" ++
+  txExtractWalkFieldAsm ".Ltev_field_fail" 4 ++
+  "  j .Ltev_have_field\n" ++
   ".Ltev_t1_idx:\n" ++
-  "  li t1, 5                              # EIP-2930: value = 5\n" ++
-  ".Ltev_have_idx:\n" ++
+  txExtractWalkFieldAsm ".Ltev_field_fail" 5 ++
+  ".Ltev_have_field:\n" ++
   "  mv a0, t6\n" ++
-  "  mv a1, t4\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
+  "  mv a1, a2\n" ++
+  "  mv a2, s2\n" ++
+  "  jal ra, rlp_content_to_u256_be\n" ++
   "  beqz a0, .Ltev_ok\n" ++
-  "  # Re-zero output on failure (rlp_field_to_u256_be may have\n" ++
-  "  # partially written).\n" ++
+  ".Ltev_field_fail:\n" ++
   "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
   "  li a0, 2\n" ++
   "  j .Ltev_ret\n" ++
@@ -534,7 +541,8 @@ def txExtractValueFunction : String :=
   ".Ltev_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_value`: probe BuildUnit. Reads (tx_len,
@@ -550,24 +558,13 @@ def ziskTxExtractValuePrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Ltev_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractValueFunction ++ "\n" ++
   ".Ltev_pdone:"
 
 def ziskTxExtractValueDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "t48_offset:\n" ++
-  "  .zero 8\n" ++
-  "t48_length:\n" ++
-  "  .zero 8\n" ++
   ".balign 8\n" ++
   "tev_type:\n" ++
   "  .zero 8\n" ++
@@ -598,7 +595,7 @@ def ziskTxExtractValueProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`   — typed-tx detector
-      - PR-K20 `rlp_list_nth_item`  — byte-string content bounds
+      - RlpWalk cursor helpers      — byte-string content bounds
 
     Useful for:
     - intrinsic-gas pricing (zero/non-zero byte counts)
@@ -620,9 +617,10 @@ def ziskTxExtractValueProbeUnit : BuildUnit := {
     scratch slots (`teds_type`, `teds_inner_off`). -/
 def txExtractDataSectionFunction : String :=
   "tx_extract_data_section:\n" ++
-  "  addi sp, sp, -48\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # data_ptr out\n" ++
@@ -637,38 +635,30 @@ def txExtractDataSectionFunction : String :=
   "  li a0, 1\n" ++
   "  j .Lteds_ret\n" ++
   ".Lteds_after_dispatch:\n" ++
-  "  la t0, teds_type;      ld t4, 0(t0)     # type\n" ++
+  "  la t0, teds_type;      ld s4, 0(t0)     # type\n" ++
   "  la t0, teds_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5                           # inner_ptr\n" ++
-  "  sub t3, s1, t5                           # inner_len\n" ++
+  "  add a0, s0, t5                           # inner_ptr\n" ++
+  "  sub a1, s1, t5                           # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteds_field_fail\n" ++
+  "  mv s5, a0                                # cursor\n" ++
+  "  mv s6, a1                                # end\n" ++
   "  # Determine field index.\n" ++
   "  li t0, 0\n" ++
-  "  beq t4, t0, .Lteds_legacy_idx\n" ++
+  "  beq s4, t0, .Lteds_legacy_idx\n" ++
   "  li t0, 1\n" ++
-  "  beq t4, t0, .Lteds_t1_idx\n" ++
-  "  li t1, 7                                # type 2/3/4: data = 7\n" ++
-  "  j .Lteds_have_idx\n" ++
+  "  beq s4, t0, .Lteds_t1_idx\n" ++
+  txExtractWalkFieldAsm ".Lteds_field_fail" 7 ++
+  "  j .Lteds_have_field\n" ++
   ".Lteds_legacy_idx:\n" ++
-  "  li t1, 5                                # legacy: data = 5\n" ++
-  "  j .Lteds_have_idx\n" ++
+  txExtractWalkFieldAsm ".Lteds_field_fail" 5 ++
+  "  j .Lteds_have_field\n" ++
   ".Lteds_t1_idx:\n" ++
-  "  li t1, 6                                # EIP-2930: data = 6\n" ++
-  ".Lteds_have_idx:\n" ++
-  "  mv a0, t6\n" ++
-  "  mv a1, t3\n" ++
-  "  mv a2, t1\n" ++
-  "  la a3, teds_field_off\n" ++
-  "  la a4, teds_field_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lteds_field_fail\n" ++
-  "  # data_ptr = inner_ptr + field_off; data_len = field_len.\n" ++
-  "  la t0, teds_inner_off; ld t5, 0(t0)\n" ++
-  "  add t6, s0, t5\n" ++
-  "  la t0, teds_field_off; ld t4, 0(t0)\n" ++
-  "  add t6, t6, t4\n" ++
+  txExtractWalkFieldAsm ".Lteds_field_fail" 6 ++
+  ".Lteds_have_field:\n" ++
+  "  # data_ptr = content ptr; data_len = content length.\n" ++
   "  sd t6, 0(s2)\n" ++
-  "  la t0, teds_field_len; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s3)\n" ++
+  "  sd a2, 0(s3)\n" ++
   "  li a0, 0\n" ++
   "  j .Lteds_ret\n" ++
   ".Lteds_field_fail:\n" ++
@@ -676,7 +666,8 @@ def txExtractDataSectionFunction : String :=
   ".Lteds_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_data_section`: probe BuildUnit. Reads
@@ -695,7 +686,7 @@ def ziskTxExtractDataSectionPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lteds_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractDataSectionFunction ++ "\n" ++
   ".Lteds_pdone:"
@@ -706,10 +697,6 @@ def ziskTxExtractDataSectionDataSection : String :=
   "teds_type:\n" ++
   "  .zero 8\n" ++
   "teds_inner_off:\n" ++
-  "  .zero 8\n" ++
-  "teds_field_off:\n" ++
-  "  .zero 8\n" ++
-  "teds_field_len:\n" ++
   "  .zero 8"
 
 def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
