@@ -167,7 +167,8 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
 
     Composes:
       - PR-K40 `tx_type_dispatch`  — typed-tx detector
-      - PR-K53 `rlp_field_to_u64`  — u64 field extraction
+      - RlpWalk cursor helpers     — ordered field extraction
+      - canonical content-to-u64   — u64 decoding
 
     Useful as a fast prelude to `check_transaction` (nonce
     ordering + gas-availability) without a full per-type decode.
@@ -189,10 +190,11 @@ def ziskTxTypeDispatchProbeUnit : BuildUnit := {
     scratch slots (`teng_type`, `teng_inner_off`). -/
 def txExtractNonceAndGasFunction : String :=
   "tx_extract_nonce_and_gas:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -80\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp)\n" ++
   "  mv s0, a0                   # tx_ptr\n" ++
   "  mv s1, a1                   # tx_len\n" ++
   "  mv s2, a2                   # nonce out\n" ++
@@ -209,26 +211,31 @@ def txExtractNonceAndGasFunction : String :=
   ".Lteng_after_dispatch:\n" ++
   "  la t0, teng_type;      ld s4, 0(t0)    # type → s4\n" ++
   "  la t0, teng_inner_off; ld t5, 0(t0)\n" ++
-  "  add s5, s0, t5                          # inner_ptr → s5\n" ++
-  "  sub s6, s1, t5                          # inner_len → s6\n" ++
+  "  add a0, s0, t5                          # inner_ptr\n" ++
+  "  sub a1, s1, t5                          # inner_len\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lteng_nonce_fail\n" ++
+  "  mv s5, a0                               # cursor\n" ++
+  "  mv s6, a1                               # end\n" ++
   "  # Step 2: extract nonce.\n" ++
   "  li t0, 0\n" ++
   "  beq s4, t0, .Lteng_n_legacy\n" ++
-  "  li t1, 1                              # typed: nonce index = 1\n" ++
-  "  j .Lteng_n_have\n" ++
+  txExtractWalkFieldAsm ".Lteng_nonce_fail" 1 ++
+  "  j .Lteng_n_have_field\n" ++
   ".Lteng_n_legacy:\n" ++
-  "  li t1, 0                              # legacy: nonce index = 0\n" ++
-  ".Lteng_n_have:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  beqz a0, .Lteng_step3\n" ++
+  txExtractWalkFieldAsm ".Lteng_nonce_fail" 0 ++
+  ".Lteng_n_have_field:\n" ++
+  "  mv s7, a0                              # cursor after nonce\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  beqz a1, .Lteng_step3\n" ++
+  ".Lteng_nonce_fail:\n" ++
   "  sd zero, 0(s2)\n" ++
   "  li a0, 2\n" ++
   "  j .Lteng_ret\n" ++
   ".Lteng_step3:\n" ++
+  "  sd a0, 0(s2)\n" ++
   "  ld t0, 0(s2)\n" ++
   "  li t1, -1                              # EIP-2681 rejects u64 max\n" ++
   "  bne t0, t1, .Lteng_nonce_under_cap\n" ++
@@ -236,35 +243,39 @@ def txExtractNonceAndGasFunction : String :=
   "  li a0, 4\n" ++
   "  j .Lteng_ret\n" ++
   ".Lteng_nonce_under_cap:\n" ++
+  "  mv s5, s7                              # continue from after nonce\n" ++
   "  # Step 3: extract gas_limit.\n" ++
   "  li t0, 0\n" ++
   "  beq s4, t0, .Lteng_g_legacy\n" ++
   "  li t0, 1\n" ++
   "  beq s4, t0, .Lteng_g_2930\n" ++
-  "  li t1, 4                              # type 2/3/4: gas index = 4\n" ++
-  "  j .Lteng_g_have\n" ++
+  txExtractWalkFieldAsm ".Lteng_gas_fail" 2 ++
+  "  j .Lteng_g_have_field\n" ++
   ".Lteng_g_legacy:\n" ++
-  "  li t1, 2                              # legacy: gas index = 2\n" ++
-  "  j .Lteng_g_have\n" ++
+  txExtractWalkFieldAsm ".Lteng_gas_fail" 1 ++
+  "  j .Lteng_g_have_field\n" ++
   ".Lteng_g_2930:\n" ++
-  "  li t1, 3                              # 2930: gas index = 3\n" ++
-  ".Lteng_g_have:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, t1\n" ++
-  "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  beqz a0, .Lteng_ok\n" ++
+  txExtractWalkFieldAsm ".Lteng_gas_fail" 1 ++
+  ".Lteng_g_have_field:\n" ++
+  "  mv a0, t6\n" ++
+  "  mv a1, a2\n" ++
+  "  jal ra, rlp_content_to_u64\n" ++
+  "  beqz a1, .Lteng_store_gas\n" ++
+  ".Lteng_gas_fail:\n" ++
   "  sd zero, 0(s3)\n" ++
   "  li a0, 3\n" ++
   "  j .Lteng_ret\n" ++
+  ".Lteng_store_gas:\n" ++
+  "  sd a0, 0(s3)\n" ++
+  "  j .Lteng_ok\n" ++
   ".Lteng_ok:\n" ++
   "  li a0, 0\n" ++
   ".Lteng_ret:\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
   "  ret"
 
 /-- `zisk_tx_extract_nonce_and_gas`: probe BuildUnit. Reads
@@ -281,19 +292,13 @@ def ziskTxExtractNonceAndGasPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lteng_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   ".Lteng_pdone:"
 
 def ziskTxExtractNonceAndGasDataSection : String :=
   ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
   ".balign 8\n" ++
   "teng_type:\n" ++
   "  .zero 8\n" ++
