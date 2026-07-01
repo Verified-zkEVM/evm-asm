@@ -257,7 +257,10 @@ def basicPrecompileCallTail
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
-    chargePrecompileWordGasAsm 15 3 "x17" "x16" "x22" ++
+    chargePrecompileWordGasWithAllotmentAsm tag 15 3 "x17" "x16" "x22" ++
+    -- The allotment helper clobbers x17; reload the input length before using
+    -- it as identity's returndata length and copy bound.
+    "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  sd x17, 8(x15)\n" ++       -- returndata length = full input size
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add x18, x13, x18\n" ++    -- x18 = identity input bytes
@@ -313,7 +316,7 @@ def basicPrecompileCallTail
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
-    chargePrecompileWordGasAsm 60 12 "a1" "x16" "x22" ++
+    chargePrecompileWordGasWithAllotmentAsm tag 60 12 "a1" "x16" "x22" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x18\n" ++
     "  addi a2, x15, 16\n" ++
@@ -351,7 +354,7 @@ def basicPrecompileCallTail
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
-    chargePrecompileWordGasAsm 600 120 "a1" "x16" "x22" ++
+    chargePrecompileWordGasWithAllotmentAsm tag 600 120 "a1" "x16" "x22" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x18\n" ++
     "  addi a2, x15, 16\n" ++
@@ -381,7 +384,7 @@ def basicPrecompileCallTail
     -- backend-pointer-gated recovery + 32-byte address output. Closures that
     -- leave `ecrecover_backend_ptr` 0 keep the legacy empty-returndata success.
     "29:\n" ++
-    chargePrecompileGasConstAsm 3000 "x16" "x17" ++
+    chargePrecompileGasConstWithAllotmentAsm tag 3000 "x16" "x17" ++
     stageEcrecoverInputAsm inOffsetOff inSizeOff ++
     ecrecoverVGateAsm ++
     ecrecoverNonzeroRSGateAsm ++
