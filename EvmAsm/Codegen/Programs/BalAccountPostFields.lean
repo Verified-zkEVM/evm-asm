@@ -14,7 +14,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -34,7 +34,7 @@ open EvmAsm.Rv64
     absent sentinel. -/
 def balAccountPostFieldsFunction : String :=
   "bal_account_post_fields:\n" ++
-  "  addi sp, sp, -80\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
@@ -45,29 +45,36 @@ def balAccountPostFieldsFunction : String :=
   "  mv s4, a4                   # nonce out ptr\n" ++
   "  mv s5, a5                   # nonce len ptr\n" ++
   "  li t0, -1; sd t0, 0(s3); sd t0, 0(s5)\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbpf_fail\n" ++
+  "  sd a0, 56(sp); sd a1, 64(sp)\n" ++
+  "  # Skip address, storage_changes, storage_reads.\n" ++
+  "  ld a0, 56(sp); ld a1, 64(sp); jal ra, rlp_walk_next; bnez a1, .Lbpf_fail; sd a0, 56(sp)\n" ++
+  "  ld a0, 56(sp); ld a1, 64(sp); jal ra, rlp_walk_next; bnez a1, .Lbpf_fail; sd a0, 56(sp)\n" ++
+  "  ld a0, 56(sp); ld a1, 64(sp); jal ra, rlp_walk_next; bnez a1, .Lbpf_fail; sd a0, 56(sp)\n" ++
   "  # balance_changes is field 3.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3; la a3, bpf_list_off; la a4, bpf_list_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_off; ld t0, 0(t0); add t0, s0, t0; la t1, bpf_list_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, bpf_list_len; ld a1, 0(t1); mv a0, t0; la a2, bpf_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_count; ld t0, 0(t0); beqz t0, .Lbpf_nonce\n" ++
-  "  addi a2, t0, -1; la t1, bpf_list_ptr; ld a0, 0(t1); la t1, bpf_list_len; ld a1, 0(t1)\n" ++
-  "  la a3, bpf_item_off; la a4, bpf_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_ptr; ld t0, 0(t0); la t1, bpf_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, bpf_item_len; ld t1, 0(t1)\n" ++
-  "  la t2, bpf_item_ptr; sd t0, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 1; la a3, bpf_val_off; la a4, bpf_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t2, bpf_val_len; ld t2, 0(t2); li t3, 32; bgtu t2, t3, .Lbpf_fail\n" ++
+  "  ld a0, 56(sp); ld a1, 64(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbpf_fail\n" ++
+  "  sd a0, 56(sp); sub t0, a0, a2; mv t1, a2\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbpf_fail\n" ++
+  "  beq a0, a1, .Lbpf_nonce\n" ++
+  "  sd a0, 72(sp); sd a1, 80(sp)\n" ++
+  ".Lbpf_bal_last_loop:\n" ++
+  "  ld t0, 72(sp); ld t1, 80(sp); beq t0, t1, .Lbpf_bal_have_last\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbpf_fail\n" ++
+  "  sd a0, 72(sp); sub t0, a0, a2; sd t0, 88(sp); sd a2, 96(sp)\n" ++
+  "  j .Lbpf_bal_last_loop\n" ++
+  ".Lbpf_bal_have_last:\n" ++
+  "  ld a0, 88(sp); ld a1, 96(sp); jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbpf_fail\n" ++
+  "  sd a0, 72(sp); sd a1, 80(sp)\n" ++
+  "  ld a0, 72(sp); ld a1, 80(sp); jal ra, rlp_walk_next; bnez a1, .Lbpf_fail; sd a0, 72(sp)\n" ++
+  "  ld a0, 72(sp); ld a1, 80(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbpf_fail\n" ++
+  "  sub t0, a0, a2; mv t2, a2; li t3, 32; bgtu t2, t3, .Lbpf_fail\n" ++
   "  sd t2, 0(s3)\n" ++
-  "  la t0, bpf_item_ptr; ld t0, 0(t0)\n" ++
-  "  la t3, bpf_val_off; ld t3, 0(t3); add t0, t0, t3\n" ++
   "  mv t4, s2\n" ++
   ".Lbpf_bal_cp:\n" ++
   "  beqz t2, .Lbpf_nonce\n" ++
@@ -76,28 +83,28 @@ def balAccountPostFieldsFunction : String :=
   "  j .Lbpf_bal_cp\n" ++
   ".Lbpf_nonce:\n" ++
   "  # nonce_changes is field 4.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 4; la a3, bpf_list_off; la a4, bpf_list_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_off; ld t0, 0(t0); add t0, s0, t0; la t1, bpf_list_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, bpf_list_len; ld a1, 0(t1); mv a0, t0; la a2, bpf_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_count; ld t0, 0(t0); beqz t0, .Lbpf_ok\n" ++
-  "  addi a2, t0, -1; la t1, bpf_list_ptr; ld a0, 0(t1); la t1, bpf_list_len; ld a1, 0(t1)\n" ++
-  "  la a3, bpf_item_off; la a4, bpf_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t0, bpf_list_ptr; ld t0, 0(t0); la t1, bpf_item_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, bpf_item_len; ld t1, 0(t1)\n" ++
-  "  la t2, bpf_item_ptr; sd t0, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 1; la a3, bpf_val_off; la a4, bpf_val_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbpf_fail\n" ++
-  "  la t2, bpf_val_len; ld t2, 0(t2); li t3, 32; bgtu t2, t3, .Lbpf_fail\n" ++
+  "  ld a0, 56(sp); ld a1, 64(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbpf_fail\n" ++
+  "  sub t0, a0, a2; mv t1, a2\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbpf_fail\n" ++
+  "  beq a0, a1, .Lbpf_ok\n" ++
+  "  sd a0, 72(sp); sd a1, 80(sp)\n" ++
+  ".Lbpf_nonce_last_loop:\n" ++
+  "  ld t0, 72(sp); ld t1, 80(sp); beq t0, t1, .Lbpf_nonce_have_last\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbpf_fail\n" ++
+  "  sd a0, 72(sp); sub t0, a0, a2; sd t0, 88(sp); sd a2, 96(sp)\n" ++
+  "  j .Lbpf_nonce_last_loop\n" ++
+  ".Lbpf_nonce_have_last:\n" ++
+  "  ld a0, 88(sp); ld a1, 96(sp); jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbpf_fail\n" ++
+  "  sd a0, 72(sp); sd a1, 80(sp)\n" ++
+  "  ld a0, 72(sp); ld a1, 80(sp); jal ra, rlp_walk_next; bnez a1, .Lbpf_fail; sd a0, 72(sp)\n" ++
+  "  ld a0, 72(sp); ld a1, 80(sp); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbpf_fail\n" ++
+  "  sub t0, a0, a2; mv t2, a2; li t3, 32; bgtu t2, t3, .Lbpf_fail\n" ++
   "  sd t2, 0(s5)\n" ++
-  "  la t0, bpf_item_ptr; ld t0, 0(t0)\n" ++
-  "  la t3, bpf_val_off; ld t3, 0(t3); add t0, t0, t3\n" ++
   "  mv t4, s4\n" ++
   ".Lbpf_nonce_cp:\n" ++
   "  beqz t2, .Lbpf_ok\n" ++
@@ -112,7 +119,7 @@ def balAccountPostFieldsFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret"
 
 /-- `zisk_bal_account_post_fields`: probe BuildUnit.
@@ -141,23 +148,12 @@ def ziskBalAccountPostFieldsPrologue : String :=
   "  jal ra, bal_account_post_fields\n" ++
   "  li t0, 0xa0010000; sd a0, 0(t0)   # status at OUTPUT+0\n" ++
   "  j .Lbpf_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   ".Lbpf_pdone:"
 
 def ziskBalAccountPostFieldsDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "bpf_list_off:\n  .zero 8\n" ++
-  "bpf_list_len:\n  .zero 8\n" ++
-  "bpf_list_ptr:\n  .zero 8\n" ++
-  "bpf_count:\n  .zero 8\n" ++
-  "bpf_item_off:\n  .zero 8\n" ++
-  "bpf_item_len:\n  .zero 8\n" ++
-  "bpf_item_ptr:\n  .zero 8\n" ++
-  "bpf_val_off:\n  .zero 8\n" ++
-  "bpf_val_len:\n  .zero 8"
+  ""
 
 def ziskBalAccountPostFieldsProbeUnit : BuildUnit := {
   body        := NOP
