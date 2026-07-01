@@ -2454,6 +2454,26 @@ This is the heart of the STF — the inner loop that executes EVM bytecode.
 
 ---
 
+## SAsm structured-assembly DSL (proof-scaling track)
+
+Design: `docs/sasm-design.md`. Branch: `feat/structured-asm-dsl`.
+
+A DSL over the WP framework for check-heavy routines (RLP/SSZ decode,
+`run_stateless_guest`): structured control flow (`ite`/`when`/bounded
+`while`/`call` via the C-like ABI), inline pre/post/invariant/mid-condition
+annotations over an exposed register file, a flattener that synthesizes all
+branch offsets and the per-function `CodeReq.ofProg` (no manual disjointness),
+and a `vcgen` tactic that reduces a function spec to labeled *pure* VCs via a
+structurally-recursive generator + one generic soundness theorem (recursion-
+safe by construction). Milestones M1–M5 in the design doc; M1 = AST +
+flattener, M2 = block symbolic engine + soundness, M3 = structural soundness
++ `vcgen`, M4 = calls, M5 = mutable regions + RLP-style demo. **M1–M4 done**
+(M1–M3 2026-07-01, M4 2026-07-02): AST/flattener, block engine + soundness,
+generic Stmt.sound, Fn + vcgen, verified calls (FnHandle in the AST,
+caller-shaped Stmt.soundR/Fn.SpecR via cpsCallWithin, Fn.toHandle leaf
+packaging, caller demo). Remaining: M5 (.ro loads → .rw regions, RLP demo);
+multi-level call trees need the ra-spill prologue (M5 stack memory).
+
 ## Stateless Guest (parallel STF track)
 
 Full plan: `~/.claude/plans/please-cut-a-branch-warm-wand.md`.
