@@ -19,7 +19,7 @@
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
@@ -51,44 +51,44 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  li a5, 1                    # legacy ABI: one skipped recipient\n" ++
   "  j bal_all_accounts_storage_consistent_skip_list\n" ++
   "bal_all_accounts_storage_consistent_skip_list:\n" ++
-  "  addi sp, sp, -96\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  sd s9, 80(sp); sd s10, 88(sp)\n" ++
   "  mv s0, a0                   # BAL section ptr\n" ++
   "  mv s1, a1                   # BAL section len\n" ++
   "  mv s2, a2                   # exec log base\n" ++
   "  mv s3, a3                   # exec log entry count\n" ++
   "  mv s4, a4                   # skip-list ptr (32-byte-strided 20B BE entries)\n" ++
   "  mv s8, a5                   # skip-list count\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, c2bal_acct_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lc2baas_fail\n" ++
-  "  la t0, c2bal_acct_count; ld s5, 0(t0)   # account count\n" ++
-  "  li s6, 0                    # account index\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2baas_fail\n" ++
+  "  mv s5, a0                   # BAL cursor\n" ++
+  "  mv s6, a1                   # BAL end\n" ++
   ".Lc2baas_loop:\n" ++
-  "  beq s6, s5, .Lc2baas_ok\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s6; la a3, c2bal_acct_off; la a4, c2bal_acct_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lc2baas_fail\n" ++
-  "  la t0, c2bal_acct_off; ld t1, 0(t0); add s7, s0, t1   # AccountChanges ptr\n" ++
-  "  mv a0, s7; la t0, c2bal_acct_len; ld a1, 0(t0); li a2, 0; la a3, c2bal_addr_off; la a4, c2bal_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item                 # item 0 = address\n" ++
-  "  bnez a0, .Lc2baas_fail\n" ++
-  "  la t0, c2bal_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lc2baas_next   # not 20B -> skip\n" ++
+  "  beq s5, s6, .Lc2baas_ok\n" ++
+  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lc2baas_fail\n" ++
+  "  mv s5, a0; sub s7, a0, a2; mv s9, a2   # AccountChanges ptr/len\n" ++
+  "  mv a0, s7; mv a1, s9; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lc2baas_fail\n" ++
+  "  jal ra, rlp_walk_next                 # item 0 = address\n" ++
+  "  bnez a1, .Lc2baas_fail\n" ++
+  "  li t2, 20; bne a2, t2, .Lc2baas_next   # not 20B -> skip\n" ++
+  "  sub s10, a0, a2              # addr ptr (20B BE)\n" ++
   -- fhsxz.2.4.2.57.11.6.5.1: skip the EIP-2935 (history) / EIP-4788 (beacon-roots) system
   -- contracts. Their storage is written by the block-level system calls and verified by the
   -- verdict's explicit EIP-2935/4788 replay, NOT the per-tx exec log; every Amsterdam block's BAL
   -- carries their storage rows, so comparing them here vs the (legitimately exec-log-absent) per-tx
   -- log would false-reject the instant contract-recipient dispatch succeeds. SOUND: the explicit
   -- replay independently pins their storage (mirrors BalAccountRecordArray's bara_skip_modeled_system).
-  -- s7 = AccountChanges ptr; c2bal_acct_len = its len. The helper preserves s1-s7 and uses its own
-  -- bams_* scratch, so c2bal_addr_off/len stay valid for the recipient compare below.
-  "  mv a0, s7; la t0, c2bal_acct_len; ld a1, 0(t0)\n" ++
+  -- s7/s9 = AccountChanges ptr/len. The helper preserves saved registers and uses its own
+  -- bams_* scratch, so s10 stays valid for the recipient compare below.
+  "  mv a0, s7; mv a1, s9\n" ++
   "  jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lc2baas_next       # EIP-2935 history row -> skip\n" ++
   "  li t0, 2; beq a0, t0, .Lc2baas_next       # EIP-4788 beacon-roots row -> skip\n" ++
-  "  la t0, c2bal_addr_off; ld t1, 0(t0); add t3, s7, t1   # addr ptr (20B BE)\n" ++
   "  li t4, 0                    # skip-list index\n" ++
   ".Lc2baas_skip_outer:\n" ++
   "  beq t4, s8, .Lc2baas_check  # not in skip-list -> check it\n" ++
@@ -96,7 +96,7 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  li t6, 0                    # byte index\n" ++
   ".Lc2baas_skip_cmp:\n" ++
   "  li a0, 20; beq t6, a0, .Lc2baas_next      # all 20 bytes equal skip entry -> skip\n" ++
-  "  add a0, t3, t6; lbu a1, 0(a0)\n" ++
+  "  add a0, s10, t6; lbu a1, 0(a0)\n" ++
   "  add a0, t5, t6; lbu a2, 0(a0)\n" ++
   "  bne a1, a2, .Lc2baas_skip_advance\n" ++
   "  addi t6, t6, 1; j .Lc2baas_skip_cmp\n" ++
@@ -104,17 +104,17 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  addi t4, t4, 1; j .Lc2baas_skip_outer\n" ++
 
   ".Lc2baas_check:\n" ++
-  "  la t0, c2bal_addr_off; ld t1, 0(t0); add a0, s7, t1   # addr ptr (re-derive across calls)\n" ++
+  "  mv a0, s10                              # addr ptr (20B BE)\n" ++
   "  la a1, c2bal_key\n" ++
   "  jal ra, bal_addr_to_exec_log_key           # c2bal_key = addr byte-reversed (LE callee key)\n" ++
-  "  la a0, c2bal_key; mv a1, s7; la t0, c2bal_acct_len; ld a2, 0(t0); mv a3, s2; mv a4, s3\n" ++
+  "  la a0, c2bal_key; mv a1, s7; mv a2, s9; mv a3, s2; mv a4, s3\n" ++
   "  jal ra, bal_storage_matches_exec_log        # forward: BAL changes reproduced by exec\n" ++
   "  bnez a0, .Lc2baas_fail\n" ++
-  "  la a0, c2bal_key; mv a1, s7; la t0, c2bal_acct_len; ld a2, 0(t0); mv a3, s2; mv a4, s3\n" ++
+  "  la a0, c2bal_key; mv a1, s7; mv a2, s9; mv a3, s2; mv a4, s3\n" ++
   "  jal ra, bal_storage_covers_exec_log         # reverse: exec net changes claimed by BAL\n" ++
   "  bnez a0, .Lc2baas_fail\n" ++
   ".Lc2baas_next:\n" ++
-  "  addi s6, s6, 1; j .Lc2baas_loop\n" ++
+  "  j .Lc2baas_loop\n" ++
   ".Lc2baas_ok:\n" ++
   "  li a0, 0; j .Lc2baas_ret\n" ++
   ".Lc2baas_fail:\n" ++
@@ -123,7 +123,8 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
+  "  ld s9, 80(sp); ld s10, 88(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret"
 
 /-- `zisk_bal_all_accounts_storage_consistent`: focused probe.
@@ -153,20 +154,13 @@ def ziskBalAllAccountsStorageConsistentPrologue : String :=
   balStorageCoversExecLogFunction ++ "\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
   balAddrToExecLogKeyFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lc2baas_pdone:"
 
 /-- Scratch for `bal_all_accounts_storage_consistent` (account-loop state + the LE
     per-account exec-log key). Shared by the probe data section and the verdict data
     section so the verdict can link the wrapper (single source of truth). -/
 def balAllAccountsStorageConsistentData : String :=
-  ".balign 8\n" ++
-  "c2bal_acct_count:\n  .zero 8\n" ++
-  "c2bal_acct_off:\n  .zero 8\n" ++
-  "c2bal_acct_len:\n  .zero 8\n" ++
-  "c2bal_addr_off:\n  .zero 8\n" ++
-  "c2bal_addr_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "c2bal_key:\n  .zero 32\n"
 
@@ -193,8 +187,7 @@ def ziskBalAllAccountsStorageConsistentSkipListPrologue : String :=
   balStorageCoversExecLogFunction ++ "\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
   balAddrToExecLogKeyFunction ++ "\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   ".Lc2baas_sl_pdone:"
 
 def ziskBalAllAccountsStorageConsistentDataSection : String :=
