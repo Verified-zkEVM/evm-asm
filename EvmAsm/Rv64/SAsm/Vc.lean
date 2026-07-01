@@ -54,6 +54,22 @@ theorem Hold.left {v₁ v₂ : List VC} (h : Hold (v₁ ++ v₂)) : Hold v₁ :=
 theorem Hold.right {v₁ v₂ : List VC} (h : Hold (v₁ ++ v₂)) : Hold v₂ :=
   fun v hv => h v (List.mem_append_right _ hv)
 
+/-- Introduction form used by `vcgen` to split the VC list into goals. -/
+theorem Hold.cons_intro {vc : VC} {rest : List VC}
+    (h1 : vc.prop) (h2 : Hold rest) : Hold (vc :: rest) := by
+  intro v hv
+  rcases List.mem_cons.mp hv with rfl | hv
+  · exact h1
+  · exact h2 v hv
+
+/-- Introduction form used by `vcgen` to split the VC list into goals. -/
+theorem Hold.append_intro {v₁ v₂ : List VC}
+    (h1 : Hold v₁) (h2 : Hold v₂) : Hold (v₁ ++ v₂) := by
+  intro v hv
+  rcases List.mem_append.mp hv with hv | hv
+  · exact h1 v hv
+  · exact h2 v hv
+
 end VCs
 
 -- ============================================================================
