@@ -29,7 +29,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
@@ -58,29 +58,30 @@ def accountTupleSequencesConsistentFunction : String :=
   "  mv s3, a3                   # exec-log base\n" ++
   "  mv s4, a4                   # exec-log entry count\n" ++
   "  mv s5, a5                   # exec_log_txindex base\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1; la a3, atsc_scoff; la a4, atsc_sclen\n" ++
-  "  jal ra, rlp_list_nth_item                            # storage_changes = item 1\n" ++
-  "  bnez a0, .Latsc_fail\n" ++
-  "  la t0, atsc_scoff; ld t1, 0(t0); add s6, s0, t1      # storage_changes ptr\n" ++
-  "  la t0, atsc_sclen; ld s7, 0(t0)                      # storage_changes len\n" ++
-  "  mv a0, s6; mv a1, s7; la a2, atsc_cnt\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Latsc_fail\n" ++
-  "  la t0, atsc_cnt; ld s8, 0(t0)                        # slot count\n" ++
-  "  li s9, 0                    # slot index\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Latsc_fail\n" ++
+  "  mv s8, a1                                             # AccountChanges end\n" ++
+  "  jal ra, rlp_walk_next                                # skip address item 0\n" ++
+  "  bnez a1, .Latsc_fail\n" ++
+  "  mv a1, s8\n" ++
+  "  jal ra, rlp_walk_next                                # storage_changes = item 1\n" ++
+  "  bnez a1, .Latsc_fail\n" ++
+  "  sub s6, a0, a2; mv s7, a2                            # storage_changes ptr/len\n" ++
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Latsc_fail\n" ++
+  "  mv s8, a0                                             # storage_changes cursor\n" ++
+  "  mv s9, a1                                             # storage_changes end\n" ++
   ".Latsc_loop:\n" ++
-  "  beq s9, s8, .Latsc_ok\n" ++
-  "  mv a0, s6; mv a1, s7; mv a2, s9; la a3, atsc_eoff; la a4, atsc_elen\n" ++
-  "  jal ra, rlp_list_nth_item                            # SlotChanges entry = nth(sc, i)\n" ++
-  "  bnez a0, .Latsc_fail\n" ++
-  "  la t0, atsc_eoff; ld t1, 0(t0); add t1, s6, t1       # entry ptr\n" ++
-  "  la t0, atsc_elen; ld t2, 0(t0)                       # entry len\n" ++
-  "  mv a0, t1; mv a1, t2; li a2, 0; la a3, atsc_koff; la a4, atsc_klen\n" ++
-  "  jal ra, rlp_list_nth_item                            # slot_key = item 0\n" ++
-  "  bnez a0, .Latsc_fail\n" ++
-  "  la t0, atsc_eoff; ld t1, 0(t0); add t1, s6, t1       # recompute entry ptr\n" ++
-  "  la t0, atsc_koff; ld t3, 0(t0); add t1, t1, t3       # key bytes ptr\n" ++
-  "  la t0, atsc_klen; ld t4, 0(t0)                       # key byte len\n" ++
+  "  beq s8, s9, .Latsc_ok\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Latsc_fail\n" ++
+  "  mv s8, a0; sub t1, a0, a2; mv t2, a2                # SlotChanges entry ptr/len\n" ++
+  "  mv a0, t1; mv a1, t2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Latsc_fail\n" ++
+  "  jal ra, rlp_walk_next                                # slot_key = item 0\n" ++
+  "  bnez a1, .Latsc_fail\n" ++
+  "  sub t1, a0, a2                                       # key bytes ptr\n" ++
+  "  mv t4, a2                                            # key byte len\n" ++
   "  li t5, 32; bgtu t4, t5, .Latsc_fail\n" ++
   "  # left-pad slot_key into atsc_key (32B)\n" ++
   "  la t6, atsc_key; mv t0, t6; li t5, 32\n" ++
@@ -132,7 +133,7 @@ def accountTupleSequencesConsistentFunction : String :=
   "  jal ra, slot_tuple_sequences_match\n" ++
   "  bnez a0, .Latsc_fail\n" ++
   ".Latsc_next_slot:\n" ++
-  "  addi s9, s9, 1; j .Latsc_loop\n" ++
+  "  j .Latsc_loop\n" ++
   ".Latsc_ok:\n" ++
   "  li a0, 0; j .Latsc_ret\n" ++
   ".Latsc_fail:\n" ++
@@ -147,10 +148,6 @@ def accountTupleSequencesConsistentFunction : String :=
 /-- Scratch + tuple buffers for `account_tuple_sequences_consistent`. -/
 def accountTupleSequencesConsistentData : String :=
   ".balign 8\n" ++
-  "atsc_scoff:\n  .zero 8\n" ++ "atsc_sclen:\n  .zero 8\n" ++
-  "atsc_cnt:\n  .zero 8\n" ++
-  "atsc_eoff:\n  .zero 8\n" ++ "atsc_elen:\n  .zero 8\n" ++
-  "atsc_koff:\n  .zero 8\n" ++ "atsc_klen:\n  .zero 8\n" ++
   "atsc_balcount:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "atsc_key:\n  .zero 32\n" ++
@@ -194,6 +191,7 @@ def ziskAccountTupleSequencesConsistentPrologue : String :=
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
