@@ -597,6 +597,9 @@ import EvmAsm.Evm64.DivMod.Compose.FastDigitChainV6Mod
 import EvmAsm.Evm64.DivMod.Compose.FastDenormEpilogueV6Mod
 import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridgeMod
 import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnectMod
+import EvmAsm.Evm64.DivMod.Compose.BodyV6Mod
+import EvmAsm.Evm64.DivMod.Compose.V6FastArmTripleMod
+import EvmAsm.Evm64.DivMod.Compose.DispatchV6Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkipMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkipMod
