@@ -495,6 +495,9 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopMaxAddbackMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkipMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallAddbackMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallSkipMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallAddbackMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkipMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallAddbackMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
