@@ -1438,6 +1438,29 @@ example (base addr data : Word) (offset : BitVec 12) :
       ((.x5 ↦ᵣ addr) ** (.x6 ↦ᵣ data) **
         memOwn (addr + signExtend12 offset)) := rfl
 
+/-- `SLTIU rd, rs1, 1` is a zero classifier: the RISC-V unsigned-less-than result
+against `1` agrees with a plain `v = 0` test on `Word`. -/
+theorem sltiu_one_zero_classifier (v : Word) :
+    (if BitVec.ult v (signExtend12 (1 : BitVec 12)) then (1 : Word) else (0 : Word)) =
+      (if v = 0 then (1 : Word) else (0 : Word)) := by
+  simp only [signExtend12_1]
+  by_cases h : v = 0
+  · simp [h]
+  · have hne : v.toNat ≠ 0 := fun hc => h (BitVec.eq_of_toNat_eq (by simpa using hc))
+    simpa [BitVec.ult_iff_toNat_lt, hne, Nat.lt_one_iff] using h
+
+-- `SLTIU x6, x5, 1` is a zero classifier: `x6 := 1` iff `x5 <ᵘ 1`, i.e. iff `x5 = 0`.
+def wp_rv64_leaf_synth_sltiu_zero_cfg (base v : Word) :
+    EvmAsm.Rv64.WP.CFG.Cert base (base + 4)
+      (CodeReq.singleton base (.SLTIU .x6 .x5 (1 : BitVec 12)))
+      ((.x5 ↦ᵣ v) **
+        (.x6 ↦ᵣ (if BitVec.ult v (signExtend12 (1 : BitVec 12)) then (1 : Word) else (0 : Word)))) := by
+  wp_rv64_leaf_synth
+
+example (base v : Word) :
+    (wp_rv64_leaf_synth_sltiu_zero_cfg base v).pre =
+      ((.x5 ↦ᵣ v) ** regOwn .x6) := rfl
+
 example {entry : Word} {cr : CodeReq} {post : Assertion} :
     EvmAsm.Rv64.WP.CFG.Cert entry entry cr post := by
   wp_rv64_exit_refl entry, cr, post
