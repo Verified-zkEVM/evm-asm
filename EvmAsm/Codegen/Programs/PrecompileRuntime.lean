@@ -479,14 +479,14 @@ def chargeBls12PairingGasAsm
   "  bltu " ++ costReg ++ ", " ++ scratchReg ++ ", .exit_outofgas\n" ++
   chargePrecompileGasAsm costReg scratchReg
 
-def kzgVersionedHashCompareBytesAsm : String :=
+def kzgVersionedHashCompareBytesAsm (failLabel : String) : String :=
   String.intercalate "" <| (List.range 31).map fun i =>
     let idx := i + 1
     "  lbu x16, " ++ toString (precompileFrameBls12G2InputOff + idx) ++ "(x15)\n" ++
     "  lbu x17, " ++ toString (precompileFrameBls12G2OutputOff + idx) ++ "(x15)\n" ++
-    "  bne x16, x17, 1f\n"
+    "  bne x16, x17, " ++ failLabel ++ "\n"
 
-def kzgVersionedHashGateAsm : String :=
+def kzgVersionedHashGateAsm (failLabel : String) : String :=
   "  mv s10, x10\n" ++
   "  mv s11, x12\n" ++
   precompileFrameAddi "a0" (precompileFrameBls12G2InputOff + 96) ++
@@ -499,12 +499,12 @@ def kzgVersionedHashGateAsm : String :=
   "  mv x16, a0\n" ++
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
-  "  bnez x16, 1f\n" ++
+  "  bnez x16, " ++ failLabel ++ "\n" ++
   "  la x15, evm_precompile_frame\n" ++
   "  lbu x16, " ++ toString precompileFrameBls12G2InputOff ++ "(x15)\n" ++
   "  li x17, 1\n" ++
-  "  bne x16, x17, 1f\n" ++
-  kzgVersionedHashCompareBytesAsm
+  "  bne x16, x17, " ++ failLabel ++ "\n" ++
+  kzgVersionedHashCompareBytesAsm failLabel
 
 def precompileSuccessBoolFromFrameAsm
     (tag : String) (outOffsetOff outSizeOff resultFrameOff : Nat) : String :=
