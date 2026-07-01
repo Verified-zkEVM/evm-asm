@@ -49,4 +49,11 @@ theorem mulsub_exact_val256_low4 (q v0 v1 v2 v3 u0 u1 u2 u3 u4 : Word)
     rw [hq, Nat.mul_comm]; exact Nat.div_add_mod _ _
   omega
 
+/-- Scaled modulo `(A·2ˢ) % (B·2ˢ) = (A % B)·2ˢ` — the normalization link from the
+    normalized remainder `D % V` to the scaled true remainder, used by the n=4
+    addback getLimbN composition. -/
+theorem scaled_nat_amod (A B s : Nat) :
+    (A * 2 ^ s) % (B * 2 ^ s) = (A % B) * 2 ^ s := by
+  rw [Nat.mul_comm A, Nat.mul_comm B, Nat.mul_comm (A % B), Nat.mul_mod_mul_left]
+
 end EvmAsm.Evm64
