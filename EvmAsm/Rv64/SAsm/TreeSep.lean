@@ -269,5 +269,41 @@ theorem ctxAt_push_right (c : Tree.Ctx) (root p k pl pr : Word) (l r : Tree) :
   rw [sepConj_comm'] at hh
   exact sepConj_mono_left (fun hq hx => ⟨p, pl, hx⟩) hp hh
 
+-- ============================================================================
+-- Satisfiability shadows (what harvest steps extract)
+-- ============================================================================
+
+/-- Satisfiability of a conjunct, from satisfiability of the whole. -/
+theorem sepConj_sat_left {A B : Assertion} {hp : PartialState}
+    (h : (A ** B) hp) : ∃ hq, A hq := by
+  obtain ⟨h1, h2, -, -, ha, -⟩ := h
+  exact ⟨h1, ha⟩
+
+/-- Satisfiability of a conjunct, from satisfiability of the whole. -/
+theorem sepConj_sat_right {A B : Assertion} {hp : PartialState}
+    (h : (A ** B) hp) : ∃ hq, B hq := by
+  obtain ⟨h1, h2, -, -, -, hb⟩ := h
+  exact ⟨h2, hb⟩
+
+/-- On a satisfying state, a node's address is nonzero and well-formed —
+    what a `.focus` VC extracts before opening the node. -/
+theorem treeAt_sat_node {p k : Word} {l r : Tree} {hp : PartialState}
+    (h : treeAt p (.node k l r) hp) :
+    p ≠ 0 ∧ RwRegion.wf ⟨p, 24⟩ := by
+  obtain ⟨pl, pr, hh⟩ := h
+  obtain ⟨h1, h2, hd, hu, hnode, hch⟩ := hh
+  exact ((sepConj_pure_left h1).mp hnode).1
+
+/-- The nil-pointer shadow: on any satisfying state, the pointer is nil
+    exactly when the tree is a leaf.  This is the pure fact tree walks
+    harvest at ghost steps for their loop-exit reasoning. -/
+theorem treeAt_sat_shadow {p : Word} {t : Tree} {hp : PartialState}
+    (h : treeAt p t hp) : p = 0 ↔ t = .leaf := by
+  cases t with
+  | leaf => exact ⟨fun _ => rfl, fun _ => h.2⟩
+  | node k l r =>
+      have hne := (treeAt_sat_node h).1
+      exact ⟨fun h0 => absurd h0 hne, fun hleaf => nomatch hleaf⟩
+
 end SAsm
 end EvmAsm.Rv64

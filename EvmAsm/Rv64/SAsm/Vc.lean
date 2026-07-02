@@ -100,9 +100,9 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
   | ghost _ R, reach => fun rf ws A' => ∃ A, reach rf ws A
       ∧ (∃ hp, A hp) ∧ R rf ws A A'
   | blockAt _ p winR is, reach => fun rf' ws' A'' => ∃ rf A win rest,
-      ws'.length = rw.len ∧ reach rf ws' A ∧ (∃ hp, A hp)
+      ws'.length = rw.len ∧ reach rf ws' A
+      ∧ (∃ hp, (bytesRegion (rf.get p) win ** rest) hp)
       ∧ winR rf ws' A win rest
-      ∧ A = (bytesRegion (rf.get p) win ** rest)
       ∧ rf' = (execBlock reg (rf.get p) rf win is).1
       ∧ A'' = (bytesRegion (rf.get p) (execBlock reg (rf.get p) rf win is).2
           ** rest)
@@ -134,14 +134,14 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
   | blockAt lbl p winR is, pfx, reach =>
       ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
       ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, reach rf ws A → A.pcFree →
-          (∃ hp, A hp) →
+          ∀ hp, A hp →
           ∃ win rest, winR rf ws A win rest
-            ∧ A = (bytesRegion (rf.get p) win ** rest)
+            ∧ (bytesRegion (rf.get p) win ** rest) hp
             ∧ rest.pcFree ∧ RwRegion.wf ⟨rf.get p, win.length⟩⟩ ::
       (if hasLoad is then
         [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A win rest, ws.length = rw.len →
             reach rf ws A → winR rf ws A win rest →
-            A = (bytesRegion (rf.get p) win ** rest) →
+            (∃ hp, (bytesRegion (rf.get p) win ** rest) hp) →
             blockVCs reg (rf.get p) rf win is⟩]
       else [])
   | «while» lbl c fuel inv b, pfx, reach =>
@@ -192,8 +192,8 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       rintro rf ws A' ⟨A, hr, hsat, hR⟩
       exact ⟨A, h rf ws A hr, hsat, hR⟩
   | blockAt lbl p winR is =>
-      rintro rf' ws' A'' ⟨rf, A, win, rest, hlen, hr, hsat, hR, hAeq, hrf, hA⟩
-      exact ⟨rf, A, win, rest, hlen, h rf ws' A hr, hsat, hR, hAeq, hrf, hA⟩
+      rintro rf' ws' A'' ⟨rf, A, win, rest, hlen, hr, hsat, hR, hrf, hA⟩
+      exact ⟨rf, A, win, rest, hlen, h rf ws' A hr, hsat, hR, hrf, hA⟩
   | «while» lbl c fuel inv b ihb =>
       exact fun rf ws A hr => hr
   | call lbl f =>
@@ -261,19 +261,19 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
           rw [show vcs reg rw (.blockAt lbl p winR is) pfx r₂
               = ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
                 ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, r₂ rf ws A → A.pcFree →
-                    (∃ hp, A hp) →
+                    ∀ hp, A hp →
                     ∃ win rest, winR rf ws A win rest
-                      ∧ A = (bytesRegion (rf.get p) win ** rest)
+                      ∧ (bytesRegion (rf.get p) win ** rest) hp
                       ∧ rest.pcFree ∧ RwRegion.wf ⟨rf.get p, win.length⟩⟩ ::
                 [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A win rest, ws.length = rw.len →
                     r₂ rf ws A → winR rf ws A win rest →
-                    A = (bytesRegion (rf.get p) win ** rest) →
+                    (∃ hp, (bytesRegion (rf.get p) win ** rest) hp) →
                     blockVCs reg (rf.get p) rf win is⟩]
             from by simp [vcs, hl]] at hvcs
           simp only [List.mem_singleton] at hvc
           subst hvc
-          exact fun rf ws A win rest hlen hr hR hAeq =>
-            hvcs.tail.tail.head rf ws A win rest hlen (h rf ws A hr) hR hAeq
+          exact fun rf ws A win rest hlen hr hR hsat =>
+            hvcs.tail.tail.head rf ws A win rest hlen (h rf ws A hr) hR hsat
         · rw [if_neg hl] at hvc
           exact absurd hvc (List.not_mem_nil)
   | «while» lbl c fuel inv b ihb =>
