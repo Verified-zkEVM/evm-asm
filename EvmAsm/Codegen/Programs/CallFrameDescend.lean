@@ -216,8 +216,10 @@ def callFrameForwardGasFunction : String :=
 
     On return the live dispatcher registers are repointed to the child frame and
     `evm_call_depth` is bumped; the caller (the CALL handler) then `j .dispatch_loop`.
-    This helper does NOT charge the parent's gas / value-transfer costs (the gate
-    side of the handler does) and does NOT itself jump, so it is unit-probeable.
+    The normal CALL handler precharges value-transfer gas before state gas and
+    arms `cd_xfer_gas_precharged`; this helper consumes that flag. Direct probes
+    that call this helper without the precharge still take the legacy transfer
+    charge here. It does NOT itself jump, so it is unit-probeable.
     NB: s4/s5 ARE x20/x21 (env/code base) — this routine keeps parent state in
     s0-s3/s6-s9 and never uses s4/s5 as scratch. Clobbers t0-t2, a0-a4. -/
 def callFrameDescendFunction : String :=
@@ -278,8 +280,10 @@ def callFrameDescendFunction : String :=
   "  jal ra, call_frame_set_calldata\n" ++
   -- 7a. EIP-150 transfer_gas_cost: a value-bearing CALL/CALLCODE charges
   -- GAS_CALL_VALUE (9000) BEFORE the 63/64 forwarding cap (it is part of
-  -- extra_gas, deducted from gas_left first). Persist it to the parent so the
-  -- forward cap below sees the reduced gas_left and the cost deduction follows it.
+  -- extra_gas, deducted from gas_left first). The shipped CALL handler already
+  -- does this before NEW_ACCOUNT state gas and arms cd_xfer_gas_precharged; consume
+  -- that flag here. Direct helper probes with no precharge still charge here so
+  -- the forward cap below sees the reduced gas_left.
   -- bbow4.1.1: GAS_CALL_VALUE participates in the spec's pre-state `check_gas`
   -- (system.py:436/554 `check_gas(access + transfer + extend_memory)`), which raises
   -- OutOfGasError (an exceptional halt that burns ALL remaining gas) when the caller
@@ -293,6 +297,9 @@ def callFrameDescendFunction : String :=
   -- bal_callcode_7702_delegation_and_oog). Route the shortfall to the exceptional-halt path.
   "  ld a2, 88(s7)\n" ++
   "  beqz a2, .Lcfd_no_transfer\n" ++
+  "  la t2, cd_xfer_gas_precharged\n  ld t3, 0(t2)\n  beqz t3, .Lcfd_charge_transfer\n" ++
+  "  sd x0, 0(t2)\n  j .Lcfd_no_transfer\n" ++
+  ".Lcfd_charge_transfer:\n" ++
   "  ld t0, 568(s3)\n" ++
   "  li t1, 9000\n" ++
   "  bltu t0, t1, .exit_outofgas\n" ++

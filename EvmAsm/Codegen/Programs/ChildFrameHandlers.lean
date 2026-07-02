@@ -251,6 +251,7 @@ def callDescendFallThrough
   "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++
   "  la t0, cd_burn_log_pending\n  sd x0, 0(t0)\n" ++
   "  la t0, cd_xfer_log_burn\n  sd x0, 0(t0)\n" ++
+  "  la t0, cd_xfer_gas_precharged\n  sd x0, 0(t0)\n" ++
   "  mv s10, x10                           # preserve parent PC through CALL fallthrough helpers\n" ++
   -- drj99.1 (failed-inner rollback): DISARM the value-CALL non-storage-effect pre-snapshot at every
   -- CALL entry. A value-bearing CALL records the caller-debit + callee-credit NON-STORAGE effects in
@@ -562,15 +563,13 @@ def callDescendFallThrough
     "  la t0, cd_xfer_log_pending\n  li t1, 1\n  sd t1, 0(t0)\n" ++
     "  la t0, cd_xfer_log_burn\n  sd x0, 0(t0)\n" ++
     ".Lcd_nse_done_" ++ tag ++ ":\n")) ++
-  -- bbow4.1.1 / bbow4.2.5.8: EIP-150 value-transfer gas check. Amsterdam
-  -- `generic_call` first checks `access_gas + transfer_gas + extend_memory` before
+  -- bbow4.1.1 / bbow4.2.5.8: EIP-150 value-transfer gas charge. Amsterdam
+  -- `generic_call` charges `access_gas + transfer_gas + extend_memory` before
   -- STATE ACCESS / delegation resolution and before EIP-8037 NEW_ACCOUNT state gas.
-  -- Access/memory are already charged before this fall-through, so the residual check here is
-  -- the value-transfer 9000. Keeping it before the state-gas charge matters: if the
-  -- NEW_ACCOUNT reservoir is drained first, a CALL tuned to be one gas short for
-  -- ordinary CALL gas can inflate the parent's state reservoir before exceptional halt
-  -- (`call_oog_reservoir_inflation_detection`). The actual 9000 charge still happens in
-  -- `call_frame_descend`; the empty-callee fast path charges the net 6700 separately.
+  -- Access/memory are already charged before this fall-through, so charge the residual
+  -- value-transfer 9000 here and arm a one-shot flag. `call_frame_descend` consumes the
+  -- flag instead of charging again; empty-code paths refund the 2300 stipend, giving the
+  -- same net 6700 as execution-specs while preserving the pre-state-gas ordering.
   (if valueBearing then
      "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
      "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
@@ -578,6 +577,8 @@ def callDescendFallThrough
      "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
      "  beqz t3, .Lcd_xfergas_ok_" ++ tag ++ "\n" ++   -- value == 0: no transfer
      "  ld t3, 568(x20)\n  li t4, 9000\n  bltu t3, t4, .exit_outofgas\n" ++
+     "  sub t3, t3, t4\n  sd t3, 568(x20)\n" ++
+     "  la t4, cd_xfer_gas_precharged\n  li t3, 1\n  sd t3, 0(t4)\n" ++
      ".Lcd_xfergas_ok_" ++ tag ++ ":\n"
    else "") ++
   -- nxio8.8 (EIP-8037): CALL (mode 0) with value!=0 to a not-alive callee creates the
@@ -810,6 +811,11 @@ def callDescendFallThrough
   "  j .Lcd_empty_" ++ tag ++ "\n" ++
   -- fail (status 2/3/4): pop args, push 0
   ".Lcd_fail_" ++ tag ++ ":\n" ++
+  (if valueBearing then
+     "  la t0, cd_xfer_gas_precharged\n  ld t1, 0(t0)\n  beqz t1, .Lcd_fail_xfer_done_" ++ tag ++ "\n" ++
+     "  sd x0, 0(t0)\n  li t1, 9000\n  ld t2, 568(x20)\n  add t2, t2, t1\n  sd t2, 568(x20)\n" ++
+     ".Lcd_fail_xfer_done_" ++ tag ++ ":\n"
+   else "") ++
   "  mv x10, s10                           # restore parent PC before direct CALL failure resume\n" ++
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
@@ -923,6 +929,10 @@ def callDescendFallThrough
      "  ld t1, " ++ toString (valueOff+16) ++ "(x12)\n  or t0, t0, t1\n" ++
      "  ld t1, " ++ toString (valueOff+24) ++ "(x12)\n  or t0, t0, t1\n" ++
      "  beqz t0, .Lcd_empty_noval_" ++ tag ++ "\n" ++
+     "  la t2, cd_xfer_gas_precharged\n  ld t3, 0(t2)\n  beqz t3, .Lcd_empty_charge_net_" ++ tag ++ "\n" ++
+     "  sd x0, 0(t2)\n  li t0, 2300\n  ld t1, 568(x20)\n  add t1, t1, t0\n  sd t1, 568(x20)\n" ++
+     "  j .Lcd_empty_noval_" ++ tag ++ "\n" ++
+     ".Lcd_empty_charge_net_" ++ tag ++ ":\n" ++
      "  li t0, 6700\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++

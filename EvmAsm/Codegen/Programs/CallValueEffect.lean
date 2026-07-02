@@ -125,6 +125,7 @@ def callValueEffectData : String :=
   "cd_value_be:\n  .zero 32\n" ++
   "cd_balance_be:\n  .zero 32\n" ++
   "cd_caller_newbal:\n  .zero 32\n" ++
+  "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "cahsr_state_root:\n  .zero 32\n" ++
   "cahsr_acct_struct:\n  .zero 104\n" ++
