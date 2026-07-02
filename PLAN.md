@@ -2517,7 +2517,13 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Stage 4.5 landed: ghost + focus made RELATIONAL (annotations can name
+Stage 4.75 landed: focus `.focus` VC witnesses are PER-SATISFYING-STATE
+(recursive predicates carry existential child pointers *inside* the
+assertion; a single decomposition equality is unsatisfiable — the VC now
+skolemizes at the machine sub-state, sp records satisfiability of the
+chosen decomposition); TreeSep gains the satisfiability shadows
+(sepConj_sat_left/right, treeAt_sat_node, treeAt_sat_shadow: p = 0 ↔
+leaf on satisfying states). Stage 4.5 landed: ghost + focus made RELATIONAL (annotations can name
 existentially-quantified ghosts — zipper contexts/subtrees — that
 functional annotations cannot) and both now record satisfiability of
 the pre-assertion in sp (the *harvest*: pure facts baked into

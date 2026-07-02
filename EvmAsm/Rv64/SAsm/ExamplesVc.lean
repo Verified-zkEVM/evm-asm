@@ -887,21 +887,22 @@ theorem focusReadFn_spec (q v base : Word) (hwf : RwRegion.wf ⟨q, 8⟩) :
     bv_omega
   vcgen
   case focusRead.win.focus =>
-    rintro rf ws A ⟨hx11, hA⟩ hApc hsat
+    rintro rf ws A ⟨hx11, hA⟩ hApc hp hhp
     refine ⟨dwordBytes v, empAssertion, ⟨rfl, rfl⟩, ?_, pcFree_emp, ?_⟩
     · rw [sepConj_emp_right', hx11]
-      exact hA
+      rw [hA] at hhp
+      exact hhp
     · rw [hx11, length_dwordBytes]
       exact hwf
   case focusRead.win.mem =>
-    rintro rf ws A win rest hws ⟨hx11, hA⟩ ⟨rfl, rfl⟩ hAeq
+    rintro rf ws A win rest hws ⟨hx11, hA⟩ ⟨rfl, rfl⟩ hsat
     simp only [blockVCs, loadSem, inRw, Region.loadOk,
       hidx rf hx11, length_dwordBytes]
     rw [if_pos (by omega)]
     exact ⟨⟨by omega, by omega⟩, trivial⟩
   case focusRead.seal =>
     rintro rf ws A ⟨rf₀, A₀, win, rest, hlen, ⟨hx11, hA₀⟩, hsat, ⟨rfl, rfl⟩,
-      hAeq, rfl, rfl⟩ hApc hsat'
+      rfl, rfl⟩ hApc hsat'
     refine ⟨_, rfl, ?_, bytesRegion_pcFree _ _⟩
     intro hp hh
     rw [sepConj_emp_right'] at hh
@@ -910,7 +911,7 @@ theorem focusReadFn_spec (q v base : Word) (hwf : RwRegion.wf ⟨q, 8⟩) :
     exact hh
   case focusRead.post =>
     rintro rf' ws' A' ⟨A1, ⟨rf₀, A₀, win, rest, hlen, ⟨hx11, hA₀⟩, hsat,
-      ⟨rfl, rfl⟩, hAeq, rfl, rfl⟩, hsat1, rfl⟩
+      ⟨rfl, rfl⟩, rfl, rfl⟩, hsat1, rfl⟩
     refine ⟨?_, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem, aluSem]
     rw [if_pos (show inRw (rf₀.get .x11) (dwordBytes v)
