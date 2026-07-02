@@ -200,4 +200,47 @@ theorem sdivCodeV5_resultSignFix_sub {base : Word} :
       omega)
     (by rw [EvmAsm.Evm64.evm_sdiv_v5_length]; norm_num)
 
+/-- v5 mirror of `divCall_spec_in_sdivCodeV4`: the SDIV `divCall` near-call block
+    (identical in the shared `evm_sdiv_wrapper` prefix) over `sdivCodeV5`. -/
+theorem divCall_spec_in_sdivCodeV5
+    (vOld : Word) (base : Word) :
+    EvmAsm.Rv64.cpsTripleWithin 1 (base + divCallOff)
+        ((base + divCallOff) + EvmAsm.Rv64.signExtend21 EvmAsm.Evm64.evm_sdivCallOff)
+      (sdivCodeV5 base)
+      (.x1 ↦ᵣ vOld)
+      (.x1 ↦ᵣ ((base + divCallOff) + 4)) := by
+  have hmono :
+      ∀ a i,
+        (EvmAsm.Evm64.evm_sdiv_div_call_block_code
+          EvmAsm.Evm64.evm_sdivCallOff (base + divCallOff)) a = some i →
+        (sdivCodeV5 base) a = some i := by
+    intro a i h
+    exact sdivCodeV5_divCall_sub (base := base) a i
+      (by simpa [divCallCode,
+        EvmAsm.Evm64.evm_sdiv_div_call_block_code] using h)
+  exact EvmAsm.Rv64.cpsTripleWithin_extend_code hmono
+    (EvmAsm.Evm64.evm_sdiv_div_call_block_spec_within
+      EvmAsm.Evm64.evm_sdivCallOff vOld (base + divCallOff))
+
+/-- v5 mirror of `signXor_spec_in_sdivCodeV4`: the `XOR .x8 .x8 .x9` sign-combine
+    block (shared wrapper prefix) over `sdivCodeV5`. -/
+theorem signXor_spec_in_sdivCodeV5
+    (signDividend signDivisor : Word) (base : Word) :
+    EvmAsm.Rv64.cpsTripleWithin 1 (base + signXorOff) ((base + signXorOff) + 4)
+      (sdivCodeV5 base)
+      ((.x8 ↦ᵣ signDividend) ** (.x9 ↦ᵣ signDivisor))
+      ((.x8 ↦ᵣ (signDividend ^^^ signDivisor)) ** (.x9 ↦ᵣ signDivisor)) := by
+  have hmono :
+      ∀ a i, (EvmAsm.Rv64.CodeReq.singleton (base + signXorOff) (.XOR .x8 .x8 .x9)) a = some i →
+        (sdivCodeV5 base) a = some i := by
+    intro a i h
+    exact sdivCodeV5_signXor_sub (base := base) a i
+      (by
+        rw [signXorCode, EvmAsm.Rv64.XOR', EvmAsm.Rv64.single,
+          EvmAsm.Rv64.CodeReq.ofProg_singleton]
+        exact h)
+  exact EvmAsm.Rv64.cpsTripleWithin_extend_code hmono
+    (EvmAsm.Rv64.xor_spec_gen_rd_eq_rs1_within .x8 .x9 signDividend signDivisor
+      (base + signXorOff) (by decide))
+
 end EvmAsm.Evm64.SDiv.Compose
