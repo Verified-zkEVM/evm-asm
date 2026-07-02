@@ -56,6 +56,7 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchPcFreeBasics
 import EvmAsm.Evm64.SDiv.Compose.DivCallPostPcFreeBasics
 import EvmAsm.Evm64.SDiv.Compose.DivCallExactCallable
 import EvmAsm.Evm64.SDiv.Compose.CodeHandlesV5
+import EvmAsm.Evm64.SDiv.Compose.DivCallExactCallableV5
 import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
 import EvmAsm.Evm64.SDiv.Compose.DivCallExactHandoff
 import EvmAsm.Evm64.SDiv.Compose.DivCallN1V4Handoff
