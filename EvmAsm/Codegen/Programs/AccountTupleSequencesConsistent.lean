@@ -29,6 +29,8 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Programs.BalValueReverseSAsm
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
@@ -111,9 +113,9 @@ def accountTupleSequencesConsistentFunction : String :=
   "  la t0, atsc_balcount; sd a0, 0(t0)                   # bal_count\n" ++
   "  # reverse each BAL tuple's 32B value (BE -> LE) to match the LE exec output\n" ++
   "  mv t0, a0; la t1, atsc_balbuf                        # t0=count; record = bai@0, value@8\n" ++
-  ".Latsc_vr:\n  beqz t0, .Latsc_vrd\n  addi t2, t1, 8; addi t3, t1, 39; li t4, 16\n" ++
-  ".Latsc_vrb:\n  beqz t4, .Latsc_vrn\n  lbu t5, 0(t2); lbu t6, 0(t3); sb t6, 0(t2); sb t5, 0(t3); addi t2, t2, 1; addi t3, t3, -1; addi t4, t4, -1; j .Latsc_vrb\n" ++
-  ".Latsc_vrn:\n  addi t1, t1, 40; addi t0, t0, -1; j .Latsc_vr\n" ++
+  ".Latsc_vr:\n  beqz t0, .Latsc_vrd\n  addi t2, t1, 8\n" ++
+  emitProgram BalValueReverseSAsm.balValueReverse_verified ++ "\n" ++
+  "  addi t1, t1, 40; addi t0, t0, -1; j .Latsc_vr\n" ++
   ".Latsc_vrd:\n" ++
   "  # exec net-change tuple sequence for this slot: begin-system (idx0) then user (1..N) then end-system (idxN+1).\n" ++
   -- lv44p.2.2: point system_user_exec_log_slot_tuples at the REAL per-row system
