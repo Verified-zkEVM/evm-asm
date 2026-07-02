@@ -5,10 +5,14 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.ClzSAsm
 
 namespace EvmAsm.Codegen
 
-/-- Raw RV64IM handler for EIP-7939 `CLZ` (0x1e).
+/-- Legacy raw RV64IM handler for EIP-7939 CLZ (0x1e).
+
+    The dispatcher registry now uses ClzSAsm.clz_verified; this raw tail is
+    retained as a historical reference for the instruction sequence it replaced.
 
     Desired behavior is from execution-specs
     `bpo*/vm/instructions/bitwise.py::count_leading_zeros`: pop one

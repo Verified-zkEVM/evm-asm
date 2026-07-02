@@ -64,7 +64,7 @@ def singletonHandlers : List OpcodeHandlerSpec :=
   , { label := "h_SHL"        , opcodes := [0x1b], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shl       , tail := x10RestoreAdvance1 }
   , { label := "h_SHR"        , opcodes := [0x1c], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_shr       , tail := x10RestoreAdvance1 }
   , { label := "h_SAR"        , opcodes := [0x1d], preBody := stackUnderflowGuardSaveX10Asm 2, body := EvmAsm.Evm64.evm_sar       , tail := x10RestoreAdvance1 }
-  , { label := "h_CLZ"        , opcodes := [0x1e], preBody := stackUnderflowGuardAsm 1, body := []                         , tail := clzTail }
+  , { label := "h_CLZ"        , opcodes := [0x1e], preBody := stackUnderflowGuardAsm 1, body := ClzSAsm.clz_verified       , tail := .advanceAndRet 1 }
   , { label := "h_POP"        , opcodes := [0x50], preBody := stackUnderflowGuardAsm 1, body := EvmAsm.Evm64.evm_pop       , tail := .advanceAndRet 1 } ]
 
 end EvmAsm.Codegen
