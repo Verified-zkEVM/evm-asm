@@ -2508,7 +2508,10 @@ frame rule at call granularity (callee needing A₀ callable where the
 caller holds A₀ ** Fr), derived generically with NO soundness-induction
 change (asrtOf_frameA/asrtM_frameA). Demo: cellKeepFn (ambient-cell
 contract, published via SpecA) called by twoCellsFn through frameA.
-Next stages: ghost/focus nodes,
+Stage 3a landed: `.ghost` statement node —
+zero-code reshaping of the ambient assertion by a pointwise entailment
+(one VC: entailment + pcFree of the result); the fold/unfold vehicle
+for recursive predicates. Next stages: focus blocks (.blockAt),
 tree library + sorted-BST insertion demo, docs/sasm-howto.md.
 read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified

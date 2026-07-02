@@ -97,6 +97,7 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
       sp reg rw b (fun rf ws A => reach rf ws A ∧ c.holds rf) rf' ws' A'
         ∨ (reach rf' ws' A' ∧ ¬ c.holds rf')
   | assert _ P, reach => fun rf ws A => reach rf ws A ∧ P rf ws A
+  | ghost _ f, reach => fun rf ws A' => ∃ A, reach rf ws A ∧ A' = f rf ws A
   | «while» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
   | call _ f, _ => fun rf ws A => f.post rf ws A
@@ -119,6 +120,9 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
       vcs reg rw b (pfx ++ lbl ++ ".") (fun rf ws A => reach rf ws A ∧ c.holds rf)
   | assert lbl P, pfx, reach =>
       [⟨pfx ++ lbl, ∀ rf ws A, reach rf ws A → P rf ws A⟩]
+  | ghost lbl f, pfx, reach =>
+      [⟨pfx ++ lbl, ∀ rf ws A, reach rf ws A → A.pcFree →
+          (∀ hp, A hp → f rf ws A hp) ∧ (f rf ws A).pcFree⟩]
   | «while» lbl c fuel inv b, pfx, reach =>
       ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
       ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel →
@@ -138,6 +142,7 @@ def steps : Stmt → Nat
   | ite _ _ t e => 1 + max (t.steps + 1) e.steps
   | when _ _ b => 1 + b.steps
   | assert _ _ => 0
+  | ghost _ _ => 0
   | «while» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | call _ f => 1 + f.nSteps
 
@@ -161,6 +166,9 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       · exact Or.inr ⟨h rf ws A hskip.1, hskip.2⟩
   | assert lbl P =>
       exact fun rf ws A hr => ⟨h rf ws A hr.1, hr.2⟩
+  | ghost lbl f =>
+      rintro rf ws A' ⟨A, hr, rfl⟩
+      exact ⟨A, h rf ws A hr, rfl⟩
   | «while» lbl c fuel inv b ihb =>
       exact fun rf ws A hr => hr
   | call lbl f =>
@@ -212,6 +220,11 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
       exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
+  | ghost lbl f =>
+      intro vc hvc
+      simp only [vcs, List.mem_singleton] at hvc
+      subst hvc
+      exact fun rf ws A hr hApc => hvcs.head rf ws A (h rf ws A hr) hApc
   | «while» lbl c fuel inv b ihb =>
       intro vc hvc
       simp only [vcs, List.mem_cons] at hvc
@@ -237,6 +250,7 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | ite _ _ t e => t.CalleesIn reg rw cr ∧ e.CalleesIn reg rw cr
   | when _ _ b => b.CalleesIn reg rw cr
   | assert _ _ => True
+  | ghost _ _ => True
   | «while» _ _ _ _ b => b.CalleesIn reg rw cr
   | call _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw
