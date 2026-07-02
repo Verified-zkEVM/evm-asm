@@ -78,5 +78,6 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchZeroDivisor
 import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
 import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
 import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixV5
+import EvmAsm.Evm64.SDiv.Compose.DivCallReturnV5
 import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SDiv.SpecResultBranches
