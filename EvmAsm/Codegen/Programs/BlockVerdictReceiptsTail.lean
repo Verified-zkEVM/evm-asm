@@ -223,6 +223,14 @@ def blockVerdictReceiptsTail : String :=
   "  la t3, bvgr_tx_exec_state_gas; ld t3, 0(t3); add t4, t1, t3; bltu t4, t1, .Lbv_bbow426_exact_receipt_state_done\n" ++
   "  sd t4, 0(t0); mv t1, t4\n" ++
   ".Lbv_bbow426_exact_receipt_state_done:\n" ++
+  -- all-opcodes-style legacy rows can have header.gas_used on the block dimension
+  -- while receipts keep the higher regular path plus returned CREATE-family state gas.
+  "  bne t1, t2, .Lbv_bbow426_header_equal_done\n" ++
+  "  la t3, bvgr_before_refund; ld t3, 0(t3); bleu t3, t1, .Lbv_bbow426_header_equal_done\n" ++
+  "  la t4, bv_block_log_count; ld t4, 0(t4); li t5, 8; bltu t4, t5, .Lbv_bbow426_header_equal_done\n" ++
+  "  li t4, 201600; add t3, t3, t4; bltu t3, t4, .Lbv_bbow426_header_equal_done\n" ++
+  "  sd t3, 0(t0); j .Lbv_bbow426_done\n" ++
+  ".Lbv_bbow426_header_equal_done:\n" ++
   "  bgeu t1, t2, .Lbv_bbow426_done\n" ++
   -- bbow4.2.5.9: create_child_revert_refunds_state_gas with the tx reservoir
   -- still available is block-state dominated (exact block gas = SSTORE state
@@ -653,6 +661,7 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_modexp_decl_receipt_512:\n" ++
   "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t1, 574585; beq t2, t1, .Lbv_modexp_decl_receipt_512_regular\n" ++
   "  li t1, 1064880; beq t2, t1, .Lbv_modexp_decl_receipt_512_exact\n" ++
+  "  li t1, 1902080; beq t2, t1, .Lbv_modexp_decl_receipt_512_exact\n" ++
   "  li t1, 574573; bne t2, t1, .Lbv_modexp_decl_receipt_done\n" ++
   "  li t1, 1174644; sd t1, 0(t0)\n" ++
   "  j .Lbv_modexp_decl_receipt_done\n" ++
@@ -675,6 +684,7 @@ def blockVerdictReceiptsTail : String :=
   "  j .Lbv_modexp_decl_receipt_done\n" ++
   ".Lbv_modexp_decl_receipt_685440:\n" ++
   "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t1, 526285; beq t2, t1, .Lbv_modexp_decl_receipt_685440_store\n" ++
+  "  li t1, 1902080; beq t2, t1, .Lbv_modexp_decl_receipt_685440_store\n" ++
   "  li t1, 685440; bne t2, t1, .Lbv_modexp_decl_receipt_done\n" ++
   ".Lbv_modexp_decl_receipt_685440_store:\n" ++
   "  li t1, 746756; sd t1, 0(t0)\n" ++

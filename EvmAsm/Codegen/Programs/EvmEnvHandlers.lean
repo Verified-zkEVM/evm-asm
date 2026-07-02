@@ -17,7 +17,8 @@ namespace EvmAsm.Codegen
     `SimpleEnvField`. The dispatcher prologue sets `x20 = &evm_env`
     (a 416-byte = 13×32 region in `.data` initialised to zero), and
     each handler passes `.x20` as `envBaseReg` plus `.x15` as
-    `tmpReg`. None of these bodies touch `x10`, so `preBody := ""`.
+    `tmpReg`. Each body pushes one EVM stack word, so the dispatcher
+    runs the same stack-overflow guard used by `PUSHn` before the body.
 
     `x20` was chosen over `x14` (the M8/M9/M10 save register) because
     DIV/MOD/SDIV/SMOD/ADDMOD all use `preBody := "mv x14, x10"`:
@@ -32,18 +33,18 @@ namespace EvmAsm.Codegen
     opcode byte routes to the right field offset, x12 advances, the
     32 bytes land on the stack) is what M12 validates. -/
 def envHandlers : List OpcodeHandlerSpec :=
-  [ { label := "h_ADDRESS"    , opcodes := [0x30], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .address    , tail := .advanceAndRet 1 }
-  , { label := "h_ORIGIN"     , opcodes := [0x32], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .origin     , tail := .advanceAndRet 1 }
-  , { label := "h_CALLER"     , opcodes := [0x33], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .caller     , tail := .advanceAndRet 1 }
-  , { label := "h_CALLVALUE"  , opcodes := [0x34], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .callValue  , tail := .advanceAndRet 1 }
-  , { label := "h_GASPRICE"   , opcodes := [0x3a], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .gasPrice   , tail := .advanceAndRet 1 }
-  , { label := "h_COINBASE"   , opcodes := [0x41], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .coinbase   , tail := .advanceAndRet 1 }
-  , { label := "h_TIMESTAMP"  , opcodes := [0x42], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .timestamp  , tail := .advanceAndRet 1 }
-  , { label := "h_NUMBER"     , opcodes := [0x43], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .number     , tail := .advanceAndRet 1 }
-  , { label := "h_PREVRANDAO" , opcodes := [0x44], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .prevrandao , tail := .advanceAndRet 1 }
-  , { label := "h_GASLIMIT"   , opcodes := [0x45], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .gasLimit   , tail := .advanceAndRet 1 }
-  , { label := "h_CHAINID"    , opcodes := [0x46], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .chainId    , tail := .advanceAndRet 1 }
-  , { label := "h_SELFBALANCE", opcodes := [0x47], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
-  , { label := "h_BASEFEE"    , opcodes := [0x48], body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
+  [ { label := "h_ADDRESS"    , opcodes := [0x30], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .address    , tail := .advanceAndRet 1 }
+  , { label := "h_ORIGIN"     , opcodes := [0x32], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .origin     , tail := .advanceAndRet 1 }
+  , { label := "h_CALLER"     , opcodes := [0x33], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .caller     , tail := .advanceAndRet 1 }
+  , { label := "h_CALLVALUE"  , opcodes := [0x34], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .callValue  , tail := .advanceAndRet 1 }
+  , { label := "h_GASPRICE"   , opcodes := [0x3a], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .gasPrice   , tail := .advanceAndRet 1 }
+  , { label := "h_COINBASE"   , opcodes := [0x41], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .coinbase   , tail := .advanceAndRet 1 }
+  , { label := "h_TIMESTAMP"  , opcodes := [0x42], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .timestamp  , tail := .advanceAndRet 1 }
+  , { label := "h_NUMBER"     , opcodes := [0x43], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .number     , tail := .advanceAndRet 1 }
+  , { label := "h_PREVRANDAO" , opcodes := [0x44], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .prevrandao , tail := .advanceAndRet 1 }
+  , { label := "h_GASLIMIT"   , opcodes := [0x45], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .gasLimit   , tail := .advanceAndRet 1 }
+  , { label := "h_CHAINID"    , opcodes := [0x46], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .chainId    , tail := .advanceAndRet 1 }
+  , { label := "h_SELFBALANCE", opcodes := [0x47], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .selfBalance, tail := .advanceAndRet 1 }
+  , { label := "h_BASEFEE"    , opcodes := [0x48], preBody := stackOverflowGuardAsm, body := EvmAsm.Evm64.Env.evm_env_load .x20 .x15 .baseFee    , tail := .advanceAndRet 1 } ]
 
 end EvmAsm.Codegen

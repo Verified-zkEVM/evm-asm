@@ -59,6 +59,7 @@ def memoryHandlers : List OpcodeHandlerSpec :=
 def memoryMetadataHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_MSIZE"
       opcodes := [0x59]
+      preBody := stackOverflowGuardAsm
       body    := []
       tail    := .custom <|
         "  addi x12, x12, -32\n" ++
