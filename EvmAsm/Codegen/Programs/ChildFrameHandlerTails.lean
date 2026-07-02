@@ -413,7 +413,8 @@ def basicPrecompileCallTail
     -- the full zkvm_modexp output slice.
     ".Lmodexp_zero_header_" ++ tag ++ ":\n" ++
     modexpPrecompileGasAsm
-      chargePrecompileGasAsm tag
+      (chargePrecompileGasWithAllotmentPreservingModexpAsm tag)
+      tag
       inOffsetOff inSizeOff outOffsetOff outSizeOff ++
     -- BN254 failed-call tail (kernel invalid input / child OOG): burn the
     -- forwarded EIP-150 allotment, push 0, resume. Reached only by branches

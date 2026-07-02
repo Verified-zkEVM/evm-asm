@@ -40,6 +40,25 @@ def chargePrecompileGasWithAllotmentAsm
   "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
   "  sd " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n"
 
+/-- MODEXP has already parsed the input size and three length fields when it
+    charges gas. The shared allotment helper clobbers x17/x22/x23, so this
+    variant preserves those parsed values on the successful path. If the child
+    allotment is too small, the failure stub exits immediately and the saved
+    temporaries do not need restoring. -/
+def chargePrecompileGasWithAllotmentPreservingModexpAsm
+    (tag costReg remainingReg : String) : String :=
+  "  mv x6, x17\n" ++
+  "  mv x7, x22\n" ++
+  "  mv x28, x23\n" ++
+  "  jal x1, bn254_call_allotment\n" ++
+  "  bltu x22, " ++ costReg ++ ", .L" ++ tag ++ "_bn254_fail_burn\n" ++
+  "  ld " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
+  "  sd " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  "  mv x17, x6\n" ++
+  "  mv x22, x7\n" ++
+  "  mv x23, x28\n"
+
 def chargePrecompileGasConstWithAllotmentAsm (tag : String) (cost : Nat)
     (costReg remainingReg : String) : String :=
   "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
