@@ -2565,7 +2565,15 @@ VCs + zero-case-analysis downstream summary). ClzSAsm.lean reworked as
 the demonstration: both bounded-aesop VCs replaced by the structural
 lemmas (clzSelectBody now carries per-branch asserts; emitted code
 unchanged). Howto: new subsections for the eliminators and branch-tail
-summaries. CLZ handler port landed on this substrate: ClzSAsm.lean
+summaries. Ergonomics round 4 (from the keccak byte-reverse delegated
+attempt): resolved byte step lemmas execInstrRF_lbu_byte/_sb_byte +
+projections _sb_fst/_sb_snd (Sym.lean); setBytes_singleton (byte store
+= List.set) + truncate_zeroExtend_byte (MultiDword); rev4Fn demo
+(ExamplesVc: 4-byte in-place reverse, unrolled — the explode-the-window
+recipe: destructure the byte list into cons cells and set/getD/reverse
+reduce definitionally, no take/drop invariants for unrolled code);
+howto "Byte-granularity focus blocks" incl. the metavariable-pinning
+pitfall for step-lemma side proofs. CLZ handler port landed on this substrate: ClzSAsm.lean
 now provides clzFn_spec and clz_verified, and h_CLZ uses the verified
 SAsm body plus advanceAndRet instead of the legacy raw custom tail.
 Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration

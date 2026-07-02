@@ -89,6 +89,28 @@ theorem setBytes_dword_at0 (v w : Word) (rest : List (BitVec 8)) :
   rw [setBytes_append_left _ _ _ _ (by rw [length_dwordBytes, length_dwordBytes]),
     setBytes_dword_full _ _ (length_dwordBytes v)]
 
+-- ============================================================================
+-- Byte-granularity windows (docs/sasm-howto.md, "Byte-granularity focus
+-- blocks"): with `execInstrRF_lbu_byte`/`execInstrRF_sb_byte` (Sym.lean),
+-- a byte store is a plain `List.set` and a byte load round-trips through
+-- the zero-extension.  For FIXED-SIZE windows, explode the byte list into
+-- cons cells (`w = [b0, …, bN]`) and `List.set`/`getD`/`reverse` all
+-- reduce definitionally — no take/drop invariants needed for unrolled
+-- code.  Worked example: `rev4Fn` in ExamplesVc.lean.
+-- ============================================================================
+
+/-- A one-byte splice is a plain `List.set`. -/
+theorem setBytes_singleton (ws : List (BitVec 8)) (k : Nat) (b : BitVec 8) :
+    setBytes ws k [b] = ws.set k b := rfl
+
+/-- A byte loaded zero-extended (`LBU`) and stored truncated (`SB`)
+    round-trips. -/
+theorem truncate_zeroExtend_byte (b : BitVec 8) :
+    ((b.zeroExtend 64).truncate 8) = b := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i
+  simp
+
 /-- Step a splice past the head cell of a dword-concatenation window. -/
 theorem setBytes_dword_past (v : Word) (rest ns : List (BitVec 8)) (k : Nat) :
     setBytes (dwordBytes v ++ rest) (8 + k) ns

@@ -1203,6 +1203,184 @@ theorem revCellFn_spec (p l0 l1 l2 l3 base : Word) :
           ⌜RwRegion.wf ⟨p, 32⟩⌝) = _
       rw [hx12, sepConj_comm']
 
+-- ============================================================================
+-- Byte-granularity focus blocks: `rev4Fn`
+--
+-- The worked example for docs/sasm-howto.md ("Byte-granularity focus
+-- blocks"): reverse a 4-byte cell in place with two unrolled
+-- literal-offset swaps.  The recipe:
+--   1. `execInstrRF_lbu_byte` / `execInstrRF_sb_byte` (Sym.lean) — one
+--      rewrite per byte access, no routing `if`s;
+--   2. `setBytes_singleton` + `truncate_zeroExtend_byte` (MultiDword) —
+--      each store becomes a plain `List.set` of the original byte;
+--   3. for a FIXED-SIZE window, explode the byte list into cons cells
+--      (`w = [b0, b1, b2, b3]`) — `List.set`/`getD`/`reverse` then all
+--      reduce definitionally, so the engine result and `w.reverse` match
+--      by `rfl`-strength reasoning, with no take/drop invariants.
+-- ============================================================================
+
+/-- Swap the bytes at literal offsets `lo`/`hi` of the cell at `a2`. -/
+def byteSwapAt (lo hi : BitVec 12) : List Instr :=
+  [.LBU .x5 .x12 lo, .LBU .x6 .x12 hi, .SB .x12 .x6 lo, .SB .x12 .x5 hi]
+
+def rev4Block : List Instr := byteSwapAt 0 3 ++ byteSwapAt 1 2
+
+def rev4R (p : Word) (w : List (BitVec 8)) :
+    RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop :=
+  fun rf _ _ win rest =>
+    rf.get .x12 = p ∧ win = w ∧ rest = ⌜RwRegion.wf ⟨p, 4⟩⌝
+
+/-- Reverse the 4-byte cell at `a2` in place. -/
+def rev4Fn (p : Word) (w : List (BitVec 8)) : Fn where
+  name := "rev4"
+  pre := fun rf _ A => rf.get .x12 = p ∧ w.length = 4 ∧
+    A = (⌜RwRegion.wf ⟨p, 4⟩⌝ ** bytesRegion p w)
+  post := fun rf _ A => rf.get .x12 = p ∧
+    A = (⌜RwRegion.wf ⟨p, 4⟩⌝ ** bytesRegion p w.reverse)
+  body := .blockAt "rev" .x12 (rev4R p w) rev4Block
+
+private theorem rev4_off (b : Word) (ofs : BitVec 12) (k : Nat)
+    (hofs : signExtend12 ofs = BitVec.ofNat 64 k) (hk : k < 2 ^ 12) :
+    ((b + signExtend12 ofs) - b).toNat = k := by
+  rw [hofs]
+  bv_omega
+
+/-- The engine over the EXPLODED window: with the four bytes named, every
+    `getD`/`set` computes, and the final window is literally the reversal
+    (the closing `rfl` checks it by kernel reduction — no take/drop
+    invariant anywhere). -/
+private theorem rev4_engine (reg : Region) (rf : RegFile)
+    (b0 b1 b2 b3 : BitVec 8) :
+    execBlock reg (rf.get .x12) rf [b0, b1, b2, b3] rev4Block
+      = ((((rf.set .x5 (b0.zeroExtend 64)).set .x6 (b3.zeroExtend 64)).set
+            .x5 (b1.zeroExtend 64)).set .x6 (b2.zeroExtend 64),
+         [b3, b2, b1, b0]) := by
+  have h0 := rev4_off (rf.get .x12) 0 0 (by decide) (by decide)
+  have h1 := rev4_off (rf.get .x12) 1 1 (by decide) (by decide)
+  have h2 := rev4_off (rf.get .x12) 2 2 (by decide) (by decide)
+  have h3 := rev4_off (rf.get .x12) 3 3 (by decide) (by decide)
+  have hx12a : ∀ v : Word, (rf.set .x5 v).get .x12 = rf.get .x12 :=
+    fun v => RegFile.get_set_ne _ _ _ _ (by decide)
+  have hx12b : ∀ v w : Word, ((rf.set .x5 v).set .x6 w).get .x12
+      = rf.get .x12 := fun v w => by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12a]
+  rw [show rev4Block = [.LBU .x5 .x12 0, .LBU .x6 .x12 3, .SB .x12 .x6 0,
+      .SB .x12 .x5 3, .LBU .x5 .x12 1, .LBU .x6 .x12 2, .SB .x12 .x6 1,
+      .SB .x12 .x5 2] from rfl]
+  rw [execBlock_cons, execInstrRF_lbu_byte _ _ _ _ _ _ _ 0 h0 (by simp)]
+  rw [execBlock_cons, execInstrRF_lbu_byte _ _ _ _ _ _ _ 3
+    (by rw [hx12a]; exact h3) (by simp)]
+  rw [execBlock_cons, execInstrRF_sb_byte _ _ _ _ _ _ _ 0
+    (by rw [hx12b]; exact h0)]
+  rw [RegFile.get_set_self _ _ _ (by decide), setBytes_singleton,
+    truncate_zeroExtend_byte]
+  rw [execBlock_cons, execInstrRF_sb_byte _ _ _ _ _ _ _ 3
+    (by rw [hx12b]; exact h3)]
+  rw [RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_self _ _ _ (by decide), setBytes_singleton,
+    truncate_zeroExtend_byte]
+  rw [execBlock_cons, execInstrRF_lbu_byte _ _ _ _ _ _ _ 1
+    (by rw [hx12b]; exact h1) (by simp)]
+  rw [execBlock_cons, execInstrRF_lbu_byte _ _ _ _ _ _ _ 2
+    (by rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12b]; exact h2)
+    (by simp)]
+  rw [execBlock_cons, execInstrRF_sb_byte _ _ _ _ _ _ _ 1
+    (by rw [RegFile.get_set_ne _ _ _ _ (by decide),
+      RegFile.get_set_ne _ _ _ _ (by decide), hx12b]; exact h1)]
+  rw [RegFile.get_set_self _ _ _ (by decide), setBytes_singleton,
+    truncate_zeroExtend_byte]
+  rw [execBlock_cons, execInstrRF_sb_byte _ _ _ _ _ _ _ 2
+    (by rw [RegFile.get_set_ne _ _ _ _ (by decide),
+      RegFile.get_set_ne _ _ _ _ (by decide), hx12b]; exact h2)]
+  rw [RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_self _ _ _ (by decide), setBytes_singleton,
+    truncate_zeroExtend_byte]
+  rfl
+
+/-- The `.mem` VCs: byte accesses only need the in-window bound. -/
+private theorem rev4_blockVCs (reg : Region) (rf : RegFile)
+    (b0 b1 b2 b3 : BitVec 8) :
+    blockVCs reg (rf.get .x12) rf [b0, b1, b2, b3] rev4Block := by
+  have h0 := rev4_off (rf.get .x12) 0 0 (by decide) (by decide)
+  have h1 := rev4_off (rf.get .x12) 1 1 (by decide) (by decide)
+  have h2 := rev4_off (rf.get .x12) 2 2 (by decide) (by decide)
+  have h3 := rev4_off (rf.get .x12) 3 3 (by decide) (by decide)
+  have hx12a : ∀ v : Word, (rf.set .x5 v).get .x12 = rf.get .x12 :=
+    fun v => RegFile.get_set_ne _ _ _ _ (by decide)
+  have hx12b : ∀ v w : Word, ((rf.set .x5 v).set .x6 w).get .x12
+      = rf.get .x12 := fun v w => by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12a]
+  rw [show rev4Block = [.LBU .x5 .x12 0, .LBU .x6 .x12 3, .SB .x12 .x6 0,
+      .SB .x12 .x5 3, .LBU .x5 .x12 1, .LBU .x6 .x12 2, .SB .x12 .x6 1,
+      .SB .x12 .x5 2] from rfl]
+  simp only [blockVCs, loadSem, storeSem]
+  rw [execInstrRF_lbu_byte _ _ _ _ _ _ _ 0 h0 (by simp)]
+  dsimp only
+  rw [execInstrRF_lbu_byte _ _ _ _ _ _ _ 3 (by rw [hx12a]; exact h3) (by simp)]
+  dsimp only
+  -- the SB steps never change the register file (`execInstrRF_sb_fst`,
+  -- a simp lemma), so the later loads' side conditions normalize through
+  -- them without resolving the stores
+  rw [execInstrRF_lbu_byte _ _ _ _ _ _ _ 1
+    (by simp only [execInstrRF_sb_fst]; rw [hx12b]; exact h1)
+    (by simp [execInstrRF_sb_snd])]
+  dsimp only
+  rw [execInstrRF_lbu_byte _ _ _ _ _ _ _ 2
+    (by simp only [execInstrRF_sb_fst]
+        rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12b]; exact h2)
+    (by simp [execInstrRF_sb_snd])]
+  dsimp only
+  simp only [execInstrRF_sb_fst, execInstrRF_sb_snd, hx12a, hx12b,
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x5),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x6),
+    h0, h1, h2, h3, setBytes_singleton, inRw, Region.loadOk,
+    List.length_set, List.length_cons, List.length_nil]
+  and_intros <;> trivial
+
+theorem rev4Fn_spec (p : Word) (w : List (BitVec 8)) (base : Word) :
+    (rev4Fn p w).Spec base := by
+  vcgen
+  case rev4.rev.focus =>
+    rintro rf ws A ⟨hx12, hw, hA⟩ hApc hp hhp
+    rw [hA] at hhp
+    refine ⟨w, ⌜RwRegion.wf ⟨p, 4⟩⌝, ⟨hx12, rfl, rfl⟩, ?_, pcFree_pure, ?_⟩
+    · rw [hx12]
+      xperm_hyp hhp
+    · rw [hx12, hw]
+      exact ((sepConj_pure_left hp).mp hhp).1
+  case rev4.rev.mem =>
+    rintro rf ws A win rest - ⟨-, hw, -⟩ ⟨hptr, rfl, rfl⟩ -
+    obtain ⟨b0, b1, b2, b3, rfl⟩ : ∃ b0 b1 b2 b3, win = [b0, b1, b2, b3] := by
+      rcases win with - | ⟨b0, - | ⟨b1, - | ⟨b2, - | ⟨b3, - | ⟨b4, win⟩⟩⟩⟩⟩ <;>
+        simp only [List.length_nil, List.length_cons] at hw <;>
+        first
+          | omega
+          | exact ⟨b0, b1, b2, b3, rfl⟩
+    exact rev4_blockVCs _ rf b0 b1 b2 b3
+  case rev4.post =>
+    rintro rf ws A ⟨rf₀, A₀, win, rest, -, ⟨hx12, hw, -⟩, -, ⟨hptr, rfl, rfl⟩,
+      hrf, hA⟩
+    obtain ⟨b0, b1, b2, b3, rfl⟩ : ∃ b0 b1 b2 b3, win = [b0, b1, b2, b3] := by
+      rcases win with - | ⟨b0, - | ⟨b1, - | ⟨b2, - | ⟨b3, - | ⟨b4, win⟩⟩⟩⟩⟩ <;>
+        simp only [List.length_nil, List.length_cons] at hw <;>
+        first
+          | omega
+          | exact ⟨b0, b1, b2, b3, rfl⟩
+    -- shrink the equations BEFORE substituting (howto §8)
+    rw [rev4_engine] at hrf hA
+    dsimp only at hrf hA
+    subst hrf
+    constructor
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx12
+    · rw [hA, hx12, sepConj_comm',
+        show ([b0, b1, b2, b3] : List (BitVec 8)).reverse
+          = [b3, b2, b1, b0] from rfl]
+
 end ExamplesVc
 end SAsm
 end EvmAsm.Rv64

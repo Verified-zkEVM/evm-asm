@@ -311,6 +311,40 @@ heartbeat timeouts).  Instead:
    them to `rf' = rf.set …`-form), and only then rewrite them into the
    goal.
 
+### Byte-granularity focus blocks
+
+The worked example is `rev4Fn` (ExamplesVc.lean): reverse a 4-byte cell
+in place with unrolled literal-offset swaps.  Byte accesses differ from
+the dword recipe in three ways:
+
+1. **Resolved byte steps** (`Sym.lean`): `execInstrRF_lbu_byte` (an
+   `LBU` landing `k` bytes into the window *is*
+   `rf.set rd ((ws.getD k 0).zeroExtend 64)`) and `execInstrRF_sb_byte`;
+   projections `execInstrRF_sb_fst` (simp) / `execInstrRF_sb_snd`.
+   With `setBytes_singleton` a byte store is a plain `List.set`, and
+   `truncate_zeroExtend_byte` collapses the LBU→SB round trip
+   (MultiDword.lean).  No alignment side conditions — only the
+   in-window bound.
+2. **Explode fixed-size windows into cons cells.**  For an unrolled
+   block over a window of known length, obtain
+   `w = [b0, …, bN]` once (an `rcases`-per-cons chain closed by the
+   length hypothesis) — then `List.set`/`getD`/`reverse` all reduce
+   definitionally and the engine's final window matches the model by
+   the closing `rfl`.  No take/drop invariants for unrolled code;
+   loops over a window still use invariants (§4).
+3. **Pin metavariables through side proofs.**  A step-lemma instance's
+   `haddr` side proof runs against a goal that may still contain
+   *metavariables* (the instance's `rf`): rewriting with a ∀-quantified
+   helper assigns the meta to a pattern-with-metas and the proof leaves
+   them unsolved.  Two safe forms: sequential tactic `rw`s on the goal
+   (each occurrence pins the metas before the side proof runs — the
+   `rev4_engine`/`rev4_blockVCs` style), or *specific* helper equations
+   (the `revCell_blockVCs` style).  If a later access's side condition
+   mentions an earlier store's `(execInstrRF …).1`, normalize it with
+   `simp only [execInstrRF_sb_fst]` first — store steps do not
+   `dsimp`-reduce (the def hides the match), but their projections are
+   one simp lemma away.
+
 ### Branchy straight-line code: joins and disjunction blowup
 
 `sp` of `.when`/`.ite` is a **disjunction** — `n` sequential `when`s make
