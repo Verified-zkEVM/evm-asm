@@ -16,9 +16,11 @@ open EvmAsm.Rv64
 
 /-- Maximum `(address, slot)` storage access keys tracked by the runtime
     opcode harness. Each entry is 64 bytes: 32-byte address token followed
-    by the 32-byte storage slot in EVM stack order. -/
-def storageAccessGasMaxKeys : Nat := 64
-def storageAccessOutcomeMaxRecords : Nat := 64
+    by the 32-byte storage slot in EVM stack order. EEST all-opcode
+    fixtures can touch hundreds of distinct slots in one transaction, and
+    EIP-7928 access-list descriptors need matching outcome capacity. -/
+def storageAccessGasMaxKeys : Nat := 512
+def storageAccessOutcomeMaxRecords : Nat := 512
 def storageAccessOutcomeRecordSize : Nat := 96
 def storageAccessColdDeltaGas : Nat := 2000
 
