@@ -6,6 +6,8 @@
   goals.  These double as regression tests for the tactic.
 -/
 
+import EvmAsm.Rv64.InstructionSpecs
+import EvmAsm.Rv64.SAsm.AssertionSpec
 import EvmAsm.Rv64.SAsm.RaSpill
 import EvmAsm.Rv64.SAsm.Tactic
 
@@ -586,6 +588,165 @@ theorem topFn_spec : topFn.SpecR 0x3000 topCr := by
     exact fun rf ws A h => h
   case top.post =>
     exact fun rf ws A h => h
+
+-- ============================================================================
+-- Packaging a hand-verified routine (atom-form triple) as a callee
+-- ============================================================================
+
+/-- A hand-written (non-SAsm) routine: `a0 := a0 + a1; ret`. -/
+def handAddProg : Program := [.ADD .x10 .x10 .x11, .JALR .x0 .x1 0]
+
+/-- The exposed registers `handAddProg` does not touch. -/
+private def handAddRest : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31, .x12, .x13, .x14, .x15, .x16, .x17]
+
+/-- The handle contract for `handAddProg`, proved from the routine's
+    atom-form per-instruction specs — the template for packaging any
+    existing hand-verified `cpsTripleWithin` as an SAsm callee: peel the
+    touched registers off `regFileIs` (`regFileOn_perm` + `regFileOn_cons`),
+    frame the rest, run the atom-form steps, and re-fold with
+    `regFileOn_congr`. -/
+theorem handAdd_sound (a b : Word) : ∀ ret : Word, (ret &&& ~~~(1 : Word)) = ret →
+    cpsTripleWithin 2 0x4000 ret (CodeReq.ofProg 0x4000 handAddProg)
+      (((.x1 : Reg) ↦ᵣ ret) ** asrtM Region.empty RwRegion.empty
+        (fun rf _ _ => rf.get .x10 = a ∧ rf.get .x11 = b))
+      (((.x1 : Reg) ↦ᵣ ret) ** asrtM Region.empty RwRegion.empty
+        (fun rf _ _ => rf.get .x10 = a + b)) := by
+  intro ret halign
+  rw [sepConj_comm' ((.x1 : Reg) ↦ᵣ ret) (asrtM Region.empty RwRegion.empty
+    (fun rf _ _ => rf.get .x10 = a ∧ rf.get .x11 = b))]
+  apply cpsTripleWithin_exists_pre_M_frame
+  intro rf ws A hlen hApc hpre
+  obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hlen
+  obtain ⟨hx10, hx11⟩ := hpre
+  -- peel a0/a1 off the register-file atom
+  have hsplit : ∀ rf' : RegFile, regFileIs rf'
+      = (((.x10 : Reg) ↦ᵣ rf'.get .x10) ** (((.x11 : Reg) ↦ᵣ rf'.get .x11) **
+          regFileOn handAddRest rf')) := by
+    intro rf'
+    rw [regFileIs_eq_regFileOn,
+      regFileOn_perm exposedRegs (.x10 :: .x11 :: handAddRest) rf'
+        (by intro r; cases r <;> simp [exposedRegs, handAddRest]),
+      regFileOn_cons _ _ _ (by decide), regFileOn_cons _ _ _ (by decide)]
+  -- the updated valuation (definitionally: a0 the sum, everything else rf)
+  set rf' : RegFile := fun r => if r = .x10 then rf.get .x10 + rf.get .x11 else rf r
+    with hrf'
+  have hrest : regFileOn handAddRest rf = regFileOn handAddRest rf' :=
+    regFileOn_congr _ _ _ (by intro r hr; fin_cases hr <;> rfl)
+  -- ADD step, framed with the untouched remainder + ambient A + ra
+  have hadd := add_spec_rd_eq_rs1_within .x10 .x11 (rf.get .x10) (rf.get .x11)
+    0x4000 (by decide)
+  have haddC := cpsTripleWithin_extend_code
+    (fun a' i h => show CodeReq.ofProg 0x4000
+        [Instr.ADD .x10 .x10 .x11, Instr.JALR .x0 .x1 0] a' = some i from
+      ofProg_head a' i h) hadd
+  have hFpc : (regFileOn handAddRest rf ** (A ** ((.x1 : Reg) ↦ᵣ ret))).pcFree :=
+    pcFree_sepConj (pcFree_regFileOn _ _) (pcFree_sepConj hApc (by pcFree))
+  have haddF := cpsTripleWithin_frameR
+    (regFileOn handAddRest rf ** (A ** ((.x1 : Reg) ↦ᵣ ret))) hFpc haddC
+  -- return step over the post-state atoms
+  have hjal := Fn.jalr_ret_spec (0x4000 + 4) ret halign
+    (P := ((.x10 : Reg) ↦ᵣ rf.get .x10 + rf.get .x11) **
+      (((.x11 : Reg) ↦ᵣ rf.get .x11) ** (regFileOn handAddRest rf ** A)))
+    (pcFree_sepConj (by pcFree) (pcFree_sepConj (by pcFree)
+      (pcFree_sepConj (pcFree_regFileOn _ _) hApc)))
+  have hjalC := cpsTripleWithin_extend_code
+    (fun a' i h => by
+      show CodeReq.ofProg 0x4000
+        [Instr.ADD .x10 .x10 .x11, Instr.JALR .x0 .x1 0] a' = some i
+      apply ofProg_cons_tail (by decide)
+      rw [CodeReq.ofProg_singleton]
+      exact h) hjal
+  -- assemble
+  have hseq := cpsTripleWithin_seq_same_cr
+    (cpsTripleWithin_weaken
+      (P' := (((regFileIs rf) ** bytesRegion RwRegion.empty.base []) ** A) **
+        (bytesRegion Region.empty.base Region.empty.bytes ** ((.x1 : Reg) ↦ᵣ ret)))
+      (Q' := ((.x1 : Reg) ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ rf.get .x10 + rf.get .x11) **
+          (((.x11 : Reg) ↦ᵣ rf.get .x11) ** (regFileOn handAddRest rf ** A))))
+      (fun hp hh => by
+        rw [show bytesRegion RwRegion.empty.base [] = empAssertion from rfl,
+          show bytesRegion Region.empty.base Region.empty.bytes = empAssertion
+            from rfl,
+          sepConj_emp_right', sepConj_emp_left', hsplit rf] at hh
+        xperm_hyp hh)
+      (fun hp hh => by xperm_hyp hh)
+      haddF)
+    hjalC
+  refine cpsTripleWithin_weaken (fun hp hh => hh) ?_ hseq
+  intro hp hh
+  refine sepConj_mono_right (fun hq hx => ?_) hp hh
+  show (asrtOf RwRegion.empty (fun rf _ _ => rf.get .x10 = a + b) **
+    bytesRegion Region.empty.base Region.empty.bytes) hq
+  rw [show bytesRegion Region.empty.base Region.empty.bytes = empAssertion from rfl,
+    sepConj_emp_right']
+  refine ⟨rf', [], A, rfl, hApc, ?_, ?_⟩
+  · show rf.get .x10 + rf.get .x11 = a + b
+    rw [hx10, hx11]
+  · have hv10 : rf'.get .x10 = rf.get .x10 + rf.get .x11 := by rw [hrf']; rfl
+    have hv11 : rf'.get .x11 = rf.get .x11 := by rw [hrf']; rfl
+    rw [show bytesRegion RwRegion.empty.base [] = empAssertion from rfl,
+      sepConj_emp_right', hsplit rf', hv10, hv11, ← hrest]
+    xperm_hyp hx
+
+/-- The packaged hand routine at `0x4000`. -/
+def handAddHandle (a b : Word) : FnHandle where
+  entry := 0x4000
+  code := CodeReq.ofProg 0x4000 handAddProg
+  nSteps := 2
+  region := Region.empty
+  rw := RwRegion.empty
+  pre := fun rf _ _ => rf.get .x10 = a ∧ rf.get .x11 = b
+  post := fun rf _ _ => rf.get .x10 = a + b
+  sound := handAdd_sound a b
+
+/-- An SAsm caller of the hand-verified routine. -/
+def callerHFn : Fn where
+  name := "callerH"
+  pre := fun _ _ _ => True
+  post := fun rf _ _ => rf.get .x10 = 12
+  body :=
+    .block "args" [.LI .x10 5, .LI .x11 7] ;;;
+    .call "handAdd" (handAddHandle 5 7)
+
+def callerHCr : CodeReq :=
+  (CodeReq.ofProg 0x1000 (callerHFn.body.flatten 0x1000)).union
+    (handAddHandle 5 7).code
+
+theorem callerHFn_spec : callerHFn.SpecR 0x1000 callerHCr := by
+  vcgen
+  case code =>
+    intro a i h
+    simp only [callerHCr, CodeReq.union, h]
+  case callees =>
+    refine ⟨trivial, ?_, rfl, rfl⟩
+    intro a i h
+    obtain ⟨k, hk, rfl⟩ := ofProg_some_range h
+    have hlen : (handAddProg : List Instr).length = 2 := by decide
+    rw [hlen] at hk
+    simp only [callerHCr, CodeReq.union]
+    rw [CodeReq.ofProg_none_range 0x1000 (callerHFn.body.flatten 0x1000)
+      (fun k' hk' heq => ?_)]
+    · exact h
+    · have hlen' : (callerHFn.body.flatten 0x1000).length = 3 := by decide
+      rw [hlen'] at hk'
+      bv_omega
+  case calls =>
+    exact ⟨trivial, by decide, by decide, by decide⟩
+  case callerH.handAdd.pre =>
+    rintro rf ws A ⟨rf₀, ws₀, -, -, rfl, rfl⟩
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    constructor
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_self _ _ _ (by decide)]
+    · rw [RegFile.get_set_self _ _ _ (by decide)]
+  case callerH.post =>
+    intro rf ws A h
+    show rf.get .x10 = 12
+    have h' : rf.get .x10 = 5 + 7 := h
+    rw [h']
+    decide
 
 end ExamplesVc
 end SAsm
