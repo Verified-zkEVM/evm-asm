@@ -278,6 +278,47 @@ theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
       show inBase + 4 - inBase = (4 : Word) from by bv_omega]
     rfl
 
+/-- Read the little-endian u16 at byte offset 2 of the input into a1 —
+    exercises the LHU block leaf. -/
+def readU16Fn (inBase : Word) (bs : List (BitVec 8)) : Fn where
+  name := "readU16"
+  region := ⟨inBase, bs⟩
+  pre := fun rf => rf.get .x10 = inBase ∧ 4 ≤ bs.length
+  post := fun rf => rf.get .x11
+    = BitVec.zeroExtend 64 (bs.getD 3 0 ++ bs.getD 2 0)
+  body := .block "load" [.LHU .x11 .x10 2]
+
+theorem readU16Fn_spec (inBase : Word) (bs : List (BitVec 8))
+    (hwf : (Region.mk inBase bs).wf) (base : Word) :
+    (readU16Fn inBase bs).Spec base := by
+  have haddr : ∀ rf : RegFile, rf.get .x10 = inBase →
+      ((rf.get .x10 + signExtend12 (2 : BitVec 12)) - inBase).toNat = 2 := by
+    intro rf h
+    rw [h, show signExtend12 (2 : BitVec 12) = (2 : Word) from by decide]
+    bv_omega
+  vcgen
+  case region => exact hwf
+  case readU16.load.mem =>
+    rintro rf ⟨hx10, hlen⟩
+    refine ⟨⟨?_, ?_⟩, trivial⟩
+    · show (2 : Nat) ∣ ((rf.get .x10 + signExtend12 (2 : BitVec 12)) - inBase).toNat
+      rw [haddr rf hx10]
+    · show ((rf.get .x10 + signExtend12 (2 : BitVec 12)) - inBase).toNat + 2
+        ≤ bs.length
+      rw [haddr rf hx10]
+      omega
+  case readU16.post =>
+    rintro rf' ⟨rf₀, ⟨hx10, hlen⟩, rfl⟩
+    show RegFile.get _ .x11 = _
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem]
+    rw [RegFile.get_set_self _ .x11 _ (by decide)]
+    rw [hx10, show signExtend12 (2 : BitVec 12) = (2 : Word) from by decide]
+    show BitVec.zeroExtend 64 (Region.half16At ⟨inBase, bs⟩ (inBase + 2)) = _
+    unfold Region.half16At Region.byteAt
+    rw [show inBase + 2 + 1 - inBase = (3 : Word) from by bv_omega,
+      show inBase + 2 - inBase = (2 : Word) from by bv_omega]
+    rfl
+
 end ExamplesVc
 end SAsm
 end EvmAsm.Rv64

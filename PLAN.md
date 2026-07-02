@@ -2478,8 +2478,9 @@ read-only loads (LW/LWU/LD with aligned in-range VCs), and the **first
 real port**: `readChainIdFn` (Stateless/SSZ/Decode/ChainIdSAsm.lean), a
 fully verified `read_chain_id` reading byte-wise — the original's
 misaligned LWU/LD trap under the Lean model (bug bead evm-asm-iwzun).
-Remaining: M5b-2 (.rw regions + stores; ra-spill prologue for multi-level
-call trees; LH/LHU), then more Stateless/SSZ ports.
+LH/LHU halfword loads done (Region.half16At + getHalfword bridge, LHU
+demo). Remaining: M5b-2 (.rw regions + stores; ra-spill prologue for
+multi-level call trees), then more Stateless/SSZ ports.
 
 ## Stateless Guest (parallel STF track)
 

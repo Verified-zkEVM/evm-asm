@@ -43,6 +43,10 @@ def Region.empty : Region := ⟨0, []⟩
 def Region.byteAt (reg : Region) (addr : Word) : BitVec 8 :=
   reg.bytes.getD (addr - reg.base).toNat 0
 
+/-- Read the little-endian 16-bit halfword at a 2-aligned absolute address. -/
+def Region.half16At (reg : Region) (addr : Word) : BitVec 16 :=
+  reg.byteAt (addr + 1) ++ reg.byteAt addr
+
 /-- Read the little-endian 32-bit word at a 4-aligned absolute address. -/
 def Region.word32At (reg : Region) (addr : Word) : BitVec 32 :=
   reg.byteAt (addr + 3) ++ reg.byteAt (addr + 2)
@@ -139,11 +143,12 @@ structure LoadOp where
   nbytes : Nat
   val : Region → Word → Word
 
-/-- Classify a load.  Bytes, 32-bit words, and dwords; halfwords can be
-    added the same way when a user needs them. -/
+/-- Classify a load.  Bytes, halfwords, 32-bit words, and dwords. -/
 def loadSem : Instr → Option LoadOp
   | .LBU rd rs1 ofs => some ⟨rd, rs1, ofs, 1, fun reg a => (reg.byteAt a).zeroExtend 64⟩
   | .LB  rd rs1 ofs => some ⟨rd, rs1, ofs, 1, fun reg a => (reg.byteAt a).signExtend 64⟩
+  | .LHU rd rs1 ofs => some ⟨rd, rs1, ofs, 2, fun reg a => (reg.half16At a).zeroExtend 64⟩
+  | .LH  rd rs1 ofs => some ⟨rd, rs1, ofs, 2, fun reg a => (reg.half16At a).signExtend 64⟩
   | .LW  rd rs1 ofs => some ⟨rd, rs1, ofs, 4, fun reg a => (reg.word32At a).signExtend 64⟩
   | .LWU rd rs1 ofs => some ⟨rd, rs1, ofs, 4, fun reg a => (reg.word32At a).zeroExtend 64⟩
   | .LD  rd rs1 ofs => some ⟨rd, rs1, ofs, 8, fun reg a => reg.dwordAt a⟩
