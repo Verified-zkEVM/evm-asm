@@ -748,6 +748,90 @@ theorem callerHFn_spec : callerHFn.SpecR 0x1000 callerHCr := by
     rw [h']
     decide
 
+-- ============================================================================
+-- Assertion contracts + the call-granularity frame rule (frameA)
+-- ============================================================================
+
+/-- A callee whose contract owns an ambient separation-logic cell (ghost
+    value `v`): the cell rides through the body untouched — blocks cannot
+    reach the ambient assertion. -/
+def cellKeepFn (v : Word) : Fn where
+  name := "cellKeep"
+  pre := fun _ _ A => A = ((0x10100 : Word) ↦ₘ v)
+  post := fun rf _ A => rf.get .x10 = 1 ∧ A = ((0x10100 : Word) ↦ₘ v)
+  body := .block "one" [.LI .x10 1]
+
+theorem cellKeepFn_spec (v base : Word) : (cellKeepFn v).Spec base := by
+  vcgen
+  case cellKeep.post =>
+    rintro rf ws A ⟨rf₀, ws₀, hws₀, hA, rfl, rfl⟩
+    refine ⟨?_, hA⟩
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    rw [RegFile.get_set_self _ _ _ (by decide)]
+
+/-- The same contract published as a readable Assertion triple. -/
+theorem cellKeepFn_specA (v base : Word) :
+    (cellKeepFn v).SpecA base
+      (SState Region.empty RwRegion.empty (fun _ _ => True)
+        (fun _ _ => (0x10100 : Word) ↦ₘ v))
+      (SState Region.empty RwRegion.empty (fun rf _ => rf.get .x10 = 1)
+        (fun _ _ => (0x10100 : Word) ↦ₘ v)) := by
+  refine Fn.specA_of_spec _ _ (cellKeepFn_spec v base) ?_ ?_
+  · exact asrtM_mono (fun rf ws A h => h.2)
+  · exact asrtM_mono (fun rf ws A h => ⟨h.1, h.2⟩)
+
+/-- The cell-owning callee at `0x5000`. -/
+def cellKeepHandle (v : Word) : FnHandle :=
+  (cellKeepFn v).toHandle 0x5000 (cellKeepFn_spec v 0x5000)
+    ((by decide : 4 * ((cellKeepFn 0).body.size + 1) ≤ 2 ^ 64))
+
+/-- A caller owning TWO ambient cells: the callee needs only the first, so
+    the call site frames the second with `FnHandle.frameA`. -/
+def twoCellsFn (v w : Word) : Fn where
+  name := "twoCells"
+  pre := fun _ _ A =>
+    A = (((0x10100 : Word) ↦ₘ v) ** ((0x10108 : Word) ↦ₘ w))
+  post := fun rf _ A => rf.get .x10 = 1 ∧
+    A = (((0x10100 : Word) ↦ₘ v) ** ((0x10108 : Word) ↦ₘ w))
+  body := .call "cellKeep"
+    ((cellKeepHandle v).frameA ((0x10108 : Word) ↦ₘ w) pcFree_memIs)
+
+def twoCellsCr (v w : Word) : CodeReq :=
+  (CodeReq.ofProg 0x1000 ((twoCellsFn v w).body.flatten 0x1000)).union
+    (cellKeepHandle v).code
+
+theorem twoCellsFn_spec (v w : Word) :
+    (twoCellsFn v w).SpecR 0x1000 (twoCellsCr v w) := by
+  vcgen
+  case code =>
+    intro a i h
+    simp only [twoCellsCr, CodeReq.union, h]
+  case callees =>
+    refine ⟨?_, rfl, rfl⟩
+    intro a i h
+    obtain ⟨k, hk, rfl⟩ := ofProg_some_range h
+    have hlen0 : ((cellKeepFn 0).programRet 0x5000).length = 2 := by decide
+    have hlen : ((cellKeepFn v).programRet 0x5000).length = 2 := hlen0
+    rw [hlen] at hk
+    simp only [twoCellsCr, CodeReq.union]
+    rw [CodeReq.ofProg_none_range 0x1000 ((twoCellsFn v w).body.flatten 0x1000)
+      (fun k' hk' heq => ?_)]
+    · exact h
+    · have hlen0' : ((twoCellsFn 0 0).body.flatten 0x1000).length = 1 := by decide
+      have hlen' : ((twoCellsFn v w).body.flatten 0x1000).length = 1 := hlen0'
+      rw [hlen'] at hk'
+      bv_omega
+  case calls =>
+    have h0 : (twoCellsFn 0 0).body.callsOk 0x1000 :=
+      ⟨by decide, by decide, by decide⟩
+    exact h0
+  case twoCells.cellKeep.pre =>
+    rintro rf ws A hA
+    exact ⟨(0x10100 : Word) ↦ₘ v, pcFree_memIs, hA, rfl⟩
+  case twoCells.post =>
+    rintro rf ws A ⟨A₀, hA0pc, rfl, hx10, hA0eq⟩
+    exact ⟨hx10, by rw [hA0eq]⟩
+
 end ExamplesVc
 end SAsm
 end EvmAsm.Rv64

@@ -2500,8 +2500,15 @@ bundles it existentially. AssertionSpec.lean: regFileIs↔atoms bridge
 (regFileOn set-atoms + perm/congr/cons peeling, regFileIs_eq_atoms),
 FnHandle.weaken + Fn.spec_conseq consequence rules, handAdd demo
 (hand-verified atom-form triple packaged as an SAsm callee and called
-through the standard machinery). Next stages: Assertion-shaped FnHandle
-contracts + SState combinators, ghost/focus nodes,
+through the standard machinery). Stage 2b landed: SState (canonical
+factored Assertion = asrtM of an A-pinning reach), Fn.SpecA +
+specA_of_spec (publish specs as Assertion triples), Stmt.whileA/assertA
+(factored Assertion invariants/annotations), and FnHandle.frameA — the
+frame rule at call granularity (callee needing A₀ callable where the
+caller holds A₀ ** Fr), derived generically with NO soundness-induction
+change (asrtOf_frameA/asrtM_frameA). Demo: cellKeepFn (ambient-cell
+contract, published via SpecA) called by twoCellsFn through frameA.
+Next stages: ghost/focus nodes,
 tree library + sorted-BST insertion demo, docs/sasm-howto.md.
 read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
