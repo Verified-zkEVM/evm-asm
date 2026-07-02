@@ -136,10 +136,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   - `unionAll` — structural subsumption for lists of CodeReqs
   - Range-based `ofProg` disjointness (O(1) vs O(n) singleton expansion)
   - MultiplySpec col0–col3 migrated to `ofProg` pattern
-- **Codegen SAsm ports in progress**: `KeccakReverseSAsm.lean` now defines the
-  KECCAK256 tail's 32-byte digest byte-reverse as an emitted SAsm-shaped
-  `Program` with flattening guards; the full `Fn.Spec` proof is tracked as
-  remaining SAsm byte-window proof work.
+- **Codegen SAsm ports**: `KeccakReverseSAsm.lean` defines the KECCAK256 tail's
+  32-byte digest byte-reverse as an emitted SAsm-shaped `Program` with
+  flattening guards. `BalValueReverseSAsm.lean` now provides the BAL tuple
+  value byte-reverse as a genuine bounded SAsm `while` loop with a proved
+  `Fn.Spec`; `AccountTupleSequencesConsistent.lean` splices the emitted
+  PC-relative branch program into the per-record BAL value normalization.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
