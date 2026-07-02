@@ -112,6 +112,23 @@ inductive Stmt where
       every reachable register file satisfies `P`, and strengthens the
       reachable set with `P` downstream (a proof cut). -/
   | assert (label : String) (P : RegFile → List (BitVec 8) → Assertion → Prop)
+  /-- Focus block: a straight-line block whose *writable window* is a
+      `bytesRegion` at the address held in register `ptr`, opened out of
+      the ambient assertion for the block's duration.  The annotation
+      `win` names the decomposition (window bytes, remainder assertion) as
+      a function of the entry state — like loop invariants, the
+      factorization of a destructed assertion is user-supplied, so `sp`
+      stays fully determined and post-state VCs compute.  The generator
+      emits a `.focus` VC demanding the ambient assertion equal
+      `bytesRegion (rf.get ptr) (win …).1 ** (win …).2`.  The function's
+      flat rw window is framed — inaccessible inside the block; the
+      read-only region stays readable.  This is how SAsm code reads and
+      writes pointer-owned memory (tree nodes, list cells) with pure
+      VCs. -/
+  | blockAt (label : String) (ptr : Reg)
+            (win : RegFile → List (BitVec 8) → Assertion →
+              List (BitVec 8) × Assertion)
+            (instrs : List Instr)
   /-- Ghost step: emits no code; replaces the ambient assertion `A` by
       `f rf ws A`, justified by one VC demanding a pointwise entailment
       (and pc-freedom of the result).  This is how recursive predicates
@@ -144,6 +161,7 @@ def size : Stmt → Nat
   | when _ _ b        => b.size + 1
   | assert _ _        => 0
   | ghost _ _         => 0
+  | blockAt _ _ _ is  => is.length
   | «while» _ _ _ _ b   => b.size + 2
   | call _ _          => 1
 
@@ -160,6 +178,7 @@ def callFree : Stmt → Bool
   | when _ _ b        => b.callFree
   | assert _ _        => true
   | ghost _ _         => true
+  | blockAt _ _ _ _   => true
   | «while» _ _ _ _ b => b.callFree
   | call _ _          => false
 

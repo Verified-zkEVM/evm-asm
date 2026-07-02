@@ -98,6 +98,13 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
         ∨ (reach rf' ws' A' ∧ ¬ c.holds rf')
   | assert _ P, reach => fun rf ws A => reach rf ws A ∧ P rf ws A
   | ghost _ f, reach => fun rf ws A' => ∃ A, reach rf ws A ∧ A' = f rf ws A
+  | blockAt _ p winF is, reach => fun rf' ws' A'' => ∃ rf A,
+      ws'.length = rw.len ∧ reach rf ws' A
+      ∧ A = (bytesRegion (rf.get p) (winF rf ws' A).1 ** (winF rf ws' A).2)
+      ∧ rf' = (execBlock reg (rf.get p) rf (winF rf ws' A).1 is).1
+      ∧ A'' = (bytesRegion (rf.get p)
+            (execBlock reg (rf.get p) rf (winF rf ws' A).1 is).2
+          ** (winF rf ws' A).2)
   | «while» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
   | call _ f, _ => fun rf ws A => f.post rf ws A
@@ -123,6 +130,16 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
   | ghost lbl f, pfx, reach =>
       [⟨pfx ++ lbl, ∀ rf ws A, reach rf ws A → A.pcFree →
           (∀ hp, A hp → f rf ws A hp) ∧ (f rf ws A).pcFree⟩]
+  | blockAt lbl p winF is, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
+      ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, reach rf ws A →
+          A = (bytesRegion (rf.get p) (winF rf ws A).1 ** (winF rf ws A).2)
+          ∧ (winF rf ws A).2.pcFree
+          ∧ RwRegion.wf ⟨rf.get p, (winF rf ws A).1.length⟩⟩ ::
+      (if hasLoad is then
+        [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len →
+            reach rf ws A → blockVCs reg (rf.get p) rf (winF rf ws A).1 is⟩]
+      else [])
   | «while» lbl c fuel inv b, pfx, reach =>
       ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
       ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel →
@@ -143,6 +160,7 @@ def steps : Stmt → Nat
   | when _ _ b => 1 + b.steps
   | assert _ _ => 0
   | ghost _ _ => 0
+  | blockAt _ _ _ is => is.length
   | «while» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | call _ f => 1 + f.nSteps
 
@@ -169,6 +187,9 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | ghost lbl f =>
       rintro rf ws A' ⟨A, hr, rfl⟩
       exact ⟨A, h rf ws A hr, rfl⟩
+  | blockAt lbl p winF is =>
+      rintro rf' ws' A'' ⟨rf, A, hlen, hr, hAeq, hrf, hA⟩
+      exact ⟨rf, A, hlen, h rf ws' A hr, hAeq, hrf, hA⟩
   | «while» lbl c fuel inv b ihb =>
       exact fun rf ws A hr => hr
   | call lbl f =>
@@ -225,6 +246,31 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
       exact fun rf ws A hr hApc => hvcs.head rf ws A (h rf ws A hr) hApc
+  | blockAt lbl p winF is =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons] at hvc
+      rcases hvc with rfl | rfl | hvc
+      · exact hvcs.head
+      · exact fun rf ws A hr => hvcs.tail.head rf ws A (h rf ws A hr)
+      · by_cases hl : hasLoad is
+        · rw [if_pos hl] at hvc
+          rw [show vcs reg rw (.blockAt lbl p winF is) pfx r₂
+              = ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
+                ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, r₂ rf ws A →
+                    A = (bytesRegion (rf.get p) (winF rf ws A).1
+                      ** (winF rf ws A).2)
+                    ∧ (winF rf ws A).2.pcFree
+                    ∧ RwRegion.wf ⟨rf.get p, (winF rf ws A).1.length⟩⟩ ::
+                [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len →
+                    r₂ rf ws A →
+                    blockVCs reg (rf.get p) rf (winF rf ws A).1 is⟩]
+            from by simp [vcs, hl]] at hvcs
+          simp only [List.mem_singleton] at hvc
+          subst hvc
+          exact fun rf ws A hlen hr =>
+            hvcs.tail.tail.head rf ws A hlen (h rf ws A hr)
+        · rw [if_neg hl] at hvc
+          exact absurd hvc (List.not_mem_nil)
   | «while» lbl c fuel inv b ihb =>
       intro vc hvc
       simp only [vcs, List.mem_cons] at hvc
@@ -251,6 +297,7 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | when _ _ b => b.CalleesIn reg rw cr
   | assert _ _ => True
   | ghost _ _ => True
+  | blockAt _ _ _ _ => True
   | «while» _ _ _ _ b => b.CalleesIn reg rw cr
   | call _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw

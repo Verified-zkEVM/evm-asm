@@ -56,6 +56,8 @@ def flatten (addr : Word) : Stmt → List Instr
       []
   | ghost _ _ =>
       []
+  | blockAt _ _ _ is =>
+      is
   | «while» _ c _ _ b =>
       c.neg.toInstr (brOfs (b.size + 2))
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
@@ -75,6 +77,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
       simp [flatten, size, ihb]
   | assert _ _ => rfl
   | ghost _ _ => rfl
+  | blockAt _ _ _ _ => rfl
   | «while» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
   | call _ callee => rfl
@@ -96,6 +99,7 @@ def offsetsOk : Stmt → Bool
       c.wf && decide (4 * (b.size + 1) < 2^12) && b.offsetsOk
   | assert _ _ => true
   | ghost _ _ => true
+  | blockAt _ _ _ _ => true
   | «while» _ c _ _ b =>
       c.wf && decide (4 * (b.size + 2) < 2^12)
            && decide (4 * (b.size + 1) ≤ 2^20)
@@ -116,6 +120,7 @@ def callsOk : Stmt → Word → Prop
   | when _ _ b, addr => b.callsOk (addr + 4)
   | assert _ _, _ => True
   | ghost _ _, _ => True
+  | blockAt _ _ _ _, _ => True
   | «while» _ _ _ _ b, addr => b.callsOk (addr + 4)
   | call _ f, addr =>
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry

@@ -860,6 +860,70 @@ theorem swapCellsFn_spec (v w base : Word) : (swapCellsFn v w).Spec base := by
     rintro rf ws A' ⟨A, hA, rfl⟩
     rfl
 
+-- ============================================================================
+-- Focus blocks: reading pointer-owned memory through the ambient assertion
+-- ============================================================================
+
+/-- Load the dword that the ambient assertion owns at the address in `a1`:
+    the focus block opens the cell as the block's writable window (the
+    annotation names the decomposition), the load routes into it, and a
+    ghost step reseals the ambient assertion. -/
+def focusReadFn (q v : Word) : Fn where
+  name := "focusRead"
+  pre := fun rf _ A => rf.get .x11 = q ∧ A = bytesRegion q (dwordBytes v)
+  post := fun rf _ A => rf.get .x10 = v ∧ A = bytesRegion q (dwordBytes v)
+  body :=
+    .blockAt "win" .x11 (fun _ _ _ => (dwordBytes v, empAssertion))
+      [.LD .x10 .x11 0] ;;;
+    .ghost "seal" (fun _ _ _ => bytesRegion q (dwordBytes v))
+
+theorem focusReadFn_spec (q v base : Word) (hwf : RwRegion.wf ⟨q, 8⟩) :
+    (focusReadFn q v).Spec base := by
+  have hidx : ∀ rf : RegFile, rf.get .x11 = q →
+      ((rf.get .x11 + signExtend12 (0 : BitVec 12)) - rf.get .x11).toNat = 0 := by
+    intro rf _
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    bv_omega
+  vcgen
+  case focusRead.win.focus =>
+    rintro rf ws A ⟨hx11, hA⟩
+    refine ⟨?_, pcFree_emp, ?_⟩
+    · rw [sepConj_emp_right', hx11]
+      exact hA
+    · rw [hx11, length_dwordBytes]
+      exact hwf
+  case focusRead.win.mem =>
+    rintro rf ws A hws ⟨hx11, hA⟩
+    simp only [blockVCs, loadSem, inRw, Region.loadOk,
+      hidx rf hx11, length_dwordBytes]
+    rw [if_pos (by omega)]
+    exact ⟨⟨by omega, by omega⟩, trivial⟩
+  case focusRead.seal =>
+    rintro rf ws A ⟨rf₀, A₀, hlen, ⟨hx11, hA₀⟩, hAeq, rfl, rfl⟩ hApc
+    refine ⟨?_, bytesRegion_pcFree _ _⟩
+    intro hp hh
+    rw [sepConj_emp_right'] at hh
+    rw [← hx11]
+    -- the window after a pure load is definitionally unchanged
+    exact hh
+  case focusRead.post =>
+    rintro rf' ws' A' ⟨A1, ⟨rf₀, A₀, hlen, ⟨hx11, hA₀⟩, hAeq, rfl, rfl⟩, rfl⟩
+    refine ⟨?_, rfl⟩
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem, aluSem]
+    rw [if_pos (show inRw (rf₀.get .x11) (dwordBytes v)
+        (rf₀.get .x11 + signExtend12 0) 8 from by
+      unfold inRw
+      rw [hidx rf₀ hx11, length_dwordBytes])]
+    rw [RegFile.get_set_self _ _ _ (by decide)]
+    show Region.dwordAt ⟨rf₀.get .x11, dwordBytes v⟩
+      (rf₀.get .x11 + signExtend12 0) = v
+    unfold Region.dwordAt
+    rw [show ((rf₀.get .x11 + signExtend12 0)
+        - (⟨rf₀.get .x11, dwordBytes v⟩ : Region).base).toNat = 0 from
+      hidx rf₀ hx11]
+    rw [List.drop_zero, List.take_of_length_le (by rw [length_dwordBytes])]
+    exact packBytes_dwordBytes v
+
 end ExamplesVc
 end SAsm
 end EvmAsm.Rv64
