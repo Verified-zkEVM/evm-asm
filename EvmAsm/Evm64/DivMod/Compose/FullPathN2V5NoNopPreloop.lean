@@ -307,14 +307,14 @@ theorem evm_div_n2_to_normB_spec_within_v5_noNop (sp base : Word)
 /-- n=2 preloop entry-to-loopSetup over `divCode_noNop_v5`. base → base+loopBodyOff. -/
 theorem evm_div_n2_to_loopSetup_spec_within_v5_noNop (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4) base (base + loopBodyOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -338,7 +338,7 @@ theorem evm_div_n2_to_loopSetup_spec_within_v5_noNop (sp base : Word)
   have hNB := evm_div_n2_to_normB_spec_within_v5_noNop sp base b0 b1 b2 b3 v5 v6 v7 v10
     q0 q1 q2 q3 u5 u6 u7 nMem shiftMem hbnz hb3z hb2z hb1nz hshift_nz
   have hNBf := cpsTripleWithin_frameR
-    ((.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+    ((.x9 ↦ᵣ x9In) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
@@ -352,7 +352,7 @@ theorem evm_div_n2_to_loopSetup_spec_within_v5_noNop (sp base : Word)
   simp only [normAFullPost_unfold] at hNormA
   have hNormAf := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) **
-     (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+     (.x9 ↦ᵣ x9In) **
      ((sp + 32) ↦ₘ b0') ** ((sp + 40) ↦ₘ b1') **
      ((sp + 48) ↦ₘ ((b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64)))) **
      ((sp + 56) ↦ₘ ((b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64)))) **
@@ -365,7 +365,7 @@ theorem evm_div_n2_to_loopSetup_spec_within_v5_noNop (sp base : Word)
   have hNA := cpsTripleWithin_seq_perm_same_cr
     (fun h hp => by delta normBPost at hp; xperm_hyp hp) hNBf hNormAf
   have hLS := divK_loopSetup_ntaken_spec_within_v5_noNop sp (2 : Word)
-    (signExtend12 (4 : BitVec 12) - (4 : Word)) u1 base
+    (x9In) u1 base
     (by decide)
   simp only [divKLoopSetupNtakenPreNoNop_unfold,
       divKLoopSetupNtakenPostNoNop_unfold] at hLS
@@ -401,7 +401,7 @@ theorem evm_div_n2_to_loopSetup_spec_within_v5_noNop_exact_x1_scratch_frame
     (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
-    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (jMem retMem dMem dloMem scratchUn0 scratchMem raVal x9In : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1nz : b1 ≠ 0)
     (hshift_nz : (clzResult b1).1 ≠ 0) :
@@ -409,7 +409,7 @@ theorem evm_div_n2_to_loopSetup_spec_within_v5_noNop_exact_x1_scratch_frame
       (divCode_noNop_v5 base)
       (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b1).2 >>> (63 : Nat)) **
-        (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+        (.x9 ↦ᵣ x9In) **
         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -439,7 +439,7 @@ theorem evm_div_n2_to_loopSetup_spec_within_v5_noNop_exact_x1_scratch_frame
         (.x1 ↦ᵣ raVal))) := by
   have hPre :=
     evm_div_n2_to_loopSetup_spec_within_v5_noNop sp base a0 a1 a2 a3 b0 b1 b2 b3
-      v5 v6 v7 v10 q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+      v5 v6 v7 v10 q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In
       hbnz hb3z hb2z hb1nz hshift_nz
   have hFramed := cpsTripleWithin_frameR
     (((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
