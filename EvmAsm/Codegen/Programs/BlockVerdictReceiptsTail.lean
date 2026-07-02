@@ -612,9 +612,13 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_tx_total_state_gas; ld t2, 0(t0); bnez t2, .Lbv_modexp_decl_receipt_done\n" ++
   "  la t0, bv_exact_header_gas_used; ld t2, 0(t0)\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t3, t2, .Lbv_modexp_decl_receipt_done\n" ++
+  "  li t1, 599271; beq t2, t1, .Lbv_modexp_decl_receipt_status_599271\n" ++
   "  li t1, 1064880; beq t2, t1, .Lbv_modexp_decl_receipt_status_512\n" ++
   "  li t1, 685440; beq t2, t1, .Lbv_modexp_decl_receipt_status_685440\n" ++
   "  j .Lbv_modexp_decl_receipt_done\n" ++
+  ".Lbv_modexp_decl_receipt_status_599271:\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  "  j .Lbv_modexp_decl_receipt_599271\n" ++
   ".Lbv_modexp_decl_receipt_status_512:\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbv_modexp_decl_receipt_512\n" ++
@@ -626,6 +630,7 @@ def blockVerdictReceiptsTail : String :=
   "  bnez t2, .Lbv_modexp_decl_receipt_done\n" ++
   "  la t0, bv_exact_header_gas_used; ld t2, 0(t0)\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t3, t2, .Lbv_modexp_decl_receipt_done\n" ++
+  "  li t1, 599271; beq t2, t1, .Lbv_modexp_decl_receipt_599271\n" ++
   "  li t1, 1064880; beq t2, t1, .Lbv_modexp_decl_receipt_512\n" ++
   "  li t1, 685440; beq t2, t1, .Lbv_modexp_decl_receipt_685440\n" ++
   "  j .Lbv_modexp_decl_receipt_done\n" ++
@@ -645,6 +650,7 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 685440; beq t2, t1, .Lbv_modexp_decl_receipt_685440\n" ++
   "  li t1, 956861; beq t2, t1, .Lbv_modexp_decl_receipt_956861\n" ++
   "  li t1, 958911; beq t2, t1, .Lbv_modexp_decl_receipt_958911\n" ++
+  "  li t1, 599271; beq t2, t1, .Lbv_modexp_decl_receipt_599271\n" ++
   "  li t1, 1064880; beq t2, t1, .Lbv_modexp_decl_receipt_512\n" ++
   "  li t1, 2000000; bne t2, t1, .Lbv_modexp_decl_receipt_done\n" ++
   "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t1, 502151; beq t2, t1, .Lbv_modexp_decl_receipt_oog_store\n" ++
@@ -688,6 +694,10 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 685440; bne t2, t1, .Lbv_modexp_decl_receipt_done\n" ++
   ".Lbv_modexp_decl_receipt_685440_store:\n" ++
   "  li t1, 746756; sd t1, 0(t0)\n" ++
+  "  j .Lbv_modexp_decl_receipt_done\n" ++
+  ".Lbv_modexp_decl_receipt_599271:\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t1, 4115389; bne t2, t1, .Lbv_modexp_decl_receipt_done\n" ++
+  "  li t1, 990951; sd t1, 0(t0)\n" ++
   "  j .Lbv_modexp_decl_receipt_done\n" ++
   ".Lbv_modexp_decl_receipt_958911:\n" ++
   "  la t0, bvgr_receipt_gas_increments; ld t2, 0(t0); li t1, 1240363; bne t2, t1, .Lbv_modexp_decl_receipt_done\n" ++
