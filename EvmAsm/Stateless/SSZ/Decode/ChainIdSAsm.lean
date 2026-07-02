@@ -156,7 +156,7 @@ theorem readChainIdFn_spec (bs : List (BitVec 8))
     rintro rf ws hws ⟨rf₀, ws₀, hws₀, ⟨hlen30, hoff⟩, rfl, rfl⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
-      blockVCs, Region.loadOk]
+      storeSem, blockVCs, Region.loadOk]
     simp [RegFile.get_set_self, RegFile.get_set_ne]
     have hbb : (readChainIdFn bs).region.base.toNat = 0x40000000 := by
       rw [show (readChainIdFn bs).region.base = (0x40000000 : Word) from rfl]
@@ -172,7 +172,7 @@ theorem readChainIdFn_spec (bs : List (BitVec 8))
     rintro rf ws hws ⟨rf₁, ws₁, hws₁, ⟨rf₀, ws₀, hws₀, ⟨hlen30, hoff⟩, rfl, rfl⟩, rfl, rfl⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
-      blockVCs, Region.loadOk, RegFile.get_set_self, RegFile.get_set_ne,
+      storeSem, blockVCs, Region.loadOk, RegFile.get_set_self, RegFile.get_set_ne,
       ne_eq, reduceCtorEq, not_false_eq_true]
     have hbyteAt : ∀ a : Word,
         (readChainIdFn bs).region.byteAt a

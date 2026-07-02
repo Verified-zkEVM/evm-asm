@@ -98,7 +98,12 @@ theorem execInstrRF_sound {i : Instr} (ro : Region) (rw : RwRegion)
           then (Region.mk rw.base ws).loadOk
             (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
           else ro.loadOk (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
-      | none => True) :
+      | none =>
+        match storeSem i with
+        | some st =>
+            inRw rw.base ws (rf.get st.rs1 + signExtend12 st.ofs) st.nbytes
+              ∧ st.nbytes ∣ ((rf.get st.rs1 + signExtend12 st.ofs) - rw.base).toNat
+        | none => True) :
     cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base i)
       ((regFileIs rf) ** (bytesRegion ro.base ro.bytes ** bytesRegion rw.base ws))
       ((regFileIs (execInstrRF ro rw.base rf ws i).1) **
@@ -107,7 +112,27 @@ theorem execInstrRF_sound {i : Instr} (ro : Region) (rw : RwRegion)
   cases hsem : aluSem i with
   | none =>
       cases hload : loadSem i with
-      | none => simp [instrOk, hsem, hload] at hok
+      | none =>
+          cases hstore : storeSem i with
+          | none => simp [instrOk, hsem, hload, hstore] at hok
+          | some st =>
+              simp only [instrOk, hsem, hload, hstore, Bool.and_eq_true] at hok
+              simp only [hload, hstore] at hvc
+              simp only [execInstrRF, hsem, hload, hstore]
+              have hwf' : (Region.mk rw.base ws).wf := by
+                refine ⟨hrw.1, ?_, ?_⟩
+                · show rw.base.toNat + ws.length < 2 ^ 64
+                  have := hrw.2.1
+                  omega
+                · intro k hk
+                  have hk' : k < ws.length := hk
+                  exact hrw.2.2 k (by omega)
+              have h := regFile_store_spec_within i st rw.base rf ws base
+                hstore hwf' hok.1 hok.2 hvc.1 hvc.2
+              have h' := cpsTripleWithin_frameR (bytesRegion ro.base ro.bytes)
+                (bytesRegion_pcFree _ _) h
+              exact cpsTripleWithin_weaken (fun hp hh => sc_to_swap hp hh)
+                (fun hp hh => sc_from_swap hp hh) h'
       | some l =>
           simp only [instrOk, hsem, hload, Bool.and_eq_true] at hok
           simp only [hload] at hvc
