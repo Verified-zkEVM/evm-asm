@@ -96,7 +96,7 @@ theorem evm_div_n2_lane_shiftNz_v5 (sp base : Word) (a b : EvmWord)
   -- The entry→nopOff path with carry discharged from shape.
   have hpath := evm_div_n2_stack_pre_to_unified_post_v5_noNop_fromShape sp base a b
     v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal (signExtend12 (4 : BitVec 12) - (4 : Word))
     bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign hbltu_2 hbltu_1 hbltu_0
   refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
     cpsTripleWithin_weaken (fun _ hp => hp) ?_ hpath

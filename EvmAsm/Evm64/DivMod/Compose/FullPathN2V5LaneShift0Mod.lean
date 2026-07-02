@@ -262,7 +262,8 @@ theorem evm_mod_n2_lane_shift0_v5 (sp base : Word) (a b : EvmWord)
     cpsTripleWithin_weaken ?_ ?_ hpath
   · intro h hp
     exact n2_shift0_dispatchPre_to_pathEntry sp a b a0 a1 a2 a3 b0 (b.getLimbN 1)
-      raVal v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      raVal v5 v6 v7 v10 v11Old (signExtend12 (4 : BitVec 12) - (4 : Word))
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
       ha0 ha1 ha2 ha3 hb0 rfl hb2z hb3z h hp
   · intro h hq
