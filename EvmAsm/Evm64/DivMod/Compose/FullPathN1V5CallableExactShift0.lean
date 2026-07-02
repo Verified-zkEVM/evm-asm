@@ -385,7 +385,7 @@ theorem evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0_uni
   exact cpsTripleWithin_mono_nSteps (by unfold unifiedDivBound; decide) <|
     cpsTripleWithin_weaken
       (fun h hp => n1_dispatchPre_to_pathEntry_v5_preserving_x1 sp a b
-        raVal v5 v6 v7 v10 v11Old (x9In)
+        raVal v5 v6 v7 v10 v11Old (x9In) ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
@@ -437,7 +437,7 @@ theorem evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       rfl rfl rfl rfl rfl rfl rfl rfl hbnz hb1z hb2z hb3z hsh
     exact evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
-      sp base a b v5 v6 v7 v10 v11Old raVal (x9In)
+      sp base a b v5 v6 v7 v10 v11Old raVal (x9In) ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
       hbnz hb3z hb2z hb1z hsh halign hd0 hd1 hd2 hd3
