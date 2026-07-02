@@ -250,7 +250,8 @@ theorem evm_div_n2_lane_shift0_v5 (sp base : Word) (a b : EvmWord)
   obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ := n2_shift0_div_getLimbN_threaded a b
     a0 a1 a2 a3 b0 (b.getLimbN 1) bltu_2 bltu_1 bltu_0 ha0 ha1 ha2 ha3 hb0 rfl hb2z hb3z
     hb1ge hc2 hm2 hc1 hm1 hc0 hm0
-  have hpath := evm_div_n2_full_shift0_param_v5_noNop bltu_2 bltu_1 bltu_0 sp base
+  have hpath := evm_div_n2_full_shift0_param_v5_noNop bltu_2 bltu_1 bltu_0
+    (signExtend12 (4 : BitVec 12) - (4 : Word)) sp base
     a0 a1 a2 a3 b0 (b.getLimbN 1) ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratch_un0 scratchMem raVal hbnz' hb1ne hshift_z halign
@@ -259,7 +260,8 @@ theorem evm_div_n2_lane_shift0_v5 (sp base : Word) (a b : EvmWord)
     cpsTripleWithin_weaken ?_ ?_ hpath
   · intro h hp
     exact n2_shift0_dispatchPre_to_pathEntry sp a b a0 a1 a2 a3 b0 (b.getLimbN 1)
-      raVal v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      raVal v5 v6 v7 v10 v11Old (signExtend12 (4 : BitVec 12) - (4 : Word))
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
       ha0 ha1 ha2 ha3 hb0 rfl hb2z hb3z h hp
   · intro h hq
