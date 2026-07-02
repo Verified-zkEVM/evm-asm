@@ -37,6 +37,7 @@ import EvmAsm.Rv64.RLP
 import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.MemRegionWrite
 import EvmAsm.Rv64.MemRegionStore
+import EvmAsm.Rv64.MemRegionWriteWide
 -- The `*Attr` files are imported by their non-Attr counterparts.
 import EvmAsm.Rv64.RegOps
 import EvmAsm.Rv64.AddrNorm
@@ -51,3 +52,5 @@ import EvmAsm.Rv64.SailEquiv.MExtProofs
 import EvmAsm.Rv64.SailEquiv.StepProofs
 import EvmAsm.Rv64.SailEquiv.MemReduce
 import EvmAsm.Rv64.SailEquiv.MemMonad
+-- SAsm: structured-assembly DSL (docs/sasm-design.md).
+import EvmAsm.Rv64.SAsm
