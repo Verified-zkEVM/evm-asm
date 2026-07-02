@@ -9,6 +9,7 @@
 import EvmAsm.Rv64.InstructionSpecs
 import EvmAsm.Rv64.SAsm.AssertionSpec
 import EvmAsm.Rv64.SAsm.RaSpill
+import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Rv64
@@ -953,6 +954,254 @@ theorem harvestFn_spec (n base : Word) : (harvestFn n).Spec base := by
   case harvest.post =>
     rintro rf ws A' ⟨A, hA, hsat, rfl, h7⟩
     exact ⟨rfl, h7⟩
+
+-- ============================================================================
+-- Multi-dword focus blocks: `revCellFn`
+--
+-- The worked example for docs/sasm-howto.md ("Multi-dword focus blocks"):
+-- one focus block that loads all four dwords of a 32-byte cell and stores
+-- them back reversed.  The recipe: per-step `execInstrRF_ld_dword` /
+-- `execInstrRF_sd_dword` rewrites (Sym.lean) — each resolves its routing
+-- `if` once and for all, so no nested `if` trees ever appear — plus the
+-- MultiDword slice/splice algebra for the window contents.
+-- ============================================================================
+
+/-- A 32-byte cell of four dwords (LSB dword first). -/
+def cell32 (l0 l1 l2 l3 : Word) : List (BitVec 8) :=
+  dwordBytes l0 ++ (dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3))
+
+@[simp] theorem length_cell32 (l0 l1 l2 l3 : Word) :
+    (cell32 l0 l1 l2 l3).length = 32 := by
+  simp [cell32]
+
+/-- The dword slices of a 32-byte cell, packed. -/
+theorem cell32_dword0 (l0 l1 l2 l3 : Word) :
+    packBytes (((cell32 l0 l1 l2 l3).drop 0).take 8) = l0 :=
+  packDword_at0 ..
+
+theorem cell32_drop8 (l0 l1 l2 l3 : Word) :
+    (cell32 l0 l1 l2 l3).drop 8
+      = dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3) := by
+  have h := drop8_dword_append l0
+    (dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3)) 0
+  simp only [Nat.add_zero, List.drop_zero] at h
+  rw [cell32, h]
+
+theorem cell32_dword1 (l0 l1 l2 l3 : Word) :
+    packBytes (((cell32 l0 l1 l2 l3).drop 8).take 8) = l1 := by
+  rw [cell32_drop8, take8_dword_append, packBytes_dwordBytes]
+
+theorem cell32_drop16 (l0 l1 l2 l3 : Word) :
+    (cell32 l0 l1 l2 l3).drop 16 = dwordBytes l2 ++ dwordBytes l3 := by
+  have h1 := drop8_dword_append l0
+    (dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3)) 8
+  have h2 := drop8_dword_append l1 (dwordBytes l2 ++ dwordBytes l3) 0
+  simp only [Nat.reduceAdd] at h1
+  simp only [Nat.add_zero, List.drop_zero] at h2
+  rw [cell32, h1, h2]
+
+theorem cell32_dword2 (l0 l1 l2 l3 : Word) :
+    packBytes (((cell32 l0 l1 l2 l3).drop 16).take 8) = l2 := by
+  rw [cell32_drop16, take8_dword_append, packBytes_dwordBytes]
+
+theorem cell32_drop24 (l0 l1 l2 l3 : Word) :
+    (cell32 l0 l1 l2 l3).drop 24 = dwordBytes l3 := by
+  have h1 := drop8_dword_append l0
+    (dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3)) 16
+  have h2 := drop8_dword_append l1 (dwordBytes l2 ++ dwordBytes l3) 8
+  have h3 := drop8_dword_append l2 (dwordBytes l3) 0
+  simp only [Nat.reduceAdd] at h1 h2
+  simp only [Nat.add_zero, List.drop_zero] at h3
+  rw [cell32, h1, h2, h3]
+
+theorem cell32_dword3 (l0 l1 l2 l3 : Word) :
+    packBytes (((cell32 l0 l1 l2 l3).drop 24).take 8) = l3 := by
+  rw [cell32_drop24, List.take_of_length_le (by rw [length_dwordBytes]),
+    packBytes_dwordBytes]
+
+/-- Splicing a dword at each cell offset. -/
+theorem cell32_set0 (l0 l1 l2 l3 v : Word) :
+    setBytes (cell32 l0 l1 l2 l3) 0 (dwordBytes v) = cell32 v l1 l2 l3 := by
+  rw [cell32, setBytes_dword_at0, cell32]
+
+theorem cell32_set8 (l0 l1 l2 l3 v : Word) :
+    setBytes (cell32 l0 l1 l2 l3) 8 (dwordBytes v) = cell32 l0 v l2 l3 := by
+  have h1 := setBytes_dword_past l0
+    (dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3)) (dwordBytes v) 0
+  simp only [Nat.add_zero] at h1
+  rw [cell32, h1, setBytes_dword_at0, cell32]
+
+theorem cell32_set16 (l0 l1 l2 l3 v : Word) :
+    setBytes (cell32 l0 l1 l2 l3) 16 (dwordBytes v) = cell32 l0 l1 v l3 := by
+  have h1 := setBytes_dword_past l0
+    (dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3)) (dwordBytes v) 8
+  have h2 := setBytes_dword_past l1
+    (dwordBytes l2 ++ dwordBytes l3) (dwordBytes v) 0
+  simp only [Nat.reduceAdd] at h1
+  simp only [Nat.add_zero] at h2
+  rw [cell32, h1, h2, setBytes_dword_at0, cell32]
+
+theorem cell32_set24 (l0 l1 l2 l3 v : Word) :
+    setBytes (cell32 l0 l1 l2 l3) 24 (dwordBytes v) = cell32 l0 l1 l2 v := by
+  have h1 := setBytes_dword_past l0
+    (dwordBytes l1 ++ (dwordBytes l2 ++ dwordBytes l3)) (dwordBytes v) 16
+  have h2 := setBytes_dword_past l1
+    (dwordBytes l2 ++ dwordBytes l3) (dwordBytes v) 8
+  have h3 := setBytes_dword_past l2 (dwordBytes l3) (dwordBytes v) 0
+  simp only [Nat.reduceAdd] at h1 h2
+  simp only [Nat.add_zero] at h3
+  rw [cell32, h1, h2, h3, setBytes_dword_full _ _ (length_dwordBytes l3),
+    cell32]
+
+/-- Load the four dwords of the cell at `a2`, store them back reversed. -/
+def revCellBlock : List Instr :=
+  [.LD .x5 .x12 0, .LD .x6 .x12 8, .LD .x7 .x12 16, .LD .x14 .x12 24,
+   .SD .x12 .x14 0, .SD .x12 .x7 8, .SD .x12 .x6 16, .SD .x12 .x5 24]
+
+/-- Focus annotation: window = the whole cell, remainder = its
+    well-formedness (all four limbs are `Fn`-level binders, so nothing
+    needs restating). -/
+def revCellR (p l0 l1 l2 l3 : Word) :
+    RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop :=
+  fun _ _ _ win rest =>
+    win = cell32 l0 l1 l2 l3 ∧ rest = ⌜RwRegion.wf ⟨p, 32⟩⌝
+
+/-- Reverse the four dwords of the 32-byte cell at `a2`. -/
+def revCellFn (p l0 l1 l2 l3 : Word) : Fn where
+  name := "revCell"
+  pre := fun rf _ A => rf.get .x12 = p ∧
+    A = (⌜RwRegion.wf ⟨p, 32⟩⌝ ** bytesRegion p (cell32 l0 l1 l2 l3))
+  post := fun rf _ A => rf.get .x12 = p ∧
+    A = (⌜RwRegion.wf ⟨p, 32⟩⌝ ** bytesRegion p (cell32 l3 l2 l1 l0))
+  body := .blockAt "rev" .x12 (revCellR p l0 l1 l2 l3) revCellBlock
+
+/-- The signExtend12 address arithmetic, once per offset. -/
+private theorem revCell_off (b : Word) (ofs : BitVec 12) (k : Nat)
+    (hofs : signExtend12 ofs = BitVec.ofNat 64 k) (hk : k < 2 ^ 12) :
+    ((b + signExtend12 ofs) - b).toNat = k := by
+  rw [hofs]
+  bv_omega
+
+/-- The engine: the block loads `l0..l3` and rewrites the window to the
+    reversed cell.  One `execInstrRF_ld_dword`/`execInstrRF_sd_dword`
+    rewrite per instruction — the routing `if`s never appear. -/
+private theorem revCell_engine (reg : Region) (rf : RegFile)
+    (l0 l1 l2 l3 : Word) :
+    execBlock reg (rf.get .x12) rf (cell32 l0 l1 l2 l3) revCellBlock
+      = ((((rf.set .x5 l0).set .x6 l1).set .x7 l2).set .x14 l3,
+         cell32 l3 l2 l1 l0) := by
+  have h0 := revCell_off (rf.get .x12) 0 0 (by decide) (by decide)
+  -- the base register is never a destination, so its value is stable
+  have hx12a : (rf.set .x5 l0).get .x12 = rf.get .x12 :=
+    RegFile.get_set_ne _ _ _ _ (by decide)
+  have hx12b : ((rf.set .x5 l0).set .x6 l1).get .x12 = rf.get .x12 := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12a]
+  have hx12c : (((rf.set .x5 l0).set .x6 l1).set .x7 l2).get .x12
+      = rf.get .x12 := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12b]
+  have hx12d : ((((rf.set .x5 l0).set .x6 l1).set .x7 l2).set .x14 l3).get .x12
+      = rf.get .x12 := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12c]
+  rw [show revCellBlock
+      = [.LD .x5 .x12 0, .LD .x6 .x12 8, .LD .x7 .x12 16, .LD .x14 .x12 24,
+         .SD .x12 .x14 0, .SD .x12 .x7 8, .SD .x12 .x6 16, .SD .x12 .x5 24]
+    from rfl]
+  rw [execBlock_cons, execInstrRF_ld_dword _ _ _ _ _ _ _ 0 l0
+    h0 (by simp) (cell32_dword0 ..)]
+  rw [execBlock_cons, execInstrRF_ld_dword _ _ _ _ _ _ _ 8 l1
+    (by rw [hx12a]; exact revCell_off _ 8 8 (by decide) (by decide))
+    (by simp) (cell32_dword1 ..)]
+  rw [execBlock_cons, execInstrRF_ld_dword _ _ _ _ _ _ _ 16 l2
+    (by rw [hx12b]; exact revCell_off _ 16 16 (by decide) (by decide))
+    (by simp) (cell32_dword2 ..)]
+  rw [execBlock_cons, execInstrRF_ld_dword _ _ _ _ _ _ _ 24 l3
+    (by rw [hx12c]; exact revCell_off _ 24 24 (by decide) (by decide))
+    (by simp) (cell32_dword3 ..)]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 0
+    (by rw [hx12d]; exact h0)]
+  rw [RegFile.get_set_self _ _ _ (by decide), cell32_set0]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 8
+    (by rw [hx12d]; exact revCell_off _ 8 8 (by decide) (by decide))]
+  rw [RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_self _ _ _ (by decide), cell32_set8]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 16
+    (by rw [hx12d]; exact revCell_off _ 16 16 (by decide) (by decide))]
+  rw [RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_self _ _ _ (by decide), cell32_set16]
+  rw [execBlock_cons, execInstrRF_sd_dword _ _ _ _ _ _ _ 24
+    (by rw [hx12d]; exact revCell_off _ 24 24 (by decide) (by decide))]
+  rw [RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_self _ _ _ (by decide), cell32_set24]
+  rfl
+
+/-- The `.mem` VCs: rewrite each engine step with the same dword-step
+    lemmas, then every routing condition is about the ORIGINAL `rf`/window
+    and discharges by arithmetic. -/
+private theorem revCell_blockVCs (reg : Region) (rf : RegFile)
+    (l0 l1 l2 l3 : Word) :
+    blockVCs reg (rf.get .x12) rf (cell32 l0 l1 l2 l3) revCellBlock := by
+  have h0 := revCell_off (rf.get .x12) 0 0 (by decide) (by decide)
+  have hx12a : (rf.set .x5 l0).get .x12 = rf.get .x12 :=
+    RegFile.get_set_ne _ _ _ _ (by decide)
+  have hx12b : ((rf.set .x5 l0).set .x6 l1).get .x12 = rf.get .x12 := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12a]
+  have hx12c : (((rf.set .x5 l0).set .x6 l1).set .x7 l2).get .x12
+      = rf.get .x12 := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12b]
+  have hx12d : ((((rf.set .x5 l0).set .x6 l1).set .x7 l2).set .x14 l3).get .x12
+      = rf.get .x12 := by
+    rw [RegFile.get_set_ne _ _ _ _ (by decide), hx12c]
+  have h8 := revCell_off (rf.get .x12) 8 8 (by decide) (by decide)
+  have h16 := revCell_off (rf.get .x12) 16 16 (by decide) (by decide)
+  have h24 := revCell_off (rf.get .x12) 24 24 (by decide) (by decide)
+  simp only [revCellBlock, blockVCs, loadSem, storeSem,
+    execInstrRF_ld_dword _ _ _ _ _ _ _ 0 l0
+      h0 (by simp) (cell32_dword0 ..),
+    execInstrRF_ld_dword _ _ _ _ _ _ _ 8 l1
+      (by rw [hx12a]; exact h8) (by simp) (cell32_dword1 ..),
+    execInstrRF_ld_dword _ _ _ _ _ _ _ 16 l2
+      (by rw [hx12b]; exact h16) (by simp) (cell32_dword2 ..),
+    execInstrRF_ld_dword _ _ _ _ _ _ _ 24 l3
+      (by rw [hx12c]; exact h24) (by simp) (cell32_dword3 ..),
+    execInstrRF_sd_dword _ _ _ _ _ _ _ 0 (by rw [hx12d]; exact h0),
+    execInstrRF_sd_dword _ _ _ _ _ _ _ 8 (by rw [hx12d]; exact h8),
+    execInstrRF_sd_dword _ _ _ _ _ _ _ 16 (by rw [hx12d]; exact h16),
+    hx12a, hx12b, hx12c, hx12d, inRw, Region.loadOk,
+    length_cell32, length_setBytes, h0, h8, h16, h24]
+  and_intros <;> trivial
+
+theorem revCellFn_spec (p l0 l1 l2 l3 base : Word) :
+    (revCellFn p l0 l1 l2 l3).Spec base := by
+  vcgen
+  case revCell.rev.focus =>
+    rintro rf ws A ⟨hx12, hA⟩ hApc hp hhp
+    rw [hA] at hhp
+    refine ⟨cell32 l0 l1 l2 l3, _, ⟨rfl, rfl⟩, ?_, pcFree_pure, ?_⟩
+    · rw [hx12]
+      xperm_hyp hhp
+    · rw [hx12, length_cell32]
+      exact ((sepConj_pure_left hp).mp hhp).1
+  case revCell.rev.mem =>
+    rintro rf ws A win rest - - ⟨rfl, rfl⟩ -
+    exact revCell_blockVCs _ rf l0 l1 l2 l3
+  case revCell.post =>
+    rintro rf ws A ⟨rf₀, A₀, win, rest, -, ⟨hx12, hA⟩, -, ⟨rfl, rfl⟩, hrf, hA'⟩
+    rw [revCell_engine] at hrf hA'
+    rw [hrf, hA']
+    constructor
+    · show ((((rf₀.set .x5 l0).set .x6 l1).set .x7 l2).set .x14 l3).get .x12 = p
+      rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx12
+    · show (bytesRegion (rf₀.get .x12) (cell32 l3 l2 l1 l0) **
+          ⌜RwRegion.wf ⟨p, 32⟩⌝) = _
+      rw [hx12, sepConj_comm']
 
 end ExamplesVc
 end SAsm

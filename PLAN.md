@@ -2537,7 +2537,21 @@ term. Stage 6 landed: docs/sasm-howto.md — the agent-facing working manual
 (model, quickstart, VC recipes, spec surface/consequence/frame, loops +
 counter-register bridge, calls + hand-triple packaging, ghost/focus/
 harvest + tree-walk template, SSZ drop-in port recipe + EEST A/B,
-pitfalls, delivery checklist). Milestone stages 1-6 complete. Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
+pitfalls, delivery checklist). Milestone stages 1-6 complete.
+Ergonomics round 1 (driven by delegated-agent feedback from the CLZ
+port attempt): resolved engine-step lemmas execInstrRF_ld_dword /
+execInstrRF_sd_dword + projections (execInstrRF_get_ne / _ld_snd /
+_sd_fst / _sd_snd) in Sym.lean so multi-access focus blocks never
+materialize nested routing-if trees; SAsm/MultiDword.lean (dword-window
+slice/splice algebra: take8/drop8_dword_append, setBytes_append_left/
+right, setBytes_dword_at0/past/full — setBytes_dword_full moved there
+from TreeInsert); revCellFn demo (ExamplesVc.lean, 4 LD + 4 SD in ONE
+focus block, kernel-clean); howto sections "Multi-dword focus blocks"
+and "Branchy straight-line code" (assert-as-join idiom: rintro ⟨-, hP⟩
+drops the 2^n when-disjunction; branchless SLTIU/SLL preference) + two
+new pitfalls (rintro-rfl whnf timeout on big execBlock equations — rw
+engine into the hypothesis first; numeral-rewrite motive failure vs
+BitVec 8). Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
 proof: while-loop with existential zipper-ghost invariant, focus blocks
 opening nodes at a register-held pointer, ghost descend
 (ctxAt_push_left) with nil-shadow harvest, post-loop reseal
