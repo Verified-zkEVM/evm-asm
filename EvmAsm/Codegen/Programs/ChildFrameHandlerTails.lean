@@ -98,6 +98,34 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   "  j .dispatch_loop\n" ++
   ".L" ++ tag ++ "_precompile_dispatch:\n"
 
+def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) : String :=
+  match valueOff? with
+  | none => ""
+  | some valueOff =>
+    -- Value-bearing precompile calls are successful child messages when they
+    -- reach the shared success tail. Emit the EIP-7708 transfer log here, not
+    -- before dispatch, so failed precompile calls keep the ordinary child
+    -- rollback behavior. The appender expects raw EVM stack-word pointers:
+    -- env.ADDRESS at x20, callee at x12+32, and value at x12+valueOff.
+    "  ld t0, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t1, " ++ toString (valueOff+8) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+16) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+24) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  beqz t0, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
+    "  mv t0, x20\n  addi t1, x12, 32\n  li t2, 20\n" ++
+    ".L" ++ tag ++ "_precompile_xlog_selfcmp:\n" ++
+    "  beqz t2, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
+    "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
+    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
+    "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
+    "  j .L" ++ tag ++ "_precompile_xlog_selfcmp\n" ++
+    ".L" ++ tag ++ "_precompile_xlog_emit:\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
+    "  jal ra, eip7708_append_transfer_log\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    ".L" ++ tag ++ "_precompile_xlog_skip:\n"
+
 def basicPrecompileCallTail
       (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
       (valueOff? : Option Nat)
@@ -314,6 +342,7 @@ def basicPrecompileCallTail
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 6b\n" ++
     "7:\n" ++
+    emitSuccessfulPrecompileValueLogAsm tag valueOff? ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1\n" ++
     "  sd x14, 0(x12)\n" ++
