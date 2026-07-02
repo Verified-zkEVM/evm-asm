@@ -75,7 +75,7 @@ open EvmAsm.Rv64
       a0 = witness.state ptr   a1 = witness.state len   a2 = recipient 20-byte addr ptr
     Reads globals `bv_bal_start`/`bv_bal_len`, `sv_this_rlp`/`sv_this_rlp_len`.
     Writes `callee_seed_count` + `callee_seed_table` (count × 96 B: addrHash, key,
-    value). Caps at 128 entries (table size); preserves s0..s3. A seeded slot has
+    value). Caps at 512 entries (table size); preserves s0..s3. A seeded slot has
     original==current==value (no net change), matching the recipient preload. -/
 def seedCalleeStorageFunction : String :=
   "seed_callee_storage:\n" ++
@@ -110,7 +110,7 @@ def seedCalleeStorageFunction : String :=
   -- stored LE-limb so the descend copies it verbatim to the LE EVM stack (odq06 byte-order).
   -- Header = svf_parent_rlp (parent/witness root; the single-tx POST header bails). The verdict
   -- witness.state = s0/s1 (= bv_witness_state). account_at_header_state_root preserves s0-s7.
-  "  la t0, callee_balance_count; ld t1, 0(t0); li t2, 128; bgeu t1, t2, .Lscs_bal_done\n" ++
+  "  la t0, callee_balance_count; ld t1, 0(t0); li t2, 512; bgeu t1, t2, .Lscs_bal_done\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la t0, csce_addrp; ld a2, 0(t0); li a3, 20; mv a4, s0; mv a5, s1; la a6, csce_bal_struct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
