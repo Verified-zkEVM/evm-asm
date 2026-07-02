@@ -1,7 +1,16 @@
 /-
   EvmAsm.Codegen.Programs.ClzSAsm
 
-  Draft SAsm body for the EIP-7939 CLZ dispatcher handler.
+  Verified SAsm body for the EIP-7939 CLZ dispatcher handler (the
+  drop-in replacement for the raw `clzTail` string): load the four
+  dwords of the top stack cell at `a2` in one focus block, select the
+  highest nonzero limb with a 4-way ite cascade (summarized by an
+  `.assert` join), narrow **branchlessly** (SRLI/SLTIU/SLLI/ADD/SLL —
+  no `when`-disjunction), and store `(clz, 0, 0, 0)` back through a
+  second focus block.  `clzFn_spec` is the machine-level correctness
+  proof (`Fn.Spec` over the RV64 step function); the pure model
+  `clz256` is pinned to ground truth by exhaustive single-bit `#guard`s
+  below.
 -/
 
 import EvmAsm.Rv64.SAsm.MultiDword
@@ -154,7 +163,27 @@ def clzSelectedAcc (l0 l1 l2 l3 : Word) : Word :=
 def clz256 (l0 l1 l2 l3 : Word) : Word :=
   clz64From (clzSelectedLimb l0 l1 l2 l3) (clzSelectedAcc l0 l1 l2 l3)
 
+-- The model against ground truth (`256 - bit_length`), exhaustively over
+-- all 256 single-bit values, all "solid" values (top bit at i, all lower
+-- bits set), and the edges.  This pins `clz64From`'s branchless steps to
+-- what CLZ means, independently of the machine code.
 #guard clz256 0 0 0 0 = (256 : Word)
+#guard clz256 (BitVec.allOnes 64) (BitVec.allOnes 64) (BitVec.allOnes 64)
+  (BitVec.allOnes 64) = 0
+#guard (List.range 64).all fun i =>
+  clz256 (1 <<< i : Word) 0 0 0 = BitVec.ofNat 64 (255 - i)
+#guard (List.range 64).all fun i =>
+  clz256 0 (1 <<< i : Word) 0 0 = BitVec.ofNat 64 (191 - i)
+#guard (List.range 64).all fun i =>
+  clz256 0 0 (1 <<< i : Word) 0 = BitVec.ofNat 64 (127 - i)
+#guard (List.range 64).all fun i =>
+  clz256 0 0 0 (1 <<< i : Word) = BitVec.ofNat 64 (63 - i)
+#guard (List.range 64).all fun i =>
+  clz256 ((1 <<< i : Word) ||| ((1 <<< i) - 1)) 0 0 0
+    = BitVec.ofNat 64 (255 - i)
+#guard (List.range 64).all fun i =>
+  clz256 (BitVec.allOnes 64) (BitVec.allOnes 64) (BitVec.allOnes 64)
+    ((1 <<< i : Word) ||| ((1 <<< i) - 1)) = BitVec.ofNat 64 (63 - i)
 
 def clzLoadR (p l0 l1 l2 l3 : Word) :
     RegFile → List (BitVec 8) → Assertion →
@@ -250,6 +279,11 @@ def clz_verified : Program :=
   (clzBody 0 0 0 0 0 0 0 0).flatten 0
 
 #guard (clz_verified : List Instr).length = 52
+
+-- Position independence (the handler is emitted at a dispatcher label,
+-- not a fixed address): flattening at any base yields the same code.
+#guard ((clzBody 0 0 0 0 0 0 0 0).flatten 0
+  = (clzBody 0 0 0 0 0 0 0 0).flatten 0x80000000)
 
 private theorem clz_off (b : Word) (ofs : BitVec 12) (k : Nat)
     (hofs : signExtend12 ofs = BitVec.ofNat 64 k) (hk : k < 2 ^ 12) :
