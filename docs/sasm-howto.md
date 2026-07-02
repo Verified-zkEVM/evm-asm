@@ -269,6 +269,69 @@ make the `get`-chains rewrite regardless of the (opaque) loaded values.
 - exit: depth bound + shadow give the nil pointer; a post-loop ghost
   reseals via `ctxAt_zip_fold`.
 
+### Multi-dword focus blocks (N loads/stores at one base)
+
+The worked example is `revCellFn` (ExamplesVc.lean): one focus block that
+loads all four dwords of a 32-byte cell and stores them back reversed.
+**Do not** unfold `execInstrRF` with a broad `simp` — each load leaves a
+routing `if` in the register file, and the next access's address then
+contains the whole previous load verbatim (term blowup, then `whnf`
+heartbeat timeouts).  Instead:
+
+1. **One rewrite per instruction** with the resolved step lemmas
+   (Sym.lean): `execInstrRF_ld_dword` (an `LD` landing `k` bytes into the
+   window with dword `v` there *is* `(rf.set rd v, ws)`) and
+   `execInstrRF_sd_dword` (an `SD` *is* `(rf, setBytes ws k …)`).  Each
+   application discharges its own routing `if`; none survive.  Side
+   conditions: `haddr` via a `signExtend12`-literal `decide` show +
+   `bv_omega`; `hslice` via the MultiDword slice lemmas.
+2. **Window algebra** from `SAsm/MultiDword.lean`: slices
+   (`take8_dword_append`, `drop8_dword_append`, `packDword_at0`) feed the
+   load steps; splices (`setBytes_append_left/right`,
+   `setBytes_dword_at0/past/full`) normalize each store's `setBytes` back
+   into a `dwordBytes … ++ …` concatenation.  Beware rewriting bare
+   numerals (`show (8 : Nat) = 8 + 0`): it abstracts the `8` in
+   `BitVec 8` and fails with "motive is not type correct" — instantiate
+   the lemma at the right `k` and `simp only [Nat.reduceAdd]` the
+   hypothesis instead.
+3. **Base-register stability** as `have`-chains
+   (`(rf.set .x5 l0).get .x12 = rf.get .x12`, …) so every step's `haddr`
+   is about the *original* `rf`.
+4. `.mem` VCs: `simp only [<block>, blockVCs, loadSem, storeSem,
+   <the same step-lemma instances>, <the get-chains>, inRw,
+   Region.loadOk, length_*, <the offset toNat facts>]` reduces every
+   condition to literal arithmetic; finish `and_intros <;> trivial`.
+   The generic projections `execInstrRF_get_ne` / `execInstrRF_ld_snd` /
+   `execInstrRF_sd_fst` cover mixed blocks where a full step resolution
+   is unnecessary.
+5. **After the block**: do NOT `rintro rfl`/`subst` the
+   `rf' = (execBlock …).1` equation of a large block — the unifier
+   whnf-grinds through the load `if`s and times out.  Name the equations
+   (`hrf`, `hA'`), `rw [<engine lemma>] at hrf hA'` **first** (shrinking
+   them to `rf' = rf.set …`-form), and only then rewrite them into the
+   goal.
+
+### Branchy straight-line code: joins and disjunction blowup
+
+`sp` of `.when`/`.ite` is a **disjunction** — `n` sequential `when`s make
+`2^n` reachable-set disjuncts, and every downstream VC must destructure
+all of them.  Two ways out:
+
+- **Prefer branchless data flow** where RV64 allows it: `SLTIU`/`SLTU`
+  materialize conditions as 0/1, `SLL`/`SRL` take *register* shift
+  amounts — a conditional "shift and bump the counter" step becomes
+  `SRLI probe; SLTIU cond; SLLI amt; SLL x; ADD acc` with no branch at
+  all, and `sp` stays a single symbolic path.
+- **`.assert` as a join point**: `sp(assert P) = reach ∧ P`, so a
+  downstream VC can `rintro ⟨-, hP⟩` — the branch disjunction is
+  *dropped* and only the summary `P` flows on.  Put an `.assert` pinning
+  the registers you care about immediately after each `when`/`ite` (the
+  assert's own VC does the 2-way case analysis; done per-branch it stays
+  linear, not exponential).  A shared relational ghost at the join does
+  the same for the ambient assertion (both `ite` arms ending in the SAME
+  `R` — the context existential hides the direction; see
+  `treeInsDescendR` in TreeInsert.lean).
+
 ## 7. Porting an unverified routine (the SSZ drop-in recipe)
 
 The pattern of `ChainIdSAsm.lean` / `ActiveForkSAsm.lean`:
@@ -334,6 +397,14 @@ The pattern of `ChainIdSAsm.lean` / `ActiveForkSAsm.lean`:
 - The routing `if` inside `execInstrRF` lives in the *RegFile component*
   of the result pair, so `.2` (the window) is definitionally inert —
   rely on it (`from rfl` shows) rather than simp.
+- `rintro rfl`/`subst` on `rf' = (execBlock …).1` of a **multi-load
+  block** whnf-times-out (the unifier grinds through the routing `if`s).
+  Name the equation, `rw [<engine>] at` it first (§6, "Multi-dword focus
+  blocks").
+- `rw [show (8 : Nat) = 8 + 0 from rfl]` in byte-list goals fails with
+  "motive is not type correct" — the numeral also occurs as the width in
+  `BitVec 8`.  Instantiate lemmas at the composite index and
+  `simp only [Nat.reduceAdd] at h` instead.
 - Zero-warning policy: heed `unusedSimpArgs` hints; `lake build EvmAsm`
   must be warning-free under `EvmAsm/`.
 
