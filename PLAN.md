@@ -2511,7 +2511,13 @@ contract, published via SpecA) called by twoCellsFn through frameA.
 Stage 3a landed: `.ghost` statement node —
 zero-code reshaping of the ambient assertion by a pointwise entailment
 (one VC: entailment + pcFree of the result); the fold/unfold vehicle
-for recursive predicates. Next stages: focus blocks (.blockAt),
+for recursive predicates. Stage 3b landed: focus blocks (`.blockAt ptr winF is`) — a block whose
+writable window is a bytesRegion at the register-held `ptr`, opened out
+of the ambient assertion for the block; the decomposition (window bytes,
+remainder) is a user annotation on the node, so sp stays fully
+determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
+remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
+Next stages:
 tree library + sorted-BST insertion demo, docs/sasm-howto.md.
 read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
