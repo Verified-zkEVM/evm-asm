@@ -233,7 +233,7 @@ theorem evm_div_callable_v5_stack_spec_within_x9owned
           (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
             (signExtend12 4095 : Word))
           (evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-            v5 v6 v7 v10 v11 raVal x9In
+            v5 v6 v7 v10 v11 raVal x9In ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
             q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
             nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
             (by rw [hshape.2.1, hshape.2.2.1, hshape.2.2.2.1]; simpa using hshape.2.2.2.2)
@@ -315,7 +315,7 @@ theorem evm_div_body_v5_div_callableX9Owned_of_shape
         (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
           (signExtend12 4095 : Word))
         (evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-          v5 v6 v7 v10 v11 raVal x9In
+          v5 v6 v7 v10 v11 raVal x9In ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
           (by rw [hshape.2.1, hshape.2.2.1, hshape.2.2.2.1]; simpa using hshape.2.2.2.2)
