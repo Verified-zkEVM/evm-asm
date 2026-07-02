@@ -22,6 +22,7 @@ import EvmAsm.Rv64.SAsm.AssertionSpec
 import EvmAsm.Rv64.SAsm.TreeSep
 import EvmAsm.Rv64.SAsm.TreeDemo
 import EvmAsm.Rv64.SAsm.TreeInsert
+import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.RaSpill
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Rv64.SAsm.Examples

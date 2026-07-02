@@ -17,6 +17,7 @@
 
 import EvmAsm.Rv64.SAsm.RaSpill
 import EvmAsm.Rv64.SAsm.TreeDemo
+import EvmAsm.Rv64.SAsm.MultiDword
 
 namespace EvmAsm.Rv64
 namespace SAsm
@@ -177,13 +178,6 @@ theorem bytesRegion_node_split (q k a b : Word) :
     bytesRegion_dword_eq q k, bytesRegion_dword_eq (q + 8) a]
   rw [sepConj_assoc', sepConj_emp_left']
   rw [sepConj_assoc', sepConj_emp_left']
-
-/-- A full-dword store replaces the window. -/
-theorem setBytes_dword_full (ws : List (BitVec 8)) (v : Word)
-    (h : ws.length = 8) : setBytes ws 0 (dwordBytes v) = dwordBytes v := by
-  have h1 := setBytes_slot ws (dwordBytes v) 0 (by rw [length_dwordBytes]; omega)
-  rwa [List.drop_zero, length_dwordBytes,
-    List.take_of_length_le (by rw [length_setBytes]; omega)] at h1
 
 /-- `getByteAt` through `drop`. -/
 theorem getByteAt_drop (l : List (BitVec 8)) (n m : Nat)

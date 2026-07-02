@@ -411,5 +411,107 @@ theorem not_inRw_nil {rwBase a : Word} {n : Nat} (hn : 0 < n) :
       = execBlock ro rwBase (execInstrRF ro rwBase rf ws i).1
           (execInstrRF ro rwBase rf ws i).2 is := rfl
 
+-- ============================================================================
+-- Engine-step projections (multi-access focus blocks)
+--
+-- `blockVCs`/`execBlock` thread the register file through each prior
+-- `execInstrRF`; for loads that term is an unreduced routing `if`, so a
+-- later access's address expression contains the whole previous load
+-- verbatim.  These projections let `simp only`/`rw` normalize
+-- "instruction doesn't write `r`" and "instruction doesn't touch the
+-- window" WITHOUT unfolding `execInstrRF` or resolving the routing `if`s.
+-- Recipe: docs/sasm-howto.md ("Multi-dword focus blocks").
+-- ============================================================================
+
+/-- One engine step leaves every register other than the classified
+    destination unchanged — including for loads, where the result is a
+    routing `if` (both branches set the same `rd`, so the read commutes
+    past the `if` without deciding it). -/
+theorem execInstrRF_get_ne (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (i : Instr) (r : Reg)
+    (halu : ∀ op, aluSem i = some op → r ≠ op.rd)
+    (hload : ∀ l, loadSem i = some l → r ≠ l.rd) :
+    (execInstrRF ro rwBase rf ws i).1.get r = rf.get r := by
+  unfold execInstrRF
+  cases ha : aluSem i with
+  | some op => exact RegFile.get_set_ne _ _ _ _ (halu op ha)
+  | none =>
+    cases hl : loadSem i with
+    | some l =>
+        dsimp only
+        split <;> exact RegFile.get_set_ne _ _ _ _ (hload l hl)
+    | none =>
+        cases hst : storeSem i with
+        | some st => rfl
+        | none => rfl
+
+/-- Load-step register projection, in directly-`rw`-able per-constructor
+    form: an `LD` into `rd` preserves every other register. -/
+theorem execInstrRF_ld_get_ne (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12) (r : Reg)
+    (h : r ≠ rd) :
+    (execInstrRF ro rwBase rf ws (.LD rd rs1 ofs)).1.get r = rf.get r :=
+  execInstrRF_get_ne ro rwBase rf ws _ r (fun op hop => nomatch hop)
+    (fun l hl => by injection hl with hl; subst hl; exact h)
+
+/-- A load step never changes the writable window. -/
+@[simp] theorem execInstrRF_ld_snd (ro : Region) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12) :
+    (execInstrRF ro rwBase rf ws (.LD rd rs1 ofs)).2 = ws := by
+  unfold execInstrRF
+  dsimp only [aluSem, loadSem]
+
+/-- A store step never changes the register file. -/
+@[simp] theorem execInstrRF_sd_fst (ro : Region) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (rs1 rs2 : Reg) (ofs : BitVec 12) :
+    (execInstrRF ro rwBase rf ws (.SD rs1 rs2 ofs)).1 = rf := rfl
+
+/-- A store step splices its payload into the window at the classified
+    index (stated so `.mem`/engine proofs can rewrite without unfolding
+    `execInstrRF`). -/
+theorem execInstrRF_sd_snd (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rs1 rs2 : Reg) (ofs : BitVec 12) :
+    (execInstrRF ro rwBase rf ws (.SD rs1 rs2 ofs)).2
+      = setBytes ws ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat
+          (dwordBytes (rf.get rs2)) := rfl
+
+/-- **The dword-load step, fully resolved**: an `LD` whose address lands
+    `k` bytes into the window, where the window's dword at `k` is `v`,
+    is exactly `rf.set rd v` with the window untouched.  Chain this once
+    per load (with `execBlock_cons`) to run a multi-load block through
+    the engine in one `rw` each — no routing `if`s survive.  The `haddr`
+    side condition is `bv_omega` after reducing the `signExtend12`
+    literal (`show signExtend12 (8 : BitVec 12) = (8 : Word) from by
+    decide`); `hslice` is `List.drop`/`take` algebra on the window. -/
+theorem execInstrRF_ld_dword (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12) (k : Nat)
+    (v : Word)
+    (haddr : ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat = k)
+    (hfit : k + 8 ≤ ws.length)
+    (hslice : packBytes ((ws.drop k).take 8) = v) :
+    execInstrRF ro rwBase rf ws (.LD rd rs1 ofs) = (rf.set rd v, ws) := by
+  unfold execInstrRF
+  dsimp only [aluSem, loadSem]
+  rw [if_pos (show inRw rwBase ws (rf.get rs1 + signExtend12 ofs) 8 from by
+    unfold inRw
+    rw [haddr]
+    omega)]
+  unfold Region.dwordAt
+  rw [show ((rf.get rs1 + signExtend12 ofs)
+      - (⟨rwBase, ws⟩ : Region).base).toNat = k from haddr,
+    hslice]
+
+/-- **The dword-store step, fully resolved**: an `SD` whose address lands
+    `k` bytes into the window splices `dwordBytes (rf.get rs2)` at `k`
+    and leaves the registers alone. -/
+theorem execInstrRF_sd_dword (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rs1 rs2 : Reg) (ofs : BitVec 12) (k : Nat)
+    (haddr : ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat = k) :
+    execInstrRF ro rwBase rf ws (.SD rs1 rs2 ofs)
+      = (rf, setBytes ws k (dwordBytes (rf.get rs2))) := by
+  rw [show execInstrRF ro rwBase rf ws (.SD rs1 rs2 ofs)
+      = (rf, setBytes ws ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat
+          (dwordBytes (rf.get rs2))) from rfl, haddr]
+
 end SAsm
 end EvmAsm.Rv64
