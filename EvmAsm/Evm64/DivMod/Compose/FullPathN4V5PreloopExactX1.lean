@@ -1,0 +1,423 @@
+/-
+  EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
+
+  Exact-x1 twins of the four n=4 v5 preloop + j=0 loop-body compositions
+  (`base → denormOff` over `divCode_noNop_v5`): call-skip / call-addback-beq ×
+  shift≠0 / shift=0.  Mirrors of `evm_div_n4_preloop_call_skip_spec_v5_noNop`
+  (FullPathN4V5NoNopPreloopCallSkip), `evm_div_n4_preloop_call_addback_spec_v5_noNop`
+  (FullPathN4V5NoNopPreloopCallAddback), and their shift=0 analogs
+  (FullPathN4V5ToDenormShift0CallSkip / CallAddback), with the concrete caller
+  `x1` (= `raVal`) framed through instead of `regOwn .x1`, consuming the
+  exact-x1 norm loop-body wrappers (FullPathN4V5NoNopCallExactX1).
+  Toward `evm_div_callable_v5`.
+-/
+
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallAddback
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
+
+open EvmAsm.Rv64.Tactics
+
+namespace EvmAsm.Evm64
+
+open EvmAsm.Rv64
+
+/-- `preloopCallSkipPostN4V5` with the x1-free loop-body post. -/
+def preloopCallSkipPostN4V5NoX1 (sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem : Word) : Assertion :=
+  let shift := (clzResult b3).1
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  loopBodyN4CallSkipJ0PostV5NoX1 sp base b0' b1' b2' b3' u0 u1 u2 u3 u4 scratchMem **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 3992) ↦ₘ shift)
+
+/-- `preloopCallAddbackPostN4V5` with the x1-free loop-body post. -/
+def preloopCallAddbackPostN4V5NoX1 (sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem : Word) : Assertion :=
+  let shift := (clzResult b3).1
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  loopBodyN4CallAddbackBeqJ0PostV5NoX1 sp base b0' b1' b2' b3' u0 u1 u2 u3 u4 scratchMem **
+  ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+  ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+  ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+  ((sp + signExtend12 3992) ↦ₘ shift)
+
+/-- `preloopCallSkipShift0PostN4V5` with the x1-free loop-body post. -/
+def preloopCallSkipShift0PostN4V5NoX1 (sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem : Word) : Assertion :=
+  loopBodyN4CallSkipJ0PostV5NoX1 sp base b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word) scratchMem **
+  (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+   ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
+
+/-- `preloopCallAddbackShift0PostN4V5` with the x1-free loop-body post. -/
+def preloopCallAddbackShift0PostN4V5NoX1 (sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem : Word) : Assertion :=
+  loopBodyN4CallAddbackBeqJ0PostV5NoX1 sp base b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word) scratchMem **
+  (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+   ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+   ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+   ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
+
+/-- Exact-x1 twin of `evm_div_n4_preloop_call_skip_spec_v5_noNop`. -/
+theorem evm_div_n4_preloop_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4 a3 b2 b3)
+    (hborrow : isSkipBorrowN4CallV5 a0 a1 a2 a3 b0 b1 b2 b3) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 158) base (base + denormOff) (divCode_noNop_v5 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
+       ((sp + signExtend12 3976) ↦ₘ jMem) **
+       (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+      (preloopCallSkipPostN4V5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  unfold isCallTrialN4 at hbltu
+  unfold isSkipBorrowN4CallV5 at hborrow
+  let shift := (clzResult b3).1
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  have hPre := evm_div_n4_to_loopSetup_spec_within_v5_noNop sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    hbnz hb3nz hshift_nz
+  have hPreF := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+     (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+     (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+    (by pcFree) hPre
+  have hLoop := divK_loop_body_n4_call_skip_j0_norm_v5_noNop_exact_x1 sp base
+    jMem (4 : Word) shift u0 (a0 >>> (antiShift.toNat % 64)) v11Old antiShift
+    b0' b1' b2' b3' u0 u1 u2 u3 u4 (0 : Word) raVal
+    retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow
+  have hLoopF := cpsTripleWithin_frameR
+    (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hLoop
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      delta loopSetupPost at hp
+      simp only [x1_val_n4] at hp
+      rw [loopBodyN4CallJ0NormPreNoX1_unfold]
+      xperm_hyp hp) hPreF hLoopF
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta preloopCallSkipPostN4V5NoX1; xperm_hyp hq)
+    hFull
+
+/-- Exact-x1 twin of `evm_div_n4_preloop_call_addback_spec_v5_noNop`. -/
+theorem evm_div_n4_preloop_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3nz : b3 ≠ 0)
+    (hshift_nz : (clzResult b3).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hbltu : isCallTrialN4 a3 b2 b3)
+    (hborrow : isAddbackBorrowN4CallV5 a0 a1 a2 a3 b0 b1 b2 b3)
+    (hcarry2_nz : isAddbackCarry2NzN4CallV5 a0 a1 a2 a3 b0 b1 b2 b3) :
+    cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 234) base (base + denormOff) (divCode_noNop_v5 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
+       ((sp + signExtend12 3976) ↦ₘ jMem) **
+       (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+      (preloopCallAddbackPostN4V5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  unfold isCallTrialN4 at hbltu
+  unfold isAddbackBorrowN4CallV5 at hborrow
+  unfold isAddbackCarry2NzN4CallV5 at hcarry2_nz
+  let shift := (clzResult b3).1
+  let antiShift := signExtend12 (0 : BitVec 12) - shift
+  let b3' := (b3 <<< (shift.toNat % 64)) ||| (b2 >>> (antiShift.toNat % 64))
+  let b2' := (b2 <<< (shift.toNat % 64)) ||| (b1 >>> (antiShift.toNat % 64))
+  let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
+  let b0' := b0 <<< (shift.toNat % 64)
+  let u4 := a3 >>> (antiShift.toNat % 64)
+  let u3 := (a3 <<< (shift.toNat % 64)) ||| (a2 >>> (antiShift.toNat % 64))
+  let u2 := (a2 <<< (shift.toNat % 64)) ||| (a1 >>> (antiShift.toNat % 64))
+  let u1 := (a1 <<< (shift.toNat % 64)) ||| (a0 >>> (antiShift.toNat % 64))
+  let u0 := a0 <<< (shift.toNat % 64)
+  have hPre := evm_div_n4_to_loopSetup_spec_within_v5_noNop sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    hbnz hb3nz hshift_nz
+  have hPreF := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+     (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+     (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+    (by pcFree) hPre
+  have hLoop := divK_loop_body_n4_call_addback_j0_beq_norm_v5_noNop_exact_x1 sp base
+    jMem (4 : Word) shift u0 (a0 >>> (antiShift.toNat % 64)) v11Old antiShift
+    b0' b1' b2' b3' u0 u1 u2 u3 u4 (0 : Word) raVal
+    retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow hcarry2_nz
+  have hLoopF := cpsTripleWithin_frameR
+    (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ shift))
+    (by pcFree) hLoop
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      delta loopSetupPost at hp
+      simp only [x1_val_n4] at hp
+      rw [loopBodyN4CallJ0NormPreNoX1_unfold]
+      xperm_hyp hp) hPreF hLoopF
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta preloopCallAddbackPostN4V5NoX1; xperm_hyp hq)
+    hFull
+
+/-- Exact-x1 twin of `evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop`. -/
+theorem evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3nz : b3 ≠ 0)
+    (hshift_z : (clzResult b3).1 = 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hborrow : mulsubN4NoBorrow (divKTrialCallV5QHat (0 : Word) a3 b3) b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word)) :
+    cpsTripleWithin (((8 + 21 + 24 + 4) + 13) + 158) base (base + denormOff) (divCode_noNop_v5 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
+       ((sp + signExtend12 3976) ↦ₘ jMem) **
+       (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+      (preloopCallSkipShift0PostN4V5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  have hbltu : BitVec.ult (0 : Word) b3 = true := by
+    have hb3pos : 0 < b3.toNat := Nat.pos_of_ne_zero (fun h => hb3nz (by
+      apply BitVec.eq_of_toNat_eq; simpa using h))
+    simpa [BitVec.ult, BitVec.toNat_ofNat] using hb3pos
+  have hPre := evm_div_n4_to_loopSetup_shift0_spec_v5_noNop sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    hbnz hb3nz hshift_z
+  have hPreF := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+     (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+     (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+    (by pcFree) hPre
+  have hLoop := divK_loop_body_n4_call_skip_j0_norm_v5_noNop_exact_x1 sp base
+    jMem (4 : Word) (clzResult b3).1 ((clzResult b3).2 >>> (63 : Nat)) b3 v11Old
+    (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
+    b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word) (0 : Word) raVal
+    retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow
+  have hLoopF := cpsTripleWithin_frameR
+    (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
+    (by pcFree) hLoop
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      rw [show signExtend12 (4 : BitVec 12) - (4 : Word) = (0 : Word) from by decide] at hp
+      rw [loopBodyN4CallJ0NormPreNoX1_unfold]
+      xperm_hyp hp) hPreF hLoopF
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta preloopCallSkipShift0PostN4V5NoX1; xperm_hyp hq)
+    hFull
+
+/-- Exact-x1 twin of `evm_div_n4_preloop_call_addback_shift0_spec_v5_noNop`. -/
+theorem evm_div_n4_preloop_call_addback_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
+    (hb3nz : b3 ≠ 0)
+    (hshift_z : (clzResult b3).1 = 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hborrow : (if BitVec.ult (0 : Word)
+        (mulsubN4 (divKTrialCallV5QHat (0 : Word) a3 b3) b0 b1 b2 b3 a0 a1 a2 a3).2.2.2.2
+      then (1 : Word) else 0) ≠ (0 : Word))
+    (hcarry2_nz :
+      let qHat := divKTrialCallV5QHat (0 : Word) a3 b3
+      let ms := mulsubN4 qHat b0 b1 b2 b3 a0 a1 a2 a3
+      let c3 := ms.2.2.2.2
+      let carry := addbackN4_carry ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 b0 b1 b2 b3
+      let ab := addbackN4 ms.1 ms.2.1 ms.2.2.1 ms.2.2.2.1 ((0 : Word) - c3) b0 b1 b2 b3
+      carry = 0 → addbackN4_carry ab.1 ab.2.1 ab.2.2.1 ab.2.2.2.1 b0 b1 b2 b3 ≠ 0) :
+    cpsTripleWithin (((8 + 21 + 24 + 4) + 13) + 234) base (base + denormOff) (divCode_noNop_v5 base)
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
+       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x11 ↦ᵣ v11Old) **
+       ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+       ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+       ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
+       ((sp + 48) ↦ₘ b2) ** ((sp + 56) ↦ₘ b3) **
+       ((sp + signExtend12 4088) ↦ₘ q0) ** ((sp + signExtend12 4080) ↦ₘ q1) **
+       ((sp + signExtend12 4072) ↦ₘ q2) ** ((sp + signExtend12 4064) ↦ₘ q3) **
+       ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
+       ((sp + signExtend12 4040) ↦ₘ u2Old) ** ((sp + signExtend12 4032) ↦ₘ u3Old) **
+       ((sp + signExtend12 4024) ↦ₘ u4Old) **
+       ((sp + signExtend12 4016) ↦ₘ u5) ** ((sp + signExtend12 4008) ↦ₘ u6) **
+       ((sp + signExtend12 4000) ↦ₘ u7) ** ((sp + signExtend12 3984) ↦ₘ nMem) **
+       ((sp + signExtend12 3992) ↦ₘ shiftMem) **
+       ((sp + signExtend12 3976) ↦ₘ jMem) **
+       (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+       (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+       (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+      (preloopCallAddbackShift0PostN4V5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
+       (.x1 ↦ᵣ raVal)) := by
+  have hbltu : BitVec.ult (0 : Word) b3 = true := by
+    have hb3pos : 0 < b3.toNat := Nat.pos_of_ne_zero (fun h => hb3nz (by
+      apply BitVec.eq_of_toNat_eq; simpa using h))
+    simpa [BitVec.ult, BitVec.toNat_ofNat] using hb3pos
+  have hPre := evm_div_n4_to_loopSetup_shift0_spec_v5_noNop sp base
+    a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    hbnz hb3nz hshift_z
+  have hPreF := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
+     (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
+     (sp + signExtend12 3952 ↦ₘ dloMem) ** (sp + signExtend12 3944 ↦ₘ scratchUn0) **
+     (sp + signExtend12 3936 ↦ₘ scratchMem) ** (.x1 ↦ᵣ raVal))
+    (by pcFree) hPre
+  have hLoop := divK_loop_body_n4_call_addback_j0_beq_norm_v5_noNop_exact_x1 sp base
+    jMem (4 : Word) (clzResult b3).1 ((clzResult b3).2 >>> (63 : Nat)) b3 v11Old
+    (signExtend12 (0 : BitVec 12) - (clzResult b3).1)
+    b0 b1 b2 b3 a0 a1 a2 a3 (0 : Word) (0 : Word) raVal
+    retMem dMem dloMem scratchUn0 scratchMem halign hbltu hborrow hcarry2_nz
+  have hLoopF := cpsTripleWithin_frameR
+    (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
+     ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
+     ((sp + signExtend12 4080) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4072) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4064) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4016) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4008) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 4000) ↦ₘ (0 : Word)) **
+     ((sp + signExtend12 3992) ↦ₘ (clzResult b3).1))
+    (by pcFree) hLoop
+  have hFull := cpsTripleWithin_seq_perm_same_cr
+    (fun h hp => by
+      rw [show signExtend12 (4 : BitVec 12) - (4 : Word) = (0 : Word) from by decide] at hp
+      rw [loopBodyN4CallJ0NormPreNoX1_unfold]
+      xperm_hyp hp) hPreF hLoopF
+  exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
+    (fun h hp => by xperm_hyp hp)
+    (fun h hq => by delta preloopCallAddbackShift0PostN4V5NoX1; xperm_hyp hq)
+    hFull
+
+end EvmAsm.Evm64
