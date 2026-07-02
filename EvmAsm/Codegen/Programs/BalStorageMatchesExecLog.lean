@@ -22,6 +22,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -153,8 +154,8 @@ def balStorageMatchesExecLogFunction : String :=
 /-- Scratch for `bal_storage_matches_exec_log` (BAL parse output buffers). -/
 def balStorageMatchesExecLogData : String :=
   ".balign 8\n" ++
-  "bsme_keys:\n  .zero 4096\n" ++
-  "bsme_vals:\n  .zero 4096\n" ++
+  "bsme_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++
+  "bsme_vals:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++
   "bsme_krev:\n  .zero 32\n" ++
   "bsme_vrev:\n  .zero 32\n"
 

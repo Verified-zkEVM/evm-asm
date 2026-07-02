@@ -21,6 +21,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -262,8 +263,8 @@ def balStorageCoversExecLogFunction : String :=
 /-- Scratch for `bal_storage_covers_exec_log` (BAL parse output + reversed exec slot/value). -/
 def balStorageCoversExecLogData : String :=
   ".balign 8\n" ++
-  "bsce_keys:\n  .zero 4096\n" ++
-  "bsce_vals:\n  .zero 4096\n" ++
+  "bsce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++
+  "bsce_vals:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++
   "bsce_slotrev:\n  .zero 32\n" ++
   "bsce_currev:\n  .zero 32\n" ++
   "bsce_sys_count:\n  .zero 8\n"

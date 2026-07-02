@@ -1635,10 +1635,11 @@ def emitDispatcherEpilogueCore
    else
     "") ++
   "h_invalid:\n" ++
-  "  j .exit_label\n" ++
-  -- Exceptional-halt exits (reached only via `j <label>`; `h_invalid`'s
-  -- `j .exit_label` above skips them, and each ends with
-  -- `j .exit_no_epilogue` so none fall through into exitBody). Each
+  "  j .exit_invalid_op\n" ++
+  -- Exceptional-halt exits (reached only via `j <label>`; each ends with
+  -- `j .exit_no_epilogue` so none fall through into exitBody). Unknown opcode
+  -- bytes route through h_invalid into .exit_invalid_op, which is depth-aware:
+  -- a child frame returns CALL failure, while depth 0 marks the tx exceptional. Each
   -- zero-fills the result and tags a distinct halt_kind so callers can
   -- tell STOP / RETURN / REVERT / INVALID / invalid-jump / SELFDESTRUCT
   -- apart at OUTPUT + 32.
