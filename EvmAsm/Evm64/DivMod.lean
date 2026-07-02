@@ -177,6 +177,7 @@ import EvmAsm.Evm64.DivMod.LoopIterN1.UnifiedCallV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeBridgeR0V5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeV5
+import EvmAsm.Evm64.DivMod.LoopIterN1.NoX1ChainV5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeShift0V5
 import EvmAsm.Evm64.DivMod.LoopIterN1.LoopQuotDivV5
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
@@ -184,6 +185,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FrameShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5BridgeShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExact
 import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.CallIter210NoNop
 import EvmAsm.Evm64.DivMod.LoopUnifiedN1.UnifiedNoNop
