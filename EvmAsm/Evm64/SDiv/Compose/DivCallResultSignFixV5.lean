@@ -28,7 +28,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_resultSignFix_of_callable_pos
       divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
       v2 v5 v6 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
+     shiftMem nMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
     (base : Word)
     (hCallable :
       EvmAsm.Rv64.cpsTripleWithin nSteps (base + wrapperEndOff) (base + resultSignFixOff) (sdivCodeV5 base)
@@ -36,20 +36,22 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_resultSignFix_of_callable_pos
           dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
           divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
           v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+         ((sp + signExtend12 3936) ↦ₘ scratchMem))
         (saveRaDivCallCallablePostNoX9 vRa sp base
           dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
           divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
          (regOwn .x9 ** memOwn (sp + signExtend12 3936)))) :
     EvmAsm.Rv64.cpsTripleWithin ((49 + nSteps) + 21)
       base ((base + resultSignFixOff) + 84) (sdivCodeV5 base)
-      (saveRaSignsAbsSignXorThenDivCallPre vRa vSavedOld sp sDividendOld sDivisorOld
+      ((saveRaSignsAbsSignXorThenDivCallPre vRa vSavedOld sp sDividendOld sDivisorOld
         dividendMaskOld dividendValueOld dividendCarryOld
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
         EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-          shiftMem nMem jMem retMem dMem dloMem scratchUn0))
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)) **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (let dividendAbsWord :=
          sdivAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
        let divisorAbsWord :=
@@ -82,7 +84,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_resultSignFix_of_callable_pos
       dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
       divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
       v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-      shiftMem nMem jMem retMem dMem dloMem scratchUn0
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0 scratchMem
       base (base + resultSignFixOff) hCallable
   have hFramePc :
       (saveRaDivCallResultSignFixFrameNoX9 vRa sp base dividendAbsWord **

@@ -710,7 +710,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_exact_callable_spec_in_sdivCo
       divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
       v2 v5 v6 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-     shiftMem nMem jMem retMem dMem dloMem scratchUn0 : Word)
+     shiftMem nMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
     (base callableExit : Word)
     (hCallable :
       EvmAsm.Rv64.cpsTripleWithin nSteps (base + wrapperEndOff) callableExit (sdivCodeV5 base)
@@ -718,16 +718,18 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_exact_callable_spec_in_sdivCo
           dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
           divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
           v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+         ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem))
         callPost) :
     EvmAsm.Rv64.cpsTripleWithin (49 + nSteps) base callableExit (sdivCodeV5 base)
-      (saveRaSignsAbsSignXorThenDivCallPre vRa vSavedOld sp sDividendOld sDivisorOld
+      ((saveRaSignsAbsSignXorThenDivCallPre vRa vSavedOld sp sDividendOld sDivisorOld
         dividendMaskOld dividendValueOld dividendCarryOld
         dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
         divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
        ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
         EvmAsm.Evm64.divScratchValuesCallNoX1 sp q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-          shiftMem nMem jMem retMem dMem dloMem scratchUn0))
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)) **
+       ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem))
       callPost := by
   have hPrefixRaw :=
     saveRa_signs_abs_signXor_then_divCall_dispatchReady_spec_in_sdivCodeV5
@@ -752,7 +754,9 @@ theorem saveRa_signs_abs_signXor_then_divCall_then_exact_callable_spec_in_sdivCo
         shiftMem nMem jMem retMem dMem dloMem scratchUn0) := by
     rw [← divCall_target_eq_wrapperEndOff base]
     exact hPrefixRaw
-  exact EvmAsm.Rv64.cpsTripleWithin_seq_same_cr hPrefix hCallable
+  have hPrefixFramed := EvmAsm.Rv64.cpsTripleWithin_frameR
+    ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem) (by pcFree) hPrefix
+  exact EvmAsm.Rv64.cpsTripleWithin_seq_same_cr hPrefixFramed hCallable
 
 
 end EvmAsm.Evm64.SDiv.Compose
