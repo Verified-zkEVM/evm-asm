@@ -2517,7 +2517,11 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Stage 4 landed: TreeSep.lean —
+Stage 4.5 landed: ghost + focus made RELATIONAL (annotations can name
+existentially-quantified ghosts — zipper contexts/subtrees — that
+functional annotations cannot) and both now record satisfiability of
+the pre-assertion in sp (the *harvest*: pure facts baked into
+predicates reach the pure VCs; harvestFn demo). Stage 4 landed: TreeSep.lean —
 Tree/keys/insert/Sorted/insert_sorted (pure model), 3-dword node layout
 (nodeBytes/nodeAt with baked p≠0 + RwRegion.wf), recursive treeAt,
 zipper Tree.Ctx/ctxAt with ctxAt_zip_fold (reseal) and

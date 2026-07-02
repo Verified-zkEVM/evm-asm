@@ -378,62 +378,65 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       simp only [Stmt.steps]
       rw [hz]
       exact h
-  | blockAt lbl p winF is =>
+  | blockAt lbl p winR is =>
       have hok : blockOk is = true := hvcs.head
-      have hfocus : ∀ rf ws A, reach rf ws A →
-          A = (bytesRegion (rf.get p) (winF rf ws A).1 ** (winF rf ws A).2)
-          ∧ (winF rf ws A).2.pcFree
-          ∧ RwRegion.wf ⟨rf.get p, (winF rf ws A).1.length⟩ := hvcs.tail.head
-      have hmem : ∀ rf ws A, ws.length = rw.len → reach rf ws A →
-          blockVCs reg (rf.get p) rf (winF rf ws A).1 is := by
+      have hfocus : ∀ rf ws A, reach rf ws A → A.pcFree → (∃ hp, A hp) →
+          ∃ win rest, winR rf ws A win rest
+            ∧ A = (bytesRegion (rf.get p) win ** rest)
+            ∧ rest.pcFree ∧ RwRegion.wf ⟨rf.get p, win.length⟩ := hvcs.tail.head
+      have hmem : ∀ rf ws A win rest, ws.length = rw.len → reach rf ws A →
+          winR rf ws A win rest → A = (bytesRegion (rf.get p) win ** rest) →
+          blockVCs reg (rf.get p) rf win is := by
         by_cases hl : hasLoad is
         · have ht := hvcs.tail.tail
           simp only [hl, if_true] at ht
           exact ht.head
-        · exact fun rf ws A _ _ =>
-            blockVCs_of_not_hasLoad reg (rf.get p) rf (winF rf ws A).1 is
-              (by simpa using hl)
+        · exact fun rf ws A win rest _ _ _ _ =>
+            blockVCs_of_not_hasLoad reg (rf.get p) rf win is (by simpa using hl)
       apply cpsTripleWithin_exists_pre_M
-      intro rf ws A hlen hApc hreach
-      obtain ⟨hAeq, hArpc, hwf⟩ := hfocus rf ws A hreach
-      have h := execBlock_sound reg ⟨rf.get p, (winF rf ws A).1.length⟩ is rf
-        (winF rf ws A).1 base hreg hwf rfl hok (hmem rf ws A hlen hreach)
+      intro rf ws A hlen hApc hreach R hR s hcr hPR hpc
+      have hsat : ∃ hp, A hp := by
+        obtain ⟨h0, hcompat, h1, h2, hd, hu, hP1, hR2⟩ := hPR
+        obtain ⟨h3, h4, hd2, hu2, hP3, hA4⟩ := hP1
+        exact ⟨h4, hA4⟩
+      obtain ⟨win, rest, hRw, hAeq, hrestpc, hwf⟩ :=
+        hfocus rf ws A hreach hApc hsat
+      have h := execBlock_sound reg ⟨rf.get p, win.length⟩ is rf win base hreg
+        hwf rfl hok (hmem rf ws A win rest hlen hreach hRw hAeq)
         (by simpa [Stmt.size] using hsz)
-      have hA2 := cpsTripleWithin_frameR
-        (bytesRegion rw.base ws ** (winF rf ws A).2)
-        (pcFree_sepConj (bytesRegion_pcFree _ _) hArpc) h
+      have hA2 := cpsTripleWithin_frameR (bytesRegion rw.base ws ** rest)
+        (pcFree_sepConj (bytesRegion_pcFree _ _) hrestpc) h
       have h' := cpsTripleWithin_extend_code hcode hA2
-      refine cpsTripleWithin_weaken ?_ ?_ h'
+      refine cpsTripleWithin_weaken ?_ ?_ h' R hR s hcr hPR hpc
       · intro hp hh
         rw [hAeq] at hh
         xperm_hyp hh
       · intro hp hh
-        have hh2 : ((((regFileIs
-              (execBlock reg (rf.get p) rf (winF rf ws A).1 is).1) **
+        have hh2 : ((((regFileIs (execBlock reg (rf.get p) rf win is).1) **
             bytesRegion rw.base ws) **
-            (bytesRegion (rf.get p)
-              (execBlock reg (rf.get p) rf (winF rf ws A).1 is).2
-              ** (winF rf ws A).2)) **
+            (bytesRegion (rf.get p) (execBlock reg (rf.get p) rf win is).2
+              ** rest)) **
             bytesRegion reg.base reg.bytes) hp := by xperm_hyp hh
         exact sepConj_mono_left (fun hq hx =>
-          ⟨(execBlock reg (rf.get p) rf (winF rf ws A).1 is).1, ws,
-            (bytesRegion (rf.get p)
-              (execBlock reg (rf.get p) rf (winF rf ws A).1 is).2
-              ** (winF rf ws A).2),
-            hlen, pcFree_sepConj (bytesRegion_pcFree _ _) hArpc,
-            ⟨rf, A, hlen, hreach, hAeq, rfl, rfl⟩, hx⟩) hp hh2
-  | ghost lbl f =>
+          ⟨(execBlock reg (rf.get p) rf win is).1, ws,
+            (bytesRegion (rf.get p) (execBlock reg (rf.get p) rf win is).2
+              ** rest),
+            hlen, pcFree_sepConj (bytesRegion_pcFree _ _) hrestpc,
+            ⟨rf, A, win, rest, hlen, hreach, hsat, hRw, hAeq, rfl, rfl⟩,
+            hx⟩) hp hh2
+  | ghost lbl R =>
       have hvc := hvcs _ (List.mem_singleton_self _)
       have h : cpsTripleWithin 0 base base cr (asrtM reg rw reach)
-          (asrtM reg rw (Stmt.sp reg rw (.ghost lbl f) reach)) := by
+          (asrtM reg rw (Stmt.sp reg rw (.ghost lbl R) reach)) := by
         apply cpsTripleWithin_entails
         intro hp hh
         refine sepConj_mono_left (fun hq hx => ?_) hp hh
         obtain ⟨rf, ws, A, hlen, hApc, hr, hsts⟩ := hx
-        obtain ⟨hent, hpcf⟩ := hvc rf ws A hr hApc
-        exact ⟨rf, ws, f rf ws A, hlen, hpcf, ⟨A, hr, rfl⟩,
-          sepConj_mono_right hent hq hsts⟩
-      have hz : base + BitVec.ofNat 64 (4 * Stmt.size (.ghost lbl f)) = base := by
+        obtain ⟨g1, g2, gd, gu, hin, hA⟩ := hsts
+        obtain ⟨A', hRw, hent, hpcf⟩ := hvc rf ws A hr hApc ⟨g2, hA⟩
+        exact ⟨rf, ws, A', hlen, hpcf, ⟨A, hr, ⟨g2, hA⟩, hRw⟩,
+          ⟨g1, g2, gd, gu, hin, hent g2 hA⟩⟩
+      have hz : base + BitVec.ofNat 64 (4 * Stmt.size (.ghost lbl R)) = base := by
         simp [Stmt.size]
       simp only [Stmt.steps]
       rw [hz]

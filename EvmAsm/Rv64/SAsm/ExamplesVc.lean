@@ -845,19 +845,19 @@ def swapCellsFn (v w : Word) : Fn where
   post := fun _ _ A =>
     A = (((0x10108 : Word) ↦ₘ w) ** ((0x10100 : Word) ↦ₘ v))
   body := .ghost "swap"
-    (fun _ _ _ => ((0x10108 : Word) ↦ₘ w) ** ((0x10100 : Word) ↦ₘ v))
+    (fun _ _ _ A' => A' = (((0x10108 : Word) ↦ₘ w) ** ((0x10100 : Word) ↦ₘ v)))
 
 theorem swapCellsFn_spec (v w base : Word) : (swapCellsFn v w).Spec base := by
   vcgen
   case swapCells.swap =>
-    rintro rf ws A hA hApc
-    refine ⟨?_, pcFree_sepConj pcFree_memIs pcFree_memIs⟩
+    rintro rf ws A hA hApc hsat
+    refine ⟨_, rfl, ?_, pcFree_sepConj pcFree_memIs pcFree_memIs⟩
     intro hp hh
     rw [hA] at hh
     rw [sepConj_comm']
     exact hh
   case swapCells.post =>
-    rintro rf ws A' ⟨A, hA, rfl⟩
+    rintro rf ws A' ⟨A, hA, hsat, rfl⟩
     rfl
 
 -- ============================================================================
@@ -873,9 +873,10 @@ def focusReadFn (q v : Word) : Fn where
   pre := fun rf _ A => rf.get .x11 = q ∧ A = bytesRegion q (dwordBytes v)
   post := fun rf _ A => rf.get .x10 = v ∧ A = bytesRegion q (dwordBytes v)
   body :=
-    .blockAt "win" .x11 (fun _ _ _ => (dwordBytes v, empAssertion))
+    .blockAt "win" .x11
+      (fun _ _ _ win rest => win = dwordBytes v ∧ rest = empAssertion)
       [.LD .x10 .x11 0] ;;;
-    .ghost "seal" (fun _ _ _ => bytesRegion q (dwordBytes v))
+    .ghost "seal" (fun _ _ _ A' => A' = bytesRegion q (dwordBytes v))
 
 theorem focusReadFn_spec (q v base : Word) (hwf : RwRegion.wf ⟨q, 8⟩) :
     (focusReadFn q v).Spec base := by
@@ -886,28 +887,30 @@ theorem focusReadFn_spec (q v base : Word) (hwf : RwRegion.wf ⟨q, 8⟩) :
     bv_omega
   vcgen
   case focusRead.win.focus =>
-    rintro rf ws A ⟨hx11, hA⟩
-    refine ⟨?_, pcFree_emp, ?_⟩
+    rintro rf ws A ⟨hx11, hA⟩ hApc hsat
+    refine ⟨dwordBytes v, empAssertion, ⟨rfl, rfl⟩, ?_, pcFree_emp, ?_⟩
     · rw [sepConj_emp_right', hx11]
       exact hA
     · rw [hx11, length_dwordBytes]
       exact hwf
   case focusRead.win.mem =>
-    rintro rf ws A hws ⟨hx11, hA⟩
+    rintro rf ws A win rest hws ⟨hx11, hA⟩ ⟨rfl, rfl⟩ hAeq
     simp only [blockVCs, loadSem, inRw, Region.loadOk,
       hidx rf hx11, length_dwordBytes]
     rw [if_pos (by omega)]
     exact ⟨⟨by omega, by omega⟩, trivial⟩
   case focusRead.seal =>
-    rintro rf ws A ⟨rf₀, A₀, hlen, ⟨hx11, hA₀⟩, hAeq, rfl, rfl⟩ hApc
-    refine ⟨?_, bytesRegion_pcFree _ _⟩
+    rintro rf ws A ⟨rf₀, A₀, win, rest, hlen, ⟨hx11, hA₀⟩, hsat, ⟨rfl, rfl⟩,
+      hAeq, rfl, rfl⟩ hApc hsat'
+    refine ⟨_, rfl, ?_, bytesRegion_pcFree _ _⟩
     intro hp hh
     rw [sepConj_emp_right'] at hh
     rw [← hx11]
     -- the window after a pure load is definitionally unchanged
     exact hh
   case focusRead.post =>
-    rintro rf' ws' A' ⟨A1, ⟨rf₀, A₀, hlen, ⟨hx11, hA₀⟩, hAeq, rfl, rfl⟩, rfl⟩
+    rintro rf' ws' A' ⟨A1, ⟨rf₀, A₀, win, rest, hlen, ⟨hx11, hA₀⟩, hsat,
+      ⟨rfl, rfl⟩, hAeq, rfl, rfl⟩, hsat1, rfl⟩
     refine ⟨?_, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem, aluSem]
     rw [if_pos (show inRw (rf₀.get .x11) (dwordBytes v)
@@ -923,6 +926,32 @@ theorem focusReadFn_spec (q v base : Word) (hwf : RwRegion.wf ⟨q, 8⟩) :
       hidx rf₀ hx11]
     rw [List.drop_zero, List.take_of_length_le (by rw [length_dwordBytes])]
     exact packBytes_dwordBytes v
+
+/-- Harvesting a pure fact trapped inside the ambient assertion: ghost
+    steps receive satisfiability of the current `A`, so facts baked into
+    predicates (`⌜…⌝` conjuncts: nil-pointers, node well-formedness) reach
+    the pure VCs through the ghost relation. -/
+def harvestFn (n : Word) : Fn where
+  name := "harvest"
+  pre := fun _ _ A => A = (⌜n = 7⌝ ** empAssertion)
+  post := fun _ _ A => A = empAssertion ∧ n = 7
+  body := .ghost "get" (fun _ _ _ A' => A' = empAssertion ∧ n = 7)
+
+theorem harvestFn_spec (n base : Word) : (harvestFn n).Spec base := by
+  vcgen
+  case harvest.get =>
+    rintro rf ws A hA hApc hsat
+    have h7 : n = 7 := by
+      obtain ⟨hp, hhp⟩ := hsat
+      rw [hA] at hhp
+      exact ((sepConj_pure_left hp).mp hhp).1
+    refine ⟨empAssertion, ⟨rfl, h7⟩, ?_, pcFree_emp⟩
+    intro hp hh
+    rw [hA] at hh
+    exact ((sepConj_pure_left hp).mp hh).2
+  case harvest.post =>
+    rintro rf ws A' ⟨A, hA, hsat, rfl, h7⟩
+    exact ⟨rfl, h7⟩
 
 end ExamplesVc
 end SAsm

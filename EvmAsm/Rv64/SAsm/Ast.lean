@@ -115,27 +115,30 @@ inductive Stmt where
   /-- Focus block: a straight-line block whose *writable window* is a
       `bytesRegion` at the address held in register `ptr`, opened out of
       the ambient assertion for the block's duration.  The annotation
-      `win` names the decomposition (window bytes, remainder assertion) as
-      a function of the entry state — like loop invariants, the
-      factorization of a destructed assertion is user-supplied, so `sp`
-      stays fully determined and post-state VCs compute.  The generator
-      emits a `.focus` VC demanding the ambient assertion equal
-      `bytesRegion (rf.get ptr) (win …).1 ** (win …).2`.  The function's
-      flat rw window is framed — inaccessible inside the block; the
-      read-only region stays readable.  This is how SAsm code reads and
-      writes pointer-owned memory (tree nodes, list cells) with pure
-      VCs. -/
+      `winR` *relates* the entry state to the decomposition (window bytes,
+      remainder assertion) — relational rather than functional so it can
+      name existentially-quantified ghosts from the ambient invariant
+      (zipper contexts, subtrees).  The generator emits a `.focus` VC
+      demanding a related decomposition exist with
+      `A = bytesRegion (rf.get ptr) win ** rest`.  The function's flat rw
+      window is framed — inaccessible inside the block; the read-only
+      region stays readable.  This is how SAsm code reads and writes
+      pointer-owned memory (tree nodes, list cells) with pure VCs. -/
   | blockAt (label : String) (ptr : Reg)
-            (win : RegFile → List (BitVec 8) → Assertion →
-              List (BitVec 8) × Assertion)
+            (winR : RegFile → List (BitVec 8) → Assertion →
+              List (BitVec 8) → Assertion → Prop)
             (instrs : List Instr)
-  /-- Ghost step: emits no code; replaces the ambient assertion `A` by
-      `f rf ws A`, justified by one VC demanding a pointwise entailment
-      (and pc-freedom of the result).  This is how recursive predicates
-      are folded/unfolded mid-body (open a tree node, push a zipper
-      frame, …). -/
+  /-- Ghost step: emits no code; replaces the ambient assertion `A` by an
+      `R`-related `A'`, justified by one VC producing such an `A'` with a
+      pointwise entailment (and pc-freedom).  Relational rather than
+      functional so the new assertion can be built from
+      existentially-quantified ghosts.  The strongest postcondition also
+      records satisfiability of the old `A` — the *harvest* by which pure
+      facts trapped inside the assertion (`p = 0` at a leaf, …) reach the
+      pure VCs.  This is how recursive predicates are folded/unfolded
+      mid-body (open a tree node, push a zipper frame, …). -/
   | ghost  (label : String)
-           (f : RegFile → List (BitVec 8) → Assertion → Assertion)
+           (R : RegFile → List (BitVec 8) → Assertion → Assertion → Prop)
   /-- Bounded loop: the body runs while `c` holds, at most `fuel` iterations.
       `inv i` must hold at the i-th evaluation of the header; the generator
       emits initialization, preservation, and fuel-exhaustion VCs. -/

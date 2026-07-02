@@ -97,14 +97,15 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
       sp reg rw b (fun rf ws A => reach rf ws A ∧ c.holds rf) rf' ws' A'
         ∨ (reach rf' ws' A' ∧ ¬ c.holds rf')
   | assert _ P, reach => fun rf ws A => reach rf ws A ∧ P rf ws A
-  | ghost _ f, reach => fun rf ws A' => ∃ A, reach rf ws A ∧ A' = f rf ws A
-  | blockAt _ p winF is, reach => fun rf' ws' A'' => ∃ rf A,
-      ws'.length = rw.len ∧ reach rf ws' A
-      ∧ A = (bytesRegion (rf.get p) (winF rf ws' A).1 ** (winF rf ws' A).2)
-      ∧ rf' = (execBlock reg (rf.get p) rf (winF rf ws' A).1 is).1
-      ∧ A'' = (bytesRegion (rf.get p)
-            (execBlock reg (rf.get p) rf (winF rf ws' A).1 is).2
-          ** (winF rf ws' A).2)
+  | ghost _ R, reach => fun rf ws A' => ∃ A, reach rf ws A
+      ∧ (∃ hp, A hp) ∧ R rf ws A A'
+  | blockAt _ p winR is, reach => fun rf' ws' A'' => ∃ rf A win rest,
+      ws'.length = rw.len ∧ reach rf ws' A ∧ (∃ hp, A hp)
+      ∧ winR rf ws' A win rest
+      ∧ A = (bytesRegion (rf.get p) win ** rest)
+      ∧ rf' = (execBlock reg (rf.get p) rf win is).1
+      ∧ A'' = (bytesRegion (rf.get p) (execBlock reg (rf.get p) rf win is).2
+          ** rest)
   | «while» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
   | call _ f, _ => fun rf ws A => f.post rf ws A
@@ -127,18 +128,21 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
       vcs reg rw b (pfx ++ lbl ++ ".") (fun rf ws A => reach rf ws A ∧ c.holds rf)
   | assert lbl P, pfx, reach =>
       [⟨pfx ++ lbl, ∀ rf ws A, reach rf ws A → P rf ws A⟩]
-  | ghost lbl f, pfx, reach =>
-      [⟨pfx ++ lbl, ∀ rf ws A, reach rf ws A → A.pcFree →
-          (∀ hp, A hp → f rf ws A hp) ∧ (f rf ws A).pcFree⟩]
-  | blockAt lbl p winF is, pfx, reach =>
+  | ghost lbl R, pfx, reach =>
+      [⟨pfx ++ lbl, ∀ rf ws A, reach rf ws A → A.pcFree → (∃ hp, A hp) →
+          ∃ A', R rf ws A A' ∧ (∀ hp, A hp → A' hp) ∧ A'.pcFree⟩]
+  | blockAt lbl p winR is, pfx, reach =>
       ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
-      ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, reach rf ws A →
-          A = (bytesRegion (rf.get p) (winF rf ws A).1 ** (winF rf ws A).2)
-          ∧ (winF rf ws A).2.pcFree
-          ∧ RwRegion.wf ⟨rf.get p, (winF rf ws A).1.length⟩⟩ ::
+      ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, reach rf ws A → A.pcFree →
+          (∃ hp, A hp) →
+          ∃ win rest, winR rf ws A win rest
+            ∧ A = (bytesRegion (rf.get p) win ** rest)
+            ∧ rest.pcFree ∧ RwRegion.wf ⟨rf.get p, win.length⟩⟩ ::
       (if hasLoad is then
-        [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len →
-            reach rf ws A → blockVCs reg (rf.get p) rf (winF rf ws A).1 is⟩]
+        [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A win rest, ws.length = rw.len →
+            reach rf ws A → winR rf ws A win rest →
+            A = (bytesRegion (rf.get p) win ** rest) →
+            blockVCs reg (rf.get p) rf win is⟩]
       else [])
   | «while» lbl c fuel inv b, pfx, reach =>
       ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
@@ -184,12 +188,12 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       · exact Or.inr ⟨h rf ws A hskip.1, hskip.2⟩
   | assert lbl P =>
       exact fun rf ws A hr => ⟨h rf ws A hr.1, hr.2⟩
-  | ghost lbl f =>
-      rintro rf ws A' ⟨A, hr, rfl⟩
-      exact ⟨A, h rf ws A hr, rfl⟩
-  | blockAt lbl p winF is =>
-      rintro rf' ws' A'' ⟨rf, A, hlen, hr, hAeq, hrf, hA⟩
-      exact ⟨rf, A, hlen, h rf ws' A hr, hAeq, hrf, hA⟩
+  | ghost lbl R =>
+      rintro rf ws A' ⟨A, hr, hsat, hR⟩
+      exact ⟨A, h rf ws A hr, hsat, hR⟩
+  | blockAt lbl p winR is =>
+      rintro rf' ws' A'' ⟨rf, A, win, rest, hlen, hr, hsat, hR, hAeq, hrf, hA⟩
+      exact ⟨rf, A, win, rest, hlen, h rf ws' A hr, hsat, hR, hAeq, hrf, hA⟩
   | «while» lbl c fuel inv b ihb =>
       exact fun rf ws A hr => hr
   | call lbl f =>
@@ -241,12 +245,12 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
       exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
-  | ghost lbl f =>
+  | ghost lbl R =>
       intro vc hvc
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
-      exact fun rf ws A hr hApc => hvcs.head rf ws A (h rf ws A hr) hApc
-  | blockAt lbl p winF is =>
+      exact fun rf ws A hr hApc hsat => hvcs.head rf ws A (h rf ws A hr) hApc hsat
+  | blockAt lbl p winR is =>
       intro vc hvc
       simp only [vcs, List.mem_cons] at hvc
       rcases hvc with rfl | rfl | hvc
@@ -254,21 +258,22 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       · exact fun rf ws A hr => hvcs.tail.head rf ws A (h rf ws A hr)
       · by_cases hl : hasLoad is
         · rw [if_pos hl] at hvc
-          rw [show vcs reg rw (.blockAt lbl p winF is) pfx r₂
+          rw [show vcs reg rw (.blockAt lbl p winR is) pfx r₂
               = ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
-                ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, r₂ rf ws A →
-                    A = (bytesRegion (rf.get p) (winF rf ws A).1
-                      ** (winF rf ws A).2)
-                    ∧ (winF rf ws A).2.pcFree
-                    ∧ RwRegion.wf ⟨rf.get p, (winF rf ws A).1.length⟩⟩ ::
-                [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len →
-                    r₂ rf ws A →
-                    blockVCs reg (rf.get p) rf (winF rf ws A).1 is⟩]
+                ⟨pfx ++ lbl ++ ".focus", ∀ rf ws A, r₂ rf ws A → A.pcFree →
+                    (∃ hp, A hp) →
+                    ∃ win rest, winR rf ws A win rest
+                      ∧ A = (bytesRegion (rf.get p) win ** rest)
+                      ∧ rest.pcFree ∧ RwRegion.wf ⟨rf.get p, win.length⟩⟩ ::
+                [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A win rest, ws.length = rw.len →
+                    r₂ rf ws A → winR rf ws A win rest →
+                    A = (bytesRegion (rf.get p) win ** rest) →
+                    blockVCs reg (rf.get p) rf win is⟩]
             from by simp [vcs, hl]] at hvcs
           simp only [List.mem_singleton] at hvc
           subst hvc
-          exact fun rf ws A hlen hr =>
-            hvcs.tail.tail.head rf ws A hlen (h rf ws A hr)
+          exact fun rf ws A win rest hlen hr hR hAeq =>
+            hvcs.tail.tail.head rf ws A win rest hlen (h rf ws A hr) hR hAeq
         · rw [if_neg hl] at hvc
           exact absurd hvc (List.not_mem_nil)
   | «while» lbl c fuel inv b ihb =>
