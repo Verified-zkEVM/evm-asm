@@ -113,9 +113,9 @@ def readChainIdBody : Stmt :=
 def readChainIdFn (bs : List (BitVec 8)) : Fn where
   name := "readChainId"
   region := ⟨0x40000000, bs⟩
-  pre := fun _ =>
+  pre := fun _ _ =>
     30 ≤ bs.length ∧ 18 + (leU32 bs 26).toNat + 8 ≤ bs.length
-  post := fun rf =>
+  post := fun rf _ =>
     rf.get .x10 = leU64 bs (18 + (leU32 bs 26).toNat) ∧
     rf.get .x13 = (0x40000012 : Word) + leU32 bs 26
   body := readChainIdBody
@@ -151,10 +151,11 @@ theorem readChainIdFn_spec (bs : List (BitVec 8))
     (readChainIdFn bs).Spec base := by
   vcgen
   case region =>
-    exact inputRegion_wf bs hlen
+    exact ⟨inputRegion_wf bs hlen, RwRegion.empty_wf⟩
   case readChainId.offset32.mem =>
-    rintro rf ⟨rf₀, ⟨hlen30, hoff⟩, rfl⟩
-    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+    rintro rf ws hws ⟨rf₀, ws₀, hws₀, ⟨hlen30, hoff⟩, rfl, rfl⟩
+    obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
+    simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
       blockVCs, Region.loadOk]
     simp [RegFile.get_set_self, RegFile.get_set_ne]
     have hbb : (readChainIdFn bs).region.base.toNat = 0x40000000 := by
@@ -168,8 +169,9 @@ theorem readChainIdFn_spec (bs : List (BitVec 8))
     have h11 : (signExtend12 (11#12)).toNat = 11 := by decide
     omega
   case readChainId.chainid.mem =>
-    rintro rf ⟨rf₁, ⟨rf₀, ⟨hlen30, hoff⟩, rfl⟩, rfl⟩
-    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+    rintro rf ws hws ⟨rf₁, ws₁, hws₁, ⟨rf₀, ws₀, hws₀, ⟨hlen30, hoff⟩, rfl, rfl⟩, rfl, rfl⟩
+    obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
+    simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
       blockVCs, Region.loadOk, RegFile.get_set_self, RegFile.get_set_ne,
       ne_eq, reduceCtorEq, not_false_eq_true]
     have hbyteAt : ∀ a : Word,
@@ -206,11 +208,12 @@ theorem readChainIdFn_spec (bs : List (BitVec 8))
       | omega
       | bv_omega
   case readChainId.post =>
-    intro rf' h
+    intro rf' ws' h
     show rf'.get .x10 = leU64 bs (18 + (leU32 bs 26).toNat) ∧
       rf'.get .x13 = (0x40000012 : Word) + leU32 bs 26
-    obtain ⟨rf₂, ⟨rf₁, ⟨rf₀, ⟨hlen30, hoff⟩, rfl⟩, rfl⟩, rfl⟩ := h
-    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+    obtain ⟨rf₂, ws₂, hws₂, ⟨rf₁, ws₁, hws₁, ⟨rf₀, ws₀, hws₀, ⟨hlen30, hoff⟩, rfl, rfl⟩, rfl, rfl⟩, rfl, rfl⟩ := h
+    obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
+    simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
       RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
       not_false_eq_true]
     have hbyteAt : ∀ a : Word,

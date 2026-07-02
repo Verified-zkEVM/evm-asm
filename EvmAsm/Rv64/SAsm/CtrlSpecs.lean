@@ -66,31 +66,35 @@ end Cond
 -- ============================================================================
 
 /-- Conditional-branch spec at reachable-set granularity: the branch splits
-    `asrtOf reach` by the condition's denotation over the current register
+    `asrtOf rw reach` by the condition's denotation over the current register
     file, changing nothing but the PC. -/
-theorem branch_spec_asrt (c : Cond) (ofs : BitVec 13) (reach : Reach) (base : Word)
+theorem branch_spec_asrt (c : Cond) (ofs : BitVec 13) (rw : RwRegion)
+    (reach : Reach) (base : Word)
     (hwf : c.wf = true) :
     cpsBranchWithin 1 base (CodeReq.singleton base (c.toInstr ofs))
-      (asrtOf reach)
-      (base + signExtend13 ofs) (asrtOf fun rf => reach rf ∧ c.holds rf)
-      (base + 4) (asrtOf fun rf => reach rf ∧ ¬ c.holds rf) := by
+      (asrtOf rw reach)
+      (base + signExtend13 ofs)
+        (asrtOf rw fun rf ws => reach rf ws ∧ c.holds rf)
+      (base + 4) (asrtOf rw fun rf ws => reach rf ws ∧ ¬ c.holds rf) := by
   intro R hR s hcr hPR hpc; subst hpc
   have hfetch : s.code s.pc = some (c.toInstr ofs) :=
     CodeReq.singleton_satisfiedBy.mp hcr
   obtain ⟨hnec, hneb, hnm⟩ := Cond.toInstr_not_special c ofs
   have hstep' : step s = some (execInstrBr s (c.toInstr ofs)) :=
     step_non_ecall_non_mem hfetch hnec hneb hnm
-  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, hrf1, hreach⟩, hR2⟩ := hPR
-  have hPR' : ((regFileIs rf) ** R).holdsFor s :=
-    ⟨hp, hcompat, h1, h2, hd, hu, hrf1, hR2⟩
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, hlen, hreach, hsts⟩, hR2⟩ := hPR
+  have hPR' : ((regFileIs rf) ** (bytesRegion rw.base ws ** R)).holdsFor s := by
+    have h0 : (((regFileIs rf) ** bytesRegion rw.base ws) ** R).holdsFor s :=
+      ⟨hp, hcompat, h1, h2, hd, hu, hsts, hR2⟩
+    rwa [sepConj_assoc'] at h0
   have hgeq : c.holdsG s.getReg ↔ c.holds rf := by
     rw [Cond.holds_iff_holdsG]
     exact Cond.holdsG_agree hwf
       (fun r hr => holdsFor_regFileIs_agree hPR' hr)
-  have hpcfree_t : ((asrtOf fun rf => reach rf ∧ c.holds rf) ** R).pcFree :=
-    pcFree_sepConj (pcFree_asrtOf _) hR
-  have hpcfree_f : ((asrtOf fun rf => reach rf ∧ ¬ c.holds rf) ** R).pcFree :=
-    pcFree_sepConj (pcFree_asrtOf _) hR
+  have hpcfree_t : ((asrtOf rw fun rf ws => reach rf ws ∧ c.holds rf) ** R).pcFree :=
+    pcFree_sepConj (pcFree_asrtOf _ _) hR
+  have hpcfree_f : ((asrtOf rw fun rf ws => reach rf ws ∧ ¬ c.holds rf) ** R).pcFree :=
+    pcFree_sepConj (pcFree_asrtOf _ _) hR
   by_cases hc : c.holds rf
   · have hexec : execInstrBr s (c.toInstr ofs) = s.setPC (s.pc + signExtend13 ofs) := by
       rw [Cond.execInstrBr_cond, if_pos (hgeq.mpr hc)]
@@ -98,14 +102,14 @@ theorem branch_spec_asrt (c : Cond) (ofs : BitVec 13) (reach : Reach) (base : Wo
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec]; rfl
     · exact holdsFor_pcFree_setPC hpcfree_t
-        ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, hrf1, hreach, hc⟩, hR2⟩
+        ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, hlen, ⟨hreach, hc⟩, hsts⟩, hR2⟩
   · have hexec : execInstrBr s (c.toInstr ofs) = s.setPC (s.pc + 4) := by
       rw [Cond.execInstrBr_cond, if_neg (fun h => hc (hgeq.mp h))]
     refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + 4), ?_, Or.inr ⟨rfl, ?_⟩⟩
     · show (step s).bind (stepN 0) = some _
       rw [hstep', hexec]; rfl
     · exact holdsFor_pcFree_setPC hpcfree_f
-        ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, hrf1, hreach, hc⟩, hR2⟩
+        ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, hlen, ⟨hreach, hc⟩, hsts⟩, hR2⟩
 
 /-- `JAL x0` at pc-free-assertion granularity: a pure PC move. -/
 theorem jal0_spec_pcFree (ofs : BitVec 21) (base : Word) {P : Assertion}

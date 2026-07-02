@@ -78,49 +78,57 @@ end VCs
 
 namespace Stmt
 
-/-- Strongest-postcondition transformer over the exposed register file,
-    reading loads from the function's region `reg`.
+/-- Strongest-postcondition transformer over the symbolic state (exposed
+    register file + writable-region contents), reading loads from the
+    read-only region `reg` and routing writable-region accesses by address.
     A `call` replaces the reachable set by the callee's postcondition (the
-    callee owns the whole exposed file; ghost data relates them). -/
-def sp (reg : Region) : Stmt → Reach → Reach
-  | block _ is, reach => fun rf' => ∃ rf, reach rf ∧ rf' = execBlock reg rf is
-  | seq a b, reach => sp reg b (sp reg a reach)
-  | ite _ c t e, reach => fun rf' =>
-      sp reg t (fun rf => reach rf ∧ c.holds rf) rf' ∨
-      sp reg e (fun rf => reach rf ∧ ¬ c.holds rf) rf'
-  | when _ c b, reach => fun rf' =>
-      sp reg b (fun rf => reach rf ∧ c.holds rf) rf' ∨ (reach rf' ∧ ¬ c.holds rf')
-  | assert _ P, reach => fun rf => reach rf ∧ P rf
+    callee owns the whole exposed file and the regions; ghost data relates
+    them). -/
+def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
+  | block _ is, reach => fun rf' ws' => ∃ rf ws, ws.length = rw.len
+      ∧ reach rf ws
+      ∧ rf' = (execBlock reg rw.base rf ws is).1
+      ∧ ws' = (execBlock reg rw.base rf ws is).2
+  | seq a b, reach => sp reg rw b (sp reg rw a reach)
+  | ite _ c t e, reach => fun rf' ws' =>
+      sp reg rw t (fun rf ws => reach rf ws ∧ c.holds rf) rf' ws' ∨
+      sp reg rw e (fun rf ws => reach rf ws ∧ ¬ c.holds rf) rf' ws'
+  | when _ c b, reach => fun rf' ws' =>
+      sp reg rw b (fun rf ws => reach rf ws ∧ c.holds rf) rf' ws'
+        ∨ (reach rf' ws' ∧ ¬ c.holds rf')
+  | assert _ P, reach => fun rf ws => reach rf ws ∧ P rf ws
   | «while» _ c fuel inv _, _ =>
-      fun rf => (∃ i, i ≤ fuel ∧ inv i rf) ∧ ¬ c.holds rf
-  | call _ f, _ => fun rf => f.post rf
+      fun rf ws => (∃ i, i ≤ fuel ∧ inv i rf ws) ∧ ¬ c.holds rf
+  | call _ f, _ => fun rf ws => f.post rf ws
 
 /-- Labeled verification conditions of a statement, given the reachable set
     at its entry.  `pfx` is the path prefix for labels. -/
-def vcs (reg : Region) : Stmt → String → Reach → List VC
+def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
   | block lbl is, pfx, reach =>
       ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
       (if hasLoad is then
-        [⟨pfx ++ lbl ++ ".mem", ∀ rf, reach rf → blockVCs reg rf is⟩]
+        [⟨pfx ++ lbl ++ ".mem", ∀ rf ws, ws.length = rw.len → reach rf ws →
+            blockVCs reg rw.base rf ws is⟩]
       else [])
   | seq a b, pfx, reach =>
-      vcs reg a pfx reach ++ vcs reg b pfx (sp reg a reach)
+      vcs reg rw a pfx reach ++ vcs reg rw b pfx (sp reg rw a reach)
   | ite lbl c t e, pfx, reach =>
-      vcs reg t (pfx ++ lbl ++ ".t.") (fun rf => reach rf ∧ c.holds rf) ++
-      vcs reg e (pfx ++ lbl ++ ".e.") (fun rf => reach rf ∧ ¬ c.holds rf)
+      vcs reg rw t (pfx ++ lbl ++ ".t.") (fun rf ws => reach rf ws ∧ c.holds rf) ++
+      vcs reg rw e (pfx ++ lbl ++ ".e.") (fun rf ws => reach rf ws ∧ ¬ c.holds rf)
   | when lbl c b, pfx, reach =>
-      vcs reg b (pfx ++ lbl ++ ".") (fun rf => reach rf ∧ c.holds rf)
+      vcs reg rw b (pfx ++ lbl ++ ".") (fun rf ws => reach rf ws ∧ c.holds rf)
   | assert lbl P, pfx, reach =>
-      [⟨pfx ++ lbl, ∀ rf, reach rf → P rf⟩]
+      [⟨pfx ++ lbl, ∀ rf ws, reach rf ws → P rf ws⟩]
   | «while» lbl c fuel inv b, pfx, reach =>
-      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf, reach rf → inv 0 rf⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws, reach rf ws → inv 0 rf ws⟩ ::
       ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel →
-          ∀ rf', sp reg b (fun rf => inv i rf ∧ c.holds rf) rf' → inv (i + 1) rf'⟩ ::
-      ⟨pfx ++ lbl ++ ".exhausted", ∀ rf, inv fuel rf → ¬ c.holds rf⟩ ::
-      vcs reg b (pfx ++ lbl ++ ".body.")
-        (fun rf => ∃ i, i < fuel ∧ inv i rf ∧ c.holds rf)
+          ∀ rf' ws', sp reg rw b (fun rf ws => inv i rf ws ∧ c.holds rf) rf' ws' →
+            inv (i + 1) rf' ws'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted", ∀ rf ws, inv fuel rf ws → ¬ c.holds rf⟩ ::
+      vcs reg rw b (pfx ++ lbl ++ ".body.")
+        (fun rf ws => ∃ i, i < fuel ∧ inv i rf ws ∧ c.holds rf)
   | call lbl f, pfx, reach =>
-      [⟨pfx ++ lbl ++ ".pre", ∀ rf, reach rf → f.pre rf⟩]
+      [⟨pfx ++ lbl ++ ".pre", ∀ rf ws, reach rf ws → f.pre rf ws⟩]
 
 /-- Exact step bound of a statement (docs/sasm-design.md §3.5; the loop bound
     is `WP.loopBound`). -/
@@ -134,35 +142,37 @@ def steps : Stmt → Nat
   | call _ f => 1 + f.nSteps
 
 /-- `sp` is monotone in the reachable set. -/
-theorem sp_mono (reg : Region) (s : Stmt) {r₁ r₂ : Reach} (h : ∀ rf, r₁ rf → r₂ rf) :
-    ∀ rf, sp reg s r₁ rf → sp reg s r₂ rf := by
+theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
+    (h : ∀ rf ws, r₁ rf ws → r₂ rf ws) :
+    ∀ rf ws, sp reg rw s r₁ rf ws → sp reg rw s r₂ rf ws := by
   induction s generalizing r₁ r₂ with
   | block lbl is =>
-      rintro rf ⟨rf₀, hr, hrf⟩
-      exact ⟨rf₀, h rf₀ hr, hrf⟩
+      rintro rf ws ⟨rf₀, ws₀, hlen, hr, hrf, hws⟩
+      exact ⟨rf₀, ws₀, hlen, h rf₀ ws₀ hr, hrf, hws⟩
   | seq a b iha ihb =>
-      exact fun rf => ihb (iha h) rf
+      exact fun rf ws => ihb (iha h) rf ws
   | ite lbl c t e iht ihe =>
-      rintro rf (ht | he)
-      · exact Or.inl (iht (fun rf hr => ⟨h rf hr.1, hr.2⟩) rf ht)
-      · exact Or.inr (ihe (fun rf hr => ⟨h rf hr.1, hr.2⟩) rf he)
+      rintro rf ws (ht | he)
+      · exact Or.inl (iht (fun rf ws hr => ⟨h rf ws hr.1, hr.2⟩) rf ws ht)
+      · exact Or.inr (ihe (fun rf ws hr => ⟨h rf ws hr.1, hr.2⟩) rf ws he)
   | «when» lbl c b ihb =>
-      rintro rf (hb | hskip)
-      · exact Or.inl (ihb (fun rf hr => ⟨h rf hr.1, hr.2⟩) rf hb)
-      · exact Or.inr ⟨h rf hskip.1, hskip.2⟩
+      rintro rf ws (hb | hskip)
+      · exact Or.inl (ihb (fun rf ws hr => ⟨h rf ws hr.1, hr.2⟩) rf ws hb)
+      · exact Or.inr ⟨h rf ws hskip.1, hskip.2⟩
   | assert lbl P =>
-      exact fun rf hr => ⟨h rf hr.1, hr.2⟩
+      exact fun rf ws hr => ⟨h rf ws hr.1, hr.2⟩
   | «while» lbl c fuel inv b ihb =>
-      exact fun rf hr => hr
+      exact fun rf ws hr => hr
   | call lbl f =>
-      exact fun rf hr => hr
+      exact fun rf ws hr => hr
 
 /-- `vcs` is antitone in the reachable set: obligations proven for a larger
     reachable set cover any smaller one.  Used to specialize loop-body VCs
     (generated at the union over iterations) to a specific iteration. -/
-theorem vcs_antitone (reg : Region) (s : Stmt) (pfx : String) {r₁ r₂ : Reach}
-    (h : ∀ rf, r₁ rf → r₂ rf) (hvcs : VCs.Hold (vcs reg s pfx r₂)) :
-    VCs.Hold (vcs reg s pfx r₁) := by
+theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
+    {r₁ r₂ : Reach}
+    (h : ∀ rf ws, r₁ rf ws → r₂ rf ws) (hvcs : VCs.Hold (vcs reg rw s pfx r₂)) :
+    VCs.Hold (vcs reg rw s pfx r₁) := by
   induction s generalizing r₁ r₂ pfx with
   | block lbl is =>
       intro vc hvc
@@ -172,13 +182,14 @@ theorem vcs_antitone (reg : Region) (s : Stmt) (pfx : String) {r₁ r₂ : Reach
       · by_cases hl : hasLoad is
         · rw [if_pos hl] at hvc
           have hvcs2 := hvcs.tail
-          rw [show vcs reg (.block lbl is) pfx r₂
+          rw [show vcs reg rw (.block lbl is) pfx r₂
               = ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
-                [⟨pfx ++ lbl ++ ".mem", ∀ rf, r₂ rf → blockVCs reg rf is⟩]
+                [⟨pfx ++ lbl ++ ".mem", ∀ rf ws, ws.length = rw.len → r₂ rf ws →
+                    blockVCs reg rw.base rf ws is⟩]
             from by simp [vcs, hl]] at hvcs
           simp only [List.mem_singleton] at hvc
           subst hvc
-          exact fun rf hr => hvcs.tail.head rf (h rf hr)
+          exact fun rf ws hlen hr => hvcs.tail.head rf ws hlen (h rf ws hr)
         · rw [if_neg hl] at hvc
           exact absurd hvc (List.not_mem_nil)
   | seq a b iha ihb =>
@@ -186,26 +197,26 @@ theorem vcs_antitone (reg : Region) (s : Stmt) (pfx : String) {r₁ r₂ : Reach
       simp only [vcs, List.mem_append] at hvc ⊢
       rcases hvc with hvc | hvc
       · exact iha pfx h hvcs.left vc hvc
-      · exact ihb pfx (sp_mono reg a h) hvcs.right vc hvc
+      · exact ihb pfx (sp_mono reg rw a h) hvcs.right vc hvc
   | ite lbl c t e iht ihe =>
       intro vc hvc
       simp only [vcs, List.mem_append] at hvc
       rcases hvc with hvc | hvc
-      · exact iht _ (fun rf hr => ⟨h rf hr.1, hr.2⟩) hvcs.left vc hvc
-      · exact ihe _ (fun rf hr => ⟨h rf hr.1, hr.2⟩) hvcs.right vc hvc
+      · exact iht _ (fun rf ws hr => ⟨h rf ws hr.1, hr.2⟩) hvcs.left vc hvc
+      · exact ihe _ (fun rf ws hr => ⟨h rf ws hr.1, hr.2⟩) hvcs.right vc hvc
   | «when» lbl c b ihb =>
       intro vc hvc
-      exact ihb _ (fun rf hr => ⟨h rf hr.1, hr.2⟩) hvcs vc hvc
+      exact ihb _ (fun rf ws hr => ⟨h rf ws hr.1, hr.2⟩) hvcs vc hvc
   | assert lbl P =>
       intro vc hvc
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
-      exact fun rf hr => hvcs.head rf (h rf hr)
+      exact fun rf ws hr => hvcs.head rf ws (h rf ws hr)
   | «while» lbl c fuel inv b ihb =>
       intro vc hvc
       simp only [vcs, List.mem_cons] at hvc
       rcases hvc with rfl | rfl | rfl | hvc
-      · exact fun rf hr => hvcs.head rf (h rf hr)
+      · exact fun rf ws hr => hvcs.head rf ws (h rf ws hr)
       · exact hvcs.tail.head
       · exact hvcs.tail.tail.head
       · exact hvcs.tail.tail.tail vc hvc
@@ -213,21 +224,22 @@ theorem vcs_antitone (reg : Region) (s : Stmt) (pfx : String) {r₁ r₂ : Reach
       intro vc hvc
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
-      exact fun rf hr => hvcs.head rf (h rf hr)
+      exact fun rf ws hr => hvcs.head rf ws (h rf ws hr)
 
 /-- Per call site: the callee's code is contained in `cr` and the callee
-    shares the caller's region.  Stated structurally (rather than as a union
+    shares the caller's regions.  Stated structurally (rather than as a union
     of `CodeReq`s) so sub-statement obligations project out without overlap
     side conditions. -/
-def CalleesIn (s : Stmt) (reg : Region) (cr : CodeReq) : Prop :=
+def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   match s with
   | block _ _ => True
-  | seq a b => a.CalleesIn reg cr ∧ b.CalleesIn reg cr
-  | ite _ _ t e => t.CalleesIn reg cr ∧ e.CalleesIn reg cr
-  | when _ _ b => b.CalleesIn reg cr
+  | seq a b => a.CalleesIn reg rw cr ∧ b.CalleesIn reg rw cr
+  | ite _ _ t e => t.CalleesIn reg rw cr ∧ e.CalleesIn reg rw cr
+  | when _ _ b => b.CalleesIn reg rw cr
   | assert _ _ => True
-  | «while» _ _ _ _ b => b.CalleesIn reg cr
-  | call _ f => (∀ a i, f.code a = some i → cr a = some i) ∧ f.region = reg
+  | «while» _ _ _ _ b => b.CalleesIn reg rw cr
+  | call _ f => (∀ a i, f.code a = some i → cr a = some i)
+      ∧ f.region = reg ∧ f.rw = rw
 
 end Stmt
 

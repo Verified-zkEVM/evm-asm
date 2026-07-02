@@ -190,11 +190,17 @@ def regionsAssert : List Region → Assertion   -- ⋆ of bytesRegion-style atom
   known byte(s); the in-range condition becomes a labeled VC. The regions
   assertion is invariant across the function, so the sep-logic side never
   changes shape — this already covers the *checking* half of RLP decoding.
-- v2 (Milestone 5): `.rw` regions. Stores update the symbolic `bytes`;
-  the reachable-state predicate (§3.4) tracks `RegFile × RegionState`
-  instead of `RegFile`. The generator and soundness proof are written
-  against an abstract `SymState` from the start so this is an extension,
-  not a rewrite.
+- v2 (Milestone 5b-2, **landed shape**): one read-only `Region` (base +
+  ghost bytes) plus one writable `RwRegion` (base + length; the *contents*
+  are part of the symbolic state).  `Reach` is
+  `RegFile → List Byte → Prop` — register file plus the writable region's
+  current bytes; `asrtOf rw reach` existentially bundles both with the
+  byte count pinned to `rw.len`.  Loads route by address: an access fully
+  inside the writable window reads the symbolic contents, everything else
+  reads the read-only region (the per-load VC follows the same split).
+  Overlapping regions need no side condition — the separation conjunction
+  makes them unsatisfiable.  Stores (to the writable region only) update
+  the symbolic bytes via `setBytes`.
 - Other effects (syscalls/hints, publicValues, …) are future extensions at
   the same seam: enlarge `SymState` and the per-leaf soundness lemmas;
   the structural rules (§3.5) do not change.

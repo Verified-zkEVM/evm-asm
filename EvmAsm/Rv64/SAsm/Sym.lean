@@ -74,6 +74,47 @@ instance (reg : Region) : Decidable reg.wf := by
   unfold Region.wf
   infer_instance
 
+-- ============================================================================
+-- Writable byte regions (docs/sasm-design.md §3.3, M5b-2)
+-- ============================================================================
+
+/-- A writable byte region owned by an SAsm function: `len` bytes at the
+    dword-aligned `base`.  Unlike the read-only `Region`, the *contents* are
+    part of the symbolic state (`Reach`), not of the region descriptor.  The
+    degenerate `RwRegion.empty` is the default for functions that write no
+    memory. -/
+structure RwRegion where
+  base : Word
+  len : Nat
+
+/-- The no-writable-memory region. -/
+def RwRegion.empty : RwRegion := ⟨0, 0⟩
+
+/-- Writable-region well-formedness: dword-aligned base, no address wrap,
+    every byte within the machine's valid memory range. -/
+def RwRegion.wf (rw : RwRegion) : Prop :=
+  rw.base.toNat % 8 = 0 ∧
+  rw.base.toNat + rw.len < 2 ^ 64 ∧
+  ∀ k, k < rw.len → isValidMemAddr (rw.base + BitVec.ofNat 64 k) = true
+
+instance (rw : RwRegion) : Decidable rw.wf := by
+  unfold RwRegion.wf
+  infer_instance
+
+theorem RwRegion.empty_wf : RwRegion.empty.wf := by decide
+
+/-- Whether an `n`-byte access at `addr` falls entirely inside the writable
+    region (current contents `ws`).  This is the load-routing condition: such
+    accesses read the symbolic contents, everything else reads the read-only
+    region. -/
+def inRw (rwBase : Word) (ws : List (BitVec 8)) (addr : Word) (n : Nat) : Prop :=
+  (addr - rwBase).toNat + n ≤ ws.length
+
+instance (rwBase : Word) (ws : List (BitVec 8)) (addr : Word) (n : Nat) :
+    Decidable (inRw rwBase ws addr n) := by
+  unfold inRw
+  infer_instance
+
 /-- Classification of a supported straight-line instruction: destination,
     sources, and result as a function of the register valuation. -/
 structure AluOp where
@@ -154,16 +195,24 @@ def loadSem : Instr → Option LoadOp
   | .LD  rd rs1 ofs => some ⟨rd, rs1, ofs, 8, fun reg a => reg.dwordAt a⟩
   | _ => none
 
-/-- Symbolic execution of one instruction over the register file, reading
-    byte loads from `reg`.  Unsupported instructions are the identity; they
-    are ruled out by `instrOk`, which the VC generator enforces. -/
-def execInstrRF (reg : Region) (rf : RegFile) (i : Instr) : RegFile :=
+/-- Symbolic execution of one instruction over the register file and the
+    writable region's contents `ws`.  A load whose access falls entirely
+    inside the writable region reads the symbolic contents; every other load
+    reads the read-only region `ro`.  Unsupported instructions are the
+    identity; they are ruled out by `instrOk`, which the VC generator
+    enforces. -/
+def execInstrRF (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (i : Instr) : RegFile × List (BitVec 8) :=
   match aluSem i with
-  | some op => rf.set op.rd (op.f rf.get)
+  | some op => (rf.set op.rd (op.f rf.get), ws)
   | none =>
     match loadSem i with
-    | some l => rf.set l.rd (l.val reg (rf.get l.rs1 + signExtend12 l.ofs))
-    | none => rf
+    | some l =>
+        let a := rf.get l.rs1 + signExtend12 l.ofs
+        ((if inRw rwBase ws a l.nbytes
+          then rf.set l.rd (l.val ⟨rwBase, ws⟩ a)
+          else rf.set l.rd (l.val ro a)), ws)
+    | none => (rf, ws)
 
 /-- Supported-and-exposed check for a block leaf instruction: the instruction
     is in the supported subset, writes an exposed register (or x0), and reads
@@ -181,24 +230,34 @@ def instrOk (i : Instr) : Bool :=
     | none => false
 
 /-- Forward symbolic execution of a straight-line block. -/
-def execBlock (reg : Region) (rf : RegFile) : List Instr → RegFile
-  | [] => rf
-  | i :: is => execBlock reg (execInstrRF reg rf i) is
+def execBlock (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) : List Instr → RegFile × List (BitVec 8)
+  | [] => (rf, ws)
+  | i :: is =>
+      execBlock ro rwBase (execInstrRF ro rwBase rf ws i).1
+        (execInstrRF ro rwBase rf ws i).2 is
 
 /-- Every instruction of the block is a supported, exposure-respecting leaf. -/
 def blockOk (instrs : List Instr) : Bool :=
   instrs.all instrOk
 
 /-- Address side conditions of a block's loads, threaded through the
-    symbolic execution: every load's effective address indexes into the
-    region. -/
-def blockVCs (reg : Region) (rf : RegFile) : List Instr → Prop
+    symbolic execution: a load routed to the writable region must be aligned
+    (it fits by the routing condition); every other load indexes into the
+    read-only region. -/
+def blockVCs (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) : List Instr → Prop
   | [] => True
   | i :: is =>
       (match loadSem i with
-       | some l => reg.loadOk (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
+       | some l =>
+           let a := rf.get l.rs1 + signExtend12 l.ofs
+           if inRw rwBase ws a l.nbytes
+           then (Region.mk rwBase ws).loadOk a l.nbytes
+           else ro.loadOk a l.nbytes
        | none => True)
-      ∧ blockVCs reg (execInstrRF reg rf i) is
+      ∧ blockVCs ro rwBase (execInstrRF ro rwBase rf ws i).1
+          (execInstrRF ro rwBase rf ws i).2 is
 
 /-- Whether a block contains any load (decides whether a `.mem` VC is
     emitted at all). -/
@@ -206,24 +265,90 @@ def hasLoad (instrs : List Instr) : Bool :=
   instrs.any (fun i => (loadSem i).isSome)
 
 /-- Blocks without loads have no memory side conditions. -/
-theorem blockVCs_of_not_hasLoad (reg : Region) (rf : RegFile)
-    (instrs : List Instr) (h : hasLoad instrs = false) :
-    blockVCs reg rf instrs := by
-  induction instrs generalizing rf with
+theorem blockVCs_of_not_hasLoad (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (instrs : List Instr) (h : hasLoad instrs = false) :
+    blockVCs ro rwBase rf ws instrs := by
+  induction instrs generalizing rf ws with
   | nil => trivial
   | cons i is ih =>
       simp only [hasLoad, List.any_cons, Bool.or_eq_false_iff] at h
-      refine ⟨?_, ih _ (by simp [hasLoad, h.2])⟩
+      refine ⟨?_, ih _ _ (by simp [hasLoad, h.2])⟩
       cases hl : loadSem i with
       | none => trivial
       | some l => simp [hl] at h
 
-@[simp] theorem execBlock_nil (reg : Region) (rf : RegFile) :
-    execBlock reg rf [] = rf := rfl
+/-- Every supported load moves at least one byte. -/
+theorem loadSem_nbytes_pos {i : Instr} {l : LoadOp} (h : loadSem i = some l) :
+    0 < l.nbytes := by
+  cases i <;> simp only [loadSem, reduceCtorEq] at h <;>
+    (injection h with h; subst h; simp)
 
-@[simp] theorem execBlock_cons (reg : Region) (rf : RegFile) (i : Instr)
-    (is : List Instr) :
-    execBlock reg rf (i :: is) = execBlock reg (execInstrRF reg rf i) is := rfl
+/-- With no writable bytes, nothing routes to the writable region. -/
+theorem not_inRw_nil {rwBase a : Word} {n : Nat} (hn : 0 < n) :
+    ¬ inRw rwBase [] a n := by
+  unfold inRw
+  simp only [List.length_nil, Nat.le_zero]
+  omega
+
+/-- Routing `if` over an empty writable region collapses to the read-only
+    branch (`hn` is discharged by `decide` for the engine's literal widths). -/
+@[simp] theorem ite_inRw_nil {α : Sort u} (rwBase a : Word) {n : Nat}
+    (hn : 0 < n) (X Y : α) :
+    (if inRw rwBase [] a n then X else Y) = Y :=
+  if_neg (not_inRw_nil hn)
+
+/-- With no writable bytes, one engine step reads the read-only region:
+    the `ws = []` reduction demos and read-only ports rewrite with. -/
+@[simp] theorem execInstrRF_nil (ro : Region) (rwBase : Word) (rf : RegFile)
+    (i : Instr) :
+    execInstrRF ro rwBase rf [] i
+      = (match aluSem i with
+         | some op => (rf.set op.rd (op.f rf.get), [])
+         | none =>
+           match loadSem i with
+           | some l =>
+               (rf.set l.rd (l.val ro (rf.get l.rs1 + signExtend12 l.ofs)), [])
+           | none => (rf, [])) := by
+  unfold execInstrRF
+  cases haluSem : aluSem i with
+  | some op => rfl
+  | none =>
+      cases hload : loadSem i with
+      | some l =>
+          dsimp only
+          rw [if_neg (not_inRw_nil (loadSem_nbytes_pos hload))]
+      | none => rfl
+
+/-- One instruction preserves the writable region's size. -/
+@[simp] theorem execInstrRF_ws_length (ro : Region) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (i : Instr) :
+    (execInstrRF ro rwBase rf ws i).2.length = ws.length := by
+  unfold execInstrRF
+  split
+  · rfl
+  · split
+    · rfl
+    · rfl
+
+/-- A block preserves the writable region's size. -/
+@[simp] theorem execBlock_ws_length (ro : Region) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (instrs : List Instr) :
+    (execBlock ro rwBase rf ws instrs).2.length = ws.length := by
+  induction instrs generalizing rf ws with
+  | nil => rfl
+  | cons i is ih =>
+      show (execBlock ro rwBase _ _ is).2.length = _
+      rw [ih, execInstrRF_ws_length]
+
+@[simp] theorem execBlock_nil (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) :
+    execBlock ro rwBase rf ws [] = (rf, ws) := rfl
+
+@[simp] theorem execBlock_cons (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (i : Instr) (is : List Instr) :
+    execBlock ro rwBase rf ws (i :: is)
+      = execBlock ro rwBase (execInstrRF ro rwBase rf ws i).1
+          (execInstrRF ro rwBase rf ws i).2 is := rfl
 
 end SAsm
 end EvmAsm.Rv64
