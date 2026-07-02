@@ -118,6 +118,7 @@ import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0LaneRest
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5DivCallable
+import EvmAsm.Evm64.DivMod.Spec.BzeroV5CallableExact
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
@@ -255,6 +256,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5ConcretePostBridgeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5
 import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
+import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5TrialOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5C3Invariant
