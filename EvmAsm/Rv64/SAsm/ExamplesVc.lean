@@ -17,17 +17,17 @@ open Stmt
 /-- `min(a0, a1)` into a0: if a0 ≥u a1 then a0 := a1. -/
 def clampFn (x y : Word) : Fn where
   name := "clamp"
-  pre := fun rf => rf.get .x10 = x ∧ rf.get .x11 = y
-  post := fun rf =>
+  pre := fun rf _ => rf.get .x10 = x ∧ rf.get .x11 = y
+  post := fun rf _ =>
     rf.get .x10 = (if BitVec.ult x y then x else y) ∧ rf.get .x11 = y
   body := .when "cap" (.bgeu .x10 .x11) (.block "set" [.MV .x10 .x11])
 
 theorem clampFn_spec (x y base : Word) : (clampFn x y).Spec base := by
   vcgen
   case clamp.post =>
-    intro rf h
+    intro rf ws h
     show rf.get .x10 = (if BitVec.ult x y then x else y) ∧ rf.get .x11 = y
-    rcases h with ⟨rf₀, ⟨⟨hx, hy⟩, hge⟩, rfl⟩ | ⟨⟨hx, hy⟩, hlt⟩
+    rcases h with ⟨rf₀, ws₀, -, ⟨⟨hx, hy⟩, hge⟩, rfl, rfl⟩ | ⟨⟨hx, hy⟩, hlt⟩
     · -- took the branch: ¬ x <u y, a0 := a1
       simp only [Cond.holds] at hge
       rw [hx, hy] at hge
@@ -45,18 +45,18 @@ theorem clampFn_spec (x y base : Word) : (clampFn x y).Spec base := by
 /-- Count up from 0 to 10 in t0: init; while (t0 <u t1) t0 += 1. -/
 def countFn : Fn where
   name := "count"
-  pre := fun _ => True
-  post := fun rf => rf.get .x5 = 10
+  pre := fun _ _ => True
+  post := fun rf _ => rf.get .x5 = 10
   body :=
     .block "init" [.LI .x5 0, .LI .x6 10] ;;;
     .«while» "loop" (.bltu .x5 .x6) 10
-      (fun i rf => rf.get .x5 = BitVec.ofNat 64 i ∧ rf.get .x6 = 10 ∧ i ≤ 10)
+      (fun i rf _ => rf.get .x5 = BitVec.ofNat 64 i ∧ rf.get .x6 = 10 ∧ i ≤ 10)
       (.block "step" [.ADDI .x5 .x5 1])
 
 theorem countFn_spec (base : Word) : countFn.Spec base := by
   vcgen
   case count.loop.inv_init =>
-    rintro rf ⟨rf₀, -, rfl⟩
+    rintro rf ws ⟨rf₀, ws₀, -, -, rfl, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
     refine ⟨?_, ?_, by omega⟩
     · rw [RegFile.get_set_ne _ _ _ _ (by decide),
@@ -64,7 +64,7 @@ theorem countFn_spec (base : Word) : countFn.Spec base := by
       rfl
     · rw [RegFile.get_set_self _ _ _ (by decide)]
   case count.loop.inv_step =>
-    rintro i hi rf' ⟨rf₀, ⟨⟨hx5, hx6, hle⟩, hlt⟩, rfl⟩
+    rintro i hi rf' ws' ⟨rf₀, ws₀, -, ⟨⟨hx5, hx6, hle⟩, hlt⟩, rfl, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
     refine ⟨?_, ?_, by omega⟩
     · rw [RegFile.get_set_self _ _ _ (by decide), hx5,
@@ -73,12 +73,12 @@ theorem countFn_spec (base : Word) : countFn.Spec base := by
     · rw [RegFile.get_set_ne _ _ _ _ (by decide)]
       exact hx6
   case count.loop.exhausted =>
-    rintro rf ⟨hx5, hx6, -⟩
+    rintro rf ws ⟨hx5, hx6, -⟩
     simp only [Cond.holds]
     rw [hx5, hx6]
     decide
   case count.post =>
-    intro rf h
+    intro rf ws h
     show rf.get .x5 = 10
     obtain ⟨⟨i, hle, hx5, hx6, -⟩, hnc⟩ := h
     simp only [Cond.holds] at hnc
@@ -103,8 +103,8 @@ def clampHandle : FnHandle :=
 /-- Load arguments and call clamp: afterwards `a0 = min(5, 7) = 5`. -/
 def callerFn : Fn where
   name := "caller"
-  pre := fun _ => True
-  post := fun rf => rf.get .x10 = 5
+  pre := fun _ _ => True
+  post := fun rf _ => rf.get .x10 = 5
   body :=
     .block "args" [.LI .x10 5, .LI .x11 7] ;;;
     .call "clamp" clampHandle
@@ -120,7 +120,7 @@ theorem callerFn_spec : callerFn.SpecR 0x1000 callerCr := by
     intro a i h
     simp only [callerCr, CodeReq.union, h]
   case callees =>
-    refine ⟨trivial, ?_, rfl⟩
+    refine ⟨trivial, ?_, rfl, rfl⟩
     intro a i h
     obtain ⟨k, hk, rfl⟩ := ofProg_some_range h
     have hlen : ((clampFn 5 7).programRet 0x2000).length = 3 := by decide
@@ -135,15 +135,14 @@ theorem callerFn_spec : callerFn.SpecR 0x1000 callerCr := by
   case calls =>
     exact ⟨trivial, by decide, by decide, by decide⟩
   case caller.clamp.pre =>
-    rintro rf ⟨rf₀, -, rfl⟩
-    show (clampFn 5 7).pre _
-    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, clampFn]
+    rintro rf ws ⟨rf₀, ws₀, -, -, rfl, rfl⟩
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
     constructor
     · rw [RegFile.get_set_ne _ _ _ _ (by decide),
         RegFile.get_set_self _ _ _ (by decide)]
     · rw [RegFile.get_set_self _ _ _ (by decide)]
   case caller.post =>
-    intro rf h
+    intro rf ws h
     show rf.get .x10 = 5
     have h' : rf.get .x10 = (if BitVec.ult 5 7 then (5 : Word) else 7) := h.1
     rw [h', if_pos (by decide)]
@@ -158,8 +157,8 @@ theorem callerFn_spec : callerFn.SpecR 0x1000 callerCr := by
 def rlpIsListFn (inBase : Word) (bs : List (BitVec 8)) : Fn where
   name := "rlpIsList"
   region := ⟨inBase, bs⟩
-  pre := fun rf => rf.get .x10 = inBase ∧ bs ≠ []
-  post := fun rf =>
+  pre := fun rf _ => rf.get .x10 = inBase ∧ bs ≠ []
+  post := fun rf _ =>
     rf.get .x10 = (if (bs.headD 0).toNat < 0xc0 then 0 else 1)
   body :=
     .block "load" [.LBU .x5 .x10 0, .LI .x6 0xc0] ;;;
@@ -176,9 +175,11 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
     rw [h, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
     bv_omega
   vcgen
-  case region => exact hwf
+  case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case rlpIsList.load.mem =>
-    rintro rf ⟨hx10, hne⟩
+    rintro rf ws hws ⟨hx10, hne⟩
+    obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
+    simp only [blockVCs, loadSem]
     refine ⟨⟨one_dvd _, ?_⟩, trivial, trivial⟩
     show ((rf.get .x10 + signExtend12 (0 : BitVec 12)) - inBase).toNat + 1
       ≤ bs.length
@@ -186,10 +187,11 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
     have := List.length_pos_iff.mpr hne
     omega
   case rlpIsList.post =>
-    intro rf' h
+    intro rf' ws' h
     show rf'.get .x10 = (if (bs.headD 0).toNat < 0xc0 then 0 else 1)
     obtain ⟨b, tl, rfl⟩ : ∃ b tl, bs = b :: tl := by
-      rcases h with ⟨rf₀, ⟨⟨rf₁, ⟨-, hne⟩, -⟩, -⟩, -⟩ | ⟨rf₀, ⟨⟨rf₁, ⟨-, hne⟩, -⟩, -⟩, -⟩ <;>
+      rcases h with ⟨rf₀, ws₀, -, ⟨⟨rf₁, ws₁, -, ⟨-, hne⟩, -⟩, -⟩, -⟩
+                  | ⟨rf₀, ws₀, -, ⟨⟨rf₁, ws₁, -, ⟨-, hne⟩, -⟩, -⟩, -⟩ <;>
         (cases bs with
          | nil => exact absurd rfl hne
          | cons b tl => exact ⟨b, tl, rfl⟩)
@@ -209,10 +211,11 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
       unfold Region.byteAt
       rw [haddr rf₀ h₀]
       rfl
-    rcases h with ⟨rf₀, ⟨⟨rf₁, ⟨hx10, -⟩, rfl⟩, hcond⟩, rfl⟩
-                | ⟨rf₀, ⟨⟨rf₁, ⟨hx10, -⟩, rfl⟩, hcond⟩, rfl⟩
+    rcases h with ⟨rf₀, ws₀, -, ⟨⟨rf₁, ws₁, hws₁, ⟨hx10, -⟩, rfl, rfl⟩, hcond⟩, rfl, rfl⟩
+                | ⟨rf₀, ws₀, -, ⟨⟨rf₁, ws₁, hws₁, ⟨hx10, -⟩, rfl, rfl⟩, hcond⟩, rfl, rfl⟩ <;>
+      obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₁
     · -- not a list: b <u 0xc0
-      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+      simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
         Cond.holds, List.headD_cons] at hcond ⊢
       rw [RegFile.get_set_self _ .x10 _ (by decide)]
       rw [RegFile.get_set_ne _ .x6 .x5 _ (by decide),
@@ -221,7 +224,7 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
         hbyte rf₁ hx10] at hcond
       rw [if_pos (hult.mp hcond)]
     · -- a list: ¬ (b <u 0xc0)
-      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+      simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
         Cond.holds, List.headD_cons] at hcond ⊢
       rw [RegFile.get_set_self _ .x10 _ (by decide)]
       rw [RegFile.get_set_ne _ .x6 .x5 _ (by decide),
@@ -239,8 +242,8 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
 def sszReadOffsetFn (inBase : Word) (bs : List (BitVec 8)) : Fn where
   name := "sszReadOffset"
   region := ⟨inBase, bs⟩
-  pre := fun rf => rf.get .x10 = inBase ∧ 8 ≤ bs.length
-  post := fun rf => rf.get .x11
+  pre := fun rf _ => rf.get .x10 = inBase ∧ 8 ≤ bs.length
+  post := fun rf _ => rf.get .x11
     = BitVec.zeroExtend 64
         (bs.getD 7 0 ++ bs.getD 6 0 ++ bs.getD 5 0 ++ bs.getD 4 0)
   body := .block "load" [.LWU .x11 .x10 4]
@@ -254,9 +257,11 @@ theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
     rw [h, show signExtend12 (4 : BitVec 12) = (4 : Word) from by decide]
     bv_omega
   vcgen
-  case region => exact hwf
+  case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case sszReadOffset.load.mem =>
-    rintro rf ⟨hx10, hlen⟩
+    rintro rf ws hws ⟨hx10, hlen⟩
+    obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
+    simp only [blockVCs, loadSem]
     refine ⟨⟨?_, ?_⟩, trivial⟩
     · show (4 : Nat) ∣ ((rf.get .x10 + signExtend12 (4 : BitVec 12)) - inBase).toNat
       rw [haddr rf hx10]
@@ -265,9 +270,10 @@ theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
       rw [haddr rf hx10]
       omega
   case sszReadOffset.post =>
-    rintro rf' ⟨rf₀, ⟨hx10, hlen⟩, rfl⟩
+    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen⟩, rfl, rfl⟩
+    obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
     show RegFile.get _ .x11 = _
-    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem]
     rw [RegFile.get_set_self _ .x11 _ (by decide)]
     rw [hx10, show signExtend12 (4 : BitVec 12) = (4 : Word) from by decide]
     show BitVec.zeroExtend 64 (Region.word32At ⟨inBase, bs⟩ (inBase + 4)) = _
@@ -283,8 +289,8 @@ theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
 def readU16Fn (inBase : Word) (bs : List (BitVec 8)) : Fn where
   name := "readU16"
   region := ⟨inBase, bs⟩
-  pre := fun rf => rf.get .x10 = inBase ∧ 4 ≤ bs.length
-  post := fun rf => rf.get .x11
+  pre := fun rf _ => rf.get .x10 = inBase ∧ 4 ≤ bs.length
+  post := fun rf _ => rf.get .x11
     = BitVec.zeroExtend 64 (bs.getD 3 0 ++ bs.getD 2 0)
   body := .block "load" [.LHU .x11 .x10 2]
 
@@ -297,9 +303,11 @@ theorem readU16Fn_spec (inBase : Word) (bs : List (BitVec 8))
     rw [h, show signExtend12 (2 : BitVec 12) = (2 : Word) from by decide]
     bv_omega
   vcgen
-  case region => exact hwf
+  case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case readU16.load.mem =>
-    rintro rf ⟨hx10, hlen⟩
+    rintro rf ws hws ⟨hx10, hlen⟩
+    obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
+    simp only [blockVCs, loadSem]
     refine ⟨⟨?_, ?_⟩, trivial⟩
     · show (2 : Nat) ∣ ((rf.get .x10 + signExtend12 (2 : BitVec 12)) - inBase).toNat
       rw [haddr rf hx10]
@@ -308,9 +316,10 @@ theorem readU16Fn_spec (inBase : Word) (bs : List (BitVec 8))
       rw [haddr rf hx10]
       omega
   case readU16.post =>
-    rintro rf' ⟨rf₀, ⟨hx10, hlen⟩, rfl⟩
+    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen⟩, rfl, rfl⟩
+    obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
     show RegFile.get _ .x11 = _
-    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem]
+    simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem]
     rw [RegFile.get_set_self _ .x11 _ (by decide)]
     rw [hx10, show signExtend12 (2 : BitVec 12) = (2 : Word) from by decide]
     show BitVec.zeroExtend 64 (Region.half16At ⟨inBase, bs⟩ (inBase + 2)) = _

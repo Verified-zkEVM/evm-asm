@@ -111,12 +111,12 @@ inductive Stmt where
   /-- Optional mid-condition: emits no code; generates one VC stating that
       every reachable register file satisfies `P`, and strengthens the
       reachable set with `P` downstream (a proof cut). -/
-  | assert (label : String) (P : RegFile → Prop)
+  | assert (label : String) (P : RegFile → List (BitVec 8) → Prop)
   /-- Bounded loop: the body runs while `c` holds, at most `fuel` iterations.
       `inv i` must hold at the i-th evaluation of the header; the generator
       emits initialization, preservation, and fuel-exhaustion VCs. -/
   | «while»  (label : String) (c : Cond) (fuel : Nat)
-           (inv : Nat → RegFile → Prop) (body : Stmt)
+           (inv : Nat → RegFile → List (BitVec 8) → Prop) (body : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
