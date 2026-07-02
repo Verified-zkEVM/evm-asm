@@ -53,6 +53,7 @@ def blockVerdictFunction : String :=
   "  la t0, bvgr_runtime_calldata_floor_ptr; sd zero, 0(t0)\n" ++
   "  la t0, bv_eip4788_current_fast_seen; sd zero, 0(t0)\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
+  "  la t0, bv_pending_recipient_credit_flag; sd zero, 0(t0)\n" ++
   "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n  la t0, bv_runtime_completeness_status; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
@@ -922,6 +923,8 @@ def blockVerdictFunction : String :=
   "  addi t0, t0, 1; j .Lbv_tx0_storage_revert\n" ++
   ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
+  -- Capture recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.
+  "  jal ra, block_log_window_snapshot\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
