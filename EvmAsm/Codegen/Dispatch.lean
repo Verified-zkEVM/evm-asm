@@ -2827,6 +2827,10 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
+  -- bbow4.2.5.8: one-shot flag set when CALL/CALLCODE charged the 9000 value-transfer gas
+  -- before NEW_ACCOUNT state gas. Descend consumes it to avoid a double charge; empty paths
+  -- refund the 2300 stipend and clear it.
+  "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
   -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
   -- deferred Transfer log so receipt order is Transfer then Burn.

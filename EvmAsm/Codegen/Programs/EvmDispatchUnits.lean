@@ -369,6 +369,7 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     ".balign 32\n" ++
     "callee_balance_table:\n  .zero " ++ toString (128 * 64) ++ "\n" ++
     ".balign 8\n" ++
+    "cd_xfer_gas_precharged:\n  .zero 8\n" ++
     "cd_nse_presnap_armed:\n  .zero 8\n" ++
     "cd_nse_presnap_count:\n  .zero 8\n" ++
     "cd_nse_presnap_overflow:\n  .zero 8\n" ++
