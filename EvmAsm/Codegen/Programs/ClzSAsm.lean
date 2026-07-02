@@ -221,27 +221,16 @@ def clzNarrowBlock : List Instr :=
 def clzNarrowBody : Stmt :=
   .block "narrow" clzNarrowBlock
 
-def clzSelectBody : Stmt :=
-  .ite "limb3" (.bne .x14 .x0)
-    (.block "off0" [.LI .x15 0])
-    (.block "limb2" [.MV .x14 .x7, .LI .x15 64] ;;;
-      .ite "limb2nz" (.bne .x14 .x0)
-        (.block "keep2" [])
-        (.block "limb1" [.MV .x14 .x6, .LI .x15 128] ;;;
-          .ite "limb1nz" (.bne .x14 .x0)
-            (.block "keep1" [])
-            (.block "limb0" [.MV .x14 .x5, .LI .x15 192] ;;;
-              .ite "limb0nz" (.bne .x14 .x0)
-                (.block "keep0" [])
-                (.block "zero" [.LI .x15 193]))))
-
-def clzComputed (p pc aux1 aux3 l0 l1 l2 l3 : Word) :
+/-- Register summary after the load block. -/
+def clzLoaded (p pc aux1 aux3 l0 l1 l2 l3 : Word) :
     RegFile → List (BitVec 8) → Assertion → Prop :=
   fun rf _ A =>
     rf.get .x10 = pc ∧ rf.get .x11 = aux1 ∧ rf.get .x12 = p ∧
-    rf.get .x13 = aux3 ∧ rf.get .x15 = clz256 l0 l1 l2 l3 ∧
+    rf.get .x13 = aux3 ∧ rf.get .x5 = l0 ∧ rf.get .x6 = l1 ∧
+    rf.get .x7 = l2 ∧ rf.get .x14 = l3 ∧
     A = (⌜RwRegion.wf ⟨p, 32⟩⌝ ** bytesRegion p (clzCellBytes l0 l1 l2 l3))
 
+/-- Register summary after the limb-select cascade. -/
 def clzSelected (p pc aux1 aux3 l0 l1 l2 l3 : Word) :
     RegFile → List (BitVec 8) → Assertion → Prop :=
   fun rf _ A =>
@@ -251,10 +240,38 @@ def clzSelected (p pc aux1 aux3 l0 l1 l2 l3 : Word) :
     rf.get .x15 = clzSelectedAcc l0 l1 l2 l3 ∧
     A = (⌜RwRegion.wf ⟨p, 32⟩⌝ ** bytesRegion p (clzCellBytes l0 l1 l2 l3))
 
+/-- Register summary after the branchless narrowing. -/
+def clzComputed (p pc aux1 aux3 l0 l1 l2 l3 : Word) :
+    RegFile → List (BitVec 8) → Assertion → Prop :=
+  fun rf _ A =>
+    rf.get .x10 = pc ∧ rf.get .x11 = aux1 ∧ rf.get .x12 = p ∧
+    rf.get .x13 = aux3 ∧ rf.get .x15 = clz256 l0 l1 l2 l3 ∧
+    A = (⌜RwRegion.wf ⟨p, 32⟩⌝ ** bytesRegion p (clzCellBytes l0 l1 l2 l3))
+
+/-- The limb-select cascade, with the SAME `.assert` summary at the tail
+    of every branch (the branch-tail summary idiom, docs/sasm-howto.md):
+    each assert VC sees only its own linear path, and the downstream
+    narrowing recovers `clzSelected` via `Stmt.sp_of_endsWith` with zero
+    case analysis.  Asserts emit no code — `clz_verified` is unchanged. -/
+def clzSelectBody (p pc aux1 aux3 l0 l1 l2 l3 : Word) : Stmt :=
+  have sel : Stmt := .assert "sel" (clzSelected p pc aux1 aux3 l0 l1 l2 l3)
+  .ite "limb3" (.bne .x14 .x0)
+    (.block "off0" [.LI .x15 0] ;;; sel)
+    (.block "limb2" [.MV .x14 .x7, .LI .x15 64] ;;;
+      .ite "limb2nz" (.bne .x14 .x0)
+        sel
+        (.block "limb1" [.MV .x14 .x6, .LI .x15 128] ;;;
+          .ite "limb1nz" (.bne .x14 .x0)
+            sel
+            (.block "limb0" [.MV .x14 .x5, .LI .x15 192] ;;;
+              .ite "limb0nz" (.bne .x14 .x0)
+                sel
+                (.block "zero" [.LI .x15 193] ;;; sel))))
+
 def clzBody (p pc aux1 aux3 l0 l1 l2 l3 : Word) : Stmt :=
   .blockAt "load" .x12 (clzLoadR p l0 l1 l2 l3) clzLoadBlock ;;;
-  clzSelectBody ;;;
-  .assert "selected" (clzSelected p pc aux1 aux3 l0 l1 l2 l3) ;;;
+  .assert "loaded" (clzLoaded p pc aux1 aux3 l0 l1 l2 l3) ;;;
+  clzSelectBody p pc aux1 aux3 l0 l1 l2 l3 ;;;
   clzNarrowBody ;;;
   .assert "computed" (clzComputed p pc aux1 aux3 l0 l1 l2 l3) ;;;
   .blockAt "store" .x12
@@ -412,6 +429,32 @@ private theorem clz_narrow_engine_preserve_x13 (reg : Region) (b : Word)
 private theorem clz64From_zero_193 : clz64From 0 193 = (256 : Word) := by
   decide
 
+-- The tiny ALU engines of the select cascade.
+private theorem clz_li_engine (reg : Region) (b : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (imm : Word) :
+    (execBlock reg b rf ws [.LI .x15 imm]).1 = rf.set .x15 imm := by
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+
+private theorem clz_mvli_engine (reg : Region) (b : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (src : Reg) (imm : Word) :
+    (execBlock reg b rf ws [.MV .x14 src, .LI .x15 imm]).1
+      = (rf.set .x14 (rf.get src)).set .x15 imm := by
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+
+private theorem clz_mvli_get_pres (rf : RegFile) (src : Reg) (imm : Word)
+    (r : Reg) (h14 : r ≠ .x14) (h15 : r ≠ .x15) :
+    ((rf.set .x14 (rf.get src)).set .x15 imm).get r = rf.get r := by
+  rw [RegFile.get_set_ne _ _ _ _ h15, RegFile.get_set_ne _ _ _ _ h14]
+
+private theorem clz_mvli_get_x14 (rf : RegFile) (src : Reg) (imm : Word) :
+    ((rf.set .x14 (rf.get src)).set .x15 imm).get .x14 = rf.get src := by
+  rw [RegFile.get_set_ne _ _ _ _ (by decide),
+    RegFile.get_set_self _ _ _ (by decide)]
+
+private theorem clz_mvli_get_x15 (rf : RegFile) (src : Reg) (imm : Word) :
+    ((rf.set .x14 (rf.get src)).set .x15 imm).get .x15 = imm :=
+  RegFile.get_set_self _ _ _ (by decide)
+
 theorem clzFn_spec (p pc aux1 aux3 l0 l1 l2 l3 base : Word) :
     (clzFn p pc aux1 aux3 l0 l1 l2 l3).Spec base := by
   vcgen
@@ -427,6 +470,253 @@ theorem clzFn_spec (p pc aux1 aux3 l0 l1 l2 l3 base : Word) :
   case clz.load.mem =>
     rintro rf ws A win rest - - ⟨hptr, rfl, rfl⟩ -
     exact clz_load_blockVCs _ rf l0 l1 l2 l3
+  case clz.loaded =>
+    refine Stmt.sp_blockAt_split _ _ ?_
+    rintro rf ws A win rest - ⟨hx10, hx11, hx12, hx13, -⟩ - ⟨hptr, rfl, rfl⟩
+    rw [clz_load_engine]
+    unfold clzLoaded
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx10
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx11
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx12
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx13
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_self _ _ _ (by decide)]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_self _ _ _ (by decide)]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_self _ _ _ (by decide)]
+    · rw [RegFile.get_set_self _ _ _ (by decide)]
+    · rw [hx12, sepConj_comm']
+  case clz.limb3.t.sel =>
+    refine Stmt.sp_block_split _ _ ?_
+    rintro rf ws A - ⟨⟨-, hL⟩, hc⟩
+    obtain ⟨hx10, hx11, hx12, hx13, hx5, hx6, hx7, hx14, hA⟩ := hL
+    simp only [Cond.holds, RegFile.get_x0, ne_eq] at hc
+    rw [hx14] at hc
+    have hsel : clzSelectedLimb l0 l1 l2 l3 = l3 := by
+      unfold clzSelectedLimb
+      rw [if_pos hc]
+    have hacc : clzSelectedAcc l0 l1 l2 l3 = 0 := by
+      unfold clzSelectedAcc
+      rw [if_pos hc]
+    rw [clz_li_engine]
+    unfold clzSelected
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hA⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx10
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx11
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx12
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx13
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide), hx14, hsel]
+    · rw [RegFile.get_set_self _ _ _ (by decide), hacc]
+  case clz.limb3.e.limb2nz.t.sel =>
+    rintro rf ws A ⟨hblk, hc2⟩
+    obtain ⟨rf₀, ws₀, -, ⟨⟨-, hL⟩, hn3⟩, hrf, -⟩ := hblk
+    obtain ⟨hx10, hx11, hx12, hx13, hx5, hx6, hx7, hx14, hA⟩ := hL
+    rw [clz_mvli_engine] at hrf
+    simp only [Cond.holds, RegFile.get_x0, ne_eq, not_not] at hn3
+    rw [hx14] at hn3
+    simp only [Cond.holds, RegFile.get_x0, ne_eq] at hc2
+    rw [hrf, clz_mvli_get_x14, hx7] at hc2
+    have hsel : clzSelectedLimb l0 l1 l2 l3 = l2 := by
+      unfold clzSelectedLimb
+      rw [if_neg (by simp [hn3]), if_pos hc2]
+    have hacc : clzSelectedAcc l0 l1 l2 l3 = 64 := by
+      unfold clzSelectedAcc
+      rw [if_neg (by simp [hn3]), if_pos hc2]
+    subst hrf
+    unfold clzSelected
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hA⟩
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx10
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx11
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx12
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx13
+    · rw [clz_mvli_get_x14, hx7, hsel]
+    · rw [clz_mvli_get_x15, hacc]
+  case clz.limb3.e.limb2nz.e.limb1nz.t.sel =>
+    rintro rf ws A ⟨hb1, hc1⟩
+    obtain ⟨rf₁, ws₁, -, ⟨hb2, hn2⟩, hrf, -⟩ := hb1
+    obtain ⟨rf₀, ws₀, -, ⟨⟨-, hL⟩, hn3⟩, hrf₁, -⟩ := hb2
+    obtain ⟨hx10, hx11, hx12, hx13, hx5, hx6, hx7, hx14, hA⟩ := hL
+    rw [clz_mvli_engine] at hrf₁
+    rw [clz_mvli_engine] at hrf
+    simp only [Cond.holds, RegFile.get_x0, ne_eq, not_not] at hn3 hn2
+    rw [hx14] at hn3
+    rw [hrf₁, clz_mvli_get_x14, hx7] at hn2
+    simp only [Cond.holds, RegFile.get_x0, ne_eq] at hc1
+    have hx6₁ : rf₁.get .x6 = l1 := by
+      rw [hrf₁, clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hx6]
+    rw [hrf, clz_mvli_get_x14, hx6₁] at hc1
+    have hsel : clzSelectedLimb l0 l1 l2 l3 = l1 := by
+      unfold clzSelectedLimb
+      rw [if_neg (by simp [hn3]), if_neg (by simp [hn2]), if_pos hc1]
+    have hacc : clzSelectedAcc l0 l1 l2 l3 = 128 := by
+      unfold clzSelectedAcc
+      rw [if_neg (by simp [hn3]), if_neg (by simp [hn2]), if_pos hc1]
+    subst hrf
+    unfold clzSelected
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hA⟩
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx10
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx11
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx12
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx13
+    · rw [clz_mvli_get_x14, hx6₁, hsel]
+    · rw [clz_mvli_get_x15, hacc]
+  case clz.limb3.e.limb2nz.e.limb1nz.e.limb0nz.t.sel =>
+    rintro rf ws A ⟨hb1, hc0⟩
+    obtain ⟨rf₂, ws₂, -, ⟨hb2, hn1⟩, hrf, -⟩ := hb1
+    obtain ⟨rf₁, ws₁, -, ⟨hb3, hn2⟩, hrf₂, -⟩ := hb2
+    obtain ⟨rf₀, ws₀, -, ⟨⟨-, hL⟩, hn3⟩, hrf₁, -⟩ := hb3
+    obtain ⟨hx10, hx11, hx12, hx13, hx5, hx6, hx7, hx14, hA⟩ := hL
+    rw [clz_mvli_engine] at hrf₁
+    rw [clz_mvli_engine] at hrf₂
+    rw [clz_mvli_engine] at hrf
+    simp only [Cond.holds, RegFile.get_x0, ne_eq, not_not] at hn3 hn2 hn1
+    rw [hx14] at hn3
+    rw [hrf₁, clz_mvli_get_x14, hx7] at hn2
+    have hx6₁ : rf₁.get .x6 = l1 := by
+      rw [hrf₁, clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hx6]
+    rw [hrf₂, clz_mvli_get_x14, hx6₁] at hn1
+    have hx5₂ : rf₂.get .x5 = l0 := by
+      rw [hrf₂, clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hx5]
+    simp only [Cond.holds, RegFile.get_x0, ne_eq] at hc0
+    rw [hrf, clz_mvli_get_x14, hx5₂] at hc0
+    have hsel : clzSelectedLimb l0 l1 l2 l3 = l0 := by
+      unfold clzSelectedLimb
+      rw [if_neg (by simp [hn3]), if_neg (by simp [hn2]),
+        if_neg (by simp [hn1]), if_pos hc0]
+    have hacc : clzSelectedAcc l0 l1 l2 l3 = 192 := by
+      unfold clzSelectedAcc
+      rw [if_neg (by simp [hn3]), if_neg (by simp [hn2]),
+        if_neg (by simp [hn1]), if_pos hc0]
+    subst hrf
+    unfold clzSelected
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hA⟩
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx10
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx11
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx12
+    · rw [clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx13
+    · rw [clz_mvli_get_x14, hx5₂, hsel]
+    · rw [clz_mvli_get_x15, hacc]
+  case clz.limb3.e.limb2nz.e.limb1nz.e.limb0nz.e.sel =>
+    refine Stmt.sp_block_split _ _ ?_
+    rintro rf ws A - ⟨hb1, hn0⟩
+    obtain ⟨rf₂, ws₂, -, ⟨hb2, hn1⟩, hrf, -⟩ := hb1
+    obtain ⟨rf₁, ws₁, -, ⟨hb3, hn2⟩, hrf₂, -⟩ := hb2
+    obtain ⟨rf₀, ws₀, -, ⟨⟨-, hL⟩, hn3⟩, hrf₁, -⟩ := hb3
+    obtain ⟨hx10, hx11, hx12, hx13, hx5, hx6, hx7, hx14, hA⟩ := hL
+    rw [clz_mvli_engine] at hrf₁
+    rw [clz_mvli_engine] at hrf₂
+    rw [clz_mvli_engine] at hrf
+    simp only [Cond.holds, RegFile.get_x0, ne_eq, not_not] at hn3 hn2 hn1 hn0
+    rw [hx14] at hn3
+    rw [hrf₁, clz_mvli_get_x14, hx7] at hn2
+    have hx6₁ : rf₁.get .x6 = l1 := by
+      rw [hrf₁, clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hx6]
+    rw [hrf₂, clz_mvli_get_x14, hx6₁] at hn1
+    have hx5₂ : rf₂.get .x5 = l0 := by
+      rw [hrf₂, clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hx5]
+    rw [hrf, clz_mvli_get_x14, hx5₂] at hn0
+    have hsel : clzSelectedLimb l0 l1 l2 l3 = 0 := by
+      unfold clzSelectedLimb
+      rw [if_neg (by simp [hn3]), if_neg (by simp [hn2]),
+        if_neg (by simp [hn1]), if_neg (by simp [hn0])]
+    have hacc : clzSelectedAcc l0 l1 l2 l3 = 193 := by
+      unfold clzSelectedAcc
+      rw [if_neg (by simp [hn3]), if_neg (by simp [hn2]),
+        if_neg (by simp [hn1]), if_neg (by simp [hn0])]
+    subst hrf
+    rw [clz_li_engine]
+    unfold clzSelected
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hA⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx10
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx11
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx12
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₂,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide), hrf₁,
+        clz_mvli_get_pres _ _ _ _ (by decide) (by decide)]
+      exact hx13
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide), clz_mvli_get_x14, hx5₂,
+        hsel]
+      exact hn0
+    · rw [RegFile.get_set_self _ _ _ (by decide), hacc]
+  case clz.computed =>
+    refine Stmt.sp_block_split _ _ ?_
+    rintro rf ws A - hsel
+    have hP := Stmt.sp_of_endsWith _ _
+      (P := clzSelected p pc aux1 aux3 l0 l1 l2 l3)
+      (by simp [clzSelectBody, Stmt.EndsWith]) rf ws A hsel
+    obtain ⟨hx10, hx11, hx12, hx13, hx14, hx15, hA⟩ := hP
+    unfold clzComputed
+    refine ⟨?_, ?_, ?_, ?_, ?_, hA⟩
+    · rw [clz_narrow_engine_preserve_x10, hx10]
+    · rw [clz_narrow_engine_preserve_x11, hx11]
+    · rw [clz_narrow_engine_preserve_x12, hx12]
+    · rw [clz_narrow_engine_preserve_x13, hx13]
+    · rw [clz_narrow_engine_x15, hx14, hx15]
+      rfl
   case clz.store.focus =>
     rintro rf ws A ⟨hsp, hcomp⟩ hApc hp hhp
     obtain ⟨hx10, hx11, hx12, hx13, hx15, hA⟩ := hcomp
@@ -440,27 +730,17 @@ theorem clzFn_spec (p pc aux1 aux3 l0 l1 l2 l3 base : Word) :
   case clz.store.mem =>
     rintro rf ws A win rest - hreach ⟨hptr, rfl, rfl⟩ -
     exact clz_store_blockVCs _ rf l0 l1 l2 l3
-  case clz.selected =>
-    rintro rf ws A h
-    aesop (add simp [clzFn, clzSelected, Stmt.sp, clzSelectBody, clzLoadR,
-      clzSelectedLimb, clzSelectedAcc, clz_load_engine, Cond.holds, execInstrRF,
-      aluSem, RegFile.get_set_self, RegFile.get_set_ne, sepConj_comm'])
-  case clz.computed =>
-    rintro rf ws A ⟨rf₀, ws₀, hws₀, ⟨hprev, hsel⟩, hrf, hws⟩
-    obtain ⟨hx10, hx11, hx12, hx13, hx14, hx15, hA⟩ := hsel
-    unfold clzComputed
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [hrf, clz_narrow_engine_preserve_x10, hx10]
-    · rw [hrf, clz_narrow_engine_preserve_x11, hx11]
-    · rw [hrf, clz_narrow_engine_preserve_x12, hx12]
-    · rw [hrf, clz_narrow_engine_preserve_x13, hx13]
-    · rw [hrf, clz_narrow_engine_x15, hx14, hx15]
-      rfl
-    · exact hA
   case clz.post =>
-    rintro rf ws A h
-    aesop (add simp [clzFn, clzBody, clzComputed, clzStoreR, Stmt.sp,
-      clz_store_engine, sepConj_comm'])
+    intro rf ws A h
+    have h' := Stmt.sp_cut _ _
+      (.blockAt "store" .x12 (clzStoreR p l0 l1 l2 l3) clzStoreBlock)
+      "computed" rf ws A h
+    refine Stmt.sp_blockAt_split _ _ ?_ rf ws A h'
+    rintro rf₀ ws₀ A₀ win rest - hcomp - ⟨hptr, rfl, rfl⟩
+    obtain ⟨hx10, hx11, hx12, hx13, hx15, -⟩ := hcomp
+    rw [clz_store_engine]
+    refine ⟨hx10, hx11, hx12, hx13, ?_⟩
+    rw [hx12, hx15, sepConj_comm']
 
 
 end ClzSAsm

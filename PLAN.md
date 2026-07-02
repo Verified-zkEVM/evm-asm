@@ -2551,7 +2551,17 @@ and "Branchy straight-line code" (assert-as-join idiom: rintro ⟨-, hP⟩
 drops the 2^n when-disjunction; branchless SLTIU/SLL preference) + two
 new pitfalls (rintro-rfl whnf timeout on big execBlock equations — rw
 engine into the hypothesis first; numeral-rewrite motive failure vs
-BitVec 8). CLZ handler port landed on this substrate: ClzSAsm.lean
+BitVec 8). Ergonomics round 3 (from the round-2 CLZ feedback):
+structural sp eliminators in Vc.lean (sp_ite_split/sp_when_split/
+sp_block_split/sp_blockAt_split/sp_ghost_split + sp_seq_eq/sp_assert_eq),
+Stmt.sp_cut (the assert cut: downstream of an .assert, forget the
+pre-assert reach), and Stmt.EndsWith + sp_of_endsWith (branch-tail
+summaries: the SAME .assert at every ite-branch tail → per-leaf linear
+VCs + zero-case-analysis downstream summary). ClzSAsm.lean reworked as
+the demonstration: both bounded-aesop VCs replaced by the structural
+lemmas (clzSelectBody now carries per-branch asserts; emitted code
+unchanged). Howto: new subsections for the eliminators and branch-tail
+summaries. CLZ handler port landed on this substrate: ClzSAsm.lean
 now provides clzFn_spec and clz_verified, and h_CLZ uses the verified
 SAsm body plus advanceAndRet instead of the legacy raw custom tail.
 Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
