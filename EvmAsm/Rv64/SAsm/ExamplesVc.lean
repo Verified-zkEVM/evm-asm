@@ -18,15 +18,15 @@ open Stmt
 /-- `min(a0, a1)` into a0: if a0 ≥u a1 then a0 := a1. -/
 def clampFn (x y : Word) : Fn where
   name := "clamp"
-  pre := fun rf _ => rf.get .x10 = x ∧ rf.get .x11 = y
-  post := fun rf _ =>
+  pre := fun rf _ _ => rf.get .x10 = x ∧ rf.get .x11 = y
+  post := fun rf _ _ =>
     rf.get .x10 = (if BitVec.ult x y then x else y) ∧ rf.get .x11 = y
   body := .when "cap" (.bgeu .x10 .x11) (.block "set" [.MV .x10 .x11])
 
 theorem clampFn_spec (x y base : Word) : (clampFn x y).Spec base := by
   vcgen
   case clamp.post =>
-    intro rf ws h
+    intro rf ws A h
     show rf.get .x10 = (if BitVec.ult x y then x else y) ∧ rf.get .x11 = y
     rcases h with ⟨rf₀, ws₀, -, ⟨⟨hx, hy⟩, hge⟩, rfl, rfl⟩ | ⟨⟨hx, hy⟩, hlt⟩
     · -- took the branch: ¬ x <u y, a0 := a1
@@ -46,18 +46,18 @@ theorem clampFn_spec (x y base : Word) : (clampFn x y).Spec base := by
 /-- Count up from 0 to 10 in t0: init; while (t0 <u t1) t0 += 1. -/
 def countFn : Fn where
   name := "count"
-  pre := fun _ _ => True
-  post := fun rf _ => rf.get .x5 = 10
+  pre := fun _ _ _ => True
+  post := fun rf _ _ => rf.get .x5 = 10
   body :=
     .block "init" [.LI .x5 0, .LI .x6 10] ;;;
     .«while» "loop" (.bltu .x5 .x6) 10
-      (fun i rf _ => rf.get .x5 = BitVec.ofNat 64 i ∧ rf.get .x6 = 10 ∧ i ≤ 10)
+      (fun i rf _ _ => rf.get .x5 = BitVec.ofNat 64 i ∧ rf.get .x6 = 10 ∧ i ≤ 10)
       (.block "step" [.ADDI .x5 .x5 1])
 
 theorem countFn_spec (base : Word) : countFn.Spec base := by
   vcgen
   case count.loop.inv_init =>
-    rintro rf ws ⟨rf₀, ws₀, -, -, rfl, rfl⟩
+    rintro rf ws A ⟨rf₀, ws₀, -, -, rfl, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
     refine ⟨?_, ?_, by omega⟩
     · rw [RegFile.get_set_ne _ _ _ _ (by decide),
@@ -65,7 +65,7 @@ theorem countFn_spec (base : Word) : countFn.Spec base := by
       rfl
     · rw [RegFile.get_set_self _ _ _ (by decide)]
   case count.loop.inv_step =>
-    rintro i hi rf' ws' ⟨rf₀, ws₀, -, ⟨⟨hx5, hx6, hle⟩, hlt⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx5, hx6, hle⟩, hlt⟩, rfl, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
     refine ⟨?_, ?_, by omega⟩
     · rw [RegFile.get_set_self _ _ _ (by decide), hx5,
@@ -74,12 +74,12 @@ theorem countFn_spec (base : Word) : countFn.Spec base := by
     · rw [RegFile.get_set_ne _ _ _ _ (by decide)]
       exact hx6
   case count.loop.exhausted =>
-    rintro rf ws ⟨hx5, hx6, -⟩
+    rintro rf ws A ⟨hx5, hx6, -⟩
     simp only [Cond.holds]
     rw [hx5, hx6]
     decide
   case count.post =>
-    intro rf ws h
+    intro rf ws A h
     show rf.get .x5 = 10
     obtain ⟨⟨i, hle, hx5, hx6, -⟩, hnc⟩ := h
     simp only [Cond.holds] at hnc
@@ -104,8 +104,8 @@ def clampHandle : FnHandle :=
 /-- Load arguments and call clamp: afterwards `a0 = min(5, 7) = 5`. -/
 def callerFn : Fn where
   name := "caller"
-  pre := fun _ _ => True
-  post := fun rf _ => rf.get .x10 = 5
+  pre := fun _ _ _ => True
+  post := fun rf _ _ => rf.get .x10 = 5
   body :=
     .block "args" [.LI .x10 5, .LI .x11 7] ;;;
     .call "clamp" clampHandle
@@ -136,14 +136,14 @@ theorem callerFn_spec : callerFn.SpecR 0x1000 callerCr := by
   case calls =>
     exact ⟨trivial, by decide, by decide, by decide⟩
   case caller.clamp.pre =>
-    rintro rf ws ⟨rf₀, ws₀, -, -, rfl, rfl⟩
+    rintro rf ws A ⟨rf₀, ws₀, -, -, rfl, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
     constructor
     · rw [RegFile.get_set_ne _ _ _ _ (by decide),
         RegFile.get_set_self _ _ _ (by decide)]
     · rw [RegFile.get_set_self _ _ _ (by decide)]
   case caller.post =>
-    intro rf ws h
+    intro rf ws A h
     show rf.get .x10 = 5
     have h' : rf.get .x10 = (if BitVec.ult 5 7 then (5 : Word) else 7) := h.1
     rw [h', if_pos (by decide)]
@@ -158,8 +158,8 @@ theorem callerFn_spec : callerFn.SpecR 0x1000 callerCr := by
 def rlpIsListFn (inBase : Word) (bs : List (BitVec 8)) : Fn where
   name := "rlpIsList"
   region := ⟨inBase, bs⟩
-  pre := fun rf _ => rf.get .x10 = inBase ∧ bs ≠ []
-  post := fun rf _ =>
+  pre := fun rf _ _ => rf.get .x10 = inBase ∧ bs ≠ []
+  post := fun rf _ _ =>
     rf.get .x10 = (if (bs.headD 0).toNat < 0xc0 then 0 else 1)
   body :=
     .block "load" [.LBU .x5 .x10 0, .LI .x6 0xc0] ;;;
@@ -178,7 +178,7 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
   vcgen
   case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case rlpIsList.load.mem =>
-    rintro rf ws hws ⟨hx10, hne⟩
+    rintro rf ws A hws ⟨hx10, hne⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     simp only [blockVCs, loadSem]
     refine ⟨⟨one_dvd _, ?_⟩, trivial, trivial⟩
@@ -188,7 +188,7 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
     have := List.length_pos_iff.mpr hne
     omega
   case rlpIsList.post =>
-    intro rf' ws' h
+    intro rf' ws' A' h
     show rf'.get .x10 = (if (bs.headD 0).toNat < 0xc0 then 0 else 1)
     obtain ⟨b, tl, rfl⟩ : ∃ b tl, bs = b :: tl := by
       rcases h with ⟨rf₀, ws₀, -, ⟨⟨rf₁, ws₁, -, ⟨-, hne⟩, -⟩, -⟩, -⟩
@@ -243,8 +243,8 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
 def sszReadOffsetFn (inBase : Word) (bs : List (BitVec 8)) : Fn where
   name := "sszReadOffset"
   region := ⟨inBase, bs⟩
-  pre := fun rf _ => rf.get .x10 = inBase ∧ 8 ≤ bs.length
-  post := fun rf _ => rf.get .x11
+  pre := fun rf _ _ => rf.get .x10 = inBase ∧ 8 ≤ bs.length
+  post := fun rf _ _ => rf.get .x11
     = BitVec.zeroExtend 64
         (bs.getD 7 0 ++ bs.getD 6 0 ++ bs.getD 5 0 ++ bs.getD 4 0)
   body := .block "load" [.LWU .x11 .x10 4]
@@ -260,7 +260,7 @@ theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
   vcgen
   case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case sszReadOffset.load.mem =>
-    rintro rf ws hws ⟨hx10, hlen⟩
+    rintro rf ws A hws ⟨hx10, hlen⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     simp only [blockVCs, loadSem]
     refine ⟨⟨?_, ?_⟩, trivial⟩
@@ -271,7 +271,7 @@ theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
       rw [haddr rf hx10]
       omega
   case sszReadOffset.post =>
-    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen⟩, rfl, rfl⟩
+    rintro rf' ws' A' ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen⟩, rfl, rfl⟩
     obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
     show RegFile.get _ .x11 = _
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem]
@@ -290,8 +290,8 @@ theorem sszReadOffsetFn_spec (inBase : Word) (bs : List (BitVec 8))
 def readU16Fn (inBase : Word) (bs : List (BitVec 8)) : Fn where
   name := "readU16"
   region := ⟨inBase, bs⟩
-  pre := fun rf _ => rf.get .x10 = inBase ∧ 4 ≤ bs.length
-  post := fun rf _ => rf.get .x11
+  pre := fun rf _ _ => rf.get .x10 = inBase ∧ 4 ≤ bs.length
+  post := fun rf _ _ => rf.get .x11
     = BitVec.zeroExtend 64 (bs.getD 3 0 ++ bs.getD 2 0)
   body := .block "load" [.LHU .x11 .x10 2]
 
@@ -306,7 +306,7 @@ theorem readU16Fn_spec (inBase : Word) (bs : List (BitVec 8))
   vcgen
   case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case readU16.load.mem =>
-    rintro rf ws hws ⟨hx10, hlen⟩
+    rintro rf ws A hws ⟨hx10, hlen⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     simp only [blockVCs, loadSem]
     refine ⟨⟨?_, ?_⟩, trivial⟩
@@ -317,7 +317,7 @@ theorem readU16Fn_spec (inBase : Word) (bs : List (BitVec 8))
       rw [haddr rf hx10]
       omega
   case readU16.post =>
-    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen⟩, rfl, rfl⟩
+    rintro rf' ws' A' ⟨rf₀, ws₀, hws₀, ⟨hx10, hlen⟩, rfl, rfl⟩
     obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
     show RegFile.get _ .x11 = _
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem]
@@ -338,8 +338,8 @@ theorem readU16Fn_spec (inBase : Word) (bs : List (BitVec 8))
 def spillFn (scratch x : Word) : Fn where
   name := "spill"
   rw := ⟨scratch, 8⟩
-  pre := fun rf _ => rf.get .x10 = x ∧ rf.get .x11 = scratch
-  post := fun rf _ => rf.get .x10 = x
+  pre := fun rf _ _ => rf.get .x10 = x ∧ rf.get .x11 = scratch
+  post := fun rf _ _ => rf.get .x10 = x
   body := .block "roundtrip" [.SD .x11 .x10 0, .LI .x10 0, .LD .x10 .x11 0]
 
 theorem spillFn_spec (scratch x base : Word)
@@ -353,7 +353,7 @@ theorem spillFn_spec (scratch x base : Word)
   vcgen
   case region => exact ⟨Region.empty_wf, hwf⟩
   case spill.roundtrip.mem =>
-    rintro rf ws hws ⟨hx10, hx11⟩
+    rintro rf ws A hws ⟨hx10, hx11⟩
     have hws8 : ws.length = 8 := hws
     simp only [blockVCs, loadSem, storeSem, aluSem, execInstrRF, spillFn,
       inRw, Region.loadOk, length_setBytes, hidx rf hx11,
@@ -361,7 +361,7 @@ theorem spillFn_spec (scratch x base : Word)
     rw [if_pos (show 0 + 8 ≤ ws.length from by omega)]
     exact ⟨⟨by omega, by decide⟩, trivial, ⟨by decide, by omega⟩, trivial⟩
   case spill.post =>
-    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx10, hx11⟩, rfl, rfl⟩
+    rintro rf' ws' A' ⟨rf₀, ws₀, hws₀, ⟨hx10, hx11⟩, rfl, rfl⟩
     have hws8 : ws₀.length = 8 := hws₀
     show RegFile.get _ .x10 = x
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
@@ -402,8 +402,8 @@ def spillRw : RwRegion := ⟨0x10000, 8⟩
 def leafFn (v : Word) : Fn where
   name := "leaf"
   rw := spillRw
-  pre := fun rf ws => rf.get .x12 = 0x10000 ∧ ws = dwordBytes v
-  post := fun rf ws => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
+  pre := fun rf ws _ => rf.get .x12 = 0x10000 ∧ ws = dwordBytes v
+  post := fun rf ws _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
     ∧ ws = dwordBytes v
   body := .block "set" [.LI .x10 5]
 
@@ -411,7 +411,7 @@ theorem leafFn_spec (v base : Word) : (leafFn v).Spec base := by
   vcgen
   case region => exact ⟨Region.empty_wf, (by decide : spillRw.wf)⟩
   case leaf.post =>
-    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx12, hslot⟩, rfl, rfl⟩
+    rintro rf' ws' A' ⟨rf₀, ws₀, hws₀, ⟨hx12, hslot⟩, rfl, rfl⟩
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
     refine ⟨?_, ?_, hslot⟩
     · rw [RegFile.get_set_self _ _ _ (by decide)]
@@ -429,8 +429,8 @@ def leafHandle (v : Word) : FnHandle :=
 def callerRVFn (v : Word) : Fn where
   name := "callerR"
   rw := spillRw
-  pre := fun rf ws => rf.get .x12 = 0x10000 ∧ ws = dwordBytes v
-  post := fun rf ws => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
+  pre := fun rf ws _ => rf.get .x12 = 0x10000 ∧ ws = dwordBytes v
+  post := fun rf ws _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
     ∧ ws = dwordBytes v
   body := .call "leaf" (leafHandle v)
 
@@ -438,8 +438,8 @@ def callerRVFn (v : Word) : Fn where
     nobody's business outside the wrapper. -/
 def callerRFn : Fn :=
   { callerRVFn 0 with
-    pre := fun rf _ => rf.get .x12 = 0x10000
-    post := fun rf _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000 }
+    pre := fun rf _ _ => rf.get .x12 = 0x10000
+    post := fun rf _ _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000 }
 
 /-- Ambient code: the caller's spill-wrapped code at `0x1000` plus the
     leaf's. -/
@@ -484,9 +484,9 @@ theorem callerRVFn_spec (v : Word) :
       ⟨by decide, by decide, by decide⟩
     exact h0
   case callerR.leaf.pre =>
-    exact fun rf ws h => h
+    exact fun rf ws A h => h
   case callerR.post =>
-    exact fun rf ws h => h
+    exact fun rf ws A h => h
 
 private theorem callerR_hcode : ∀ a i,
     CodeReq.ofProg 0x1000 (callerRFn.programRetR .x12 0 0x1000) a = some i →
@@ -494,23 +494,23 @@ private theorem callerR_hcode : ∀ a i,
   intro a i h
   simp only [callerRCr, CodeReq.union, h]
 
-private theorem callerR_haddr : ∀ rf ws, callerRFn.pre rf ws →
+private theorem callerR_haddr : ∀ rf ws A, callerRFn.pre rf ws A →
     rf.get .x12 + signExtend12 0 = callerRFn.rw.base + BitVec.ofNat 64 0 := by
-  intro rf ws h
+  intro rf ws A h
   rw [show rf.get .x12 = 0x10000 from h]
   decide
 
-private theorem callerR_haddrPost : ∀ (v : Word) rf ws,
-    (callerRVFn v).post rf ws →
+private theorem callerR_haddrPost : ∀ (v : Word) rf ws A,
+    (callerRVFn v).post rf ws A →
     rf.get .x12 + signExtend12 0 = callerRFn.rw.base + BitVec.ofNat 64 0 := by
-  intro v rf ws h
+  intro v rf ws A h
   rw [show rf.get .x12 = 0x10000 from h.2.1]
   decide
 
-private theorem callerR_hspre : ∀ (v : Word) rf ws, callerRFn.pre rf ws →
+private theorem callerR_hspre : ∀ (v : Word) rf ws A, callerRFn.pre rf ws A →
     ws.length = callerRFn.rw.len →
-    (callerRVFn v).pre rf (setBytes ws 0 (dwordBytes v)) := by
-  intro v rf ws h hlen
+    (callerRVFn v).pre rf (setBytes ws 0 (dwordBytes v)) A := by
+  intro v rf ws A h hlen
   refine ⟨h, ?_⟩
   have hlen8 : ws.length = 8 := hlen
   have h1 := setBytes_slot ws (dwordBytes v) 0
@@ -519,14 +519,14 @@ private theorem callerR_hspre : ∀ (v : Word) rf ws, callerRFn.pre rf ws →
     List.take_of_length_le (by rw [length_setBytes]; omega)] at h1
   exact h1
 
-private theorem callerR_hspost : ∀ (v : Word) rf ws,
-    (callerRVFn v).post rf ws → callerRFn.post rf ws :=
-  fun _ _ _ h => ⟨h.1, h.2.1⟩
+private theorem callerR_hspost : ∀ (v : Word) rf ws A,
+    (callerRVFn v).post rf ws A → callerRFn.post rf ws A :=
+  fun _ _ _ _ h => ⟨h.1, h.2.1⟩
 
-private theorem callerR_hslot : ∀ (v : Word) rf ws,
-    (callerRVFn v).post rf ws → ws.length = callerRFn.rw.len →
+private theorem callerR_hslot : ∀ (v : Word) rf ws A,
+    (callerRVFn v).post rf ws A → ws.length = callerRFn.rw.len →
     (ws.drop 0).take 8 = dwordBytes v := by
-  intro v rf ws h hlen
+  intro v rf ws A h hlen
   rw [h.2.2, List.drop_zero,
     List.take_of_length_le (by rw [length_dwordBytes])]
 
@@ -549,8 +549,8 @@ def callerRHandle : FnHandle :=
 def topFn : Fn where
   name := "top"
   rw := spillRw
-  pre := fun rf _ => rf.get .x12 = 0x10000
-  post := fun rf _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
+  pre := fun rf _ _ => rf.get .x12 = 0x10000
+  post := fun rf _ _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
   body := .call "callerR" callerRHandle
 
 /-- Ambient code of the top-level caller at `0x3000`. -/
@@ -583,9 +583,9 @@ theorem topFn_spec : topFn.SpecR 0x3000 topCr := by
   case calls =>
     exact ⟨by decide, by decide, by decide⟩
   case top.callerR.pre =>
-    exact fun rf ws h => h
+    exact fun rf ws A h => h
   case top.post =>
-    exact fun rf ws h => h
+    exact fun rf ws A h => h
 
 end ExamplesVc
 end SAsm

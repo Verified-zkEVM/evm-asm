@@ -36,10 +36,13 @@ theorem pcFree_regFileIs (rf : RegFile) : (regFileIs rf).pcFree := by
   rw [hp]
   rfl
 
-/-- A set of symbolic states — exposed register file plus the current
-    contents of the function's writable region: the pure abstraction of the
-    machine state between SAsm nodes. -/
-def Reach := RegFile → List (BitVec 8) → Prop
+/-- A set of symbolic states — exposed register file, the current contents
+    of the function's writable region, plus the ambient separation-logic
+    assertion the function owns beyond its flat regions (pointer-shaped
+    data: trees, lists, borrowed windows).  The pure abstraction of the
+    machine state between SAsm nodes; ordinary blocks leave the assertion
+    component untouched. -/
+def Reach := RegFile → List (BitVec 8) → Assertion → Prop
 
 /-- Extract exposed-register values from a framed `regFileIs`. -/
 theorem holdsFor_regFileIs_getReg {rf : RegFile} {R : Assertion} {s : MachineState}

@@ -18,9 +18,9 @@ open Stmt
 private def demoLoop : Stmt :=
   .block "init" [.LI .x5 0, .LI .x6 10] ;;;
   .«while» "count" (.bltu .x5 .x6) 10
-      (fun i rf _ => rf.get .x5 = BitVec.ofNat 64 i)
+      (fun i rf _ _ => rf.get .x5 = BitVec.ofNat 64 i)
       (.block "step" [.ADDI .x5 .x5 1]) ;;;
-  .assert "counted" (fun rf _ => rf.get .x5 = 10) ;;;
+  .assert "counted" (fun rf _ _ => rf.get .x5 = 10) ;;;
   .when "nonzero" (.bne .x5 .x0) (.block "mv" [.MV .x10 .x5])
 
 #guard demoLoop.size = 7
@@ -71,8 +71,8 @@ private def demoCall : Stmt :=
   [.LI .x10 42, .JAL .x1 (0x7FC : BitVec 21)]  -- 0x2000 - 0x1804
 
 /- `assert` emits no code and does not perturb downstream addresses. -/
-#guard (Stmt.assert "mid" (fun rf _ => rf.get .x5 = 0)).size = 0
-#guard (Stmt.assert "mid" (fun rf _ => rf.get .x5 = 0)).flatten 0x1000 = []
+#guard (Stmt.assert "mid" (fun rf _ _ => rf.get .x5 = 0)).size = 0
+#guard (Stmt.assert "mid" (fun rf _ _ => rf.get .x5 = 0)).flatten 0x1000 = []
 
 end Examples
 end SAsm

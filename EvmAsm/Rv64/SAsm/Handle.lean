@@ -45,13 +45,13 @@ def FnHandle.stub (entry : Word) : FnHandle where
   nSteps := 0
   region := Region.empty
   rw := RwRegion.empty
-  pre := fun _ _ => False
-  post := fun _ _ => True
+  pre := fun _ _ _ => False
+  post := fun _ _ _ => True
   sound := by
     intro ret _ R hR s hcr hPR hpc
     obtain ⟨hp, hcompat, h1, h2, hd, hu, hP1, hR2⟩ := hPR
     obtain ⟨h1a, h1b, hd1, hu1, hx1, hM⟩ := hP1
-    exact (asrtM_unsat (fun _ _ hf => hf) h1b hM).elim
+    exact (asrtM_unsat (fun _ _ _ hf => hf) h1b hM).elim
 
 end SAsm
 end EvmAsm.Rv64

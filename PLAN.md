@@ -2491,7 +2491,15 @@ JALR epilogue against a dword slot of the shared rw region; ghost-indexed
 body-spec family pins the slot), with a two-level call-tree demo
 (topFn → callerRHandle → leafHandle). Remaining: per-frame rw sub-regions
 (CalleesIn currently forces one shared rw across the tree), then more
-Stateless/SSZ ports. read_active_fork ported (ActiveForkSAsm.lean:
+Stateless/SSZ ports. Assertion-state milestone started (approved plan
+~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
+Stage 1 landed — `Reach := RegFile → List Byte → Assertion → Prop`
+threads an ambient (pc-free) separation-logic assertion through the
+symbolic state, inert through blocks/branches/loops/calls; asrtOf
+bundles it existentially. Next stages: regFileIs↔atoms bridge +
+Assertion-shaped FnHandle contracts + ofTriple, ghost/focus nodes,
+tree library + sorted-BST insertion demo, docs/sasm-howto.md.
+read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
 swapped into run_stateless_guest, EEST A/B validated). Next port:
 decode_validation_bit.

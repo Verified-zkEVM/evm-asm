@@ -62,7 +62,7 @@ def vcs (f : Fn) : List VC :=
       ∧ 4 * f.body.size < 2 ^ 64⟩ ::
   (Stmt.vcs f.region f.rw f.body (f.name ++ ".") f.pre ++
    [⟨f.name ++ ".post",
-      ∀ rf ws, Stmt.sp f.region f.rw f.body f.pre rf ws → f.post rf ws⟩])
+      ∀ rf ws A, Stmt.sp f.region f.rw f.body f.pre rf ws A → f.post rf ws A⟩])
 
 /-- Soundness: the labeled pure VCs imply the CPS triple. -/
 theorem sound (f : Fn) (base : Word) (hreg : f.region.wf ∧ f.rw.wf)
@@ -72,7 +72,7 @@ theorem sound (f : Fn) (base : Word) (hreg : f.region.wf ∧ f.rw.wf)
     hreg.1 hreg.2 hflat.1 hflat.2.1 hflat.2.2 (fun _ _ hc => hc) h.tail.left
   have hpost := h.tail.right.head
   exact cpsTripleWithin_weaken (fun _ hp => hp)
-    (asrtM_mono (fun rf ws hsp => hpost rf ws hsp))
+    (asrtM_mono (fun rf ws A hsp => hpost rf ws A hsp))
     hbody
 
 -- ============================================================================
@@ -91,7 +91,7 @@ def vcsR (f : Fn) : List VC :=
   ⟨f.name ++ ".flat", f.body.offsetsOk = true ∧ 4 * f.body.size < 2 ^ 64⟩ ::
   (Stmt.vcs f.region f.rw f.body (f.name ++ ".") f.pre ++
    [⟨f.name ++ ".post",
-      ∀ rf ws, Stmt.sp f.region f.rw f.body f.pre rf ws → f.post rf ws⟩])
+      ∀ rf ws A, Stmt.sp f.region f.rw f.body f.pre rf ws A → f.post rf ws A⟩])
 
 /-- Caller-shaped soundness.  `hcode`/`hcallees` locate the body's and the
     callees' code inside `cr`; `hcalls` are the call sites' address side
@@ -108,7 +108,7 @@ theorem soundR (f : Fn) (base : Word) (cr : CodeReq)
     hreg.1 hreg.2 hflat.1 hflat.2 hcode hcallees hcalls h.tail.left
   have hpost := h.tail.right.head
   exact cpsTripleWithin_weaken (fun _ hp => hp)
-    (asrtR_mono (fun rf ws hsp => hpost rf ws hsp))
+    (asrtR_mono (fun rf ws A hsp => hpost rf ws A hsp))
     hbody
 
 -- ============================================================================
