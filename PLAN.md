@@ -2482,9 +2482,11 @@ LH/LHU halfword loads done (Region.half16At + getHalfword bridge, LHU
 demo). M5b-2 in progress: the symbolic state is now RegFile × writable
 bytes (`Reach := RegFile → List Byte → Prop`, `RwRegion` in Fn/FnHandle,
 address-routed loads, both soundness inductions generalized; multi-byte
-bytesRegion write algebra in MemRegionWriteWide.lean). Remaining: storeSem
-+ store soundness (SB/SH/SW/SD block leaves), ra-spill prologue for
-multi-level call trees, then more Stateless/SSZ ports.
+bytesRegion write algebra in MemRegionWriteWide.lean). Stores landed: SB/SH/SW/SD block
+leaves (storeSem + regFile_store_spec_within via the MemRegionWriteWide
+splice algebra; per-store VC = in-rw ∧ n-aligned; spillFn SD/LD round-trip
+demo). Remaining: ra-spill prologue packaging for multi-level call trees,
+then more Stateless/SSZ ports.
 
 ## Stateless Guest (parallel STF track)
 

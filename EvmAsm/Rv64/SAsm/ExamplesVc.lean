@@ -328,6 +328,64 @@ theorem readU16Fn_spec (inBase : Word) (bs : List (BitVec 8))
       show inBase + 2 - inBase = (2 : Word) from by bv_omega]
     rfl
 
+-- ============================================================================
+-- Writable regions (Milestone M5b-2): dword spill and reload
+-- ============================================================================
+
+/-- Store a0 to the writable scratch cell, clobber a0, load it back — the
+    ra-spill shape, exercising SD + LD routed to the writable region. -/
+def spillFn (scratch x : Word) : Fn where
+  name := "spill"
+  rw := ⟨scratch, 8⟩
+  pre := fun rf _ => rf.get .x10 = x ∧ rf.get .x11 = scratch
+  post := fun rf _ => rf.get .x10 = x
+  body := .block "roundtrip" [.SD .x11 .x10 0, .LI .x10 0, .LD .x10 .x11 0]
+
+theorem spillFn_spec (scratch x base : Word)
+    (hwf : RwRegion.wf ⟨scratch, 8⟩) :
+    (spillFn scratch x).Spec base := by
+  have hidx : ∀ rf : RegFile, rf.get .x11 = scratch →
+      ((rf.get .x11 + signExtend12 (0 : BitVec 12)) - scratch).toNat = 0 := by
+    intro rf h
+    rw [h, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    bv_omega
+  vcgen
+  case region => exact ⟨Region.empty_wf, hwf⟩
+  case spill.roundtrip.mem =>
+    rintro rf ws hws ⟨hx10, hx11⟩
+    have hws8 : ws.length = 8 := hws
+    simp only [blockVCs, loadSem, storeSem, aluSem, execInstrRF, spillFn,
+      inRw, Region.loadOk, length_setBytes, hidx rf hx11,
+      RegFile.get_set_ne rf .x10 .x11 0 (by decide)]
+    rw [if_pos (show 0 + 8 ≤ ws.length from by omega)]
+    exact ⟨⟨by omega, by decide⟩, trivial, ⟨by decide, by omega⟩, trivial⟩
+  case spill.post =>
+    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx10, hx11⟩, rfl, rfl⟩
+    have hws8 : ws₀.length = 8 := hws₀
+    show RegFile.get _ .x10 = x
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
+      storeSem, spillFn, hidx rf₀ hx11,
+      RegFile.get_set_ne rf₀ .x10 .x11 0 (by decide)]
+    rw [if_pos (show inRw scratch (setBytes ws₀ 0 (dwordBytes (rf₀.get .x10)))
+        (rf₀.get .x11 + signExtend12 0) 8 from by
+      unfold inRw
+      rw [length_setBytes, hidx rf₀ hx11]
+      omega)]
+    rw [RegFile.get_set_self _ .x10 _ (by decide)]
+    show Region.dwordAt _ _ = x
+    unfold Region.dwordAt
+    rw [show ((⟨scratch, setBytes ws₀ 0 (dwordBytes (rf₀.get .x10))⟩ :
+        Region).bytes.drop
+          ((rf₀.get .x11 + signExtend12 0 - (⟨scratch,
+            setBytes ws₀ 0 (dwordBytes (rf₀.get .x10))⟩ : Region).base).toNat))
+        = setBytes ws₀ 0 (dwordBytes (rf₀.get .x10)) from by
+      show (setBytes ws₀ 0 (dwordBytes (rf₀.get .x10))).drop
+        ((rf₀.get .x11 + signExtend12 0 - scratch).toNat) = _
+      rw [hidx rf₀ hx11, List.drop_zero]]
+    rw [List.take_of_length_le (by rw [length_setBytes]; omega)]
+    rw [hx10]
+    exact (packBytes_setBytes_dword ws₀ x (by omega)).symm
+
 end ExamplesVc
 end SAsm
 end EvmAsm.Rv64
