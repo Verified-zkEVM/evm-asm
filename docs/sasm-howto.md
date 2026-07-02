@@ -332,6 +332,46 @@ all of them.  Two ways out:
   `R` — the context existential hides the direction; see
   `treeInsDescendR` in TreeInsert.lean).
 
+### The structural `sp` eliminators (Vc.lean)
+
+For any VC of the form `∀ rf ws A, sp s reach rf ws A → P rf ws A`,
+prove it by the shape of `s` instead of hand-destructuring the raw
+existentials/disjunctions:
+
+- `Stmt.sp_ite_split` / `sp_when_split` — one subgoal per branch;
+- `Stmt.sp_block_split` / `sp_blockAt_split` — prove `P` of the engine
+  result at every reachable entry (the post-VC shape after a block,
+  without the six-tuple `rintro`);
+- `Stmt.sp_ghost_split`; `sp_seq_eq` / `sp_assert_eq` rfl-rewrites.
+- **`Stmt.sp_cut`** — the assert cut:
+  `sp s (sp (assert P) reach) → sp s P`.  Apply it first in any VC whose
+  reach passes through an `.assert`; everything before the assert is
+  forgotten and the rest of the proof only sees the summary `P`
+  (`ClzSAsm.lean`'s `clz.post`: one `sp_cut`, one `sp_blockAt_split`,
+  then five rewrites).
+
+### Branch-tail summaries: `Stmt.EndsWith` + `sp_of_endsWith`
+
+For an `ite` *cascade* (n-way limb select, dispatch trees), a single
+`.assert` after the join still faces the full n-way disjunction in its
+own VC.  Instead, place the SAME `.assert P` at the **tail of every
+branch**:
+
+- each assert VC sees only its own linear path (one branch's blocks and
+  conditions — small, engine-lemma-sized);
+- the downstream recovers `P` with **zero case analysis** via
+  `Stmt.sp_of_endsWith (P := …) (by simp [<cascade def>, Stmt.EndsWith])`
+  — `EndsWith` checks syntactically that every path ends in `.assert P`.
+- asserts emit no code, so the flattened `Program` (and its `#guard`s)
+  are unchanged.
+
+The worked instance is `clzSelectBody`/`clzFn_spec` in
+`EvmAsm/Codegen/Programs/ClzSAsm.lean`: a 5-leaf select cascade, five
+~25-line leaf VCs, and a `computed` VC that gets the joined summary in
+one line.  (A bounded `aesop (add simp [Stmt.sp, …])` can close such
+VCs too, but is slower and brittle under definition changes — prefer
+the structural lemmas.)
+
 ## 7. Porting an unverified routine (the SSZ drop-in recipe)
 
 The pattern of `ChainIdSAsm.lean` / `ActiveForkSAsm.lean`:
