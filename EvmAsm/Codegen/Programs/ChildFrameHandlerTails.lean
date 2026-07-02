@@ -50,15 +50,16 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
 
 def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : String :=
   -- Value-bearing CALL/CALLCODE to a precompile still runs the generic-call
-  -- caller-balance check before entering the precompile. On insufficient
-  -- balance, execution-specs charges the net value-call gas and returns 0.
+  -- caller-balance check before entering the precompile. The precompile fast
+  -- path charges CALL_VALUE on the successful balance path; insufficient
+  -- balance keeps the net value-call charge and returns 0.
   "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
   "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
   "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
   "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
   "  beqz t3, .L" ++ tag ++ "_precompile_balok\n" ++
   "  ld t3, 584(x20)\n" ++
-  "  beqz t3, .L" ++ tag ++ "_precompile_balok\n" ++
+  "  beqz t3, .L" ++ tag ++ "_precompile_value_balok\n" ++
   "  la t0, cd_value_be\n" ++
   "  addi t1, x12, " ++ toString (valueOff+31) ++ "\n" ++
   "  li t2, 32\n" ++
@@ -77,9 +78,13 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   ".L" ++ tag ++ "_precompile_cmp:\n" ++
   "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
   "  bltu t3, t4, .L" ++ tag ++ "_precompile_insuffbal\n" ++
-  "  bltu t4, t3, .L" ++ tag ++ "_precompile_balok\n" ++
+  "  bltu t4, t3, .L" ++ tag ++ "_precompile_value_balok\n" ++
   "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .L" ++ tag ++ "_precompile_cmp\n" ++
+  ".L" ++ tag ++ "_precompile_value_balok:\n" ++
+  "  li t0, 9000\n" ++
+  "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
+  "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
   ".L" ++ tag ++ "_precompile_balok:\n" ++
   "  j .L" ++ tag ++ "_precompile_dispatch\n" ++
   ".L" ++ tag ++ "_precompile_insuffbal:\n" ++
