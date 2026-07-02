@@ -50,7 +50,6 @@ precondition; the excluded domain is **unverified**.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `SDIV` | callable+dispatch shim; evm_sdiv_stack_spec_within conditional on hStack (discharged for divisor=0 and n=1/2/3/n4-call-skip); blocked on DIV/MOD spec-layer migration (bead evm-asm-9iqmw) |
 | `SMOD` | all-case v4 wrapper result-stack spec; zero divisor discharged, nonzero path still parameterized by unsigned-MOD callable h_stack |
 
 ### 🟡 `partly` opcodes — no complete top-level triple yet
