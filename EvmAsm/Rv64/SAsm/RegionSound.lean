@@ -121,6 +121,71 @@ theorem holdsFor_bytesRegion_getWord32 {b : Word} {bs : List (BitVec 8)}
     getElem_congr_idx
       (show 8 * (i / 8) + 4 * (i % 8 / 4) = i from by omega)]
 
+/-- `extractHalfword` is the little-endian append of its two bytes. -/
+theorem extractHalfword_eq_append (w : Word) (p : Nat) (hp : p < 4) :
+    extractHalfword w p
+      = extractByte w (2 * p + 1) ++ extractByte w (2 * p) := by
+  interval_cases p <;>
+    (apply BitVec.eq_of_getLsbD_eq
+     intro i hi
+     simp only [extractHalfword, extractByte, BitVec.getLsbD_append,
+       BitVec.truncate, BitVec.getLsbD_setWidth, BitVec.getLsbD_ushiftRight]
+     interval_cases i <;> simp)
+
+/-- Read the aligned little-endian halfword at region index `i` from a
+    framed `bytesRegion`. -/
+theorem holdsFor_bytesRegion_getHalfword {b : Word} {bs : List (BitVec 8)}
+    {R : Assertion} {s : MachineState}
+    (hPR : ((bytesRegion b bs) ** R).holdsFor s)
+    {i : Nat} (halign : b.toNat % 8 = 0) (h2 : 2 ∣ i)
+    (hlen : i + 2 ≤ bs.length) (hover : b.toNat + i < 2 ^ 64) :
+    s.getHalfword (b + BitVec.ofNat 64 i)
+      = (bs[i + 1]'(by omega) ++ bs[i]'(by omega) : BitVec 16) := by
+  have hcell := holdsFor_bytesRegion_cell hPR (show i < bs.length by omega)
+  show extractHalfword (s.getMem (alignToDword (b + BitVec.ofNat 64 i)))
+    (byteOffset (b + BitVec.ofNat 64 i) / 2) = _
+  rw [alignToDword_add_ofNat_of_aligned halign hover,
+    byteOffset_add_ofNat_of_aligned halign hover, hcell,
+    extractHalfword_eq_append _ _ (by omega)]
+  have hchunk : ∀ j, j < 2 →
+      2 * (i % 8 / 2) + j < ((bs.drop (8 * (i / 8))).take 8).length := by
+    intro j hj
+    simp only [List.length_take, List.length_drop]
+    omega
+  rw [extractByte_packBytes _ _ (by omega) (hchunk 1 (by omega)),
+    extractByte_packBytes _ (2 * (i % 8 / 2)) (by omega)
+      (by simpa using hchunk 0 (by omega))]
+  simp only [List.getElem_take, List.getElem_drop]
+  rw [getElem_congr_idx
+      (show 8 * (i / 8) + (2 * (i % 8 / 2) + 1) = i + 1 from by omega),
+    getElem_congr_idx
+      (show 8 * (i / 8) + 2 * (i % 8 / 2) = i from by omega)]
+
+/-- `Region.half16At` at `base + i`, as list elements. -/
+theorem half16At_index (reg : Region) {i : Nat}
+    (hlen : i + 2 ≤ reg.bytes.length)
+    (hover : reg.base.toNat + i + 2 ≤ 2 ^ 64) :
+    reg.half16At (reg.base + BitVec.ofNat 64 i)
+      = (reg.bytes[i + 1]'(by omega) ++ reg.bytes[i]'(by omega) : BitVec 16) := by
+  have hb : ∀ j : Nat, (hj : j < 2) →
+      reg.byteAt (reg.base + BitVec.ofNat 64 i + BitVec.ofNat 64 j)
+        = reg.bytes[i + j]'(by omega) := by
+    intro j hj
+    unfold Region.byteAt
+    rw [show (reg.base + BitVec.ofNat 64 i + BitVec.ofNat 64 j) - reg.base
+        = BitVec.ofNat 64 (i + j) from by bv_omega]
+    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]
+    rfl
+  unfold Region.half16At
+  rw [show (1 : Word) = BitVec.ofNat 64 1 from rfl]
+  rw [hb 1 (by omega)]
+  congr 1
+  have := hb 0 (by omega)
+  rw [show reg.base + BitVec.ofNat 64 i + BitVec.ofNat 64 0
+      = reg.base + BitVec.ofNat 64 i from by bv_omega] at this
+  exact this
+
 /-- `Region.word32At` at `base + i`, as list elements. -/
 theorem word32At_index (reg : Region) {i : Nat}
     (hlen : i + 4 ≤ reg.bytes.length)
@@ -233,6 +298,42 @@ theorem regFile_load_spec_within (i : Instr) (l : LoadOp) (reg : Region)
       rw [show s.getByte addr = reg.bytes[i0]'hi0lt from by
         conv_lhs => rw [haddr_eq]
         exact holdsFor_bytesRegion_getByte hPR2' hb8 hi0lt hover]
+    case LH rd rs1 ofs =>
+      injection hsem with hsem; subst hsem
+      simp only at hdvd hlen ⊢
+      have hvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 ofs) = true := by
+        rw [hrs1v]
+        show isValidHalfwordAccess addr = true
+        simp only [isValidHalfwordAccess_eq, Bool.and_eq_true]
+        refine ⟨hvalidmem, ?_⟩
+        simp only [isAligned2_eq, beq_iff_eq]
+        omega
+      refine ⟨step_lh hfetch hvalid, ?_⟩
+      simp only [execInstrBr]
+      rw [hrs1v]
+      show _ = (s.setReg _ ((reg.half16At addr).signExtend 64)).setPC _
+      rw [show s.getHalfword addr = reg.half16At addr from by
+        conv_lhs => rw [haddr_eq]
+        rw [haddr_eq, half16At_index reg hlen (by have := hreg.2.1; omega)]
+        exact holdsFor_bytesRegion_getHalfword hPR2' hb8 hdvd hlen hover]
+    case LHU rd rs1 ofs =>
+      injection hsem with hsem; subst hsem
+      simp only at hdvd hlen ⊢
+      have hvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 ofs) = true := by
+        rw [hrs1v]
+        show isValidHalfwordAccess addr = true
+        simp only [isValidHalfwordAccess_eq, Bool.and_eq_true]
+        refine ⟨hvalidmem, ?_⟩
+        simp only [isAligned2_eq, beq_iff_eq]
+        omega
+      refine ⟨step_lhu hfetch hvalid, ?_⟩
+      simp only [execInstrBr]
+      rw [hrs1v]
+      show _ = (s.setReg _ ((reg.half16At addr).zeroExtend 64)).setPC _
+      rw [show s.getHalfword addr = reg.half16At addr from by
+        conv_lhs => rw [haddr_eq]
+        rw [haddr_eq, half16At_index reg hlen (by have := hreg.2.1; omega)]
+        exact holdsFor_bytesRegion_getHalfword hPR2' hb8 hdvd hlen hover]
     case LW rd rs1 ofs =>
       injection hsem with hsem; subst hsem
       simp only at hdvd hlen ⊢
