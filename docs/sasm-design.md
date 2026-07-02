@@ -352,11 +352,19 @@ structure FnHandle where
 - Hand-verified (non-SAsm) routines join the same ecosystem by packaging
   their existing `cpsTripleWithin` spec as a `FnHandle` (adapter lemmas
   bridge atom-form assertions to `regFileIs`, §3.1).
-- Non-leaf functions (bodies containing `call`) need `ra` saved. Milestones
-  1–2 restrict to leaf callees called from a top-level routine that owns
-  `ra`; Milestone 4 adds the standard prologue/epilogue (sp-frame spill of
-  `ra`, later s-registers) emitted by the flattener, with the stack cells
-  modeled as an `.rw` region.
+- Non-leaf functions (bodies containing `call`) need `ra` saved.
+  `Fn.toHandleR` (`SAsm/RaSpill.lean`) packages a caller verified via
+  `soundR` as a callee: the emitted code is
+  `SD rs, x1, sofs ; body ; LD x1, rs, sofs ; JALR x0, x1, 0`, where the
+  spill slot is a dword of the function's `.rw` region and `rs` is an
+  exposed register that the pre pins to its address.  The return address is
+  threaded through the body as a ghost word — the packaging consumes a
+  family of `SpecR`s indexed by the spilled value, whose pre/post record
+  that the slot holds it, so slot preservation is the caller's own `.post`
+  VC.  (`CalleesIn` currently makes the whole call tree share one `.rw`
+  region, so the slot is visible to callees as part of the symbolic state;
+  per-frame sub-regions are future work.)  The `ExamplesVc` two-level tree
+  (`topFn` → `callerRHandle` → `leafHandle`) exercises the full shape.
 
 ### 3.7 Flattening (`SAsm/Flatten.lean`)
 

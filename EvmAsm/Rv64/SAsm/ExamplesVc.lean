@@ -6,6 +6,7 @@
   goals.  These double as regression tests for the tactic.
 -/
 
+import EvmAsm.Rv64.SAsm.RaSpill
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Rv64
@@ -385,6 +386,206 @@ theorem spillFn_spec (scratch x base : Word)
     rw [List.take_of_length_le (by rw [length_setBytes]; omega)]
     rw [hx10]
     exact (packBytes_setBytes_dword ws₀ x (by omega)).symm
+
+-- ============================================================================
+-- Callers as callees (ra-spill packaging): a two-level call tree
+-- ============================================================================
+
+/-- The demo call tree's shared writable region: one dword spill slot at
+    `0x10000` (`CalleesIn` requires every function in the tree to declare
+    the same writable region). -/
+def spillRw : RwRegion := ⟨0x10000, 8⟩
+
+/-- Leaf callee: set a0 := 5.  Ghost `v` is the caller's spilled return
+    address: the leaf shares the writable region, so its contract records
+    that it leaves the slot alone (its own `.post` VC proves it). -/
+def leafFn (v : Word) : Fn where
+  name := "leaf"
+  rw := spillRw
+  pre := fun rf ws => rf.get .x12 = 0x10000 ∧ ws = dwordBytes v
+  post := fun rf ws => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
+    ∧ ws = dwordBytes v
+  body := .block "set" [.LI .x10 5]
+
+theorem leafFn_spec (v base : Word) : (leafFn v).Spec base := by
+  vcgen
+  case region => exact ⟨Region.empty_wf, (by decide : spillRw.wf)⟩
+  case leaf.post =>
+    rintro rf' ws' ⟨rf₀, ws₀, hws₀, ⟨hx12, hslot⟩, rfl, rfl⟩
+    simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    refine ⟨?_, ?_, hslot⟩
+    · rw [RegFile.get_set_self _ _ _ (by decide)]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx12
+
+/-- The leaf as a callee at `0x2000`. -/
+def leafHandle (v : Word) : FnHandle :=
+  (leafFn v).toHandle 0x2000 (leafFn_spec v 0x2000)
+    ((by decide : 4 * ((leafFn 0).body.size + 1) ≤ 2 ^ 64))
+
+/-- The mid-level caller: call the leaf.  Ghost `v` is its own spilled
+    return address, threaded through the whole call so the packaging can
+    restore it. -/
+def callerRVFn (v : Word) : Fn where
+  name := "callerR"
+  rw := spillRw
+  pre := fun rf ws => rf.get .x12 = 0x10000 ∧ ws = dwordBytes v
+  post := fun rf ws => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
+    ∧ ws = dwordBytes v
+  body := .call "leaf" (leafHandle v)
+
+/-- The handle-facing view of the caller: the spill slot's contents are
+    nobody's business outside the wrapper. -/
+def callerRFn : Fn :=
+  { callerRVFn 0 with
+    pre := fun rf _ => rf.get .x12 = 0x10000
+    post := fun rf _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000 }
+
+/-- Ambient code: the caller's spill-wrapped code at `0x1000` plus the
+    leaf's. -/
+def callerRCr : CodeReq :=
+  (CodeReq.ofProg 0x1000 (callerRFn.programRetR .x12 0 0x1000)).union
+    (leafHandle 0).code
+
+theorem callerRVFn_spec (v : Word) :
+    (callerRVFn v).SpecR (0x1000 + 4) callerRCr := by
+  vcgen
+  case region => exact ⟨Region.empty_wf, (by decide : spillRw.wf)⟩
+  case code =>
+    intro a i h
+    have h' : CodeReq.ofProg 0x1000 (callerRFn.programRetR .x12 0 0x1000)
+        a = some i := by
+      show CodeReq.ofProg 0x1000 (Instr.SD .x12 .x1 0 ::
+        (callerRFn.body.flatten (0x1000 + 4)
+          ++ [Instr.LD .x1 .x12 0, Instr.JALR .x0 .x1 0])) a = some i
+      apply ofProg_cons_tail
+        ((by decide : 4 * ((callerRFn.body.flatten (0x1000 + 4)
+          ++ [Instr.LD .x1 .x12 0, Instr.JALR .x0 .x1 0]).length + 1) ≤ 2 ^ 64))
+      apply ofProg_mono_left
+      exact h
+    simp only [callerRCr, CodeReq.union, h']
+  case callees =>
+    refine ⟨?_, rfl, rfl⟩
+    intro a i h
+    obtain ⟨kk, hk, rfl⟩ := ofProg_some_range h
+    have hlen0 : ((leafFn 0).programRet 0x2000).length = 2 := by decide
+    have hlen : ((leafFn v).programRet 0x2000).length = 2 := hlen0
+    rw [hlen] at hk
+    simp only [callerRCr, CodeReq.union]
+    rw [CodeReq.ofProg_none_range 0x1000 (callerRFn.programRetR .x12 0 0x1000)
+      (fun k' hk' heq => ?_)]
+    · exact h
+    · have hlen' : (callerRFn.programRetR .x12 0 0x1000).length = 4 := by
+        decide
+      rw [hlen'] at hk'
+      bv_omega
+  case calls =>
+    have h0 : (callerRVFn 0).body.callsOk (0x1000 + 4) :=
+      ⟨by decide, by decide, by decide⟩
+    exact h0
+  case callerR.leaf.pre =>
+    exact fun rf ws h => h
+  case callerR.post =>
+    exact fun rf ws h => h
+
+private theorem callerR_hcode : ∀ a i,
+    CodeReq.ofProg 0x1000 (callerRFn.programRetR .x12 0 0x1000) a = some i →
+    callerRCr a = some i := by
+  intro a i h
+  simp only [callerRCr, CodeReq.union, h]
+
+private theorem callerR_haddr : ∀ rf ws, callerRFn.pre rf ws →
+    rf.get .x12 + signExtend12 0 = callerRFn.rw.base + BitVec.ofNat 64 0 := by
+  intro rf ws h
+  rw [show rf.get .x12 = 0x10000 from h]
+  decide
+
+private theorem callerR_haddrPost : ∀ (v : Word) rf ws,
+    (callerRVFn v).post rf ws →
+    rf.get .x12 + signExtend12 0 = callerRFn.rw.base + BitVec.ofNat 64 0 := by
+  intro v rf ws h
+  rw [show rf.get .x12 = 0x10000 from h.2.1]
+  decide
+
+private theorem callerR_hspre : ∀ (v : Word) rf ws, callerRFn.pre rf ws →
+    ws.length = callerRFn.rw.len →
+    (callerRVFn v).pre rf (setBytes ws 0 (dwordBytes v)) := by
+  intro v rf ws h hlen
+  refine ⟨h, ?_⟩
+  have hlen8 : ws.length = 8 := hlen
+  have h1 := setBytes_slot ws (dwordBytes v) 0
+    (by rw [length_dwordBytes]; omega)
+  rw [List.drop_zero, length_dwordBytes,
+    List.take_of_length_le (by rw [length_setBytes]; omega)] at h1
+  exact h1
+
+private theorem callerR_hspost : ∀ (v : Word) rf ws,
+    (callerRVFn v).post rf ws → callerRFn.post rf ws :=
+  fun _ _ _ h => ⟨h.1, h.2.1⟩
+
+private theorem callerR_hslot : ∀ (v : Word) rf ws,
+    (callerRVFn v).post rf ws → ws.length = callerRFn.rw.len →
+    (ws.drop 0).take 8 = dwordBytes v := by
+  intro v rf ws h hlen
+  rw [h.2.2, List.drop_zero,
+    List.take_of_length_le (by rw [length_dwordBytes])]
+
+/-- The caller, packaged as a callee: its `ra` is spilled to the scratch
+    slot around the body.  This is the "callers as callees" milestone: the
+    packaged handle can itself be called. -/
+def callerRHandle : FnHandle :=
+  callerRFn.toHandleR 0x1000 callerRCr .x12 0 0
+    (fun v => (callerRVFn v).pre) (fun v => (callerRVFn v).post)
+    (by decide)
+    ((by decide : spillRw.wf))
+    (by decide) ((by decide : 0 + 8 ≤ spillRw.len))
+    ((by decide : 4 * (callerRFn.body.size + 3) ≤ 2 ^ 64))
+    (fun v => callerRVFn_spec v)
+    callerR_hcode callerR_haddr callerR_haddrPost
+    callerR_hspre callerR_hspost callerR_hslot
+
+/-- A top-level caller consuming the packaged handle: the mid-level caller
+    really is a callee. -/
+def topFn : Fn where
+  name := "top"
+  rw := spillRw
+  pre := fun rf _ => rf.get .x12 = 0x10000
+  post := fun rf _ => rf.get .x10 = 5 ∧ rf.get .x12 = 0x10000
+  body := .call "callerR" callerRHandle
+
+/-- Ambient code of the top-level caller at `0x3000`. -/
+def topCr : CodeReq :=
+  (CodeReq.ofProg 0x3000 (topFn.body.flatten 0x3000)).union callerRCr
+
+theorem topFn_spec : topFn.SpecR 0x3000 topCr := by
+  vcgen
+  case code =>
+    intro a i h
+    simp only [topCr, CodeReq.union, h]
+  case callees =>
+    refine ⟨?_, rfl, rfl⟩
+    intro a i h
+    -- callerRHandle.code = callerRCr: two ofProg ranges, both away from 0x3000
+    have h' : callerRCr a = some i := h
+    simp only [topCr, CodeReq.union]
+    rw [CodeReq.ofProg_none_range 0x3000 (topFn.body.flatten 0x3000)
+      (fun k' hk' heq => ?_)]
+    · exact h'
+    · have hlen' : (topFn.body.flatten 0x3000).length = 1 := by decide
+      rw [hlen'] at hk'
+      have hk1 : k' = 0 := by omega
+      subst hk1
+      -- the address 0x3000 carries no code in callerRCr
+      have hnone : callerRCr (0x3000 + BitVec.ofNat 64 (4 * 0)) = none := by
+        decide
+      rw [← heq, h'] at hnone
+      cases hnone
+  case calls =>
+    exact ⟨by decide, by decide, by decide⟩
+  case top.callerR.pre =>
+    exact fun rf ws h => h
+  case top.post =>
+    exact fun rf ws h => h
 
 end ExamplesVc
 end SAsm
