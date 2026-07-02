@@ -2501,9 +2501,17 @@ repackages a callee verified against its own dword-aligned window as a
 callee over the caller's full rw region, framing the outside bytes
 (`bytesRegion_append` split + `asrtOf_window`/`asrtM_window`); the
 WidenDemo two-level tree keeps the caller's ra-spill slot in its own
-dword with zero ghost-threading through the leaf's contract. Remaining
-for deep call trees: exposed s-register preservation conventions, a
-read-only-region widening analogue, then more Stateless/SSZ ports. Assertion-state milestone started (approved plan
+dword with zero ghost-threading through the leaf's contract. Read-only
+sub-slices landed (`FnHandle.widenRo`, bead evm-asm-4ch8f.2): the `.ro`
+analogue, pre/post unchanged; RoWidenDemo calls ONE leaf routine twice
+against two named 8-byte slices of one buffer, each call site
+materializing its slice pointer with `LI` (the SAsm rendering of
+`la`-per-arena). Named-region/`la` design decisions recorded in
+docs/sasm-design.md §3.6.1 (contiguous slices → wideners; disjoint
+arenas → ambient `A` + blockAt + frameA; the named symbol-address table
+is the memory-layout bead's deliverable). Remaining for deep call
+trees: exposed s-register preservation conventions, then more
+Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the

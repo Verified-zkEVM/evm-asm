@@ -377,10 +377,43 @@ structure FnHandle where
   (e.g. `dwordBytes v` for the spilled `ra`).  The underlying frame seam
   is `bytesRegion_append` (split a byte region at a dword boundary).
   `WidenDemo` replays the ra-spill two-level tree with the leaf owning
-  only its 8-byte window; remaining follow-ups for deep trees: exposed
+  only its 8-byte window; the remaining deep-tree follow-up is exposed
   s-register preservation conventions (today a callee's post must state
-  which exposed registers it preserves), and a read-only-region analogue
-  of `widenRw` if callees are to declare `.ro` sub-slices.
+  which exposed registers it preserves).
+- **Read-only sub-slices** (`FnHandle.widenRo`, same file): the `.ro`
+  analogue — a callee verified against its own slice of a larger
+  read-only buffer is repackaged over the caller's full region, pre/post
+  unchanged (ro contents live in the region descriptor).  `RoWidenDemo`
+  shows the intended shape for named-arena addressing: ONE leaf routine
+  (one code copy at one entry), its contract instantiated per call site
+  at a different slice, the caller materializing each slice pointer with
+  `LI` — the SAsm rendering of `la`-per-arena.
+
+### 3.6.1 Named regions and `la` addressing (design decisions)
+
+How the guest's many named `.data` arenas map onto SAsm, decided with
+the first widening adapters (bead evm-asm-4ch8f.2):
+
+1. **Contiguous named slices of one buffer** (SSZ input sections, packed
+   arenas): the caller declares one region; callees declare only their
+   slice and are widened per call site (`widenRo`/`widenRw`).  These
+   adapters ARE the per-region frame conditions — no soundness-induction
+   or AST change, framing at the `bytesRegion_append` seam.
+2. **Genuinely disjoint arenas** (e.g. an SSZ slice plus a `.data` table
+   at `0xa3000000`): the primary region/rw stay as-is; additional arenas
+   ride in the ambient assertion `A` as `bytesRegion` conjuncts, accessed
+   by blocks through `.blockAt` focus windows and framed across calls by
+   `FnHandle.frameA`.  A function's contract thus lists exactly the
+   arenas it touches: primary region + rw + the `A`-conjuncts of its pre.
+3. **Symbol (`la`) addressing**: guest symbol addresses are concrete at
+   build time (`.data` is linker-pinned), so SAsm code materializes them
+   with `LI` (64-bit pseudo already in `Instr`) and specs pin pointer
+   registers to named `Word` constants; region bases may equally be
+   ambient Lean binders for position-independent contracts (see
+   `roLeafFn b xs`).  The authoritative named `def <sym>Addr : Word`
+   table plus pairwise-disjointness facts is the memory-layout
+   formalization's deliverable (bead evm-asm-4ch8f.6); SAsm consumes
+   those names, it does not define them.
 
 ### 3.7 Flattening (`SAsm/Flatten.lean`)
 
