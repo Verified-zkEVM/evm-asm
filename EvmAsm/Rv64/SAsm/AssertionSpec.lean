@@ -194,5 +194,124 @@ theorem Fn.spec_conseq (f : Fn) (base : Word) {pre' post' : Reach}
     ({ f with pre := pre', post := post' } : Fn).Spec base :=
   cpsTripleWithin_weaken (asrtM_mono hpre) (asrtM_mono hpost) hspec
 
+-- ============================================================================
+-- The canonical Assertion-shaped spec surface
+-- ============================================================================
+
+/-- The canonical factored machine assertion of an SAsm symbolic state:
+    some register file and window contents satisfying the pure `φ`, with
+    the ambient assertion pinned to the family `Af`.  This is the shape in
+    which SAsm specs read as separation-logic pre/postconditions, e.g.
+
+      SState reg rw (fun rf _ => rf.get .x10 = p)
+        (fun rf _ => treeAt (rf.get .x10) t)
+
+    Internally it is `asrtM` of the `A`-pinning reach, so `vcgen` and the
+    call machinery consume it unchanged. -/
+def SState (reg : Region) (rw : RwRegion)
+    (φ : RegFile → List (BitVec 8) → Prop)
+    (Af : RegFile → List (BitVec 8) → Assertion) : Assertion :=
+  asrtM reg rw (fun rf ws A => φ rf ws ∧ A = Af rf ws)
+
+theorem pcFree_SState (reg : Region) (rw : RwRegion)
+    (φ : RegFile → List (BitVec 8) → Prop)
+    (Af : RegFile → List (BitVec 8) → Assertion) :
+    (SState reg rw φ Af).pcFree :=
+  pcFree_asrtM _ _ _
+
+/-- An Assertion-shaped bounded triple for an SAsm function's body. -/
+def Fn.SpecA (f : Fn) (base : Word) (P Q : Assertion) : Prop :=
+  cpsTripleWithin f.body.steps base (base + BitVec.ofNat 64 (4 * f.body.size))
+    (f.codeReq base) P Q
+
+/-- Publish a proved `Fn.Spec` as an Assertion triple: an entry entailment
+    into the internal state and an exit entailment out of it.  For
+    `SState`-shaped pre/posts both entailments are `asrtM_mono`-mechanical
+    (or `Eq`-rewrites when the reaches are literally `A`-pinning). -/
+theorem Fn.specA_of_spec (f : Fn) (base : Word) {P Q : Assertion}
+    (hspec : f.Spec base)
+    (hpre : ∀ h, P h → asrtM f.region f.rw f.pre h)
+    (hpost : ∀ h, asrtM f.region f.rw f.post h → Q h) :
+    f.SpecA base P Q :=
+  cpsTripleWithin_weaken hpre hpost hspec
+
+/-- `while` with a factored Assertion invariant: the pure part `invPure i`
+    plus the ambient assertion pinned to `invA i`. -/
+def Stmt.whileA (lbl : String) (c : Cond) (fuel : Nat)
+    (invPure : Nat → RegFile → List (BitVec 8) → Prop)
+    (invA : Nat → RegFile → List (BitVec 8) → Assertion)
+    (body : Stmt) : Stmt :=
+  .while lbl c fuel (fun i rf ws A => invPure i rf ws ∧ A = invA i rf ws) body
+
+/-- `assert` with a factored Assertion annotation. -/
+def Stmt.assertA (lbl : String)
+    (φ : RegFile → List (BitVec 8) → Prop)
+    (Af : RegFile → List (BitVec 8) → Assertion) : Stmt :=
+  .assert lbl (fun rf ws A => φ rf ws ∧ A = Af rf ws)
+
+-- ============================================================================
+-- The frame rule at call granularity
+-- ============================================================================
+
+/-- Reach transformer of `FnHandle.frameA`: demand the ambient assertion
+    split as `A₀ ** Fr` and constrain only the `A₀` part. -/
+def Reach.frameA (r : Reach) (Fr : Assertion) : Reach :=
+  fun rf ws A => ∃ A₀, A₀.pcFree ∧ A = (A₀ ** Fr) ∧ r rf ws A₀
+
+/-- Splitting the ambient assertion moves a fixed frame out of `asrtOf`. -/
+theorem asrtOf_frameA (rw : RwRegion) (r : Reach) (Fr : Assertion)
+    (hFr : Fr.pcFree) :
+    asrtOf rw (r.frameA Fr) = (asrtOf rw r ** Fr) := by
+  funext h
+  apply propext
+  constructor
+  · rintro ⟨rf, ws, A, hlen, hApc, ⟨A₀, hA0, rfl, hr⟩, hsts⟩
+    rw [← sepConj_assoc'] at hsts
+    obtain ⟨g1, g2, gd, gu, hin, hfr⟩ := hsts
+    exact ⟨g1, g2, gd, gu, ⟨rf, ws, A₀, hlen, hA0, hr, hin⟩, hfr⟩
+  · rintro ⟨g1, g2, gd, gu, ⟨rf, ws, A₀, hlen, hA0, hr, hin⟩, hfr⟩
+    have hsts : ((((regFileIs rf) ** bytesRegion rw.base ws) ** A₀) ** Fr) h :=
+      ⟨g1, g2, gd, gu, hin, hfr⟩
+    rw [sepConj_assoc'] at hsts
+    exact ⟨rf, ws, A₀ ** Fr, hlen, pcFree_sepConj hA0 hFr,
+      ⟨A₀, hA0, rfl, hr⟩, hsts⟩
+
+/-- Splitting the ambient assertion moves a fixed frame out of `asrtM`. -/
+theorem asrtM_frameA (reg : Region) (rw : RwRegion) (r : Reach)
+    (Fr : Assertion) (hFr : Fr.pcFree) :
+    asrtM reg rw (r.frameA Fr) = (asrtM reg rw r ** Fr) := by
+  show (asrtOf rw (r.frameA Fr) ** bytesRegion reg.base reg.bytes)
+    = ((asrtOf rw r ** bytesRegion reg.base reg.bytes) ** Fr)
+  rw [asrtOf_frameA rw r Fr hFr, sepConj_assoc',
+    sepConj_comm' Fr (bytesRegion reg.base reg.bytes), ← sepConj_assoc']
+
+/-- **The frame rule for calls**: a callee needing ambient assertion `A₀`
+    may be called where the caller holds `A₀ ** Fr` — the framed handle
+    hands `A₀` to the callee and returns its ambient conjoined back with
+    the untouched `Fr`.  `Fr` is fixed at the call site (ghost data enters
+    through the ambient binders as usual). -/
+def FnHandle.frameA (f : FnHandle) (Fr : Assertion) (hFr : Fr.pcFree) :
+    FnHandle where
+  entry := f.entry
+  code := f.code
+  nSteps := f.nSteps
+  region := f.region
+  rw := f.rw
+  pre := f.pre.frameA Fr
+  post := f.post.frameA Fr
+  sound := fun ret halign => by
+    have h1 := cpsTripleWithin_frameR Fr hFr (f.sound ret halign)
+    refine cpsTripleWithin_weaken ?_ ?_ h1
+    · intro hp hh
+      rw [show asrtM f.region f.rw (f.pre.frameA Fr)
+          = (asrtM f.region f.rw f.pre ** Fr) from
+        asrtM_frameA f.region f.rw f.pre Fr hFr] at hh
+      exact sc_assoc_l hp hh
+    · intro hp hh
+      rw [show asrtM f.region f.rw (f.post.frameA Fr)
+          = (asrtM f.region f.rw f.post ** Fr) from
+        asrtM_frameA f.region f.rw f.post Fr hFr]
+      exact sc_assoc_r hp hh
+
 end SAsm
 end EvmAsm.Rv64
