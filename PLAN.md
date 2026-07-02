@@ -2479,8 +2479,12 @@ real port**: `readChainIdFn` (Stateless/SSZ/Decode/ChainIdSAsm.lean), a
 fully verified `read_chain_id` reading byte-wise — the original's
 misaligned LWU/LD trap under the Lean model (bug bead evm-asm-iwzun).
 LH/LHU halfword loads done (Region.half16At + getHalfword bridge, LHU
-demo). Remaining: M5b-2 (.rw regions + stores; ra-spill prologue for
-multi-level call trees), then more Stateless/SSZ ports.
+demo). M5b-2 in progress: the symbolic state is now RegFile × writable
+bytes (`Reach := RegFile → List Byte → Prop`, `RwRegion` in Fn/FnHandle,
+address-routed loads, both soundness inductions generalized; multi-byte
+bytesRegion write algebra in MemRegionWriteWide.lean). Remaining: storeSem
++ store soundness (SB/SH/SW/SD block leaves), ra-spill prologue for
+multi-level call trees, then more Stateless/SSZ ports.
 
 ## Stateless Guest (parallel STF track)
 

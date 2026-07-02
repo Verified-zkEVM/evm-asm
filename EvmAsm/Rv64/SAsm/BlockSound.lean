@@ -85,16 +85,25 @@ theorem regFile_alu_spec_within (i : Instr) (op : AluOp) (rf : RegFile) (base : 
       exact holdsFor_pcFree_setPC (pcFree_sepConj (pcFree_regFileIs rf) hR) hPR
 
 /-- Single-instruction spec, dispatched through `instrOk`/`execInstrRF`:
-    ALU instructions leave the region framed; loads read from it. -/
-theorem execInstrRF_sound {i : Instr} (reg : Region) (hreg : reg.wf)
+    ALU instructions leave both regions framed; loads read from the region
+    the routing condition selects, framing the other. -/
+theorem execInstrRF_sound {i : Instr} (ro : Region) (rw : RwRegion)
+    (hro : ro.wf) (hrw : rw.wf)
     (hok : instrOk i = true)
-    (rf : RegFile) (base : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (hws : ws.length = rw.len)
+    (base : Word)
     (hvc : match loadSem i with
-      | some l => reg.loadOk (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
+      | some l =>
+          if inRw rw.base ws (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
+          then (Region.mk rw.base ws).loadOk
+            (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
+          else ro.loadOk (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
       | none => True) :
     cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base i)
-      ((regFileIs rf) ** bytesRegion reg.base reg.bytes)
-      ((regFileIs (execInstrRF reg rf i)) ** bytesRegion reg.base reg.bytes) := by
+      ((regFileIs rf) ** (bytesRegion ro.base ro.bytes ** bytesRegion rw.base ws))
+      ((regFileIs (execInstrRF ro rw.base rf ws i).1) **
+        (bytesRegion ro.base ro.bytes **
+          bytesRegion rw.base (execInstrRF ro rw.base rf ws i).2)) := by
   cases hsem : aluSem i with
   | none =>
       cases hload : loadSem i with
@@ -103,14 +112,36 @@ theorem execInstrRF_sound {i : Instr} (reg : Region) (hreg : reg.wf)
           simp only [instrOk, hsem, hload, Bool.and_eq_true] at hok
           simp only [hload] at hvc
           simp only [execInstrRF, hsem, hload]
-          exact regFile_load_spec_within i l reg rf base hload hreg
-            hok.1 hok.2 hvc
+          by_cases hroute : inRw rw.base ws (rf.get l.rs1 + signExtend12 l.ofs) l.nbytes
+          · rw [if_pos hroute] at hvc ⊢
+            have hwf' : (Region.mk rw.base ws).wf := by
+              refine ⟨hrw.1, ?_, ?_⟩
+              · show rw.base.toNat + ws.length < 2 ^ 64
+                have := hrw.2.1
+                omega
+              · intro k hk
+                have hk' : k < ws.length := hk
+                exact hrw.2.2 k (by omega)
+            have h := regFile_load_spec_within i l (Region.mk rw.base ws) rf base
+              hload hwf' hok.1 hok.2 hvc
+            have h' := cpsTripleWithin_frameR (bytesRegion ro.base ro.bytes)
+              (bytesRegion_pcFree _ _) h
+            exact cpsTripleWithin_weaken (fun hp hh => sc_to_swap hp hh)
+              (fun hp hh => sc_from_swap hp hh) h'
+          · rw [if_neg hroute] at hvc ⊢
+            have h := regFile_load_spec_within i l ro rf base
+              hload hro hok.1 hok.2 hvc
+            have h' := cpsTripleWithin_frameR (bytesRegion rw.base ws)
+              (bytesRegion_pcFree _ _) h
+            exact cpsTripleWithin_weaken (fun hp hh => sc_assoc_l hp hh)
+              (fun hp hh => sc_assoc_r hp hh) h'
   | some op =>
       simp only [instrOk, hsem, Bool.and_eq_true] at hok
       obtain ⟨hrd, hsrcs⟩ := hok
       simp only [execInstrRF, hsem]
-      exact cpsTripleWithin_frameR (bytesRegion reg.base reg.bytes)
-        (bytesRegion_pcFree _ _)
+      exact cpsTripleWithin_frameR
+        (bytesRegion ro.base ro.bytes ** bytesRegion rw.base ws)
+        (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _))
         (regFile_alu_spec_within i op rf base hsem hrd
           (fun r hr => by
             have := List.all_eq_true.mp hsrcs r hr
@@ -118,18 +149,21 @@ theorem execInstrRF_sound {i : Instr} (reg : Region) (hreg : reg.wf)
 
 /-- Block soundness: a supported straight-line block satisfies a bounded CPS
     triple under its own `CodeReq.ofProg`, moving the exposed register file
-    to its symbolic image.  `hlen` rules out address wrap-around (any real
-    block is vastly shorter). -/
-theorem execBlock_sound (reg : Region) (instrs : List Instr) (rf : RegFile)
-    (base : Word)
-    (hreg : reg.wf) (hok : blockOk instrs = true)
-    (hvcs : blockVCs reg rf instrs)
+    and the writable region's contents to their symbolic image.  `hlen`
+    rules out address wrap-around (any real block is vastly shorter). -/
+theorem execBlock_sound (ro : Region) (rw : RwRegion) (instrs : List Instr)
+    (rf : RegFile) (ws : List (BitVec 8)) (base : Word)
+    (hro : ro.wf) (hrw : rw.wf) (hws : ws.length = rw.len)
+    (hok : blockOk instrs = true)
+    (hvcs : blockVCs ro rw.base rf ws instrs)
     (hlen : 4 * instrs.length < 2 ^ 64) :
     cpsTripleWithin instrs.length base (base + BitVec.ofNat 64 (4 * instrs.length))
       (CodeReq.ofProg base instrs)
-      ((regFileIs rf) ** bytesRegion reg.base reg.bytes)
-      ((regFileIs (execBlock reg rf instrs)) ** bytesRegion reg.base reg.bytes) := by
-  induction instrs generalizing rf base with
+      ((regFileIs rf) ** (bytesRegion ro.base ro.bytes ** bytesRegion rw.base ws))
+      ((regFileIs (execBlock ro rw.base rf ws instrs).1) **
+        (bytesRegion ro.base ro.bytes **
+          bytesRegion rw.base (execBlock ro rw.base rf ws instrs).2)) := by
+  induction instrs generalizing rf ws base with
   | nil =>
       intro R hR s hcr hPR hpc
       refine ⟨0, Nat.le_refl 0, s, rfl, ?_, hPR⟩
@@ -140,8 +174,11 @@ theorem execBlock_sound (reg : Region) (instrs : List Instr) (rf : RegFile)
       obtain ⟨hvc1, hvcr⟩ := hvcs
       have hlenr : 4 * rest.length < 2 ^ 64 := by
         simp only [List.length_cons] at hlen; omega
-      have h1 := execInstrRF_sound reg hreg hoki rf base hvc1
-      have h2 := ih (execInstrRF reg rf i) (base + 4) hokr hvcr hlenr
+      have h1 := execInstrRF_sound ro rw hro hrw hoki rf ws hws base hvc1
+      have h2 := ih (execInstrRF ro rw.base rf ws i).1
+        (execInstrRF ro rw.base rf ws i).2 (base + 4)
+        (by rw [execInstrRF_ws_length]; exact hws)
+        hokr hvcr hlenr
       have hd : (CodeReq.singleton base i).Disjoint
           (CodeReq.ofProg (base + 4) rest) := by
         intro a
