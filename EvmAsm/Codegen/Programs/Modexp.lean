@@ -282,6 +282,18 @@ def modexpPrecompileGasAsm
   "  la x15, evm_precompile_frame\n" ++
   "  bnez t6, .L" ++ suffix ++ "_bn254_fail_allot\n" ++
   "  sd x23, 8(x15)\n" ++
+  "  la x28, modexp_output_scratch\n" ++
+  "  addi x29, x15, 16\n" ++
+  "  mv x24, x23\n" ++
+  ".Lmodexp_backend_frame_copy_loop_" ++ suffix ++ ":\n" ++
+  "  beqz x24, .Lmodexp_backend_frame_copy_done_" ++ suffix ++ "\n" ++
+  "  lbu x16, 0(x28)\n" ++
+  "  sb x16, 0(x29)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  j .Lmodexp_backend_frame_copy_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_backend_frame_copy_done_" ++ suffix ++ ":\n" ++
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  mv x24, x23\n" ++
   "  bgeu x22, x24, .Lmodexp_backend_copy_len_done_" ++ suffix ++ "\n" ++
