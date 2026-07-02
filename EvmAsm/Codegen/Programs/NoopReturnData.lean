@@ -13,6 +13,7 @@ namespace EvmAsm.Codegen
     `evm_precompile_frame`. -/
 def returnDataHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_RETURNDATASIZE", opcodes := [0x3d]
+    , preBody := stackOverflowGuardAsm
     , body := []
     , tail := .custom <|
         "  la x14, evm_precompile_frame\n" ++

@@ -1943,11 +1943,16 @@ def emitDispatcherDataSection
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
   ".balign 32\n" ++
+  "addmod_runtime_scratch_pad:\n" ++
+  "  .zero 160\n" ++      -- Headroom for callable MOD's negative scratch offsets.
+  ".balign 32\n" ++
   "addmod_runtime_scratch:\n" ++
-  "  .zero 128\n" ++      -- ADDMOD (0x08): two callable MOD frames for the carry path.
+  "  .zero 160\n" ++      -- ADDMOD (0x08): two callable MOD frames plus saved caller tail.
   ".balign 8\n" ++
   "addmod_saved_stack_ptr:\n" ++
-  "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
+  "  .zero 8\n" ++        -- Live EVM stack pointer across ADDMOD carry helper calls.
+  "addmod_saved_env_ptr:\n" ++
+  "  .zero 8\n" ++        -- Original dispatcher env pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++
@@ -2827,6 +2832,10 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- the emit is DEFERRED (child env on descend so a revert rolls it back; parent env on the
   -- empty-callee path, committed). One-shot: cleared at CALL entry and on emit.
   "cd_xfer_log_pending:\n  .zero 8\n" ++
+  -- bbow4.2.5.8: one-shot flag set when CALL/CALLCODE charged the 9000 value-transfer gas
+  -- before NEW_ACCOUNT state gas. Descend consumes it to avoid a double charge; empty paths
+  -- refund the 2300 stipend and clear it.
+  "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
   -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
   -- deferred Transfer log so receipt order is Transfer then Burn.
@@ -3108,11 +3117,16 @@ def emitRuntimeDispatcherDataSectionCore
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
   ".balign 32\n" ++
+  "addmod_runtime_scratch_pad:\n" ++
+  "  .zero 160\n" ++      -- Headroom for callable MOD's negative scratch offsets.
+  ".balign 32\n" ++
   "addmod_runtime_scratch:\n" ++
-  "  .zero 128\n" ++      -- ADDMOD (0x08): two callable MOD frames for the carry path.
+  "  .zero 160\n" ++      -- ADDMOD (0x08): two callable MOD frames plus saved caller tail.
   ".balign 8\n" ++
   "addmod_saved_stack_ptr:\n" ++
-  "  .zero 8\n" ++        -- Original EVM stack pointer across inner MOD calls.
+  "  .zero 8\n" ++        -- Live EVM stack pointer across ADDMOD carry helper calls.
+  "addmod_saved_env_ptr:\n" ++
+  "  .zero 8\n" ++        -- Original dispatcher env pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++

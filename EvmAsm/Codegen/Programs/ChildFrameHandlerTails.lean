@@ -290,6 +290,22 @@ def basicPrecompileCallTail
     "  mv x22, x23\n" ++
     "5:\n" ++
     "  beqz x22, 7f\n" ++
+    -- If the caller output range overlaps the identity input range at a higher
+    -- address, copy backward. Forward byte copy would smear the source bytes
+    -- (memcpy vs memmove) before later bytes are read.
+    "  bleu x19, x18, 6f\n" ++
+    "  add x23, x18, x22\n" ++
+    "  bgeu x19, x23, 6f\n" ++
+    "  add x18, x18, x22\n" ++
+    "  add x19, x19, x22\n" ++
+    "8:\n" ++
+    "  addi x18, x18, -1\n" ++
+    "  addi x19, x19, -1\n" ++
+    "  lbu x16, 0(x18)\n" ++
+    "  sb x16, 0(x19)\n" ++
+    "  addi x22, x22, -1\n" ++
+    "  bnez x22, 8b\n" ++
+    "  j 7f\n" ++
     "6:\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
@@ -397,7 +413,8 @@ def basicPrecompileCallTail
     -- the full zkvm_modexp output slice.
     ".Lmodexp_zero_header_" ++ tag ++ ":\n" ++
     modexpPrecompileGasAsm
-      chargePrecompileGasAsm tag
+      (chargePrecompileGasWithAllotmentPreservingModexpAsm tag)
+      tag
       inOffsetOff inSizeOff outOffsetOff outSizeOff ++
     -- BN254 failed-call tail (kernel invalid input / child OOG): burn the
     -- forwarded EIP-150 allotment, push 0, resume. Reached only by branches
@@ -535,10 +552,10 @@ def basicPrecompileCallTail
     "  or x16, x16, x17\n" ++
     "  lbu x17, 3(x18)\n" ++
     "  or x16, x16, x17\n" ++
-    chargePrecompileGasAsm "x16" "x17" ++
+    bn254ChargeGateAsm tag ++
     "  lbu x17, 212(x18)\n" ++
     "  li x22, 1\n" ++
-    "  bltu x22, x17, 1f\n" ++
+    "  bltu x22, x17, .L" ++ tag ++ "_bn254_kfail\n" ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++

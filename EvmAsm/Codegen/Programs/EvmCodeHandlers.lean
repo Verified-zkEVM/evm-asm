@@ -28,6 +28,7 @@ namespace EvmAsm.Codegen
 def codeHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_CODESIZE"
       opcodes := [0x38]
+      preBody := stackOverflowGuardAsm
       body    := []
       tail    := .custom <|
         "  addi x12, x12, -32\n" ++

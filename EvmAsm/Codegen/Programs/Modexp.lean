@@ -27,13 +27,13 @@ private def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : Str
   "  or " ++ dstReg ++ ", " ++ dstReg ++ ", x16\n" ++
   "  j .Lmodexp_len_next_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
   ".Lmodexp_len_high_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
-  "  bnez x16, 1f\n" ++
+  "  bnez x16, .L" ++ suffix ++ "_bn254_fail_allot\n" ++
   ".Lmodexp_len_next_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
   "  addi x29, x29, 1\n" ++
   "  j .Lmodexp_len_loop_" ++ suffix ++ "_" ++ toString fieldOff ++ "\n" ++
   ".Lmodexp_len_done_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
   "  li x31, 1024\n" ++
-  "  bltu x31, " ++ dstReg ++ ", 1f\n"
+  "  bltu x31, " ++ dstReg ++ ", .L" ++ suffix ++ "_bn254_fail_allot\n"
 
 private def modexpByteLog2Asm (suffix : String) : String :=
   "  li x31, 128\n" ++
@@ -280,8 +280,20 @@ def modexpPrecompileGasAsm
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
   "  la x15, evm_precompile_frame\n" ++
-  "  bnez t6, 1f\n" ++
+  "  bnez t6, .L" ++ suffix ++ "_bn254_fail_allot\n" ++
   "  sd x23, 8(x15)\n" ++
+  "  la x28, modexp_output_scratch\n" ++
+  "  addi x29, x15, 16\n" ++
+  "  mv x24, x23\n" ++
+  ".Lmodexp_backend_frame_copy_loop_" ++ suffix ++ ":\n" ++
+  "  beqz x24, .Lmodexp_backend_frame_copy_done_" ++ suffix ++ "\n" ++
+  "  lbu x16, 0(x28)\n" ++
+  "  sb x16, 0(x29)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  j .Lmodexp_backend_frame_copy_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_backend_frame_copy_done_" ++ suffix ++ ":\n" ++
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  mv x24, x23\n" ++
   "  bgeu x22, x24, .Lmodexp_backend_copy_len_done_" ++ suffix ++ "\n" ++

@@ -410,7 +410,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "csce_bal_struct:\n  .zero 104\n" ++
   "callee_balance_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "callee_balance_table:\n  .zero " ++ toString (128 * 64) ++ "\n" ++
+  "callee_balance_table:\n  .zero " ++ toString (512 * 64) ++ "\n" ++
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++
