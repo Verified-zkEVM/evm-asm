@@ -469,5 +469,298 @@ theorem ctxS_push_right (c : Tree.Ctx) (s0 s p k : Word) (l r : Tree) :
   exact sepConj_mono_left (fun hq hx =>
     ⟨s, p, pl, (sepConj_pure_left hq).mpr ⟨rfl, hx⟩⟩) hp hshaped
 
+-- ============================================================================
+-- The free node
+-- ============================================================================
+
+/-- The 24-byte free node at `q` (contents junk until the terminal fill). -/
+def junkAt (q : Word) (junk : List (BitVec 8)) : Assertion :=
+  ⌜RwRegion.wf ⟨q, 24⟩⌝ ** bytesRegion q junk
+
+theorem pcFree_junkAt (q : Word) (junk : List (BitVec 8)) :
+    (junkAt q junk).pcFree :=
+  pcFree_sepConj pcFree_pure (bytesRegion_pcFree _ _)
+
+/-- The well-formedness a slot cell bakes in. -/
+theorem slotCell_wf {s p : Word} {hp : PartialState} (h : slotCell s p hp) :
+    RwRegion.wf ⟨s, 8⟩ :=
+  ((sepConj_pure_left hp).mp h).1
+
+-- ============================================================================
+-- The annotations
+-- ============================================================================
+
+/-- Focus annotation of the root-slot load: the window is the root slot's
+    pointer cell; the remainder is its well-formedness, the free node, and
+    the tree hanging from the loaded pointer. -/
+def treeInsLoad0R (q : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop :=
+  fun rf _ _ win rest => ∃ p : Word,
+    win = dwordBytes p
+    ∧ rest = (⌜RwRegion.wf ⟨rf.get .x10, 8⟩⌝ **
+        ((junkAt q junk) ** treeAtS p t0))
+
+/-- The enter ghost: reseal the root slot around the loaded pointer, open
+    the trivial zipper, and harvest the nil-pointer shadow. -/
+def treeInsEnterR (s0 q : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion → Assertion → Prop :=
+  fun rf _ _ A' =>
+    A' = ((junkAt q junk) **
+      ((ctxS .top s0 (rf.get .x10)) **
+        ((slotCell (rf.get .x10) (rf.get .x12)) ** treeAtS (rf.get .x12) t0)))
+    ∧ (rf.get .x12 = 0 ↔ t0 = .leaf)
+
+/-- The loop invariant of the insertion walk: a slot zipper and the current
+    subtree (both ghost), the insertion-image plug identity, freshness of
+    the key below the hole, the nil-pointer shadow, the counter-register
+    tie, the remaining-depth bound, and the pinned argument registers. -/
+def treeInsInv (s0 x q : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
+  fun i rf _ A => ∃ (c : Tree.Ctx) (t' : Tree),
+    A = ((junkAt q junk) **
+      ((ctxS c s0 (rf.get .x10)) **
+        ((slotCell (rf.get .x10) (rf.get .x12)) ** treeAtS (rf.get .x12) t')))
+    ∧ c.zip (t'.insert x) = t0.insert x
+    ∧ x ∉ t'.keys
+    ∧ (rf.get .x12 = 0 ↔ t' = .leaf)
+    ∧ rf.get .x15 = BitVec.ofNat 64 i
+    ∧ t'.depth + i ≤ t0.depth
+    ∧ rf.get .x11 = x
+    ∧ rf.get .x14 = q
+
+/-- Focus annotation of the node-key load: the window is the current node's
+    key cell; the remainder is everything else, with the node opened into
+    its key-cell well-formedness and two child slots. -/
+def treeInsKeyR (s0 x q : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop :=
+  fun rf _ _ win rest =>
+    ∃ (c : Tree.Ctx) (k : Word) (l r : Tree) (pl pr : Word),
+    win = dwordBytes k
+    ∧ rest = (⌜RwRegion.wf ⟨rf.get .x12, 8⟩⌝ **
+        ((junkAt q junk) **
+          ((ctxS c s0 (rf.get .x10)) **
+            ((slotCell (rf.get .x10) (rf.get .x12)) **
+              (((slotCell (rf.get .x12 + 8) pl) ** treeAtS pl l) **
+               ((slotCell (rf.get .x12 + 16) pr) ** treeAtS pr r))))))
+    ∧ c.zip ((Tree.node k l r).insert x) = t0.insert x
+    ∧ x ∉ (Tree.node k l r).keys
+    ∧ (Tree.node k l r).depth + (rf.get .x15).toNat ≤ t0.depth
+
+/-- The descend ghost (shared by both branches): after `cur := p+8`/`p+16`
+    the ambient is a pushed zipper frame plus the chosen child's slot-tree.
+    The context existential hides which direction was taken. -/
+def treeInsDescendR (s0 x q : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion → Assertion → Prop :=
+  fun rf _ _ A' => ∃ (c' : Tree.Ctx) (t' : Tree),
+    A' = ((junkAt q junk) **
+      ((ctxS c' s0 (rf.get .x10)) ** treeFrom (rf.get .x10) t'))
+    ∧ c'.zip (t'.insert x) = t0.insert x
+    ∧ x ∉ t'.keys
+    ∧ t'.depth + (rf.get .x15).toNat ≤ t0.depth
+
+/-- Focus annotation of the next-slot load: the window is the current
+    slot's pointer cell. -/
+def treeInsSlotR (s0 x q : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop :=
+  fun rf _ _ win rest => ∃ (c' : Tree.Ctx) (p' : Word) (t' : Tree),
+    win = dwordBytes p'
+    ∧ rest = (⌜RwRegion.wf ⟨rf.get .x10, 8⟩⌝ **
+        ((junkAt q junk) **
+          ((ctxS c' s0 (rf.get .x10)) ** treeAtS p' t')))
+    ∧ c'.zip (t'.insert x) = t0.insert x
+    ∧ x ∉ t'.keys
+    ∧ t'.depth + (rf.get .x15).toNat ≤ t0.depth
+
+/-- The step ghost: reseal the slot around the loaded pointer and harvest
+    the child's nil-pointer shadow — the invariant shape at `i+1`. -/
+def treeInsStepR (s0 x q : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion → Assertion → Prop :=
+  fun rf _ _ A' => ∃ (c' : Tree.Ctx) (t' : Tree),
+    A' = ((junkAt q junk) **
+      ((ctxS c' s0 (rf.get .x10)) **
+        ((slotCell (rf.get .x10) (rf.get .x12)) ** treeAtS (rf.get .x12) t')))
+    ∧ c'.zip (t'.insert x) = t0.insert x
+    ∧ x ∉ t'.keys
+    ∧ (rf.get .x12 = 0 ↔ t' = .leaf)
+    ∧ t'.depth + (rf.get .x15).toNat ≤ t0.depth
+
+/-- Focus annotation of the terminal fill: the window is the free node's
+    24 junk bytes; the loop has exited, so the hole subtree is a leaf. -/
+def treeInsFillR (s0 x : Word) (junk : List (BitVec 8)) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop :=
+  fun rf _ _ win rest => ∃ (c : Tree.Ctx),
+    win = junk
+    ∧ rest = (⌜RwRegion.wf ⟨rf.get .x14, 24⟩⌝ **
+        ((ctxS c s0 (rf.get .x10)) **
+          ((slotCell (rf.get .x10) (rf.get .x12)) **
+            treeAtS (rf.get .x12) .leaf)))
+    ∧ c.zip (Tree.leaf.insert x) = t0.insert x
+
+/-- The mknode ghost: the filled bytes are a fresh singleton node. -/
+def treeInsMkR (s0 x : Word) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion → Assertion → Prop :=
+  fun rf _ _ A' => ∃ (c : Tree.Ctx),
+    A' = ((ctxS c s0 (rf.get .x10)) **
+      ((slotCell (rf.get .x10) (rf.get .x12)) **
+        treeAtS (rf.get .x14) (.node x .leaf .leaf)))
+    ∧ c.zip (Tree.leaf.insert x) = t0.insert x
+
+/-- Focus annotation of the terminal store: the window is the hole slot's
+    pointer cell (still nil). -/
+def treeInsStoreR (s0 x : Word) (t0 : Tree) :
+    RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop :=
+  fun rf _ _ win rest => ∃ (c : Tree.Ctx),
+    win = dwordBytes (rf.get .x12)
+    ∧ rest = (⌜RwRegion.wf ⟨rf.get .x10, 8⟩⌝ **
+        ((ctxS c s0 (rf.get .x10)) **
+          treeAtS (rf.get .x14) (.node x .leaf .leaf)))
+    ∧ c.zip (Tree.leaf.insert x) = t0.insert x
+
+-- ============================================================================
+-- The function
+-- ============================================================================
+
+/-- Sorted-BST insertion, slot-based: walk the pointer-cell addresses to
+    the nil slot where `x` belongs (duplicates excluded by precondition),
+    fill the free node at `a4` with `(x, nil, nil)`, and store its address
+    through the hole slot.  `a0` = root slot, `a1` = key, `a4` = free node;
+    ghosts: the tree `t0`, the free node's junk bytes. -/
+def treeInsertFn (s0 x q : Word) (junk : List (BitVec 8)) (t0 : Tree) : Fn where
+  name := "treeInsert"
+  pre := fun rf _ A => rf.get .x10 = s0 ∧ rf.get .x11 = x ∧ rf.get .x14 = q
+    ∧ A = ((junkAt q junk) ** treeFrom s0 t0)
+  post := fun _ _ A => A = treeFrom s0 (t0.insert x)
+  body :=
+    .block "init" [.LI .x15 0] ;;;
+    .blockAt "load0" .x10 (treeInsLoad0R q junk t0) [.LD .x12 .x10 0] ;;;
+    .ghost "enter" (treeInsEnterR s0 q junk t0) ;;;
+    .«while» "walk" (.bne .x12 .x0) t0.depth (treeInsInv s0 x q junk t0)
+      (.blockAt "node" .x12 (treeInsKeyR s0 x q junk t0)
+          [.LD .x13 .x12 0, .ADDI .x15 .x15 1] ;;;
+       .ite "cmp" (.bltu .x11 .x13)
+         (.block "goL" [.ADDI .x10 .x12 8] ;;;
+          .ghost "stepL" (treeInsDescendR s0 x q junk t0))
+         (.block "goR" [.ADDI .x10 .x12 16] ;;;
+          .ghost "stepR" (treeInsDescendR s0 x q junk t0)) ;;;
+       .blockAt "load" .x10 (treeInsSlotR s0 x q junk t0) [.LD .x12 .x10 0] ;;;
+       .ghost "step" (treeInsStepR s0 x q junk t0)) ;;;
+    .blockAt "fill" .x14 (treeInsFillR s0 x junk t0)
+      [.SD .x14 .x11 0, .SD .x14 .x0 8, .SD .x14 .x0 16] ;;;
+    .ghost "mknode" (treeInsMkR s0 x t0) ;;;
+    .blockAt "store" .x10 (treeInsStoreR s0 x t0) [.SD .x10 .x14 0] ;;;
+    .ghost "fold" (fun _ _ _ A' => A' = treeFrom s0 (t0.insert x))
+
+-- ============================================================================
+-- The block engines
+-- ============================================================================
+
+private theorem treeIns_li_engine (reg : Region) (b : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) :
+    (execBlock reg b rf ws [.LI .x15 0]).1 = rf.set .x15 0 := by
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+
+private theorem treeIns_addi_engine (reg : Region) (b : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (ofs : BitVec 12) :
+    (execBlock reg b rf ws [.ADDI .x10 .x12 ofs]).1
+      = rf.set .x10 (rf.get .x12 + signExtend12 ofs) := by
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+
+/-- The slot-load block: `a2 := *(a0)` with the slot cell as the window. -/
+private theorem treeIns_load_engine (reg : Region) (rf : RegFile) (p : Word) :
+    (execBlock reg (rf.get .x10) rf (dwordBytes p) [.LD .x12 .x10 0]).1
+        = rf.set .x12 p
+    ∧ (execBlock reg (rf.get .x10) rf (dwordBytes p) [.LD .x12 .x10 0]).2
+        = dwordBytes p := by
+  have h0 : ((rf.get .x10 + signExtend12 (0 : BitVec 12))
+      - rf.get .x10).toNat = 0 := by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    bv_omega
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem, aluSem]
+  rw [if_pos (show inRw (rf.get .x10) (dwordBytes p)
+      (rf.get .x10 + signExtend12 0) 8 from by
+    unfold inRw
+    rw [h0, length_dwordBytes])]
+  refine ⟨?_, trivial⟩
+  show rf.set .x12 (Region.dwordAt ⟨rf.get .x10, dwordBytes p⟩ _) = _
+  unfold Region.dwordAt
+  rw [show ((rf.get .x10 + signExtend12 0)
+      - (⟨rf.get .x10, dwordBytes p⟩ : Region).base).toNat = 0 from h0,
+    List.drop_zero, List.take_of_length_le (by rw [length_dwordBytes]),
+    packBytes_dwordBytes]
+
+/-- The node-visit block: `a3 := *(a2)`, bump the counter. -/
+private theorem treeIns_node_engine (reg : Region) (rf : RegFile) (k : Word) :
+    (execBlock reg (rf.get .x12) rf (dwordBytes k)
+        [.LD .x13 .x12 0, .ADDI .x15 .x15 1]).1
+      = (rf.set .x13 k).set .x15 (rf.get .x15 + 1)
+    ∧ (execBlock reg (rf.get .x12) rf (dwordBytes k)
+        [.LD .x13 .x12 0, .ADDI .x15 .x15 1]).2
+      = dwordBytes k := by
+  have h0 : ((rf.get .x12 + signExtend12 (0 : BitVec 12))
+      - rf.get .x12).toNat = 0 := by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    bv_omega
+  have hv : Region.dwordAt ⟨rf.get .x12, dwordBytes k⟩
+      (rf.get .x12 + signExtend12 0) = k := by
+    unfold Region.dwordAt
+    rw [show ((rf.get .x12 + signExtend12 0)
+        - (⟨rf.get .x12, dwordBytes k⟩ : Region).base).toNat = 0 from h0,
+      List.drop_zero, List.take_of_length_le (by rw [length_dwordBytes]),
+      packBytes_dwordBytes]
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem, aluSem]
+  rw [if_pos (show inRw (rf.get .x12) (dwordBytes k)
+      (rf.get .x12 + signExtend12 0) 8 from by
+    unfold inRw
+    rw [h0, length_dwordBytes])]
+  rw [hv, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
+    RegFile.get_set_ne _ .x13 .x15 _ (by decide)]
+  exact ⟨rfl, trivial⟩
+
+/-- The fill block: write key and nil children over the free node's junk. -/
+private theorem treeIns_fill_engine (reg : Region) (rf : RegFile)
+    (junk : List (BitVec 8)) (h24 : junk.length = 24) :
+    (execBlock reg (rf.get .x14) rf junk
+        [.SD .x14 .x11 0, .SD .x14 .x0 8, .SD .x14 .x0 16]).1 = rf
+    ∧ (execBlock reg (rf.get .x14) rf junk
+        [.SD .x14 .x11 0, .SD .x14 .x0 8, .SD .x14 .x0 16]).2
+      = nodeBytes (rf.get .x11) 0 0 := by
+  have h0 : ((rf.get .x14 + signExtend12 (0 : BitVec 12))
+      - rf.get .x14).toNat = 0 := by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    bv_omega
+  have h8 : ((rf.get .x14 + signExtend12 (8 : BitVec 12))
+      - rf.get .x14).toNat = 8 := by
+    rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
+    bv_omega
+  have h16 : ((rf.get .x14 + signExtend12 (16 : BitVec 12))
+      - rf.get .x14).toNat = 16 := by
+    rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]
+    bv_omega
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem, aluSem,
+    storeSem, RegFile.get_x0]
+  rw [h0, h8, h16]
+  exact ⟨trivial, setBytes_junk_node junk (rf.get .x11) h24⟩
+
+/-- The terminal store: `*(a0) := a4`, replacing the hole slot's content. -/
+private theorem treeIns_store_engine (reg : Region) (rf : RegFile)
+    (p0 : Word) :
+    (execBlock reg (rf.get .x10) rf (dwordBytes p0) [.SD .x10 .x14 0]).1 = rf
+    ∧ (execBlock reg (rf.get .x10) rf (dwordBytes p0) [.SD .x10 .x14 0]).2
+      = dwordBytes (rf.get .x14) := by
+  have h0 : ((rf.get .x10 + signExtend12 (0 : BitVec 12))
+      - rf.get .x10).toNat = 0 := by
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+    bv_omega
+  simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem, aluSem,
+    storeSem]
+  rw [h0]
+  exact ⟨trivial, setBytes_dword_full (dwordBytes p0) (rf.get .x14)
+    (length_dwordBytes p0)⟩
+
 end SAsm
 end EvmAsm.Rv64
