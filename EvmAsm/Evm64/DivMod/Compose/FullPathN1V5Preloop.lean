@@ -164,13 +164,13 @@ theorem evm_div_phaseAB_n1_clz_c2_spec_v5_noNop (sp base : Word)
 /-- DIV PhaseAB(n=1) + CLZ + PhaseC2(ntaken) + NormB over `divCode_noNop_v5`. -/
 theorem evm_div_phaseAB_n1_clz_c2_normB_spec_v5_noNop (sp base : Word)
     (b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u5 u6 u7 nMem shiftMem : Word)
+    (q0 q1 q2 q3 u5 u6 u7 nMem shiftMem x2In : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_nz : (clzResult b0).1 ≠ 0) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21) base (base + normAOff) (divCode_noNop_v5 base)
       (evmDivPhaseABN1ClzC2NormBPre sp v5 v6 v7 v10 b0 b1 b2 b3
-        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem)
+        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem x2In)
       (evmDivPhaseABN1ClzC2NormBFullPost sp b0 b1 b2 b3) := by
   simp only [evmDivPhaseABN1ClzC2NormBPre_unfold,
              evmDivPhaseABN1ClzC2NormBFullPost_unfold]
@@ -181,7 +181,7 @@ theorem evm_div_phaseAB_n1_clz_c2_normB_spec_v5_noNop (sp base : Word)
   let b1' := (b1 <<< (shift.toNat % 64)) ||| (b0 >>> (antiShift.toNat % 64))
   let b0' := b0 <<< (shift.toNat % 64)
   have hC2 := evm_div_phaseAB_n1_clz_c2_spec_v5_noNop sp base
-    b0 b1 b2 b3 v5 v6 v7 v10 ((clzResult b0).2 >>> (63 : Nat))
+    b0 b1 b2 b3 v5 v6 v7 v10 x2In
     q0 q1 q2 q3 u5 u6 u7 nMem shiftMem
     hbnz hb3z hb2z hb1z hshift_nz
   have hNB := divK_normB_full_spec_within_v5_noNop sp b0 b1 b2 b3
@@ -241,6 +241,7 @@ theorem evm_div_n1_to_loopSetup_spec_v5_noNop (sp base : Word)
   let u0 := a0 <<< (shift.toNat % 64)
   have hNB := evm_div_phaseAB_n1_clz_c2_normB_spec_v5_noNop sp base
     b0 b1 b2 b3 v5 v6 v7 v10 q0 q1 q2 q3 u5 u6 u7 nMem shiftMem
+    ((clzResult b0).2 >>> (63 : Nat))
     hbnz hb3z hb2z hb1z hshift_nz
   simp only [evmDivPhaseABN1ClzC2NormBPre_unfold,
       evmDivPhaseABN1ClzC2NormBFullPost_unfold] at hNB
