@@ -2517,7 +2517,13 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
+Stage 6 landed: docs/sasm-howto.md — the agent-facing working manual
+(model, quickstart, VC recipes, spec surface/consequence/frame, loops +
+counter-register bridge, calls + hand-triple packaging, ghost/focus/
+harvest + tree-walk template, SSZ drop-in port recipe + EEST A/B,
+pitfalls, delivery checklist). Remaining in milestone: 5b
+sortedTreeInsert demo (walk template + freeNode allocation + focus
+store + parent-pointer write). Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
 proof: while-loop with existential zipper-ghost invariant, focus blocks
 opening nodes at a register-held pointer, ghost descend
 (ctxAt_push_left) with nil-shadow harvest, post-loop reseal

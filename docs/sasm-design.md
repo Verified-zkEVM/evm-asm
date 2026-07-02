@@ -436,6 +436,13 @@ Implementation constraints (robustness / recursion-safety):
   `run_stateless_guest_spec` by `call` nodes rather than bespoke composition
   theorems.
 
+## 4.9 Working manual
+
+Day-to-day recipes (defining functions, discharging each VC kind, the
+port + EEST A/B procedure, pitfalls) live in **docs/sasm-howto.md** —
+that document, not this one, is what to hand an agent tasked with
+verifying or porting a routine.
+
 ## 5. Milestones
 
 1. **M1 — skeleton (this PR series):** `RegFile`, `Cond`, `Stmt`, `Region`
