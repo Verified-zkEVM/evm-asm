@@ -199,6 +199,136 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | call lbl f =>
       exact fun rf ws A hr => hr
 
+-- ============================================================================
+-- Structural `sp` eliminators (docs/sasm-howto.md, "Branchy straight-line
+-- code"): prove `∀ rf ws A, sp s reach rf ws A → P rf ws A` by the shape
+-- of `s`, without hand-destructuring the raw existentials/disjunctions.
+-- ============================================================================
+
+/-- `sp` through `;;;`, as a rewrite. -/
+theorem sp_seq_eq (reg : Region) (rw : RwRegion) (a b : Stmt) (reach : Reach) :
+    sp reg rw (.seq a b) reach = sp reg rw b (sp reg rw a reach) := rfl
+
+/-- `sp` through `.assert`, as a rewrite. -/
+theorem sp_assert_eq (reg : Region) (rw : RwRegion) (lbl : String)
+    (P reach : Reach) :
+    sp reg rw (.assert lbl P) reach
+      = fun rf ws A => reach rf ws A ∧ P rf ws A := rfl
+
+/-- **The cut**: downstream of an `.assert`, the pre-assert reachable set
+    may be forgotten — any `sp` continuation from `sp (assert P) reach`
+    is also an `sp` continuation from `P` alone.  Apply this first in a
+    VC whose reach passes through an assert; the rest of the proof only
+    ever sees the summary `P`. -/
+theorem sp_cut (reg : Region) (rw : RwRegion) (s : Stmt) (lbl : String)
+    {reach P : Reach} :
+    ∀ rf ws A, sp reg rw s (sp reg rw (.assert lbl P) reach) rf ws A →
+      sp reg rw s P rf ws A :=
+  sp_mono reg rw s (fun _ _ _ h => h.2)
+
+/-- Split an `.ite` elimination into its two branches. -/
+theorem sp_ite_split (reg : Region) (rw : RwRegion) {lbl : String}
+    {c : Cond} {t e : Stmt} {reach : Reach} {P : Reach}
+    (ht : ∀ rf ws A,
+      sp reg rw t (fun rf ws A => reach rf ws A ∧ c.holds rf) rf ws A →
+      P rf ws A)
+    (he : ∀ rf ws A,
+      sp reg rw e (fun rf ws A => reach rf ws A ∧ ¬ c.holds rf) rf ws A →
+      P rf ws A) :
+    ∀ rf ws A, sp reg rw (.ite lbl c t e) reach rf ws A → P rf ws A := by
+  rintro rf ws A (h | h)
+  · exact ht rf ws A h
+  · exact he rf ws A h
+
+/-- Split a `.when` elimination into its body and skip paths. -/
+theorem sp_when_split (reg : Region) (rw : RwRegion) {lbl : String}
+    {c : Cond} {b : Stmt} {reach : Reach} {P : Reach}
+    (hb : ∀ rf ws A,
+      sp reg rw b (fun rf ws A => reach rf ws A ∧ c.holds rf) rf ws A →
+      P rf ws A)
+    (hskip : ∀ rf ws A, reach rf ws A → ¬ c.holds rf → P rf ws A) :
+    ∀ rf ws A, sp reg rw (.when lbl c b) reach rf ws A → P rf ws A := by
+  rintro rf ws A (h | ⟨hr, hn⟩)
+  · exact hb rf ws A h
+  · exact hskip rf ws A hr hn
+
+/-- Eliminate a `.block`: prove `P` of the engine result at every
+    reachable entry state. -/
+theorem sp_block_split (reg : Region) (rw : RwRegion) {lbl : String}
+    {is : List Instr} {reach : Reach} {P : Reach}
+    (h : ∀ rf ws A, ws.length = rw.len → reach rf ws A →
+      P (execBlock reg rw.base rf ws is).1
+        (execBlock reg rw.base rf ws is).2 A) :
+    ∀ rf ws A, sp reg rw (.block lbl is) reach rf ws A → P rf ws A := by
+  rintro rf' ws' A ⟨rf, ws, hlen, hr, rfl, rfl⟩
+  exact h rf ws A hlen hr
+
+/-- Eliminate a `.blockAt`: prove `P` of the engine result over the
+    focused window at every reachable entry state — the post-VC shape
+    after a focus block, without hand-destructuring the six-tuple. -/
+theorem sp_blockAt_split (reg : Region) (rw : RwRegion) {lbl : String}
+    {p : Reg}
+    {winR : RegFile → List (BitVec 8) → Assertion →
+      List (BitVec 8) → Assertion → Prop}
+    {is : List Instr} {reach : Reach} {P : Reach}
+    (h : ∀ rf ws A win rest, ws.length = rw.len → reach rf ws A →
+      (∃ hp, (bytesRegion (rf.get p) win ** rest) hp) →
+      winR rf ws A win rest →
+      P (execBlock reg (rf.get p) rf win is).1 ws
+        ((bytesRegion (rf.get p) (execBlock reg (rf.get p) rf win is).2)
+          ** rest)) :
+    ∀ rf' ws' A'', sp reg rw (.blockAt lbl p winR is) reach rf' ws' A'' →
+      P rf' ws' A'' := by
+  rintro rf' ws' A'' ⟨rf, A, win, rest, hlen, hr, hsat, hwinR, rfl, rfl⟩
+  exact h rf ws' A win rest hlen hr hsat hwinR
+
+/-- Eliminate a `.ghost`. -/
+theorem sp_ghost_split (reg : Region) (rw : RwRegion) {lbl : String}
+    {R : RegFile → List (BitVec 8) → Assertion → Assertion → Prop}
+    {reach : Reach} {P : Reach}
+    (h : ∀ rf ws A A', reach rf ws A → (∃ hp, A hp) → R rf ws A A' →
+      P rf ws A') :
+    ∀ rf ws A', sp reg rw (.ghost lbl R) reach rf ws A' → P rf ws A' := by
+  rintro rf ws A' ⟨A, hr, hsat, hR⟩
+  exact h rf ws A A' hr hsat hR
+
+/-- Every control path through the statement ends in `.assert P`
+    (syntactically).  This is the *branch-tail summary* shape: instead of
+    one `.assert` after an `ite` cascade (whose VC must destructure the
+    whole disjunction), place the SAME assert at the tail of every
+    branch — each assert VC then sees only its own linear path, and
+    `sp_of_endsWith` hands the downstream the summary with no case
+    analysis at all. -/
+def EndsWith (P : Reach) : Stmt → Prop
+  | .assert _ Q => Q = P
+  | .seq _ b => b.EndsWith P
+  | .ite _ _ t e => t.EndsWith P ∧ e.EndsWith P
+  | _ => False
+
+/-- The branch-tail summary: if every path ends in `.assert P`, the
+    strongest postcondition entails `P` — for any entry reachable set. -/
+theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
+    {s : Stmt} (h : s.EndsWith P) :
+    ∀ {reach : Reach} (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
+      sp reg rw s reach rf ws A → P rf ws A := by
+  induction s with
+  | assert lbl Q =>
+      intro reach rf ws A hsp
+      exact h ▸ hsp.2
+  | seq a b iha ihb =>
+      intro reach rf ws A hsp
+      exact ihb h rf ws A hsp
+  | ite lbl c t e iht ihe =>
+      rintro reach rf ws A (hsp | hsp)
+      · exact iht h.1 rf ws A hsp
+      · exact ihe h.2 rf ws A hsp
+  | block lbl is => exact nomatch h
+  | «when» lbl c b ih => exact nomatch h
+  | blockAt lbl p winR is => exact nomatch h
+  | ghost lbl R => exact nomatch h
+  | «while» lbl c fuel inv b ih => exact nomatch h
+  | call lbl f => exact nomatch h
+
 /-- `vcs` is antitone in the reachable set: obligations proven for a larger
     reachable set cover any smaller one.  Used to specialize loop-body VCs
     (generated at the union over iterations) to a specific iteration. -/
