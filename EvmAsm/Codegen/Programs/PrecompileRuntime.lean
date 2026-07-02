@@ -267,15 +267,15 @@ def bn254ChargeGateAsm (tag : String) : String :=
   "  la x17, bn254_allot_rest\n" ++
   "  sd x22, 0(x17)\n"
 
-/-- BN254 failed-call tail (shared by the `tag`'s ecAdd/ecMul entries).
+/-- Precompile failed-call tail (shared by BN254 and MODEXP hard-fail paths).
     `.L<tag>_bn254_kfail` is the kernel-invalid-input target: it reloads
     the parked allotment remainder and falls into `.L<tag>_bn254_fail_burn`,
     which burns x22 gas, then pushes 0 (failed call, empty returndata) and
     resumes the dispatch loop. Only reachable via branches. -/
 def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
   -- Entry for failures detected BEFORE the charge gate parked the
-  -- allotment (a pairing gas-formula overflow: the cost necessarily
-  -- exceeds any 64-bit allotment): compute A fresh and burn it.
+  -- allotment (for example, a pairing gas-formula overflow or MODEXP
+  -- capped-length/backend failure): compute A fresh and burn it.
   ".L" ++ tag ++ "_bn254_fail_allot:\n" ++
   "  jal x1, bn254_call_allotment\n" ++
   "  j .L" ++ tag ++ "_bn254_fail_burn\n" ++
