@@ -102,6 +102,32 @@ def secp256k1PointAddFunction : String :=
   "  addi sp, sp, -40\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  -- The scalar-mul helper represents the point at infinity as zero64. Treat it
+  -- as the additive identity before using the affine accelerator.
+  "  mv a0, s0\n" ++
+  "  jal ra, secf_is_zero32\n" ++
+  "  beqz a0, .Lsecc_add_check_q_inf\n" ++
+  "  addi a0, s0, 32\n" ++
+  "  jal ra, secf_is_zero32\n" ++
+  "  beqz a0, .Lsecc_add_check_q_inf\n" ++
+  "  mv a0, s1\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, secp256k1_point_copy64\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lsecc_add_ret\n" ++
+  ".Lsecc_add_check_q_inf:\n" ++
+  "  mv a0, s1\n" ++
+  "  jal ra, secf_is_zero32\n" ++
+  "  beqz a0, .Lsecc_add_regular\n" ++
+  "  addi a0, s1, 32\n" ++
+  "  jal ra, secf_is_zero32\n" ++
+  "  beqz a0, .Lsecc_add_regular\n" ++
+  "  mv a0, s0\n" ++
+  "  mv a1, s2\n" ++
+  "  jal ra, secp256k1_point_copy64\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lsecc_add_ret\n" ++
+  ".Lsecc_add_regular:\n" ++
   "  mv a0, s0\n" ++
   "  mv a1, s1\n" ++
   "  jal ra, secf_eq32\n" ++
