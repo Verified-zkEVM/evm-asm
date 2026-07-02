@@ -2517,7 +2517,13 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Stage 4.75 landed: focus `.focus` VC witnesses are PER-SATISFYING-STATE
+Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
+proof: while-loop with existential zipper-ghost invariant, focus blocks
+opening nodes at a register-held pointer, ghost descend
+(ctxAt_push_left) with nil-shadow harvest, post-loop reseal
+(ctxAt_zip_fold), and the counter-register bridge carrying the loop
+index into annotation relations. Every framework mechanism exercised in
+one kernel-clean theorem. Stage 4.75 landed: focus `.focus` VC witnesses are PER-SATISFYING-STATE
 (recursive predicates carry existential child pointers *inside* the
 assertion; a single decomposition equality is unsatisfiable — the VC now
 skolemizes at the machine sub-state, sp records satisfiability of the
