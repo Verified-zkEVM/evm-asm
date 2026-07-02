@@ -2517,7 +2517,11 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Next stages:
+Stage 4 landed: TreeSep.lean —
+Tree/keys/insert/Sorted/insert_sorted (pure model), 3-dword node layout
+(nodeBytes/nodeAt with baked p≠0 + RwRegion.wf), recursive treeAt,
+zipper Tree.Ctx/ctxAt with ctxAt_zip_fold (reseal) and
+ctxAt_push_left/right (descend), all pcFree lemmas. Next stages:
 tree library + sorted-BST insertion demo, docs/sasm-howto.md.
 read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
