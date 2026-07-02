@@ -18,6 +18,11 @@ import EvmAsm.Rv64.SAsm.StmtSound
 import EvmAsm.Rv64.SAsm.Handle
 import EvmAsm.Rv64.SAsm.StmtSoundCall
 import EvmAsm.Rv64.SAsm.Fn
+import EvmAsm.Rv64.SAsm.AssertionSpec
+import EvmAsm.Rv64.SAsm.TreeSep
+import EvmAsm.Rv64.SAsm.TreeDemo
+import EvmAsm.Rv64.SAsm.TreeInsert
+import EvmAsm.Rv64.SAsm.RaSpill
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Rv64.SAsm.Examples
 import EvmAsm.Rv64.SAsm.ExamplesVc

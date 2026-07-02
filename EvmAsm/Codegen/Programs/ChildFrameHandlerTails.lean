@@ -50,15 +50,16 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
 
 def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : String :=
   -- Value-bearing CALL/CALLCODE to a precompile still runs the generic-call
-  -- caller-balance check before entering the precompile. On insufficient
-  -- balance, execution-specs charges the net value-call gas and returns 0.
+  -- caller-balance check before entering the precompile. The precompile fast
+  -- path charges CALL_VALUE on the successful balance path; insufficient
+  -- balance keeps the net value-call charge and returns 0.
   "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
   "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
   "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
   "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
   "  beqz t3, .L" ++ tag ++ "_precompile_balok\n" ++
   "  ld t3, 584(x20)\n" ++
-  "  beqz t3, .L" ++ tag ++ "_precompile_balok\n" ++
+  "  beqz t3, .L" ++ tag ++ "_precompile_value_balok\n" ++
   "  la t0, cd_value_be\n" ++
   "  addi t1, x12, " ++ toString (valueOff+31) ++ "\n" ++
   "  li t2, 32\n" ++
@@ -77,9 +78,13 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   ".L" ++ tag ++ "_precompile_cmp:\n" ++
   "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
   "  bltu t3, t4, .L" ++ tag ++ "_precompile_insuffbal\n" ++
-  "  bltu t4, t3, .L" ++ tag ++ "_precompile_balok\n" ++
+  "  bltu t4, t3, .L" ++ tag ++ "_precompile_value_balok\n" ++
   "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .L" ++ tag ++ "_precompile_cmp\n" ++
+  ".L" ++ tag ++ "_precompile_value_balok:\n" ++
+  "  li t0, 9000\n" ++
+  "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
+  "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
   ".L" ++ tag ++ "_precompile_balok:\n" ++
   "  j .L" ++ tag ++ "_precompile_dispatch\n" ++
   ".L" ++ tag ++ "_precompile_insuffbal:\n" ++
@@ -97,6 +102,34 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   "  addi x10, x10, 1\n" ++
   "  j .dispatch_loop\n" ++
   ".L" ++ tag ++ "_precompile_dispatch:\n"
+
+def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) : String :=
+  match valueOff? with
+  | none => ""
+  | some valueOff =>
+    -- Value-bearing precompile calls are successful child messages when they
+    -- reach the shared success tail. Emit the EIP-7708 transfer log here, not
+    -- before dispatch, so failed precompile calls keep the ordinary child
+    -- rollback behavior. The appender expects raw EVM stack-word pointers:
+    -- env.ADDRESS at x20, callee at x12+32, and value at x12+valueOff.
+    "  ld t0, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t1, " ++ toString (valueOff+8) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+16) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, " ++ toString (valueOff+24) ++ "(x12)\n  or t0, t0, t1\n" ++
+    "  beqz t0, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
+    "  mv t0, x20\n  addi t1, x12, 32\n  li t2, 20\n" ++
+    ".L" ++ tag ++ "_precompile_xlog_selfcmp:\n" ++
+    "  beqz t2, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
+    "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
+    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
+    "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
+    "  j .L" ++ tag ++ "_precompile_xlog_selfcmp\n" ++
+    ".L" ++ tag ++ "_precompile_xlog_emit:\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  mv a0, x20\n  addi a1, x12, 32\n  addi a2, x12, " ++ toString valueOff ++ "\n" ++
+    "  jal ra, eip7708_append_transfer_log\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    ".L" ++ tag ++ "_precompile_xlog_skip:\n"
 
 def basicPrecompileCallTail
       (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
@@ -314,6 +347,7 @@ def basicPrecompileCallTail
     "  addi x22, x22, -1\n" ++
     "  bnez x22, 6b\n" ++
     "7:\n" ++
+    emitSuccessfulPrecompileValueLogAsm tag valueOff? ++
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1\n" ++
     "  sd x14, 0(x12)\n" ++
@@ -624,7 +658,7 @@ def basicPrecompileCallTail
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    chargePrecompileGasConstAsm 6900 "x16" "x17" ++
+    chargePrecompileGasConstWithAllotmentAsm tag 6900 "x16" "x17" ++
     "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x17, 160\n" ++
     "  bne x16, x17, 12f\n" ++

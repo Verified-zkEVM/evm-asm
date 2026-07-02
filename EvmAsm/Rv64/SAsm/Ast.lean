@@ -111,12 +111,39 @@ inductive Stmt where
   /-- Optional mid-condition: emits no code; generates one VC stating that
       every reachable register file satisfies `P`, and strengthens the
       reachable set with `P` downstream (a proof cut). -/
-  | assert (label : String) (P : RegFile → List (BitVec 8) → Prop)
+  | assert (label : String) (P : RegFile → List (BitVec 8) → Assertion → Prop)
+  /-- Focus block: a straight-line block whose *writable window* is a
+      `bytesRegion` at the address held in register `ptr`, opened out of
+      the ambient assertion for the block's duration.  The annotation
+      `winR` *relates* the entry state to the decomposition (window bytes,
+      remainder assertion) — relational rather than functional so it can
+      name existentially-quantified ghosts from the ambient invariant
+      (zipper contexts, subtrees).  The generator emits a `.focus` VC
+      demanding a related decomposition exist with
+      `A = bytesRegion (rf.get ptr) win ** rest`.  The function's flat rw
+      window is framed — inaccessible inside the block; the read-only
+      region stays readable.  This is how SAsm code reads and writes
+      pointer-owned memory (tree nodes, list cells) with pure VCs. -/
+  | blockAt (label : String) (ptr : Reg)
+            (winR : RegFile → List (BitVec 8) → Assertion →
+              List (BitVec 8) → Assertion → Prop)
+            (instrs : List Instr)
+  /-- Ghost step: emits no code; replaces the ambient assertion `A` by an
+      `R`-related `A'`, justified by one VC producing such an `A'` with a
+      pointwise entailment (and pc-freedom).  Relational rather than
+      functional so the new assertion can be built from
+      existentially-quantified ghosts.  The strongest postcondition also
+      records satisfiability of the old `A` — the *harvest* by which pure
+      facts trapped inside the assertion (`p = 0` at a leaf, …) reach the
+      pure VCs.  This is how recursive predicates are folded/unfolded
+      mid-body (open a tree node, push a zipper frame, …). -/
+  | ghost  (label : String)
+           (R : RegFile → List (BitVec 8) → Assertion → Assertion → Prop)
   /-- Bounded loop: the body runs while `c` holds, at most `fuel` iterations.
       `inv i` must hold at the i-th evaluation of the header; the generator
       emits initialization, preservation, and fuel-exhaustion VCs. -/
   | «while»  (label : String) (c : Cond) (fuel : Nat)
-           (inv : Nat → RegFile → List (BitVec 8) → Prop) (body : Stmt)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -136,6 +163,8 @@ def size : Stmt → Nat
   | ite _ _ t e       => t.size + e.size + 2
   | when _ _ b        => b.size + 1
   | assert _ _        => 0
+  | ghost _ _         => 0
+  | blockAt _ _ _ is  => is.length
   | «while» _ _ _ _ b   => b.size + 2
   | call _ _          => 1
 
@@ -151,6 +180,8 @@ def callFree : Stmt → Bool
   | ite _ _ t e       => t.callFree && e.callFree
   | when _ _ b        => b.callFree
   | assert _ _        => true
+  | ghost _ _         => true
+  | blockAt _ _ _ _   => true
   | «while» _ _ _ _ b => b.callFree
   | call _ _          => false
 

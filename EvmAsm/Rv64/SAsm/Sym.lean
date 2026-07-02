@@ -19,6 +19,7 @@
 
 import EvmAsm.Rv64.Execution
 import EvmAsm.Rv64.ByteOps
+import EvmAsm.Rv64.MemRegionWriteWide
 import EvmAsm.Rv64.SAsm.RegFile
 
 namespace EvmAsm.Rv64
@@ -73,6 +74,8 @@ def Region.wf (reg : Region) : Prop :=
 instance (reg : Region) : Decidable reg.wf := by
   unfold Region.wf
   infer_instance
+
+theorem Region.empty_wf : Region.empty.wf := by decide
 
 -- ============================================================================
 -- Writable byte regions (docs/sasm-design.md §3.3, M5b-2)
@@ -195,6 +198,37 @@ def loadSem : Instr → Option LoadOp
   | .LD  rd rs1 ofs => some ⟨rd, rs1, ofs, 8, fun reg a => reg.dwordAt a⟩
   | _ => none
 
+/-- Classification of a store to the function's writable region: address
+    register, data register, immediate offset, access width in bytes, and
+    the little-endian payload as a function of the stored word. -/
+structure StoreOp where
+  rs1 : Reg
+  rs2 : Reg
+  ofs : BitVec 12
+  nbytes : Nat
+  payload : Word → List (BitVec 8)
+
+/-- Classify a store.  Bytes, halfwords, 32-bit words, and dwords. -/
+def storeSem : Instr → Option StoreOp
+  | .SB rs1 rs2 ofs => some ⟨rs1, rs2, ofs, 1, fun v => [v.truncate 8]⟩
+  | .SH rs1 rs2 ofs => some ⟨rs1, rs2, ofs, 2, fun v => halfwordBytes (v.truncate 16)⟩
+  | .SW rs1 rs2 ofs => some ⟨rs1, rs2, ofs, 4, fun v => word32Bytes (v.truncate 32)⟩
+  | .SD rs1 rs2 ofs => some ⟨rs1, rs2, ofs, 8, fun v => dwordBytes v⟩
+  | _ => none
+
+/-- Every supported store moves at least one byte. -/
+theorem storeSem_nbytes_pos {i : Instr} {st : StoreOp} (h : storeSem i = some st) :
+    0 < st.nbytes := by
+  cases i <;> simp only [storeSem, reduceCtorEq] at h <;>
+    (injection h with h; subst h; simp)
+
+/-- The payload has exactly the classified width. -/
+theorem storeSem_payload_length {i : Instr} {st : StoreOp}
+    (h : storeSem i = some st) (v : Word) :
+    (st.payload v).length = st.nbytes := by
+  cases i <;> simp only [storeSem, reduceCtorEq] at h <;>
+    (injection h with h; subst h; rfl)
+
 /-- Symbolic execution of one instruction over the register file and the
     writable region's contents `ws`.  A load whose access falls entirely
     inside the writable region reads the symbolic contents; every other load
@@ -212,7 +246,12 @@ def execInstrRF (ro : Region) (rwBase : Word) (rf : RegFile)
         ((if inRw rwBase ws a l.nbytes
           then rf.set l.rd (l.val ⟨rwBase, ws⟩ a)
           else rf.set l.rd (l.val ro a)), ws)
-    | none => (rf, ws)
+    | none =>
+      match storeSem i with
+      | some st =>
+          let a := rf.get st.rs1 + signExtend12 st.ofs
+          (rf, setBytes ws (a - rwBase).toNat (st.payload (rf.get st.rs2)))
+      | none => (rf, ws)
 
 /-- Supported-and-exposed check for a block leaf instruction: the instruction
     is in the supported subset, writes an exposed register (or x0), and reads
@@ -227,7 +266,12 @@ def instrOk (i : Instr) : Bool :=
     | some l =>
         (Reg.isExposed l.rd || l.rd == .x0)
           && (Reg.isExposed l.rs1 || l.rs1 == .x0)
-    | none => false
+    | none =>
+      match storeSem i with
+      | some st =>
+          (Reg.isExposed st.rs1 || st.rs1 == .x0)
+            && (Reg.isExposed st.rs2 || st.rs2 == .x0)
+      | none => false
 
 /-- Forward symbolic execution of a straight-line block. -/
 def execBlock (ro : Region) (rwBase : Word) (rf : RegFile)
@@ -255,16 +299,21 @@ def blockVCs (ro : Region) (rwBase : Word) (rf : RegFile)
            if inRw rwBase ws a l.nbytes
            then (Region.mk rwBase ws).loadOk a l.nbytes
            else ro.loadOk a l.nbytes
-       | none => True)
+       | none =>
+         match storeSem i with
+         | some st =>
+             let a := rf.get st.rs1 + signExtend12 st.ofs
+             inRw rwBase ws a st.nbytes ∧ st.nbytes ∣ (a - rwBase).toNat
+         | none => True)
       ∧ blockVCs ro rwBase (execInstrRF ro rwBase rf ws i).1
           (execInstrRF ro rwBase rf ws i).2 is
 
-/-- Whether a block contains any load (decides whether a `.mem` VC is
-    emitted at all). -/
+/-- Whether a block contains any memory access (decides whether a `.mem`
+    VC is emitted at all). -/
 def hasLoad (instrs : List Instr) : Bool :=
-  instrs.any (fun i => (loadSem i).isSome)
+  instrs.any (fun i => (loadSem i).isSome || (storeSem i).isSome)
 
-/-- Blocks without loads have no memory side conditions. -/
+/-- Blocks without memory accesses have no memory side conditions. -/
 theorem blockVCs_of_not_hasLoad (ro : Region) (rwBase : Word) (rf : RegFile)
     (ws : List (BitVec 8)) (instrs : List Instr) (h : hasLoad instrs = false) :
     blockVCs ro rwBase rf ws instrs := by
@@ -274,7 +323,10 @@ theorem blockVCs_of_not_hasLoad (ro : Region) (rwBase : Word) (rf : RegFile)
       simp only [hasLoad, List.any_cons, Bool.or_eq_false_iff] at h
       refine ⟨?_, ih _ _ (by simp [hasLoad, h.2])⟩
       cases hl : loadSem i with
-      | none => trivial
+      | none =>
+          cases hst : storeSem i with
+          | none => trivial
+          | some st => simp [hl, hst] at h
       | some l => simp [hl] at h
 
 /-- Every supported load moves at least one byte. -/
@@ -317,7 +369,14 @@ theorem not_inRw_nil {rwBase a : Word} {n : Nat} (hn : 0 < n) :
       | some l =>
           dsimp only
           rw [if_neg (not_inRw_nil (loadSem_nbytes_pos hload))]
-      | none => rfl
+      | none =>
+          cases hst : storeSem i with
+          | some st =>
+              dsimp only
+              rw [show setBytes [] ((rf.get st.rs1 + signExtend12 st.ofs)
+                    - rwBase).toNat (st.payload (rf.get st.rs2))
+                  = [] from setBytes_nil_left ..]
+          | none => rfl
 
 /-- One instruction preserves the writable region's size. -/
 @[simp] theorem execInstrRF_ws_length (ro : Region) (rwBase : Word)
@@ -328,7 +387,9 @@ theorem not_inRw_nil {rwBase a : Word} {n : Nat} (hn : 0 < n) :
   · rfl
   · split
     · rfl
-    · rfl
+    · split
+      · exact length_setBytes ..
+      · rfl
 
 /-- A block preserves the writable region's size. -/
 @[simp] theorem execBlock_ws_length (ro : Region) (rwBase : Word)

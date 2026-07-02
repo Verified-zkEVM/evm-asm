@@ -17,24 +17,23 @@ open EvmAsm.Rv64
     Witness-side predicate for the EIP-684 CREATE2 / CREATE
     collision check: given a parent header RLP, an address, and
     an SSZ `witness.state` list section, return 1 iff the
-    account at the address has `code_hash != EMPTY_CODE_HASH`
-    OR `nonce > 0`, else 0.
+    account at the address has `code_hash != EMPTY_CODE_HASH`,
+    `nonce > 0`, or a non-empty storage root, else 0.
 
     The check is what `apply_body` uses before letting a CREATE
     opcode place new code at an address: per EIP-684, a CREATE
-    that would land on an account with non-zero nonce or
-    non-trivial code is rejected up-front, so storage of
-    pre-existing contracts can't be silently overwritten.
+    that would land on an account with non-zero nonce,
+    non-trivial code, or non-empty storage is rejected up-front,
+    so pre-existing account state can't be silently overwritten.
 
     Distinct from the EIP-1052 EXTCODEHASH empty-account rule
     (which ALSO requires `balance == 0`): EIP-684 considers an
-    account "has code or nonce" even if its balance is the only
-    non-zero field doesn't make it collision-relevant -- only
-    code/nonce do.
+    account collision-relevant when its nonce, code, or storage is
+    non-empty; balance-only accounts remain deployable.
 
     Composes K201 `header_extract_state_root`, K28
     `account_at_address`, and an inline check on 1 u64 nonce +
-    4 u64 code_hash compares.
+    4 u64 storage_root compares + 4 u64 code_hash compares.
 
     Calling convention:
       a0 (input)  : header_rlp ptr
@@ -100,13 +99,19 @@ def hasCodeOrNonceAtHeaderStateRootFunction : String :=
   "  # nonce != 0 ?\n" ++
   "  ld t1, 0(s5)\n" ++
   "  bnez t1, .Lhcon_collide\n" ++
+  "  # storage_root != EMPTY_TRIE_ROOT ? (EIP-7610 create-collision)\n" ++
+  "  la t0, hcon_empty_trie_root\n" ++
+  "  ld t1,  0(t0); ld t2, 40(s5); bne t1, t2, .Lhcon_collide\n" ++
+  "  ld t1,  8(t0); ld t2, 48(s5); bne t1, t2, .Lhcon_collide\n" ++
+  "  ld t1, 16(t0); ld t2, 56(s5); bne t1, t2, .Lhcon_collide\n" ++
+  "  ld t1, 24(t0); ld t2, 64(s5); bne t1, t2, .Lhcon_collide\n" ++
   "  # code_hash != EMPTY_CODE_HASH ?\n" ++
   "  la t0, hcon_empty_code_hash\n" ++
   "  ld t1,  0(t0); ld t2, 72(s5); bne t1, t2, .Lhcon_collide\n" ++
   "  ld t1,  8(t0); ld t2, 80(s5); bne t1, t2, .Lhcon_collide\n" ++
   "  ld t1, 16(t0); ld t2, 88(s5); bne t1, t2, .Lhcon_collide\n" ++
   "  ld t1, 24(t0); ld t2, 96(s5); bne t1, t2, .Lhcon_collide\n" ++
-  "  # nonce == 0 AND code_hash == EMPTY -> no collision.\n" ++
+  "  # nonce == 0 AND storage_root == EMPTY AND code_hash == EMPTY -> no collision.\n" ++
   "  li a0, 0\n" ++
   "  j .Lhcon_ret\n" ++
   ".Lhcon_collide:\n" ++
@@ -245,6 +250,12 @@ def ziskHasCodeOrNonceAtHeaderStateRootDataSection : String :=
   ".balign 8\n" ++
   "hcon_predicate:\n" ++
   "  .zero 8\n" ++
+  ".balign 32\n" ++
+  "hcon_empty_trie_root:\n" ++
+  "  .byte 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6\n" ++
+  "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
+  "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
+  "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21\n" ++
   ".balign 32\n" ++
   "hcon_empty_code_hash:\n" ++
   "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++

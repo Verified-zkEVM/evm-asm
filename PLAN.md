@@ -2482,9 +2482,87 @@ LH/LHU halfword loads done (Region.half16At + getHalfword bridge, LHU
 demo). M5b-2 in progress: the symbolic state is now RegFile × writable
 bytes (`Reach := RegFile → List Byte → Prop`, `RwRegion` in Fn/FnHandle,
 address-routed loads, both soundness inductions generalized; multi-byte
-bytesRegion write algebra in MemRegionWriteWide.lean). Remaining: storeSem
-+ store soundness (SB/SH/SW/SD block leaves), ra-spill prologue for
-multi-level call trees, then more Stateless/SSZ ports.
+bytesRegion write algebra in MemRegionWriteWide.lean). Stores landed: SB/SH/SW/SD block
+leaves (storeSem + regFile_store_spec_within via the MemRegionWriteWide
+splice algebra; per-store VC = in-rw ∧ n-aligned; spillFn SD/LD round-trip
+demo). ra-spill packaging landed (`SAsm/RaSpill.lean`): `Fn.toHandleR`
+wraps a `soundR`-verified caller as a callee (SD x1 prologue / LD x1 +
+JALR epilogue against a dword slot of the shared rw region; ghost-indexed
+body-spec family pins the slot), with a two-level call-tree demo
+(topFn → callerRHandle → leafHandle). Remaining: per-frame rw sub-regions
+(CalleesIn currently forces one shared rw across the tree), then more
+Stateless/SSZ ports. Assertion-state milestone started (approved plan
+~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
+Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
+threads an ambient (pc-free) separation-logic assertion through the
+symbolic state, inert through blocks/branches/loops/calls; asrtOf
+bundles it existentially. AssertionSpec.lean: regFileIs↔atoms bridge
+(regFileOn set-atoms + perm/congr/cons peeling, regFileIs_eq_atoms),
+FnHandle.weaken + Fn.spec_conseq consequence rules, handAdd demo
+(hand-verified atom-form triple packaged as an SAsm callee and called
+through the standard machinery). Stage 2b landed: SState (canonical
+factored Assertion = asrtM of an A-pinning reach), Fn.SpecA +
+specA_of_spec (publish specs as Assertion triples), Stmt.whileA/assertA
+(factored Assertion invariants/annotations), and FnHandle.frameA — the
+frame rule at call granularity (callee needing A₀ callable where the
+caller holds A₀ ** Fr), derived generically with NO soundness-induction
+change (asrtOf_frameA/asrtM_frameA). Demo: cellKeepFn (ambient-cell
+contract, published via SpecA) called by twoCellsFn through frameA.
+Stage 3a landed: `.ghost` statement node —
+zero-code reshaping of the ambient assertion by a pointwise entailment
+(one VC: entailment + pcFree of the result); the fold/unfold vehicle
+for recursive predicates. Stage 3b landed: focus blocks (`.blockAt ptr winF is`) — a block whose
+writable window is a bytesRegion at the register-held `ptr`, opened out
+of the ambient assertion for the block; the decomposition (window bytes,
+remainder) is a user annotation on the node, so sp stays fully
+determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
+remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
+Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
+(slotCell/keyCell, mutual treeAtS/treeFrom, ctxS slot-zipper with
+ctxS_zip_fold + ctxS_push_left/right, the 3-dword bytesRegion split,
+setBytes_junk_node) plus treeInsertFn + treeInsertFn_spec: the full BST
+insertion proof — slot-address walk (cur register over pointer cells,
+two-way bltu ite with a shared direction-hiding descend ghost), the
+invariant carrying the insertion-image plug identity
+c.zip (t'.insert x) = t0.insert x, key-freshness, nil shadow, counter
+tie and depth bound; terminal fill of the caller-provided free node
+(3 SDs over 24 junk bytes -> nodeBytes x 0 0) and one uniform store
+through the hole slot, resealed by ctxS_zip_fold into
+treeFrom s0 (t0.insert x). Kernel-clean (3 classical axioms only).
+Notable pitfall: for store-only focus blocks, (execBlock ...).1 whnf-reduces
+to the pre-state regfile, so rintro's rfl on the rf-equation eliminates
+the *inner* existential var (var-var subst) — the surviving name is the
+outer binder's; load blocks (if-terms) don't reduce and keep the engine
+term. Stage 6 landed: docs/sasm-howto.md — the agent-facing working manual
+(model, quickstart, VC recipes, spec surface/consequence/frame, loops +
+counter-register bridge, calls + hand-triple packaging, ghost/focus/
+harvest + tree-walk template, SSZ drop-in port recipe + EEST A/B,
+pitfalls, delivery checklist). Milestone stages 1-6 complete. Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
+proof: while-loop with existential zipper-ghost invariant, focus blocks
+opening nodes at a register-held pointer, ghost descend
+(ctxAt_push_left) with nil-shadow harvest, post-loop reseal
+(ctxAt_zip_fold), and the counter-register bridge carrying the loop
+index into annotation relations. Every framework mechanism exercised in
+one kernel-clean theorem. Stage 4.75 landed: focus `.focus` VC witnesses are PER-SATISFYING-STATE
+(recursive predicates carry existential child pointers *inside* the
+assertion; a single decomposition equality is unsatisfiable — the VC now
+skolemizes at the machine sub-state, sp records satisfiability of the
+chosen decomposition); TreeSep gains the satisfiability shadows
+(sepConj_sat_left/right, treeAt_sat_node, treeAt_sat_shadow: p = 0 ↔
+leaf on satisfying states). Stage 4.5 landed: ghost + focus made RELATIONAL (annotations can name
+existentially-quantified ghosts — zipper contexts/subtrees — that
+functional annotations cannot) and both now record satisfiability of
+the pre-assertion in sp (the *harvest*: pure facts baked into
+predicates reach the pure VCs; harvestFn demo). Stage 4 landed: TreeSep.lean —
+Tree/keys/insert/Sorted/insert_sorted (pure model), 3-dword node layout
+(nodeBytes/nodeAt with baked p≠0 + RwRegion.wf), recursive treeAt,
+zipper Tree.Ctx/ctxAt with ctxAt_zip_fold (reseal) and
+ctxAt_push_left/right (descend), all pcFree lemmas. Next stages:
+tree library + sorted-BST insertion demo, docs/sasm-howto.md.
+read_active_fork ported (ActiveForkSAsm.lean:
+byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
+swapped into run_stateless_guest, EEST A/B validated). Next port:
+decode_validation_bit.
 
 ## Stateless Guest (parallel STF track)
 
