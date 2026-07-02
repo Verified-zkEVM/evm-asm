@@ -112,6 +112,13 @@ inductive Stmt where
       every reachable register file satisfies `P`, and strengthens the
       reachable set with `P` downstream (a proof cut). -/
   | assert (label : String) (P : RegFile → List (BitVec 8) → Assertion → Prop)
+  /-- Ghost step: emits no code; replaces the ambient assertion `A` by
+      `f rf ws A`, justified by one VC demanding a pointwise entailment
+      (and pc-freedom of the result).  This is how recursive predicates
+      are folded/unfolded mid-body (open a tree node, push a zipper
+      frame, …). -/
+  | ghost  (label : String)
+           (f : RegFile → List (BitVec 8) → Assertion → Assertion)
   /-- Bounded loop: the body runs while `c` holds, at most `fuel` iterations.
       `inv i` must hold at the i-th evaluation of the header; the generator
       emits initialization, preservation, and fuel-exhaustion VCs. -/
@@ -136,6 +143,7 @@ def size : Stmt → Nat
   | ite _ _ t e       => t.size + e.size + 2
   | when _ _ b        => b.size + 1
   | assert _ _        => 0
+  | ghost _ _         => 0
   | «while» _ _ _ _ b   => b.size + 2
   | call _ _          => 1
 
@@ -151,6 +159,7 @@ def callFree : Stmt → Bool
   | ite _ _ t e       => t.callFree && e.callFree
   | when _ _ b        => b.callFree
   | assert _ _        => true
+  | ghost _ _         => true
   | «while» _ _ _ _ b => b.callFree
   | call _ _          => false
 

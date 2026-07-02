@@ -75,6 +75,9 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
   | assert lbl P =>
       exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
         (Stmt.sound reg rw (.assert lbl P) base pfx reach hreg hrw rfl hofs hsz hcode hvcs)
+  | ghost lbl f =>
+      exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
+        (Stmt.sound reg rw (.ghost lbl f) base pfx reach hreg hrw rfl hofs hsz hcode hvcs)
   | seq a b iha ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true] at hofs
       simp only [Stmt.size] at hsz

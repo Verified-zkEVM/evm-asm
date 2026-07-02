@@ -832,6 +832,34 @@ theorem twoCellsFn_spec (v w : Word) :
     rintro rf ws A ⟨A₀, hA0pc, rfl, hx10, hA0eq⟩
     exact ⟨hx10, by rw [hA0eq]⟩
 
+-- ============================================================================
+-- Ghost steps: reshaping the ambient assertion mid-body
+-- ============================================================================
+
+/-- A ghost step commuting the two ambient cells: no code, one entailment
+    VC.  (The stand-in for fold/unfold of recursive predicates.) -/
+def swapCellsFn (v w : Word) : Fn where
+  name := "swapCells"
+  pre := fun _ _ A =>
+    A = (((0x10100 : Word) ↦ₘ v) ** ((0x10108 : Word) ↦ₘ w))
+  post := fun _ _ A =>
+    A = (((0x10108 : Word) ↦ₘ w) ** ((0x10100 : Word) ↦ₘ v))
+  body := .ghost "swap"
+    (fun _ _ _ => ((0x10108 : Word) ↦ₘ w) ** ((0x10100 : Word) ↦ₘ v))
+
+theorem swapCellsFn_spec (v w base : Word) : (swapCellsFn v w).Spec base := by
+  vcgen
+  case swapCells.swap =>
+    rintro rf ws A hA hApc
+    refine ⟨?_, pcFree_sepConj pcFree_memIs pcFree_memIs⟩
+    intro hp hh
+    rw [hA] at hh
+    rw [sepConj_comm']
+    exact hh
+  case swapCells.post =>
+    rintro rf ws A' ⟨A, hA, rfl⟩
+    rfl
+
 end ExamplesVc
 end SAsm
 end EvmAsm.Rv64

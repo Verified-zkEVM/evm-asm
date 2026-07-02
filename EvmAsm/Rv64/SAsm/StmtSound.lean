@@ -378,6 +378,22 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       simp only [Stmt.steps]
       rw [hz]
       exact h
+  | ghost lbl f =>
+      have hvc := hvcs _ (List.mem_singleton_self _)
+      have h : cpsTripleWithin 0 base base cr (asrtM reg rw reach)
+          (asrtM reg rw (Stmt.sp reg rw (.ghost lbl f) reach)) := by
+        apply cpsTripleWithin_entails
+        intro hp hh
+        refine sepConj_mono_left (fun hq hx => ?_) hp hh
+        obtain ⟨rf, ws, A, hlen, hApc, hr, hsts⟩ := hx
+        obtain ⟨hent, hpcf⟩ := hvc rf ws A hr hApc
+        exact ⟨rf, ws, f rf ws A, hlen, hpcf, ⟨A, hr, rfl⟩,
+          sepConj_mono_right hent hq hsts⟩
+      have hz : base + BitVec.ofNat 64 (4 * Stmt.size (.ghost lbl f)) = base := by
+        simp [Stmt.size]
+      simp only [Stmt.steps]
+      rw [hz]
+      exact h
   | «while» lbl c fuel inv b ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
       obtain ⟨⟨⟨hwf, hofsHdr⟩, hofsBack⟩, hOB⟩ := hofs
