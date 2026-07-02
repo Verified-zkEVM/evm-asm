@@ -169,6 +169,17 @@ contract; the call machinery consumes it unchanged.
   **equal** the caller's), `calls` (concrete address arithmetic —
   `decide`), one `.pre` VC per call site, and the call's sp replaces the
   reachable set by the callee's post.
+- **Per-frame windows** (`FnHandle.widenRw`, `SAsm/HandleWiden.lean`):
+  when the callee's `rw` is a dword-aligned sub-window of the caller's,
+  don't verify the callee against the shared region — verify it against
+  its own window and widen the handle at the call site, passing the
+  caller's bytes outside the window (`preB`/`sufB`, typically ghosts like
+  `dwordBytes v`) as the frame.  The widened post pins `preB`/`sufB`
+  unchanged, so slot preservation costs the callee nothing.  The call
+  `.pre` VC then asks for the sandwich shape: provide
+  `win := ws.drop preB.length` and `List.take_append_drop`.  See
+  `WidenDemo` (`wLeafFn` owns 8 bytes; `wCallerRVFn` keeps its ra-spill
+  slot in its own dword at `x13 - 8`).
 
 ### Calling an existing hand-verified `cpsTripleWithin`
 

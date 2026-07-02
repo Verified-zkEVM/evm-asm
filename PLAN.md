@@ -2495,9 +2495,15 @@ demo). ra-spill packaging landed (`SAsm/RaSpill.lean`): `Fn.toHandleR`
 wraps a `soundR`-verified caller as a callee (SD x1 prologue / LD x1 +
 JALR epilogue against a dword slot of the shared rw region; ghost-indexed
 body-spec family pins the slot), with a two-level call-tree demo
-(topFn → callerRHandle → leafHandle). Remaining: per-frame rw sub-regions
-(CalleesIn currently forces one shared rw across the tree), then more
-Stateless/SSZ ports. Assertion-state milestone started (approved plan
+(topFn → callerRHandle → leafHandle). Per-frame rw sub-regions landed
+(`SAsm/HandleWiden.lean`, bead evm-asm-4ch8f.3): `FnHandle.widenRw`
+repackages a callee verified against its own dword-aligned window as a
+callee over the caller's full rw region, framing the outside bytes
+(`bytesRegion_append` split + `asrtOf_window`/`asrtM_window`); the
+WidenDemo two-level tree keeps the caller's ra-spill slot in its own
+dword with zero ghost-threading through the leaf's contract. Remaining
+for deep call trees: exposed s-register preservation conventions, a
+read-only-region widening analogue, then more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the

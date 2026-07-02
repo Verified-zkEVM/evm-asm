@@ -361,10 +361,26 @@ structure FnHandle where
   threaded through the body as a ghost word — the packaging consumes a
   family of `SpecR`s indexed by the spilled value, whose pre/post record
   that the slot holds it, so slot preservation is the caller's own `.post`
-  VC.  (`CalleesIn` currently makes the whole call tree share one `.rw`
-  region, so the slot is visible to callees as part of the symbolic state;
-  per-frame sub-regions are future work.)  The `ExamplesVc` two-level tree
+  VC.  The `ExamplesVc` two-level tree
   (`topFn` → `callerRHandle` → `leafHandle`) exercises the full shape.
+- **Per-frame writable sub-regions** (`SAsm/HandleWiden.lean`).
+  `CalleesIn` requires a callee to declare the caller's own `.rw` region,
+  which — taken alone — forces a whole call tree to share one region and
+  every callee contract to thread the caller's private state (spill slots)
+  as ghost data.  `FnHandle.widenRw` removes the coupling: a callee
+  verified against its own *window* (a dword-aligned, dword-multiple
+  sub-range of the caller's region) is repackaged over the full region
+  with the outside bytes `preB`/`sufB` framed across the call — the
+  widened post pins them to their entry values by construction, so the
+  caller's slots survive calls without callee cooperation.  The caller
+  instantiates `preB`/`sufB` per call site with its own ghost values
+  (e.g. `dwordBytes v` for the spilled `ra`).  The underlying frame seam
+  is `bytesRegion_append` (split a byte region at a dword boundary).
+  `WidenDemo` replays the ra-spill two-level tree with the leaf owning
+  only its 8-byte window; remaining follow-ups for deep trees: exposed
+  s-register preservation conventions (today a callee's post must state
+  which exposed registers it preserves), and a read-only-region analogue
+  of `widenRw` if callees are to declare `.ro` sub-slices.
 
 ### 3.7 Flattening (`SAsm/Flatten.lean`)
 
