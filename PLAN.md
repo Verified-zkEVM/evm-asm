@@ -2485,8 +2485,13 @@ address-routed loads, both soundness inductions generalized; multi-byte
 bytesRegion write algebra in MemRegionWriteWide.lean). Stores landed: SB/SH/SW/SD block
 leaves (storeSem + regFile_store_spec_within via the MemRegionWriteWide
 splice algebra; per-store VC = in-rw ∧ n-aligned; spillFn SD/LD round-trip
-demo). Remaining: ra-spill prologue packaging for multi-level call trees,
-then more Stateless/SSZ ports.
+demo). ra-spill packaging landed (`SAsm/RaSpill.lean`): `Fn.toHandleR`
+wraps a `soundR`-verified caller as a callee (SD x1 prologue / LD x1 +
+JALR epilogue against a dword slot of the shared rw region; ghost-indexed
+body-spec family pins the slot), with a two-level call-tree demo
+(topFn → callerRHandle → leafHandle). Remaining: per-frame rw sub-regions
+(CalleesIn currently forces one shared rw across the tree), then more
+Stateless/SSZ ports.
 
 ## Stateless Guest (parallel STF track)
 
