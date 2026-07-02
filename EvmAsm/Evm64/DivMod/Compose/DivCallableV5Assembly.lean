@@ -7,8 +7,8 @@
   combined under a single uniform post), plus the x9-owned twins of the 5-lane
   scaffold and the layer-1 scratch return adapter.
 
-  The final assembly (`refine`-ing the x9-owned scaffold with `v2 := divDispatchShiftX2 b`
-  and discharging the 5 lanes, then applying the x9-owned adapter) lands the callable
+  The final assembly (`refine`-ing the x9-owned scaffold with a FREE incoming `v2`/`x2`
+  and discharging the 5 x2-generic lanes, then applying the x9-owned adapter) lands the callable
   correctness spec over `evm_div_callable_code_v5`; it mirrors the dispatched
   `FullPathV5DivAssembly` (`evm_div_stack_spec_unconditional_v5_div_of_n4lane`).
 -/
@@ -193,13 +193,13 @@ theorem evm_div_callable_v5_spec_from_noNop_X9Owned_scratch
 
 /-- **`evm_div_callable_v5` full correctness** (x9-owned callable post): for every
     divisor shape, the callable code takes the callable dispatch pre with a FREE
-    incoming `x9In` (and the uniform dispatch shift `divDispatchShiftX2 b` in `x2`)
-    to the x9-owned callable return post.  Assembles the five `x9In`-generic
+    incoming `x9In` (and a FREE incoming `x2`, `v2`)
+    to the x9-owned callable return post.  Assembles the five `x9In`/`x2`-generic
     divisor-shape lanes through the x9-owned scaffold and layer-1 adapter, mirroring
     the dispatched `evm_div_stack_spec_unconditional_v5_div_of_n4lane`. -/
 theorem evm_div_callable_v5_stack_spec_within_x9owned
     (sp base : Word) (a b : EvmWord)
-    (x9In raVal v5 v6 v7 v10 v11 : Word)
+    (x9In raVal v2 v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
@@ -207,7 +207,7 @@ theorem evm_div_callable_v5_stack_spec_within_x9owned
     cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
       (evm_div_callable_code_v5 base)
       (divModStackDispatchPreNoX1 sp a b
-        x9In raVal (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+        x9In raVal v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
@@ -215,7 +215,7 @@ theorem evm_div_callable_v5_stack_spec_within_x9owned
        memOwn (sp + signExtend12 3936)) := by
   have hStack :=
     evm_div_stack_spec_unconditional_of_lanes_v5_div_callableX9Owned sp base a b
-      x9In raVal (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+      x9In raVal v2 v5 v6 v7 v10 v11
       q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
       -- bzero: v2 is free in the bzero lane; its post keeps x9 = x9In, shed to owned
@@ -223,130 +223,122 @@ theorem evm_div_callable_v5_stack_spec_within_x9owned
         cpsTripleWithin_weaken (fun _ hp => hp)
           (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal x9In)
           (evm_div_bzero_stack_spec_noNop_v5_preNoX1_callableExactFrame sp base a b
-            x9In raVal (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+            x9In raVal v2 v5 v6 v7 v10 v11
             q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
             nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem hbz))
       -- n1
       (fun hshape => by
-        rw [divDispatchShiftX2_n1 hshape]
         exact cpsTripleWithin_weaken (fun _ hp => hp)
           (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
             (signExtend12 4095 : Word))
           (evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-            v5 v6 v7 v10 v11 raVal x9In ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
+            v5 v6 v7 v10 v11 raVal x9In v2
             q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
             nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
             (by rw [hshape.2.1, hshape.2.2.1, hshape.2.2.2.1]; simpa using hshape.2.2.2.2)
             hshape.2.1 hshape.2.2.1 hshape.2.2.2.1 halign))
       -- n2
       (fun hshape => by
-        rw [divDispatchShiftX2_n2 hshape]
         exact cpsTripleWithin_weaken (fun _ hp => hp)
           (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
             (signExtend12 4095 : Word))
           (evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-            raVal v5 v6 v7 v10 v11 x9In ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+            raVal v5 v6 v7 v10 v11 x9In v2
             q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
             nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
             hshape.1 hshape.2.1 hshape.2.2.1 hshape.2.2.2 halign))
       -- n3
       (fun hshape => by
-        rw [divDispatchShiftX2_n3 hshape]
         exact cpsTripleWithin_weaken (fun _ hp => hp)
           (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
             (signExtend12 4095 : Word))
           (evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-            raVal v5 v6 v7 v10 v11 x9In ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
+            raVal v5 v6 v7 v10 v11 x9In v2
             q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
             nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
             hshape.2.1 hshape.2.2 halign))
       -- n4
       (fun hshape => by
-        rw [divDispatchShiftX2_n4 hshape]
         exact cpsTripleWithin_weaken (fun _ hp => hp)
           (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
             (signExtend12 4095 : Word))
           (evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-            raVal v5 v6 v7 v10 v11 x9In ((clzResult (b.getLimbN 3)).2 >>> (63 : Nat))
+            raVal v5 v6 v7 v10 v11 x9In v2
             q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
             nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
             hshape.2 halign))
   exact evm_div_callable_v5_spec_from_noNop_X9Owned_scratch sp base x9In raVal a b
-    (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+    v2 v5 v6 v7 v10 v11
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem hStack
 
 /-- **Discharged body-layer x9-owned DIV result** (the `hStack` from
     `evm_div_callable_v5_stack_spec_within_x9owned`, extracted standalone).  Over
     `divCode_noNop_v5 base`, bound `unifiedDivBound`, the callable dispatch pre
-    (free `x9In`, uniform shift `divDispatchShiftX2 b` in x2) reaches the x9-owned
+    (free `x9In`, free incoming `x2`/`v2`) reaches the x9-owned
     callable post — BEFORE the cc_ret / scratch adapter.  This is the body-layer
     feed for the SDIV `hStack` (M3): SDIV's divCall-return handoff composes the
     cc_ret itself, so it needs this body triple, not the full callable spec. -/
 theorem evm_div_body_v5_div_callableX9Owned_of_shape
     (sp base : Word) (a b : EvmWord)
-    (x9In raVal v5 v6 v7 v10 v11 : Word)
+    (x9In raVal v2 v5 v6 v7 v10 v11 : Word)
     (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
       base + div128CallRetOff) :
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
-        x9In raVal (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+        x9In raVal v2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divStackDispatchPostCallableX9Owned sp a b raVal **
        memOwn (sp + signExtend12 3936)) := by
   exact evm_div_stack_spec_unconditional_of_lanes_v5_div_callableX9Owned sp base a b
-    x9In raVal (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+    x9In raVal v2 v5 v6 v7 v10 v11
     q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
     (fun hbz =>
       cpsTripleWithin_weaken (fun _ hp => hp)
         (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal x9In)
         (evm_div_bzero_stack_spec_noNop_v5_preNoX1_callableExactFrame sp base a b
-          x9In raVal (divDispatchShiftX2 b) v5 v6 v7 v10 v11
+          x9In raVal v2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem hbz))
     (fun hshape => by
-      rw [divDispatchShiftX2_n1 hshape]
       exact cpsTripleWithin_weaken (fun _ hp => hp)
         (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
           (signExtend12 4095 : Word))
         (evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-          v5 v6 v7 v10 v11 raVal x9In ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat))
+          v5 v6 v7 v10 v11 raVal x9In v2
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
           (by rw [hshape.2.1, hshape.2.2.1, hshape.2.2.2.1]; simpa using hshape.2.2.2.2)
           hshape.2.1 hshape.2.2.1 hshape.2.2.2.1 halign))
     (fun hshape => by
-      rw [divDispatchShiftX2_n2 hshape]
       exact cpsTripleWithin_weaken (fun _ hp => hp)
         (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
           (signExtend12 4095 : Word))
         (evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-          raVal v5 v6 v7 v10 v11 x9In ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+          raVal v5 v6 v7 v10 v11 x9In v2
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
           hshape.1 hshape.2.1 hshape.2.2.1 hshape.2.2.2 halign))
     (fun hshape => by
-      rw [divDispatchShiftX2_n3 hshape]
       exact cpsTripleWithin_weaken (fun _ hp => hp)
         (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
           (signExtend12 4095 : Word))
         (evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-          raVal v5 v6 v7 v10 v11 x9In ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
+          raVal v5 v6 v7 v10 v11 x9In v2
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
           hshape.2.1 hshape.2.2 halign))
     (fun hshape => by
-      rw [divDispatchShiftX2_n4 hshape]
       exact cpsTripleWithin_weaken (fun _ hp => hp)
         (divStackDispatchPostCallableExactFrame_scratch_to_X9Owned sp a b raVal
           (signExtend12 4095 : Word))
         (evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape sp base a b
-          raVal v5 v6 v7 v10 v11 x9In ((clzResult (b.getLimbN 3)).2 >>> (63 : Nat))
+          raVal v5 v6 v7 v10 v11 x9In v2
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
           hshape.2 halign))
