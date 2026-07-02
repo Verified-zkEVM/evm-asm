@@ -501,6 +501,52 @@ theorem execInstrRF_ld_dword (ro : Region) (rwBase : Word) (rf : RegFile)
       - (⟨rwBase, ws⟩ : Region).base).toNat = k from haddr,
     hslice]
 
+/-- **The byte-load step, fully resolved**: an `LBU` whose address lands
+    `k` bytes into the window is exactly `rf.set rd` of the (zero-extended)
+    `k`-th window byte, window untouched.  Byte accesses have no alignment
+    side condition — only `hfit`. -/
+theorem execInstrRF_lbu_byte (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12) (k : Nat)
+    (haddr : ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat = k)
+    (hfit : k + 1 ≤ ws.length) :
+    execInstrRF ro rwBase rf ws (.LBU rd rs1 ofs)
+      = (rf.set rd ((ws.getD k 0).zeroExtend 64), ws) := by
+  unfold execInstrRF
+  dsimp only [aluSem, loadSem]
+  rw [if_pos (show inRw rwBase ws (rf.get rs1 + signExtend12 ofs) 1 from by
+    unfold inRw
+    rw [haddr]
+    omega)]
+  unfold Region.byteAt
+  rw [show ((rf.get rs1 + signExtend12 ofs)
+      - (⟨rwBase, ws⟩ : Region).base).toNat = k from haddr]
+
+/-- **The byte-store step, fully resolved**: an `SB` whose address lands
+    `k` bytes into the window splices the (truncated) source byte at `k`
+    and leaves the registers alone.  With `setBytes_singleton`
+    (MultiDword.lean) the window becomes a plain `List.set`. -/
+theorem execInstrRF_sb_byte (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rs1 rs2 : Reg) (ofs : BitVec 12) (k : Nat)
+    (haddr : ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat = k) :
+    execInstrRF ro rwBase rf ws (.SB rs1 rs2 ofs)
+      = (rf, setBytes ws k [(rf.get rs2).truncate 8]) := by
+  rw [show execInstrRF ro rwBase rf ws (.SB rs1 rs2 ofs)
+      = (rf, setBytes ws ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat
+          [(rf.get rs2).truncate 8]) from rfl, haddr]
+
+/-- A byte-store step never changes the register file. -/
+@[simp] theorem execInstrRF_sb_fst (ro : Region) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (rs1 rs2 : Reg) (ofs : BitVec 12) :
+    (execInstrRF ro rwBase rf ws (.SB rs1 rs2 ofs)).1 = rf := rfl
+
+/-- A byte-store step splices its (truncated) byte at the classified
+    index. -/
+theorem execInstrRF_sb_snd (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rs1 rs2 : Reg) (ofs : BitVec 12) :
+    (execInstrRF ro rwBase rf ws (.SB rs1 rs2 ofs)).2
+      = setBytes ws ((rf.get rs1 + signExtend12 ofs) - rwBase).toNat
+          [(rf.get rs2).truncate 8] := rfl
+
 /-- **The dword-store step, fully resolved**: an `SD` whose address lands
     `k` bytes into the window splices `dwordBytes (rf.get rs2)` at `k`
     and leaves the registers alone. -/
