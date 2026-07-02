@@ -762,5 +762,539 @@ private theorem treeIns_store_engine (reg : Region) (rf : RegFile)
   exact ⟨trivial, setBytes_dword_full (dwordBytes p0) (rf.get .x14)
     (length_dwordBytes p0)⟩
 
+-- ============================================================================
+-- The spec
+-- ============================================================================
+
+theorem treeInsertFn_spec (s0 x q : Word) (junk : List (BitVec 8)) (t0 : Tree)
+    (h24 : junk.length = 24) (hmem : x ∉ t0.keys)
+    (hdep : t0.depth < 2 ^ 64 - 1) (base : Word) :
+    (treeInsertFn s0 x q junk t0).Spec base := by
+  vcgen
+  case treeInsert.load0.focus =>
+    rintro rf ws A ⟨rf₀, ws₀, -, ⟨hx10, hx11, hx14, hA⟩, rfl, rfl⟩ hApc hp hhp
+    rw [treeIns_li_engine]
+    have hx10' : (rf₀.set .x15 0).get .x10 = s0 := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide), hx10]
+    rw [hA] at hhp
+    obtain ⟨h1, h2, hd, hu, hjunk, p, h3, h4, hd2, hu2, hsc, htree⟩ := hhp
+    have hwf := slotCell_wf hsc
+    refine ⟨dwordBytes p, _, ⟨p, rfl, rfl⟩, ?_, ?_, ?_⟩
+    · rw [hx10']
+      have hall : ((junkAt q junk) **
+          ((⌜RwRegion.wf ⟨s0, 8⟩⌝ ** bytesRegion s0 (dwordBytes p)) **
+            treeAtS p t0)) hp :=
+        ⟨h1, h2, hd, hu, hjunk, h3, h4, hd2, hu2, hsc, htree⟩
+      xperm_hyp hall
+    · exact pcFree_sepConj pcFree_pure
+        (pcFree_sepConj (pcFree_junkAt _ _) (pcFree_treeAtS _ _))
+    · rw [length_dwordBytes, hx10']
+      exact hwf
+  case treeInsert.load0.mem =>
+    rintro rf ws A win rest - - ⟨p, rfl, rfl⟩ -
+    have h0 : ((rf.get .x10 + signExtend12 (0 : BitVec 12))
+        - rf.get .x10).toNat = 0 := by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      bv_omega
+    have hc : inRw (rf.get .x10) (dwordBytes p)
+        (rf.get .x10 + signExtend12 0) 8 := by
+      unfold inRw
+      rw [h0, length_dwordBytes]
+    simp only [blockVCs, loadSem, Region.loadOk, length_dwordBytes,
+      if_pos hc, h0]
+    and_intros <;> trivial
+  case treeInsert.enter =>
+    rintro rf ws A ⟨rf₁, A₀, win, rest, -,
+      ⟨rf₀, ws₀, -, ⟨hx10, hx11, hx14, hA⟩, rfl, rfl⟩, -, ⟨p, rfl, rfl⟩,
+      rfl, rfl⟩ hApc hsat
+    rw [treeIns_li_engine] at hsat ⊢
+    obtain ⟨hld1, hld2⟩ := treeIns_load_engine
+      ((treeInsertFn s0 x q junk t0).region) (rf₀.set .x15 0) p
+    rw [hld2] at hsat
+    rw [hld1, hld2]
+    have hx10₁ : (rf₀.set .x15 0).get .x10 = s0 := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide), hx10]
+    have hx10v : ((rf₀.set .x15 0).set .x12 p).get .x10 = s0 := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hx10₁
+    have hx12v : ((rf₀.set .x15 0).set .x12 p).get .x12 = p :=
+      RegFile.get_set_self _ _ _ (by decide)
+    obtain ⟨hp0, hhp0⟩ := hsat
+    obtain ⟨_, hs1⟩ := sepConj_sat_right hhp0
+    obtain ⟨_, hs2⟩ := sepConj_sat_right hs1
+    obtain ⟨_, hs3⟩ := sepConj_sat_right hs2
+    have hshadow := treeAtS_sat_shadow hs3
+    refine ⟨_, ⟨rfl, ?_⟩, ?_, ?_⟩
+    · rw [hx12v]
+      exact hshadow
+    · intro hq hh
+      rw [hx10₁] at hh
+      rw [hx10v, hx12v,
+        show ctxS Tree.Ctx.top s0 s0 = ⌜s0 = s0⌝ from rfl,
+        pure_true_eq_emp rfl, sepConj_emp_left',
+        show slotCell s0 p
+          = (⌜RwRegion.wf ⟨s0, 8⟩⌝ ** bytesRegion s0 (dwordBytes p)) from rfl]
+      xperm_hyp hh
+    · exact pcFree_sepConj (pcFree_junkAt _ _)
+        (pcFree_sepConj (pcFree_ctxS _ _ _)
+          (pcFree_sepConj (pcFree_slotCell _ _) (pcFree_treeAtS _ _)))
+  case treeInsert.walk.inv_init =>
+    rintro rf ws A ⟨A₁, ⟨rf₁, A₀, win, rest, -,
+      ⟨rf₀, ws₀, -, ⟨hx10, hx11, hx14, hA⟩, rfl, rfl⟩, -, ⟨p, rfl, rfl⟩,
+      rfl, rfl⟩, -, rfl, hshadow⟩
+    rw [treeIns_li_engine] at hshadow ⊢
+    obtain ⟨hld1, -⟩ := treeIns_load_engine
+      ((treeInsertFn s0 x q junk t0).region) (rf₀.set .x15 0) p
+    rw [hld1] at hshadow ⊢
+    refine ⟨.top, t0, rfl, rfl, hmem, hshadow, ?_, by omega, ?_, ?_⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_self _ _ _ (by decide)]
+      decide
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide), hx11]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide), hx14]
+  case treeInsert.walk.body.node.focus =>
+    rintro rf ws A ⟨i, hi, ⟨c, t', hAeq, hzip, hkeys, hshadow, hx15, hd,
+      hx11, hx14⟩, hcond⟩ hApc hp hhp
+    have hne : rf.get .x12 ≠ 0 := by
+      simp only [Cond.holds, ne_eq] at hcond
+      simpa using hcond
+    obtain ⟨k, l, r, rfl⟩ : ∃ k l r, t' = Tree.node k l r := by
+      cases t' with
+      | leaf => exact absurd (hshadow.mpr rfl) hne
+      | node k l r => exact ⟨k, l, r, rfl⟩
+    rw [hAeq] at hhp
+    obtain ⟨h1, h2, hd12, hu12, hjunk, h3, h4, hd34, hu34, hctx,
+      h5, h6, hd56, hu56, hslot, htree⟩ := hhp
+    obtain ⟨pl, pr, htree'⟩ := htree
+    have hwf8 : RwRegion.wf ⟨rf.get .x12, 8⟩ :=
+      (treeAtS_sat_node (⟨pl, pr, htree'⟩ :
+        treeAtS (rf.get .x12) (.node k l r) h6)).2
+    have hti : (rf.get .x15).toNat = i := by
+      rw [hx15, BitVec.toNat_ofNat]
+      exact Nat.mod_eq_of_lt (by omega)
+    refine ⟨dwordBytes k, _, ⟨c, k, l, r, pl, pr, rfl, rfl, hzip, hkeys, ?_⟩,
+      ?_, ?_, ?_⟩
+    · rw [hti]
+      exact hd
+    · have hall : ((junkAt q junk) ** ((ctxS c s0 (rf.get .x10)) **
+          ((slotCell (rf.get .x10) (rf.get .x12)) **
+            ((⌜RwRegion.wf ⟨rf.get .x12, 8⟩⌝ **
+                bytesRegion (rf.get .x12) (dwordBytes k)) **
+              (((slotCell (rf.get .x12 + 8) pl) ** treeAtS pl l) **
+               ((slotCell (rf.get .x12 + 16) pr) ** treeAtS pr r)))))) hp :=
+        ⟨h1, h2, hd12, hu12, hjunk, h3, h4, hd34, hu34, hctx,
+          h5, h6, hd56, hu56, hslot, htree'⟩
+      xperm_hyp hall
+    · exact pcFree_sepConj pcFree_pure (pcFree_sepConj (pcFree_junkAt _ _)
+        (pcFree_sepConj (pcFree_ctxS _ _ _)
+          (pcFree_sepConj (pcFree_slotCell _ _)
+            (pcFree_sepConj
+              (pcFree_sepConj (pcFree_slotCell _ _) (pcFree_treeAtS _ _))
+              (pcFree_sepConj (pcFree_slotCell _ _) (pcFree_treeAtS _ _))))))
+    · rw [length_dwordBytes]
+      exact hwf8
+  case treeInsert.walk.body.node.mem =>
+    rintro rf ws A win rest - - ⟨c, k, l, r, pl, pr, rfl, rfl, -, -, -⟩ -
+    have h0 : ((rf.get .x12 + signExtend12 (0 : BitVec 12))
+        - rf.get .x12).toNat = 0 := by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      bv_omega
+    have hc : inRw (rf.get .x12) (dwordBytes k)
+        (rf.get .x12 + signExtend12 0) 8 := by
+      unfold inRw
+      rw [h0, length_dwordBytes]
+    simp only [blockVCs, loadSem, storeSem, Region.loadOk,
+      length_dwordBytes, if_pos hc, h0]
+    and_intros <;> trivial
+  case treeInsert.walk.body.cmp.t.stepL =>
+    rintro rf ws A ⟨rf₂, ws₂, -, ⟨⟨rf₀, A₀, win, rest, -,
+      ⟨i, hi, ⟨c₀, t₀', hAeq₀, hzip₀, hkeys₀, hshadow₀, hx15₀, hd₀,
+        hx11₀, hx14₀⟩, hcond⟩, -,
+      ⟨c, k, l, r, pl, pr, rfl, rfl, hzip, hkeys, hdp⟩, rfl, rfl⟩,
+      hcmp⟩, rfl, rfl⟩ hApc hsat
+    obtain ⟨hn1, hn2⟩ := treeIns_node_engine
+      ((treeInsertFn s0 x q junk t0).region) rf₀ k
+    rw [hn1] at hcmp ⊢
+    rw [hn2, treeIns_addi_engine]
+    have hx12₂ : ((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).get .x12
+        = rf₀.get .x12 := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+    have hx10v : (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).set .x10
+        (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).get .x12
+          + signExtend12 8)).get .x10 = rf₀.get .x12 + 8 := by
+      rw [RegFile.get_set_self _ _ _ (by decide), hx12₂,
+        show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
+    have hx15v : (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).set .x10
+        (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).get .x12
+          + signExtend12 8)).get .x15 = rf₀.get .x15 + 1 := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_self _ _ _ (by decide)]
+    simp only [Cond.holds] at hcmp
+    rw [RegFile.get_set_ne _ _ _ _ (by decide),
+      RegFile.get_set_ne _ _ _ _ (by decide), hx11₀,
+      RegFile.get_set_ne _ _ _ _ (by decide),
+      RegFile.get_set_self _ _ _ (by decide)] at hcmp
+    have hti : (rf₀.get .x15 + 1).toNat = i + 1 := by
+      rw [hx15₀]
+      have h1 : i + 1 < 2 ^ 64 := by omega
+      bv_omega
+    refine ⟨_, ⟨Tree.Ctx.left k r c, l, rfl, ?_, not_mem_keys_left hkeys, ?_⟩,
+      ?_, ?_⟩
+    · show Tree.Ctx.zip (.left k r c) (l.insert x) = t0.insert x
+      rw [show Tree.Ctx.zip (.left k r c) (l.insert x)
+          = c.zip (.node k (l.insert x) r) from rfl, ← insert_go_left hcmp]
+      exact hzip
+    · rw [hx15v, hti]
+      have hti₀ : (rf₀.get .x15).toNat = i := by
+        rw [hx15₀, BitVec.toNat_ofNat]
+        exact Nat.mod_eq_of_lt (by omega)
+      rw [hti₀] at hdp
+      have hle := Nat.le_max_left l.depth r.depth
+      simp only [Tree.depth] at hdp
+      omega
+    · intro hq hh
+      have hshaped : ((junkAt q junk) **
+          ((ctxS c s0 (rf₀.get .x10)) **
+            ((slotCell (rf₀.get .x10) (rf₀.get .x12)) **
+              ((keyCell (rf₀.get .x12) k) **
+                (((slotCell (rf₀.get .x12 + 8) pl) ** treeAtS pl l) **
+                 ((slotCell (rf₀.get .x12 + 16) pr) ** treeAtS pr r)))))) hq := by
+        rw [show keyCell (rf₀.get .x12) k
+            = (⌜RwRegion.wf ⟨rf₀.get .x12, 8⟩⌝ **
+                bytesRegion (rf₀.get .x12) (dwordBytes k)) from rfl]
+        xperm_hyp hh
+      rw [hx10v]
+      exact sepConj_mono_right (fun hv hy =>
+        ctxS_push_left c s0 (rf₀.get .x10) (rf₀.get .x12) k l r hv
+          (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+            (sepConj_mono (fun _ h1 => ⟨pl, h1⟩) (fun _ h2 => ⟨pr, h2⟩))))
+            hv hy)) hq hshaped
+    · exact pcFree_sepConj (pcFree_junkAt _ _)
+        (pcFree_sepConj (pcFree_ctxS _ _ _) (pcFree_treeFrom _ _))
+  case treeInsert.walk.body.cmp.e.stepR =>
+    rintro rf ws A ⟨rf₂, ws₂, -, ⟨⟨rf₀, A₀, win, rest, -,
+      ⟨i, hi, ⟨c₀, t₀', hAeq₀, hzip₀, hkeys₀, hshadow₀, hx15₀, hd₀,
+        hx11₀, hx14₀⟩, hcond⟩, -,
+      ⟨c, k, l, r, pl, pr, rfl, rfl, hzip, hkeys, hdp⟩, rfl, rfl⟩,
+      hcmp⟩, rfl, rfl⟩ hApc hsat
+    obtain ⟨hn1, hn2⟩ := treeIns_node_engine
+      ((treeInsertFn s0 x q junk t0).region) rf₀ k
+    rw [hn1] at hcmp ⊢
+    rw [hn2, treeIns_addi_engine]
+    have hx12₂ : ((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).get .x12
+        = rf₀.get .x12 := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+    have hx10v : (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).set .x10
+        (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).get .x12
+          + signExtend12 16)).get .x10 = rf₀.get .x12 + 16 := by
+      rw [RegFile.get_set_self _ _ _ (by decide), hx12₂,
+        show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]
+    have hx15v : (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).set .x10
+        (((rf₀.set .x13 k).set .x15 (rf₀.get .x15 + 1)).get .x12
+          + signExtend12 16)).get .x15 = rf₀.get .x15 + 1 := by
+      rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_self _ _ _ (by decide)]
+    simp only [Cond.holds] at hcmp
+    rw [RegFile.get_set_ne _ _ _ _ (by decide),
+      RegFile.get_set_ne _ _ _ _ (by decide), hx11₀,
+      RegFile.get_set_ne _ _ _ _ (by decide),
+      RegFile.get_set_self _ _ _ (by decide)] at hcmp
+    have hti : (rf₀.get .x15 + 1).toNat = i + 1 := by
+      rw [hx15₀]
+      have h1 : i + 1 < 2 ^ 64 := by omega
+      bv_omega
+    refine ⟨_, ⟨Tree.Ctx.right k l c, r, rfl, ?_, not_mem_keys_right hkeys, ?_⟩,
+      ?_, ?_⟩
+    · show Tree.Ctx.zip (.right k l c) (r.insert x) = t0.insert x
+      rw [show Tree.Ctx.zip (.right k l c) (r.insert x)
+          = c.zip (.node k l (r.insert x)) from rfl,
+        ← insert_go_right hcmp (ne_key_of_not_mem hkeys)]
+      exact hzip
+    · rw [hx15v, hti]
+      have hti₀ : (rf₀.get .x15).toNat = i := by
+        rw [hx15₀, BitVec.toNat_ofNat]
+        exact Nat.mod_eq_of_lt (by omega)
+      rw [hti₀] at hdp
+      have hle := Nat.le_max_right l.depth r.depth
+      simp only [Tree.depth] at hdp
+      omega
+    · intro hq hh
+      have hshaped : ((junkAt q junk) **
+          ((ctxS c s0 (rf₀.get .x10)) **
+            ((slotCell (rf₀.get .x10) (rf₀.get .x12)) **
+              ((keyCell (rf₀.get .x12) k) **
+                (((slotCell (rf₀.get .x12 + 8) pl) ** treeAtS pl l) **
+                 ((slotCell (rf₀.get .x12 + 16) pr) ** treeAtS pr r)))))) hq := by
+        rw [show keyCell (rf₀.get .x12) k
+            = (⌜RwRegion.wf ⟨rf₀.get .x12, 8⟩⌝ **
+                bytesRegion (rf₀.get .x12) (dwordBytes k)) from rfl]
+        xperm_hyp hh
+      rw [hx10v]
+      exact sepConj_mono_right (fun hv hy =>
+        ctxS_push_right c s0 (rf₀.get .x10) (rf₀.get .x12) k l r hv
+          (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+            (sepConj_mono (fun _ h1 => ⟨pl, h1⟩) (fun _ h2 => ⟨pr, h2⟩))))
+            hv hy)) hq hshaped
+    · exact pcFree_sepConj (pcFree_junkAt _ _)
+        (pcFree_sepConj (pcFree_ctxS _ _ _) (pcFree_treeFrom _ _))
+  case treeInsert.walk.body.load.focus =>
+    rintro rf ws A (⟨A₀, -, -, ⟨c', t', rfl, hzip, hkeys, hdp⟩⟩ |
+      ⟨A₀, -, -, ⟨c', t', rfl, hzip, hkeys, hdp⟩⟩) hApc hp hhp <;>
+    · obtain ⟨h1, h2, hd12, hu12, hjunk, h3, h4, hd34, hu34, hctx,
+        p', h5, h6, hd56, hu56, hslot, htree⟩ := hhp
+      have hwf := slotCell_wf hslot
+      refine ⟨dwordBytes p', _, ⟨c', p', t', rfl, rfl, hzip, hkeys, hdp⟩,
+        ?_, ?_, ?_⟩
+      · have hall : ((junkAt q junk) ** ((ctxS c' s0 (rf.get .x10)) **
+            ((⌜RwRegion.wf ⟨rf.get .x10, 8⟩⌝ **
+              bytesRegion (rf.get .x10) (dwordBytes p')) ** treeAtS p' t'))) hp :=
+          ⟨h1, h2, hd12, hu12, hjunk, h3, h4, hd34, hu34, hctx,
+            h5, h6, hd56, hu56, hslot, htree⟩
+        xperm_hyp hall
+      · exact pcFree_sepConj pcFree_pure (pcFree_sepConj (pcFree_junkAt _ _)
+          (pcFree_sepConj (pcFree_ctxS _ _ _) (pcFree_treeAtS _ _)))
+      · rw [length_dwordBytes]
+        exact hwf
+  case treeInsert.walk.body.load.mem =>
+    rintro rf ws A win rest - - ⟨c', p', t', rfl, rfl, -, -, -⟩ -
+    have h0 : ((rf.get .x10 + signExtend12 (0 : BitVec 12))
+        - rf.get .x10).toNat = 0 := by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      bv_omega
+    have hc : inRw (rf.get .x10) (dwordBytes p')
+        (rf.get .x10 + signExtend12 0) 8 := by
+      unfold inRw
+      rw [h0, length_dwordBytes]
+    simp only [blockVCs, loadSem, Region.loadOk, length_dwordBytes,
+      if_pos hc, h0]
+    and_intros <;> trivial
+  case treeInsert.walk.body.step =>
+    rintro rf ws A ⟨rf₃, A₀, win, rest, -, -, -,
+      ⟨c', p', t', rfl, rfl, hzip, hkeys, hdp⟩, rfl, rfl⟩ hApc hsat
+    obtain ⟨hld1, hld2⟩ := treeIns_load_engine
+      ((treeInsertFn s0 x q junk t0).region) rf₃ p'
+    rw [hld1, hld2]
+    have hx10v : (rf₃.set .x12 p').get .x10 = rf₃.get .x10 :=
+      RegFile.get_set_ne _ _ _ _ (by decide)
+    have hx12v : (rf₃.set .x12 p').get .x12 = p' :=
+      RegFile.get_set_self _ _ _ (by decide)
+    have hx15v : (rf₃.set .x12 p').get .x15 = rf₃.get .x15 :=
+      RegFile.get_set_ne _ _ _ _ (by decide)
+    obtain ⟨hp0, hhp0⟩ := hsat
+    obtain ⟨_, hs1⟩ := sepConj_sat_right hhp0
+    obtain ⟨_, hs2⟩ := sepConj_sat_right hs1
+    obtain ⟨_, hs3⟩ := sepConj_sat_right hs2
+    obtain ⟨_, hs4⟩ := sepConj_sat_right hs3
+    have hshadow := treeAtS_sat_shadow hs4
+    refine ⟨_, ⟨c', t', rfl, hzip, hkeys, ?_, ?_⟩, ?_, ?_⟩
+    · rw [hx12v]
+      exact hshadow
+    · rw [hx15v]
+      exact hdp
+    · intro hq hh
+      rw [hx10v, hx12v,
+        show slotCell (rf₃.get .x10) p'
+          = (⌜RwRegion.wf ⟨rf₃.get .x10, 8⟩⌝ **
+            bytesRegion (rf₃.get .x10) (dwordBytes p')) from rfl]
+      xperm_hyp hh
+    · exact pcFree_sepConj (pcFree_junkAt _ _)
+        (pcFree_sepConj (pcFree_ctxS _ _ _)
+          (pcFree_sepConj (pcFree_slotCell _ _) (pcFree_treeAtS _ _)))
+  case treeInsert.walk.inv_step =>
+    rintro i hi rf ws A ⟨A₁, ⟨rf₃, A₀, win, rest, -, hite, -,
+      ⟨c₃, p₃, t₃, rfl, -, -, -, -⟩, rfl, rfl⟩, -,
+      ⟨c'', t'', rfl, hzip'', hkeys'', hshadow'', hdp''⟩⟩
+    rcases hite with ⟨A₂, ⟨rf₂, ws₂, -, ⟨⟨rf₀, A₃, win₃, rest₃, -,
+        ⟨⟨c₀, t₀', -, -, -, -, hx15₀, -, hx11₀, hx14₀⟩, -⟩, -,
+        ⟨ck, kk, ll, rr, pll, prr, rfl, -, -, -, -⟩, rfl, rfl⟩, -⟩,
+        rfl, rfl⟩, -, -⟩ |
+      ⟨A₂, ⟨rf₂, ws₂, -, ⟨⟨rf₀, A₃, win₃, rest₃, -,
+        ⟨⟨c₀, t₀', -, -, -, -, hx15₀, -, hx11₀, hx14₀⟩, -⟩, -,
+        ⟨ck, kk, ll, rr, pll, prr, rfl, -, -, -, -⟩, rfl, rfl⟩, -⟩,
+        rfl, rfl⟩, -, -⟩ <;>
+    · obtain ⟨hn1, -⟩ := treeIns_node_engine
+        ((treeInsertFn s0 x q junk t0).region) rf₀ kk
+      refine ⟨c'', t'', rfl, hzip'', hkeys'', hshadow'', ?_, ?_, ?_, ?_⟩
+      · rw [(treeIns_load_engine _ _ p₃).1,
+          RegFile.get_set_ne _ _ _ _ (by decide), treeIns_addi_engine,
+          RegFile.get_set_ne _ _ _ _ (by decide), hn1,
+          RegFile.get_set_self _ _ _ (by decide), hx15₀,
+          show (1 : Word) = BitVec.ofNat 64 1 from rfl, ← BitVec.ofNat_add]
+      · rw [(treeIns_load_engine _ _ p₃).1,
+          RegFile.get_set_ne _ _ _ _ (by decide), treeIns_addi_engine,
+          RegFile.get_set_ne _ _ _ _ (by decide), hn1,
+          RegFile.get_set_self _ _ _ (by decide), hx15₀] at hdp''
+        have h1 : i + 1 < 2 ^ 64 := by omega
+        have hti : ((BitVec.ofNat 64 i : Word) + 1).toNat = i + 1 := by
+          bv_omega
+        rw [hti] at hdp''
+        exact hdp''
+      · rw [(treeIns_load_engine _ _ p₃).1,
+          RegFile.get_set_ne _ _ _ _ (by decide), treeIns_addi_engine,
+          RegFile.get_set_ne _ _ _ _ (by decide), hn1,
+          RegFile.get_set_ne _ _ _ _ (by decide),
+          RegFile.get_set_ne _ _ _ _ (by decide)]
+        exact hx11₀
+      · rw [(treeIns_load_engine _ _ p₃).1,
+          RegFile.get_set_ne _ _ _ _ (by decide), treeIns_addi_engine,
+          RegFile.get_set_ne _ _ _ _ (by decide), hn1,
+          RegFile.get_set_ne _ _ _ _ (by decide),
+          RegFile.get_set_ne _ _ _ _ (by decide)]
+        exact hx14₀
+  case treeInsert.walk.exhausted =>
+    rintro rf ws A ⟨c, t', -, -, -, hshadow, -, hd, -, -⟩
+    have ht' : t' = .leaf := by
+      cases t' with
+      | leaf => rfl
+      | node k l r => exact absurd hd (by simp only [Tree.depth]; omega)
+    have h0 : rf.get .x12 = 0 := hshadow.mpr ht'
+    simp only [Cond.holds]
+    rw [h0]
+    simp
+  case treeInsert.fill.focus =>
+    rintro rf ws A ⟨⟨i, -, ⟨c, t', hAeq, hzip, -, hshadow, -, -, hx11, hx14⟩⟩,
+      hncond⟩ hApc hp hhp
+    have h0 : rf.get .x12 = 0 := by
+      simp only [Cond.holds, ne_eq] at hncond
+      simpa using hncond
+    have ht' : t' = .leaf := hshadow.mp h0
+    subst ht'
+    rw [hAeq] at hhp
+    obtain ⟨h1, h2, hd12, hu12, hjunk, hrest2⟩ := hhp
+    have hwf24 : RwRegion.wf ⟨q, 24⟩ := ((sepConj_pure_left h1).mp hjunk).1
+    refine ⟨junk, _, ⟨c, rfl, rfl, hzip⟩, ?_, ?_, ?_⟩
+    · rw [hx14]
+      have hall : ((⌜RwRegion.wf ⟨q, 24⟩⌝ ** bytesRegion q junk) **
+          ((ctxS c s0 (rf.get .x10)) **
+            ((slotCell (rf.get .x10) (rf.get .x12)) **
+              treeAtS (rf.get .x12) Tree.leaf))) hp :=
+        ⟨h1, h2, hd12, hu12, hjunk, hrest2⟩
+      xperm_hyp hall
+    · exact pcFree_sepConj pcFree_pure
+        (pcFree_sepConj (pcFree_ctxS _ _ _)
+          (pcFree_sepConj (pcFree_slotCell _ _) (pcFree_treeAtS _ _)))
+    · rw [h24, hx14]
+      exact hwf24
+  case treeInsert.fill.mem =>
+    rintro rf ws A win rest - - ⟨c, rfl, rfl, -⟩ -
+    have h0 : ((rf.get .x14 + signExtend12 (0 : BitVec 12))
+        - rf.get .x14).toNat = 0 := by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      bv_omega
+    have h8 : ((rf.get .x14 + signExtend12 (8 : BitVec 12))
+        - rf.get .x14).toNat = 8 := by
+      rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
+      bv_omega
+    have h16 : ((rf.get .x14 + signExtend12 (16 : BitVec 12))
+        - rf.get .x14).toNat = 16 := by
+      rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]
+      bv_omega
+    simp only [blockVCs, loadSem, aluSem, storeSem, execInstrRF, inRw,
+      length_setBytes, h0, h8, h16, h24]
+    and_intros <;> trivial
+  case treeInsert.mknode =>
+    rintro rf ws A ⟨rf₀, A₀, win, rest, -,
+      ⟨⟨i, -, ⟨c₀, t₀', -, -, -, hshadow₀, -, -, hx11₀, hx14₀⟩⟩, hncond⟩, -,
+      ⟨c, rfl, rfl, hzip⟩, rfl, rfl⟩ hApc hsat
+    obtain ⟨-, hf2⟩ := treeIns_fill_engine
+      ((treeInsertFn s0 x q win t0).region) rf win h24
+    rw [hf2, hx11₀]
+    refine ⟨_, ⟨c, rfl, hzip⟩, ?_, ?_⟩
+    · intro hq hh
+      obtain ⟨h1, h2, hd12, hu12, hbytes, hrest⟩ := hh
+      have hwf24 : RwRegion.wf ⟨rf.get .x14, 24⟩ :=
+        ((sepConj_pure_left h2).mp hrest).1
+      have hrest' := ((sepConj_pure_left h2).mp hrest).2
+      obtain ⟨hwfk, hwf8, hwf16⟩ := wf24_split hwf24
+      rw [bytesRegion_node_split] at hbytes
+      have htree : treeAtS (rf.get .x14) (.node x .leaf .leaf) h1 := by
+        refine ⟨0, 0, ?_⟩
+        have hcells : ((keyCell (rf.get .x14) x) **
+            (((slotCell (rf.get .x14 + 8) (0 : Word)) **
+                treeAtS (0 : Word) .leaf) **
+             ((slotCell (rf.get .x14 + 16) (0 : Word)) **
+                treeAtS (0 : Word) .leaf)))
+            = ((bytesRegion (rf.get .x14) (dwordBytes x)) **
+              ((bytesRegion (rf.get .x14 + 8) (dwordBytes (0 : Word))) **
+                bytesRegion (rf.get .x14 + 16) (dwordBytes (0 : Word)))) := by
+          rw [show keyCell (rf.get .x14) x
+              = (⌜RwRegion.wf ⟨rf.get .x14, 8⟩⌝ **
+                bytesRegion (rf.get .x14) (dwordBytes x)) from rfl,
+            show slotCell (rf.get .x14 + 8) (0 : Word)
+              = (⌜RwRegion.wf ⟨rf.get .x14 + 8, 8⟩⌝ **
+                bytesRegion (rf.get .x14 + 8) (dwordBytes 0)) from rfl,
+            show slotCell (rf.get .x14 + 16) (0 : Word)
+              = (⌜RwRegion.wf ⟨rf.get .x14 + 16, 8⟩⌝ **
+                bytesRegion (rf.get .x14 + 16) (dwordBytes 0)) from rfl,
+            show treeAtS (0 : Word) Tree.leaf = ⌜(0 : Word) = 0⌝ from rfl,
+            pure_true_eq_emp hwfk, pure_true_eq_emp hwf8,
+            pure_true_eq_emp hwf16, pure_true_eq_emp rfl,
+            sepConj_emp_left', sepConj_emp_left', sepConj_emp_left',
+            sepConj_emp_right', sepConj_emp_right']
+        rw [hcells]
+        exact hbytes
+      have hrest'' : ((ctxS c s0 (rf.get .x10)) **
+          slotCell (rf.get .x10) (rf.get .x12)) h2 :=
+        sepConj_mono_right (fun hv hy =>
+          ((sepConj_pure_right hv).mp hy).1) h2 hrest'
+      have hall : ((treeAtS (rf.get .x14) (Tree.node x Tree.leaf Tree.leaf)) **
+          ((ctxS c s0 (rf.get .x10)) **
+            slotCell (rf.get .x10) (rf.get .x12))) hq :=
+        ⟨h1, h2, hd12, hu12, htree, hrest''⟩
+      xperm_hyp hall
+    · exact pcFree_sepConj (pcFree_ctxS _ _ _)
+        (pcFree_sepConj (pcFree_slotCell _ _) (pcFree_treeAtS _ _))
+  case treeInsert.store.focus =>
+    rintro rf ws A ⟨A₀, -, -, ⟨c, rfl, hzip⟩⟩ hApc hp hhp
+    obtain ⟨h1, h2, hd12, hu12, hctx, h3, h4, hd34, hu34, hslot, htree⟩ := hhp
+    have hwf := slotCell_wf hslot
+    refine ⟨dwordBytes (rf.get .x12), _, ⟨c, rfl, rfl, hzip⟩, ?_, ?_, ?_⟩
+    · have hall : ((ctxS c s0 (rf.get .x10)) **
+          ((⌜RwRegion.wf ⟨rf.get .x10, 8⟩⌝ **
+            bytesRegion (rf.get .x10) (dwordBytes (rf.get .x12))) **
+            treeAtS (rf.get .x14) (Tree.node x Tree.leaf Tree.leaf))) hp :=
+        ⟨h1, h2, hd12, hu12, hctx, h3, h4, hd34, hu34, hslot, htree⟩
+      xperm_hyp hall
+    · exact pcFree_sepConj pcFree_pure
+        (pcFree_sepConj (pcFree_ctxS _ _ _) (pcFree_treeAtS _ _))
+    · rw [length_dwordBytes]
+      exact hwf
+  case treeInsert.store.mem =>
+    rintro rf ws A win rest - - ⟨c, rfl, rfl, -⟩ -
+    have h0 : ((rf.get .x10 + signExtend12 (0 : BitVec 12))
+        - rf.get .x10).toNat = 0 := by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      bv_omega
+    simp only [blockVCs, loadSem, storeSem, inRw, length_dwordBytes, h0]
+    and_intros <;> trivial
+  case treeInsert.fold =>
+    rintro rf ws A ⟨rf₀, A₀, win, rest, -, ⟨A₁, -, -, ⟨c, rfl, hzip⟩⟩, -,
+      ⟨c₂, hwin, rfl, hzip₂⟩, rfl, rfl⟩ hApc hsat
+    subst hwin
+    obtain ⟨-, hs2⟩ := treeIns_store_engine
+      ((treeInsertFn s0 x q junk t0).region) rf (rf.get .x12)
+    rw [hs2]
+    refine ⟨treeFrom s0 (t0.insert x), rfl, ?_, pcFree_treeFrom _ _⟩
+    intro hq hh
+    have hshaped : ((ctxS c₂ s0 (rf.get .x10)) **
+        ((slotCell (rf.get .x10) (rf.get .x14)) **
+          treeAtS (rf.get .x14) (Tree.node x Tree.leaf Tree.leaf))) hq := by
+      rw [show slotCell (rf.get .x10) (rf.get .x14)
+          = (⌜RwRegion.wf ⟨rf.get .x10, 8⟩⌝ **
+            bytesRegion (rf.get .x10) (dwordBytes (rf.get .x14))) from rfl]
+      xperm_hyp hh
+    have hfolded := ctxS_zip_fold c₂ s0 (rf.get .x10) (rf.get .x14)
+      (.node x .leaf .leaf) hq hshaped
+    rw [show Tree.Ctx.zip c₂ (Tree.node x Tree.leaf Tree.leaf)
+        = c₂.zip (Tree.leaf.insert x) from rfl, hzip₂] at hfolded
+    exact hfolded
+  case treeInsert.post =>
+    rintro rf ws A ⟨A₀, -, -, rfl⟩
+    rfl
+
 end SAsm
 end EvmAsm.Rv64

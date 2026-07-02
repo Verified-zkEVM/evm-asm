@@ -2517,19 +2517,27 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Stage 5b in progress: TreeInsert.lean part 1 landed — the slot-based
-predicate layer for BST insertion (slotCell/keyCell, mutual
-treeAtS/treeFrom, ctxS slot-zipper with ctxS_zip_fold +
-ctxS_push_left/right, the 3-dword bytesRegion split, and setBytes_junk_node
-= writing key+nil-children over junk yields a fresh node). The insert
-function proof + spec (walk with two-way compare + terminal focus store)
-is the remaining part. Stage 6 landed: docs/sasm-howto.md — the agent-facing working manual
+Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
+(slotCell/keyCell, mutual treeAtS/treeFrom, ctxS slot-zipper with
+ctxS_zip_fold + ctxS_push_left/right, the 3-dword bytesRegion split,
+setBytes_junk_node) plus treeInsertFn + treeInsertFn_spec: the full BST
+insertion proof — slot-address walk (cur register over pointer cells,
+two-way bltu ite with a shared direction-hiding descend ghost), the
+invariant carrying the insertion-image plug identity
+c.zip (t'.insert x) = t0.insert x, key-freshness, nil shadow, counter
+tie and depth bound; terminal fill of the caller-provided free node
+(3 SDs over 24 junk bytes -> nodeBytes x 0 0) and one uniform store
+through the hole slot, resealed by ctxS_zip_fold into
+treeFrom s0 (t0.insert x). Kernel-clean (3 classical axioms only).
+Notable pitfall: for store-only focus blocks, (execBlock ...).1 whnf-reduces
+to the pre-state regfile, so rintro's rfl on the rf-equation eliminates
+the *inner* existential var (var-var subst) — the surviving name is the
+outer binder's; load blocks (if-terms) don't reduce and keep the engine
+term. Stage 6 landed: docs/sasm-howto.md — the agent-facing working manual
 (model, quickstart, VC recipes, spec surface/consequence/frame, loops +
 counter-register bridge, calls + hand-triple packaging, ghost/focus/
 harvest + tree-walk template, SSZ drop-in port recipe + EEST A/B,
-pitfalls, delivery checklist). Remaining in milestone: 5b
-sortedTreeInsert demo (walk template + freeNode allocation + focus
-store + parent-pointer write). Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
+pitfalls, delivery checklist). Milestone stages 1-6 complete. Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
 proof: while-loop with existential zipper-ghost invariant, focus blocks
 opening nodes at a register-held pointer, ghost descend
 (ctxAt_push_left) with nil-shadow harvest, post-loop reseal
