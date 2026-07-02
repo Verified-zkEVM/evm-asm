@@ -620,6 +620,8 @@ import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallAddbackBeqExactX1V5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridge
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditional
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLane
