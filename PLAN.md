@@ -2517,7 +2517,13 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Stage 6 landed: docs/sasm-howto.md — the agent-facing working manual
+Stage 5b in progress: TreeInsert.lean part 1 landed — the slot-based
+predicate layer for BST insertion (slotCell/keyCell, mutual
+treeAtS/treeFrom, ctxS slot-zipper with ctxS_zip_fold +
+ctxS_push_left/right, the 3-dword bytesRegion split, and setBytes_junk_node
+= writing key+nil-children over junk yields a fresh node). The insert
+function proof + spec (walk with two-way compare + terminal focus store)
+is the remaining part. Stage 6 landed: docs/sasm-howto.md — the agent-facing working manual
 (model, quickstart, VC recipes, spec surface/consequence/frame, loops +
 counter-register bridge, calls + hand-triple packaging, ghost/focus/
 harvest + tree-walk template, SSZ drop-in port recipe + EEST A/B,
