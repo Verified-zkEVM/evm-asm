@@ -99,7 +99,7 @@ def preloopCallAddbackShift0PostN4V5NoX1 (sp base a0 a1 a2 a3 b0 b1 b2 b3 scratc
 
 /-- Exact-x1 twin of `evm_div_n4_preloop_call_skip_spec_v5_noNop`. -/
 theorem evm_div_n4_preloop_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -111,7 +111,7 @@ theorem evm_div_n4_preloop_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 158) base (base + denormOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -146,7 +146,7 @@ theorem evm_div_n4_preloop_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
   let u0 := a0 <<< (shift.toNat % 64)
   have hPre := evm_div_n4_to_loopSetup_spec_within_v5_noNop sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In
     hbnz hb3nz hshift_nz
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
@@ -182,7 +182,7 @@ theorem evm_div_n4_preloop_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
 
 /-- Exact-x1 twin of `evm_div_n4_preloop_call_addback_spec_v5_noNop`. -/
 theorem evm_div_n4_preloop_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -195,7 +195,7 @@ theorem evm_div_n4_preloop_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
     cpsTripleWithin (8 + 21 + 24 + 4 + 21 + 21 + 4 + 234) base (base + denormOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -231,7 +231,7 @@ theorem evm_div_n4_preloop_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
   let u0 := a0 <<< (shift.toNat % 64)
   have hPre := evm_div_n4_to_loopSetup_spec_within_v5_noNop sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In
     hbnz hb3nz hshift_nz
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
@@ -267,7 +267,7 @@ theorem evm_div_n4_preloop_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
 
 /-- Exact-x1 twin of `evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop`. -/
 theorem evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -278,7 +278,7 @@ theorem evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Wo
     cpsTripleWithin (((8 + 21 + 24 + 4) + 13) + 158) base (base + denormOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -304,7 +304,7 @@ theorem evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Wo
     simpa [BitVec.ult, BitVec.toNat_ofNat] using hb3pos
   have hPre := evm_div_n4_to_loopSetup_shift0_spec_v5_noNop sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In
     hbnz hb3nz hshift_z
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
@@ -340,7 +340,7 @@ theorem evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Wo
 
 /-- Exact-x1 twin of `evm_div_n4_preloop_call_addback_shift0_spec_v5_noNop`. -/
 theorem evm_div_n4_preloop_call_addback_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -360,7 +360,7 @@ theorem evm_div_n4_preloop_call_addback_shift0_spec_v5_noNop_exact_x1 (sp base :
     cpsTripleWithin (((8 + 21 + 24 + 4) + 13) + 234) base (base + denormOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -386,7 +386,7 @@ theorem evm_div_n4_preloop_call_addback_shift0_spec_v5_noNop_exact_x1 (sp base :
     simpa [BitVec.ult, BitVec.toNat_ofNat] using hb3pos
   have hPre := evm_div_n4_to_loopSetup_shift0_spec_v5_noNop sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In
     hbnz hb3nz hshift_z
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **

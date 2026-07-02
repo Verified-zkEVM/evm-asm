@@ -28,7 +28,7 @@ open EvmAsm.Rv64.AddrNorm (word_add_zero)
     dispatch pre to the n=4 explicit path-entry pre, keeping the caller return
     address `x1 = x1Val` concrete (framed) instead of `regOwn .x1`. -/
 theorem n4_dispatchPre_to_pathEntry_v5_exact_x1 (sp : Word) (a b : EvmWord)
-    (x1Val v2 v5 v6 v7 v10 v11Old : Word)
+    (x1Val v2 v5 v6 v7 v10 v11Old x9In : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
@@ -38,14 +38,14 @@ theorem n4_dispatchPre_to_pathEntry_v5_exact_x1 (sp : Word) (a b : EvmWord)
     (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3) :
     ∀ h,
       (divModStackDispatchPreNoX1 sp a b
-        (signExtend12 (4 : BitVec 12) - (4 : Word)) x1Val
+        x9In x1Val
         v2 v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem)) h →
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **

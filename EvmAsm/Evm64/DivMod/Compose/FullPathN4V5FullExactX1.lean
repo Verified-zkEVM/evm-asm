@@ -243,7 +243,7 @@ theorem evm_div_n4_call_addback_beq_denorm_epilogue_spec_v5_noNop_exact_x1 (sp b
 
 /-- Exact-x1 twin of `evm_div_n4_full_call_skip_spec_v5_noNop`. -/
 theorem evm_div_n4_full_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -256,7 +256,7 @@ theorem evm_div_n4_full_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
       base (base + nopOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -277,7 +277,7 @@ theorem evm_div_n4_full_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
       (fullDivN4CallSkipPostV5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
        (.x1 ↦ᵣ raVal)) := by
   have hA := evm_div_n4_preloop_call_skip_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem
     hbnz hb3nz hshift_nz halign hbltu hborrow
@@ -289,7 +289,7 @@ theorem evm_div_n4_full_call_skip_spec_v5_noNop_exact_x1 (sp base : Word)
 
 /-- Exact-x1 twin of `evm_div_n4_full_call_addback_spec_v5_noNop`. -/
 theorem evm_div_n4_full_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -303,7 +303,7 @@ theorem evm_div_n4_full_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
       base (base + nopOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -324,7 +324,7 @@ theorem evm_div_n4_full_call_addback_spec_v5_noNop_exact_x1 (sp base : Word)
       (fullDivN4CallAddbackBeqPostV5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
        (.x1 ↦ᵣ raVal)) := by
   have hA := evm_div_n4_preloop_call_addback_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem
     hbnz hb3nz hshift_nz halign hbltu hborrow hcarry2_nz
@@ -398,7 +398,7 @@ def fullDivN4CallAddbackShift0PostV5NoX1 (sp base a0 a1 a2 a3 b0 b1 b2 b3 scratc
 
 /-- Exact-x1 twin of `evm_div_n4_full_call_skip_shift0_spec_v5_noNop`. -/
 theorem evm_div_n4_full_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -409,7 +409,7 @@ theorem evm_div_n4_full_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
     cpsTripleWithin ((((8 + 21 + 24 + 4) + 13) + 158) + 12) base (base + nopOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -430,7 +430,7 @@ theorem evm_div_n4_full_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
       (fullDivN4CallSkipShift0PostV5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
        (.x1 ↦ᵣ raVal)) := by
   have hA := evm_div_n4_preloop_call_skip_shift0_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal
+    a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem hbnz hb3nz hshift_z halign hborrow
   have hB := evm_div_shift0_epilogue_spec_v5_noNop sp base
@@ -473,7 +473,7 @@ theorem evm_div_n4_full_call_skip_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
 
 /-- Exact-x1 twin of `evm_div_n4_full_call_addback_shift0_spec_v5_noNop`. -/
 theorem evm_div_n4_full_call_addback_shift0_spec_v5_noNop_exact_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -493,7 +493,7 @@ theorem evm_div_n4_full_call_addback_shift0_spec_v5_noNop_exact_x1 (sp base : Wo
     cpsTripleWithin ((((8 + 21 + 24 + 4) + 13) + 234) + 12) base (base + nopOff) (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -514,7 +514,7 @@ theorem evm_div_n4_full_call_addback_shift0_spec_v5_noNop_exact_x1 (sp base : Wo
       (fullDivN4CallAddbackShift0PostV5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
        (.x1 ↦ᵣ raVal)) := by
   have hA := evm_div_n4_preloop_call_addback_shift0_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal
+    a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 v11Old raVal x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem hbnz hb3nz hshift_z halign hborrow hcarry2_nz
   let qHat := divKTrialCallV5QHat (0 : Word) a3 b3
