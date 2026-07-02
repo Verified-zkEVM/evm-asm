@@ -109,6 +109,18 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++
                  "  ld x15, 64(x12)\n" ++
+                 -- cdcoob.1: the copy body consumes only the low 64-bit source offset.
+                 -- If any high limb is nonzero, or the low limb is already outside calldata,
+                 -- normalize the source offset to callDataLen so the existing loop takes its
+                 -- out-of-bounds zero-fill path without forming a wrapping `cdp + offset` pointer.
+                 "  ld x16, 32(x12)\n" ++
+                 "  ld x17, 40(x12)\n  ld x18, 48(x12)\n  or x17, x17, x18\n" ++
+                 "  ld x18, 56(x12)\n  or x17, x17, x18\n" ++
+                 "  bnez x17, 1f\n" ++
+                 "  ld x18, 424(x20)\n  bltu x16, x18, 2f\n" ++
+                 "1:\n" ++
+                 "  ld x18, 424(x20)\n  sd x18, 32(x12)\n" ++
+                 "2:\n" ++
                  memDynamicArenaOogGuardAsm "calldatacopy" "x14" "x15" "x16" "x17" ++
                  copyWordGasAsm "calldatacopy" "x15" "x16" "x17" "x18" ++
                  updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true
