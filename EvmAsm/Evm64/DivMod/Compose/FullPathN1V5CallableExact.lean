@@ -101,7 +101,7 @@ theorem loopN1UnifiedPostV5NoX1_to_denormPreV5 (sp base a0 a1 a2 a3 b0 b1 b2 b3 
 /-- x1-preserving twin of `evm_div_n1_to_denorm_spec_v5_noNop`: entry→denorm
     with the concrete `x1Val` framed through the preloop and the x1-free loop. -/
 theorem evm_div_n1_to_denorm_spec_v5_noNop_preserving_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x1Val : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x1Val x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratch_un0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -112,7 +112,7 @@ theorem evm_div_n1_to_denorm_spec_v5_noNop_preserving_x1 (sp base : Word)
       (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -147,7 +147,7 @@ theorem evm_div_n1_to_denorm_spec_v5_noNop_preserving_x1 (sp base : Word)
   -- 1. Preloop: base → base + loopBodyOff (x1 framed concrete)
   have hPre := evm_div_n1_to_loopSetup_spec_v5_noNop sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
-    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In
     hbnz hb3z hb2z hb1z hshift_nz
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
@@ -191,7 +191,7 @@ theorem evm_div_n1_to_denorm_spec_v5_noNop_preserving_x1 (sp base : Word)
 /-- x1-preserving twin of `evm_div_n1_full_spec_v5_noNop`: full n=1 path
     `base → nopOff` with the concrete `x1Val` framed and the x1-free frame. -/
 theorem evm_div_n1_full_spec_v5_noNop_preserving_x1 (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x1Val : Word)
+    (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old x1Val x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratch_un0 scratchMem : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
@@ -202,7 +202,7 @@ theorem evm_div_n1_full_spec_v5_noNop_preserving_x1 (sp base : Word)
       (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -236,7 +236,7 @@ theorem evm_div_n1_full_spec_v5_noNop_preserving_x1 (sp base : Word)
        (.x1 ↦ᵣ x1Val)) := by
   have hshift_nz' : fullDivN1Shift b0 ≠ 0 := by simp only [fullDivN1Shift]; exact hshift_nz
   have hA := evm_div_n1_to_denorm_spec_v5_noNop_preserving_x1 sp base a0 a1 a2 a3 b0 b1 b2 b3
-    v5 v6 v7 v10 v11Old x1Val
+    v5 v6 v7 v10 v11Old x1Val x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratch_un0 scratchMem hbnz hb3z hb2z hb1z hshift_nz halign
   have hB := evm_div_preamble_denorm_epilogue_spec_v5_noNop sp base
@@ -277,7 +277,7 @@ open EvmAsm.Rv64 in
 /-- x1-preserving twin of `n1_dispatchPre_to_pathEntry_v5`: the dispatch pre
     keeps the concrete `x1Val` instead of weakening it to `regOwn .x1`. -/
 theorem n1_dispatchPre_to_pathEntry_v5_preserving_x1 (sp : Word) (a b : EvmWord)
-    (x1Val v5 v6 v7 v10 v11Old : Word)
+    (x1Val v5 v6 v7 v10 v11Old x9In : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
@@ -287,14 +287,14 @@ theorem n1_dispatchPre_to_pathEntry_v5_preserving_x1 (sp : Word) (a b : EvmWord)
     (hb2 : b.getLimbN 2 = b2) (hb3 : b.getLimbN 3 = b3) :
     ∀ h,
       (divModStackDispatchPreNoX1 sp a b
-        (signExtend12 (4 : BitVec 12) - (4 : Word)) x1Val
+        x9In x1Val
         ((clzResult b0).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem)) h →
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        (.x11 ↦ᵣ v11Old) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
@@ -376,7 +376,7 @@ open EvmAsm.Rv64 in
     the lane assembly). -/
 theorem evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
     (sp base : Word) (a b : EvmWord)
-    (v5 v6 v7 v10 v11Old raVal : Word)
+    (v5 v6 v7 v10 v11Old raVal x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
     (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
@@ -397,7 +397,7 @@ theorem evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).1) :
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
-        (signExtend12 (4 : BitVec 12) - (4 : Word)) raVal
+        x9In raVal
         ((clzResult (b.getLimbN 0)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
@@ -408,14 +408,14 @@ theorem evm_div_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
   have hbody := evm_div_n1_full_spec_v5_noNop_preserving_x1 sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
-    v5 v6 v7 v10 v11Old raVal
+    v5 v6 v7 v10 v11Old raVal x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratch_un0 scratchMem
     hbnz hb3z hb2z hb1z hshift_nz halign
   exact cpsTripleWithin_mono_nSteps (by unfold unifiedDivBound; decide) <|
     cpsTripleWithin_weaken
       (fun h hp => n1_dispatchPre_to_pathEntry_v5_preserving_x1 sp a b
-        raVal v5 v6 v7 v10 v11Old
+        raVal v5 v6 v7 v10 v11Old x9In
         (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
         (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7

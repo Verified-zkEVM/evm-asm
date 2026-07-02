@@ -59,6 +59,7 @@ theorem evm_div_n1_to_denorm_shift0_spec_v5_noNop (sp base : Word)
   have hPre := evm_div_n1_to_loopSetup_shift0_spec_v5_noNop sp base
     a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    (signExtend12 (4 : BitVec 12) - (4 : Word))
     hbnz hb3z hb2z hb1z hshift_z
   have hPreF := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **

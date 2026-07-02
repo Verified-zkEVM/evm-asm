@@ -125,7 +125,7 @@ theorem evm_div_phaseAB_n1_clz_c2taken_spec_v5_noNop (sp base : Word)
     `x5 ← 1`, `x9 ← 4 − 1`. -/
 theorem evm_div_n1_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3z : b3 = 0) (hb2z : b2 = 0) (hb1z : b1 = 0)
     (hshift_z : (clzResult b0).1 = 0) :
@@ -133,7 +133,7 @@ theorem evm_div_n1_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
       (divCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -166,7 +166,7 @@ theorem evm_div_n1_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
   have hC2 := evm_div_phaseAB_n1_clz_c2taken_spec_v5_noNop sp base b0 b1 b2 b3
     v5 v6 v7 v10 q0 q1 q2 q3 u5 u6 u7 nMem shiftMem hbnz hb3z hb2z hb1z hshift_z
   have hC2f := cpsTripleWithin_frameR
-    ((.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+    ((.x9 ↦ᵣ x9In) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
@@ -175,7 +175,7 @@ theorem evm_div_n1_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
     (by pcFree) hC2
   have hSeg := divK_copyAU_loopSetup_shift0_spec_v5_noNop sp base
     a0 a1 a2 a3 u0Old u1Old u2Old u3Old u4Old (clzResult b0).2
-    (signExtend12 (4 : BitVec 12) - (4 : Word)) (1 : Word) (by decide)
+    x9In (1 : Word) (by decide)
   have hSegf := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ (clzResult b0).1) **
      (.x7 ↦ᵣ (clzResult b0).2 >>> (63 : Nat)) **
