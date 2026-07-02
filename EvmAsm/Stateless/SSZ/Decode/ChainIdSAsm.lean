@@ -85,16 +85,9 @@ theorem leU32_toNat_lt (bs : List (BitVec 8)) (i : Nat) :
 -- The port
 -- ============================================================================
 
-/-- Verified port of `read_chain_id`: `a0 := chain_config.chain_id`, read
-    byte-wise from the (ghost) input buffer `bs` at `INPUT_BASE`.
-    Clobbers t0, a1–a3 — the same interface as the original plus `t0`. -/
-def readChainIdFn (bs : List (BitVec 8)) : Fn where
-  name := "readChainId"
-  region := ⟨0x40000000, bs⟩
-  pre := fun _ =>
-    30 ≤ bs.length ∧ 18 + (leU32 bs 26).toNat + 8 ≤ bs.length
-  post := fun rf => rf.get .x10 = leU64 bs (18 + (leU32 bs 26).toNat)
-  body :=
+/-- The structured body of the verified `read_chain_id` (ghost-free, so it
+    flattens to a concrete `Program`). -/
+def readChainIdBody : Stmt :=
     .block "setup" [.LI .x11 0x40000000, .ADDI .x12 .x11 18] ;;;
     .block "offset32" [
       .LBU .x13 .x12 8,
@@ -111,6 +104,29 @@ def readChainIdFn (bs : List (BitVec 8)) : Fn where
       .LBU .x5 .x13 5, .SLLI .x5 .x5 40, .OR .x10 .x10 .x5,
       .LBU .x5 .x13 6, .SLLI .x5 .x5 48, .OR .x10 .x10 .x5,
       .LBU .x5 .x13 7, .SLLI .x5 .x5 56, .OR .x10 .x10 .x5]
+
+/-- Verified port of `read_chain_id`: `a0 := chain_config.chain_id`, read
+    byte-wise from the (ghost) input buffer `bs` at `INPUT_BASE`; `a3` is
+    left holding the chain-config section address (the interface
+    `read_active_fork` documents).  Clobbers t0, a1–a3 — the original's
+    interface plus `t0`. -/
+def readChainIdFn (bs : List (BitVec 8)) : Fn where
+  name := "readChainId"
+  region := ⟨0x40000000, bs⟩
+  pre := fun _ =>
+    30 ≤ bs.length ∧ 18 + (leU32 bs 26).toNat + 8 ≤ bs.length
+  post := fun rf =>
+    rf.get .x10 = leU64 bs (18 + (leU32 bs 26).toNat) ∧
+    rf.get .x13 = (0x40000012 : Word) + leU32 bs 26
+  body := readChainIdBody
+
+/-- The emitted drop-in replacement for `read_chain_id`
+    (position-independent: no calls, all branches structured). -/
+def read_chain_id_verified : Program :=
+  readChainIdBody.flatten 0
+
+#guard (read_chain_id_verified : List Instr).length = 35
+#guard readChainIdBody.flatten 0 = readChainIdBody.flatten 0x80000000
 
 /-- The input buffer forms a well-formed SAsm region (dword-aligned base in
     the machine's input zone). -/
@@ -191,7 +207,8 @@ theorem readChainIdFn_spec (bs : List (BitVec 8))
       | bv_omega
   case readChainId.post =>
     intro rf' h
-    show rf'.get .x10 = leU64 bs (18 + (leU32 bs 26).toNat)
+    show rf'.get .x10 = leU64 bs (18 + (leU32 bs 26).toNat) ∧
+      rf'.get .x13 = (0x40000012 : Word) + leU32 bs 26
     obtain ⟨rf₂, ⟨rf₁, ⟨rf₀, ⟨hlen30, hoff⟩, rfl⟩, rfl⟩, rfl⟩ := h
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
       RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
@@ -239,6 +256,7 @@ theorem readChainIdFn_spec (bs : List (BitVec 8))
           = 18 + (leU32 bs 26).toNat + 6 from by bv_omega,
       show ((1073741824 : Word) + 18 + leU32 bs 26 + 7 - 0x40000000).toNat
           = 18 + (leU32 bs 26).toNat + 7 from by bv_omega]
-    rfl
+    refine ⟨rfl, ?_⟩
+    rw [show (1073741824 : Word) + 18 = (0x40000012 : Word) from by decide]
 
 end EvmAsm.Stateless.SSZ.Decode
