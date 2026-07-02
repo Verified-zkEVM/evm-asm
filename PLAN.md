@@ -2551,7 +2551,10 @@ and "Branchy straight-line code" (assert-as-join idiom: rintro ⟨-, hP⟩
 drops the 2^n when-disjunction; branchless SLTIU/SLL preference) + two
 new pitfalls (rintro-rfl whnf timeout on big execBlock equations — rw
 engine into the hypothesis first; numeral-rewrite motive failure vs
-BitVec 8). Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
+BitVec 8). CLZ handler port landed on this substrate: ClzSAsm.lean
+now provides clzFn_spec and clz_verified, and h_CLZ uses the verified
+SAsm body plus advanceAndRet instead of the legacy raw custom tail.
+Stage 5a landed: treeMinFn (TreeDemo.lean) — the tree-walk integration
 proof: while-loop with existential zipper-ghost invariant, focus blocks
 opening nodes at a register-held pointer, ghost descend
 (ctxAt_push_left) with nil-shadow harvest, post-loop reseal
