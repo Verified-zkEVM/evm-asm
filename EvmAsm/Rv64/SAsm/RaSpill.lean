@@ -248,9 +248,9 @@ theorem ld_ra_spec_within (rs : Reg) (sofs : BitVec 12) (rwBase : Word)
 theorem cpsTripleWithin_exists_pre_M_frame {n : Nat} {entry exit_ : Word}
     {cr : CodeReq} {X : Assertion} {reg : Region} {rw : RwRegion}
     {reach : Reach} {Q : Assertion}
-    (h : ∀ rf ws, ws.length = rw.len → reach rf ws →
+    (h : ∀ rf ws (A : Assertion), ws.length = rw.len → A.pcFree → reach rf ws A →
       cpsTripleWithin n entry exit_ cr
-        (((regFileIs rf) ** bytesRegion rw.base ws) **
+        ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
           (bytesRegion reg.base reg.bytes ** X)) Q) :
     cpsTripleWithin n entry exit_ cr (asrtM reg rw reach ** X) Q := by
   intro R hR s hcr hPR hpc
@@ -258,29 +258,30 @@ theorem cpsTripleWithin_exists_pre_M_frame {n : Nat} {entry exit_ : Word}
       = (asrtOf rw reach ** bytesRegion reg.base reg.bytes) from rfl,
     sepConj_assoc', sepConj_assoc'] at hPR
   -- hPR : (asrtOf ** (bytesRegion reg ** (X ** R)))
-  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, hlen, hreach, hsts⟩, hR2⟩ := hPR
-  have hPR' : ((((regFileIs rf) ** bytesRegion rw.base ws) **
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, A, hlen, hApc, hreach, hsts⟩, hR2⟩ := hPR
+  have hPR' : (((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
       (bytesRegion reg.base reg.bytes ** (X ** R)))).holdsFor s :=
     ⟨hp, hcompat, h1, h2, hd, hu, hsts, hR2⟩
   rw [← sepConj_assoc' (bytesRegion reg.base reg.bytes) X R,
     ← sepConj_assoc'] at hPR'
-  exact h rf ws hlen hreach R hR s hcr hPR' hpc
+  exact h rf ws A hlen hApc hreach R hR s hcr hPR' hpc
 
 /-- Split an `asrtR` precondition into a per-symbolic-state family, including
     a concrete value for the owned `ra`. -/
 theorem cpsTripleWithin_exists_pre_R {n : Nat} {entry exit_ : Word}
     {cr : CodeReq} {reg : Region} {rw : RwRegion} {reach : Reach}
     {Q : Assertion}
-    (h : ∀ rf ws (v : Word), ws.length = rw.len → reach rf ws →
+    (h : ∀ rf ws (A : Assertion) (v : Word), ws.length = rw.len → A.pcFree →
+      reach rf ws A →
       cpsTripleWithin n entry exit_ cr
-        (((regFileIs rf) ** bytesRegion rw.base ws) **
+        ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
           (bytesRegion reg.base reg.bytes ** ((.x1 : Reg) ↦ᵣ v))) Q) :
     cpsTripleWithin n entry exit_ cr (asrtR reg rw reach) Q := by
   show cpsTripleWithin n entry exit_ cr (asrtM reg rw reach ** regOwn .x1) Q
   apply cpsTripleWithin_regOwn_right_pre
   intro v
   exact cpsTripleWithin_exists_pre_M_frame
-    (fun rf ws hlen hreach => h rf ws v hlen hreach)
+    (fun rf ws A hlen hApc hreach => h rf ws A v hlen hApc hreach)
 
 -- ============================================================================
 -- Packaging a verified caller as a callee handle
@@ -316,14 +317,14 @@ theorem retSpecR (f : Fn) (base : Word) (cr : CodeReq)
         (asrtR f.region f.rw (spre v)) (asrtR f.region f.rw (spost v)))
     (hcode : ∀ a i, CodeReq.ofProg base (f.programRetR rs sofs base) a = some i →
         cr a = some i)
-    (haddr : ∀ rf ws, f.pre rf ws →
+    (haddr : ∀ rf ws A, f.pre rf ws A →
         rf.get rs + signExtend12 sofs = f.rw.base + BitVec.ofNat 64 k)
-    (haddrPost : ∀ v rf ws, spost v rf ws →
+    (haddrPost : ∀ v rf ws A, spost v rf ws A →
         rf.get rs + signExtend12 sofs = f.rw.base + BitVec.ofNat 64 k)
-    (hspre : ∀ v rf ws, f.pre rf ws → ws.length = f.rw.len →
-        spre v rf (setBytes ws k (dwordBytes v)))
-    (hspost : ∀ v rf ws, spost v rf ws → f.post rf ws)
-    (hslot : ∀ v rf ws, spost v rf ws → ws.length = f.rw.len →
+    (hspre : ∀ v rf ws A, f.pre rf ws A → ws.length = f.rw.len →
+        spre v rf (setBytes ws k (dwordBytes v)) A)
+    (hspost : ∀ v rf ws A, spost v rf ws A → f.post rf ws A)
+    (hslot : ∀ v rf ws A, spost v rf ws A → ws.length = f.rw.len →
         (ws.drop k).take 8 = dwordBytes v) :
     ∀ ret : Word, (ret &&& ~~~(1 : Word)) = ret →
       cpsTripleWithin (1 + f.body.steps + 2) base ret cr
@@ -382,9 +383,9 @@ theorem retSpecR (f : Fn) (base : Word) (cr : CodeReq)
       ret cr (asrtR f.region f.rw (spost ret))
       (((.x1 : Reg) ↦ᵣ ret) ** asrtM f.region f.rw f.post) := by
     apply cpsTripleWithin_exists_pre_R
-    intro rf ws v hlen hreach
+    intro rf ws A v hlen hApc hreach
     have haddr' : rf.get rs + signExtend12 sofs
-        = f.rw.base + BitVec.ofNat 64 k := haddrPost ret rf ws hreach
+        = f.rw.base + BitVec.ofNat 64 k := haddrPost ret rf ws A hreach
     have hidx : ((rf.get rs + signExtend12 sofs) - f.rw.base).toNat = k := by
       rw [haddr']
       bv_omega
@@ -396,42 +397,56 @@ theorem retSpecR (f : Fn) (base : Word) (cr : CodeReq)
     have hld := ld_ra_spec_within rs sofs f.rw.base rf ws v
       ((base + 4) + BitVec.ofNat 64 (4 * f.body.size)) hrs hwf' hin'
       (by rw [hidx]; exact hk)
-    rw [hidx, hslot ret rf ws hreach hlen, packBytes_dwordBytes] at hld
+    rw [hidx, hslot ret rf ws A hreach hlen, packBytes_dwordBytes] at hld
     have hld' := cpsTripleWithin_extend_code hcodeLD hld
+    have hldA := cpsTripleWithin_frameR A hApc hld'
     have hld'' := cpsTripleWithin_frameR
-      (bytesRegion f.region.base f.region.bytes) (bytesRegion_pcFree _ _) hld'
+      (bytesRegion f.region.base f.region.bytes) (bytesRegion_pcFree _ _) hldA
     -- JALR
     have hjal := jalr_ret_spec (((base + 4) + BitVec.ofNat 64 (4 * f.body.size)) + 4)
       ret halign
-      (P := ((regFileIs rf) ** bytesRegion f.rw.base ws) **
+      (P := (((regFileIs rf) ** bytesRegion f.rw.base ws) ** A) **
         bytesRegion f.region.base f.region.bytes)
-      (pcFree_sepConj (pcFree_sepConj (pcFree_regFileIs _)
-        (bytesRegion_pcFree _ _)) (bytesRegion_pcFree _ _))
+      (pcFree_sepConj (pcFree_sepConj (pcFree_sepConj (pcFree_regFileIs _)
+        (bytesRegion_pcFree _ _)) hApc) (bytesRegion_pcFree _ _))
     have hjal' := cpsTripleWithin_extend_code hcodeJ hjal
     have hseq := cpsTripleWithin_seq_same_cr
       (cpsTripleWithin_weaken
-        (P := (((.x1 : Reg) ↦ᵣ v) ** ((regFileIs rf) ** bytesRegion f.rw.base ws))
-          ** bytesRegion f.region.base f.region.bytes)
-        (P' := ((regFileIs rf) ** bytesRegion f.rw.base ws) **
+        (P := ((((.x1 : Reg) ↦ᵣ v) ** ((regFileIs rf) ** bytesRegion f.rw.base ws))
+          ** A) ** bytesRegion f.region.base f.region.bytes)
+        (P' := (((regFileIs rf) ** bytesRegion f.rw.base ws) ** A) **
           (bytesRegion f.region.base f.region.bytes ** ((.x1 : Reg) ↦ᵣ v)))
         (Q' := ((.x1 : Reg) ↦ᵣ ret) **
-          (((regFileIs rf) ** bytesRegion f.rw.base ws) **
+          ((((regFileIs rf) ** bytesRegion f.rw.base ws) ** A) **
             bytesRegion f.region.base f.region.bytes))
         (fun hp hh => by
           have h1 := sc_to_swap hp hh
-          rw [sepConj_comm' ((regFileIs rf) ** bytesRegion f.rw.base ws)
-            ((.x1 : Reg) ↦ᵣ v)] at h1
+          rw [sepConj_assoc' ((regFileIs rf) ** bytesRegion f.rw.base ws) A
+              ((.x1 : Reg) ↦ᵣ v),
+            sepConj_comm' A ((.x1 : Reg) ↦ᵣ v),
+            sepConj_left_comm ((regFileIs rf) ** bytesRegion f.rw.base ws)
+              ((.x1 : Reg) ↦ᵣ v) A,
+            ← sepConj_assoc' ((.x1 : Reg) ↦ᵣ v)
+              ((regFileIs rf) ** bytesRegion f.rw.base ws) A] at h1
           exact h1)
-        (fun hp hh => sc_assoc_r hp hh)
+        (fun hp hh => by
+          rw [sepConj_assoc'
+              (((.x1 : Reg) ↦ᵣ ret) ** ((regFileIs rf) ** bytesRegion f.rw.base ws))
+              A (bytesRegion f.region.base f.region.bytes),
+            sepConj_assoc' ((.x1 : Reg) ↦ᵣ ret)
+              ((regFileIs rf) ** bytesRegion f.rw.base ws),
+            ← sepConj_assoc' ((regFileIs rf) ** bytesRegion f.rw.base ws) A
+              (bytesRegion f.region.base f.region.bytes)] at hh
+          exact hh)
         hld'')
       hjal'
     refine cpsTripleWithin_weaken (fun hp hh => hh) ?_ hseq
-    -- ((.x1 ↦ ret) ** ((RF ** BW) ** RO)) → ((.x1 ↦ ret) ** asrtM post)
+    -- ((.x1 ↦ ret) ** (((RF ** BW) ** A) ** RO)) → ((.x1 ↦ ret) ** asrtM post)
     intro hp hh
     refine sepConj_mono_right (fun hq hx => ?_) hp hh
     show asrtM f.region f.rw f.post hq
     exact sepConj_mono_left
-      (fun hv hy => ⟨rf, ws, hlen, hspost ret rf ws hreach, hy⟩) hq hx
+      (fun hv hy => ⟨rf, ws, A, hlen, hApc, hspost ret rf ws A hreach, hy⟩) hq hx
   -- spill + body
   have hMain : cpsTripleWithin (1 + f.body.steps) base
       ((base + 4) + BitVec.ofNat 64 (4 * f.body.size)) cr
@@ -439,9 +454,9 @@ theorem retSpecR (f : Fn) (base : Word) (cr : CodeReq)
       (asrtR f.region f.rw (spost ret)) := by
     rw [sepConj_comm' ((.x1 : Reg) ↦ᵣ ret) (asrtM f.region f.rw f.pre)]
     apply cpsTripleWithin_exists_pre_M_frame
-    intro rf ws hlen hreach
+    intro rf ws A hlen hApc hreach
     have haddr' : rf.get rs + signExtend12 sofs
-        = f.rw.base + BitVec.ofNat 64 k := haddr rf ws hreach
+        = f.rw.base + BitVec.ofNat 64 k := haddr rf ws A hreach
     have hidx : ((rf.get rs + signExtend12 sofs) - f.rw.base).toNat = k := by
       rw [haddr']
       bv_omega
@@ -454,20 +469,29 @@ theorem retSpecR (f : Fn) (base : Word) (cr : CodeReq)
       (by rw [hidx]; exact hk)
     rw [hidx] at hsd
     have hsd' := cpsTripleWithin_extend_code hcodeSD hsd
+    have hsdA := cpsTripleWithin_frameR A hApc hsd'
     have hsd'' := cpsTripleWithin_frameR
-      (bytesRegion f.region.base f.region.bytes) (bytesRegion_pcFree _ _) hsd'
+      (bytesRegion f.region.base f.region.bytes) (bytesRegion_pcFree _ _) hsdA
     have hsdW := cpsTripleWithin_weaken
-      (P := (((.x1 : Reg) ↦ᵣ ret) ** ((regFileIs rf) ** bytesRegion f.rw.base ws))
-        ** bytesRegion f.region.base f.region.bytes)
-      (P' := ((regFileIs rf) ** bytesRegion f.rw.base ws) **
+      (P := ((((.x1 : Reg) ↦ᵣ ret) ** ((regFileIs rf) ** bytesRegion f.rw.base ws))
+        ** A) ** bytesRegion f.region.base f.region.bytes)
+      (P' := (((regFileIs rf) ** bytesRegion f.rw.base ws) ** A) **
         (bytesRegion f.region.base f.region.bytes ** ((.x1 : Reg) ↦ᵣ ret)))
       (Q' := asrtR f.region f.rw (spre ret))
       (fun hp hh => by
         have h1 := sc_to_swap hp hh
-        rw [sepConj_comm' ((regFileIs rf) ** bytesRegion f.rw.base ws)
-          ((.x1 : Reg) ↦ᵣ ret)] at h1
+        rw [sepConj_assoc' ((regFileIs rf) ** bytesRegion f.rw.base ws) A
+            ((.x1 : Reg) ↦ᵣ ret),
+          sepConj_comm' A ((.x1 : Reg) ↦ᵣ ret),
+          sepConj_left_comm ((regFileIs rf) ** bytesRegion f.rw.base ws)
+            ((.x1 : Reg) ↦ᵣ ret) A,
+          ← sepConj_assoc' ((.x1 : Reg) ↦ᵣ ret)
+            ((regFileIs rf) ** bytesRegion f.rw.base ws) A] at h1
         exact h1)
       (fun hp hh => by
+        rw [sepConj_assoc' ((.x1 : Reg) ↦ᵣ ret)
+          ((regFileIs rf) ** bytesRegion f.rw.base (setBytes ws k (dwordBytes ret)))
+          A] at hh
         have h1 := sepConj_mono_left
           (fun hq hx => sepConj_mono_left
             (fun hv (hy : ((.x1 : Reg) ↦ᵣ ret) hv) =>
@@ -475,9 +499,9 @@ theorem retSpecR (f : Fn) (base : Word) (cr : CodeReq)
         have h2 := sepConj_mono_left
           (fun hq hx => sepConj_mono_right
             (fun hv hy =>
-              (⟨rf, setBytes ws k (dwordBytes ret),
-                by rw [length_setBytes]; exact hlen,
-                hspre ret rf ws hreach hlen, hy⟩ :
+              (⟨rf, setBytes ws k (dwordBytes ret), A,
+                by rw [length_setBytes]; exact hlen, hApc,
+                hspre ret rf ws A hreach hlen, hy⟩ :
                 asrtOf f.rw (spre ret) hv)) hq hx) hp h1
         rw [sepConj_assoc', sepConj_comm'] at h2
         exact h2)
@@ -499,14 +523,14 @@ def toHandleR (f : Fn) (base : Word) (cr : CodeReq)
         (asrtR f.region f.rw (spre v)) (asrtR f.region f.rw (spost v)))
     (hcode : ∀ a i, CodeReq.ofProg base (f.programRetR rs sofs base) a = some i →
         cr a = some i)
-    (haddr : ∀ rf ws, f.pre rf ws →
+    (haddr : ∀ rf ws A, f.pre rf ws A →
         rf.get rs + signExtend12 sofs = f.rw.base + BitVec.ofNat 64 k)
-    (haddrPost : ∀ v rf ws, spost v rf ws →
+    (haddrPost : ∀ v rf ws A, spost v rf ws A →
         rf.get rs + signExtend12 sofs = f.rw.base + BitVec.ofNat 64 k)
-    (hspre : ∀ v rf ws, f.pre rf ws → ws.length = f.rw.len →
-        spre v rf (setBytes ws k (dwordBytes v)))
-    (hspost : ∀ v rf ws, spost v rf ws → f.post rf ws)
-    (hslot : ∀ v rf ws, spost v rf ws → ws.length = f.rw.len →
+    (hspre : ∀ v rf ws A, f.pre rf ws A → ws.length = f.rw.len →
+        spre v rf (setBytes ws k (dwordBytes v)) A)
+    (hspost : ∀ v rf ws A, spost v rf ws A → f.post rf ws A)
+    (hslot : ∀ v rf ws A, spost v rf ws A → ws.length = f.rw.len →
         (ws.drop k).take 8 = dwordBytes v) : FnHandle where
   entry := base
   code := cr

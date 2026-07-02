@@ -51,12 +51,12 @@ def readActiveForkBody : Stmt :=
 def readActiveForkFn (bs : List (BitVec 8)) : Fn where
   name := "readActiveFork"
   region := ⟨0x40000000, bs⟩
-  pre := fun rf _ =>
+  pre := fun rf _ _ =>
     rf.get .x13 = (0x40000012 : Word) + leU32 bs 26 ∧
     26 + (leU32 bs 26).toNat + 4 ≤ bs.length ∧
     18 + (leU32 bs 26).toNat
       + (leU32 bs (26 + (leU32 bs 26).toNat)).toNat + 8 ≤ bs.length
-  post := fun rf _ =>
+  post := fun rf _ _ =>
     rf.get .x12 = leU64 bs (18 + (leU32 bs 26).toNat
       + (leU32 bs (26 + (leU32 bs 26).toNat)).toNat) ∧
     rf.get .x13 = (0x40000012 : Word) + leU32 bs 26
@@ -79,7 +79,7 @@ theorem readActiveForkFn_spec (bs : List (BitVec 8))
   case region =>
     exact ⟨inputRegion_wf bs hlen, RwRegion.empty_wf⟩
   case readActiveFork.offset32.mem =>
-    rintro rf ws hws ⟨hx13, hb1, hb2⟩
+    rintro rf ws A hws ⟨hx13, hb1, hb2⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     simp only [execInstrRF_nil, aluSem, loadSem,
       storeSem, blockVCs, Region.loadOk, RegFile.get_set_self,
@@ -103,7 +103,7 @@ theorem readActiveForkFn_spec (bs : List (BitVec 8))
       | trivial
       | omega
   case readActiveFork.fork64.mem =>
-    rintro rf ws hws ⟨rf₀, ws₀, hws₀, ⟨hx13, hb1, hb2⟩, rfl, rfl⟩
+    rintro rf ws A hws ⟨rf₀, ws₀, hws₀, ⟨hx13, hb1, hb2⟩, rfl, rfl⟩
     obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
       storeSem, blockVCs, Region.loadOk, RegFile.get_set_self,
@@ -187,7 +187,7 @@ theorem readActiveForkFn_spec (bs : List (BitVec 8))
       | trivial
       | omega
   case readActiveFork.post =>
-    intro rf' ws' h
+    intro rf' ws' A' h
     show rf'.get .x12 = leU64 bs (18 + (leU32 bs 26).toNat
         + (leU32 bs (26 + (leU32 bs 26).toNat)).toNat) ∧
       rf'.get .x13 = (0x40000012 : Word) + leU32 bs 26

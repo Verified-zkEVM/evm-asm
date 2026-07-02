@@ -643,17 +643,19 @@ theorem regFile_load_spec_within (i : Instr) (l : LoadOp) (reg : Region)
 -- ============================================================================
 
 /-- Embed a reachable set as an assertion: some symbolic state in the set
-    owns the exposed registers and the writable region's contents (whose
-    byte count is pinned to the region's length). -/
+    owns the exposed registers, the writable region's contents (whose byte
+    count is pinned to the region's length), and the ambient assertion
+    component (pinned pc-free). -/
 def asrtOf (rw : RwRegion) (reach : Reach) : Assertion :=
-  fun h => ∃ rf ws, ws.length = rw.len ∧ reach rf ws ∧
-    ((regFileIs rf) ** bytesRegion rw.base ws) h
+  fun h => ∃ rf ws A, ws.length = rw.len ∧ Assertion.pcFree A ∧ reach rf ws A ∧
+    (((regFileIs rf) ** bytesRegion rw.base ws) ** A) h
 
 theorem pcFree_asrtOf (rw : RwRegion) (reach : Reach) :
     (asrtOf rw reach).pcFree := by
   intro h hp
-  obtain ⟨rf, ws, -, -, hh⟩ := hp
-  exact pcFree_sepConj (pcFree_regFileIs _) (bytesRegion_pcFree _ _) h hh
+  obtain ⟨rf, ws, A, -, hApc, -, hh⟩ := hp
+  exact pcFree_sepConj
+    (pcFree_sepConj (pcFree_regFileIs _) (bytesRegion_pcFree _ _)) hApc h hh
 
 /-- Leaf-shaped embedding of a reachable set: the exposed register file, the
     writable region's contents, plus the function's read-only region. -/
@@ -665,40 +667,46 @@ theorem pcFree_asrtM (reg : Region) (rw : RwRegion) (reach : Reach) :
   pcFree_sepConj (pcFree_asrtOf _ _) (bytesRegion_pcFree _ _)
 
 theorem asrtM_mono {reg : Region} {rw : RwRegion} {r₁ r₂ : Reach}
-    (h : ∀ rf ws, r₁ rf ws → r₂ rf ws) :
+    (h : ∀ rf ws A, r₁ rf ws A → r₂ rf ws A) :
     ∀ hp, asrtM reg rw r₁ hp → asrtM reg rw r₂ hp :=
   fun hp => sepConj_mono_left (fun hq hh => by
-    obtain ⟨rf, ws, hlen, hr, hsts⟩ := hh
-    exact ⟨rf, ws, hlen, h rf ws hr, hsts⟩) hp
+    obtain ⟨rf, ws, A, hlen, hApc, hr, hsts⟩ := hh
+    exact ⟨rf, ws, A, hlen, hApc, h rf ws A hr, hsts⟩) hp
 
 theorem asrtM_unsat {reg : Region} {rw : RwRegion} {r : Reach}
-    (h : ∀ rf ws, r rf ws → False) :
+    (h : ∀ rf ws A, r rf ws A → False) :
     ∀ hp, asrtM reg rw r hp → False := by
-  rintro hp ⟨h1, h2, -, -, ⟨rf, ws, -, hr, -⟩, -⟩
-  exact h rf ws hr
+  rintro hp ⟨h1, h2, -, -, ⟨rf, ws, A, -, -, hr, -⟩, -⟩
+  exact h rf ws A hr
 
 /-- Split an `asrtM` precondition into a per-symbolic-state family with both
-    regions alongside. -/
+    regions and the (pc-free) ambient assertion alongside. -/
 theorem cpsTripleWithin_exists_pre_M {n : Nat} {entry exit_ : Word}
     {cr : CodeReq} {reg : Region} {rw : RwRegion} {reach : Reach} {Q : Assertion}
-    (h : ∀ rf ws, ws.length = rw.len → reach rf ws →
+    (h : ∀ rf ws (A : Assertion), ws.length = rw.len → A.pcFree →
+      reach rf ws A →
       cpsTripleWithin n entry exit_ cr
-        ((regFileIs rf) ** (bytesRegion reg.base reg.bytes **
-          bytesRegion rw.base ws)) Q) :
+        (((regFileIs rf) ** (bytesRegion reg.base reg.bytes **
+          bytesRegion rw.base ws)) ** A) Q) :
     cpsTripleWithin n entry exit_ cr (asrtM reg rw reach) Q := by
   intro R hR s hcr hPR hpc
   rw [show asrtM reg rw reach
     = (asrtOf rw reach ** bytesRegion reg.base reg.bytes) from rfl,
     sepConj_assoc'] at hPR
-  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, hlen, hreach, hsts⟩, hR2⟩ := hPR
-  have hPR' : (((regFileIs rf) ** bytesRegion rw.base ws) **
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, A, hlen, hApc, hreach, hsts⟩, hR2⟩ := hPR
+  have hPR' : ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
       (bytesRegion reg.base reg.bytes ** R)).holdsFor s :=
     ⟨hp, hcompat, h1, h2, hd, hu, hsts, hR2⟩
-  rw [sepConj_assoc',
-    sepConj_left_comm (bytesRegion rw.base ws) (bytesRegion reg.base reg.bytes) R,
-    ← sepConj_assoc' (bytesRegion reg.base reg.bytes),
-    ← sepConj_assoc'] at hPR'
-  exact h rf ws hlen hreach R hR s hcr hPR' hpc
+  rw [sepConj_assoc' ((regFileIs rf) ** bytesRegion rw.base ws) A,
+    sepConj_left_comm A (bytesRegion reg.base reg.bytes) R,
+    sepConj_assoc' (regFileIs rf) (bytesRegion rw.base ws),
+    sepConj_left_comm (bytesRegion rw.base ws) (bytesRegion reg.base reg.bytes),
+    ← sepConj_assoc' (bytesRegion reg.base reg.bytes) (bytesRegion rw.base ws),
+    ← sepConj_assoc' (regFileIs rf),
+    ← sepConj_assoc'
+      ((regFileIs rf) ** (bytesRegion reg.base reg.bytes ** bytesRegion rw.base ws))
+      A R] at hPR'
+  exact h rf ws A hlen hApc hreach R hR s hcr hPR' hpc
 
 end SAsm
 end EvmAsm.Rv64
