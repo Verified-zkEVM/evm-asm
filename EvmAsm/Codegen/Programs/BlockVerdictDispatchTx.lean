@@ -581,6 +581,31 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t3, csce_bal_struct; addi t3, t3, 39; mv t4, t2; li t5, 32\n" ++
   ".Ldtrc_selfbal_rev:\n" ++
   "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, -1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Ldtrc_selfbal_rev\n" ++
+  -- Stage the top-level recipient value credit into the live non-storage log after
+  -- runtime setup resets it. This lets BALANCE(recipient) observe tx.value during
+  -- recipient execution. Self-transfers are already represented by the sender
+  -- upfront-debit record, so do not overwrite that latest balance with pre+value.
+  "  ld t0, 96(s2); ld t1, 104(s2); or t0, t0, t1; ld t1, 112(s2); or t0, t0, t1; ld t1, 120(s2); or t0, t0, t1; beqz t0, .Ldtrc_recipient_credit_done\n" ++
+  "  addi t0, s2, 72; la t1, srpc_sender_addr; li t2, 20\n" ++
+  ".Ldtrc_recipient_sender_cmp:\n" ++
+  "  beqz t2, .Ldtrc_recipient_credit_done\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Ldtrc_recipient_distinct\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_recipient_sender_cmp\n" ++
+  ".Ldtrc_recipient_distinct:\n" ++
+  "  la t0, bv_pending_recipient_addr; sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  addi t1, s2, 72; li t2, 20\n" ++
+  ".Ldtrc_recipient_addr_copy:\n" ++
+  "  beqz t2, .Ldtrc_recipient_addr_done\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_recipient_addr_copy\n" ++
+  ".Ldtrc_recipient_addr_done:\n" ++
+  "  la t0, csce_bal_struct; addi t0, t0, 8; la t1, bv_pending_recipient_pre\n" ++
+  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la a0, bv_pending_recipient_pre; addi a1, s2, 96; la a2, bv_pending_recipient_post\n" ++
+  "  jal ra, u256_add_be\n" ++
+  "  bnez a0, .Ldtrc_recipient_credit_done\n" ++
+  "  la t0, csce_bal_struct; ld t2, 0(t0); la t1, bv_pending_recipient_nonce; sd t2, 0(t1)\n" ++
+  "  li t2, 1; la t1, bv_pending_recipient_credit_flag; sd t2, 0(t1)\n" ++
+  ".Ldtrc_recipient_credit_done:\n" ++
   ".Ldtrc_no_selfbal:\n" ++
   -- coc3g.1: credit the recipient's live balance with the tx value, on BOTH the SELFBALANCE-lookup
   -- SUCCESS path (env+32 = staged pre-balance) AND the MISS path (env+32 ~ 0 for a fresh/unresolved
