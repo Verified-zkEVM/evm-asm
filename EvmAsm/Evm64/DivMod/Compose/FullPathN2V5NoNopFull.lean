@@ -352,7 +352,7 @@ theorem fullDivN2_preloop_loop_unified_exact_x1_scratch_v5_noNop_selectedCarry
   have hPre := evm_div_n2_to_loopSetup_spec_within_v5_noNop_exact_x1_scratch_frame
     sp base a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
-    jMem retMem dMem dloMem scratchUn0 scratchMem raVal x9In
+    jMem retMem dMem dloMem scratchUn0 scratchMem raVal x9In ((clzResult b1).2 >>> (63 : Nat))
     hbnz hb3z hb2z hb1nz hshift_nz
   have hLoop := evm_div_n2_loop_unified_inst_noNop_exact_x1_v5_selectedCarry
     bltu_2 bltu_1 bltu_0 sp base
