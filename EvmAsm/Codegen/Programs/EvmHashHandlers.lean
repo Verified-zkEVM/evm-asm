@@ -6,6 +6,7 @@
 
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.Programs.KeccakReverseSAsm
 
 namespace EvmAsm.Codegen
 
@@ -66,18 +67,7 @@ def hashHandlers : List OpcodeHandlerSpec :=
         -- exec-vs-BAL storage comparator (which reverses the BE BAL value to LE-limb)
         -- always mismatched -> bv_fail=34 for every keccak-then-SSTORE contract
         -- (e.g. precompile call_types storing keccak(returndata)). coc3g.5.
-        "  addi t0, x12, 0\n" ++
-        "  addi t1, x12, 31\n" ++
-        "1:\n" ++
-        "  bgeu t0, t1, 2f\n" ++
-        "  lbu t2, 0(t0)\n" ++
-        "  lbu t3, 0(t1)\n" ++
-        "  sb t3, 0(t0)\n" ++
-        "  sb t2, 0(t1)\n" ++
-        "  addi t0, t0, 1\n" ++
-        "  addi t1, t1, -1\n" ++
-        "  j 1b\n" ++
-        "2:\n" ++
+        emitProgram KeccakReverseSAsm.byteReverse32_verified ++ "\n" ++
         "  addi x10, x10, 1\n" ++       -- advance PC by 1
         "  j .dispatch_loop") } ]
 
