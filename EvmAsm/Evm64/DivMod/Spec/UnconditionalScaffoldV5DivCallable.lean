@@ -90,4 +90,82 @@ theorem evm_div_stack_spec_unconditional_of_lanes_v5_div_callableExact
   case n3 => exact lane_n3
   case n4 => exact lane_n4
 
+/-- x9In/x9Out twin of `evm_div_stack_spec_unconditional_of_lanes_v5_div_callableExact`.
+
+    The single-`x9Val` scaffold above forces pre-x9 = post-x9, which the honest v5
+    lanes (pre-x9 dead/incoming, post-x9 = `signExtend12 4095` after `loopSetup`'s
+    `ADDI .x9 .x0 4` + `SUB`) can never satisfy — it compiles but its lane
+    hypotheses are undischargeable.  This twin splits the incoming `x9In` (framed
+    unread through the div body — no preamble program reads `.x9`) from the
+    body-clobbered `x9Out`, matching the shape the scratch adapter
+    (`evm_div_callable_v5_spec_from_noNop_exact_frame_scratch`) already consumes.
+    The `DivisorLimbCase.elim_named` dispatch is agnostic to both x9 slots, so the
+    proof is identical to the single-`x9Val` version. -/
+theorem evm_div_stack_spec_unconditional_of_lanes_v5_div_callableExact_x9io
+    (sp base : Word) (a b : EvmWord)
+    (x9In x9Out raVal v2 v5 v6 v7 v10 v11 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (lane_bzero : b = 0 →
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
+        (divModStackDispatchPreNoX1 sp a b x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+         ((sp + signExtend12 3936) ↦ₘ scratchMem))
+        (divStackDispatchPostCallableExactFrame sp a b raVal x9Out **
+         memOwn (sp + signExtend12 3936)))
+    (lane_n1 : N1ShapeIs b →
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
+        (divModStackDispatchPreNoX1 sp a b x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+         ((sp + signExtend12 3936) ↦ₘ scratchMem))
+        (divStackDispatchPostCallableExactFrame sp a b raVal x9Out **
+         memOwn (sp + signExtend12 3936)))
+    (lane_n2 : N2ShapeIs b →
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
+        (divModStackDispatchPreNoX1 sp a b x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+         ((sp + signExtend12 3936) ↦ₘ scratchMem))
+        (divStackDispatchPostCallableExactFrame sp a b raVal x9Out **
+         memOwn (sp + signExtend12 3936)))
+    (lane_n3 : N3ShapeIs b →
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
+        (divModStackDispatchPreNoX1 sp a b x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+         ((sp + signExtend12 3936) ↦ₘ scratchMem))
+        (divStackDispatchPostCallableExactFrame sp a b raVal x9Out **
+         memOwn (sp + signExtend12 3936)))
+    (lane_n4 : N4ShapeIs b →
+      cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
+        (divModStackDispatchPreNoX1 sp a b x9In raVal v2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+         ((sp + signExtend12 3936) ↦ₘ scratchMem))
+        (divStackDispatchPostCallableExactFrame sp a b raVal x9Out **
+         memOwn (sp + signExtend12 3936))) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
+      (divModStackDispatchPreNoX1 sp a b x9In raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b raVal x9Out **
+       memOwn (sp + signExtend12 3936)) := by
+  refine DivisorLimbCase.elim_named
+    (P := fun b' => cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
+      (divModStackDispatchPreNoX1 sp a b' x9In raVal v2 v5 v6 v7 v10 v11
+        q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (divStackDispatchPostCallableExactFrame sp a b' raVal x9Out **
+       memOwn (sp + signExtend12 3936)))
+    b ?bzero ?n1 ?n2 ?n3 ?n4
+  case bzero => exact lane_bzero
+  case n1 => exact lane_n1
+  case n2 => exact lane_n2
+  case n3 => exact lane_n3
+  case n4 => exact lane_n4
+
 end EvmAsm.Evm64
