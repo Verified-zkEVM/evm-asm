@@ -27,6 +27,7 @@ def slotnumContextHandlers : List OpcodeHandlerSpec :=
     SD .x12 .x15 24
   [ { label := "h_SLOTNUM"
     , opcodes := [0x4b]
+    , preBody := stackOverflowGuardAsm
     , body := slotnumBody
     , tail := .advanceAndRet 1 } ]
 

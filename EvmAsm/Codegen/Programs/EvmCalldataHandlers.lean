@@ -37,6 +37,7 @@ namespace EvmAsm.Codegen
 def calldataHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_CALLDATASIZE"
     , opcodes := [0x36]
+    , preBody := stackOverflowGuardAsm
     , body    := EvmAsm.Evm64.Calldata.evm_calldatasize .x20 .x15
     , tail    := .advanceAndRet 1 }
   , -- M21 real CALLDATALOAD (0x35). The verified body

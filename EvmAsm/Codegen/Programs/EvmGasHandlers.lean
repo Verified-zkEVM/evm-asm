@@ -17,6 +17,7 @@ namespace EvmAsm.Codegen
 def gasHandlers : List OpcodeHandlerSpec :=
   [ { label   := "h_GAS"
       opcodes := [0x5a]
+      preBody := stackOverflowGuardAsm
       body    := []
       tail    := .custom <|
         "  addi x12, x12, -32\n" ++
