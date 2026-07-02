@@ -624,7 +624,7 @@ def basicPrecompileCallTail
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    chargePrecompileGasConstAsm 6900 "x16" "x17" ++
+    chargePrecompileGasConstWithAllotmentAsm tag 6900 "x16" "x17" ++
     "  ld x16, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x17, 160\n" ++
     "  bne x16, x17, 12f\n" ++
