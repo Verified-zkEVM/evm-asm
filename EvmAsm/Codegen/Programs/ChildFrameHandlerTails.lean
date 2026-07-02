@@ -551,10 +551,10 @@ def basicPrecompileCallTail
     "  or x16, x16, x17\n" ++
     "  lbu x17, 3(x18)\n" ++
     "  or x16, x16, x17\n" ++
-    chargePrecompileGasAsm "x16" "x17" ++
+    bn254ChargeGateAsm tag ++
     "  lbu x17, 212(x18)\n" ++
     "  li x22, 1\n" ++
-    "  bltu x22, x17, 1f\n" ++
+    "  bltu x22, x17, .L" ++ tag ++ "_bn254_kfail\n" ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
