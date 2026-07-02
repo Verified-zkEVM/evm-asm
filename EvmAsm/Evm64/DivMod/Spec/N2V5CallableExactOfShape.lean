@@ -99,12 +99,12 @@ theorem evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
     hb2z hb3z hshift_nz hb1nz hc2 hm2 hc1 hm1 hc0 hm0
   have hbody := evm_div_n2_stack_pre_to_unified_post_v5_noNop_fromShape sp base a b
     v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal x9In
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal x9In ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
     bltu_2 bltu_1 bltu_0 hbnz hb3z hb2z hb1nz hshift_nz halign hbltu_2 hbltu_1 hbltu_0
   exact evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
     bltu_2 bltu_1 bltu_0 sp base a b v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal x9In
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal x9In ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
     hdivWord hbody
 
 /-- Shift=0 CALLABLE post bridge: the flag-param full shift=0 path post →

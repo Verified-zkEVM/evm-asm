@@ -29,7 +29,7 @@ theorem evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
     (v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
-    (raVal x9In : Word)
+    (raVal x9In x2In : Word)
     (hdivWord : fullDivN2QuotientWordV5 bltu_2 bltu_1 bltu_0
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) =
@@ -38,7 +38,7 @@ theorem evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
       base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+        x2In
         v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
@@ -51,7 +51,7 @@ theorem evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+        x2In
         v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **

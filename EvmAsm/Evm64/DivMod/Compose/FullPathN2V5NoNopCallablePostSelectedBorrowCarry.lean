@@ -20,7 +20,7 @@ theorem evm_div_n2_stack_pre_to_unified_post_v5_noNop_borrowCarry (sp base : Wor
     (v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
      nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
-    (raVal x9In : Word)
+    (raVal x9In x2In : Word)
     (hbnz : b ≠ 0)
     (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0) (hb1nz : b.getLimbN 1 ≠ 0)
     (hshift_nz : (clzResult (b.getLimbN 1)).1 ≠ 0)
@@ -532,7 +532,7 @@ theorem evm_div_n2_stack_pre_to_unified_post_v5_noNop_borrowCarry (sp base : Wor
       base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         (x9In) raVal
-        ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+        x2In
         v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
@@ -550,7 +550,7 @@ theorem evm_div_n2_stack_pre_to_unified_post_v5_noNop_borrowCarry (sp base : Wor
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal x9In
+    nMem shiftMem jMem retMem dMem dloMem scratchUn0 scratchMem raVal x9In x2In
     hbnz' hb3z hb2z hb1nz hshift_nz halign hbltu_2
     (by cases bltu_2 <;> simpa using hbltu_1)
     (by cases bltu_2 <;> cases bltu_1 <;> simpa using hbltu_0) hcarry
@@ -558,7 +558,7 @@ theorem evm_div_n2_stack_pre_to_unified_post_v5_noNop_borrowCarry (sp base : Wor
       base (base + denormOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         (x9In) raVal
-        ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat))
+        x2In
         v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
