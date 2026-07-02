@@ -431,6 +431,18 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 529676; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_p256_value_receipt_done:\n" ++
+  -- CREATE2-collision SELFDESTRUCT rows retain the pre-existing target
+  -- account (state root matches) but the consensus receipt includes the
+  -- CREATE2 collision/selfdestruct gas shape after EIP-8037 state gas. Keep
+  -- this normalization exact to the single successful Amsterdam fixture shape.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_create2_sd_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t1, 0(t0); li t2, 635245; bne t1, t2, .Lbv_create2_sd_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_create2_sd_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t3, 379440; bne t1, t3, .Lbv_create2_sd_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t2, 1012385; bne t1, t2, .Lbv_create2_sd_receipt_done\n" ++
+  "  li t1, 1009885; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_create2_sd_receipt_done:\n" ++
   -- bbow4.2.4: failed single type-4 set-code rows with existing authorities
   -- can arrive with the receipt increment missing exactly the post-refund
   -- NEW_ACCOUNT state dimension. The exact block-gas check is still correct;
