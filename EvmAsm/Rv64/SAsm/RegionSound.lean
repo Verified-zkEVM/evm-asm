@@ -12,6 +12,8 @@
 -/
 
 import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.HalfwordOps
+import EvmAsm.Rv64.WordOps
 import EvmAsm.Rv64.SAsm.Sym
 import EvmAsm.Rv64.SAsm.RegFileSep
 
@@ -238,6 +240,209 @@ theorem word32At_index (reg : Region) {i : Nat}
   rw [show reg.base + BitVec.ofNat 64 i + BitVec.ofNat 64 0
       = reg.base + BitVec.ofNat 64 i from by bv_omega] at this
   exact this
+
+/-- Update the dword cell containing a spliced store: a framed `bytesRegion`
+    moves to the spliced byte list when the machine overwrites that cell with
+    the correspondingly spliced packed value. -/
+theorem holdsFor_bytesRegion_setBytes {b : Word} {ws ns : List (BitVec 8)}
+    {R : Assertion} {s : MachineState}
+    (hPR : ((bytesRegion b ws) ** R).holdsFor s)
+    {i : Nat} (hns : ns ≠ []) (hr : i % 8 + ns.length ≤ 8)
+    (hi : i + ns.length ≤ ws.length) :
+    ((bytesRegion b (setBytes ws i ns)) ** R).holdsFor
+      (s.setMem (b + BitVec.ofNat 64 (8 * (i / 8)))
+        (packBytes (setBytes ((ws.drop (8 * (i / 8))).take 8) (i % 8) ns))) := by
+  obtain ⟨front, rest, hf, hrst, heq, heqset⟩ :=
+    bytesRegion_dword_at_setBytes b ws ns (i / 8) (i % 8) hns hr
+      (by have := Nat.div_add_mod i 8; omega)
+  rw [show 8 * (i / 8) + i % 8 = i from Nat.div_add_mod i 8] at heqset
+  rw [heq] at hPR
+  rw [heqset]
+  set C := ((b + BitVec.ofNat 64 (8 * (i / 8))) ↦ₘ
+    packBytes ((ws.drop (8 * (i / 8))).take 8)) with hC
+  set C' := ((b + BitVec.ofNat 64 (8 * (i / 8))) ↦ₘ
+    packBytes (setBytes ((ws.drop (8 * (i / 8))).take 8) (i % 8) ns)) with hC'
+  rw [sepConj_assoc' front (C ** rest) R,
+    sepConj_assoc' C rest R,
+    sepConj_left_comm front C (rest ** R)] at hPR
+  have hupd := holdsFor_sepConj_memIs_setMem
+    (v' := packBytes (setBytes ((ws.drop (8 * (i / 8))).take 8) (i % 8) ns)) hPR
+  rw [← hC'] at hupd
+  rw [sepConj_assoc' front (C' ** rest) R,
+    sepConj_assoc' C' rest R,
+    sepConj_left_comm front C' (rest ** R)]
+  exact hupd
+
+/-- Store spec at register-file granularity: one step, the writable region's
+    bytes move to the spliced payload, the register file untouched.  `hwf` is
+    well-formedness of the *current* contents viewed as a region (derived
+    from `RwRegion.wf` + the length invariant at the call site). -/
+theorem regFile_store_spec_within (i : Instr) (st : StoreOp) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (base : Word)
+    (hsem : storeSem i = some st)
+    (hwf : (Region.mk rwBase ws).wf)
+    (hrs1 : (Reg.isExposed st.rs1 || st.rs1 == .x0) = true)
+    (hrs2 : (Reg.isExposed st.rs2 || st.rs2 == .x0) = true)
+    (hin : inRw rwBase ws (rf.get st.rs1 + signExtend12 st.ofs) st.nbytes)
+    (hdvd : st.nbytes ∣ ((rf.get st.rs1 + signExtend12 st.ofs) - rwBase).toNat) :
+    cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base i)
+      ((regFileIs rf) ** bytesRegion rwBase ws)
+      ((regFileIs rf) ** bytesRegion rwBase
+        (setBytes ws ((rf.get st.rs1 + signExtend12 st.ofs) - rwBase).toNat
+          (st.payload (rf.get st.rs2)))) := by
+  intro R hR s hcr hPR hpc; subst hpc
+  have hfetch : s.code s.pc = some i := CodeReq.singleton_satisfiedBy.mp hcr
+  rw [sepConj_assoc'] at hPR
+  -- hPR : (regFileIs rf ** (bytesRegion ** R)).holdsFor s
+  have hrs1v : s.getReg st.rs1 = rf.get st.rs1 :=
+    holdsFor_regFileIs_agree hPR hrs1
+  have hrs2v : s.getReg st.rs2 = rf.get st.rs2 :=
+    holdsFor_regFileIs_agree hPR hrs2
+  have hPR2 : ((bytesRegion rwBase ws) ** (regFileIs rf ** R)).holdsFor s := by
+    rw [sepConj_left_comm] at hPR
+    exact hPR
+  set addr := rf.get st.rs1 + signExtend12 st.ofs with haddr_def
+  set v := rf.get st.rs2 with hv_def
+  unfold inRw at hin
+  set i0 := (addr - rwBase).toNat with hi0_def
+  have hn : 1 ≤ st.nbytes := storeSem_nbytes_pos hsem
+  have hplen : (st.payload v).length = st.nbytes := storeSem_payload_length hsem v
+  have hi0lt : i0 < ws.length := by omega
+  have haddr_eq : addr = rwBase + BitVec.ofNat 64 i0 := by
+    rw [hi0_def]
+    bv_omega
+  have hover : rwBase.toNat + i0 < 2 ^ 64 := by
+    have h1 : rwBase.toNat + ws.length < 2 ^ 64 := hwf.2.1
+    omega
+  have haddr_toNat : addr.toNat = rwBase.toNat + i0 := by
+    rw [haddr_eq, BitVec.toNat_add, BitVec.toNat_ofNat]
+    omega
+  have hvalidmem : isValidMemAddr addr = true := by
+    rw [haddr_eq]
+    exact hwf.2.2 _ hi0lt
+  have hb8 : rwBase.toNat % 8 = 0 := hwf.1
+  have halignD : alignToDword addr = rwBase + BitVec.ofNat 64 (8 * (i0 / 8)) := by
+    conv_lhs => rw [haddr_eq]
+    exact alignToDword_add_ofNat_of_aligned hb8 hover
+  have hbo : byteOffset addr = i0 % 8 := by
+    conv_lhs => rw [haddr_eq]
+    exact byteOffset_add_ofNat_of_aligned hb8 hover
+  have hcell : s.getMem (rwBase + BitVec.ofNat 64 (8 * (i0 / 8)))
+      = packBytes ((ws.drop (8 * (i0 / 8))).take 8) :=
+    holdsFor_bytesRegion_cell hPR2 hi0lt
+  -- the one machine step and its effect on the containing cell
+  have hkey : (step s = some (execInstrBr s i)
+      ∧ execInstrBr s i
+        = (s.setMem (rwBase + BitVec.ofNat 64 (8 * (i0 / 8)))
+            (packBytes (setBytes ((ws.drop (8 * (i0 / 8))).take 8) (i0 % 8)
+              (st.payload v)))).setPC (s.pc + 4))
+      ∧ i0 % 8 + st.nbytes ≤ 8 := by
+    cases i <;> simp only [storeSem, reduceCtorEq] at hsem
+    case SB rs1 rs2 ofs =>
+      injection hsem with hsem; subst hsem
+      have hmod8 : i0 % 8 + 1 ≤ 8 := by omega
+      have hvalid : isValidByteAccess (s.getReg rs1 + signExtend12 ofs) = true := by
+        rw [hrs1v]
+        show isValidByteAccess addr = true
+        simpa using hvalidmem
+      refine ⟨⟨step_sb hfetch hvalid, ?_⟩, hmod8⟩
+      simp only [execInstrBr]
+      rw [hrs1v, hrs2v]
+      show (s.setByte addr (v.truncate 8)).setPC _ = _
+      have hchunklen : i0 % 8 < ((ws.drop (8 * (i0 / 8))).take 8).length := by
+        have hin' : i0 + 1 ≤ ws.length := hin
+        simp only [List.length_take, List.length_drop]
+        have := Nat.div_add_mod i0 8
+        omega
+      rw [setByte_eq, halignD, hbo, hcell,
+        packBytes_set _ (i0 % 8) (v.truncate 8) (by omega) hchunklen]
+      rfl
+    case SH rs1 rs2 ofs =>
+      injection hsem with hsem; subst hsem
+      have hdvd' : 2 ∣ i0 := hdvd
+      have hin' : i0 + 2 ≤ ws.length := hin
+      have hmod8 : i0 % 8 + 2 ≤ 8 := by omega
+      have hvalid : isValidHalfwordAccess (s.getReg rs1 + signExtend12 ofs) = true := by
+        rw [hrs1v]
+        show isValidHalfwordAccess addr = true
+        simp only [isValidHalfwordAccess_eq, Bool.and_eq_true]
+        refine ⟨hvalidmem, ?_⟩
+        simp only [isAligned2_eq, beq_iff_eq]
+        omega
+      refine ⟨⟨step_sh hfetch hvalid, ?_⟩, hmod8⟩
+      simp only [execInstrBr]
+      rw [hrs1v, hrs2v]
+      show (s.setHalfword addr (v.truncate 16)).setPC _ = _
+      have hchunklen : i0 % 8 + 2 ≤ ((ws.drop (8 * (i0 / 8))).take 8).length := by
+        simp only [List.length_take, List.length_drop]
+        have := Nat.div_add_mod i0 8
+        omega
+      rw [setHalfword_eq, halignD, hbo, hcell,
+        packBytes_setBytes_halfword _ (i0 % 8) (v.truncate 16)
+          (by omega) hmod8 hchunklen]
+    case SW rs1 rs2 ofs =>
+      injection hsem with hsem; subst hsem
+      have hdvd' : 4 ∣ i0 := hdvd
+      have hin' : i0 + 4 ≤ ws.length := hin
+      have hmod8 : i0 % 8 + 4 ≤ 8 := by omega
+      have hvalid : isValidMemAccess (s.getReg rs1 + signExtend12 ofs) = true := by
+        rw [hrs1v]
+        show isValidMemAccess addr = true
+        simp only [isValidMemAccess_eq, Bool.and_eq_true]
+        refine ⟨hvalidmem, ?_⟩
+        simp only [isAligned4, beq_iff_eq]
+        omega
+      refine ⟨⟨step_sw hfetch hvalid, ?_⟩, hmod8⟩
+      simp only [execInstrBr]
+      rw [hrs1v, hrs2v]
+      show (s.setWord32 addr (v.truncate 32)).setPC _ = _
+      have hchunklen : i0 % 8 + 4 ≤ ((ws.drop (8 * (i0 / 8))).take 8).length := by
+        simp only [List.length_take, List.length_drop]
+        have := Nat.div_add_mod i0 8
+        omega
+      rw [setWord32_eq, halignD, hbo, hcell,
+        packBytes_setBytes_word32 _ (i0 % 8) (v.truncate 32)
+          (by omega) hmod8 hchunklen]
+    case SD rs1 rs2 ofs =>
+      injection hsem with hsem; subst hsem
+      have hdvd' : 8 ∣ i0 := hdvd
+      have hin' : i0 + 8 ≤ ws.length := hin
+      have h80 : i0 % 8 = 0 := by omega
+      have hi08 : 8 * (i0 / 8) = i0 := by omega
+      have hvalid : isValidDwordAccess (s.getReg rs1 + signExtend12 ofs) = true := by
+        rw [hrs1v]
+        show isValidDwordAccess addr = true
+        simp only [isValidDwordAccess_eq, Bool.and_eq_true]
+        refine ⟨hvalidmem, ?_⟩
+        simp only [isAligned8, beq_iff_eq]
+        omega
+      refine ⟨⟨step_sd hfetch hvalid, ?_⟩, show i0 % 8 + 8 ≤ 8 from by omega⟩
+      simp only [execInstrBr]
+      rw [hrs1v, hrs2v]
+      show (s.setMem addr v).setPC _ = _
+      rw [h80,
+        show addr = rwBase + BitVec.ofNat 64 (8 * (i0 / 8)) from by
+          rw [haddr_eq, hi08],
+        ← packBytes_setBytes_dword ((ws.drop (8 * (i0 / 8))).take 8) v (by
+          simp only [List.length_take, List.length_drop]
+          omega)]
+  obtain ⟨⟨hstep', hexec⟩, hmod8⟩ := hkey
+  have hupd := holdsFor_bytesRegion_setBytes
+    (i := i0) (ns := st.payload v) hPR2
+    (List.ne_nil_of_length_pos (by omega))
+    (by omega)
+    (by omega)
+  refine ⟨1, Nat.le_refl 1,
+    (s.setMem (rwBase + BitVec.ofNat 64 (8 * (i0 / 8)))
+      (packBytes (setBytes ((ws.drop (8 * (i0 / 8))).take 8) (i0 % 8)
+        (st.payload v)))).setPC (s.pc + 4), ?_, rfl, ?_⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [hstep', hexec]; rfl
+  · rw [sepConj_left_comm] at hupd
+    rw [← sepConj_assoc'] at hupd
+    exact holdsFor_pcFree_setPC
+      (pcFree_sepConj (pcFree_sepConj (pcFree_regFileIs _)
+        (bytesRegion_pcFree _ _)) hR) hupd
 
 /-- Load spec at register-file granularity: one step, the destination
     receives the value the pure engine computes (`LoadOp.val`), the region

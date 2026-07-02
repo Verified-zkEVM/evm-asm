@@ -46,6 +46,12 @@ def setBytes (bs : List (BitVec 8)) (i : Nat) : List (BitVec 8) → List (BitVec
   | nil => rfl
   | cons b rest ih => simp [ih]
 
+@[simp] theorem setBytes_nil_left (i : Nat) (ns : List (BitVec 8)) :
+    setBytes [] i ns = [] := by
+  induction ns generalizing i with
+  | nil => rfl
+  | cons b rest ih => simp [ih]
+
 /-- Reading byte `j` of a spliced list: the payload byte inside the spliced
     window, the original byte outside. -/
 theorem getByteAt_setBytes (ns bs : List (BitVec 8)) (i j : Nat)
