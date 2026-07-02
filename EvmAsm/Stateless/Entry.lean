@@ -74,6 +74,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Stateless.SSZ.Decode.Program
 import EvmAsm.Stateless.SSZ.Decode.ChainIdSAsm
+import EvmAsm.Stateless.SSZ.Decode.ActiveForkSAsm
 import EvmAsm.Stateless.SSZ.Encode.Program
 
 namespace EvmAsm.Stateless
@@ -93,7 +94,11 @@ def run_stateless_guest : Program :=
   -- EvmAsm/Stateless/SSZ/Decode/ChainIdSAsm.lean and beads evm-asm-iwzun).
   -- Same interface (a0 = chain_id, a3 = chain_config addr) plus a t0 clobber.
   EvmAsm.Stateless.SSZ.Decode.read_chain_id_verified ++
-  EvmAsm.Stateless.SSZ.Decode.read_active_fork ++
+  -- Verified SAsm replacement for `read_active_fork` (same misalignment
+  -- story: the u32 at chain_config+8 sits ≡ 2 (mod 4) and the u64 read is
+  -- host-data-dependent — see ActiveForkSAsm.lean).  Same interface
+  -- (a2 = fork index, a3 preserved) plus a t0 clobber.
+  EvmAsm.Stateless.SSZ.Decode.read_active_fork_verified ++
   EvmAsm.Stateless.SSZ.Decode.decode_validation_bit ++
   EvmAsm.Stateless.SSZ.Decode.decode_header_count ++
   EvmAsm.Stateless.SSZ.Encode.serialize_stateless_output
