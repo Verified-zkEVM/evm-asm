@@ -32,7 +32,7 @@ def dupHandlers : List OpcodeHandlerSpec :=
     let n := i + 1
     { label   := s!"h_DUP{n}"
       opcodes := [0x7f + n]
-      preBody := stackUnderflowGuardAsm n
+      preBody := stackUnderflowGuardAsm n ++ "\n" ++ stackOverflowGuardAsm
       body    := EvmAsm.Evm64.evm_dup n
       tail    := .advanceAndRet 1 })
 

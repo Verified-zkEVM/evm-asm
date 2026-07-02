@@ -94,6 +94,7 @@ def controlFlowHandlers : List OpcodeHandlerSpec :=
     , tail    := jumpiValidityTail }
   , { label := "h_PC"
     , opcodes := [0x58]
+    , preBody := stackOverflowGuardAsm
     , body    := EvmAsm.Evm64.ControlFlow.evm_pc .x21 .x14
     , tail    := .advanceAndRet 1 } ]
 
