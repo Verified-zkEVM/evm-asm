@@ -294,7 +294,8 @@ def blockVerdictExactGasCheck : String :=
   "  la t0, bv_exact_expected_gas_used; sd t2, 0(t0)\n" ++
   "  la t0, bvgr_block_gas_increments; sd t2, 0(t0)\n" ++
   "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t3, 1; bne t1, t3, .Lbv_exact_wip_header_skip_receipt_store\n" ++
-  "  la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); bgeu t4, t2, .Lbv_exact_wip_header_skip_receipt_store\n" ++
+  "  sd t2, 0(t0)\n" ++
   ".Lbv_exact_wip_header_skip_receipt_store:\n" ++
   "  la t0, bv_exact_block_status; sd zero, 0(t0)\n" ++
   ".Lbv_block_gas_used_exact_ok:\n" ++
