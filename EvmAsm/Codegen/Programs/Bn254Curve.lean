@@ -249,33 +249,75 @@ def bn254PointAddFunction : String :=
 
 /-- a0 = 1 iff the finite point at a0 (coords already `< p`) satisfies
     y^2 = x^3 + 3 mod p. -/
-def bn254OnCurveFunction : String :=
-  "bnc_on_curve:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, bnc_t\n" ++
-  "  jal ra, bnf_mul_mod_p         # t = x^2\n" ++
-  "  la a0, bnc_t\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, bnc_t\n" ++
-  "  jal ra, bnf_mul_mod_p         # t = x^3\n" ++
-  "  la a0, bnc_t\n" ++
-  "  la a1, bnf_b_be\n" ++
-  "  la a2, bnc_rhs\n" ++
-  "  jal ra, bnf_add_mod_p         # rhs = x^3 + 3\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  addi a1, s0, 32\n" ++
-  "  la a2, bnc_y2\n" ++
-  "  jal ra, bnf_mul_mod_p         # y2 = y^2\n" ++
-  "  la a0, bnc_rhs\n" ++
-  "  la a1, bnc_y2\n" ++
-  "  jal ra, bnf_eq32\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def bncOnCurve_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 20)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 20)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_mul_mod_p (GuestAddrs.bnc_on_curve + 28)),
+    .AUIPC .x10 (laHi GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 32)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 32)),
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 44)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 44)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_mul_mod_p (GuestAddrs.bnc_on_curve + 52)),
+    .AUIPC .x10 (laHi GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 56)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_t (GuestAddrs.bnc_on_curve + 56)),
+    .AUIPC .x11 (laHi GuestAddrs.bnf_b_be (GuestAddrs.bnc_on_curve + 64)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_b_be (GuestAddrs.bnc_on_curve + 64)),
+    .AUIPC .x12 (laHi GuestAddrs.bnc_rhs (GuestAddrs.bnc_on_curve + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnc_rhs (GuestAddrs.bnc_on_curve + 72)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_add_mod_p (GuestAddrs.bnc_on_curve + 80)),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .ADDI .x11 .x8 (32 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.bnc_y2 (GuestAddrs.bnc_on_curve + 92)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnc_y2 (GuestAddrs.bnc_on_curve + 92)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_mul_mod_p (GuestAddrs.bnc_on_curve + 100)),
+    .AUIPC .x10 (laHi GuestAddrs.bnc_rhs (GuestAddrs.bnc_on_curve + 104)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_rhs (GuestAddrs.bnc_on_curve + 104)),
+    .AUIPC .x11 (laHi GuestAddrs.bnc_y2 (GuestAddrs.bnc_on_curve + 112)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_y2 (GuestAddrs.bnc_on_curve + 112)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_eq32 (GuestAddrs.bnc_on_curve + 120)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bncOnCurve_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bncOnCurve_relocs : RelocTable :=
+  [ (5, .la .x12 "bnc_t"),
+    (7, .jal .x1 "bnf_mul_mod_p"),
+    (8, .la .x10 "bnc_t"),
+    (11, .la .x12 "bnc_t"),
+    (13, .jal .x1 "bnf_mul_mod_p"),
+    (14, .la .x10 "bnc_t"),
+    (16, .la .x11 "bnf_b_be"),
+    (18, .la .x12 "bnc_rhs"),
+    (20, .jal .x1 "bnf_add_mod_p"),
+    (23, .la .x12 "bnc_y2"),
+    (25, .jal .x1 "bnf_mul_mod_p"),
+    (26, .la .x10 "bnc_rhs"),
+    (28, .la .x11 "bnc_y2"),
+    (30, .jal .x1 "bnf_eq32") ]
+
+def bn254OnCurveFunction : String :=
+  "bnc_on_curve:\n" ++ emitProgramR bncOnCurve_prog bncOnCurve_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bncOnCurve_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254OnCurveFunction_eq_prog :
+    bn254OnCurveFunction = "bnc_on_curve:\n" ++ emitProgramR bncOnCurve_prog bncOnCurve_relocs := rfl
+
+#guard bn254OnCurveFunction.startsWith "bnc_on_curve:\n"
+#guard bncOnCurve_prog.length = 35
 /-- execution-specs `bytes_to_g1` validity for a staged 64-byte point.
     a0 = point; returns a0 = 0 (valid finite), 1 (the (0,0) infinity
     encoding), or 2 (coordinate >= p, or not on the curve). -/
@@ -333,67 +375,106 @@ theorem bn254ValidateG1Function_eq_prog :
     cofactor is 1, so this agrees with reduction mod the order).
     a0 = scalar (32-byte BE), a1 = base x||y, a2 = output x||y. Returns
     a0 = 1 when the result is infinity (output zeroed). -/
-def bn254ScalarMulFunction : String :=
-  "bnc_scalar_mul:\n" ++
-  "  addi sp, sp, -72\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                      # scalar bytes\n" ++
-  "  mv s1, a1                      # base point\n" ++
-  "  mv s2, a2                      # accumulator/output\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, bnc_zero64\n" ++
-  "  li s3, 1                       # accumulator is infinity\n" ++
-  "  li s4, 0                       # byte index\n" ++
-  ".Lbnc_mul_byte_loop:\n" ++
-  "  li t0, 32\n" ++
-  "  bgeu s4, t0, .Lbnc_mul_done\n" ++
-  "  add t0, s0, s4\n" ++
-  "  lbu s5, 0(t0)\n" ++
-  "  li s6, 128\n" ++
-  ".Lbnc_mul_bit_loop:\n" ++
-  "  beqz s6, .Lbnc_mul_next_byte\n" ++
-  "  bnez s3, .Lbnc_mul_skip_double\n" ++
-  "  mv a0, s2\n" ++
-  "  la a1, bnc_point_tmp\n" ++
-  "  jal ra, bnc_point_dbl\n" ++
-  "  mv s3, a0\n" ++
-  "  la a0, bnc_point_tmp\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, bnc_copy64\n" ++
-  ".Lbnc_mul_skip_double:\n" ++
-  "  and t0, s5, s6\n" ++
-  "  beqz t0, .Lbnc_mul_advance_bit\n" ++
-  "  beqz s3, .Lbnc_mul_add_base\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, bnc_copy64\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, bnc_is_inf64\n" ++
-  "  mv s3, a0                      # base may itself be (0,0)\n" ++
-  "  j .Lbnc_mul_advance_bit\n" ++
-  ".Lbnc_mul_add_base:\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, bnc_point_tmp\n" ++
-  "  jal ra, bnc_point_add\n" ++
-  "  mv s3, a0\n" ++
-  "  la a0, bnc_point_tmp\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, bnc_copy64\n" ++
-  ".Lbnc_mul_advance_bit:\n" ++
-  "  srli s6, s6, 1\n" ++
-  "  j .Lbnc_mul_bit_loop\n" ++
-  ".Lbnc_mul_next_byte:\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lbnc_mul_byte_loop\n" ++
-  ".Lbnc_mul_done:\n" ++
-  "  mv a0, s3\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 72\n" ++
-  "  ret"
+def bncScalarMul_prog : Program :=
+  [ .ADDI .x2 .x2 (-72 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_zero64 (GuestAddrs.bnc_scalar_mul + 56)),
+    .LI .x19 (1 : Word),
+    .LI .x20 (0 : Word),
+    .LI .x5 (32 : Word),
+    .BGEU .x20 .x5 (156 : BitVec 13),
+    .ADD .x5 .x8 .x20,
+    .LBU .x21 .x5 (0 : BitVec 12),
+    .LI .x22 (128 : Word),
+    .BEQ .x22 .x0 (132 : BitVec 13),
+    .BNE .x19 .x0 (40 : BitVec 13),
+    .MV .x10 .x18,
+    .AUIPC .x11 (laHi GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 100)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 100)),
+    .JAL .x1 (jalOff GuestAddrs.bnc_point_dbl (GuestAddrs.bnc_scalar_mul + 108)),
+    .MV .x19 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 116)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 116)),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_copy64 (GuestAddrs.bnc_scalar_mul + 128)),
+    .AND .x5 .x21 .x22,
+    .BEQ .x5 .x0 (76 : BitVec 13),
+    .BEQ .x19 .x0 (32 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_copy64 (GuestAddrs.bnc_scalar_mul + 152)),
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_is_inf64 (GuestAddrs.bnc_scalar_mul + 160)),
+    .MV .x19 .x10,
+    .JAL .x0 (44 : BitVec 21),
+    .MV .x10 .x18,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 180)),
+    .JAL .x1 (jalOff GuestAddrs.bnc_point_add (GuestAddrs.bnc_scalar_mul + 188)),
+    .MV .x19 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 196)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_point_tmp (GuestAddrs.bnc_scalar_mul + 196)),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_copy64 (GuestAddrs.bnc_scalar_mul + 208)),
+    .SRLI .x22 .x22 (1 : BitVec 6),
+    .JAL .x0 (-128 : BitVec 21),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-156 : BitVec 21),
+    .MV .x10 .x19,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (72 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bncScalarMul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bncScalarMul_relocs : RelocTable :=
+  [ (14, .jal .x1 "bnc_zero64"),
+    (25, .la .x11 "bnc_point_tmp"),
+    (27, .jal .x1 "bnc_point_dbl"),
+    (29, .la .x10 "bnc_point_tmp"),
+    (32, .jal .x1 "bnc_copy64"),
+    (38, .jal .x1 "bnc_copy64"),
+    (40, .jal .x1 "bnc_is_inf64"),
+    (45, .la .x12 "bnc_point_tmp"),
+    (47, .jal .x1 "bnc_point_add"),
+    (49, .la .x10 "bnc_point_tmp"),
+    (52, .jal .x1 "bnc_copy64") ]
+
+def bn254ScalarMulFunction : String :=
+  "bnc_scalar_mul:\n" ++ emitProgramR bncScalarMul_prog bncScalarMul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bncScalarMul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254ScalarMulFunction_eq_prog :
+    bn254ScalarMulFunction = "bnc_scalar_mul:\n" ++ emitProgramR bncScalarMul_prog bncScalarMul_relocs := rfl
+
+#guard bn254ScalarMulFunction.startsWith "bnc_scalar_mul:\n"
+#guard bncScalarMul_prog.length = 69
 /-- Real BN254 ecAdd (0x06) kernel behind the dispatcher's
     `zkvm_bn254_g1_add(p1, p2, result)` ABI: a0/a1 = 64-byte BE x||y
     inputs (zero-padded by the staging copy, per execution-specs

@@ -29,6 +29,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxPubkey
 
@@ -71,57 +74,113 @@ open EvmAsm.Rv64.Program
     matches every supplied key, so this never false-rejects a valid block. The
     helper status is propagated verbatim so the live caller can distinguish a
     genuine mismatch (1) from a recovery/parse failure. -/
-def verifyPublicKeysMatchSendersFunction : String :=
-  "verify_public_keys_match_senders:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  la t0, bv_tx_list_ptr; ld s0, 0(t0)   # SSZ tx list ptr\n" ++
-  "  la t0, bv_tx_list_len; ld s1, 0(t0)   # tx list byte length\n" ++
-  "  li t0, 4; bltu s1, t0, .Lvpks_ok      # <4 bytes -> no offset table -> 0 txs\n" ++
-  "  mv a0, s0; jal ra, bgv_u32le           # offset[0]\n" ++
-  "  andi t0, a0, 3; bnez t0, .Lvpks_malformed\n" ++
-  "  srli s2, a0, 2                         # tx_count = offset[0] / 4\n" ++
-  "  beqz s2, .Lvpks_ok                     # 0-tx block -> nothing to verify\n" ++
-  "  la t0, bv_public_keys_ptr; ld s3, 0(t0)   # public_keys base (65 bytes/key)\n" ++
-  "  la t0, bv_chain_id; ld s4, 0(t0)          # execution chain id\n" ++
-  "  li s5, 0                               # i = 0\n" ++
-  ".Lvpks_loop:\n" ++
-  "  beq s5, s2, .Lvpks_ok\n" ++
-  "  slli t0, s5, 2; add a0, s0, t0; jal ra, bgv_u32le   # offset[i]\n" ++
-  "  mv s6, a0\n" ++
-  "  addi t0, s5, 1; beq t0, s2, .Lvpks_last\n" ++
-  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le   # offset[i+1]\n" ++
-  "  mv s7, a0\n" ++
-  "  j .Lvpks_bounds\n" ++
-  ".Lvpks_last:\n" ++
-  "  mv s7, s1                              # final tx ends at list end\n" ++
-  ".Lvpks_bounds:\n" ++
-  "  slli t0, s2, 2; bltu s6, t0, .Lvpks_malformed   # offset[i] must be past the table\n" ++
-  "  bltu s7, s6, .Lvpks_malformed                   # offset[i+1] >= offset[i]\n" ++
-  "  bgtu s7, s1, .Lvpks_malformed                   # offset[i+1] <= list len\n" ++
-  "  add a0, s0, s6                         # tx[i] ptr\n" ++
-  "  sub a1, s7, s6                         # tx[i] len\n" ++
-  "  beqz a1, .Lvpks_malformed              # empty transaction item\n" ++
-  "  mv a2, s4                              # chain_id\n" ++
-  "  li t0, 65; mul t0, s5, t0; add a3, s3, t0   # &public_keys[i]\n" ++
-  "  la a4, vpks_pubkey_out                 # recovered pubkey scratch (64 bytes)\n" ++
-  "  la a5, vpks_scratch                    # recover scratch (>= 304 bytes)\n" ++
-  "  jal ra, tx_pubkey_public_key_matches\n" ++
-  "  bnez a0, .Lvpks_ret                    # mismatch / recovery failure -> reject (propagate)\n" ++
-  "  addi s5, s5, 1; j .Lvpks_loop\n" ++
-  ".Lvpks_ok:\n" ++
-  "  li a0, 0; j .Lvpks_ret\n" ++
-  ".Lvpks_malformed:\n" ++
-  "  li a0, 90\n" ++
-  ".Lvpks_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def verifyPublicKeysMatchSenders_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_ptr (GuestAddrs.verify_public_keys_match_senders + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_ptr (GuestAddrs.verify_public_keys_match_senders + 40)),
+    .LD .x8 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_len (GuestAddrs.verify_public_keys_match_senders + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_len (GuestAddrs.verify_public_keys_match_senders + 52)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .BLTU .x9 .x5 (184 : BitVec 13),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.verify_public_keys_match_senders + 76)),
+    .ANDI .x5 .x10 (3 : BitVec 12),
+    .BNE .x5 .x0 (176 : BitVec 13),
+    .SRLI .x18 .x10 (2 : BitVec 6),
+    .BEQ .x18 .x0 (160 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_ptr (GuestAddrs.verify_public_keys_match_senders + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_ptr (GuestAddrs.verify_public_keys_match_senders + 96)),
+    .LD .x19 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_chain_id (GuestAddrs.verify_public_keys_match_senders + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_chain_id (GuestAddrs.verify_public_keys_match_senders + 108)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x18 (128 : BitVec 13),
+    .SLLI .x5 .x21 (2 : BitVec 6),
+    .ADD .x10 .x8 .x5,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.verify_public_keys_match_senders + 136)),
+    .MV .x22 .x10,
+    .ADDI .x5 .x21 (1 : BitVec 12),
+    .BEQ .x5 .x18 (24 : BitVec 13),
+    .SLLI .x6 .x5 (2 : BitVec 6),
+    .ADD .x10 .x8 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.verify_public_keys_match_senders + 160)),
+    .MV .x23 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x23 .x9,
+    .SLLI .x5 .x18 (2 : BitVec 6),
+    .BLTU .x22 .x5 (80 : BitVec 13),
+    .BLTU .x23 .x22 (76 : BitVec 13),
+    .BLTU .x9 .x23 (72 : BitVec 13),
+    .ADD .x10 .x8 .x22,
+    .SUB .x11 .x23 .x22,
+    .BEQ .x11 .x0 (60 : BitVec 13),
+    .MV .x12 .x20,
+    .LI .x5 (65 : Word),
+    .MUL .x5 .x21 .x5,
+    .ADD .x13 .x19 .x5,
+    .AUIPC .x14 (laHi GuestAddrs.vpks_pubkey_out (GuestAddrs.verify_public_keys_match_senders + 220)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.vpks_pubkey_out (GuestAddrs.verify_public_keys_match_senders + 220)),
+    .AUIPC .x15 (laHi GuestAddrs.vpks_scratch (GuestAddrs.verify_public_keys_match_senders + 228)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.vpks_scratch (GuestAddrs.verify_public_keys_match_senders + 228)),
+    .JAL .x1 (jalOff GuestAddrs.tx_pubkey_public_key_matches (GuestAddrs.verify_public_keys_match_senders + 236)),
+    .BNE .x10 .x0 (24 : BitVec 13),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-124 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (90 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `verifyPublicKeysMatchSenders_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def verifyPublicKeysMatchSenders_relocs : RelocTable :=
+  [ (10, .la .x5 "bv_tx_list_ptr"),
+    (13, .la .x5 "bv_tx_list_len"),
+    (19, .jal .x1 "bgv_u32le"),
+    (24, .la .x5 "bv_public_keys_ptr"),
+    (27, .la .x5 "bv_chain_id"),
+    (34, .jal .x1 "bgv_u32le"),
+    (40, .jal .x1 "bgv_u32le"),
+    (55, .la .x14 "vpks_pubkey_out"),
+    (57, .la .x15 "vpks_scratch"),
+    (59, .jal .x1 "tx_pubkey_public_key_matches") ]
+
+def verifyPublicKeysMatchSendersFunction : String :=
+  "verify_public_keys_match_senders:\n" ++ emitProgramR verifyPublicKeysMatchSenders_prog verifyPublicKeysMatchSenders_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `verifyPublicKeysMatchSenders_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem verifyPublicKeysMatchSendersFunction_eq_prog :
+    verifyPublicKeysMatchSendersFunction = "verify_public_keys_match_senders:\n" ++ emitProgramR verifyPublicKeysMatchSenders_prog verifyPublicKeysMatchSenders_relocs := rfl
+
+#guard verifyPublicKeysMatchSendersFunction.startsWith "verify_public_keys_match_senders:\n"
+#guard verifyPublicKeysMatchSenders_prog.length = 77
 /-- `zisk_verify_public_keys_match_senders`: standalone probe BuildUnit.
 
     Drives `verify_public_keys_match_senders` over a single-transaction SSZ

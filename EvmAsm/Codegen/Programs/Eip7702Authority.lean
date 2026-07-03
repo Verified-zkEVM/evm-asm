@@ -8,6 +8,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
@@ -55,87 +58,142 @@ open EvmAsm.Rv64.Program
       43 s > secp256k1n / 2
       50 ecrecover ABI staging failed
       60 secp256k1 recovery failed -/
-def eip7702AuthorizationRecoverAddressFunction : String :=
-  "eip7702_authorization_recover_address:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # tuple ptr\n" ++
-  "  mv s1, a1                   # tuple len\n" ++
-  "  mv s2, a2                   # 20-byte address out\n" ++
-  "  mv s3, a3                   # scratch base\n" ++
-  "  # Clear the address output up front so failure cannot expose stale bytes.\n" ++
-  "  sd zero, 0(s2); sd zero, 8(s2); sw zero, 16(s2)\n" ++
-  "  # Clear the material block. Only +8/+16/+48/+80 are semantically used by\n" ++
-  "  # tx_pubkey_ecrecover_stage_material, but zeroing keeps probes readable.\n" ++
-  "  mv t0, s3; li t1, 16\n" ++
-  ".La77ra_zero_material:\n" ++
-  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .La77ra_zero_material\n" ++
-  "  # Extract y_parity/r/s into material +8/+16/+48.\n" ++
-  "  mv a0, s0; mv a1, s1; addi a2, s3, 8; addi a3, s3, 16; addi a4, s3, 48\n" ++
-  "  jal ra, eip7702_authorization_extract_signature\n" ++
-  "  beqz a0, .La77ra_sig_ok\n" ++
-  "  li a0, 10\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_sig_ok:\n" ++
-  "  # Compute signing hash into material +80.\n" ++
-  "  mv a0, s0; mv a1, s1; addi a2, s3, 80\n" ++
-  "  jal ra, eip7702_authorization_signing_hash\n" ++
-  "  beqz a0, .La77ra_hash_ok\n" ++
-  "  li a0, 20\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_hash_ok:\n" ++
-  "  # Validate recid/y_parity and scalar ranges before calling the recovery kernel.\n" ++
-  "  ld t0, 8(s3); li t1, 1; bgtu t0, t1, .La77ra_bad_y\n" ++
-  "  addi a0, s3, 16; jal ra, u256_is_zero\n" ++
-  "  bnez a0, .La77ra_r_zero\n" ++
-  "  addi a0, s3, 48; jal ra, u256_is_zero\n" ++
-  "  bnez a0, .La77ra_s_zero\n" ++
-  "  addi a0, s3, 16; la a1, a77ra_secp256k1_n; la a2, a77ra_cmp\n" ++
-  "  jal ra, u256_lt_be\n" ++
-  "  la t0, a77ra_cmp; ld t1, 0(t0); beqz t1, .La77ra_r_order\n" ++
-  "  la a0, a77ra_secp256k1_half_n; addi a1, s3, 48; la a2, a77ra_cmp\n" ++
-  "  jal ra, u256_lt_be\n" ++
-  "  la t0, a77ra_cmp; ld t1, 0(t0); bnez t1, .La77ra_s_high\n" ++
-  "  # Stage the material and recover the public key.\n" ++
-  "  mv a0, s3; addi a1, s3, 128\n" ++
-  "  jal ra, tx_pubkey_ecrecover_stage_material\n" ++
-  "  beqz a0, .La77ra_stage_ok\n" ++
-  "  li a0, 50\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_stage_ok:\n" ++
-  "  addi a0, s3, 128; addi a1, s3, 296\n" ++
-  "  jal ra, secp256k1_recover_pubkey_staged\n" ++
-  "  beqz a0, .La77ra_recover_ok\n" ++
-  "  li a0, 60\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_recover_ok:\n" ++
-  "  addi a0, s3, 296; mv a1, s2\n" ++
-  "  jal ra, address_from_pubkey\n" ++
-  "  li a0, 0\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_bad_y:\n" ++
-  "  li a0, 31\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_r_zero:\n" ++
-  "  li a0, 40\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_s_zero:\n" ++
-  "  li a0, 41\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_r_order:\n" ++
-  "  li a0, 42\n" ++
-  "  j .La77ra_ret\n" ++
-  ".La77ra_s_high:\n" ++
-  "  li a0, 43\n" ++
-  ".La77ra_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def eip7702AuthorizationRecoverAddress_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SW .x18 .x0 (16 : BitVec 12),
+    .MV .x5 .x19,
+    .LI .x6 (16 : Word),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-12 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .ADDI .x12 .x19 (8 : BitVec 12),
+    .ADDI .x13 .x19 (16 : BitVec 12),
+    .ADDI .x14 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.eip7702_authorization_extract_signature (GuestAddrs.eip7702_authorization_recover_address + 104)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (10 : Word),
+    .JAL .x0 (252 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .ADDI .x12 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.eip7702_authorization_signing_hash (GuestAddrs.eip7702_authorization_recover_address + 132)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (20 : Word),
+    .JAL .x0 (224 : BitVec 21),
+    .LD .x5 .x19 (8 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BLTU .x6 .x5 (176 : BitVec 13),
+    .ADDI .x10 .x19 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_is_zero (GuestAddrs.eip7702_authorization_recover_address + 164)),
+    .BNE .x10 .x0 (172 : BitVec 13),
+    .ADDI .x10 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_is_zero (GuestAddrs.eip7702_authorization_recover_address + 176)),
+    .BNE .x10 .x0 (168 : BitVec 13),
+    .ADDI .x10 .x19 (16 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.a77ra_secp256k1_n (GuestAddrs.eip7702_authorization_recover_address + 188)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.a77ra_secp256k1_n (GuestAddrs.eip7702_authorization_recover_address + 188)),
+    .AUIPC .x12 (laHi GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 196)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 196)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.eip7702_authorization_recover_address + 204)),
+    .AUIPC .x5 (laHi GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 208)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (136 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.a77ra_secp256k1_half_n (GuestAddrs.eip7702_authorization_recover_address + 224)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.a77ra_secp256k1_half_n (GuestAddrs.eip7702_authorization_recover_address + 224)),
+    .ADDI .x11 .x19 (48 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 236)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 236)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.eip7702_authorization_recover_address + 244)),
+    .AUIPC .x5 (laHi GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 248)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.a77ra_cmp (GuestAddrs.eip7702_authorization_recover_address + 248)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (104 : BitVec 13),
+    .MV .x10 .x19,
+    .ADDI .x11 .x19 (128 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_pubkey_ecrecover_stage_material (GuestAddrs.eip7702_authorization_recover_address + 272)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (50 : Word),
+    .JAL .x0 (84 : BitVec 21),
+    .ADDI .x10 .x19 (128 : BitVec 12),
+    .ADDI .x11 .x19 (296 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_recover_pubkey_staged (GuestAddrs.eip7702_authorization_recover_address + 296)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (60 : Word),
+    .JAL .x0 (60 : BitVec 21),
+    .ADDI .x10 .x19 (296 : BitVec 12),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.address_from_pubkey (GuestAddrs.eip7702_authorization_recover_address + 320)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .LI .x10 (31 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (40 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (41 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (42 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (43 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `eip7702AuthorizationRecoverAddress_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip7702AuthorizationRecoverAddress_relocs : RelocTable :=
+  [ (26, .jal .x1 "eip7702_authorization_extract_signature"),
+    (33, .jal .x1 "eip7702_authorization_signing_hash"),
+    (41, .jal .x1 "u256_is_zero"),
+    (44, .jal .x1 "u256_is_zero"),
+    (47, .la .x11 "a77ra_secp256k1_n"),
+    (49, .la .x12 "a77ra_cmp"),
+    (51, .jal .x1 "u256_lt_be"),
+    (52, .la .x5 "a77ra_cmp"),
+    (56, .la .x10 "a77ra_secp256k1_half_n"),
+    (59, .la .x12 "a77ra_cmp"),
+    (61, .jal .x1 "u256_lt_be"),
+    (62, .la .x5 "a77ra_cmp"),
+    (68, .jal .x1 "tx_pubkey_ecrecover_stage_material"),
+    (74, .jal .x1 "secp256k1_recover_pubkey_staged"),
+    (80, .jal .x1 "address_from_pubkey") ]
+
+def eip7702AuthorizationRecoverAddressFunction : String :=
+  "eip7702_authorization_recover_address:\n" ++ emitProgramR eip7702AuthorizationRecoverAddress_prog eip7702AuthorizationRecoverAddress_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip7702AuthorizationRecoverAddress_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip7702AuthorizationRecoverAddressFunction_eq_prog :
+    eip7702AuthorizationRecoverAddressFunction = "eip7702_authorization_recover_address:\n" ++ emitProgramR eip7702AuthorizationRecoverAddress_prog eip7702AuthorizationRecoverAddress_relocs := rfl
+
+#guard eip7702AuthorizationRecoverAddressFunction.startsWith "eip7702_authorization_recover_address:\n"
+#guard eip7702AuthorizationRecoverAddress_prog.length = 101
 /-! ## eip7702_warm_recovered_authorities
 
     coc3g.5 (multi-hop authority warming). Mirror execution-specs amsterdam

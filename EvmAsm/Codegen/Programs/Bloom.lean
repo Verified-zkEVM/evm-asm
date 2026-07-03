@@ -23,6 +23,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.BloomAddValue
@@ -67,85 +69,153 @@ open EvmAsm.Rv64
     The data field is *not* part of the bloom, per the yellow
     paper; it's read and discarded. Caller zero-initialises the
     bloom buffer before the first call of a logs sequence. -/
-def logBloomAddFunction : String :=
-  "log_bloom_add:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # bloom ptr\n" ++
-  "  mv s1, a1                   # log_rlp ptr\n" ++
-  "  mv s2, a2                   # log_rlp len\n" ++
-  "  # ---- Field 0: address (20 bytes) ----\n" ++
-  "  mv a0, s1; mv a1, s2; li a2, 0\n" ++
-  "  la a3, lba_offset; la a4, lba_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Llba_fail\n" ++
-  "  la t0, lba_length; ld t1, 0(t0)\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Llba_addr_size\n" ++
-  "  la t0, lba_offset; ld t1, 0(t0)\n" ++
-  "  add a1, s1, t1               # &address bytes\n" ++
-  "  mv a0, s0; li a2, 20\n" ++
-  "  jal ra, bloom_add_value\n" ++
-  "  # ---- Field 1: topics list — get bounds (full encoded item) ----\n" ++
-  "  mv a0, s1; mv a1, s2; li a2, 1\n" ++
-  "  la a3, lba_topics_offset; la a4, lba_topics_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Llba_fail\n" ++
-  "  la t0, lba_topics_offset; ld s3, 0(t0)        # topics absolute offset\n" ++
-  "  la t0, lba_topics_length; ld s4, 0(t0)        # topics full encoded len\n" ++
-  "  add t0, s1, s3                                # &topics_rlp\n" ++
-  "  # ---- Count topics ----\n" ++
-  "  mv a0, t0; mv a1, s4\n" ++
-  "  la a2, lba_topic_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Llba_fail\n" ++
-  "  la t0, lba_topic_count; ld s5, 0(t0)          # n_topics\n" ++
-  "  # ---- For each topic i in 0..n_topics-1, add to bloom ----\n" ++
-  "  li t6, 0                                      # i\n" ++
-  ".Llba_topic_loop:\n" ++
-  "  bge t6, s5, .Llba_topic_done\n" ++
-  "  # Extract topic i bounds.\n" ++
-  "  add a0, s1, s3                                # topics_rlp ptr\n" ++
-  "  mv a1, s4                                     # topics_rlp len\n" ++
-  "  mv a2, t6                                     # index\n" ++
-  "  la a3, lba_offset; la a4, lba_length\n" ++
-  "  # Save t6 across the call (caller-saved).\n" ++
-  "  addi sp, sp, -8; sd t6, 0(sp)\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  ld t6, 0(sp); addi sp, sp, 8\n" ++
-  "  bnez a0, .Llba_fail\n" ++
-  "  la t0, lba_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Llba_topic_size\n" ++
-  "  la t0, lba_offset; ld t1, 0(t0)               # offset (relative to topics_rlp)\n" ++
-  "  add t1, t1, s3                                # absolute offset in log_rlp\n" ++
-  "  add a1, s1, t1                                # &topic bytes\n" ++
-  "  mv a0, s0; li a2, 32\n" ++
-  "  addi sp, sp, -8; sd t6, 0(sp)\n" ++
-  "  jal ra, bloom_add_value\n" ++
-  "  ld t6, 0(sp); addi sp, sp, 8\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  j .Llba_topic_loop\n" ++
-  ".Llba_topic_done:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Llba_ret\n" ++
-  ".Llba_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Llba_ret\n" ++
-  ".Llba_addr_size:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Llba_ret\n" ++
-  ".Llba_topic_size:\n" ++
-  "  li a0, 3\n" ++
-  ".Llba_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def logBloomAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 56)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 56)),
+    .AUIPC .x14 (laHi GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 64)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 64)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.log_bloom_add + 72)),
+    .BNE .x10 .x0 (296 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 80)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 80)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BNE .x6 .x7 (284 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 100)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x11 .x9 .x6,
+    .MV .x10 .x8,
+    .LI .x12 (20 : Word),
+    .JAL .x1 (jalOff GuestAddrs.bloom_add_value (GuestAddrs.log_bloom_add + 124)),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.lba_topics_offset (GuestAddrs.log_bloom_add + 140)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.lba_topics_offset (GuestAddrs.log_bloom_add + 140)),
+    .AUIPC .x14 (laHi GuestAddrs.lba_topics_length (GuestAddrs.log_bloom_add + 148)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.lba_topics_length (GuestAddrs.log_bloom_add + 148)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.log_bloom_add + 156)),
+    .BNE .x10 .x0 (212 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.lba_topics_offset (GuestAddrs.log_bloom_add + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.lba_topics_offset (GuestAddrs.log_bloom_add + 164)),
+    .LD .x19 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.lba_topics_length (GuestAddrs.log_bloom_add + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.lba_topics_length (GuestAddrs.log_bloom_add + 176)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .ADD .x5 .x9 .x19,
+    .MV .x10 .x5,
+    .MV .x11 .x20,
+    .AUIPC .x12 (laHi GuestAddrs.lba_topic_count (GuestAddrs.log_bloom_add + 200)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.lba_topic_count (GuestAddrs.log_bloom_add + 200)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.log_bloom_add + 208)),
+    .BNE .x10 .x0 (160 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.lba_topic_count (GuestAddrs.log_bloom_add + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.lba_topic_count (GuestAddrs.log_bloom_add + 216)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .LI .x31 (0 : Word),
+    .BGE .x31 .x21 (132 : BitVec 13),
+    .ADD .x10 .x9 .x19,
+    .MV .x11 .x20,
+    .MV .x12 .x31,
+    .AUIPC .x13 (laHi GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 248)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 248)),
+    .AUIPC .x14 (laHi GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 256)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 256)),
+    .ADDI .x2 .x2 (-8 : BitVec 12),
+    .SD .x2 .x31 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.log_bloom_add + 272)),
+    .LD .x31 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (8 : BitVec 12),
+    .BNE .x10 .x0 (88 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 288)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.lba_length (GuestAddrs.log_bloom_add + 288)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (84 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 308)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.lba_offset (GuestAddrs.log_bloom_add + 308)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x19,
+    .ADD .x11 .x9 .x6,
+    .MV .x10 .x8,
+    .LI .x12 (32 : Word),
+    .ADDI .x2 .x2 (-8 : BitVec 12),
+    .SD .x2 .x31 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bloom_add_value (GuestAddrs.log_bloom_add + 344)),
+    .LD .x31 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (8 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .JAL .x0 (-128 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `logBloomAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def logBloomAdd_relocs : RelocTable :=
+  [ (14, .la .x13 "lba_offset"),
+    (16, .la .x14 "lba_length"),
+    (18, .jal .x1 "rlp_list_nth_item"),
+    (20, .la .x5 "lba_length"),
+    (25, .la .x5 "lba_offset"),
+    (31, .jal .x1 "bloom_add_value"),
+    (35, .la .x13 "lba_topics_offset"),
+    (37, .la .x14 "lba_topics_length"),
+    (39, .jal .x1 "rlp_list_nth_item"),
+    (41, .la .x5 "lba_topics_offset"),
+    (44, .la .x5 "lba_topics_length"),
+    (50, .la .x12 "lba_topic_count"),
+    (52, .jal .x1 "rlp_list_count_items"),
+    (54, .la .x5 "lba_topic_count"),
+    (62, .la .x13 "lba_offset"),
+    (64, .la .x14 "lba_length"),
+    (68, .jal .x1 "rlp_list_nth_item"),
+    (72, .la .x5 "lba_length"),
+    (77, .la .x5 "lba_offset"),
+    (86, .jal .x1 "bloom_add_value") ]
+
+def logBloomAddFunction : String :=
+  "log_bloom_add:\n" ++ emitProgramR logBloomAdd_prog logBloomAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `logBloomAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem logBloomAddFunction_eq_prog :
+    logBloomAddFunction = "log_bloom_add:\n" ++ emitProgramR logBloomAdd_prog logBloomAdd_relocs := rfl
+
+#guard logBloomAddFunction.startsWith "log_bloom_add:\n"
+#guard logBloomAdd_prog.length = 107
 /-- `zisk_log_bloom_add`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : log_rlp_len
@@ -228,54 +298,90 @@ def ziskLogBloomAddProbeUnit : BuildUnit := {
         1 : RLP parse failure (logs_rlp not a list)
         2 : a log address field length != 20 (per K149)
         3 : a log topic field length != 32 (per K149) -/
-def logsListBloomAddFunction : String :=
-  "logs_list_bloom_add:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # bloom ptr\n" ++
-  "  mv s1, a1                   # logs_rlp ptr\n" ++
-  "  mv s2, a2                   # logs_rlp len\n" ++
-  "  # ---- Count logs ----\n" ++
-  "  mv a0, s1; mv a1, s2\n" ++
-  "  la a2, llba_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lllba_parse_fail\n" ++
-  "  la t0, llba_count; ld s3, 0(t0)              # n_logs\n" ++
-  "  li s4, 0                                     # i\n" ++
-  ".Lllba_loop:\n" ++
-  "  bge s4, s3, .Lllba_done\n" ++
-  "  # Extract log_i bounds (full encoded item).\n" ++
-  "  mv a0, s1; mv a1, s2; mv a2, s4\n" ++
-  "  la a3, llba_offset; la a4, llba_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lllba_parse_fail\n" ++
-  "  la t0, llba_offset; ld t1, 0(t0)\n" ++
-  "  la t0, llba_length; ld t2, 0(t0)\n" ++
-  "  add a1, s1, t1                                # &log_i bytes\n" ++
-  "  mv a2, t2                                     # log_i len\n" ++
-  "  mv a0, s0                                     # bloom\n" ++
-  "  jal ra, log_bloom_add\n" ++
-  "  bnez a0, .Lllba_log_err                       # propagate child status\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lllba_loop\n" ++
-  ".Lllba_done:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lllba_ret\n" ++
-  ".Lllba_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lllba_ret\n" ++
-  ".Lllba_log_err:\n" ++
-  "  # a0 already carries the child status (2 = address size, 3 = topic size,\n" ++
-  "  # 1 = parse fail). Pass through unchanged.\n" ++
-  ".Lllba_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def logsListBloomAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.llba_count (GuestAddrs.logs_list_bloom_add + 48)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.llba_count (GuestAddrs.logs_list_bloom_add + 48)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.logs_list_bloom_add + 56)),
+    .BNE .x10 .x0 (120 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.llba_count (GuestAddrs.logs_list_bloom_add + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.llba_count (GuestAddrs.logs_list_bloom_add + 64)),
+    .LD .x19 .x5 (0 : BitVec 12),
+    .LI .x20 (0 : Word),
+    .BGE .x20 .x19 (92 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .MV .x12 .x20,
+    .AUIPC .x13 (laHi GuestAddrs.llba_offset (GuestAddrs.logs_list_bloom_add + 96)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.llba_offset (GuestAddrs.logs_list_bloom_add + 96)),
+    .AUIPC .x14 (laHi GuestAddrs.llba_length (GuestAddrs.logs_list_bloom_add + 104)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.llba_length (GuestAddrs.logs_list_bloom_add + 104)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.logs_list_bloom_add + 112)),
+    .BNE .x10 .x0 (64 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.llba_offset (GuestAddrs.logs_list_bloom_add + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.llba_offset (GuestAddrs.logs_list_bloom_add + 120)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.llba_length (GuestAddrs.logs_list_bloom_add + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.llba_length (GuestAddrs.logs_list_bloom_add + 132)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x11 .x9 .x6,
+    .MV .x12 .x7,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.log_bloom_add (GuestAddrs.logs_list_bloom_add + 156)),
+    .BNE .x10 .x0 (28 : BitVec 13),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-88 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (4 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `logsListBloomAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def logsListBloomAdd_relocs : RelocTable :=
+  [ (12, .la .x12 "llba_count"),
+    (14, .jal .x1 "rlp_list_count_items"),
+    (16, .la .x5 "llba_count"),
+    (24, .la .x13 "llba_offset"),
+    (26, .la .x14 "llba_length"),
+    (28, .jal .x1 "rlp_list_nth_item"),
+    (30, .la .x5 "llba_offset"),
+    (33, .la .x5 "llba_length"),
+    (39, .jal .x1 "log_bloom_add") ]
+
+def logsListBloomAddFunction : String :=
+  "logs_list_bloom_add:\n" ++ emitProgramR logsListBloomAdd_prog logsListBloomAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `logsListBloomAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem logsListBloomAddFunction_eq_prog :
+    logsListBloomAddFunction = "logs_list_bloom_add:\n" ++ emitProgramR logsListBloomAdd_prog logsListBloomAdd_relocs := rfl
+
+#guard logsListBloomAddFunction.startsWith "logs_list_bloom_add:\n"
+#guard logsListBloomAdd_prog.length = 55
 /-- `zisk_logs_list_bloom_add`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : logs_rlp_len
@@ -705,48 +811,77 @@ def ziskBloomOrIntoProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / fewer than 3 fields
         2 : logs_bloom field length != 256 -/
-def receiptExtractLogsBloomFunction : String :=
-  "receipt_extract_logs_bloom:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # receipt_rlp ptr\n" ++
-  "  mv s1, a1                   # receipt_rlp len\n" ++
-  "  mv s2, a2                   # output bloom ptr (256 B)\n" ++
-  "  # ---- Field 2: logs_bloom (must be 256 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  la a3, relb_offset; la a4, relb_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lrelb_fail\n" ++
-  "  la t0, relb_length; ld t1, 0(t0)\n" ++
-  "  li t2, 256\n" ++
-  "  bne t1, t2, .Lrelb_size_fail\n" ++
-  "  la t0, relb_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s0, t1                              # src ptr\n" ++
-  "  mv t4, s2                                   # dst ptr\n" ++
-  "  li t5, 32                                   # 256 / 8 = 32 words\n" ++
-  ".Lrelb_loop:\n" ++
-  "  beqz t5, .Lrelb_done\n" ++
-  "  ld t6, 0(t3)\n" ++
-  "  sd t6, 0(t4)\n" ++
-  "  addi t3, t3, 8\n" ++
-  "  addi t4, t4, 8\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lrelb_loop\n" ++
-  ".Lrelb_done:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrelb_ret\n" ++
-  ".Lrelb_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lrelb_ret\n" ++
-  ".Lrelb_size_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lrelb_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def receiptExtractLogsBloom_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.relb_offset (GuestAddrs.receipt_extract_logs_bloom + 44)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.relb_offset (GuestAddrs.receipt_extract_logs_bloom + 44)),
+    .AUIPC .x14 (laHi GuestAddrs.relb_length (GuestAddrs.receipt_extract_logs_bloom + 52)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.relb_length (GuestAddrs.receipt_extract_logs_bloom + 52)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.receipt_extract_logs_bloom + 60)),
+    .BNE .x10 .x0 (84 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.relb_length (GuestAddrs.receipt_extract_logs_bloom + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.relb_length (GuestAddrs.receipt_extract_logs_bloom + 68)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (256 : Word),
+    .BNE .x6 .x7 (72 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.relb_offset (GuestAddrs.receipt_extract_logs_bloom + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.relb_offset (GuestAddrs.receipt_extract_logs_bloom + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x6,
+    .MV .x29 .x18,
+    .LI .x30 (32 : Word),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LD .x31 .x28 (0 : BitVec 12),
+    .SD .x29 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (8 : BitVec 12),
+    .ADDI .x29 .x29 (8 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `receiptExtractLogsBloom_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def receiptExtractLogsBloom_relocs : RelocTable :=
+  [ (11, .la .x13 "relb_offset"),
+    (13, .la .x14 "relb_length"),
+    (15, .jal .x1 "rlp_list_nth_item"),
+    (17, .la .x5 "relb_length"),
+    (22, .la .x5 "relb_offset") ]
+
+def receiptExtractLogsBloomFunction : String :=
+  "receipt_extract_logs_bloom:\n" ++ emitProgramR receiptExtractLogsBloom_prog receiptExtractLogsBloom_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `receiptExtractLogsBloom_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem receiptExtractLogsBloomFunction_eq_prog :
+    receiptExtractLogsBloomFunction = "receipt_extract_logs_bloom:\n" ++ emitProgramR receiptExtractLogsBloom_prog receiptExtractLogsBloom_relocs := rfl
+
+#guard receiptExtractLogsBloomFunction.startsWith "receipt_extract_logs_bloom:\n"
+#guard receiptExtractLogsBloom_prog.length = 46
 /-- `zisk_receipt_extract_logs_bloom`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : receipt_rlp_len
@@ -826,48 +961,77 @@ def ziskReceiptExtractLogsBloomProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / fewer than 7 fields
         2 : logs_bloom field length != 256 -/
-def headerExtractLogsBloomFunction : String :=
-  "header_extract_logs_bloom:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # header_rlp ptr\n" ++
-  "  mv s1, a1                   # header_rlp len\n" ++
-  "  mv s2, a2                   # output bloom ptr\n" ++
-  "  # ---- Field 6: logs_bloom (must be 256 bytes) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6\n" ++
-  "  la a3, helb_offset; la a4, helb_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhelb_fail\n" ++
-  "  la t0, helb_length; ld t1, 0(t0)\n" ++
-  "  li t2, 256\n" ++
-  "  bne t1, t2, .Lhelb_size_fail\n" ++
-  "  la t0, helb_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s0, t1                              # src ptr\n" ++
-  "  mv t4, s2                                   # dst ptr\n" ++
-  "  li t5, 32                                   # 256 / 8 = 32 words\n" ++
-  ".Lhelb_loop:\n" ++
-  "  beqz t5, .Lhelb_done\n" ++
-  "  ld t6, 0(t3)\n" ++
-  "  sd t6, 0(t4)\n" ++
-  "  addi t3, t3, 8\n" ++
-  "  addi t4, t4, 8\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lhelb_loop\n" ++
-  ".Lhelb_done:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhelb_ret\n" ++
-  ".Lhelb_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhelb_ret\n" ++
-  ".Lhelb_size_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lhelb_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def headerExtractLogsBloom_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (6 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.helb_offset (GuestAddrs.header_extract_logs_bloom + 44)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.helb_offset (GuestAddrs.header_extract_logs_bloom + 44)),
+    .AUIPC .x14 (laHi GuestAddrs.helb_length (GuestAddrs.header_extract_logs_bloom + 52)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.helb_length (GuestAddrs.header_extract_logs_bloom + 52)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_extract_logs_bloom + 60)),
+    .BNE .x10 .x0 (84 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.helb_length (GuestAddrs.header_extract_logs_bloom + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.helb_length (GuestAddrs.header_extract_logs_bloom + 68)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (256 : Word),
+    .BNE .x6 .x7 (72 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.helb_offset (GuestAddrs.header_extract_logs_bloom + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.helb_offset (GuestAddrs.header_extract_logs_bloom + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x6,
+    .MV .x29 .x18,
+    .LI .x30 (32 : Word),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LD .x31 .x28 (0 : BitVec 12),
+    .SD .x29 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (8 : BitVec 12),
+    .ADDI .x29 .x29 (8 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractLogsBloom_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractLogsBloom_relocs : RelocTable :=
+  [ (11, .la .x13 "helb_offset"),
+    (13, .la .x14 "helb_length"),
+    (15, .jal .x1 "rlp_list_nth_item"),
+    (17, .la .x5 "helb_length"),
+    (22, .la .x5 "helb_offset") ]
+
+def headerExtractLogsBloomFunction : String :=
+  "header_extract_logs_bloom:\n" ++ emitProgramR headerExtractLogsBloom_prog headerExtractLogsBloom_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractLogsBloom_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractLogsBloomFunction_eq_prog :
+    headerExtractLogsBloomFunction = "header_extract_logs_bloom:\n" ++ emitProgramR headerExtractLogsBloom_prog headerExtractLogsBloom_relocs := rfl
+
+#guard headerExtractLogsBloomFunction.startsWith "header_extract_logs_bloom:\n"
+#guard headerExtractLogsBloom_prog.length = 46
 /-- `zisk_header_extract_logs_bloom`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : header_rlp_len

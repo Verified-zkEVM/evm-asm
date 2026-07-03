@@ -9,6 +9,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Account
 
 namespace EvmAsm.Codegen
@@ -170,60 +173,87 @@ def ziskEip7778RemainingBlockGasCheckProbeUnit : BuildUnit := {
       a1 = first failing transaction index, 1-based; 0 on success
       a2 = block_gas_used before the failing transaction/increment, or final
            block_gas_used on success. For status 3 this is currently 0. -/
-def eip7778RemainingBlockGasFromResultsFunction : String :=
-  "eip7778_remaining_block_gas_from_results:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp)\n" ++
-  "  mv s8, a7                   # .6.5.2: per-tx intrinsic_state ptr (0 = none) -> threaded to the check\n" ++
-  "  mv s0, a0                   # block_gas_limit\n" ++
-  "  mv s1, a1                   # tx_gas_limits ptr\n" ++
-  "  mv s2, a2                   # gas_left ptr\n" ++
-  "  mv s3, a3                   # refund_counter ptr\n" ++
-  "  mv s4, a4                   # calldata_floor ptr\n" ++
-  "  mv s5, a5                   # count\n" ++
-  "  mv s6, a6                   # scratch block increments ptr\n" ++
-  "  li s7, 0                    # i\n" ++
-  ".Le7778rr_loop:\n" ++
-  "  beq s7, s5, .Le7778rr_check\n" ++
-  "  slli t0, s7, 3\n" ++
-  "  add t1, s1, t0\n" ++
-  "  ld a0, 0(t1)                # tx_gas_limit\n" ++
-  "  add t1, s2, t0\n" ++
-  "  ld a1, 0(t1)                # gas_left\n" ++
-  "  add t1, s3, t0\n" ++
-  "  ld a2, 0(t1)                # refund_counter\n" ++
-  "  add t1, s4, t0\n" ++
-  "  ld a3, 0(t1)                # calldata_floor_gas_cost\n" ++
-  "  jal ra, tx_gas_result_increments\n" ++
-  "  bnez a0, .Le7778rr_bad_result\n" ++
-  "  slli t0, s7, 3\n" ++
-  "  add t1, s6, t0\n" ++
-  "  sd a1, 0(t1)                # exact block_gas_used_in_tx\n" ++
-  "  addi s7, s7, 1\n" ++
-  "  j .Le7778rr_loop\n" ++
-  ".Le7778rr_check:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s6\n" ++
-  "  mv a3, s5\n" ++
-  "  mv a4, s8                   # .6.5.2: intrinsic_state ptr (0 = none)\n" ++
-  "  jal ra, eip7778_remaining_block_gas_check\n" ++
-  "  j .Le7778rr_ret\n" ++
-  ".Le7778rr_bad_result:\n" ++
-  "  li a0, 3\n" ++
-  "  addi a1, s7, 1\n" ++
-  "  li a2, 0\n" ++
-  ".Le7778rr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def eip7778RemainingBlockGasFromResults_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x24 .x17,
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .LI .x23 (0 : Word),
+    .BEQ .x23 .x21 (68 : BitVec 13),
+    .SLLI .x5 .x23 (3 : BitVec 6),
+    .ADD .x6 .x9 .x5,
+    .LD .x10 .x6 (0 : BitVec 12),
+    .ADD .x6 .x18 .x5,
+    .LD .x11 .x6 (0 : BitVec 12),
+    .ADD .x6 .x19 .x5,
+    .LD .x12 .x6 (0 : BitVec 12),
+    .ADD .x6 .x20 .x5,
+    .LD .x13 .x6 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_gas_result_increments (GuestAddrs.eip7778_remaining_block_gas_from_results + 120)),
+    .BNE .x10 .x0 (52 : BitVec 13),
+    .SLLI .x5 .x23 (3 : BitVec 6),
+    .ADD .x6 .x22 .x5,
+    .SD .x6 .x11 (0 : BitVec 12),
+    .ADDI .x23 .x23 (1 : BitVec 12),
+    .JAL .x0 (-64 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x22,
+    .MV .x13 .x21,
+    .MV .x14 .x24,
+    .JAL .x1 (jalOff GuestAddrs.eip7778_remaining_block_gas_check (GuestAddrs.eip7778_remaining_block_gas_from_results + 168)),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .ADDI .x11 .x23 (1 : BitVec 12),
+    .LI .x12 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `eip7778RemainingBlockGasFromResults_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip7778RemainingBlockGasFromResults_relocs : RelocTable :=
+  [ (30, .jal .x1 "tx_gas_result_increments"),
+    (42, .jal .x1 "eip7778_remaining_block_gas_check") ]
+
+def eip7778RemainingBlockGasFromResultsFunction : String :=
+  "eip7778_remaining_block_gas_from_results:\n" ++ emitProgramR eip7778RemainingBlockGasFromResults_prog eip7778RemainingBlockGasFromResults_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip7778RemainingBlockGasFromResults_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip7778RemainingBlockGasFromResultsFunction_eq_prog :
+    eip7778RemainingBlockGasFromResultsFunction = "eip7778_remaining_block_gas_from_results:\n" ++ emitProgramR eip7778RemainingBlockGasFromResults_prog eip7778RemainingBlockGasFromResults_relocs := rfl
+
+#guard eip7778RemainingBlockGasFromResultsFunction.startsWith "eip7778_remaining_block_gas_from_results:\n"
+#guard eip7778RemainingBlockGasFromResults_prog.length = 59
 /-- `zisk_eip7778_remaining_block_gas_from_results`: focused zisk probe.
     Host input payload after the zisk length prefix:
       +0  block_gas_limit u64

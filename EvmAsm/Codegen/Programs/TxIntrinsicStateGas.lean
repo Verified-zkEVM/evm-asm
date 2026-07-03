@@ -23,6 +23,9 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.TxExtract
@@ -773,71 +776,127 @@ def blockVerdictFailedType4AuthRegularAdjustFunction : String :=
         1 : malformed transactions section / offset table
         2 : tx count disagrees with expected count
         3 : a per-tx tx_intrinsic_state_gas call failed -/
-def blockVerdictTxStateGasArrayFunction : String :=
-  "block_verdict_tx_state_gas_array:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # tx-section ptr\n" ++
-  "  mv s1, a1                   # tx-section len\n" ++
-  "  mv s2, a2                   # expected count\n" ++
-  "  mv s3, a3                   # out array\n" ++
-  "  mv s8, a4                   # optional BAL ptr\n" ++
-  "  mv s9, a5                   # BAL len\n" ++
-  "  mv s10, a6                  # chain id\n" ++
-  "  li t0, 4; bltu s1, t0, .Lbvtsg_malformed\n" ++
-  "  mv a0, s0; jal ra, bgv_u32le             # first offset = 4 * tx_count\n" ++
-  "  andi t0, a0, 3; bnez t0, .Lbvtsg_malformed\n" ++
-  "  bgtu a0, s1, .Lbvtsg_malformed\n" ++
-  "  srli s4, a0, 2              # tx_count\n" ++
-  "  bne s4, s2, .Lbvtsg_mismatch\n" ++
-  "  beqz s4, .Lbvtsg_ok\n" ++
-  "  mv s5, zero                 # index\n" ++
-  ".Lbvtsg_loop:\n" ++
-  "  beq s5, s4, .Lbvtsg_ok\n" ++
-  "  slli t0, s5, 2; add a0, s0, t0; jal ra, bgv_u32le; mv s6, a0   # cur offset\n" ++
-  "  slli t0, s4, 2; bltu s6, t0, .Lbvtsg_malformed                 # >= offset-table end\n" ++
-  "  bgtu s6, s1, .Lbvtsg_malformed\n" ++
-  "  addi t0, s5, 1; beq t0, s4, .Lbvtsg_last\n" ++
-  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le; mv s7, a0   # next offset\n" ++
-  "  j .Lbvtsg_have\n" ++
-  ".Lbvtsg_last:\n" ++
-  "  mv s7, s1                   # final tx ends at section end\n" ++
-  ".Lbvtsg_have:\n" ++
-  "  bltu s7, s6, .Lbvtsg_malformed\n" ++
-  "  bgtu s7, s1, .Lbvtsg_malformed\n" ++
-  "  add a0, s0, s6              # tx ptr\n" ++
-  "  sub a1, s7, s6             # tx len\n" ++
-  "  slli t0, s5, 3; add a2, s3, t0   # &out[i]\n" ++
-  "  jal ra, tx_intrinsic_state_gas\n" ++
-  "  bnez a0, .Lbvtsg_tx_fail\n" ++
-  "  beqz s8, .Lbvtsg_after_refund\n" ++
-  "  add a0, s0, s6; sub a1, s7, s6; mv a2, s8; mv a3, s9; mv a4, s10; addi a5, s5, 1\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund\n" ++
-  "  slli t0, s5, 3; add t1, s3, t0; ld t2, 0(t1); bgtu a0, t2, .Lbvtsg_refund_clamp\n" ++
-  "  sub t2, t2, a0; sd t2, 0(t1); j .Lbvtsg_after_refund\n" ++
-  ".Lbvtsg_refund_clamp:\n" ++
-  "  sd zero, 0(t1)\n" ++
-  ".Lbvtsg_after_refund:\n" ++
-  "  addi s5, s5, 1; j .Lbvtsg_loop\n" ++
-  ".Lbvtsg_ok:\n" ++
-  "  li a0, 0; j .Lbvtsg_ret\n" ++
-  ".Lbvtsg_malformed:\n" ++
-  "  li a0, 1; j .Lbvtsg_ret\n" ++
-  ".Lbvtsg_mismatch:\n" ++
-  "  li a0, 2; j .Lbvtsg_ret\n" ++
-  ".Lbvtsg_tx_fail:\n" ++
-  "  li a0, 3\n" ++
-  ".Lbvtsg_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret"
+def blockVerdictTxStateGasArray_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x24 .x14,
+    .MV .x25 .x15,
+    .MV .x26 .x16,
+    .LI .x5 (4 : Word),
+    .BLTU .x9 .x5 (216 : BitVec 13),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_tx_state_gas_array + 96)),
+    .ANDI .x5 .x10 (3 : BitVec 12),
+    .BNE .x5 .x0 (200 : BitVec 13),
+    .BLTU .x9 .x10 (196 : BitVec 13),
+    .SRLI .x20 .x10 (2 : BitVec 6),
+    .BNE .x20 .x18 (196 : BitVec 13),
+    .BEQ .x20 .x0 (176 : BitVec 13),
+    .MV .x21 .x0,
+    .BEQ .x21 .x20 (168 : BitVec 13),
+    .SLLI .x5 .x21 (2 : BitVec 6),
+    .ADD .x10 .x8 .x5,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_tx_state_gas_array + 140)),
+    .MV .x22 .x10,
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .BLTU .x22 .x5 (152 : BitVec 13),
+    .BLTU .x9 .x22 (148 : BitVec 13),
+    .ADDI .x5 .x21 (1 : BitVec 12),
+    .BEQ .x5 .x20 (24 : BitVec 13),
+    .SLLI .x6 .x5 (2 : BitVec 6),
+    .ADD .x10 .x8 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_tx_state_gas_array + 176)),
+    .MV .x23 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x23 .x9,
+    .BLTU .x23 .x22 (112 : BitVec 13),
+    .BLTU .x9 .x23 (108 : BitVec 13),
+    .ADD .x10 .x8 .x22,
+    .SUB .x11 .x23 .x22,
+    .SLLI .x5 .x21 (3 : BitVec 6),
+    .ADD .x12 .x19 .x5,
+    .JAL .x1 (jalOff GuestAddrs.tx_intrinsic_state_gas (GuestAddrs.block_verdict_tx_state_gas_array + 216)),
+    .BNE .x10 .x0 (100 : BitVec 13),
+    .BEQ .x24 .x0 (64 : BitVec 13),
+    .ADD .x10 .x8 .x22,
+    .SUB .x11 .x23 .x22,
+    .MV .x12 .x24,
+    .MV .x13 .x25,
+    .MV .x14 .x26,
+    .ADDI .x15 .x21 (1 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip7702_existing_authority_refund (GuestAddrs.block_verdict_tx_state_gas_array + 252)),
+    .SLLI .x5 .x21 (3 : BitVec 6),
+    .ADD .x6 .x19 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .BLTU .x7 .x10 (16 : BitVec 13),
+    .SUB .x7 .x7 .x10,
+    .SD .x6 .x7 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-164 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockVerdictTxStateGasArray_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockVerdictTxStateGasArray_relocs : RelocTable :=
+  [ (24, .jal .x1 "bgv_u32le"),
+    (35, .jal .x1 "bgv_u32le"),
+    (44, .jal .x1 "bgv_u32le"),
+    (54, .jal .x1 "tx_intrinsic_state_gas"),
+    (63, .jal .x1 "tx_eip7702_existing_authority_refund") ]
+
+def blockVerdictTxStateGasArrayFunction : String :=
+  "block_verdict_tx_state_gas_array:\n" ++ emitProgramR blockVerdictTxStateGasArray_prog blockVerdictTxStateGasArray_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockVerdictTxStateGasArray_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockVerdictTxStateGasArrayFunction_eq_prog :
+    blockVerdictTxStateGasArrayFunction = "block_verdict_tx_state_gas_array:\n" ++ emitProgramR blockVerdictTxStateGasArray_prog blockVerdictTxStateGasArray_relocs := rfl
+
+#guard blockVerdictTxStateGasArrayFunction.startsWith "block_verdict_tx_state_gas_array:\n"
+#guard blockVerdictTxStateGasArray_prog.length = 96
 /-! ## block_verdict_eip7702_auth_nonstorage_effects
 
     EIP-7702 set_delegation increments each successfully authorized authority's
@@ -950,38 +1009,96 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  addi sp, sp, 128\n" ++
   "  ret"
 
-def blockVerdictEip7702AuthNonstorageEffectsArrayFunction : String :=
-  "block_verdict_eip7702_auth_nonstorage_effects_array:\n" ++
-  "  addi sp, sp, -88\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s8, a5\n" ++
-  "  li t0, 4; bltu s1, t0, .Lbv7702nse_ok\n" ++
-  "  mv a0, s0; jal ra, bgv_u32le; andi t0, a0, 3; bnez t0, .Lbv7702nse_ok; bgtu a0, s1, .Lbv7702nse_ok\n" ++
-  "  srli s5, a0, 2; bne s5, s2, .Lbv7702nse_ok; li s6, 0\n" ++
-  ".Lbv7702nse_loop:\n" ++
-  "  beq s6, s5, .Lbv7702nse_ok\n" ++
-  "  slli t0, s6, 2; add a0, s0, t0; jal ra, bgv_u32le; mv s7, a0\n" ++
-  "  slli t0, s5, 2; bltu s7, t0, .Lbv7702nse_next; bgtu s7, s1, .Lbv7702nse_next\n" ++
-  "  addi t0, s6, 1; beq t0, s5, .Lbv7702nse_last\n" ++
-  "  slli t1, t0, 2; add a0, s0, t1; jal ra, bgv_u32le; j .Lbv7702nse_have\n" ++
-  ".Lbv7702nse_last:\n" ++
-  "  mv a0, s1\n" ++
-  ".Lbv7702nse_have:\n" ++
-  "  bltu a0, s7, .Lbv7702nse_next; bgtu a0, s1, .Lbv7702nse_next\n" ++
-  "  add a1, s0, s7; sub a1, a0, s7; add a0, s0, s7; mv a2, s3; mv a3, s4; mv a4, s8\n" ++
-  "  jal ra, eip7702_auth_nonstorage_effects\n" ++
-  ".Lbv7702nse_next:\n" ++
-  "  addi s6, s6, 1; j .Lbv7702nse_loop\n" ++
-  ".Lbv7702nse_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 88\n" ++
-  "  ret"
+def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
+  [ .ADDI .x2 .x2 (-88 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x24 .x15,
+    .LI .x5 (4 : Word),
+    .BLTU .x9 .x5 (140 : BitVec 13),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 80)),
+    .ANDI .x5 .x10 (3 : BitVec 12),
+    .BNE .x5 .x0 (124 : BitVec 13),
+    .BLTU .x9 .x10 (120 : BitVec 13),
+    .SRLI .x21 .x10 (2 : BitVec 6),
+    .BNE .x21 .x18 (112 : BitVec 13),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x21 (104 : BitVec 13),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x10 .x8 .x5,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 120)),
+    .MV .x23 .x10,
+    .SLLI .x5 .x21 (2 : BitVec 6),
+    .BLTU .x23 .x5 (72 : BitVec 13),
+    .BLTU .x9 .x23 (68 : BitVec 13),
+    .ADDI .x5 .x22 (1 : BitVec 12),
+    .BEQ .x5 .x21 (20 : BitVec 13),
+    .SLLI .x6 .x5 (2 : BitVec 6),
+    .ADD .x10 .x8 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 156)),
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x10 .x9,
+    .BLTU .x10 .x23 (36 : BitVec 13),
+    .BLTU .x9 .x10 (32 : BitVec 13),
+    .ADD .x11 .x8 .x23,
+    .SUB .x11 .x10 .x23,
+    .ADD .x10 .x8 .x23,
+    .MV .x12 .x19,
+    .MV .x13 .x20,
+    .MV .x14 .x24,
+    .JAL .x1 (jalOff GuestAddrs.eip7702_auth_nonstorage_effects (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 200)),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-100 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (88 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockVerdictEip7702AuthNonstorageEffectsArray_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockVerdictEip7702AuthNonstorageEffectsArray_relocs : RelocTable :=
+  [ (20, .jal .x1 "bgv_u32le"),
+    (30, .jal .x1 "bgv_u32le"),
+    (39, .jal .x1 "bgv_u32le"),
+    (50, .jal .x1 "eip7702_auth_nonstorage_effects") ]
+
+def blockVerdictEip7702AuthNonstorageEffectsArrayFunction : String :=
+  "block_verdict_eip7702_auth_nonstorage_effects_array:\n" ++ emitProgramR blockVerdictEip7702AuthNonstorageEffectsArray_prog blockVerdictEip7702AuthNonstorageEffectsArray_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockVerdictEip7702AuthNonstorageEffectsArray_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockVerdictEip7702AuthNonstorageEffectsArrayFunction_eq_prog :
+    blockVerdictEip7702AuthNonstorageEffectsArrayFunction = "block_verdict_eip7702_auth_nonstorage_effects_array:\n" ++ emitProgramR blockVerdictEip7702AuthNonstorageEffectsArray_prog blockVerdictEip7702AuthNonstorageEffectsArray_relocs := rfl
+
+#guard blockVerdictEip7702AuthNonstorageEffectsArrayFunction.startsWith "block_verdict_eip7702_auth_nonstorage_effects_array:\n"
+#guard blockVerdictEip7702AuthNonstorageEffectsArray_prog.length = 66
 /-- `zisk_block_verdict_tx_state_gas_array`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : tx-section byte length

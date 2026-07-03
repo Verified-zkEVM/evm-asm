@@ -18,6 +18,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
@@ -52,28 +55,50 @@ open EvmAsm.Rv64.Program
       a1 (input)  : 20-byte output ptr
       ra (input)  : return
       a0 (output) : 0 (always succeeds; keccak is total). -/
-def addressFromPubkeyFunction : String :=
-  "address_from_pubkey:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  mv s0, a1                   # output ptr (stash)\n" ++
-  "  # keccak256(pubkey, 64) → afp_digest\n" ++
-  "  li a1, 64\n" ++
-  "  la a2, afp_digest\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # Copy digest[12..32] (20 bytes) to output.\n" ++
-  "  la t0, afp_digest\n" ++
-  "  # 20 bytes = 8 + 8 + 4. Loads may be unaligned (offset 12).\n" ++
-  "  ld t1, 12(t0); sd t1,  0(s0)\n" ++
-  "  ld t1, 20(t0); sd t1,  8(s0)\n" ++
-  "  lwu t1, 28(t0); sw t1, 16(s0)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def addressFromPubkey_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x11,
+    .LI .x11 (64 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 20)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 20)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.address_from_pubkey + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 32)),
+    .LD .x6 .x5 (12 : BitVec 12),
+    .SD .x8 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (20 : BitVec 12),
+    .SD .x8 .x6 (8 : BitVec 12),
+    .LWU .x6 .x5 (28 : BitVec 12),
+    .SW .x8 .x6 (16 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `addressFromPubkey_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def addressFromPubkey_relocs : RelocTable :=
+  [ (5, .la .x12 "afp_digest"),
+    (7, .jal .x1 "zkvm_keccak256"),
+    (8, .la .x5 "afp_digest") ]
+
+def addressFromPubkeyFunction : String :=
+  "address_from_pubkey:\n" ++ emitProgramR addressFromPubkey_prog addressFromPubkey_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `addressFromPubkey_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem addressFromPubkeyFunction_eq_prog :
+    addressFromPubkeyFunction = "address_from_pubkey:\n" ++ emitProgramR addressFromPubkey_prog addressFromPubkey_relocs := rfl
+
+#guard addressFromPubkeyFunction.startsWith "address_from_pubkey:\n"
+#guard addressFromPubkey_prog.length = 21
 /-- `zisk_address_from_pubkey`: probe BuildUnit. Reads 64 bytes
     of pubkey from host input, writes (status, 20-byte address +
     4 byte padding) to OUTPUT (32 bytes total). -/
@@ -138,55 +163,98 @@ def ziskAddressFromPubkeyProbeUnit : BuildUnit := {
     Uses 85 + 32 + 32 = 149 bytes of `.data` scratch
     (`ac2_preimage` 85 B + `ac2_inner_digest` 32 B + `ac2_outer_digest`
     32 B), plus the keccak sponge state (`zk3_state`, 200 B). -/
-def addressComputeCreate2Function : String :=
-  "address_compute_create2:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # sender ptr\n" ++
-  "  mv s1, a1                   # salt ptr\n" ++
-  "  mv s4, a4                   # output ptr (stash)\n" ++
-  "  # Step 1: inner = keccak256(init_code).\n" ++
-  "  # init_code ptr/len already in (a2, a3); rotate into (a0, a1).\n" ++
-  "  mv a0, a2\n" ++
-  "  mv a1, a3\n" ++
-  "  la a2, ac2_inner_digest\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # Step 2: build preimage.\n" ++
-  "  la s2, ac2_preimage\n" ++
-  "  li t0, 0xff\n" ++
-  "  sb t0, 0(s2)\n" ++
-  "  # Copy sender 20 B → preimage[1..21] (8 + 8 + 4).\n" ++
-  "  ld t0,  0(s0); sd t0,  1(s2)\n" ++
-  "  ld t0,  8(s0); sd t0,  9(s2)\n" ++
-  "  lwu t0, 16(s0); sw t0, 17(s2)\n" ++
-  "  # Copy salt 32 B → preimage[21..53] (8 × 4).\n" ++
-  "  ld t0,  0(s1); sd t0, 21(s2)\n" ++
-  "  ld t0,  8(s1); sd t0, 29(s2)\n" ++
-  "  ld t0, 16(s1); sd t0, 37(s2)\n" ++
-  "  ld t0, 24(s1); sd t0, 45(s2)\n" ++
-  "  # Copy inner digest 32 B → preimage[53..85].\n" ++
-  "  la t1, ac2_inner_digest\n" ++
-  "  ld t0,  0(t1); sd t0, 53(s2)\n" ++
-  "  ld t0,  8(t1); sd t0, 61(s2)\n" ++
-  "  ld t0, 16(t1); sd t0, 69(s2)\n" ++
-  "  ld t0, 24(t1); sd t0, 77(s2)\n" ++
-  "  # Step 3: outer = keccak256(preimage, 85).\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 85\n" ++
-  "  la a2, ac2_outer_digest\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # Step 4: copy outer[12..32] (20 B) → out.\n" ++
-  "  la t0, ac2_outer_digest\n" ++
-  "  ld t1, 12(t0); sd t1,  0(s4)\n" ++
-  "  ld t1, 20(t0); sd t1,  8(s4)\n" ++
-  "  lwu t1, 28(t0); sw t1, 16(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def addressComputeCreate2_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x20 .x14,
+    .MV .x10 .x12,
+    .MV .x11 .x13,
+    .AUIPC .x12 (laHi GuestAddrs.ac2_inner_digest (GuestAddrs.address_compute_create2 + 48)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ac2_inner_digest (GuestAddrs.address_compute_create2 + 48)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.address_compute_create2 + 56)),
+    .AUIPC .x18 (laHi GuestAddrs.ac2_preimage (GuestAddrs.address_compute_create2 + 60)),
+    .ADDI .x18 .x18 (laLo GuestAddrs.ac2_preimage (GuestAddrs.address_compute_create2 + 60)),
+    .LI .x5 (255 : Word),
+    .SB .x18 .x5 (0 : BitVec 12),
+    .LD .x5 .x8 (0 : BitVec 12),
+    .SD .x18 .x5 (1 : BitVec 12),
+    .LD .x5 .x8 (8 : BitVec 12),
+    .SD .x18 .x5 (9 : BitVec 12),
+    .LWU .x5 .x8 (16 : BitVec 12),
+    .SW .x18 .x5 (17 : BitVec 12),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .SD .x18 .x5 (21 : BitVec 12),
+    .LD .x5 .x9 (8 : BitVec 12),
+    .SD .x18 .x5 (29 : BitVec 12),
+    .LD .x5 .x9 (16 : BitVec 12),
+    .SD .x18 .x5 (37 : BitVec 12),
+    .LD .x5 .x9 (24 : BitVec 12),
+    .SD .x18 .x5 (45 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.ac2_inner_digest (GuestAddrs.address_compute_create2 + 132)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ac2_inner_digest (GuestAddrs.address_compute_create2 + 132)),
+    .LD .x5 .x6 (0 : BitVec 12),
+    .SD .x18 .x5 (53 : BitVec 12),
+    .LD .x5 .x6 (8 : BitVec 12),
+    .SD .x18 .x5 (61 : BitVec 12),
+    .LD .x5 .x6 (16 : BitVec 12),
+    .SD .x18 .x5 (69 : BitVec 12),
+    .LD .x5 .x6 (24 : BitVec 12),
+    .SD .x18 .x5 (77 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x11 (85 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.ac2_outer_digest (GuestAddrs.address_compute_create2 + 180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ac2_outer_digest (GuestAddrs.address_compute_create2 + 180)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.address_compute_create2 + 188)),
+    .AUIPC .x5 (laHi GuestAddrs.ac2_outer_digest (GuestAddrs.address_compute_create2 + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ac2_outer_digest (GuestAddrs.address_compute_create2 + 192)),
+    .LD .x6 .x5 (12 : BitVec 12),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (20 : BitVec 12),
+    .SD .x20 .x6 (8 : BitVec 12),
+    .LWU .x6 .x5 (28 : BitVec 12),
+    .SW .x20 .x6 (16 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `addressComputeCreate2_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def addressComputeCreate2_relocs : RelocTable :=
+  [ (12, .la .x12 "ac2_inner_digest"),
+    (14, .jal .x1 "zkvm_keccak256"),
+    (15, .la .x18 "ac2_preimage"),
+    (33, .la .x6 "ac2_inner_digest"),
+    (45, .la .x12 "ac2_outer_digest"),
+    (47, .jal .x1 "zkvm_keccak256"),
+    (48, .la .x5 "ac2_outer_digest") ]
+
+def addressComputeCreate2Function : String :=
+  "address_compute_create2:\n" ++ emitProgramR addressComputeCreate2_prog addressComputeCreate2_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `addressComputeCreate2_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem addressComputeCreate2Function_eq_prog :
+    addressComputeCreate2Function = "address_compute_create2:\n" ++ emitProgramR addressComputeCreate2_prog addressComputeCreate2_relocs := rfl
+
+#guard addressComputeCreate2Function.startsWith "address_compute_create2:\n"
+#guard addressComputeCreate2_prog.length = 65
 /-- `zisk_address_compute_create2`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : init_code length
@@ -275,90 +343,120 @@ def ziskAddressComputeCreate2ProbeUnit : BuildUnit := {
       a2 (input)  : 20-byte output ptr
       ra (input)  : return
       a0 (output) : 0 (always succeeds; keccak is total). -/
-def addressComputeCreateFunction : String :=
-  "address_compute_create:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # sender ptr\n" ++
-  "  mv s1, a1                   # nonce\n" ++
-  "  mv s2, a2                   # output ptr\n" ++
-  "  la t0, ac_buffer\n" ++
-  "  li t1, 0x94\n" ++
-  "  sb t1, 1(t0)\n" ++
-  "  ld t1,  0(s0); sd t1,  2(t0)\n" ++
-  "  ld t1,  8(s0); sd t1, 10(t0)\n" ++
-  "  lwu t1, 16(s0); sw t1, 18(t0)\n" ++
-  "  beqz s1, .Lac_nonce_zero\n" ++
-  "  li t1, 128\n" ++
-  "  bgeu s1, t1, .Lac_nonce_long\n" ++
-  "  # nonce in 1..127: single byte = nonce.\n" ++
-  "  sb s1, 22(t0)\n" ++
-  "  li t2, 1\n" ++
-  "  j .Lac_have_nonce_len\n" ++
-  ".Lac_nonce_zero:\n" ++
-  "  li t1, 0x80\n" ++
-  "  sb t1, 22(t0)\n" ++
-  "  li t2, 1\n" ++
-  "  j .Lac_have_nonce_len\n" ++
-  ".Lac_nonce_long:\n" ++
-  "  la t3, ac_nonce_be\n" ++
-  "  srli t4, s1, 56; sb t4, 0(t3)\n" ++
-  "  srli t4, s1, 48; sb t4, 1(t3)\n" ++
-  "  srli t4, s1, 40; sb t4, 2(t3)\n" ++
-  "  srli t4, s1, 32; sb t4, 3(t3)\n" ++
-  "  srli t4, s1, 24; sb t4, 4(t3)\n" ++
-  "  srli t4, s1, 16; sb t4, 5(t3)\n" ++
-  "  srli t4, s1,  8; sb t4, 6(t3)\n" ++
-  "  sb s1, 7(t3)\n" ++
-  "  li t4, 0                    # leading zero count\n" ++
-  ".Lac_find_nz:\n" ++
-  "  add t5, t3, t4\n" ++
-  "  lbu t6, 0(t5)\n" ++
-  "  bnez t6, .Lac_found\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  j .Lac_find_nz\n" ++
-  ".Lac_found:\n" ++
-  "  li t5, 8\n" ++
-  "  sub t2, t5, t4\n" ++
-  "  # Write prefix byte 0x80 + byte_count at offset 22.\n" ++
-  "  addi t5, t2, 0x80\n" ++
-  "  sb t5, 22(t0)\n" ++
-  "  addi t6, t0, 23             # dst cursor\n" ++
-  "  add t5, t3, t4              # src cursor\n" ++
-  "  mv t1, t2                   # remaining\n" ++
-  ".Lac_copy_nz:\n" ++
-  "  beqz t1, .Lac_have_nonce_len_pp\n" ++
-  "  lbu t4, 0(t5)\n" ++
-  "  sb t4, 0(t6)\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lac_copy_nz\n" ++
-  ".Lac_have_nonce_len_pp:\n" ++
-  "  # In the long path, t2 = data byte count. Add 1 for the prefix.\n" ++
-  "  addi t2, t2, 1\n" ++
-  ".Lac_have_nonce_len:\n" ++
-  "  # payload_len = 21 (sender_rlp) + nonce_rlp_len (t2)\n" ++
-  "  addi t1, t2, 21\n" ++
-  "  # list prefix = 0xc0 + payload_len\n" ++
-  "  addi t3, t1, 0xc0\n" ++
-  "  sb t3, 0(t0)\n" ++
-  "  # Total length = 1 + payload_len = 22 + nonce_rlp_len.\n" ++
-  "  addi a1, t2, 22\n" ++
-  "  mv a0, t0\n" ++
-  "  la a2, ac_digest\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  la t0, ac_digest\n" ++
-  "  ld t1, 12(t0); sd t1,  0(s2)\n" ++
-  "  ld t1, 20(t0); sd t1,  8(s2)\n" ++
-  "  lwu t1, 28(t0); sw t1, 16(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def addressComputeCreate_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x5 (laHi GuestAddrs.ac_buffer (GuestAddrs.address_compute_create + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ac_buffer (GuestAddrs.address_compute_create + 32)),
+    .LI .x6 (148 : Word),
+    .SB .x5 .x6 (1 : BitVec 12),
+    .LD .x6 .x8 (0 : BitVec 12),
+    .SD .x5 .x6 (2 : BitVec 12),
+    .LD .x6 .x8 (8 : BitVec 12),
+    .SD .x5 .x6 (10 : BitVec 12),
+    .LWU .x6 .x8 (16 : BitVec 12),
+    .SW .x5 .x6 (18 : BitVec 12),
+    .BEQ .x9 .x0 (24 : BitVec 13),
+    .LI .x6 (128 : Word),
+    .BGEU .x9 .x6 (32 : BitVec 13),
+    .SB .x5 .x9 (22 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .JAL .x0 (172 : BitVec 21),
+    .LI .x6 (128 : Word),
+    .SB .x5 .x6 (22 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .JAL .x0 (156 : BitVec 21),
+    .AUIPC .x28 (laHi GuestAddrs.ac_nonce_be (GuestAddrs.address_compute_create + 112)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.ac_nonce_be (GuestAddrs.address_compute_create + 112)),
+    .SRLI .x29 .x9 (56 : BitVec 6),
+    .SB .x28 .x29 (0 : BitVec 12),
+    .SRLI .x29 .x9 (48 : BitVec 6),
+    .SB .x28 .x29 (1 : BitVec 12),
+    .SRLI .x29 .x9 (40 : BitVec 6),
+    .SB .x28 .x29 (2 : BitVec 12),
+    .SRLI .x29 .x9 (32 : BitVec 6),
+    .SB .x28 .x29 (3 : BitVec 12),
+    .SRLI .x29 .x9 (24 : BitVec 6),
+    .SB .x28 .x29 (4 : BitVec 12),
+    .SRLI .x29 .x9 (16 : BitVec 6),
+    .SB .x28 .x29 (5 : BitVec 12),
+    .SRLI .x29 .x9 (8 : BitVec 6),
+    .SB .x28 .x29 (6 : BitVec 12),
+    .SB .x28 .x9 (7 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .ADD .x30 .x28 .x29,
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .BNE .x31 .x0 (12 : BitVec 13),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .LI .x30 (8 : Word),
+    .SUB .x7 .x30 .x29,
+    .ADDI .x30 .x7 (128 : BitVec 12),
+    .SB .x5 .x30 (22 : BitVec 12),
+    .ADDI .x31 .x5 (23 : BitVec 12),
+    .ADD .x30 .x28 .x29,
+    .MV .x6 .x7,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x29 .x30 (0 : BitVec 12),
+    .SB .x31 .x29 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x6 .x7 (21 : BitVec 12),
+    .ADDI .x28 .x6 (192 : BitVec 12),
+    .SB .x5 .x28 (0 : BitVec 12),
+    .ADDI .x11 .x7 (22 : BitVec 12),
+    .MV .x10 .x5,
+    .AUIPC .x12 (laHi GuestAddrs.ac_digest (GuestAddrs.address_compute_create + 284)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.ac_digest (GuestAddrs.address_compute_create + 284)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.address_compute_create + 292)),
+    .AUIPC .x5 (laHi GuestAddrs.ac_digest (GuestAddrs.address_compute_create + 296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ac_digest (GuestAddrs.address_compute_create + 296)),
+    .LD .x6 .x5 (12 : BitVec 12),
+    .SD .x18 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (20 : BitVec 12),
+    .SD .x18 .x6 (8 : BitVec 12),
+    .LWU .x6 .x5 (28 : BitVec 12),
+    .SW .x18 .x6 (16 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `addressComputeCreate_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def addressComputeCreate_relocs : RelocTable :=
+  [ (8, .la .x5 "ac_buffer"),
+    (28, .la .x28 "ac_nonce_be"),
+    (71, .la .x12 "ac_digest"),
+    (73, .jal .x1 "zkvm_keccak256"),
+    (74, .la .x5 "ac_digest") ]
+
+def addressComputeCreateFunction : String :=
+  "address_compute_create:\n" ++ emitProgramR addressComputeCreate_prog addressComputeCreate_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `addressComputeCreate_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem addressComputeCreateFunction_eq_prog :
+    addressComputeCreateFunction = "address_compute_create:\n" ++ emitProgramR addressComputeCreate_prog addressComputeCreate_relocs := rfl
+
+#guard addressComputeCreateFunction.startsWith "address_compute_create:\n"
+#guard addressComputeCreate_prog.length = 89
 /-- `zisk_address_compute_create`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : nonce (u64)
