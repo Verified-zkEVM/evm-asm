@@ -55,6 +55,7 @@ import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
 import EvmAsm.Evm64.SDiv.Compose.ResultStackV5
 import EvmAsm.Evm64.SMod.Compose.StackSpecV5
+import EvmAsm.Evm64.SMod.Compose.ResultStackV5
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
 import EvmAsm.Evm64.AddMod.LiveStackPost
@@ -156,7 +157,7 @@ def registry : List OpcodeEntry := [
        "proof (evm_mod_v5_unconditional_over_modCodeV6), the n=1 fast arm is " ++
        "modK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch"),
   entry "SMOD" .proven
-      (some "evm_smod_exact_callable_return_stack_spec_within_v5")
+      (some "evm_smod_exact_callable_return_result_stack_spec_within_v5")
       ("unconditional SMOD stack spec over smodCodeV5 (the shipped v5 codegen — " ++
        "signed MOD via the proven unsigned evm_mod_callable_v5); the former " ++
        "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
@@ -354,7 +355,7 @@ private noncomputable abbrev _sdiv_witness       :=
   @EvmAsm.Evm64.SDiv.Compose.evm_sdiv_exact_callable_return_result_stack_spec_within_v5
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_v6_stack_spec
 private noncomputable abbrev _smod_witness       :=
-  @EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_stack_spec_within_v5
+  @EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_result_stack_spec_within_v5
 private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
 private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_result_stack_program_spec_within
