@@ -32,6 +32,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Secp256k1Field
 
@@ -68,82 +71,120 @@ def secp256k1RecoverDataSection : String :=
   Decompress the curve point `R = (x, y)` from a signature `r` and
   recovery id. See module docstring for the calling convention.
 -/
-def secp256k1RecoverRFunction : String :=
-  "secp256k1_recover_r:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  sd s2, 24(sp)\n" ++
-  "  mv s0, a0                 # r pointer\n" ++
-  "  mv s1, a1                 # recid\n" ++
-  "  mv s2, a2                 # output: x at s2, y at s2+32\n" ++
-  "  andi t0, s1, 2\n" ++
-  "  beqz t0, .Lrec_x_is_r\n" ++
-  "  # candidate x = r + n\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, secp256k1_n_be\n" ++
-  "  mv a2, s2\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  beqz a0, .Lrec_check_range\n" ++
-  "  li a0, 2                  # carry: x >= 2^256\n" ++
-  "  j .Lrec_done\n" ++
-  ".Lrec_check_range:\n" ++
-  "  mv a0, s2\n" ++
-  "  la a1, secp256k1_p_be\n" ++
-  "  la a2, secf_recover_cmp\n" ++
-  "  jal ra, u256_lt_be        # [cmp] = 1 iff x < p\n" ++
-  "  la t0, secf_recover_cmp\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  bnez t1, .Lrec_have_x\n" ++
-  "  li a0, 2                  # x >= p\n" ++
-  "  j .Lrec_done\n" ++
-  ".Lrec_x_is_r:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secf_copy32\n" ++
-  ".Lrec_have_x:\n" ++
-  "  # rhs = x^3 + 7\n" ++
-  "  mv a0, s2\n" ++
-  "  la a2, secf_recover_t\n" ++
-  "  jal ra, secf_square_mod_p     # t = x^2\n" ++
-  "  la a0, secf_recover_t\n" ++
-  "  mv a1, s2\n" ++
-  "  la a2, secf_recover_t\n" ++
-  "  jal ra, secf_mul_mod_p        # t = x^3\n" ++
-  "  la a0, secf_recover_t\n" ++
-  "  la a1, secp256k1_b_be\n" ++
-  "  la a2, secf_recover_rhs\n" ++
-  "  jal ra, secf_add_mod_p        # rhs = x^3 + 7\n" ++
-  "  # y = sqrt(rhs) into y slot\n" ++
-  "  la a0, secf_recover_rhs\n" ++
-  "  addi a1, s2, 32\n" ++
-  "  jal ra, secf_sqrt_mod_p\n" ++
-  "  beqz a0, .Lrec_have_y\n" ++
-  "  li a0, 1                  # rhs is not a quadratic residue\n" ++
-  "  j .Lrec_done\n" ++
-  ".Lrec_have_y:\n" ++
-  "  # match parity: desired = recid & 1, current = LSB of y\n" ++
-  "  addi t0, s2, 32\n" ++
-  "  lbu t1, 31(t0)            # least-significant byte of y\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  andi t2, s1, 1\n" ++
-  "  beq t1, t2, .Lrec_ok\n" ++
-  "  # flip parity: y = p - y\n" ++
-  "  la a0, secp256k1_p_be\n" ++
-  "  addi a1, s2, 32\n" ++
-  "  addi a2, s2, 32\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  ".Lrec_ok:\n" ++
-  "  li a0, 0\n" ++
-  ".Lrec_done:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def secp256k1RecoverR_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .ANDI .x5 .x9 (2 : BitVec 12),
+    .BEQ .x5 .x0 (84 : BitVec 13),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.secp256k1_n_be (GuestAddrs.secp256k1_recover_r + 44)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_n_be (GuestAddrs.secp256k1_recover_r + 44)),
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.secp256k1_recover_r + 56)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (204 : BitVec 21),
+    .MV .x10 .x18,
+    .AUIPC .x11 (laHi GuestAddrs.secp256k1_p_be (GuestAddrs.secp256k1_recover_r + 76)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_p_be (GuestAddrs.secp256k1_recover_r + 76)),
+    .AUIPC .x12 (laHi GuestAddrs.secf_recover_cmp (GuestAddrs.secp256k1_recover_r + 84)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.secf_recover_cmp (GuestAddrs.secp256k1_recover_r + 84)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.secp256k1_recover_r + 92)),
+    .AUIPC .x5 (laHi GuestAddrs.secf_recover_cmp (GuestAddrs.secp256k1_recover_r + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.secf_recover_cmp (GuestAddrs.secp256k1_recover_r + 96)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (24 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (156 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secp256k1_recover_r + 128)),
+    .MV .x10 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 136)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 136)),
+    .JAL .x1 (jalOff GuestAddrs.secf_square_mod_p (GuestAddrs.secp256k1_recover_r + 144)),
+    .AUIPC .x10 (laHi GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 148)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 148)),
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 160)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 160)),
+    .JAL .x1 (jalOff GuestAddrs.secf_mul_mod_p (GuestAddrs.secp256k1_recover_r + 168)),
+    .AUIPC .x10 (laHi GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 172)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secf_recover_t (GuestAddrs.secp256k1_recover_r + 172)),
+    .AUIPC .x11 (laHi GuestAddrs.secp256k1_b_be (GuestAddrs.secp256k1_recover_r + 180)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_b_be (GuestAddrs.secp256k1_recover_r + 180)),
+    .AUIPC .x12 (laHi GuestAddrs.secf_recover_rhs (GuestAddrs.secp256k1_recover_r + 188)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.secf_recover_rhs (GuestAddrs.secp256k1_recover_r + 188)),
+    .JAL .x1 (jalOff GuestAddrs.secf_add_mod_p (GuestAddrs.secp256k1_recover_r + 196)),
+    .AUIPC .x10 (laHi GuestAddrs.secf_recover_rhs (GuestAddrs.secp256k1_recover_r + 200)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secf_recover_rhs (GuestAddrs.secp256k1_recover_r + 200)),
+    .ADDI .x11 .x18 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_sqrt_mod_p (GuestAddrs.secp256k1_recover_r + 212)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .ADDI .x5 .x18 (32 : BitVec 12),
+    .LBU .x6 .x5 (31 : BitVec 12),
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .ANDI .x7 .x9 (1 : BitVec 12),
+    .BEQ .x6 .x7 (24 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.secp256k1_p_be (GuestAddrs.secp256k1_recover_r + 248)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secp256k1_p_be (GuestAddrs.secp256k1_recover_r + 248)),
+    .ADDI .x11 .x18 (32 : BitVec 12),
+    .ADDI .x12 .x18 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secp256k1_recover_r + 264)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `secp256k1RecoverR_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def secp256k1RecoverR_relocs : RelocTable :=
+  [ (11, .la .x11 "secp256k1_n_be"),
+    (14, .jal .x1 "u256_add_be"),
+    (19, .la .x11 "secp256k1_p_be"),
+    (21, .la .x12 "secf_recover_cmp"),
+    (23, .jal .x1 "u256_lt_be"),
+    (24, .la .x5 "secf_recover_cmp"),
+    (32, .jal .x1 "secf_copy32"),
+    (34, .la .x12 "secf_recover_t"),
+    (36, .jal .x1 "secf_square_mod_p"),
+    (37, .la .x10 "secf_recover_t"),
+    (40, .la .x12 "secf_recover_t"),
+    (42, .jal .x1 "secf_mul_mod_p"),
+    (43, .la .x10 "secf_recover_t"),
+    (45, .la .x11 "secp256k1_b_be"),
+    (47, .la .x12 "secf_recover_rhs"),
+    (49, .jal .x1 "secf_add_mod_p"),
+    (50, .la .x10 "secf_recover_rhs"),
+    (53, .jal .x1 "secf_sqrt_mod_p"),
+    (62, .la .x10 "secp256k1_p_be"),
+    (66, .jal .x1 "u256_sub_be") ]
+
+def secp256k1RecoverRFunction : String :=
+  "secp256k1_recover_r:\n" ++ emitProgramR secp256k1RecoverR_prog secp256k1RecoverR_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `secp256k1RecoverR_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem secp256k1RecoverRFunction_eq_prog :
+    secp256k1RecoverRFunction = "secp256k1_recover_r:\n" ++ emitProgramR secp256k1RecoverR_prog secp256k1RecoverR_relocs := rfl
+
+#guard secp256k1RecoverRFunction.startsWith "secp256k1_recover_r:\n"
+#guard secp256k1RecoverR_prog.length = 74
 /-- Probe prologue: read `r` (0x40000008) and `recid` (0x40000028) from the
     ziskemu input region, call recovery, and write status + x||y to the
     output region (status at 0xa0010000, x||y at 0xa0010008). -/

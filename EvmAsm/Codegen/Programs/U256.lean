@@ -24,6 +24,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
 
@@ -879,109 +881,115 @@ def ziskU256EqProbeUnit : BuildUnit := {
       a0 (output) : 1 on overflow (a * b >= 2^256), 0 otherwise.
 
     Uses 40 bytes of `.data` scratch (`u256m_acc`). -/
-def u256MulU64BeFunction : String :=
-  "u256_mul_u64_be:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                  # a ptr\n" ++
-  "  mv s1, a1                  # b\n" ++
-  "  mv s2, a2                  # out ptr\n" ++
-  "  # Zero 40-byte accumulator.\n" ++
-  "  la s3, u256m_acc\n" ++
-  "  mv t0, s3\n" ++
-  "  li t1, 5\n" ++
-  ".Lmul_zinit:\n" ++
-  "  beqz t1, .Lmul_zdone\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmul_zinit\n" ++
-  ".Lmul_zdone:\n" ++
-  "  # Outer loop: p in 0..32 (byte position from LSB).\n" ++
-  "  li s4, 0\n" ++
-  ".Lmul_outer:\n" ++
-  "  li t0, 32\n" ++
-  "  beq s4, t0, .Lmul_post\n" ++
-  "  # byte_a = a[31 - p]\n" ++
-  "  li t0, 31\n" ++
-  "  sub t0, t0, s4\n" ++
-  "  add t0, s0, t0\n" ++
-  "  lbu t0, 0(t0)\n" ++
-  "  beqz t0, .Lmul_step        # skip zero bytes (optimization)\n" ++
-  "  # partial = byte_a * b: low 64 in t1, high ≤ 0xff in t2.\n" ++
-  "  mul   t1, t0, s1\n" ++
-  "  mulhu t2, t0, s1\n" ++
-  "  # Add to acc[p..p+9] with carry.\n" ++
-  "  add t3, s3, s4             # &acc[p]\n" ++
-  "  li t4, 8                   # 8 low bytes\n" ++
-  "  li t5, 0                   # carry\n" ++
-  ".Lmul_addlo:\n" ++
-  "  lbu t6, 0(t3)\n" ++
-  "  andi a3, t1, 0xff\n" ++
-  "  add  t6, t6, a3\n" ++
-  "  add  t6, t6, t5\n" ++
-  "  andi a3, t6, 0xff\n" ++
-  "  sb   a3, 0(t3)\n" ++
-  "  srli t5, t6, 8\n" ++
-  "  srli t1, t1, 8\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lmul_addlo\n" ++
-  "  # Add p_hi (t2; ≤ 1 byte) + carry at acc[p+8].\n" ++
-  "  lbu t6, 0(t3)\n" ++
-  "  add t6, t6, t2\n" ++
-  "  add t6, t6, t5\n" ++
-  "  andi a3, t6, 0xff\n" ++
-  "  sb   a3, 0(t3)\n" ++
-  "  srli t5, t6, 8\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  # Propagate remaining carry through higher bytes.\n" ++
-  ".Lmul_carry:\n" ++
-  "  beqz t5, .Lmul_step\n" ++
-  "  lbu t6, 0(t3)\n" ++
-  "  add t6, t6, t5\n" ++
-  "  andi a3, t6, 0xff\n" ++
-  "  sb   a3, 0(t3)\n" ++
-  "  srli t5, t6, 8\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  j .Lmul_carry\n" ++
-  ".Lmul_step:\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lmul_outer\n" ++
-  ".Lmul_post:\n" ++
-  "  # Copy acc[0..32] (LSB first) into out (BE, MSB first).\n" ++
-  "  mv t0, s3                  # acc cursor (LSB)\n" ++
-  "  addi t1, s2, 32            # out end (exclusive)\n" ++
-  "  li t2, 32\n" ++
-  ".Lmul_copy:\n" ++
-  "  beqz t2, .Lmul_overflow_check\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  sb t3, 0(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lmul_copy\n" ++
-  ".Lmul_overflow_check:\n" ++
-  "  # t0 now points to acc[32]; any nonzero in acc[32..40] → overflow.\n" ++
-  "  li t1, 8\n" ++
-  "  li a0, 0\n" ++
-  ".Lmul_of_loop:\n" ++
-  "  beqz t1, .Lmul_done\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  beqz t3, .Lmul_of_next\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lmul_done\n" ++
-  ".Lmul_of_next:\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmul_of_loop\n" ++
-  ".Lmul_done:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def u256MulU64Be_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x19 (laHi GuestAddrs.u256m_acc (GuestAddrs.u256_mul_u64_be + 40)),
+    .ADDI .x19 .x19 (laLo GuestAddrs.u256m_acc (GuestAddrs.u256_mul_u64_be + 40)),
+    .MV .x5 .x19,
+    .LI .x6 (5 : Word),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .LI .x20 (0 : Word),
+    .LI .x5 (32 : Word),
+    .BEQ .x20 .x5 (156 : BitVec 13),
+    .LI .x5 (31 : Word),
+    .SUB .x5 .x5 .x20,
+    .ADD .x5 .x8 .x5,
+    .LBU .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (128 : BitVec 13),
+    .MUL .x6 .x5 .x9,
+    .MULHU .x7 .x5 .x9,
+    .ADD .x28 .x19 .x20,
+    .LI .x29 (8 : Word),
+    .LI .x30 (0 : Word),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .ANDI .x13 .x6 (255 : BitVec 12),
+    .ADD .x31 .x31 .x13,
+    .ADD .x31 .x31 .x30,
+    .ANDI .x13 .x31 (255 : BitVec 12),
+    .SB .x28 .x13 (0 : BitVec 12),
+    .SRLI .x30 .x31 (8 : BitVec 6),
+    .SRLI .x6 .x6 (8 : BitVec 6),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-40 : BitVec 13),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .ADD .x31 .x31 .x7,
+    .ADD .x31 .x31 .x30,
+    .ANDI .x13 .x31 (255 : BitVec 12),
+    .SB .x28 .x13 (0 : BitVec 12),
+    .SRLI .x30 .x31 (8 : BitVec 6),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .BEQ .x30 .x0 (32 : BitVec 13),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .ADD .x31 .x31 .x30,
+    .ANDI .x13 .x31 (255 : BitVec 12),
+    .SB .x28 .x13 (0 : BitVec 12),
+    .SRLI .x30 .x31 (8 : BitVec 6),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-156 : BitVec 21),
+    .MV .x5 .x19,
+    .ADDI .x6 .x18 (32 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x6 (8 : Word),
+    .LI .x10 (0 : Word),
+    .BEQ .x6 .x0 (32 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .BEQ .x28 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `u256MulU64Be_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def u256MulU64Be_relocs : RelocTable :=
+  [ (10, .la .x19 "u256m_acc") ]
+
+def u256MulU64BeFunction : String :=
+  "u256_mul_u64_be:\n" ++ emitProgramR u256MulU64Be_prog u256MulU64Be_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `u256MulU64Be_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem u256MulU64BeFunction_eq_prog :
+    u256MulU64BeFunction = "u256_mul_u64_be:\n" ++ emitProgramR u256MulU64Be_prog u256MulU64Be_relocs := rfl
+
+#guard u256MulU64BeFunction.startsWith "u256_mul_u64_be:\n"
+#guard u256MulU64Be_prog.length = 88
 /-- `zisk_u256_mul_u64_be`: probe BuildUnit. Reads (32B a BE,
     8B b LE) from host input, writes (overflow_flag, 32B result
     BE) to OUTPUT (40 bytes total). -/

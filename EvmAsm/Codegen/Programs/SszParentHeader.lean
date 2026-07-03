@@ -24,6 +24,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -66,55 +68,94 @@ theorem ephU32leFunction_eq_prog :
     a4 = out parent state_root (32 B)
     a0 (output) = 0 (ok) / 1 (parent header not in witness) / 2 (state_root
     parse fail). -/
-def extractParentHeaderAndStateRootFunction : String :=
-  "extract_parent_header_and_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # SSZ_BASE\n" ++
-  "  mv s1, a1                   # this.parent_hash\n" ++
-  "  mv s2, a2                   # out hdr ptr\n" ++
-  "  mv s3, a3                   # out hdr len\n" ++
-  "  mv s4, a4                   # out state_root\n" ++
-  "  # witness = SSZ_BASE + outer.offsets[1]\n" ++
-  "  addi a0, s0, 4\n" ++
-  "  jal ra, eph_u32le\n" ++
-  "  add s5, s0, a0              # s5 = witness\n" ++
-  "  # witness_end = SSZ_BASE + outer.offsets[2]\n" ++
-  "  addi a0, s0, 8\n" ++
-  "  jal ra, eph_u32le\n" ++
-  "  add s6, s0, a0              # s6 = witness_end\n" ++
-  "  # headers_ptr = witness + inner.offsets[2]\n" ++
-  "  addi a0, s5, 8\n" ++
-  "  jal ra, eph_u32le\n" ++
-  "  add s0, s5, a0              # s0 = headers_ptr (SSZ_BASE no longer needed)\n" ++
-  "  # find parent header: witness_lookup_by_hash(headers, len, parent_hash).\n" ++
-  "  mv a0, s0\n" ++
-  "  sub a1, s6, s0             # headers_len = witness_end - headers_ptr\n" ++
-  "  mv a2, s1\n" ++
-  "  la a3, eph_off; la a4, eph_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Leph_notfound\n" ++
-  "  la t0, eph_off; ld t1, 0(t0); add t2, s0, t1   # parent_hdr_ptr\n" ++
-  "  la t0, eph_len; ld t3, 0(t0)                   # parent_hdr_len\n" ++
-  "  sd t2, 0(s2); sd t3, 0(s3)\n" ++
-  "  # state_root = header_extract_state_root(parent_hdr_ptr, len).\n" ++
-  "  mv a0, t2; mv a1, t3; mv a2, s4\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  # a0 = 0/1/2 from the extractor (1/2 => parse issue); map nonzero to 2.\n" ++
-  "  beqz a0, .Leph_ret\n" ++
-  "  li a0, 2\n" ++
-  "  j .Leph_ret\n" ++
-  ".Leph_notfound:\n" ++
-  "  li a0, 1\n" ++
-  ".Leph_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def extractParentHeaderAndStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .ADDI .x10 .x8 (4 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.eph_u32le (GuestAddrs.extract_parent_header_and_state_root + 60)),
+    .ADD .x21 .x8 .x10,
+    .ADDI .x10 .x8 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.eph_u32le (GuestAddrs.extract_parent_header_and_state_root + 72)),
+    .ADD .x22 .x8 .x10,
+    .ADDI .x10 .x21 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.eph_u32le (GuestAddrs.extract_parent_header_and_state_root + 84)),
+    .ADD .x8 .x21 .x10,
+    .MV .x10 .x8,
+    .SUB .x11 .x22 .x8,
+    .MV .x12 .x9,
+    .AUIPC .x13 (laHi GuestAddrs.eph_off (GuestAddrs.extract_parent_header_and_state_root + 104)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.eph_off (GuestAddrs.extract_parent_header_and_state_root + 104)),
+    .AUIPC .x14 (laHi GuestAddrs.eph_len (GuestAddrs.extract_parent_header_and_state_root + 112)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.eph_len (GuestAddrs.extract_parent_header_and_state_root + 112)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.extract_parent_header_and_state_root + 120)),
+    .BNE .x10 .x0 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.eph_off (GuestAddrs.extract_parent_header_and_state_root + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.eph_off (GuestAddrs.extract_parent_header_and_state_root + 128)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.eph_len (GuestAddrs.extract_parent_header_and_state_root + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.eph_len (GuestAddrs.extract_parent_header_and_state_root + 144)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x18 .x7 (0 : BitVec 12),
+    .SD .x19 .x28 (0 : BitVec 12),
+    .MV .x10 .x7,
+    .MV .x11 .x28,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.extract_parent_header_and_state_root + 176)),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `extractParentHeaderAndStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def extractParentHeaderAndStateRoot_relocs : RelocTable :=
+  [ (15, .jal .x1 "eph_u32le"),
+    (18, .jal .x1 "eph_u32le"),
+    (21, .jal .x1 "eph_u32le"),
+    (26, .la .x13 "eph_off"),
+    (28, .la .x14 "eph_len"),
+    (30, .jal .x1 "witness_lookup_by_hash"),
+    (32, .la .x5 "eph_off"),
+    (36, .la .x5 "eph_len"),
+    (44, .jal .x1 "header_extract_state_root") ]
+
+def extractParentHeaderAndStateRootFunction : String :=
+  "extract_parent_header_and_state_root:\n" ++ emitProgramR extractParentHeaderAndStateRoot_prog extractParentHeaderAndStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `extractParentHeaderAndStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem extractParentHeaderAndStateRootFunction_eq_prog :
+    extractParentHeaderAndStateRootFunction = "extract_parent_header_and_state_root:\n" ++ emitProgramR extractParentHeaderAndStateRoot_prog extractParentHeaderAndStateRoot_relocs := rfl
+
+#guard extractParentHeaderAndStateRootFunction.startsWith "extract_parent_header_and_state_root:\n"
+#guard extractParentHeaderAndStateRoot_prog.length = 59
 /-- `zisk_extract_parent_header_and_state_root`: probe. Input file (-> INPUT+8):
       bytes 0..32 : this.parent_hash
       bytes 32..  : SszStatelessInput SSZ blob (SSZ_BASE = INPUT+40 for the probe)

@@ -15,6 +15,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Secp256k1Field
 
 namespace EvmAsm.Codegen
@@ -226,65 +228,103 @@ theorem secp256k1PointZero64Function_eq_prog :
 /-- Multiply an affine point by a 256-bit big-endian scalar.
     a0=scalar32, a1=base x||y, a2=output x||y. Returns 1 when the result is
     the point at infinity, represented as zeroed output. -/
-def secp256k1ScalarMulFunction : String :=
-  "secp256k1_scalar_mul:\n" ++
-  "  addi sp, sp, -72\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                      # scalar bytes\n" ++
-  "  mv s1, a1                      # base point\n" ++
-  "  mv s2, a2                      # accumulator/output\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, secp256k1_point_zero64\n" ++
-  "  li s3, 1                       # accumulator is infinity\n" ++
-  "  li s4, 0                       # byte index\n" ++
-  ".Lsecc_mul_byte_loop:\n" ++
-  "  li t0, 32\n" ++
-  "  bgeu s4, t0, .Lsecc_mul_done\n" ++
-  "  add t0, s0, s4\n" ++
-  "  lbu s5, 0(t0)\n" ++
-  "  li s6, 128\n" ++
-  ".Lsecc_mul_bit_loop:\n" ++
-  "  beqz s6, .Lsecc_mul_next_byte\n" ++
-  "  bnez s3, .Lsecc_mul_skip_double\n" ++
-  "  mv a0, s2\n" ++
-  "  la a1, secc_point_tmp\n" ++
-  "  jal ra, secp256k1_point_double\n" ++
-  "  mv s3, a0\n" ++
-  "  la a0, secc_point_tmp\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secp256k1_point_copy64\n" ++
-  ".Lsecc_mul_skip_double:\n" ++
-  "  and t0, s5, s6\n" ++
-  "  beqz t0, .Lsecc_mul_advance_bit\n" ++
-  "  beqz s3, .Lsecc_mul_add_base\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secp256k1_point_copy64\n" ++
-  "  li s3, 0\n" ++
-  "  j .Lsecc_mul_advance_bit\n" ++
-  ".Lsecc_mul_add_base:\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, secc_point_tmp\n" ++
-  "  jal ra, secp256k1_point_add\n" ++
-  "  mv s3, a0\n" ++
-  "  la a0, secc_point_tmp\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secp256k1_point_copy64\n" ++
-  ".Lsecc_mul_advance_bit:\n" ++
-  "  srli s6, s6, 1\n" ++
-  "  j .Lsecc_mul_bit_loop\n" ++
-  ".Lsecc_mul_next_byte:\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lsecc_mul_byte_loop\n" ++
-  ".Lsecc_mul_done:\n" ++
-  "  mv a0, s3\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 72\n" ++
-  "  ret"
+def secp256k1ScalarMul_prog : Program :=
+  [ .ADDI .x2 .x2 (-72 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_zero64 (GuestAddrs.secp256k1_scalar_mul + 56)),
+    .LI .x19 (1 : Word),
+    .LI .x20 (0 : Word),
+    .LI .x5 (32 : Word),
+    .BGEU .x20 .x5 (148 : BitVec 13),
+    .ADD .x5 .x8 .x20,
+    .LBU .x21 .x5 (0 : BitVec 12),
+    .LI .x22 (128 : Word),
+    .BEQ .x22 .x0 (124 : BitVec 13),
+    .BNE .x19 .x0 (40 : BitVec 13),
+    .MV .x10 .x18,
+    .AUIPC .x11 (laHi GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 100)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 100)),
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_double (GuestAddrs.secp256k1_scalar_mul + 108)),
+    .MV .x19 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 116)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 116)),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_copy64 (GuestAddrs.secp256k1_scalar_mul + 128)),
+    .AND .x5 .x21 .x22,
+    .BEQ .x5 .x0 (68 : BitVec 13),
+    .BEQ .x19 .x0 (24 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_copy64 (GuestAddrs.secp256k1_scalar_mul + 152)),
+    .LI .x19 (0 : Word),
+    .JAL .x0 (44 : BitVec 21),
+    .MV .x10 .x18,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 172)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 172)),
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_add (GuestAddrs.secp256k1_scalar_mul + 180)),
+    .MV .x19 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 188)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secc_point_tmp (GuestAddrs.secp256k1_scalar_mul + 188)),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_copy64 (GuestAddrs.secp256k1_scalar_mul + 200)),
+    .SRLI .x22 .x22 (1 : BitVec 6),
+    .JAL .x0 (-120 : BitVec 21),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-148 : BitVec 21),
+    .MV .x10 .x19,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (72 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `secp256k1ScalarMul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def secp256k1ScalarMul_relocs : RelocTable :=
+  [ (14, .jal .x1 "secp256k1_point_zero64"),
+    (25, .la .x11 "secc_point_tmp"),
+    (27, .jal .x1 "secp256k1_point_double"),
+    (29, .la .x10 "secc_point_tmp"),
+    (32, .jal .x1 "secp256k1_point_copy64"),
+    (38, .jal .x1 "secp256k1_point_copy64"),
+    (43, .la .x12 "secc_point_tmp"),
+    (45, .jal .x1 "secp256k1_point_add"),
+    (47, .la .x10 "secc_point_tmp"),
+    (50, .jal .x1 "secp256k1_point_copy64") ]
+
+def secp256k1ScalarMulFunction : String :=
+  "secp256k1_scalar_mul:\n" ++ emitProgramR secp256k1ScalarMul_prog secp256k1ScalarMul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `secp256k1ScalarMul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem secp256k1ScalarMulFunction_eq_prog :
+    secp256k1ScalarMulFunction = "secp256k1_scalar_mul:\n" ++ emitProgramR secp256k1ScalarMul_prog secp256k1ScalarMul_relocs := rfl
+
+#guard secp256k1ScalarMulFunction.startsWith "secp256k1_scalar_mul:\n"
+#guard secp256k1ScalarMul_prog.length = 67
 /-- Curve suite over `secp256k1FieldCommonFunctionsNoU256`, for closures that
     already link the generic u256 helpers. -/
 def secp256k1CurveCommonFunctionsNoU256 : String :=
