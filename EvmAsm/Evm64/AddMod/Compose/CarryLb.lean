@@ -100,4 +100,46 @@ theorem cpsTripleWithin_pre_memOwn_under
   rw [sepConj_left_comm']
   exact h v
 
+/-- Convert an OWNED div-scratch call band in a `cpsTripleWithin` precondition
+    into the generic-VALUED form the MOD-call adapter needs. The 19 scratch
+    cells are ∃-eliminated (the adapter is universally generic in every scratch
+    value). Peel pattern: `pre_memOwn` for the leading cell, then
+    `rw [← sepConj_assoc']; pre_memOwn_under` for each of the remaining 18
+    (folding the growing valued prefix into one left-nested block so the next
+    owned cell sits in the second slot `_under` can reach). -/
+theorem cpsTripleWithin_pre_divScratchValued
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq} {F : Word} {B Q : Assertion}
+    (h : ∀ q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+           shiftMem nMem jMem retMem dMem dloMem scratch_un0,
+      cpsTripleWithin nSteps entry exit_ cr
+        (divScratchValuesCallNoX1 F q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratch_un0 ** B) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (divScratchOwnCallNoX1 F ** B) Q := by
+  rw [divScratchOwnCallNoX1_unfold, divScratchOwn_unfold]
+  simp only [sepConj_assoc']
+  refine cpsTripleWithin_pre_memOwn (fun q0 => ?_)
+  refine cpsTripleWithin_pre_memOwn_under (fun q1 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun q2 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun q3 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u0 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u1 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u2 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u3 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u4 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u5 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u6 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun u7 => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun shiftMem => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun nMem => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun jMem => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun retMem => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun dMem => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun dloMem => ?_)
+  rw [← sepConj_assoc']; refine cpsTripleWithin_pre_memOwn_under (fun scratch_un0 => ?_)
+  have hh := h q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0
+  rw [divScratchValuesCallNoX1_unfold, divScratchValues_unfold] at hh
+  simp only [sepConj_assoc'] at hh ⊢
+  exact hh
+
 end EvmAsm.Evm64.AddMod.Compose
