@@ -47,12 +47,18 @@ Neither fact trusts the Python. Fact 1 is pure kernel `rfl`. Fact 2 is ground
 truth from the real assembler. The reviewer re-runs
 `scripts/check-asm-to-program.sh` to reproduce fact 2 for every landed function.
 
-> Note on `emitProgram` vs `py_emit`. The Python `_render_to_asm` mirror of
-> `EvmAsm.Codegen.emitInstr` is used only to build the `.s` for the offline
-> byte-compare. If it ever diverged from Lean's `emitInstr`, fact 2 would be
-> checking the wrong text — so the mirror is a line-for-line transcription of
-> `EvmAsm/Codegen/Emit.lean` and is easy to audit. The Lean-side string content
-> is produced by `emitProgram`, never by the Python.
+**Closing the `py_emit` gap.** The `rfl` theorem is definitionally trivial (the
+def *is* `emitProgram foo_prog`), so it never cross-checks the Python mirror
+`_render_to_asm` against Lean's `emitInstr`. To keep the mirror out of the
+trust chain entirely, the authoritative gate (`check-all` / `check-file`)
+assembles the **actual Lean-rendered string** — obtained by running the real
+elaborator over the manifest modules (`lean_render`, a generated
+`lake env lean --run` snippet that prints each converted def) — against the
+saved original-asm fixture, and requires byte-identical `.text`. This exercises
+Lean's `emitInstr`, not the Python. `py_emit` remains only a fast **offline
+pre-flight** (so `rewrite`/`check` need no Lean build); a `py_emit` ≠
+`emitInstr` divergence can no longer pass the gate, because the gate assembles
+the Lean render, not the `py_emit` render.
 
 ## The 4-byte-per-`Instr` model
 

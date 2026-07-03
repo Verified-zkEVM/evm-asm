@@ -398,6 +398,40 @@ def do_one(path, func_name):
 def fixture_path(func_name): return os.path.join(FIXDIR, func_name+'.s')
 MANIFEST=os.path.join(FIXDIR,'MANIFEST.tsv')
 
+def _module_of(rel_path):
+    """EvmAsm/Codegen/Programs/U256.lean -> EvmAsm.Codegen.Programs.U256"""
+    return rel_path[:-5].replace('/','.') if rel_path.endswith('.lean') else rel_path
+
+_BEG="-=-=-=BEGIN "; _MID="=-=-=-\n"; _END="\n-=-=-=END=-=-=-"
+def lean_render(manifest):
+    """Return {func: actual `emitProgram`-rendered string} by running the real
+    Lean elaborator over the manifest modules. This is the AUTHORITATIVE render
+    used by the byte-identity gate (py_emit is only a fast offline pre-flight);
+    it closes the gap that the `rfl` theorem is definitionally trivial and so
+    never cross-checks py_emit against Lean's `emitInstr`."""
+    if not manifest: return {}
+    repo=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    mods=sorted({_module_of(p) for p in manifest.values()})
+    funcs=sorted(manifest)
+    src =''.join(f"import {m}\n" for m in mods)
+    src+="open EvmAsm.Codegen\n"
+    src+="def main : IO Unit := do\n"
+    for fn in funcs:
+        src+=f'  IO.print "{_BEG}{fn}{_MID}"; IO.print {fn}; IO.print "{_END}"\n'
+    with tempfile.NamedTemporaryFile('w',suffix='.lean',dir=repo,delete=False) as f:
+        f.write(src); tmp=f.name
+    try:
+        out=subprocess.run(['lake','env','lean','--run',tmp],cwd=repo,
+                           check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode()
+    finally:
+        os.unlink(tmp)
+    res={}
+    for fn in funcs:
+        beg=out.index(_BEG+fn+_MID)+len(_BEG+fn+_MID)
+        end=out.index(_END,beg)
+        res[fn]=out[beg:end]
+    return res
+
 def _load_manifest():
     m={}
     if os.path.exists(MANIFEST):
@@ -463,21 +497,40 @@ def _ensure_emit_import(text):
         t=re.sub(r'(import [^\n]+\n)', r'\1import EvmAsm.Codegen.Emit\n', t, count=1)
     return t
 
-def check_file(path, funcs):
-    """CI drift guard: regenerate each func's block from its saved fixture and
-    confirm (a) it still assembles .text-identically and (b) the exact block is
-    present verbatim in the current Lean file. Returns list of drift reasons."""
+def check_file(path, funcs, rendered=None):
+    """CI drift guard for one file. For each func, confirm:
+      (a) the ACTUAL Lean-rendered string (`emitProgram <prog>`, obtained from
+          the real elaborator via `lean_render`) assembles `.text`-identically
+          to the saved original-asm fixture -- this is the authoritative
+          binary-identity check and it exercises Lean's `emitInstr`, not
+          py_emit;
+      (b) the exact generated block is present verbatim in the Lean file (source
+          drift guard);
+      (c) py_emit's offline render still agrees (fast cross-check of the mirror).
+    `rendered` may be a precomputed {func: lean-string} map (so a batch caller
+    runs the Lean elaborator once). Returns a list of problem strings."""
     text=open(path).read(); problems=[]
+    if rendered is None:
+        rendered=lean_render({fn:os.path.relpath(os.path.abspath(path),
+                     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) for fn in funcs})
     for fn in funcs:
         fp=fixture_path(fn)
         if not os.path.exists(fp): problems.append(f"{fn}: missing fixture {fp}"); continue
         asm=open(fp).read()
-        entry,renders,emitted,ok,la,lb=do_asm(asm)
-        if not ok: problems.append(f"{fn}: fixture no longer assembles identically"); continue
+        entry,renders,emitted,ok,la,lb=do_asm(asm)          # (c) py_emit pre-flight
+        if not ok: problems.append(f"{fn}: py_emit render no longer assembles identically"); continue
+        # (a) authoritative: real Lean render vs fixture
+        if fn not in rendered:
+            problems.append(f"{fn}: no Lean render captured"); continue
+        real_ok,_,_=assemble_cmp(asm, rendered[fn])
+        if not real_ok:
+            problems.append(f"{fn}: LEAN-RENDERED string does NOT assemble identically to fixture "
+                            f"(emitInstr/py_emit divergence or guest-binary change)"); continue
+        # (b) source drift
         prog=lean_camel(entry)+'_prog'
         block=gen_lean(entry, renders, fn, prog).rstrip()
         if block not in text:
-            problems.append(f"{fn}: generated block not found verbatim (drift)")
+            problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
 REPO=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -489,7 +542,7 @@ _CLS_DESC={
  'NEEDS-LI-EXPANSION':'Contains an `li rd, C` with C outside 12-bit signed range; a faithful 4-byte-per-`Instr` Program must emit the explicit `lui`/`addiw`/… expansion as separate `Instr`s (follow-up wave).',
  'CALLER-LOCAL-FRAGMENT':'Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first.',
  'ALREADY-STRUCTURED':'RHS is already `"label:\\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm).',
- 'COMPOSITE':'RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body.',
+ 'COMPOSITE':'RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert.',
  'CMP-DIFFER':'Parses, but the `emitProgram` render does NOT assemble byte-identically — investigate before landing.',
  'UNPARSEABLE':'Other parse failure (see per-function reason).',
 }
@@ -594,9 +647,10 @@ def main():
         byfile={}
         for fn,path in man.items(): byfile.setdefault(path,[]).append(fn)
         root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        rendered=lean_render(man)   # ONE elaborator run for the whole manifest
         allprob=[]
         for path,fns in sorted(byfile.items()):
-            allprob += [f"[{path}] "+p for p in check_file(os.path.join(root,path), fns)]
+            allprob += [f"[{path}] "+p for p in check_file(os.path.join(root,path), fns, rendered)]
         if allprob:
             print("DRIFT DETECTED:")
             for p in allprob: print("  "+p)

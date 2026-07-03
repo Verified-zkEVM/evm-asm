@@ -9,7 +9,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | Class | Count | Meaning |
 |---|---:|---|
 | BLOCKED_ON_.6 | 550 | Contains `la <symbol>` scratch/global addressing or a cross-function `jal <callee>` — needs the authoritative linker-pinned address table (bead evm-asm-4ch8f.6). |
-| COMPOSITE | 139 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. |
+| COMPOSITE | 139 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
 | CONVERTED-CLEAN | 111 | Parses to a `Program`; the `emitProgram` render assembles `.text`-identically to the original hand-written text. Directly landable. |
 | ALREADY-STRUCTURED | 23 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
 | NEEDS-LI-EXPANSION | 20 | Contains an `li rd, C` with C outside 12-bit signed range; a faithful 4-byte-per-`Instr` Program must emit the explicit `lui`/`addiw`/… expansion as separate `Instr`s (follow-up wave). |
