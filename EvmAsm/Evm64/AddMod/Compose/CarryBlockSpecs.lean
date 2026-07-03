@@ -22,10 +22,6 @@
   by per-instruction `*_spec_gen_within` leaves composed with `runBlock`.
   The branch-free conditional subtract (`evm_addmod_carry_cond_sub`) lives
   in `Compose/CondSubSpec.lean`.
-
-  file-size-exception: mechanical per-limb LD/SD spec chains for the six
-  carry-path blocks; splitting further would fragment one block's spec
-  across files.
 -/
 
 import EvmAsm.Evm64.AddMod.LimbSpec
