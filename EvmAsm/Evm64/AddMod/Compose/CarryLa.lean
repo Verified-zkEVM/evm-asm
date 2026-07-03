@@ -415,4 +415,124 @@ theorem la123_spec_within
     BitVec.add_assoc, BitVec.reduceAdd, add_zero] at hp ⊢
   xperm_hyp hp
 
+-- ============================================================================
+-- La link 4: call_mod_restore, and the full La sub-chain (byte 160 → 252)
+-- ============================================================================
+
+/-- The La post minus `x12`: the callable's x9-owned return frame (with `x12`
+    peeled off), the scratch cell, and the S1/S2/S3 park cells. This is exactly
+    `la123`'s post with the `.x12` atom removed, so it frames straight through
+    the `call_mod_restore` ADDI (which touches only `x12`). -/
+def addmodAfterCall1Rest (F raVal : Word)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word) : Assertion :=
+  (regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+   evmWordIs F (-1 : EvmWord) **
+   evmWordIs (F + 32) (EvmWord.mod (-1 : EvmWord) (EvmWord.fromLimbs ![n0, n1, n2, n3])) **
+   divScratchOwnCallNoX1 F ** (.x1 ↦ᵣ raVal) ** regOwn .x9) **
+  memOwn (F + signExtend12 (3936 : BitVec 12)) **
+  addmodCall1Frame F n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3
+
+theorem addmodAfterCall1Rest_pcFree (F raVal : Word)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word) :
+    (addmodAfterCall1Rest F raVal n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3).pcFree := by
+  unfold addmodAfterCall1Rest addmodCall1Frame divScratchOwnCallNoX1 divScratchOwn
+  pcFree
+
+/-- The full La post bundle: after the first MOD call and the frame-pointer
+    restore, `x12 = F`, the first remainder `EvmWord.mod (-1) N` sits at F+32..56,
+    with N/r/(stale m) parked at S1/S2/S3 and the callable frame shed. -/
+def addmodCarryAfterCall1 (F raVal : Word)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word) : Assertion :=
+  (.x12 ↦ᵣ F) **
+  addmodAfterCall1Rest F raVal n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3
+
+/-- Link 4 of La: `call_mod_restore` (`ADDI x12 x12 −32` at byte 248) framed with
+    the callable return frame, over `C`. Restores `x12 = F+32 → F`. -/
+theorem la_restore_in_C
+    (bt F raVal : Word)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word) :
+    cpsTripleWithin 1 (bt + 248) ((bt + 248) + 4)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      ((.x12 ↦ᵣ (F + 32)) **
+       addmodAfterCall1Rest F raVal n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+      (addmodCarryAfterCall1 F raVal n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3) := by
+  have hsubRestore : ∀ a i,
+      CodeReq.singleton (bt + 248) (.ADDI .x12 .x12 (4064 : BitVec 12)) a = some i →
+      (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC) a = some i := by
+    intro a i ha
+    refine evm_addmod_total_program_code_carry_call1_sub a i ?_
+    rw [← evm_addmod_carry_call_mod_code_eq_ofProg]
+    show (CodeReq.union (CodeReq.singleton (bt + 244) (.JAL .x1 mo1))
+        (CodeReq.singleton ((bt + 244) + 4) (.ADDI .x12 .x12 (4064 : BitVec 12)))) a = some i
+    refine CodeReq.mono_union_right
+      (CodeReq.Disjoint.singleton (by
+        rw [show (bt + 244) + 4 = bt + 248 from by bv_omega]; bv_omega))
+      (fun a' i' h => h) a i ?_
+    rw [show (bt + 244) + 4 = bt + 248 from by bv_omega]; exact ha
+  have hrestore := cpsTripleWithin_frameR
+    (addmodAfterCall1Rest F raVal n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+    (addmodAfterCall1Rest_pcFree F raVal n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+    (evm_addmod_carry_call_mod_restore_spec_within (F + 32) (bt + 248))
+  rw [show (F + 32) + signExtend12 (4064 : BitVec 12) = F from by
+    rw [show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide]
+    bv_omega] at hrestore
+  exact carry_block_in_C hsubRestore hrestore
+
+/-- **La complete**: `save_operands ;; minus_one_args ;; [call1] ;; restore`
+    over `C`, carry entry (byte 160) → byte 252. Post `addmodCarryAfterCall1`:
+    `x12 = F`, `EvmWord.mod (-1) N` at F+32..56, N@S1, r@S2. -/
+theorem la_spec_within
+    (bt F x5Old n0 n1 n2 n3 r0 r1 r2 r3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 : Word)
+    (x1v x2v x6v x7v x9v x10v x11v : Word)
+    (sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7 : Word)
+    (shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word)
+    (hoffset : (bt + 244) + signExtend21 mo1 = calleeEntry)
+    (callerAlign : ((bt + 244) + 4) &&& ~~~(1 : Word) = (bt + 244) + 4)
+    (retAlign : ((calleeEntry + div128CallRetOff) + signExtend12 (0 : BitVec 12))
+        &&& ~~~(1 : Word) = calleeEntry + div128CallRetOff)
+    (hdisj : (CodeReq.singleton (bt + 244) (.JAL .x1 mo1)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisjTC : (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry)) :
+    cpsTripleWithin ((21 + (1 + (unifiedDivBound + 1))) + 1) (bt + 160) ((bt + 248) + 4)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (((.x12 ↦ᵣ F) ** (.x5 ↦ᵣ x5Old) **
+        ((F + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((F + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((F + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((F + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((F + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((F + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((F + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((F + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((F + signExtend12 (3904 : BitVec 12)) ↦ₘ sp0) **
+        ((F + signExtend12 (3912 : BitVec 12)) ↦ₘ sp1) **
+        ((F + signExtend12 (3920 : BitVec 12)) ↦ₘ sp2) **
+        ((F + signExtend12 (3928 : BitVec 12)) ↦ₘ sp3) **
+        ((F + signExtend12 (3872 : BitVec 12)) ↦ₘ sq0) **
+        ((F + signExtend12 (3880 : BitVec 12)) ↦ₘ sq1) **
+        ((F + signExtend12 (3888 : BitVec 12)) ↦ₘ sq2) **
+        ((F + signExtend12 (3896 : BitVec 12)) ↦ₘ sq3)) **
+       addmodLaTail F x1v x2v x6v x7v x9v x10v x11v
+         sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem)
+      (addmodCarryAfterCall1 F (bt + 248) n0 n1 n2 n3 r0 r1 r2 r3
+         sm0 sm1 sm2 sm3) := by
+  have h123 := la123_spec_within bt F x5Old n0 n1 n2 n3 r0 r1 r2 r3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3
+    x1v x2v x6v x7v x9v x10v x11v
+    sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem
+    mo1 mo2 mo3 moNC calleeEntry hoffset callerAlign retAlign hdisj hdisjTC
+  rw [show (bt + 244) + 4 = bt + 248 from by bv_omega] at h123
+  refine cpsTripleWithin_seq_perm_same_cr ?_ h123
+    (la_restore_in_C bt F (bt + 248) n0 n1 n2 n3 r0 r1 r2 r3
+      sm0 sm1 sm2 sm3 mo1 mo2 mo3 moNC calleeEntry)
+  intro h hp
+  simp only [modStackDispatchPostCallableX9Owned_unfold, modStackDispatchPostCallable_unfold,
+    addmodAfterCall1Rest] at hp ⊢
+  xperm_hyp hp
+
 end EvmAsm.Evm64.AddMod.Compose
