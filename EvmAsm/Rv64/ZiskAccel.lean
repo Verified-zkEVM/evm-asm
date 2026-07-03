@@ -32,16 +32,30 @@
     0x805  Sha256f      rs1 → [state*, input*]; state = 8 u32 (LE-u32
                         packed in u64), input = 16 u32; one compression,
                         in place
+    0x803  Secp256k1Add rs1 → [p1*, p2*], 64-byte affine points (x||y,
+                        4 LE u64 limbs each); p1 := p1 + p2 by the chord
+                        formula (coords reduced, x1 ≠ x2 — else trap)
+    0x804  Secp256k1Dbl rs1 → 64-byte affine point, doubled in place by
+                        the tangent formula (coords reduced, y ≠ 0)
+    0x806  Bn254CurveAdd    like 0x803/0x804 over the BN254 field
+    0x807  Bn254CurveDbl
+    0x808  Bn254ComplexAdd  rs1 → [f1*, f2*], 64-byte Fp2 elements
+    0x809  Bn254ComplexSub  (x0 limbs at +0, x1 at +32); f1 op= f2,
+    0x80A  Bn254ComplexMul  u² = −1, components reduced (else trap)
     0x80B  Arith384Mod  rs1 → [a*, b*, c*, module*, d*], 6 LE u64 limbs
                         each; d := (a*b + c) mod module (module = 0 traps)
+    0x80C  Bls12_381CurveAdd    the 6-limb (96-byte point / element)
+    0x80D  Bls12_381CurveDbl    siblings of the BN254 entries, over the
+    0x80E  Bls12_381ComplexAdd  BLS12-381 base field
+    0x80F  Bls12_381ComplexSub
+    0x810  Bls12_381ComplexMul
     0x819  Blake2bRound rs1 → [sigmaIdx, state*, input*]; one BLAKE2b
                         round on the 16-word working vector with SIGMA
                         row `sigmaIdx` (must be < 10), in place
 
   Any other CSR id traps (`step` returns `none`): unmodeled accelerators
-  halt the model rather than silently no-op.  Follow-up accelerators
-  (Secp256k1Add/Dbl 0x803/0x804, BN254 0x806–0x80A, BLS12-381
-  0x80C–0x810) slot into the same `execCsrs`/`csrsValid` dispatch.
+  halt the model rather than silently no-op.  This closes the full set
+  of accelerator ids the guest emits (`grep '.4byte 0x8' Codegen/`).
 -/
 
 import EvmAsm.Rv64.Basic
@@ -273,6 +287,164 @@ theorem blake2bRound_kat_abc :
        0x2318a24e2140fc64] := by decide
 
 -- ============================================================================
+-- Modular exponentiation and affine short-Weierstrass point operations
+-- ============================================================================
+
+/-- Fuel-indexed square-and-multiply core.  STRUCTURAL recursion on the
+    fuel (not well-founded on the exponent) so the kernel can reduce it —
+    `decide` KATs and downstream concrete evaluation depend on that. -/
+def powModAux (m : Nat) : Nat → Nat → Nat → Nat
+  | 0, _, _ => 1 % m
+  | fuel + 1, b, e =>
+      if e = 0 then 1 % m
+      else
+        let h := powModAux m fuel (b * b % m) (e / 2)
+        if e % 2 = 1 then h * (b % m) % m else h
+
+/-- `b ^ e mod m`.  512 fuel covers every exponent below `2^512` — far
+    beyond the 256/384-bit field exponents the accelerators need. -/
+def powMod (b e m : Nat) : Nat := powModAux m 512 (b % m) e
+
+/-- Modular inverse via Fermat (callers guarantee `m` prime and
+    `x % m ≠ 0`). -/
+def invMod (x m : Nat) : Nat := powMod x (m - 2) m
+
+/-- Affine chord addition on `y² = x³ + b` (all three accelerator curves
+    have `a = 0`): `λ = (y2−y1)/(x2−x1)`.  Inputs reduced (`< p`) and
+    `x1 ≠ x2` — both guarded by `csrsValid`. -/
+def curveAdd (p x1 y1 x2 y2 : Nat) : Nat × Nat :=
+  let lam := (y2 + p - y1) * invMod ((x2 + p - x1) % p) p % p
+  let x3 := (lam * lam + 2 * p - x1 - x2) % p
+  (x3, (lam * ((x1 + p - x3) % p) + p - y1) % p)
+
+/-- Affine tangent doubling on `y² = x³ + b`: `λ = 3x₁²/(2y₁)`.  Inputs
+    reduced and `y1 ≠ 0` — guarded by `csrsValid`. -/
+def curveDbl (p x1 y1 : Nat) : Nat × Nat :=
+  let lam := 3 * x1 * x1 % p * invMod (2 * y1 % p) p % p
+  let x3 := (lam * lam + 2 * p - x1 - x1) % p
+  (x3, (lam * ((x1 + p - x3) % p) + p - y1) % p)
+
+/-- Point operations on the accelerator wire format: a point is `2*nl`
+    LE u64 limbs, `x` first. -/
+def curveAddL (p nl : Nat) (pt1 pt2 : List Word) : List Word :=
+  let r := curveAdd p (leLimbsToNat (pt1.take nl)) (leLimbsToNat (pt1.drop nl))
+    (leLimbsToNat (pt2.take nl)) (leLimbsToNat (pt2.drop nl))
+  natToLeLimbs nl r.1 ++ natToLeLimbs nl r.2
+
+def curveDblL (p nl : Nat) (pt : List Word) : List Word :=
+  let r := curveDbl p (leLimbsToNat (pt.take nl)) (leLimbsToNat (pt.drop nl))
+  natToLeLimbs nl r.1 ++ natToLeLimbs nl r.2
+
+/-- Both coordinates reduced below the field modulus. -/
+def ptValid (p nl : Nat) (pt : List Word) : Bool :=
+  decide (leLimbsToNat (pt.take nl) < p)
+    && decide (leLimbsToNat (pt.drop nl) < p)
+
+/-- The secp256k1 base-field modulus. -/
+def secpP : Nat :=
+  0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
+
+set_option maxRecDepth 40000 in
+/-- Known-answer test, kernel-checked: doubling the secp256k1 generator
+    yields 2·G (expected coordinates from an independent Python
+    implementation). -/
+theorem secp_curveDbl_kat :
+    curveDbl secpP
+      0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
+      0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
+    = (0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5,
+       0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A)
+    := by decide
+
+set_option maxRecDepth 40000 in
+/-- Known-answer test, kernel-checked: `G + 2G = 3G` on secp256k1. -/
+theorem secp_curveAdd_kat :
+    curveAdd secpP
+      0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
+      0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
+      0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5
+      0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A
+    = (0xF9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9,
+       0x388F7B0F632DE8140FE337E62A37F3566500A99934C2231B6CB9FD7584B8E672)
+    := by decide
+
+-- ============================================================================
+-- Fp2 ("complex") arithmetic, u² = −1
+-- ============================================================================
+
+/-- Fp2 addition on the accelerator wire format: an element is `2*nl` LE
+    u64 limbs, real part first.  Componentwise mod `p`. -/
+def complexAddL (p nl : Nat) (f1 f2 : List Word) : List Word :=
+  natToLeLimbs nl ((leLimbsToNat (f1.take nl) + leLimbsToNat (f2.take nl)) % p)
+    ++ natToLeLimbs nl
+      ((leLimbsToNat (f1.drop nl) + leLimbsToNat (f2.drop nl)) % p)
+
+/-- Fp2 subtraction (inputs reduced, guarded by `csrsValid`). -/
+def complexSubL (p nl : Nat) (f1 f2 : List Word) : List Word :=
+  natToLeLimbs nl
+    ((leLimbsToNat (f1.take nl) + p - leLimbsToNat (f2.take nl)) % p)
+    ++ natToLeLimbs nl
+      ((leLimbsToNat (f1.drop nl) + p - leLimbsToNat (f2.drop nl)) % p)
+
+/-- Fp2 multiplication with `u² = −1`:
+    `(x0 + x1·u)(y0 + y1·u) = (x0·y0 − x1·y1) + (x0·y1 + x1·y0)·u`. -/
+def complexMulL (p nl : Nat) (f1 f2 : List Word) : List Word :=
+  let x0 := leLimbsToNat (f1.take nl)
+  let x1 := leLimbsToNat (f1.drop nl)
+  let y0 := leLimbsToNat (f2.take nl)
+  let y1 := leLimbsToNat (f2.drop nl)
+  natToLeLimbs nl ((x0 * y0 + p * p - x1 * y1) % p)
+    ++ natToLeLimbs nl ((x0 * y1 + x1 * y0) % p)
+
+/-- The BN254 (alt_bn128) base-field modulus. -/
+def bn254P : Nat :=
+  21888242871839275222246405745257275088696311157297823662689037894645226208583
+
+/-- The BLS12-381 base-field modulus. -/
+def bls12P : Nat :=
+  0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
+
+set_option maxRecDepth 40000 in
+/-- Known-answer test, kernel-checked: doubling the BN254 generator
+    `(1, 2)` (expected coordinates from an independent Python
+    implementation). -/
+theorem bn254_curveDbl_kat :
+    curveDbl bn254P 1 2
+    = (0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd3,
+       0x15ed738c0e0a7c92e7845f96b2ae9c0a68a6a449e3538fc7ff3ebf7a5a18a2c4)
+    := by decide
+
+set_option maxRecDepth 40000 in
+/-- Known-answer test, kernel-checked: `G + 2G = 3G` on BN254. -/
+theorem bn254_curveAdd_kat :
+    curveAdd bn254P 1 2
+      0x30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd3
+      0x15ed738c0e0a7c92e7845f96b2ae9c0a68a6a449e3538fc7ff3ebf7a5a18a2c4
+    = (0x769bf9ac56bea3ff40232bcb1b6bd159315d84715b8e679f2d355961915abf0,
+       0x2ab799bee0489429554fdb7c8d086475319e63b40b9c5b57cdf1ff3dd9fe2261)
+    := by decide
+
+set_option maxRecDepth 40000 in
+/-- Known-answer test, kernel-checked: doubling the BLS12-381 G1
+    generator (expected coordinates from an independent Python
+    implementation; the generator was validated on-curve). -/
+theorem bls12_curveDbl_kat :
+    curveDbl bls12P
+      0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb
+      0x08b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1
+    = (0x572cbea904d67468808c8eb50a9450c9721db309128012543902d0ac358a62ae28f75bb8f1c7c42c39a8c5529bf0f4e,
+       0x166a9d8cabc673a322fda673779d8e3822ba3ecb8670e461f73bb9021d5fd76a4c56d9d4cd16bd1bba86881979749d28)
+    := by decide
+
+/-- Hand-checkable Fp2 sanity: `(1 + 2u)(3 + 4u) = −5 + 10u` over BN254
+    (4-limb wire format). -/
+theorem bn254_complexMul_kat :
+    complexMulL bn254P 4
+      (natToLeLimbs 4 1 ++ natToLeLimbs 4 2)
+      (natToLeLimbs 4 3 ++ natToLeLimbs 4 4)
+    = natToLeLimbs 4 (bn254P - 5) ++ natToLeLimbs 4 10 := by decide
+
+-- ============================================================================
 -- u32-in-dword packing (the pinned ziskemu 0.18 Sha256f layout)
 -- ============================================================================
 
@@ -317,45 +489,98 @@ namespace MachineState
 def validDwordRange (p : Word) (n : Nat) : Bool :=
   (List.range n).all (fun i => isValidDwordAccess (p + BitVec.ofNat 64 (8 * i)))
 
-/-- Effect of `csrs csr, rs1` on the machine state (validity is checked
-    separately by `csrsValid`; `step` traps when it fails).  Unknown CSR
-    ids leave the state unchanged here and trap in `step`. -/
-def execCsrs (s : MachineState) (csr : BitVec 12) (rs1 : Reg) : MachineState :=
+/-- Target address and payload of a `csrs csr, rs1` accelerator call:
+    every modeled accelerator writes one contiguous dword block (unknown
+    CSR ids write the empty payload, i.e. change nothing — and trap in
+    `step` via `csrsValid`).  Factoring the dispatch through a single
+    `writeWords` makes every state-field projection lemma independent of
+    the branch count. -/
+def csrsWrite (s : MachineState) (csr : BitVec 12) (rs1 : Reg) :
+    Word × List Word :=
   let p := s.getReg rs1
   if csr = 0x800 then
     -- Keccakf: 25-lane state at p, in place
-    s.writeWords p (Accel.keccakF (s.readWords p 25))
+    (p, Accel.keccakF (s.readWords p 25))
   else if csr = 0x802 then
     -- Arith256Mod: parameter block [a*, b*, c*, module*, d*] at p
-    let a := Accel.leLimbsToNat (s.readWords (s.getMem p) 4)
-    let b := Accel.leLimbsToNat (s.readWords (s.getMem (p + 8)) 4)
-    let c := Accel.leLimbsToNat (s.readWords (s.getMem (p + 16)) 4)
-    let m := Accel.leLimbsToNat (s.readWords (s.getMem (p + 24)) 4)
-    s.writeWords (s.getMem (p + 32)) (Accel.natToLeLimbs 4 (Accel.arith256Mod a b c m))
+    (s.getMem (p + 32), Accel.natToLeLimbs 4 (Accel.arith256Mod
+      (Accel.leLimbsToNat (s.readWords (s.getMem p) 4))
+      (Accel.leLimbsToNat (s.readWords (s.getMem (p + 8)) 4))
+      (Accel.leLimbsToNat (s.readWords (s.getMem (p + 16)) 4))
+      (Accel.leLimbsToNat (s.readWords (s.getMem (p + 24)) 4))))
   else if csr = 0x805 then
     -- Sha256f: parameter block [state*, input*] at p
-    let stP := s.getMem p
-    let st := Accel.dwordsToU32s (s.readWords stP 4)
-    let blk := Accel.dwordsToU32s (s.readWords (s.getMem (p + 8)) 8)
-    s.writeWords stP (Accel.u32sToDwords (Accel.sha256Compress st blk))
+    (s.getMem p, Accel.u32sToDwords (Accel.sha256Compress
+      (Accel.dwordsToU32s (s.readWords (s.getMem p) 4))
+      (Accel.dwordsToU32s (s.readWords (s.getMem (p + 8)) 8))))
+  else if csr = 0x803 then
+    -- Secp256k1Add: parameter block [p1*, p2*] at p; p1 += p2 (chord)
+    (s.getMem p, Accel.curveAddL Accel.secpP 4
+      (s.readWords (s.getMem p) 8) (s.readWords (s.getMem (p + 8)) 8))
+  else if csr = 0x804 then
+    -- Secp256k1Dbl: rs1 → point, doubled in place (tangent)
+    (p, Accel.curveDblL Accel.secpP 4 (s.readWords p 8))
+  else if csr = 0x806 then
+    -- Bn254CurveAdd: parameter block [p1*, p2*] at p; p1 += p2
+    (s.getMem p, Accel.curveAddL Accel.bn254P 4
+      (s.readWords (s.getMem p) 8) (s.readWords (s.getMem (p + 8)) 8))
+  else if csr = 0x807 then
+    -- Bn254CurveDbl: rs1 → point, doubled in place
+    (p, Accel.curveDblL Accel.bn254P 4 (s.readWords p 8))
+  else if csr = 0x808 then
+    -- Bn254ComplexAdd: parameter block [f1*, f2*] at p; f1 += f2
+    (s.getMem p, Accel.complexAddL Accel.bn254P 4
+      (s.readWords (s.getMem p) 8) (s.readWords (s.getMem (p + 8)) 8))
+  else if csr = 0x809 then
+    -- Bn254ComplexSub: f1 -= f2
+    (s.getMem p, Accel.complexSubL Accel.bn254P 4
+      (s.readWords (s.getMem p) 8) (s.readWords (s.getMem (p + 8)) 8))
+  else if csr = 0x80A then
+    -- Bn254ComplexMul: f1 *= f2 (u² = −1)
+    (s.getMem p, Accel.complexMulL Accel.bn254P 4
+      (s.readWords (s.getMem p) 8) (s.readWords (s.getMem (p + 8)) 8))
   else if csr = 0x80B then
-    -- Arith384Mod: parameter block [a*, b*, c*, module*, d*] at p,
-    -- 6 LE u64 limbs each (the 384-bit sibling of Arith256Mod)
-    let a := Accel.leLimbsToNat (s.readWords (s.getMem p) 6)
-    let b := Accel.leLimbsToNat (s.readWords (s.getMem (p + 8)) 6)
-    let c := Accel.leLimbsToNat (s.readWords (s.getMem (p + 16)) 6)
-    let m := Accel.leLimbsToNat (s.readWords (s.getMem (p + 24)) 6)
-    s.writeWords (s.getMem (p + 32)) (Accel.natToLeLimbs 6 (Accel.arith256Mod a b c m))
+    -- Arith384Mod: the 6-limb sibling of Arith256Mod
+    (s.getMem (p + 32), Accel.natToLeLimbs 6 (Accel.arith256Mod
+      (Accel.leLimbsToNat (s.readWords (s.getMem p) 6))
+      (Accel.leLimbsToNat (s.readWords (s.getMem (p + 8)) 6))
+      (Accel.leLimbsToNat (s.readWords (s.getMem (p + 16)) 6))
+      (Accel.leLimbsToNat (s.readWords (s.getMem (p + 24)) 6))))
+  else if csr = 0x80C then
+    -- Bls12_381CurveAdd: parameter block [p1*, p2*] at p; p1 += p2
+    (s.getMem p, Accel.curveAddL Accel.bls12P 6
+      (s.readWords (s.getMem p) 12) (s.readWords (s.getMem (p + 8)) 12))
+  else if csr = 0x80D then
+    -- Bls12_381CurveDbl: rs1 → point, doubled in place
+    (p, Accel.curveDblL Accel.bls12P 6 (s.readWords p 12))
+  else if csr = 0x80E then
+    -- Bls12_381ComplexAdd: parameter block [f1*, f2*] at p; f1 += f2
+    (s.getMem p, Accel.complexAddL Accel.bls12P 6
+      (s.readWords (s.getMem p) 12) (s.readWords (s.getMem (p + 8)) 12))
+  else if csr = 0x80F then
+    -- Bls12_381ComplexSub: f1 -= f2
+    (s.getMem p, Accel.complexSubL Accel.bls12P 6
+      (s.readWords (s.getMem p) 12) (s.readWords (s.getMem (p + 8)) 12))
+  else if csr = 0x810 then
+    -- Bls12_381ComplexMul: f1 *= f2 (u² = −1)
+    (s.getMem p, Accel.complexMulL Accel.bls12P 6
+      (s.readWords (s.getMem p) 12) (s.readWords (s.getMem (p + 8)) 12))
   else if csr = 0x819 then
     -- Blake2bRound: parameter block [sigmaIdx, state*, input*] at p;
     -- one round on the 16-word working vector, in place
-    let idx := (s.getMem p).toNat
-    let vP := s.getMem (p + 8)
-    s.writeWords vP
-      (Accel.blake2bRound idx (s.readWords vP 16)
-        (s.readWords (s.getMem (p + 16)) 16))
+    (s.getMem (p + 8),
+     Accel.blake2bRound (s.getMem p).toNat
+       (s.readWords (s.getMem (p + 8)) 16)
+       (s.readWords (s.getMem (p + 16)) 16))
   else
-    s
+    (0, [])
+
+/-- Effect of `csrs csr, rs1` on the machine state (validity is checked
+    separately by `csrsValid`; `step` traps when it fails).  Unknown CSR
+    ids leave the state unchanged here (empty payload) and trap in
+    `step`. -/
+def execCsrs (s : MachineState) (csr : BitVec 12) (rs1 : Reg) : MachineState :=
+  s.writeWords (s.csrsWrite csr rs1).1 (s.csrsWrite csr rs1).2
 
 /-- Validity of a `csrs csr, rs1` accelerator call: every operand dword
     (parameter blocks and the blocks they point to) is a valid dword
@@ -378,6 +603,36 @@ def csrsValid (s : MachineState) (csr : BitVec 12) (rs1 : Reg) : Bool :=
     validDwordRange p 2 &&
     validDwordRange (s.getMem p) 4 &&
     validDwordRange (s.getMem (p + 8)) 8
+  else if csr = 0x803 then
+    validDwordRange p 2 &&
+    validDwordRange (s.getMem p) 8 &&
+    validDwordRange (s.getMem (p + 8)) 8 &&
+    Accel.ptValid Accel.secpP 4 (s.readWords (s.getMem p) 8) &&
+    Accel.ptValid Accel.secpP 4 (s.readWords (s.getMem (p + 8)) 8) &&
+    !(Accel.leLimbsToNat ((s.readWords (s.getMem p) 8).take 4)
+        == Accel.leLimbsToNat ((s.readWords (s.getMem (p + 8)) 8).take 4))
+  else if csr = 0x804 then
+    validDwordRange p 8 &&
+    Accel.ptValid Accel.secpP 4 (s.readWords p 8) &&
+    !(Accel.leLimbsToNat ((s.readWords p 8).drop 4) == 0)
+  else if csr = 0x806 then
+    validDwordRange p 2 &&
+    validDwordRange (s.getMem p) 8 &&
+    validDwordRange (s.getMem (p + 8)) 8 &&
+    Accel.ptValid Accel.bn254P 4 (s.readWords (s.getMem p) 8) &&
+    Accel.ptValid Accel.bn254P 4 (s.readWords (s.getMem (p + 8)) 8) &&
+    !(Accel.leLimbsToNat ((s.readWords (s.getMem p) 8).take 4)
+        == Accel.leLimbsToNat ((s.readWords (s.getMem (p + 8)) 8).take 4))
+  else if csr = 0x807 then
+    validDwordRange p 8 &&
+    Accel.ptValid Accel.bn254P 4 (s.readWords p 8) &&
+    !(Accel.leLimbsToNat ((s.readWords p 8).drop 4) == 0)
+  else if csr = 0x808 || csr = 0x809 || csr = 0x80A then
+    validDwordRange p 2 &&
+    validDwordRange (s.getMem p) 8 &&
+    validDwordRange (s.getMem (p + 8)) 8 &&
+    Accel.ptValid Accel.bn254P 4 (s.readWords (s.getMem p) 8) &&
+    Accel.ptValid Accel.bn254P 4 (s.readWords (s.getMem (p + 8)) 8)
   else if csr = 0x80B then
     validDwordRange p 5 &&
     validDwordRange (s.getMem p) 6 &&
@@ -386,6 +641,24 @@ def csrsValid (s : MachineState) (csr : BitVec 12) (rs1 : Reg) : Bool :=
     validDwordRange (s.getMem (p + 24)) 6 &&
     validDwordRange (s.getMem (p + 32)) 6 &&
     !(Accel.leLimbsToNat (s.readWords (s.getMem (p + 24)) 6) == 0)
+  else if csr = 0x80C then
+    validDwordRange p 2 &&
+    validDwordRange (s.getMem p) 12 &&
+    validDwordRange (s.getMem (p + 8)) 12 &&
+    Accel.ptValid Accel.bls12P 6 (s.readWords (s.getMem p) 12) &&
+    Accel.ptValid Accel.bls12P 6 (s.readWords (s.getMem (p + 8)) 12) &&
+    !(Accel.leLimbsToNat ((s.readWords (s.getMem p) 12).take 6)
+        == Accel.leLimbsToNat ((s.readWords (s.getMem (p + 8)) 12).take 6))
+  else if csr = 0x80D then
+    validDwordRange p 12 &&
+    Accel.ptValid Accel.bls12P 6 (s.readWords p 12) &&
+    !(Accel.leLimbsToNat ((s.readWords p 12).drop 6) == 0)
+  else if csr = 0x80E || csr = 0x80F || csr = 0x810 then
+    validDwordRange p 2 &&
+    validDwordRange (s.getMem p) 12 &&
+    validDwordRange (s.getMem (p + 8)) 12 &&
+    Accel.ptValid Accel.bls12P 6 (s.readWords (s.getMem p) 12) &&
+    Accel.ptValid Accel.bls12P 6 (s.readWords (s.getMem (p + 8)) 12)
   else if csr = 0x819 then
     validDwordRange p 3 &&
     validDwordRange (s.getMem (p + 8)) 16 &&
@@ -394,40 +667,35 @@ def csrsValid (s : MachineState) (csr : BitVec 12) (rs1 : Reg) : Bool :=
   else
     false
 
-/-- Every `execCsrs` branch is either a `writeWords` or the identity, so
-    any field `writeWords` preserves is preserved (branch-count-agnostic:
-    new accelerators need no proof edits). -/
-local macro "csrs_proj" : tactic =>
-  `(tactic| (unfold execCsrs
-             repeat first
-               | rfl
-               | (split
-                  · simp)))
+-- `execCsrs` is definitionally a single `writeWords`, so every state-field
+-- projection lemma is the corresponding `writeWords` lemma — independent of
+-- how many accelerators the dispatch covers.
 
 @[simp] theorem pc_execCsrs (s : MachineState) (csr : BitVec 12) (rs1 : Reg) :
-    (s.execCsrs csr rs1).pc = s.pc := by csrs_proj
+    (s.execCsrs csr rs1).pc = s.pc := pc_writeWords
 
 @[simp] theorem committed_execCsrs (s : MachineState) (csr : BitVec 12)
-    (rs1 : Reg) : (s.execCsrs csr rs1).committed = s.committed := by csrs_proj
+    (rs1 : Reg) : (s.execCsrs csr rs1).committed = s.committed :=
+  committed_writeWords
 
 @[simp] theorem publicValues_execCsrs (s : MachineState) (csr : BitVec 12)
-    (rs1 : Reg) : (s.execCsrs csr rs1).publicValues = s.publicValues := by
-  csrs_proj
+    (rs1 : Reg) : (s.execCsrs csr rs1).publicValues = s.publicValues :=
+  publicValues_writeWords
 
 @[simp] theorem privateInput_execCsrs (s : MachineState) (csr : BitVec 12)
-    (rs1 : Reg) : (s.execCsrs csr rs1).privateInput = s.privateInput := by
-  csrs_proj
+    (rs1 : Reg) : (s.execCsrs csr rs1).privateInput = s.privateInput :=
+  privateInput_writeWords
 
 @[simp] theorem inputBufBase_execCsrs (s : MachineState) (csr : BitVec 12)
-    (rs1 : Reg) : (s.execCsrs csr rs1).inputBufBase = s.inputBufBase := by
-  csrs_proj
+    (rs1 : Reg) : (s.execCsrs csr rs1).inputBufBase = s.inputBufBase :=
+  inputBufBase_writeWords
 
 @[simp] theorem code_execCsrs (s : MachineState) (csr : BitVec 12)
-    (rs1 : Reg) : (s.execCsrs csr rs1).code = s.code := by csrs_proj
+    (rs1 : Reg) : (s.execCsrs csr rs1).code = s.code := code_writeWords
 
 @[simp] theorem getReg_execCsrs (s : MachineState) (csr : BitVec 12)
-    (rs1 : Reg) (r : Reg) : (s.execCsrs csr rs1).getReg r = s.getReg r := by
-  csrs_proj
+    (rs1 : Reg) (r : Reg) : (s.execCsrs csr rs1).getReg r = s.getReg r :=
+  getReg_writeWords
 
 end MachineState
 
