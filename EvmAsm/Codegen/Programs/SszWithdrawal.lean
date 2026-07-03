@@ -18,6 +18,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.U256
 
@@ -27,20 +28,31 @@ open EvmAsm.Rv64
 
 /-! ## swr_rev_le_be -- reverse `len` little-endian bytes to big-endian
     (local copy; a0 = src, a1 = len, a2 = dst; leaf). -/
-def swrRevLeBeFunction : String :=
-  "swr_rev_le_be:\n" ++
-  "  add t0, a0, a1\n" ++
-  "  mv t1, a2\n" ++
-  "  mv t2, a1\n" ++
-  ".Lswrrev_loop:\n" ++
-  "  beqz t2, .Lswrrev_done\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
-  "  addi t1, t1, 1; addi t2, t2, -1\n" ++
-  "  j .Lswrrev_loop\n" ++
-  ".Lswrrev_done:\n" ++
-  "  ret"
+def swrRevLeBe_prog : Program :=
+  [ .ADD .x5 .x10 .x11,
+    .MV .x6 .x12,
+    .MV .x7 .x11,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def swrRevLeBeFunction : String :=
+  "swr_rev_le_be:\n" ++ emitProgram swrRevLeBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `swrRevLeBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem swrRevLeBeFunction_eq_prog :
+    swrRevLeBeFunction = "swr_rev_le_be:\n" ++ emitProgram swrRevLeBe_prog := rfl
+
+#guard swrRevLeBeFunction.startsWith "swr_rev_le_be:\n"
+#guard swrRevLeBe_prog.length = 11
 /-- `ssz_withdrawal_to_rlp`.
     a0 = SSZ Withdrawal ptr (44 bytes), a1 = out RLP buffer ptr,
     a2 = u64 out length ptr.  a0 (output) = 0. -/

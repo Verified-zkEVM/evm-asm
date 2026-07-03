@@ -16,6 +16,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -64,49 +65,53 @@ open EvmAsm.Rv64.Program
     Callers are responsible for ensuring each input byte is in
     `[0, 15]`; out-of-range bytes get truncated to their low
     nibble. -/
-def mptNibblesToCompactFunction : String :=
-  "mpt_nibbles_to_compact:\n" ++
-  "  # parity = count & 1\n" ++
-  "  andi t0, a1, 1\n" ++
-  "  # high_nibble = (is_leaf << 1) | parity\n" ++
-  "  slli t1, a2, 1\n" ++
-  "  or t1, t1, t0\n" ++
-  "  beqz t0, .Lmnc_even\n" ++
-  "  # Odd: prefix = (high_nibble << 4) | nibbles[0]\n" ++
-  "  lbu t3, 0(a0)\n" ++
-  "  slli t2, t1, 4\n" ++
-  "  andi t3, t3, 0xf\n" ++
-  "  or t2, t2, t3\n" ++
-  "  addi t4, a0, 1               # cursor at nibble[1]\n" ++
-  "  addi t5, a1, -1              # remaining (even)\n" ++
-  "  j .Lmnc_pack\n" ++
-  ".Lmnc_even:\n" ++
-  "  slli t2, t1, 4               # prefix byte (low nibble 0)\n" ++
-  "  mv t4, a0\n" ++
-  "  mv t5, a1\n" ++
-  ".Lmnc_pack:\n" ++
-  "  sb t2, 0(a3)\n" ++
-  "  addi t6, a3, 1\n" ++
-  ".Lmnc_loop:\n" ++
-  "  beqz t5, .Lmnc_done\n" ++
-  "  lbu t0, 0(t4)\n" ++
-  "  lbu t1, 1(t4)\n" ++
-  "  andi t0, t0, 0xf\n" ++
-  "  andi t1, t1, 0xf\n" ++
-  "  slli t0, t0, 4\n" ++
-  "  or t0, t0, t1\n" ++
-  "  sb t0, 0(t6)\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  addi t4, t4, 2\n" ++
-  "  addi t5, t5, -2\n" ++
-  "  j .Lmnc_loop\n" ++
-  ".Lmnc_done:\n" ++
-  "  srli t0, a1, 1\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  sd t0, 0(a4)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def mptNibblesToCompact_prog : Program :=
+  [ .ANDI .x5 .x11 (1 : BitVec 12),
+    .SLLI .x6 .x12 (1 : BitVec 6),
+    .OR .x6 .x6 .x5,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x10 (0 : BitVec 12),
+    .SLLI .x7 .x6 (4 : BitVec 6),
+    .ANDI .x28 .x28 (15 : BitVec 12),
+    .OR .x7 .x7 .x28,
+    .ADDI .x29 .x10 (1 : BitVec 12),
+    .ADDI .x30 .x11 (-1 : BitVec 12),
+    .JAL .x0 (16 : BitVec 21),
+    .SLLI .x7 .x6 (4 : BitVec 6),
+    .MV .x29 .x10,
+    .MV .x30 .x11,
+    .SB .x13 .x7 (0 : BitVec 12),
+    .ADDI .x31 .x13 (1 : BitVec 12),
+    .BEQ .x30 .x0 (48 : BitVec 13),
+    .LBU .x5 .x29 (0 : BitVec 12),
+    .LBU .x6 .x29 (1 : BitVec 12),
+    .ANDI .x5 .x5 (15 : BitVec 12),
+    .ANDI .x6 .x6 (15 : BitVec 12),
+    .SLLI .x5 .x5 (4 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .SB .x31 .x5 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x29 .x29 (2 : BitVec 12),
+    .ADDI .x30 .x30 (-2 : BitVec 12),
+    .JAL .x0 (-44 : BitVec 21),
+    .SRLI .x5 .x11 (1 : BitVec 6),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .SD .x14 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def mptNibblesToCompactFunction : String :=
+  "mpt_nibbles_to_compact:\n" ++ emitProgram mptNibblesToCompact_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `mptNibblesToCompact_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem mptNibblesToCompactFunction_eq_prog :
+    mptNibblesToCompactFunction = "mpt_nibbles_to_compact:\n" ++ emitProgram mptNibblesToCompact_prog := rfl
+
+#guard mptNibblesToCompactFunction.startsWith "mpt_nibbles_to_compact:\n"
+#guard mptNibblesToCompact_prog.length = 33
 /-- `zisk_mpt_nibbles_to_compact`: probe BuildUnit. Reads
     (nibble_count, is_leaf, nibble_bytes) from host input, writes
     (status, output_len, compact_bytes...) to OUTPUT.
@@ -181,48 +186,54 @@ def ziskMptNibblesToCompactProbeUnit : BuildUnit := {
 
     Pure-leaf semantics: no scratch memory, no transitive calls.
     Counter and flag outputs are zeroed on failure. -/
-def mptCompactToNibblesFunction : String :=
-  "mpt_compact_to_nibbles:\n" ++
-  "  sd zero, 0(a3)              # default count = 0\n" ++
-  "  sd zero, 0(a4)              # default is_leaf = 0\n" ++
-  "  beqz a1, .Lmctn_fail\n" ++
-  "  lbu t0, 0(a0)               # prefix byte\n" ++
-  "  srli t1, t0, 4              # high nibble\n" ++
-  "  andi t2, t1, 2              # is_leaf bit\n" ++
-  "  srli t2, t2, 1\n" ++
-  "  sd t2, 0(a4)\n" ++
-  "  andi t3, t1, 1              # parity bit\n" ++
-  "  mv t4, a2                   # nibbles cursor\n" ++
-  "  li t5, 0                    # nibble count\n" ++
-  "  beqz t3, .Lmctn_even\n" ++
-  "  # Odd: first nibble = low nibble of prefix\n" ++
-  "  andi t6, t0, 0xf\n" ++
-  "  sb t6, 0(t4)\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, 1\n" ++
-  ".Lmctn_even:\n" ++
-  "  addi t6, a0, 1              # cursor over packed bytes\n" ++
-  "  addi t1, a1, -1             # remaining packed bytes\n" ++
-  ".Lmctn_loop:\n" ++
-  "  beqz t1, .Lmctn_done\n" ++
-  "  lbu t0, 0(t6)\n" ++
-  "  srli t2, t0, 4              # high nibble\n" ++
-  "  andi t3, t0, 0xf            # low nibble\n" ++
-  "  sb t2, 0(t4)\n" ++
-  "  sb t3, 1(t4)\n" ++
-  "  addi t4, t4, 2\n" ++
-  "  addi t5, t5, 2\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmctn_loop\n" ++
-  ".Lmctn_done:\n" ++
-  "  sd t5, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lmctn_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def mptCompactToNibbles_prog : Program :=
+  [ .SD .x13 .x0 (0 : BitVec 12),
+    .SD .x14 .x0 (0 : BitVec 12),
+    .BEQ .x11 .x0 (120 : BitVec 13),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .SRLI .x6 .x5 (4 : BitVec 6),
+    .ANDI .x7 .x6 (2 : BitVec 12),
+    .SRLI .x7 .x7 (1 : BitVec 6),
+    .SD .x14 .x7 (0 : BitVec 12),
+    .ANDI .x28 .x6 (1 : BitVec 12),
+    .MV .x29 .x12,
+    .LI .x30 (0 : Word),
+    .BEQ .x28 .x0 (20 : BitVec 13),
+    .ANDI .x31 .x5 (15 : BitVec 12),
+    .SB .x29 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x31 .x10 (1 : BitVec 12),
+    .ADDI .x6 .x11 (-1 : BitVec 12),
+    .BEQ .x6 .x0 (44 : BitVec 13),
+    .LBU .x5 .x31 (0 : BitVec 12),
+    .SRLI .x7 .x5 (4 : BitVec 6),
+    .ANDI .x28 .x5 (15 : BitVec 12),
+    .SB .x29 .x7 (0 : BitVec 12),
+    .SB .x29 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (2 : BitVec 12),
+    .ADDI .x30 .x30 (2 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .SD .x13 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def mptCompactToNibblesFunction : String :=
+  "mpt_compact_to_nibbles:\n" ++ emitProgram mptCompactToNibbles_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `mptCompactToNibbles_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem mptCompactToNibblesFunction_eq_prog :
+    mptCompactToNibblesFunction = "mpt_compact_to_nibbles:\n" ++ emitProgram mptCompactToNibbles_prog := rfl
+
+#guard mptCompactToNibblesFunction.startsWith "mpt_compact_to_nibbles:\n"
+#guard mptCompactToNibbles_prog.length = 34
 /-- `zisk_mpt_compact_to_nibbles`: probe BuildUnit. Reads
     (compact_len, compact_bytes) from host input, writes
     (status, nibble_count, is_leaf, nibbles...) to OUTPUT.

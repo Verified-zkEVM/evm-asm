@@ -940,78 +940,83 @@ def ziskNibblesCommonPrefixLenProbeUnit : BuildUnit := {
       a0 (output) :
         0 : success
         1 : idx_a >= 17 or idx_b >= 17 or idx_a == idx_b -/
-def mptBranchPayloadTwoSlotsFunction : String :=
-  "mpt_branch_payload_two_slots:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # idx_a\n" ++
-  "  mv s1, a1                   # bytes_a ptr\n" ++
-  "  mv s2, a2                   # len_a\n" ++
-  "  mv s3, a3                   # idx_b\n" ++
-  "  mv s4, a4                   # bytes_b ptr\n" ++
-  "  mv s5, a5                   # len_b\n" ++
-  "  # ---- Validate ----\n" ++
-  "  li t0, 17\n" ++
-  "  bgeu s0, t0, .Lmbpts_fail\n" ++
-  "  bgeu s3, t0, .Lmbpts_fail\n" ++
-  "  beq  s0, s3, .Lmbpts_fail\n" ++
-  "  # ---- Walk slot indices 0..16, emitting bytes ----\n" ++
-  "  mv t1, a6                   # output cursor\n" ++
-  "  li t2, 0                    # i\n" ++
-  ".Lmbpts_loop:\n" ++
-  "  li t0, 17\n" ++
-  "  bge t2, t0, .Lmbpts_done\n" ++
-  "  beq t2, s0, .Lmbpts_emit_a\n" ++
-  "  beq t2, s3, .Lmbpts_emit_b\n" ++
-  "  # Empty slot: write 0x80.\n" ++
-  "  li t3, 0x80\n" ++
-  "  sb t3, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  j .Lmbpts_next\n" ++
-  ".Lmbpts_emit_a:\n" ++
-  "  # Copy len_a bytes from bytes_a to output.\n" ++
-  "  mv t3, s1\n" ++
-  "  mv t4, s2\n" ++
-  ".Lmbpts_cp_a:\n" ++
-  "  beqz t4, .Lmbpts_next\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb t5, 0(t1)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lmbpts_cp_a\n" ++
-  ".Lmbpts_emit_b:\n" ++
-  "  mv t3, s4\n" ++
-  "  mv t4, s5\n" ++
-  ".Lmbpts_cp_b:\n" ++
-  "  beqz t4, .Lmbpts_next\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb t5, 0(t1)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lmbpts_cp_b\n" ++
-  ".Lmbpts_next:\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Lmbpts_loop\n" ++
-  ".Lmbpts_done:\n" ++
-  "  # out_length = cursor - output_start.\n" ++
-  "  sub t1, t1, a6\n" ++
-  "  sd t1, 0(a7)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmbpts_ret\n" ++
-  ".Lmbpts_fail:\n" ++
-  "  sd zero, 0(a7)\n" ++
-  "  li a0, 1\n" ++
-  ".Lmbpts_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def mptBranchPayloadTwoSlots_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .LI .x5 (17 : Word),
+    .BGEU .x8 .x5 (148 : BitVec 13),
+    .BGEU .x19 .x5 (144 : BitVec 13),
+    .BEQ .x8 .x19 (140 : BitVec 13),
+    .MV .x6 .x16,
+    .LI .x7 (0 : Word),
+    .LI .x5 (17 : Word),
+    .BGE .x7 .x5 (108 : BitVec 13),
+    .BEQ .x7 .x8 (24 : BitVec 13),
+    .BEQ .x7 .x19 (56 : BitVec 13),
+    .LI .x28 (128 : Word),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (76 : BitVec 21),
+    .MV .x28 .x9,
+    .MV .x29 .x18,
+    .BEQ .x29 .x0 (64 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x6 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x28 .x20,
+    .MV .x29 .x21,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x6 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-108 : BitVec 21),
+    .SUB .x6 .x6 .x16,
+    .SD .x17 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .SD .x17 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def mptBranchPayloadTwoSlotsFunction : String :=
+  "mpt_branch_payload_two_slots:\n" ++ emitProgram mptBranchPayloadTwoSlots_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `mptBranchPayloadTwoSlots_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem mptBranchPayloadTwoSlotsFunction_eq_prog :
+    mptBranchPayloadTwoSlotsFunction = "mpt_branch_payload_two_slots:\n" ++ emitProgram mptBranchPayloadTwoSlots_prog := rfl
+
+#guard mptBranchPayloadTwoSlotsFunction.startsWith "mpt_branch_payload_two_slots:\n"
+#guard mptBranchPayloadTwoSlots_prog.length = 63
 /-- `zisk_mpt_branch_payload_two_slots`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : idx_a

@@ -16,6 +16,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 
 namespace EvmAsm.Codegen
@@ -48,70 +49,71 @@ open EvmAsm.Rv64.Program
       a2 (input)  : u64 out length ptr (bytes written; 1..9)
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def rlpEncodeU64Function : String :=
-  "rlp_encode_u64:\n" ++
-  "  beqz a0, .Lreu64_zero\n" ++
-  "  li t0, 0x80\n" ++
-  "  bgeu a0, t0, .Lreu64_multi\n" ++
-  "  # Single-byte form (value in 0x01..0x7f).\n" ++
-  "  sb a0, 0(a1)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lreu64_zero:\n" ++
-  "  li t0, 0x80\n" ++
-  "  sb t0, 0(a1)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lreu64_multi:\n" ++
-  "  # Compute effective byte length (1..8) by finding the top non-zero byte.\n" ++
-  "  # We already know value >= 0x80, so len >= 1.\n" ++
-  "  li t0, 1                   # effective_len candidate\n" ++
-  "  li t1, 0x100\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 2\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 3\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 4\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 5\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 6\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 7\n" ++
-  "  slli t1, t1, 8\n" ++
-  "  bltu a0, t1, .Lreu64_have_len\n" ++
-  "  li t0, 8\n" ++
-  ".Lreu64_have_len:\n" ++
-  "  # Write prefix 0x80 + effective_len.\n" ++
-  "  addi t2, t0, 0x80\n" ++
-  "  sb t2, 0(a1)\n" ++
-  "  # Write effective_len BE bytes of value into a1+1..a1+1+len.\n" ++
-  "  addi t3, a1, 1                 # dst cursor\n" ++
-  "  addi t4, t0, -1                # shift_byte_index = len - 1\n" ++
-  ".Lreu64_emit:\n" ++
-  "  bltz t4, .Lreu64_done\n" ++
-  "  slli t5, t4, 3                 # bit shift = 8 * byte_index\n" ++
-  "  srl t6, a0, t5\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lreu64_emit\n" ++
-  ".Lreu64_done:\n" ++
-  "  addi t1, t0, 1                 # bytes_written = 1 + effective_len\n" ++
-  "  sd t1, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def rlpEncodeU64_prog : Program :=
+  [ .BEQ .x10 .x0 (32 : BitVec 13),
+    .LI .x5 (128 : Word),
+    .BGEU .x10 .x5 (48 : BitVec 13),
+    .SB .x11 .x10 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x12 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (128 : Word),
+    .SB .x11 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x12 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .LI .x6 (256 : Word),
+    .BLTU .x10 .x6 (80 : BitVec 13),
+    .LI .x5 (2 : Word),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .BLTU .x10 .x6 (68 : BitVec 13),
+    .LI .x5 (3 : Word),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .BLTU .x10 .x6 (56 : BitVec 13),
+    .LI .x5 (4 : Word),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .BLTU .x10 .x6 (44 : BitVec 13),
+    .LI .x5 (5 : Word),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .BLTU .x10 .x6 (32 : BitVec 13),
+    .LI .x5 (6 : Word),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .BLTU .x10 .x6 (20 : BitVec 13),
+    .LI .x5 (7 : Word),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .BLTU .x10 .x6 (8 : BitVec 13),
+    .LI .x5 (8 : Word),
+    .ADDI .x7 .x5 (128 : BitVec 12),
+    .SB .x11 .x7 (0 : BitVec 12),
+    .ADDI .x28 .x11 (1 : BitVec 12),
+    .ADDI .x29 .x5 (-1 : BitVec 12),
+    .BLT .x29 .x0 (28 : BitVec 13),
+    .SLLI .x30 .x29 (3 : BitVec 6),
+    .SRL .x31 .x10 .x30,
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x6 .x5 (1 : BitVec 12),
+    .SD .x12 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def rlpEncodeU64Function : String :=
+  "rlp_encode_u64:\n" ++ emitProgram rlpEncodeU64_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpEncodeU64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpEncodeU64Function_eq_prog :
+    rlpEncodeU64Function = "rlp_encode_u64:\n" ++ emitProgram rlpEncodeU64_prog := rfl
+
+#guard rlpEncodeU64Function.startsWith "rlp_encode_u64:\n"
+#guard rlpEncodeU64_prog.length = 51
 /-- `zisk_rlp_encode_u64`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : value (u64)

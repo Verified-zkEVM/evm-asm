@@ -25,6 +25,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.StaticContext
@@ -148,13 +149,24 @@ def callFrameSetCallEnvFunction : String :=
     `callDataLen@424 = argsLen`. No copy: the parent frame slot persists
     (strictly shallower index) while the child runs, so CALLDATALOAD/COPY read
     directly from it. Clobbers t0. -/
-def callFrameSetCalldataFunction : String :=
-  "call_frame_set_calldata:\n" ++
-  "  add t0, a1, a2\n" ++
-  "  sd t0, 416(a0)\n" ++
-  "  sd a3, 424(a0)\n" ++
-  "  ret"
+def callFrameSetCalldata_prog : Program :=
+  [ .ADD .x5 .x11 .x12,
+    .SD .x10 .x5 (416 : BitVec 12),
+    .SD .x10 .x13 (424 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def callFrameSetCalldataFunction : String :=
+  "call_frame_set_calldata:\n" ++ emitProgram callFrameSetCalldata_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `callFrameSetCalldata_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem callFrameSetCalldataFunction_eq_prog :
+    callFrameSetCalldataFunction = "call_frame_set_calldata:\n" ++ emitProgram callFrameSetCalldata_prog := rfl
+
+#guard callFrameSetCalldataFunction.startsWith "call_frame_set_calldata:\n"
+#guard callFrameSetCalldata_prog.length = 4
 /-- `call_frame_forward_gas(a0 = gas_left, a1 = requested, a2 = value_nonzero)`:
     EIP-150 message-call gas forwarding (`vm/gas.py:419,424,64,415`). Returns
     `a0 = min(requested, gas_left - gas_left/64) + (value_nonzero ? 2300 : 0)`.

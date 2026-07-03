@@ -17,6 +17,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.RlpRead
@@ -391,66 +392,74 @@ def ziskMptBranchChildProbeUnit : BuildUnit := {
     Each output byte holds one nibble in its low 4 bits; the
     high 4 bits are zero. This is the format consumed by future
     `mpt_walk` (PR-K24) which compares one byte per nibble. -/
-def hpDecodeNibblesFunction : String :=
-  "hp_decode_nibbles:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                  # path_bytes ptr\n" ++
-  "  mv s1, a1                  # len\n" ++
-  "  mv s2, a2                  # out nibble buf\n" ++
-  "  mv s3, a3                  # out count ptr\n" ++
-  "  mv s4, a4                  # out is_leaf ptr\n" ++
-  "  beqz s1, .Lhp_fail\n" ++
-  "  lbu t0, 0(s0)              # b0\n" ++
-  "  srli t1, t0, 4             # high nibble\n" ++
-  "  andi t2, t0, 0xf           # low nibble\n" ++
-  "  li t3, 4\n" ++
-  "  bgeu t1, t3, .Lhp_fail     # high ≥ 4 → invalid\n" ++
-  "  # is_leaf = (high & 2) >> 1\n" ++
-  "  andi t3, t1, 2\n" ++
-  "  srli t3, t3, 1\n" ++
-  "  sd t3, 0(s4)\n" ++
-  "  # is_odd = high & 1\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  beqz t1, .Lhp_even\n" ++
-  "  # Odd: write low as first output nibble.\n" ++
-  "  sb t2, 0(s2)\n" ++
-  "  li t5, 1                   # nibble count so far\n" ++
-  "  addi t6, s2, 1             # output cursor\n" ++
-  "  j .Lhp_loop_init\n" ++
-  ".Lhp_even:\n" ++
-  "  bnez t2, .Lhp_fail         # even but low nibble != 0\n" ++
-  "  li t5, 0\n" ++
-  "  mv t6, s2\n" ++
-  ".Lhp_loop_init:\n" ++
-  "  li t0, 1                   # i = 1\n" ++
-  ".Lhp_loop:\n" ++
-  "  bgeu t0, s1, .Lhp_done\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  srli t3, t2, 4\n" ++
-  "  andi t4, t2, 0xf\n" ++
-  "  sb t3, 0(t6)\n" ++
-  "  sb t4, 1(t6)\n" ++
-  "  addi t6, t6, 2\n" ++
-  "  addi t5, t5, 2\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lhp_loop\n" ++
-  ".Lhp_done:\n" ++
-  "  sd t5, 0(s3)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhp_ret\n" ++
-  ".Lhp_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lhp_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def hpDecodeNibbles_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x9 .x0 (132 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x6 .x5 (4 : BitVec 6),
+    .ANDI .x7 .x5 (15 : BitVec 12),
+    .LI .x28 (4 : Word),
+    .BGEU .x6 .x28 (112 : BitVec 13),
+    .ANDI .x28 .x6 (2 : BitVec 12),
+    .SRLI .x28 .x28 (1 : BitVec 6),
+    .SD .x20 .x28 (0 : BitVec 12),
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .SB .x18 .x7 (0 : BitVec 12),
+    .LI .x30 (1 : Word),
+    .ADDI .x31 .x18 (1 : BitVec 12),
+    .JAL .x0 (16 : BitVec 21),
+    .BNE .x7 .x0 (72 : BitVec 13),
+    .LI .x30 (0 : Word),
+    .MV .x31 .x18,
+    .LI .x5 (1 : Word),
+    .BGEU .x5 .x9 (44 : BitVec 13),
+    .ADD .x6 .x8 .x5,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .SRLI .x28 .x7 (4 : BitVec 6),
+    .ANDI .x29 .x7 (15 : BitVec 12),
+    .SB .x31 .x28 (0 : BitVec 12),
+    .SB .x31 .x29 (1 : BitVec 12),
+    .ADDI .x31 .x31 (2 : BitVec 12),
+    .ADDI .x30 .x30 (2 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .SD .x19 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def hpDecodeNibblesFunction : String :=
+  "hp_decode_nibbles:\n" ++ emitProgram hpDecodeNibbles_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `hpDecodeNibbles_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem hpDecodeNibblesFunction_eq_prog :
+    hpDecodeNibblesFunction = "hp_decode_nibbles:\n" ++ emitProgram hpDecodeNibbles_prog := rfl
+
+#guard hpDecodeNibblesFunction.startsWith "hp_decode_nibbles:\n"
+#guard hpDecodeNibbles_prog.length = 54
 /-- `zisk_hp_decode_nibbles`: probe BuildUnit. Reads
     (path_len, path_bytes) from host input, writes
     (status, count, is_leaf, nibbles...) to OUTPUT.
@@ -873,28 +882,37 @@ def ziskMptWalkProbeUnit : BuildUnit := {
       a0 (output) : 2 * a1 (number of nibbles emitted)
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def bytesToNibblesFunction : String :=
-  "bytes_to_nibbles:\n" ++
-  "  mv t0, a0                  # src cursor\n" ++
-  "  mv t1, a2                  # dst cursor\n" ++
-  "  mv t2, a1                  # remaining\n" ++
-  "  li t6, 0                   # emitted count\n" ++
-  ".Lbtn_loop:\n" ++
-  "  beqz t2, .Lbtn_done\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  srli t4, t3, 4\n" ++
-  "  andi t5, t3, 0xf\n" ++
-  "  sb t4, 0(t1)\n" ++
-  "  sb t5, 1(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 2\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  addi t6, t6, 2\n" ++
-  "  j .Lbtn_loop\n" ++
-  ".Lbtn_done:\n" ++
-  "  mv a0, t6\n" ++
-  "  ret"
+def bytesToNibbles_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x12,
+    .MV .x7 .x11,
+    .LI .x31 (0 : Word),
+    .BEQ .x7 .x0 (44 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SRLI .x29 .x28 (4 : BitVec 6),
+    .ANDI .x30 .x28 (15 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .SB .x6 .x30 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (2 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x31 .x31 (2 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .MV .x10 .x31,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bytesToNibblesFunction : String :=
+  "bytes_to_nibbles:\n" ++ emitProgram bytesToNibbles_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bytesToNibbles_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bytesToNibblesFunction_eq_prog :
+    bytesToNibblesFunction = "bytes_to_nibbles:\n" ++ emitProgram bytesToNibbles_prog := rfl
+
+#guard bytesToNibblesFunction.startsWith "bytes_to_nibbles:\n"
+#guard bytesToNibbles_prog.length = 17
 /-- `zisk_bytes_to_nibbles`: probe BuildUnit. Reads
     (src_len, src_bytes) from host input, writes
     (nibble_count, nibbles) to OUTPUT.
@@ -1117,40 +1135,47 @@ def ziskMptLookupByKeyProbeUnit : BuildUnit := {
       a0 (output) : number of bytes written
 
     Pure register arithmetic, no scratch, leaf-callable. -/
-def hpEncodeNibblesFunction : String :=
-  "hp_encode_nibbles:\n" ++
-  "  andi t0, a1, 1             # is_odd = nibble_count & 1\n" ++
-  "  mv t1, a3                  # cursor\n" ++
-  "  slli t2, a2, 1             # is_leaf * 2\n" ++
-  "  or t2, t2, t0              # flag = is_leaf*2 + is_odd\n" ++
-  "  slli t2, t2, 4             # flag << 4\n" ++
-  "  beqz t0, .Lhpe_even\n" ++
-  "  # Odd: byte 0 = (flag << 4) | nibbles[0]; consume one nibble.\n" ++
-  "  lbu t3, 0(a0)\n" ++
-  "  or t2, t2, t3\n" ++
-  "  sb t2, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, -1\n" ++
-  "  j .Lhpe_pair_loop\n" ++
-  ".Lhpe_even:\n" ++
-  "  sb t2, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  ".Lhpe_pair_loop:\n" ++
-  "  beqz a1, .Lhpe_done\n" ++
-  "  lbu t3, 0(a0)\n" ++
-  "  slli t3, t3, 4\n" ++
-  "  lbu t4, 1(a0)\n" ++
-  "  or t3, t3, t4\n" ++
-  "  sb t3, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi a0, a0, 2\n" ++
-  "  addi a1, a1, -2\n" ++
-  "  j .Lhpe_pair_loop\n" ++
-  ".Lhpe_done:\n" ++
-  "  sub a0, t1, a3\n" ++
-  "  ret"
+def hpEncodeNibbles_prog : Program :=
+  [ .ANDI .x5 .x11 (1 : BitVec 12),
+    .MV .x6 .x13,
+    .SLLI .x7 .x12 (1 : BitVec 6),
+    .OR .x7 .x7 .x5,
+    .SLLI .x7 .x7 (4 : BitVec 6),
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x10 (0 : BitVec 12),
+    .OR .x7 .x7 .x28,
+    .SB .x6 .x7 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .SB .x6 .x7 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x11 .x0 (40 : BitVec 13),
+    .LBU .x28 .x10 (0 : BitVec 12),
+    .SLLI .x28 .x28 (4 : BitVec 6),
+    .LBU .x29 .x10 (1 : BitVec 12),
+    .OR .x28 .x28 .x29,
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x10 .x10 (2 : BitVec 12),
+    .ADDI .x11 .x11 (-2 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .SUB .x10 .x6 .x13,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def hpEncodeNibblesFunction : String :=
+  "hp_encode_nibbles:\n" ++ emitProgram hpEncodeNibbles_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `hpEncodeNibbles_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem hpEncodeNibblesFunction_eq_prog :
+    hpEncodeNibblesFunction = "hp_encode_nibbles:\n" ++ emitProgram hpEncodeNibbles_prog := rfl
+
+#guard hpEncodeNibblesFunction.startsWith "hp_encode_nibbles:\n"
+#guard hpEncodeNibbles_prog.length = 27
 /-- `zisk_hp_encode_nibbles`: probe BuildUnit. Reads
     (nibble_count, is_leaf, nibbles) from host input, writes
     (bytes_written, hp_bytes) to OUTPUT.

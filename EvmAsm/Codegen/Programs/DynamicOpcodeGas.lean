@@ -21,6 +21,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -28,56 +29,108 @@ open EvmAsm.Rv64
 
 /-! ## keccak256_word_gas
     a0 = size in bytes → a0 = OPCODE_KECCAK256_BASE(30) + 6 * ceil32(size)//32. -/
-def keccak256WordGasFunction : String :=
-  "keccak256_word_gas:\n" ++
-  "  addi t0, a0, 31; srli t0, t0, 5   # words\n" ++
-  "  li t1, 6; mul t0, t0, t1\n" ++
-  "  addi a0, t0, 30                   # + KECCAK256 base\n" ++
-  "  ret"
+def keccak256WordGas_prog : Program :=
+  [ .ADDI .x5 .x10 (31 : BitVec 12),
+    .SRLI .x5 .x5 (5 : BitVec 6),
+    .LI .x6 (6 : Word),
+    .MUL .x5 .x5 .x6,
+    .ADDI .x10 .x5 (30 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def keccak256WordGasFunction : String :=
+  "keccak256_word_gas:\n" ++ emitProgram keccak256WordGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `keccak256WordGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem keccak256WordGasFunction_eq_prog :
+    keccak256WordGasFunction = "keccak256_word_gas:\n" ++ emitProgram keccak256WordGas_prog := rfl
+
+#guard keccak256WordGasFunction.startsWith "keccak256_word_gas:\n"
+#guard keccak256WordGas_prog.length = 6
 /-! ## copy_word_gas
     a0 = size in bytes → a0 = OPCODE_COPY_PER_WORD(3) * ceil32(size)//32.
     (The *COPY base cost is the static opcode base; this is the per-word part.) -/
-def copyWordGasFunction : String :=
-  "copy_word_gas:\n" ++
-  "  addi t0, a0, 31; srli t0, t0, 5   # words\n" ++
-  "  li t1, 3; mul a0, t0, t1\n" ++
-  "  ret"
+def copyWordGas_prog : Program :=
+  [ .ADDI .x5 .x10 (31 : BitVec 12),
+    .SRLI .x5 .x5 (5 : BitVec 6),
+    .LI .x6 (3 : Word),
+    .MUL .x10 .x5 .x6,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def copyWordGasFunction : String :=
+  "copy_word_gas:\n" ++ emitProgram copyWordGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `copyWordGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem copyWordGasFunction_eq_prog :
+    copyWordGasFunction = "copy_word_gas:\n" ++ emitProgram copyWordGas_prog := rfl
+
+#guard copyWordGasFunction.startsWith "copy_word_gas:\n"
+#guard copyWordGas_prog.length = 5
 /-! ## log_data_gas
     a0 = num_topics   a1 = data size in bytes
     a0 = OPCODE_LOG_BASE(375) + OPCODE_LOG_TOPIC(375)*num_topics
          + OPCODE_LOG_DATA_PER_BYTE(8)*data_bytes. -/
-def logDataGasFunction : String :=
-  "log_data_gas:\n" ++
-  "  li t0, 375; mul t1, a0, t0        # 375 * num_topics\n" ++
-  "  add t1, t1, t0                    # + LOG base (375)\n" ++
-  "  li t2, 8; mul t2, a1, t2          # 8 * data_bytes\n" ++
-  "  add a0, t1, t2\n" ++
-  "  ret"
+def logDataGas_prog : Program :=
+  [ .LI .x5 (375 : Word),
+    .MUL .x6 .x10 .x5,
+    .ADD .x6 .x6 .x5,
+    .LI .x7 (8 : Word),
+    .MUL .x7 .x11 .x7,
+    .ADD .x10 .x6 .x7,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def logDataGasFunction : String :=
+  "log_data_gas:\n" ++ emitProgram logDataGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `logDataGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem logDataGasFunction_eq_prog :
+    logDataGasFunction = "log_data_gas:\n" ++ emitProgram logDataGas_prog := rfl
+
+#guard logDataGasFunction.startsWith "log_data_gas:\n"
+#guard logDataGas_prog.length = 7
 /-! ## exp_gas
     a0 = exponent value ptr (32-byte BE)
     a0 = OPCODE_EXP_BASE(10) + OPCODE_EXP_PER_BYTE(50) * exponent_bytes, where
     exponent_bytes = (bit_length(exponent) + 7)//8 = 32 - leading_zero_bytes of the
     32-byte big-endian exponent (0 when the exponent is 0). Leaf, no calls. -/
-def expGasFunction : String :=
-  "exp_gas:\n" ++
-  "  li t0, 0                          # i = leading-zero byte count (scan from MSB)\n" ++
-  ".Lexp_lead:\n" ++
-  "  li t1, 32; beq t0, t1, .Lexp_zero # all 32 bytes zero -> exponent_bytes = 0\n" ++
-  "  add t2, a0, t0; lbu t2, 0(t2)\n" ++
-  "  bnez t2, .Lexp_found\n" ++
-  "  addi t0, t0, 1; j .Lexp_lead\n" ++
-  ".Lexp_found:\n" ++
-  "  li t1, 32; sub t1, t1, t0         # exponent_bytes = 32 - i\n" ++
-  "  li t2, 50; mul t1, t1, t2         # 50 * exponent_bytes\n" ++
-  "  addi a0, t1, 10                   # + EXP base\n" ++
-  "  ret\n" ++
-  ".Lexp_zero:\n" ++
-  "  li a0, 10\n" ++
-  "  ret"
+def expGas_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (32 : Word),
+    .BEQ .x5 .x6 (48 : BitVec 13),
+    .ADD .x7 .x10 .x5,
+    .LBU .x7 .x7 (0 : BitVec 12),
+    .BNE .x7 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x6 (32 : Word),
+    .SUB .x6 .x6 .x5,
+    .LI .x7 (50 : Word),
+    .MUL .x6 .x6 .x7,
+    .ADDI .x10 .x6 (10 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (10 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def expGasFunction : String :=
+  "exp_gas:\n" ++ emitProgram expGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `expGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem expGasFunction_eq_prog :
+    expGasFunction = "exp_gas:\n" ++ emitProgram expGas_prog := rfl
+
+#guard expGasFunction.startsWith "exp_gas:\n"
+#guard expGas_prog.length = 16
 /-- `zisk_dynamic_opcode_gas`: probe over the leaves.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : keccak size in bytes

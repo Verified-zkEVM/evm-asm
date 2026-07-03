@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -18,82 +19,106 @@ open EvmAsm.Rv64
     offset. The top-level verdict uses this only for transaction-bearing blocks
     to reject witnesses whose header list is shorter than a code path can demand,
     matching execution-specs' in-window BLOCKHASH missing-header failure. -/
-def codesBlockhashRequiredHeadersFunction : String :=
-  "codes_blockhash_required_headers:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                  # witness.codes section ptr\n" ++
-  "  mv s1, a1                  # witness.codes section len\n" ++
-  "  mv s2, a2                  # max-required-headers out ptr\n" ++
-  "  li s5, 0                   # running max offset\n" ++
-  "  sd zero, 0(s2)\n" ++
-  "  beqz s1, .Lcbrh_ok\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s3, t0, 2             # N = first_offset / 4\n" ++
-  "  li s4, 0                   # code index\n" ++
-  ".Lcbrh_item_loop:\n" ++
-  "  beq s4, s3, .Lcbrh_ok\n" ++
-  "  slli t0, s4, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # item start offset\n" ++
-  "  add s6, s0, t2             # item start ptr\n" ++
-  "  addi t3, s4, 1\n" ++
-  "  beq t3, s3, .Lcbrh_use_section_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)              # next item offset\n" ++
-  "  j .Lcbrh_have_end_off\n" ++
-  ".Lcbrh_use_section_end:\n" ++
-  "  mv t4, s1                  # last item ends at section_len\n" ++
-  ".Lcbrh_have_end_off:\n" ++
-  "  bltu t4, t2, .Lcbrh_fail\n" ++
-  "  sub s7, t4, t2             # remaining item bytes\n" ++
-  "  li t5, 5\n" ++
-  "  bltu s7, t5, .Lcbrh_next_item\n" ++
-  ".Lcbrh_scan_loop:\n" ++
-  "  li t5, 5\n" ++
-  "  bltu s7, t5, .Lcbrh_next_item\n" ++
-  "  lbu t0, 0(s6)\n" ++
-  "  li t1, 0x60\n" ++
-  "  beq t0, t1, .Lcbrh_try_push_number_sub\n" ++
-  "  li t1, 0x43\n" ++
-  "  beq t0, t1, .Lcbrh_try_number_push_sub\n" ++
-  "  j .Lcbrh_advance\n" ++
-  ".Lcbrh_try_push_number_sub:\n" ++
-  "  lbu t2, 2(s6); li t3, 0x43; bne t2, t3, .Lcbrh_advance\n" ++
-  "  lbu t2, 3(s6); li t3, 0x03; bne t2, t3, .Lcbrh_advance\n" ++
-  "  lbu t2, 4(s6); li t3, 0x40; bne t2, t3, .Lcbrh_advance\n" ++
-  "  lbu t4, 1(s6)              # offset\n" ++
-  "  bleu t4, s5, .Lcbrh_advance\n" ++
-  "  mv s5, t4\n" ++
-  "  j .Lcbrh_advance\n" ++
-  ".Lcbrh_try_number_push_sub:\n" ++
-  "  lbu t2, 1(s6); li t3, 0x60; bne t2, t3, .Lcbrh_advance\n" ++
-  "  lbu t2, 3(s6); li t3, 0x03; bne t2, t3, .Lcbrh_advance\n" ++
-  "  lbu t2, 4(s6); li t3, 0x40; bne t2, t3, .Lcbrh_advance\n" ++
-  "  lbu t4, 2(s6)              # offset\n" ++
-  "  bleu t4, s5, .Lcbrh_advance\n" ++
-  "  mv s5, t4\n" ++
-  ".Lcbrh_advance:\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  addi s7, s7, -1\n" ++
-  "  j .Lcbrh_scan_loop\n" ++
-  ".Lcbrh_next_item:\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lcbrh_item_loop\n" ++
-  ".Lcbrh_ok:\n" ++
-  "  sd s5, 0(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcbrh_ret\n" ++
-  ".Lcbrh_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lcbrh_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def codesBlockhashRequiredHeaders_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .LI .x21 (0 : Word),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .BEQ .x9 .x0 (232 : BitVec 13),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x19 .x5 (2 : BitVec 6),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x19 (216 : BitVec 13),
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x22 .x8 .x7,
+    .ADDI .x28 .x20 (1 : BitVec 12),
+    .BEQ .x28 .x19 (20 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x29 .x9,
+    .BLTU .x29 .x7 (180 : BitVec 13),
+    .SUB .x23 .x29 .x7,
+    .LI .x30 (5 : Word),
+    .BLTU .x23 .x30 (148 : BitVec 13),
+    .LI .x30 (5 : Word),
+    .BLTU .x23 .x30 (140 : BitVec 13),
+    .LBU .x5 .x22 (0 : BitVec 12),
+    .LI .x6 (96 : Word),
+    .BEQ .x5 .x6 (16 : BitVec 13),
+    .LI .x6 (67 : Word),
+    .BEQ .x5 .x6 (60 : BitVec 13),
+    .JAL .x0 (104 : BitVec 21),
+    .LBU .x7 .x22 (2 : BitVec 12),
+    .LI .x28 (67 : Word),
+    .BNE .x7 .x28 (92 : BitVec 13),
+    .LBU .x7 .x22 (3 : BitVec 12),
+    .LI .x28 (3 : Word),
+    .BNE .x7 .x28 (80 : BitVec 13),
+    .LBU .x7 .x22 (4 : BitVec 12),
+    .LI .x28 (64 : Word),
+    .BNE .x7 .x28 (68 : BitVec 13),
+    .LBU .x29 .x22 (1 : BitVec 12),
+    .BGEU .x21 .x29 (60 : BitVec 13),
+    .MV .x21 .x29,
+    .JAL .x0 (52 : BitVec 21),
+    .LBU .x7 .x22 (1 : BitVec 12),
+    .LI .x28 (96 : Word),
+    .BNE .x7 .x28 (40 : BitVec 13),
+    .LBU .x7 .x22 (3 : BitVec 12),
+    .LI .x28 (3 : Word),
+    .BNE .x7 .x28 (28 : BitVec 13),
+    .LBU .x7 .x22 (4 : BitVec 12),
+    .LI .x28 (64 : Word),
+    .BNE .x7 .x28 (16 : BitVec 13),
+    .LBU .x29 .x22 (2 : BitVec 12),
+    .BGEU .x21 .x29 (8 : BitVec 13),
+    .MV .x21 .x29,
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .ADDI .x23 .x23 (-1 : BitVec 12),
+    .JAL .x0 (-140 : BitVec 21),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-212 : BitVec 21),
+    .SD .x18 .x21 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def codesBlockhashRequiredHeadersFunction : String :=
+  "codes_blockhash_required_headers:\n" ++ emitProgram codesBlockhashRequiredHeaders_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `codesBlockhashRequiredHeaders_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem codesBlockhashRequiredHeadersFunction_eq_prog :
+    codesBlockhashRequiredHeadersFunction = "codes_blockhash_required_headers:\n" ++ emitProgram codesBlockhashRequiredHeaders_prog := rfl
+
+#guard codesBlockhashRequiredHeadersFunction.startsWith "codes_blockhash_required_headers:\n"
+#guard codesBlockhashRequiredHeaders_prog.length = 88
 end EvmAsm.Codegen

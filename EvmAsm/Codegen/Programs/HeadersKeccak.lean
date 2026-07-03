@@ -21,6 +21,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
@@ -245,45 +246,52 @@ def ziskHeadersKeccakArrayProbeUnit : BuildUnit := {
 
     Pure register arithmetic; no scratch memory, no callee-saved
     registers used. Leaf-callable. -/
-def headersParentHashFunction : String :=
-  "headers_parent_hash:\n" ++
-  "  # a0 = header ptr, a1 = header_len, a2 = out ptr\n" ++
-  "  lbu t0, 0(a0)                # first byte\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lhph_fail      # not an RLP list (< 0xc0)\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lhph_short     # 0xc0..0xf7 → short list, 1-byte prefix\n" ++
-  "  # long list: t0 in [0xf8..0xff].\n" ++
-  "  # length_of_length = t0 - 0xf7. Outer prefix = 1 + length_of_length bytes.\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1               # length_of_length\n" ++
-  "  li t3, 2                     # cap: support 0xf8 (LoL=1), 0xf9 (LoL=2)\n" ++
-  "  bltu t3, t2, .Lhph_fail      # LoL > 2 → unsupported\n" ++
-  "  addi t2, t2, 1               # prefix bytes = LoL + 1\n" ++
-  "  add a0, a0, t2               # skip prefix\n" ++
-  "  sub a1, a1, t2\n" ++
-  "  j .Lhph_after_prefix\n" ++
-  ".Lhph_short:\n" ++
-  "  addi a0, a0, 1               # skip 1-byte prefix\n" ++
-  "  addi a1, a1, -1\n" ++
-  ".Lhph_after_prefix:\n" ++
-  "  # Expect 0xa0 Bytes32 prefix.\n" ++
-  "  li t0, 33\n" ++
-  "  bltu a1, t0, .Lhph_fail      # not enough bytes for 0xa0 + 32\n" ++
-  "  lbu t1, 0(a0)\n" ++
-  "  li t2, 0xa0\n" ++
-  "  bne t1, t2, .Lhph_fail       # not a Bytes32 string\n" ++
-  "  # Copy 32 bytes from a0+1 to a2.\n" ++
-  "  ld t0,  1(a0); sd t0,  0(a2)\n" ++
-  "  ld t0,  9(a0); sd t0,  8(a2)\n" ++
-  "  ld t0, 17(a0); sd t0, 16(a2)\n" ++
-  "  ld t0, 25(a0); sd t0, 24(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lhph_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def headersParentHash_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (112 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (36 : BitVec 13),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x28 (2 : Word),
+    .BLTU .x28 .x7 (88 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADD .x10 .x10 .x7,
+    .SUB .x11 .x11 .x7,
+    .JAL .x0 (12 : BitVec 21),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .LI .x5 (33 : Word),
+    .BLTU .x11 .x5 (56 : BitVec 13),
+    .LBU .x6 .x10 (0 : BitVec 12),
+    .LI .x7 (160 : Word),
+    .BNE .x6 .x7 (44 : BitVec 13),
+    .LD .x5 .x10 (1 : BitVec 12),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LD .x5 .x10 (9 : BitVec 12),
+    .SD .x12 .x5 (8 : BitVec 12),
+    .LD .x5 .x10 (17 : BitVec 12),
+    .SD .x12 .x5 (16 : BitVec 12),
+    .LD .x5 .x10 (25 : BitVec 12),
+    .SD .x12 .x5 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def headersParentHashFunction : String :=
+  "headers_parent_hash:\n" ++ emitProgram headersParentHash_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `headersParentHash_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem headersParentHashFunction_eq_prog :
+    headersParentHashFunction = "headers_parent_hash:\n" ++ emitProgram headersParentHash_prog := rfl
+
+#guard headersParentHashFunction.startsWith "headers_parent_hash:\n"
+#guard headersParentHash_prog.length = 32
 /-- `zisk_headers_parent_hash`: probe BuildUnit that reads an
     RLP-encoded header from host input and writes
     `(status, parent_hash)` to OUTPUT.
