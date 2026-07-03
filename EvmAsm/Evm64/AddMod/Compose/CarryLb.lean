@@ -65,4 +65,39 @@ theorem addOne_via_incr_chain (w : EvmWord) :
       = EvmWord.fromLimbs (w + 1).getLimb := by rw [hfun]
     _ = w + 1 := EvmWord.fromLimbs_getLimb (w + 1)
 
+-- ============================================================================
+-- Own → generic-valued conversion for memory cells (Lb needs this: between the
+-- MOD calls the div-scratch band is only OWNED, but the next call's adapter
+-- pre wants it VALUED; the adapter is generic in every scratch value, so we
+-- ∃-eliminate the owned cells and instantiate). Mirror of
+-- `cpsTripleWithin_pre_regOwn` / `_under` for `memOwn`.
+-- ============================================================================
+
+/-- Choose the concrete value of a leading `memOwn a` in a `cpsTripleWithin`
+    precondition. -/
+theorem cpsTripleWithin_pre_memOwn
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {a : Word} {B Q : Assertion}
+    (h : ∀ v, cpsTripleWithin nSteps entry exit_ cr ((a ↦ₘ v) ** B) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (memOwn a ** B) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hst, hcompat, hP⟩ := hPR
+  have hP' : (memOwn a ** (B ** R)) hst := (sepConj_assoc hst).mp hP
+  obtain ⟨v, hv⟩ := sepConj_choose_memOwn hP'
+  have hv' : (((a ↦ₘ v) ** B) ** R) hst := (sepConj_assoc hst).mpr hv
+  exact h v R hR s hcr ⟨hst, hcompat, hv'⟩ hpc
+
+/-- Choose the concrete value of a `memOwn a` sitting in the SECOND position of a
+    precondition (behind a leading `A`). Peels several `memOwn`s out of a chain
+    one at a time via `sepConj_left_comm'`. -/
+theorem cpsTripleWithin_pre_memOwn_under
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {A : Assertion} {a : Word} {B Q : Assertion}
+    (h : ∀ v, cpsTripleWithin nSteps entry exit_ cr (A ** ((a ↦ₘ v) ** B)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (A ** (memOwn a ** B)) Q := by
+  rw [sepConj_left_comm']
+  refine cpsTripleWithin_pre_memOwn (fun v => ?_)
+  rw [sepConj_left_comm']
+  exact h v
+
 end EvmAsm.Evm64.AddMod.Compose
