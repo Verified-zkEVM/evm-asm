@@ -236,7 +236,7 @@ theorem lc_restore_in_C
     `EvmWord.mod r N` at F+32..56, carry contribution `p` parked at S3. -/
 theorem lc_spec_within
     (bt F raVal x2v x6v x7v x9v x10v x11v : Word)
-    (p0 p1 p2 p3 n0 n1 n2 n3 r0 r1 r2 r3 dd0 dd1 dd2 dd3 : Word)
+    (p0 p1 p2 p3 n0 n1 n2 n3 r0 r1 r2 r3 dd0 dd1 dd2 dd3 sm0 sm1 sm2 sm3 : Word)
     (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word)
     (hoffset : (bt + 452) + signExtend21 mo3 = calleeEntry)
     (callerAlign : ((bt + 452) + 4) &&& ~~~(1 : Word) = (bt + 452) + 4)
@@ -253,10 +253,10 @@ theorem lc_spec_within
         ((F + signExtend12 (40 : BitVec 12)) ↦ₘ p1) **
         ((F + signExtend12 (48 : BitVec 12)) ↦ₘ p2) **
         ((F + signExtend12 (56 : BitVec 12)) ↦ₘ p3) **
-        ((F + signExtend12 (3840 : BitVec 12)) ↦ₘ p0) **
-        ((F + signExtend12 (3848 : BitVec 12)) ↦ₘ p1) **
-        ((F + signExtend12 (3856 : BitVec 12)) ↦ₘ p2) **
-        ((F + signExtend12 (3864 : BitVec 12)) ↦ₘ p3) **
+        ((F + signExtend12 (3840 : BitVec 12)) ↦ₘ sm0) **
+        ((F + signExtend12 (3848 : BitVec 12)) ↦ₘ sm1) **
+        ((F + signExtend12 (3856 : BitVec 12)) ↦ₘ sm2) **
+        ((F + signExtend12 (3864 : BitVec 12)) ↦ₘ sm3) **
         ((F + signExtend12 (3872 : BitVec 12)) ↦ₘ r0) **
         ((F + signExtend12 (3880 : BitVec 12)) ↦ₘ r1) **
         ((F + signExtend12 (3888 : BitVec 12)) ↦ₘ r2) **
@@ -276,7 +276,7 @@ theorem lc_spec_within
         n0 n1 n2 n3 r0 r1 r2 r3 p0 p1 p2 p3) := by
   -- link 1: stage_low (356→452)
   have hs := lc_stage_low_in_C bt F raVal x2v x6v x7v x9v x10v x11v
-    p0 p1 p2 p3 n0 n1 n2 n3 r0 r1 r2 r3 dd0 dd1 dd2 dd3 p0 p1 p2 p3
+    p0 p1 p2 p3 n0 n1 n2 n3 r0 r1 r2 r3 dd0 dd1 dd2 dd3 sm0 sm1 sm2 sm3
     mo1 mo2 mo3 moNC calleeEntry
   rw [show (bt + 356) + 96 = bt + 452 from by bv_omega] at hs
   -- link 2: call3 (452→456); stage_low leaves x5=n3
