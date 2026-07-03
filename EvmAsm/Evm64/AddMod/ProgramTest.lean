@@ -126,6 +126,19 @@ def runResult (sp : Word)
   some (64, [0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
              0xFFFFFFFFFFFFFFFF])
 
+-- Carry branch, chained-borrow regression (the legacy runtime handler's
+-- borrow-chain bug shape): N limbs [1, 5, 5, 8], operands chosen so the
+-- conditional subtract computes s − N with s = [0, 5, 5, 9] — the borrow
+-- from limb 0 must propagate through TWO equal middle limbs (per-limb
+-- difference 0 with incoming borrow 1). The post-subtraction borrow test
+-- (`sub x5,x5,x11; sltu x11,x5,x11`) drops the borrow here, yielding
+-- [max, max, 0, 1] instead of the correct 2^192 − 1 = [max, max, max, 0].
+#guard runResult 1024
+  0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF
+  0x2000000000000000 0xa000000000000000 0xa000000000000000 0x1
+  1 5 5 8 =
+  some (64, [0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0])
+
 -- Pure-oracle cross-checks: the same vectors against `EvmWord.addmod`.
 example : (EvmWord.addmod 5 7 0) = 0 := by decide
 example : (EvmWord.addmod 100 7 9).toNat = 8 := by decide
