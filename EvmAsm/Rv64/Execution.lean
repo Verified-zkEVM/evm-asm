@@ -171,6 +171,9 @@ def execInstrBr (s : MachineState) (i : Instr) : MachineState :=
   -- RV64I system
   | .ECALL =>
       s.setPC (s.pc + 4)
+  -- ZisK accelerator call (validity checked by `step`)
+  | .CSRS csr rs1 =>
+      (s.execCsrs csr rs1).setPC (s.pc + 4)
   | .FENCE =>
       s.setPC (s.pc + 4)
   | .EBREAK =>
@@ -389,6 +392,12 @@ def step (s : MachineState) : Option MachineState :=
     if isValidHalfwordAccess addr then
       some (execInstrBr s (.SH rs1 rs2 offset))
     else none
+  | some (.CSRS csr rs1) =>
+    -- ZisK accelerator: all operand dwords valid (and, for Arith256Mod,
+    -- modulus ≠ 0), else trap.  Unmodeled CSR ids always trap.
+    if s.csrsValid csr rs1 then
+      some (execInstrBr s (.CSRS csr rs1))
+    else none
   | some .EBREAK => none  -- trap: breakpoint
   | some .ECALL =>
     let t0 := s.getReg .x5
@@ -517,6 +526,21 @@ theorem stepResult_ok_iff {s s' : MachineState} :
     (hnm : i.isMemAccess = false) :
     step s = some (execInstrBr s i) := by
   unfold step; rw [hfetch]; cases i <;> simp_all [Instr.isMemAccess]
+
+/-- step for a ZisK accelerator call with valid operand blocks. -/
+theorem step_csrs {s : MachineState} {csr : BitVec 12} {rs1 : Reg}
+    (hfetch : s.code s.pc = some (.CSRS csr rs1))
+    (hvalid : s.csrsValid csr rs1 = true) :
+    step s = some (execInstrBr s (.CSRS csr rs1)) := by
+  unfold step; rw [hfetch]; simp [hvalid]
+
+/-- step for a ZisK accelerator call with an invalid operand block (or an
+    unmodeled CSR id): trap. -/
+theorem step_csrs_trap {s : MachineState} {csr : BitVec 12} {rs1 : Reg}
+    (hfetch : s.code s.pc = some (.CSRS csr rs1))
+    (hinvalid : s.csrsValid csr rs1 = false) :
+    step s = none := by
+  unfold step; rw [hfetch]; simp [hinvalid]
 
 /-- step for LD with valid dword memory access. -/
 theorem step_ld {s : MachineState} {rd rs1 : Reg} {offset : BitVec 12}

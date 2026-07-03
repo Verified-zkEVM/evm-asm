@@ -234,6 +234,11 @@ inductive Instr where
   | REM  (rd rs1 rs2 : Reg)
   /-- REMU rd, rs1, rs2 : rd := rs1 %u rs2 (unsigned remainder) -/
   | REMU (rd rs1 rs2 : Reg)
+  -- ZisK accelerator invocation
+  /-- CSRS csr, rs1 (`csrrs x0, csr, rs1`): ZisK accelerator call with the
+      operand-block pointer in `rs1`.  Modeled with concrete semantics per
+      CSR id (`EvmAsm.Rv64.ZiskAccel`); unmodeled ids trap in `step`. -/
+  | CSRS (csr : BitVec 12) (rs1 : Reg)
   deriving Repr, DecidableEq
 
 -- ============================================================================

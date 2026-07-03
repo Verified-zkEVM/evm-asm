@@ -110,6 +110,17 @@ def emitInstr : Instr → String
   | .DIVU   rd rs1 rs2 => s!"divu {emitReg rd}, {emitReg rs1}, {emitReg rs2}"
   | .REM    rd rs1 rs2 => s!"rem {emitReg rd}, {emitReg rs1}, {emitReg rs2}"
   | .REMU   rd rs1 rs2 => s!"remu {emitReg rd}, {emitReg rs1}, {emitReg rs2}"
+  -- ZisK accelerator call: pre-encoded `csrrs x0, csr, rs1` so the plain
+  -- rv64imac toolchain assembles it without Zicsr (the `.4byte` pattern
+  -- used throughout Codegen/Programs)
+  | .CSRS   csr rs1    =>
+      s!".4byte {(csr.toNat <<< 20) ||| (rs1.toNat <<< 15) ||| 0x2073}"
+
+-- The pre-encoded accelerator words match the hand-written guest literals
+-- (`csrs 0x800, a0` / `csrs 0x802, t0` / `csrs 0x805, a0`).
+example : emitInstr (.CSRS 0x800 .x10) = s!".4byte {0x80052073}" := rfl
+example : emitInstr (.CSRS 0x802 .x5) = s!".4byte {0x8022a073}" := rfl
+example : emitInstr (.CSRS 0x805 .x10) = s!".4byte {0x80552073}" := rfl
 
 /-- Render a `Program` as one mnemonic per line, each indented two spaces. -/
 def emitProgram (p : Program) : String :=
