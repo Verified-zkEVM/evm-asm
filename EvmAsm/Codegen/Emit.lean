@@ -123,7 +123,17 @@ example : emitInstr (.CSRS 0x802 .x5) = s!".4byte {0x8022a073}" := rfl
 example : emitInstr (.CSRS 0x805 .x10) = s!".4byte {0x80552073}" := rfl
 example : emitInstr (.CSRS 0x803 .x5) = s!".4byte {0x8032a073}" := rfl
 example : emitInstr (.CSRS 0x804 .x5) = s!".4byte {0x8042a073}" := rfl
+example : emitInstr (.CSRS 0x806 .x5) = s!".4byte {0x8062a073}" := rfl
+example : emitInstr (.CSRS 0x807 .x5) = s!".4byte {0x8072a073}" := rfl
+example : emitInstr (.CSRS 0x808 .x5) = s!".4byte {0x8082a073}" := rfl
+example : emitInstr (.CSRS 0x809 .x5) = s!".4byte {0x8092a073}" := rfl
+example : emitInstr (.CSRS 0x80A .x5) = s!".4byte {0x80a2a073}" := rfl
 example : emitInstr (.CSRS 0x80B .x10) = s!".4byte {0x80b52073}" := rfl
+example : emitInstr (.CSRS 0x80C .x10) = s!".4byte {0x80c52073}" := rfl
+example : emitInstr (.CSRS 0x80D .x10) = s!".4byte {0x80d52073}" := rfl
+example : emitInstr (.CSRS 0x80E .x10) = s!".4byte {0x80e52073}" := rfl
+example : emitInstr (.CSRS 0x80F .x10) = s!".4byte {0x80f52073}" := rfl
+example : emitInstr (.CSRS 0x810 .x10) = s!".4byte {0x81052073}" := rfl
 example : emitInstr (.CSRS 0x819 .x10) = s!".4byte {0x81952073}" := rfl
 
 /-- Render a `Program` as one mnemonic per line, each indented two spaces. -/
