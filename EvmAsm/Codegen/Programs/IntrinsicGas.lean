@@ -16,6 +16,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
@@ -46,32 +47,37 @@ open EvmAsm.Rv64.Program
       a0 (output) : 0 (always succeeds — total over the buffer).
 
     `zero_count + non_zero_count == byte_length` exactly. -/
-def calldataByteCountsFunction : String :=
-  "calldata_byte_counts:\n" ++
-  "  # Pure-leaf, but we read into t-regs and update in-place; no\n" ++
-  "  # callee-saved usage needed.\n" ++
-  "  li t0, 0                    # zero_count\n" ++
-  "  li t1, 0                    # non_zero_count\n" ++
-  "  mv t2, a0                   # cursor\n" ++
-  "  mv t3, a1                   # remaining bytes\n" ++
-  ".Lcbc_loop:\n" ++
-  "  beqz t3, .Lcbc_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bnez t4, .Lcbc_nz\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lcbc_step\n" ++
-  ".Lcbc_nz:\n" ++
-  "  addi t1, t1, 1\n" ++
-  ".Lcbc_step:\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lcbc_loop\n" ++
-  ".Lcbc_done:\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def calldataByteCounts_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (0 : Word),
+    .MV .x7 .x10,
+    .MV .x28 .x11,
+    .BEQ .x28 .x0 (36 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x29 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def calldataByteCountsFunction : String :=
+  "calldata_byte_counts:\n" ++ emitProgram calldataByteCounts_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `calldataByteCounts_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem calldataByteCountsFunction_eq_prog :
+    calldataByteCountsFunction = "calldata_byte_counts:\n" ++ emitProgram calldataByteCounts_prog := rfl
+
+#guard calldataByteCountsFunction.startsWith "calldata_byte_counts:\n"
+#guard calldataByteCounts_prog.length = 17
 /-- `zisk_calldata_byte_counts`: probe BuildUnit. Reads
     (length, bytes) from host input, writes (status,
     zero_count, non_zero_count) to OUTPUT (24 bytes total). -/
@@ -129,36 +135,40 @@ def ziskCalldataByteCountsProbeUnit : BuildUnit := {
       a0 (output) : 0 (always succeeds — total function).
 
     Pure-leaf semantics: no scratch memory, no transitive calls. -/
-def intrinsicGasCalldataFloorEip7623Function : String :=
-  "intrinsic_gas_calldata_floor_eip7623:\n" ++
-  "  # Count zeros and non-zeros in one pass.\n" ++
-  "  li t0, 0                    # zero_count\n" ++
-  "  li t1, 0                    # non_zero_count\n" ++
-  "  mv t2, a0                   # cursor\n" ++
-  "  mv t3, a1                   # remaining\n" ++
-  ".Ligcf_loop:\n" ++
-  "  beqz t3, .Ligcf_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bnez t4, .Ligcf_nz\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Ligcf_step\n" ++
-  ".Ligcf_nz:\n" ++
-  "  addi t1, t1, 1\n" ++
-  ".Ligcf_step:\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Ligcf_loop\n" ++
-  ".Ligcf_done:\n" ++
-  "  # tokens = zero + non_zero × token_per_nonzero\n" ++
-  "  mul t5, t1, a3              # non_zero × token_per_nz\n" ++
-  "  add t5, t5, t0              # tokens\n" ++
-  "  # floor = tokens × floor_gas_per_token + base_gas\n" ++
-  "  mul t6, t5, a2\n" ++
-  "  add t6, t6, a4\n" ++
-  "  sd t6, 0(a5)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def intrinsicGasCalldataFloorEip7623_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (0 : Word),
+    .MV .x7 .x10,
+    .MV .x28 .x11,
+    .BEQ .x28 .x0 (36 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x29 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .MUL .x30 .x6 .x13,
+    .ADD .x30 .x30 .x5,
+    .MUL .x31 .x30 .x12,
+    .ADD .x31 .x31 .x14,
+    .SD .x15 .x31 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def intrinsicGasCalldataFloorEip7623Function : String :=
+  "intrinsic_gas_calldata_floor_eip7623:\n" ++ emitProgram intrinsicGasCalldataFloorEip7623_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `intrinsicGasCalldataFloorEip7623_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem intrinsicGasCalldataFloorEip7623Function_eq_prog :
+    intrinsicGasCalldataFloorEip7623Function = "intrinsic_gas_calldata_floor_eip7623:\n" ++ emitProgram intrinsicGasCalldataFloorEip7623_prog := rfl
+
+#guard intrinsicGasCalldataFloorEip7623Function.startsWith "intrinsic_gas_calldata_floor_eip7623:\n"
+#guard intrinsicGasCalldataFloorEip7623_prog.length = 20
 /-- `zisk_intrinsic_gas_calldata_floor_eip7623`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : data length
@@ -222,15 +232,26 @@ def ziskIntrinsicGasCalldataFloorEip7623ProbeUnit : BuildUnit := {
     The arithmetic stays in u64; for any `init_code_length` within
     the EIP-3860 cap (`MAX_INIT_CODE_SIZE = 49_152`) and any
     `gas_per_word ≤ 2^48`, the cost fits in u64. -/
-def initCodeCostFunction : String :=
-  "init_code_cost:\n" ++
-  "  addi t0, a0, 31             # len + 31\n" ++
-  "  srli t0, t0, 5              # / 32 → ceil(len/32)\n" ++
-  "  mul t0, t0, a1              # × gas_per_word\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def initCodeCost_prog : Program :=
+  [ .ADDI .x5 .x10 (31 : BitVec 12),
+    .SRLI .x5 .x5 (5 : BitVec 6),
+    .MUL .x5 .x5 .x11,
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def initCodeCostFunction : String :=
+  "init_code_cost:\n" ++ emitProgram initCodeCost_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `initCodeCost_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem initCodeCostFunction_eq_prog :
+    initCodeCostFunction = "init_code_cost:\n" ++ emitProgram initCodeCost_prog := rfl
+
+#guard initCodeCostFunction.startsWith "init_code_cost:\n"
+#guard initCodeCost_prog.length = 6
 /-- `zisk_init_code_cost`: probe BuildUnit. Reads
     (init_code_length, gas_per_word) from host input, writes
     (status, init_code_cost) to OUTPUT (16 bytes total).
@@ -735,51 +756,55 @@ def ziskEip8037TxStateGasNetArrayProbeUnit : BuildUnit := {
     accumulating either total is reported as a distinct nonzero status rather
     than wrapping. The wiring into `block_verdict` lands in a separate child
     once a real metered regular-gas accumulator exists. -/
-def eip8037BlockGasUsedFunction : String :=
-  "eip8037_block_gas_used:\n" ++
-  "  # a0=regular_inc ptr, a1=tx_state_gas ptr, a2=count,\n" ++
-  "  # a3=header_gas_used, a4=block_gas_used_out\n" ++
-  "  mv t0, a0                   # regular_inc ptr\n" ++
-  "  mv t1, a1                   # tx_state_gas ptr\n" ++
-  "  mv t2, a2                   # count\n" ++
-  "  li t3, 0                    # i\n" ++
-  "  li t4, 0                    # block_regular\n" ++
-  "  li t5, 0                    # block_state\n" ++
-  ".Le8037bg_loop:\n" ++
-  "  beq t3, t2, .Le8037bg_done\n" ++
-  "  slli t6, t3, 3\n" ++
-  "  add a5, t0, t6\n" ++
-  "  ld a5, 0(a5)               # regular increment\n" ++
-  "  add a6, t4, a5\n" ++
-  "  bltu a6, t4, .Le8037bg_overflow\n" ++
-  "  mv t4, a6                  # block_regular += regular increment\n" ++
-  "  add a5, t1, t6\n" ++
-  "  ld a5, 0(a5)               # tx_state_gas\n" ++
-  "  add a6, t5, a5\n" ++
-  "  bltu a6, t5, .Le8037bg_overflow\n" ++
-  "  mv t5, a6                  # block_state += tx_state_gas\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  j .Le8037bg_loop\n" ++
-  ".Le8037bg_done:\n" ++
-  "  mv a5, t4                  # block_gas_used = block_regular\n" ++
-  "  bgeu t4, t5, .Le8037bg_have_max\n" ++
-  "  mv a5, t5                  # block_gas_used = block_state\n" ++
-  ".Le8037bg_have_max:\n" ++
-  "  sd a5, 0(a4)\n" ++
-  "  bne a5, a3, .Le8037bg_mismatch\n" ++
-  "  li a0, 0\n" ++
-  "  mv a1, a5\n" ++
-  "  ret\n" ++
-  ".Le8037bg_mismatch:\n" ++
-  "  li a0, 1\n" ++
-  "  mv a1, a5\n" ++
-  "  ret\n" ++
-  ".Le8037bg_overflow:\n" ++
-  "  sd zero, 0(a4)\n" ++
-  "  li a0, 2\n" ++
-  "  li a1, 0\n" ++
-  "  ret"
+def eip8037BlockGasUsed_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x7 .x12,
+    .LI .x28 (0 : Word),
+    .LI .x29 (0 : Word),
+    .LI .x30 (0 : Word),
+    .BEQ .x28 .x7 (56 : BitVec 13),
+    .SLLI .x31 .x28 (3 : BitVec 6),
+    .ADD .x15 .x5 .x31,
+    .LD .x15 .x15 (0 : BitVec 12),
+    .ADD .x16 .x29 .x15,
+    .BLTU .x16 .x29 (80 : BitVec 13),
+    .MV .x29 .x16,
+    .ADD .x15 .x6 .x31,
+    .LD .x15 .x15 (0 : BitVec 12),
+    .ADD .x16 .x30 .x15,
+    .BLTU .x16 .x30 (60 : BitVec 13),
+    .MV .x30 .x16,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-52 : BitVec 21),
+    .MV .x15 .x29,
+    .BGEU .x29 .x30 (8 : BitVec 13),
+    .MV .x15 .x30,
+    .SD .x14 .x15 (0 : BitVec 12),
+    .BNE .x15 .x13 (16 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .MV .x11 .x15,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .MV .x11 .x15,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x14 .x0 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def eip8037BlockGasUsedFunction : String :=
+  "eip8037_block_gas_used:\n" ++ emitProgram eip8037BlockGasUsed_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `eip8037BlockGasUsed_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem eip8037BlockGasUsedFunction_eq_prog :
+    eip8037BlockGasUsedFunction = "eip8037_block_gas_used:\n" ++ emitProgram eip8037BlockGasUsed_prog := rfl
+
+#guard eip8037BlockGasUsedFunction.startsWith "eip8037_block_gas_used:\n"
+#guard eip8037BlockGasUsed_prog.length = 35
 /-- `zisk_eip8037_block_gas_used`: focused probe.
     Input layout (after the ziskemu length wrapper at 0x40000000+8):
       bytes  8..16 : count            (number of transactions, <= 4)

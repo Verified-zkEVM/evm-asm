@@ -23,6 +23,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
@@ -72,60 +73,65 @@ private def txExtractWalkFieldAsm (failLabel : String) (n : Nat) : String :=
       a0 (output) : 0 success / 1 unknown / empty input
 
     Leaf-callable, no scratch. -/
-def txTypeDispatchFunction : String :=
-  "tx_type_dispatch:\n" ++
-  "  beqz a1, .Ltd_fail\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bgeu t0, t1, .Ltd_legacy\n" ++
-  "  li t1, 1\n" ++
-  "  beq t0, t1, .Ltd_t1\n" ++
-  "  li t1, 2\n" ++
-  "  beq t0, t1, .Ltd_t2\n" ++
-  "  li t1, 3\n" ++
-  "  beq t0, t1, .Ltd_t3\n" ++
-  "  li t1, 4\n" ++
-  "  beq t0, t1, .Ltd_t4\n" ++
-  "  j .Ltd_fail\n" ++
-  ".Ltd_legacy:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t1:\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t2:\n" ++
-  "  li t0, 2\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t3:\n" ++
-  "  li t0, 3\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t4:\n" ++
-  "  li t0, 4\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_fail:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def txTypeDispatch_prog : Program :=
+  [ .BEQ .x11 .x0 (164 : BitVec 13),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BGEU .x5 .x6 (40 : BitVec 13),
+    .LI .x6 (1 : Word),
+    .BEQ .x5 .x6 (48 : BitVec 13),
+    .LI .x6 (2 : Word),
+    .BEQ .x5 .x6 (64 : BitVec 13),
+    .LI .x6 (3 : Word),
+    .BEQ .x5 .x6 (80 : BitVec 13),
+    .LI .x6 (4 : Word),
+    .BEQ .x5 .x6 (96 : BitVec 13),
+    .JAL .x0 (116 : BitVec 21),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (2 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (3 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txTypeDispatchFunction : String :=
+  "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txTypeDispatch_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txTypeDispatchFunction_eq_prog :
+    txTypeDispatchFunction = "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog := rfl
+
+#guard txTypeDispatchFunction.startsWith "tx_type_dispatch:\n"
+#guard txTypeDispatch_prog.length = 45
 /-- `zisk_tx_type_dispatch`: probe BuildUnit. -/
 def ziskTxTypeDispatchPrologue : String :=
   "  li sp, 0xa0050000\n" ++

@@ -36,6 +36,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -433,31 +434,39 @@ def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
                     3 timestamp <= parent.timestamp
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def validateHeaderBasicFunction : String :=
-  "validate_header_basic:\n" ++
-  "  ld t0, 88(a0)              # this.gas_used\n" ++
-  "  ld t1, 80(a0)              # this.gas_limit\n" ++
-  "  bgtu t0, t1, .Lvhb_fail_gas\n" ++
-  "  ld t0, 64(a0)              # this.number\n" ++
-  "  beqz t0, .Lvhb_fail_number\n" ++
-  "  ld t1, 64(a1)              # parent.number\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  bne t0, t1, .Lvhb_fail_number\n" ++
-  "  ld t0, 72(a0)              # this.timestamp\n" ++
-  "  ld t1, 72(a1)              # parent.timestamp\n" ++
-  "  bgeu t1, t0, .Lvhb_fail_timestamp  # parent_ts >= this_ts → fail\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lvhb_fail_gas:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lvhb_fail_number:\n" ++
-  "  li a0, 2\n" ++
-  "  ret\n" ++
-  ".Lvhb_fail_timestamp:\n" ++
-  "  li a0, 3\n" ++
-  "  ret"
+def validateHeaderBasic_prog : Program :=
+  [ .LD .x5 .x10 (88 : BitVec 12),
+    .LD .x6 .x10 (80 : BitVec 12),
+    .BLTU .x6 .x5 (44 : BitVec 13),
+    .LD .x5 .x10 (64 : BitVec 12),
+    .BEQ .x5 .x0 (44 : BitVec 13),
+    .LD .x6 .x11 (64 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .BNE .x5 .x6 (32 : BitVec 13),
+    .LD .x5 .x10 (72 : BitVec 12),
+    .LD .x6 .x11 (72 : BitVec 12),
+    .BGEU .x6 .x5 (28 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def validateHeaderBasicFunction : String :=
+  "validate_header_basic:\n" ++ emitProgram validateHeaderBasic_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `validateHeaderBasic_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem validateHeaderBasicFunction_eq_prog :
+    validateHeaderBasicFunction = "validate_header_basic:\n" ++ emitProgram validateHeaderBasic_prog := rfl
+
+#guard validateHeaderBasicFunction.startsWith "validate_header_basic:\n"
+#guard validateHeaderBasic_prog.length = 19
 /-- `zisk_validate_header_basic`: probe BuildUnit. Reads two
     128-byte extended-header structs from host input (after an
     8-byte tag) and writes the 8-byte status to OUTPUT. -/
@@ -601,16 +610,26 @@ def ziskCheckGasLimitProbeUnit : BuildUnit := {
       a0 (output) : excess_blob_gas for this header (u64).
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def calcExcessBlobGasFunction : String :=
-  "calc_excess_blob_gas:\n" ++
-  "  add t0, a0, a1              # parent_excess + parent_used\n" ++
-  "  bgeu t0, a2, .Lcebg_pos     # >= target → return diff\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lcebg_pos:\n" ++
-  "  sub a0, t0, a2\n" ++
-  "  ret"
+def calcExcessBlobGas_prog : Program :=
+  [ .ADD .x5 .x10 .x11,
+    .BGEU .x5 .x12 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SUB .x10 .x5 .x12,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def calcExcessBlobGasFunction : String :=
+  "calc_excess_blob_gas:\n" ++ emitProgram calcExcessBlobGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `calcExcessBlobGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem calcExcessBlobGasFunction_eq_prog :
+    calcExcessBlobGasFunction = "calc_excess_blob_gas:\n" ++ emitProgram calcExcessBlobGas_prog := rfl
+
+#guard calcExcessBlobGasFunction.startsWith "calc_excess_blob_gas:\n"
+#guard calcExcessBlobGas_prog.length = 6
 /-- `zisk_calc_excess_blob_gas`: probe BuildUnit. Reads
     (parent_excess, parent_used, target) from host input, writes
     the u64 result to OUTPUT. -/

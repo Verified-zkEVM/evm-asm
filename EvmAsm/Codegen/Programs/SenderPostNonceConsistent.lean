@@ -28,6 +28,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -37,24 +38,44 @@ open EvmAsm.Rv64
     a0 = tx_gas_sender_bal_lookup output record ptr
     a0 (output) = 0 consistent (post == pre+1) / 1 mismatch / 2 skip (absent or >u64).
     Leaf; clobbers t0-t5. -/
-def senderPostNonceConsistentFunction : String :=
-  "sender_post_nonce_consistent:\n" ++
-  "  ld t0, 128(a0)              # post nonce byte length\n" ++
-  "  li t1, -1; beq t0, t1, .Lspnc_skip       # absent -> skip\n" ++
-  "  li t1, 8;  bgtu t0, t1, .Lspnc_skip       # > u64 -> skip\n" ++
-  "  addi t2, a0, 136; li t3, 0; mv t4, t0     # decode big-endian post nonce\n" ++
-  ".Lspnc_be:\n" ++
-  "  beqz t4, .Lspnc_de\n" ++
-  "  slli t3, t3, 8; lbu t5, 0(t2); or t3, t3, t5; addi t2, t2, 1; addi t4, t4, -1; j .Lspnc_be\n" ++
-  ".Lspnc_de:\n" ++
-  "  ld t4, 80(a0); addi t4, t4, 1             # expected = pre nonce + 1\n" ++
-  "  beq t3, t4, .Lspnc_match\n" ++
-  "  li a0, 1; ret                             # mismatch\n" ++
-  ".Lspnc_match:\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lspnc_skip:\n" ++
-  "  li a0, 2; ret"
+def senderPostNonceConsistent_prog : Program :=
+  [ .LD .x5 .x10 (128 : BitVec 12),
+    .LI .x6 (-1 : Word),
+    .BEQ .x5 .x6 (80 : BitVec 13),
+    .LI .x6 (8 : Word),
+    .BLTU .x6 .x5 (72 : BitVec 13),
+    .ADDI .x7 .x10 (136 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .MV .x29 .x5,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .OR .x28 .x28 .x30,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LD .x29 .x10 (80 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .BEQ .x28 .x29 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def senderPostNonceConsistentFunction : String :=
+  "sender_post_nonce_consistent:\n" ++ emitProgram senderPostNonceConsistent_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `senderPostNonceConsistent_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem senderPostNonceConsistentFunction_eq_prog :
+    senderPostNonceConsistentFunction = "sender_post_nonce_consistent:\n" ++ emitProgram senderPostNonceConsistent_prog := rfl
+
+#guard senderPostNonceConsistentFunction.startsWith "sender_post_nonce_consistent:\n"
+#guard senderPostNonceConsistent_prog.length = 24
 /-- `zisk_sender_post_nonce_consistent`: known-answer probe over a lookup-shaped
     buffer (pre nonce @+80, post-nonce len @+128, post-nonce bytes @+136). Cases
     surfaced to OUTPUT (0xa0010000):

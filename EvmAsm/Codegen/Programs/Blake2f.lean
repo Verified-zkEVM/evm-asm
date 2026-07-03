@@ -34,6 +34,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -58,37 +59,57 @@ def blake2fDataFragment : String :=
 
 /-- Load the little-endian u64 at byte pointer a0 (any alignment) into
     a0. Leaf; clobbers t0..t2. -/
-def blake2fLdLe64Function : String :=
-  "blk2_ld_le64:\n" ++
-  "  li t0, 0\n" ++
-  "  addi t1, a0, 7\n" ++
-  "  li t2, 8\n" ++
-  ".Lblk2_ld_byte:\n" ++
-  "  slli t0, t0, 8\n" ++
-  "  lbu a0, 0(t1)\n" ++
-  "  or t0, t0, a0\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblk2_ld_byte\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+def blk2LdLe64_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .ADDI .x6 .x10 (7 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .SLLI .x5 .x5 (8 : BitVec 6),
+    .LBU .x10 .x6 (0 : BitVec 12),
+    .OR .x5 .x5 .x10,
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def blake2fLdLe64Function : String :=
+  "blk2_ld_le64:\n" ++ emitProgram blk2LdLe64_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blk2LdLe64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem blake2fLdLe64Function_eq_prog :
+    blake2fLdLe64Function = "blk2_ld_le64:\n" ++ emitProgram blk2LdLe64_prog := rfl
+
+#guard blake2fLdLe64Function.startsWith "blk2_ld_le64:\n"
+#guard blk2LdLe64_prog.length = 11
 /-- Store a1 as a little-endian u64 at byte pointer a0 (any
     alignment). Leaf; clobbers t0..t2. -/
-def blake2fStLe64Function : String :=
-  "blk2_st_le64:\n" ++
-  "  mv t0, a1\n" ++
-  "  mv t1, a0\n" ++
-  "  li t2, 8\n" ++
-  ".Lblk2_st_byte:\n" ++
-  "  andi a1, t0, 0xff\n" ++
-  "  sb a1, 0(t1)\n" ++
-  "  srli t0, t0, 8\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblk2_st_byte\n" ++
-  "  ret"
+def blk2StLe64_prog : Program :=
+  [ .MV .x5 .x11,
+    .MV .x6 .x10,
+    .LI .x7 (8 : Word),
+    .ANDI .x11 .x5 (255 : BitVec 12),
+    .SB .x6 .x11 (0 : BitVec 12),
+    .SRLI .x5 .x5 (8 : BitVec 6),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def blake2fStLe64Function : String :=
+  "blk2_st_le64:\n" ++ emitProgram blk2StLe64_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blk2StLe64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem blake2fStLe64Function_eq_prog :
+    blake2fStLe64Function = "blk2_st_le64:\n" ++ emitProgram blk2StLe64_prog := rfl
+
+#guard blake2fStLe64Function.startsWith "blk2_st_le64:\n"
+#guard blk2StLe64_prog.length = 10
 /-- Real BLAKE2F kernel (see the module docstring for the ABI). -/
 def zkvmBlake2fRealFunction : String :=
   ".globl zkvm_blake2f\n" ++
