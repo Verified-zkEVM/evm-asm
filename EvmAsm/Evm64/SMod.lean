@@ -24,6 +24,7 @@ import EvmAsm.Evm64.SMod.Compose.CodeHandlesV5
 import EvmAsm.Evm64.SMod.Compose.BaseCodeV5
 import EvmAsm.Evm64.SMod.Compose.BaseSpecsV5
 import EvmAsm.Evm64.SMod.Compose.ModCallExactCallableV5
+import EvmAsm.Evm64.SMod.Compose.ModCallExactHandoffV5
 import EvmAsm.Evm64.SMod.Spec
 import EvmAsm.Evm64.SMod.SpecSemantic
 import EvmAsm.Evm64.SMod.SpecBzero
