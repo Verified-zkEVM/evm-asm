@@ -27,6 +27,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -405,87 +407,206 @@ theorem msetMemcpyFunction_eq_prog :
     new_payload = src[payload_start..slot_start] ++ new_ref
                   ++ src[slot_start+slot_size..src_len]
     out         = rlp_encode_list_prefix(len(new_payload)) ++ new_payload -/
-def mptSpliceSlotFunction : String :=
-  "mpt_splice_slot:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # src\n" ++
-  "  mv s1, a1                   # src_len\n" ++
-  "  mv s2, a2                   # k\n" ++
-  "  mv s3, a3                   # new_ref\n" ++
-  "  mv s4, a4                   # new_ref_len\n" ++
-  "  mv s5, a5                   # out\n" ++
-  "  mv s6, a6                   # out_len ptr\n" ++
-  "  # payload_start = byte offset of item 0 (= list prefix length).\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
-  "  la a3, mset_span_start; la a4, mset_span_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lsplice_fail\n" ++
-  "  la t0, mset_span_start; ld t1, 0(t0)\n" ++
-  "  la t0, mset_payload_start; sd t1, 0(t0)\n" ++
-  "  # span of item k.\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, mset_span_start; la a4, mset_span_size\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lsplice_fail\n" ++
-  "  la t0, mset_span_start; ld t2, 0(t0)   # slot_start\n" ++
-  "  la t0, mset_span_size;  ld t3, 0(t0)   # slot_size\n" ++
-  "  la t0, mset_payload_start; ld t1, 0(t0) # payload_start\n" ++
-  "  sub t4, t2, t1                          # head_len = slot_start - payload_start\n" ++
-  "  add t5, t2, t3                          # tail_start = slot_start + slot_size\n" ++
-  "  sub t6, s1, t5                          # tail_len = src_len - tail_start\n" ++
-  "  la t0, mset_head_len;  sd t4, 0(t0)\n" ++
-  "  la t0, mset_tail_start; sd t5, 0(t0)\n" ++
-  "  la t0, mset_tail_len;   sd t6, 0(t0)\n" ++
-  "  # new_payload_len = head_len + new_ref_len + tail_len\n" ++
-  "  add t1, t4, s4\n" ++
-  "  add t1, t1, t6\n" ++
-  "  la t0, mset_new_payload_len; sd t1, 0(t0)\n" ++
-  "  # write list prefix at out[0..].\n" ++
-  "  mv a0, t1\n" ++
-  "  mv a1, s5\n" ++
-  "  la a2, mset_prefix_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, mset_prefix_len; ld t1, 0(t0)\n" ++
-  "  add t2, s5, t1                          # cursor = out + prefix_len\n" ++
-  "  la t0, mset_cursor; sd t2, 0(t0)\n" ++
-  "  # copy head = src[payload_start .. slot_start].\n" ++
-  "  la t0, mset_cursor; ld a0, 0(t0)\n" ++
-  "  la t0, mset_payload_start; ld t1, 0(t0); add a1, s0, t1\n" ++
-  "  la t0, mset_head_len; ld a2, 0(t0)\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  la t0, mset_cursor; ld t1, 0(t0)\n" ++
-  "  la t0, mset_head_len; ld t2, 0(t0); add t1, t1, t2\n" ++
-  "  la t0, mset_cursor; sd t1, 0(t0)\n" ++
-  "  # copy new_ref.\n" ++
-  "  la t0, mset_cursor; ld a0, 0(t0)\n" ++
-  "  mv a1, s3; mv a2, s4\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  la t0, mset_cursor; ld t1, 0(t0); add t1, t1, s4\n" ++
-  "  la t0, mset_cursor; sd t1, 0(t0)\n" ++
-  "  # copy tail = src[tail_start .. src_len].\n" ++
-  "  la t0, mset_cursor; ld a0, 0(t0)\n" ++
-  "  la t0, mset_tail_start; ld t1, 0(t0); add a1, s0, t1\n" ++
-  "  la t0, mset_tail_len; ld a2, 0(t0)\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  # out_len = prefix_len + new_payload_len.\n" ++
-  "  la t0, mset_prefix_len; ld t1, 0(t0)\n" ++
-  "  la t0, mset_new_payload_len; ld t2, 0(t0)\n" ++
-  "  add t1, t1, t2\n" ++
-  "  sd t1, 0(s6)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lsplice_ret\n" ++
-  ".Lsplice_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lsplice_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def mptSpliceSlot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 76)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 76)),
+    .AUIPC .x14 (laHi GuestAddrs.mset_span_size (GuestAddrs.mpt_splice_slot + 84)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mset_span_size (GuestAddrs.mpt_splice_slot + 84)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.mpt_splice_slot + 92)),
+    .BNE .x10 .x0 (436 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 100)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_payload_start (GuestAddrs.mpt_splice_slot + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_payload_start (GuestAddrs.mpt_splice_slot + 112)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 136)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 136)),
+    .AUIPC .x14 (laHi GuestAddrs.mset_span_size (GuestAddrs.mpt_splice_slot + 144)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mset_span_size (GuestAddrs.mpt_splice_slot + 144)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.mpt_splice_slot + 152)),
+    .BNE .x10 .x0 (376 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_span_start (GuestAddrs.mpt_splice_slot + 160)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_span_size (GuestAddrs.mpt_splice_slot + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_span_size (GuestAddrs.mpt_splice_slot + 172)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_payload_start (GuestAddrs.mpt_splice_slot + 184)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_payload_start (GuestAddrs.mpt_splice_slot + 184)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SUB .x29 .x7 .x6,
+    .ADD .x30 .x7 .x28,
+    .SUB .x31 .x9 .x30,
+    .AUIPC .x5 (laHi GuestAddrs.mset_head_len (GuestAddrs.mpt_splice_slot + 208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_head_len (GuestAddrs.mpt_splice_slot + 208)),
+    .SD .x5 .x29 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_tail_start (GuestAddrs.mpt_splice_slot + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_tail_start (GuestAddrs.mpt_splice_slot + 220)),
+    .SD .x5 .x30 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_tail_len (GuestAddrs.mpt_splice_slot + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_tail_len (GuestAddrs.mpt_splice_slot + 232)),
+    .SD .x5 .x31 (0 : BitVec 12),
+    .ADD .x6 .x29 .x20,
+    .ADD .x6 .x6 .x31,
+    .AUIPC .x5 (laHi GuestAddrs.mset_new_payload_len (GuestAddrs.mpt_splice_slot + 252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_new_payload_len (GuestAddrs.mpt_splice_slot + 252)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .MV .x11 .x21,
+    .AUIPC .x12 (laHi GuestAddrs.mset_prefix_len (GuestAddrs.mpt_splice_slot + 272)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mset_prefix_len (GuestAddrs.mpt_splice_slot + 272)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.mpt_splice_slot + 280)),
+    .AUIPC .x5 (laHi GuestAddrs.mset_prefix_len (GuestAddrs.mpt_splice_slot + 284)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_prefix_len (GuestAddrs.mpt_splice_slot + 284)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x21 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 300)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 300)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 312)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_payload_start (GuestAddrs.mpt_splice_slot + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_payload_start (GuestAddrs.mpt_splice_slot + 324)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x11 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mset_head_len (GuestAddrs.mpt_splice_slot + 340)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_head_len (GuestAddrs.mpt_splice_slot + 340)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.mpt_splice_slot + 352)),
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 356)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_head_len (GuestAddrs.mpt_splice_slot + 368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_head_len (GuestAddrs.mpt_splice_slot + 368)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 384)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 384)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 396)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 396)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .MV .x11 .x19,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.mpt_splice_slot + 416)),
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 420)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 420)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x20,
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 436)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 436)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 448)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_cursor (GuestAddrs.mpt_splice_slot + 448)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_tail_start (GuestAddrs.mpt_splice_slot + 460)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_tail_start (GuestAddrs.mpt_splice_slot + 460)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x11 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mset_tail_len (GuestAddrs.mpt_splice_slot + 476)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_tail_len (GuestAddrs.mpt_splice_slot + 476)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.mpt_splice_slot + 488)),
+    .AUIPC .x5 (laHi GuestAddrs.mset_prefix_len (GuestAddrs.mpt_splice_slot + 492)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_prefix_len (GuestAddrs.mpt_splice_slot + 492)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_new_payload_len (GuestAddrs.mpt_splice_slot + 504)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_new_payload_len (GuestAddrs.mpt_splice_slot + 504)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .SD .x22 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptSpliceSlot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptSpliceSlot_relocs : RelocTable :=
+  [ (19, .la .x13 "mset_span_start"),
+    (21, .la .x14 "mset_span_size"),
+    (23, .jal .x1 "rlp_item_span"),
+    (25, .la .x5 "mset_span_start"),
+    (28, .la .x5 "mset_payload_start"),
+    (34, .la .x13 "mset_span_start"),
+    (36, .la .x14 "mset_span_size"),
+    (38, .jal .x1 "rlp_item_span"),
+    (40, .la .x5 "mset_span_start"),
+    (43, .la .x5 "mset_span_size"),
+    (46, .la .x5 "mset_payload_start"),
+    (52, .la .x5 "mset_head_len"),
+    (55, .la .x5 "mset_tail_start"),
+    (58, .la .x5 "mset_tail_len"),
+    (63, .la .x5 "mset_new_payload_len"),
+    (68, .la .x12 "mset_prefix_len"),
+    (70, .jal .x1 "rlp_encode_list_prefix"),
+    (71, .la .x5 "mset_prefix_len"),
+    (75, .la .x5 "mset_cursor"),
+    (78, .la .x5 "mset_cursor"),
+    (81, .la .x5 "mset_payload_start"),
+    (85, .la .x5 "mset_head_len"),
+    (88, .jal .x1 "mset_memcpy"),
+    (89, .la .x5 "mset_cursor"),
+    (92, .la .x5 "mset_head_len"),
+    (96, .la .x5 "mset_cursor"),
+    (99, .la .x5 "mset_cursor"),
+    (104, .jal .x1 "mset_memcpy"),
+    (105, .la .x5 "mset_cursor"),
+    (109, .la .x5 "mset_cursor"),
+    (112, .la .x5 "mset_cursor"),
+    (115, .la .x5 "mset_tail_start"),
+    (119, .la .x5 "mset_tail_len"),
+    (122, .jal .x1 "mset_memcpy"),
+    (123, .la .x5 "mset_prefix_len"),
+    (126, .la .x5 "mset_new_payload_len") ]
+
+def mptSpliceSlotFunction : String :=
+  "mpt_splice_slot:\n" ++ emitProgramR mptSpliceSlot_prog mptSpliceSlot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptSpliceSlot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptSpliceSlotFunction_eq_prog :
+    mptSpliceSlotFunction = "mpt_splice_slot:\n" ++ emitProgramR mptSpliceSlot_prog mptSpliceSlot_relocs := rfl
+
+#guard mptSpliceSlotFunction.startsWith "mpt_splice_slot:\n"
+#guard mptSpliceSlot_prog.length = 144
 /-! ## mpt_set -- value-only update of an existing key, recompute root
 
     Compose record-walk + bubble-up: descend to the leaf (recording the
