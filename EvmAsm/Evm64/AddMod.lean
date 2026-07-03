@@ -25,6 +25,7 @@ import EvmAsm.Evm64.AddMod.Compose.TotalBase
 import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
 import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
 import EvmAsm.Evm64.AddMod.Compose.CallAdapter
+import EvmAsm.Evm64.AddMod.Compose.CondSubWrapper
 import EvmAsm.Evm64.AddMod.Compose.CarryBranch
 import EvmAsm.Evm64.AddMod.Compose.ZeroBranch
 import EvmAsm.Evm64.AddMod.Spec
