@@ -209,4 +209,114 @@ theorem evm_mod_n1_full_spec_v5_noNop_preserving_x1 (sp base : Word)
     (fun h hq => by xperm_hyp hq)
     hFull
 
+/-- MOD n=1 post bridge (shift ≠ 0): the denorm MOD post + framed quotient cells
+    reduce to `modStackDispatchPostCallableExactFrame` (remainder at `sp+32`).
+    Mirror of DIV `n1_denormPostNoX1_to_divStackDispatchPostCallableExactFrame_v5`
+    with `denormModPost` + the MOD remainder per-limb facts. -/
+theorem evm_mod_n1_denormPostNoX1_to_modStackDispatchPostCallableExactFrame_v5
+    (sp base : Word) (a b : EvmWord)
+    (a0 a1 a2 a3 b0 b1 b2 b3 scratchMem raVal : Word)
+    (ha0 : a.getLimbN 0 = a0) (ha1 : a.getLimbN 1 = a1)
+    (ha2 : a.getLimbN 2 = a2) (ha3 : a.getLimbN 3 = a3)
+    (hmod0 : (EvmWord.mod a b).getLimbN 0 =
+        (((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>> ((fullDivN1Shift b0).toNat % 64)) |||
+          ((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64))))
+    (hmod1 : (EvmWord.mod a b).getLimbN 1 =
+        (((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1 >>> ((fullDivN1Shift b0).toNat % 64)) |||
+          ((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64))))
+    (hmod2 : (EvmWord.mod a b).getLimbN 2 =
+        (((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1 >>> ((fullDivN1Shift b0).toNat % 64)) |||
+          ((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN1Shift b0).toNat % 64))))
+    (hmod3 : (EvmWord.mod a b).getLimbN 3 =
+        ((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 >>> ((fullDivN1Shift b0).toNat % 64))) :
+    ∀ h,
+      ((denormModPost sp (fullDivN1Shift b0)
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.1
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.1
+          (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.2.2.2.1 **
+        ((sp + signExtend12 3992) ↦ₘ fullDivN1Shift b0)) **
+       (((sp + signExtend12 4088) ↦ₘ
+            (fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).1) **
+         ((sp + signExtend12 4080) ↦ₘ
+            (fullDivN1R1V5 true true true a0 a1 a2 a3 b0 b1 b2 b3).1) **
+         ((sp + signExtend12 4072) ↦ₘ
+            (fullDivN1R2V5 true true a0 a1 a2 a3 b0 b1 b2 b3).1) **
+         ((sp + signExtend12 4064) ↦ₘ
+            (fullDivN1R3V5 true a0 a1 a2 a3 b0 b1 b2 b3).1)) **
+       fullDivN1FrameV5NoX1 sp base a0 a1 a2 a3 b0 b1 b2 b3 scratchMem **
+       (.x1 ↦ᵣ raVal)) h →
+      (modStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       memOwn (sp + signExtend12 3936)) h := by
+  intro h hp
+  delta denormModPost fullDivN1FrameV5NoX1 at hp
+  rw [word_add_zero] at hp
+  rw [modStackDispatchPostCallableExactFrame_unfold]
+  apply sepConj_mono_right
+    (P := (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) **
+      (.x9 ↦ᵣ (signExtend12 4095 : Word)))
+    memIs_implies_memOwn h
+  apply sepConj_mono_left (modConcretePostNoX1ExactRegs_weaken_callable_frame sp a b) h
+  rw [modConcretePostNoX1ExactRegsFrame_unfold,
+      evmWordIs_sp_limbs_eq sp a a0 a1 a2 a3 ha0 ha1 ha2 ha3,
+      evmWordIs_sp32_limbs_eq sp (EvmWord.mod a b) _ _ _ _ hmod0 hmod1 hmod2 hmod3,
+      divScratchValuesCallNoX1_unfold, divScratchValues_unfold]
+  xperm_hyp hp
+
+open EvmAsm.Rv64 in
+/-- Unified-bound n=1 MOD v5 callable exact-frame lane (shift ≠ 0). -/
+theorem evm_mod_n1_stack_spec_noNop_v5_preNoX1_callableExactFrame_uni
+    (sp base : Word) (a b : EvmWord)
+    (v5 v6 v7 v10 v11Old raVal x9In x2In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+     nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (hbnz : b.getLimbN 0 ||| b.getLimbN 1 ||| b.getLimbN 2 ||| b.getLimbN 3 ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0) (hb1z : b.getLimbN 1 = 0)
+    (hshift_nz : (clzResult (b.getLimbN 0)).1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = base + div128CallRetOff)
+    (hmod0 : (EvmWord.mod a b).getLimbN 0 =
+        (((fullDivN1R0V5 true true true true (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.1 >>> ((fullDivN1Shift (b.getLimbN 0)).toNat % 64)) |||
+          ((fullDivN1R0V5 true true true true (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN1Shift (b.getLimbN 0)).toNat % 64))))
+    (hmod1 : (EvmWord.mod a b).getLimbN 1 =
+        (((fullDivN1R0V5 true true true true (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.1 >>> ((fullDivN1Shift (b.getLimbN 0)).toNat % 64)) |||
+          ((fullDivN1R0V5 true true true true (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN1Shift (b.getLimbN 0)).toNat % 64))))
+    (hmod2 : (EvmWord.mod a b).getLimbN 2 =
+        (((fullDivN1R0V5 true true true true (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.1 >>> ((fullDivN1Shift (b.getLimbN 0)).toNat % 64)) |||
+          ((fullDivN1R0V5 true true true true (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 <<< ((signExtend12 (0 : BitVec 12) - fullDivN1Shift (b.getLimbN 0)).toNat % 64))))
+    (hmod3 : (EvmWord.mod a b).getLimbN 3 =
+        ((fullDivN1R0V5 true true true true (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)).2.2.2.2.1 >>> ((fullDivN1Shift (b.getLimbN 0)).toNat % 64))) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode_noNop_v5 base)
+      (divModStackDispatchPreNoX1 sp a b
+        x9In raVal
+        x2In v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (modStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       memOwn (sp + signExtend12 3936)) := by
+  have hbody := evm_mod_n1_full_spec_v5_noNop_preserving_x1 sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+    (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+    v5 v6 v7 v10 v11Old raVal x9In x2In
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
+    retMem dMem dloMem scratch_un0 scratchMem
+    hbnz hb3z hb2z hb1z hshift_nz halign
+  exact cpsTripleWithin_mono_nSteps (by unfold unifiedDivBound; decide) <|
+    cpsTripleWithin_weaken
+      (fun h hp => n1_dispatchPre_to_pathEntry_v5_preserving_x1 sp a b
+        raVal v5 v6 v7 v10 v11Old x9In x2In
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
+        rfl rfl rfl rfl rfl rfl rfl rfl h hp)
+      (fun h hq => evm_mod_n1_denormPostNoX1_to_modStackDispatchPostCallableExactFrame_v5
+        sp base a b
+        (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
+        (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
+        scratchMem raVal rfl rfl rfl rfl hmod0 hmod1 hmod2 hmod3 h hq)
+      hbody
+
 end EvmAsm.Evm64
