@@ -68,6 +68,21 @@ check ".text base"       "0000000080000000" "$TEXT_BASE"
 check ".data base"       "00000000a3000000" "$DATA_BASE"
 check ".sszscratch base" "00000000bf500000" "$SSZ_BASE"
 
+# emitted-reality anchors the section table omits (guest stack top + ZisK MTVEC).
+# These live in the emitted .s (absolute `li` constants), not the ELF symtab.
+GUEST_S="$ELF_DIR/stateless_guest.s"
+if [[ -f "$GUEST_S" ]]; then
+  SP_INIT=$(grep -cE "li sp, *0xa0050000" "$GUEST_S")
+  MTVEC=$(grep -cE "li [a-z0-9]+, *0xa0009828" "$GUEST_S")
+  check "guest_stack top (li sp,0xa0050000) present" "1" "$([[ $SP_INIT -ge 1 ]] && echo 1 || echo 0)"
+  check "zisk MTVEC (0xa0009828) referenced"          "1" "$([[ $MTVEC  -ge 1 ]] && echo 1 || echo 0)"
+  # the sole sp init must be exactly 0xa0050000 (guest_stack top invariant)
+  OTHER_SP=$(grep -E "li sp," "$GUEST_S" | grep -vcE "0xa0050000" || true)
+  check "no other 'li sp,' init besides 0xa0050000" "0" "$OTHER_SP"
+else
+  note "SKIP emitted-reality (.s) checks: $GUEST_S absent (pass without --no-build to emit it)"
+fi
+
 # top RW LOAD below RAM ceiling + .data below .sszscratch
 DATA_END=$(python3 -c "print('%x' % (0x$DATA_BASE + 0x$DATA_SIZE))")
 python3 - "$DATA_END" <<'PY' || fail=1

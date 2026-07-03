@@ -33,13 +33,20 @@ lake build EvmAsm.Codegen.RegionMap  # the disjointness/fit/overlap theorems
 | Consumer | the **verified stateless port** under `EvmAsm/Stateless/` (the 4ch8f epic target) | the **currently-emitted** `stateless_guest` (Dispatch.lean + BlockVerdict) |
 | Prior proof | **none** (sizes implicit in anchor gaps) | fit lemmas for the 3 giant arenas only |
 
-The two schemes occupy **disjoint** address windows: Scheme A ends at
-`0xa1ba0000`, far below Scheme B's `.data` at `0xa3000000`. They are not rival
-layouts of the same bytes — Scheme A is the (largely still-aspirational) map for
-the in-progress verified port; Scheme B is what the linker actually emits today.
-`RegionMap.guestRegionMap` carries both, plus INPUT/OUTPUT and the RAM zone
-bounds, in one list, and proves them pairwise disjoint and zone-fitting by
-`decide` (`guestRegionMap_pairwise_disjoint`, `guestRegionMap_fits_ram`).
+Scheme A is the (largely still-aspirational) map for the in-progress verified
+port; Scheme B is what the linker emits today. Crucially they are **not** cleanly
+disjoint in the current build — the emitted guest's RV64 call stack (below) lands
+inside Scheme A's `execution_witness_area`. So the map is split into two lists:
+
+- **`RegionMap.guestRegionMap`** — the **emitted-reality** map: every byte the
+  *currently-emitted* `stateless_guest` actually touches (INPUT, the ZisK system
+  band, OUTPUT, the guest call stack, the live state-tracker window, `.text`,
+  `.data`, `.sszscratch`). This is what routine triples and wave `.9.3` frame
+  against. Proved pairwise disjoint with **no exception list**
+  (`guestRegionMap_pairwise_disjoint`) and zone-fitting (`guestRegionMap_fits_ram`).
+- **`RegionMap.schemeAAnchors`** — the **aspirational** port contract, kept
+  separate, proved internally consistent (`schemeAAnchors_pairwise_disjoint`) but
+  NOT merged into the emitted map, because it collides with the stack (§3.1).
 
 ### FINDING — Scheme A is almost entirely unreferenced by the emitted guest
 
@@ -61,15 +68,59 @@ opcode tables live in the linked `.data`, not the anchors:
 
 This is **not a soundness bug** — `MemoryLayout.lean` states it is the contract
 for the `Stateless/` port, which does not yet drive the emit. It IS a
-doc/reality gap worth flagging: the region map sizes the ten unused anchors by
-their reserved slabs (so they stay disjoint if/when the port lands) and pins the
-one live anchor's real window in its `evidence` note. Reconciling
-`MemoryLayout.lean`'s budgets with the port's real usage is follow-up work for
-the epic (tracked in the bead notes), not this mechanical half.
+doc/reality gap worth flagging: `guestRegionMap` (emitted reality) uses the one
+live anchor's real 2 MiB window (`state_tracker_live`); the ten unused anchors
+stay in the separate aspirational `schemeAAnchors` list. The current guest's
+actual EVM memory / stack / opcode tables live in the linked `.data`, not the
+anchors: `evm_memory@0xb796dac0`, `evm_stack_low@0xb8938040`,
+`lp64_stack@0xb88f7e40`, `opcode_handlers@0xb8945270`.
+
+### FINDING — two realities the section/anchor lists omit (added after review)
+
+An independent scan for absolute `li` constants in `0xa0000000..0xa3000000` and
+the sole `sp` init surfaced two regions neither scheme covered:
+
+1. **The RV64 call stack.** `_start` executes `li sp, 0xa0050000`
+   (`StatelessGuestEpilogue`, the only `sp` init in the image); the stack grows
+   DOWN from `0xa0050000` — straight through the aspirational
+   `execution_witness_area` slab `[0xa0030000, 0xa0130000)` and, if deeper than
+   128 KiB, into `ssz_input_decoded`. This is the divergence the bead exists to
+   surface: routine triples framed against the scheme-A anchors would be unsound
+   w.r.t. the real guest. `MemoryLayout.lean`'s own table also omits the stack
+   (upstream gap inherited). Modelled as `guest_stack` `[0xa0020000, 0xa0050000)`
+   (192 KiB budget bottoming at OUTPUT's top; the guest has **no** explicit
+   stack-depth guard, so this is a safe budget, not a proven max). The collision
+   is kernel-checked: `guestStack_overlaps_executionWitnessArea` and
+   `guestStack_not_disjoint_from_schemeA`. **A P1 divergence bead is filed** to
+   reflow the scheme-A anchors clear of the stack before the port goes live; the
+   collision is also input to the deferred phase-ownership half.
+2. **ZisK system band.** The guest reads/writes `0xa0009828` (the ZisK MTVEC
+   trap-vector slot, `StatelessGuestEpilogue` trap save/restore), inside
+   `[0xa0000000, 0xa0010000)`, which no scheme covered. Modelled as `zisk_system`
+   so the emitted-reality map accounts for every byte the guest touches.
 
 ---
 
 ## 2. Evidence per region size
+
+**Emitted-reality map (`guestRegionMap`)** — what the current guest touches;
+carries `guestRegionMap_pairwise_disjoint` (no exceptions):
+
+| region | base | size | evidence | stability |
+|---|---|---|---|---|
+| INPUT | `0x40000000` | `0x2000` | `Programs INPUT_ADDR`; SSZ body at `+16` | STABLE |
+| `zisk_system` | `0xa0000000` | `0x10000` | ZisK MTVEC slot `0xa0009828` | STABLE |
+| OUTPUT | `0xa0010000` | `0x10000` | `Programs OUTPUT_ADDR` | STABLE |
+| `guest_stack` | `0xa0020000` | `0x30000` | `_start li sp,0xa0050000` (grows down) | top STABLE; depth unguarded |
+| `state_tracker_live` | `0xa0630000` | `0x200000` | emitted storage-log window `..0xa0830000` | STABLE |
+| `.text` | `0x80000000` | `0x58150` | `readelf -S` | **LINK-DEPENDENT** |
+| `.data` | `0xa3000000` | `0x15945a70` (ends `0xb8945a70`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
+| `.sszscratch` | `0xbf500000` | `0x680000` | `readelf -S`; `MemoryLayout SSZ_SCRATCH_*` | STABLE |
+
+**Aspirational scheme-A anchors (`schemeAAnchors`)** — the port contract; size =
+gap to next anchor (reserved slab). `schemeA_matches_layout` pins each base to
+the `Word` constant's `.toNat`. NOT part of the emitted map (collides with
+`guest_stack`).
 
 **Scheme A anchors** — size = the gap to the next anchor (the reserved slab), per
 `MemoryLayout.lean`'s table. `RegionMap.schemeA_matches_layout` pins each base to
@@ -89,17 +140,10 @@ the corresponding `Word` constant's `.toNat`.
 | `ecrecover_scratch` | `0xa1b80000` | 64 KiB | anchor gap |
 | `sha256_scratch` | `0xa1b90000` | 64 KiB | anchor gap |
 
-**Sections + I/O** — ELF ground truth (`readelf -S`, this build):
-
-| region | base | size | evidence | stability |
-|---|---|---|---|---|
-| INPUT | `0x40000000` | `0x2000` | `Programs INPUT_ADDR`; SSZ body at `+16` | STABLE |
-| OUTPUT | `0xa0010000` | `0x10000` | `Programs OUTPUT_ADDR` | STABLE |
-| `.text` | `0x80000000` | `0x58150` | `readelf -S` | **LINK-DEPENDENT** |
-| `.data` | `0xa3000000` | `0x15945a70` (ends `0xb8945a70`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
-| `.sszscratch` | `0xbf500000` | `0x680000` | `readelf -S`; `MemoryLayout SSZ_SCRATCH_*` | STABLE |
-
-The `.text`/`.data` **sizes** move whenever any function or data object changes
+`state_tracker_area` (aspirational, 4 MiB slab) vs `state_tracker_live` (emitted,
+2 MiB used) is the same base `0xa0630000` at two extents; the emitted-reality map
+uses the live 2 MiB. `.text`/`.data` **sizes** are ELF ground truth (`readelf -S`)
+and move whenever any function or data object changes
 size; `RegionMap.textSizeBytes`/`dataSizeBytes` record the current ELF values and
 `check-region-map.sh` re-derives them (regenerate on drift — see §5).
 

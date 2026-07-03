@@ -47,7 +47,7 @@ import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen.RegionMap
 
-open EvmAsm.Rv64 (RAM_MEM_START RAM_MEM_END MEM_START MEM_END INPUT_MEM_START INPUT_MEM_END)
+open EvmAsm.Rv64 (RAM_MEM_START RAM_MEM_END INPUT_MEM_START INPUT_MEM_END)
 
 /-! ## Region model -/
 
@@ -67,8 +67,6 @@ inductive RegionMode
     Each zone is a half-open `[lo, hi)` byte range recognised (for the RAM /
     INPUT zones) by the verified `isValidMemAddr` predicate. -/
 inductive RegionZone
-  /-- Legacy low-scratch verified zone `[MEM_START, MEM_END)`. -/
-  | legacy
   /-- Host input window `[INPUT_MEM_START, INPUT_MEM_END)`. -/
   | input
   /-- `.text`/`.rodata` window `[0x80000000, 0xa0000000)`. -/
@@ -78,13 +76,11 @@ inductive RegionZone
   deriving DecidableEq, Repr
 
 def RegionZone.lo : RegionZone → Nat
-  | .legacy => MEM_START
   | .input  => INPUT_MEM_START
   | .text   => 0x80000000
   | .ram    => RAM_MEM_START
 
 def RegionZone.hi : RegionZone → Nat
-  | .legacy => MEM_END
   | .input  => INPUT_MEM_END
   | .text   => 0xa0000000
   | .ram    => RAM_MEM_END
@@ -126,13 +122,27 @@ def allPairwiseDisjoint : List GuestRegion → Bool
   | []      => true
   | r :: rs => rs.all (fun s => r.disjoint s) && allPairwiseDisjoint rs
 
-/-! ## Scheme-A working-RAM anchors (from `MemoryLayout.lean`).
+/-! ## Scheme-A working-RAM anchors — ASPIRATIONAL port contract (`MemoryLayout.lean`).
+
+    These are the layout the in-progress verified port under `EvmAsm/Stateless/`
+    *intends* to use; they do NOT describe the currently-emitted `stateless_guest`
+    (see `guestRegionMap`, the emitted-reality map, and the FINDING in the docs:
+    only `state_tracker_area` is referenced today). They are kept here as a
+    separate list because — as of this build — they are NOT disjoint from what the
+    guest actually emits: the RV64 call stack (`guestStackRegion`, top pinned by
+    `_start`'s `li sp, 0xa0050000`) grows down *through* `execution_witness_area`
+    (see `guestStack_overlaps_executionWitnessArea`). Reflowing the scheme-A
+    anchors clear of the stack/witness area before the port goes live is filed as
+    a P1 divergence bead; until then the aspirational list must not be conflated
+    with the emitted-reality map.
 
     Sizes are the gap to the next anchor (the reserved slab). The evidence note
     records the *measured* live extent where the emitted guest actually
     references the anchor, which may be smaller than the reserved slab. -/
 
-/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1ba0000`. -/
+/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1ba0000`. Aspirational —
+    see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
+    internally consistent, but they are NOT part of `guestRegionMap`. -/
 def schemeAAnchors : List GuestRegion :=
   [ { name := "ssz_input_decoded",      base := 0xa0020000, size := 0x10000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout SSZ_INPUT_DECODED; 64 KiB slab (verified-port scheme A)" },
@@ -202,31 +212,101 @@ def sszScratchRegion : GuestRegion :=
   { name := ".sszscratch", base := 0xbf500000, size := 0x680000, mode := .nobits, zone := .ram,
     evidence := "ELF --section-start=.sszscratch=0xbf500000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
 
-/-! ## The authoritative top-level region map.
+/-! ## Emitted-reality regions the section/anchor lists omit.
 
-    One list, one source of truth, at *section / anchor* granularity. These
-    regions are GENUINELY pairwise disjoint (no exceptions): the scheme-A band
-    ends at `0xa1ba0000`, well below `.data`'s `0xa3000000`; `.data` ends at
-    `0xb8945a70`, below `.sszscratch`; INPUT and `.text` sit in their own zones.
-    The single intentional overlap in the guest is entirely *inside* the
-    `.data` region and is expanded — as its own inventory — in `dataUnionArenas`
-    / `aliasedPairs` below. -/
+    These are addresses the *currently-emitted* `stateless_guest` provably touches
+    (verified from the emitted `.s`, guarded by `check-region-map.sh`) but which
+    neither the scheme-A anchors nor the ELF sections cover. They are part of
+    `guestRegionMap` so it accounts for every byte the guest uses. -/
+
+/-- ZisK host/system band `[0xa0000000, 0xa0010000)`. The guest reads/writes the
+    ZisK MTVEC (trap-vector) memory slot `0xa0009828` to save/restore the trap
+    vector around the verdict (`StatelessGuestEpilogue`, `li t0, 0xa0009828`). -/
+def ziskSystemRegion : GuestRegion :=
+  { name := "zisk_system", base := 0xa0000000, size := 0x10000, mode := .rw, zone := .ram,
+    evidence := "guest reads/writes ZisK MTVEC slot 0xa0009828 (StatelessGuestEpilogue trap save/restore)" }
+
+/-- Top of the RV64 call stack, pinned by `_start`'s `li sp, 0xa0050000` (the sole
+    `sp` init in the image). The stack grows DOWN from here. -/
+def guestStackTop : Nat := 0xa0050000
+
+/-- RV64 call stack, growing DOWN from `guestStackTop = 0xa0050000`. Budget
+    `[0xa0020000, 0xa0050000)` = 192 KiB — the space between OUTPUT's top and the
+    `sp` init; anything below `0xa0020000` would corrupt OUTPUT. NOTE: the current
+    guest has no explicit stack-depth guard, so this is the *safe budget*, not a
+    proven max depth; a real guard is the port's responsibility. This region
+    overlaps the ASPIRATIONAL `execution_witness_area`/`ssz_input_decoded` anchors
+    (see `guestStack_overlaps_executionWitnessArea`) — the collision the port must
+    reflow. -/
+def guestStackRegion : GuestRegion :=
+  { name := "guest_stack", base := 0xa0020000, size := 0x30000, mode := .rw, zone := .ram,
+    evidence := "_start `li sp, 0xa0050000` (grows down); budget bottoms at OUTPUT top 0xa0020000" }
+
+/-- The state-tracker storage-log window ACTUALLY used by the emitted guest:
+    `[0xa0630000, 0xa0830000)` = 2 MiB (16384x128 rows). The one live scheme-A
+    anchor (`STATE_TRACKER_AREA`), sized to its real extent rather than the 4 MiB
+    aspirational slab. -/
+def stateTrackerLiveRegion : GuestRegion :=
+  { name := "state_tracker_live", base := 0xa0630000, size := 0x200000, mode := .rw, zone := .ram,
+    evidence := "emitted guest storage-log base 0xa0630000..0xa0830000 (2 MiB); the sole live scheme-A anchor" }
+
+/-! ## The authoritative EMITTED-REALITY region map.
+
+    One list, one source of truth, describing what the *currently-emitted*
+    `stateless_guest` actually touches — this is the map routine triples and wave
+    `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
+    list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
+    contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
+    (`0xa3000000`); `.data` ends `0xb8945a70` below `.sszscratch`; INPUT and
+    `.text` sit in their own zones. The guest's one intentional overlap lives
+    strictly inside the `.data` member and is expanded — as its own inventory —
+    in `dataUnionChildren`/`aliasedPairs` below. The scheme-A anchors are the
+    separate, aspirational port contract (`schemeAAnchors`), deliberately NOT in
+    this list because they collide with `guest_stack` in the current build. -/
 def guestRegionMap : List GuestRegion :=
-  inputRegion :: outputRegion :: textRegion :: dataRegion :: sszScratchRegion ::
-    schemeAAnchors
+  [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
+    stateTrackerLiveRegion, textRegion, dataRegion, sszScratchRegion ]
 
-/-! ## Fit + disjointness for the top-level map (kernel-checked). -/
+/-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
 
-/-- Every region in the authoritative map lies inside its declared zone
+/-- Every region in the emitted-reality map lies inside its declared zone
     (RAM regions within `0xa0000000..0xc0000000`, `.text` within its window,
     INPUT within the host input window). -/
 theorem guestRegionMap_fits_ram : allFitZones guestRegionMap = true := by decide
 
-/-- The authoritative top-level map is pairwise disjoint — with NO exception
-    list. The guest's one intentional overlap lives strictly inside the `.data`
-    region (a single member here) and is documented separately in
-    `dataUnionArenas`/`aliasedPairs`; at section granularity nothing aliases. -/
+/-- The emitted-reality map is pairwise disjoint — with NO exception list. Every
+    byte the emitted guest touches is accounted for by exactly one region; the
+    one intentional overlap lives strictly inside the `.data` member and is
+    documented separately in `dataUnionChildren`/`aliasedPairs`. -/
 theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = true := by decide
+
+/-- The scheme-A anchors are internally consistent (pairwise disjoint among
+    themselves), so the aspirational port map is self-coherent even though it
+    collides with the emitted-reality `guest_stack` (next theorem). -/
+theorem schemeAAnchors_pairwise_disjoint : allPairwiseDisjoint schemeAAnchors = true := by decide
+
+/-! ## Emitted-vs-aspirational collision (the divergence the bead exists to surface).
+
+    The RV64 call-stack top pinned by `_start` sits INSIDE the aspirational
+    `execution_witness_area` slab, and the stack budget also overlaps
+    `ssz_input_decoded`. These are kernel-checked so the port cannot silently
+    ship the scheme-A layout on top of a live stack. Filed as a P1 divergence
+    bead; input to the deferred phase-ownership half. -/
+
+/-- `guestStackTop = 0xa0050000` lies within `execution_witness_area`
+    `[0xa0030000, 0xa0130000)` — the RV64 call stack grows down straight through
+    the aspirational witness-area slab. -/
+theorem guestStack_overlaps_executionWitnessArea :
+    0xa0030000 ≤ guestStackTop ∧ guestStackTop < 0xa0130000 := by decide
+
+/-- The `guest_stack` budget `[0xa0020000, 0xa0050000)` is NOT disjoint from the
+    aspirational `ssz_input_decoded` anchor `[0xa0020000, 0xa0030000)` — the
+    concrete witness that `guestRegionMap` (emitted) and `schemeAAnchors`
+    (aspirational) cannot be merged into one disjoint list today. -/
+theorem guestStack_not_disjoint_from_schemeA :
+    guestStackRegion.disjoint
+      { name := "ssz_input_decoded", base := 0xa0020000, size := 0x10000,
+        mode := .rw, zone := .ram, evidence := "" } = false := by decide
 
 /-! ## `_matches_*`: pin the literals above to the real layout constants.
 
@@ -394,11 +474,13 @@ theorem aliasedPairs_overlap_ranges :
 def stableGuestBases : List (String × Nat) :=
   [ ("INPUT_ADDR",        inputRegion.base),
     ("OUTPUT_ADDR",       outputRegion.base),
+    ("zisk_system",       ziskSystemRegion.base),
+    ("guest_stack_top",   guestStackTop),
     (".text",             textRegion.base),
     (".data",             dataRegion.base),
     (".sszscratch",       sszScratchRegion.base) ]
   ++ schemeAAnchors.map (fun r => (r.name, r.base))
 
-theorem stableGuestBases_length : stableGuestBases.length = 16 := by decide
+theorem stableGuestBases_length : stableGuestBases.length = 18 := by decide
 
 end EvmAsm.Codegen.RegionMap
