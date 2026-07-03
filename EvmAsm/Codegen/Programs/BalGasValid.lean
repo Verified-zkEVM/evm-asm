@@ -25,6 +25,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
@@ -104,26 +105,60 @@ def balGasValidFunction : String :=
   "  ret"
 
 /-! ## bgv_u32le -- read a little-endian u32 byte-wise (a0=ptr -> a0). Leaf. -/
+def bgvU32le_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .LBU .x6 .x10 (1 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (2 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (3 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bgvU32leFunction : String :=
-  "bgv_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+  "bgv_u32le:\n" ++ emitProgram bgvU32le_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bgvU32le_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bgvU32leFunction_eq_prog :
+    bgvU32leFunction = "bgv_u32le:\n" ++ emitProgram bgvU32le_prog := rfl
+
+#guard bgvU32leFunction.startsWith "bgv_u32le:\n"
+#guard bgvU32le_prog.length = 12
 /-! ## bgv_u64le -- read a little-endian u64 byte-wise (a0=ptr -> a0). Leaf. -/
-def bgvU64leFunction : String :=
-  "bgv_u64le:\n" ++
-  "  li t0, 0; li t2, 0\n" ++
-  ".Lbgv64:\n" ++
-  "  li t3, 8; beq t2, t3, .Lbgv64d\n" ++
-  "  add t4, a0, t2; lbu t5, 0(t4); slli t6, t2, 3; sll t5, t5, t6; or t0, t0, t5\n" ++
-  "  addi t2, t2, 1; j .Lbgv64\n" ++
-  ".Lbgv64d:\n" ++
-  "  mv a0, t0; ret"
+def bgvU64le_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x7 (0 : Word),
+    .LI .x28 (8 : Word),
+    .BEQ .x7 .x28 (32 : BitVec 13),
+    .ADD .x29 .x10 .x7,
+    .LBU .x30 .x29 (0 : BitVec 12),
+    .SLLI .x31 .x7 (3 : BitVec 6),
+    .SLL .x30 .x30 .x31,
+    .OR .x5 .x5 .x30,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bgvU64leFunction : String :=
+  "bgv_u64le:\n" ++ emitProgram bgvU64le_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bgvU64le_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bgvU64leFunction_eq_prog :
+    bgvU64leFunction = "bgv_u64le:\n" ++ emitProgram bgvU64le_prog := rfl
+
+#guard bgvU64leFunction.startsWith "bgv_u64le:\n"
+#guard bgvU64le_prog.length = 13
 /-! ## bal_section_info -- locate BAL RLP inside an SszStatelessInput.
     a0 = SSZ_BASE   a1 = out BAL ptr   a2 = out BAL len   a3 = out account count
     a0 (output) = 0 ok / 1 parse error. -/

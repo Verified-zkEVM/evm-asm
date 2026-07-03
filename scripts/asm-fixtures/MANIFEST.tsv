@@ -1,6 +1,11 @@
 # asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
+b1SenderTableFindFunction	EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean
 bahU32leFunction	EvmAsm/Codegen/Programs/BlockAccessListHash.lean
+bgvU32leFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
+bgvU64leFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 bhrRevLeBeFunction	EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean
+blake2fLdLe64Function	EvmAsm/Codegen/Programs/Blake2f.lean
+blake2fStLe64Function	EvmAsm/Codegen/Programs/Blake2f.lean
 bloomEqFunction	EvmAsm/Codegen/Programs/Bloom.lean
 bloomOrIntoFunction	EvmAsm/Codegen/Programs/Bloom.lean
 bls12CopyQuadsFunction	EvmAsm/Codegen/Programs/Bls12Field.lean
@@ -41,11 +46,15 @@ calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
 callFrameSetCalldataFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
 calldataByteCountsFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 codesBlockhashRequiredHeadersFunction	EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean
+committedStorageChunkedSnapshotUpsertFunction	EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean
+committedStorageSnapshotAppendFunction	EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean
+committedStorageSnapshotUpsertFunction	EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean
 copyWordGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
 deriveChainIdFromVFunction	EvmAsm/Codegen/Programs/Tx.lean
 eip8037BlockGasUsedFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
+execLogLatestValueFunction	EvmAsm/Codegen/Programs/ExecLogLatestValue.lean
 expGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
 findCodeEffectByAddressFunction	EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean
 headersParentHashFunction	EvmAsm/Codegen/Programs/HeadersKeccak.lean
@@ -87,8 +96,15 @@ secp256k1FieldLeToBeFunction	EvmAsm/Codegen/Programs/Secp256k1Field.lean
 secp256k1FieldZero32Function	EvmAsm/Codegen/Programs/Secp256k1Field.lean
 secp256k1PointCopy64Function	EvmAsm/Codegen/Programs/Secp256k1Curve.lean
 secp256k1PointZero64Function	EvmAsm/Codegen/Programs/Secp256k1Curve.lean
+senderPostNonceConsistentFunction	EvmAsm/Codegen/Programs/SenderPostNonceConsistent.lean
+slotDecodeU256Function	EvmAsm/Codegen/Programs/State.lean
+slotTupleSequencesMatchFunction	EvmAsm/Codegen/Programs/SlotTupleSequencesMatch.lean
 spwU32leFunction	EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean
 sszPackBytesFunction	EvmAsm/Codegen/Programs/Ssz.lean
+swdMinimalCopyFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
+swdReadU64leFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
+swdWriteBe32U64Function	EvmAsm/Codegen/Programs/SystemWrites.lean
+swdWriteBe8Function	EvmAsm/Codegen/Programs/SystemWrites.lean
 swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
 txGasResultIncrementsFunction	EvmAsm/Codegen/Programs/Account.lean
@@ -107,3 +123,4 @@ u256MinFunction	EvmAsm/Codegen/Programs/U256.lean
 u256SubBeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256ToU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
 validateHeaderBasicFunction	EvmAsm/Codegen/Programs/Header.lean
+witnessCodesValidateLengthsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean

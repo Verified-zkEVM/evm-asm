@@ -32,6 +32,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
@@ -39,72 +40,144 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-! ## swd_read_u64le -- read a little-endian u64 byte-wise (a0=ptr -> a0). Leaf. -/
-def swdReadU64leFunction : String :=
-  "swd_read_u64le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  lbu t1, 4(a0); slli t1, t1, 32; or t0, t0, t1\n" ++
-  "  lbu t1, 5(a0); slli t1, t1, 40; or t0, t0, t1\n" ++
-  "  lbu t1, 6(a0); slli t1, t1, 48; or t0, t0, t1\n" ++
-  "  lbu t1, 7(a0); slli t1, t1, 56; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+def swdReadU64le_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .LBU .x6 .x10 (1 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (2 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (3 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (4 : BitVec 12),
+    .SLLI .x6 .x6 (32 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (5 : BitVec 12),
+    .SLLI .x6 .x6 (40 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (6 : BitVec 12),
+    .SLLI .x6 .x6 (48 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (7 : BitVec 12),
+    .SLLI .x6 .x6 (56 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def swdReadU64leFunction : String :=
+  "swd_read_u64le:\n" ++ emitProgram swdReadU64le_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `swdReadU64le_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem swdReadU64leFunction_eq_prog :
+    swdReadU64leFunction = "swd_read_u64le:\n" ++ emitProgram swdReadU64le_prog := rfl
+
+#guard swdReadU64leFunction.startsWith "swd_read_u64le:\n"
+#guard swdReadU64le_prog.length = 24
 /-! ## swd_write_be32_u64 -- write a0 (u64) big-endian into the LOW 8 bytes of a
     zeroed 32-byte buffer at a1 (the 32-byte storage slot key). Leaf. -/
+def swdWriteBe32U64_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (32 : Word),
+    .BEQ .x5 .x6 (20 : BitVec 13),
+    .ADD .x7 .x11 .x5,
+    .SB .x7 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x5 (0 : Word),
+    .LI .x6 (8 : Word),
+    .BEQ .x5 .x6 (44 : BitVec 13),
+    .LI .x7 (56 : Word),
+    .SLLI .x28 .x5 (3 : BitVec 6),
+    .SUB .x7 .x7 .x28,
+    .SRL .x29 .x10 .x7,
+    .ANDI .x29 .x29 (255 : BitVec 12),
+    .ADDI .x30 .x11 (24 : BitVec 12),
+    .ADD .x30 .x30 .x5,
+    .SB .x30 .x29 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-44 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def swdWriteBe32U64Function : String :=
-  "swd_write_be32_u64:\n" ++
-  "  li t0, 0\n" ++
-  ".Lswd_z:\n" ++
-  "  li t1, 32; beq t0, t1, .Lswd_zd\n" ++
-  "  add t2, a1, t0; sb x0, 0(t2); addi t0, t0, 1; j .Lswd_z\n" ++
-  ".Lswd_zd:\n" ++
-  "  # write the 8 BE bytes into offsets 24..31\n" ++
-  "  li t0, 0\n" ++
-  ".Lswd_b:\n" ++
-  "  li t1, 8; beq t0, t1, .Lswd_bd\n" ++
-  "  li t2, 56; slli t3, t0, 3; sub t2, t2, t3   # shift = 56 - 8*t0\n" ++
-  "  srl t4, a0, t2; andi t4, t4, 0xff\n" ++
-  "  addi t5, a1, 24; add t5, t5, t0; sb t4, 0(t5)\n" ++
-  "  addi t0, t0, 1; j .Lswd_b\n" ++
-  ".Lswd_bd:\n" ++
-  "  ret"
+  "swd_write_be32_u64:\n" ++ emitProgram swdWriteBe32U64_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `swdWriteBe32U64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem swdWriteBe32U64Function_eq_prog :
+    swdWriteBe32U64Function = "swd_write_be32_u64:\n" ++ emitProgram swdWriteBe32U64_prog := rfl
+
+#guard swdWriteBe32U64Function.startsWith "swd_write_be32_u64:\n"
+#guard swdWriteBe32U64_prog.length = 21
 /-! ## swd_write_be8 -- write a0 (u64) big-endian into 8 bytes at a1. Leaf. -/
-def swdWriteBe8Function : String :=
-  "swd_write_be8:\n" ++
-  "  li t0, 0\n" ++
-  ".Lswd8:\n" ++
-  "  li t1, 8; beq t0, t1, .Lswd8d\n" ++
-  "  li t2, 56; slli t3, t0, 3; sub t2, t2, t3\n" ++
-  "  srl t4, a0, t2; andi t4, t4, 0xff\n" ++
-  "  add t5, a1, t0; sb t4, 0(t5)\n" ++
-  "  addi t0, t0, 1; j .Lswd8\n" ++
-  ".Lswd8d:\n" ++
-  "  ret"
+def swdWriteBe8_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (8 : Word),
+    .BEQ .x5 .x6 (40 : BitVec 13),
+    .LI .x7 (56 : Word),
+    .SLLI .x28 .x5 (3 : BitVec 6),
+    .SUB .x7 .x7 .x28,
+    .SRL .x29 .x10 .x7,
+    .ANDI .x29 .x29 (255 : BitVec 12),
+    .ADD .x30 .x11 .x5,
+    .SB .x30 .x29 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def swdWriteBe8Function : String :=
+  "swd_write_be8:\n" ++ emitProgram swdWriteBe8_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `swdWriteBe8_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem swdWriteBe8Function_eq_prog :
+    swdWriteBe8Function = "swd_write_be8:\n" ++ emitProgram swdWriteBe8_prog := rfl
+
+#guard swdWriteBe8Function.startsWith "swd_write_be8:\n"
+#guard swdWriteBe8_prog.length = 13
 /-! ## swd_minimal_copy -- copy src[a0..a0+a1) stripping leading zero bytes into
     a2; write the resulting length to a3. Leaf. -/
-def swdMinimalCopyFunction : String :=
-  "swd_minimal_copy:\n" ++
-  "  mv t0, a0                   # src cursor\n" ++
-  "  mv t1, a1                   # remaining\n" ++
-  ".Lswd_skip:\n" ++
-  "  beqz t1, .Lswd_emit         # all zero -> length 0\n" ++
-  "  lbu t2, 0(t0); bnez t2, .Lswd_emit\n" ++
-  "  addi t0, t0, 1; addi t1, t1, -1; j .Lswd_skip\n" ++
-  ".Lswd_emit:\n" ++
-  "  sd t1, 0(a3)                # out length = remaining\n" ++
-  "  mv t3, a2; li t4, 0\n" ++
-  ".Lswd_cp:\n" ++
-  "  beq t4, t1, .Lswd_cpd\n" ++
-  "  add t5, t0, t4; lbu t6, 0(t5); add t2, t3, t4; sb t6, 0(t2)\n" ++
-  "  addi t4, t4, 1; j .Lswd_cp\n" ++
-  ".Lswd_cpd:\n" ++
-  "  ret"
+def swdMinimalCopy_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .BEQ .x6 .x0 (24 : BitVec 13),
+    .LBU .x7 .x5 (0 : BitVec 12),
+    .BNE .x7 .x0 (16 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .MV .x28 .x12,
+    .LI .x29 (0 : Word),
+    .BEQ .x29 .x6 (28 : BitVec 13),
+    .ADD .x30 .x5 .x29,
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .ADD .x7 .x28 .x29,
+    .SB .x7 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def swdMinimalCopyFunction : String :=
+  "swd_minimal_copy:\n" ++ emitProgram swdMinimalCopy_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `swdMinimalCopy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem swdMinimalCopyFunction_eq_prog :
+    swdMinimalCopyFunction = "swd_minimal_copy:\n" ++ emitProgram swdMinimalCopy_prog := rfl
+
+#guard swdMinimalCopyFunction.startsWith "swd_minimal_copy:\n"
+#guard swdMinimalCopy_prog.length = 19
 /-! ## system_write_descriptors
     a0 = SSZ_BASE.  Fills (slot_key 32 B, value, value_len) for EIP-2935 and
     EIP-4788 into swd_* buffers.  a0 (output) = 0. -/
