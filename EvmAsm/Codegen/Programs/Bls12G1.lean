@@ -32,6 +32,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bls12Field
 
 namespace EvmAsm.Codegen
@@ -84,146 +87,216 @@ def bls12G1DataSection : String :=
 
 /-- Convert a 48-byte big-endian buffer (`a0`, any alignment) into six
     little-endian u64 limbs (`a1`, 8-aligned), LSB limb first. Leaf. -/
-def bls12G1BeToLeFunction : String :=
-  "blsg_be_to_le:\n" ++
-  "  li t0, 0                   # limb index\n" ++
-  ".Lblsg_b2l_quad:\n" ++
-  "  li t1, 40\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a0, t1             # BE offset of the limb's MSB\n" ++
-  "  li t3, 0\n" ++
-  "  li t4, 8\n" ++
-  ".Lblsg_b2l_byte:\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t5, 0(t1)\n" ++
-  "  or t3, t3, t5\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lblsg_b2l_byte\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  add t2, a1, t2\n" ++
-  "  sd t3, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 6\n" ++
-  "  bne t0, t1, .Lblsg_b2l_quad\n" ++
-  "  ret"
+def blsgBeToLe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (40 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x10 .x6,
+    .LI .x28 (0 : Word),
+    .LI .x29 (8 : Word),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x30 .x6 (0 : BitVec 12),
+    .OR .x28 .x28 .x30,
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .ADD .x7 .x11 .x7,
+    .SD .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (6 : Word),
+    .BNE .x5 .x6 (-68 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12G1BeToLeFunction : String :=
+  "blsg_be_to_le:\n" ++ emitProgram blsgBeToLe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsgBeToLe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G1BeToLeFunction_eq_prog :
+    bls12G1BeToLeFunction = "blsg_be_to_le:\n" ++ emitProgram blsgBeToLe_prog := rfl
+
+#guard bls12G1BeToLeFunction.startsWith "blsg_be_to_le:\n"
+#guard blsgBeToLe_prog.length = 20
 /-- Convert six little-endian u64 limbs (`a0`, 8-aligned) into a 48-byte
     big-endian buffer (`a1`, any alignment). Inverse of `blsg_be_to_le`. -/
+def blsgLeToBe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .SLLI .x6 .x5 (3 : BitVec 6),
+    .ADD .x7 .x10 .x6,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LI .x6 (47 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x11 .x6,
+    .LI .x29 (8 : Word),
+    .ANDI .x30 .x28 (255 : BitVec 12),
+    .SB .x6 .x30 (0 : BitVec 12),
+    .SRLI .x28 .x28 (8 : BitVec 6),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (6 : Word),
+    .BNE .x5 .x6 (-64 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bls12G1LeToBeFunction : String :=
-  "blsg_le_to_be:\n" ++
-  "  li t0, 0                   # limb index\n" ++
-  ".Lblsg_l2b_quad:\n" ++
-  "  slli t1, t0, 3\n" ++
-  "  add t2, a0, t1\n" ++
-  "  ld t3, 0(t2)\n" ++
-  "  li t1, 47\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a1, t1             # BE offset of the limb's LSB\n" ++
-  "  li t4, 8\n" ++
-  ".Lblsg_l2b_byte:\n" ++
-  "  andi t5, t3, 0xff\n" ++
-  "  sb t5, 0(t1)\n" ++
-  "  srli t3, t3, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lblsg_l2b_byte\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 6\n" ++
-  "  bne t0, t1, .Lblsg_l2b_quad\n" ++
-  "  ret"
+  "blsg_le_to_be:\n" ++ emitProgram blsgLeToBe_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsgLeToBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G1LeToBeFunction_eq_prog :
+    bls12G1LeToBeFunction = "blsg_le_to_be:\n" ++ emitProgram blsgLeToBe_prog := rfl
+
+#guard bls12G1LeToBeFunction.startsWith "blsg_le_to_be:\n"
+#guard blsgLeToBe_prog.length = 19
 /-- a0 = 1 iff the a1 bytes at a0 are all zero. Leaf. -/
+def blsgIsZeroN_prog : Program :=
+  [ .MV .x6 .x10,
+    .MV .x5 .x11,
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .BNE .x7 .x0 (24 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bls12G1IsZeroFunction : String :=
-  "blsg_is_zero_n:\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t0, a1\n" ++
-  ".Lblsg_iz_loop:\n" ++
-  "  beqz t0, .Lblsg_iz_yes\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  bnez t2, .Lblsg_iz_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lblsg_iz_loop\n" ++
-  ".Lblsg_iz_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblsg_iz_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "blsg_is_zero_n:\n" ++ emitProgram blsgIsZeroN_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsgIsZeroN_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G1IsZeroFunction_eq_prog :
+    bls12G1IsZeroFunction = "blsg_is_zero_n:\n" ++ emitProgram blsgIsZeroN_prog := rfl
+
+#guard bls12G1IsZeroFunction.startsWith "blsg_is_zero_n:\n"
+#guard blsgIsZeroN_prog.length = 12
 /-- a0 = 1 iff the two 48-byte buffers at a0 / a1 are equal. Leaf. -/
+def blsgEq48_prog : Program :=
+  [ .LI .x5 (48 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bls12G1Eq48Function : String :=
-  "blsg_eq48:\n" ++
-  "  li t0, 48\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t2, a1\n" ++
-  ".Lblsg_eq_loop:\n" ++
-  "  beqz t0, .Lblsg_eq_yes\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bne t3, t4, .Lblsg_eq_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lblsg_eq_loop\n" ++
-  ".Lblsg_eq_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblsg_eq_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "blsg_eq48:\n" ++ emitProgram blsgEq48_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsgEq48_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G1Eq48Function_eq_prog :
+    bls12G1Eq48Function = "blsg_eq48:\n" ++ emitProgram blsgEq48_prog := rfl
+
+#guard bls12G1Eq48Function.startsWith "blsg_eq48:\n"
+#guard blsgEq48_prog.length = 15
 /-- a0 = 1 iff the 48-byte big-endian integer at a0 is `< p`. Leaf. -/
-def bls12G1LtPFunction : String :=
-  "blsg_lt_p:\n" ++
-  "  la t0, blsg_p_be\n" ++
-  "  li t1, 48\n" ++
-  "  mv t2, a0\n" ++
-  ".Lblsg_ltp_loop:\n" ++
-  "  beqz t1, .Lblsg_ltp_no      # equal => not less\n" ++
-  "  lbu t3, 0(t2)\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  bltu t3, t4, .Lblsg_ltp_yes\n" ++
-  "  bltu t4, t3, .Lblsg_ltp_no\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lblsg_ltp_loop\n" ++
-  ".Lblsg_ltp_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblsg_ltp_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def blsgLtP_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.blsg_p_be (GuestAddrs.blsg_lt_p + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.blsg_p_be (GuestAddrs.blsg_lt_p + 0)),
+    .LI .x6 (48 : Word),
+    .MV .x7 .x10,
+    .BEQ .x6 .x0 (44 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .BLTU .x28 .x29 (24 : BitVec 13),
+    .BLTU .x29 .x28 (28 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgLtP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgLtP_relocs : RelocTable :=
+  [ (0, .la .x5 "blsg_p_be") ]
+
+def bls12G1LtPFunction : String :=
+  "blsg_lt_p:\n" ++ emitProgramR blsgLtP_prog blsgLtP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgLtP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1LtPFunction_eq_prog :
+    bls12G1LtPFunction = "blsg_lt_p:\n" ++ emitProgramR blsgLtP_prog blsgLtP_relocs := rfl
+
+#guard bls12G1LtPFunction.startsWith "blsg_lt_p:\n"
+#guard blsgLtP_prog.length = 17
 /-- Copy 96 bytes from a0 to a1 (quad loop; every call site — frame
     lanes, probe OUTPUT+8, the `.data` point cells — is 8-aligned). -/
+def blsgCopy96_prog : Program :=
+  [ .LI .x5 (12 : Word),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .SD .x11 .x6 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-20 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bls12G1Copy96Function : String :=
-  "blsg_copy96:\n" ++
-  "  li t0, 12\n" ++
-  ".Lblsg_copy96_loop:\n" ++
-  "  ld t1, 0(a0)\n" ++
-  "  sd t1, 0(a1)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi a1, a1, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lblsg_copy96_loop\n" ++
-  "  ret"
+  "blsg_copy96:\n" ++ emitProgram blsgCopy96_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsgCopy96_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G1Copy96Function_eq_prog :
+    bls12G1Copy96Function = "blsg_copy96:\n" ++ emitProgram blsgCopy96_prog := rfl
+
+#guard bls12G1Copy96Function.startsWith "blsg_copy96:\n"
+#guard blsgCopy96_prog.length = 8
 /-- Zero 96 bytes at a0 (quad loop; 8-aligned call sites only). -/
-def bls12G1Zero96Function : String :=
-  "blsg_zero96:\n" ++
-  "  li t0, 12\n" ++
-  ".Lblsg_zero96_loop:\n" ++
-  "  sd zero, 0(a0)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lblsg_zero96_loop\n" ++
-  "  ret"
+def blsgZero96_prog : Program :=
+  [ .LI .x5 (12 : Word),
+    .SD .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-12 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12G1Zero96Function : String :=
+  "blsg_zero96:\n" ++ emitProgram blsgZero96_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsgZero96_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G1Zero96Function_eq_prog :
+    bls12G1Zero96Function = "blsg_zero96:\n" ++ emitProgram blsgZero96_prog := rfl
+
+#guard bls12G1Zero96Function.startsWith "blsg_zero96:\n"
+#guard blsgZero96_prog.length = 6
 /-- Fp d = (a*b) mod p: a0/a1 = 48-byte BE inputs, a2 = 48-byte BE
     output, via the Arith384Mod `blsf_mul_params` block. -/
 def bls12G1MulModPFunction : String :=
@@ -399,33 +472,75 @@ def bls12G1PointAddFunction : String :=
 
 /-- a0 = 1 iff the finite point at a0 (coords already `< p`) satisfies
     y^2 = x^3 + 4 mod p. -/
-def bls12G1OnCurveFunction : String :=
-  "blsg_on_curve:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, blsg_t\n" ++
-  "  jal ra, blsg_mul_mod_p         # t = x^2\n" ++
-  "  la a0, blsg_t\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, blsg_t\n" ++
-  "  jal ra, blsg_mul_mod_p         # t = x^3\n" ++
-  "  la a0, blsg_t\n" ++
-  "  la a1, blsg_b_be\n" ++
-  "  la a2, blsg_rhs\n" ++
-  "  jal ra, blsg_add_mod_p         # rhs = x^3 + 4\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  addi a1, s0, 48\n" ++
-  "  la a2, blsg_y2\n" ++
-  "  jal ra, blsg_mul_mod_p         # y2 = y^2\n" ++
-  "  la a0, blsg_rhs\n" ++
-  "  la a1, blsg_y2\n" ++
-  "  jal ra, blsg_eq48\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def blsgOnCurve_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 20)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 20)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_mul_mod_p (GuestAddrs.blsg_on_curve + 28)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 32)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 32)),
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 44)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 44)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_mul_mod_p (GuestAddrs.blsg_on_curve + 52)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 56)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 56)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg_b_be (GuestAddrs.blsg_on_curve + 64)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg_b_be (GuestAddrs.blsg_on_curve + 64)),
+    .AUIPC .x12 (laHi GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 72)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_add_mod_p (GuestAddrs.blsg_on_curve + 80)),
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .ADDI .x11 .x8 (48 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 92)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 92)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_mul_mod_p (GuestAddrs.blsg_on_curve + 100)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 104)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 104)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 112)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 112)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_eq48 (GuestAddrs.blsg_on_curve + 120)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgOnCurve_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgOnCurve_relocs : RelocTable :=
+  [ (5, .la .x12 "blsg_t"),
+    (7, .jal .x1 "blsg_mul_mod_p"),
+    (8, .la .x10 "blsg_t"),
+    (11, .la .x12 "blsg_t"),
+    (13, .jal .x1 "blsg_mul_mod_p"),
+    (14, .la .x10 "blsg_t"),
+    (16, .la .x11 "blsg_b_be"),
+    (18, .la .x12 "blsg_rhs"),
+    (20, .jal .x1 "blsg_add_mod_p"),
+    (23, .la .x12 "blsg_y2"),
+    (25, .jal .x1 "blsg_mul_mod_p"),
+    (26, .la .x10 "blsg_rhs"),
+    (28, .la .x11 "blsg_y2"),
+    (30, .jal .x1 "blsg_eq48") ]
+
+def bls12G1OnCurveFunction : String :=
+  "blsg_on_curve:\n" ++ emitProgramR blsgOnCurve_prog blsgOnCurve_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgOnCurve_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1OnCurveFunction_eq_prog :
+    bls12G1OnCurveFunction = "blsg_on_curve:\n" ++ emitProgramR blsgOnCurve_prog blsgOnCurve_relocs := rfl
+
+#guard bls12G1OnCurveFunction.startsWith "blsg_on_curve:\n"
+#guard blsgOnCurve_prog.length = 35
 /-- Decode one EIP-2537 G1 wire point (a0 = 128-byte padded BE record)
     into a compact 96-byte point at a1: each 64-byte field element must
     have its 16 pad bytes zero and 48-byte value < p, and the point must
@@ -683,19 +798,41 @@ def bls12G1ScalarMulFunction : String :=
 /-- EIP-2537 G1 subgroup check: a0 = compact point. Returns a0 = 1 iff
     n*P = inf (P in the order-n subgroup; infinity passes trivially).
     The G1 cofactor is not 1, so this is a REAL check, unlike BN254. -/
-def bls12G1SubgroupFunction : String :=
-  "blsg_subgroup_g1:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a2, a0\n" ++
-  "  la a0, blsg_n_be\n" ++
-  "  li a1, 32\n" ++
-  "  la a3, blsg_sub_out\n" ++
-  "  jal ra, blsg_scalar_mul\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret                            # scalar_mul already returns the inf flag"
+def blsgSubgroupG1_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x12 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsg_n_be (GuestAddrs.blsg_subgroup_g1 + 12)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_n_be (GuestAddrs.blsg_subgroup_g1 + 12)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.blsg_sub_out (GuestAddrs.blsg_subgroup_g1 + 24)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.blsg_sub_out (GuestAddrs.blsg_subgroup_g1 + 24)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_scalar_mul (GuestAddrs.blsg_subgroup_g1 + 32)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgSubgroupG1_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgSubgroupG1_relocs : RelocTable :=
+  [ (3, .la .x10 "blsg_n_be"),
+    (6, .la .x13 "blsg_sub_out"),
+    (8, .jal .x1 "blsg_scalar_mul") ]
+
+def bls12G1SubgroupFunction : String :=
+  "blsg_subgroup_g1:\n" ++ emitProgramR blsgSubgroupG1_prog blsgSubgroupG1_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgSubgroupG1_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1SubgroupFunction_eq_prog :
+    bls12G1SubgroupFunction = "blsg_subgroup_g1:\n" ++ emitProgramR blsgSubgroupG1_prog blsgSubgroupG1_relocs := rfl
+
+#guard bls12G1SubgroupFunction.startsWith "blsg_subgroup_g1:\n"
+#guard blsgSubgroupG1_prog.length = 12
 /-- Real BLS12-381 G1 ADD (0x0b) kernel: a0 = pointer to the raw
     256-byte EIP-2537 input (two 128-byte wire points; byte reads, so
     EVM-memory alignment is free), a1 = 96-byte compact BE output.

@@ -18,6 +18,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictParams
@@ -166,15 +169,35 @@ def stageSystemCallFunction : String :=
       a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
     Returns (tail-call to stage_system_call):
       a0 = withdrawal body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
-def deriveWithdrawalRequestsFunction : String :=
-  "derive_withdrawal_requests:\n" ++
-  "  mv a4, a3                    # out buffer -> a4\n" ++
-  "  mv a3, a2                    # block exec payload -> a3\n" ++
-  "  mv a2, a1                    # code len -> a2\n" ++
-  "  mv a1, a0                    # predeploy code ptr -> a1\n" ++
-  "  la a0, withdrawal_request_predeploy_addr   # target addr -> a0\n" ++
-  "  j stage_system_call          # tail call: a0/a1/a2 carry body ptr/len/status to our caller\n"
+def deriveWithdrawalRequests_prog : Program :=
+  [ .MV .x14 .x13,
+    .MV .x13 .x12,
+    .MV .x12 .x11,
+    .MV .x11 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.withdrawal_request_predeploy_addr (GuestAddrs.derive_withdrawal_requests + 16)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.withdrawal_request_predeploy_addr (GuestAddrs.derive_withdrawal_requests + 16)),
+    .JAL .x0 (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_withdrawal_requests + 24)) ]
 
+/-- Reloc side-table for `deriveWithdrawalRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def deriveWithdrawalRequests_relocs : RelocTable :=
+  [ (4, .la .x10 "withdrawal_request_predeploy_addr"),
+    (6, .jal .x0 "stage_system_call") ]
+
+def deriveWithdrawalRequestsFunction : String :=
+  "derive_withdrawal_requests:\n" ++ emitProgramR deriveWithdrawalRequests_prog deriveWithdrawalRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `deriveWithdrawalRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem deriveWithdrawalRequestsFunction_eq_prog :
+    deriveWithdrawalRequestsFunction = "derive_withdrawal_requests:\n" ++ emitProgramR deriveWithdrawalRequests_prog deriveWithdrawalRequests_relocs := rfl
+
+#guard deriveWithdrawalRequestsFunction.startsWith "derive_withdrawal_requests:\n"
+#guard deriveWithdrawalRequests_prog.length = 7
 /-- WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS (EIP-7002), 20 bytes big-endian. Referenced by
     `derive_withdrawal_requests`; emit alongside it in any unit that links the function. -/
 def withdrawalRequestPredeployAddrData : String :=
@@ -198,15 +221,35 @@ def withdrawalRequestPredeployAddrData : String :=
       a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
     Returns (tail-call to stage_system_call):
       a0 = consolidation body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
-def deriveConsolidationRequestsFunction : String :=
-  "derive_consolidation_requests:\n" ++
-  "  mv a4, a3                    # out buffer -> a4\n" ++
-  "  mv a3, a2                    # block exec payload -> a3\n" ++
-  "  mv a2, a1                    # code len -> a2\n" ++
-  "  mv a1, a0                    # predeploy code ptr -> a1\n" ++
-  "  la a0, consolidation_request_predeploy_addr   # target addr -> a0\n" ++
-  "  j stage_system_call          # tail call: a0/a1/a2 carry body ptr/len/status to our caller\n"
+def deriveConsolidationRequests_prog : Program :=
+  [ .MV .x14 .x13,
+    .MV .x13 .x12,
+    .MV .x12 .x11,
+    .MV .x11 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.consolidation_request_predeploy_addr (GuestAddrs.derive_consolidation_requests + 16)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.consolidation_request_predeploy_addr (GuestAddrs.derive_consolidation_requests + 16)),
+    .JAL .x0 (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_consolidation_requests + 24)) ]
 
+/-- Reloc side-table for `deriveConsolidationRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def deriveConsolidationRequests_relocs : RelocTable :=
+  [ (4, .la .x10 "consolidation_request_predeploy_addr"),
+    (6, .jal .x0 "stage_system_call") ]
+
+def deriveConsolidationRequestsFunction : String :=
+  "derive_consolidation_requests:\n" ++ emitProgramR deriveConsolidationRequests_prog deriveConsolidationRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `deriveConsolidationRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem deriveConsolidationRequestsFunction_eq_prog :
+    deriveConsolidationRequestsFunction = "derive_consolidation_requests:\n" ++ emitProgramR deriveConsolidationRequests_prog deriveConsolidationRequests_relocs := rfl
+
+#guard deriveConsolidationRequestsFunction.startsWith "derive_consolidation_requests:\n"
+#guard deriveConsolidationRequests_prog.length = 7
 /-- CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS (EIP-7251), 20 bytes big-endian. Referenced by
     `derive_consolidation_requests`; emit alongside it in any unit that links the function. -/
 def consolidationRequestPredeployAddrData : String :=

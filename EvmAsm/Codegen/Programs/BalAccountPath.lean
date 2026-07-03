@@ -13,6 +13,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.RlpWalk
 
@@ -27,31 +30,62 @@ open EvmAsm.Rv64
     a0 (output) = 0 ok / 1 parse fail or address length != 20.
 
     path = bytes_to_nibbles(keccak256(address)). -/
-def balAccountPathFunction : String :=
-  "bal_account_path:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                   # account-change ptr\n" ++
-  "  mv s1, a2                   # out path ptr\n" ++
-  "  # field 0 = address bytes.\n" ++
-  "  jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbacp_fail\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbacp_fail\n" ++
-  "  li t2, 20; bne a2, t2, .Lbacp_fail\n" ++
-  "  sub a0, a0, a2\n" ++
-  "  li a1, 20; la a2, bacp_hash\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  la a0, bacp_hash; li a1, 32; mv a2, s1\n" ++
-  "  jal ra, bytes_to_nibbles\n" ++
-  "  li a0, 0; j .Lbacp_ret\n" ++
-  ".Lbacp_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbacp_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def balAccountPath_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_path + 24)),
+    .BNE .x12 .x0 (68 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_path + 32)),
+    .BNE .x11 .x0 (60 : BitVec 13),
+    .LI .x7 (20 : Word),
+    .BNE .x12 .x7 (52 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bacp_hash (GuestAddrs.bal_account_path + 56)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bacp_hash (GuestAddrs.bal_account_path + 56)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bal_account_path + 64)),
+    .AUIPC .x10 (laHi GuestAddrs.bacp_hash (GuestAddrs.bal_account_path + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bacp_hash (GuestAddrs.bal_account_path + 68)),
+    .LI .x11 (32 : Word),
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bal_account_path + 84)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAccountPath_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAccountPath_relocs : RelocTable :=
+  [ (6, .jal .x1 "rlp_walk_init"),
+    (8, .jal .x1 "rlp_walk_next"),
+    (14, .la .x12 "bacp_hash"),
+    (16, .jal .x1 "zkvm_keccak256"),
+    (17, .la .x10 "bacp_hash"),
+    (21, .jal .x1 "bytes_to_nibbles") ]
+
+def balAccountPathFunction : String :=
+  "bal_account_path:\n" ++ emitProgramR balAccountPath_prog balAccountPath_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAccountPath_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAccountPathFunction_eq_prog :
+    balAccountPathFunction = "bal_account_path:\n" ++ emitProgramR balAccountPath_prog balAccountPath_relocs := rfl
+
+#guard balAccountPathFunction.startsWith "bal_account_path:\n"
+#guard balAccountPath_prog.length = 30
 /-- `zisk_bal_account_path`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  AccountChanges RLP length (u64)

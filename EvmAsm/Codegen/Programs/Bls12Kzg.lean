@@ -53,6 +53,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bls12Pairing
 
 namespace EvmAsm.Codegen
@@ -187,75 +190,127 @@ def bls12KzgDataFragment : String :=
     (must not alias `blsk_powacc`). MSB-first square-and-multiply over
     `blsk_qp1d4_be`, one Arith384Mod per step (the `blsg2_fp_inv`
     recipe with the sqrt exponent). -/
-def bls12KzgFpPowQ14Function : String :=
-  "blsk_fp_pow_q14:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                      # base\n" ++
-  "  mv s1, a1                      # result\n" ++
-  "  la a0, blsf_le_one\n" ++
-  "  la a1, blsk_powacc\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads        # acc = 1\n" ++
-  "  li s2, 0                       # exponent byte index\n" ++
-  ".Lblsk_pow_byte:\n" ++
-  "  li t0, 48\n" ++
-  "  bgeu s2, t0, .Lblsk_pow_done\n" ++
-  "  la t0, blsk_qp1d4_be\n" ++
-  "  add t0, t0, s2\n" ++
-  "  lbu s3, 0(t0)\n" ++
-  "  li s4, 128\n" ++
-  ".Lblsk_pow_bit:\n" ++
-  "  beqz s4, .Lblsk_pow_next\n" ++
-  "  la a0, blsk_powacc\n" ++
-  "  la a1, blsk_powacc\n" ++
-  "  la a2, blsk_powacc\n" ++
-  "  jal ra, blsg2_fp_mul           # acc = acc^2\n" ++
-  "  and t0, s3, s4\n" ++
-  "  beqz t0, .Lblsk_pow_skip\n" ++
-  "  la a0, blsk_powacc\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, blsk_powacc\n" ++
-  "  jal ra, blsg2_fp_mul           # acc *= base\n" ++
-  ".Lblsk_pow_skip:\n" ++
-  "  srli s4, s4, 1\n" ++
-  "  j .Lblsk_pow_bit\n" ++
-  ".Lblsk_pow_next:\n" ++
-  "  addi s2, s2, 1\n" ++
-  "  j .Lblsk_pow_byte\n" ++
-  ".Lblsk_pow_done:\n" ++
-  "  la a0, blsk_powacc\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def blskFpPowQ14_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_le_one (GuestAddrs.blsk_fp_pow_q14 + 36)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_le_one (GuestAddrs.blsk_fp_pow_q14 + 36)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 44)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 44)),
+    .LI .x12 (6 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsk_fp_pow_q14 + 56)),
+    .LI .x18 (0 : Word),
+    .LI .x5 (48 : Word),
+    .BGEU .x18 .x5 (104 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.blsk_qp1d4_be (GuestAddrs.blsk_fp_pow_q14 + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.blsk_qp1d4_be (GuestAddrs.blsk_fp_pow_q14 + 72)),
+    .ADD .x5 .x5 .x18,
+    .LBU .x19 .x5 (0 : BitVec 12),
+    .LI .x20 (128 : Word),
+    .BEQ .x20 .x0 (72 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 96)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 96)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 104)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 104)),
+    .AUIPC .x12 (laHi GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 112)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 112)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blsk_fp_pow_q14 + 120)),
+    .AND .x5 .x19 .x20,
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 132)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 132)),
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 144)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 144)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blsk_fp_pow_q14 + 152)),
+    .SRLI .x20 .x20 (1 : BitVec 6),
+    .JAL .x0 (-68 : BitVec 21),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .JAL .x0 (-104 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 172)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_powacc (GuestAddrs.blsk_fp_pow_q14 + 172)),
+    .MV .x11 .x9,
+    .LI .x12 (6 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsk_fp_pow_q14 + 188)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blskFpPowQ14_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blskFpPowQ14_relocs : RelocTable :=
+  [ (9, .la .x10 "blsf_le_one"),
+    (11, .la .x11 "blsk_powacc"),
+    (14, .jal .x1 "blsf_copy_quads"),
+    (18, .la .x5 "blsk_qp1d4_be"),
+    (24, .la .x10 "blsk_powacc"),
+    (26, .la .x11 "blsk_powacc"),
+    (28, .la .x12 "blsk_powacc"),
+    (30, .jal .x1 "blsg2_fp_mul"),
+    (33, .la .x10 "blsk_powacc"),
+    (36, .la .x12 "blsk_powacc"),
+    (38, .jal .x1 "blsg2_fp_mul"),
+    (43, .la .x10 "blsk_powacc"),
+    (47, .jal .x1 "blsf_copy_quads") ]
+
+def bls12KzgFpPowQ14Function : String :=
+  "blsk_fp_pow_q14:\n" ++ emitProgramR blskFpPowQ14_prog blskFpPowQ14_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blskFpPowQ14_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12KzgFpPowQ14Function_eq_prog :
+    bls12KzgFpPowQ14Function = "blsk_fp_pow_q14:\n" ++ emitProgramR blskFpPowQ14_prog blskFpPowQ14_relocs := rfl
+
+#guard bls12KzgFpPowQ14Function.startsWith "blsk_fp_pow_q14:\n"
+#guard blskFpPowQ14_prog.length = 56
 /-- a0 = 1 iff the a2-byte big-endian integer at a0 is strictly less
     than the one at a1. Leaf (generic sibling of `blsg_lt_p`). -/
-def bls12KzgLtBeFunction : String :=
-  "blsk_lt_be:\n" ++
-  "  mv t0, a0\n" ++
-  "  mv t1, a1\n" ++
-  "  mv t2, a2\n" ++
-  ".Lblsk_ltbe_loop:\n" ++
-  "  beqz t2, .Lblsk_ltbe_no        # equal => not less\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  lbu t4, 0(t1)\n" ++
-  "  bltu t3, t4, .Lblsk_ltbe_yes\n" ++
-  "  bltu t4, t3, .Lblsk_ltbe_no\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lblsk_ltbe_loop\n" ++
-  ".Lblsk_ltbe_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblsk_ltbe_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def blskLtBe_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x7 .x12,
+    .BEQ .x7 .x0 (44 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BLTU .x28 .x29 (24 : BitVec 13),
+    .BLTU .x29 .x28 (28 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12KzgLtBeFunction : String :=
+  "blsk_lt_be:\n" ++ emitProgram blskLtBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blskLtBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12KzgLtBeFunction_eq_prog :
+    bls12KzgLtBeFunction = "blsk_lt_be:\n" ++ emitProgram blskLtBe_prog := rfl
+
+#guard bls12KzgLtBeFunction.startsWith "blsk_lt_be:\n"
+#guard blskLtBe_prog.length = 16
 /-- Decompress one 48-byte compressed G1 point (py_ecc `decompress_G1`
     + the `validate_kzg_g1` infinity rule): a0 = input bytes (any
     alignment), a1 = compact 96-byte BE output. Returns a0 = 0 (valid
@@ -408,68 +463,98 @@ def bls12KzgNegScalarFunction : String :=
 /-- Encode a compact 96-byte BE G1 point (a0) as a 128-byte EIP-2537
     wire record at a1 (zero pads written; (0,0) stays all-zero). Leaf;
     byte ops, so alignment is free. -/
-def bls12KzgG1WireFunction : String :=
-  "blsk_g1_wire:\n" ++
-  "  li t0, 0                       # coord index 0/1\n" ++
-  ".Lblsk_g1w_coord:\n" ++
-  "  slli t1, t0, 6\n" ++
-  "  add t1, a1, t1                 # wire felt base\n" ++
-  "  li t2, 16\n" ++
-  ".Lblsk_g1w_pad:\n" ++
-  "  sb zero, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblsk_g1w_pad\n" ++
-  "  slli t2, t0, 4\n" ++
-  "  slli t3, t0, 5\n" ++
-  "  add t2, t2, t3                 # 48 * coord index\n" ++
-  "  add t2, a0, t2\n" ++
-  "  li t3, 48\n" ++
-  ".Lblsk_g1w_copy:\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  sb t4, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  bnez t3, .Lblsk_g1w_copy\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 2\n" ++
-  "  bne t0, t1, .Lblsk_g1w_coord\n" ++
-  "  ret"
+def blskG1Wire_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .SLLI .x6 .x5 (6 : BitVec 6),
+    .ADD .x6 .x11 .x6,
+    .LI .x7 (16 : Word),
+    .SB .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .SLLI .x7 .x5 (4 : BitVec 6),
+    .SLLI .x28 .x5 (5 : BitVec 6),
+    .ADD .x7 .x7 .x28,
+    .ADD .x7 .x10 .x7,
+    .LI .x28 (48 : Word),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .BNE .x28 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (2 : Word),
+    .BNE .x5 .x6 (-80 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12KzgG1WireFunction : String :=
+  "blsk_g1_wire:\n" ++ emitProgram blskG1Wire_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blskG1Wire_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12KzgG1WireFunction_eq_prog :
+    bls12KzgG1WireFunction = "blsk_g1_wire:\n" ++ emitProgram blskG1Wire_prog := rfl
+
+#guard bls12KzgG1WireFunction.startsWith "blsk_g1_wire:\n"
+#guard blskG1Wire_prog.length = 23
 /-- Encode a 192-byte LE G2 point (a0) as a 256-byte EIP-2537 wire
     record at a1 (zero pads written; all-zero stays all-zero). -/
-def bls12KzgG2WireFunction : String :=
-  "blsk_g2_wire:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  li s2, 0                       # felt index 0..3\n" ++
-  ".Lblsk_g2w_felt:\n" ++
-  "  slli t0, s2, 6\n" ++
-  "  add t1, s1, t0\n" ++
-  "  li t2, 16\n" ++
-  ".Lblsk_g2w_pad:\n" ++
-  "  sb zero, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblsk_g2w_pad\n" ++
-  "  slli t0, s2, 4\n" ++
-  "  slli t2, s2, 5\n" ++
-  "  add t0, t0, t2                 # 48 * felt index\n" ++
-  "  add a0, s0, t0\n" ++
-  "  slli t0, s2, 6\n" ++
-  "  add a1, s1, t0\n" ++
-  "  addi a1, a1, 16\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  "  addi s2, s2, 1\n" ++
-  "  li t0, 4\n" ++
-  "  bne s2, t0, .Lblsk_g2w_felt\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blskG2Wire_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .LI .x18 (0 : Word),
+    .SLLI .x5 .x18 (6 : BitVec 6),
+    .ADD .x6 .x9 .x5,
+    .LI .x7 (16 : Word),
+    .SB .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .SLLI .x5 .x18 (4 : BitVec 6),
+    .SLLI .x7 .x18 (5 : BitVec 6),
+    .ADD .x5 .x5 .x7,
+    .ADD .x10 .x8 .x5,
+    .SLLI .x5 .x18 (6 : BitVec 6),
+    .ADD .x11 .x9 .x5,
+    .ADDI .x11 .x11 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsk_g2_wire + 88)),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .BNE .x18 .x5 (-68 : BitVec 13),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blskG2Wire_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blskG2Wire_relocs : RelocTable :=
+  [ (22, .jal .x1 "blsg_le_to_be") ]
+
+def bls12KzgG2WireFunction : String :=
+  "blsk_g2_wire:\n" ++ emitProgramR blskG2Wire_prog blskG2Wire_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blskG2Wire_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12KzgG2WireFunction_eq_prog :
+    bls12KzgG2WireFunction = "blsk_g2_wire:\n" ++ emitProgramR blskG2Wire_prog blskG2Wire_relocs := rfl
+
+#guard bls12KzgG2WireFunction.startsWith "blsk_g2_wire:\n"
+#guard blskG2Wire_prog.length = 32
 /-- Real KZG point-evaluation kernel (see the module docstring for the
     ABI and the verify_kzg_proof equation). -/
 def zkvmKzgPointEvalRealFunction : String :=

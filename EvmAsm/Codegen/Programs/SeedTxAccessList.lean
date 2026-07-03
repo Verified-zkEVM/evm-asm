@@ -25,6 +25,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.EvmAccessGas
@@ -212,75 +215,147 @@ def seedTxAccessListDataSection : String :=
 
     The returned span is the whole encoded access_list item, including its RLP
     list prefix, so callers can pass it directly to `seed_tx_access_list`. -/
-def txAccessListSpanFunction : String :=
-  "tx_access_list_span:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # tx ptr\n" ++
-  "  mv s1, a1                   # tx len\n" ++
-  "  mv s2, a2                   # span ptr out\n" ++
-  "  mv s3, a3                   # span len out\n" ++
-  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, txal_type; la a3, txal_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Ltxal_fail\n" ++
-  "  la t0, txal_type; ld s4, 0(t0)\n" ++
-  "  la t0, txal_inner_off; ld t1, 0(t0)\n" ++
-  "  beqz s4, .Ltxal_none\n" ++
-  "  add s5, s0, t1              # inner ptr\n" ++
-  "  sub s6, s1, t1              # inner len\n" ++
-  "  li t0, 1\n" ++
-  "  beq s4, t0, .Ltxal_type1\n" ++
-  "  li t0, 2\n" ++
-  "  beq s4, t0, .Ltxal_type2\n" ++
-  "  li t0, 3\n" ++
-  "  beq s4, t0, .Ltxal_type3\n" ++
-  "  li t0, 4\n" ++
-  "  beq s4, t0, .Ltxal_type4\n" ++
-  "  j .Ltxal_fail\n" ++
-  ".Ltxal_type1:\n" ++
-  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
-  "  jal ra, tx_eip2930_decode\n" ++
-  "  bnez a0, .Ltxal_fail\n" ++
-  "  la t0, txal_decode; ld t1, 128(t0); ld t2, 136(t0)\n" ++
-  "  j .Ltxal_have_span\n" ++
-  ".Ltxal_type2:\n" ++
-  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
-  "  jal ra, tx_eip1559_decode\n" ++
-  "  bnez a0, .Ltxal_fail\n" ++
-  "  la t0, txal_decode; ld t1, 160(t0); ld t2, 168(t0)\n" ++
-  "  j .Ltxal_have_span\n" ++
-  ".Ltxal_type3:\n" ++
-  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
-  "  jal ra, tx_eip4844_decode\n" ++
-  "  bnez a0, .Ltxal_fail\n" ++
-  "  la t0, txal_decode; lwu t1, 152(t0); lwu t2, 156(t0)\n" ++
-  "  j .Ltxal_have_span\n" ++
-  ".Ltxal_type4:\n" ++
-  "  mv a0, s5; mv a1, s6; la a2, txal_decode\n" ++
-  "  jal ra, tx_eip7702_decode\n" ++
-  "  bnez a0, .Ltxal_fail\n" ++
-  "  la t0, txal_decode; lwu t1, 152(t0); lwu t2, 156(t0)\n" ++
-  ".Ltxal_have_span:\n" ++
-  "  add t3, s5, t1\n" ++
-  "  sd t3, 0(s2); sd t2, 0(s3)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltxal_ret\n" ++
-  ".Ltxal_none:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Ltxal_ret\n" ++
-  ".Ltxal_fail:\n" ++
-  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
-  "  li a0, 2\n" ++
-  ".Ltxal_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def txAccessListSpan_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.txal_type (GuestAddrs.tx_access_list_span + 68)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.txal_type (GuestAddrs.tx_access_list_span + 68)),
+    .AUIPC .x13 (laHi GuestAddrs.txal_inner_off (GuestAddrs.tx_access_list_span + 76)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.txal_inner_off (GuestAddrs.tx_access_list_span + 76)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.tx_access_list_span + 84)),
+    .BNE .x10 .x0 (276 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.txal_type (GuestAddrs.tx_access_list_span + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txal_type (GuestAddrs.tx_access_list_span + 92)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.txal_inner_off (GuestAddrs.tx_access_list_span + 104)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txal_inner_off (GuestAddrs.tx_access_list_span + 104)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x20 .x0 (240 : BitVec 13),
+    .ADD .x21 .x8 .x6,
+    .SUB .x22 .x9 .x6,
+    .LI .x5 (1 : Word),
+    .BEQ .x20 .x5 (32 : BitVec 13),
+    .LI .x5 (2 : Word),
+    .BEQ .x20 .x5 (68 : BitVec 13),
+    .LI .x5 (3 : Word),
+    .BEQ .x20 .x5 (104 : BitVec 13),
+    .LI .x5 (4 : Word),
+    .BEQ .x20 .x5 (140 : BitVec 13),
+    .JAL .x0 (204 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .AUIPC .x12 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 172)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 172)),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip2930_decode (GuestAddrs.tx_access_list_span + 180)),
+    .BNE .x10 .x0 (180 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 188)),
+    .LD .x6 .x5 (128 : BitVec 12),
+    .LD .x7 .x5 (136 : BitVec 12),
+    .JAL .x0 (132 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .AUIPC .x12 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 216)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 216)),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip1559_decode (GuestAddrs.tx_access_list_span + 224)),
+    .BNE .x10 .x0 (136 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 232)),
+    .LD .x6 .x5 (160 : BitVec 12),
+    .LD .x7 .x5 (168 : BitVec 12),
+    .JAL .x0 (88 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .AUIPC .x12 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 260)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 260)),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip4844_decode (GuestAddrs.tx_access_list_span + 268)),
+    .BNE .x10 .x0 (92 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 276)),
+    .LWU .x6 .x5 (152 : BitVec 12),
+    .LWU .x7 .x5 (156 : BitVec 12),
+    .JAL .x0 (44 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .AUIPC .x12 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 304)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 304)),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip7702_decode (GuestAddrs.tx_access_list_span + 312)),
+    .BNE .x10 .x0 (48 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 320)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txal_decode (GuestAddrs.tx_access_list_span + 320)),
+    .LWU .x6 .x5 (152 : BitVec 12),
+    .LWU .x7 .x5 (156 : BitVec 12),
+    .ADD .x28 .x21 .x6,
+    .SD .x18 .x28 (0 : BitVec 12),
+    .SD .x19 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txAccessListSpan_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txAccessListSpan_relocs : RelocTable :=
+  [ (17, .la .x12 "txal_type"),
+    (19, .la .x13 "txal_inner_off"),
+    (21, .jal .x1 "tx_type_dispatch"),
+    (23, .la .x5 "txal_type"),
+    (26, .la .x5 "txal_inner_off"),
+    (43, .la .x12 "txal_decode"),
+    (45, .jal .x1 "tx_eip2930_decode"),
+    (47, .la .x5 "txal_decode"),
+    (54, .la .x12 "txal_decode"),
+    (56, .jal .x1 "tx_eip1559_decode"),
+    (58, .la .x5 "txal_decode"),
+    (65, .la .x12 "txal_decode"),
+    (67, .jal .x1 "tx_eip4844_decode"),
+    (69, .la .x5 "txal_decode"),
+    (76, .la .x12 "txal_decode"),
+    (78, .jal .x1 "tx_eip7702_decode"),
+    (80, .la .x5 "txal_decode") ]
+
+def txAccessListSpanFunction : String :=
+  "tx_access_list_span:\n" ++ emitProgramR txAccessListSpan_prog txAccessListSpan_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txAccessListSpan_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txAccessListSpanFunction_eq_prog :
+    txAccessListSpanFunction = "tx_access_list_span:\n" ++ emitProgramR txAccessListSpan_prog txAccessListSpan_relocs := rfl
+
+#guard txAccessListSpanFunction.startsWith "tx_access_list_span:\n"
+#guard txAccessListSpan_prog.length = 104
 def txAccessListSpanDataSection : String :=
   ".balign 8\n" ++
   "txal_type:\n  .zero 8\n" ++

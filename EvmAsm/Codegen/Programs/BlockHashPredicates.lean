@@ -19,6 +19,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -338,82 +341,107 @@ def ziskBlockHashAndExtractNumberProbeUnit : BuildUnit := {
         1 miss
         2 RLP parse failure on some header along the way
 -/
-def blockhashFromWitnessHeadersFunction : String :=
-  "blockhash_from_witness_headers:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s7, a0                  # target block number\n" ++
-  "  mv s0, a1                  # section ptr\n" ++
-  "  mv s1, a2                  # section_len\n" ++
-  "  mv s2, a3                  # block hash output ptr\n" ++
-  "  mv s3, a4                  # offset out ptr\n" ++
-  "  mv s4, a5                  # length out ptr\n" ++
-  "  beqz s1, .Lbhfwh_miss      # empty section ⇒ miss\n" ++
-  "  lwu t0, 0(s0)              # first inner offset = 4 * N\n" ++
-  "  srli s5, t0, 2             # s5 = N\n" ++
-  "  li s6, 0                   # s6 = i\n" ++
-  ".Lbhfwh_loop:\n" ++
-  "  beq s6, s5, .Lbhfwh_miss\n" ++
-  "  # Compute element i bounds.\n" ++
-  "  slli t0, s6, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s6, 1\n" ++
-  "  beq t3, s5, .Lbhfwh_use_end\n" ++
-  "  slli t3, t3, 2             # 4*(i+1)\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lbhfwh_have_end\n" ++
-  ".Lbhfwh_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lbhfwh_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  la a2, bhfwh_number_buf\n" ++
-  "  jal ra, header_extract_number\n" ++
-  "  beqz a0, .Lbhfwh_compare\n" ++
-  "  li a0, 2                   # any header that fails to parse number ⇒ status 2\n" ++
-  "  j .Lbhfwh_ret\n" ++
-  ".Lbhfwh_compare:\n" ++
-  "  la t0, bhfwh_number_buf; ld t1, 0(t0)\n" ++
-  "  beq t1, s7, .Lbhfwh_match\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lbhfwh_loop\n" ++
-  ".Lbhfwh_match:\n" ++
-  "  # Recompute (offset, length) since they were clobbered.\n" ++
-  "  slli t0, s6, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)\n" ++
-  "  add a0, s0, t2             # el_start\n" ++
-  "  sd t2, 0(s3)               # *out_offset\n" ++
-  "  addi t3, s6, 1\n" ++
-  "  beq t3, s5, .Lbhfwh_last\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  sub t4, t4, t2             # length\n" ++
-  "  j .Lbhfwh_store_len\n" ++
-  ".Lbhfwh_last:\n" ++
-  "  sub t4, s1, t2\n" ++
-  ".Lbhfwh_store_len:\n" ++
-  "  sd t4, 0(s4)               # *out_length\n" ++
-  "  mv a1, t4                  # length argument for keccak\n" ++
-  "  mv a2, s2                  # block hash out ptr\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbhfwh_ret\n" ++
-  ".Lbhfwh_miss:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbhfwh_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def blockhashFromWitnessHeaders_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x23 .x10,
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .MV .x19 .x14,
+    .MV .x20 .x15,
+    .BEQ .x9 .x0 (196 : BitVec 13),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x21 .x5 (2 : BitVec 6),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x21 (180 : BitVec 13),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x22 (1 : BitVec 12),
+    .BEQ .x28 .x21 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .AUIPC .x12 (laHi GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 136)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 136)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_number (GuestAddrs.blockhash_from_witness_headers + 144)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (108 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhfwh_number_buf (GuestAddrs.blockhash_from_witness_headers + 160)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x23 (12 : BitVec 13),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-100 : BitVec 21),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .SD .x19 .x7 (0 : BitVec 12),
+    .ADDI .x28 .x22 (1 : BitVec 12),
+    .BEQ .x28 .x21 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .SUB .x29 .x29 .x7,
+    .JAL .x0 (8 : BitVec 21),
+    .SUB .x29 .x9 .x7,
+    .SD .x20 .x29 (0 : BitVec 12),
+    .MV .x11 .x29,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.blockhash_from_witness_headers + 248)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockhashFromWitnessHeaders_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockhashFromWitnessHeaders_relocs : RelocTable :=
+  [ (34, .la .x12 "bhfwh_number_buf"),
+    (36, .jal .x1 "header_extract_number"),
+    (40, .la .x5 "bhfwh_number_buf"),
+    (62, .jal .x1 "zkvm_keccak256") ]
+
+def blockhashFromWitnessHeadersFunction : String :=
+  "blockhash_from_witness_headers:\n" ++ emitProgramR blockhashFromWitnessHeaders_prog blockhashFromWitnessHeaders_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockhashFromWitnessHeaders_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockhashFromWitnessHeadersFunction_eq_prog :
+    blockhashFromWitnessHeadersFunction = "blockhash_from_witness_headers:\n" ++ emitProgramR blockhashFromWitnessHeaders_prog blockhashFromWitnessHeaders_relocs := rfl
+
+#guard blockhashFromWitnessHeadersFunction.startsWith "blockhash_from_witness_headers:\n"
+#guard blockhashFromWitnessHeaders_prog.length = 77
 /-- `zisk_blockhash_from_witness_headers`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -676,67 +704,77 @@ def ziskWitnessHeadersChainValidateProbeUnit : BuildUnit := {
         0 = success (is_match holds 0 or 1)
         1 = witness.headers section is empty (is_match = 0)
 -/
-def parentHeaderMatchesWitnessFirstFunction : String :=
-  "parent_header_matches_witness_first:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # parent_header_rlp ptr\n" ++
-  "  mv s1, a1                  # parent_header_rlp_len\n" ++
-  "  mv s2, a2                  # section ptr\n" ++
-  "  mv s3, a3                  # section_len\n" ++
-  "  mv s4, a4                  # is_match out ptr\n" ++
-  "  sd zero, 0(s4)\n" ++
-  "  beqz s3, .Lphmw_empty       # empty section -> status 1\n" ++
-  "  # Compute element 0 bounds (SSZ list).\n" ++
-  "  lwu t0, 0(s2)\n" ++
-  "  srli t0, t0, 2              # N = first_offset / 4\n" ++
-  "  beqz t0, .Lphmw_empty      # zero entries\n" ++
-  "  lwu t1, 0(s2)               # el_0 inner offset (= 4 * N)\n" ++
-  "  add s5, s2, t1              # el_0 start\n" ++
-  "  # el_0 end: if N > 1, read offset[1] (4 bytes at offset 4); else use section_end.\n" ++
-  "  li t2, 1\n" ++
-  "  bgtu t0, t2, .Lphmw_have_next\n" ++
-  "  add s6, s2, s3              # el_0_end = section_end\n" ++
-  "  j .Lphmw_compare\n" ++
-  ".Lphmw_have_next:\n" ++
-  "  lwu t2, 4(s2)\n" ++
-  "  add s6, s2, t2              # el_0_end = section + inner_off[1]\n" ++
-  ".Lphmw_compare:\n" ++
-  "  sub t0, s6, s5              # el_0 length\n" ++
-  "  # Length must match parent_header_rlp_len.\n" ++
-  "  bne t0, s1, .Lphmw_no_match_success\n" ++
-  "  # Byte-compare s0..s0+s1 against s5..s6.\n" ++
-  "  mv t1, s0\n" ++
-  "  mv t2, s5\n" ++
-  "  mv t3, s1\n" ++
-  ".Lphmw_loop:\n" ++
-  "  beqz t3, .Lphmw_match\n" ++
-  "  lbu t4, 0(t1)\n" ++
-  "  lbu t5, 0(t2)\n" ++
-  "  bne t4, t5, .Lphmw_no_match_success\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lphmw_loop\n" ++
-  ".Lphmw_match:\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lphmw_ret\n" ++
-  ".Lphmw_no_match_success:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lphmw_ret\n" ++
-  ".Lphmw_empty:\n" ++
-  "  li a0, 1\n" ++
-  ".Lphmw_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def parentHeaderMatchesWitnessFirst_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .SD .x20 .x0 (0 : BitVec 12),
+    .BEQ .x19 .x0 (124 : BitVec 13),
+    .LWU .x5 .x18 (0 : BitVec 12),
+    .SRLI .x5 .x5 (2 : BitVec 6),
+    .BEQ .x5 .x0 (112 : BitVec 13),
+    .LWU .x6 .x18 (0 : BitVec 12),
+    .ADD .x21 .x18 .x6,
+    .LI .x7 (1 : Word),
+    .BLTU .x7 .x5 (12 : BitVec 13),
+    .ADD .x22 .x18 .x19,
+    .JAL .x0 (12 : BitVec 21),
+    .LWU .x7 .x18 (4 : BitVec 12),
+    .ADD .x22 .x18 .x7,
+    .SUB .x5 .x22 .x21,
+    .BNE .x5 .x9 (64 : BitVec 13),
+    .MV .x6 .x8,
+    .MV .x7 .x21,
+    .MV .x28 .x9,
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .BNE .x29 .x30 (36 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x6 (1 : Word),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def parentHeaderMatchesWitnessFirstFunction : String :=
+  "parent_header_matches_witness_first:\n" ++ emitProgram parentHeaderMatchesWitnessFirst_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `parentHeaderMatchesWitnessFirst_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem parentHeaderMatchesWitnessFirstFunction_eq_prog :
+    parentHeaderMatchesWitnessFirstFunction = "parent_header_matches_witness_first:\n" ++ emitProgram parentHeaderMatchesWitnessFirst_prog := rfl
+
+#guard parentHeaderMatchesWitnessFirstFunction.startsWith "parent_header_matches_witness_first:\n"
+#guard parentHeaderMatchesWitnessFirst_prog.length = 57
 /-- `zisk_parent_header_matches_witness_first`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

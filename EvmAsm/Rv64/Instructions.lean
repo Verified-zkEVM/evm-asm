@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Rv64.Basic
+import EvmAsm.Rv64.ZiskAccel
 
 namespace EvmAsm.Rv64
 
@@ -35,6 +36,7 @@ def Instr.isMemAccess : Instr → Bool
   | .LHU _ _ _  => true
   | .SB _ _ _   => true
   | .SH _ _ _   => true
+  | .CSRS _ _   => true  -- accelerator call: reads/writes operand blocks
   | _           => false
 
 -- ============================================================================
@@ -272,6 +274,7 @@ def execInstr (s : MachineState) (i : Instr) : MachineState :=
         s.setReg rd (rv64_rem (s.getReg rs1) (s.getReg rs2))
     | .REMU rd rs1 rs2 =>
         s.setReg rd (rv64_remu (s.getReg rs1) (s.getReg rs2))
+    | .CSRS csr rs1 => s.execCsrs csr rs1
     | .BEQ _ _ _ | .BNE _ _ _ | .BLT _ _ _ | .BGE _ _ _
     | .BLTU _ _ _ | .BGEU _ _ _ | .JAL _ _ | .JALR _ _ _ | .ECALL => s
   s'.setPC (s'.pc + 4#64)

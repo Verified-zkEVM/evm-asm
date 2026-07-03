@@ -17,6 +17,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.RlpRead
@@ -133,58 +136,83 @@ def ziskMptAccountPathNibblesProbeUnit : BuildUnit := {
     scratches (`mnk_dummy_offset`, `mnk_dummy_length`,
     `mnk_path_offset`, `mnk_path_length`) for the temporary
     returns. -/
-def mptNodeKindFunction : String :=
-  "mpt_node_kind:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                  # node ptr\n" ++
-  "  mv s1, a1                  # node_len\n" ++
-  "  # Probe item 2 (index 2). If found ⇒ 17-item branch list.\n" ++
-  "  li a2, 2\n" ++
-  "  la a3, mnk_dummy_offset\n" ++
-  "  la a4, mnk_dummy_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  beqz a0, .Lmnk_branch\n" ++
-  "  # Item 2 absent ⇒ 2-item list (leaf or extension).\n" ++
-  "  # Get item 0 to read path's first byte.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, mnk_path_offset\n" ++
-  "  la a4, mnk_path_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmnk_fail        # item 0 missing ⇒ parse fail\n" ++
-  "  la t0, mnk_path_offset\n" ++
-  "  ld t1, 0(t0)               # path content offset\n" ++
-  "  la t0, mnk_path_length\n" ++
-  "  ld t2, 0(t0)               # path content length\n" ++
-  "  beqz t2, .Lmnk_fail        # empty path ⇒ malformed HP\n" ++
-  "  add t3, s0, t1             # path byte ptr\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  srli t4, t4, 4             # high nibble\n" ++
-  "  li t5, 2\n" ++
-  "  bltu t4, t5, .Lmnk_extension  # 0,1 → extension\n" ++
-  "  li t5, 4\n" ++
-  "  bltu t4, t5, .Lmnk_leaf       # 2,3 → leaf\n" ++
-  "  j .Lmnk_fail                   # ≥ 4 → invalid HP\n" ++
-  ".Lmnk_branch:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmnk_ret\n" ++
-  ".Lmnk_extension:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lmnk_ret\n" ++
-  ".Lmnk_leaf:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lmnk_ret\n" ++
-  ".Lmnk_fail:\n" ++
-  "  li a0, 3\n" ++
-  ".Lmnk_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def mptNodeKind_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mnk_dummy_offset (GuestAddrs.mpt_node_kind + 28)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mnk_dummy_offset (GuestAddrs.mpt_node_kind + 28)),
+    .AUIPC .x14 (laHi GuestAddrs.mnk_dummy_length (GuestAddrs.mpt_node_kind + 36)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mnk_dummy_length (GuestAddrs.mpt_node_kind + 36)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 44)),
+    .BEQ .x10 .x0 (100 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 64)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 64)),
+    .AUIPC .x14 (laHi GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 72)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 72)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 80)),
+    .BNE .x10 .x0 (88 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 100)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .BEQ .x7 .x0 (60 : BitVec 13),
+    .ADD .x28 .x8 .x6,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .SRLI .x29 .x29 (4 : BitVec 6),
+    .LI .x30 (2 : Word),
+    .BLTU .x29 .x30 (24 : BitVec 13),
+    .LI .x30 (4 : Word),
+    .BLTU .x29 .x30 (24 : BitVec 13),
+    .JAL .x0 (28 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptNodeKind_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptNodeKind_relocs : RelocTable :=
+  [ (7, .la .x13 "mnk_dummy_offset"),
+    (9, .la .x14 "mnk_dummy_length"),
+    (11, .jal .x1 "rlp_list_nth_item"),
+    (16, .la .x13 "mnk_path_offset"),
+    (18, .la .x14 "mnk_path_length"),
+    (20, .jal .x1 "rlp_list_nth_item"),
+    (22, .la .x5 "mnk_path_offset"),
+    (25, .la .x5 "mnk_path_length") ]
+
+def mptNodeKindFunction : String :=
+  "mpt_node_kind:\n" ++ emitProgramR mptNodeKind_prog mptNodeKind_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptNodeKind_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptNodeKindFunction_eq_prog :
+    mptNodeKindFunction = "mpt_node_kind:\n" ++ emitProgramR mptNodeKind_prog mptNodeKind_relocs := rfl
+
+#guard mptNodeKindFunction.startsWith "mpt_node_kind:\n"
+#guard mptNodeKind_prog.length = 49
 /-- `zisk_mpt_node_kind`: probe BuildUnit. Reads
     (node_len, node_bytes) from host input, writes
     classification result to OUTPUT.
@@ -252,72 +280,109 @@ def ziskMptNodeKindProbeUnit : BuildUnit := {
     node; if applied to a 2-item leaf/extension, items 0 and 1
     are returned according to the same length-driven rules but
     the semantics aren't branch-children. -/
-def mptBranchChildFunction : String :=
-  "mpt_branch_child:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0                  # node ptr\n" ++
-  "  mv s1, a1                  # node_len\n" ++
-  "  mv s2, a2                  # nibble\n" ++
-  "  mv s3, a3                  # out ptr\n" ++
-  "  li t0, 16\n" ++
-  "  bgeu s2, t0, .Lmbc_fail    # nibble ≥ 16 → out of range\n" ++
-  "  # Call rlp_list_nth_item(node, len, nibble, &mbc_offset, &mbc_length).\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, mbc_offset\n" ++
-  "  la a4, mbc_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmbc_fail\n" ++
-  "  la t0, mbc_length\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lmbc_empty       # length 0 ⇒ empty slot\n" ++
-  "  li t0, 32\n" ++
-  "  bne t1, t0, .Lmbc_inlined  # length != 32 ⇒ inlined\n" ++
-  "  # Hash slot: copy 32 bytes from node + offset to out.\n" ++
-  "  la t0, mbc_offset\n" ++
-  "  ld t2, 0(t0)\n" ++
-  "  add t2, s0, t2             # src\n" ++
-  "  ld t3,  0(t2); sd t3,  0(s3)\n" ++
-  "  ld t3,  8(t2); sd t3,  8(s3)\n" ++
-  "  ld t3, 16(t2); sd t3, 16(s3)\n" ++
-  "  ld t3, 24(t2); sd t3, 24(s3)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmbc_ret\n" ++
-  ".Lmbc_empty:\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3)\n" ++
-  "  sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lmbc_ret\n" ++
-  ".Lmbc_inlined:\n" ++
-  "  # Length 1..31. Zero the output, then byte-copy `length` bytes.\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3)\n" ++
-  "  sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  la t0, mbc_offset\n" ++
-  "  ld t2, 0(t0)\n" ++
-  "  add t2, s0, t2             # src cursor\n" ++
-  "  mv t3, s3                  # dst cursor\n" ++
-  ".Lmbc_inline_cp:\n" ++
-  "  beqz t1, .Lmbc_inline_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  sb  t4, 0(t3)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmbc_inline_cp\n" ++
-  ".Lmbc_inline_done:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lmbc_ret\n" ++
-  ".Lmbc_fail:\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3)\n" ++
-  "  sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  li a0, 3\n" ++
-  ".Lmbc_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def mptBranchChild_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .LI .x5 (16 : Word),
+    .BGEU .x18 .x5 (216 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.mbc_offset (GuestAddrs.mpt_branch_child + 60)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mbc_offset (GuestAddrs.mpt_branch_child + 60)),
+    .AUIPC .x14 (laHi GuestAddrs.mbc_length (GuestAddrs.mpt_branch_child + 68)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mbc_length (GuestAddrs.mpt_branch_child + 68)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_branch_child + 76)),
+    .BNE .x10 .x0 (180 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mbc_length (GuestAddrs.mpt_branch_child + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mbc_length (GuestAddrs.mpt_branch_child + 84)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (68 : BitVec 13),
+    .LI .x5 (32 : Word),
+    .BNE .x6 .x5 (84 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mbc_offset (GuestAddrs.mpt_branch_child + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mbc_offset (GuestAddrs.mpt_branch_child + 108)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x8 .x7,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .SD .x19 .x28 (0 : BitVec 12),
+    .LD .x28 .x7 (8 : BitVec 12),
+    .SD .x19 .x28 (8 : BitVec 12),
+    .LD .x28 .x7 (16 : BitVec 12),
+    .SD .x19 .x28 (16 : BitVec 12),
+    .LD .x28 .x7 (24 : BitVec 12),
+    .SD .x19 .x28 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (120 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (96 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mbc_offset (GuestAddrs.mpt_branch_child + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mbc_offset (GuestAddrs.mpt_branch_child + 204)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x8 .x7,
+    .MV .x28 .x19,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x28 .x29 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptBranchChild_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptBranchChild_relocs : RelocTable :=
+  [ (15, .la .x13 "mbc_offset"),
+    (17, .la .x14 "mbc_length"),
+    (19, .jal .x1 "rlp_list_nth_item"),
+    (21, .la .x5 "mbc_length"),
+    (27, .la .x5 "mbc_offset"),
+    (51, .la .x5 "mbc_offset") ]
+
+def mptBranchChildFunction : String :=
+  "mpt_branch_child:\n" ++ emitProgramR mptBranchChild_prog mptBranchChild_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptBranchChild_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptBranchChildFunction_eq_prog :
+    mptBranchChildFunction = "mpt_branch_child:\n" ++ emitProgramR mptBranchChild_prog mptBranchChild_relocs := rfl
+
+#guard mptBranchChildFunction.startsWith "mpt_branch_child:\n"
+#guard mptBranchChild_prog.length = 77
 /-- `zisk_mpt_branch_child`: probe BuildUnit. Reads
     (node_len, nibble, node_bytes) from host input, writes
     (status, 32-byte content) to OUTPUT.
@@ -391,66 +456,74 @@ def ziskMptBranchChildProbeUnit : BuildUnit := {
     Each output byte holds one nibble in its low 4 bits; the
     high 4 bits are zero. This is the format consumed by future
     `mpt_walk` (PR-K24) which compares one byte per nibble. -/
-def hpDecodeNibblesFunction : String :=
-  "hp_decode_nibbles:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                  # path_bytes ptr\n" ++
-  "  mv s1, a1                  # len\n" ++
-  "  mv s2, a2                  # out nibble buf\n" ++
-  "  mv s3, a3                  # out count ptr\n" ++
-  "  mv s4, a4                  # out is_leaf ptr\n" ++
-  "  beqz s1, .Lhp_fail\n" ++
-  "  lbu t0, 0(s0)              # b0\n" ++
-  "  srli t1, t0, 4             # high nibble\n" ++
-  "  andi t2, t0, 0xf           # low nibble\n" ++
-  "  li t3, 4\n" ++
-  "  bgeu t1, t3, .Lhp_fail     # high ≥ 4 → invalid\n" ++
-  "  # is_leaf = (high & 2) >> 1\n" ++
-  "  andi t3, t1, 2\n" ++
-  "  srli t3, t3, 1\n" ++
-  "  sd t3, 0(s4)\n" ++
-  "  # is_odd = high & 1\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  beqz t1, .Lhp_even\n" ++
-  "  # Odd: write low as first output nibble.\n" ++
-  "  sb t2, 0(s2)\n" ++
-  "  li t5, 1                   # nibble count so far\n" ++
-  "  addi t6, s2, 1             # output cursor\n" ++
-  "  j .Lhp_loop_init\n" ++
-  ".Lhp_even:\n" ++
-  "  bnez t2, .Lhp_fail         # even but low nibble != 0\n" ++
-  "  li t5, 0\n" ++
-  "  mv t6, s2\n" ++
-  ".Lhp_loop_init:\n" ++
-  "  li t0, 1                   # i = 1\n" ++
-  ".Lhp_loop:\n" ++
-  "  bgeu t0, s1, .Lhp_done\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  srli t3, t2, 4\n" ++
-  "  andi t4, t2, 0xf\n" ++
-  "  sb t3, 0(t6)\n" ++
-  "  sb t4, 1(t6)\n" ++
-  "  addi t6, t6, 2\n" ++
-  "  addi t5, t5, 2\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lhp_loop\n" ++
-  ".Lhp_done:\n" ++
-  "  sd t5, 0(s3)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhp_ret\n" ++
-  ".Lhp_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lhp_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def hpDecodeNibbles_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x9 .x0 (132 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x6 .x5 (4 : BitVec 6),
+    .ANDI .x7 .x5 (15 : BitVec 12),
+    .LI .x28 (4 : Word),
+    .BGEU .x6 .x28 (112 : BitVec 13),
+    .ANDI .x28 .x6 (2 : BitVec 12),
+    .SRLI .x28 .x28 (1 : BitVec 6),
+    .SD .x20 .x28 (0 : BitVec 12),
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .SB .x18 .x7 (0 : BitVec 12),
+    .LI .x30 (1 : Word),
+    .ADDI .x31 .x18 (1 : BitVec 12),
+    .JAL .x0 (16 : BitVec 21),
+    .BNE .x7 .x0 (72 : BitVec 13),
+    .LI .x30 (0 : Word),
+    .MV .x31 .x18,
+    .LI .x5 (1 : Word),
+    .BGEU .x5 .x9 (44 : BitVec 13),
+    .ADD .x6 .x8 .x5,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .SRLI .x28 .x7 (4 : BitVec 6),
+    .ANDI .x29 .x7 (15 : BitVec 12),
+    .SB .x31 .x28 (0 : BitVec 12),
+    .SB .x31 .x29 (1 : BitVec 12),
+    .ADDI .x31 .x31 (2 : BitVec 12),
+    .ADDI .x30 .x30 (2 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .SD .x19 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def hpDecodeNibblesFunction : String :=
+  "hp_decode_nibbles:\n" ++ emitProgram hpDecodeNibbles_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `hpDecodeNibbles_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem hpDecodeNibblesFunction_eq_prog :
+    hpDecodeNibblesFunction = "hp_decode_nibbles:\n" ++ emitProgram hpDecodeNibbles_prog := rfl
+
+#guard hpDecodeNibblesFunction.startsWith "hp_decode_nibbles:\n"
+#guard hpDecodeNibbles_prog.length = 54
 /-- `zisk_hp_decode_nibbles`: probe BuildUnit. Reads
     (path_len, path_bytes) from host input, writes
     (status, count, is_leaf, nibbles...) to OUTPUT.
@@ -509,245 +582,406 @@ def ziskHpDecodeNibblesProbeUnit : BuildUnit := {
     Calls itself transitively via PR-K19..K23 primitives.
     Uses a 256-byte mw_value_buf for the output and ~200 B of
     additional scratch state. -/
-def mptWalkFunction : String :=
-  "mpt_walk:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp)\n" ++
-  "  mv s0, a1                   # s0 = witness ptr\n" ++
-  "  mv s1, a2                   # s1 = witness_len\n" ++
-  "  mv s2, a3                   # s2 = path_nibbles ptr\n" ++
-  "  mv s3, a4                   # s3 = path_nibbles_len\n" ++
-  "  mv s4, a5                   # s4 = value out buf\n" ++
-  "  mv s5, a6                   # s5 = value_len out ptr\n" ++
-  "  # Copy root_hash to mw_lookup_hash for the first lookup.\n" ++
-  "  la t0, mw_lookup_hash\n" ++
-  "  ld t1,  0(a0); sd t1,  0(t0)\n" ++
-  "  ld t1,  8(a0); sd t1,  8(t0)\n" ++
-  "  ld t1, 16(a0); sd t1, 16(t0)\n" ++
-  "  ld t1, 24(a0); sd t1, 24(t0)\n" ++
-  "  # First lookup of root_hash in witness.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, mw_lookup_hash\n" ++
-  "  la a3, mw_lookup_offset\n" ++
-  "  la a4, mw_lookup_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lmw_not_found\n" ++
-  "  # s7 = current node ptr; s8 = current node len; s6 = consumed nibbles.\n" ++
-  "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
-  "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
-  "  li s6, 0\n" ++
-  ".Lmw_loop:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  jal ra, mpt_node_kind\n" ++
-  "  beqz a0, .Lmw_branch\n" ++
-  "  li t0, 1; beq a0, t0, .Lmw_extension\n" ++
-  "  li t0, 2; beq a0, t0, .Lmw_leaf\n" ++
-  "  j .Lmw_parse_fail\n" ++
-  ".Lmw_branch:\n" ++
-  "  beq s6, s3, .Lmw_branch_end\n" ++
-  "  # Get child slot via rlp_list_nth_item (bypass mpt_branch_child so we\n" ++
-  "  # can keep the actual inlined byte count, not zero-padded to 32).\n" ++
-  "  add t0, s2, s6              # &path[consumed]\n" ++
-  "  lbu t1, 0(t0)\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  mv a2, t1                   # nibble (item index)\n" ++
-  "  la a3, mw_child_offset\n" ++
-  "  la a4, mw_child_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lmw_not_found      # empty slot\n" ++
-  "  li t2, 32\n" ++
-  "  beq t1, t2, .Lmw_branch_hash\n" ++
-  "  # Inlined (length 1..31): set node to (s7 + child_offset, child_length).\n" ++
-  "  la t0, mw_child_offset; ld t2, 0(t0)\n" ++
-  "  add s7, s7, t2\n" ++
-  "  mv s8, t1\n" ++
-  "  j .Lmw_loop\n" ++
-  ".Lmw_branch_hash:\n" ++
-  "  # 32-byte hash: copy to mw_lookup_hash then lookup.\n" ++
-  "  la t0, mw_child_offset; ld t1, 0(t0)\n" ++
-  "  add t2, s7, t1\n" ++
-  "  la t3, mw_lookup_hash\n" ++
-  "  ld t4,  0(t2); sd t4,  0(t3)\n" ++
-  "  ld t4,  8(t2); sd t4,  8(t3)\n" ++
-  "  ld t4, 16(t2); sd t4, 16(t3)\n" ++
-  "  ld t4, 24(t2); sd t4, 24(t3)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, mw_lookup_hash\n" ++
-  "  la a3, mw_lookup_offset\n" ++
-  "  la a4, mw_lookup_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lmw_parse_fail    # referenced child hash missing => bad proof\n" ++
-  "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
-  "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
-  "  j .Lmw_loop\n" ++
-  ".Lmw_branch_end:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 16\n" ++
-  "  la a3, mw_value_offset\n" ++
-  "  la a4, mw_value_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  "  la t0, mw_value_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lmw_not_found     # empty value slot\n" ++
-  "  j .Lmw_copy_value\n" ++
-  ".Lmw_extension:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, mw_path_offset\n" ++
-  "  la a4, mw_path_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  "  la t0, mw_path_offset; ld t1, 0(t0); add a0, s7, t1\n" ++
-  "  la t0, mw_path_length; ld a1, 0(t0)\n" ++
-  "  la a2, mw_nibble_buf\n" ++
-  "  la a3, mw_nibble_count\n" ++
-  "  la a4, mw_is_leaf\n" ++
-  "  jal ra, hp_decode_nibbles\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  "  la t0, mw_is_leaf; ld t1, 0(t0)\n" ++
-  "  bnez t1, .Lmw_parse_fail    # node kind said extension; HP says leaf\n" ++
-  "  la t0, mw_nibble_count; ld t1, 0(t0)\n" ++
-  "  add t2, s6, t1\n" ++
-  "  bgtu t2, s3, .Lmw_not_found # consumed + nib_count > path_len\n" ++
-  "  # Compare nibbles\n" ++
-  "  la t2, mw_nibble_buf\n" ++
-  "  add t3, s2, s6\n" ++
-  "  mv t4, t1\n" ++
-  ".Lmw_ext_cmp:\n" ++
-  "  beqz t4, .Lmw_ext_cmp_done\n" ++
-  "  lbu t5, 0(t2)\n" ++
-  "  lbu t6, 0(t3)\n" ++
-  "  bne t5, t6, .Lmw_not_found\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lmw_ext_cmp\n" ++
-  ".Lmw_ext_cmp_done:\n" ++
-  "  add s6, s6, t1\n" ++
-  "  # Get item 1 (child ref).\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, mw_child_offset\n" ++
-  "  la a4, mw_child_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
-  "  la t0, mw_child_offset; ld t2, 0(t0)\n" ++
-  "  add t3, s7, t2\n" ++
-  "  li t4, 32\n" ++
-  "  beq t1, t4, .Lmw_ext_hash\n" ++
-  "  # Inline child: t3 is its ptr, t1 is its length.\n" ++
-  "  mv s7, t3\n" ++
-  "  mv s8, t1\n" ++
-  "  j .Lmw_loop\n" ++
-  ".Lmw_ext_hash:\n" ++
-  "  la t4, mw_lookup_hash\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
-  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, mw_lookup_hash\n" ++
-  "  la a3, mw_lookup_offset\n" ++
-  "  la a4, mw_lookup_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lmw_parse_fail    # referenced extension child hash missing => bad proof\n" ++
-  "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
-  "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
-  "  j .Lmw_loop\n" ++
-  ".Lmw_leaf:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, mw_path_offset\n" ++
-  "  la a4, mw_path_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  "  la t0, mw_path_offset; ld t1, 0(t0); add a0, s7, t1\n" ++
-  "  la t0, mw_path_length; ld a1, 0(t0)\n" ++
-  "  la a2, mw_nibble_buf\n" ++
-  "  la a3, mw_nibble_count\n" ++
-  "  la a4, mw_is_leaf\n" ++
-  "  jal ra, hp_decode_nibbles\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  "  la t0, mw_is_leaf; ld t1, 0(t0)\n" ++
-  "  li t2, 1\n" ++
-  "  bne t1, t2, .Lmw_parse_fail\n" ++
-  "  la t0, mw_nibble_count; ld t1, 0(t0)\n" ++
-  "  sub t2, s3, s6              # remaining nibbles\n" ++
-  "  bne t1, t2, .Lmw_not_found  # length mismatch\n" ++
-  "  la t2, mw_nibble_buf\n" ++
-  "  add t3, s2, s6\n" ++
-  "  mv t4, t1\n" ++
-  ".Lmw_leaf_cmp:\n" ++
-  "  beqz t4, .Lmw_leaf_match\n" ++
-  "  lbu t5, 0(t2)\n" ++
-  "  lbu t6, 0(t3)\n" ++
-  "  bne t5, t6, .Lmw_not_found\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lmw_leaf_cmp\n" ++
-  ".Lmw_leaf_match:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, mw_value_offset\n" ++
-  "  la a4, mw_value_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmw_parse_fail\n" ++
-  ".Lmw_copy_value:\n" ++
-  "  # Write value_len, then byte-copy at most 256 bytes from\n" ++
-  "  # (s7 + mw_value_offset) to s4.\n" ++
-  "  la t0, mw_value_length; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s5)\n" ++
-  "  la t0, mw_value_offset; ld t2, 0(t0); add t2, s7, t2\n" ++
-  "  mv t3, s4                   # dst\n" ++
-  "  li t4, 256\n" ++
-  "  bgtu t1, t4, .Lmw_copy_set_cap\n" ++
-  "  j .Lmw_copy_loop\n" ++
-  ".Lmw_copy_set_cap:\n" ++
-  "  mv t1, t4\n" ++
-  ".Lmw_copy_loop:\n" ++
-  "  beqz t1, .Lmw_found\n" ++
-  "  lbu t0, 0(t2)\n" ++
-  "  sb  t0, 0(t3)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmw_copy_loop\n" ++
-  ".Lmw_found:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmw_ret\n" ++
-  ".Lmw_not_found:\n" ++
-  "  li a0, 1\n" ++
-  "  sd zero, 0(s5)              # value_len = 0\n" ++
-  "  j .Lmw_ret\n" ++
-  ".Lmw_parse_fail:\n" ++
-  "  li a0, 2\n" ++
-  "  sd zero, 0(s5)\n" ++
-  ".Lmw_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def mptWalk_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .MV .x19 .x14,
+    .MV .x20 .x15,
+    .MV .x21 .x16,
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 68)),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x10 (8 : BitVec 12),
+    .SD .x5 .x6 (8 : BitVec 12),
+    .LD .x6 .x10 (16 : BitVec 12),
+    .SD .x5 .x6 (16 : BitVec 12),
+    .LD .x6 .x10 (24 : BitVec 12),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 116)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 124)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 124)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 132)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 132)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 140)),
+    .BNE .x10 .x0 (1044 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 148)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 148)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 164)),
+    .LD .x24 .x5 (0 : BitVec 12),
+    .LI .x22 (0 : Word),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_kind (GuestAddrs.mpt_walk + 188)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (300 : BitVec 13),
+    .LI .x5 (2 : Word),
+    .BEQ .x10 .x5 (672 : BitVec 13),
+    .JAL .x0 (988 : BitVec 21),
+    .BEQ .x22 .x19 (228 : BitVec 13),
+    .ADD .x5 .x18 .x22,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .MV .x12 .x6,
+    .AUIPC .x13 (laHi GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 240)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 240)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 248)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 248)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 256)),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .BNE .x10 .x0 (936 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 268)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (908 : BitVec 13),
+    .LI .x7 (32 : Word),
+    .BEQ .x6 .x7 (28 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 292)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x7,
+    .MV .x24 .x6,
+    .JAL .x0 (-132 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 316)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x23 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 332)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 332)),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .LD .x29 .x7 (8 : BitVec 12),
+    .SD .x28 .x29 (8 : BitVec 12),
+    .LD .x29 .x7 (16 : BitVec 12),
+    .SD .x28 .x29 (16 : BitVec 12),
+    .LD .x29 .x7 (24 : BitVec 12),
+    .SD .x28 .x29 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 380)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 380)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 388)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 388)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 396)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 396)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 404)),
+    .BNE .x10 .x0 (792 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 412)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 412)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 428)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 428)),
+    .LD .x24 .x5 (0 : BitVec 12),
+    .JAL .x0 (-260 : BitVec 21),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (16 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_value_offset (GuestAddrs.mpt_walk + 456)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_value_offset (GuestAddrs.mpt_walk + 456)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 464)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 464)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 472)),
+    .BNE .x10 .x0 (724 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 480)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 480)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (696 : BitVec 13),
+    .JAL .x0 (604 : BitVec 21),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 512)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 512)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 520)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 520)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 528)),
+    .BNE .x10 .x0 (668 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 536)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 536)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x10 .x23 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 552)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 552)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 564)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 564)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 572)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 572)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 580)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 580)),
+    .JAL .x1 (jalOff GuestAddrs.hp_decode_nibbles (GuestAddrs.mpt_walk + 588)),
+    .BNE .x10 .x0 (608 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 596)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 596)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (592 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 612)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 612)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x22 .x6,
+    .BLTU .x19 .x7 (560 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 632)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 632)),
+    .ADD .x28 .x18 .x22,
+    .MV .x29 .x6,
+    .BEQ .x29 .x0 (32 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (528 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADD .x22 .x22 .x6,
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 696)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 696)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 704)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 704)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 712)),
+    .BNE .x10 .x0 (484 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 720)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 720)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 732)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 732)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x28 .x23 .x7,
+    .LI .x29 (32 : Word),
+    .BEQ .x6 .x29 (16 : BitVec 13),
+    .MV .x23 .x28,
+    .MV .x24 .x6,
+    .JAL .x0 (-584 : BitVec 21),
+    .AUIPC .x29 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 768)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 768)),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .SD .x29 .x30 (8 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .SD .x29 .x30 (16 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .SD .x29 .x30 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 816)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 816)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 824)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 824)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 832)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 832)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 840)),
+    .BNE .x10 .x0 (356 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 848)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 848)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 864)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 864)),
+    .LD .x24 .x5 (0 : BitVec 12),
+    .JAL .x0 (-696 : BitVec 21),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 892)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 892)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 900)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 900)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 908)),
+    .BNE .x10 .x0 (288 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 916)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 916)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x10 .x23 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 932)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 932)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 944)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 944)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 952)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 952)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 960)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 960)),
+    .JAL .x1 (jalOff GuestAddrs.hp_decode_nibbles (GuestAddrs.mpt_walk + 968)),
+    .BNE .x10 .x0 (228 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 976)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 976)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (208 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 996)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 996)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SUB .x7 .x19 .x22,
+    .BNE .x6 .x7 (176 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 1016)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 1016)),
+    .ADD .x28 .x18 .x22,
+    .MV .x29 .x6,
+    .BEQ .x29 .x0 (32 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (144 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_value_offset (GuestAddrs.mpt_walk + 1076)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_value_offset (GuestAddrs.mpt_walk + 1076)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1084)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1084)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 1092)),
+    .BNE .x10 .x0 (104 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1100)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mw_value_offset (GuestAddrs.mpt_walk + 1116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_value_offset (GuestAddrs.mpt_walk + 1116)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x23 .x7,
+    .MV .x28 .x20,
+    .LI .x29 (256 : Word),
+    .BLTU .x29 .x6 (8 : BitVec 13),
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x6 .x29,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x5 .x7 (0 : BitVec 12),
+    .SB .x28 .x5 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptWalk_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptWalk_relocs : RelocTable :=
+  [ (17, .la .x5 "mw_lookup_hash"),
+    (29, .la .x12 "mw_lookup_hash"),
+    (31, .la .x13 "mw_lookup_offset"),
+    (33, .la .x14 "mw_lookup_length"),
+    (35, .jal .x1 "witness_lookup_by_hash"),
+    (37, .la .x5 "mw_lookup_offset"),
+    (41, .la .x5 "mw_lookup_length"),
+    (47, .jal .x1 "mpt_node_kind"),
+    (60, .la .x13 "mw_child_offset"),
+    (62, .la .x14 "mw_child_length"),
+    (64, .jal .x1 "rlp_list_nth_item"),
+    (67, .la .x5 "mw_child_length"),
+    (73, .la .x5 "mw_child_offset"),
+    (79, .la .x5 "mw_child_offset"),
+    (83, .la .x28 "mw_lookup_hash"),
+    (95, .la .x12 "mw_lookup_hash"),
+    (97, .la .x13 "mw_lookup_offset"),
+    (99, .la .x14 "mw_lookup_length"),
+    (101, .jal .x1 "witness_lookup_by_hash"),
+    (103, .la .x5 "mw_lookup_offset"),
+    (107, .la .x5 "mw_lookup_length"),
+    (114, .la .x13 "mw_value_offset"),
+    (116, .la .x14 "mw_value_length"),
+    (118, .jal .x1 "rlp_list_nth_item"),
+    (120, .la .x5 "mw_value_length"),
+    (128, .la .x13 "mw_path_offset"),
+    (130, .la .x14 "mw_path_length"),
+    (132, .jal .x1 "rlp_list_nth_item"),
+    (134, .la .x5 "mw_path_offset"),
+    (138, .la .x5 "mw_path_length"),
+    (141, .la .x12 "mw_nibble_buf"),
+    (143, .la .x13 "mw_nibble_count"),
+    (145, .la .x14 "mw_is_leaf"),
+    (147, .jal .x1 "hp_decode_nibbles"),
+    (149, .la .x5 "mw_is_leaf"),
+    (153, .la .x5 "mw_nibble_count"),
+    (158, .la .x7 "mw_nibble_buf"),
+    (174, .la .x13 "mw_child_offset"),
+    (176, .la .x14 "mw_child_length"),
+    (178, .jal .x1 "rlp_list_nth_item"),
+    (180, .la .x5 "mw_child_length"),
+    (183, .la .x5 "mw_child_offset"),
+    (192, .la .x29 "mw_lookup_hash"),
+    (204, .la .x12 "mw_lookup_hash"),
+    (206, .la .x13 "mw_lookup_offset"),
+    (208, .la .x14 "mw_lookup_length"),
+    (210, .jal .x1 "witness_lookup_by_hash"),
+    (212, .la .x5 "mw_lookup_offset"),
+    (216, .la .x5 "mw_lookup_length"),
+    (223, .la .x13 "mw_path_offset"),
+    (225, .la .x14 "mw_path_length"),
+    (227, .jal .x1 "rlp_list_nth_item"),
+    (229, .la .x5 "mw_path_offset"),
+    (233, .la .x5 "mw_path_length"),
+    (236, .la .x12 "mw_nibble_buf"),
+    (238, .la .x13 "mw_nibble_count"),
+    (240, .la .x14 "mw_is_leaf"),
+    (242, .jal .x1 "hp_decode_nibbles"),
+    (244, .la .x5 "mw_is_leaf"),
+    (249, .la .x5 "mw_nibble_count"),
+    (254, .la .x7 "mw_nibble_buf"),
+    (269, .la .x13 "mw_value_offset"),
+    (271, .la .x14 "mw_value_length"),
+    (273, .jal .x1 "rlp_list_nth_item"),
+    (275, .la .x5 "mw_value_length"),
+    (279, .la .x5 "mw_value_offset") ]
+
+def mptWalkFunction : String :=
+  "mpt_walk:\n" ++ emitProgramR mptWalk_prog mptWalk_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptWalk_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptWalkFunction_eq_prog :
+    mptWalkFunction = "mpt_walk:\n" ++ emitProgramR mptWalk_prog mptWalk_relocs := rfl
+
+#guard mptWalkFunction.startsWith "mpt_walk:\n"
+#guard mptWalk_prog.length = 314
 /-- `zisk_mpt_walk`: probe BuildUnit. Reads
     (witness_len, path_len, root_hash, path_nibbles,
      witness_bytes) from host input, writes
@@ -873,28 +1107,37 @@ def ziskMptWalkProbeUnit : BuildUnit := {
       a0 (output) : 2 * a1 (number of nibbles emitted)
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def bytesToNibblesFunction : String :=
-  "bytes_to_nibbles:\n" ++
-  "  mv t0, a0                  # src cursor\n" ++
-  "  mv t1, a2                  # dst cursor\n" ++
-  "  mv t2, a1                  # remaining\n" ++
-  "  li t6, 0                   # emitted count\n" ++
-  ".Lbtn_loop:\n" ++
-  "  beqz t2, .Lbtn_done\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  srli t4, t3, 4\n" ++
-  "  andi t5, t3, 0xf\n" ++
-  "  sb t4, 0(t1)\n" ++
-  "  sb t5, 1(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 2\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  addi t6, t6, 2\n" ++
-  "  j .Lbtn_loop\n" ++
-  ".Lbtn_done:\n" ++
-  "  mv a0, t6\n" ++
-  "  ret"
+def bytesToNibbles_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x12,
+    .MV .x7 .x11,
+    .LI .x31 (0 : Word),
+    .BEQ .x7 .x0 (44 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SRLI .x29 .x28 (4 : BitVec 6),
+    .ANDI .x30 .x28 (15 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .SB .x6 .x30 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (2 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x31 .x31 (2 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .MV .x10 .x31,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bytesToNibblesFunction : String :=
+  "bytes_to_nibbles:\n" ++ emitProgram bytesToNibbles_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bytesToNibbles_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bytesToNibblesFunction_eq_prog :
+    bytesToNibblesFunction = "bytes_to_nibbles:\n" ++ emitProgram bytesToNibbles_prog := rfl
+
+#guard bytesToNibblesFunction.startsWith "bytes_to_nibbles:\n"
+#guard bytesToNibbles_prog.length = 17
 /-- `zisk_bytes_to_nibbles`: probe BuildUnit. Reads
     (src_len, src_bytes) from host input, writes
     (nibble_count, nibbles) to OUTPUT.
@@ -954,39 +1197,71 @@ def ziskBytesToNibblesProbeUnit : BuildUnit := {
     Internal scratch buffers:
       mlk_keccak_buf : 32 bytes (keccak256 output)
       mlk_nibble_buf : 64 bytes (one nibble per byte) -/
-def mptLookupByKeyFunction : String :=
-  "mpt_lookup_by_key:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a2                   # s0 = root_hash ptr\n" ++
-  "  mv s1, a3                   # s1 = witness ptr\n" ++
-  "  mv s2, a4                   # s2 = witness_len\n" ++
-  "  mv s3, a5                   # s3 = value out\n" ++
-  "  mv s4, a6                   # s4 = value_len out\n" ++
-  "  # Step 1: keccak(key) -> mlk_keccak_buf.\n" ++
-  "  la a2, mlk_keccak_buf\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # Step 2: bytes_to_nibbles(mlk_keccak_buf, 32, mlk_nibble_buf).\n" ++
-  "  la a0, mlk_keccak_buf\n" ++
-  "  li a1, 32\n" ++
-  "  la a2, mlk_nibble_buf\n" ++
-  "  jal ra, bytes_to_nibbles\n" ++
-  "  # Step 3: mpt_walk(root, witness, witness_len, path, 64, val_out, val_len).\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s2\n" ++
-  "  la a3, mlk_nibble_buf\n" ++
-  "  li a4, 64\n" ++
-  "  mv a5, s3\n" ++
-  "  mv a6, s4\n" ++
-  "  jal ra, mpt_walk\n" ++
-  "  # a0 already holds mpt_walk's status.\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def mptLookupByKey_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x18 .x14,
+    .MV .x19 .x15,
+    .MV .x20 .x16,
+    .AUIPC .x12 (laHi GuestAddrs.mlk_keccak_buf (GuestAddrs.mpt_lookup_by_key + 48)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mlk_keccak_buf (GuestAddrs.mpt_lookup_by_key + 48)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.mpt_lookup_by_key + 56)),
+    .AUIPC .x10 (laHi GuestAddrs.mlk_keccak_buf (GuestAddrs.mpt_lookup_by_key + 60)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.mlk_keccak_buf (GuestAddrs.mpt_lookup_by_key + 60)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.mlk_nibble_buf (GuestAddrs.mpt_lookup_by_key + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mlk_nibble_buf (GuestAddrs.mpt_lookup_by_key + 72)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.mpt_lookup_by_key + 80)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.mlk_nibble_buf (GuestAddrs.mpt_lookup_by_key + 96)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mlk_nibble_buf (GuestAddrs.mpt_lookup_by_key + 96)),
+    .LI .x14 (64 : Word),
+    .MV .x15 .x19,
+    .MV .x16 .x20,
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.mpt_lookup_by_key + 116)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptLookupByKey_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptLookupByKey_relocs : RelocTable :=
+  [ (12, .la .x12 "mlk_keccak_buf"),
+    (14, .jal .x1 "zkvm_keccak256"),
+    (15, .la .x10 "mlk_keccak_buf"),
+    (18, .la .x12 "mlk_nibble_buf"),
+    (20, .jal .x1 "bytes_to_nibbles"),
+    (24, .la .x13 "mlk_nibble_buf"),
+    (29, .jal .x1 "mpt_walk") ]
+
+def mptLookupByKeyFunction : String :=
+  "mpt_lookup_by_key:\n" ++ emitProgramR mptLookupByKey_prog mptLookupByKey_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptLookupByKey_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptLookupByKeyFunction_eq_prog :
+    mptLookupByKeyFunction = "mpt_lookup_by_key:\n" ++ emitProgramR mptLookupByKey_prog mptLookupByKey_relocs := rfl
+
+#guard mptLookupByKeyFunction.startsWith "mpt_lookup_by_key:\n"
+#guard mptLookupByKey_prog.length = 38
 /-- `zisk_mpt_lookup_by_key`: probe BuildUnit. Reads
     (witness_len, key_len, root_hash, key, witness) from host
     input and writes (status, value_len, value_bytes) to OUTPUT.
@@ -1117,40 +1392,47 @@ def ziskMptLookupByKeyProbeUnit : BuildUnit := {
       a0 (output) : number of bytes written
 
     Pure register arithmetic, no scratch, leaf-callable. -/
-def hpEncodeNibblesFunction : String :=
-  "hp_encode_nibbles:\n" ++
-  "  andi t0, a1, 1             # is_odd = nibble_count & 1\n" ++
-  "  mv t1, a3                  # cursor\n" ++
-  "  slli t2, a2, 1             # is_leaf * 2\n" ++
-  "  or t2, t2, t0              # flag = is_leaf*2 + is_odd\n" ++
-  "  slli t2, t2, 4             # flag << 4\n" ++
-  "  beqz t0, .Lhpe_even\n" ++
-  "  # Odd: byte 0 = (flag << 4) | nibbles[0]; consume one nibble.\n" ++
-  "  lbu t3, 0(a0)\n" ++
-  "  or t2, t2, t3\n" ++
-  "  sb t2, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, -1\n" ++
-  "  j .Lhpe_pair_loop\n" ++
-  ".Lhpe_even:\n" ++
-  "  sb t2, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  ".Lhpe_pair_loop:\n" ++
-  "  beqz a1, .Lhpe_done\n" ++
-  "  lbu t3, 0(a0)\n" ++
-  "  slli t3, t3, 4\n" ++
-  "  lbu t4, 1(a0)\n" ++
-  "  or t3, t3, t4\n" ++
-  "  sb t3, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi a0, a0, 2\n" ++
-  "  addi a1, a1, -2\n" ++
-  "  j .Lhpe_pair_loop\n" ++
-  ".Lhpe_done:\n" ++
-  "  sub a0, t1, a3\n" ++
-  "  ret"
+def hpEncodeNibbles_prog : Program :=
+  [ .ANDI .x5 .x11 (1 : BitVec 12),
+    .MV .x6 .x13,
+    .SLLI .x7 .x12 (1 : BitVec 6),
+    .OR .x7 .x7 .x5,
+    .SLLI .x7 .x7 (4 : BitVec 6),
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x10 (0 : BitVec 12),
+    .OR .x7 .x7 .x28,
+    .SB .x6 .x7 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .SB .x6 .x7 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x11 .x0 (40 : BitVec 13),
+    .LBU .x28 .x10 (0 : BitVec 12),
+    .SLLI .x28 .x28 (4 : BitVec 6),
+    .LBU .x29 .x10 (1 : BitVec 12),
+    .OR .x28 .x28 .x29,
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x10 .x10 (2 : BitVec 12),
+    .ADDI .x11 .x11 (-2 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .SUB .x10 .x6 .x13,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def hpEncodeNibblesFunction : String :=
+  "hp_encode_nibbles:\n" ++ emitProgram hpEncodeNibbles_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `hpEncodeNibbles_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem hpEncodeNibblesFunction_eq_prog :
+    hpEncodeNibblesFunction = "hp_encode_nibbles:\n" ++ emitProgram hpEncodeNibbles_prog := rfl
+
+#guard hpEncodeNibblesFunction.startsWith "hp_encode_nibbles:\n"
+#guard hpEncodeNibbles_prog.length = 27
 /-- `zisk_hp_encode_nibbles`: probe BuildUnit. Reads
     (nibble_count, is_leaf, nibbles) from host input, writes
     (bytes_written, hp_bytes) to OUTPUT.

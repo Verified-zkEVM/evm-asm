@@ -17,6 +17,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -387,52 +390,94 @@ def ziskWithdrawalComputeHashProbeUnit : BuildUnit := {
       ra (input)  : return
       a0 (output) : 0 success / 1 parse fail (not a 4-item list,
                     field too long, or address not 20 bytes). -/
-def withdrawalDecodeFunction : String :=
-  "withdrawal_decode:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # wd_rlp ptr\n" ++
-  "  mv s1, a1                  # wd_rlp_len\n" ++
-  "  mv s2, a2                  # struct out\n" ++
-  "  # Field 0: index (u64 at offset 0)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  # Field 1: validator_index (u64 at offset 8)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  # Field 2: address (20 bytes at offset 16)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  la a3, wd_offset; la a4, wd_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  la t0, wd_length; ld t1, 0(t0)\n" ++
-  "  li t2, 20\n" ++
-  "  bne t1, t2, .Lwd_fail\n" ++
-  "  la t0, wd_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  addi t4, s2, 16\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  lwu t5, 16(t3); sw t5, 16(t4)\n" ++
-  "  # Pad bytes 20..24 of address slot (struct 36..40) are zero (from caller zeroing).\n" ++
-  "  # Field 3: amount (u64 at offset 40)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  addi a3, s2, 40\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lwd_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lwd_ret\n" ++
-  ".Lwd_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lwd_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def withdrawalDecode_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .MV .x13 .x18,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 48)),
+    .BNE .x10 .x0 (160 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .ADDI .x13 .x18 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 72)),
+    .BNE .x10 .x0 (136 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 92)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 92)),
+    .AUIPC .x14 (laHi GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 100)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 100)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.withdrawal_decode + 108)),
+    .BNE .x10 .x0 (100 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.wd_length (GuestAddrs.withdrawal_decode + 116)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BNE .x6 .x7 (80 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 136)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.wd_offset (GuestAddrs.withdrawal_decode + 136)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .ADDI .x29 .x18 (16 : BitVec 12),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .SD .x29 .x30 (8 : BitVec 12),
+    .LWU .x30 .x28 (16 : BitVec 12),
+    .SW .x29 .x30 (16 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (3 : Word),
+    .ADDI .x13 .x18 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 196)),
+    .BNE .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `withdrawalDecode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def withdrawalDecode_relocs : RelocTable :=
+  [ (12, .jal .x1 "rlp_field_to_u64"),
+    (18, .jal .x1 "rlp_field_to_u64"),
+    (23, .la .x13 "wd_offset"),
+    (25, .la .x14 "wd_length"),
+    (27, .jal .x1 "rlp_list_nth_item"),
+    (29, .la .x5 "wd_length"),
+    (34, .la .x5 "wd_offset"),
+    (49, .jal .x1 "rlp_field_to_u64") ]
+
+def withdrawalDecodeFunction : String :=
+  "withdrawal_decode:\n" ++ emitProgramR withdrawalDecode_prog withdrawalDecode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `withdrawalDecode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem withdrawalDecodeFunction_eq_prog :
+    withdrawalDecodeFunction = "withdrawal_decode:\n" ++ emitProgramR withdrawalDecode_prog withdrawalDecode_relocs := rfl
+
+#guard withdrawalDecodeFunction.startsWith "withdrawal_decode:\n"
+#guard withdrawalDecode_prog.length = 60
 /-- `zisk_withdrawal_decode`: probe BuildUnit. Reads (wd_len,
     wd_bytes) from host input, writes (status, 48-byte struct)
     to OUTPUT. -/

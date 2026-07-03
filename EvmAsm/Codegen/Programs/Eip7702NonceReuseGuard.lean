@@ -6,6 +6,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.Address
@@ -15,14 +18,31 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-! ## enrg_u32le -- local unaligned u32 little-endian reader. -/
-def enrgU32leFunction : String :=
-  "enrg_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8; or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or a0, t0, t1\n" ++
-  "  ret"
+def enrgU32le_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .LBU .x6 .x10 (1 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (2 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (3 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x10 .x5 .x6,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def enrgU32leFunction : String :=
+  "enrg_u32le:\n" ++ emitProgram enrgU32le_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `enrgU32le_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem enrgU32leFunction_eq_prog :
+    enrgU32leFunction = "enrg_u32le:\n" ++ emitProgram enrgU32le_prog := rfl
+
+#guard enrgU32leFunction.startsWith "enrg_u32le:\n"
+#guard enrgU32le_prog.length = 11
 /-! ## eip7702_nonce_reuse_guard -- reject tx nonce below prior BAL nonce.
     a0 = exec_payload ptr   a1 = SSZ_BASE   a2 = BAL ptr   a3 = BAL len
     a0 (output) = 0 ok/unsupported, 1 invalid nonce reuse.
@@ -31,132 +51,392 @@ def enrgU32leFunction : String :=
     nonce changes for that account.  If an earlier nonce-change value is greater
     than the transaction nonce, the executable spec rejects the transaction as
     nonce-too-low.  Malformed or unsupported shapes fail open. -/
-def eip7702NonceReuseGuardFunction : String :=
-  "eip7702_nonce_reuse_guard:\n" ++
-  "  addi sp, sp, -128\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # exec_payload\n" ++
-  "  mv s1, a1                   # SSZ_BASE\n" ++
-  "  mv s2, a2                   # BAL ptr\n" ++
-  "  mv s3, a3                   # BAL len\n" ++
-  "  addi a0, s0, 504; jal ra, enrg_u32le\n" ++
-  "  add s4, s0, a0              # tx list ptr\n" ++
-  "  addi a0, s0, 508; jal ra, enrg_u32le\n" ++
-  "  add t0, s0, a0              # withdrawals ptr\n" ++
-  "  bltu t0, s4, .Lenrg_ok\n" ++
-  "  sub s5, t0, s4              # tx list len\n" ++
-  "  beqz s5, .Lenrg_ok\n" ++
-  "  mv a0, s4; jal ra, enrg_u32le\n" ++
-  "  andi t0, a0, 3; bnez t0, .Lenrg_ok\n" ++
-  "  srli s6, a0, 2              # tx_count\n" ++
-  "  beqz s6, .Lenrg_ok\n" ++
-  "  li t0, 16; bgtu s6, t0, .Lenrg_ok\n" ++
-  "  addi a0, s1, 12; jal ra, enrg_u32le\n" ++
-  "  add s7, s1, a0              # public_keys ptr\n" ++
-  "  li s8, 0                    # tx index\n" ++
-  ".Lenrg_tx_loop:\n" ++
-  "  beq s8, s6, .Lenrg_ok\n" ++
-  "  slli t0, s8, 2; add t1, s4, t0; mv a0, t1; jal ra, enrg_u32le\n" ++
-  "  mv s9, a0                   # tx item offset\n" ++
-  "  addi t0, s8, 1\n" ++
-  "  beq t0, s6, .Lenrg_last_tx\n" ++
-  "  slli t1, t0, 2; add t1, s4, t1; mv a0, t1; jal ra, enrg_u32le\n" ++
-  "  j .Lenrg_have_next\n" ++
-  ".Lenrg_last_tx:\n" ++
-  "  mv a0, s5\n" ++
-  ".Lenrg_have_next:\n" ++
-  "  bltu a0, s9, .Lenrg_ok\n" ++
-  "  sub s10, a0, s9             # tx len\n" ++
-  "  add s9, s4, s9              # tx ptr\n" ++
-  "  mv a0, s9; mv a1, s10; la a2, enrg_tx_type; la a3, enrg_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Lenrg_next_tx\n" ++
-  "  la t0, enrg_tx_type; ld t1, 0(t0)\n" ++
-  "  la t0, enrg_inner_off; ld t2, 0(t0)\n" ++
-  "  add s11, s9, t2             # inner ptr\n" ++
-  "  bltu s10, t2, .Lenrg_next_tx\n" ++
-  "  sub t3, s10, t2             # inner len\n" ++
-  "  beqz t1, .Lenrg_legacy_nonce\n" ++
-  "  li t4, 4; bgtu t1, t4, .Lenrg_next_tx\n" ++
-  "  li a2, 1; j .Lenrg_read_nonce\n" ++
-  ".Lenrg_legacy_nonce:\n" ++
-  "  li a2, 0\n" ++
-  ".Lenrg_read_nonce:\n" ++
-  "  mv a0, s11; mv a1, t3; la a3, enrg_tx_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lenrg_next_tx\n" ++
-  "  li t0, 65; mul t1, s8, t0; add t1, s7, t1; addi a0, t1, 1\n" ++
-  "  la a1, enrg_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, enrg_bal_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lenrg_next_tx\n" ++
-  "  la t0, enrg_bal_index; sd zero, 0(t0)\n" ++
-  ".Lenrg_bal_loop:\n" ++
-  "  la t0, enrg_bal_index; ld t5, 0(t0)\n" ++
-  "  la t0, enrg_bal_count; ld t6, 0(t0)\n" ++
-  "  beq t5, t6, .Lenrg_next_tx\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, t5; la a3, enrg_item_off; la a4, enrg_item_len\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lenrg_next_bal\n" ++
-  "  la t0, enrg_item_off; ld t0, 0(t0); add t0, s2, t0; la t1, enrg_acct_ptr; sd t0, 0(t1)\n" ++
-  "  la t1, enrg_item_len; ld t1, 0(t1); la t2, enrg_acct_len; sd t1, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 0; la a3, enrg_addr_off; la a4, enrg_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lenrg_next_bal\n" ++
-  "  la t0, enrg_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lenrg_next_bal\n" ++
-  "  la t0, enrg_acct_ptr; ld t0, 0(t0); la t1, enrg_addr_off; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t2, enrg_sender_addr; li t3, 20\n" ++
-  ".Lenrg_addr_cmp:\n" ++
-  "  beqz t3, .Lenrg_addr_match\n" ++
-  "  lbu t4, 0(t0); lbu a7, 0(t2); bne t4, a7, .Lenrg_next_bal\n" ++
-  "  addi t0, t0, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lenrg_addr_cmp\n" ++
-  ".Lenrg_addr_match:\n" ++
-  "  la t0, enrg_acct_ptr; ld a0, 0(t0); la t0, enrg_acct_len; ld a1, 0(t0); li a2, 4; la a3, enrg_nonce_off; la a4, enrg_nonce_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lenrg_next_bal\n" ++
-  "  la t0, enrg_acct_ptr; ld t0, 0(t0); la t1, enrg_nonce_off; ld t1, 0(t1); add t0, t0, t1; la t2, enrg_nonce_list_ptr; sd t0, 0(t2)\n" ++
-  "  la t0, enrg_nonce_len; ld a1, 0(t0); la t0, enrg_nonce_list_ptr; ld a0, 0(t0); la a2, enrg_nonce_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lenrg_next_bal\n" ++
-  "  la t0, enrg_nonce_index; sd zero, 0(t0)\n" ++
-  ".Lenrg_nonce_loop:\n" ++
-  "  la t0, enrg_nonce_index; ld t3, 0(t0)\n" ++
-  "  la t0, enrg_nonce_count; ld t4, 0(t0)\n" ++
-  "  beq t3, t4, .Lenrg_next_bal\n" ++
-  "  la t0, enrg_nonce_list_ptr; ld a0, 0(t0); la t0, enrg_nonce_len; ld a1, 0(t0); mv a2, t3; la a3, enrg_change_off; la a4, enrg_change_len\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lenrg_next_nonce\n" ++
-  "  la t0, enrg_nonce_list_ptr; ld t0, 0(t0); la t1, enrg_change_off; ld t1, 0(t1); add t0, t0, t1; la t2, enrg_change_ptr; sd t0, 0(t2)\n" ++
-  "  la t1, enrg_change_len; ld t1, 0(t1); la t2, enrg_change_item_len; sd t1, 0(t2)\n" ++
-  "  mv a0, t0; mv a1, t1; li a2, 0; la a3, enrg_change_index\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lenrg_next_nonce\n" ++
-  "  la t0, enrg_change_index; ld t0, 0(t0); addi t1, s8, 1; bgeu t0, t1, .Lenrg_next_nonce\n" ++
-  "  la t0, enrg_change_ptr; ld a0, 0(t0); la t0, enrg_change_item_len; ld a1, 0(t0); li a2, 1; la a3, enrg_change_value\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lenrg_next_nonce\n" ++
-  "  la t0, enrg_change_value; ld t0, 0(t0); la t1, enrg_tx_nonce; ld t1, 0(t1); bgtu t0, t1, .Lenrg_fail\n" ++
-  ".Lenrg_next_nonce:\n" ++
-  "  la t0, enrg_nonce_index; ld t3, 0(t0); addi t3, t3, 1; sd t3, 0(t0); j .Lenrg_nonce_loop\n" ++
-  ".Lenrg_next_bal:\n" ++
-  "  la t0, enrg_bal_index; ld t5, 0(t0); addi t5, t5, 1; sd t5, 0(t0); j .Lenrg_bal_loop\n" ++
-  ".Lenrg_next_tx:\n" ++
-  "  addi s8, s8, 1; j .Lenrg_tx_loop\n" ++
-  ".Lenrg_ok:\n" ++
-  "  li a0, 0; j .Lenrg_ret\n" ++
-  ".Lenrg_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lenrg_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 128\n" ++
-  "  ret"
+def eip7702NonceReuseGuard_prog : Program :=
+  [ .ADDI .x2 .x2 (-128 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .ADDI .x10 .x8 (504 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.enrg_u32le (GuestAddrs.eip7702_nonce_reuse_guard + 76)),
+    .ADD .x20 .x8 .x10,
+    .ADDI .x10 .x8 (508 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.enrg_u32le (GuestAddrs.eip7702_nonce_reuse_guard + 88)),
+    .ADD .x5 .x8 .x10,
+    .BLTU .x5 .x20 (1016 : BitVec 13),
+    .SUB .x21 .x5 .x20,
+    .BEQ .x21 .x0 (1008 : BitVec 13),
+    .MV .x10 .x20,
+    .JAL .x1 (jalOff GuestAddrs.enrg_u32le (GuestAddrs.eip7702_nonce_reuse_guard + 112)),
+    .ANDI .x5 .x10 (3 : BitVec 12),
+    .BNE .x5 .x0 (992 : BitVec 13),
+    .SRLI .x22 .x10 (2 : BitVec 6),
+    .BEQ .x22 .x0 (984 : BitVec 13),
+    .LI .x5 (16 : Word),
+    .BLTU .x5 .x22 (976 : BitVec 13),
+    .ADDI .x10 .x9 (12 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.enrg_u32le (GuestAddrs.eip7702_nonce_reuse_guard + 144)),
+    .ADD .x23 .x9 .x10,
+    .LI .x24 (0 : Word),
+    .BEQ .x24 .x22 (956 : BitVec 13),
+    .SLLI .x5 .x24 (2 : BitVec 6),
+    .ADD .x6 .x20 .x5,
+    .MV .x10 .x6,
+    .JAL .x1 (jalOff GuestAddrs.enrg_u32le (GuestAddrs.eip7702_nonce_reuse_guard + 172)),
+    .MV .x25 .x10,
+    .ADDI .x5 .x24 (1 : BitVec 12),
+    .BEQ .x5 .x22 (24 : BitVec 13),
+    .SLLI .x6 .x5 (2 : BitVec 6),
+    .ADD .x6 .x20 .x6,
+    .MV .x10 .x6,
+    .JAL .x1 (jalOff GuestAddrs.enrg_u32le (GuestAddrs.eip7702_nonce_reuse_guard + 200)),
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x10 .x21,
+    .BLTU .x10 .x25 (900 : BitVec 13),
+    .SUB .x26 .x10 .x25,
+    .ADD .x25 .x20 .x25,
+    .MV .x10 .x25,
+    .MV .x11 .x26,
+    .AUIPC .x12 (laHi GuestAddrs.enrg_tx_type (GuestAddrs.eip7702_nonce_reuse_guard + 232)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.enrg_tx_type (GuestAddrs.eip7702_nonce_reuse_guard + 232)),
+    .AUIPC .x13 (laHi GuestAddrs.enrg_inner_off (GuestAddrs.eip7702_nonce_reuse_guard + 240)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_inner_off (GuestAddrs.eip7702_nonce_reuse_guard + 240)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.eip7702_nonce_reuse_guard + 248)),
+    .BNE .x10 .x0 (852 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_tx_type (GuestAddrs.eip7702_nonce_reuse_guard + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_tx_type (GuestAddrs.eip7702_nonce_reuse_guard + 256)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_inner_off (GuestAddrs.eip7702_nonce_reuse_guard + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_inner_off (GuestAddrs.eip7702_nonce_reuse_guard + 268)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x27 .x25 .x7,
+    .BLTU .x26 .x7 (820 : BitVec 13),
+    .SUB .x28 .x26 .x7,
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .LI .x29 (4 : Word),
+    .BLTU .x29 .x6 (804 : BitVec 13),
+    .LI .x12 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x12 (0 : Word),
+    .MV .x10 .x27,
+    .MV .x11 .x28,
+    .AUIPC .x13 (laHi GuestAddrs.enrg_tx_nonce (GuestAddrs.eip7702_nonce_reuse_guard + 324)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_tx_nonce (GuestAddrs.eip7702_nonce_reuse_guard + 324)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.eip7702_nonce_reuse_guard + 332)),
+    .BNE .x10 .x0 (768 : BitVec 13),
+    .LI .x5 (65 : Word),
+    .MUL .x6 .x24 .x5,
+    .ADD .x6 .x23 .x6,
+    .ADDI .x10 .x6 (1 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.enrg_sender_addr (GuestAddrs.eip7702_nonce_reuse_guard + 356)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.enrg_sender_addr (GuestAddrs.eip7702_nonce_reuse_guard + 356)),
+    .JAL .x1 (jalOff GuestAddrs.address_from_pubkey (GuestAddrs.eip7702_nonce_reuse_guard + 364)),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.enrg_bal_count (GuestAddrs.eip7702_nonce_reuse_guard + 376)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.enrg_bal_count (GuestAddrs.eip7702_nonce_reuse_guard + 376)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip7702_nonce_reuse_guard + 384)),
+    .BNE .x10 .x0 (716 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_bal_index (GuestAddrs.eip7702_nonce_reuse_guard + 392)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_bal_index (GuestAddrs.eip7702_nonce_reuse_guard + 392)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_bal_index (GuestAddrs.eip7702_nonce_reuse_guard + 404)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_bal_index (GuestAddrs.eip7702_nonce_reuse_guard + 404)),
+    .LD .x30 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_bal_count (GuestAddrs.eip7702_nonce_reuse_guard + 416)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_bal_count (GuestAddrs.eip7702_nonce_reuse_guard + 416)),
+    .LD .x31 .x5 (0 : BitVec 12),
+    .BEQ .x30 .x31 (676 : BitVec 13),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .MV .x12 .x30,
+    .AUIPC .x13 (laHi GuestAddrs.enrg_item_off (GuestAddrs.eip7702_nonce_reuse_guard + 444)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_item_off (GuestAddrs.eip7702_nonce_reuse_guard + 444)),
+    .AUIPC .x14 (laHi GuestAddrs.enrg_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 452)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.enrg_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 452)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.eip7702_nonce_reuse_guard + 460)),
+    .BNE .x10 .x0 (616 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_item_off (GuestAddrs.eip7702_nonce_reuse_guard + 468)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_item_off (GuestAddrs.eip7702_nonce_reuse_guard + 468)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x5 .x18 .x5,
+    .AUIPC .x6 (laHi GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 484)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 484)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.enrg_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 496)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.enrg_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 496)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.enrg_acct_len (GuestAddrs.eip7702_nonce_reuse_guard + 508)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.enrg_acct_len (GuestAddrs.eip7702_nonce_reuse_guard + 508)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.enrg_addr_off (GuestAddrs.eip7702_nonce_reuse_guard + 532)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_addr_off (GuestAddrs.eip7702_nonce_reuse_guard + 532)),
+    .AUIPC .x14 (laHi GuestAddrs.enrg_addr_len (GuestAddrs.eip7702_nonce_reuse_guard + 540)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.enrg_addr_len (GuestAddrs.eip7702_nonce_reuse_guard + 540)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip7702_nonce_reuse_guard + 548)),
+    .BNE .x10 .x0 (528 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_addr_len (GuestAddrs.eip7702_nonce_reuse_guard + 556)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_addr_len (GuestAddrs.eip7702_nonce_reuse_guard + 556)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BNE .x6 .x7 (508 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 576)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 576)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.enrg_addr_off (GuestAddrs.eip7702_nonce_reuse_guard + 588)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.enrg_addr_off (GuestAddrs.eip7702_nonce_reuse_guard + 588)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x7 (laHi GuestAddrs.enrg_sender_addr (GuestAddrs.eip7702_nonce_reuse_guard + 604)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.enrg_sender_addr (GuestAddrs.eip7702_nonce_reuse_guard + 604)),
+    .LI .x28 (20 : Word),
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .LBU .x17 .x7 (0 : BitVec 12),
+    .BNE .x29 .x17 (452 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 648)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 648)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_acct_len (GuestAddrs.eip7702_nonce_reuse_guard + 660)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_acct_len (GuestAddrs.eip7702_nonce_reuse_guard + 660)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (4 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.enrg_nonce_off (GuestAddrs.eip7702_nonce_reuse_guard + 676)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_nonce_off (GuestAddrs.eip7702_nonce_reuse_guard + 676)),
+    .AUIPC .x14 (laHi GuestAddrs.enrg_nonce_len (GuestAddrs.eip7702_nonce_reuse_guard + 684)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.enrg_nonce_len (GuestAddrs.eip7702_nonce_reuse_guard + 684)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip7702_nonce_reuse_guard + 692)),
+    .BNE .x10 .x0 (384 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 700)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_acct_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 700)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.enrg_nonce_off (GuestAddrs.eip7702_nonce_reuse_guard + 712)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.enrg_nonce_off (GuestAddrs.eip7702_nonce_reuse_guard + 712)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x7 (laHi GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 728)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 728)),
+    .SD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_len (GuestAddrs.eip7702_nonce_reuse_guard + 740)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_len (GuestAddrs.eip7702_nonce_reuse_guard + 740)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 752)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 752)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.enrg_nonce_count (GuestAddrs.eip7702_nonce_reuse_guard + 764)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.enrg_nonce_count (GuestAddrs.eip7702_nonce_reuse_guard + 764)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip7702_nonce_reuse_guard + 772)),
+    .BNE .x10 .x0 (304 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_index (GuestAddrs.eip7702_nonce_reuse_guard + 780)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_index (GuestAddrs.eip7702_nonce_reuse_guard + 780)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_index (GuestAddrs.eip7702_nonce_reuse_guard + 792)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_index (GuestAddrs.eip7702_nonce_reuse_guard + 792)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_count (GuestAddrs.eip7702_nonce_reuse_guard + 804)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_count (GuestAddrs.eip7702_nonce_reuse_guard + 804)),
+    .LD .x29 .x5 (0 : BitVec 12),
+    .BEQ .x28 .x29 (264 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 820)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 820)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_len (GuestAddrs.eip7702_nonce_reuse_guard + 832)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_len (GuestAddrs.eip7702_nonce_reuse_guard + 832)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x28,
+    .AUIPC .x13 (laHi GuestAddrs.enrg_change_off (GuestAddrs.eip7702_nonce_reuse_guard + 848)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_change_off (GuestAddrs.eip7702_nonce_reuse_guard + 848)),
+    .AUIPC .x14 (laHi GuestAddrs.enrg_change_len (GuestAddrs.eip7702_nonce_reuse_guard + 856)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.enrg_change_len (GuestAddrs.eip7702_nonce_reuse_guard + 856)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.eip7702_nonce_reuse_guard + 864)),
+    .BNE .x10 .x0 (188 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 872)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_list_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 872)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.enrg_change_off (GuestAddrs.eip7702_nonce_reuse_guard + 884)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.enrg_change_off (GuestAddrs.eip7702_nonce_reuse_guard + 884)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x7 (laHi GuestAddrs.enrg_change_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 900)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.enrg_change_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 900)),
+    .SD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.enrg_change_len (GuestAddrs.eip7702_nonce_reuse_guard + 912)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.enrg_change_len (GuestAddrs.eip7702_nonce_reuse_guard + 912)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.enrg_change_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 924)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.enrg_change_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 924)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.enrg_change_index (GuestAddrs.eip7702_nonce_reuse_guard + 948)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_change_index (GuestAddrs.eip7702_nonce_reuse_guard + 948)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.eip7702_nonce_reuse_guard + 956)),
+    .BNE .x10 .x0 (96 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_change_index (GuestAddrs.eip7702_nonce_reuse_guard + 964)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_change_index (GuestAddrs.eip7702_nonce_reuse_guard + 964)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x24 (1 : BitVec 12),
+    .BGEU .x5 .x6 (76 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_change_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 984)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_change_ptr (GuestAddrs.eip7702_nonce_reuse_guard + 984)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_change_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 996)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_change_item_len (GuestAddrs.eip7702_nonce_reuse_guard + 996)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.enrg_change_value (GuestAddrs.eip7702_nonce_reuse_guard + 1012)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.enrg_change_value (GuestAddrs.eip7702_nonce_reuse_guard + 1012)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.eip7702_nonce_reuse_guard + 1020)),
+    .BNE .x10 .x0 (32 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_change_value (GuestAddrs.eip7702_nonce_reuse_guard + 1028)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_change_value (GuestAddrs.eip7702_nonce_reuse_guard + 1028)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.enrg_tx_nonce (GuestAddrs.eip7702_nonce_reuse_guard + 1040)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.enrg_tx_nonce (GuestAddrs.eip7702_nonce_reuse_guard + 1040)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .BLTU .x6 .x5 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_nonce_index (GuestAddrs.eip7702_nonce_reuse_guard + 1056)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_nonce_index (GuestAddrs.eip7702_nonce_reuse_guard + 1056)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .SD .x5 .x28 (0 : BitVec 12),
+    .JAL .x0 (-284 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.enrg_bal_index (GuestAddrs.eip7702_nonce_reuse_guard + 1080)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.enrg_bal_index (GuestAddrs.eip7702_nonce_reuse_guard + 1080)),
+    .LD .x30 .x5 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .SD .x5 .x30 (0 : BitVec 12),
+    .JAL .x0 (-696 : BitVec 21),
+    .ADDI .x24 .x24 (1 : BitVec 12),
+    .JAL .x0 (-952 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (128 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `eip7702NonceReuseGuard_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip7702NonceReuseGuard_relocs : RelocTable :=
+  [ (19, .jal .x1 "enrg_u32le"),
+    (22, .jal .x1 "enrg_u32le"),
+    (28, .jal .x1 "enrg_u32le"),
+    (36, .jal .x1 "enrg_u32le"),
+    (43, .jal .x1 "enrg_u32le"),
+    (50, .jal .x1 "enrg_u32le"),
+    (58, .la .x12 "enrg_tx_type"),
+    (60, .la .x13 "enrg_inner_off"),
+    (62, .jal .x1 "tx_type_dispatch"),
+    (64, .la .x5 "enrg_tx_type"),
+    (67, .la .x5 "enrg_inner_off"),
+    (81, .la .x13 "enrg_tx_nonce"),
+    (83, .jal .x1 "rlp_field_to_u64"),
+    (89, .la .x11 "enrg_sender_addr"),
+    (91, .jal .x1 "address_from_pubkey"),
+    (94, .la .x12 "enrg_bal_count"),
+    (96, .jal .x1 "rlp_list_count_items"),
+    (98, .la .x5 "enrg_bal_index"),
+    (101, .la .x5 "enrg_bal_index"),
+    (104, .la .x5 "enrg_bal_count"),
+    (111, .la .x13 "enrg_item_off"),
+    (113, .la .x14 "enrg_item_len"),
+    (115, .jal .x1 "rlp_item_span"),
+    (117, .la .x5 "enrg_item_off"),
+    (121, .la .x6 "enrg_acct_ptr"),
+    (124, .la .x6 "enrg_item_len"),
+    (127, .la .x7 "enrg_acct_len"),
+    (133, .la .x13 "enrg_addr_off"),
+    (135, .la .x14 "enrg_addr_len"),
+    (137, .jal .x1 "rlp_list_nth_item"),
+    (139, .la .x5 "enrg_addr_len"),
+    (144, .la .x5 "enrg_acct_ptr"),
+    (147, .la .x6 "enrg_addr_off"),
+    (151, .la .x7 "enrg_sender_addr"),
+    (162, .la .x5 "enrg_acct_ptr"),
+    (165, .la .x5 "enrg_acct_len"),
+    (169, .la .x13 "enrg_nonce_off"),
+    (171, .la .x14 "enrg_nonce_len"),
+    (173, .jal .x1 "rlp_list_nth_item"),
+    (175, .la .x5 "enrg_acct_ptr"),
+    (178, .la .x6 "enrg_nonce_off"),
+    (182, .la .x7 "enrg_nonce_list_ptr"),
+    (185, .la .x5 "enrg_nonce_len"),
+    (188, .la .x5 "enrg_nonce_list_ptr"),
+    (191, .la .x12 "enrg_nonce_count"),
+    (193, .jal .x1 "rlp_list_count_items"),
+    (195, .la .x5 "enrg_nonce_index"),
+    (198, .la .x5 "enrg_nonce_index"),
+    (201, .la .x5 "enrg_nonce_count"),
+    (205, .la .x5 "enrg_nonce_list_ptr"),
+    (208, .la .x5 "enrg_nonce_len"),
+    (212, .la .x13 "enrg_change_off"),
+    (214, .la .x14 "enrg_change_len"),
+    (216, .jal .x1 "rlp_item_span"),
+    (218, .la .x5 "enrg_nonce_list_ptr"),
+    (221, .la .x6 "enrg_change_off"),
+    (225, .la .x7 "enrg_change_ptr"),
+    (228, .la .x6 "enrg_change_len"),
+    (231, .la .x7 "enrg_change_item_len"),
+    (237, .la .x13 "enrg_change_index"),
+    (239, .jal .x1 "rlp_field_to_u64"),
+    (241, .la .x5 "enrg_change_index"),
+    (246, .la .x5 "enrg_change_ptr"),
+    (249, .la .x5 "enrg_change_item_len"),
+    (253, .la .x13 "enrg_change_value"),
+    (255, .jal .x1 "rlp_field_to_u64"),
+    (257, .la .x5 "enrg_change_value"),
+    (260, .la .x6 "enrg_tx_nonce"),
+    (264, .la .x5 "enrg_nonce_index"),
+    (270, .la .x5 "enrg_bal_index") ]
+
+def eip7702NonceReuseGuardFunction : String :=
+  "eip7702_nonce_reuse_guard:\n" ++ emitProgramR eip7702NonceReuseGuard_prog eip7702NonceReuseGuard_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip7702NonceReuseGuard_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip7702NonceReuseGuardFunction_eq_prog :
+    eip7702NonceReuseGuardFunction = "eip7702_nonce_reuse_guard:\n" ++ emitProgramR eip7702NonceReuseGuard_prog eip7702NonceReuseGuard_relocs := rfl
+
+#guard eip7702NonceReuseGuardFunction.startsWith "eip7702_nonce_reuse_guard:\n"
+#guard eip7702NonceReuseGuard_prog.length = 296
 def eip7702NonceReuseGuardDataSection : String :=
   ".balign 8\n" ++
   "enrg_tx_type:\n  .zero 8\n" ++

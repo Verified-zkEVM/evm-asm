@@ -17,6 +17,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
@@ -492,42 +495,61 @@ def ziskAccountValidateNonceZeroProbeUnit : BuildUnit := {
 
     Uses 32 bytes of `.data` scratch (`acpg_gas_fee`) plus the
     40-byte `u256m_acc` scratch from PR-K54. -/
-def accountChargeGasPreExecFunction : String :=
-  "account_charge_gas_pre_exec:\n" ++
-  "  addi sp, sp, -24\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                   # balance ptr\n" ++
-  "  mv s1, a3                   # nonce ptr (in-out)\n" ++
-  "  # gas_fee = effective_gas_price × gas_limit\n" ++
-  "  mv a0, a1\n" ++
-  "  mv a1, a2\n" ++
-  "  la a2, acpg_gas_fee\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lacpg_fail_mul\n" ++
-  "  # balance -= gas_fee\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, acpg_gas_fee\n" ++
-  "  mv a2, s0\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  "  bnez a0, .Lacpg_fail_sub\n" ++
-  "  # *nonce_ptr += 1\n" ++
-  "  ld t0, 0(s1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  sd t0, 0(s1)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lacpg_ret\n" ++
-  ".Lacpg_fail_mul:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lacpg_ret\n" ++
-  ".Lacpg_fail_sub:\n" ++
-  "  li a0, 2\n" ++
-  ".Lacpg_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 24\n" ++
-  "  ret"
+def accountChargeGasPreExec_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .MV .x10 .x11,
+    .MV .x11 .x12,
+    .AUIPC .x12 (laHi GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 32)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 32)),
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.account_charge_gas_pre_exec + 40)),
+    .BNE .x10 .x0 (48 : BitVec 13),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 52)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.acpg_gas_fee (GuestAddrs.account_charge_gas_pre_exec + 52)),
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.account_charge_gas_pre_exec + 64)),
+    .BNE .x10 .x0 (32 : BitVec 13),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountChargeGasPreExec_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountChargeGasPreExec_relocs : RelocTable :=
+  [ (8, .la .x12 "acpg_gas_fee"),
+    (10, .jal .x1 "u256_mul_u64_be"),
+    (13, .la .x11 "acpg_gas_fee"),
+    (16, .jal .x1 "u256_sub_be") ]
+
+def accountChargeGasPreExecFunction : String :=
+  "account_charge_gas_pre_exec:\n" ++ emitProgramR accountChargeGasPreExec_prog accountChargeGasPreExec_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountChargeGasPreExec_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountChargeGasPreExecFunction_eq_prog :
+    accountChargeGasPreExecFunction = "account_charge_gas_pre_exec:\n" ++ emitProgramR accountChargeGasPreExec_prog accountChargeGasPreExec_relocs := rfl
+
+#guard accountChargeGasPreExecFunction.startsWith "account_charge_gas_pre_exec:\n"
+#guard accountChargeGasPreExec_prog.length = 31
 /-- `zisk_account_charge_gas_pre_exec`: probe BuildUnit. Reads
     (32B balance, 32B egp, 8B gas_limit LE, 8B nonce LE) from
     host input; copies them into OUTPUT-resident buffers; calls
@@ -604,59 +626,116 @@ def ziskAccountChargeGasPreExecProbeUnit : BuildUnit := {
     On success and pricing success, `txup_effective_gas_price`,
     `txup_priority_fee`, and `txup_gas_limit` are populated for callers that
     need post-execution settlement. -/
-def txUpfrontPrechargeFunction : String :=
-  "tx_upfront_precharge:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # tx ptr\n" ++
-  "  mv s1, a1                   # tx len\n" ++
-  "  mv s2, a2                   # base_fee ptr\n" ++
-  "  mv s3, a3                   # sender balance ptr\n" ++
-  "  mv s4, a4                   # sender nonce ptr\n" ++
-  "  la t0, txup_nonce; sd zero, 0(t0)\n" ++
-  "  la t0, txup_gas_limit; sd zero, 0(t0)\n" ++
-  "  la t0, txup_effective_gas_price\n" ++
-  "  sd zero,  0(t0); sd zero,  8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  la t0, txup_priority_fee\n" ++
-  "  sd zero,  0(t0); sd zero,  8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  # Step 1: parse nonce and gas_limit.\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, txup_nonce; la a3, txup_gas_limit\n" ++
-  "  jal ra, tx_extract_nonce_and_gas\n" ++
-  "  beqz a0, .Ltxup_have_gas\n" ++
-  "  li a0, 10\n" ++
-  "  j .Ltxup_ret\n" ++
-  ".Ltxup_have_gas:\n" ++
-  "  # Step 2: compute effective gas price and priority fee.\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, txup_effective_gas_price; la a4, txup_priority_fee\n" ++
-  "  jal ra, tx_effective_gas_pricing\n" ++
-  "  beqz a0, .Ltxup_have_pricing\n" ++
-  "  li a0, 20\n" ++
-  "  j .Ltxup_ret\n" ++
-  ".Ltxup_have_pricing:\n" ++
-  "  # Step 3: deduct effective_gas_price * gas_limit and increment nonce.\n" ++
-  "  mv a0, s3; la a1, txup_effective_gas_price\n" ++
-  "  la t0, txup_gas_limit; ld a2, 0(t0)\n" ++
-  "  mv a3, s4\n" ++
-  "  jal ra, account_charge_gas_pre_exec\n" ++
-  "  beqz a0, .Ltxup_ok\n" ++
-  "  li t0, 1; beq a0, t0, .Ltxup_fail_mul\n" ++
-  "  li a0, 32\n" ++
-  "  j .Ltxup_ret\n" ++
-  ".Ltxup_fail_mul:\n" ++
-  "  li a0, 31\n" ++
-  "  j .Ltxup_ret\n" ++
-  ".Ltxup_ok:\n" ++
-  "  li a0, 0\n" ++
-  ".Ltxup_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def txUpfrontPrecharge_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .AUIPC .x5 (laHi GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 52)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 64)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 76)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 100)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 132)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.txup_nonce (GuestAddrs.tx_upfront_precharge + 132)),
+    .AUIPC .x13 (laHi GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 140)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 140)),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_nonce_and_gas (GuestAddrs.tx_upfront_precharge + 148)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (10 : Word),
+    .JAL .x0 (112 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 176)),
+    .AUIPC .x14 (laHi GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 184)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.txup_priority_fee (GuestAddrs.tx_upfront_precharge + 184)),
+    .JAL .x1 (jalOff GuestAddrs.tx_effective_gas_pricing (GuestAddrs.tx_upfront_precharge + 192)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (20 : Word),
+    .JAL .x0 (68 : BitVec 21),
+    .MV .x10 .x19,
+    .AUIPC .x11 (laHi GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 212)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.txup_effective_gas_price (GuestAddrs.tx_upfront_precharge + 212)),
+    .AUIPC .x5 (laHi GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.txup_gas_limit (GuestAddrs.tx_upfront_precharge + 220)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .MV .x13 .x20,
+    .JAL .x1 (jalOff GuestAddrs.account_charge_gas_pre_exec (GuestAddrs.tx_upfront_precharge + 236)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (12 : BitVec 13),
+    .LI .x10 (32 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (31 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txUpfrontPrecharge_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txUpfrontPrecharge_relocs : RelocTable :=
+  [ (13, .la .x5 "txup_nonce"),
+    (16, .la .x5 "txup_gas_limit"),
+    (19, .la .x5 "txup_effective_gas_price"),
+    (25, .la .x5 "txup_priority_fee"),
+    (33, .la .x12 "txup_nonce"),
+    (35, .la .x13 "txup_gas_limit"),
+    (37, .jal .x1 "tx_extract_nonce_and_gas"),
+    (44, .la .x13 "txup_effective_gas_price"),
+    (46, .la .x14 "txup_priority_fee"),
+    (48, .jal .x1 "tx_effective_gas_pricing"),
+    (53, .la .x11 "txup_effective_gas_price"),
+    (55, .la .x5 "txup_gas_limit"),
+    (59, .jal .x1 "account_charge_gas_pre_exec") ]
+
+def txUpfrontPrechargeFunction : String :=
+  "tx_upfront_precharge:\n" ++ emitProgramR txUpfrontPrecharge_prog txUpfrontPrecharge_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txUpfrontPrecharge_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txUpfrontPrechargeFunction_eq_prog :
+    txUpfrontPrechargeFunction = "tx_upfront_precharge:\n" ++ emitProgramR txUpfrontPrecharge_prog txUpfrontPrecharge_relocs := rfl
+
+#guard txUpfrontPrechargeFunction.startsWith "tx_upfront_precharge:\n"
+#guard txUpfrontPrecharge_prog.length = 77
 /-- `zisk_tx_upfront_precharge`: probe BuildUnit. Reads
     (32B base_fee, 32B balance, 8B nonce, 8B tx_len, tx_bytes), copies balance
     and nonce to OUTPUT-resident mutable buffers, calls `tx_upfront_precharge`,
@@ -1048,39 +1127,46 @@ def ziskTxPostExecGasSettlementProbeUnit : BuildUnit := {
       a3 (output) : tx_gas_used_before_refund
       a4 (output) : applied refund
 -/
-def txGasResultIncrementsFunction : String :=
-  "tx_gas_result_increments:\n" ++
-  "  bgtu a1, a0, .Ltgri_bad_remaining\n" ++
-  "  sub t0, a0, a1              # before_refund\n" ++
-  "  li t1, 5\n" ++
-  "  divu t2, t0, t1             # refund cap = before_refund / 5\n" ++
-  "  mv t3, a2                   # refund_counter\n" ++
-  "  bleu t3, t2, .Ltgri_refund_min_done\n" ++
-  "  mv t3, t2\n" ++
-  ".Ltgri_refund_min_done:\n" ++
-  "  sub t4, t0, t3              # after_refund\n" ++
-  "  mv t5, t0                   # block_inc = max(before_refund, floor)\n" ++
-  "  bleu a3, t5, .Ltgri_block_max_done\n" ++
-  "  mv t5, a3\n" ++
-  ".Ltgri_block_max_done:\n" ++
-  "  mv t6, t4                   # receipt_inc = max(after_refund, floor)\n" ++
-  "  bleu a3, t6, .Ltgri_receipt_max_done\n" ++
-  "  mv t6, a3\n" ++
-  ".Ltgri_receipt_max_done:\n" ++
-  "  li a0, 0\n" ++
-  "  mv a1, t5\n" ++
-  "  mv a2, t6\n" ++
-  "  mv a3, t0\n" ++
-  "  mv a4, t3\n" ++
-  "  ret\n" ++
-  ".Ltgri_bad_remaining:\n" ++
-  "  li a0, 1\n" ++
-  "  li a1, 0\n" ++
-  "  li a2, 0\n" ++
-  "  li a3, 0\n" ++
-  "  li a4, 0\n" ++
-  "  ret"
+def txGasResultIncrements_prog : Program :=
+  [ .BLTU .x10 .x11 (80 : BitVec 13),
+    .SUB .x5 .x10 .x11,
+    .LI .x6 (5 : Word),
+    .DIVU .x7 .x5 .x6,
+    .MV .x28 .x12,
+    .BGEU .x7 .x28 (8 : BitVec 13),
+    .MV .x28 .x7,
+    .SUB .x29 .x5 .x28,
+    .MV .x30 .x5,
+    .BGEU .x30 .x13 (8 : BitVec 13),
+    .MV .x30 .x13,
+    .MV .x31 .x29,
+    .BGEU .x31 .x13 (8 : BitVec 13),
+    .MV .x31 .x13,
+    .LI .x10 (0 : Word),
+    .MV .x11 .x30,
+    .MV .x12 .x31,
+    .MV .x13 .x5,
+    .MV .x14 .x28,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LI .x13 (0 : Word),
+    .LI .x14 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txGasResultIncrementsFunction : String :=
+  "tx_gas_result_increments:\n" ++ emitProgram txGasResultIncrements_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txGasResultIncrements_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txGasResultIncrementsFunction_eq_prog :
+    txGasResultIncrementsFunction = "tx_gas_result_increments:\n" ++ emitProgram txGasResultIncrements_prog := rfl
+
+#guard txGasResultIncrementsFunction.startsWith "tx_gas_result_increments:\n"
+#guard txGasResultIncrements_prog.length = 26
 /-- `zisk_tx_gas_result_increments`: focused probe for the scalar
     post-execution gas increment formula. Input payload after zisk's length
     prefix is four u64s: tx_gas_limit, gas_left, refund_counter,

@@ -23,6 +23,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
@@ -72,60 +75,65 @@ private def txExtractWalkFieldAsm (failLabel : String) (n : Nat) : String :=
       a0 (output) : 0 success / 1 unknown / empty input
 
     Leaf-callable, no scratch. -/
-def txTypeDispatchFunction : String :=
-  "tx_type_dispatch:\n" ++
-  "  beqz a1, .Ltd_fail\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bgeu t0, t1, .Ltd_legacy\n" ++
-  "  li t1, 1\n" ++
-  "  beq t0, t1, .Ltd_t1\n" ++
-  "  li t1, 2\n" ++
-  "  beq t0, t1, .Ltd_t2\n" ++
-  "  li t1, 3\n" ++
-  "  beq t0, t1, .Ltd_t3\n" ++
-  "  li t1, 4\n" ++
-  "  beq t0, t1, .Ltd_t4\n" ++
-  "  j .Ltd_fail\n" ++
-  ".Ltd_legacy:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t1:\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t2:\n" ++
-  "  li t0, 2\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t3:\n" ++
-  "  li t0, 3\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_t4:\n" ++
-  "  li t0, 4\n" ++
-  "  sd t0, 0(a2)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltd_fail:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def txTypeDispatch_prog : Program :=
+  [ .BEQ .x11 .x0 (164 : BitVec 13),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BGEU .x5 .x6 (40 : BitVec 13),
+    .LI .x6 (1 : Word),
+    .BEQ .x5 .x6 (48 : BitVec 13),
+    .LI .x6 (2 : Word),
+    .BEQ .x5 .x6 (64 : BitVec 13),
+    .LI .x6 (3 : Word),
+    .BEQ .x5 .x6 (80 : BitVec 13),
+    .LI .x6 (4 : Word),
+    .BEQ .x5 .x6 (96 : BitVec 13),
+    .JAL .x0 (116 : BitVec 21),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (2 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (3 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .SD .x12 .x5 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x13 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txTypeDispatchFunction : String :=
+  "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txTypeDispatch_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txTypeDispatchFunction_eq_prog :
+    txTypeDispatchFunction = "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog := rfl
+
+#guard txTypeDispatchFunction.startsWith "tx_type_dispatch:\n"
+#guard txTypeDispatch_prog.length = 45
 /-- `zisk_tx_type_dispatch`: probe BuildUnit. -/
 def ziskTxTypeDispatchPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -891,56 +899,105 @@ def ziskTxExtractGasPricingProbeUnit : BuildUnit := {
         2 : max_fee_per_gas < max_priority_fee_per_gas
         3 : max_fee_per_gas < base_fee_per_gas
         4 : effective_gas_price addition overflowed -/
-def txEffectiveGasPricingFunction : String :=
-  "tx_effective_gas_pricing:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a2                   # base_fee ptr\n" ++
-  "  mv s1, a3                   # effective_gas_price out\n" ++
-  "  mv s2, a4                   # priority_fee out\n" ++
-  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
-  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
-  "  la a2, tefgp_max_priority\n" ++
-  "  la a3, tefgp_max_fee\n" ++
-  "  jal ra, tx_extract_gas_pricing\n" ++
-  "  beqz a0, .Ltefgp_have_fields\n" ++
-  "  li a0, 1; j .Ltefgp_ret\n" ++
-  ".Ltefgp_have_fields:\n" ++
-  "  # Typed EIP-1559-family transactions require max_fee >= max_priority;\n" ++
-  "  # legacy/EIP-2930 have equal normalized values, so this is harmless there.\n" ++
-  "  la a0, tefgp_max_fee\n" ++
-  "  la a1, tefgp_max_priority\n" ++
-  "  la a2, tefgp_tmp\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  "  beqz a0, .Ltefgp_fee_order_ok\n" ++
-  "  li a0, 2; j .Ltefgp_ret\n" ++
-  ".Ltefgp_fee_order_ok:\n" ++
-  "  # priority_fee = min(max_priority, max_fee - base_fee), rejects max_fee < base_fee.\n" ++
-  "  la a0, tefgp_max_priority\n" ++
-  "  la a1, tefgp_max_fee\n" ++
-  "  mv a2, s0\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, priority_fee_per_gas_eip1559\n" ++
-  "  beqz a0, .Ltefgp_have_priority\n" ++
-  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
-  "  li a0, 3; j .Ltefgp_ret\n" ++
-  ".Ltefgp_have_priority:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  beqz a0, .Ltefgp_ok\n" ++
-  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
-  "  li a0, 4; j .Ltefgp_ret\n" ++
-  ".Ltefgp_ok:\n" ++
-  "  li a0, 0\n" ++
-  ".Ltefgp_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def txEffectiveGasPricing_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x18 .x14,
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 68)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 68)),
+    .AUIPC .x13 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 76)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 76)),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_gas_pricing (GuestAddrs.tx_effective_gas_pricing + 84)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (148 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 100)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 100)),
+    .AUIPC .x11 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 108)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 108)),
+    .AUIPC .x12 (laHi GuestAddrs.tefgp_tmp (GuestAddrs.tx_effective_gas_pricing + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tefgp_tmp (GuestAddrs.tx_effective_gas_pricing + 116)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.tx_effective_gas_pricing + 124)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (108 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 140)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 140)),
+    .AUIPC .x11 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 148)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 148)),
+    .MV .x12 .x8,
+    .MV .x13 .x18,
+    .JAL .x1 (jalOff GuestAddrs.priority_fee_per_gas_eip1559 (GuestAddrs.tx_effective_gas_pricing + 164)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (52 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.tx_effective_gas_pricing + 208)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txEffectiveGasPricing_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEffectiveGasPricing_relocs : RelocTable :=
+  [ (17, .la .x12 "tefgp_max_priority"),
+    (19, .la .x13 "tefgp_max_fee"),
+    (21, .jal .x1 "tx_extract_gas_pricing"),
+    (25, .la .x10 "tefgp_max_fee"),
+    (27, .la .x11 "tefgp_max_priority"),
+    (29, .la .x12 "tefgp_tmp"),
+    (31, .jal .x1 "u256_sub_be"),
+    (35, .la .x10 "tefgp_max_priority"),
+    (37, .la .x11 "tefgp_max_fee"),
+    (41, .jal .x1 "priority_fee_per_gas_eip1559"),
+    (52, .jal .x1 "u256_add_be") ]
+
+def txEffectiveGasPricingFunction : String :=
+  "tx_effective_gas_pricing:\n" ++ emitProgramR txEffectiveGasPricing_prog txEffectiveGasPricing_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEffectiveGasPricing_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txEffectiveGasPricingFunction_eq_prog :
+    txEffectiveGasPricingFunction = "tx_effective_gas_pricing:\n" ++ emitProgramR txEffectiveGasPricing_prog txEffectiveGasPricing_relocs := rfl
+
+#guard txEffectiveGasPricingFunction.startsWith "tx_effective_gas_pricing:\n"
+#guard txEffectiveGasPricing_prog.length = 68
 /-- `zisk_tx_effective_gas_pricing`: probe BuildUnit. Reads
     (32B base_fee, tx_len, tx_bytes), writes
     (status, effective_gas_price BE, priority_fee_per_gas BE). -/
@@ -1029,74 +1086,131 @@ def ziskTxEffectiveGasPricingProbeUnit : BuildUnit := {
     Uses three 8-byte `.data` scratch slots
     (`alc_scratch`, `alc_entry_offset`, `alc_entry_length`,
     `alc_keys_offset`, `alc_keys_length`). -/
-def accessListCountFunction : String :=
-  "access_list_count:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # outer list ptr\n" ++
-  "  mv s1, a1                   # outer list len\n" ++
-  "  mv s2, a2                   # num_addresses out\n" ++
-  "  mv s3, a3                   # num_storage_keys out\n" ++
-  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
-  "  # Step 1: outer count → s4 = N.\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  la a2, alc_scratch\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  la t0, alc_scratch; ld s4, 0(t0)\n" ++
-  "  beqz s4, .Lalc_done\n" ++
-  "  # Step 2: iterate entries 0..N-1.\n" ++
-  "  li s5, 0                    # entry index\n" ++
-  ".Lalc_loop:\n" ++
-  "  beq s5, s4, .Lalc_done\n" ++
-  "  # Fetch entry s5 bounds in the outer list.\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s5\n" ++
-  "  la a3, alc_entry_offset\n" ++
-  "  la a4, alc_entry_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  # entry_ptr = outer_ptr + entry_offset.\n" ++
-  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
-  "  la t0, alc_entry_length; ld t2, 0(t0)\n" ++
-  "  add a0, s0, t1              # entry_ptr\n" ++
-  "  mv a1, t2                   # entry_len\n" ++
-  "  # Fetch entry field 1 (the slots sub-list) bounds.\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, alc_keys_offset\n" ++
-  "  la a4, alc_keys_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  # keys_ptr = outer_ptr + entry_offset + keys_offset.\n" ++
-  "  la t0, alc_entry_offset; ld t1, 0(t0)\n" ++
-  "  la t0, alc_keys_offset; ld t3, 0(t0)\n" ++
-  "  add t1, t1, t3\n" ++
-  "  add a0, s0, t1              # keys_ptr\n" ++
-  "  la t0, alc_keys_length; ld a1, 0(t0)\n" ++
-  "  la a2, alc_scratch\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lalc_fail\n" ++
-  "  la t0, alc_scratch; ld t1, 0(t0)\n" ++
-  "  ld t2, 0(s3)\n" ++
-  "  add t2, t2, t1\n" ++
-  "  sd t2, 0(s3)\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lalc_loop\n" ++
-  ".Lalc_done:\n" ++
-  "  sd s4, 0(s2)                # num_addresses = N\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lalc_ret\n" ++
-  ".Lalc_fail:\n" ++
-  "  sd zero, 0(s2); sd zero, 0(s3)\n" ++
-  "  li a0, 1\n" ++
-  ".Lalc_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def accessListCount_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 64)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 64)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.access_list_count + 72)),
+    .BNE .x10 .x0 (228 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 80)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 80)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .BEQ .x20 .x0 (200 : BitVec 13),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x20 (192 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x21,
+    .AUIPC .x13 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 116)),
+    .AUIPC .x14 (laHi GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 124)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.access_list_count + 132)),
+    .BNE .x10 .x0 (168 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 140)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 152)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x6,
+    .MV .x11 .x7,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 176)),
+    .AUIPC .x14 (laHi GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 184)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 184)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.access_list_count + 192)),
+    .BNE .x10 .x0 (108 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 200)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_keys_offset (GuestAddrs.access_list_count + 212)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x28,
+    .ADD .x10 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 232)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 244)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 244)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.access_list_count + 252)),
+    .BNE .x10 .x0 (48 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 260)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 260)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x19 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .SD .x19 .x7 (0 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-188 : BitVec 21),
+    .SD .x18 .x20 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accessListCount_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accessListCount_relocs : RelocTable :=
+  [ (16, .la .x12 "alc_scratch"),
+    (18, .jal .x1 "rlp_list_count_items"),
+    (20, .la .x5 "alc_scratch"),
+    (29, .la .x13 "alc_entry_offset"),
+    (31, .la .x14 "alc_entry_length"),
+    (33, .jal .x1 "rlp_list_nth_item"),
+    (35, .la .x5 "alc_entry_offset"),
+    (38, .la .x5 "alc_entry_length"),
+    (44, .la .x13 "alc_keys_offset"),
+    (46, .la .x14 "alc_keys_length"),
+    (48, .jal .x1 "rlp_list_nth_item"),
+    (50, .la .x5 "alc_entry_offset"),
+    (53, .la .x5 "alc_keys_offset"),
+    (58, .la .x5 "alc_keys_length"),
+    (61, .la .x12 "alc_scratch"),
+    (63, .jal .x1 "rlp_list_count_items"),
+    (65, .la .x5 "alc_scratch") ]
+
+def accessListCountFunction : String :=
+  "access_list_count:\n" ++ emitProgramR accessListCount_prog accessListCount_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accessListCount_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accessListCountFunction_eq_prog :
+    accessListCountFunction = "access_list_count:\n" ++ emitProgramR accessListCount_prog accessListCount_relocs := rfl
+
+#guard accessListCountFunction.startsWith "access_list_count:\n"
+#guard accessListCount_prog.length = 88
 /-- `zisk_access_list_count`: probe BuildUnit. Reads (list_len,
     list_bytes) from host input, writes (status, num_addresses,
     num_storage_keys) to OUTPUT. -/

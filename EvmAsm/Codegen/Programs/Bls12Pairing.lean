@@ -35,6 +35,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Bls12Fq12
 
 namespace EvmAsm.Codegen
@@ -82,18 +83,28 @@ private def call3 (fn d a b : String) : String :=
   "  jal ra, " ++ fn ++ "\n"
 
 /-- Copy a 1728-byte FQ12 projective point: a0 = src, a1 = dst. -/
-def bls12PtCopyFunction : String :=
-  "blq_pt_copy:\n" ++
-  "  li t2, 216\n" ++
-  ".Lblq_pt_copy_loop:\n" ++
-  "  ld t3, 0(a0)\n" ++
-  "  sd t3, 0(a1)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi a1, a1, 8\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblq_pt_copy_loop\n" ++
-  "  ret"
+def blqPtCopy_prog : Program :=
+  [ .LI .x7 (216 : Word),
+    .LD .x28 .x10 (0 : BitVec 12),
+    .SD .x11 .x28 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12PtCopyFunction : String :=
+  "blq_pt_copy:\n" ++ emitProgram blqPtCopy_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blqPtCopy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12PtCopyFunction_eq_prog :
+    bls12PtCopyFunction = "blq_pt_copy:\n" ++ emitProgram blqPtCopy_prog := rfl
+
+#guard bls12PtCopyFunction.startsWith "blq_pt_copy:\n"
+#guard blqPtCopy_prog.length = 8
 /-- Double an FQ12 projective point (py_ecc `optimized_curve.double`):
     W = 3x^2, S = yz, B = xyS, H = W^2 - 8B,
     X' = 2HS, Y' = W(4B - H) - 8 y^2 S^2, Z' = 8 S^3.

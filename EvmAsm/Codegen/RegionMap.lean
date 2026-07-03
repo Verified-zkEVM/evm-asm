@@ -1,0 +1,486 @@
+/-
+  EvmAsm.Codegen.RegionMap
+
+  Authoritative, kernel-checked memory-region map for the stateless guest
+  (bead `evm-asm-4ch8f.6`, mechanical half).
+
+  This is the single source of truth reconciling the two address-space schemes
+  that previously had no shared, machine-checked layout statement:
+
+  * **Scheme A** — the working-RAM anchors in `EvmAsm/Stateless/MemoryLayout.lean`
+    (`0xa0020000..0xa3000000`), the layout the *verified stateless port* under
+    `EvmAsm/Stateless/` addresses. Historically these anchors had *no* fit or
+    disjointness lemma and their sizes were only implicit in the gaps between
+    successive anchors. Here every anchor gets an explicit extent (the gap to the
+    next anchor) and a per-region evidence note.
+  * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`) plus `.text`
+    (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
+    (`--section-start=.sszscratch=0xbf500000`). Sizes here are the ELF ground
+    truth (`readelf -S`), cross-checked by `scripts/check-region-map.sh`.
+
+  **Location rationale.** This module imports both `CallFrameLayout`
+  (Codegen layer) and `MemoryLayout` (verified-core layer, under `Stateless/`).
+  Only the Codegen layer may import both (the layering guard forbids
+  core → Codegen), so the region map lives here rather than under `Stateless/`.
+
+  **Aliasing (soundness-critical, deferred proof).** The guest has exactly one
+  intentional physical overlap: `call_frame_arena` (~164 MiB, EVM call-frame
+  overlay) coalesces seven execution-dead Phase-H arenas into its front
+  (`basr_values`, `basr_accounts`, `bv_system_storage_log`, `baap_storage_desc`,
+  `baap_storage_paths`, `baap_storage_delete_paths`, `baap_storage_values`).
+  This file *documents* those overlaps precisely (`aliasedPairs` + the per-pair
+  `_overlap` theorems) and proves the seven coalesced children are mutually
+  disjoint. It does **not** prove they are safe to share — the verified
+  phase-ownership / separation-logic model is bead `.6`'s other (deferred) half.
+  See `docs/4ch8f-region-map.md` §"Overlap inventory" and
+  `docs/call-frame-memory-layout.md` §5.
+
+  All statements use plain `Nat` (no `Word`/`BitVec`) so the pairwise and
+  fit checks are closed by the kernel's GMP-backed `decide`. No
+  `native_decide`/`bv_decide`. The `_matches_*` theorems pin each literal here
+  to the real layout constant it mirrors, so a drift in either place is a
+  kernel error.
+-/
+
+import EvmAsm.Codegen.CallFrameLayout
+import EvmAsm.Stateless.MemoryLayout
+
+namespace EvmAsm.Codegen.RegionMap
+
+open EvmAsm.Rv64 (RAM_MEM_START RAM_MEM_END INPUT_MEM_START INPUT_MEM_END)
+
+/-! ## Region model -/
+
+/-- Access mode / section kind of a guest region. -/
+inductive RegionMode
+  /-- Executable code (`.text`, `R E`). -/
+  | rx
+  /-- Read-write data materialized in the ELF (`.data`, working RAM). -/
+  | rw
+  /-- Read-only host-supplied input. -/
+  | ro
+  /-- Zero-initialized, not stored in the ELF file (`.sszscratch`, NOBITS). -/
+  | nobits
+  deriving DecidableEq, Repr
+
+/-- Which top-level address-space zone a region is expected to live inside.
+    Each zone is a half-open `[lo, hi)` byte range recognised (for the RAM /
+    INPUT zones) by the verified `isValidMemAddr` predicate. -/
+inductive RegionZone
+  /-- Host input window `[INPUT_MEM_START, INPUT_MEM_END)`. -/
+  | input
+  /-- `.text`/`.rodata` window `[0x80000000, 0xa0000000)`. -/
+  | text
+  /-- Verified RAM window `[RAM_MEM_START, RAM_MEM_END)` = `0xa0000000..0xc0000000`. -/
+  | ram
+  deriving DecidableEq, Repr
+
+def RegionZone.lo : RegionZone → Nat
+  | .input  => INPUT_MEM_START
+  | .text   => 0x80000000
+  | .ram    => RAM_MEM_START
+
+def RegionZone.hi : RegionZone → Nat
+  | .input  => INPUT_MEM_END
+  | .text   => 0xa0000000
+  | .ram    => RAM_MEM_END
+
+/-- One named guest region: `[base, base+size)`, its mode, the zone it must fit,
+    and a short scheme/evidence tag (documentation, not used by the proofs). -/
+structure GuestRegion where
+  name     : String
+  base     : Nat
+  size     : Nat
+  mode     : RegionMode
+  zone     : RegionZone
+  evidence : String
+  deriving Repr
+
+/-- Byte just past the region. -/
+def GuestRegion.eend (r : GuestRegion) : Nat := r.base + r.size
+
+/-- `a` and `b` occupy disjoint byte ranges. -/
+def GuestRegion.disjoint (a b : GuestRegion) : Bool :=
+  decide (a.base + a.size ≤ b.base) || decide (b.base + b.size ≤ a.base)
+
+/-- `r` lies fully inside its declared zone. -/
+def GuestRegion.fitsZone (r : GuestRegion) : Bool :=
+  decide (r.zone.lo ≤ r.base) && decide (r.base + r.size ≤ r.zone.hi)
+
+/-- `inner ⊆ outer` (inner's whole range sits within outer's). -/
+def GuestRegion.subrange (inner outer : GuestRegion) : Bool :=
+  decide (outer.base ≤ inner.base) && decide (inner.base + inner.size ≤ outer.base + outer.size)
+
+/-! ## Booleans over region lists (kept `decide`-friendly). -/
+
+/-- Every region fits its zone. -/
+def allFitZones (rs : List GuestRegion) : Bool :=
+  rs.all GuestRegion.fitsZone
+
+/-- Every unordered pair of distinct list positions is disjoint. -/
+def allPairwiseDisjoint : List GuestRegion → Bool
+  | []      => true
+  | r :: rs => rs.all (fun s => r.disjoint s) && allPairwiseDisjoint rs
+
+/-! ## Scheme-A working-RAM anchors — ASPIRATIONAL port contract (`MemoryLayout.lean`).
+
+    These are the layout the in-progress verified port under `EvmAsm/Stateless/`
+    *intends* to use; they do NOT describe the currently-emitted `stateless_guest`
+    (see `guestRegionMap`, the emitted-reality map, and the FINDING in the docs:
+    only `state_tracker_area` is referenced today). They are kept here as a
+    separate list because — as of this build — they are NOT disjoint from what the
+    guest actually emits: the RV64 call stack (`guestStackRegion`, top pinned by
+    `_start`'s `li sp, 0xa0050000`) grows down *through* `execution_witness_area`
+    (see `guestStack_overlaps_executionWitnessArea`). Reflowing the scheme-A
+    anchors clear of the stack/witness area before the port goes live is filed as
+    a P1 divergence bead; until then the aspirational list must not be conflated
+    with the emitted-reality map.
+
+    Sizes are the gap to the next anchor (the reserved slab). The evidence note
+    records the *measured* live extent where the emitted guest actually
+    references the anchor, which may be smaller than the reserved slab. -/
+
+/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1ba0000`. Aspirational —
+    see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
+    internally consistent, but they are NOT part of `guestRegionMap`. -/
+def schemeAAnchors : List GuestRegion :=
+  [ { name := "ssz_input_decoded",      base := 0xa0020000, size := 0x10000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout SSZ_INPUT_DECODED; 64 KiB slab (verified-port scheme A)" },
+    { name := "execution_witness_area", base := 0xa0030000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout EXECUTION_WITNESS_AREA; 1 MiB slab" },
+    { name := "node_db_buckets",        base := 0xa0130000, size := 0x400000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout NODE_DB_BUCKETS; 4 MiB slab" },
+    { name := "code_db_buckets",        base := 0xa0530000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout CODE_DB_BUCKETS; 1 MiB slab" },
+    { name := "state_tracker_area",     base := 0xa0630000, size := 0x400000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STATE_TRACKER_AREA; 4 MiB slab. LIVE in emitted guest: "
+        ++ "storage-log base 0xa0630000..0xa0830000 (2 MiB, 16384x128 rows) — the ONLY "
+        ++ "scheme-A anchor the current stateless_guest references (see FINDING in docs)" },
+    { name := "evm_frame_stack",        base := 0xa0a30000, size := 0x40000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout EVM_FRAME_STACK; 256 KiB slab" },
+    { name := "evm_value_stack",        base := 0xa0a70000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout EVM_VALUE_STACK; 1 MiB slab" },
+    { name := "evm_memory_area",        base := 0xa0b70000, size := 0x1000000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout EVM_MEMORY_AREA; 16 MiB slab" },
+    { name := "keccak_scratch",         base := 0xa1b70000, size := 0x10000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout KECCAK_SCRATCH; 64 KiB slab" },
+    { name := "ecrecover_scratch",      base := 0xa1b80000, size := 0x10000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ECRECOVER_SCRATCH; 64 KiB slab" },
+    { name := "sha256_scratch",         base := 0xa1b90000, size := 0x10000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" } ]
+
+/-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
+
+    `.text` and `.data` sizes are LINK-LAYOUT-DEPENDENT (they move whenever any
+    function or data object changes size); `scripts/check-region-map.sh`
+    re-derives them from the linked ELF on every CI run. INPUT/OUTPUT bases and
+    the section bases are STABLE (pinned by the codegen constants and the
+    `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
+
+/-- ELF-measured `.text` size for the `stateless_guest` unit
+    (`readelf -S`, `0x58150`). Link-layout-dependent; the drift guard re-derives it. -/
+def textSizeBytes : Nat := 0x58150
+
+/-- ELF-measured `.data` size for the `stateless_guest` unit
+    (`readelf -S`, `0x15945a70`). Link-layout-dependent. -/
+def dataSizeBytes : Nat := 0x15945a70
+
+/-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
+def inputRegion : GuestRegion :=
+  { name := "INPUT", base := 0x40000000, size := 0x2000, mode := .ro, zone := .input,
+    evidence := "Programs INPUT_ADDR; 8 KiB host SSZ input; [+0..8] ZisK meta, [+8..16] len, [+16..] body" }
+
+/-- Public output window (`OUTPUT_ADDR = 0xa0010000`, 64 KiB). -/
+def outputRegion : GuestRegion :=
+  { name := "OUTPUT", base := 0xa0010000, size := 0x10000, mode := .rw, zone := .ram,
+    evidence := "Programs OUTPUT_ADDR; 64 KiB SszStatelessValidationResult" }
+
+/-- `.text` section (`-Ttext=0x80000000`). -/
+def textRegion : GuestRegion :=
+  { name := ".text", base := 0x80000000, size := textSizeBytes, mode := .rx, zone := .text,
+    evidence := "ELF -Ttext=0x80000000; size link-dependent (drift guard)" }
+
+/-- `.data` section (`-Tdata=0xa3000000`). Contains every static/verdict arena,
+    including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
+def dataRegion : GuestRegion :=
+  { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
+    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xb8945a70" }
+
+/-- `.sszscratch` NOBITS merkleization scratch
+    (`--section-start=.sszscratch=0xbf500000`). -/
+def sszScratchRegion : GuestRegion :=
+  { name := ".sszscratch", base := 0xbf500000, size := 0x680000, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.sszscratch=0xbf500000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
+
+/-! ## Emitted-reality regions the section/anchor lists omit.
+
+    These are addresses the *currently-emitted* `stateless_guest` provably touches
+    (verified from the emitted `.s`, guarded by `check-region-map.sh`) but which
+    neither the scheme-A anchors nor the ELF sections cover. They are part of
+    `guestRegionMap` so it accounts for every byte the guest uses. -/
+
+/-- ZisK host/system band `[0xa0000000, 0xa0010000)`. The guest reads/writes the
+    ZisK MTVEC (trap-vector) memory slot `0xa0009828` to save/restore the trap
+    vector around the verdict (`StatelessGuestEpilogue`, `li t0, 0xa0009828`). -/
+def ziskSystemRegion : GuestRegion :=
+  { name := "zisk_system", base := 0xa0000000, size := 0x10000, mode := .rw, zone := .ram,
+    evidence := "guest reads/writes ZisK MTVEC slot 0xa0009828 (StatelessGuestEpilogue trap save/restore)" }
+
+/-- Top of the RV64 call stack, pinned by `_start`'s `li sp, 0xa0050000` (the sole
+    `sp` init in the image). The stack grows DOWN from here. -/
+def guestStackTop : Nat := 0xa0050000
+
+/-- RV64 call stack, growing DOWN from `guestStackTop = 0xa0050000`. Budget
+    `[0xa0020000, 0xa0050000)` = 192 KiB — the space between OUTPUT's top and the
+    `sp` init; anything below `0xa0020000` would corrupt OUTPUT. NOTE: the current
+    guest has no explicit stack-depth guard, so this is the *safe budget*, not a
+    proven max depth; a real guard is the port's responsibility. This region
+    overlaps the ASPIRATIONAL `execution_witness_area`/`ssz_input_decoded` anchors
+    (see `guestStack_overlaps_executionWitnessArea`) — the collision the port must
+    reflow. -/
+def guestStackRegion : GuestRegion :=
+  { name := "guest_stack", base := 0xa0020000, size := 0x30000, mode := .rw, zone := .ram,
+    evidence := "_start `li sp, 0xa0050000` (grows down); budget bottoms at OUTPUT top 0xa0020000" }
+
+/-- The state-tracker storage-log window ACTUALLY used by the emitted guest:
+    `[0xa0630000, 0xa0830000)` = 2 MiB (16384x128 rows). The one live scheme-A
+    anchor (`STATE_TRACKER_AREA`), sized to its real extent rather than the 4 MiB
+    aspirational slab. -/
+def stateTrackerLiveRegion : GuestRegion :=
+  { name := "state_tracker_live", base := 0xa0630000, size := 0x200000, mode := .rw, zone := .ram,
+    evidence := "emitted guest storage-log base 0xa0630000..0xa0830000 (2 MiB); the sole live scheme-A anchor" }
+
+/-! ## The authoritative EMITTED-REALITY region map.
+
+    One list, one source of truth, describing what the *currently-emitted*
+    `stateless_guest` actually touches — this is the map routine triples and wave
+    `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
+    list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
+    contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
+    (`0xa3000000`); `.data` ends `0xb8945a70` below `.sszscratch`; INPUT and
+    `.text` sit in their own zones. The guest's one intentional overlap lives
+    strictly inside the `.data` member and is expanded — as its own inventory —
+    in `dataUnionChildren`/`aliasedPairs` below. The scheme-A anchors are the
+    separate, aspirational port contract (`schemeAAnchors`), deliberately NOT in
+    this list because they collide with `guest_stack` in the current build. -/
+def guestRegionMap : List GuestRegion :=
+  [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
+    stateTrackerLiveRegion, textRegion, dataRegion, sszScratchRegion ]
+
+/-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
+
+/-- Every region in the emitted-reality map lies inside its declared zone
+    (RAM regions within `0xa0000000..0xc0000000`, `.text` within its window,
+    INPUT within the host input window). -/
+theorem guestRegionMap_fits_ram : allFitZones guestRegionMap = true := by decide
+
+/-- The emitted-reality map is pairwise disjoint — with NO exception list. Every
+    byte the emitted guest touches is accounted for by exactly one region; the
+    one intentional overlap lives strictly inside the `.data` member and is
+    documented separately in `dataUnionChildren`/`aliasedPairs`. -/
+theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = true := by decide
+
+/-- The scheme-A anchors are internally consistent (pairwise disjoint among
+    themselves), so the aspirational port map is self-coherent even though it
+    collides with the emitted-reality `guest_stack` (next theorem). -/
+theorem schemeAAnchors_pairwise_disjoint : allPairwiseDisjoint schemeAAnchors = true := by decide
+
+/-! ## Emitted-vs-aspirational collision (the divergence the bead exists to surface).
+
+    The RV64 call-stack top pinned by `_start` sits INSIDE the aspirational
+    `execution_witness_area` slab, and the stack budget also overlaps
+    `ssz_input_decoded`. These are kernel-checked so the port cannot silently
+    ship the scheme-A layout on top of a live stack. Filed as a P1 divergence
+    bead; input to the deferred phase-ownership half. -/
+
+/-- `guestStackTop = 0xa0050000` lies within `execution_witness_area`
+    `[0xa0030000, 0xa0130000)` — the RV64 call stack grows down straight through
+    the aspirational witness-area slab. -/
+theorem guestStack_overlaps_executionWitnessArea :
+    0xa0030000 ≤ guestStackTop ∧ guestStackTop < 0xa0130000 := by decide
+
+/-- The `guest_stack` budget `[0xa0020000, 0xa0050000)` is NOT disjoint from the
+    aspirational `ssz_input_decoded` anchor `[0xa0020000, 0xa0030000)` — the
+    concrete witness that `guestRegionMap` (emitted) and `schemeAAnchors`
+    (aspirational) cannot be merged into one disjoint list today. -/
+theorem guestStack_not_disjoint_from_schemeA :
+    guestStackRegion.disjoint
+      { name := "ssz_input_decoded", base := 0xa0020000, size := 0x10000,
+        mode := .rw, zone := .ram, evidence := "" } = false := by decide
+
+/-! ## `_matches_*`: pin the literals above to the real layout constants.
+
+    A drift in either the region map or the upstream constant is a kernel error. -/
+
+theorem inputRegion_matches_zone :
+    inputRegion.base = INPUT_MEM_START ∧ inputRegion.eend = INPUT_MEM_END := by decide
+
+theorem sszScratch_matches_layout :
+    sszScratchRegion.base = (EvmAsm.Stateless.SSZ_SCRATCH_BASE).toNat
+      ∧ sszScratchRegion.size = EvmAsm.Stateless.SSZ_SCRATCH_SIZE := by decide
+
+theorem schemeA_matches_layout :
+    (schemeAAnchors.map GuestRegion.base) =
+      [ (EvmAsm.Stateless.SSZ_INPUT_DECODED).toNat,
+        (EvmAsm.Stateless.EXECUTION_WITNESS_AREA).toNat,
+        (EvmAsm.Stateless.NODE_DB_BUCKETS).toNat,
+        (EvmAsm.Stateless.CODE_DB_BUCKETS).toNat,
+        (EvmAsm.Stateless.STATE_TRACKER_AREA).toNat,
+        (EvmAsm.Stateless.EVM_FRAME_STACK).toNat,
+        (EvmAsm.Stateless.EVM_VALUE_STACK).toNat,
+        (EvmAsm.Stateless.EVM_MEMORY_AREA).toNat,
+        (EvmAsm.Stateless.KECCAK_SCRATCH).toNat,
+        (EvmAsm.Stateless.ECRECOVER_SCRATCH).toNat,
+        (EvmAsm.Stateless.SHA256_SCRATCH).toNat ] := by decide
+
+/-! ## Within-`.data` aliasing inventory (the `call_frame_arena` union).
+
+    ELF ground truth (`readelf -s`, this build):
+    ```
+    ac44d520  call_frame_arena  == basr_values
+    adcb8720  basr_accounts          (+  S)
+    af523920  bv_system_storage_log  (+ 2S)
+    b3e61920  baap_storage_desc      (+ 2S + L)
+    b4232220  baap_storage_paths
+    b484ca20  baap_storage_delete_paths
+    b4e67220  baap_storage_values
+    b6876520  call_frame_arena_end   (== base + frameArrayBytes)
+    ```
+    with `S = bsrMaxStateChanges * bsrEncodedAccountBytes`,
+    `L = bvSystemStorageLogBytes`. These are relocatable symbols reached via
+    independent `la`; only the *offsets within the arena* are layout-invariant,
+    so this inventory uses arena-relative offsets, not the absolute build
+    addresses. The absolute base is captured once for cross-checking. -/
+
+/-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
+    LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
+def callFrameArenaBase : Nat := 0xac44d520
+
+/-- `S` — the `basr_values`/`basr_accounts` per-arena stride. -/
+def basrArenaBytes : Nat := bsrMaxStateChanges * bsrEncodedAccountBytes
+
+/-- One coalesced child of `call_frame_arena`: name + arena-relative `[off, off+size)`. -/
+structure UnionChild where
+  name : String
+  off  : Nat
+  size : Nat
+  deriving Repr
+
+/-- The seven Phase-H arenas coalesced into the front of `call_frame_arena`,
+    in layout order, as arena-relative offset/size pairs. Mirrors the emit in
+    `BlockVerdictDataSection.lean` (the `basr_values`/`basr_accounts` pair, the
+    `bv_system_storage_log` arena, then the four `baap_storage_*` arenas). -/
+def dataUnionChildren : List UnionChild :=
+  [ { name := "basr_values",              off := 0,                                          size := basrArenaBytes },
+    { name := "basr_accounts",            off := basrArenaBytes,                             size := basrArenaBytes },
+    { name := "bv_system_storage_log",    off := 2 * basrArenaBytes,                         size := bvSystemStorageLogBytes },
+    { name := "baap_storage_desc",        off := 2 * basrArenaBytes + bvSystemStorageLogBytes,
+                                          size := bsrMaxBalItems * baapStorageDescBytes },
+    { name := "baap_storage_paths",       off := 2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes,
+                                          size := bsrMaxBalItems * bsrPathBytes },
+    { name := "baap_storage_delete_paths",off := 2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes + bsrMaxBalItems * bsrPathBytes,
+                                          size := bsrMaxBalItems * bsrPathBytes },
+    { name := "baap_storage_values",      off := 2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes + 2 * (bsrMaxBalItems * bsrPathBytes),
+                                          size := bsrMaxBalItems * bsrPathBytes } ]
+
+/-- Two union children occupy disjoint arena-relative ranges. -/
+def UnionChild.disjoint (a b : UnionChild) : Bool :=
+  decide (a.off + a.size ≤ b.off) || decide (b.off + b.size ≤ a.off)
+
+def unionChildrenPairwiseDisjoint : List UnionChild → Bool
+  | []      => true
+  | c :: cs => cs.all (fun d => c.disjoint d) && unionChildrenPairwiseDisjoint cs
+
+/-- Each child's range fits inside the arena `[0, frameArrayBytes)`. -/
+def unionChildFitsArena (c : UnionChild) : Bool := decide (c.off + c.size ≤ frameArrayBytes)
+
+/-- **The seven coalesced arenas are mutually disjoint** (each owns a distinct
+    sub-range of `call_frame_arena`). This is the "no self-corruption *among the
+    unioned arenas*" fact — NOT the phase-liveness fact that they may share bytes
+    with the frame array (that is the deferred half). -/
+theorem dataUnionChildren_pairwise_disjoint :
+    unionChildrenPairwiseDisjoint dataUnionChildren = true := by decide
+
+/-- Every coalesced arena fits within `call_frame_arena` (`[0, frameArrayBytes)`),
+    i.e. the union does not run past the frame array. Matches the trailing pad in
+    `BlockVerdictDataSection.lean` and `CallFrameLayout.frameArray_unions_*`. -/
+theorem dataUnionChildren_fit_arena :
+    dataUnionChildren.all unionChildFitsArena = true := by decide
+
+/-- The `call_frame_arena` byte range `[base, base + frameArrayBytes)` sits inside
+    the `.data` section. (`call_frame_arena_end = 0xb6876520 < .data end 0xb8945a70`.) -/
+theorem callFrameArena_within_data :
+    dataRegion.base ≤ callFrameArenaBase
+      ∧ callFrameArenaBase + frameArrayBytes ≤ dataRegion.base + dataRegion.size := by decide
+
+/-! ## Explicit overlap inventory (`aliasedPairs`).
+
+    These are the ONLY intentionally-overlapping region pairs in the guest.
+    Each pair is `(call_frame_arena, <coalesced child>)`; the child's absolute
+    range is a strict sub-range of the arena. The per-pair `_overlap` theorem
+    states the overlap RANGE precisely (as arena-relative offsets). The verified
+    phase-ownership model that shows these shared bytes are never live
+    simultaneously is DEFERRED (bead `.6`, Fable's half) — see
+    `docs/call-frame-memory-layout.md` §5 and `docs/4ch8f-region-map.md`. -/
+def aliasedPairs : List (String × String) :=
+  dataUnionChildren.map (fun c => ("call_frame_arena", c.name))
+
+/-- Every aliased pair names `call_frame_arena` as the umbrella and a real
+    coalesced child; there are exactly seven, matching `dataUnionChildren`. -/
+theorem aliasedPairs_shape :
+    aliasedPairs = [ ("call_frame_arena", "basr_values"),
+                     ("call_frame_arena", "basr_accounts"),
+                     ("call_frame_arena", "bv_system_storage_log"),
+                     ("call_frame_arena", "baap_storage_desc"),
+                     ("call_frame_arena", "baap_storage_paths"),
+                     ("call_frame_arena", "baap_storage_delete_paths"),
+                     ("call_frame_arena", "baap_storage_values") ] := by decide
+
+/-- **Overlap ranges (precise).** Each coalesced child aliases the arena over
+    exactly `[child.off, child.off + child.size)` (arena-relative). Stated as the
+    full offset/size table so the exact overlapping byte range of every aliased
+    pair is machine-checked, not prose. -/
+theorem aliasedPairs_overlap_ranges :
+    dataUnionChildren.map (fun c => (c.off, c.off + c.size)) =
+      [ (0,          basrArenaBytes),
+        (basrArenaBytes, 2 * basrArenaBytes),
+        (2 * basrArenaBytes, 2 * basrArenaBytes + bvSystemStorageLogBytes),
+        (2 * basrArenaBytes + bvSystemStorageLogBytes,
+           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes),
+        (2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes,
+           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+             + bsrMaxBalItems * bsrPathBytes),
+        (2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+           + bsrMaxBalItems * bsrPathBytes,
+           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+             + 2 * (bsrMaxBalItems * bsrPathBytes)),
+        (2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+           + 2 * (bsrMaxBalItems * bsrPathBytes),
+           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+             + 3 * (bsrMaxBalItems * bsrPathBytes)) ] := by decide
+
+/-! ## Linker-facts bridge (data arena bases derivable from the map).
+
+    Wave `.9.3` distinguishes STABLE addresses (pinned constants) from
+    LINK-LAYOUT-DEPENDENT ones (function entries and `.data` symbol addresses,
+    which move on any size change). The STABLE arena/section bases are exactly
+    the ones expressible from this map; the machine-readable per-symbol table
+    (including link-dependent function entries) lives in
+    `scripts/asm-fixtures/symbol-addresses.tsv`, regenerated from the ELF. -/
+
+/-- STABLE guest bases: `(symbol, absolute base)` for addresses pinned by codegen
+    constants / linker flags (NOT by link layout). These may be hardcoded by
+    downstream `la`/address consumers; everything else must be read from the ELF. -/
+def stableGuestBases : List (String × Nat) :=
+  [ ("INPUT_ADDR",        inputRegion.base),
+    ("OUTPUT_ADDR",       outputRegion.base),
+    ("zisk_system",       ziskSystemRegion.base),
+    ("guest_stack_top",   guestStackTop),
+    (".text",             textRegion.base),
+    (".data",             dataRegion.base),
+    (".sszscratch",       sszScratchRegion.base) ]
+  ++ schemeAAnchors.map (fun r => (r.name, r.base))
+
+theorem stableGuestBases_length : stableGuestBases.length = 18 := by decide
+
+end EvmAsm.Codegen.RegionMap

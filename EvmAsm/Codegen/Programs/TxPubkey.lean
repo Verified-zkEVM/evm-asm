@@ -8,6 +8,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxSignature
@@ -62,150 +65,301 @@ open EvmAsm.Rv64.Program
       42 r >= SECP256K1N
       43 s > SECP256K1N / 2
 -/
+def txPubkeySignatureMaterial_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .SD .x19 .x0 (32 : BitVec 12),
+    .SD .x19 .x0 (40 : BitVec 12),
+    .SD .x19 .x0 (48 : BitVec 12),
+    .SD .x19 .x0 (56 : BitVec 12),
+    .SD .x19 .x0 (64 : BitVec 12),
+    .SD .x19 .x0 (72 : BitVec 12),
+    .SD .x19 .x0 (80 : BitVec 12),
+    .SD .x19 .x0 (88 : BitVec 12),
+    .SD .x19 .x0 (96 : BitVec 12),
+    .SD .x19 .x0 (104 : BitVec 12),
+    .SD .x19 .x0 (112 : BitVec 12),
+    .SD .x19 .x0 (120 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.tps_type (GuestAddrs.tx_pubkey_signature_material + 132)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tps_type (GuestAddrs.tx_pubkey_signature_material + 132)),
+    .AUIPC .x13 (laHi GuestAddrs.tps_inner_off (GuestAddrs.tx_pubkey_signature_material + 140)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.tps_inner_off (GuestAddrs.tx_pubkey_signature_material + 140)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.tx_pubkey_signature_material + 148)),
+    .BNE .x10 .x0 (704 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.tps_type (GuestAddrs.tx_pubkey_signature_material + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tps_type (GuestAddrs.tx_pubkey_signature_material + 156)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .SD .x19 .x20 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tps_inner_off (GuestAddrs.tx_pubkey_signature_material + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tps_inner_off (GuestAddrs.tx_pubkey_signature_material + 172)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .SD .x19 .x21 (112 : BitVec 12),
+    .BLTU .x9 .x21 (676 : BitVec 13),
+    .ADD .x22 .x8 .x21,
+    .SUB .x23 .x9 .x21,
+    .BEQ .x20 .x0 (40 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x20 .x5 (284 : BitVec 13),
+    .LI .x5 (2 : Word),
+    .BEQ .x20 .x5 (336 : BitVec 13),
+    .LI .x5 (3 : Word),
+    .BEQ .x20 .x5 (388 : BitVec 13),
+    .LI .x5 (4 : Word),
+    .BEQ .x20 .x5 (440 : BitVec 13),
+    .JAL .x0 (620 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.tps_v (GuestAddrs.tx_pubkey_signature_material + 248)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tps_v (GuestAddrs.tx_pubkey_signature_material + 248)),
+    .ADDI .x13 .x19 (16 : BitVec 12),
+    .ADDI .x14 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_legacy_extract_signature (GuestAddrs.tx_pubkey_signature_material + 264)),
+    .BNE .x10 .x0 (604 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.tps_v (GuestAddrs.tx_pubkey_signature_material + 272)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tps_v (GuestAddrs.tx_pubkey_signature_material + 272)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (27 : Word),
+    .BEQ .x6 .x7 (40 : BitVec 13),
+    .LI .x7 (28 : Word),
+    .BEQ .x6 .x7 (72 : BitVec 13),
+    .SLLI .x7 .x18 (1 : BitVec 6),
+    .LI .x28 (35 : Word),
+    .ADD .x28 .x28 .x7,
+    .BEQ .x6 .x28 (100 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .BEQ .x6 .x28 (132 : BitVec 13),
+    .JAL .x0 (564 : BitVec 21),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (120 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (6 : Word),
+    .LI .x13 (0 : Word),
+    .ADDI .x14 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash (GuestAddrs.tx_pubkey_signature_material + 356)),
+    .BNE .x10 .x0 (520 : BitVec 13),
+    .JAL .x0 (380 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (8 : BitVec 12),
+    .SD .x19 .x0 (120 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (6 : Word),
+    .LI .x13 (0 : Word),
+    .ADDI .x14 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash (GuestAddrs.tx_pubkey_signature_material + 400)),
+    .BNE .x10 .x0 (476 : BitVec 13),
+    .JAL .x0 (336 : BitVec 21),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (120 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .ADDI .x13 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash_legacy_eip155 (GuestAddrs.tx_pubkey_signature_material + 440)),
+    .BNE .x10 .x0 (436 : BitVec 13),
+    .JAL .x0 (296 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (8 : BitVec 12),
+    .SD .x19 .x5 (120 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .ADDI .x13 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash_legacy_eip155 (GuestAddrs.tx_pubkey_signature_material + 480)),
+    .BNE .x10 .x0 (396 : BitVec 13),
+    .JAL .x0 (256 : BitVec 21),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .ADDI .x12 .x19 (8 : BitVec 12),
+    .ADDI .x13 .x19 (16 : BitVec 12),
+    .ADDI .x14 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip2930_extract_signature (GuestAddrs.tx_pubkey_signature_material + 512)),
+    .BNE .x10 .x0 (356 : BitVec 13),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .LI .x12 (8 : Word),
+    .LI .x13 (1 : Word),
+    .ADDI .x14 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash (GuestAddrs.tx_pubkey_signature_material + 540)),
+    .BNE .x10 .x0 (336 : BitVec 13),
+    .JAL .x0 (184 : BitVec 21),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .ADDI .x12 .x19 (8 : BitVec 12),
+    .ADDI .x13 .x19 (16 : BitVec 12),
+    .ADDI .x14 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip1559_extract_signature (GuestAddrs.tx_pubkey_signature_material + 572)),
+    .BNE .x10 .x0 (296 : BitVec 13),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .LI .x12 (9 : Word),
+    .LI .x13 (2 : Word),
+    .ADDI .x14 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash (GuestAddrs.tx_pubkey_signature_material + 600)),
+    .BNE .x10 .x0 (276 : BitVec 13),
+    .JAL .x0 (124 : BitVec 21),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .ADDI .x12 .x19 (8 : BitVec 12),
+    .ADDI .x13 .x19 (16 : BitVec 12),
+    .ADDI .x14 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip4844_extract_signature (GuestAddrs.tx_pubkey_signature_material + 632)),
+    .BNE .x10 .x0 (236 : BitVec 13),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .LI .x12 (11 : Word),
+    .LI .x13 (3 : Word),
+    .ADDI .x14 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash (GuestAddrs.tx_pubkey_signature_material + 660)),
+    .BNE .x10 .x0 (216 : BitVec 13),
+    .JAL .x0 (64 : BitVec 21),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .ADDI .x12 .x19 (8 : BitVec 12),
+    .ADDI .x13 .x19 (16 : BitVec 12),
+    .ADDI .x14 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_eip7702_extract_signature (GuestAddrs.tx_pubkey_signature_material + 692)),
+    .BNE .x10 .x0 (176 : BitVec 13),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .LI .x12 (10 : Word),
+    .LI .x13 (4 : Word),
+    .ADDI .x14 .x19 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_signing_hash (GuestAddrs.tx_pubkey_signature_material + 720)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .JAL .x0 (4 : BitVec 21),
+    .LD .x5 .x19 (8 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BLTU .x6 .x5 (156 : BitVec 13),
+    .ADDI .x10 .x19 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_is_zero (GuestAddrs.tx_pubkey_signature_material + 748)),
+    .BNE .x10 .x0 (152 : BitVec 13),
+    .ADDI .x10 .x19 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_is_zero (GuestAddrs.tx_pubkey_signature_material + 760)),
+    .BNE .x10 .x0 (148 : BitVec 13),
+    .ADDI .x10 .x19 (16 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.tps_secp256k1_n (GuestAddrs.tx_pubkey_signature_material + 772)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tps_secp256k1_n (GuestAddrs.tx_pubkey_signature_material + 772)),
+    .AUIPC .x12 (laHi GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 780)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 780)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.tx_pubkey_signature_material + 788)),
+    .AUIPC .x5 (laHi GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 792)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 792)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (116 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.tps_secp256k1_half_n (GuestAddrs.tx_pubkey_signature_material + 808)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tps_secp256k1_half_n (GuestAddrs.tx_pubkey_signature_material + 808)),
+    .ADDI .x11 .x19 (48 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 820)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 820)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.tx_pubkey_signature_material + 828)),
+    .AUIPC .x5 (laHi GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 832)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tps_cmp (GuestAddrs.tx_pubkey_signature_material + 832)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (84 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (80 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (72 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (64 : BitVec 21),
+    .LI .x10 (10 : Word),
+    .JAL .x0 (56 : BitVec 21),
+    .LI .x10 (20 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .LI .x10 (30 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .LI .x10 (31 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (40 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (41 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (42 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (43 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `txPubkeySignatureMaterial_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txPubkeySignatureMaterial_relocs : RelocTable :=
+  [ (33, .la .x12 "tps_type"),
+    (35, .la .x13 "tps_inner_off"),
+    (37, .jal .x1 "tx_type_dispatch"),
+    (39, .la .x5 "tps_type"),
+    (43, .la .x5 "tps_inner_off"),
+    (62, .la .x12 "tps_v"),
+    (66, .jal .x1 "tx_legacy_extract_signature"),
+    (68, .la .x5 "tps_v"),
+    (89, .jal .x1 "tx_signing_hash"),
+    (100, .jal .x1 "tx_signing_hash"),
+    (110, .jal .x1 "tx_signing_hash_legacy_eip155"),
+    (120, .jal .x1 "tx_signing_hash_legacy_eip155"),
+    (128, .jal .x1 "tx_eip2930_extract_signature"),
+    (135, .jal .x1 "tx_signing_hash"),
+    (143, .jal .x1 "tx_eip1559_extract_signature"),
+    (150, .jal .x1 "tx_signing_hash"),
+    (158, .jal .x1 "tx_eip4844_extract_signature"),
+    (165, .jal .x1 "tx_signing_hash"),
+    (173, .jal .x1 "tx_eip7702_extract_signature"),
+    (180, .jal .x1 "tx_signing_hash"),
+    (187, .jal .x1 "u256_is_zero"),
+    (190, .jal .x1 "u256_is_zero"),
+    (193, .la .x11 "tps_secp256k1_n"),
+    (195, .la .x12 "tps_cmp"),
+    (197, .jal .x1 "u256_lt_be"),
+    (198, .la .x5 "tps_cmp"),
+    (202, .la .x10 "tps_secp256k1_half_n"),
+    (205, .la .x12 "tps_cmp"),
+    (207, .jal .x1 "u256_lt_be"),
+    (208, .la .x5 "tps_cmp") ]
+
 def txPubkeySignatureMaterialFunction : String :=
-  "tx_pubkey_signature_material:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0                   # tx ptr\n" ++
-  "  mv s1, a1                   # tx len\n" ++
-  "  mv s2, a2                   # chain_id\n" ++
-  "  mv s3, a3                   # output ptr\n" ++
-  "  sd zero,   0(s3); sd zero,   8(s3); sd zero,  16(s3); sd zero,  24(s3)\n" ++
-  "  sd zero,  32(s3); sd zero,  40(s3); sd zero,  48(s3); sd zero,  56(s3)\n" ++
-  "  sd zero,  64(s3); sd zero,  72(s3); sd zero,  80(s3); sd zero,  88(s3)\n" ++
-  "  sd zero,  96(s3); sd zero, 104(s3); sd zero, 112(s3); sd zero, 120(s3)\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, tps_type; la a3, tps_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  bnez a0, .Ltps_type_fail\n" ++
-  "  la t0, tps_type; ld s4, 0(t0); sd s4, 0(s3)\n" ++
-  "  la t0, tps_inner_off; ld s5, 0(t0); sd s5, 112(s3)\n" ++
-  "  bltu s1, s5, .Ltps_inner_oob\n" ++
-  "  add s6, s0, s5              # inner ptr\n" ++
-  "  sub s7, s1, s5              # inner len\n" ++
-  "  beqz s4, .Ltps_legacy\n" ++
-  "  li t0, 1; beq s4, t0, .Ltps_t1\n" ++
-  "  li t0, 2; beq s4, t0, .Ltps_t2\n" ++
-  "  li t0, 3; beq s4, t0, .Ltps_t3\n" ++
-  "  li t0, 4; beq s4, t0, .Ltps_t4\n" ++
-  "  j .Ltps_type_fail\n" ++
-  ".Ltps_legacy:\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, tps_v; addi a3, s3, 16; addi a4, s3, 48\n" ++
-  "  jal ra, tx_legacy_extract_signature\n" ++
-  "  bnez a0, .Ltps_sig_fail\n" ++
-  "  la t0, tps_v; ld t1, 0(t0)\n" ++
-  "  li t2, 27; beq t1, t2, .Ltps_legacy_v27\n" ++
-  "  li t2, 28; beq t1, t2, .Ltps_legacy_v28\n" ++
-  "  slli t2, s2, 1\n" ++
-  "  li t3, 35; add t3, t3, t2\n" ++
-  "  beq t1, t3, .Ltps_legacy_eip155_y0\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  beq t1, t3, .Ltps_legacy_eip155_y1\n" ++
-  "  j .Ltps_bad_v\n" ++
-  ".Ltps_legacy_v27:\n" ++
-  "  sd zero, 8(s3); sd zero, 120(s3)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6; li a3, 0; addi a4, s3, 80\n" ++
-  "  jal ra, tx_signing_hash\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_scalars\n" ++
-  ".Ltps_legacy_v28:\n" ++
-  "  li t0, 1; sd t0, 8(s3); sd zero, 120(s3)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 6; li a3, 0; addi a4, s3, 80\n" ++
-  "  jal ra, tx_signing_hash\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_scalars\n" ++
-  ".Ltps_legacy_eip155_y0:\n" ++
-  "  sd zero, 8(s3); li t0, 1; sd t0, 120(s3)\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; addi a3, s3, 80\n" ++
-  "  jal ra, tx_signing_hash_legacy_eip155\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_scalars\n" ++
-  ".Ltps_legacy_eip155_y1:\n" ++
-  "  li t0, 1; sd t0, 8(s3); sd t0, 120(s3)\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; addi a3, s3, 80\n" ++
-  "  jal ra, tx_signing_hash_legacy_eip155\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_scalars\n" ++
-  ".Ltps_t1:\n" ++
-  "  mv a0, s6; mv a1, s7; addi a2, s3, 8; addi a3, s3, 16; addi a4, s3, 48\n" ++
-  "  jal ra, tx_eip2930_extract_signature\n" ++
-  "  bnez a0, .Ltps_sig_fail\n" ++
-  "  mv a0, s6; mv a1, s7; li a2, 8; li a3, 1; addi a4, s3, 80\n" ++
-  "  jal ra, tx_signing_hash\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_y\n" ++
-  ".Ltps_t2:\n" ++
-  "  mv a0, s6; mv a1, s7; addi a2, s3, 8; addi a3, s3, 16; addi a4, s3, 48\n" ++
-  "  jal ra, tx_eip1559_extract_signature\n" ++
-  "  bnez a0, .Ltps_sig_fail\n" ++
-  "  mv a0, s6; mv a1, s7; li a2, 9; li a3, 2; addi a4, s3, 80\n" ++
-  "  jal ra, tx_signing_hash\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_y\n" ++
-  ".Ltps_t3:\n" ++
-  "  mv a0, s6; mv a1, s7; addi a2, s3, 8; addi a3, s3, 16; addi a4, s3, 48\n" ++
-  "  jal ra, tx_eip4844_extract_signature\n" ++
-  "  bnez a0, .Ltps_sig_fail\n" ++
-  "  mv a0, s6; mv a1, s7; li a2, 11; li a3, 3; addi a4, s3, 80\n" ++
-  "  jal ra, tx_signing_hash\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_y\n" ++
-  ".Ltps_t4:\n" ++
-  "  mv a0, s6; mv a1, s7; addi a2, s3, 8; addi a3, s3, 16; addi a4, s3, 48\n" ++
-  "  jal ra, tx_eip7702_extract_signature\n" ++
-  "  bnez a0, .Ltps_sig_fail\n" ++
-  "  mv a0, s6; mv a1, s7; li a2, 10; li a3, 4; addi a4, s3, 80\n" ++
-  "  jal ra, tx_signing_hash\n" ++
-  "  bnez a0, .Ltps_hash_fail\n" ++
-  "  j .Ltps_validate_y\n" ++
-  ".Ltps_validate_y:\n" ++
-  "  ld t0, 8(s3)\n" ++
-  "  li t1, 1\n" ++
-  "  bgtu t0, t1, .Ltps_bad_y\n" ++
-  ".Ltps_validate_scalars:\n" ++
-  "  addi a0, s3, 16; jal ra, u256_is_zero\n" ++
-  "  bnez a0, .Ltps_r_zero\n" ++
-  "  addi a0, s3, 48; jal ra, u256_is_zero\n" ++
-  "  bnez a0, .Ltps_s_zero\n" ++
-  "  addi a0, s3, 16; la a1, tps_secp256k1_n; la a2, tps_cmp\n" ++
-  "  jal ra, u256_lt_be\n" ++
-  "  la t0, tps_cmp; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Ltps_r_order\n" ++
-  "  la a0, tps_secp256k1_half_n; addi a1, s3, 48; la a2, tps_cmp\n" ++
-  "  jal ra, u256_lt_be\n" ++
-  "  la t0, tps_cmp; ld t1, 0(t0)\n" ++
-  "  bnez t1, .Ltps_s_high\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltps_ret\n" ++
-  ".Ltps_type_fail:\n" ++
-  "  li a0, 1; j .Ltps_ret\n" ++
-  ".Ltps_inner_oob:\n" ++
-  "  li a0, 2; j .Ltps_ret\n" ++
-  ".Ltps_sig_fail:\n" ++
-  "  li a0, 10; j .Ltps_ret\n" ++
-  ".Ltps_hash_fail:\n" ++
-  "  li a0, 20; j .Ltps_ret\n" ++
-  ".Ltps_bad_v:\n" ++
-  "  li a0, 30; j .Ltps_ret\n" ++
-  ".Ltps_bad_y:\n" ++
-  "  li a0, 31; j .Ltps_ret\n" ++
-  ".Ltps_r_zero:\n" ++
-  "  li a0, 40; j .Ltps_ret\n" ++
-  ".Ltps_s_zero:\n" ++
-  "  li a0, 41; j .Ltps_ret\n" ++
-  ".Ltps_r_order:\n" ++
-  "  li a0, 42; j .Ltps_ret\n" ++
-  ".Ltps_s_high:\n" ++
-  "  li a0, 43\n" ++
-  ".Ltps_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+  "tx_pubkey_signature_material:\n" ++ emitProgramR txPubkeySignatureMaterial_prog txPubkeySignatureMaterial_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txPubkeySignatureMaterial_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txPubkeySignatureMaterialFunction_eq_prog :
+    txPubkeySignatureMaterialFunction = "tx_pubkey_signature_material:\n" ++ emitProgramR txPubkeySignatureMaterial_prog txPubkeySignatureMaterial_relocs := rfl
 
+#guard txPubkeySignatureMaterialFunction.startsWith "tx_pubkey_signature_material:\n"
+#guard txPubkeySignatureMaterial_prog.length = 245
 /-! ## tx_pubkey_ecrecover_stage_material
 
     Stage `tx_pubkey_signature_material` output into the byte layout consumed by
@@ -230,47 +384,64 @@ def txPubkeySignatureMaterialFunction : String :=
     Scalar and signing-hash validity are owned by `tx_pubkey_signature_material`;
     this helper is deliberately just the ABI staging layer for the later recovery
     and compare slices. -/
-def txPubkeyEcrecoverStageMaterialFunction : String :=
-  "tx_pubkey_ecrecover_stage_material:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd s0,  0(sp); sd s1,  8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
-  "  mv s0, a0                   # material ptr\n" ++
-  "  mv s1, a1                   # staging ptr\n" ++
-  "  ld s2, 8(s0)                # recid\n" ++
-  "  li t0, 1\n" ++
-  "  bgtu s2, t0, .Ltpes_bad_recid\n" ++
-  "  # message hash = material.signing_hash\n" ++
-  "  addi t0, s0, 80\n" ++
-  "  mv t1, s1\n" ++
-  "  li t2, 4\n" ++
-  ".Ltpes_copy_hash:\n" ++
-  "  ld t3, 0(t0); sd t3, 0(t1)\n" ++
-  "  addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpes_copy_hash\n" ++
-  "  # signature = r || s\n" ++
-  "  addi t0, s0, 16\n" ++
-  "  addi t1, s1, 32\n" ++
-  "  li t2, 8\n" ++
-  ".Ltpes_copy_sig:\n" ++
-  "  ld t3, 0(t0); sd t3, 0(t1)\n" ++
-  "  addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpes_copy_sig\n" ++
-  "  sd s2, 96(s1)\n" ++
-  "  addi t1, s1, 104\n" ++
-  "  li t2, 8\n" ++
-  ".Ltpes_zero_pubkey:\n" ++
-  "  sd zero, 0(t1)\n" ++
-  "  addi t1, t1, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpes_zero_pubkey\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltpes_ret\n" ++
-  ".Ltpes_bad_recid:\n" ++
-  "  li a0, 1\n" ++
-  ".Ltpes_ret:\n" ++
-  "  ld s0,  0(sp); ld s1,  8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def txPubkeyEcrecoverStageMaterial_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x18 (16 : BitVec 12),
+    .SD .x2 .x19 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .LD .x18 .x8 (8 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .BLTU .x5 .x18 (112 : BitVec 13),
+    .ADDI .x5 .x8 (80 : BitVec 12),
+    .MV .x6 .x9,
+    .LI .x7 (4 : Word),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x8 (16 : BitVec 12),
+    .ADDI .x6 .x9 (32 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .SD .x9 .x18 (96 : BitVec 12),
+    .ADDI .x6 .x9 (104 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x18 .x2 (16 : BitVec 12),
+    .LD .x19 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txPubkeyEcrecoverStageMaterialFunction : String :=
+  "tx_pubkey_ecrecover_stage_material:\n" ++ emitProgram txPubkeyEcrecoverStageMaterial_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txPubkeyEcrecoverStageMaterial_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txPubkeyEcrecoverStageMaterialFunction_eq_prog :
+    txPubkeyEcrecoverStageMaterialFunction = "tx_pubkey_ecrecover_stage_material:\n" ++ emitProgram txPubkeyEcrecoverStageMaterial_prog := rfl
+
+#guard txPubkeyEcrecoverStageMaterialFunction.startsWith "tx_pubkey_ecrecover_stage_material:\n"
+#guard txPubkeyEcrecoverStageMaterial_prog.length = 44
 /-! ## tx_pubkey_recover_raw
 
     Callable recovered-key helper surface. Mirrors execution-specs Amsterdam
@@ -322,49 +493,72 @@ def txPubkeyEcrecoverStageMaterialFunction : String :=
 
     On any nonzero status the recovered-pubkey output buffer is zeroed so callers
     never observe stale or partial coordinates from a failed run. -/
-def txPubkeyRecoverRawFunction : String :=
-  "tx_pubkey_recover_raw:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # tx ptr\n" ++
-  "  mv s1, a1                   # tx len\n" ++
-  "  mv s2, a2                   # chain_id\n" ++
-  "  mv s3, a3                   # recovered pubkey out\n" ++
-  "  mv s4, a4                   # scratch ptr\n" ++
-  "  # build signature material into scratch+8\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; addi a3, s4, 8\n" ++
-  "  jal ra, tx_pubkey_signature_material\n" ++
-  "  sd a0, 0(s4)                # record material status in side slot\n" ++
-  "  beqz a0, .Ltprr_material_ok\n" ++
-  "  li a0, 10\n" ++
-  "  j .Ltprr_ret\n" ++
-  ".Ltprr_material_ok:\n" ++
-  "  # stage material into ecrecover ABI at scratch+136\n" ++
-  "  addi a0, s4, 8; addi a1, s4, 136\n" ++
-  "  jal ra, tx_pubkey_ecrecover_stage_material\n" ++
-  "  beqz a0, .Ltprr_stage_ok\n" ++
-  "  li a0, 20\n" ++
-  "  j .Ltprr_ret\n" ++
-  ".Ltprr_stage_ok:\n" ++
-  "  # --- secp256k1 public-key recovery over the staged ABI block ---\n" ++
-  "  # (extracted as secp256k1_recover_pubkey_staged so the ECRECOVER\n" ++
-  "  #  precompile can reuse it; .62.2.5)\n" ++
-  "  addi a0, s4, 136            # staged ABI block ptr\n" ++
-  "  mv a1, s3                   # recovered pubkey out\n" ++
-  "  jal ra, secp256k1_recover_pubkey_staged\n" ++
-  "  beqz a0, .Ltprr_ok\n" ++
-  "  li a0, 60\n" ++
-  "  j .Ltprr_ret\n" ++
-  ".Ltprr_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltprr_ret\n" ++
-  ".Ltprr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def txPubkeyRecoverRaw_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .ADDI .x13 .x20 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_pubkey_signature_material (GuestAddrs.tx_pubkey_recover_raw + 64)),
+    .SD .x20 .x10 (0 : BitVec 12),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (10 : Word),
+    .JAL .x0 (60 : BitVec 21),
+    .ADDI .x10 .x20 (8 : BitVec 12),
+    .ADDI .x11 .x20 (136 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_pubkey_ecrecover_stage_material (GuestAddrs.tx_pubkey_recover_raw + 92)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (20 : Word),
+    .JAL .x0 (36 : BitVec 21),
+    .ADDI .x10 .x20 (136 : BitVec 12),
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_recover_pubkey_staged (GuestAddrs.tx_pubkey_recover_raw + 116)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (60 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (4 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txPubkeyRecoverRaw_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txPubkeyRecoverRaw_relocs : RelocTable :=
+  [ (16, .jal .x1 "tx_pubkey_signature_material"),
+    (23, .jal .x1 "tx_pubkey_ecrecover_stage_material"),
+    (29, .jal .x1 "secp256k1_recover_pubkey_staged") ]
+
+def txPubkeyRecoverRawFunction : String :=
+  "tx_pubkey_recover_raw:\n" ++ emitProgramR txPubkeyRecoverRaw_prog txPubkeyRecoverRaw_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txPubkeyRecoverRaw_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txPubkeyRecoverRawFunction_eq_prog :
+    txPubkeyRecoverRawFunction = "tx_pubkey_recover_raw:\n" ++ emitProgramR txPubkeyRecoverRaw_prog txPubkeyRecoverRaw_relocs := rfl
+
+#guard txPubkeyRecoverRawFunction.startsWith "tx_pubkey_recover_raw:\n"
+#guard txPubkeyRecoverRaw_prog.length = 43
 /-! ## secp256k1_recover_pubkey_staged (.62.2.5)
 
     ECDSA public-key recovery over a staged ABI block — the shared kernel
@@ -383,84 +577,143 @@ def txPubkeyRecoverRawFunction : String :=
                     On failure the 64-byte output is zeroed.
 
     Uses the `tpr_*` static scratch (recovery is not re-entrant). -/
-def secp256k1RecoverPubkeyStagedFunction : String :=
-  "secp256k1_recover_pubkey_staged:\n" ++
-  "  addi sp, sp, -24\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s3,  8(sp); sd s4, 16(sp)\n" ++
-  "  mv s4, a0                   # ABI block ptr (hash @+0, r @+32, s @+64, recid @+96)\n" ++
-  "  mv s3, a1                   # recovered pubkey out\n" ++
-  "  # 1. Decompress R = (x, y) from r and the recovery id.\n" ++
-  "  addi a0, s4, 32             # r ptr (ABI+32)\n" ++
-  "  ld a1, 96(s4)               # recid word (ABI+96); 0 or 1\n" ++
-  "  la a2, tpr_R\n" ++
-  "  jal ra, secp256k1_recover_r\n" ++
-  "  bnez a0, .Ltprr_recover_fail\n" ++
-  "  # 2. e = msg_hash mod n. The hash is < 2^256 < 2n, so one conditional\n" ++
-  "  #    subtraction of n is sufficient.\n" ++
-  "  mv a0, s4                   # msg hash ptr (ABI+0)\n" ++
-  "  la a1, tpr_e\n" ++
-  "  jal ra, secf_reduce_once_n\n" ++
-  "  # 3. r_inv = r^{-1} mod n.\n" ++
-  "  addi a0, s4, 32             # r ptr\n" ++
-  "  la a1, tpr_rinv\n" ++
-  "  jal ra, secf_inv_mod_n\n" ++
-  "  bnez a0, .Ltprr_recover_fail   # r == 0 (defensive; callers reject it)\n" ++
-  "  # 4. neg_e = (n - e) mod n, i.e. (-e) mod n (0 when e == 0).\n" ++
-  "  la a0, tpr_e\n" ++
-  "  jal ra, secf_is_zero32\n" ++
-  "  bnez a0, .Ltprr_neg_e_zero\n" ++
-  "  la a0, secf_n_be\n" ++
-  "  la a1, tpr_e\n" ++
-  "  la a2, tpr_nege\n" ++
-  "  jal ra, u256_sub_be          # nege = n - e (0 < e < n)\n" ++
-  "  j .Ltprr_have_nege\n" ++
-  ".Ltprr_neg_e_zero:\n" ++
-  "  la a0, tpr_nege\n" ++
-  "  jal ra, secf_zero32\n" ++
-  ".Ltprr_have_nege:\n" ++
-  "  # 5. u1 = (-e) * r_inv mod n ; u2 = s * r_inv mod n.\n" ++
-  "  la a0, tpr_nege\n" ++
-  "  la a1, tpr_rinv\n" ++
-  "  la a2, tpr_u1\n" ++
-  "  jal ra, secf_mul_mod_n\n" ++
-  "  addi a0, s4, 64             # s ptr (ABI+64)\n" ++
-  "  la a1, tpr_rinv\n" ++
-  "  la a2, tpr_u2\n" ++
-  "  jal ra, secf_mul_mod_n\n" ++
-  "  # 6. Q = u1*G + u2*R.\n" ++
-  "  la a0, tpr_u1\n" ++
-  "  la a1, secp256k1_generator\n" ++
-  "  la a2, tpr_p1\n" ++
-  "  jal ra, secp256k1_scalar_mul\n" ++
-  "  la a0, tpr_u2\n" ++
-  "  la a1, tpr_R\n" ++
-  "  la a2, tpr_p2\n" ++
-  "  jal ra, secp256k1_scalar_mul\n" ++
-  "  la a0, tpr_p1\n" ++
-  "  la a1, tpr_p2\n" ++
-  "  mv a2, s3                   # recovered pubkey out (x || y)\n" ++
-  "  jal ra, secp256k1_point_add\n" ++
-  "  bnez a0, .Ltprr_recover_fail   # identity result => invalid recovery\n" ++
-  "  j .Ltprr_staged_ok\n" ++
-  ".Ltprr_recover_fail:\n" ++
-  "  # zero the 64-byte output so callers never see partial coordinates\n" ++
-  "  mv t1, s3\n" ++
-  "  li t2, 8\n" ++
-  ".Ltprr_zero_out:\n" ++
-  "  sd zero, 0(t1)\n" ++
-  "  addi t1, t1, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltprr_zero_out\n" ++
-  "  li a0, 60\n" ++
-  "  j .Ltprr_staged_ret\n" ++
-  ".Ltprr_staged_ok:\n" ++
-  "  li a0, 0\n" ++
-  ".Ltprr_staged_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s3,  8(sp); ld s4, 16(sp)\n" ++
-  "  addi sp, sp, 24\n" ++
-  "  ret"
+def secp256k1RecoverPubkeyStaged_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x19 (8 : BitVec 12),
+    .SD .x2 .x20 (16 : BitVec 12),
+    .MV .x20 .x10,
+    .MV .x19 .x11,
+    .ADDI .x10 .x20 (32 : BitVec 12),
+    .LD .x11 .x20 (96 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.tpr_R (GuestAddrs.secp256k1_recover_pubkey_staged + 32)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tpr_R (GuestAddrs.secp256k1_recover_pubkey_staged + 32)),
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_recover_r (GuestAddrs.secp256k1_recover_pubkey_staged + 40)),
+    .BNE .x10 .x0 (240 : BitVec 13),
+    .MV .x10 .x20,
+    .AUIPC .x11 (laHi GuestAddrs.tpr_e (GuestAddrs.secp256k1_recover_pubkey_staged + 52)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tpr_e (GuestAddrs.secp256k1_recover_pubkey_staged + 52)),
+    .JAL .x1 (jalOff GuestAddrs.secf_reduce_once_n (GuestAddrs.secp256k1_recover_pubkey_staged + 60)),
+    .ADDI .x10 .x20 (32 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.tpr_rinv (GuestAddrs.secp256k1_recover_pubkey_staged + 68)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tpr_rinv (GuestAddrs.secp256k1_recover_pubkey_staged + 68)),
+    .JAL .x1 (jalOff GuestAddrs.secf_inv_mod_n (GuestAddrs.secp256k1_recover_pubkey_staged + 76)),
+    .BNE .x10 .x0 (204 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.tpr_e (GuestAddrs.secp256k1_recover_pubkey_staged + 84)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tpr_e (GuestAddrs.secp256k1_recover_pubkey_staged + 84)),
+    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secp256k1_recover_pubkey_staged + 92)),
+    .BNE .x10 .x0 (36 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.secf_n_be (GuestAddrs.secp256k1_recover_pubkey_staged + 100)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secf_n_be (GuestAddrs.secp256k1_recover_pubkey_staged + 100)),
+    .AUIPC .x11 (laHi GuestAddrs.tpr_e (GuestAddrs.secp256k1_recover_pubkey_staged + 108)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tpr_e (GuestAddrs.secp256k1_recover_pubkey_staged + 108)),
+    .AUIPC .x12 (laHi GuestAddrs.tpr_nege (GuestAddrs.secp256k1_recover_pubkey_staged + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tpr_nege (GuestAddrs.secp256k1_recover_pubkey_staged + 116)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secp256k1_recover_pubkey_staged + 124)),
+    .JAL .x0 (16 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.tpr_nege (GuestAddrs.secp256k1_recover_pubkey_staged + 132)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tpr_nege (GuestAddrs.secp256k1_recover_pubkey_staged + 132)),
+    .JAL .x1 (jalOff GuestAddrs.secf_zero32 (GuestAddrs.secp256k1_recover_pubkey_staged + 140)),
+    .AUIPC .x10 (laHi GuestAddrs.tpr_nege (GuestAddrs.secp256k1_recover_pubkey_staged + 144)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tpr_nege (GuestAddrs.secp256k1_recover_pubkey_staged + 144)),
+    .AUIPC .x11 (laHi GuestAddrs.tpr_rinv (GuestAddrs.secp256k1_recover_pubkey_staged + 152)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tpr_rinv (GuestAddrs.secp256k1_recover_pubkey_staged + 152)),
+    .AUIPC .x12 (laHi GuestAddrs.tpr_u1 (GuestAddrs.secp256k1_recover_pubkey_staged + 160)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tpr_u1 (GuestAddrs.secp256k1_recover_pubkey_staged + 160)),
+    .JAL .x1 (jalOff GuestAddrs.secf_mul_mod_n (GuestAddrs.secp256k1_recover_pubkey_staged + 168)),
+    .ADDI .x10 .x20 (64 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.tpr_rinv (GuestAddrs.secp256k1_recover_pubkey_staged + 176)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tpr_rinv (GuestAddrs.secp256k1_recover_pubkey_staged + 176)),
+    .AUIPC .x12 (laHi GuestAddrs.tpr_u2 (GuestAddrs.secp256k1_recover_pubkey_staged + 184)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tpr_u2 (GuestAddrs.secp256k1_recover_pubkey_staged + 184)),
+    .JAL .x1 (jalOff GuestAddrs.secf_mul_mod_n (GuestAddrs.secp256k1_recover_pubkey_staged + 192)),
+    .AUIPC .x10 (laHi GuestAddrs.tpr_u1 (GuestAddrs.secp256k1_recover_pubkey_staged + 196)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tpr_u1 (GuestAddrs.secp256k1_recover_pubkey_staged + 196)),
+    .AUIPC .x11 (laHi GuestAddrs.secp256k1_generator (GuestAddrs.secp256k1_recover_pubkey_staged + 204)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_generator (GuestAddrs.secp256k1_recover_pubkey_staged + 204)),
+    .AUIPC .x12 (laHi GuestAddrs.tpr_p1 (GuestAddrs.secp256k1_recover_pubkey_staged + 212)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tpr_p1 (GuestAddrs.secp256k1_recover_pubkey_staged + 212)),
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_scalar_mul (GuestAddrs.secp256k1_recover_pubkey_staged + 220)),
+    .AUIPC .x10 (laHi GuestAddrs.tpr_u2 (GuestAddrs.secp256k1_recover_pubkey_staged + 224)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tpr_u2 (GuestAddrs.secp256k1_recover_pubkey_staged + 224)),
+    .AUIPC .x11 (laHi GuestAddrs.tpr_R (GuestAddrs.secp256k1_recover_pubkey_staged + 232)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tpr_R (GuestAddrs.secp256k1_recover_pubkey_staged + 232)),
+    .AUIPC .x12 (laHi GuestAddrs.tpr_p2 (GuestAddrs.secp256k1_recover_pubkey_staged + 240)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tpr_p2 (GuestAddrs.secp256k1_recover_pubkey_staged + 240)),
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_scalar_mul (GuestAddrs.secp256k1_recover_pubkey_staged + 248)),
+    .AUIPC .x10 (laHi GuestAddrs.tpr_p1 (GuestAddrs.secp256k1_recover_pubkey_staged + 252)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.tpr_p1 (GuestAddrs.secp256k1_recover_pubkey_staged + 252)),
+    .AUIPC .x11 (laHi GuestAddrs.tpr_p2 (GuestAddrs.secp256k1_recover_pubkey_staged + 260)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tpr_p2 (GuestAddrs.secp256k1_recover_pubkey_staged + 260)),
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_add (GuestAddrs.secp256k1_recover_pubkey_staged + 272)),
+    .BNE .x10 .x0 (8 : BitVec 13),
+    .JAL .x0 (36 : BitVec 21),
+    .MV .x6 .x19,
+    .LI .x7 (8 : Word),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .LI .x10 (60 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x19 .x2 (8 : BitVec 12),
+    .LD .x20 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `secp256k1RecoverPubkeyStaged_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def secp256k1RecoverPubkeyStaged_relocs : RelocTable :=
+  [ (8, .la .x12 "tpr_R"),
+    (10, .jal .x1 "secp256k1_recover_r"),
+    (13, .la .x11 "tpr_e"),
+    (15, .jal .x1 "secf_reduce_once_n"),
+    (17, .la .x11 "tpr_rinv"),
+    (19, .jal .x1 "secf_inv_mod_n"),
+    (21, .la .x10 "tpr_e"),
+    (23, .jal .x1 "secf_is_zero32"),
+    (25, .la .x10 "secf_n_be"),
+    (27, .la .x11 "tpr_e"),
+    (29, .la .x12 "tpr_nege"),
+    (31, .jal .x1 "u256_sub_be"),
+    (33, .la .x10 "tpr_nege"),
+    (35, .jal .x1 "secf_zero32"),
+    (36, .la .x10 "tpr_nege"),
+    (38, .la .x11 "tpr_rinv"),
+    (40, .la .x12 "tpr_u1"),
+    (42, .jal .x1 "secf_mul_mod_n"),
+    (44, .la .x11 "tpr_rinv"),
+    (46, .la .x12 "tpr_u2"),
+    (48, .jal .x1 "secf_mul_mod_n"),
+    (49, .la .x10 "tpr_u1"),
+    (51, .la .x11 "secp256k1_generator"),
+    (53, .la .x12 "tpr_p1"),
+    (55, .jal .x1 "secp256k1_scalar_mul"),
+    (56, .la .x10 "tpr_u2"),
+    (58, .la .x11 "tpr_R"),
+    (60, .la .x12 "tpr_p2"),
+    (62, .jal .x1 "secp256k1_scalar_mul"),
+    (63, .la .x10 "tpr_p1"),
+    (65, .la .x11 "tpr_p2"),
+    (68, .jal .x1 "secp256k1_point_add") ]
+
+def secp256k1RecoverPubkeyStagedFunction : String :=
+  "secp256k1_recover_pubkey_staged:\n" ++ emitProgramR secp256k1RecoverPubkeyStaged_prog secp256k1RecoverPubkeyStaged_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `secp256k1RecoverPubkeyStaged_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem secp256k1RecoverPubkeyStagedFunction_eq_prog :
+    secp256k1RecoverPubkeyStagedFunction = "secp256k1_recover_pubkey_staged:\n" ++ emitProgramR secp256k1RecoverPubkeyStaged_prog secp256k1RecoverPubkeyStaged_relocs := rfl
+
+#guard secp256k1RecoverPubkeyStagedFunction.startsWith "secp256k1_recover_pubkey_staged:\n"
+#guard secp256k1RecoverPubkeyStaged_prog.length = 85
 /-- Static scratch buffers for `tx_pubkey_recover_raw`'s recovery math (the
     decompressed R point, the reduced hash and its negation, `r^{-1}`, the two
     scalars, and the two scalar-mul outputs). Recovery is never re-entrant, so a
@@ -513,49 +766,75 @@ def txPubkeyRecoverRawDataSection : String :=
 
     The 0/1/2 comparison statuses are disjoint from the 10/20/60 recovery
     statuses, so a caller can distinguish all four failure classes. -/
-def txPubkeyPublicKeyMatchesFunction : String :=
-  "tx_pubkey_public_key_matches:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # tx ptr\n" ++
-  "  mv s1, a1                   # tx len\n" ++
-  "  mv s2, a2                   # chain_id\n" ++
-  "  mv s3, a3                   # supplied public_key (0x04 || x || y)\n" ++
-  "  mv s4, a4                   # recovered pubkey out (64 bytes)\n" ++
-  "  mv s5, a5                   # recover scratch (>= 304 bytes)\n" ++
-  "  # 1. SEC1 uncompressed prefix must be 0x04 (cheap; before recovery).\n" ++
-  "  lbu t0, 0(s3)\n" ++
-  "  li t1, 4\n" ++
-  "  bne t0, t1, .Ltpm_bad_prefix\n" ++
-  "  # 2. Recover the canonical public key from the transaction signature.\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s4; mv a4, s5\n" ++
-  "  jal ra, tx_pubkey_recover_raw\n" ++
-  "  bnez a0, .Ltpm_ret          # propagate material/stage/recovery failure\n" ++
-  "  # 3. Byte-compare supplied[1..65] against recovered x||y (64 bytes).\n" ++
-  "  addi t0, s3, 1              # supplied coordinate bytes\n" ++
-  "  mv t1, s4                   # recovered coordinate bytes\n" ++
-  "  li t2, 64\n" ++
-  ".Ltpm_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1)\n" ++
-  "  bne t3, t4, .Ltpm_mismatch\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpm_cmp\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltpm_ret\n" ++
-  ".Ltpm_mismatch:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Ltpm_ret\n" ++
-  ".Ltpm_bad_prefix:\n" ++
-  "  li a0, 2\n" ++
-  ".Ltpm_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def txPubkeyPublicKeyMatches_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .LBU .x5 .x19 (0 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (88 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .MV .x13 .x20,
+    .MV .x14 .x21,
+    .JAL .x1 (jalOff GuestAddrs.tx_pubkey_recover_raw (GuestAddrs.tx_pubkey_public_key_matches + 88)),
+    .BNE .x10 .x0 (64 : BitVec 13),
+    .ADDI .x5 .x19 (1 : BitVec 12),
+    .MV .x6 .x20,
+    .LI .x7 (64 : Word),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-24 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txPubkeyPublicKeyMatches_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txPubkeyPublicKeyMatches_relocs : RelocTable :=
+  [ (22, .jal .x1 "tx_pubkey_recover_raw") ]
+
+def txPubkeyPublicKeyMatchesFunction : String :=
+  "tx_pubkey_public_key_matches:\n" ++ emitProgramR txPubkeyPublicKeyMatches_prog txPubkeyPublicKeyMatches_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txPubkeyPublicKeyMatches_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txPubkeyPublicKeyMatchesFunction_eq_prog :
+    txPubkeyPublicKeyMatchesFunction = "tx_pubkey_public_key_matches:\n" ++ emitProgramR txPubkeyPublicKeyMatches_prog txPubkeyPublicKeyMatches_relocs := rfl
+
+#guard txPubkeyPublicKeyMatchesFunction.startsWith "tx_pubkey_public_key_matches:\n"
+#guard txPubkeyPublicKeyMatches_prog.length = 48
 /-- `zisk_tx_pubkey_ecrecover_stage_material`: probe BuildUnit.
     Reads the same input as `zisk_tx_pubkey_signature_material`, first builds
     material at OUTPUT+8, then stages accelerator ABI bytes at OUTPUT+136.

@@ -201,9 +201,57 @@ def regionsAssert : List Region → Assertion   -- ⋆ of bytesRegion-style atom
   Overlapping regions need no side condition — the separation conjunction
   makes them unsatisfiable.  Stores (to the writable region only) update
   the symbolic bytes via `setBytes`.
-- Other effects (syscalls/hints, publicValues, …) are future extensions at
+- Other effects (hints, publicValues, …) are future extensions at
   the same seam: enlarge `SymState` and the per-leaf soundness lemmas;
   the structural rules (§3.5) do not change.
+
+### 3.3.1 ZisK accelerator semantics (`Rv64/ZiskAccel.lean`, design decisions)
+
+The guest's hashing and crypto kernels call ZisK precompiles through raw
+`csrs <id>, <reg>` words (`.4byte 0x80052073` etc.); bead evm-asm-4ch8f.1
+models them (machine level, below SAsm):
+
+- **Concrete, not parametrized.**  `Instr.CSRS csr rs1` executes the
+  actual mathematical function per CSR id — Keccak-f[1600], the SHA-256
+  compression, exact-intermediate `(a*b + c) mod m` — rather than an
+  axiomatized accelerator contract.  Rationale: (1) evm-asm carries
+  *software* implementations of several hashes (RIPEMD-160, SHA-256
+  wrapper, P-256 over Arith256Mod), and their proofs must meet the
+  accelerator path at the same concrete function; (2) an axiomatized
+  contract widens the trusted base beyond the three classical axioms;
+  (3) concrete permutations admit in-repo kernel-checked known-answer
+  tests (`keccakF_kat_empty`, `sha256Compress_kat_empty`, pinned to
+  `keccak256("")`/`sha256("")`).  What a parametrized model would buy —
+  insulation from ziskemu version drift in operand packing — is instead
+  handled by pinning the layouts to the probe results
+  (`Codegen/Programs/HashProbes.lean`) and re-validating via EEST runs.
+- **Modeled ids**: `0x800` Keccakf (25-lane LE state, in place),
+  `0x802` Arith256Mod (`[a*, b*, c*, module*, d*]`, 4 LE u64 limbs each),
+  `0x805` Sha256f (`[state*, input*]`, LE-u32-in-u64 packing),
+  `0x80B` Arith384Mod (6-limb Arith256Mod sibling), `0x819` Blake2bRound
+  (`[sigmaIdx, state*, input*]`, one RFC 7693 round on the 16-word
+  working vector), `0x803`/`0x804` Secp256k1Add/Dbl (affine chord/
+  tangent over concrete field arithmetic, fuel-indexed kernel-reducible
+  `powMod` inversion; degenerate inputs trap), `0x806`–`0x80A` BN254
+  curve+Fp2, `0x80C`–`0x810` BLS12-381 curve+Fp2 (same generic helpers
+  at (modulus, limbs) = (bn254P, 4) / (bls12P, 6); complex ops are
+  componentwise mod p with `u² = −1`).  This closes every accelerator id
+  the guest emits.  `execCsrs` is definitionally ONE `writeWords` (a
+  pure `csrsWrite` computes target and payload), so state-projection
+  lemmas are branch-count-independent.
+- **Traps, not no-ops.**  `step` requires `csrsValid`: every operand dword
+  a valid access and (Arith256Mod) a nonzero modulus; an UNMODELED CSR id
+  always traps.  A verified triple over code containing a `csrs` therefore
+  cannot silently skip the accelerator — the proof obligation is exactly
+  the operand-block validity.
+- **The ECALL surfaces stay as they are**: SP1-convention HALT/WRITE/
+  read_input remain on `ECALL` in `step`; ZisK accelerators are csrs-only.
+- **SAsm exposure is deliberately deferred** to the consuming beads
+  (.17 keccak bridge, .18 sha256): `blockOk` rejects `CSRS` inside blocks
+  today; the bridge beads decide between a new block-leaf classification
+  (`accelSem`, mirroring `storeSem` with a multi-dword footprint) or a
+  `Stmt`-level node.  The machine-level `step_csrs`/`step_csrs_trap`
+  lemmas are the composition points either way.
 
 ### 3.4 Block symbolic execution (`SAsm/Sym.lean`)
 
@@ -551,6 +599,168 @@ Implementation constraints (robustness / recursion-safety):
   with the loop label. `vcgen?` (diagnostic variant) prints the VC report
   (label + statement, ✓/✗ after the default pass) without leaving goals,
   for the agentic explore loop.
+
+### 3.9 Phase ownership of aliased arenas (`SAsm/PhaseSplit.lean`, `Codegen/CallFramePhase.lean`)
+
+The guest has exactly one intentional physical aliasing:
+`call_frame_arena` (~164 MiB, the Phase-D EVM call-frame overlay) coalesces
+seven execution-dead Phase-H arenas into its front
+(`RegionMap.dataUnionChildren`; `docs/call-frame-memory-layout.md` §5).
+Framing the arena and a coalesced child as two separate regions in one
+ambient would be **unsound** (`**` would claim disjoint ownership of the
+same bytes), and until this section the no-corruption argument was prose.
+
+The model (bead `evm-asm-4ch8f.6`, hard half):
+
+- **One resource, many tilings.** `anyBytes base n` owns `n` bytes with
+  *unspecified contents*.  `anyBytes_add`/`anyBytes_eq_anyTiles` prove a
+  havoc'd range equal to any contiguous dword-aligned tiling of itself.
+  `CallFramePhase.phaseD_eq_phaseH` instantiates this on the audited union
+  inventory: the whole-arena view (`phaseDView`) and the
+  seven-children-plus-pad view (`phaseHView`) are the *same assertion*.
+- **Transitions forget contents.** A phase transition is one rewrite across
+  that equality, entered by weakening concrete buffers through
+  `bytesRegion_anyBytes` (`phaseH_to_phaseD` packages the seven-buffer
+  handoff).  `anyBytes` carries ownership and length, nothing else — so a
+  later phase provably cannot depend on what an earlier phase left in the
+  shared bytes, and a stale reader after re-partition receives havoc'd
+  buffers, not its old data.  The failure mode the prose worried about is
+  structurally unexpressible in a composed proof that frames the arena
+  through these views.
+- **Consumer obligation.** `cpsTripleWithin_anyBytes_pre`: a triple whose
+  precondition owns a havoc'd range must be proven *for every possible
+  contents* (demo in `PhaseSplit.lean`: an `LBU` from `anyBytes` admits
+  only an existential postcondition).
+- **Who uses what.** Phase-H routines (`.41`–`.48`) frame individual child
+  ranges (`phaseHView_children` names each child at its audited offset);
+  Phase-D dispatch (`.49`, `.56`) frames `phaseDView`; the `block_verdict`
+  composition (`.61`) performs the single H→D rewrite at the dispatch
+  boundary.  The arena base stays a parameter — the model is
+  link-layout-independent; `RegionMap.callFrameArenaBase` pins this build.
+
+What the model does **not** decide: *when* the guest transitions — that
+Phase H truly stops touching the children before dispatch is what the
+per-routine triples + the composition prove (a Phase-H routine cannot be
+composed after the rewrite, because the child views it frames against no
+longer exist in the ambient).
+
+### 3.10 Loops at guest scale: data-dependent fuel and nested loops (design decisions)
+
+The guest's loops are input-length-bounded (RLP walks, header chains
+≤ 256, BAL scans ≤ 100 k items) and nested (per-account → per-slot →
+per-tuple).  Two questions were settled here (bead `evm-asm-4ch8f.5`;
+demos in `SAsm/LoopFuelDemo.lean`, bridge lemmas in `SAsm/LoopFuel.lean`):
+
+**1. Runtime-data-dependent iteration counts need no new mechanism.**
+The pattern (the *static-cap idiom*, `rlpSkipFn`/`capScanFn`):
+
+- `fuel := cap`, a static worst-case literal (`256`, `100000`).  The
+  verified step budget `WP.loopBound 1 (body.steps+1) 1 cap` stays a
+  closed `Nat` expression, which is what `cpsTripleWithin` and handle
+  packaging want.
+- The *exit* is the runtime compare of a counter register against a
+  limit register loaded from the input (`.bltu ctr lim`).  Because the
+  block engine is deterministic over the ghost region bytes, the loaded
+  limit **is** a ghost expression (`(bs.getD 0 0).zeroExtend 64`,
+  `packBytes (bs.take 8)`), so the invariant can tie both registers:
+  `rf.get ctr = ofNat i ∧ rf.get lim = <decoded ghost> ∧ i ≤ n`.
+- The `exhausted` VC is where the cap binds the runtime count: at
+  `i = cap` the invariant gives `cap ≤ n`, and `n ≤ cap` — a
+  **precondition on the decoded input** (a spec-theorem hypothesis, or
+  free from the load width when the count is a single byte) — forces
+  `i = n = cap`, where the compare fails.  A wrong cap is not a
+  soundness hole; it is an unprovable `exhausted` goal.
+- Pure ghost preconditions (`n ≤ cap`, `8 + n ≤ bs.length`) do **not**
+  flow into loop-body VCs through `sp` (the loop forgets the entry
+  reach) — state them as hypotheses of the spec theorem, where every VC
+  goal sees them, rather than in `Fn.pre`.
+
+Exact ghost fuel (`fuel := t0.lDepth`, TreeDemo) remains the right shape
+when the count is structural; the static cap is for counts the spec
+author only knows an upper bound for.  Rejected alternative: a fuel
+*expression* evaluated from registers at runtime — it would make
+`Stmt.steps` state-dependent and break the closed step budget of
+`cpsTripleWithin` for no expressive gain over the cap idiom.
+
+**2. Nested loops need an AST extension: `Stmt.whileS`.**  The
+counter-register bridge alone is *insufficient* for nesting.  The
+`while` exit `sp` is `(∃ i ≤ fuel, inv i) ∧ ¬cond` — it **discards the
+entry reach**, so in the outer loop's `inv_step` every correlation
+between the quantified outer index `i` and the machine state is severed
+by an inner loop: the inner invariant cannot mention `i` (it is fixed in
+the AST, and the outer index is not a binder of the enclosing `def`),
+and no state-only invariant can re-derive it (a pure assertion cannot
+injectively encode a `Nat`, and `⌜x5 still holds its entry value⌝` is
+not expressible without naming the entry state).  This is the classic
+limitation solved by the loop rule with *logical variables*:
+
+```lean
+| «whileS» (label : String) (c : Cond) (fuel : Nat)
+    (inv : RegFile → List (BitVec 8) → Assertion →   -- the entry snapshot
+      Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+    (body : Stmt)
+```
+
+`inv rf₀ ws₀ A₀ i` is the invariant at header-evaluation `i` for the
+loop *entered at* `(rf₀, ws₀, A₀)`.  Same emitted code, same three VCs
+as `while`, with the snapshot universally quantified — and constrained
+by the entry reach, so entry facts are usable — in `inv_step` and
+`exhausted`, and existentially recorded in the exit `sp`:
+
+```
+inv_init   : reach rf ws A → inv rf ws A 0 rf ws A
+inv_step   : reach rf₀ ws₀ A₀ → i < fuel →
+             sp body (inv rf₀ ws₀ A₀ i ∧ cond) ⊆ inv rf₀ ws₀ A₀ (i+1)
+exhausted  : reach rf₀ ws₀ A₀ → inv rf₀ ws₀ A₀ fuel rf ws A → ¬cond
+sp (exit)  : ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
+               ∧ (∃ i ≤ fuel, inv rf₀ ws₀ A₀ i) ∧ ¬cond
+```
+
+The nested pattern (`gridScanFn`): the outer loop is a plain `while`
+holding its index in a counter register (`x5`); the *inner* loop is a
+`whileS` whose invariant pins the outer state to the snapshot
+(`rf.get .x5 = rf₀.get .x5`, row pointer relative to `rf₀.get .x11`).
+The outer `inv_step` then closes the chain: its entry gives
+`rf₀.get .x5 = ofNat i` (the snapshot is reach-constrained), the inner
+invariant transports it to the exit state, and the outer index ties
+re-establish.  The snapshot also carries `ws₀`/`A₀`, so "the inner loop
+leaves the window/ambient alone" is one equation instead of a
+re-derivation.
+
+Soundness (`Stmt.sound`/`Stmt.soundR`, `whileS` cases): fix the entry
+state first with `cpsTripleWithin_exists_pre_M`(`_frame`), then the
+entry-instantiated family `inv rf₀ ws₀ A₀ : Nat → Reach` runs through
+the *same* `WP.loopNatCert` certificate as `while`; `inv_init`
+discharges the entry weaken and the exit weaken re-packages the
+witnesses.  There is no new trusted loop rule.
+
+Decided *against* changing `while` in place: the snapshot-free form
+covers most loops with lighter VC statements, every existing user
+(TreeDemo, TreeInsert, BalValueReverse, the SSZ ports) keeps compiling,
+and the parallel-session fence on `Codegen/Programs/*` stays intact.
+The duplicated soundness case is the price; a later migration can fold
+`while` into `whileS` with a `fun _ _ _ => inv` adaptor if the
+duplication starts to itch.
+
+**3. Scale.**  VC count and VC size are O(1) in the fuel, and so is
+elaboration: the monomorphized `capScanFn` proof (u64 count loaded from
+the input, `n ≤ cap` precondition) elaborates in the same time at
+`cap = 32`, `1024`, and `100000` — tactic execution ≈ 0.22 s and kernel
+type-checking ≈ 0.23 s per run (whole-file wall clock ≈ 2.3 s, dominated
+by imports; Lean 4.30.0-rc1, one warm run each).  The fuel literal only
+ever appears symbolically (in `WP.loopBound` step budgets and `i < fuel`
+bounds that `omega` consumes); nothing `decide`s or normalizes a
+fuel-sized term.  Keep it that way: never state step budgets as computed
+literals, and keep `omega` (not `decide`) on index arithmetic.
+
+Known gap, deliberately out of scope here: a `call` *inside* a loop body
+has one fixed `FnHandle`, so a per-iteration ghost contract (e.g. an
+interpreter dispatch loop instantiating the handler's contract at the
+current opcode) has the same shape of problem that `whileS` solves for
+invariants.  The dispatch-loop bead (`.49`) should either thread the
+iteration-dependent facts through registers pinned by `Reach.pin`-style
+relational contracts, or extend `call` analogously if that proves too
+weak.
 
 ## 4. What this buys for `run_stateless_guest`
 

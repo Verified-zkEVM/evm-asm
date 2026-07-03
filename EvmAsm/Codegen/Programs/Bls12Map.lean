@@ -30,6 +30,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bls12G2
 import EvmAsm.Codegen.Programs.Bls12MapG1Real
 import EvmAsm.Codegen.Programs.Bls12MapG2Real
@@ -454,88 +457,138 @@ def bls12MapDataFragment : String :=
     read-then-write so squaring/multiplying in place is safe).
     a0 = dst, a1 = base, a2 = exp (LE limbs), a3 = top bit. dst must
     not alias base. -/
-def bls12MapFpPowFunction : String :=
-  "blm_fp_pow:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s5, 8(sp); sd s6, 16(sp); sd s7, 24(sp); sd s8, 32(sp)\n" ++
-  "  mv s5, a0\n" ++
-  "  mv s6, a1\n" ++
-  "  mv s7, a2\n" ++
-  "  mv s8, a3\n" ++
-  "  la a0, blsf_le_one\n" ++
-  "  mv a1, s5\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads        # dst = 1\n" ++
-  ".Lblm_fpp_loop:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s5\n" ++
-  "  mv a2, s5\n" ++
-  "  jal ra, blsg2_fp_mul           # dst = dst^2 (in place)\n" ++
-  "  srli t0, s8, 6\n" ++
-  "  slli t0, t0, 3\n" ++
-  "  add t0, s7, t0\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  andi t2, s8, 63\n" ++
-  "  srl t1, t1, t2\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  beqz t1, .Lblm_fpp_skip\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, s5\n" ++
-  "  jal ra, blsg2_fp_mul           # dst *= base\n" ++
-  ".Lblm_fpp_skip:\n" ++
-  "  beqz s8, .Lblm_fpp_done\n" ++
-  "  addi s8, s8, -1\n" ++
-  "  j .Lblm_fpp_loop\n" ++
-  ".Lblm_fpp_done:\n" ++
-  "  ld ra, 0(sp); ld s5, 8(sp); ld s6, 16(sp); ld s7, 24(sp); ld s8, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def blmFpPow_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x21 (8 : BitVec 12),
+    .SD .x2 .x22 (16 : BitVec 12),
+    .SD .x2 .x23 (24 : BitVec 12),
+    .SD .x2 .x24 (32 : BitVec 12),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x23 .x12,
+    .MV .x24 .x13,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_le_one (GuestAddrs.blm_fp_pow + 40)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_le_one (GuestAddrs.blm_fp_pow + 40)),
+    .MV .x11 .x21,
+    .LI .x12 (6 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blm_fp_pow + 56)),
+    .MV .x10 .x21,
+    .MV .x11 .x21,
+    .MV .x12 .x21,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blm_fp_pow + 72)),
+    .SRLI .x5 .x24 (6 : BitVec 6),
+    .SLLI .x5 .x5 (3 : BitVec 6),
+    .ADD .x5 .x23 .x5,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ANDI .x7 .x24 (63 : BitVec 12),
+    .SRL .x6 .x6 .x7,
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .MV .x12 .x21,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blm_fp_pow + 120)),
+    .BEQ .x24 .x0 (12 : BitVec 13),
+    .ADDI .x24 .x24 (-1 : BitVec 12),
+    .JAL .x0 (-72 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x21 .x2 (8 : BitVec 12),
+    .LD .x22 .x2 (16 : BitVec 12),
+    .LD .x23 .x2 (24 : BitVec 12),
+    .LD .x24 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blmFpPow_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blmFpPow_relocs : RelocTable :=
+  [ (10, .la .x10 "blsf_le_one"),
+    (14, .jal .x1 "blsf_copy_quads"),
+    (18, .jal .x1 "blsg2_fp_mul"),
+    (30, .jal .x1 "blsg2_fp_mul") ]
+
+def bls12MapFpPowFunction : String :=
+  "blm_fp_pow:\n" ++ emitProgramR blmFpPow_prog blmFpPow_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blmFpPow_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12MapFpPowFunction_eq_prog :
+    bls12MapFpPowFunction = "blm_fp_pow:\n" ++ emitProgramR blmFpPow_prog blmFpPow_relocs := rfl
+
+#guard bls12MapFpPowFunction.startsWith "blm_fp_pow:\n"
+#guard blmFpPow_prog.length = 41
 /-- Fp2 dst = base ^ exp (mutating complex-accelerator ops; in-place
     squaring is safe). a0 = dst, a1 = base, a2 = exp, a3 = top bit.
     dst must not alias base. -/
-def bls12MapFp2PowFunction : String :=
-  "blm_fp2_pow:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s5, 8(sp); sd s6, 16(sp); sd s7, 24(sp); sd s8, 32(sp)\n" ++
-  "  mv s5, a0\n" ++
-  "  mv s6, a1\n" ++
-  "  mv s7, a2\n" ++
-  "  mv s8, a3\n" ++
-  "  mv a0, s5\n" ++
-  "  li t0, 12\n" ++
-  ".Lblm_f2p_zero:\n" ++
-  "  sd zero, 0(a0)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lblm_f2p_zero\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s5)                   # dst = FQ2.one\n" ++
-  ".Lblm_f2p_loop:\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s5\n" ++
-  "  jal ra, blsg2_fp2_mul          # dst = dst^2\n" ++
-  "  srli t0, s8, 6\n" ++
-  "  slli t0, t0, 3\n" ++
-  "  add t0, s7, t0\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  andi t2, s8, 63\n" ++
-  "  srl t1, t1, t2\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  beqz t1, .Lblm_f2p_skip\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  jal ra, blsg2_fp2_mul          # dst *= base\n" ++
-  ".Lblm_f2p_skip:\n" ++
-  "  beqz s8, .Lblm_f2p_done\n" ++
-  "  addi s8, s8, -1\n" ++
-  "  j .Lblm_f2p_loop\n" ++
-  ".Lblm_f2p_done:\n" ++
-  "  ld ra, 0(sp); ld s5, 8(sp); ld s6, 16(sp); ld s7, 24(sp); ld s8, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def blmFp2Pow_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x21 (8 : BitVec 12),
+    .SD .x2 .x22 (16 : BitVec 12),
+    .SD .x2 .x23 (24 : BitVec 12),
+    .SD .x2 .x24 (32 : BitVec 12),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x23 .x12,
+    .MV .x24 .x13,
+    .MV .x10 .x21,
+    .LI .x5 (12 : Word),
+    .SD .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-12 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .SD .x21 .x5 (0 : BitVec 12),
+    .MV .x10 .x21,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blm_fp2_pow + 80)),
+    .SRLI .x5 .x24 (6 : BitVec 6),
+    .SLLI .x5 .x5 (3 : BitVec 6),
+    .ADD .x5 .x23 .x5,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ANDI .x7 .x24 (63 : BitVec 12),
+    .SRL .x6 .x6 .x7,
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blm_fp2_pow + 124)),
+    .BEQ .x24 .x0 (12 : BitVec 13),
+    .ADDI .x24 .x24 (-1 : BitVec 12),
+    .JAL .x0 (-64 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x21 .x2 (8 : BitVec 12),
+    .LD .x22 .x2 (16 : BitVec 12),
+    .LD .x23 .x2 (24 : BitVec 12),
+    .LD .x24 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blmFp2Pow_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blmFp2Pow_relocs : RelocTable :=
+  [ (20, .jal .x1 "blsg2_fp2_mul"),
+    (31, .jal .x1 "blsg2_fp2_mul") ]
+
+def bls12MapFp2PowFunction : String :=
+  "blm_fp2_pow:\n" ++ emitProgramR blmFp2Pow_prog blmFp2Pow_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blmFp2Pow_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12MapFp2PowFunction_eq_prog :
+    bls12MapFp2PowFunction = "blm_fp2_pow:\n" ++ emitProgramR blmFp2Pow_prog blmFp2Pow_relocs := rfl
+
+#guard bls12MapFp2PowFunction.startsWith "blm_fp2_pow:\n"
+#guard blmFp2Pow_prog.length = 42
 /-- The map-precompile suite, ON TOP of the blsg_/blsg2_ suites. -/
 def bls12MapKernelFunctions : String :=
   bls12MapFpPowFunction ++ "\n" ++
