@@ -240,4 +240,59 @@ theorem lb_plus_one_in_C
   · simp only [addmodLbPlusOneFrame, sepConj_assoc'] at hp ⊢; xperm_hyp hp
   · simp only [addmodLbPlusOneFrame, sepConj_assoc'] at hp ⊢; xperm_hyp hp
 
+-- ============================================================================
+-- Lb link 2: the second MOD near-call (byte 348 → 352)
+-- ============================================================================
+
+/-- Link 2 of Lb: the second MOD near-call (`JAL@348 → evm_mod_callable_v5 →
+    ret@352`), discharged by the adapter. Dividend is the `+1` increment
+    `fromLimbs ![q0,q1,q2,q3]`, divisor is the modulus `fromLimbs ![n0..n3]`.
+    Between calls the div-scratch band arrives OWNED (from the callable return);
+    it is `∃`-eliminated to the generic-valued form the adapter needs via
+    `cpsTripleWithin_pre_divScratchValued`. The registers `x2/x9/x10/x11` are
+    already carried as generic values (untouched by `plus_one_args`). -/
+theorem lb_call2_in_C
+    (bt F calleeEntry raVal x2v x9v x10v x11v : Word)
+    (q0 q1 q2 q3 n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 nn3 : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21)
+    (hoffset : (bt + 348) + signExtend21 mo2 = calleeEntry)
+    (callerAlign : ((bt + 348) + 4) &&& ~~~(1 : Word) = (bt + 348) + 4)
+    (retAlign : ((calleeEntry + div128CallRetOff) + signExtend12 (0 : BitVec 12))
+        &&& ~~~(1 : Word) = calleeEntry + div128CallRetOff)
+    (hdisj : (CodeReq.singleton (bt + 348) (.JAL .x1 mo2)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisjTC : (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry)) :
+    cpsTripleWithin (1 + (unifiedDivBound + 1)) (bt + 348) ((bt + 348) + 4)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      ((divScratchOwnCallNoX1 F **
+        ((F + signExtend12 (3936 : BitVec 12)) ↦ₘ nn3) **
+        (.x12 ↦ᵣ F) ** (.x9 ↦ᵣ x9v) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ x2v) **
+        (.x5 ↦ᵣ n3) ** (.x6 ↦ᵣ q3) ** (.x7 ↦ᵣ nn3) **
+        (.x10 ↦ᵣ x10v) ** (.x11 ↦ᵣ x11v) ** (.x0 ↦ᵣ (0 : Word)) **
+        evmWordIs F (EvmWord.fromLimbs ![q0, q1, q2, q3]) **
+        evmWordIs (F + 32) (EvmWord.fromLimbs ![n0, n1, n2, n3])) **
+       addmodCall1Frame F n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+      ((modStackDispatchPostCallableX9Owned F (EvmWord.fromLimbs ![q0, q1, q2, q3])
+          (EvmWord.fromLimbs ![n0, n1, n2, n3]) ((bt + 348) + 4) **
+        memOwn (F + signExtend12 (3936 : BitVec 12))) **
+       addmodCall1Frame F n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3) := by
+  refine cpsTripleWithin_frameR _
+    (addmodCall1Frame_pcFree F n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3) ?_
+  refine cpsTripleWithin_pre_divScratchValued (fun dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 => ?_)
+  have hadapter := evm_addmod_v5_call_adapter_in_C (bt + 348) F calleeEntry mo2
+    (EvmWord.fromLimbs ![q0, q1, q2, q3]) (EvmWord.fromLimbs ![n0, n1, n2, n3])
+    x9v raVal x2v n3 q3 nn3 x10v x11v
+    dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 nn3
+    (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC)
+    hoffset callerAlign retAlign hdisj
+    (fun a i h => evm_addmod_total_program_code_carry_call2_sub a i h)
+    hdisjTC
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => hp) hadapter
+  rw [divModStackDispatchPreNoX1_unfold]
+  simp only [sepConj_assoc'] at hp ⊢
+  xperm_hyp hp
+
 end EvmAsm.Evm64.AddMod.Compose
