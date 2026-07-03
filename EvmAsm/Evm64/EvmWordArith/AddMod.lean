@@ -369,6 +369,30 @@ theorem modAdd_eq_condSub_of (m rMod N : EvmWord)
     rw [hmodN, hnottake, if_neg (by simp), BitVec.toNat_add]
     omega
 
+/-- The all-ones-or-zero mask word the carry-path conditional subtract applies:
+    `if take then allOnes else 0`. `EvmWord.condSubMask take = -1` when the
+    subtract fires, `0` otherwise (`-1` is the 256-bit all-ones word). -/
+def condSubMask (take : Bool) : EvmWord := if take then (-1 : EvmWord) else 0
+
+/-- **Carry-path conditional-subtract correctness (word level).** The machine
+    computes `(m + rMod) − (N &&& mask)` where `mask` masks the modulus to all-
+    ones exactly when the subtract should fire. Under the pre-reduced operand
+    bounds and the `take` condition, this word equals `EvmWord.modAdd m rMod N`.
+
+    `mask = -1` ⇒ `N &&& -1 = N` ⇒ result `(m+rMod) − N`; `mask = 0` ⇒
+    `N &&& 0 = 0` ⇒ result `m + rMod` — matching `modAdd_eq_condSub_of`. -/
+theorem masked_sub_eq_modAdd (m rMod N : EvmWord)
+    (hm : m.toNat < N.toNat) (hr : rMod.toNat < N.toNat)
+    (take : Bool) (htake : take = true ↔ m.toNat + rMod.toNat ≥ N.toNat) :
+    (m + rMod) - (N &&& condSubMask take) = EvmWord.modAdd m rMod N := by
+  rw [modAdd_eq_condSub_of m rMod N hm hr take htake, condSubMask]
+  cases take with
+  | true =>
+    rw [if_pos rfl, if_pos rfl,
+      show (-1 : EvmWord) = BitVec.allOnes 256 from by decide, BitVec.and_allOnes]
+  | false =>
+    rw [if_neg (by simp), if_neg (by simp)]; simp
+
 end EvmWord
 
 end EvmAsm.Evm64

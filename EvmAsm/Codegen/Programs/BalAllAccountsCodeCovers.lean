@@ -27,6 +27,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
@@ -37,61 +40,105 @@ open EvmAsm.Rv64
     a0 = BAL section RLP ptr (list of AccountChanges)   a1 = BAL section RLP length
     a2 = exec code-effect array base (variable-stride)   a3 = record count
     a0 (output) = 0 every changed code-effect's account is present in the BAL / 1 reject. -/
-def balAllAccountsCodeCoversFunction : String :=
-  "bal_all_accounts_code_covers:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0                   # BAL section ptr\n" ++
-  "  mv s1, a1                   # BAL section len\n" ++
-  "  mv s2, a2                   # code-effect array base\n" ++
-  "  mv s3, a3                   # record count\n" ++
-  "  mv s5, s2                    # rec_ptr = effect base\n" ++
-  "  li s6, 0                     # record index k\n" ++
-  ".Lbacov_eloop:\n" ++
-  "  beq s6, s3, .Lbacov_ok\n" ++
-  "  ld t0, 32(s5); beqz t0, .Lbacov_advance   # has_code_change == 0 -> no obligation\n" ++
-  "  # changed: scan BAL accounts for one whose item-0 address == effect record address (s5+0)\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbacov_fail\n" ++
-  "  mv s7, a0                    # BAL cursor\n" ++
-  "  mv s8, a1                    # BAL end\n" ++
-  ".Lbacov_sloop:\n" ++
-  "  beq s7, s8, .Lbacov_fail     # scanned all, no BAL account -> reject (omitted created/destroyed account)\n" ++
-  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbacov_fail        # malformed BAL list -> reject\n" ++
-  "  mv s7, a0; sub t2, a0, a2    # AccountChanges ptr/len = t2/a2\n" ++
-  "  mv a0, t2; mv a1, a2; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbacov_fail\n" ++
-  "  jal ra, rlp_walk_next                              # item 0 = address\n" ++
-  "  bnez a1, .Lbacov_fail        # malformed account -> reject\n" ++
-  "  li t2, 20; bne a2, t2, .Lbacov_sadv   # not 20B -> not a match\n" ++
-  "  sub t2, a0, a2               # BAL addr ptr (20B BE)\n" ++
-  "  li t3, 0\n" ++
-  ".Lbacov_acmp:\n" ++
-  "  li t4, 20; beq t3, t4, .Lbacov_advance   # all 20 equal -> account present -> obligation met\n" ++
-  "  add t4, s5, t3; lbu t5, 0(t4)            # effect record address byte\n" ++
-  "  add t4, t2, t3; lbu t6, 0(t4)            # BAL address byte\n" ++
-  "  bne t5, t6, .Lbacov_sadv\n" ++
-  "  addi t3, t3, 1; j .Lbacov_acmp\n" ++
-  ".Lbacov_sadv:\n" ++
-  "  j .Lbacov_sloop\n" ++
-  ".Lbacov_advance:\n" ++
-  "  ld t0, 40(s5); addi t0, t0, 7; andi t0, t0, -8; addi t0, t0, 48   # record size = 48 + roundup8(code_len)\n" ++
-  "  add s5, s5, t0\n" ++
-  "  addi s6, s6, 1; j .Lbacov_eloop\n" ++
-  ".Lbacov_ok:\n" ++
-  "  li a0, 0; j .Lbacov_ret\n" ++
-  ".Lbacov_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbacov_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret"
+def balAllAccountsCodeCovers_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x21 .x18,
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x19 (172 : BitVec 13),
+    .LD .x5 .x21 (32 : BitVec 12),
+    .BEQ .x5 .x0 (136 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_covers + 88)),
+    .BNE .x12 .x0 (156 : BitVec 13),
+    .MV .x23 .x10,
+    .MV .x24 .x11,
+    .BEQ .x23 .x24 (144 : BitVec 13),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_covers + 116)),
+    .BNE .x11 .x0 (128 : BitVec 13),
+    .MV .x23 .x10,
+    .SUB .x7 .x10 .x12,
+    .MV .x10 .x7,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_covers + 140)),
+    .BNE .x12 .x0 (104 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_covers + 148)),
+    .BNE .x11 .x0 (96 : BitVec 13),
+    .LI .x7 (20 : Word),
+    .BNE .x12 .x7 (48 : BitVec 13),
+    .SUB .x7 .x10 .x12,
+    .LI .x28 (0 : Word),
+    .LI .x29 (20 : Word),
+    .BEQ .x28 .x29 (36 : BitVec 13),
+    .ADD .x29 .x21 .x28,
+    .LBU .x30 .x29 (0 : BitVec 12),
+    .ADD .x29 .x7 .x28,
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .BNE .x30 .x31 (12 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .JAL .x0 (-104 : BitVec 21),
+    .LD .x5 .x21 (40 : BitVec 12),
+    .ADDI .x5 .x5 (7 : BitVec 12),
+    .ANDI .x5 .x5 (-8 : BitVec 12),
+    .ADDI .x5 .x5 (48 : BitVec 12),
+    .ADD .x21 .x21 .x5,
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-168 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAllAccountsCodeCovers_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAllAccountsCodeCovers_relocs : RelocTable :=
+  [ (22, .jal .x1 "rlp_walk_init"),
+    (29, .jal .x1 "rlp_walk_next"),
+    (35, .jal .x1 "rlp_walk_init"),
+    (37, .jal .x1 "rlp_walk_next") ]
+
+def balAllAccountsCodeCoversFunction : String :=
+  "bal_all_accounts_code_covers:\n" ++ emitProgramR balAllAccountsCodeCovers_prog balAllAccountsCodeCovers_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAllAccountsCodeCovers_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAllAccountsCodeCoversFunction_eq_prog :
+    balAllAccountsCodeCoversFunction = "bal_all_accounts_code_covers:\n" ++ emitProgramR balAllAccountsCodeCovers_prog balAllAccountsCodeCovers_relocs := rfl
+
+#guard balAllAccountsCodeCoversFunction.startsWith "bal_all_accounts_code_covers:\n"
+#guard balAllAccountsCodeCovers_prog.length = 75
 /-- `zisk_bal_all_accounts_code_covers`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : BAL section length

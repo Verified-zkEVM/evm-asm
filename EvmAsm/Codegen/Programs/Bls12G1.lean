@@ -472,33 +472,75 @@ def bls12G1PointAddFunction : String :=
 
 /-- a0 = 1 iff the finite point at a0 (coords already `< p`) satisfies
     y^2 = x^3 + 4 mod p. -/
-def bls12G1OnCurveFunction : String :=
-  "blsg_on_curve:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, blsg_t\n" ++
-  "  jal ra, blsg_mul_mod_p         # t = x^2\n" ++
-  "  la a0, blsg_t\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, blsg_t\n" ++
-  "  jal ra, blsg_mul_mod_p         # t = x^3\n" ++
-  "  la a0, blsg_t\n" ++
-  "  la a1, blsg_b_be\n" ++
-  "  la a2, blsg_rhs\n" ++
-  "  jal ra, blsg_add_mod_p         # rhs = x^3 + 4\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  addi a1, s0, 48\n" ++
-  "  la a2, blsg_y2\n" ++
-  "  jal ra, blsg_mul_mod_p         # y2 = y^2\n" ++
-  "  la a0, blsg_rhs\n" ++
-  "  la a1, blsg_y2\n" ++
-  "  jal ra, blsg_eq48\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def blsgOnCurve_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 20)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 20)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_mul_mod_p (GuestAddrs.blsg_on_curve + 28)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 32)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 32)),
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 44)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 44)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_mul_mod_p (GuestAddrs.blsg_on_curve + 52)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 56)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_t (GuestAddrs.blsg_on_curve + 56)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg_b_be (GuestAddrs.blsg_on_curve + 64)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg_b_be (GuestAddrs.blsg_on_curve + 64)),
+    .AUIPC .x12 (laHi GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 72)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_add_mod_p (GuestAddrs.blsg_on_curve + 80)),
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .ADDI .x11 .x8 (48 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 92)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 92)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_mul_mod_p (GuestAddrs.blsg_on_curve + 100)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 104)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_rhs (GuestAddrs.blsg_on_curve + 104)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 112)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg_y2 (GuestAddrs.blsg_on_curve + 112)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_eq48 (GuestAddrs.blsg_on_curve + 120)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgOnCurve_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgOnCurve_relocs : RelocTable :=
+  [ (5, .la .x12 "blsg_t"),
+    (7, .jal .x1 "blsg_mul_mod_p"),
+    (8, .la .x10 "blsg_t"),
+    (11, .la .x12 "blsg_t"),
+    (13, .jal .x1 "blsg_mul_mod_p"),
+    (14, .la .x10 "blsg_t"),
+    (16, .la .x11 "blsg_b_be"),
+    (18, .la .x12 "blsg_rhs"),
+    (20, .jal .x1 "blsg_add_mod_p"),
+    (23, .la .x12 "blsg_y2"),
+    (25, .jal .x1 "blsg_mul_mod_p"),
+    (26, .la .x10 "blsg_rhs"),
+    (28, .la .x11 "blsg_y2"),
+    (30, .jal .x1 "blsg_eq48") ]
+
+def bls12G1OnCurveFunction : String :=
+  "blsg_on_curve:\n" ++ emitProgramR blsgOnCurve_prog blsgOnCurve_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgOnCurve_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1OnCurveFunction_eq_prog :
+    bls12G1OnCurveFunction = "blsg_on_curve:\n" ++ emitProgramR blsgOnCurve_prog blsgOnCurve_relocs := rfl
+
+#guard bls12G1OnCurveFunction.startsWith "blsg_on_curve:\n"
+#guard blsgOnCurve_prog.length = 35
 /-- Decode one EIP-2537 G1 wire point (a0 = 128-byte padded BE record)
     into a compact 96-byte point at a1: each 64-byte field element must
     have its 16 pad bytes zero and 48-byte value < p, and the point must
@@ -756,19 +798,41 @@ def bls12G1ScalarMulFunction : String :=
 /-- EIP-2537 G1 subgroup check: a0 = compact point. Returns a0 = 1 iff
     n*P = inf (P in the order-n subgroup; infinity passes trivially).
     The G1 cofactor is not 1, so this is a REAL check, unlike BN254. -/
-def bls12G1SubgroupFunction : String :=
-  "blsg_subgroup_g1:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a2, a0\n" ++
-  "  la a0, blsg_n_be\n" ++
-  "  li a1, 32\n" ++
-  "  la a3, blsg_sub_out\n" ++
-  "  jal ra, blsg_scalar_mul\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret                            # scalar_mul already returns the inf flag"
+def blsgSubgroupG1_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x12 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsg_n_be (GuestAddrs.blsg_subgroup_g1 + 12)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg_n_be (GuestAddrs.blsg_subgroup_g1 + 12)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.blsg_sub_out (GuestAddrs.blsg_subgroup_g1 + 24)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.blsg_sub_out (GuestAddrs.blsg_subgroup_g1 + 24)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_scalar_mul (GuestAddrs.blsg_subgroup_g1 + 32)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgSubgroupG1_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgSubgroupG1_relocs : RelocTable :=
+  [ (3, .la .x10 "blsg_n_be"),
+    (6, .la .x13 "blsg_sub_out"),
+    (8, .jal .x1 "blsg_scalar_mul") ]
+
+def bls12G1SubgroupFunction : String :=
+  "blsg_subgroup_g1:\n" ++ emitProgramR blsgSubgroupG1_prog blsgSubgroupG1_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgSubgroupG1_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1SubgroupFunction_eq_prog :
+    bls12G1SubgroupFunction = "blsg_subgroup_g1:\n" ++ emitProgramR blsgSubgroupG1_prog blsgSubgroupG1_relocs := rfl
+
+#guard bls12G1SubgroupFunction.startsWith "blsg_subgroup_g1:\n"
+#guard blsgSubgroupG1_prog.length = 12
 /-- Real BLS12-381 G1 ADD (0x0b) kernel: a0 = pointer to the raw
     256-byte EIP-2537 input (two 128-byte wire points; byte reads, so
     EVM-memory alignment is free), a1 = 96-byte compact BE output.

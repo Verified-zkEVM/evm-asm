@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.AddrNormAttr
+import EvmAsm.Evm64.EvmWordArith.AddModCondSub
 import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.AddMod.ProgramTest
 import EvmAsm.Evm64.AddMod.Args
@@ -25,6 +26,19 @@ import EvmAsm.Evm64.AddMod.Compose.TotalBase
 import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
 import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
 import EvmAsm.Evm64.AddMod.Compose.CallAdapter
+import EvmAsm.Evm64.AddMod.Compose.CondSubWrapper
+import EvmAsm.Evm64.AddMod.Compose.CarryPipeline
+import EvmAsm.Evm64.AddMod.Compose.CarryLa
+import EvmAsm.Evm64.AddMod.Compose.CarryLb
+import EvmAsm.Evm64.AddMod.Compose.CarryCompose
+import EvmAsm.Evm64.AddMod.Compose.CarryLc
+import EvmAsm.Evm64.AddMod.Compose.CarryLdCondSub
+import EvmAsm.Evm64.AddMod.Compose.CarryLd
+import EvmAsm.Evm64.AddMod.Compose.CarryLdChain
+import EvmAsm.Evm64.AddMod.Compose.ZeroNoCarryArms
+import EvmAsm.Evm64.AddMod.Compose.TotalDispatch
+import EvmAsm.Evm64.AddMod.Compose.ResultStack
+import EvmAsm.Evm64.AddMod.Compose.CarryBranch
 import EvmAsm.Evm64.AddMod.Compose.ZeroBranch
 import EvmAsm.Evm64.AddMod.Spec
 

@@ -18,8 +18,12 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.ChainValidateProgs
 
 namespace EvmAsm.Codegen
 
@@ -49,73 +53,18 @@ open EvmAsm.Rv64.Program
         1 : RLP parse failure on some header
         2 : timestamp field > 8 bytes BE on some header -/
 def chainValidateIncreasingTimestampsFunction : String :=
-  "chain_validate_increasing_timestamps:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li t0, 2\n" ++
-  "  bltu s0, t0, .Lcvit_done\n" ++
-  "  # Extract headers[0].timestamp into s5 (prev_ts)\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  li a2, 11\n" ++
-  "  la a3, cvit_ts\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvit_propagate\n" ++
-  "  la t0, cvit_ts; ld s5, 0(t0)\n" ++
-  "  # Walk: parent_ptr = headers[0]; for i in [0, N-1): parent=headers[i], child=headers[i+1]\n" ++
-  "  ld t0, 0(s1)\n" ++
-  "  add t1, s2, t0              # child_ptr starts at headers[1]\n" ++
-  "  li t2, 1                    # i = 1\n" ++
-  ".Lcvit_loop:\n" ++
-  "  beq t2, s0, .Lcvit_done\n" ++
-  "  la t0, cvit_iter_child; sd t1, 0(t0)\n" ++
-  "  la t0, cvit_iter_i;     sd t2, 0(t0)\n" ++
-  "  la t0, cvit_iter_prev;  sd s5, 0(t0)\n" ++
-  "  slli t3, t2, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)                # header_len\n" ++
-  "  mv a0, t1\n" ++
-  "  li a2, 11\n" ++
-  "  la a3, cvit_ts\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvit_propagate\n" ++
-  "  la t0, cvit_ts;          ld t3, 0(t0)\n" ++
-  "  la t0, cvit_iter_prev;   ld t4, 0(t0)\n" ++
-  "  bgeu t4, t3, .Lcvit_pred_false\n" ++
-  "  # advance\n" ++
-  "  la t0, cvit_iter_child;  ld t1, 0(t0)\n" ++
-  "  la t0, cvit_iter_i;      ld t2, 0(t0)\n" ++
-  "  mv s5, t3                   # prev_ts = current\n" ++
-  "  slli t5, t2, 3\n" ++
-  "  add t5, s1, t5\n" ++
-  "  ld t6, 0(t5)\n" ++
-  "  add t1, t1, t6\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Lcvit_loop\n" ++
-  ".Lcvit_pred_false:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  la t0, cvit_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvit_ret\n" ++
-  ".Lcvit_propagate:\n" ++
-  "  la t0, cvit_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  j .Lcvit_ret\n" ++
-  ".Lcvit_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvit_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+  "chain_validate_increasing_timestamps:\n" ++ emitProgramR chainValidateIncreasingTimestamps_prog chainValidateIncreasingTimestamps_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateIncreasingTimestamps_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateIncreasingTimestampsFunction_eq_prog :
+    chainValidateIncreasingTimestampsFunction = "chain_validate_increasing_timestamps:\n" ++ emitProgramR chainValidateIncreasingTimestamps_prog chainValidateIncreasingTimestamps_relocs := rfl
+
+#guard chainValidateIncreasingTimestampsFunction.startsWith "chain_validate_increasing_timestamps:\n"
+#guard chainValidateIncreasingTimestamps_prog.length = 92
 def ziskChainValidateIncreasingTimestampsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -179,71 +128,133 @@ def ziskChainValidateIncreasingTimestampsProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure
         2 : number field > 8 bytes BE -/
-def chainValidateConsecutiveNumbersFunction : String :=
-  "chain_validate_consecutive_numbers:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li t0, 2\n" ++
-  "  bltu s0, t0, .Lcvcn_done\n" ++
-  "  # headers[0].number -> s5 (prev_num)\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2; li a2, 8\n" ++
-  "  la a3, cvcn_num\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvcn_propagate\n" ++
-  "  la t0, cvcn_num; ld s5, 0(t0)\n" ++
-  "  ld t0, 0(s1)\n" ++
-  "  add t1, s2, t0              # child_ptr\n" ++
-  "  li t2, 1\n" ++
-  ".Lcvcn_loop:\n" ++
-  "  beq t2, s0, .Lcvcn_done\n" ++
-  "  la t0, cvcn_iter_child; sd t1, 0(t0)\n" ++
-  "  la t0, cvcn_iter_i;     sd t2, 0(t0)\n" ++
-  "  la t0, cvcn_iter_prev;  sd s5, 0(t0)\n" ++
-  "  slli t3, t2, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, t1; li a2, 8\n" ++
-  "  la a3, cvcn_num\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvcn_propagate\n" ++
-  "  la t0, cvcn_num;        ld t3, 0(t0)\n" ++
-  "  la t0, cvcn_iter_prev;  ld t4, 0(t0)\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  bne t4, t3, .Lcvcn_pred_false\n" ++
-  "  la t0, cvcn_iter_child; ld t1, 0(t0)\n" ++
-  "  la t0, cvcn_iter_i;     ld t2, 0(t0)\n" ++
-  "  mv s5, t3\n" ++
-  "  slli t5, t2, 3\n" ++
-  "  add t5, s1, t5\n" ++
-  "  ld t6, 0(t5)\n" ++
-  "  add t1, t1, t6\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Lcvcn_loop\n" ++
-  ".Lcvcn_pred_false:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  la t0, cvcn_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvcn_ret\n" ++
-  ".Lcvcn_propagate:\n" ++
-  "  la t0, cvcn_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  j .Lcvcn_ret\n" ++
-  ".Lcvcn_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvcn_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def chainValidateConsecutiveNumbers_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x5 (2 : Word),
+    .BLTU .x8 .x5 (264 : BitVec 13),
+    .LD .x11 .x9 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (8 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 84)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 84)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_consecutive_numbers + 92)),
+    .BNE .x10 .x0 (216 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 100)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .ADD .x6 .x18 .x5,
+    .LI .x7 (1 : Word),
+    .BEQ .x7 .x8 (208 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_child (GuestAddrs.chain_validate_consecutive_numbers + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_child (GuestAddrs.chain_validate_consecutive_numbers + 128)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 140)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_prev (GuestAddrs.chain_validate_consecutive_numbers + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_prev (GuestAddrs.chain_validate_consecutive_numbers + 152)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x7 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .LI .x12 (8 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 184)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 184)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_consecutive_numbers + 192)),
+    .BNE .x10 .x0 (116 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 200)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_prev (GuestAddrs.chain_validate_consecutive_numbers + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_prev (GuestAddrs.chain_validate_consecutive_numbers + 212)),
+    .LD .x29 .x5 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .BNE .x29 .x28 (56 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_child (GuestAddrs.chain_validate_consecutive_numbers + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_child (GuestAddrs.chain_validate_consecutive_numbers + 232)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 244)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 244)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .MV .x21 .x28,
+    .SLLI .x30 .x7 (3 : BitVec 6),
+    .ADD .x30 .x9 .x30,
+    .LD .x31 .x30 (0 : BitVec 12),
+    .ADD .x6 .x6 .x31,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-156 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 288)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 288)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_iter_i (GuestAddrs.chain_validate_consecutive_numbers + 312)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainValidateConsecutiveNumbers_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidateConsecutiveNumbers_relocs : RelocTable :=
+  [ (21, .la .x13 "cvcn_num"),
+    (23, .jal .x1 "rlp_field_to_u64"),
+    (25, .la .x5 "cvcn_num"),
+    (32, .la .x5 "cvcn_iter_child"),
+    (35, .la .x5 "cvcn_iter_i"),
+    (38, .la .x5 "cvcn_iter_prev"),
+    (46, .la .x13 "cvcn_num"),
+    (48, .jal .x1 "rlp_field_to_u64"),
+    (50, .la .x5 "cvcn_num"),
+    (53, .la .x5 "cvcn_iter_prev"),
+    (58, .la .x5 "cvcn_iter_child"),
+    (61, .la .x5 "cvcn_iter_i"),
+    (72, .la .x5 "cvcn_iter_i"),
+    (78, .la .x5 "cvcn_iter_i") ]
+
+def chainValidateConsecutiveNumbersFunction : String :=
+  "chain_validate_consecutive_numbers:\n" ++ emitProgramR chainValidateConsecutiveNumbers_prog chainValidateConsecutiveNumbers_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateConsecutiveNumbers_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateConsecutiveNumbersFunction_eq_prog :
+    chainValidateConsecutiveNumbersFunction = "chain_validate_consecutive_numbers:\n" ++ emitProgramR chainValidateConsecutiveNumbers_prog chainValidateConsecutiveNumbers_relocs := rfl
+
+#guard chainValidateConsecutiveNumbersFunction.startsWith "chain_validate_consecutive_numbers:\n"
+#guard chainValidateConsecutiveNumbers_prog.length = 93
 def ziskChainValidateConsecutiveNumbersPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -307,64 +318,121 @@ def ziskChainValidateConsecutiveNumbersProbeUnit : BuildUnit := {
         0 : success — predicate written
         1 : RLP parse fail on some header
         2 : gas_used or gas_limit field > 8 bytes BE -/
-def chainValidateGasUsedUnderLimitFunction : String :=
-  "chain_validate_gas_used_under_limit:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li s5, 0\n" ++
-  ".Lcvgul_loop:\n" ++
-  "  beq s5, s0, .Lcvgul_done\n" ++
-  "  la t0, cvgul_iter_ptr; sd s2, 0(t0)\n" ++
-  "  la t0, cvgul_iter_i;   sd s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 10\n" ++
-  "  la a3, cvgul_gas_used\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvgul_propagate\n" ++
-  "  la t0, cvgul_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvgul_iter_i;   ld s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 9\n" ++
-  "  la a3, cvgul_gas_limit\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvgul_propagate\n" ++
-  "  la t0, cvgul_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvgul_iter_i;   ld s5, 0(t0)\n" ++
-  "  la t0, cvgul_gas_used;  ld t1, 0(t0)\n" ++
-  "  la t0, cvgul_gas_limit; ld t2, 0(t0)\n" ++
-  "  bgtu t1, t2, .Lcvgul_violation\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  add s2, s2, t4\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lcvgul_loop\n" ++
-  ".Lcvgul_violation:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvgul_ret\n" ++
-  ".Lcvgul_propagate:\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  j .Lcvgul_ret\n" ++
-  ".Lcvgul_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvgul_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def chainValidateGasUsedUnderLimit_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x8 (224 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 72)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_i (GuestAddrs.chain_validate_gas_used_under_limit + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_i (GuestAddrs.chain_validate_gas_used_under_limit + 84)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (10 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvgul_gas_used (GuestAddrs.chain_validate_gas_used_under_limit + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvgul_gas_used (GuestAddrs.chain_validate_gas_used_under_limit + 116)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_gas_used_under_limit + 124)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 132)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_i (GuestAddrs.chain_validate_gas_used_under_limit + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_i (GuestAddrs.chain_validate_gas_used_under_limit + 144)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (9 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvgul_gas_limit (GuestAddrs.chain_validate_gas_used_under_limit + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvgul_gas_limit (GuestAddrs.chain_validate_gas_used_under_limit + 176)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_gas_used_under_limit + 184)),
+    .BNE .x10 .x0 (96 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 192)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_i (GuestAddrs.chain_validate_gas_used_under_limit + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_i (GuestAddrs.chain_validate_gas_used_under_limit + 204)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_gas_used (GuestAddrs.chain_validate_gas_used_under_limit + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_gas_used (GuestAddrs.chain_validate_gas_used_under_limit + 216)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvgul_gas_limit (GuestAddrs.chain_validate_gas_used_under_limit + 228)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_gas_limit (GuestAddrs.chain_validate_gas_used_under_limit + 228)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .BLTU .x7 .x6 (28 : BitVec 13),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .ADD .x18 .x18 .x29,
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-196 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainValidateGasUsedUnderLimit_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidateGasUsedUnderLimit_relocs : RelocTable :=
+  [ (18, .la .x5 "cvgul_iter_ptr"),
+    (21, .la .x5 "cvgul_iter_i"),
+    (29, .la .x13 "cvgul_gas_used"),
+    (31, .jal .x1 "rlp_field_to_u64"),
+    (33, .la .x5 "cvgul_iter_ptr"),
+    (36, .la .x5 "cvgul_iter_i"),
+    (44, .la .x13 "cvgul_gas_limit"),
+    (46, .jal .x1 "rlp_field_to_u64"),
+    (48, .la .x5 "cvgul_iter_ptr"),
+    (51, .la .x5 "cvgul_iter_i"),
+    (54, .la .x5 "cvgul_gas_used"),
+    (57, .la .x5 "cvgul_gas_limit") ]
+
+def chainValidateGasUsedUnderLimitFunction : String :=
+  "chain_validate_gas_used_under_limit:\n" ++ emitProgramR chainValidateGasUsedUnderLimit_prog chainValidateGasUsedUnderLimit_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateGasUsedUnderLimit_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateGasUsedUnderLimitFunction_eq_prog :
+    chainValidateGasUsedUnderLimitFunction = "chain_validate_gas_used_under_limit:\n" ++ emitProgramR chainValidateGasUsedUnderLimit_prog chainValidateGasUsedUnderLimit_relocs := rfl
+
+#guard chainValidateGasUsedUnderLimitFunction.startsWith "chain_validate_gas_used_under_limit:\n"
+#guard chainValidateGasUsedUnderLimit_prog.length = 83
 def ziskChainValidateGasUsedUnderLimitPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -1187,56 +1255,103 @@ def ziskChainValidateGasLimitNonIncreasingProbeUnit : BuildUnit := {
       a0 (output) :
         0 : success
         1 : RLP parse failure on some header -/
-def chainValidateExtraDataLengthFunction : String :=
-  "chain_validate_extra_data_length:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li s5, 0\n" ++
-  ".Lcvedl_loop:\n" ++
-  "  beq s5, s0, .Lcvedl_done\n" ++
-  "  la t0, cvedl_iter_ptr; sd s2, 0(t0)\n" ++
-  "  la t0, cvedl_iter_i;   sd s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 12\n" ++
-  "  la a3, cvedl_offset; la a4, cvedl_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lcvedl_propagate\n" ++
-  "  la t0, cvedl_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvedl_iter_i;   ld s5, 0(t0)\n" ++
-  "  la t0, cvedl_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lcvedl_violation\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  add s2, s2, t4\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lcvedl_loop\n" ++
-  ".Lcvedl_violation:\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvedl_ret\n" ++
-  ".Lcvedl_propagate:\n" ++
-  "  sd s5, 0(s4)\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lcvedl_ret\n" ++
-  ".Lcvedl_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvedl_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def chainValidateExtraDataLength_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x8 (168 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvedl_iter_ptr (GuestAddrs.chain_validate_extra_data_length + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvedl_iter_ptr (GuestAddrs.chain_validate_extra_data_length + 72)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvedl_iter_i (GuestAddrs.chain_validate_extra_data_length + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvedl_iter_i (GuestAddrs.chain_validate_extra_data_length + 84)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (12 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvedl_offset (GuestAddrs.chain_validate_extra_data_length + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvedl_offset (GuestAddrs.chain_validate_extra_data_length + 116)),
+    .AUIPC .x14 (laHi GuestAddrs.cvedl_length (GuestAddrs.chain_validate_extra_data_length + 124)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.cvedl_length (GuestAddrs.chain_validate_extra_data_length + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.chain_validate_extra_data_length + 132)),
+    .BNE .x10 .x0 (88 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvedl_iter_ptr (GuestAddrs.chain_validate_extra_data_length + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvedl_iter_ptr (GuestAddrs.chain_validate_extra_data_length + 140)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvedl_iter_i (GuestAddrs.chain_validate_extra_data_length + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvedl_iter_i (GuestAddrs.chain_validate_extra_data_length + 152)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvedl_length (GuestAddrs.chain_validate_extra_data_length + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvedl_length (GuestAddrs.chain_validate_extra_data_length + 164)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (28 : BitVec 13),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .ADD .x18 .x18 .x29,
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-136 : BitVec 21),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (20 : BitVec 21),
+    .SD .x20 .x21 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainValidateExtraDataLength_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidateExtraDataLength_relocs : RelocTable :=
+  [ (18, .la .x5 "cvedl_iter_ptr"),
+    (21, .la .x5 "cvedl_iter_i"),
+    (29, .la .x13 "cvedl_offset"),
+    (31, .la .x14 "cvedl_length"),
+    (33, .jal .x1 "rlp_list_nth_item"),
+    (35, .la .x5 "cvedl_iter_ptr"),
+    (38, .la .x5 "cvedl_iter_i"),
+    (41, .la .x5 "cvedl_length") ]
+
+def chainValidateExtraDataLengthFunction : String :=
+  "chain_validate_extra_data_length:\n" ++ emitProgramR chainValidateExtraDataLength_prog chainValidateExtraDataLength_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateExtraDataLength_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateExtraDataLengthFunction_eq_prog :
+    chainValidateExtraDataLengthFunction = "chain_validate_extra_data_length:\n" ++ emitProgramR chainValidateExtraDataLength_prog chainValidateExtraDataLength_relocs := rfl
+
+#guard chainValidateExtraDataLengthFunction.startsWith "chain_validate_extra_data_length:\n"
+#guard chainValidateExtraDataLength_prog.length = 69
 def ziskChainValidateExtraDataLengthPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

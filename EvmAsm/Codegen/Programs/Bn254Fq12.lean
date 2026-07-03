@@ -30,6 +30,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bn254Fp2
 
 namespace EvmAsm.Codegen
@@ -320,18 +322,38 @@ theorem bn254Fq12ZeroFunction_eq_prog :
 #guard bn254Fq12ZeroFunction.startsWith "bnq_zero:\n"
 #guard bnqZero_prog.length = 6
 /-- Set the FQ12 at a0 to one (coefficient 0 = 1, rest 0). -/
-def bn254Fq12SetOneFunction : String :=
-  "bnq_set_one:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  jal ra, bnq_zero\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s0)\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def bnqSetOne_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .JAL .x1 (jalOff GuestAddrs.bnq_zero (GuestAddrs.bnq_set_one + 16)),
+    .LI .x5 (1 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnqSetOne_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnqSetOne_relocs : RelocTable :=
+  [ (4, .jal .x1 "bnq_zero") ]
+
+def bn254Fq12SetOneFunction : String :=
+  "bnq_set_one:\n" ++ emitProgramR bnqSetOne_prog bnqSetOne_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnqSetOne_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fq12SetOneFunction_eq_prog :
+    bn254Fq12SetOneFunction = "bnq_set_one:\n" ++ emitProgramR bnqSetOne_prog bnqSetOne_relocs := rfl
+
+#guard bn254Fq12SetOneFunction.startsWith "bnq_set_one:\n"
+#guard bnqSetOne_prog.length = 11
 /-- a0 = 1 iff the FQ12 values at a0/a1 are limb-identical (reduced). -/
 def bnqEq_prog : Program :=
   [ .LI .x5 (48 : Word),
@@ -389,48 +411,83 @@ theorem bn254Fq12IsZeroFunction_eq_prog :
     down to 0. a0 = dst, a1 = base, a2 = exp (LE limbs), a3 = top bit
     index. dst must NOT alias base; clobbers `bnq_powt` and (via
     bnq_mul) `bnq_acc`. -/
-def bn254Fq12PowFunction : String :=
-  "bnq_pow:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  mv s3, a3\n" ++
-  "  mv a0, s0\n" ++
-  "  jal ra, bnq_set_one\n" ++
-  ".Lbnq_pow_loop:\n" ++
-  "  la a0, bnq_powt\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s0\n" ++
-  "  jal ra, bnq_mul                # powt = dst^2\n" ++
-  "  la a0, bnq_powt\n" ++
-  "  mv a1, s0\n" ++
-  "  jal ra, bnq_copy\n" ++
-  "  srli t0, s3, 6\n" ++
-  "  slli t0, t0, 3\n" ++
-  "  add t0, s2, t0\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  andi t2, s3, 63\n" ++
-  "  srl t1, t1, t2\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  beqz t1, .Lbnq_pow_skip\n" ++
-  "  la a0, bnq_powt\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, bnq_mul                # powt = dst * base\n" ++
-  "  la a0, bnq_powt\n" ++
-  "  mv a1, s0\n" ++
-  "  jal ra, bnq_copy\n" ++
-  ".Lbnq_pow_skip:\n" ++
-  "  beqz s3, .Lbnq_pow_done\n" ++
-  "  addi s3, s3, -1\n" ++
-  "  j .Lbnq_pow_loop\n" ++
-  ".Lbnq_pow_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def bnqPow_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnq_set_one (GuestAddrs.bnq_pow + 44)),
+    .AUIPC .x10 (laHi GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 48)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 48)),
+    .MV .x11 .x8,
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnq_mul (GuestAddrs.bnq_pow + 64)),
+    .AUIPC .x10 (laHi GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 68)),
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnq_copy (GuestAddrs.bnq_pow + 80)),
+    .SRLI .x5 .x19 (6 : BitVec 6),
+    .SLLI .x5 .x5 (3 : BitVec 6),
+    .ADD .x5 .x18 .x5,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ANDI .x7 .x19 (63 : BitVec 12),
+    .SRL .x6 .x6 .x7,
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x6 .x0 (40 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 116)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 116)),
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnq_mul (GuestAddrs.bnq_pow + 132)),
+    .AUIPC .x10 (laHi GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 136)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnq_powt (GuestAddrs.bnq_pow + 136)),
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnq_copy (GuestAddrs.bnq_pow + 148)),
+    .BEQ .x19 .x0 (12 : BitVec 13),
+    .ADDI .x19 .x19 (-1 : BitVec 12),
+    .JAL .x0 (-112 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnqPow_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnqPow_relocs : RelocTable :=
+  [ (11, .jal .x1 "bnq_set_one"),
+    (12, .la .x10 "bnq_powt"),
+    (16, .jal .x1 "bnq_mul"),
+    (17, .la .x10 "bnq_powt"),
+    (20, .jal .x1 "bnq_copy"),
+    (29, .la .x10 "bnq_powt"),
+    (33, .jal .x1 "bnq_mul"),
+    (34, .la .x10 "bnq_powt"),
+    (37, .jal .x1 "bnq_copy") ]
+
+def bn254Fq12PowFunction : String :=
+  "bnq_pow:\n" ++ emitProgramR bnqPow_prog bnqPow_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnqPow_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fq12PowFunction_eq_prog :
+    bn254Fq12PowFunction = "bnq_pow:\n" ++ emitProgramR bnqPow_prog bnqPow_relocs := rfl
+
+#guard bn254Fq12PowFunction.startsWith "bnq_pow:\n"
+#guard bnqPow_prog.length = 48
 /-- The FQ12 machine suite (requires `bn254FieldDataFragment` +
     `bn254Fp2DataFragment` + `bn254Fq12DataFragment`). -/
 def bn254Fq12CommonFunctions : String :=

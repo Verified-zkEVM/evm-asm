@@ -48,6 +48,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
 
@@ -355,312 +357,590 @@ def p256OpWithFunction : String :=
     exponent, a2 = output, a3 = the mul parameter block (mod p or
     mod n). MSB-first square-and-multiply; acc in `p256_acc` (output
     must not alias the base or `p256_acc`). -/
-def p256PowFunction : String :=
-  "p256_pow:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                      # base\n" ++
-  "  mv s1, a1                      # exponent bytes\n" ++
-  "  mv s2, a2                      # output\n" ++
-  "  mv s6, a3                      # mul params\n" ++
-  "  la a0, p256_one_be\n" ++
-  "  la a1, p256_acc\n" ++
-  "  li a2, 32\n" ++
-  "  jal ra, p256_copy_n            # acc = 1\n" ++
-  "  li s3, 0                       # exponent byte index\n" ++
-  ".Lp256_pow_byte:\n" ++
-  "  li t0, 32\n" ++
-  "  bgeu s3, t0, .Lp256_pow_done\n" ++
-  "  add t0, s1, s3\n" ++
-  "  lbu s4, 0(t0)\n" ++
-  "  li s5, 128\n" ++
-  ".Lp256_pow_bit:\n" ++
-  "  beqz s5, .Lp256_pow_next\n" ++
-  "  la a0, p256_acc\n" ++
-  "  la a1, p256_acc\n" ++
-  "  la a2, p256_acc\n" ++
-  "  mv a3, s6\n" ++
-  "  jal ra, p256_op_with           # acc = acc^2\n" ++
-  "  and t0, s4, s5\n" ++
-  "  beqz t0, .Lp256_pow_skip\n" ++
-  "  la a0, p256_acc\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, p256_acc\n" ++
-  "  mv a3, s6\n" ++
-  "  jal ra, p256_op_with           # acc *= base\n" ++
-  ".Lp256_pow_skip:\n" ++
-  "  srli s5, s5, 1\n" ++
-  "  j .Lp256_pow_bit\n" ++
-  ".Lp256_pow_next:\n" ++
-  "  addi s3, s3, 1\n" ++
-  "  j .Lp256_pow_byte\n" ++
-  ".Lp256_pow_done:\n" ++
-  "  la a0, p256_acc\n" ++
-  "  mv a1, s2\n" ++
-  "  li a2, 32\n" ++
-  "  jal ra, p256_copy_n\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def p256Pow_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x22 .x13,
+    .AUIPC .x10 (laHi GuestAddrs.p256_one_be (GuestAddrs.p256_pow + 52)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_one_be (GuestAddrs.p256_pow + 52)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_acc (GuestAddrs.p256_pow + 60)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_acc (GuestAddrs.p256_pow + 60)),
+    .LI .x12 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.p256_copy_n (GuestAddrs.p256_pow + 72)),
+    .LI .x19 (0 : Word),
+    .LI .x5 (32 : Word),
+    .BGEU .x19 .x5 (104 : BitVec 13),
+    .ADD .x5 .x9 .x19,
+    .LBU .x20 .x5 (0 : BitVec 12),
+    .LI .x21 (128 : Word),
+    .BEQ .x21 .x0 (80 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.p256_acc (GuestAddrs.p256_pow + 104)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_acc (GuestAddrs.p256_pow + 104)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_acc (GuestAddrs.p256_pow + 112)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_acc (GuestAddrs.p256_pow + 112)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_acc (GuestAddrs.p256_pow + 120)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_acc (GuestAddrs.p256_pow + 120)),
+    .MV .x13 .x22,
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_pow + 132)),
+    .AND .x5 .x20 .x21,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.p256_acc (GuestAddrs.p256_pow + 144)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_acc (GuestAddrs.p256_pow + 144)),
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.p256_acc (GuestAddrs.p256_pow + 156)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_acc (GuestAddrs.p256_pow + 156)),
+    .MV .x13 .x22,
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_pow + 168)),
+    .SRLI .x21 .x21 (1 : BitVec 6),
+    .JAL .x0 (-76 : BitVec 21),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (-104 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.p256_acc (GuestAddrs.p256_pow + 188)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_acc (GuestAddrs.p256_pow + 188)),
+    .MV .x11 .x18,
+    .LI .x12 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.p256_copy_n (GuestAddrs.p256_pow + 204)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `p256Pow_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def p256Pow_relocs : RelocTable :=
+  [ (13, .la .x10 "p256_one_be"),
+    (15, .la .x11 "p256_acc"),
+    (18, .jal .x1 "p256_copy_n"),
+    (26, .la .x10 "p256_acc"),
+    (28, .la .x11 "p256_acc"),
+    (30, .la .x12 "p256_acc"),
+    (33, .jal .x1 "p256_op_with"),
+    (36, .la .x10 "p256_acc"),
+    (39, .la .x12 "p256_acc"),
+    (42, .jal .x1 "p256_op_with"),
+    (47, .la .x10 "p256_acc"),
+    (51, .jal .x1 "p256_copy_n") ]
+
+def p256PowFunction : String :=
+  "p256_pow:\n" ++ emitProgramR p256Pow_prog p256Pow_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `p256Pow_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem p256PowFunction_eq_prog :
+    p256PowFunction = "p256_pow:\n" ++ emitProgramR p256Pow_prog p256Pow_relocs := rfl
+
+#guard p256PowFunction.startsWith "p256_pow:\n"
+#guard p256Pow_prog.length = 62
 /-- Shared chord/tangent tail: with lambda staged at `p256_lam`,
     a0 = P, a1 = Q, a2 = out (64 B BE; out may alias P/Q — the result
     is staged through t1/t2 before the output copy):
     x3 = lam^2 - x1 - x2; y3 = lam*(x1 - x3) - y1. -/
-def p256ChordTailFunction : String :=
-  "p256_chord_tail:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  la a0, p256_lam\n" ++
-  "  la a1, p256_lam\n" ++
-  "  la a2, p256_t1\n" ++
-  "  la a3, p256_pb_mul_p\n" ++
-  "  jal ra, p256_op_with           # t1 = lam^2\n" ++
-  "  la a0, p256_t1\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, p256_t1\n" ++
-  "  la a3, p256_pb_sub_p\n" ++
-  "  jal ra, p256_op_with           # t1 -= x1\n" ++
-  "  la a0, p256_t1\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, p256_t1\n" ++
-  "  la a3, p256_pb_sub_p\n" ++
-  "  jal ra, p256_op_with           # t1 -= x2  (t1 = x3)\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, p256_t1\n" ++
-  "  la a2, p256_t2\n" ++
-  "  la a3, p256_pb_sub_p\n" ++
-  "  jal ra, p256_op_with           # t2 = x1 - x3\n" ++
-  "  la a0, p256_t2\n" ++
-  "  la a1, p256_lam\n" ++
-  "  la a2, p256_t2\n" ++
-  "  la a3, p256_pb_mul_p\n" ++
-  "  jal ra, p256_op_with           # t2 *= lam\n" ++
-  "  la a0, p256_t2\n" ++
-  "  addi a1, s0, 32\n" ++
-  "  la a2, p256_t2\n" ++
-  "  la a3, p256_pb_sub_p\n" ++
-  "  jal ra, p256_op_with           # t2 -= y1  (t2 = y3)\n" ++
-  "  la a0, p256_t1\n" ++
-  "  mv a1, s2\n" ++
-  "  li a2, 32\n" ++
-  "  jal ra, p256_copy_n\n" ++
-  "  la a0, p256_t2\n" ++
-  "  addi a1, s2, 32\n" ++
-  "  li a2, 32\n" ++
-  "  jal ra, p256_copy_n\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def p256ChordTail_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x10 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_chord_tail + 32)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_chord_tail + 32)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_chord_tail + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_chord_tail + 40)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 48)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 48)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_chord_tail + 56)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_chord_tail + 56)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_chord_tail + 64)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 68)),
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 80)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 80)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 88)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 88)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_chord_tail + 96)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 100)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 100)),
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 112)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 112)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 120)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 120)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_chord_tail + 128)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 136)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 136)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 144)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 144)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 152)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 152)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_chord_tail + 160)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 164)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 164)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_chord_tail + 172)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_chord_tail + 172)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 180)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_chord_tail + 188)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_chord_tail + 188)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_chord_tail + 196)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 200)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 200)),
+    .ADDI .x11 .x8 (32 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 212)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 212)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 220)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_chord_tail + 220)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_chord_tail + 228)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 232)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_t1 (GuestAddrs.p256_chord_tail + 232)),
+    .MV .x11 .x18,
+    .LI .x12 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.p256_copy_n (GuestAddrs.p256_chord_tail + 248)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 252)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_t2 (GuestAddrs.p256_chord_tail + 252)),
+    .ADDI .x11 .x18 (32 : BitVec 12),
+    .LI .x12 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.p256_copy_n (GuestAddrs.p256_chord_tail + 268)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `p256ChordTail_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def p256ChordTail_relocs : RelocTable :=
+  [ (8, .la .x10 "p256_lam"),
+    (10, .la .x11 "p256_lam"),
+    (12, .la .x12 "p256_t1"),
+    (14, .la .x13 "p256_pb_mul_p"),
+    (16, .jal .x1 "p256_op_with"),
+    (17, .la .x10 "p256_t1"),
+    (20, .la .x12 "p256_t1"),
+    (22, .la .x13 "p256_pb_sub_p"),
+    (24, .jal .x1 "p256_op_with"),
+    (25, .la .x10 "p256_t1"),
+    (28, .la .x12 "p256_t1"),
+    (30, .la .x13 "p256_pb_sub_p"),
+    (32, .jal .x1 "p256_op_with"),
+    (34, .la .x11 "p256_t1"),
+    (36, .la .x12 "p256_t2"),
+    (38, .la .x13 "p256_pb_sub_p"),
+    (40, .jal .x1 "p256_op_with"),
+    (41, .la .x10 "p256_t2"),
+    (43, .la .x11 "p256_lam"),
+    (45, .la .x12 "p256_t2"),
+    (47, .la .x13 "p256_pb_mul_p"),
+    (49, .jal .x1 "p256_op_with"),
+    (50, .la .x10 "p256_t2"),
+    (53, .la .x12 "p256_t2"),
+    (55, .la .x13 "p256_pb_sub_p"),
+    (57, .jal .x1 "p256_op_with"),
+    (58, .la .x10 "p256_t1"),
+    (62, .jal .x1 "p256_copy_n"),
+    (63, .la .x10 "p256_t2"),
+    (67, .jal .x1 "p256_copy_n") ]
+
+def p256ChordTailFunction : String :=
+  "p256_chord_tail:\n" ++ emitProgramR p256ChordTail_prog p256ChordTail_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `p256ChordTail_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem p256ChordTailFunction_eq_prog :
+    p256ChordTailFunction = "p256_chord_tail:\n" ++ emitProgramR p256ChordTail_prog p256ChordTail_relocs := rfl
+
+#guard p256ChordTailFunction.startsWith "p256_chord_tail:\n"
+#guard p256ChordTail_prog.length = 74
 /-- Double an affine point: a0 = input, a1 = output (64 B BE, may
     alias). Returns a0 = 1 when the result is infinity (y = 0; output
     zeroed). lam = (3x^2 + a) / 2y. -/
-def p256PointDblFunction : String :=
-  "p256_point_dbl:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  li a1, 32\n" ++
-  "  jal ra, p256_is_zero_n\n" ++
-  "  beqz a0, .Lp256_dbl_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  li t0, 8\n" ++
-  ".Lp256_dbl_zero:\n" ++
-  "  sb zero, 0(a0)\n" ++
-  "  sb zero, 1(a0)\n" ++
-  "  sb zero, 2(a0)\n" ++
-  "  sb zero, 3(a0)\n" ++
-  "  sb zero, 4(a0)\n" ++
-  "  sb zero, 5(a0)\n" ++
-  "  sb zero, 6(a0)\n" ++
-  "  sb zero, 7(a0)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lp256_dbl_zero\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lp256_dbl_ret\n" ++
-  ".Lp256_dbl_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, p256_lam\n" ++
-  "  la a3, p256_pb_mul_p\n" ++
-  "  jal ra, p256_op_with           # lam = x^2\n" ++
-  "  la a0, p256_lam\n" ++
-  "  la a1, p256_lam\n" ++
-  "  la a2, p256_den\n" ++
-  "  la a3, p256_pb_add_p\n" ++
-  "  jal ra, p256_op_with           # den = 2x^2\n" ++
-  "  la a0, p256_den\n" ++
-  "  la a1, p256_lam\n" ++
-  "  la a2, p256_lam\n" ++
-  "  la a3, p256_pb_add_p\n" ++
-  "  jal ra, p256_op_with           # lam = 3x^2\n" ++
-  "  la a0, p256_lam\n" ++
-  "  la a1, p256_a_be\n" ++
-  "  la a2, p256_lam\n" ++
-  "  la a3, p256_pb_add_p\n" ++
-  "  jal ra, p256_op_with           # lam = 3x^2 + a\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  addi a1, s0, 32\n" ++
-  "  la a2, p256_den\n" ++
-  "  la a3, p256_pb_add_p\n" ++
-  "  jal ra, p256_op_with           # den = 2y\n" ++
-  "  la a0, p256_den\n" ++
-  "  la a1, p256_pm2_be\n" ++
-  "  la a2, p256_inv_out\n" ++
-  "  la a3, p256_pb_mul_p\n" ++
-  "  jal ra, p256_pow               # inv_out = (2y)^-1\n" ++
-  "  la a0, p256_lam\n" ++
-  "  la a1, p256_inv_out\n" ++
-  "  la a2, p256_lam\n" ++
-  "  la a3, p256_pb_mul_p\n" ++
-  "  jal ra, p256_op_with           # lam = (3x^2 + a) / 2y\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, p256_chord_tail\n" ++
-  "  li a0, 0\n" ++
-  ".Lp256_dbl_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def p256PointDbl_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.p256_is_zero_n (GuestAddrs.p256_point_dbl + 32)),
+    .BEQ .x10 .x0 (64 : BitVec 13),
+    .MV .x10 .x9,
+    .LI .x5 (8 : Word),
+    .SB .x10 .x0 (0 : BitVec 12),
+    .SB .x10 .x0 (1 : BitVec 12),
+    .SB .x10 .x0 (2 : BitVec 12),
+    .SB .x10 .x0 (3 : BitVec 12),
+    .SB .x10 .x0 (4 : BitVec 12),
+    .SB .x10 .x0 (5 : BitVec 12),
+    .SB .x10 .x0 (6 : BitVec 12),
+    .SB .x10 .x0 (7 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-40 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (260 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 108)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 108)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_dbl + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_dbl + 116)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_dbl + 124)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 128)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 128)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 136)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 136)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 144)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 144)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 152)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 152)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_dbl + 160)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 164)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 164)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 172)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 172)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 180)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 188)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 188)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_dbl + 196)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 200)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 200)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_a_be (GuestAddrs.p256_point_dbl + 208)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_a_be (GuestAddrs.p256_point_dbl + 208)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 216)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 216)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 224)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 224)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_dbl + 232)),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .ADDI .x11 .x8 (32 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 244)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 244)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 252)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_add_p (GuestAddrs.p256_point_dbl + 252)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_dbl + 260)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 264)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_den (GuestAddrs.p256_point_dbl + 264)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_pm2_be (GuestAddrs.p256_point_dbl + 272)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_pm2_be (GuestAddrs.p256_point_dbl + 272)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_inv_out (GuestAddrs.p256_point_dbl + 280)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_inv_out (GuestAddrs.p256_point_dbl + 280)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_dbl + 288)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_dbl + 288)),
+    .JAL .x1 (jalOff GuestAddrs.p256_pow (GuestAddrs.p256_point_dbl + 296)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 300)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 300)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_inv_out (GuestAddrs.p256_point_dbl + 308)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_inv_out (GuestAddrs.p256_point_dbl + 308)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 316)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_dbl + 316)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_dbl + 324)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_dbl + 324)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_dbl + 332)),
+    .MV .x10 .x8,
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.p256_chord_tail (GuestAddrs.p256_point_dbl + 348)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `p256PointDbl_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def p256PointDbl_relocs : RelocTable :=
+  [ (8, .jal .x1 "p256_is_zero_n"),
+    (27, .la .x12 "p256_lam"),
+    (29, .la .x13 "p256_pb_mul_p"),
+    (31, .jal .x1 "p256_op_with"),
+    (32, .la .x10 "p256_lam"),
+    (34, .la .x11 "p256_lam"),
+    (36, .la .x12 "p256_den"),
+    (38, .la .x13 "p256_pb_add_p"),
+    (40, .jal .x1 "p256_op_with"),
+    (41, .la .x10 "p256_den"),
+    (43, .la .x11 "p256_lam"),
+    (45, .la .x12 "p256_lam"),
+    (47, .la .x13 "p256_pb_add_p"),
+    (49, .jal .x1 "p256_op_with"),
+    (50, .la .x10 "p256_lam"),
+    (52, .la .x11 "p256_a_be"),
+    (54, .la .x12 "p256_lam"),
+    (56, .la .x13 "p256_pb_add_p"),
+    (58, .jal .x1 "p256_op_with"),
+    (61, .la .x12 "p256_den"),
+    (63, .la .x13 "p256_pb_add_p"),
+    (65, .jal .x1 "p256_op_with"),
+    (66, .la .x10 "p256_den"),
+    (68, .la .x11 "p256_pm2_be"),
+    (70, .la .x12 "p256_inv_out"),
+    (72, .la .x13 "p256_pb_mul_p"),
+    (74, .jal .x1 "p256_pow"),
+    (75, .la .x10 "p256_lam"),
+    (77, .la .x11 "p256_inv_out"),
+    (79, .la .x12 "p256_lam"),
+    (81, .la .x13 "p256_pb_mul_p"),
+    (83, .jal .x1 "p256_op_with"),
+    (87, .jal .x1 "p256_chord_tail") ]
+
+def p256PointDblFunction : String :=
+  "p256_point_dbl:\n" ++ emitProgramR p256PointDbl_prog p256PointDbl_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `p256PointDbl_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem p256PointDblFunction_eq_prog :
+    p256PointDblFunction = "p256_point_dbl:\n" ++ emitProgramR p256PointDbl_prog p256PointDbl_relocs := rfl
+
+#guard p256PointDblFunction.startsWith "p256_point_dbl:\n"
+#guard p256PointDbl_prog.length = 94
 /-- Add two FINITE affine points: a0 = P, a1 = Q, a2 = out (64 B BE;
     out may alias). Equal x with equal y doubles; equal x with
     opposite y returns infinity (a0 = 1, output zeroed). Infinity
     INPUTS are the caller's job (tracked in flags, as in the
     secp256k1 scalar-mul shape). -/
-def p256PointAddFunction : String :=
-  "p256_point_add:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, p256_eq32\n" ++
-  "  beqz a0, .Lp256_add_distinct\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  addi a1, s1, 32\n" ++
-  "  jal ra, p256_eq32\n" ++
-  "  beqz a0, .Lp256_add_inf       # x equal, y opposite: P + (-P)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, p256_point_dbl        # x and y equal: P + P\n" ++
-  "  j .Lp256_add_ret\n" ++
-  ".Lp256_add_distinct:\n" ++
-  "  addi a0, s1, 32\n" ++
-  "  addi a1, s0, 32\n" ++
-  "  la a2, p256_lam\n" ++
-  "  la a3, p256_pb_sub_p\n" ++
-  "  jal ra, p256_op_with          # lam = y2 - y1\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s0\n" ++
-  "  la a2, p256_den\n" ++
-  "  la a3, p256_pb_sub_p\n" ++
-  "  jal ra, p256_op_with          # den = x2 - x1\n" ++
-  "  la a0, p256_den\n" ++
-  "  la a1, p256_pm2_be\n" ++
-  "  la a2, p256_inv_out\n" ++
-  "  la a3, p256_pb_mul_p\n" ++
-  "  jal ra, p256_pow              # inv_out = (x2 - x1)^-1\n" ++
-  "  la a0, p256_lam\n" ++
-  "  la a1, p256_inv_out\n" ++
-  "  la a2, p256_lam\n" ++
-  "  la a3, p256_pb_mul_p\n" ++
-  "  jal ra, p256_op_with          # lam = (y2-y1)/(x2-x1)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s2\n" ++
-  "  jal ra, p256_chord_tail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lp256_add_ret\n" ++
-  ".Lp256_add_inf:\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 64\n" ++
-  ".Lp256_add_zero:\n" ++
-  "  sb zero, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, -1\n" ++
-  "  bnez a1, .Lp256_add_zero\n" ++
-  "  li a0, 1\n" ++
-  ".Lp256_add_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def p256PointAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.p256_eq32 (GuestAddrs.p256_point_add + 40)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .ADDI .x11 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.p256_eq32 (GuestAddrs.p256_point_add + 56)),
+    .BEQ .x10 .x0 (172 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.p256_point_dbl (GuestAddrs.p256_point_add + 72)),
+    .JAL .x0 (184 : BitVec 21),
+    .ADDI .x10 .x9 (32 : BitVec 12),
+    .ADDI .x11 .x8 (32 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_add + 88)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_add + 88)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_point_add + 96)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_point_add + 96)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_add + 104)),
+    .MV .x10 .x9,
+    .MV .x11 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.p256_den (GuestAddrs.p256_point_add + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_den (GuestAddrs.p256_point_add + 116)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_point_add + 124)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_sub_p (GuestAddrs.p256_point_add + 124)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_add + 132)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_den (GuestAddrs.p256_point_add + 136)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_den (GuestAddrs.p256_point_add + 136)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_pm2_be (GuestAddrs.p256_point_add + 144)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_pm2_be (GuestAddrs.p256_point_add + 144)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_inv_out (GuestAddrs.p256_point_add + 152)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_inv_out (GuestAddrs.p256_point_add + 152)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_add + 160)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_add + 160)),
+    .JAL .x1 (jalOff GuestAddrs.p256_pow (GuestAddrs.p256_point_add + 168)),
+    .AUIPC .x10 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_add + 172)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_add + 172)),
+    .AUIPC .x11 (laHi GuestAddrs.p256_inv_out (GuestAddrs.p256_point_add + 180)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_inv_out (GuestAddrs.p256_point_add + 180)),
+    .AUIPC .x12 (laHi GuestAddrs.p256_lam (GuestAddrs.p256_point_add + 188)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_lam (GuestAddrs.p256_point_add + 188)),
+    .AUIPC .x13 (laHi GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_add + 196)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.p256_pb_mul_p (GuestAddrs.p256_point_add + 196)),
+    .JAL .x1 (jalOff GuestAddrs.p256_op_with (GuestAddrs.p256_point_add + 204)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.p256_chord_tail (GuestAddrs.p256_point_add + 220)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (64 : Word),
+    .SB .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (-1 : BitVec 12),
+    .BNE .x11 .x0 (-12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `p256PointAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def p256PointAdd_relocs : RelocTable :=
+  [ (10, .jal .x1 "p256_eq32"),
+    (14, .jal .x1 "p256_eq32"),
+    (18, .jal .x1 "p256_point_dbl"),
+    (22, .la .x12 "p256_lam"),
+    (24, .la .x13 "p256_pb_sub_p"),
+    (26, .jal .x1 "p256_op_with"),
+    (29, .la .x12 "p256_den"),
+    (31, .la .x13 "p256_pb_sub_p"),
+    (33, .jal .x1 "p256_op_with"),
+    (34, .la .x10 "p256_den"),
+    (36, .la .x11 "p256_pm2_be"),
+    (38, .la .x12 "p256_inv_out"),
+    (40, .la .x13 "p256_pb_mul_p"),
+    (42, .jal .x1 "p256_pow"),
+    (43, .la .x10 "p256_lam"),
+    (45, .la .x11 "p256_inv_out"),
+    (47, .la .x12 "p256_lam"),
+    (49, .la .x13 "p256_pb_mul_p"),
+    (51, .jal .x1 "p256_op_with"),
+    (55, .jal .x1 "p256_chord_tail") ]
+
+def p256PointAddFunction : String :=
+  "p256_point_add:\n" ++ emitProgramR p256PointAdd_prog p256PointAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `p256PointAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem p256PointAddFunction_eq_prog :
+    p256PointAddFunction = "p256_point_add:\n" ++ emitProgramR p256PointAdd_prog p256PointAdd_relocs := rfl
+
+#guard p256PointAddFunction.startsWith "p256_point_add:\n"
+#guard p256PointAdd_prog.length = 71
 /-- Multiply an affine point by a 32-byte BE scalar (MSB-first
     double-and-add): a0 = scalar, a1 = base point, a2 = output (must
     not alias the base). Returns a0 = 1 when the result is infinity
     (output zeroed). -/
-def p256ScalarMulFunction : String :=
-  "p256_scalar_mul:\n" ++
-  "  addi sp, sp, -72\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                      # scalar bytes\n" ++
-  "  mv s1, a1                      # base point\n" ++
-  "  mv s2, a2                      # accumulator/output\n" ++
-  "  mv a0, s2\n" ++
-  "  li t0, 64\n" ++
-  ".Lp256_mul_zero:\n" ++
-  "  sb zero, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lp256_mul_zero\n" ++
-  "  li s3, 1                       # accumulator is infinity\n" ++
-  "  li s4, 0                       # byte index\n" ++
-  ".Lp256_mul_byte:\n" ++
-  "  li t0, 32\n" ++
-  "  bgeu s4, t0, .Lp256_mul_done\n" ++
-  "  add t0, s0, s4\n" ++
-  "  lbu s5, 0(t0)\n" ++
-  "  li s6, 128\n" ++
-  ".Lp256_mul_bit:\n" ++
-  "  beqz s6, .Lp256_mul_next\n" ++
-  "  bnez s3, .Lp256_mul_skip_dbl\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, p256_point_dbl         # alias-safe in-place double\n" ++
-  "  mv s3, a0\n" ++
-  ".Lp256_mul_skip_dbl:\n" ++
-  "  and t0, s5, s6\n" ++
-  "  beqz t0, .Lp256_mul_adv\n" ++
-  "  beqz s3, .Lp256_mul_add\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  li a2, 64\n" ++
-  "  jal ra, p256_copy_n\n" ++
-  "  li s3, 0\n" ++
-  "  j .Lp256_mul_adv\n" ++
-  ".Lp256_mul_add:\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, p256_ptmp\n" ++
-  "  jal ra, p256_point_add\n" ++
-  "  mv s3, a0\n" ++
-  "  la a0, p256_ptmp\n" ++
-  "  mv a1, s2\n" ++
-  "  li a2, 64\n" ++
-  "  jal ra, p256_copy_n\n" ++
-  ".Lp256_mul_adv:\n" ++
-  "  srli s6, s6, 1\n" ++
-  "  j .Lp256_mul_bit\n" ++
-  ".Lp256_mul_next:\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lp256_mul_byte\n" ++
-  ".Lp256_mul_done:\n" ++
-  "  mv a0, s3\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 72\n" ++
-  "  ret"
+def p256ScalarMul_prog : Program :=
+  [ .ADDI .x2 .x2 (-72 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x18,
+    .LI .x5 (64 : Word),
+    .SB .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-12 : BitVec 13),
+    .LI .x19 (1 : Word),
+    .LI .x20 (0 : Word),
+    .LI .x5 (32 : Word),
+    .BGEU .x20 .x5 (136 : BitVec 13),
+    .ADD .x5 .x8 .x20,
+    .LBU .x21 .x5 (0 : BitVec 12),
+    .LI .x22 (128 : Word),
+    .BEQ .x22 .x0 (112 : BitVec 13),
+    .BNE .x19 .x0 (20 : BitVec 13),
+    .MV .x10 .x18,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.p256_point_dbl (GuestAddrs.p256_scalar_mul + 116)),
+    .MV .x19 .x10,
+    .AND .x5 .x21 .x22,
+    .BEQ .x5 .x0 (76 : BitVec 13),
+    .BEQ .x19 .x0 (28 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .LI .x12 (64 : Word),
+    .JAL .x1 (jalOff GuestAddrs.p256_copy_n (GuestAddrs.p256_scalar_mul + 148)),
+    .LI .x19 (0 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .MV .x10 .x18,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.p256_ptmp (GuestAddrs.p256_scalar_mul + 168)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.p256_ptmp (GuestAddrs.p256_scalar_mul + 168)),
+    .JAL .x1 (jalOff GuestAddrs.p256_point_add (GuestAddrs.p256_scalar_mul + 176)),
+    .MV .x19 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.p256_ptmp (GuestAddrs.p256_scalar_mul + 184)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_ptmp (GuestAddrs.p256_scalar_mul + 184)),
+    .MV .x11 .x18,
+    .LI .x12 (64 : Word),
+    .JAL .x1 (jalOff GuestAddrs.p256_copy_n (GuestAddrs.p256_scalar_mul + 200)),
+    .SRLI .x22 .x22 (1 : BitVec 6),
+    .JAL .x0 (-108 : BitVec 21),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-136 : BitVec 21),
+    .MV .x10 .x19,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (72 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `p256ScalarMul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def p256ScalarMul_relocs : RelocTable :=
+  [ (29, .jal .x1 "p256_point_dbl"),
+    (37, .jal .x1 "p256_copy_n"),
+    (42, .la .x12 "p256_ptmp"),
+    (44, .jal .x1 "p256_point_add"),
+    (46, .la .x10 "p256_ptmp"),
+    (50, .jal .x1 "p256_copy_n") ]
+
+def p256ScalarMulFunction : String :=
+  "p256_scalar_mul:\n" ++ emitProgramR p256ScalarMul_prog p256ScalarMul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `p256ScalarMul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem p256ScalarMulFunction_eq_prog :
+    p256ScalarMulFunction = "p256_scalar_mul:\n" ++ emitProgramR p256ScalarMul_prog p256ScalarMul_relocs := rfl
+
+#guard p256ScalarMulFunction.startsWith "p256_scalar_mul:\n"
+#guard p256ScalarMul_prog.length = 66
 /-- Real P256VERIFY kernel (see the module docstring for the ABI and
     the gate list). -/
 def zkvmSecp256r1VerifyRealFunction : String :=
