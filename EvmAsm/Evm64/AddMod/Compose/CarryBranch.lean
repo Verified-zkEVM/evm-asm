@@ -38,4 +38,19 @@ theorem cpsTripleWithin_pre_regOwn
   have hv' : ((regIs r v ** B) ** R) hst := (sepConj_assoc hst).mpr hv
   exact h v R hR s hcr ⟨hst, hcompat, hv'⟩ hpc
 
+/-- Choose the concrete value of a `regOwn` sitting in the SECOND position of a
+    `cpsTripleWithin` precondition (behind a leading assertion `A`). Composes
+    with `cpsTripleWithin_pre_regOwn` (via the `sepConj_left_comm'` equality) to
+    peel several `regOwn`s out of a `**`-chain one at a time — used to build the
+    `regOwn`-pre variant of the cond-subtract pass-2 spec. -/
+theorem cpsTripleWithin_pre_regOwn_under
+    {nSteps : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {A : Assertion} {r : Reg} {B Q : Assertion}
+    (h : ∀ v, cpsTripleWithin nSteps entry exit_ cr (A ** (regIs r v ** B)) Q) :
+    cpsTripleWithin nSteps entry exit_ cr (A ** (regOwn r ** B)) Q := by
+  rw [sepConj_left_comm']
+  refine cpsTripleWithin_pre_regOwn (fun v => ?_)
+  rw [sepConj_left_comm']
+  exact h v
+
 end EvmAsm.Evm64.AddMod.Compose

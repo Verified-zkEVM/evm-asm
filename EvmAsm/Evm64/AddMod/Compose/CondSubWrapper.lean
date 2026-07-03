@@ -23,6 +23,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.Compose.CallAdapter
+import EvmAsm.Evm64.AddMod.Compose.CarryBranch
 
 namespace EvmAsm.Evm64.AddMod.Compose
 
@@ -105,5 +106,93 @@ theorem evm_addmod_cond_sub_pass1take_clean
     (sepConj_mono (regIs_implies_regOwn .x5)
       (sepConj_mono (regIs_implies_regOwn .x6)
         (sepConj_mono (regIs_implies_regOwn .x7) (fun _ h => h)))) st hp
+
+/-- Pass-2 with its dead-on-entry `x5/x6/x7` inputs merely `regOwn` (the
+    cond-subtract's second pass reloads them immediately). This is the shape
+    that joins onto `evm_addmod_cond_sub_pass1take_clean`'s shed post. Proven by
+    peeling the three owned registers to generic values (the pass-2 spec is
+    parametric in them) via `cpsTripleWithin_pre_regOwn(_under)`. -/
+theorem evm_addmod_cond_sub_pass2_owned
+    (base sp maskIn x10Old : Word)
+    (s0 s1 s2 s3 n0 n1 n2 n3 : Word) :
+    let mm0 := n0 &&& maskIn
+    let c0 := if BitVec.ult s0 mm0 then (1 : Word) else 0
+    let r0 := s0 - mm0
+    let mm1 := n1 &&& maskIn
+    let f1 := if BitVec.ult s1 mm1 then (1 : Word) else 0
+    let e1 := s1 - mm1
+    let g1 := if BitVec.ult e1 c0 then (1 : Word) else 0
+    let r1 := e1 - c0
+    let c1 := f1 ||| g1
+    let mm2 := n2 &&& maskIn
+    let f2 := if BitVec.ult s2 mm2 then (1 : Word) else 0
+    let e2 := s2 - mm2
+    let g2 := if BitVec.ult e2 c1 then (1 : Word) else 0
+    let r2 := e2 - c1
+    let c2 := f2 ||| g2
+    let mm3 := n3 &&& maskIn
+    let r3 := (s3 - mm3) - c2
+    cpsTripleWithin 30 base (base + 120)
+      (CodeReq.union (CodeReq.singleton base (.LD .x6 .x12 (0 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.LD .x7 .x12 (3872 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.AND .x7 .x7 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SLTU .x10 .x6 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.SUB .x5 .x6 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.SD .x12 .x5 (0 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.LD .x6 .x12 (8 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x7 .x12 (3880 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.AND .x7 .x7 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.SLTU .x5 .x6 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.SUB .x6 .x6 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 44) (.SLTU .x7 .x6 .x10))
+      (CodeReq.union (CodeReq.singleton (base + 48) (.SUB .x6 .x6 .x10))
+      (CodeReq.union (CodeReq.singleton (base + 52) (.OR .x10 .x5 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 56) (.SD .x12 .x6 (8 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 60) (.LD .x6 .x12 (16 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 64) (.LD .x7 .x12 (3888 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 68) (.AND .x7 .x7 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 72) (.SLTU .x5 .x6 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 76) (.SUB .x6 .x6 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 80) (.SLTU .x7 .x6 .x10))
+      (CodeReq.union (CodeReq.singleton (base + 84) (.SUB .x6 .x6 .x10))
+      (CodeReq.union (CodeReq.singleton (base + 88) (.OR .x10 .x5 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 92) (.SD .x12 .x6 (16 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 96) (.LD .x6 .x12 (24 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 100) (.LD .x7 .x12 (3896 : BitVec 12)))
+      (CodeReq.union (CodeReq.singleton (base + 104) (.AND .x7 .x7 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 108) (.SUB .x6 .x6 .x7))
+      (CodeReq.union (CodeReq.singleton (base + 112) (.SUB .x6 .x6 .x10))
+       (CodeReq.singleton (base + 116) (.SD .x12 .x6 (24 : BitVec 12))))))))))))))))))))))))))))))))
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x12 ↦ᵣ sp) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ maskIn) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ s3) **
+       ((sp + signExtend12 (3872 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (3880 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (3888 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (3896 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ f2) ** (.x6 ↦ᵣ r3) ** (.x7 ↦ᵣ mm3) **
+       (.x10 ↦ᵣ c2) ** (.x11 ↦ᵣ maskIn) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((sp + signExtend12 (3872 : BitVec 12)) ↦ₘ n0) **
+       ((sp + signExtend12 (3880 : BitVec 12)) ↦ₘ n1) **
+       ((sp + signExtend12 (3888 : BitVec 12)) ↦ₘ n2) **
+       ((sp + signExtend12 (3896 : BitVec 12)) ↦ₘ n3)) := by
+  intro mm0 c0 r0 mm1 f1 e1 g1 r1 c1 mm2 f2 e2 g2 r2 c2 mm3 r3
+  refine cpsTripleWithin_pre_regOwn (fun v5 => ?_)
+  refine cpsTripleWithin_pre_regOwn_under (fun v6 => ?_)
+  rw [← sepConj_assoc']
+  refine cpsTripleWithin_pre_regOwn_under (fun v7 => ?_)
+  rw [sepConj_assoc']
+  have P := evm_addmod_cond_sub_pass2_spec_within base sp maskIn v5 v6 v7 x10Old
+    s0 s1 s2 s3 n0 n1 n2 n3
+  simp only [mm0, c0, r0, mm1, f1, e1, g1, r1, c1, mm2, f2, e2, g2, r2, c2,
+    mm3, r3] at P ⊢
+  exact cpsTripleWithin_weaken (fun st h => by xperm_hyp h) (fun _ h => h) P
 
 end EvmAsm.Evm64.AddMod.Compose
