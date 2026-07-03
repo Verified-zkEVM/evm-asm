@@ -11,6 +11,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.BalAccountPostFields
@@ -35,71 +38,194 @@ open EvmAsm.Rv64
     a2 = slot key ptr (32 B)    a3 = output account ptr
     a4 = u64 out account length ptr
     a0 (output) = 0 ok / 1 conservative or parse failure. -/
-def baapDeleteSingleLeafStorageFunction : String :=
-  "baap_delete_single_leaf_storage:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # account\n" ++
-  "  mv s1, a1                   # account len\n" ++
-  "  mv s2, a2                   # slot key\n" ++
-  "  mv s3, a3                   # out account\n" ++
-  "  mv s4, a4                   # out len\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbaapdsl_fail\n" ++
-  "  mv s5, a1                    # account list end\n" ++
-  "  mv a1, s5; jal ra, rlp_walk_next; bnez a1, .Lbaapdsl_fail\n" ++
-  "  mv a1, s5; jal ra, rlp_walk_next; bnez a1, .Lbaapdsl_fail\n" ++
-  "  mv a1, s5; jal ra, rlp_walk_next; bnez a1, .Lbaapdsl_fail\n" ++
-  "  li t2, 32; bne a2, t2, .Lbaapdsl_fail\n" ++
-  "  sub t1, a0, a2; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
-  "  # Deleting from an empty storage trie is a no-op.\n" ++
-  "  mv t2, t1; la t3, aps_empty_root; li t4, 32\n" ++
-  ".Lbaapdsl_empty_cmp:\n" ++
-  "  beqz t4, .Lbaapdsl_copy_current\n" ++
-  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lbaapdsl_nonempty\n" ++
-  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lbaapdsl_empty_cmp\n" ++
-  ".Lbaapdsl_nonempty:\n" ++
-  "  mv a0, s2; li a1, 32; la a2, srss_key\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  la a0, srss_key; li a1, 32; la a2, baap_storage_paths\n" ++
-  "  jal ra, bytes_to_nibbles\n" ++
-  "  la t0, aps_witness_ptr; ld a0, 0(t0); beqz a0, .Lbaapdsl_fail\n" ++
-  "  la t0, aps_witness_len; ld a1, 0(t0); la t0, baap_storage_root_ptr; ld a2, 0(t0)\n" ++
-  "  la a3, baap_item_off; la a4, baap_item_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lbaapdsl_fail\n" ++
-  "  la t0, aps_witness_ptr; ld t1, 0(t0); la t0, baap_item_off; ld t2, 0(t0); add a0, t1, t2\n" ++
-  "  la t0, baap_item_len; ld a1, 0(t0); la a2, baap_walk_val; la a3, baap_walk_val_len\n" ++
-  "  la a4, baap_code_item_ptr; la a5, baap_val_len\n" ++
-  "  jal ra, mpt_leaf_extract\n" ++
-  "  bnez a0, .Lbaapdsl_fail\n" ++
-  "  la t0, baap_walk_val_len; ld t0, 0(t0); li t1, 64; bne t0, t1, .Lbaapdsl_fail\n" ++
-  "  la t0, baap_walk_val; la t1, baap_storage_paths; li t2, 64\n" ++
-  ".Lbaapdsl_path_cmp:\n" ++
-  "  beqz t2, .Lbaapdsl_set_empty\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbaapdsl_fail\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbaapdsl_path_cmp\n" ++
-  ".Lbaapdsl_set_empty:\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, aps_empty_root; mv a3, s3; mv a4, s4\n" ++
-  "  jal ra, account_set_storage_root\n" ++
-  "  bnez a0, .Lbaapdsl_fail\n" ++
-  "  li a0, 0; j .Lbaapdsl_ret\n" ++
-  ".Lbaapdsl_copy_current:\n" ++
-  "  mv a0, s3; mv a1, s0; mv a2, s1\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  sd s1, 0(s4)\n" ++
-  "  li a0, 0; j .Lbaapdsl_ret\n" ++
-  ".Lbaapdsl_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbaapdsl_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def baapDeleteSingleLeafStorage_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.baap_delete_single_leaf_storage + 60)),
+    .BNE .x12 .x0 (444 : BitVec 13),
+    .MV .x21 .x11,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.baap_delete_single_leaf_storage + 76)),
+    .BNE .x11 .x0 (428 : BitVec 13),
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.baap_delete_single_leaf_storage + 88)),
+    .BNE .x11 .x0 (416 : BitVec 13),
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.baap_delete_single_leaf_storage + 100)),
+    .BNE .x11 .x0 (404 : BitVec 13),
+    .LI .x7 (32 : Word),
+    .BNE .x12 .x7 (396 : BitVec 13),
+    .SUB .x6 .x10 .x12,
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_root_ptr (GuestAddrs.baap_delete_single_leaf_storage + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_root_ptr (GuestAddrs.baap_delete_single_leaf_storage + 120)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .MV .x7 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.aps_empty_root (GuestAddrs.baap_delete_single_leaf_storage + 136)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.aps_empty_root (GuestAddrs.baap_delete_single_leaf_storage + 136)),
+    .LI .x29 (32 : Word),
+    .BEQ .x29 .x0 (332 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (20 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_key (GuestAddrs.baap_delete_single_leaf_storage + 188)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_key (GuestAddrs.baap_delete_single_leaf_storage + 188)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.baap_delete_single_leaf_storage + 196)),
+    .AUIPC .x10 (laHi GuestAddrs.srss_key (GuestAddrs.baap_delete_single_leaf_storage + 200)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.srss_key (GuestAddrs.baap_delete_single_leaf_storage + 200)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.baap_delete_single_leaf_storage + 212)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.baap_delete_single_leaf_storage + 212)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.baap_delete_single_leaf_storage + 220)),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.baap_delete_single_leaf_storage + 224)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.baap_delete_single_leaf_storage + 224)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .BEQ .x10 .x0 (272 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_len (GuestAddrs.baap_delete_single_leaf_storage + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_len (GuestAddrs.baap_delete_single_leaf_storage + 240)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_root_ptr (GuestAddrs.baap_delete_single_leaf_storage + 252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_root_ptr (GuestAddrs.baap_delete_single_leaf_storage + 252)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.baap_item_off (GuestAddrs.baap_delete_single_leaf_storage + 264)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.baap_item_off (GuestAddrs.baap_delete_single_leaf_storage + 264)),
+    .AUIPC .x14 (laHi GuestAddrs.baap_item_len (GuestAddrs.baap_delete_single_leaf_storage + 272)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.baap_item_len (GuestAddrs.baap_delete_single_leaf_storage + 272)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.baap_delete_single_leaf_storage + 280)),
+    .BNE .x10 .x0 (224 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.baap_delete_single_leaf_storage + 288)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.baap_delete_single_leaf_storage + 288)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_item_off (GuestAddrs.baap_delete_single_leaf_storage + 300)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_item_off (GuestAddrs.baap_delete_single_leaf_storage + 300)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x10 .x6 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.baap_item_len (GuestAddrs.baap_delete_single_leaf_storage + 316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_item_len (GuestAddrs.baap_delete_single_leaf_storage + 316)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.baap_walk_val (GuestAddrs.baap_delete_single_leaf_storage + 328)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.baap_walk_val (GuestAddrs.baap_delete_single_leaf_storage + 328)),
+    .AUIPC .x13 (laHi GuestAddrs.baap_walk_val_len (GuestAddrs.baap_delete_single_leaf_storage + 336)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.baap_walk_val_len (GuestAddrs.baap_delete_single_leaf_storage + 336)),
+    .AUIPC .x14 (laHi GuestAddrs.baap_code_item_ptr (GuestAddrs.baap_delete_single_leaf_storage + 344)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.baap_code_item_ptr (GuestAddrs.baap_delete_single_leaf_storage + 344)),
+    .AUIPC .x15 (laHi GuestAddrs.baap_val_len (GuestAddrs.baap_delete_single_leaf_storage + 352)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.baap_val_len (GuestAddrs.baap_delete_single_leaf_storage + 352)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_extract (GuestAddrs.baap_delete_single_leaf_storage + 360)),
+    .BNE .x10 .x0 (144 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.baap_walk_val_len (GuestAddrs.baap_delete_single_leaf_storage + 368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_walk_val_len (GuestAddrs.baap_delete_single_leaf_storage + 368)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .LI .x6 (64 : Word),
+    .BNE .x5 .x6 (124 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.baap_walk_val (GuestAddrs.baap_delete_single_leaf_storage + 388)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_walk_val (GuestAddrs.baap_delete_single_leaf_storage + 388)),
+    .AUIPC .x6 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.baap_delete_single_leaf_storage + 396)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.baap_delete_single_leaf_storage + 396)),
+    .LI .x7 (64 : Word),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (88 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.aps_empty_root (GuestAddrs.baap_delete_single_leaf_storage + 448)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aps_empty_root (GuestAddrs.baap_delete_single_leaf_storage + 448)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .JAL .x1 (jalOff GuestAddrs.account_set_storage_root (GuestAddrs.baap_delete_single_leaf_storage + 464)),
+    .BNE .x10 .x0 (40 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (36 : BitVec 21),
+    .MV .x10 .x19,
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.baap_delete_single_leaf_storage + 492)),
+    .SD .x20 .x9 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `baapDeleteSingleLeafStorage_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def baapDeleteSingleLeafStorage_relocs : RelocTable :=
+  [ (15, .jal .x1 "rlp_walk_init"),
+    (19, .jal .x1 "rlp_walk_next"),
+    (22, .jal .x1 "rlp_walk_next"),
+    (25, .jal .x1 "rlp_walk_next"),
+    (30, .la .x5 "baap_storage_root_ptr"),
+    (34, .la .x28 "aps_empty_root"),
+    (47, .la .x12 "srss_key"),
+    (49, .jal .x1 "zkvm_keccak256"),
+    (50, .la .x10 "srss_key"),
+    (53, .la .x12 "baap_storage_paths"),
+    (55, .jal .x1 "bytes_to_nibbles"),
+    (56, .la .x5 "aps_witness_ptr"),
+    (60, .la .x5 "aps_witness_len"),
+    (63, .la .x5 "baap_storage_root_ptr"),
+    (66, .la .x13 "baap_item_off"),
+    (68, .la .x14 "baap_item_len"),
+    (70, .jal .x1 "witness_lookup_by_hash"),
+    (72, .la .x5 "aps_witness_ptr"),
+    (75, .la .x5 "baap_item_off"),
+    (79, .la .x5 "baap_item_len"),
+    (82, .la .x12 "baap_walk_val"),
+    (84, .la .x13 "baap_walk_val_len"),
+    (86, .la .x14 "baap_code_item_ptr"),
+    (88, .la .x15 "baap_val_len"),
+    (90, .jal .x1 "mpt_leaf_extract"),
+    (92, .la .x5 "baap_walk_val_len"),
+    (97, .la .x5 "baap_walk_val"),
+    (99, .la .x6 "baap_storage_paths"),
+    (112, .la .x12 "aps_empty_root"),
+    (116, .jal .x1 "account_set_storage_root"),
+    (123, .jal .x1 "mset_memcpy") ]
+
+def baapDeleteSingleLeafStorageFunction : String :=
+  "baap_delete_single_leaf_storage:\n" ++ emitProgramR baapDeleteSingleLeafStorage_prog baapDeleteSingleLeafStorage_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `baapDeleteSingleLeafStorage_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem baapDeleteSingleLeafStorageFunction_eq_prog :
+    baapDeleteSingleLeafStorageFunction = "baap_delete_single_leaf_storage:\n" ++ emitProgramR baapDeleteSingleLeafStorage_prog baapDeleteSingleLeafStorage_relocs := rfl
+
+#guard baapDeleteSingleLeafStorageFunction.startsWith "baap_delete_single_leaf_storage:\n"
+#guard baapDeleteSingleLeafStorage_prog.length = 137
 /-! ## bal_account_apply_post_fields -- account RLP + BAL item -> post account RLP
 
     a0 = account RLP ptr        a1 = account RLP length

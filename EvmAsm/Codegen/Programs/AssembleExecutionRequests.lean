@@ -24,6 +24,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.HashBridge
@@ -74,33 +77,66 @@ def assembleExecutionRequestsFunction : String :=
       a6 = expected 32-byte requests_hash ptr (header value)
       a7 = scratch SSZ section buffer ptr (>= 12 + a1 + a3 + a5 bytes, 8-aligned)
       a0 (output) = 0 match / 1 mismatch / 2 malformed (section rejected by SSZ length rules). -/
-def requestsHashVerifyFunction : String :=
-  "requests_hash_verify:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a6                   # expected hash ptr\n" ++
-  "  mv s1, a7                   # scratch section buffer\n" ++
-  "  mv a6, a7                   # assemble out = scratch (a0..a5 still the 3 bodies)\n" ++
-  "  jal ra, assemble_execution_requests   # a0 = total section length\n" ++
-  "  mv a1, a0; mv a0, s1; la a2, rhv_hash\n" ++
-  "  jal ra, execution_requests_hash       # a0 = 0 ok / 1 malformed\n" ++
-  "  bnez a0, .Lrhv_malformed\n" ++
-  "  la t0, rhv_hash; mv t1, s0; li t2, 32\n" ++
-  ".Lrhv_cmp:\n" ++
-  "  beqz t2, .Lrhv_match\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lrhv_mismatch\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lrhv_cmp\n" ++
-  ".Lrhv_match:\n" ++
-  "  li a0, 0; j .Lrhv_ret\n" ++
-  ".Lrhv_mismatch:\n" ++
-  "  li a0, 1; j .Lrhv_ret\n" ++
-  ".Lrhv_malformed:\n" ++
-  "  li a0, 2\n" ++
-  ".Lrhv_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def requestsHashVerify_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x16,
+    .MV .x9 .x17,
+    .MV .x16 .x17,
+    .JAL .x1 (jalOff GuestAddrs.assemble_execution_requests (GuestAddrs.requests_hash_verify + 28)),
+    .MV .x11 .x10,
+    .MV .x10 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 40)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 40)),
+    .JAL .x1 (jalOff GuestAddrs.execution_requests_hash (GuestAddrs.requests_hash_verify + 48)),
+    .BNE .x10 .x0 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 56)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 56)),
+    .MV .x6 .x8,
+    .LI .x7 (32 : Word),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `requestsHashVerify_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def requestsHashVerify_relocs : RelocTable :=
+  [ (7, .jal .x1 "assemble_execution_requests"),
+    (10, .la .x12 "rhv_hash"),
+    (12, .jal .x1 "execution_requests_hash"),
+    (14, .la .x5 "rhv_hash") ]
+
+def requestsHashVerifyFunction : String :=
+  "requests_hash_verify:\n" ++ emitProgramR requestsHashVerify_prog requestsHashVerify_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `requestsHashVerify_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem requestsHashVerifyFunction_eq_prog :
+    requestsHashVerifyFunction = "requests_hash_verify:\n" ++ emitProgramR requestsHashVerify_prog requestsHashVerify_relocs := rfl
+
+#guard requestsHashVerifyFunction.startsWith "requests_hash_verify:\n"
+#guard requestsHashVerify_prog.length = 36
 /-- `zisk_assemble_execution_requests`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : deposit body length        (multiple of 192)
