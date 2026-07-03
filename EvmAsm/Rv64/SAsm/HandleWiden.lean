@@ -238,6 +238,90 @@ def FnHandle.widenRw (h : FnHandle) (rw' : RwRegion)
       exact hh
 
 -- ============================================================================
+-- Widening a callee handle to the caller's read-only region
+-- ============================================================================
+
+/-- `asrtM` through a read-only sub-slice: the widened region's assertion is
+    the callee's own with the outside bytes framed alongside.  Simpler than
+    `asrtM_window` because ro contents live in the region descriptor, not
+    the symbolic state — no existential moves. -/
+theorem asrtM_widenRo (reg' regC : Region) (rw : RwRegion)
+    (preR sufR : List (BitVec 8)) (r : Reach)
+    (hbytes : reg'.bytes = preR ++ regC.bytes ++ sufR)
+    (hbase : regC.base = reg'.base + BitVec.ofNat 64 preR.length)
+    (hpre8 : 8 ∣ preR.length) (hmid8 : 8 ∣ regC.bytes.length) :
+    asrtM reg' rw r
+      = ((asrtM regC rw r) **
+         (bytesRegion reg'.base preR **
+          bytesRegion (regC.base + BitVec.ofNat 64 regC.bytes.length) sufR)) := by
+  show (asrtOf rw r ** bytesRegion reg'.base reg'.bytes) = _
+  rw [hbytes,
+    bytesRegion_append reg'.base (preR ++ regC.bytes) sufR
+      (by rw [List.length_append]; exact Nat.dvd_add hpre8 hmid8),
+    bytesRegion_append reg'.base preR regC.bytes hpre8,
+    List.length_append,
+    show reg'.base + BitVec.ofNat 64 preR.length = regC.base from hbase.symm,
+    show reg'.base + BitVec.ofNat 64 (preR.length + regC.bytes.length)
+        = regC.base + BitVec.ofNat 64 regC.bytes.length from by
+      rw [hbase, add_ofNat_add],
+    sepConj_comm' (bytesRegion reg'.base preR)
+      (bytesRegion regC.base regC.bytes),
+    sepConj_assoc' (bytesRegion regC.base regC.bytes)
+      (bytesRegion reg'.base preR)
+      (bytesRegion (regC.base + BitVec.ofNat 64 regC.bytes.length) sufR),
+    ← sepConj_assoc' (asrtOf rw r) (bytesRegion regC.base regC.bytes)
+      (bytesRegion reg'.base preR
+        ** bytesRegion (regC.base + BitVec.ofNat 64 regC.bytes.length) sufR)]
+  rfl
+
+/-- **Read-only sub-slices**: repackage a callee verified against its own
+    ro slice — a dword-aligned, dword-multiple sub-range of the caller's
+    read-only region — as a callee over the caller's full region.  The
+    callee's pre/post pass through unchanged (ro contents live in the
+    region descriptor); the bytes outside the slice are framed.
+
+    Together with `widenRw` this lets every callee declare only the memory
+    it touches: N callees reading different named slices of one buffer
+    (e.g. sections of the SSZ input) compose under a single caller
+    region. -/
+def FnHandle.widenRo (h : FnHandle) (reg' : Region)
+    (preR sufR : List (BitVec 8))
+    (hbytes : reg'.bytes = preR ++ h.region.bytes ++ sufR)
+    (hbase : h.region.base = reg'.base + BitVec.ofNat 64 preR.length)
+    (hpre8 : 8 ∣ preR.length) (hmid8 : 8 ∣ h.region.bytes.length) : FnHandle where
+  entry := h.entry
+  code := h.code
+  nSteps := h.nSteps
+  region := reg'
+  rw := h.rw
+  pre := h.pre
+  post := h.post
+  sound := by
+    intro ret halign
+    have hf := cpsTripleWithin_frameR
+      (bytesRegion reg'.base preR **
+        bytesRegion (h.region.base + BitVec.ofNat 64 h.region.bytes.length) sufR)
+      (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _))
+      (h.sound ret halign)
+    refine cpsTripleWithin_weaken ?_ ?_ hf
+    · intro hp hh
+      rw [asrtM_widenRo reg' h.region h.rw preR sufR h.pre hbytes hbase hpre8
+          hmid8,
+        ← sepConj_assoc' ((.x1 : Reg) ↦ᵣ ret) (asrtM h.region h.rw h.pre)
+          (bytesRegion reg'.base preR
+            ** bytesRegion (h.region.base + BitVec.ofNat 64 h.region.bytes.length)
+                sufR)] at hh
+      exact hh
+    · intro hp hh
+      rw [asrtM_widenRo reg' h.region h.rw preR sufR h.post hbytes hbase hpre8
+          hmid8,
+        ← sepConj_assoc' ((.x1 : Reg) ↦ᵣ ret) (asrtM h.region h.rw h.post)
+          (bytesRegion reg'.base preR
+            ** bytesRegion (h.region.base + BitVec.ofNat 64 h.region.bytes.length)
+                sufR)]
+      exact hh
+
+-- ============================================================================
 -- Demo: the ra-spill two-level tree with a per-frame callee window
 -- ============================================================================
 
@@ -443,6 +527,191 @@ def wCallerRHandle : FnHandle :=
     wCallerR_hspre wCallerR_hspost wCallerR_hslot
 
 end WidenDemo
+
+-- ============================================================================
+-- Demo: one leaf routine, two named read-only slices of one input buffer
+-- ============================================================================
+
+namespace RoWidenDemo
+
+open Stmt
+
+/-- Leaf: read the first byte of ITS OWN slice (pointer in `x11`).  The
+    slice base and contents are ghosts — one code copy serves every call
+    site, each instantiating the region at its own named slice (the SAsm
+    answer to `la`-style per-arena addressing: the pointer is materialized
+    by the caller, the contract is instantiated per slice). -/
+def roLeafFn (b : Word) (xs : List (BitVec 8)) : Fn where
+  name := "roleaf"
+  region := ⟨b, xs⟩
+  pre := fun rf _ _ => rf.get .x11 = b ∧ xs ≠ []
+  post := fun rf _ _ => rf.get .x10 = (xs.getD 0 0).zeroExtend 64
+  body := .block "load" [.LBU .x10 .x11 0]
+
+private theorem roleaf_hidx (b : Word) : ∀ rf : RegFile, rf.get .x11 = b →
+    ((rf.get .x11 + signExtend12 (0 : BitVec 12)) - b).toNat = 0 := by
+  intro rf h
+  rw [h, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+  bv_omega
+
+theorem roLeafFn_spec (b : Word) (xs : List (BitVec 8))
+    (hwf : (Region.mk b xs).wf) : (roLeafFn b xs).Spec 0x2000 := by
+  vcgen
+  case region => exact ⟨hwf, RwRegion.empty_wf⟩
+  case roleaf.load.mem =>
+    rintro rf ws A hws ⟨hx11, hne⟩
+    obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
+    simp only [blockVCs, loadSem]
+    refine ⟨⟨one_dvd _, ?_⟩, trivial⟩
+    show ((rf.get .x11 + signExtend12 (0 : BitVec 12)) - b).toNat + 1
+      ≤ xs.length
+    rw [roleaf_hidx b rf hx11]
+    have := List.length_pos_iff.mpr hne
+    omega
+  case roleaf.post =>
+    rintro rf' ws' A' ⟨rf₀, ws₀, hws₀, ⟨hx11, hne⟩, rfl, rfl⟩
+    obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₀
+    simp only [roLeafFn, execBlock_cons, execBlock_nil, execInstrRF_nil,
+      aluSem, loadSem]
+    rw [RegFile.get_set_self _ _ _ (by decide)]
+    show (Region.byteAt ⟨b, xs⟩
+        (rf₀.get .x11 + signExtend12 (0 : BitVec 12))).zeroExtend 64
+      = (xs.getD 0 0).zeroExtend 64
+    unfold Region.byteAt
+    show (xs.getD ((rf₀.get .x11 + signExtend12 (0 : BitVec 12)) - b).toNat
+        0).zeroExtend 64 = (xs.getD 0 0).zeroExtend 64
+    rw [roleaf_hidx b rf₀ hx11]
+
+/-- The one leaf routine at `0x2000`, contract instantiated per slice. -/
+def roLeafHandle (b : Word) (xs : List (BitVec 8))
+    (hwf : (Region.mk b xs).wf) : FnHandle :=
+  (roLeafFn b xs).toHandle 0x2000 (roLeafFn_spec b xs hwf)
+    ((by decide : 4 * ((roLeafFn 0 []).body.size + 1) ≤ 2 ^ 64))
+
+/-- The caller's input buffer: two named 8-byte slices at `0x20000`. -/
+def roBufBase : Word := 0x20000
+
+variable (xsA xsB : List (BitVec 8))
+
+/-- Slice A's leaf handle, widened to the full buffer (`sufR = xsB`). -/
+def roLeafWideA (hwfA : (Region.mk roBufBase xsA).wf)
+    (h8A : xsA.length = 8) : FnHandle :=
+  (roLeafHandle roBufBase xsA hwfA).widenRo ⟨roBufBase, xsA ++ xsB⟩ [] xsB
+    rfl
+    (by show roBufBase = roBufBase
+          + BitVec.ofNat 64 (List.length ([] : List (BitVec 8)))
+        decide)
+    (by decide)
+    (by show (8 : Nat) ∣ xsA.length
+        omega)
+
+/-- Slice B's leaf handle, widened to the full buffer (`preR = xsA`). -/
+def roLeafWideB (hwfB : (Region.mk (roBufBase + 8) xsB).wf)
+    (h8A : xsA.length = 8) (h8B : xsB.length = 8) : FnHandle :=
+  (roLeafHandle (roBufBase + 8) xsB hwfB).widenRo ⟨roBufBase, xsA ++ xsB⟩ xsA []
+    (by show xsA ++ xsB = xsA ++ xsB ++ []
+        rw [List.append_nil])
+    (by show roBufBase + 8 = roBufBase + BitVec.ofNat 64 xsA.length
+        rw [h8A]
+        decide)
+    (by show (8 : Nat) ∣ xsA.length
+        omega)
+    (by show (8 : Nat) ∣ xsB.length
+        omega)
+
+/-- The caller: read the head byte of slice A, then of slice B, against ONE
+    region covering the whole buffer.  Each call site materializes its own
+    slice pointer (the `la` shape) and uses the widened per-slice handle. -/
+def roCallerFn (hwfA : (Region.mk roBufBase xsA).wf)
+    (hwfB : (Region.mk (roBufBase + 8) xsB).wf)
+    (h8A : xsA.length = 8) (h8B : xsB.length = 8) : Fn where
+  name := "rocaller"
+  region := ⟨roBufBase, xsA ++ xsB⟩
+  pre := fun _ _ _ => True
+  post := fun rf _ _ => rf.get .x10 = (xsB.getD 0 0).zeroExtend 64
+  body :=
+    .block "goA" [.LI .x11 0x20000] ;;;
+    .call "leafA" (roLeafWideA xsA xsB hwfA h8A) ;;;
+    .block "goB" [.LI .x11 0x20008] ;;;
+    .call "leafB" (roLeafWideB xsA xsB hwfB h8A h8B)
+
+def roCallerCr (hwfA : (Region.mk roBufBase xsA).wf)
+    (hwfB : (Region.mk (roBufBase + 8) xsB).wf)
+    (h8A : xsA.length = 8) (h8B : xsB.length = 8) : CodeReq :=
+  (CodeReq.ofProg 0x1000
+      ((roCallerFn xsA xsB hwfA hwfB h8A h8B).body.flatten 0x1000)).union
+    (roLeafHandle roBufBase xsA hwfA).code
+
+theorem roCallerFn_spec (hwfA : (Region.mk roBufBase xsA).wf)
+    (hwfB : (Region.mk (roBufBase + 8) xsB).wf)
+    (h8A : xsA.length = 8) (h8B : xsB.length = 8) :
+    (roCallerFn xsA xsB hwfA hwfB h8A h8B).SpecR 0x1000
+      (roCallerCr xsA xsB hwfA hwfB h8A h8B) := by
+  have hneA : xsA ≠ [] := by
+    intro h
+    rw [h] at h8A
+    exact absurd h8A (by decide)
+  have hneB : xsB ≠ [] := by
+    intro h
+    rw [h] at h8B
+    exact absurd h8B (by decide)
+  -- the two widened handles share one code copy; containment is proved once
+  have hcode : ∀ a i, (roLeafHandle roBufBase xsA hwfA).code a = some i →
+      roCallerCr xsA xsB hwfA hwfB h8A h8B a = some i := by
+    intro a i h
+    obtain ⟨kk, hk, rfl⟩ := ofProg_some_range h
+    have hk2 : kk < 2 := hk
+    simp only [roCallerCr, CodeReq.union]
+    rw [CodeReq.ofProg_none_range 0x1000
+      ((roCallerFn xsA xsB hwfA hwfB h8A h8B).body.flatten 0x1000)
+      (fun k' hk' heq => ?_)]
+    · exact h
+    · have hk'2 : k' < 4 := hk'
+      bv_omega
+  -- normalize the target head so `vcgen` recognizes the `SpecR` shape
+  show Fn.SpecR _ _ _
+  vcgen
+  case region =>
+    refine ⟨⟨(by decide : (roBufBase : Word).toNat % 8 = 0), ?_, ?_⟩,
+      RwRegion.empty_wf⟩
+    · show (roBufBase : Word).toNat + (xsA ++ xsB).length < 2 ^ 64
+      rw [List.length_append, h8A, h8B]
+      decide
+    · intro k hk
+      have hk' : k < (xsA ++ xsB).length := hk
+      rw [List.length_append, h8A, h8B] at hk'
+      show isValidMemAddr (roBufBase + BitVec.ofNat 64 k) = true
+      interval_cases k <;> decide
+  case code =>
+    intro a i h
+    simp only [roCallerCr, CodeReq.union, h]
+  case callees =>
+    exact ⟨trivial, ⟨hcode, rfl, rfl⟩, trivial, hcode, rfl, rfl⟩
+  case calls =>
+    exact ⟨trivial,
+      ⟨(by decide : (0x1004 : Word) + signExtend21 (BitVec.setWidth 21
+          ((0x2000 : Word) - 0x1004)) = 0x2000),
+       (by decide : (((0x1004 : Word) + 4) &&& ~~~(1 : Word)) = 0x1004 + 4),
+       (by decide : CodeReq.ofProg 0x2000 ((roLeafFn 0 []).programRet 0x2000)
+          (0x1004 : Word) = none)⟩,
+      trivial,
+      (by decide : (0x100c : Word) + signExtend21 (BitVec.setWidth 21
+          ((0x2000 : Word) - 0x100c)) = 0x2000),
+      (by decide : (((0x100c : Word) + 4) &&& ~~~(1 : Word)) = 0x100c + 4),
+      (by decide : CodeReq.ofProg 0x2000 ((roLeafFn 0 []).programRet 0x2000)
+          (0x100c : Word) = none)⟩
+  case rocaller.leafA.pre =>
+    rintro rf ws A ⟨rf₀, ws₀, hlen, -, rfl, rfl⟩
+    simp only [execBlock_cons, execBlock_nil]
+    exact ⟨RegFile.get_set_self _ _ _ (by decide), hneA⟩
+  case rocaller.leafB.pre =>
+    rintro rf ws A ⟨rf₀, ws₀, hlen, -, rfl, rfl⟩
+    simp only [execBlock_cons, execBlock_nil]
+    exact ⟨RegFile.get_set_self _ _ _ (by decide), hneB⟩
+  case rocaller.post =>
+    exact fun rf ws A h => h
+
+end RoWidenDemo
 
 end SAsm
 end EvmAsm.Rv64
