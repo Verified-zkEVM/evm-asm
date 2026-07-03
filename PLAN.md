@@ -2538,8 +2538,17 @@ kernel-reducible powMod inversion, BN254+BLS12-381 curve+Fp2) — all
 with independently-generated kernel decide KATs; execCsrs is
 definitionally ONE writeWords (csrsWrite computes target+payload), so
 projection lemmas are branch-count-independent; SAsm block exposure
-deferred to beads .17/.18 (design §3.3.1). Next for SAsm: more
-Stateless/SSZ ports. Assertion-state milestone started (approved plan
+deferred to beads .17/.18 (design §3.3.1). Phase-ownership model for the
+`call_frame_arena` union landed (bead evm-asm-4ch8f.6 hard half,
+`SAsm/PhaseSplit.lean` + `Codegen/CallFramePhase.lean`): the aliased
+arena is ONE havoc'd resource (`anyBytes`), the Phase-H
+seven-children+pad tiling is THE SAME assertion
+(`phaseD_eq_phaseH`/`phaseHView_children` at the audited RegionMap
+offsets), transitions forget contents by construction
+(`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
+havoc'd range must verify for all contents
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Next for
+SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the
