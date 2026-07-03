@@ -32,12 +32,34 @@ the abstract domain
 | `None` | untracked (arg register, spilled value, clobbered across a label) |
 
 Transfer functions cover `li`/`lui`/`addi`/`add` (constant folding + INPUT-region
-tagging); every other instruction clobbers its destination. Register knowledge
-is **reset at every label** — control-flow joins could deliver any value, so we
-never propagate a constant across a basic-block boundary. This makes the
-analysis sound for the CONFIRMED bucket (a CONFIRMED requires a fully-known
-constant address reached along one straight-line path) at the cost of
-under-reporting inside called routines.
+tagging); every other instruction clobbers its destination. Control flow is
+handled as follows:
+
+- **Labels** (`.L…`, used for most branch targets) reset all register
+  knowledge — control-flow joins could deliver any value.
+- **Calls** (`jal`/`jalr`/`call`/`tail` that write a link register) clobber all
+  *caller-saved* registers (`ra`, `t0`-`t6`, `a0`-`a7`); only the callee-saved
+  set (`sp`, `gp`, `tp`, `s0`-`s11`) survives.
+
+The consequence for soundness is worth stating precisely, because 54 of the 57
+confirmed findings track `s6` **across** call sites (the first real call is well
+before the `ld off(s6)` findings): those findings are real *because* `s6` is
+callee-saved and the guest's helpers honor "preserve `s0`-`s11`", but that is a
+**calling-convention assumption**, not a static fact of the straight-line path.
+It is exactly the obligation the per-routine SAsm triples discharge (design
+§3.6.2 makes s-registers unclobberable), so the audit's conclusion is contingent
+on — and motivates — that verification.
+
+One residual gap: the emitter also uses PC-relative `.+N`/`.-N` branch targets
+with no label, and those join points are **not** reset (there is no line to key
+off, and exact PC recovery is infeasible — lines carry multiple `;`-separated
+instructions and pseudo-ops like `la`/`li`/`call` expand to several machine
+instructions). For the current findings this is harmless — every base register
+in a CONFIRMED is defined before the surrounding branches and not redefined on
+either arm (checked by hand on the `_start` prologue) — but a CONFIRMED reached
+across a `.+N` join must be manually confirmed, not trusted blindly. The scanner
+is therefore a high-recall CONFIRMED *candidate* finder, sound for the
+labeled-join / straight-line case modulo the calling-convention obligation.
 
 Each wide access is classified:
 

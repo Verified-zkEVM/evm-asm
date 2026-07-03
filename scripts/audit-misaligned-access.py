@@ -23,7 +23,7 @@ emitted `.s` and classifies every wide memory op into:
                memory load).  Alignment depends on input; needs per-routine
                reasoning.  These are the SSZ/RLP-cursor candidates.
   UNKNOWN    — base not statically tracked (e.g. sp-relative, callee args in
-               a0.., or clobbered across a label).  Not flagged.
+               a0.., or clobbered across a label/call).  Not flagged.
 
 Abstract domain per register (within a straight-line run):
   ('const', n)          — known concrete value n
@@ -31,11 +31,36 @@ Abstract domain per register (within a straight-line run):
                           constant, False if off includes a data-dependent term
   None                  — unknown
 
-Register knowledge is reset at every label (conservative join): control-flow
-merges could bring any value, so we do not propagate across basic-block joins.
-This under-reports (misses cross-block constants) but never mis-reports a
-CONFIRMED trap, since a CONFIRMED requires a fully-known constant address
-reached along a straight-line path.
+Control flow — soundness scope (read before trusting a CONFIRMED):
+
+  * Labels.  Register knowledge is reset at every label (conservative join);
+    the emitted `.s` uses `.L…` labels for most branch targets, so those joins
+    are protected.
+
+  * Calls.  At a real call (`jal`/`jalr`/`call` writing a link register, and
+    the fall-through after `j`/`tail`/`ret`) all *caller-saved* registers
+    (ra, t0-t6, a0-a7) are clobbered; only the callee-saved set (sp, gp, tp,
+    s0-s11) survives.  A CONFIRMED that tracks a callee-saved register across
+    a call (54 of the 57 current findings track `s6`) is therefore real **only
+    under the RISC-V calling convention** — i.e. it assumes callees preserve
+    s0-s11.  That is exactly what the per-routine SAsm triples must discharge
+    (design §3.6.2 makes s-regs unclobberable), so the assumption is a
+    verification obligation, not a free static fact.
+
+  * Unlabeled branch targets.  The emitter also uses PC-relative `.+N`/`.-N`
+    targets with no label.  These join points are NOT reset by this scanner
+    (there is no line to key off, and exact PC recovery is infeasible here:
+    lines carry multiple `;`-separated instructions and pseudo-ops such as
+    `la`/`li`/`call` expand to several machine instructions).  For the current
+    findings this is harmless — every base register in a CONFIRMED is defined
+    before the surrounding branches and is not redefined on either arm (checked
+    by hand on the `_start` prologue) — but a CONFIRMED reached across a `.+N`
+    join must be manually confirmed rather than trusted blindly.
+
+Net: the scanner is a high-recall CONFIRMED *candidate* finder, sound for the
+straight-line/labeled-join case and for callee-saved tracking modulo the
+calling-convention obligation above; `.+N` joins are the one residual gap and
+were confirmed manually for this audit.
 """
 
 import re
@@ -45,10 +70,21 @@ INPUT_BASE = 0x40000000
 INPUT_END  = 0x40002000
 RAM_START  = 0xa0000000
 
-# width in bytes for each wide (alignment-checked) memory mnemonic
+# width in bytes for each wide (alignment-checked) memory mnemonic.
+# (flw/fld/fsw/fsd are included for completeness but do not occur in the
+# current RV64IM guest output.)
 WIDE = {
     'lw': 4, 'lwu': 4, 'sw': 4, 'flw': 4, 'fsw': 4,
     'ld': 8, 'sd': 8, 'fld': 8, 'fsd': 8,
+}
+
+# RISC-V caller-saved (volatile) integer registers, both ABI and x-names.
+# A call may clobber any of these; only sp/gp/tp and s0-s11 survive.
+CALLER_SAVED = {
+    'ra', 't0', 't1', 't2', 't3', 't4', 't5', 't6',
+    'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7',
+    'x1', 'x5', 'x6', 'x7', 'x28', 'x29', 'x30', 'x31',
+    'x10', 'x11', 'x12', 'x13', 'x14', 'x15', 'x16', 'x17',
 }
 
 MEM_RE = re.compile(r'^\s*(\w+)\s+\S+\s*,\s*(-?\d+)\s*\(\s*(\w+)\s*\)')
@@ -159,6 +195,24 @@ def transfer(insn, mnem, regs):
     def clobber(rd):
         regs.pop(rd, None)
 
+    # A real call clobbers every caller-saved register; only sp/gp/tp and the
+    # callee-saved s0-s11 survive.  `call`/`tail`, `jal rd,…` (rd != x0, i.e.
+    # a link write), and `jalr rd,…` (rd != x0) are calls; plain `j`/`jr`/`ret`
+    # (or `jal x0,…`) are not (they transfer control without a link, so the
+    # ABI does not force a clobber at the jump itself).
+    is_call = False
+    if mnem in ('call', 'tail'):
+        is_call = True
+    elif mnem in ('jal', 'jalr'):
+        # `jal target` / `jalr rs` (1 op) → implicit ra link → call.
+        # `jal rd, target` / `jalr rd, off(rs)` (>=2 ops) → call iff rd != x0.
+        is_call = (len(ops) < 2) or (ops[0] != 'x0')
+    if is_call:
+        for r in list(regs):
+            if r in CALLER_SAVED:
+                regs.pop(r, None)
+        return
+
     if mnem in ('li',) and len(ops) == 2:
         rd = ops[0]
         try:
@@ -247,7 +301,8 @@ def main():
         # coverage: total wide ops seen (context for what the scan can/can't classify)
         total_wide = 0
         for raw in open(path):
-            for piece in raw.split('#')[0].split(';'):
+            code = raw.split('#')[0].split('//')[0]
+            for piece in code.split(';'):
                 mm = MEM_RE.match(piece.strip())
                 if mm and mm.group(1) in WIDE:
                     total_wide += 1
