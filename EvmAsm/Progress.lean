@@ -53,6 +53,7 @@ import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.DivMod.Compose.V6ModStackSpec
 import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
+import EvmAsm.Evm64.SDiv.Compose.ResultStackV5
 import EvmAsm.Evm64.SMod.Compose.StackSpecV5
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
@@ -144,7 +145,7 @@ def registry : List OpcodeEntry := [
        "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
        "proof (evm_div_v5_unconditional_over_divCodeV6), the n=1 fast arm is " ++
        "divK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch"),
-  entry "SDIV" .proven (some "evm_sdiv_exact_callable_return_stack_spec_within_v5")
+  entry "SDIV" .proven (some "evm_sdiv_exact_callable_return_result_stack_spec_within_v5")
       ("unconditional SDIV stack spec over sdivCodeV5 (the shipped v5 codegen — " ++
        "signed DIV via the proven unsigned evm_div_callable_v5); the former " ++
        "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
@@ -350,7 +351,7 @@ private noncomputable abbrev _mul_witness        := @EvmAsm.Evm64.evm_mul_stack_
 private noncomputable abbrev _sub_witness        := @EvmAsm.Evm64.evm_sub_stack_spec_within
 private noncomputable abbrev _div_witness        := @EvmAsm.Evm64.evm_div_v6_stack_spec
 private noncomputable abbrev _sdiv_witness       :=
-  @EvmAsm.Evm64.SDiv.Compose.evm_sdiv_exact_callable_return_stack_spec_within_v5
+  @EvmAsm.Evm64.SDiv.Compose.evm_sdiv_exact_callable_return_result_stack_spec_within_v5
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_v6_stack_spec
 private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_stack_spec_within_v5
