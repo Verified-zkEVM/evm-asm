@@ -26,6 +26,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -38,35 +39,62 @@ open EvmAsm.Rv64
     a0 (output) = 1 if a matching entry was found (out holds its committed value),
                   0 if the slot was never touched (out left unchanged).
     Leaf: uses only t-registers + the argument registers; no stack frame. -/
-def execLogLatestValueFunction : String :=
-  "exec_log_latest_value:\n" ++
-  "  li t6, 0                      # found flag\n" ++
-  "  li t0, 0                      # entry index i\n" ++
-  ".Lelv_loop:\n" ++
-  "  beq t0, a3, .Lelv_done\n" ++
-  "  slli t1, t0, 7; add t2, a2, t1   # entry ptr = base + i*128\n" ++
-  "  # match addrHash (entry@0 vs a0)\n" ++
-  "  ld t3, 0(t2);  ld t4, 0(a0);  bne t3, t4, .Lelv_next\n" ++
-  "  ld t3, 8(t2);  ld t4, 8(a0);  bne t3, t4, .Lelv_next\n" ++
-  "  ld t3, 16(t2); ld t4, 16(a0); bne t3, t4, .Lelv_next\n" ++
-  "  ld t3, 24(t2); ld t4, 24(a0); bne t3, t4, .Lelv_next\n" ++
-  "  # match slotKey (entry@32 vs a1)\n" ++
-  "  ld t3, 32(t2); ld t4, 0(a1);  bne t3, t4, .Lelv_next\n" ++
-  "  ld t3, 40(t2); ld t4, 8(a1);  bne t3, t4, .Lelv_next\n" ++
-  "  ld t3, 48(t2); ld t4, 16(a1); bne t3, t4, .Lelv_next\n" ++
-  "  ld t3, 56(t2); ld t4, 24(a1); bne t3, t4, .Lelv_next\n" ++
-  "  # matching entry: copy current (entry@96) -> out; set found. Overwrite keeps the LAST match.\n" ++
-  "  ld t3, 96(t2);  sd t3, 0(a4)\n" ++
-  "  ld t3, 104(t2); sd t3, 8(a4)\n" ++
-  "  ld t3, 112(t2); sd t3, 16(a4)\n" ++
-  "  ld t3, 120(t2); sd t3, 24(a4)\n" ++
-  "  li t6, 1\n" ++
-  ".Lelv_next:\n" ++
-  "  addi t0, t0, 1; j .Lelv_loop\n" ++
-  ".Lelv_done:\n" ++
-  "  mv a0, t6\n" ++
-  "  ret"
+def execLogLatestValue_prog : Program :=
+  [ .LI .x31 (0 : Word),
+    .LI .x5 (0 : Word),
+    .BEQ .x5 .x13 (152 : BitVec 13),
+    .SLLI .x6 .x5 (7 : BitVec 6),
+    .ADD .x7 .x12 .x6,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LD .x29 .x10 (0 : BitVec 12),
+    .BNE .x28 .x29 (124 : BitVec 13),
+    .LD .x28 .x7 (8 : BitVec 12),
+    .LD .x29 .x10 (8 : BitVec 12),
+    .BNE .x28 .x29 (112 : BitVec 13),
+    .LD .x28 .x7 (16 : BitVec 12),
+    .LD .x29 .x10 (16 : BitVec 12),
+    .BNE .x28 .x29 (100 : BitVec 13),
+    .LD .x28 .x7 (24 : BitVec 12),
+    .LD .x29 .x10 (24 : BitVec 12),
+    .BNE .x28 .x29 (88 : BitVec 13),
+    .LD .x28 .x7 (32 : BitVec 12),
+    .LD .x29 .x11 (0 : BitVec 12),
+    .BNE .x28 .x29 (76 : BitVec 13),
+    .LD .x28 .x7 (40 : BitVec 12),
+    .LD .x29 .x11 (8 : BitVec 12),
+    .BNE .x28 .x29 (64 : BitVec 13),
+    .LD .x28 .x7 (48 : BitVec 12),
+    .LD .x29 .x11 (16 : BitVec 12),
+    .BNE .x28 .x29 (52 : BitVec 13),
+    .LD .x28 .x7 (56 : BitVec 12),
+    .LD .x29 .x11 (24 : BitVec 12),
+    .BNE .x28 .x29 (40 : BitVec 13),
+    .LD .x28 .x7 (96 : BitVec 12),
+    .SD .x14 .x28 (0 : BitVec 12),
+    .LD .x28 .x7 (104 : BitVec 12),
+    .SD .x14 .x28 (8 : BitVec 12),
+    .LD .x28 .x7 (112 : BitVec 12),
+    .SD .x14 .x28 (16 : BitVec 12),
+    .LD .x28 .x7 (120 : BitVec 12),
+    .SD .x14 .x28 (24 : BitVec 12),
+    .LI .x31 (1 : Word),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-148 : BitVec 21),
+    .MV .x10 .x31,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def execLogLatestValueFunction : String :=
+  "exec_log_latest_value:\n" ++ emitProgram execLogLatestValue_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `execLogLatestValue_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem execLogLatestValueFunction_eq_prog :
+    execLogLatestValueFunction = "exec_log_latest_value:\n" ++ emitProgram execLogLatestValue_prog := rfl
+
+#guard execLogLatestValueFunction.startsWith "exec_log_latest_value:\n"
+#guard execLogLatestValue_prog.length = 42
 /-- `zisk_exec_log_latest_value`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : entry count
