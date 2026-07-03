@@ -26,6 +26,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -358,19 +359,28 @@ def ziskMptSetRecordWalkProbeUnit : BuildUnit := {
 
     a0 = dst, a1 = src, a2 = len. Advances a0/a1/a2; clobbers t0.
     Leaf-callable (no jal), preserves all s-registers and ra. -/
-def msetMemcpyFunction : String :=
-  "mset_memcpy:\n" ++
-  "  beqz a2, .Lmsetcpy_done\n" ++
-  ".Lmsetcpy_loop:\n" ++
-  "  lbu t0, 0(a1)\n" ++
-  "  sb t0, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  bnez a2, .Lmsetcpy_loop\n" ++
-  ".Lmsetcpy_done:\n" ++
-  "  ret"
+def msetMemcpy_prog : Program :=
+  [ .BEQ .x12 .x0 (28 : BitVec 13),
+    .LBU .x5 .x11 (0 : BitVec 12),
+    .SB .x10 .x5 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .BNE .x12 .x0 (-20 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def msetMemcpyFunction : String :=
+  "mset_memcpy:\n" ++ emitProgram msetMemcpy_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `msetMemcpy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem msetMemcpyFunction_eq_prog :
+    msetMemcpyFunction = "mset_memcpy:\n" ++ emitProgram msetMemcpy_prog := rfl
+
+#guard msetMemcpyFunction.startsWith "mset_memcpy:\n"
+#guard msetMemcpy_prog.length = 8
 /-! ## mpt_splice_slot -- replace one list item with a new reference
 
     Given an RLP list (a branch or extension node) and the byte span of its

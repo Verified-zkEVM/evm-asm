@@ -1,0 +1,17 @@
+# asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
+bloomEqFunction	EvmAsm/Codegen/Programs/Bloom.lean
+bloomOrIntoFunction	EvmAsm/Codegen/Programs/Bloom.lean
+msetMemcpyFunction	EvmAsm/Codegen/Programs/MptSet.lean
+nibblesCommonPrefixLenFunction	EvmAsm/Codegen/Programs/MptEncode.lean
+runningBloomCopyFunction	EvmAsm/Codegen/Programs/Bloom.lean
+runningBloomZeroFunction	EvmAsm/Codegen/Programs/Bloom.lean
+u256AddBeFunction	EvmAsm/Codegen/Programs/U256.lean
+u256DivU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
+u256EqFunction	EvmAsm/Codegen/Programs/U256.lean
+u256FromU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
+u256IsZeroFunction	EvmAsm/Codegen/Programs/U256.lean
+u256LtBeFunction	EvmAsm/Codegen/Programs/U256.lean
+u256MaxFunction	EvmAsm/Codegen/Programs/U256.lean
+u256MinFunction	EvmAsm/Codegen/Programs/U256.lean
+u256SubBeFunction	EvmAsm/Codegen/Programs/U256.lean
+u256ToU64BeFunction	EvmAsm/Codegen/Programs/U256.lean

@@ -22,6 +22,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.BloomAddValue
@@ -599,25 +600,34 @@ def ziskCapturedLogsBloomAddProbeUnit : BuildUnit := {
       a1 (input)  : src bloom ptr (256 bytes, read-only)
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def bloomOrIntoFunction : String :=
-  "bloom_or_into:\n" ++
-  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
-  "  mv t1, a0                  # dst cursor\n" ++
-  "  mv t2, a1                  # src cursor\n" ++
-  ".Lboi_loop:\n" ++
-  "  beqz t0, .Lboi_done\n" ++
-  "  ld t3, 0(t1)\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  or t3, t3, t4\n" ++
-  "  sd t3, 0(t1)\n" ++
-  "  addi t1, t1, 8\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lboi_loop\n" ++
-  ".Lboi_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def bloomOrInto_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (36 : BitVec 13),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .OR .x28 .x28 .x29,
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bloomOrIntoFunction : String :=
+  "bloom_or_into:\n" ++ emitProgram bloomOrInto_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bloomOrInto_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bloomOrIntoFunction_eq_prog :
+    bloomOrIntoFunction = "bloom_or_into:\n" ++ emitProgram bloomOrInto_prog := rfl
+
+#guard bloomOrIntoFunction.startsWith "bloom_or_into:\n"
+#guard bloomOrInto_prog.length = 14
 /-- `zisk_bloom_or_into`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0..256 : src bloom
@@ -930,29 +940,37 @@ def ziskHeaderExtractLogsBloomProbeUnit : BuildUnit := {
       a2 (input)  : u64 out ptr (1 if equal, 0 if not)
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def bloomEqFunction : String :=
-  "bloom_eq:\n" ++
-  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t2, a1\n" ++
-  "  li t5, 0                   # diff_accumulator\n" ++
-  ".Lbeq_loop:\n" ++
-  "  beqz t0, .Lbeq_done\n" ++
-  "  ld t3, 0(t1)\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  xor t3, t3, t4\n" ++
-  "  or  t5, t5, t3             # accumulate any nonzero diff\n" ++
-  "  addi t1, t1, 8\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbeq_loop\n" ++
-  ".Lbeq_done:\n" ++
-  "  # is_equal = (diff_accumulator == 0)\n" ++
-  "  seqz t5, t5\n" ++
-  "  sd t5, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def bloomEq_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .LI .x30 (0 : Word),
+    .BEQ .x5 .x0 (36 : BitVec 13),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .XOR .x28 .x28 .x29,
+    .OR .x30 .x30 .x28,
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .SLTIU .x30 .x30 (1 : BitVec 12),
+    .SD .x12 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bloomEqFunction : String :=
+  "bloom_eq:\n" ++ emitProgram bloomEq_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bloomEq_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bloomEqFunction_eq_prog :
+    bloomEqFunction = "bloom_eq:\n" ++ emitProgram bloomEq_prog := rfl
+
+#guard bloomEqFunction.startsWith "bloom_eq:\n"
+#guard bloomEq_prog.length = 17
 /-- `zisk_bloom_eq`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : pad
@@ -999,37 +1017,55 @@ def ziskBloomEqProbeUnit : BuildUnit := {
     Both routines process aligned 8-byte words, so callers must pass
     8-byte-aligned bloom/checkpoint labels. -/
 
+def runningBloomZero_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .BEQ .x5 .x0 (20 : BitVec 13),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def runningBloomZeroFunction : String :=
-  "running_bloom_zero:\n" ++
-  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
-  "  mv t1, a0                  # bloom cursor\n" ++
-  ".Lrbz_loop:\n" ++
-  "  beqz t0, .Lrbz_done\n" ++
-  "  sd zero, 0(t1)\n" ++
-  "  addi t1, t1, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lrbz_loop\n" ++
-  ".Lrbz_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "running_bloom_zero:\n" ++ emitProgram runningBloomZero_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `runningBloomZero_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem runningBloomZeroFunction_eq_prog :
+    runningBloomZeroFunction = "running_bloom_zero:\n" ++ emitProgram runningBloomZero_prog := rfl
+
+#guard runningBloomZeroFunction.startsWith "running_bloom_zero:\n"
+#guard runningBloomZero_prog.length = 9
+def runningBloomCopy_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def runningBloomCopyFunction : String :=
-  "running_bloom_copy:\n" ++
-  "  li t0, 32                  # 256 bytes / 8 bytes per word\n" ++
-  "  mv t1, a0                  # dst cursor\n" ++
-  "  mv t2, a1                  # src cursor\n" ++
-  ".Lrbc_loop:\n" ++
-  "  beqz t0, .Lrbc_done\n" ++
-  "  ld t3, 0(t2)\n" ++
-  "  sd t3, 0(t1)\n" ++
-  "  addi t1, t1, 8\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lrbc_loop\n" ++
-  ".Lrbc_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "running_bloom_copy:\n" ++ emitProgram runningBloomCopy_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `runningBloomCopy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem runningBloomCopyFunction_eq_prog :
+    runningBloomCopyFunction = "running_bloom_copy:\n" ++ emitProgram runningBloomCopy_prog := rfl
+
+#guard runningBloomCopyFunction.startsWith "running_bloom_copy:\n"
+#guard runningBloomCopy_prog.length = 12
 /-- `zisk_running_bloom_checkpoint`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : pad

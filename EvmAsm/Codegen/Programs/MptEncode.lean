@@ -30,6 +30,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.Mpt
@@ -835,29 +836,36 @@ def ziskMptBranchNodeEncodeProbeUnit : BuildUnit := {
       a4 (input)  : u64 out ptr (common prefix length, in nibbles)
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def nibblesCommonPrefixLenFunction : String :=
-  "nibbles_common_prefix_len:\n" ++
-  "  # min(a_count, b_count)\n" ++
-  "  bltu a1, a3, .Lncpl_min_ok\n" ++
-  "  mv a1, a3\n" ++
-  ".Lncpl_min_ok:\n" ++
-  "  li t0, 0                   # cpl accumulator\n" ++
-  "  mv t1, a0                  # a cursor\n" ++
-  "  mv t2, a2                  # b cursor\n" ++
-  ".Lncpl_loop:\n" ++
-  "  bge t0, a1, .Lncpl_done\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bne t3, t4, .Lncpl_done\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lncpl_loop\n" ++
-  ".Lncpl_done:\n" ++
-  "  sd t0, 0(a4)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def nibblesCommonPrefixLen_prog : Program :=
+  [ .BLTU .x11 .x13 (8 : BitVec 13),
+    .MV .x11 .x13,
+    .LI .x5 (0 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x12,
+    .BGE .x5 .x11 (32 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (20 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .SD .x14 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def nibblesCommonPrefixLenFunction : String :=
+  "nibbles_common_prefix_len:\n" ++ emitProgram nibblesCommonPrefixLen_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `nibblesCommonPrefixLen_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem nibblesCommonPrefixLenFunction_eq_prog :
+    nibblesCommonPrefixLenFunction = "nibbles_common_prefix_len:\n" ++ emitProgram nibblesCommonPrefixLen_prog := rfl
+
+#guard nibblesCommonPrefixLenFunction.startsWith "nibbles_common_prefix_len:\n"
+#guard nibblesCommonPrefixLen_prog.length = 16
 /-- `zisk_nibbles_common_prefix_len`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : a_count
