@@ -23,6 +23,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -53,28 +54,37 @@ open EvmAsm.Rv64
     byte-by-byte loop reads `a[i]` and `b[i]` before writing
     `out[i]` at each step. Pure register arithmetic, no scratch
     memory, leaf-callable. -/
-def u256AddBeFunction : String :=
-  "u256_add_be:\n" ++
-  "  li t0, 31                  # byte index (LSB first)\n" ++
-  "  li t1, 0                   # carry\n" ++
-  ".Lu256a_loop:\n" ++
-  "  add t2, a0, t0\n" ++
-  "  add t3, a1, t0\n" ++
-  "  add t4, a2, t0\n" ++
-  "  lbu t5, 0(t2)\n" ++
-  "  lbu t6, 0(t3)\n" ++
-  "  add t5, t5, t6\n" ++
-  "  add t5, t5, t1             # + carry-in\n" ++
-  "  srli t1, t5, 8             # carry-out\n" ++
-  "  andi t5, t5, 0xff          # masked sum byte\n" ++
-  "  sb t5, 0(t4)\n" ++
-  "  beqz t0, .Lu256a_done\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lu256a_loop\n" ++
-  ".Lu256a_done:\n" ++
-  "  mv a0, t1                  # final carry = overflow flag\n" ++
-  "  ret"
+def u256AddBe_prog : Program :=
+  [ .LI .x5 (31 : Word),
+    .LI .x6 (0 : Word),
+    .ADD .x7 .x10 .x5,
+    .ADD .x28 .x11 .x5,
+    .ADD .x29 .x12 .x5,
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .ADD .x30 .x30 .x31,
+    .ADD .x30 .x30 .x6,
+    .SRLI .x6 .x30 (8 : BitVec 6),
+    .ANDI .x30 .x30 (255 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-48 : BitVec 21),
+    .MV .x10 .x6,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256AddBeFunction : String :=
+  "u256_add_be:\n" ++ emitProgram u256AddBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256AddBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256AddBeFunction_eq_prog :
+    u256AddBeFunction = "u256_add_be:\n" ++ emitProgram u256AddBe_prog := rfl
+
+#guard u256AddBeFunction.startsWith "u256_add_be:\n"
+#guard u256AddBe_prog.length = 17
 /-- `zisk_u256_add_be`: probe BuildUnit. Reads (32B a, 32B b) from
     host input, writes (overflow_flag, 32B result) to OUTPUT (40
     bytes total). -/
@@ -149,32 +159,39 @@ def ziskU256AddBeProbeUnit : BuildUnit := {
       a2 (input)  : u64 out ptr (1 if a < b, 0 otherwise)
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def u256LtBeFunction : String :=
-  "u256_lt_be:\n" ++
-  "  li t0, 32                  # byte counter (MSB-first)\n" ++
-  "  mv t1, a0                  # a cursor\n" ++
-  "  mv t2, a1                  # b cursor\n" ++
-  ".Lulb_loop:\n" ++
-  "  beqz t0, .Lulb_equal\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bltu t3, t4, .Lulb_less\n" ++
-  "  bltu t4, t3, .Lulb_greater\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lulb_loop\n" ++
-  ".Lulb_less:\n" ++
-  "  li t5, 1\n" ++
-  "  sd t5, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lulb_greater:\n" ++
-  ".Lulb_equal:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def u256LtBe_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (52 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BLTU .x28 .x29 (24 : BitVec 13),
+    .BLTU .x29 .x28 (36 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x30 (1 : Word),
+    .SD .x12 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256LtBeFunction : String :=
+  "u256_lt_be:\n" ++ emitProgram u256LtBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256LtBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256LtBeFunction_eq_prog :
+    u256LtBeFunction = "u256_lt_be:\n" ++ emitProgram u256LtBe_prog := rfl
+
+#guard u256LtBeFunction.startsWith "u256_lt_be:\n"
+#guard u256LtBe_prog.length = 19
 /-- `zisk_u256_lt_be`: probe BuildUnit.
     Input layout (after host shift):
       bytes  0.. 8 : padding
@@ -229,28 +246,37 @@ def ziskU256LtBeProbeUnit : BuildUnit := {
 
     Aliasing is safe: `out` may alias `a` or `b`. Pure register
     arithmetic, no scratch memory, leaf-callable. -/
-def u256SubBeFunction : String :=
-  "u256_sub_be:\n" ++
-  "  li t0, 31                  # byte index (LSB first)\n" ++
-  "  li t1, 0                   # borrow\n" ++
-  ".Lu256s_loop:\n" ++
-  "  add t2, a0, t0\n" ++
-  "  add t3, a1, t0\n" ++
-  "  add t4, a2, t0\n" ++
-  "  lbu t5, 0(t2)\n" ++
-  "  lbu t6, 0(t3)\n" ++
-  "  sub t5, t5, t6\n" ++
-  "  sub t5, t5, t1             # - borrow-in\n" ++
-  "  sltz t1, t5                # borrow-out = (t5 < 0)\n" ++
-  "  andi t5, t5, 0xff          # masked diff byte\n" ++
-  "  sb t5, 0(t4)\n" ++
-  "  beqz t0, .Lu256s_done\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lu256s_loop\n" ++
-  ".Lu256s_done:\n" ++
-  "  mv a0, t1                  # final borrow = underflow flag\n" ++
-  "  ret"
+def u256SubBe_prog : Program :=
+  [ .LI .x5 (31 : Word),
+    .LI .x6 (0 : Word),
+    .ADD .x7 .x10 .x5,
+    .ADD .x28 .x11 .x5,
+    .ADD .x29 .x12 .x5,
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .SUB .x30 .x30 .x31,
+    .SUB .x30 .x30 .x6,
+    .SLT .x6 .x30 .x0,
+    .ANDI .x30 .x30 (255 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-48 : BitVec 21),
+    .MV .x10 .x6,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256SubBeFunction : String :=
+  "u256_sub_be:\n" ++ emitProgram u256SubBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256SubBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256SubBeFunction_eq_prog :
+    u256SubBeFunction = "u256_sub_be:\n" ++ emitProgram u256SubBe_prog := rfl
+
+#guard u256SubBeFunction.startsWith "u256_sub_be:\n"
+#guard u256SubBe_prog.length = 17
 /-- `zisk_u256_sub_be`: probe BuildUnit. Reads (32B a, 32B b)
     from host input, writes (borrow_flag, 32B result) to OUTPUT
     (40 bytes total). -/
@@ -307,23 +333,39 @@ def ziskU256SubBeProbeUnit : BuildUnit := {
     byte-stores; no scratch memory; leaf-callable. Uses RV64 `sb`
     semantics (stores low 8 bits of rs2), so no `andi 0xff`
     masking is needed before each byte write. -/
-def u256FromU64BeFunction : String :=
-  "u256_from_u64_be:\n" ++
-  "  # Zero the high 24 bytes.\n" ++
-  "  sd zero,  0(a1)\n" ++
-  "  sd zero,  8(a1)\n" ++
-  "  sd zero, 16(a1)\n" ++
-  "  # Write the u64 in BE order at bytes 24..32.\n" ++
-  "  srli t0, a0, 56; sb t0, 24(a1)\n" ++
-  "  srli t0, a0, 48; sb t0, 25(a1)\n" ++
-  "  srli t0, a0, 40; sb t0, 26(a1)\n" ++
-  "  srli t0, a0, 32; sb t0, 27(a1)\n" ++
-  "  srli t0, a0, 24; sb t0, 28(a1)\n" ++
-  "  srli t0, a0, 16; sb t0, 29(a1)\n" ++
-  "  srli t0, a0,  8; sb t0, 30(a1)\n" ++
-  "                  sb a0, 31(a1)\n" ++
-  "  ret"
+def u256FromU64Be_prog : Program :=
+  [ .SD .x11 .x0 (0 : BitVec 12),
+    .SD .x11 .x0 (8 : BitVec 12),
+    .SD .x11 .x0 (16 : BitVec 12),
+    .SRLI .x5 .x10 (56 : BitVec 6),
+    .SB .x11 .x5 (24 : BitVec 12),
+    .SRLI .x5 .x10 (48 : BitVec 6),
+    .SB .x11 .x5 (25 : BitVec 12),
+    .SRLI .x5 .x10 (40 : BitVec 6),
+    .SB .x11 .x5 (26 : BitVec 12),
+    .SRLI .x5 .x10 (32 : BitVec 6),
+    .SB .x11 .x5 (27 : BitVec 12),
+    .SRLI .x5 .x10 (24 : BitVec 6),
+    .SB .x11 .x5 (28 : BitVec 12),
+    .SRLI .x5 .x10 (16 : BitVec 6),
+    .SB .x11 .x5 (29 : BitVec 12),
+    .SRLI .x5 .x10 (8 : BitVec 6),
+    .SB .x11 .x5 (30 : BitVec 12),
+    .SB .x11 .x10 (31 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256FromU64BeFunction : String :=
+  "u256_from_u64_be:\n" ++ emitProgram u256FromU64Be_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256FromU64Be_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256FromU64BeFunction_eq_prog :
+    u256FromU64BeFunction = "u256_from_u64_be:\n" ++ emitProgram u256FromU64Be_prog := rfl
+
+#guard u256FromU64BeFunction.startsWith "u256_from_u64_be:\n"
+#guard u256FromU64Be_prog.length = 19
 /-- `zisk_u256_from_u64_be`: probe BuildUnit. Reads (u64 value)
     from host input, writes the 32-byte BE u256 to OUTPUT. -/
 def ziskU256FromU64BePrologue : String :=
@@ -376,18 +418,29 @@ def ziskU256FromU64BeProbeUnit : BuildUnit := {
     short-circuit (we always read all 32 bytes), keeping
     timing data-independent for any future side-channel
     considerations. Leaf-callable. -/
-def u256IsZeroFunction : String :=
-  "u256_is_zero:\n" ++
-  "  ld t0,  0(a0)\n" ++
-  "  ld t1,  8(a0)\n" ++
-  "  ld t2, 16(a0)\n" ++
-  "  ld t3, 24(a0)\n" ++
-  "  or t0, t0, t1\n" ++
-  "  or t0, t0, t2\n" ++
-  "  or t0, t0, t3\n" ++
-  "  seqz a0, t0\n" ++
-  "  ret"
+def u256IsZero_prog : Program :=
+  [ .LD .x5 .x10 (0 : BitVec 12),
+    .LD .x6 .x10 (8 : BitVec 12),
+    .LD .x7 .x10 (16 : BitVec 12),
+    .LD .x28 .x10 (24 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .OR .x5 .x5 .x7,
+    .OR .x5 .x5 .x28,
+    .SLTIU .x10 .x5 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256IsZeroFunction : String :=
+  "u256_is_zero:\n" ++ emitProgram u256IsZero_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256IsZero_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256IsZeroFunction_eq_prog :
+    u256IsZeroFunction = "u256_is_zero:\n" ++ emitProgram u256IsZero_prog := rfl
+
+#guard u256IsZeroFunction.startsWith "u256_is_zero:\n"
+#guard u256IsZero_prog.length = 9
 /-- `zisk_u256_is_zero`: probe BuildUnit. Reads 32B u256 from host
     input, writes the u64 result. -/
 def ziskU256IsZeroPrologue : String :=
@@ -450,33 +503,44 @@ def ziskU256IsZeroProbeUnit : BuildUnit := {
     walk is read-only over both inputs, and the 4 × (ld + sd)
     copy reads each chunk from one of them and writes to `out`
     in the same step — fine since `ld` happens before `sd`. -/
-def u256MinFunction : String :=
-  "u256_min:\n" ++
-  "  li t0, 0                   # byte index\n" ++
-  "  li t6, 32\n" ++
-  ".Lumin_lt_loop:\n" ++
-  "  beq t0, t6, .Lumin_pick_a  # all bytes equal → return a\n" ++
-  "  add t1, a0, t0\n" ++
-  "  add t2, a1, t0\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bltu t3, t4, .Lumin_pick_a # a < b → return a\n" ++
-  "  bgtu t3, t4, .Lumin_pick_b # a > b → return b\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lumin_lt_loop\n" ++
-  ".Lumin_pick_a:\n" ++
-  "  mv t0, a0\n" ++
-  "  j .Lumin_copy\n" ++
-  ".Lumin_pick_b:\n" ++
-  "  mv t0, a1\n" ++
-  ".Lumin_copy:\n" ++
-  "  ld t1,  0(t0); sd t1,  0(a2)\n" ++
-  "  ld t1,  8(t0); sd t1,  8(a2)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(a2)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def u256Min_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x5 .x31 (36 : BitVec 13),
+    .ADD .x6 .x10 .x5,
+    .ADD .x7 .x11 .x5,
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BLTU .x28 .x29 (16 : BitVec 13),
+    .BLTU .x29 .x28 (20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .MV .x5 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x5 .x11,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x12 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x12 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x12 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x12 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256MinFunction : String :=
+  "u256_min:\n" ++ emitProgram u256Min_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256Min_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256MinFunction_eq_prog :
+    u256MinFunction = "u256_min:\n" ++ emitProgram u256Min_prog := rfl
+
+#guard u256MinFunction.startsWith "u256_min:\n"
+#guard u256Min_prog.length = 24
 /-- `zisk_u256_min`: probe BuildUnit. Reads (32B a, 32B b) from
     host input, writes the 32B min into OUTPUT. -/
 def ziskU256MinPrologue : String :=
@@ -529,33 +593,44 @@ def ziskU256MinProbeUnit : BuildUnit := {
     Short-circuits on the first differing byte. Pure register
     arithmetic + 4 × (ld + sd) chunk copy. Leaf-callable.
     Aliasing safe. -/
-def u256MaxFunction : String :=
-  "u256_max:\n" ++
-  "  li t0, 0                   # byte index\n" ++
-  "  li t6, 32\n" ++
-  ".Lumax_loop:\n" ++
-  "  beq t0, t6, .Lumax_pick_a  # all bytes equal → return a\n" ++
-  "  add t1, a0, t0\n" ++
-  "  add t2, a1, t0\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bgtu t3, t4, .Lumax_pick_a # a > b → return a\n" ++
-  "  bltu t3, t4, .Lumax_pick_b # a < b → return b\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lumax_loop\n" ++
-  ".Lumax_pick_a:\n" ++
-  "  mv t0, a0\n" ++
-  "  j .Lumax_copy\n" ++
-  ".Lumax_pick_b:\n" ++
-  "  mv t0, a1\n" ++
-  ".Lumax_copy:\n" ++
-  "  ld t1,  0(t0); sd t1,  0(a2)\n" ++
-  "  ld t1,  8(t0); sd t1,  8(a2)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(a2)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def u256Max_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x5 .x31 (36 : BitVec 13),
+    .ADD .x6 .x10 .x5,
+    .ADD .x7 .x11 .x5,
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BLTU .x29 .x28 (16 : BitVec 13),
+    .BLTU .x28 .x29 (20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .MV .x5 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x5 .x11,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x12 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x12 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x12 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x12 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256MaxFunction : String :=
+  "u256_max:\n" ++ emitProgram u256Max_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256Max_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256MaxFunction_eq_prog :
+    u256MaxFunction = "u256_max:\n" ++ emitProgram u256Max_prog := rfl
+
+#guard u256MaxFunction.startsWith "u256_max:\n"
+#guard u256Max_prog.length = 24
 /-- `zisk_u256_max`: probe BuildUnit. Reads (32B a, 32B b) from
     host input, writes the 32B max into OUTPUT. -/
 def ziskU256MaxPrologue : String :=
@@ -630,27 +705,36 @@ def ziskU256MaxProbeUnit : BuildUnit := {
 
     Aliasing safe: each iteration reads `src[i]` then writes
     `out[i]`; subsequent iterations advance to `src[i+1]`. -/
-def u256DivU64BeFunction : String :=
-  "u256_div_u64_be:\n" ++
-  "  li t0, 0                   # carry (< b)\n" ++
-  "  li t1, 0                   # byte index (MSB → LSB)\n" ++
-  ".Lu256d_loop:\n" ++
-  "  li t2, 32\n" ++
-  "  beq t1, t2, .Lu256d_done\n" ++
-  "  add t3, a0, t1\n" ++
-  "  lbu t4, 0(t3)              # src[i]\n" ++
-  "  slli t5, t0, 8\n" ++
-  "  or t5, t5, t4              # num = (carry << 8) | src[i]\n" ++
-  "  divu t6, t5, a1            # q_byte = num / b  (< 256)\n" ++
-  "  remu t0, t5, a1            # new carry = num mod b\n" ++
-  "  add t3, a2, t1\n" ++
-  "  sb t6, 0(t3)               # out[i] = q_byte (low 8 bits)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  j .Lu256d_loop\n" ++
-  ".Lu256d_done:\n" ++
-  "  mv a0, t0                  # remainder\n" ++
-  "  ret"
+def u256DivU64Be_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (0 : Word),
+    .LI .x7 (32 : Word),
+    .BEQ .x6 .x7 (44 : BitVec 13),
+    .ADD .x28 .x10 .x6,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .SLLI .x30 .x5 (8 : BitVec 6),
+    .OR .x30 .x30 .x29,
+    .DIVU .x31 .x30 .x11,
+    .REMU .x5 .x30 .x11,
+    .ADD .x28 .x12 .x6,
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-44 : BitVec 21),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256DivU64BeFunction : String :=
+  "u256_div_u64_be:\n" ++ emitProgram u256DivU64Be_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256DivU64Be_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256DivU64BeFunction_eq_prog :
+    u256DivU64BeFunction = "u256_div_u64_be:\n" ++ emitProgram u256DivU64Be_prog := rfl
+
+#guard u256DivU64BeFunction.startsWith "u256_div_u64_be:\n"
+#guard u256DivU64Be_prog.length = 16
 /-- `zisk_u256_div_u64_be`: probe BuildUnit. Reads (32B BE src,
     8B LE b) from host input, writes (u64 remainder, 32B BE
     quotient) to OUTPUT (40 bytes total). -/
@@ -706,26 +790,34 @@ def ziskU256DivU64BeProbeUnit : BuildUnit := {
     Pure register arithmetic, no scratch memory, leaf-callable.
     Walks at most 32 bytes; short-circuits on the first
     differing byte. -/
-def u256EqFunction : String :=
-  "u256_eq:\n" ++
-  "  li t0, 0                   # byte index\n" ++
-  "  li t6, 32\n" ++
-  ".Lu256eq_loop:\n" ++
-  "  beq t0, t6, .Lu256eq_yes   # 32 bytes equal → a == b\n" ++
-  "  add t1, a0, t0\n" ++
-  "  add t2, a1, t0\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bne t3, t4, .Lu256eq_no\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lu256eq_loop\n" ++
-  ".Lu256eq_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lu256eq_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def u256Eq_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x5 .x31 (32 : BitVec 13),
+    .ADD .x6 .x10 .x5,
+    .ADD .x7 .x11 .x5,
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256EqFunction : String :=
+  "u256_eq:\n" ++ emitProgram u256Eq_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256Eq_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256EqFunction_eq_prog :
+    u256EqFunction = "u256_eq:\n" ++ emitProgram u256Eq_prog := rfl
+
+#guard u256EqFunction.startsWith "u256_eq:\n"
+#guard u256Eq_prog.length = 14
 /-- `zisk_u256_eq`: probe BuildUnit. Reads (32B a, 32B b) from
     host input, writes the u64 result. -/
 def ziskU256EqPrologue : String :=
@@ -956,27 +1048,50 @@ def ziskU256MulU64BeProbeUnit : BuildUnit := {
     Always writes the low-64-bit value to `*out`, even on
     overflow (so callers don't need to branch on the flag to
     read a defined value). -/
-def u256ToU64BeFunction : String :=
-  "u256_to_u64_be:\n" ++
-  "  # Check high 24 bytes (positions 0..24) are all zero.\n" ++
-  "  ld t0,  0(a0)\n" ++
-  "  ld t1,  8(a0)\n" ++
-  "  ld t2, 16(a0)\n" ++
-  "  or t0, t0, t1\n" ++
-  "  or t0, t0, t2\n" ++
-  "  # Assemble low u64 from BE bytes at positions 24..32.\n" ++
-  "  lbu t1, 24(a0); slli t1, t1, 56\n" ++
-  "  lbu t2, 25(a0); slli t2, t2, 48; or t1, t1, t2\n" ++
-  "  lbu t2, 26(a0); slli t2, t2, 40; or t1, t1, t2\n" ++
-  "  lbu t2, 27(a0); slli t2, t2, 32; or t1, t1, t2\n" ++
-  "  lbu t2, 28(a0); slli t2, t2, 24; or t1, t1, t2\n" ++
-  "  lbu t2, 29(a0); slli t2, t2, 16; or t1, t1, t2\n" ++
-  "  lbu t2, 30(a0); slli t2, t2,  8; or t1, t1, t2\n" ++
-  "  lbu t2, 31(a0);                  or t1, t1, t2\n" ++
-  "  sd t1, 0(a1)\n" ++
-  "  snez a0, t0                      # overflow = (high bits != 0)\n" ++
-  "  ret"
+def u256ToU64Be_prog : Program :=
+  [ .LD .x5 .x10 (0 : BitVec 12),
+    .LD .x6 .x10 (8 : BitVec 12),
+    .LD .x7 .x10 (16 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .OR .x5 .x5 .x7,
+    .LBU .x6 .x10 (24 : BitVec 12),
+    .SLLI .x6 .x6 (56 : BitVec 6),
+    .LBU .x7 .x10 (25 : BitVec 12),
+    .SLLI .x7 .x7 (48 : BitVec 6),
+    .OR .x6 .x6 .x7,
+    .LBU .x7 .x10 (26 : BitVec 12),
+    .SLLI .x7 .x7 (40 : BitVec 6),
+    .OR .x6 .x6 .x7,
+    .LBU .x7 .x10 (27 : BitVec 12),
+    .SLLI .x7 .x7 (32 : BitVec 6),
+    .OR .x6 .x6 .x7,
+    .LBU .x7 .x10 (28 : BitVec 12),
+    .SLLI .x7 .x7 (24 : BitVec 6),
+    .OR .x6 .x6 .x7,
+    .LBU .x7 .x10 (29 : BitVec 12),
+    .SLLI .x7 .x7 (16 : BitVec 6),
+    .OR .x6 .x6 .x7,
+    .LBU .x7 .x10 (30 : BitVec 12),
+    .SLLI .x7 .x7 (8 : BitVec 6),
+    .OR .x6 .x6 .x7,
+    .LBU .x7 .x10 (31 : BitVec 12),
+    .OR .x6 .x6 .x7,
+    .SD .x11 .x6 (0 : BitVec 12),
+    .SLTU .x10 .x0 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def u256ToU64BeFunction : String :=
+  "u256_to_u64_be:\n" ++ emitProgram u256ToU64Be_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `u256ToU64Be_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem u256ToU64BeFunction_eq_prog :
+    u256ToU64BeFunction = "u256_to_u64_be:\n" ++ emitProgram u256ToU64Be_prog := rfl
+
+#guard u256ToU64BeFunction.startsWith "u256_to_u64_be:\n"
+#guard u256ToU64Be_prog.length = 30
 /-- `zisk_u256_to_u64_be`: probe BuildUnit. Reads 32B BE u256
     from host input, writes (overflow_flag, u64 result LE) to
     OUTPUT (16 bytes total). -/
