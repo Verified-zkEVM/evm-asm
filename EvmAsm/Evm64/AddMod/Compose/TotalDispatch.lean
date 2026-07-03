@@ -221,7 +221,7 @@ def addmodPostPrefixRest (sp : Word)
   (.x7 ↦ᵣ (addmodOverflowBit a b + signExtend12 (0 : BitVec 12))) **
   (.x11 ↦ᵣ (if BitVec.ult (a.getLimbN 3 + b.getLimbN 3) (b.getLimbN 3)
             then (1 : Word) else 0)) **
-  evmWordIs sp a ** evmWordIs (sp + 32) (a + b) **
+  evmWordIs (sp + 32) (a + b) **
   (((sp + 32) + signExtend12 (3904 : BitVec 12)) ↦ₘ sp0) **
   (((sp + 32) + signExtend12 (3912 : BitVec 12)) ↦ₘ sp1) **
   (((sp + 32) + signExtend12 (3920 : BitVec 12)) ↦ₘ sp2) **
@@ -234,21 +234,9 @@ def addmodPostPrefixRest (sp : Word)
   (((sp + 32) + signExtend12 (3848 : BitVec 12)) ↦ₘ sm1) **
   (((sp + 32) + signExtend12 (3856 : BitVec 12)) ↦ₘ sm2) **
   (((sp + 32) + signExtend12 (3864 : BitVec 12)) ↦ₘ sm3) **
-  (((sp + 32) + signExtend12 (4056 : BitVec 12)) ↦ₘ u0) **
-  (((sp + 32) + signExtend12 (4048 : BitVec 12)) ↦ₘ u1) **
-  (((sp + 32) + signExtend12 (4040 : BitVec 12)) ↦ₘ u2) **
-  (((sp + 32) + signExtend12 (4032 : BitVec 12)) ↦ₘ u3) **
-  (((sp + 32) + signExtend12 (4024 : BitVec 12)) ↦ₘ u4) **
-  (((sp + 32) + signExtend12 (4016 : BitVec 12)) ↦ₘ u5) **
-  (((sp + 32) + signExtend12 (4008 : BitVec 12)) ↦ₘ u6) **
-  (((sp + 32) + signExtend12 (4000 : BitVec 12)) ↦ₘ u7) **
-  (((sp + 32) + signExtend12 (3992 : BitVec 12)) ↦ₘ shiftMem) **
-  (((sp + 32) + signExtend12 (3984 : BitVec 12)) ↦ₘ nMem) **
-  (((sp + 32) + signExtend12 (3976 : BitVec 12)) ↦ₘ jMem) **
-  (((sp + 32) + signExtend12 (3968 : BitVec 12)) ↦ₘ retMem) **
-  (((sp + 32) + signExtend12 (3960 : BitVec 12)) ↦ₘ dMem) **
-  (((sp + 32) + signExtend12 (3952 : BitVec 12)) ↦ₘ dloMem) **
-  (((sp + 32) + signExtend12 (3944 : BitVec 12)) ↦ₘ scratch_un0) **
+  divScratchValuesCallNoX1 (sp + 32)
+    (a.getLimbN 3) (a.getLimbN 2) (a.getLimbN 1) (a.getLimbN 0)
+    u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
   (((sp + 32) + signExtend12 (3936 : BitVec 12)) ↦ₘ scratchMem)
 
 theorem addmodPostPrefixRest_pcFree (sp : Word)
@@ -261,6 +249,7 @@ theorem addmodPostPrefixRest_pcFree (sp : Word)
       u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
       scratch_un0 scratchMem).pcFree := by
   unfold addmodPostPrefixRest evmWordIs
+  rw [divScratchValuesCallNoX1_unfold, divScratchValues_unfold]
   pcFree
 
 /-- The N-zero-test post cells (common to both branch targets), at `F = sp+32`:
@@ -387,6 +376,19 @@ theorem evm_addmod_dispatch_branch_spec_within
       u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
       scratch_un0 scratchMem)
     hnz
+  have e0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have hq0 : (sp + 32) + signExtend12 (4088 : BitVec 12) = sp + 24 := by
+    rw [show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide]
+    bv_omega
+  have hq1 : (sp + 32) + signExtend12 (4080 : BitVec 12) = sp + 16 := by
+    rw [show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide]
+    bv_omega
+  have hq2 : (sp + 32) + signExtend12 (4072 : BitVec 12) = sp + 8 := by
+    rw [show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide]
+    bv_omega
+  have hq3 : (sp + 32) + signExtend12 (4064 : BitVec 12) = sp := by
+    rw [show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide]
+    bv_omega
   refine cpsBranchWithin_weaken (fun h hp => ?pre) (fun _ hq => hq) (fun _ hq => hq)
     (cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr ?mid hpre hnzF)
   case pre =>
@@ -394,7 +396,398 @@ theorem evm_addmod_dispatch_branch_spec_within
     xperm_hyp hp
   case mid =>
     intro h hp
-    unfold addmodPostPrefixRest
+    simp only [addmodPostPrefixRest,
+      divScratchValuesCallNoX1_unfold, divScratchValues_unfold, evmWordIs,
+      hq0, hq1, hq2, hq3] at hp ⊢
     xperm_hyp hp
+
+-- ============================================================================
+-- The carry arm extended to the join (byte 160 → 864)
+-- ============================================================================
+
+/-- The carry branch followed by its exit `JAL x0, 32` (byte 832 → 864):
+    extends `evm_addmod_carry_branch_stack_spec_within` to the common join. -/
+theorem evm_addmod_carry_branch_to_join_spec_within
+    (bt F x5Old n0 n1 n2 n3 r0 r1 r2 r3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 : Word)
+    (x1v x2v x6v x7v x9v x10v x11v : Word)
+    (sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7 : Word)
+    (shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word)
+    (a b : EvmWord)
+    (hr : EvmWord.fromLimbs ![r0, r1, r2, r3] = a + b)
+    (hcarry : (EvmWord.addCarry a b).fst = true)
+    (hN : EvmWord.fromLimbs ![n0, n1, n2, n3] ≠ 0)
+    (hoffset1 : (bt + 244) + signExtend21 mo1 = calleeEntry)
+    (callerAlign1 : ((bt + 244) + 4) &&& ~~~(1 : Word) = (bt + 244) + 4)
+    (hoffset2 : (bt + 348) + signExtend21 mo2 = calleeEntry)
+    (callerAlign2 : ((bt + 348) + 4) &&& ~~~(1 : Word) = (bt + 348) + 4)
+    (hoffset3 : (bt + 452) + signExtend21 mo3 = calleeEntry)
+    (callerAlign3 : ((bt + 452) + 4) &&& ~~~(1 : Word) = (bt + 452) + 4)
+    (retAlign : ((calleeEntry + div128CallRetOff) + signExtend12 (0 : BitVec 12))
+        &&& ~~~(1 : Word) = calleeEntry + div128CallRetOff)
+    (hdisj1 : (CodeReq.singleton (bt + 244) (.JAL .x1 mo1)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisj2 : (CodeReq.singleton (bt + 348) (.JAL .x1 mo2)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisj3 : (CodeReq.singleton (bt + 452) (.JAL .x1 mo3)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisjTC : (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry)) :
+    cpsTripleWithin
+      ((((((21 + (1 + (unifiedDivBound + 1))) + 1) + (((24 + (1 + (unifiedDivBound + 1))) + 1)))
+          + ((24 + (1 + (unifiedDivBound + 1))) + 1))
+        + (((8 + 30) + 25) + 30)) + 1)
+      (bt + 160) (bt + 864)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (((.x12 ↦ᵣ F) ** (.x5 ↦ᵣ x5Old) **
+        ((F + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((F + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((F + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((F + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((F + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((F + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((F + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((F + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((F + signExtend12 (3904 : BitVec 12)) ↦ₘ sp0) **
+        ((F + signExtend12 (3912 : BitVec 12)) ↦ₘ sp1) **
+        ((F + signExtend12 (3920 : BitVec 12)) ↦ₘ sp2) **
+        ((F + signExtend12 (3928 : BitVec 12)) ↦ₘ sp3) **
+        ((F + signExtend12 (3872 : BitVec 12)) ↦ₘ sq0) **
+        ((F + signExtend12 (3880 : BitVec 12)) ↦ₘ sq1) **
+        ((F + signExtend12 (3888 : BitVec 12)) ↦ₘ sq2) **
+        ((F + signExtend12 (3896 : BitVec 12)) ↦ₘ sq3)) **
+       addmodLaTail F x1v x2v x6v x7v x9v x10v x11v
+         sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem)
+      (addmodLdResultOwned F
+        (EvmWord.addmod a b (EvmWord.fromLimbs ![n0, n1, n2, n3]))) := by
+  have hc := evm_addmod_carry_branch_stack_spec_within
+    bt F x5Old n0 n1 n2 n3 r0 r1 r2 r3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3
+    x1v x2v x6v x7v x9v x10v x11v
+    sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem
+    mo1 mo2 mo3 moNC calleeEntry a b hr hcarry hN
+    hoffset1 callerAlign1 hoffset2 callerAlign2 hoffset3 callerAlign3
+    retAlign hdisj1 hdisj2 hdisj3 hdisjTC
+  have hjal := jal_x0_spec_gen_within 32 (bt + 832)
+  rw [show (bt + 832) + signExtend21 (32 : BitVec 21) = bt + 864 from by
+    rw [show signExtend21 (32 : BitVec 21) = (32 : Word) from by decide]
+    bv_omega] at hjal
+  have hjalC := carry_block_in_C
+    (totalCode := evm_addmod_total_program_code bt mo1 mo2 mo3 moNC)
+    (calleeCode := evm_mod_callable_code_v5 calleeEntry)
+    (fun ad i h => evm_addmod_total_program_code_carry_exit_jal_sub ad i (by
+      rw [show CodeReq.ofProg (bt + 832) (JAL .x0 32)
+          = CodeReq.singleton (bt + 832) (.JAL .x0 32) from CodeReq.ofProg_singleton]
+      exact h))
+    hjal
+  have hjalF := cpsTripleWithin_frameR
+    (addmodLdResultOwned F
+      (EvmWord.addmod a b (EvmWord.fromLimbs ![n0, n1, n2, n3])))
+    (by
+      unfold addmodLdResultOwned evmWordIs evmWordOwn
+      rw [divScratchOwnCallNoX1_unfold, divScratchOwn_unfold]
+      pcFree)
+    hjalC
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?post)
+    (cpsTripleWithin_seq_perm_same_cr ?mid hc hjalF)
+  case mid =>
+    intro h hp
+    exact (sepConj_emp_left h).mpr hp
+  case post =>
+    exact (sepConj_emp_left h).mp hq
+
+-- ============================================================================
+-- The unconditional total ADDMOD stack spec (byte 0 → 864 over C)
+-- ============================================================================
+
+/-- Frame carried through the carry-test `BEQ x7, x0` at byte 156: everything
+    except `x7`/`x0`, in the post-N-zero-test state. -/
+def addmodBeqFrame (sp : Word)
+    (x1v x2v x9v x10v : Word) (a b : EvmWord)
+    (n0 n1 n2 n3 : Word)
+    (sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3 : Word)
+    (u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+     scratch_un0 scratchMem : Word) : Assertion :=
+  (.x12 ↦ᵣ (sp + 32)) ** (.x6 ↦ᵣ (n0 ||| n1 ||| n2 ||| n3)) ** (.x5 ↦ᵣ n3) **
+  (((sp + 32) + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+  (((sp + 32) + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+  (((sp + 32) + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+  (((sp + 32) + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+  (.x1 ↦ᵣ x1v) ** (.x2 ↦ᵣ x2v) ** (.x9 ↦ᵣ x9v) ** (.x10 ↦ᵣ x10v) **
+  (.x11 ↦ᵣ (if BitVec.ult (a.getLimbN 3 + b.getLimbN 3) (b.getLimbN 3)
+            then (1 : Word) else 0)) **
+  evmWordIs (sp + 32) (a + b) **
+  (((sp + 32) + signExtend12 (3904 : BitVec 12)) ↦ₘ sp0) **
+  (((sp + 32) + signExtend12 (3912 : BitVec 12)) ↦ₘ sp1) **
+  (((sp + 32) + signExtend12 (3920 : BitVec 12)) ↦ₘ sp2) **
+  (((sp + 32) + signExtend12 (3928 : BitVec 12)) ↦ₘ sp3) **
+  (((sp + 32) + signExtend12 (3872 : BitVec 12)) ↦ₘ sq0) **
+  (((sp + 32) + signExtend12 (3880 : BitVec 12)) ↦ₘ sq1) **
+  (((sp + 32) + signExtend12 (3888 : BitVec 12)) ↦ₘ sq2) **
+  (((sp + 32) + signExtend12 (3896 : BitVec 12)) ↦ₘ sq3) **
+  (((sp + 32) + signExtend12 (3840 : BitVec 12)) ↦ₘ sm0) **
+  (((sp + 32) + signExtend12 (3848 : BitVec 12)) ↦ₘ sm1) **
+  (((sp + 32) + signExtend12 (3856 : BitVec 12)) ↦ₘ sm2) **
+  (((sp + 32) + signExtend12 (3864 : BitVec 12)) ↦ₘ sm3) **
+  divScratchValuesCallNoX1 (sp + 32)
+    (a.getLimbN 3) (a.getLimbN 2) (a.getLimbN 1) (a.getLimbN 0)
+    u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+  (((sp + 32) + signExtend12 (3936 : BitVec 12)) ↦ₘ scratchMem)
+
+theorem addmodBeqFrame_pcFree (sp : Word)
+    (x1v x2v x9v x10v : Word) (a b : EvmWord)
+    (n0 n1 n2 n3 : Word)
+    (sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3 : Word)
+    (u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+     scratch_un0 scratchMem : Word) :
+    (addmodBeqFrame sp x1v x2v x9v x10v a b n0 n1 n2 n3
+      sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3
+      u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+      scratch_un0 scratchMem).pcFree := by
+  unfold addmodBeqFrame evmWordIs
+  rw [divScratchValuesCallNoX1_unfold, divScratchValues_unfold]
+  pcFree
+
+/-- **The unconditional total ADDMOD stack spec** (byte 0 → 864 over `C`):
+    from the ADDMOD dispatch entry — `x12 = sp`, operands `a`/`b` and modulus
+    limbs `n0..n3` on the EVM stack, generic dispatcher registers, park and
+    callable-scratch cells — to `EvmWord.addmod a b N` at `sp+64..88` with
+    `x12 = sp+64` (`addmodLdResultOwned`), for EVERY input: the `N = 0`,
+    no-carry, and carry-out branches are all covered. The only hypotheses are
+    the dispatcher-pinned code-layout side conditions (call-site offsets,
+    alignment, and code-region disjointness). -/
+theorem evm_addmod_total_stack_spec_within
+    (bt sp : Word)
+    (x1v x2v x5v x6v x7v x9v x10v x11v : Word) (a b : EvmWord)
+    (n0 n1 n2 n3 : Word)
+    (sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3 : Word)
+    (u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+     scratch_un0 scratchMem : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word)
+    (hoffset1 : (bt + 244) + signExtend21 mo1 = calleeEntry)
+    (callerAlign1 : ((bt + 244) + 4) &&& ~~~(1 : Word) = (bt + 244) + 4)
+    (hoffset2 : (bt + 348) + signExtend21 mo2 = calleeEntry)
+    (callerAlign2 : ((bt + 348) + 4) &&& ~~~(1 : Word) = (bt + 348) + 4)
+    (hoffset3 : (bt + 452) + signExtend21 mo3 = calleeEntry)
+    (callerAlign3 : ((bt + 452) + 4) &&& ~~~(1 : Word) = (bt + 452) + 4)
+    (hoffsetNC : (bt + 836) + signExtend21 moNC = calleeEntry)
+    (callerAlignNC : ((bt + 836) + 4) &&& ~~~(1 : Word) = (bt + 836) + 4)
+    (retAlign : ((calleeEntry + div128CallRetOff) + signExtend12 (0 : BitVec 12))
+        &&& ~~~(1 : Word) = calleeEntry + div128CallRetOff)
+    (hdisj1 : (CodeReq.singleton (bt + 244) (.JAL .x1 mo1)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisj2 : (CodeReq.singleton (bt + 348) (.JAL .x1 mo2)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisj3 : (CodeReq.singleton (bt + 452) (.JAL .x1 mo3)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisjNC : (CodeReq.singleton (bt + 836) (.JAL .x1 moNC)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisjTC : (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry)) :
+    cpsTripleWithin
+      (((30 + 1) + 8) +
+        (1 + ((((((21 + (1 + (unifiedDivBound + 1))) + 1)
+            + (((24 + (1 + (unifiedDivBound + 1))) + 1)))
+            + ((24 + (1 + (unifiedDivBound + 1))) + 1))
+          + (((8 + 30) + 25) + 30)) + 1)))
+      bt (bt + 864)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (addmodTotalEntry sp x1v x2v x5v x6v x7v x9v x10v x11v a b
+        n0 n1 n2 n3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3
+        u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+        scratch_un0 scratchMem)
+      (addmodLdResultOwned (sp + 32)
+        (EvmWord.addmod a b (EvmWord.fromLimbs ![n0, n1, n2, n3]))) := by
+  have e0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have e8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+  have e16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+  have e24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+  have hq0 : (sp + 32) + signExtend12 (4088 : BitVec 12) = sp + 24 := by
+    rw [show signExtend12 (4088 : BitVec 12) = (18446744073709551608 : Word) from by decide]
+    bv_omega
+  have hq1 : (sp + 32) + signExtend12 (4080 : BitVec 12) = sp + 16 := by
+    rw [show signExtend12 (4080 : BitVec 12) = (18446744073709551600 : Word) from by decide]
+    bv_omega
+  have hq2 : (sp + 32) + signExtend12 (4072 : BitVec 12) = sp + 8 := by
+    rw [show signExtend12 (4072 : BitVec 12) = (18446744073709551592 : Word) from by decide]
+    bv_omega
+  have hq3 : (sp + 32) + signExtend12 (4064 : BitVec 12) = sp := by
+    rw [show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide]
+    bv_omega
+  have hr : EvmWord.fromLimbs
+      ![(a + b).getLimbN 0, (a + b).getLimbN 1, (a + b).getLimbN 2, (a + b).getLimbN 3]
+      = a + b := fromLimbs_getLimbN_vec (a + b)
+  have hbr := evm_addmod_dispatch_branch_spec_within
+    bt sp x1v x2v x5v x6v x7v x9v x10v x11v a b
+    n0 n1 n2 n3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3
+    u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+    scratch_un0 scratchMem mo1 mo2 mo3 moNC calleeEntry
+  by_cases hz : n0 ||| n1 ||| n2 ||| n3 = 0
+  · -- ZERO branch: the fall-through arm is refuted by `hz`
+    have htaken := cpsBranchWithin_takenPath hbr (fun hp hq => by
+      obtain ⟨h1, h2, _, _, hL, _⟩ := hq
+      obtain ⟨h3, h4, _, _, hpure, _⟩ := hL
+      exact hpure.2 hz)
+    obtain ⟨hn0, hn1, hn2, hn3⟩ := or4_eq_zero hz
+    have harm := evm_addmod_zero_branch_spec_within
+      bt (sp + 32) n3 n0 n1 n2 n3
+      ((a + b).getLimbN 0) ((a + b).getLimbN 1) ((a + b).getLimbN 2) ((a + b).getLimbN 3)
+      sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3
+      x1v x2v (n0 ||| n1 ||| n2 ||| n3)
+      (addmodOverflowBit a b + signExtend12 (0 : BitVec 12)) x9v x10v
+      (if BitVec.ult (a.getLimbN 3 + b.getLimbN 3) (b.getLimbN 3) then (1 : Word) else 0)
+      sm0 sm1 sm2 sm3
+      (a.getLimbN 3) (a.getLimbN 2) (a.getLimbN 1) (a.getLimbN 0)
+      u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+      scratch_un0 scratchMem mo1 mo2 mo3 moNC calleeEntry a b hn0 hn1 hn2 hn3
+    refine cpsTripleWithin_mono_nSteps ?zle
+      (cpsTripleWithin_seq_perm_same_cr ?zmid htaken harm)
+    case zle => omega
+    intro h hp
+    have hp' := sepConj_mono_left
+      (fun h' hcp => ((sepConj_pure_left h').mp hcp).2) h hp
+    simp only [addmodNZeroCells, addmodPostPrefixRest,
+      addmodLaTail, addmodLaRegTail, addmodLaScratchTail, evmWordIs,
+      e0, e8, e16, e24, add_zero] at hp' ⊢
+    generalize (a + b).getLimbN 0 = g0 at hp' ⊢
+    generalize (a + b).getLimbN 1 = g1 at hp' ⊢
+    generalize (a + b).getLimbN 2 = g2 at hp' ⊢
+    generalize (a + b).getLimbN 3 = g3 at hp' ⊢
+    generalize (addmodOverflowBit a b + signExtend12 (0 : BitVec 12)) = gx7 at hp' ⊢
+    xperm_hyp hp'
+  · -- N ≠ 0: the zero arm is refuted; continue to the carry test
+    have h156 := cpsBranchWithin_ntakenPath hbr (fun hp hq => by
+      obtain ⟨h1, h2, _, _, hL, _⟩ := hq
+      obtain ⟨h3, h4, _, _, hpure, _⟩ := hL
+      exact hz hpure.2)
+    have h156' := cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun h hq => sepConj_mono_left
+        (fun h' hcp => ((sepConj_pure_left h').mp hcp).2) h hq)
+      h156
+    have hN4 := fromLimbs_ne_zero_of_or4 hz
+    -- the carry-test BEQ at byte 156, framed
+    have hbeq_raw := beq_spec_gen_within .x7 .x0 (680 : BitVec 13)
+      (addmodOverflowBit a b + signExtend12 (0 : BitVec 12)) (0 : Word) (bt + 156)
+    have hbeqC := cpsBranchWithin_extend_code
+      (cr' := addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (hmono := fun ad i h =>
+        CodeReq.union_mono_left ad i
+          (evm_addmod_total_program_code_carry_test_sub ad i (by
+            rw [show CodeReq.ofProg (bt + 156) (BEQ .x7 .x0 680)
+                = CodeReq.singleton (bt + 156) (.BEQ .x7 .x0 680)
+              from CodeReq.ofProg_singleton]
+            exact h)))
+      hbeq_raw
+    have hbeqW := cpsBranchWithin_weaken (fun _ hp => hp)
+      (fun h hq => by xperm_hyp hq) (fun h hq => by xperm_hyp hq)
+      (Q_t' := ⌜addmodOverflowBit a b + signExtend12 (0 : BitVec 12) = 0⌝ **
+        ((.x7 ↦ᵣ (addmodOverflowBit a b + signExtend12 (0 : BitVec 12))) **
+         (.x0 ↦ᵣ (0 : Word))))
+      (Q_f' := ⌜¬(addmodOverflowBit a b + signExtend12 (0 : BitVec 12) = 0)⌝ **
+        ((.x7 ↦ᵣ (addmodOverflowBit a b + signExtend12 (0 : BitVec 12))) **
+         (.x0 ↦ᵣ (0 : Word))))
+      hbeqC
+    have hbeqF := cpsBranchWithin_frameR
+      (addmodBeqFrame sp x1v x2v x9v x10v a b n0 n1 n2 n3
+        sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3
+        u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+        scratch_un0 scratchMem)
+      (addmodBeqFrame_pcFree sp x1v x2v x9v x10v a b n0 n1 n2 n3
+        sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 sm0 sm1 sm2 sm3
+        u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+        scratch_un0 scratchMem)
+      hbeqW
+    rw [show (bt + 156) + signExtend13 (680 : BitVec 13) = bt + 836 from by
+      rw [show signExtend13 (680 : BitVec 13) = (680 : Word) from by decide]
+      bv_omega] at hbeqF
+    rw [show (bt + 156) + 4 = bt + 160 from by bv_omega] at hbeqF
+    have hbeqfull := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+      (fun h hp => by
+        simp only [addmodNZeroCells, addmodPostPrefixRest, addmodBeqFrame] at hp ⊢
+        xperm_hyp hp)
+      h156' hbeqF
+    by_cases hc : addmodOverflowBit a b + signExtend12 (0 : BitVec 12) = 0
+    · -- NO-CARRY: the fall-through (carry) arm is refuted by `hc`
+      have htk := cpsBranchWithin_takenPath hbeqfull (fun hp hq => by
+        obtain ⟨h1, h2, _, _, hL, _⟩ := hq
+        obtain ⟨h3, h4, _, _, hpure, _⟩ := hL
+        exact hpure.2 hc)
+      have hnc : (EvmWord.addCarry a b).fst = false := by
+        have h0 : addmodOverflowBit a b = 0 := by
+          rwa [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide, add_zero] at hc
+        unfold addmodOverflowBit at h0
+        by_cases hge : a.toNat + b.toNat ≥ 2 ^ 256
+        · rw [if_pos hge] at h0
+          exact absurd h0 (by decide)
+        · simp only [EvmWord.addCarry, decide_eq_false_iff_not]
+          omega
+      have harm := evm_addmod_no_carry_branch_spec_within
+        bt (sp + 32) n3 n0 n1 n2 n3
+        ((a + b).getLimbN 0) ((a + b).getLimbN 1) ((a + b).getLimbN 2) ((a + b).getLimbN 3)
+        sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3
+        x1v x2v (n0 ||| n1 ||| n2 ||| n3)
+        (addmodOverflowBit a b + signExtend12 (0 : BitVec 12)) x9v x10v
+        (if BitVec.ult (a.getLimbN 3 + b.getLimbN 3) (b.getLimbN 3) then (1 : Word) else 0)
+        sm0 sm1 sm2 sm3
+        (a.getLimbN 3) (a.getLimbN 2) (a.getLimbN 1) (a.getLimbN 0)
+        u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+        scratch_un0 scratchMem mo1 mo2 mo3 moNC calleeEntry a b hr hnc
+        hoffsetNC callerAlignNC retAlign hdisjNC hdisjTC
+      refine cpsTripleWithin_mono_nSteps ?nle
+        (cpsTripleWithin_seq_perm_same_cr ?nmid htk harm)
+      case nle => omega
+      intro h hp
+      have hp' := sepConj_mono_left
+        (fun h' hcp => ((sepConj_pure_left h').mp hcp).2) h hp
+      simp only [addmodBeqFrame, addmodLaTail, addmodLaRegTail, addmodLaScratchTail,
+        evmWordIs, e0, e8, e16, e24, add_zero] at hp' ⊢
+      generalize (a + b).getLimbN 0 = g0 at hp' ⊢
+      generalize (a + b).getLimbN 1 = g1 at hp' ⊢
+      generalize (a + b).getLimbN 2 = g2 at hp' ⊢
+      generalize (a + b).getLimbN 3 = g3 at hp' ⊢
+      generalize (addmodOverflowBit a b + signExtend12 (0 : BitVec 12)) = gx7 at hp' ⊢
+      xperm_hyp hp'
+    · -- CARRY: the taken (no-carry) arm is refuted by `hc`
+      have hnt := cpsBranchWithin_ntakenPath hbeqfull (fun hp hq => by
+        obtain ⟨h1, h2, _, _, hL, _⟩ := hq
+        obtain ⟨h3, h4, _, _, hpure, _⟩ := hL
+        exact hc hpure.2)
+      have hcarry : (EvmWord.addCarry a b).fst = true := by
+        by_cases hge : a.toNat + b.toNat ≥ 2 ^ 256
+        · simp only [EvmWord.addCarry, decide_eq_true_eq]
+          omega
+        · exfalso
+          apply hc
+          rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide, add_zero]
+          unfold addmodOverflowBit
+          rw [if_neg hge]
+      have harm := evm_addmod_carry_branch_to_join_spec_within
+        bt (sp + 32) n3 n0 n1 n2 n3
+        ((a + b).getLimbN 0) ((a + b).getLimbN 1) ((a + b).getLimbN 2) ((a + b).getLimbN 3)
+        sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3
+        x1v x2v (n0 ||| n1 ||| n2 ||| n3)
+        (addmodOverflowBit a b + signExtend12 (0 : BitVec 12)) x9v x10v
+        (if BitVec.ult (a.getLimbN 3 + b.getLimbN 3) (b.getLimbN 3) then (1 : Word) else 0)
+        sm0 sm1 sm2 sm3
+        (a.getLimbN 3) (a.getLimbN 2) (a.getLimbN 1) (a.getLimbN 0)
+        u0 u1 u2 u3 u4 u5 u6 u7 shiftMem nMem jMem retMem dMem dloMem
+        scratch_un0 scratchMem mo1 mo2 mo3 moNC calleeEntry a b hr hcarry hN4
+        hoffset1 callerAlign1 hoffset2 callerAlign2 hoffset3 callerAlign3
+        retAlign hdisj1 hdisj2 hdisj3 hdisjTC
+      refine cpsTripleWithin_mono_nSteps ?cle
+        (cpsTripleWithin_seq_perm_same_cr ?cmid hnt harm)
+      case cle => omega
+      intro h hp
+      have hp' := sepConj_mono_left
+        (fun h' hcp => ((sepConj_pure_left h').mp hcp).2) h hp
+      simp only [addmodBeqFrame, addmodLaTail, addmodLaRegTail, addmodLaScratchTail,
+        evmWordIs, e0, e8, e16, e24, add_zero] at hp' ⊢
+      generalize (a + b).getLimbN 0 = g0 at hp' ⊢
+      generalize (a + b).getLimbN 1 = g1 at hp' ⊢
+      generalize (a + b).getLimbN 2 = g2 at hp' ⊢
+      generalize (a + b).getLimbN 3 = g3 at hp' ⊢
+      generalize (addmodOverflowBit a b + signExtend12 (0 : BitVec 12)) = gx7 at hp' ⊢
+      xperm_hyp hp'
 
 end EvmAsm.Evm64.AddMod.Compose
