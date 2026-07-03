@@ -635,6 +635,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactMod
 import EvmAsm.Evm64.DivMod.Compose.CallableV5DivScratchAdapter
 import EvmAsm.Evm64.DivMod.Compose.DivCallableV5Assembly
+import EvmAsm.Evm64.DivMod.Compose.ModCallableV5Assembly
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditional
