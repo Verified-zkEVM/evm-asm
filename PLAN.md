@@ -998,9 +998,27 @@ bundle). Tracked by issue #313.
   files with a shared body + per-sibling epilogue split from the first PR
   (do not copy DIV's retrofit-style parallel MOD clone).
 
-#### 4.4 ADDMOD and MULMOD
+#### ~~4.4 ADDMOD and MULMOD~~ ✅
 - **Approach**: ADDMOD needs 257-bit intermediate (carry). MULMOD needs
-  512-bit intermediate. Both reuse DIV/MOD.
+  512-bit intermediate.
+- **MULMOD `.proven`** (`evm_mulmod_stack_spec_within`, bespoke bit-serial
+  512-by-256 reducer, below-sp scratch).
+- **ADDMOD `.proven` (2026-07-04, issue #9704, PRs #9705 + #9708)**: total
+  three-way program `evm_addmod_total` (`AddMod/Program.lean`) — `N = 0` zero
+  path, no-carry low-sum reduction, and the carry-out branch computing
+  `(2^256 + r) mod N` via three `evm_mod_callable_v5` near-calls (all at one
+  frame base `F = sp+32`, single div-scratch band; parking scratch below the
+  callable's `F−160..F−8` band at `F−192/−224/−256`) plus an embedded
+  `evm_add` + branch-free conditional subtract. Registry witness
+  `evm_addmod_total_result_stack_spec_within`
+  (`AddMod/Compose/ResultStack.lean`): unconditional public-form triple
+  `evmStackIs sp [a, b, N]` → `evmStackIs (sp+64) [EvmWord.addmod a b N]`,
+  only dispatcher-pinned code-layout side conditions. The dispatcher ships
+  the emitted verified program (replacing the hand-written `.Laddmod_*`
+  runtime tail, which called the buggy v4 callable and mis-propagated
+  borrows through equal limbs — fixed in #9705). Composition chain under
+  `AddMod/Compose/` (TotalBase → CarryBlockSpecs/CondSubSpec → CallAdapter →
+  CarryLa/Lb/Lc/Ld(+Chain) → ZeroNoCarryArms → TotalDispatch → ResultStack).
 
 #### 4.5 EXP (Exponentiation)
 - **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
