@@ -21,6 +21,9 @@ import EvmAsm.Evm64.AddMod.Pow256Spec
 import EvmAsm.Evm64.AddMod.Pow256CodeBridge
 import EvmAsm.Evm64.AddMod.AddrNorm
 import EvmAsm.Evm64.AddMod.Compose.Base
+import EvmAsm.Evm64.AddMod.Compose.TotalBase
+import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
+import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
 import EvmAsm.Evm64.AddMod.Compose.ZeroBranch
 import EvmAsm.Evm64.AddMod.Spec
 
