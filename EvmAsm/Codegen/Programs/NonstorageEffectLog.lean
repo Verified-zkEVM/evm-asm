@@ -29,6 +29,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
 
@@ -106,30 +109,64 @@ def recordNonstorageEffectFunction : String :=
     a0 = address ptr (32B: 20-byte BE address in bytes 0..19, bytes 20..31 = 0 -- matches the
       record's zero-padded addr@0)   a1 = out ptr (32B BE post_balance, written only on a hit).
     Returns a0 = 1 found / 0 not found (out left untouched on a miss). Leaf; only t-regs + a0-a2. -/
-def nonstorageEffectLatestBalanceFunction : String :=
-  "nonstorage_effect_latest_balance:\n" ++
-  "  li t6, 0                      # found flag\n" ++
-  "  la t5, exec_nonstorage_effect_count; ld t5, 0(t5)   # count\n" ++
-  "  la a2, exec_nonstorage_effect_log                   # log base\n" ++
-  "  li t0, 0                      # entry index i\n" ++
-  ".Lnelb_loop:\n" ++
-  "  beq t0, t5, .Lnelb_done\n" ++
-  "  li t1, 112; mul t1, t0, t1; add t2, a2, t1   # entry ptr = base + i*112\n" ++
-  "  ld t3, 0(t2);  ld t4, 0(a0);  bne t3, t4, .Lnelb_next   # match addr@0 (32B, 20B addr + 12B zero)\n" ++
-  "  ld t3, 8(t2);  ld t4, 8(a0);  bne t3, t4, .Lnelb_next\n" ++
-  "  ld t3, 16(t2); ld t4, 16(a0); bne t3, t4, .Lnelb_next\n" ++
-  "  ld t3, 24(t2); ld t4, 24(a0); bne t3, t4, .Lnelb_next\n" ++
-  "  ld t3, 64(t2); sd t3, 0(a1)   # post_balance@64 -> out (overwrite keeps the LAST match)\n" ++
-  "  ld t3, 72(t2); sd t3, 8(a1)\n" ++
-  "  ld t3, 80(t2); sd t3, 16(a1)\n" ++
-  "  ld t3, 88(t2); sd t3, 24(a1)\n" ++
-  "  li t6, 1\n" ++
-  ".Lnelb_next:\n" ++
-  "  addi t0, t0, 1; j .Lnelb_loop\n" ++
-  ".Lnelb_done:\n" ++
-  "  mv a0, t6\n" ++
-  "  ret"
+def nonstorageEffectLatestBalance_prog : Program :=
+  [ .LI .x31 (0 : Word),
+    .AUIPC .x30 (laHi GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.nonstorage_effect_latest_balance + 4)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.nonstorage_effect_latest_balance + 4)),
+    .LD .x30 .x30 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.exec_nonstorage_effect_log (GuestAddrs.nonstorage_effect_latest_balance + 16)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.exec_nonstorage_effect_log (GuestAddrs.nonstorage_effect_latest_balance + 16)),
+    .LI .x5 (0 : Word),
+    .BEQ .x5 .x30 (108 : BitVec 13),
+    .LI .x6 (112 : Word),
+    .MUL .x6 .x5 .x6,
+    .ADD .x7 .x12 .x6,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LD .x29 .x10 (0 : BitVec 12),
+    .BNE .x28 .x29 (76 : BitVec 13),
+    .LD .x28 .x7 (8 : BitVec 12),
+    .LD .x29 .x10 (8 : BitVec 12),
+    .BNE .x28 .x29 (64 : BitVec 13),
+    .LD .x28 .x7 (16 : BitVec 12),
+    .LD .x29 .x10 (16 : BitVec 12),
+    .BNE .x28 .x29 (52 : BitVec 13),
+    .LD .x28 .x7 (24 : BitVec 12),
+    .LD .x29 .x10 (24 : BitVec 12),
+    .BNE .x28 .x29 (40 : BitVec 13),
+    .LD .x28 .x7 (64 : BitVec 12),
+    .SD .x11 .x28 (0 : BitVec 12),
+    .LD .x28 .x7 (72 : BitVec 12),
+    .SD .x11 .x28 (8 : BitVec 12),
+    .LD .x28 .x7 (80 : BitVec 12),
+    .SD .x11 .x28 (16 : BitVec 12),
+    .LD .x28 .x7 (88 : BitVec 12),
+    .SD .x11 .x28 (24 : BitVec 12),
+    .LI .x31 (1 : Word),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-104 : BitVec 21),
+    .MV .x10 .x31,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `nonstorageEffectLatestBalance_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def nonstorageEffectLatestBalance_relocs : RelocTable :=
+  [ (1, .la .x30 "exec_nonstorage_effect_count"),
+    (4, .la .x12 "exec_nonstorage_effect_log") ]
+
+def nonstorageEffectLatestBalanceFunction : String :=
+  "nonstorage_effect_latest_balance:\n" ++ emitProgramR nonstorageEffectLatestBalance_prog nonstorageEffectLatestBalance_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `nonstorageEffectLatestBalance_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem nonstorageEffectLatestBalanceFunction_eq_prog :
+    nonstorageEffectLatestBalanceFunction = "nonstorage_effect_latest_balance:\n" ++ emitProgramR nonstorageEffectLatestBalance_prog nonstorageEffectLatestBalance_relocs := rfl
+
+#guard nonstorageEffectLatestBalanceFunction.startsWith "nonstorage_effect_latest_balance:\n"
+#guard nonstorageEffectLatestBalance_prog.length = 36
 /-- Data for the non-storage effect log (linked into the dispatcher data section when
     the CREATE/CALL-value append sites land, co-located with the CREATE child data). -/
 def nonstorageEffectLogData : String :=

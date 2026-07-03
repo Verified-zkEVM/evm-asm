@@ -24,6 +24,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
@@ -85,66 +88,108 @@ open EvmAsm.Rv64.Program
       (Code 1 is intentionally absent: missing accounts map to
       `status=0, output=EMPTY_CODE_HASH`.)
 -/
-def codeHashAtHeaderStateRootFunction : String :=
-  "code_hash_at_header_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  mv s5, a5                  # 32-byte output ptr\n" ++
-  "  # Pre-fill output with EMPTY_CODE_HASH (spec default for absent).\n" ++
-  "  la t0, chahsr_empty_code_hash\n" ++
-  "  ld t1,  0(t0); sd t1,  0(s5)\n" ++
-  "  ld t1,  8(t0); sd t1,  8(s5)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(s5)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(s5)\n" ++
-  "  # Step 1: header.state_root -> chahsr_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, chahsr_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Lchahsr_step2\n" ++
-  "  # Header parse fail: zero output for unambiguous error reporting.\n" ++
-  "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  li a0, 4\n" ++
-  "  j .Lchahsr_ret\n" ++
-  ".Lchahsr_step2:\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, chahsr_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s6, chahsr_acct_struct\n" ++
-  "  mv a5, s6\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Lchahsr_copy\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Lchahsr_absent  # 1 -> output stays EMPTY_CODE_HASH\n" ++
-  "  # 2/3 propagate; zero output for unambiguous error.\n" ++
-  "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  j .Lchahsr_ret\n" ++
-  ".Lchahsr_absent:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lchahsr_ret\n" ++
-  ".Lchahsr_copy:\n" ++
-  "  # Copy code_hash (struct + 72 .. + 104) to output.\n" ++
-  "  ld t1, 72(s6); sd t1,  0(s5)\n" ++
-  "  ld t1, 80(s6); sd t1,  8(s5)\n" ++
-  "  ld t1, 88(s6); sd t1, 16(s5)\n" ++
-  "  ld t1, 96(s6); sd t1, 24(s5)\n" ++
-  "  li a0, 0\n" ++
-  ".Lchahsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def codeHashAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .AUIPC .x5 (laHi GuestAddrs.chahsr_empty_code_hash (GuestAddrs.code_hash_at_header_state_root + 60)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.chahsr_empty_code_hash (GuestAddrs.code_hash_at_header_state_root + 60)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x21 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x21 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x21 .x6 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.chahsr_state_root (GuestAddrs.code_hash_at_header_state_root + 108)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.chahsr_state_root (GuestAddrs.code_hash_at_header_state_root + 108)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.code_hash_at_header_state_root + 116)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x0 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (120 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.chahsr_state_root (GuestAddrs.code_hash_at_header_state_root + 156)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.chahsr_state_root (GuestAddrs.code_hash_at_header_state_root + 156)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x22 (laHi GuestAddrs.chahsr_acct_struct (GuestAddrs.code_hash_at_header_state_root + 172)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.chahsr_acct_struct (GuestAddrs.code_hash_at_header_state_root + 172)),
+    .MV .x15 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.code_hash_at_header_state_root + 184)),
+    .BEQ .x10 .x0 (40 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (24 : BitVec 13),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x0 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .JAL .x0 (48 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .LD .x6 .x22 (72 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LD .x6 .x22 (80 : BitVec 12),
+    .SD .x21 .x6 (8 : BitVec 12),
+    .LD .x6 .x22 (88 : BitVec 12),
+    .SD .x21 .x6 (16 : BitVec 12),
+    .LD .x6 .x22 (96 : BitVec 12),
+    .SD .x21 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `codeHashAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def codeHashAtHeaderStateRoot_relocs : RelocTable :=
+  [ (15, .la .x5 "chahsr_empty_code_hash"),
+    (27, .la .x12 "chahsr_state_root"),
+    (29, .jal .x1 "header_extract_state_root"),
+    (39, .la .x12 "chahsr_state_root"),
+    (43, .la .x22 "chahsr_acct_struct"),
+    (46, .jal .x1 "account_at_address") ]
+
+def codeHashAtHeaderStateRootFunction : String :=
+  "code_hash_at_header_state_root:\n" ++ emitProgramR codeHashAtHeaderStateRoot_prog codeHashAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `codeHashAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem codeHashAtHeaderStateRootFunction_eq_prog :
+    codeHashAtHeaderStateRootFunction = "code_hash_at_header_state_root:\n" ++ emitProgramR codeHashAtHeaderStateRoot_prog codeHashAtHeaderStateRoot_relocs := rfl
+
+#guard codeHashAtHeaderStateRootFunction.startsWith "code_hash_at_header_state_root:\n"
+#guard codeHashAtHeaderStateRoot_prog.length = 76
 /-- `zisk_code_hash_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):

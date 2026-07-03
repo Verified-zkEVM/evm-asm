@@ -18,6 +18,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 
@@ -416,105 +419,197 @@ def ziskChainValidateOmmersHashEmptyProbeUnit : BuildUnit := {
         1 : RLP parse failure on some header
         2 : difficulty or nonce field > 8 bytes BE
         3 : ommers_hash field length != 32 -/
-def chainValidatePostMergeFullFunction : String :=
-  "chain_validate_post_merge_full:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s3); sd zero, 0(s4)\n" ++
-  "  li s5, 0\n" ++
-  ".Lcvpmf_loop:\n" ++
-  "  beq s5, s0, .Lcvpmf_done\n" ++
-  "  la t0, cvpmf_iter_ptr; sd s2, 0(t0)\n" ++
-  "  la t0, cvpmf_iter_i;   sd s5, 0(t0)\n" ++
-  "  # (1) difficulty (field 7) -- must be 0\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 7\n" ++
-  "  la a3, cvpmf_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvpmf_propagate\n" ++
-  "  la t0, cvpmf_field; ld t1, 0(t0)\n" ++
-  "  bnez t1, .Lcvpmf_diff_fail\n" ++
-  "  # (2) nonce (field 14) -- must be 0\n" ++
-  "  la t0, cvpmf_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvpmf_iter_i;   ld s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 14\n" ++
-  "  la a3, cvpmf_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lcvpmf_propagate\n" ++
-  "  la t0, cvpmf_field; ld t1, 0(t0)\n" ++
-  "  bnez t1, .Lcvpmf_nonce_fail\n" ++
-  "  # (3) ommers_hash (field 1, 32B) -- must equal EMPTY_LIST_KECCAK\n" ++
-  "  la t0, cvpmf_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvpmf_iter_i;   ld s5, 0(t0)\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  mv a0, s2; li a2, 1\n" ++
-  "  la a3, cvpmf_offset; la a4, cvpmf_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lcvpmf_propagate\n" ++
-  "  la t0, cvpmf_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lcvpmf_size_fail\n" ++
-  "  la t0, cvpmf_iter_ptr; ld s2, 0(t0)\n" ++
-  "  la t0, cvpmf_iter_i;   ld s5, 0(t0)\n" ++
-  "  la t0, cvpmf_offset; ld t1, 0(t0)\n" ++
-  "  add t2, s2, t1\n" ++
-  "  la t3, cvpmf_empty_hash\n" ++
-  "  ld t4,  0(t2); ld t5,  0(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
-  "  ld t4,  8(t2); ld t5,  8(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
-  "  ld t4, 16(t2); ld t5, 16(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
-  "  ld t4, 24(t2); ld t5, 24(t3); bne t4, t5, .Lcvpmf_omh_fail\n" ++
-  "  # All three checks pass; advance to next header\n" ++
-  "  slli t3, s5, 3\n" ++
-  "  add t3, s1, t3\n" ++
-  "  ld t4, 0(t3)\n" ++
-  "  add s2, s2, t4\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lcvpmf_loop\n" ++
-  ".Lcvpmf_diff_fail:\n" ++
-  "  slli t2, s5, 2; ori t2, t2, 1\n" ++
-  "  sd zero, 0(s3); sd t2, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvpmf_ret\n" ++
-  ".Lcvpmf_nonce_fail:\n" ++
-  "  slli t2, s5, 2; ori t2, t2, 2\n" ++
-  "  sd zero, 0(s3); sd t2, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvpmf_ret\n" ++
-  ".Lcvpmf_omh_fail:\n" ++
-  "  slli t2, s5, 2; ori t2, t2, 3\n" ++
-  "  sd zero, 0(s3); sd t2, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcvpmf_ret\n" ++
-  ".Lcvpmf_size_fail:\n" ++
-  "  la t0, cvpmf_iter_i; ld t1, 0(t0)\n" ++
-  "  slli t2, t1, 2; ori t2, t2, 3\n" ++
-  "  sd t2, 0(s4)\n" ++
-  "  li a0, 3\n" ++
-  "  j .Lcvpmf_ret\n" ++
-  ".Lcvpmf_propagate:\n" ++
-  "  la t0, cvpmf_iter_i; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  j .Lcvpmf_ret\n" ++
-  ".Lcvpmf_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcvpmf_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def chainValidatePostMergeFull_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .LI .x5 (1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x8 (488 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 72)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 84)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (7 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 116)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_post_merge_full + 124)),
+    .BNE .x10 .x0 (408 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 132)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (288 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 148)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 148)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 160)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (14 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 192)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 192)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_post_merge_full + 200)),
+    .BNE .x10 .x0 (332 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 208)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (236 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 224)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 224)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 236)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 236)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.cvpmf_offset (GuestAddrs.chain_validate_post_merge_full + 268)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cvpmf_offset (GuestAddrs.chain_validate_post_merge_full + 268)),
+    .AUIPC .x14 (laHi GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 276)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 276)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.chain_validate_post_merge_full + 284)),
+    .BNE .x10 .x0 (248 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 292)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (196 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 312)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 324)),
+    .LD .x21 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_offset (GuestAddrs.chain_validate_post_merge_full + 336)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_offset (GuestAddrs.chain_validate_post_merge_full + 336)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x18 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.cvpmf_empty_hash (GuestAddrs.chain_validate_post_merge_full + 352)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.cvpmf_empty_hash (GuestAddrs.chain_validate_post_merge_full + 352)),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (112 : BitVec 13),
+    .LD .x29 .x7 (8 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .BNE .x29 .x30 (100 : BitVec 13),
+    .LD .x29 .x7 (16 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .BNE .x29 .x30 (88 : BitVec 13),
+    .LD .x29 .x7 (24 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .BNE .x29 .x30 (76 : BitVec 13),
+    .SLLI .x28 .x21 (3 : BitVec 6),
+    .ADD .x28 .x9 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .ADD .x18 .x18 .x29,
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-360 : BitVec 21),
+    .SLLI .x7 .x21 (2 : BitVec 6),
+    .ORI .x7 .x7 (1 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (108 : BitVec 21),
+    .SLLI .x7 .x21 (2 : BitVec 6),
+    .ORI .x7 .x7 (2 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (84 : BitVec 21),
+    .SLLI .x7 .x21 (2 : BitVec 6),
+    .ORI .x7 .x7 (3 : BitVec 12),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (60 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 504)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 504)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SLLI .x7 .x6 (2 : BitVec 6),
+    .ORI .x7 .x7 (3 : BitVec 12),
+    .SD .x20 .x7 (0 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 536)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_i (GuestAddrs.chain_validate_post_merge_full + 536)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainValidatePostMergeFull_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainValidatePostMergeFull_relocs : RelocTable :=
+  [ (18, .la .x5 "cvpmf_iter_ptr"),
+    (21, .la .x5 "cvpmf_iter_i"),
+    (29, .la .x13 "cvpmf_field"),
+    (31, .jal .x1 "rlp_field_to_u64"),
+    (33, .la .x5 "cvpmf_field"),
+    (37, .la .x5 "cvpmf_iter_ptr"),
+    (40, .la .x5 "cvpmf_iter_i"),
+    (48, .la .x13 "cvpmf_field"),
+    (50, .jal .x1 "rlp_field_to_u64"),
+    (52, .la .x5 "cvpmf_field"),
+    (56, .la .x5 "cvpmf_iter_ptr"),
+    (59, .la .x5 "cvpmf_iter_i"),
+    (67, .la .x13 "cvpmf_offset"),
+    (69, .la .x14 "cvpmf_length"),
+    (71, .jal .x1 "rlp_list_nth_item"),
+    (73, .la .x5 "cvpmf_length"),
+    (78, .la .x5 "cvpmf_iter_ptr"),
+    (81, .la .x5 "cvpmf_iter_i"),
+    (84, .la .x5 "cvpmf_offset"),
+    (88, .la .x28 "cvpmf_empty_hash"),
+    (126, .la .x5 "cvpmf_iter_i"),
+    (134, .la .x5 "cvpmf_iter_i") ]
+
+def chainValidatePostMergeFullFunction : String :=
+  "chain_validate_post_merge_full:\n" ++ emitProgramR chainValidatePostMergeFull_prog chainValidatePostMergeFull_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidatePostMergeFull_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidatePostMergeFullFunction_eq_prog :
+    chainValidatePostMergeFullFunction = "chain_validate_post_merge_full:\n" ++ emitProgramR chainValidatePostMergeFull_prog chainValidatePostMergeFull_relocs := rfl
+
+#guard chainValidatePostMergeFullFunction.startsWith "chain_validate_post_merge_full:\n"
+#guard chainValidatePostMergeFull_prog.length = 149
 def ziskChainValidatePostMergeFullPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

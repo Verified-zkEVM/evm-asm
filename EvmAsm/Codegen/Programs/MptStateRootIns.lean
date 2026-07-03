@@ -16,6 +16,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
@@ -30,81 +33,154 @@ open EvmAsm.Rv64
     a0 = root_hash ptr   a1 = witness   a2 = witness_len
     a3 = changes ptr (array of 40-byte descriptors)   a4 = n_changes
     a5 = out_root ptr   a0 (output) = 0 / nonzero (failing sub-status). -/
-def mptStateRootInsFunction : String :=
-  "mpt_state_root_ins:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a1                   # witness\n" ++
-  "  mv s1, a2                   # witness_len\n" ++
-  "  mv s2, a3                   # changes\n" ++
-  "  mv s3, a4                   # n_changes\n" ++
-  "  mv s4, a5                   # out_root\n" ++
-  "  # current root := root_hash (a0) -> mset_dr_root\n" ++
-  "  la t0, mset_dr_root\n" ++
-  "  ld t1,  0(a0); sd t1,  0(t0)\n" ++
-  "  ld t1,  8(a0); sd t1,  8(t0)\n" ++
-  "  ld t1, 16(a0); sd t1, 16(t0)\n" ++
-  "  ld t1, 24(a0); sd t1, 24(t0)\n" ++
-  "  # init the node DB (shared by mpt_set_acc + mpt_insert_acc)\n" ++
-  "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
-  "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
-  "  jal ra, mpt_resolve_cache_reset\n" ++
-  "  la t0, sri_fail_index; sd zero, 0(t0)\n" ++
-  "  la t0, sri_fail_mode; sd zero, 0(t0)\n" ++
-  "  la t0, sri_fail_status; sd zero, 0(t0)\n" ++
-  "  li s5, 0                    # i\n" ++
-  ".Lsri_loop:\n" ++
-  "  beq s5, s3, .Lsri_done\n" ++
-  "  slli t0, s5, 5; slli t1, s5, 3; add t0, t0, t1   # 40 * i\n" ++
-  "  add t0, s2, t0              # &change[i]\n" ++
-  "  ld a3, 0(t0)                # path_ptr\n" ++
-  "  ld a4, 8(t0)                # path_len\n" ++
-  "  ld a5, 16(t0)               # value_ptr\n" ++
-  "  ld a6, 24(t0)               # value_len\n" ++
-  "  ld t2, 32(t0)               # mode: 0=set, 1=insert, 2=delete, 3=noop\n" ++
-  "  la t3, sri_cur_mode; sd t2, 0(t3)\n" ++
-  "  la a0, mset_dr_root\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  la a7, mset_dr_root\n" ++
-  "  li t3, 3; beq t2, t3, .Lsri_noop\n" ++
-  "  li t3, 2; beq t2, t3, .Lsri_delete\n" ++
-  "  beqz t2, .Lsri_modify\n" ++
-  "  jal ra, mpt_insert_acc\n" ++
-  "  j .Lsri_after\n" ++
-  ".Lsri_delete:\n" ++
-  "  jal ra, mpt_delete_acc\n" ++
-  "  j .Lsri_after\n" ++
-  ".Lsri_modify:\n" ++
-  "  jal ra, mpt_set_acc\n" ++
-  "  j .Lsri_after\n" ++
-  ".Lsri_noop:\n" ++
-  "  li a0, 0\n" ++
-  ".Lsri_after:\n" ++
-  "  bnez a0, .Lsri_fail\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lsri_loop\n" ++
-  ".Lsri_done:\n" ++
-  "  la t0, mset_dr_root\n" ++
-  "  ld t1,  0(t0); sd t1,  0(s4)\n" ++
-  "  ld t1,  8(t0); sd t1,  8(s4)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(s4)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(s4)\n" ++
-  "  li a0, 0\n" ++
-  ".Lsri_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n" ++
-  ".Lsri_fail:\n" ++
-  "  la t0, sri_fail_index; sd s5, 0(t0)\n" ++
-  "  la t0, sri_cur_mode; ld t1, 0(t0); la t0, sri_fail_mode; sd t1, 0(t0)\n" ++
-  "  la t0, sri_fail_status; sd a0, 0(t0)\n" ++
-  "  j .Lsri_ret"
+def mptStateRootIns_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .MV .x19 .x14,
+    .MV .x20 .x15,
+    .AUIPC .x5 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 52)),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x10 (8 : BitVec 12),
+    .SD .x5 .x6 (8 : BitVec 12),
+    .LD .x6 .x10 (16 : BitVec 12),
+    .SD .x5 .x6 (16 : BitVec 12),
+    .LD .x6 .x10 (24 : BitVec 12),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_count (GuestAddrs.mpt_state_root_ins + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_count (GuestAddrs.mpt_state_root_ins + 92)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_data (GuestAddrs.mpt_state_root_ins + 104)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_data (GuestAddrs.mpt_state_root_ins + 104)),
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_top (GuestAddrs.mpt_state_root_ins + 112)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_top (GuestAddrs.mpt_state_root_ins + 112)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.mpt_resolve_cache_reset (GuestAddrs.mpt_state_root_ins + 124)),
+    .AUIPC .x5 (laHi GuestAddrs.sri_fail_index (GuestAddrs.mpt_state_root_ins + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_index (GuestAddrs.mpt_state_root_ins + 128)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sri_fail_mode (GuestAddrs.mpt_state_root_ins + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_mode (GuestAddrs.mpt_state_root_ins + 140)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sri_fail_status (GuestAddrs.mpt_state_root_ins + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_status (GuestAddrs.mpt_state_root_ins + 152)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x19 (136 : BitVec 13),
+    .SLLI .x5 .x21 (5 : BitVec 6),
+    .SLLI .x6 .x21 (3 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .ADD .x5 .x18 .x5,
+    .LD .x13 .x5 (0 : BitVec 12),
+    .LD .x14 .x5 (8 : BitVec 12),
+    .LD .x15 .x5 (16 : BitVec 12),
+    .LD .x16 .x5 (24 : BitVec 12),
+    .LD .x7 .x5 (32 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.sri_cur_mode (GuestAddrs.mpt_state_root_ins + 208)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.sri_cur_mode (GuestAddrs.mpt_state_root_ins + 208)),
+    .SD .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 220)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 220)),
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .AUIPC .x17 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 236)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 236)),
+    .LI .x28 (3 : Word),
+    .BEQ .x7 .x28 (40 : BitVec 13),
+    .LI .x28 (2 : Word),
+    .BEQ .x7 .x28 (16 : BitVec 13),
+    .BEQ .x7 .x0 (20 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.mpt_insert_acc (GuestAddrs.mpt_state_root_ins + 264)),
+    .JAL .x0 (24 : BitVec 21),
+    .JAL .x1 (jalOff GuestAddrs.mpt_delete_acc (GuestAddrs.mpt_state_root_ins + 272)),
+    .JAL .x0 (16 : BitVec 21),
+    .JAL .x1 (jalOff GuestAddrs.mpt_set_acc (GuestAddrs.mpt_state_root_ins + 280)),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .BNE .x10 .x0 (92 : BitVec 13),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-132 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 304)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 304)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x20 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x20 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x20 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sri_fail_index (GuestAddrs.mpt_state_root_ins + 384)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_index (GuestAddrs.mpt_state_root_ins + 384)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sri_cur_mode (GuestAddrs.mpt_state_root_ins + 396)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sri_cur_mode (GuestAddrs.mpt_state_root_ins + 396)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sri_fail_mode (GuestAddrs.mpt_state_root_ins + 408)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_mode (GuestAddrs.mpt_state_root_ins + 408)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sri_fail_status (GuestAddrs.mpt_state_root_ins + 420)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_status (GuestAddrs.mpt_state_root_ins + 420)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .JAL .x0 (-84 : BitVec 21) ]
 
+/-- Reloc side-table for `mptStateRootIns_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptStateRootIns_relocs : RelocTable :=
+  [ (13, .la .x5 "mset_dr_root"),
+    (23, .la .x5 "mset_db_count"),
+    (26, .la .x5 "mset_db_data"),
+    (28, .la .x6 "mset_db_top"),
+    (31, .jal .x1 "mpt_resolve_cache_reset"),
+    (32, .la .x5 "sri_fail_index"),
+    (35, .la .x5 "sri_fail_mode"),
+    (38, .la .x5 "sri_fail_status"),
+    (52, .la .x28 "sri_cur_mode"),
+    (55, .la .x10 "mset_dr_root"),
+    (59, .la .x17 "mset_dr_root"),
+    (66, .jal .x1 "mpt_insert_acc"),
+    (68, .jal .x1 "mpt_delete_acc"),
+    (70, .jal .x1 "mpt_set_acc"),
+    (76, .la .x5 "mset_dr_root"),
+    (96, .la .x5 "sri_fail_index"),
+    (99, .la .x5 "sri_cur_mode"),
+    (102, .la .x5 "sri_fail_mode"),
+    (105, .la .x5 "sri_fail_status") ]
+
+def mptStateRootInsFunction : String :=
+  "mpt_state_root_ins:\n" ++ emitProgramR mptStateRootIns_prog mptStateRootIns_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptStateRootIns_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptStateRootInsFunction_eq_prog :
+    mptStateRootInsFunction = "mpt_state_root_ins:\n" ++ emitProgramR mptStateRootIns_prog mptStateRootIns_relocs := rfl
+
+#guard mptStateRootInsFunction.startsWith "mpt_state_root_ins:\n"
+#guard mptStateRootIns_prog.length = 109
 /-- `zisk_mpt_state_root_ins`: probe applying a LIST of changes, each tagged
     insert/modify, to exercise the dispatch + the shared node DB (a modify then
     an insert that resolves the modified root from the DB).

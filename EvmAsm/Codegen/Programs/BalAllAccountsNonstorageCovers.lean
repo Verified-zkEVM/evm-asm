@@ -26,6 +26,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 
@@ -40,118 +43,177 @@ open EvmAsm.Rv64
          gas/value-coupled accounts {sender, recipient, coinbase}, checked on the gas path)
     a5 = skip-list count
     a0 (output) = 0 every net-changed effect is present in the BAL / 1 reject. -/
-def balAllAccountsNonstorageCoversFunction : String :=
-  "bal_all_accounts_nonstorage_covers:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp)\n" ++
-  "  mv s0, a0                   # BAL section ptr\n" ++
-  "  mv s1, a1                   # BAL section len\n" ++
-  "  mv s2, a2                   # effect array base (SORTED, deduplicated agg)\n" ++
-  "  mv s3, a3                   # effect record count\n" ++
-  "  mv s4, a4                   # skip-list ptr\n" ++
-  "  mv s10, a5                  # skip-list count\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc3cov_fail\n" ++
-  "  mv s5, a0                   # BAL account cursor\n" ++
-  "  mv s8, a1                   # BAL account end\n" ++
-  "  # bmvmx.5.5.7.3 step c: LINEARIZED via a matched-bitmap, removing the old O(BAL*agg) inner\n" ++
-  "  # BAL scan (the last O(N^2) barrier blocking the effect-log cap lift). The effect agg is now\n" ++
-  "  # SORTED + deduplicated (every caller routes through nonstorage_effect_aggregate), so:\n" ++
-  "  #   Phase 1: iterate BAL accounts ONCE; binary-search the sorted agg for each (O(log agg),\n" ++
-  "  #            mirrors the forward .Lc3ns_bs); on a hit, set covered[mid]=1.\n" ++
-  "  #   Phase 2: iterate agg entries ONCE; a net-changed non-skip effect with covered[j]==0 was\n" ++
-  "  #            reproduced by exec but is ENTIRELY ABSENT from the BAL -> reject.\n" ++
-  "  # Total O((BAL+agg)*log agg) instead of O(BAL*agg). covered[] is sized to nonstorageEffectLogCap\n" ++
-  "  # bytes and indexed by agg index, so it stays valid as the cap is lifted. Semantics are\n" ++
-  "  # byte-identical to the prior linear-scan covers.\n" ++
-  "  # --- Phase 0: clear covered[0..count) ---\n" ++
-  "  la t0, c3cov_covered; li t1, 0\n" ++
-  ".Lc3cov_clr:\n" ++
-  "  beq t1, s3, .Lc3cov_clrdone\n" ++
-  "  add t2, t0, t1; sb x0, 0(t2)\n" ++
-  "  addi t1, t1, 1; j .Lc3cov_clr\n" ++
-  ".Lc3cov_clrdone:\n" ++
-  "  # --- Phase 1: mark each agg entry that some BAL account's address binary-searches to ---\n" ++
-  ".Lc3cov_mloop:\n" ++
-  "  beq s5, s8, .Lc3cov_mdone\n" ++
-  "  mv a0, s5; mv a1, s8; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc3cov_fail       # malformed BAL list -> reject\n" ++
-  "  mv s5, a0; sub s9, a0, a2; mv s6, a2   # AccountChanges ptr/len\n" ++
-  "  mv a0, s9; mv a1, s6; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc3cov_fail       # malformed account -> reject\n" ++
-  "  jal ra, rlp_walk_next                              # item 0 = address\n" ++
-  "  bnez a1, .Lc3cov_fail       # malformed account -> reject\n" ++
-  "  li t2, 20; bne a2, t2, .Lc3cov_madv   # not 20B -> covers nothing\n" ++
-  "  sub s7, a0, a2              # BAL addr ptr (20B BE) = search target\n" ++
-  "  li t4, 0                                 # lo\n" ++
-  "  mv a3, s3                                # hi = effect count\n" ++
-  ".Lc3cov_bs:\n" ++
-  "  bgeu t4, a3, .Lc3cov_madv                # lo >= hi -> agg has no entry for this BAL account\n" ++
-  "  add a4, t4, a3; srli a4, a4, 1           # mid = (lo+hi)/2\n" ++
-  "  slli t5, a4, 7; slli t6, a4, 4; sub t5, t5, t6; add t5, s2, t5   # &agg[mid] (mid*112)\n" ++
-  "  li a6, 0\n" ++
-  ".Lc3cov_bscmp:\n" ++
-  "  li a7, 20; beq a6, a7, .Lc3cov_bsfound   # 20 bytes equal -> covered[mid]=1\n" ++
-  "  add a0, t5, a6; lbu a1, 0(a0)            # agg[mid].addr[a6]\n" ++
-  "  add a0, s7, a6; lbu a2, 0(a0)            # target.addr[a6]\n" ++
-  "  bltu a1, a2, .Lc3cov_bslo                # agg[mid] < target -> upper half\n" ++
-  "  bltu a2, a1, .Lc3cov_bshi                # agg[mid] > target -> lower half\n" ++
-  "  addi a6, a6, 1; j .Lc3cov_bscmp\n" ++
-  ".Lc3cov_bslo:\n" ++
-  "  addi t4, a4, 1; j .Lc3cov_bs             # lo = mid+1\n" ++
-  ".Lc3cov_bshi:\n" ++
-  "  mv a3, a4; j .Lc3cov_bs                  # hi = mid\n" ++
-  ".Lc3cov_bsfound:\n" ++
-  "  la t0, c3cov_covered; add t0, t0, a4; li t1, 1; sb t1, 0(t0)   # covered[mid] = 1\n" ++
-  ".Lc3cov_madv:\n" ++
-  "  j .Lc3cov_mloop\n" ++
-  ".Lc3cov_mdone:\n" ++
-  "  # --- Phase 2: every net-changed non-skip agg entry must be covered ---\n" ++
-  "  li s6, 0                    # effect index j\n" ++
-  ".Lc3cov_eloop:\n" ++
-  "  beq s6, s3, .Lc3cov_ok\n" ++
-  "  slli t0, s6, 7; slli t1, s6, 4; sub t0, t0, t1; add s7, s2, t0   # effect[j] ptr (j*112)\n" ++
-  "  # --- net change? balance (32B) or nonce (u64) ---\n" ++
-  "  addi t2, s7, 32; addi t3, s7, 64\n" ++
-  "  ld t4, 0(t2);  ld t5, 0(t3);  bne t4, t5, .Lc3cov_changed\n" ++
-  "  ld t4, 8(t2);  ld t5, 8(t3);  bne t4, t5, .Lc3cov_changed\n" ++
-  "  ld t4, 16(t2); ld t5, 16(t3); bne t4, t5, .Lc3cov_changed\n" ++
-  "  ld t4, 24(t2); ld t5, 24(t3); bne t4, t5, .Lc3cov_changed\n" ++
-  "  ld t4, 96(s7); ld t5, 104(s7); bne t4, t5, .Lc3cov_changed\n" ++
-  "  j .Lc3cov_enext             # no net change -> no obligation\n" ++
-  ".Lc3cov_changed:\n" ++
-  "  # --- skip gas/value-coupled accounts {sender,recipient,coinbase} (gas-path checked) ---\n" ++
-  "  li t4, 0                                 # skip-list entry index\n" ++
-  ".Lc3cov_skloop:\n" ++
-  "  beq t4, s10, .Lc3cov_check               # not in skip-list -> must be present in BAL\n" ++
-  "  slli t5, t4, 5; add t5, s4, t5           # skip entry ptr (32B strided)\n" ++
-  "  li t6, 0\n" ++
-  ".Lc3cov_skcmp:\n" ++
-  "  li a0, 20; beq t6, a0, .Lc3cov_enext     # effect addr equals a skip entry -> skip\n" ++
-  "  add a0, s7, t6; lbu a1, 0(a0)            # effect addr byte\n" ++
-  "  add a0, t5, t6; lbu a2, 0(a0)            # skip entry byte\n" ++
-  "  bne a1, a2, .Lc3cov_skadv\n" ++
-  "  addi t6, t6, 1; j .Lc3cov_skcmp\n" ++
-  ".Lc3cov_skadv:\n" ++
-  "  addi t4, t4, 1; j .Lc3cov_skloop\n" ++
-  ".Lc3cov_check:\n" ++
-  "  la t0, c3cov_covered; add t0, t0, s6; lbu t1, 0(t0)\n" ++
-  "  beqz t1, .Lc3cov_fail       # net-changed non-skip exec effect absent from BAL -> reject\n" ++
-  ".Lc3cov_enext:\n" ++
-  "  addi s6, s6, 1; j .Lc3cov_eloop\n" ++
-  ".Lc3cov_ok:\n" ++
-  "  li a0, 0; j .Lc3cov_ret\n" ++
-  ".Lc3cov_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lc3cov_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret"
+def balAllAccountsNonstorageCovers_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x26 .x15,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_nonstorage_covers + 84)),
+    .BNE .x12 .x0 (428 : BitVec 13),
+    .MV .x21 .x10,
+    .MV .x24 .x11,
+    .AUIPC .x5 (laHi GuestAddrs.c3cov_covered (GuestAddrs.bal_all_accounts_nonstorage_covers + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.c3cov_covered (GuestAddrs.bal_all_accounts_nonstorage_covers + 100)),
+    .LI .x6 (0 : Word),
+    .BEQ .x6 .x19 (20 : BitVec 13),
+    .ADD .x7 .x5 .x6,
+    .SB .x7 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .BEQ .x21 .x24 (188 : BitVec 13),
+    .MV .x10 .x21,
+    .MV .x11 .x24,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_nonstorage_covers + 144)),
+    .BNE .x11 .x0 (368 : BitVec 13),
+    .MV .x21 .x10,
+    .SUB .x25 .x10 .x12,
+    .MV .x22 .x12,
+    .MV .x10 .x25,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_nonstorage_covers + 172)),
+    .BNE .x12 .x0 (340 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_nonstorage_covers + 180)),
+    .BNE .x11 .x0 (332 : BitVec 13),
+    .LI .x7 (20 : Word),
+    .BNE .x12 .x7 (124 : BitVec 13),
+    .SUB .x23 .x10 .x12,
+    .LI .x29 (0 : Word),
+    .MV .x13 .x19,
+    .BGEU .x29 .x13 (108 : BitVec 13),
+    .ADD .x14 .x29 .x13,
+    .SRLI .x14 .x14 (1 : BitVec 6),
+    .SLLI .x30 .x14 (7 : BitVec 6),
+    .SLLI .x31 .x14 (4 : BitVec 6),
+    .SUB .x30 .x30 .x31,
+    .ADD .x30 .x18 .x30,
+    .LI .x16 (0 : Word),
+    .LI .x17 (20 : Word),
+    .BEQ .x16 .x17 (52 : BitVec 13),
+    .ADD .x10 .x30 .x16,
+    .LBU .x11 .x10 (0 : BitVec 12),
+    .ADD .x10 .x23 .x16,
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .BLTU .x11 .x12 (16 : BitVec 13),
+    .BLTU .x12 .x11 (20 : BitVec 13),
+    .ADDI .x16 .x16 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .ADDI .x29 .x14 (1 : BitVec 12),
+    .JAL .x0 (-76 : BitVec 21),
+    .MV .x13 .x14,
+    .JAL .x0 (-84 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.c3cov_covered (GuestAddrs.bal_all_accounts_nonstorage_covers + 296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.c3cov_covered (GuestAddrs.bal_all_accounts_nonstorage_covers + 296)),
+    .ADD .x5 .x5 .x14,
+    .LI .x6 (1 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .JAL .x0 (-184 : BitVec 21),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x19 (184 : BitVec 13),
+    .SLLI .x5 .x22 (7 : BitVec 6),
+    .SLLI .x6 .x22 (4 : BitVec 6),
+    .SUB .x5 .x5 .x6,
+    .ADD .x23 .x18 .x5,
+    .ADDI .x7 .x23 (32 : BitVec 12),
+    .ADDI .x28 .x23 (64 : BitVec 12),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (56 : BitVec 13),
+    .LD .x29 .x7 (8 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .BNE .x29 .x30 (44 : BitVec 13),
+    .LD .x29 .x7 (16 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .BNE .x29 .x30 (32 : BitVec 13),
+    .LD .x29 .x7 (24 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .BNE .x29 .x30 (20 : BitVec 13),
+    .LD .x29 .x23 (96 : BitVec 12),
+    .LD .x30 .x23 (104 : BitVec 12),
+    .BNE .x29 .x30 (8 : BitVec 13),
+    .JAL .x0 (88 : BitVec 21),
+    .LI .x29 (0 : Word),
+    .BEQ .x29 .x26 (60 : BitVec 13),
+    .SLLI .x30 .x29 (5 : BitVec 6),
+    .ADD .x30 .x20 .x30,
+    .LI .x31 (0 : Word),
+    .LI .x10 (20 : Word),
+    .BEQ .x31 .x10 (60 : BitVec 13),
+    .ADD .x10 .x23 .x31,
+    .LBU .x11 .x10 (0 : BitVec 12),
+    .ADD .x10 .x30 .x31,
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .BNE .x11 .x12 (12 : BitVec 13),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-56 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.c3cov_covered (GuestAddrs.bal_all_accounts_nonstorage_covers + 480)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.c3cov_covered (GuestAddrs.bal_all_accounts_nonstorage_covers + 480)),
+    .ADD .x5 .x5 .x22,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-180 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAllAccountsNonstorageCovers_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAllAccountsNonstorageCovers_relocs : RelocTable :=
+  [ (21, .jal .x1 "rlp_walk_init"),
+    (25, .la .x5 "c3cov_covered"),
+    (36, .jal .x1 "rlp_walk_next"),
+    (43, .jal .x1 "rlp_walk_init"),
+    (45, .jal .x1 "rlp_walk_next"),
+    (74, .la .x5 "c3cov_covered"),
+    (120, .la .x5 "c3cov_covered") ]
+
+def balAllAccountsNonstorageCoversFunction : String :=
+  "bal_all_accounts_nonstorage_covers:\n" ++ emitProgramR balAllAccountsNonstorageCovers_prog balAllAccountsNonstorageCovers_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAllAccountsNonstorageCovers_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAllAccountsNonstorageCoversFunction_eq_prog :
+    balAllAccountsNonstorageCoversFunction = "bal_all_accounts_nonstorage_covers:\n" ++ emitProgramR balAllAccountsNonstorageCovers_prog balAllAccountsNonstorageCovers_relocs := rfl
+
+#guard balAllAccountsNonstorageCoversFunction.startsWith "bal_all_accounts_nonstorage_covers:\n"
+#guard balAllAccountsNonstorageCovers_prog.length = 144
 /-- `zisk_bal_all_accounts_nonstorage_covers`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : BAL section length

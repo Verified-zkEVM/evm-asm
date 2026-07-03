@@ -998,9 +998,27 @@ bundle). Tracked by issue #313.
   files with a shared body + per-sibling epilogue split from the first PR
   (do not copy DIV's retrofit-style parallel MOD clone).
 
-#### 4.4 ADDMOD and MULMOD
+#### ~~4.4 ADDMOD and MULMOD~~ ✅
 - **Approach**: ADDMOD needs 257-bit intermediate (carry). MULMOD needs
-  512-bit intermediate. Both reuse DIV/MOD.
+  512-bit intermediate.
+- **MULMOD `.proven`** (`evm_mulmod_stack_spec_within`, bespoke bit-serial
+  512-by-256 reducer, below-sp scratch).
+- **ADDMOD `.proven` (2026-07-04, issue #9704, PRs #9705 + #9708)**: total
+  three-way program `evm_addmod_total` (`AddMod/Program.lean`) — `N = 0` zero
+  path, no-carry low-sum reduction, and the carry-out branch computing
+  `(2^256 + r) mod N` via three `evm_mod_callable_v5` near-calls (all at one
+  frame base `F = sp+32`, single div-scratch band; parking scratch below the
+  callable's `F−160..F−8` band at `F−192/−224/−256`) plus an embedded
+  `evm_add` + branch-free conditional subtract. Registry witness
+  `evm_addmod_total_result_stack_spec_within`
+  (`AddMod/Compose/ResultStack.lean`): unconditional public-form triple
+  `evmStackIs sp [a, b, N]` → `evmStackIs (sp+64) [EvmWord.addmod a b N]`,
+  only dispatcher-pinned code-layout side conditions. The dispatcher ships
+  the emitted verified program (replacing the hand-written `.Laddmod_*`
+  runtime tail, which called the buggy v4 callable and mis-propagated
+  borrows through equal limbs — fixed in #9705). Composition chain under
+  `AddMod/Compose/` (TotalBase → CarryBlockSpecs/CondSubSpec → CallAdapter →
+  CarryLa/Lb/Lc/Ld(+Chain) → ZeroNoCarryArms → TotalDispatch → ResultStack).
 
 #### 4.5 EXP (Exponentiation)
 - **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
@@ -2538,8 +2556,17 @@ kernel-reducible powMod inversion, BN254+BLS12-381 curve+Fp2) — all
 with independently-generated kernel decide KATs; execCsrs is
 definitionally ONE writeWords (csrsWrite computes target+payload), so
 projection lemmas are branch-count-independent; SAsm block exposure
-deferred to beads .17/.18 (design §3.3.1). Next for SAsm: more
-Stateless/SSZ ports. Assertion-state milestone started (approved plan
+deferred to beads .17/.18 (design §3.3.1). Phase-ownership model for the
+`call_frame_arena` union landed (bead evm-asm-4ch8f.6 hard half,
+`SAsm/PhaseSplit.lean` + `Codegen/CallFramePhase.lean`): the aliased
+arena is ONE havoc'd resource (`anyBytes`), the Phase-H
+seven-children+pad tiling is THE SAME assertion
+(`phaseD_eq_phaseH`/`phaseHView_children` at the audited RegionMap
+offsets), transitions forget contents by construction
+(`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
+havoc'd range must verify for all contents
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Next for
+SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the
@@ -2646,6 +2673,34 @@ read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
 swapped into run_stateless_guest, EEST A/B validated). Next port:
 decode_validation_bit.
+Loop fuel + nested loops landed (bead evm-asm-4ch8f.5, design §3.10):
+(1) runtime-data-dependent iteration counts need NO new mechanism — the
+static-cap idiom (fuel = literal cap, runtime `.bltu ctr lim` exit, the
+loaded limit tied to its ghost decode in the invariant, `n ≤ cap` as a
+spec-theorem hypothesis consumed by the `exhausted` VC); bridge lemmas
+in SAsm/LoopFuel.lean (Cond.holds_bltu_iff, index_eq_of_not_bltu,
+ofNat_succ, toNat_ofNat_lt). (2) nested loops DID need an AST extension:
+`Stmt.whileS`, the loop rule with logical variables — the invariant is
+parameterized by the loop-entry snapshot (rf₀, ws₀, A₀), which is the
+only channel by which an outer loop's index ties survive an inner
+loop's sp (the counter-register bridge alone is provably insufficient:
+while's exit sp discards the entry reach). Same emitted code as while;
+snapshot ∀-quantified + reach-constrained in inv_step/exhausted,
+∃-recorded in the exit sp; soundness in both Stmt.sound and Stmt.soundR
+by fixing the entry state (cpsTripleWithin_exists_pre_M/_frame) and
+running the entry-instantiated family through the SAME WP.loopNatCert —
+no new trusted loop rule; `while` kept unchanged (all existing users
+compile untouched). (3) scale measured: the monomorphized capScanFn
+proof (u64 count LD-loaded from input) elaborates flat at fuel
+32/1024/100000 (~0.22 s tactics + ~0.23 s kernel each) — VCs and step
+budgets are symbolic in the fuel. Demos in SAsm/LoopFuelDemo.lean
+(rlpSkipFn: byte count loaded from ro region, cap 256; gridScanFn:
+outer per-item while + inner per-byte whileS with snapshot-pinned outer
+counter; capScanFn: cap-parametric BAL-scan shape, instantiated at
+32/1024/100000). Howto §4 gained the static-cap and whileS recipes.
+Unblocks .49 (dispatch loop) and .14 (RLP walks); open question flagged
+for .49: per-iteration ghost contracts of `call`s inside loop bodies
+(same shape of problem, see design §3.10).
 
 ## Stateless Guest (parallel STF track)
 

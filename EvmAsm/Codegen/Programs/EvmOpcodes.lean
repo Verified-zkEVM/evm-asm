@@ -20,6 +20,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
@@ -75,79 +78,120 @@ open EvmAsm.Rv64.Program
     `account_at_address` + 4 u64 compares against the
     pre-baked EMPTY_CODE_HASH constant.
 -/
-def extcodehashAtHeaderStateRootFunction : String :=
-  "extcodehash_at_header_state_root:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  mv s5, a5                  # 32-byte output ptr\n" ++
-  "  # Pre-zero output (covers the EIP-1052 zero cases).\n" ++
-  "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  "  # Step 1: header.state_root -> eahsr_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, eahsr_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Leahsr_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_step2:\n" ++
-  "  # Step 2: account_at_address -> eahsr_acct_struct.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, eahsr_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s6, eahsr_acct_struct\n" ++
-  "  mv a5, s6\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Leahsr_check_empty\n" ++
-  "  # status 1 (not in trie) -> EIP-1052 returns 0 (output already zero).\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Leahsr_success_zero\n" ++
-  "  # status 2/3 -> propagate.\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_success_zero:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_check_empty:\n" ++
-  "  # nonce == 0 ?\n" ++
-  "  ld t1, 0(s6)\n" ++
-  "  bnez t1, .Leahsr_write_code_hash\n" ++
-  "  # balance == 0 ?  (4 x u64 at struct+8..40; zero-check is endian-blind)\n" ++
-  "  ld t1,  8(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 16(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 24(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 32(s6); bnez t1, .Leahsr_write_code_hash\n" ++
-  "  # code_hash == EMPTY_CODE_HASH ?\n" ++
-  "  la t0, eahsr_empty_code_hash\n" ++
-  "  ld t1,  0(t0); ld t2, 72(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  ld t1,  8(t0); ld t2, 80(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 16(t0); ld t2, 88(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  ld t1, 24(t0); ld t2, 96(s6); bne t1, t2, .Leahsr_write_code_hash\n" ++
-  "  # All three empty-conditions hold; output stays zero, return 0.\n" ++
-  "  li a0, 0\n" ++
-  "  j .Leahsr_ret\n" ++
-  ".Leahsr_write_code_hash:\n" ++
-  "  # Account is non-empty; copy code_hash to output.\n" ++
-  "  ld t1, 72(s6); sd t1,  0(s5)\n" ++
-  "  ld t1, 80(s6); sd t1,  8(s5)\n" ++
-  "  ld t1, 88(s6); sd t1, 16(s5)\n" ++
-  "  ld t1, 96(s6); sd t1, 24(s5)\n" ++
-  "  li a0, 0\n" ++
-  ".Leahsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def extcodehashAtHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x0 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 84)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 84)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.extcodehash_at_header_state_root + 92)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (208 : BitVec 21),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 116)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.eahsr_state_root (GuestAddrs.extcodehash_at_header_state_root + 116)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x22 (laHi GuestAddrs.eahsr_acct_struct (GuestAddrs.extcodehash_at_header_state_root + 132)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.eahsr_acct_struct (GuestAddrs.extcodehash_at_header_state_root + 132)),
+    .MV .x15 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.extcodehash_at_header_state_root + 144)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (8 : BitVec 13),
+    .JAL .x0 (152 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (144 : BitVec 21),
+    .LD .x6 .x22 (0 : BitVec 12),
+    .BNE .x6 .x0 (100 : BitVec 13),
+    .LD .x6 .x22 (8 : BitVec 12),
+    .BNE .x6 .x0 (92 : BitVec 13),
+    .LD .x6 .x22 (16 : BitVec 12),
+    .BNE .x6 .x0 (84 : BitVec 13),
+    .LD .x6 .x22 (24 : BitVec 12),
+    .BNE .x6 .x0 (76 : BitVec 13),
+    .LD .x6 .x22 (32 : BitVec 12),
+    .BNE .x6 .x0 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.eahsr_empty_code_hash (GuestAddrs.extcodehash_at_header_state_root + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.eahsr_empty_code_hash (GuestAddrs.extcodehash_at_header_state_root + 212)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x22 (72 : BitVec 12),
+    .BNE .x6 .x7 (48 : BitVec 13),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .LD .x7 .x22 (80 : BitVec 12),
+    .BNE .x6 .x7 (36 : BitVec 13),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .LD .x7 .x22 (88 : BitVec 12),
+    .BNE .x6 .x7 (24 : BitVec 13),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .LD .x7 .x22 (96 : BitVec 12),
+    .BNE .x6 .x7 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .LD .x6 .x22 (72 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LD .x6 .x22 (80 : BitVec 12),
+    .SD .x21 .x6 (8 : BitVec 12),
+    .LD .x6 .x22 (88 : BitVec 12),
+    .SD .x21 .x6 (16 : BitVec 12),
+    .LD .x6 .x22 (96 : BitVec 12),
+    .SD .x21 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `extcodehashAtHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def extcodehashAtHeaderStateRoot_relocs : RelocTable :=
+  [ (21, .la .x12 "eahsr_state_root"),
+    (23, .jal .x1 "header_extract_state_root"),
+    (29, .la .x12 "eahsr_state_root"),
+    (33, .la .x22 "eahsr_acct_struct"),
+    (36, .jal .x1 "account_at_address"),
+    (53, .la .x5 "eahsr_empty_code_hash") ]
+
+def extcodehashAtHeaderStateRootFunction : String :=
+  "extcodehash_at_header_state_root:\n" ++ emitProgramR extcodehashAtHeaderStateRoot_prog extcodehashAtHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `extcodehashAtHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem extcodehashAtHeaderStateRootFunction_eq_prog :
+    extcodehashAtHeaderStateRootFunction = "extcodehash_at_header_state_root:\n" ++ emitProgramR extcodehashAtHeaderStateRoot_prog extcodehashAtHeaderStateRoot_relocs := rfl
+
+#guard extcodehashAtHeaderStateRootFunction.startsWith "extcodehash_at_header_state_root:\n"
+#guard extcodehashAtHeaderStateRoot_prog.length = 88
 /-- `zisk_extcodehash_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

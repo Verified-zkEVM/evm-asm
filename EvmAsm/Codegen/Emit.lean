@@ -140,4 +140,39 @@ example : emitInstr (.CSRS 0x819 .x10) = s!".4byte {0x81952073}" := rfl
 def emitProgram (p : Program) : String :=
   String.intercalate "\n" (p.map (fun i => "  " ++ emitInstr i))
 
+/-- A relocatable (link-layout-dependent) operand that must be emitted
+    *symbolically* so every image's linker resolves it against its own layout
+    (bead evm-asm-4ch8f.9.3).  The Program stores the concrete guest-linked
+    immediates (`AsmReloc.laHi`/`laLo`/`jalOff`) for the verification view; the
+    emitted guest string keeps the symbolic form via `emitProgramR`. -/
+inductive AsmSym where
+  /-- `la reg, symbol` — a two-instruction `auipc`+`addi` pair (the marked
+      index and the one after it) rendered as a single `la` line. -/
+  | la  (reg : Reg) (symbol : String)
+  /-- `jal rd, callee` — a cross-function jump rendered symbolically. -/
+  | jal (rd : Reg) (callee : String)
+  deriving Repr
+
+/-- Reloc side-table: `(instruction index in the Program, symbolic form)`.
+    An `la` entry additionally suppresses the following `addi` instruction. -/
+abbrev RelocTable := List (Nat × AsmSym)
+
+/-- Render a `Program` like `emitProgram`, except instructions covered by
+    `relocs` are emitted **symbolically** (`la reg, sym` / `jal rd, callee`) so
+    the string is image-agnostic — each linked image (guest, dispatcher, every
+    `zisk_*` probe) relocates it against its own `.text`/`.data` layout.  The
+    Program itself carries the concrete guest-linked immediates for proofs; this
+    render is what lands in the emitted guest text, byte-identical to the
+    hand-written `la`/`jal` in EVERY image.  An `la` entry consumes its `auipc`
+    plus the following `addi` (one emitted line). -/
+def emitProgramR (p : Program) (relocs : RelocTable) : String :=
+  let step : (List String × Nat) → (Instr × Nat) → (List String × Nat) :=
+    fun (acc, skip) (instr, idx) =>
+      if skip > 0 then (acc, skip - 1)
+      else match relocs.lookup idx with
+        | some (.la reg sym) => (s!"  la {emitReg reg}, {sym}" :: acc, 1)
+        | some (.jal rd cal) => (s!"  jal {emitReg rd}, {cal}" :: acc, 0)
+        | none               => (("  " ++ emitInstr instr) :: acc, 0)
+  String.intercalate "\n" (p.zipIdx.foldl step ([], 0)).1.reverse
+
 end EvmAsm.Codegen

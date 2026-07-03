@@ -44,6 +44,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
@@ -58,71 +61,112 @@ open EvmAsm.Rv64
     a0 = BAL section RLP ptr (list of AccountChanges)   a1 = BAL section RLP length
     a2 = exec code-effect array base (variable-stride; layout above)   a3 = record count
     a0 (output) = 0 consistent / 1 reject. -/
-def balAllAccountsCodeConsistentFunction : String :=
-  "bal_all_accounts_code_consistent:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0                   # BAL section ptr\n" ++
-  "  mv s1, a1                   # BAL section len\n" ++
-  "  mv s2, a2                   # code-effect array base\n" ++
-  "  mv s3, a3                   # record count\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbaac_fail\n" ++
-  "  mv s4, a0                   # BAL account cursor\n" ++
-  "  mv s5, a1                   # BAL account end\n" ++
-  ".Lbaac_loop:\n" ++
-  "  beq s4, s5, .Lbaac_ok\n" ++
-  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbaac_fail\n" ++
-  "  mv s4, a0; sub s6, a0, a2; mv s7, a2   # AccountChanges ptr/len\n" ++
-  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbaac_fail\n" ++
-  "  jal ra, rlp_walk_next                            # item 0 = address\n" ++
-  "  bnez a1, .Lbaac_fail\n" ++
-  "  li t2, 20; bne a2, t2, .Lbaac_next   # not 20B -> skip\n" ++
-  "  sub s8, a0, a2              # addr ptr (20B BE)\n" ++
-  "  # --- find this account's code-effect by 20-byte address (variable-stride scan) ---\n" ++
-  "  mv t0, s2                    # rec_ptr = effect base\n" ++
-  "  li t1, 0                     # record index k\n" ++
-  ".Lbaac_find:\n" ++
-  "  beq t1, s3, .Lbaac_notfound  # scanned all records, none match\n" ++
-  "  li t2, 0\n" ++
-  ".Lbaac_cmp:\n" ++
-  "  li t3, 20; beq t2, t3, .Lbaac_found\n" ++
-  "  add t3, s8, t2; lbu t4, 0(t3)\n" ++
-  "  add t3, t0, t2; lbu t5, 0(t3)\n" ++
-  "  bne t4, t5, .Lbaac_adv\n" ++
-  "  addi t2, t2, 1; j .Lbaac_cmp\n" ++
-  ".Lbaac_adv:\n" ++
-  "  ld t2, 40(t0)                # code_len\n" ++
-  "  addi t2, t2, 7; andi t2, t2, -8   # roundup8(code_len)\n" ++
-  "  addi t2, t2, 48              # + header (addr 32 + has_code_change 8 + code_len 8)\n" ++
-  "  add t0, t0, t2               # rec_ptr += record size\n" ++
-  "  addi t1, t1, 1; j .Lbaac_find\n" ++
-  ".Lbaac_found:\n" ++
-  "  mv a0, s6; mv a1, s7; addi a2, t0, 32   # effect = record+32 ([has_code_change|code_len|code])\n" ++
-  "  jal ra, bal_account_code_consistent     # 0 consistent / 1 / 2 -> reject if != 0\n" ++
-  "  bnez a0, .Lbaac_fail\n" ++
-  "  j .Lbaac_next\n" ++
-  ".Lbaac_notfound:\n" ++
-  "  # No execution code-effect for this account. EEST BALs may still carry final-code\n" ++
-  "  # preimages for existing accounts, so only matched exec effects are byte-checked here.\n" ++
-  "  j .Lbaac_next\n" ++
-  ".Lbaac_next:\n" ++
-  "  j .Lbaac_loop\n" ++
-  ".Lbaac_ok:\n" ++
-  "  li a0, 0; j .Lbaac_ret\n" ++
-  ".Lbaac_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbaac_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def balAllAccountsCodeConsistent_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_consistent + 68)),
+    .BNE .x12 .x0 (200 : BitVec 13),
+    .MV .x20 .x10,
+    .MV .x21 .x11,
+    .BEQ .x20 .x21 (180 : BitVec 13),
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_consistent + 96)),
+    .BNE .x11 .x0 (172 : BitVec 13),
+    .MV .x20 .x10,
+    .SUB .x22 .x10 .x12,
+    .MV .x23 .x12,
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_consistent + 124)),
+    .BNE .x12 .x0 (144 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_consistent + 132)),
+    .BNE .x11 .x0 (136 : BitVec 13),
+    .LI .x7 (20 : Word),
+    .BNE .x12 .x7 (116 : BitVec 13),
+    .SUB .x24 .x10 .x12,
+    .MV .x5 .x18,
+    .LI .x6 (0 : Word),
+    .BEQ .x6 .x19 (96 : BitVec 13),
+    .LI .x7 (0 : Word),
+    .LI .x28 (20 : Word),
+    .BEQ .x7 .x28 (60 : BitVec 13),
+    .ADD .x28 .x24 .x7,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .ADD .x28 .x5 .x7,
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (12 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LD .x7 .x5 (40 : BitVec 12),
+    .ADDI .x7 .x7 (7 : BitVec 12),
+    .ANDI .x7 .x7 (-8 : BitVec 12),
+    .ADDI .x7 .x7 (48 : BitVec 12),
+    .ADD .x5 .x5 .x7,
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-68 : BitVec 21),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .ADDI .x12 .x5 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_account_code_consistent (GuestAddrs.bal_all_accounts_code_consistent + 244)),
+    .BNE .x10 .x0 (24 : BitVec 13),
+    .JAL .x0 (8 : BitVec 21),
+    .JAL .x0 (4 : BitVec 21),
+    .JAL .x0 (-176 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAllAccountsCodeConsistent_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAllAccountsCodeConsistent_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_walk_init"),
+    (24, .jal .x1 "rlp_walk_next"),
+    (31, .jal .x1 "rlp_walk_init"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (61, .jal .x1 "bal_account_code_consistent") ]
+
+def balAllAccountsCodeConsistentFunction : String :=
+  "bal_all_accounts_code_consistent:\n" ++ emitProgramR balAllAccountsCodeConsistent_prog balAllAccountsCodeConsistent_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAllAccountsCodeConsistent_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAllAccountsCodeConsistentFunction_eq_prog :
+    balAllAccountsCodeConsistentFunction = "bal_all_accounts_code_consistent:\n" ++ emitProgramR balAllAccountsCodeConsistent_prog balAllAccountsCodeConsistent_relocs := rfl
+
+#guard balAllAccountsCodeConsistentFunction.startsWith "bal_all_accounts_code_consistent:\n"
+#guard balAllAccountsCodeConsistent_prog.length = 81
 /-- `zisk_bal_all_accounts_code_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : BAL section length
