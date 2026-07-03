@@ -644,6 +644,124 @@ per-routine triples + the composition prove (a Phase-H routine cannot be
 composed after the rewrite, because the child views it frames against no
 longer exist in the ambient).
 
+### 3.10 Loops at guest scale: data-dependent fuel and nested loops (design decisions)
+
+The guest's loops are input-length-bounded (RLP walks, header chains
+≤ 256, BAL scans ≤ 100 k items) and nested (per-account → per-slot →
+per-tuple).  Two questions were settled here (bead `evm-asm-4ch8f.5`;
+demos in `SAsm/LoopFuelDemo.lean`, bridge lemmas in `SAsm/LoopFuel.lean`):
+
+**1. Runtime-data-dependent iteration counts need no new mechanism.**
+The pattern (the *static-cap idiom*, `rlpSkipFn`/`capScanFn`):
+
+- `fuel := cap`, a static worst-case literal (`256`, `100000`).  The
+  verified step budget `WP.loopBound 1 (body.steps+1) 1 cap` stays a
+  closed `Nat` expression, which is what `cpsTripleWithin` and handle
+  packaging want.
+- The *exit* is the runtime compare of a counter register against a
+  limit register loaded from the input (`.bltu ctr lim`).  Because the
+  block engine is deterministic over the ghost region bytes, the loaded
+  limit **is** a ghost expression (`(bs.getD 0 0).zeroExtend 64`,
+  `packBytes (bs.take 8)`), so the invariant can tie both registers:
+  `rf.get ctr = ofNat i ∧ rf.get lim = <decoded ghost> ∧ i ≤ n`.
+- The `exhausted` VC is where the cap binds the runtime count: at
+  `i = cap` the invariant gives `cap ≤ n`, and `n ≤ cap` — a
+  **precondition on the decoded input** (a spec-theorem hypothesis, or
+  free from the load width when the count is a single byte) — forces
+  `i = n = cap`, where the compare fails.  A wrong cap is not a
+  soundness hole; it is an unprovable `exhausted` goal.
+- Pure ghost preconditions (`n ≤ cap`, `8 + n ≤ bs.length`) do **not**
+  flow into loop-body VCs through `sp` (the loop forgets the entry
+  reach) — state them as hypotheses of the spec theorem, where every VC
+  goal sees them, rather than in `Fn.pre`.
+
+Exact ghost fuel (`fuel := t0.lDepth`, TreeDemo) remains the right shape
+when the count is structural; the static cap is for counts the spec
+author only knows an upper bound for.  Rejected alternative: a fuel
+*expression* evaluated from registers at runtime — it would make
+`Stmt.steps` state-dependent and break the closed step budget of
+`cpsTripleWithin` for no expressive gain over the cap idiom.
+
+**2. Nested loops need an AST extension: `Stmt.whileS`.**  The
+counter-register bridge alone is *insufficient* for nesting.  The
+`while` exit `sp` is `(∃ i ≤ fuel, inv i) ∧ ¬cond` — it **discards the
+entry reach**, so in the outer loop's `inv_step` every correlation
+between the quantified outer index `i` and the machine state is severed
+by an inner loop: the inner invariant cannot mention `i` (it is fixed in
+the AST, and the outer index is not a binder of the enclosing `def`),
+and no state-only invariant can re-derive it (a pure assertion cannot
+injectively encode a `Nat`, and `⌜x5 still holds its entry value⌝` is
+not expressible without naming the entry state).  This is the classic
+limitation solved by the loop rule with *logical variables*:
+
+```lean
+| «whileS» (label : String) (c : Cond) (fuel : Nat)
+    (inv : RegFile → List (BitVec 8) → Assertion →   -- the entry snapshot
+      Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+    (body : Stmt)
+```
+
+`inv rf₀ ws₀ A₀ i` is the invariant at header-evaluation `i` for the
+loop *entered at* `(rf₀, ws₀, A₀)`.  Same emitted code, same three VCs
+as `while`, with the snapshot universally quantified — and constrained
+by the entry reach, so entry facts are usable — in `inv_step` and
+`exhausted`, and existentially recorded in the exit `sp`:
+
+```
+inv_init   : reach rf ws A → inv rf ws A 0 rf ws A
+inv_step   : reach rf₀ ws₀ A₀ → i < fuel →
+             sp body (inv rf₀ ws₀ A₀ i ∧ cond) ⊆ inv rf₀ ws₀ A₀ (i+1)
+exhausted  : reach rf₀ ws₀ A₀ → inv rf₀ ws₀ A₀ fuel rf ws A → ¬cond
+sp (exit)  : ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
+               ∧ (∃ i ≤ fuel, inv rf₀ ws₀ A₀ i) ∧ ¬cond
+```
+
+The nested pattern (`gridScanFn`): the outer loop is a plain `while`
+holding its index in a counter register (`x5`); the *inner* loop is a
+`whileS` whose invariant pins the outer state to the snapshot
+(`rf.get .x5 = rf₀.get .x5`, row pointer relative to `rf₀.get .x11`).
+The outer `inv_step` then closes the chain: its entry gives
+`rf₀.get .x5 = ofNat i` (the snapshot is reach-constrained), the inner
+invariant transports it to the exit state, and the outer index ties
+re-establish.  The snapshot also carries `ws₀`/`A₀`, so "the inner loop
+leaves the window/ambient alone" is one equation instead of a
+re-derivation.
+
+Soundness (`Stmt.sound`/`Stmt.soundR`, `whileS` cases): fix the entry
+state first with `cpsTripleWithin_exists_pre_M`(`_frame`), then the
+entry-instantiated family `inv rf₀ ws₀ A₀ : Nat → Reach` runs through
+the *same* `WP.loopNatCert` certificate as `while`; `inv_init`
+discharges the entry weaken and the exit weaken re-packages the
+witnesses.  There is no new trusted loop rule.
+
+Decided *against* changing `while` in place: the snapshot-free form
+covers most loops with lighter VC statements, every existing user
+(TreeDemo, TreeInsert, BalValueReverse, the SSZ ports) keeps compiling,
+and the parallel-session fence on `Codegen/Programs/*` stays intact.
+The duplicated soundness case is the price; a later migration can fold
+`while` into `whileS` with a `fun _ _ _ => inv` adaptor if the
+duplication starts to itch.
+
+**3. Scale.**  VC count and VC size are O(1) in the fuel, and so is
+elaboration: the monomorphized `capScanFn` proof (u64 count loaded from
+the input, `n ≤ cap` precondition) elaborates in the same time at
+`cap = 32`, `1024`, and `100000` — tactic execution ≈ 0.22 s and kernel
+type-checking ≈ 0.23 s per run (whole-file wall clock ≈ 2.3 s, dominated
+by imports; Lean 4.30.0-rc1, one warm run each).  The fuel literal only
+ever appears symbolically (in `WP.loopBound` step budgets and `i < fuel`
+bounds that `omega` consumes); nothing `decide`s or normalizes a
+fuel-sized term.  Keep it that way: never state step budgets as computed
+literals, and keep `omega` (not `decide`) on index arithmetic.
+
+Known gap, deliberately out of scope here: a `call` *inside* a loop body
+has one fixed `FnHandle`, so a per-iteration ghost contract (e.g. an
+interpreter dispatch loop instantiating the handler's contract at the
+current opcode) has the same shape of problem that `whileS` solves for
+invariants.  The dispatch-loop bead (`.49`) should either thread the
+iteration-dependent facts through registers pinned by `Reach.pin`-style
+relational contracts, or extend `call` analogously if that proves too
+weak.
+
 ## 4. What this buys for `run_stateless_guest`
 
 - The existing SSZ decode/encode routines in `Stateless/SSZ/*/Program.lean`
