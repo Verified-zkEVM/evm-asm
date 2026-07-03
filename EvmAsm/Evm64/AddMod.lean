@@ -36,6 +36,7 @@ import EvmAsm.Evm64.AddMod.Compose.CarryLdCondSub
 import EvmAsm.Evm64.AddMod.Compose.CarryLd
 import EvmAsm.Evm64.AddMod.Compose.CarryLdChain
 import EvmAsm.Evm64.AddMod.Compose.ZeroNoCarryArms
+import EvmAsm.Evm64.AddMod.Compose.TotalDispatch
 import EvmAsm.Evm64.AddMod.Compose.CarryBranch
 import EvmAsm.Evm64.AddMod.Compose.ZeroBranch
 import EvmAsm.Evm64.AddMod.Spec
