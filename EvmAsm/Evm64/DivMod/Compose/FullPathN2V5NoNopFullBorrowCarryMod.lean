@@ -351,6 +351,7 @@ theorem fullModN2_preloop_loop_unified_exact_x1_scratch_v5_noNop_borrowCarry
     sp base a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
     jMem retMem dMem dloMem scratchUn0 scratchMem raVal
+    (signExtend12 (4 : BitVec 12) - (4 : Word)) ((clzResult b1).2 >>> (63 : Nat))
     hbnz hb3z hb2z hb1nz hshift_nz
   have hLoop := evm_mod_n2_loop_unified_inst_noNop_exact_x1_v5_borrowCarry
     bltu_2 bltu_1 bltu_0 sp base
