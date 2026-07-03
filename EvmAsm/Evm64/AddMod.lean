@@ -12,6 +12,7 @@
 
 import EvmAsm.Evm64.AddMod.AddrNormAttr
 import EvmAsm.Evm64.AddMod.Program
+import EvmAsm.Evm64.AddMod.ProgramTest
 import EvmAsm.Evm64.AddMod.Args
 import EvmAsm.Evm64.AddMod.ArgsStackDecode
 import EvmAsm.Evm64.AddMod.StackExecutionBridge
