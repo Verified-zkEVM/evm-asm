@@ -30,6 +30,7 @@ import EvmAsm.Evm64.AddMod.Compose.CarryPipeline
 import EvmAsm.Evm64.AddMod.Compose.CarryLa
 import EvmAsm.Evm64.AddMod.Compose.CarryLb
 import EvmAsm.Evm64.AddMod.Compose.CarryCompose
+import EvmAsm.Evm64.AddMod.Compose.CarryLc
 import EvmAsm.Evm64.AddMod.Compose.CarryBranch
 import EvmAsm.Evm64.AddMod.Compose.ZeroBranch
 import EvmAsm.Evm64.AddMod.Spec
