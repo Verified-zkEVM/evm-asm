@@ -259,6 +259,7 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShape
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactMod
+import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShapeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5TrialOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5C3Invariant
