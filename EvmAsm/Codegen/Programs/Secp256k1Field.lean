@@ -14,6 +14,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
@@ -107,134 +108,204 @@ def secp256k1FieldDataSection : String :=
   "  .zero 32\n"
 
 /-- Copy 32 bytes from `a0` to `a1`. Leaf helper. -/
+def secfCopy32_prog : Program :=
+  [ .LD .x5 .x10 (0 : BitVec 12),
+    .SD .x11 .x5 (0 : BitVec 12),
+    .LD .x5 .x10 (8 : BitVec 12),
+    .SD .x11 .x5 (8 : BitVec 12),
+    .LD .x5 .x10 (16 : BitVec 12),
+    .SD .x11 .x5 (16 : BitVec 12),
+    .LD .x5 .x10 (24 : BitVec 12),
+    .SD .x11 .x5 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def secp256k1FieldCopy32Function : String :=
-  "secf_copy32:\n" ++
-  "  ld t0,  0(a0); sd t0,  0(a1)\n" ++
-  "  ld t0,  8(a0); sd t0,  8(a1)\n" ++
-  "  ld t0, 16(a0); sd t0, 16(a1)\n" ++
-  "  ld t0, 24(a0); sd t0, 24(a1)\n" ++
-  "  ret"
+  "secf_copy32:\n" ++ emitProgram secfCopy32_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secfCopy32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1FieldCopy32Function_eq_prog :
+    secp256k1FieldCopy32Function = "secf_copy32:\n" ++ emitProgram secfCopy32_prog := rfl
 
+#guard secp256k1FieldCopy32Function.startsWith "secf_copy32:\n"
+#guard secfCopy32_prog.length = 9
 /-- Zero a 32-byte buffer. Leaf helper. -/
-def secp256k1FieldZero32Function : String :=
-  "secf_zero32:\n" ++
-  "  sd zero,  0(a0)\n" ++
-  "  sd zero,  8(a0)\n" ++
-  "  sd zero, 16(a0)\n" ++
-  "  sd zero, 24(a0)\n" ++
-  "  ret"
+def secfZero32_prog : Program :=
+  [ .SD .x10 .x0 (0 : BitVec 12),
+    .SD .x10 .x0 (8 : BitVec 12),
+    .SD .x10 .x0 (16 : BitVec 12),
+    .SD .x10 .x0 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def secp256k1FieldZero32Function : String :=
+  "secf_zero32:\n" ++ emitProgram secfZero32_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secfZero32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1FieldZero32Function_eq_prog :
+    secp256k1FieldZero32Function = "secf_zero32:\n" ++ emitProgram secfZero32_prog := rfl
+
+#guard secp256k1FieldZero32Function.startsWith "secf_zero32:\n"
+#guard secfZero32_prog.length = 5
 /-- Convert a 32-byte big-endian buffer (`a0`, byte-addressed, any alignment)
     into four little-endian u64 limbs (`a1`, 8-aligned), least-significant
     limb first — the ziskemu accelerator operand format. Leaf helper;
     clobbers only `t` registers. -/
-def secp256k1FieldBeToLeFunction : String :=
-  "secf_be_to_le:\n" ++
-  "  li t0, 0                   # limb index\n" ++
-  ".Lsecf_b2l_quad:\n" ++
-  "  li t1, 24\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a0, t1             # BE offset of the limb's MSB\n" ++
-  "  li t3, 0\n" ++
-  "  li t4, 8\n" ++
-  ".Lsecf_b2l_byte:\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t5, 0(t1)\n" ++
-  "  or t3, t3, t5\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lsecf_b2l_byte\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  add t2, a1, t2\n" ++
-  "  sd t3, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 4\n" ++
-  "  bne t0, t1, .Lsecf_b2l_quad\n" ++
-  "  ret"
+def secfBeToLe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (24 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x10 .x6,
+    .LI .x28 (0 : Word),
+    .LI .x29 (8 : Word),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x30 .x6 (0 : BitVec 12),
+    .OR .x28 .x28 .x30,
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .ADD .x7 .x11 .x7,
+    .SD .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (-68 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def secp256k1FieldBeToLeFunction : String :=
+  "secf_be_to_le:\n" ++ emitProgram secfBeToLe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secfBeToLe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1FieldBeToLeFunction_eq_prog :
+    secp256k1FieldBeToLeFunction = "secf_be_to_le:\n" ++ emitProgram secfBeToLe_prog := rfl
+
+#guard secp256k1FieldBeToLeFunction.startsWith "secf_be_to_le:\n"
+#guard secfBeToLe_prog.length = 20
 /-- Convert four little-endian u64 limbs (`a0`, 8-aligned) into a 32-byte
     big-endian buffer (`a1`, byte-addressed, any alignment). Inverse of
     `secf_be_to_le`. Leaf helper; clobbers only `t` registers. -/
+def secfLeToBe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .SLLI .x6 .x5 (3 : BitVec 6),
+    .ADD .x7 .x10 .x6,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LI .x6 (31 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x11 .x6,
+    .LI .x29 (8 : Word),
+    .ANDI .x30 .x28 (255 : BitVec 12),
+    .SB .x6 .x30 (0 : BitVec 12),
+    .SRLI .x28 .x28 (8 : BitVec 6),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (-64 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def secp256k1FieldLeToBeFunction : String :=
-  "secf_le_to_be:\n" ++
-  "  li t0, 0                   # limb index\n" ++
-  ".Lsecf_l2b_quad:\n" ++
-  "  slli t1, t0, 3\n" ++
-  "  add t2, a0, t1\n" ++
-  "  ld t3, 0(t2)\n" ++
-  "  li t1, 31\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a1, t1             # BE offset of the limb's LSB\n" ++
-  "  li t4, 8\n" ++
-  ".Lsecf_l2b_byte:\n" ++
-  "  andi t5, t3, 0xff\n" ++
-  "  sb t5, 0(t1)\n" ++
-  "  srli t3, t3, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lsecf_l2b_byte\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 4\n" ++
-  "  bne t0, t1, .Lsecf_l2b_quad\n" ++
-  "  ret"
+  "secf_le_to_be:\n" ++ emitProgram secfLeToBe_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secfLeToBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1FieldLeToBeFunction_eq_prog :
+    secp256k1FieldLeToBeFunction = "secf_le_to_be:\n" ++ emitProgram secfLeToBe_prog := rfl
+
+#guard secp256k1FieldLeToBeFunction.startsWith "secf_le_to_be:\n"
+#guard secfLeToBe_prog.length = 19
 /-- Return bit `a1` of a 32-byte BE field element, numbering bits from the LSB. -/
+def secfGetBitLsb_prog : Program :=
+  [ .SRLI .x5 .x11 (3 : BitVec 6),
+    .LI .x6 (31 : Word),
+    .SUB .x5 .x6 .x5,
+    .ADD .x5 .x10 .x5,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .ANDI .x7 .x11 (7 : BitVec 12),
+    .SRL .x6 .x6 .x7,
+    .ANDI .x10 .x6 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def secp256k1FieldGetBitFunction : String :=
-  "secf_get_bit_lsb:\n" ++
-  "  srli t0, a1, 3             # byte index from the LSB\n" ++
-  "  li t1, 31\n" ++
-  "  sub t0, t1, t0             # BE byte offset\n" ++
-  "  add t0, a0, t0\n" ++
-  "  lbu t1, 0(t0)\n" ++
-  "  andi t2, a1, 7\n" ++
-  "  srl t1, t1, t2\n" ++
-  "  andi a0, t1, 1\n" ++
-  "  ret"
+  "secf_get_bit_lsb:\n" ++ emitProgram secfGetBitLsb_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secfGetBitLsb_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1FieldGetBitFunction_eq_prog :
+    secp256k1FieldGetBitFunction = "secf_get_bit_lsb:\n" ++ emitProgram secfGetBitLsb_prog := rfl
+
+#guard secp256k1FieldGetBitFunction.startsWith "secf_get_bit_lsb:\n"
+#guard secfGetBitLsb_prog.length = 9
 /-- Return a0 = 1 iff the 32-byte BE buffer at a0 is zero. Leaf helper. -/
+def secfIsZero32_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .BNE .x7 .x0 (24 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def secp256k1FieldIsZeroFunction : String :=
-  "secf_is_zero32:\n" ++
-  "  li t0, 32\n" ++
-  "  mv t1, a0\n" ++
-  ".Lsecf_is_zero_loop:\n" ++
-  "  beqz t0, .Lsecf_is_zero_yes\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  bnez t2, .Lsecf_is_zero_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lsecf_is_zero_loop\n" ++
-  ".Lsecf_is_zero_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lsecf_is_zero_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "secf_is_zero32:\n" ++ emitProgram secfIsZero32_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secfIsZero32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1FieldIsZeroFunction_eq_prog :
+    secp256k1FieldIsZeroFunction = "secf_is_zero32:\n" ++ emitProgram secfIsZero32_prog := rfl
+
+#guard secp256k1FieldIsZeroFunction.startsWith "secf_is_zero32:\n"
+#guard secfIsZero32_prog.length = 12
 /-- Return a0 = 1 iff the two 32-byte BE buffers at a0 and a1 are equal. Leaf helper. -/
-def secp256k1FieldEq32Function : String :=
-  "secf_eq32:\n" ++
-  "  li t0, 32\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t2, a1\n" ++
-  ".Lsecf_eq_loop:\n" ++
-  "  beqz t0, .Lsecf_eq_yes\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bne t3, t4, .Lsecf_eq_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lsecf_eq_loop\n" ++
-  ".Lsecf_eq_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lsecf_eq_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def secfEq32_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def secp256k1FieldEq32Function : String :=
+  "secf_eq32:\n" ++ emitProgram secfEq32_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secfEq32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1FieldEq32Function_eq_prog :
+    secp256k1FieldEq32Function = "secf_eq32:\n" ++ emitProgram secfEq32_prog := rfl
+
+#guard secp256k1FieldEq32Function.startsWith "secf_eq32:\n"
+#guard secfEq32_prog.length = 15
 /--
   Compare a 32-byte big-endian integer against the secp256k1 field prime.
 

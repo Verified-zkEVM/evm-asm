@@ -14,6 +14,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Secp256k1Field
 
 namespace EvmAsm.Codegen
@@ -178,32 +179,50 @@ def secp256k1PointAddFunction : String :=
   "  ret"
 
 
-private def secp256k1PointCopy64Function : String :=
-  "secp256k1_point_copy64:\n" ++
-  "  li t0, 64\n" ++
-  ".Lsecc_copy64_loop:\n" ++
-  "  beqz t0, .Lsecc_copy64_ret\n" ++
-  "  lbu t1, 0(a0)\n" ++
-  "  sb t1, 0(a1)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lsecc_copy64_loop\n" ++
-  ".Lsecc_copy64_ret:\n" ++
-  "  ret"
+private def secp256k1PointCopy64_prog : Program :=
+  [ .LI .x5 (64 : Word),
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .LBU .x6 .x10 (0 : BitVec 12),
+    .SB .x11 .x6 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
-private def secp256k1PointZero64Function : String :=
-  "secp256k1_point_zero64:\n" ++
-  "  li t0, 64\n" ++
-  ".Lsecc_zero64_loop:\n" ++
-  "  beqz t0, .Lsecc_zero64_ret\n" ++
-  "  sb zero, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lsecc_zero64_loop\n" ++
-  ".Lsecc_zero64_ret:\n" ++
-  "  ret"
+def secp256k1PointCopy64Function : String :=
+  "secp256k1_point_copy64:\n" ++ emitProgram secp256k1PointCopy64_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secp256k1PointCopy64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1PointCopy64Function_eq_prog :
+    secp256k1PointCopy64Function = "secp256k1_point_copy64:\n" ++ emitProgram secp256k1PointCopy64_prog := rfl
+
+#guard secp256k1PointCopy64Function.startsWith "secp256k1_point_copy64:\n"
+#guard secp256k1PointCopy64_prog.length = 9
+private def secp256k1PointZero64_prog : Program :=
+  [ .LI .x5 (64 : Word),
+    .BEQ .x5 .x0 (20 : BitVec 13),
+    .SB .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def secp256k1PointZero64Function : String :=
+  "secp256k1_point_zero64:\n" ++ emitProgram secp256k1PointZero64_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `secp256k1PointZero64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem secp256k1PointZero64Function_eq_prog :
+    secp256k1PointZero64Function = "secp256k1_point_zero64:\n" ++ emitProgram secp256k1PointZero64_prog := rfl
+
+#guard secp256k1PointZero64Function.startsWith "secp256k1_point_zero64:\n"
+#guard secp256k1PointZero64_prog.length = 7
 /-- Multiply an affine point by a 256-bit big-endian scalar.
     a0=scalar32, a1=base x||y, a2=output x||y. Returns 1 when the result is
     the point at infinity, represented as zeroed output. -/

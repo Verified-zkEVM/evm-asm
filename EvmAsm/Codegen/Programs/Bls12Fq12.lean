@@ -37,6 +37,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Bls12G2
 
 namespace EvmAsm.Codegen
@@ -307,29 +308,49 @@ def bls12Fq12SMulFunction : String :=
   "  ret"
 
 /-- Copy a 576-byte FQ12 value: a0 = src, a1 = dst. -/
+def blqCopy_prog : Program :=
+  [ .LI .x7 (72 : Word),
+    .LD .x28 .x10 (0 : BitVec 12),
+    .SD .x11 .x28 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bls12Fq12CopyFunction : String :=
-  "blq_copy:\n" ++
-  "  li t2, 72\n" ++
-  ".Lblq_copy_loop:\n" ++
-  "  ld t3, 0(a0)\n" ++
-  "  sd t3, 0(a1)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi a1, a1, 8\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblq_copy_loop\n" ++
-  "  ret"
+  "blq_copy:\n" ++ emitProgram blqCopy_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blqCopy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12Fq12CopyFunction_eq_prog :
+    bls12Fq12CopyFunction = "blq_copy:\n" ++ emitProgram blqCopy_prog := rfl
+
+#guard bls12Fq12CopyFunction.startsWith "blq_copy:\n"
+#guard blqCopy_prog.length = 8
 /-- Zero a 576-byte FQ12 value at a0. -/
-def bls12Fq12ZeroFunction : String :=
-  "blq_zero:\n" ++
-  "  li t2, 72\n" ++
-  ".Lblq_zero_loop:\n" ++
-  "  sd zero, 0(a0)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblq_zero_loop\n" ++
-  "  ret"
+def blqZero_prog : Program :=
+  [ .LI .x7 (72 : Word),
+    .SD .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12Fq12ZeroFunction : String :=
+  "blq_zero:\n" ++ emitProgram blqZero_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blqZero_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12Fq12ZeroFunction_eq_prog :
+    bls12Fq12ZeroFunction = "blq_zero:\n" ++ emitProgram blqZero_prog := rfl
+
+#guard bls12Fq12ZeroFunction.startsWith "blq_zero:\n"
+#guard blqZero_prog.length = 6
 /-- Set the FQ12 at a0 to one (coefficient 0 = 1, rest 0). -/
 def bls12Fq12SetOneFunction : String :=
   "blq_set_one:\n" ++
@@ -344,41 +365,58 @@ def bls12Fq12SetOneFunction : String :=
   "  ret"
 
 /-- a0 = 1 iff the FQ12 values at a0/a1 are limb-identical (reduced). -/
+def blqEq_prog : Program :=
+  [ .LI .x5 (72 : Word),
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .LD .x7 .x11 (0 : BitVec 12),
+    .BNE .x6 .x7 (28 : BitVec 13),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bls12Fq12EqFunction : String :=
-  "blq_eq:\n" ++
-  "  li t0, 72\n" ++
-  ".Lblq_eq_loop:\n" ++
-  "  beqz t0, .Lblq_eq_yes\n" ++
-  "  ld t1, 0(a0)\n" ++
-  "  ld t2, 0(a1)\n" ++
-  "  bne t1, t2, .Lblq_eq_no\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi a1, a1, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lblq_eq_loop\n" ++
-  ".Lblq_eq_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblq_eq_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "blq_eq:\n" ++ emitProgram blqEq_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blqEq_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12Fq12EqFunction_eq_prog :
+    bls12Fq12EqFunction = "blq_eq:\n" ++ emitProgram blqEq_prog := rfl
+
+#guard bls12Fq12EqFunction.startsWith "blq_eq:\n"
+#guard blqEq_prog.length = 13
 /-- a0 = 1 iff the FQ12 value at a0 is zero. -/
-def bls12Fq12IsZeroFunction : String :=
-  "blq_is_zero:\n" ++
-  "  li t0, 72\n" ++
-  "  li t1, 0\n" ++
-  ".Lblq_isz_loop:\n" ++
-  "  beqz t0, .Lblq_isz_done\n" ++
-  "  ld t2, 0(a0)\n" ++
-  "  or t1, t1, t2\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lblq_isz_loop\n" ++
-  ".Lblq_isz_done:\n" ++
-  "  seqz a0, t1\n" ++
-  "  ret"
+def blqIsZero_prog : Program :=
+  [ .LI .x5 (72 : Word),
+    .LI .x6 (0 : Word),
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .LD .x7 .x10 (0 : BitVec 12),
+    .OR .x6 .x6 .x7,
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .SLTIU .x10 .x6 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12Fq12IsZeroFunction : String :=
+  "blq_is_zero:\n" ++ emitProgram blqIsZero_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blqIsZero_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12Fq12IsZeroFunction_eq_prog :
+    bls12Fq12IsZeroFunction = "blq_is_zero:\n" ++ emitProgram blqIsZero_prog := rfl
+
+#guard bls12Fq12IsZeroFunction.startsWith "blq_is_zero:\n"
+#guard blqIsZero_prog.length = 10
 /-- FQ12 dst = base ^ exp, MSB-first square-and-multiply from bit a3
     down to 0. a0 = dst, a1 = base, a2 = exp (LE limbs), a3 = top bit
     index. dst must NOT alias base; clobbers `blq_powt` and `blq_acc`. -/

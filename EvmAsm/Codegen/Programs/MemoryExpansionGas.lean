@@ -22,6 +22,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -31,24 +32,38 @@ open EvmAsm.Rv64
     a0 = old size in bytes   a1 = new size in bytes
     a0 (output) = the memory-expansion gas charge = cost(new) - cost(old), or 0 if
     new <= old. cost(b) = w*3 + w*w/512 with w = (b + 31) >> 5. Leaf (no calls). -/
-def memoryExpansionGasFunction : String :=
-  "memory_expansion_gas:\n" ++
-  "  bgeu a0, a1, .Lmeg_zero        # new <= old -> no expansion\n" ++
-  "  addi t0, a0, 31; srli t0, t0, 5   # t0 = words_old = (old+31)/32\n" ++
-  "  addi t1, a1, 31; srli t1, t1, 5   # t1 = words_new = (new+31)/32\n" ++
-  "  li t2, 3\n" ++
-  "  mul t3, t0, t2                 # words_old * 3\n" ++
-  "  mul t4, t0, t0; srli t4, t4, 9 # words_old^2 / 512\n" ++
-  "  add t3, t3, t4                 # cost_old\n" ++
-  "  mul t5, t1, t2                 # words_new * 3\n" ++
-  "  mul t6, t1, t1; srli t6, t6, 9 # words_new^2 / 512\n" ++
-  "  add t5, t5, t6                 # cost_new\n" ++
-  "  sub a0, t5, t3                 # expansion = cost_new - cost_old\n" ++
-  "  ret\n" ++
-  ".Lmeg_zero:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def memoryExpansionGas_prog : Program :=
+  [ .BGEU .x10 .x11 (64 : BitVec 13),
+    .ADDI .x5 .x10 (31 : BitVec 12),
+    .SRLI .x5 .x5 (5 : BitVec 6),
+    .ADDI .x6 .x11 (31 : BitVec 12),
+    .SRLI .x6 .x6 (5 : BitVec 6),
+    .LI .x7 (3 : Word),
+    .MUL .x28 .x5 .x7,
+    .MUL .x29 .x5 .x5,
+    .SRLI .x29 .x29 (9 : BitVec 6),
+    .ADD .x28 .x28 .x29,
+    .MUL .x30 .x6 .x7,
+    .MUL .x31 .x6 .x6,
+    .SRLI .x31 .x31 (9 : BitVec 6),
+    .ADD .x30 .x30 .x31,
+    .SUB .x10 .x30 .x28,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def memoryExpansionGasFunction : String :=
+  "memory_expansion_gas:\n" ++ emitProgram memoryExpansionGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `memoryExpansionGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem memoryExpansionGasFunction_eq_prog :
+    memoryExpansionGasFunction = "memory_expansion_gas:\n" ++ emitProgram memoryExpansionGas_prog := rfl
+
+#guard memoryExpansionGasFunction.startsWith "memory_expansion_gas:\n"
+#guard memoryExpansionGas_prog.length = 18
 /-- `zisk_memory_expansion_gas`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : old size in bytes (u64)

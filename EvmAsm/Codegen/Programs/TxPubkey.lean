@@ -8,6 +8,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxSignature
@@ -230,47 +231,64 @@ def txPubkeySignatureMaterialFunction : String :=
     Scalar and signing-hash validity are owned by `tx_pubkey_signature_material`;
     this helper is deliberately just the ABI staging layer for the later recovery
     and compare slices. -/
-def txPubkeyEcrecoverStageMaterialFunction : String :=
-  "tx_pubkey_ecrecover_stage_material:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd s0,  0(sp); sd s1,  8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
-  "  mv s0, a0                   # material ptr\n" ++
-  "  mv s1, a1                   # staging ptr\n" ++
-  "  ld s2, 8(s0)                # recid\n" ++
-  "  li t0, 1\n" ++
-  "  bgtu s2, t0, .Ltpes_bad_recid\n" ++
-  "  # message hash = material.signing_hash\n" ++
-  "  addi t0, s0, 80\n" ++
-  "  mv t1, s1\n" ++
-  "  li t2, 4\n" ++
-  ".Ltpes_copy_hash:\n" ++
-  "  ld t3, 0(t0); sd t3, 0(t1)\n" ++
-  "  addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpes_copy_hash\n" ++
-  "  # signature = r || s\n" ++
-  "  addi t0, s0, 16\n" ++
-  "  addi t1, s1, 32\n" ++
-  "  li t2, 8\n" ++
-  ".Ltpes_copy_sig:\n" ++
-  "  ld t3, 0(t0); sd t3, 0(t1)\n" ++
-  "  addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpes_copy_sig\n" ++
-  "  sd s2, 96(s1)\n" ++
-  "  addi t1, s1, 104\n" ++
-  "  li t2, 8\n" ++
-  ".Ltpes_zero_pubkey:\n" ++
-  "  sd zero, 0(t1)\n" ++
-  "  addi t1, t1, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpes_zero_pubkey\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltpes_ret\n" ++
-  ".Ltpes_bad_recid:\n" ++
-  "  li a0, 1\n" ++
-  ".Ltpes_ret:\n" ++
-  "  ld s0,  0(sp); ld s1,  8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def txPubkeyEcrecoverStageMaterial_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x18 (16 : BitVec 12),
+    .SD .x2 .x19 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .LD .x18 .x8 (8 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .BLTU .x5 .x18 (112 : BitVec 13),
+    .ADDI .x5 .x8 (80 : BitVec 12),
+    .MV .x6 .x9,
+    .LI .x7 (4 : Word),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x8 (16 : BitVec 12),
+    .ADDI .x6 .x9 (32 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .SD .x9 .x18 (96 : BitVec 12),
+    .ADDI .x6 .x9 (104 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x18 .x2 (16 : BitVec 12),
+    .LD .x19 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txPubkeyEcrecoverStageMaterialFunction : String :=
+  "tx_pubkey_ecrecover_stage_material:\n" ++ emitProgram txPubkeyEcrecoverStageMaterial_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txPubkeyEcrecoverStageMaterial_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txPubkeyEcrecoverStageMaterialFunction_eq_prog :
+    txPubkeyEcrecoverStageMaterialFunction = "tx_pubkey_ecrecover_stage_material:\n" ++ emitProgram txPubkeyEcrecoverStageMaterial_prog := rfl
+
+#guard txPubkeyEcrecoverStageMaterialFunction.startsWith "tx_pubkey_ecrecover_stage_material:\n"
+#guard txPubkeyEcrecoverStageMaterial_prog.length = 44
 /-! ## tx_pubkey_recover_raw
 
     Callable recovered-key helper surface. Mirrors execution-specs Amsterdam

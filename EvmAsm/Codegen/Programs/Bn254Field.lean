@@ -28,6 +28,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -79,99 +80,133 @@ def bn254FieldDataSection : String :=
 /-- Convert a 32-byte big-endian buffer (`a0`, byte-addressed, any
     alignment) into four little-endian u64 limbs (`a1`, 8-aligned),
     least-significant limb first. Leaf helper; clobbers only `t` regs. -/
-def bn254FieldBeToLeFunction : String :=
-  "bnf_be_to_le:\n" ++
-  "  li t0, 0                   # limb index\n" ++
-  ".Lbnf_b2l_quad:\n" ++
-  "  li t1, 24\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a0, t1             # BE offset of the limb's MSB\n" ++
-  "  li t3, 0\n" ++
-  "  li t4, 8\n" ++
-  ".Lbnf_b2l_byte:\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t5, 0(t1)\n" ++
-  "  or t3, t3, t5\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lbnf_b2l_byte\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  add t2, a1, t2\n" ++
-  "  sd t3, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 4\n" ++
-  "  bne t0, t1, .Lbnf_b2l_quad\n" ++
-  "  ret"
+def bnfBeToLe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (24 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x10 .x6,
+    .LI .x28 (0 : Word),
+    .LI .x29 (8 : Word),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x30 .x6 (0 : BitVec 12),
+    .OR .x28 .x28 .x30,
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .ADD .x7 .x11 .x7,
+    .SD .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (-68 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254FieldBeToLeFunction : String :=
+  "bnf_be_to_le:\n" ++ emitProgram bnfBeToLe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnfBeToLe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254FieldBeToLeFunction_eq_prog :
+    bn254FieldBeToLeFunction = "bnf_be_to_le:\n" ++ emitProgram bnfBeToLe_prog := rfl
+
+#guard bn254FieldBeToLeFunction.startsWith "bnf_be_to_le:\n"
+#guard bnfBeToLe_prog.length = 20
 /-- Convert four little-endian u64 limbs (`a0`, 8-aligned) into a 32-byte
     big-endian buffer (`a1`, byte-addressed, any alignment). Inverse of
     `bnf_be_to_le`. Leaf helper; clobbers only `t` regs. -/
+def bnfLeToBe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .SLLI .x6 .x5 (3 : BitVec 6),
+    .ADD .x7 .x10 .x6,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LI .x6 (31 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x11 .x6,
+    .LI .x29 (8 : Word),
+    .ANDI .x30 .x28 (255 : BitVec 12),
+    .SB .x6 .x30 (0 : BitVec 12),
+    .SRLI .x28 .x28 (8 : BitVec 6),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (-64 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bn254FieldLeToBeFunction : String :=
-  "bnf_le_to_be:\n" ++
-  "  li t0, 0                   # limb index\n" ++
-  ".Lbnf_l2b_quad:\n" ++
-  "  slli t1, t0, 3\n" ++
-  "  add t2, a0, t1\n" ++
-  "  ld t3, 0(t2)\n" ++
-  "  li t1, 31\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a1, t1             # BE offset of the limb's LSB\n" ++
-  "  li t4, 8\n" ++
-  ".Lbnf_l2b_byte:\n" ++
-  "  andi t5, t3, 0xff\n" ++
-  "  sb t5, 0(t1)\n" ++
-  "  srli t3, t3, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lbnf_l2b_byte\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 4\n" ++
-  "  bne t0, t1, .Lbnf_l2b_quad\n" ++
-  "  ret"
+  "bnf_le_to_be:\n" ++ emitProgram bnfLeToBe_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnfLeToBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254FieldLeToBeFunction_eq_prog :
+    bn254FieldLeToBeFunction = "bnf_le_to_be:\n" ++ emitProgram bnfLeToBe_prog := rfl
+
+#guard bn254FieldLeToBeFunction.startsWith "bnf_le_to_be:\n"
+#guard bnfLeToBe_prog.length = 19
 /-- Return a0 = 1 iff the 32-byte buffer at a0 is all-zero. Leaf helper. -/
+def bnfIsZero32_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .BNE .x7 .x0 (24 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bn254FieldIsZeroFunction : String :=
-  "bnf_is_zero32:\n" ++
-  "  li t0, 32\n" ++
-  "  mv t1, a0\n" ++
-  ".Lbnf_is_zero_loop:\n" ++
-  "  beqz t0, .Lbnf_is_zero_yes\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  bnez t2, .Lbnf_is_zero_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbnf_is_zero_loop\n" ++
-  ".Lbnf_is_zero_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lbnf_is_zero_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "bnf_is_zero32:\n" ++ emitProgram bnfIsZero32_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnfIsZero32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254FieldIsZeroFunction_eq_prog :
+    bn254FieldIsZeroFunction = "bnf_is_zero32:\n" ++ emitProgram bnfIsZero32_prog := rfl
+
+#guard bn254FieldIsZeroFunction.startsWith "bnf_is_zero32:\n"
+#guard bnfIsZero32_prog.length = 12
 /-- Return a0 = 1 iff the two 32-byte buffers at a0 and a1 are equal. -/
-def bn254FieldEq32Function : String :=
-  "bnf_eq32:\n" ++
-  "  li t0, 32\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t2, a1\n" ++
-  ".Lbnf_eq_loop:\n" ++
-  "  beqz t0, .Lbnf_eq_yes\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bne t3, t4, .Lbnf_eq_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbnf_eq_loop\n" ++
-  ".Lbnf_eq_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lbnf_eq_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def bnfEq32_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254FieldEq32Function : String :=
+  "bnf_eq32:\n" ++ emitProgram bnfEq32_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnfEq32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254FieldEq32Function_eq_prog :
+    bn254FieldEq32Function = "bnf_eq32:\n" ++ emitProgram bnfEq32_prog := rfl
+
+#guard bn254FieldEq32Function.startsWith "bnf_eq32:\n"
+#guard bnfEq32_prog.length = 15
 /-- Return a0 = 1 iff the 32-byte big-endian integer at a0 is `< p`
     (the EIP-196 coordinate range check). Leaf helper. -/
 def bn254FieldLtPFunction : String :=

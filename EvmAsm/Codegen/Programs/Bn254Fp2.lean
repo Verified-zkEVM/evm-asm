@@ -28,6 +28,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Bn254Field
 
 namespace EvmAsm.Codegen
@@ -90,68 +91,115 @@ def bn254Fp2MulFunction : String :=
   "  ret"
 
 /-- Copy a 64-byte LE Fp2 value: a0 = src, a1 = dst (both 8-aligned). -/
+def bnpFp2Copy_prog : Program :=
+  [ .LD .x5 .x10 (0 : BitVec 12),
+    .SD .x11 .x5 (0 : BitVec 12),
+    .LD .x5 .x10 (8 : BitVec 12),
+    .SD .x11 .x5 (8 : BitVec 12),
+    .LD .x5 .x10 (16 : BitVec 12),
+    .SD .x11 .x5 (16 : BitVec 12),
+    .LD .x5 .x10 (24 : BitVec 12),
+    .SD .x11 .x5 (24 : BitVec 12),
+    .LD .x5 .x10 (32 : BitVec 12),
+    .SD .x11 .x5 (32 : BitVec 12),
+    .LD .x5 .x10 (40 : BitVec 12),
+    .SD .x11 .x5 (40 : BitVec 12),
+    .LD .x5 .x10 (48 : BitVec 12),
+    .SD .x11 .x5 (48 : BitVec 12),
+    .LD .x5 .x10 (56 : BitVec 12),
+    .SD .x11 .x5 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bn254Fp2CopyFunction : String :=
-  "bnp_fp2_copy:\n" ++
-  "  ld t0,  0(a0); sd t0,  0(a1)\n" ++
-  "  ld t0,  8(a0); sd t0,  8(a1)\n" ++
-  "  ld t0, 16(a0); sd t0, 16(a1)\n" ++
-  "  ld t0, 24(a0); sd t0, 24(a1)\n" ++
-  "  ld t0, 32(a0); sd t0, 32(a1)\n" ++
-  "  ld t0, 40(a0); sd t0, 40(a1)\n" ++
-  "  ld t0, 48(a0); sd t0, 48(a1)\n" ++
-  "  ld t0, 56(a0); sd t0, 56(a1)\n" ++
-  "  ret"
+  "bnp_fp2_copy:\n" ++ emitProgram bnpFp2Copy_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnpFp2Copy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254Fp2CopyFunction_eq_prog :
+    bn254Fp2CopyFunction = "bnp_fp2_copy:\n" ++ emitProgram bnpFp2Copy_prog := rfl
+
+#guard bn254Fp2CopyFunction.startsWith "bnp_fp2_copy:\n"
+#guard bnpFp2Copy_prog.length = 17
 /-- Zero a 64-byte LE Fp2 value at a0 (8-aligned). -/
-def bn254Fp2ZeroFunction : String :=
-  "bnp_fp2_zero:\n" ++
-  "  sd zero,  0(a0)\n" ++
-  "  sd zero,  8(a0)\n" ++
-  "  sd zero, 16(a0)\n" ++
-  "  sd zero, 24(a0)\n" ++
-  "  sd zero, 32(a0)\n" ++
-  "  sd zero, 40(a0)\n" ++
-  "  sd zero, 48(a0)\n" ++
-  "  sd zero, 56(a0)\n" ++
-  "  ret"
+def bnpFp2Zero_prog : Program :=
+  [ .SD .x10 .x0 (0 : BitVec 12),
+    .SD .x10 .x0 (8 : BitVec 12),
+    .SD .x10 .x0 (16 : BitVec 12),
+    .SD .x10 .x0 (24 : BitVec 12),
+    .SD .x10 .x0 (32 : BitVec 12),
+    .SD .x10 .x0 (40 : BitVec 12),
+    .SD .x10 .x0 (48 : BitVec 12),
+    .SD .x10 .x0 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254Fp2ZeroFunction : String :=
+  "bnp_fp2_zero:\n" ++ emitProgram bnpFp2Zero_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnpFp2Zero_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254Fp2ZeroFunction_eq_prog :
+    bn254Fp2ZeroFunction = "bnp_fp2_zero:\n" ++ emitProgram bnpFp2Zero_prog := rfl
+
+#guard bn254Fp2ZeroFunction.startsWith "bnp_fp2_zero:\n"
+#guard bnpFp2Zero_prog.length = 9
 /-- a0 = 1 iff the two 64-byte LE Fp2 values at a0/a1 are equal (both
     reduced, so limb equality is field equality). -/
+def bnpFp2Eq_prog : Program :=
+  [ .LI .x5 (8 : Word),
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .LD .x7 .x11 (0 : BitVec 12),
+    .BNE .x6 .x7 (28 : BitVec 13),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bn254Fp2EqFunction : String :=
-  "bnp_fp2_eq:\n" ++
-  "  li t0, 8\n" ++
-  ".Lbnp_fp2_eq_loop:\n" ++
-  "  beqz t0, .Lbnp_fp2_eq_yes\n" ++
-  "  ld t1, 0(a0)\n" ++
-  "  ld t2, 0(a1)\n" ++
-  "  bne t1, t2, .Lbnp_fp2_eq_no\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi a1, a1, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbnp_fp2_eq_loop\n" ++
-  ".Lbnp_fp2_eq_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lbnp_fp2_eq_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "bnp_fp2_eq:\n" ++ emitProgram bnpFp2Eq_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnpFp2Eq_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254Fp2EqFunction_eq_prog :
+    bn254Fp2EqFunction = "bnp_fp2_eq:\n" ++ emitProgram bnpFp2Eq_prog := rfl
+
+#guard bn254Fp2EqFunction.startsWith "bnp_fp2_eq:\n"
+#guard bnpFp2Eq_prog.length = 13
 /-- a0 = 1 iff the 64-byte LE Fp2 value at a0 is zero. -/
-def bn254Fp2IsZeroFunction : String :=
-  "bnp_fp2_is_zero:\n" ++
-  "  li t0, 8\n" ++
-  "  li t1, 0\n" ++
-  ".Lbnp_fp2_isz_loop:\n" ++
-  "  beqz t0, .Lbnp_fp2_isz_done\n" ++
-  "  ld t2, 0(a0)\n" ++
-  "  or t1, t1, t2\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbnp_fp2_isz_loop\n" ++
-  ".Lbnp_fp2_isz_done:\n" ++
-  "  seqz a0, t1\n" ++
-  "  ret"
+def bnpFp2IsZero_prog : Program :=
+  [ .LI .x5 (8 : Word),
+    .LI .x6 (0 : Word),
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .LD .x7 .x10 (0 : BitVec 12),
+    .OR .x6 .x6 .x7,
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .SLTIU .x10 .x6 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254Fp2IsZeroFunction : String :=
+  "bnp_fp2_is_zero:\n" ++ emitProgram bnpFp2IsZero_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnpFp2IsZero_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254Fp2IsZeroFunction_eq_prog :
+    bn254Fp2IsZeroFunction = "bnp_fp2_is_zero:\n" ++ emitProgram bnpFp2IsZero_prog := rfl
+
+#guard bn254Fp2IsZeroFunction.startsWith "bnp_fp2_is_zero:\n"
+#guard bnpFp2IsZero_prog.length = 10
 /-- Fp dst = a * b mod p over 32-byte LE buffers (Arith256Mod,
     d = (a*b + 0) mod p). a0 = dst, a1 = a, a2 = b; dst may alias a/b
     (the accelerator reads its inputs before writing d). Leaf; clobbers

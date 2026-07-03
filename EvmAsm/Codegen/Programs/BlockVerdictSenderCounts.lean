@@ -9,6 +9,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
@@ -154,38 +155,67 @@ def b1SenderCountTableFunction : String :=
     Returns:
       a0 = 0 and a1 = entry ptr when found
       a0 = 1 when absent/malformed. -/
-def b1SenderTableFindFunction : String :=
-  "b1_sender_table_find:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  li s3, 0; mv s4, s1\n" ++
-  ".Lb1stf_loop:\n" ++
-  "  bgeu s3, s4, .Lb1stf_absent\n" ++
-  "  add s5, s3, s4; srli s5, s5, 1\n" ++
-  "  li t0, 40; mul t0, s5, t0; add t1, s0, t0\n" ++
-  "  li t2, 0\n" ++
-  ".Lb1stf_cmp:\n" ++
-  "  li t3, 20; beq t2, t3, .Lb1stf_found\n" ++
-  "  add t3, t1, t2; lbu t4, 0(t3); add t3, s2, t2; lbu t5, 0(t3)\n" ++
-  "  bltu t4, t5, .Lb1stf_entry_less\n" ++
-  "  bltu t5, t4, .Lb1stf_entry_greater\n" ++
-  "  addi t2, t2, 1; j .Lb1stf_cmp\n" ++
-  ".Lb1stf_entry_less:\n" ++
-  "  addi s3, s5, 1; j .Lb1stf_loop\n" ++
-  ".Lb1stf_entry_greater:\n" ++
-  "  mv s4, s5; j .Lb1stf_loop\n" ++
-  ".Lb1stf_found:\n" ++
-  "  li a0, 0; mv a1, t1; j .Lb1stf_ret\n" ++
-  ".Lb1stf_absent:\n" ++
-  "  li a0, 1\n" ++
-  ".Lb1stf_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def b1SenderTableFind_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .LI .x19 (0 : Word),
+    .MV .x20 .x9,
+    .BGEU .x19 .x20 (96 : BitVec 13),
+    .ADD .x21 .x19 .x20,
+    .SRLI .x21 .x21 (1 : BitVec 6),
+    .LI .x5 (40 : Word),
+    .MUL .x5 .x21 .x5,
+    .ADD .x6 .x8 .x5,
+    .LI .x7 (0 : Word),
+    .LI .x28 (20 : Word),
+    .BEQ .x7 .x28 (52 : BitVec 13),
+    .ADD .x28 .x6 .x7,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .ADD .x28 .x18 .x7,
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .BLTU .x29 .x30 (16 : BitVec 13),
+    .BLTU .x30 .x29 (20 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .ADDI .x19 .x21 (1 : BitVec 12),
+    .JAL .x0 (-72 : BitVec 21),
+    .MV .x20 .x21,
+    .JAL .x0 (-80 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .MV .x11 .x6,
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def b1SenderTableFindFunction : String :=
+  "b1_sender_table_find:\n" ++ emitProgram b1SenderTableFind_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `b1SenderTableFind_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem b1SenderTableFindFunction_eq_prog :
+    b1SenderTableFindFunction = "b1_sender_table_find:\n" ++ emitProgram b1SenderTableFind_prog := rfl
+
+#guard b1SenderTableFindFunction.startsWith "b1_sender_table_find:\n"
+#guard b1SenderTableFind_prog.length = 47
 /-- Shared scratch arena for `b1_sender_count_table`. -/
 def b1SenderCountTableScratchDataSection : String :=
   ".balign 32\n" ++
