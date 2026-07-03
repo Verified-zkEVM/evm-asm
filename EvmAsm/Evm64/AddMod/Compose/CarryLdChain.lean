@@ -90,4 +90,56 @@ theorem mask_fromLimbs_const_eq (take : Bool) :
   | true => decide
   | false => decide
 
+/-- Round-trip: `fromLimbs ![v.getLimbN 0, .., v.getLimbN 3] = v`. -/
+theorem fromLimbs_getLimbN_vec (v : EvmWord) :
+    EvmWord.fromLimbs ![v.getLimbN 0, v.getLimbN 1, v.getLimbN 2, v.getLimbN 3] = v := by
+  have hfun : (![v.getLimbN 0, v.getLimbN 1, v.getLimbN 2, v.getLimbN 3] : Fin 4 → Word)
+      = v.getLimb := by
+    funext i; fin_cases i <;> simp [EvmWord.getLimb_eq_getLimbN]
+  rw [hfun]; exact EvmWord.fromLimbs_getLimb v
+
+-- ============================================================================
+-- Ld chain assembly + carry-branch result post
+-- ============================================================================
+
+/-- Tail carried (framed) through the cond-subtract links (pass1take, pass2):
+    everything the branch-free conditional subtract does not touch — `x1`, `x2`,
+    `x9`, the old add-input window at F+0..24 (now junk), the owned div-scratch
+    band + `F−160` cell, and the S2 (`r`) / S3 (`m`) park cells. (`x0`, the S1
+    (`N`) cells, `x5/x6/x7/x10/x11/x12` and the sum cells are handled explicitly
+    by the cond-sub block specs.) -/
+def addmodLdCondSubTail (F raVal x2v x9v : Word) (m : EvmWord)
+    (r0 r1 r2 r3 p0 p1 p2 p3 : Word) : Assertion :=
+  (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ x2v) ** (.x9 ↦ᵣ x9v) **
+  evmWordIs F m ** divScratchOwnCallNoX1 F ** memOwn (F + signExtend12 (3936 : BitVec 12)) **
+  ((F + signExtend12 (3872 : BitVec 12)) ↦ₘ r0) **
+  ((F + signExtend12 (3880 : BitVec 12)) ↦ₘ r1) **
+  ((F + signExtend12 (3888 : BitVec 12)) ↦ₘ r2) **
+  ((F + signExtend12 (3896 : BitVec 12)) ↦ₘ r3) **
+  ((F + signExtend12 (3840 : BitVec 12)) ↦ₘ p0) **
+  ((F + signExtend12 (3848 : BitVec 12)) ↦ₘ p1) **
+  ((F + signExtend12 (3856 : BitVec 12)) ↦ₘ p2) **
+  ((F + signExtend12 (3864 : BitVec 12)) ↦ₘ p3)
+
+theorem addmodLdCondSubTail_pcFree (F raVal x2v x9v : Word) (m : EvmWord)
+    (r0 r1 r2 r3 p0 p1 p2 p3 : Word) :
+    (addmodLdCondSubTail F raVal x2v x9v m r0 r1 r2 r3 p0 p1 p2 p3).pcFree := by
+  unfold addmodLdCondSubTail divScratchOwnCallNoX1 divScratchOwn evmWordIs
+  pcFree
+
+/-- Owned result post of the carry branch: `x12 = F+32`, the ADDMOD result at
+    F+32..56, everything else shed to `regOwn`/`memOwn`. -/
+def addmodLdResultOwned (F : Word) (result : EvmWord) : Assertion :=
+  (.x12 ↦ᵣ (F + 32)) ** evmWordIs (F + 32) result **
+  regOwn .x0 ** regOwn .x1 ** regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x9 ** regOwn .x10 ** regOwn .x11 **
+  divScratchOwnCallNoX1 F ** memOwn (F + signExtend12 (3936 : BitVec 12)) **
+  evmWordOwn F **
+  memOwn (F + signExtend12 (3872 : BitVec 12)) ** memOwn (F + signExtend12 (3880 : BitVec 12)) **
+  memOwn (F + signExtend12 (3888 : BitVec 12)) ** memOwn (F + signExtend12 (3896 : BitVec 12)) **
+  memOwn (F + signExtend12 (3840 : BitVec 12)) ** memOwn (F + signExtend12 (3848 : BitVec 12)) **
+  memOwn (F + signExtend12 (3856 : BitVec 12)) ** memOwn (F + signExtend12 (3864 : BitVec 12)) **
+  memOwn (F + signExtend12 (3904 : BitVec 12)) ** memOwn (F + signExtend12 (3912 : BitVec 12)) **
+  memOwn (F + signExtend12 (3920 : BitVec 12)) ** memOwn (F + signExtend12 (3928 : BitVec 12))
+
 end EvmAsm.Evm64.AddMod.Compose
