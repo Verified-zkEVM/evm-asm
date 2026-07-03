@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.AddrNormAttr
+import EvmAsm.Evm64.EvmWordArith.AddModCondSub
 import EvmAsm.Evm64.AddMod.Program
 import EvmAsm.Evm64.AddMod.ProgramTest
 import EvmAsm.Evm64.AddMod.Args
