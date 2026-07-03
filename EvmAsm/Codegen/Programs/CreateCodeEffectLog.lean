@@ -28,6 +28,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -105,25 +106,44 @@ def createRecordCodeEffectFunction : String :=
       a0 = record ptr (at the +0 addr field; pass record+32 to
            bal_account_code_consistent) or 0 if not found.
     Walks variable-stride entries (round8(48 + code_len)). Clobbers t0-t6, a0. -/
-def findCodeEffectByAddressFunction : String :=
-  "find_code_effect_by_address:\n" ++
-  "  mv t0, a0                   # cursor (entry base)\n" ++
-  "  mv t1, a1                   # remaining count\n" ++
-  ".Lfce_loop:\n" ++
-  "  beqz t1, .Lfce_none\n" ++
-  "  mv t2, t0; mv t3, a2; li t4, 20\n" ++
-  ".Lfce_cmp:\n" ++
-  "  beqz t4, .Lfce_found\n" ++
-  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lfce_next\n" ++
-  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lfce_cmp\n" ++
-  ".Lfce_next:\n" ++
-  "  ld t5, 40(t0); addi t5, t5, 55; andi t5, t5, -8   # stride = round8(48 + code_len)\n" ++
-  "  add t0, t0, t5; addi t1, t1, -1; j .Lfce_loop\n" ++
-  ".Lfce_found:\n" ++
-  "  mv a0, t0; ret\n" ++
-  ".Lfce_none:\n" ++
-  "  li a0, 0; ret"
+def findCodeEffectByAddress_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .BEQ .x6 .x0 (80 : BitVec 13),
+    .MV .x7 .x5,
+    .MV .x28 .x12,
+    .LI .x29 (20 : Word),
+    .BEQ .x29 .x0 (56 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (20 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LD .x30 .x5 (40 : BitVec 12),
+    .ADDI .x30 .x30 (55 : BitVec 12),
+    .ANDI .x30 .x30 (-8 : BitVec 12),
+    .ADD .x5 .x5 .x30,
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-68 : BitVec 21),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def findCodeEffectByAddressFunction : String :=
+  "find_code_effect_by_address:\n" ++ emitProgram findCodeEffectByAddress_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `findCodeEffectByAddress_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem findCodeEffectByAddressFunction_eq_prog :
+    findCodeEffectByAddressFunction = "find_code_effect_by_address:\n" ++ emitProgram findCodeEffectByAddress_prog := rfl
+
+#guard findCodeEffectByAddressFunction.startsWith "find_code_effect_by_address:\n"
+#guard findCodeEffectByAddress_prog.length = 24
 /-- Data region for the code-effect log (linked wherever CREATE deposit runs;
     included in this probe and, in step .8b-2, the runtime dispatcher data). -/
 def createCodeEffectLogData : String :=

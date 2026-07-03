@@ -36,6 +36,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
@@ -436,26 +437,35 @@ def ziskTxLegacyDecodeProbeUnit : BuildUnit := {
                     invalid v values just produce wrong
                     chain_id; the signing-hash check catches
                     them later) -/
-def deriveChainIdFromVFunction : String :=
-  "derive_chain_id_from_v:\n" ++
-  "  li t0, 27\n" ++
-  "  beq a0, t0, .Ldcid_pre155\n" ++
-  "  li t0, 28\n" ++
-  "  beq a0, t0, .Ldcid_pre155\n" ++
-  "  # EIP-155: chain_id = (v - 35) / 2\n" ++
-  "  addi t1, a0, -35\n" ++
-  "  srli t1, t1, 1\n" ++
-  "  sd t1, 0(a1)\n" ++
-  "  li t2, 1\n" ++
-  "  sd t2, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ldcid_pre155:\n" ++
-  "  sd zero, 0(a1)\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def deriveChainIdFromV_prog : Program :=
+  [ .LI .x5 (27 : Word),
+    .BEQ .x10 .x5 (40 : BitVec 13),
+    .LI .x5 (28 : Word),
+    .BEQ .x10 .x5 (32 : BitVec 13),
+    .ADDI .x6 .x10 (-35 : BitVec 12),
+    .SRLI .x6 .x6 (1 : BitVec 6),
+    .SD .x11 .x6 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .SD .x12 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x11 .x0 (0 : BitVec 12),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def deriveChainIdFromVFunction : String :=
+  "derive_chain_id_from_v:\n" ++ emitProgram deriveChainIdFromV_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `deriveChainIdFromV_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem deriveChainIdFromVFunction_eq_prog :
+    deriveChainIdFromVFunction = "derive_chain_id_from_v:\n" ++ emitProgram deriveChainIdFromV_prog := rfl
+
+#guard deriveChainIdFromVFunction.startsWith "derive_chain_id_from_v:\n"
+#guard deriveChainIdFromV_prog.length = 15
 /-- `zisk_derive_chain_id_from_v`: probe BuildUnit. Reads
     (v, padding) from host input, writes (chain_id, is_eip155)
     to OUTPUT. -/
@@ -604,23 +614,31 @@ def ziskBlobGasUsedFromVersionedHashesProbeUnit : BuildUnit := {
 
     Distinct codes let callers pinpoint which check fired
     without re-running individual asserts. -/
-def txValidateAgainstBlockFunction : String :=
-  "tx_validate_against_block:\n" ++
-  "  bne a0, a1, .Ltvab_fail_chain\n" ++
-  "  bgtu a2, a3, .Ltvab_fail_gas\n" ++
-  "  bne a4, a5, .Ltvab_fail_nonce\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltvab_fail_chain:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Ltvab_fail_gas:\n" ++
-  "  li a0, 2\n" ++
-  "  ret\n" ++
-  ".Ltvab_fail_nonce:\n" ++
-  "  li a0, 3\n" ++
-  "  ret"
+def txValidateAgainstBlock_prog : Program :=
+  [ .BNE .x10 .x11 (20 : BitVec 13),
+    .BLTU .x13 .x12 (24 : BitVec 13),
+    .BNE .x14 .x15 (28 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txValidateAgainstBlockFunction : String :=
+  "tx_validate_against_block:\n" ++ emitProgram txValidateAgainstBlock_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txValidateAgainstBlock_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txValidateAgainstBlockFunction_eq_prog :
+    txValidateAgainstBlockFunction = "tx_validate_against_block:\n" ++ emitProgram txValidateAgainstBlock_prog := rfl
+
+#guard txValidateAgainstBlockFunction.startsWith "tx_validate_against_block:\n"
+#guard txValidateAgainstBlock_prog.length = 11
 /-- `zisk_tx_validate_against_block`: probe BuildUnit. Reads
     (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
     account_nonce) as 6 u64 LE words from host input, writes

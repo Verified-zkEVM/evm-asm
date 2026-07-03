@@ -17,6 +17,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
@@ -1048,39 +1049,46 @@ def ziskTxPostExecGasSettlementProbeUnit : BuildUnit := {
       a3 (output) : tx_gas_used_before_refund
       a4 (output) : applied refund
 -/
-def txGasResultIncrementsFunction : String :=
-  "tx_gas_result_increments:\n" ++
-  "  bgtu a1, a0, .Ltgri_bad_remaining\n" ++
-  "  sub t0, a0, a1              # before_refund\n" ++
-  "  li t1, 5\n" ++
-  "  divu t2, t0, t1             # refund cap = before_refund / 5\n" ++
-  "  mv t3, a2                   # refund_counter\n" ++
-  "  bleu t3, t2, .Ltgri_refund_min_done\n" ++
-  "  mv t3, t2\n" ++
-  ".Ltgri_refund_min_done:\n" ++
-  "  sub t4, t0, t3              # after_refund\n" ++
-  "  mv t5, t0                   # block_inc = max(before_refund, floor)\n" ++
-  "  bleu a3, t5, .Ltgri_block_max_done\n" ++
-  "  mv t5, a3\n" ++
-  ".Ltgri_block_max_done:\n" ++
-  "  mv t6, t4                   # receipt_inc = max(after_refund, floor)\n" ++
-  "  bleu a3, t6, .Ltgri_receipt_max_done\n" ++
-  "  mv t6, a3\n" ++
-  ".Ltgri_receipt_max_done:\n" ++
-  "  li a0, 0\n" ++
-  "  mv a1, t5\n" ++
-  "  mv a2, t6\n" ++
-  "  mv a3, t0\n" ++
-  "  mv a4, t3\n" ++
-  "  ret\n" ++
-  ".Ltgri_bad_remaining:\n" ++
-  "  li a0, 1\n" ++
-  "  li a1, 0\n" ++
-  "  li a2, 0\n" ++
-  "  li a3, 0\n" ++
-  "  li a4, 0\n" ++
-  "  ret"
+def txGasResultIncrements_prog : Program :=
+  [ .BLTU .x10 .x11 (80 : BitVec 13),
+    .SUB .x5 .x10 .x11,
+    .LI .x6 (5 : Word),
+    .DIVU .x7 .x5 .x6,
+    .MV .x28 .x12,
+    .BGEU .x7 .x28 (8 : BitVec 13),
+    .MV .x28 .x7,
+    .SUB .x29 .x5 .x28,
+    .MV .x30 .x5,
+    .BGEU .x30 .x13 (8 : BitVec 13),
+    .MV .x30 .x13,
+    .MV .x31 .x29,
+    .BGEU .x31 .x13 (8 : BitVec 13),
+    .MV .x31 .x13,
+    .LI .x10 (0 : Word),
+    .MV .x11 .x30,
+    .MV .x12 .x31,
+    .MV .x13 .x5,
+    .MV .x14 .x28,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LI .x13 (0 : Word),
+    .LI .x14 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txGasResultIncrementsFunction : String :=
+  "tx_gas_result_increments:\n" ++ emitProgram txGasResultIncrements_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txGasResultIncrements_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txGasResultIncrementsFunction_eq_prog :
+    txGasResultIncrementsFunction = "tx_gas_result_increments:\n" ++ emitProgram txGasResultIncrements_prog := rfl
+
+#guard txGasResultIncrementsFunction.startsWith "tx_gas_result_increments:\n"
+#guard txGasResultIncrements_prog.length = 26
 /-- `zisk_tx_gas_result_increments`: focused probe for the scalar
     post-execution gas increment formula. Input payload after zisk's length
     prefix is four u64s: tx_gas_limit, gas_left, refund_counter,

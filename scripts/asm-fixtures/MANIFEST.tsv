@@ -1,4 +1,5 @@
 # asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
+bahU32leFunction	EvmAsm/Codegen/Programs/BlockAccessListHash.lean
 bhrRevLeBeFunction	EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean
 bloomEqFunction	EvmAsm/Codegen/Programs/Bloom.lean
 bloomOrIntoFunction	EvmAsm/Codegen/Programs/Bloom.lean
@@ -36,10 +37,25 @@ bn254PointIsInfFunction	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254PointZero64Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254PtCopyFunction	EvmAsm/Codegen/Programs/Bn254Pairing.lean
 bytesToNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
+calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
+callFrameSetCalldataFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
+calldataByteCountsFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 codesBlockhashRequiredHeadersFunction	EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean
+copyWordGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
+deriveChainIdFromVFunction	EvmAsm/Codegen/Programs/Tx.lean
+eip8037BlockGasUsedFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
+enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
+expGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
+findCodeEffectByAddressFunction	EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean
+headersParentHashFunction	EvmAsm/Codegen/Programs/HeadersKeccak.lean
 hpDecodeNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
 hpEncodeNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
+initCodeCostFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
+intrinsicGasCalldataFloorEip7623Function	EvmAsm/Codegen/Programs/IntrinsicGas.lean
+keccak256WordGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
+logDataGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
+memoryExpansionGasFunction	EvmAsm/Codegen/Programs/MemoryExpansionGas.lean
 mptBranchPayloadTwoSlotsFunction	EvmAsm/Codegen/Programs/MptEncode.lean
 mptCompactToNibblesFunction	EvmAsm/Codegen/Programs/MptNibbles.lean
 mptNibblesToCompactFunction	EvmAsm/Codegen/Programs/MptNibbles.lean
@@ -51,6 +67,7 @@ p256Eq32Function	EvmAsm/Codegen/Programs/P256Verify.lean
 p256IsZeroNFunction	EvmAsm/Codegen/Programs/P256Verify.lean
 p256LeToBeFunction	EvmAsm/Codegen/Programs/P256Verify.lean
 p256LtBeFunction	EvmAsm/Codegen/Programs/P256Verify.lean
+parentHeaderMatchesWitnessFirstFunction	EvmAsm/Codegen/Programs/BlockHashPredicates.lean
 rlpBytesEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
 rlpEncodeBytesFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpEncodeListPrefixFunction	EvmAsm/Codegen/Programs/RlpRead.lean
@@ -74,6 +91,11 @@ spwU32leFunction	EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean
 sszPackBytesFunction	EvmAsm/Codegen/Programs/Ssz.lean
 swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
+txGasResultIncrementsFunction	EvmAsm/Codegen/Programs/Account.lean
+txPubkeyEcrecoverStageMaterialFunction	EvmAsm/Codegen/Programs/TxPubkey.lean
+txRefundCapFunction	EvmAsm/Codegen/Programs/TxRefund.lean
+txTypeDispatchFunction	EvmAsm/Codegen/Programs/TxExtract.lean
+txValidateAgainstBlockFunction	EvmAsm/Codegen/Programs/Tx.lean
 u256AddBeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256DivU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256EqFunction	EvmAsm/Codegen/Programs/U256.lean
@@ -84,3 +106,4 @@ u256MaxFunction	EvmAsm/Codegen/Programs/U256.lean
 u256MinFunction	EvmAsm/Codegen/Programs/U256.lean
 u256SubBeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256ToU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
+validateHeaderBasicFunction	EvmAsm/Codegen/Programs/Header.lean
