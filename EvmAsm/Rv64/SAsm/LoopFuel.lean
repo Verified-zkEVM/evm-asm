@@ -2,7 +2,7 @@
   EvmAsm.Rv64.SAsm.LoopFuel
 
   The counter-register bridge toolkit for data-dependent and nested loops
-  (docs/sasm-design.md §3.9, docs/sasm-howto.md §4).
+  (docs/sasm-design.md §3.10, docs/sasm-howto.md §4).
 
   A loop whose iteration count is only known at runtime (an RLP length
   field, a BAL item count) is verified with a *static* fuel cap and a

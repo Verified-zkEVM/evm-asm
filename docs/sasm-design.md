@@ -600,7 +600,51 @@ Implementation constraints (robustness / recursion-safety):
   (label + statement, ✓/✗ after the default pass) without leaving goals,
   for the agentic explore loop.
 
-### 3.9 Loops at guest scale: data-dependent fuel and nested loops (design decisions)
+### 3.9 Phase ownership of aliased arenas (`SAsm/PhaseSplit.lean`, `Codegen/CallFramePhase.lean`)
+
+The guest has exactly one intentional physical aliasing:
+`call_frame_arena` (~164 MiB, the Phase-D EVM call-frame overlay) coalesces
+seven execution-dead Phase-H arenas into its front
+(`RegionMap.dataUnionChildren`; `docs/call-frame-memory-layout.md` §5).
+Framing the arena and a coalesced child as two separate regions in one
+ambient would be **unsound** (`**` would claim disjoint ownership of the
+same bytes), and until this section the no-corruption argument was prose.
+
+The model (bead `evm-asm-4ch8f.6`, hard half):
+
+- **One resource, many tilings.** `anyBytes base n` owns `n` bytes with
+  *unspecified contents*.  `anyBytes_add`/`anyBytes_eq_anyTiles` prove a
+  havoc'd range equal to any contiguous dword-aligned tiling of itself.
+  `CallFramePhase.phaseD_eq_phaseH` instantiates this on the audited union
+  inventory: the whole-arena view (`phaseDView`) and the
+  seven-children-plus-pad view (`phaseHView`) are the *same assertion*.
+- **Transitions forget contents.** A phase transition is one rewrite across
+  that equality, entered by weakening concrete buffers through
+  `bytesRegion_anyBytes` (`phaseH_to_phaseD` packages the seven-buffer
+  handoff).  `anyBytes` carries ownership and length, nothing else — so a
+  later phase provably cannot depend on what an earlier phase left in the
+  shared bytes, and a stale reader after re-partition receives havoc'd
+  buffers, not its old data.  The failure mode the prose worried about is
+  structurally unexpressible in a composed proof that frames the arena
+  through these views.
+- **Consumer obligation.** `cpsTripleWithin_anyBytes_pre`: a triple whose
+  precondition owns a havoc'd range must be proven *for every possible
+  contents* (demo in `PhaseSplit.lean`: an `LBU` from `anyBytes` admits
+  only an existential postcondition).
+- **Who uses what.** Phase-H routines (`.41`–`.48`) frame individual child
+  ranges (`phaseHView_children` names each child at its audited offset);
+  Phase-D dispatch (`.49`, `.56`) frames `phaseDView`; the `block_verdict`
+  composition (`.61`) performs the single H→D rewrite at the dispatch
+  boundary.  The arena base stays a parameter — the model is
+  link-layout-independent; `RegionMap.callFrameArenaBase` pins this build.
+
+What the model does **not** decide: *when* the guest transitions — that
+Phase H truly stops touching the children before dispatch is what the
+per-routine triples + the composition prove (a Phase-H routine cannot be
+composed after the rewrite, because the child views it frames against no
+longer exist in the ambient).
+
+### 3.10 Loops at guest scale: data-dependent fuel and nested loops (design decisions)
 
 The guest's loops are input-length-bounded (RLP walks, header chains
 ≤ 256, BAL scans ≤ 100 k items) and nested (per-account → per-slot →

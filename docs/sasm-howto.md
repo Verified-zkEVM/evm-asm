@@ -156,7 +156,7 @@ contract; the call machinery consumes it unchanged.
 When the count is loaded from the input at runtime (an RLP length
 field, a BAL item count), verify with a **static fuel cap** and a
 runtime exit.  Recipe (`rlpSkipFn`/`capScanFn` in `LoopFuelDemo.lean`;
-design §3.9; bridge lemmas in `SAsm/LoopFuel.lean`):
+design §3.10; bridge lemmas in `SAsm/LoopFuel.lean`):
 
 1. Load the count into a limit register; because the engine is
    deterministic over the region ghost, its value is a ghost expression
@@ -182,14 +182,14 @@ design §3.9; bridge lemmas in `SAsm/LoopFuel.lean`):
    refuses).
 
 Elaboration is O(1) in the cap (measured flat at 32/1024/100000 —
-§3.9): the fuel only appears symbolically.  Never `decide` on
+§3.10): the fuel only appears symbolically.  Never `decide` on
 fuel-scale arithmetic; `omega` the index bounds.
 
 ### Nested loops: `Stmt.whileS` (entry-snapshot invariants)
 
 An inner loop cannot mention the outer loop's quantified index, and the
 plain `while` exit `sp` forgets the entry reach — so an outer `inv_step`
-loses its index ties across an inner `while` (design §3.9).  Use
+loses its index ties across an inner `while` (design §3.10).  Use
 `Stmt.whileS` for the inner loop:
 
 ```lean

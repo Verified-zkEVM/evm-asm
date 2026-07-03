@@ -2538,8 +2538,17 @@ kernel-reducible powMod inversion, BN254+BLS12-381 curve+Fp2) — all
 with independently-generated kernel decide KATs; execCsrs is
 definitionally ONE writeWords (csrsWrite computes target+payload), so
 projection lemmas are branch-count-independent; SAsm block exposure
-deferred to beads .17/.18 (design §3.3.1). Next for SAsm: more
-Stateless/SSZ ports. Assertion-state milestone started (approved plan
+deferred to beads .17/.18 (design §3.3.1). Phase-ownership model for the
+`call_frame_arena` union landed (bead evm-asm-4ch8f.6 hard half,
+`SAsm/PhaseSplit.lean` + `Codegen/CallFramePhase.lean`): the aliased
+arena is ONE havoc'd resource (`anyBytes`), the Phase-H
+seven-children+pad tiling is THE SAME assertion
+(`phaseD_eq_phaseH`/`phaseHView_children` at the audited RegionMap
+offsets), transitions forget contents by construction
+(`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
+havoc'd range must verify for all contents
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Next for
+SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the
@@ -2646,7 +2655,7 @@ read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
 swapped into run_stateless_guest, EEST A/B validated). Next port:
 decode_validation_bit.
-Loop fuel + nested loops landed (bead evm-asm-4ch8f.5, design §3.9):
+Loop fuel + nested loops landed (bead evm-asm-4ch8f.5, design §3.10):
 (1) runtime-data-dependent iteration counts need NO new mechanism — the
 static-cap idiom (fuel = literal cap, runtime `.bltu ctr lim` exit, the
 loaded limit tied to its ghost decode in the invariant, `n ≤ cap` as a
@@ -2673,7 +2682,7 @@ counter; capScanFn: cap-parametric BAL-scan shape, instantiated at
 32/1024/100000). Howto §4 gained the static-cap and whileS recipes.
 Unblocks .49 (dispatch loop) and .14 (RLP walks); open question flagged
 for .49: per-iteration ghost contracts of `call`s inside loop bodies
-(same shape of problem, see design §3.9).
+(same shape of problem, see design §3.10).
 
 ## Stateless Guest (parallel STF track)
 

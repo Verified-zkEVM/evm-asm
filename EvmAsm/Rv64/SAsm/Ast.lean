@@ -145,7 +145,7 @@ inductive Stmt where
   | «while»  (label : String) (c : Cond) (fuel : Nat)
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
   /-- Bounded loop with an *entry-snapshot-parameterized* invariant
-      (docs/sasm-design.md §3.9): `inv rf₀ ws₀ A₀ i` must hold at the i-th
+      (docs/sasm-design.md §3.10): `inv rf₀ ws₀ A₀ i` must hold at the i-th
       evaluation of the header, where `(rf₀, ws₀, A₀)` is the symbolic state
       at loop entry.  This is the classic loop rule with logical variables:
       the snapshot is the only channel by which facts of the *enclosing*

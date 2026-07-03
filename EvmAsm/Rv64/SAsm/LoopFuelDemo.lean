@@ -2,7 +2,7 @@
   EvmAsm.Rv64.SAsm.LoopFuelDemo
 
   End-to-end demos for data-dependent loop fuel and nested loops at guest
-  shape (docs/sasm-design.md §3.9, bead evm-asm-4ch8f.5):
+  shape (docs/sasm-design.md §3.10, bead evm-asm-4ch8f.5):
 
   1. `rlpSkipFn` — a loop whose iteration count is **loaded from the
      read-only region at runtime** (an RLP short-length-style byte).  The
@@ -498,7 +498,7 @@ theorem capScanFn_spec (inBase : Word) (bs : List (BitVec 8)) (cap : Nat)
 /-- Scaling instantiations: the same proof term serves any cap — the VC
     count and every VC's size are O(1) in the fuel.  Elaboration-time
     measurements for the monomorphized variants (the full `vcgen` proof
-    re-run at each literal) are in docs/sasm-design.md §3.9. -/
+    re-run at each literal) are in docs/sasm-design.md §3.10. -/
 theorem capScanFn_spec_32 (inBase : Word) (bs : List (BitVec 8))
     (hwf : (Region.mk inBase bs).wf) (hcap : capLen bs ≤ 32)
     (hfits : 8 + capLen bs ≤ bs.length) (base : Word) :
