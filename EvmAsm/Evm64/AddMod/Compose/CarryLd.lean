@@ -18,6 +18,7 @@
 
 import EvmAsm.Evm64.AddMod.Compose.CondSubWrapper
 import EvmAsm.Evm64.AddMod.Compose.CarryCompose
+import EvmAsm.Evm64.AddMod.Compose.CarryLdCondSub
 import EvmAsm.Evm64.EvmWordArith.AddModCondSub
 import EvmAsm.Evm64.Add.Spec
 
@@ -223,5 +224,106 @@ theorem ld_evm_add_in_C
   · simp only [addmodLdAddFrame, sepConj_assoc'] at hq ⊢
     rw [hcarry] at hq
     xperm_hyp hq
+
+-- ============================================================================
+-- Ld links 3-4: cond-subtract (pass1take_clean 612→712, pass2_owned 712→832)
+-- lifted onto C via the CarryLdCondSub sub-region subsumptions.
+-- ============================================================================
+
+/-- Link 3 of Ld: `pass1take_clean` over `C`. -/
+theorem ld_pass1take_in_C
+    (bt G carry x6Old x7Old x10Old x11Old : Word)
+    (s0 s1 s2 s3 n0 n1 n2 n3 mask : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word)
+    (hmask : mask = (0 : Word) -
+      ((carry + signExtend12 (0 : BitVec 12)) |||
+       (((if BitVec.ult s3 n3 then (1 : Word) else 0) |||
+          (if BitVec.ult (s3 - n3)
+            ((if BitVec.ult s2 n2 then (1 : Word) else 0) |||
+             (if BitVec.ult (s2 - n2)
+               ((if BitVec.ult s1 n1 then (1 : Word) else 0) |||
+                (if BitVec.ult (s1 - n1)
+                  (if BitVec.ult s0 n0 then (1 : Word) else 0)
+                  then (1 : Word) else 0))
+               then (1 : Word) else 0))
+            then (1 : Word) else 0))
+         ^^^ signExtend12 (1 : BitVec 12)))) :
+    cpsTripleWithin 25 (bt + 612) ((bt + 612) + 100)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      ((.x12 ↦ᵣ G) ** (.x5 ↦ᵣ carry) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
+       (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       ((G + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+       ((G + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+       ((G + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+       ((G + signExtend12 (24 : BitVec 12)) ↦ₘ s3) **
+       ((G + signExtend12 (3872 : BitVec 12)) ↦ₘ n0) **
+       ((G + signExtend12 (3880 : BitVec 12)) ↦ₘ n1) **
+       ((G + signExtend12 (3888 : BitVec 12)) ↦ₘ n2) **
+       ((G + signExtend12 (3896 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ G) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x10 ↦ᵣ (carry + signExtend12 (0 : BitVec 12))) ** (.x11 ↦ᵣ mask) **
+       (.x0 ↦ᵣ (0 : Word)) **
+       ((G + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+       ((G + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+       ((G + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+       ((G + signExtend12 (24 : BitVec 12)) ↦ₘ s3) **
+       ((G + signExtend12 (3872 : BitVec 12)) ↦ₘ n0) **
+       ((G + signExtend12 (3880 : BitVec 12)) ↦ₘ n1) **
+       ((G + signExtend12 (3888 : BitVec 12)) ↦ₘ n2) **
+       ((G + signExtend12 (3896 : BitVec 12)) ↦ₘ n3)) :=
+  carry_block_in_C
+    (fun a i h => evm_addmod_total_program_code_cond_sub_pass1_sub a i h)
+    (evm_addmod_cond_sub_pass1take_clean (bt + 612) G carry x6Old x7Old
+      x10Old x11Old s0 s1 s2 s3 n0 n1 n2 n3 mask hmask)
+
+/-- Link 4 of Ld: `pass2_owned` over `C`. -/
+theorem ld_pass2_in_C
+    (bt G maskIn x10Old : Word)
+    (s0 s1 s2 s3 n0 n1 n2 n3 : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word) :
+    let mm0 := n0 &&& maskIn
+    let c0 := if BitVec.ult s0 mm0 then (1 : Word) else 0
+    let r0 := s0 - mm0
+    let mm1 := n1 &&& maskIn
+    let f1 := if BitVec.ult s1 mm1 then (1 : Word) else 0
+    let e1 := s1 - mm1
+    let g1 := if BitVec.ult e1 c0 then (1 : Word) else 0
+    let r1 := e1 - c0
+    let c1 := f1 ||| g1
+    let mm2 := n2 &&& maskIn
+    let f2 := if BitVec.ult s2 mm2 then (1 : Word) else 0
+    let e2 := s2 - mm2
+    let g2 := if BitVec.ult e2 c1 then (1 : Word) else 0
+    let r2 := e2 - c1
+    let c2 := f2 ||| g2
+    let mm3 := n3 &&& maskIn
+    let r3 := (s3 - mm3) - c2
+    cpsTripleWithin 30 (bt + 712) ((bt + 712) + 120)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       (.x12 ↦ᵣ G) ** (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ maskIn) **
+       ((G + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+       ((G + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+       ((G + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+       ((G + signExtend12 (24 : BitVec 12)) ↦ₘ s3) **
+       ((G + signExtend12 (3872 : BitVec 12)) ↦ₘ n0) **
+       ((G + signExtend12 (3880 : BitVec 12)) ↦ₘ n1) **
+       ((G + signExtend12 (3888 : BitVec 12)) ↦ₘ n2) **
+       ((G + signExtend12 (3896 : BitVec 12)) ↦ₘ n3))
+      ((.x12 ↦ᵣ G) ** (.x5 ↦ᵣ f2) ** (.x6 ↦ᵣ r3) ** (.x7 ↦ᵣ mm3) **
+       (.x10 ↦ᵣ c2) ** (.x11 ↦ᵣ maskIn) **
+       ((G + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+       ((G + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+       ((G + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+       ((G + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+       ((G + signExtend12 (3872 : BitVec 12)) ↦ₘ n0) **
+       ((G + signExtend12 (3880 : BitVec 12)) ↦ₘ n1) **
+       ((G + signExtend12 (3888 : BitVec 12)) ↦ₘ n2) **
+       ((G + signExtend12 (3896 : BitVec 12)) ↦ₘ n3)) := by
+  intro mm0 c0 r0 mm1 f1 e1 g1 r1 c1 mm2 f2 e2 g2 r2 c2 mm3 r3
+  exact carry_block_in_C
+    (fun a i h => evm_addmod_total_program_code_cond_sub_pass2_sub a i h)
+    (evm_addmod_cond_sub_pass2_owned (bt + 712) G maskIn x10Old
+      s0 s1 s2 s3 n0 n1 n2 n3)
 
 end EvmAsm.Evm64.AddMod.Compose
