@@ -627,6 +627,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNative
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipExactX1V5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallAddbackBeqExactX1V5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1
