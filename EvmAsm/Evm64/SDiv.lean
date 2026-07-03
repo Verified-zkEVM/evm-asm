@@ -55,6 +55,12 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallAbsComponents
 import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchPcFreeBasics
 import EvmAsm.Evm64.SDiv.Compose.DivCallPostPcFreeBasics
 import EvmAsm.Evm64.SDiv.Compose.DivCallExactCallable
+import EvmAsm.Evm64.SDiv.Compose.CodeHandlesV5
+import EvmAsm.Evm64.SDiv.Compose.DivCallExactCallableV5
+import EvmAsm.Evm64.SDiv.Compose.DivCallExactHandoffV5
+import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpecV5
+import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
 import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
 import EvmAsm.Evm64.SDiv.Compose.DivCallExactHandoff
 import EvmAsm.Evm64.SDiv.Compose.DivCallN1V4Handoff
@@ -70,5 +76,10 @@ import EvmAsm.Evm64.SDiv.Compose.DivCallPostPcFree
 import EvmAsm.Evm64.SDiv.Compose.BzeroSemanticViews
 import EvmAsm.Evm64.SDiv.Compose.DivCallDispatchZeroDivisor
 import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
+import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
+import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixV5
+import EvmAsm.Evm64.SDiv.Compose.DivCallReturnV5
+import EvmAsm.Evm64.SDiv.Compose.DivCallReturnHandoffV5
+import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
 import EvmAsm.Evm64.SDiv.Spec
 import EvmAsm.Evm64.SDiv.SpecResultBranches

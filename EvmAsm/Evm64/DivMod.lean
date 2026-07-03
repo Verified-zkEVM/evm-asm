@@ -119,6 +119,7 @@ import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5DivCallable
 import EvmAsm.Evm64.DivMod.Spec.BzeroV5CallableExact
+import EvmAsm.Evm64.DivMod.Spec.ModBzeroV5CallableExact
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 import EvmAsm.Evm64.DivMod.Spec.N4V5QuotientWord
@@ -257,6 +258,8 @@ import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5
 import EvmAsm.Evm64.DivMod.Spec.N2V5PostToDispatchPostV5Mod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShape
+import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactMod
+import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShapeMod
 import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5TrialOverestimate
 import EvmAsm.Evm64.DivMod.Spec.N2V5C3Invariant
@@ -464,6 +467,8 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactMod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNzMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
@@ -543,6 +548,7 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5DivLimbThreadedShift0
 import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridgeCallable
 import EvmAsm.Evm64.DivMod.Spec.N3V5CallableExact
+import EvmAsm.Evm64.DivMod.Spec.N3V5CallableExactMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFull
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
@@ -621,10 +627,15 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNative
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipExactX1V5NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallAddbackBeqExactX1V5NoNop
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1Mod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1Mod
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactMod
 import EvmAsm.Evm64.DivMod.Compose.CallableV5DivScratchAdapter
 import EvmAsm.Evm64.DivMod.Compose.DivCallableV5Assembly
+import EvmAsm.Evm64.DivMod.Compose.ModCallableV5Assembly
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridge
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
 import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditional

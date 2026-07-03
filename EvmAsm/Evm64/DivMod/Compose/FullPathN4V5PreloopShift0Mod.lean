@@ -77,7 +77,7 @@ theorem evm_mod_phaseAB_n4_clz_c2taken_spec_v5_noNop (sp base : Word)
     `x9 ← 4 − 4`. -/
 theorem evm_mod_n4_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 v2 v5 v6 v7 v10 : Word)
-    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem x9In : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| b3 ≠ 0)
     (hb3nz : b3 ≠ 0)
     (hshift_z : (clzResult b3).1 = 0) :
@@ -85,7 +85,7 @@ theorem evm_mod_n4_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
       (modCode_noNop_v5 base)
       ((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
        (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-       (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+       (.x9 ↦ᵣ x9In) **
        ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
        ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
        ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -118,7 +118,7 @@ theorem evm_mod_n4_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
   have hC2 := evm_mod_phaseAB_n4_clz_c2taken_spec_v5_noNop sp base b0 b1 b2 b3
     v2 v5 v6 v7 v10 q0 q1 q2 q3 u5 u6 u7 nMem shiftMem hbnz hb3nz hshift_z
   have hC2f := cpsTripleWithin_frameR
-    ((.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+    ((.x9 ↦ᵣ x9In) **
      ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
      ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
      ((sp + signExtend12 4056) ↦ₘ u0Old) ** ((sp + signExtend12 4048) ↦ₘ u1Old) **
@@ -127,7 +127,7 @@ theorem evm_mod_n4_to_loopSetup_shift0_spec_v5_noNop (sp base : Word)
     (by pcFree) hC2
   have hSeg := divK_copyAU_loopSetup_shift0_spec_v5_noNop_mod sp base
     a0 a1 a2 a3 u0Old u1Old u2Old u3Old u4Old (clzResult b3).2
-    (signExtend12 (4 : BitVec 12) - (4 : Word)) (4 : Word) (by decide)
+    x9In (4 : Word) (by decide)
   have hSegf := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ b3) ** (.x6 ↦ᵣ (clzResult b3).1) **
      (.x7 ↦ᵣ (clzResult b3).2 >>> (63 : Nat)) **

@@ -34,7 +34,7 @@ open EvmAsm.Rv64.Tactics
 /-- n=4 v5 DIV callable-exact lane (call+skip branch), from the dispatch pre to
     `divStackDispatchPostCallableExactFrame`, given the quotient facts. -/
 theorem evm_div_n4_lane_callSkip_of_hdiv_callableExact (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
@@ -59,21 +59,21 @@ theorem evm_div_n4_lane_callSkip_of_hdiv_callableExact (sp base : Word) (a b : E
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult b3).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x2In) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
   have hpath := evm_div_n4_full_call_skip_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In x2In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem
     hbnz hb3nz hshift_nz halign hbltu hborrow
   refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
     cpsTripleWithin_weaken ?_ ?_ hpath
   · intro h hp
-    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal ((clzResult b3).2 >>> (63 : Nat))
+    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal (x2In)
       v5 v6 v7 v10 v11Old x9In a0 a1 a2 a3 b0 b1 b2 b3
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem retMem dMem dloMem
       scratchUn0 scratchMem ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 h hp
@@ -85,7 +85,7 @@ theorem evm_div_n4_lane_callSkip_of_hdiv_callableExact (sp base : Word) (a b : E
 
 /-- n=4 v5 DIV callable-exact lane (call+addback-beq branch). -/
 theorem evm_div_n4_lane_callAddback_of_hdiv_callableExact (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
@@ -107,21 +107,21 @@ theorem evm_div_n4_lane_callAddback_of_hdiv_callableExact (sp base : Word) (a b 
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult b3).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x2In) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
   have hpath := evm_div_n4_full_call_addback_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In
+    a0 a1 a2 a3 b0 b1 b2 b3 v5 v6 v7 v10 v11Old raVal x9In x2In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem
     hbnz hb3nz hshift_nz halign hbltu hborrow hcarry2_nz
   refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
     cpsTripleWithin_weaken ?_ ?_ hpath
   · intro h hp
-    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal ((clzResult b3).2 >>> (63 : Nat))
+    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal (x2In)
       v5 v6 v7 v10 v11Old x9In a0 a1 a2 a3 b0 b1 b2 b3
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem retMem dMem dloMem
       scratchUn0 scratchMem ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 h hp
@@ -133,7 +133,7 @@ theorem evm_div_n4_lane_callAddback_of_hdiv_callableExact (sp base : Word) (a b 
 
 /-- n=4 v5 DIV callable-exact lane (shift=0 call+skip branch). -/
 theorem evm_div_n4_lane_shift0_callSkip_of_hdiv_callableExact (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
@@ -153,21 +153,21 @@ theorem evm_div_n4_lane_shift0_callSkip_of_hdiv_callableExact (sp base : Word) (
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult b3).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x2In) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
   have hpath := evm_div_n4_full_call_skip_shift0_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 ((clzResult b3).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old raVal x9In
+    a0 a1 a2 a3 b0 b1 b2 b3 (x2In) v5 v6 v7 v10 v11Old raVal x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem
     hbnz hb3nz hshift_z halign hborrow
   refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
     cpsTripleWithin_weaken ?_ ?_ hpath
   · intro h hp
-    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal ((clzResult b3).2 >>> (63 : Nat))
+    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal (x2In)
       v5 v6 v7 v10 v11Old x9In a0 a1 a2 a3 b0 b1 b2 b3
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem retMem dMem dloMem
       scratchUn0 scratchMem ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 h hp
@@ -179,7 +179,7 @@ theorem evm_div_n4_lane_shift0_callSkip_of_hdiv_callableExact (sp base : Word) (
 
 /-- n=4 v5 DIV callable-exact lane (shift=0 call+addback branch). -/
 theorem evm_div_n4_lane_shift0_callAddback_of_hdiv_callableExact (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (a0 a1 a2 a3 b0 b1 b2 b3 : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
@@ -209,21 +209,21 @@ theorem evm_div_n4_lane_shift0_callAddback_of_hdiv_callableExact (sp base : Word
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult b3).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x2In) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
       (divStackDispatchPostCallableExactFrame sp a b raVal (signExtend12 4095 : Word) **
        memOwn (sp + signExtend12 3936)) := by
   have hpath := evm_div_n4_full_call_addback_shift0_spec_v5_noNop_exact_x1 sp base
-    a0 a1 a2 a3 b0 b1 b2 b3 ((clzResult b3).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old raVal x9In
+    a0 a1 a2 a3 b0 b1 b2 b3 (x2In) v5 v6 v7 v10 v11Old raVal x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem
     hbnz hb3nz hshift_z halign hborrow hcarry2_nz
   refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
     cpsTripleWithin_weaken ?_ ?_ hpath
   · intro h hp
-    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal ((clzResult b3).2 >>> (63 : Nat))
+    exact n4_dispatchPre_to_pathEntry_v5_exact_x1 sp a b raVal (x2In)
       v5 v6 v7 v10 v11Old x9In a0 a1 a2 a3 b0 b1 b2 b3
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem retMem dMem dloMem
       scratchUn0 scratchMem ha0 ha1 ha2 ha3 hb0 hb1 hb2 hb3 h hp
@@ -236,7 +236,7 @@ theorem evm_div_n4_lane_shift0_callAddback_of_hdiv_callableExact (sp base : Word
 /-- n=4 v5 DIV callable-exact lane, shift≠0 arm, from the native runtime cert. -/
 theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
     (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -246,7 +246,7 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x2In) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
@@ -262,7 +262,7 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
   · -- call+skip branch
     obtain ⟨hd0, hd1, hd2, hd3⟩ :=
       n4_call_skip_div_mod_getLimbN_v5_native a b hb_ne hb3nz hshift_nz hbV5
-    exact evm_div_n4_lane_callSkip_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In
+    exact evm_div_n4_lane_callSkip_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
@@ -272,7 +272,7 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
     obtain ⟨hd0, hd1, hd2, hd3⟩ :=
       n4_call_addback_beq_div_getLimbN_v5 a b hb_ne hb3nz hsem
     rw [← fullDivN4CallAddbackQuotientV5_eq_QOutV5 a b] at hd0
-    exact evm_div_n4_lane_callAddback_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In
+    exact evm_div_n4_lane_callAddback_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
@@ -282,7 +282,7 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
 /-- n=4 v5 DIV callable-exact lane, shift=0 arm, from the runtime cert. -/
 theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
     (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -292,7 +292,7 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x2In) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
@@ -303,14 +303,14 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
   rcases evm_div_n4_shift0_cert_of_shape a b hb3nz hshift_z with
     ⟨hborrow, hd0, hd1, hd2, hd3⟩ | ⟨hborrow, hcarry2, hd0, hd1, hd2, hd3⟩
   · -- call+skip branch
-    exact evm_div_n4_lane_shift0_callSkip_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In
+    exact evm_div_n4_lane_shift0_callSkip_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
       retMem dMem dloMem scratchUn0 scratchMem
       rfl rfl rfl rfl rfl rfl rfl rfl hbnz_lor hb3nz hshift_z halign hborrow hd0 hd1 hd2 hd3
   · -- call+addback branch
-    exact evm_div_n4_lane_shift0_callAddback_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In
+    exact evm_div_n4_lane_shift0_callAddback_of_hdiv_callableExact sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
       (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
@@ -321,7 +321,7 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
     only `b.getLimbN 3 ≠ 0` and alignment remain. -/
 theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
     (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem : Word)
     (hb3nz : b.getLimbN 3 ≠ 0)
@@ -330,7 +330,7 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 3)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        (x2In) v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
@@ -338,11 +338,11 @@ theorem evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
        memOwn (sp + signExtend12 3936)) := by
   by_cases hsh : (clzResult (b.getLimbN 3)).1 = 0
   · exact evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
-      sp base a b raVal v5 v6 v7 v10 v11Old x9In
+      sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
       retMem dMem dloMem scratchUn0 scratchMem hb3nz hsh halign
   · exact evm_div_n4_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
-      sp base a b raVal v5 v6 v7 v10 v11Old x9In
+      sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
       retMem dMem dloMem scratchUn0 scratchMem hb3nz hsh halign
 

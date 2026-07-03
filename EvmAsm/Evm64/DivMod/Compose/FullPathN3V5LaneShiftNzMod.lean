@@ -88,6 +88,7 @@ theorem evm_mod_n3_lane_shiftNz_v5 (sp base : Word) (a b : EvmWord)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
     nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal
+    (signExtend12 (4 : BitVec 12) - (4 : Word)) ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat))
     hbnz' hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0
   refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
     cpsTripleWithin_weaken ?_ ?_ hpath
