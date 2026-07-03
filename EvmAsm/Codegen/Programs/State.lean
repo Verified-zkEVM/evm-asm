@@ -23,6 +23,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
@@ -441,46 +442,52 @@ def ziskAccountAtAddressProbeUnit : BuildUnit := {
 
     Internal: `mpt_lookup_by_key(slot_idx, ..., si_value_scratch)`
     then `slot_decode_u256` over the looked-up bytes. -/
-def slotDecodeU256Function : String :=
-  "slot_decode_u256:\n" ++
-  "  # a0 = val_bytes ptr, a1 = val_len, a2 = 32-byte BE out ptr.\n" ++
-  "  # Returns 0 (ok) / 1 (fail). Output is zeroed on every path.\n" ++
-  "  sd zero,  0(a2); sd zero,  8(a2); sd zero, 16(a2); sd zero, 24(a2)\n" ++
-  "  beqz a1, .Lsdu_fail        # empty input: malformed encoded value\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  li t1, 0x80\n" ++
-  "  bltu t0, t1, .Lsdu_single  # b0 < 0x80: single byte\n" ++
-  "  beq t0, t1, .Lsdu_zero     # b0 == 0x80: empty string ⇒ 0\n" ++
-  "  li t1, 0xa1\n" ++
-  "  bgeu t0, t1, .Lsdu_fail    # b0 ≥ 0xa1: too long for a u256\n" ++
-  "  # Short string of n bytes (1 ≤ n ≤ 32).\n" ++
-  "  li t1, 0x80\n" ++
-  "  sub t2, t0, t1             # n\n" ++
-  "  addi t3, a1, -1\n" ++
-  "  bltu t3, t2, .Lsdu_fail    # not enough bytes for declared length\n" ++
-  "  li t4, 32\n" ++
-  "  sub t4, t4, t2             # 32 - n\n" ++
-  "  add t5, a2, t4             # dst (right-aligned)\n" ++
-  "  addi t6, a0, 1             # src\n" ++
-  "  mv t3, t2                  # remaining\n" ++
-  ".Lsdu_copy:\n" ++
-  "  beqz t3, .Lsdu_ok\n" ++
-  "  lbu t1, 0(t6)\n" ++
-  "  sb  t1, 0(t5)\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lsdu_copy\n" ++
-  ".Lsdu_single:\n" ++
-  "  sb t0, 31(a2)              # write u256 = b0 at byte 31 (BE LSB)\n" ++
-  ".Lsdu_zero:\n" ++
-  ".Lsdu_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lsdu_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def slotDecodeU256_prog : Program :=
+  [ .SD .x12 .x0 (0 : BitVec 12),
+    .SD .x12 .x0 (8 : BitVec 12),
+    .SD .x12 .x0 (16 : BitVec 12),
+    .SD .x12 .x0 (24 : BitVec 12),
+    .BEQ .x11 .x0 (104 : BitVec 13),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (128 : Word),
+    .BLTU .x5 .x6 (80 : BitVec 13),
+    .BEQ .x5 .x6 (80 : BitVec 13),
+    .LI .x6 (161 : Word),
+    .BGEU .x5 .x6 (80 : BitVec 13),
+    .LI .x6 (128 : Word),
+    .SUB .x7 .x5 .x6,
+    .ADDI .x28 .x11 (-1 : BitVec 12),
+    .BLTU .x28 .x7 (64 : BitVec 13),
+    .LI .x29 (32 : Word),
+    .SUB .x29 .x29 .x7,
+    .ADD .x30 .x12 .x29,
+    .ADDI .x31 .x10 (1 : BitVec 12),
+    .MV .x28 .x7,
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x6 .x31 (0 : BitVec 12),
+    .SB .x30 .x6 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SB .x12 .x5 (31 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def slotDecodeU256Function : String :=
+  "slot_decode_u256:\n" ++ emitProgram slotDecodeU256_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `slotDecodeU256_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem slotDecodeU256Function_eq_prog :
+    slotDecodeU256Function = "slot_decode_u256:\n" ++ emitProgram slotDecodeU256_prog := rfl
+
+#guard slotDecodeU256Function.startsWith "slot_decode_u256:\n"
+#guard slotDecodeU256_prog.length = 32
 def slotAtIndexFunction : String :=
   "slot_at_index:\n" ++
   "  addi sp, sp, -32\n" ++

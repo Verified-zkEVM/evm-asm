@@ -21,6 +21,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
@@ -29,15 +30,32 @@ open EvmAsm.Rv64
 
 /-! ## sws_u32le -- read a little-endian u32 byte-wise (alignment-safe).
     a0 = ptr; returns the u32 value in a0. Leaf (uses t0/t1). -/
-def swsU32leFunction : String :=
-  "sws_u32le:\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  lbu t1, 1(a0); slli t1, t1, 8;  or t0, t0, t1\n" ++
-  "  lbu t1, 2(a0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 3(a0); slli t1, t1, 24; or t0, t0, t1\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+def swsU32le_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .LBU .x6 .x10 (1 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (2 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x10 (3 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def swsU32leFunction : String :=
+  "sws_u32le:\n" ++ emitProgram swsU32le_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `swsU32le_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem swsU32leFunction_eq_prog :
+    swsU32leFunction = "sws_u32le:\n" ++ emitProgram swsU32le_prog := rfl
+
+#guard swsU32leFunction.startsWith "sws_u32le:\n"
+#guard swsU32le_prog.length = 12
 /-- `extract_witness_state_section`.
     a0 = SSZ_BASE ptr (start of the SszStatelessInput SSZ blob)
     a1 = out: state section absolute ptr (u64)

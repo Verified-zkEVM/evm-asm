@@ -36,6 +36,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -82,19 +83,28 @@ def bls12FieldDataSection : String :=
 
 /-- Copy 8-byte quads: a0 = src, a1 = dst (both 8-aligned), a2 = quad
     count. Leaf; clobbers t0, a0, a1, a2. -/
-def bls12CopyQuadsFunction : String :=
-  "blsf_copy_quads:\n" ++
-  ".Lblsf_cq_loop:\n" ++
-  "  beqz a2, .Lblsf_cq_done\n" ++
-  "  ld t0, 0(a0)\n" ++
-  "  sd t0, 0(a1)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi a1, a1, 8\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lblsf_cq_loop\n" ++
-  ".Lblsf_cq_done:\n" ++
-  "  ret"
+def blsfCopyQuads_prog : Program :=
+  [ .BEQ .x12 .x0 (28 : BitVec 13),
+    .LD .x5 .x10 (0 : BitVec 12),
+    .SD .x11 .x5 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12CopyQuadsFunction : String :=
+  "blsf_copy_quads:\n" ++ emitProgram blsfCopyQuads_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsfCopyQuads_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12CopyQuadsFunction_eq_prog :
+    bls12CopyQuadsFunction = "blsf_copy_quads:\n" ++ emitProgram blsfCopyQuads_prog := rfl
+
+#guard bls12CopyQuadsFunction.startsWith "blsf_copy_quads:\n"
+#guard blsfCopyQuads_prog.length = 8
 /-- Fp d = (a*b) mod p: a0/a1 = 48-byte LE inputs (copied into the
     staging cells), result left in `blsf_le_d`. Clobbers t0, a0..a2, ra
     is preserved via stack. -/

@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -30,34 +31,42 @@ open EvmAsm.Rv64
                     +24 gas_used_after_refund
       a0 output : 0 success, 1 invalid gas_left > tx_gas_limit
 -/
-def txRefundCapFunction : String :=
-  "tx_refund_cap:\n" ++
-  "  bltu a0, a1, .Ltrc_invalid\n" ++
-  "  sub t0, a0, a1              # gas_used_before_refund\n" ++
-  "  sd t0, 0(a3)\n" ++
-  "  li t1, 5\n" ++
-  "  divu t2, t0, t1             # one-fifth cap\n" ++
-  "  sd t2, 8(a3)\n" ++
-  "  mv t3, a2\n" ++
-  "  bltu t2, t3, .Ltrc_use_cap\n" ++
-  "  mv t4, t3\n" ++
-  "  j .Ltrc_apply\n" ++
-  ".Ltrc_use_cap:\n" ++
-  "  mv t4, t2\n" ++
-  ".Ltrc_apply:\n" ++
-  "  sd t4, 16(a3)\n" ++
-  "  sub t5, t0, t4\n" ++
-  "  sd t5, 24(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Ltrc_invalid:\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  sd zero, 8(a3)\n" ++
-  "  sd zero, 16(a3)\n" ++
-  "  sd zero, 24(a3)\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def txRefundCap_prog : Program :=
+  [ .BLTU .x10 .x11 (64 : BitVec 13),
+    .SUB .x5 .x10 .x11,
+    .SD .x13 .x5 (0 : BitVec 12),
+    .LI .x6 (5 : Word),
+    .DIVU .x7 .x5 .x6,
+    .SD .x13 .x7 (8 : BitVec 12),
+    .MV .x28 .x12,
+    .BLTU .x7 .x28 (12 : BitVec 13),
+    .MV .x29 .x28,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x29 .x7,
+    .SD .x13 .x29 (16 : BitVec 12),
+    .SUB .x30 .x5 .x29,
+    .SD .x13 .x30 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .SD .x13 .x0 (8 : BitVec 12),
+    .SD .x13 .x0 (16 : BitVec 12),
+    .SD .x13 .x0 (24 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def txRefundCapFunction : String :=
+  "tx_refund_cap:\n" ++ emitProgram txRefundCap_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `txRefundCap_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem txRefundCapFunction_eq_prog :
+    txRefundCapFunction = "tx_refund_cap:\n" ++ emitProgram txRefundCap_prog := rfl
+
+#guard txRefundCapFunction.startsWith "tx_refund_cap:\n"
+#guard txRefundCap_prog.length = 22
 /-- `zisk_tx_refund_cap`: probe BuildUnit.
 
     Input: 24 bytes `(tx_gas_limit, gas_left, refund_counter)`.

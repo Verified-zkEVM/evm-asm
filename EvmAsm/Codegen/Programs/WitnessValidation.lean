@@ -18,6 +18,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
@@ -209,60 +210,74 @@ def ziskWitnessStateValidateNodeKindsProbeUnit : BuildUnit := {
         0 = all entries within cap (or empty section)
         1 = some entry exceeds `max_byte_length`
 -/
-def witnessCodesValidateLengthsFunction : String :=
-  "witness_codes_validate_lengths:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # max_byte_length\n" ++
-  "  mv s3, a3                  # n_processed out\n" ++
-  "  mv s4, a4                  # first_bad_index out\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  li t0, -1\n" ++
-  "  sd t0, 0(s4)\n" ++
-  "  beqz s1, .Lwcvl_ok           # empty section ⇒ vacuous-valid\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s5, t0, 2               # s5 = N\n" ++
-  "  li s6, 0                     # s6 = i\n" ++
-  ".Lwcvl_loop:\n" ++
-  "  beq s6, s5, .Lwcvl_ok\n" ++
-  "  # Element i bounds.\n" ++
-  "  slli t0, s6, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)                # inner_off_i\n" ++
-  "  addi t3, s6, 1\n" ++
-  "  beq t3, s5, .Lwcvl_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)                # inner_off_{i+1}\n" ++
-  "  sub t5, t4, t2               # el_i_len\n" ++
-  "  j .Lwcvl_check\n" ++
-  ".Lwcvl_use_end:\n" ++
-  "  sub t5, s1, t2               # el_i_len = section_len - inner_off_i\n" ++
-  ".Lwcvl_check:\n" ++
-  "  bgtu t5, s2, .Lwcvl_too_long\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lwcvl_loop\n" ++
-  ".Lwcvl_too_long:\n" ++
-  "  sd s6, 0(s3)                 # n_processed = i\n" ++
-  "  sd s6, 0(s4)                 # first_bad_index = i\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lwcvl_ret\n" ++
-  ".Lwcvl_ok:\n" ++
-  "  sd s5, 0(s3)                 # n_processed = N\n" ++
-  "  li t0, -1\n" ++
-  "  sd t0, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  ".Lwcvl_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def witnessCodesValidateLengths_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .SD .x20 .x5 (0 : BitVec 12),
+    .BEQ .x9 .x0 (92 : BitVec 13),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x21 .x5 (2 : BitVec 6),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x21 (76 : BitVec 13),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADDI .x28 .x22 (1 : BitVec 12),
+    .BEQ .x28 .x21 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .SUB .x30 .x29 .x7,
+    .JAL .x0 (8 : BitVec 21),
+    .SUB .x30 .x9 .x7,
+    .BLTU .x18 .x30 (12 : BitVec 13),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-56 : BitVec 21),
+    .SD .x19 .x22 (0 : BitVec 12),
+    .SD .x20 .x22 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (20 : BitVec 21),
+    .SD .x19 .x21 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .SD .x20 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def witnessCodesValidateLengthsFunction : String :=
+  "witness_codes_validate_lengths:\n" ++ emitProgram witnessCodesValidateLengths_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `witnessCodesValidateLengths_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem witnessCodesValidateLengthsFunction_eq_prog :
+    witnessCodesValidateLengthsFunction = "witness_codes_validate_lengths:\n" ++ emitProgram witnessCodesValidateLengths_prog := rfl
+
+#guard witnessCodesValidateLengthsFunction.startsWith "witness_codes_validate_lengths:\n"
+#guard witnessCodesValidateLengths_prog.length = 54
 /-- `zisk_witness_codes_validate_lengths`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

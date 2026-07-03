@@ -9,6 +9,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
@@ -31,32 +32,75 @@ open EvmAsm.Rv64
     then recipient[0..20] copied into bytes 0..20. Slot/original/current payload
     bytes are copied from the live entry. Overflow is checked before each append,
     so the first out-of-capacity entry leaves table memory untouched. -/
-def committedStorageSnapshotAppendFunction : String :=
-  "bv_mtx_committed_snapshot_append:\n" ++
-  "  li t0, 0                      # j = 0\n" ++
-  ".Lcssa_loop:\n" ++
-  "  beq t0, a2, .Lcssa_done\n" ++
-  "  bgeu a4, a5, .Lcssa_overflow\n" ++
-  "  slli t1, t0, 7; add t1, a1, t1   # src = live[j]\n" ++
-  "  slli t2, a4, 7; add t2, a3, t2   # dst = table[count]\n" ++
-  "  sd zero, 0(t2); sd zero, 8(t2); sd zero, 16(t2); sd zero, 24(t2)\n" ++
-  "  li t3, 0\n" ++
-  ".Lcssa_addr:\n" ++
-  "  li t4, 20; beq t3, t4, .Lcssa_addr_done\n" ++
-  "  add t5, a0, t3; lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5); addi t3, t3, 1; j .Lcssa_addr\n" ++
-  ".Lcssa_addr_done:\n" ++
-  "  ld t3, 32(t1);  sd t3, 32(t2);  ld t3, 40(t1);  sd t3, 40(t2)\n" ++
-  "  ld t3, 48(t1);  sd t3, 48(t2);  ld t3, 56(t1);  sd t3, 56(t2)\n" ++
-  "  ld t3, 64(t1);  sd t3, 64(t2);  ld t3, 72(t1);  sd t3, 72(t2)\n" ++
-  "  ld t3, 80(t1);  sd t3, 80(t2);  ld t3, 88(t1);  sd t3, 88(t2)\n" ++
-  "  ld t3, 96(t1);  sd t3, 96(t2);  ld t3, 104(t1); sd t3, 104(t2)\n" ++
-  "  ld t3, 112(t1); sd t3, 112(t2); ld t3, 120(t1); sd t3, 120(t2)\n" ++
-  "  addi a4, a4, 1; addi t0, t0, 1; j .Lcssa_loop\n" ++
-  ".Lcssa_overflow:\n" ++
-  "  li t0, 1; sd t0, 0(a6); mv a0, a4; li a1, 1; ret\n" ++
-  ".Lcssa_done:\n" ++
-  "  mv a0, a4; li a1, 0; ret"
+def bvMtxCommittedSnapshotAppend_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .BEQ .x5 .x12 (204 : BitVec 13),
+    .BGEU .x14 .x15 (180 : BitVec 13),
+    .SLLI .x6 .x5 (7 : BitVec 6),
+    .ADD .x6 .x11 .x6,
+    .SLLI .x7 .x14 (7 : BitVec 6),
+    .ADD .x7 .x13 .x7,
+    .SD .x7 .x0 (0 : BitVec 12),
+    .SD .x7 .x0 (8 : BitVec 12),
+    .SD .x7 .x0 (16 : BitVec 12),
+    .SD .x7 .x0 (24 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .LI .x29 (20 : Word),
+    .BEQ .x28 .x29 (28 : BitVec 13),
+    .ADD .x30 .x10 .x28,
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .ADD .x30 .x7 .x28,
+    .SB .x30 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LD .x28 .x6 (32 : BitVec 12),
+    .SD .x7 .x28 (32 : BitVec 12),
+    .LD .x28 .x6 (40 : BitVec 12),
+    .SD .x7 .x28 (40 : BitVec 12),
+    .LD .x28 .x6 (48 : BitVec 12),
+    .SD .x7 .x28 (48 : BitVec 12),
+    .LD .x28 .x6 (56 : BitVec 12),
+    .SD .x7 .x28 (56 : BitVec 12),
+    .LD .x28 .x6 (64 : BitVec 12),
+    .SD .x7 .x28 (64 : BitVec 12),
+    .LD .x28 .x6 (72 : BitVec 12),
+    .SD .x7 .x28 (72 : BitVec 12),
+    .LD .x28 .x6 (80 : BitVec 12),
+    .SD .x7 .x28 (80 : BitVec 12),
+    .LD .x28 .x6 (88 : BitVec 12),
+    .SD .x7 .x28 (88 : BitVec 12),
+    .LD .x28 .x6 (96 : BitVec 12),
+    .SD .x7 .x28 (96 : BitVec 12),
+    .LD .x28 .x6 (104 : BitVec 12),
+    .SD .x7 .x28 (104 : BitVec 12),
+    .LD .x28 .x6 (112 : BitVec 12),
+    .SD .x7 .x28 (112 : BitVec 12),
+    .LD .x28 .x6 (120 : BitVec 12),
+    .SD .x7 .x28 (120 : BitVec 12),
+    .ADDI .x14 .x14 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-180 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .SD .x16 .x5 (0 : BitVec 12),
+    .MV .x10 .x14,
+    .LI .x11 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .MV .x10 .x14,
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def committedStorageSnapshotAppendFunction : String :=
+  "bv_mtx_committed_snapshot_append:\n" ++ emitProgram bvMtxCommittedSnapshotAppend_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bvMtxCommittedSnapshotAppend_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem committedStorageSnapshotAppendFunction_eq_prog :
+    committedStorageSnapshotAppendFunction = "bv_mtx_committed_snapshot_append:\n" ++ emitProgram bvMtxCommittedSnapshotAppend_prog := rfl
+
+#guard committedStorageSnapshotAppendFunction.startsWith "bv_mtx_committed_snapshot_append:\n"
+#guard bvMtxCommittedSnapshotAppend_prog.length = 55
 /-- `zisk_mtx_committed_snapshot_append`: focused probe.
     Input after ziskemu's length wrapper:
       +8  mode: 0 zero-live, 1 one-entry, 2 two-entry, 3 overflow
@@ -118,52 +162,104 @@ def ziskCommittedStorageSnapshotPrologue : String :=
     preserving latest-write-wins without growing the table. Non-matches append a
     new committed entry, and overflow is reported only when a new unique key
     cannot fit. -/
-def committedStorageSnapshotUpsertFunction : String :=
-  "bv_mtx_committed_snapshot_upsert:\n" ++
-  "  li t0, 0                      # j = 0\n" ++
-  ".Lcssu_loop:\n" ++
-  "  beq t0, a2, .Lcssu_done\n" ++
-  "  slli t1, t0, 7; add t1, a1, t1   # src = live[j]\n" ++
-  "  li t2, 0                      # i = 0\n" ++
-  ".Lcssu_scan:\n" ++
-  "  beq t2, a4, .Lcssu_no_match\n" ++
-  "  slli t3, t2, 7; add t3, a3, t3   # entry = table[i]\n" ++
-  "  li t4, 0\n" ++
-  ".Lcssu_addr_cmp:\n" ++
-  "  li t5, 20; beq t4, t5, .Lcssu_slot_cmp\n" ++
-  "  add t5, a0, t4; lbu t5, 0(t5); add t6, t3, t4; lbu t6, 0(t6); bne t5, t6, .Lcssu_next_entry\n" ++
-  "  addi t4, t4, 1; j .Lcssu_addr_cmp\n" ++
-  ".Lcssu_slot_cmp:\n" ++
-  "  ld t5, 32(t1);  ld t6, 32(t3);  bne t5, t6, .Lcssu_next_entry\n" ++
-  "  ld t5, 40(t1);  ld t6, 40(t3);  bne t5, t6, .Lcssu_next_entry\n" ++
-  "  ld t5, 48(t1);  ld t6, 48(t3);  bne t5, t6, .Lcssu_next_entry\n" ++
-  "  ld t5, 56(t1);  ld t6, 56(t3);  bne t5, t6, .Lcssu_next_entry\n" ++
-  "  j .Lcssu_store_payload\n" ++
-  ".Lcssu_next_entry:\n" ++
-  "  addi t2, t2, 1; j .Lcssu_scan\n" ++
-  ".Lcssu_no_match:\n" ++
-  "  bgeu a4, a5, .Lcssu_overflow\n" ++
-  "  slli t3, a4, 7; add t3, a3, t3   # dst = table[count]\n" ++
-  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
-  "  li t4, 0\n" ++
-  ".Lcssu_addr_copy:\n" ++
-  "  li t5, 20; beq t4, t5, .Lcssu_store_payload_append\n" ++
-  "  add t5, a0, t4; lbu t6, 0(t5); add t5, t3, t4; sb t6, 0(t5); addi t4, t4, 1; j .Lcssu_addr_copy\n" ++
-  ".Lcssu_store_payload_append:\n" ++
-  "  addi a4, a4, 1\n" ++
-  ".Lcssu_store_payload:\n" ++
-  "  ld t4, 32(t1);  sd t4, 32(t3);  ld t4, 40(t1);  sd t4, 40(t3)\n" ++
-  "  ld t4, 48(t1);  sd t4, 48(t3);  ld t4, 56(t1);  sd t4, 56(t3)\n" ++
-  "  ld t4, 64(t1);  sd t4, 64(t3);  ld t4, 72(t1);  sd t4, 72(t3)\n" ++
-  "  ld t4, 80(t1);  sd t4, 80(t3);  ld t4, 88(t1);  sd t4, 88(t3)\n" ++
-  "  ld t4, 96(t1);  sd t4, 96(t3);  ld t4, 104(t1); sd t4, 104(t3)\n" ++
-  "  ld t4, 112(t1); sd t4, 112(t3); ld t4, 120(t1); sd t4, 120(t3)\n" ++
-  "  addi t0, t0, 1; j .Lcssu_loop\n" ++
-  ".Lcssu_overflow:\n" ++
-  "  li t0, 1; sd t0, 0(a6); mv a0, a4; li a1, 1; ret\n" ++
-  ".Lcssu_done:\n" ++
-  "  mv a0, a4; li a1, 0; ret"
+def bvMtxCommittedSnapshotUpsert_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .BEQ .x5 .x12 (320 : BitVec 13),
+    .SLLI .x6 .x5 (7 : BitVec 6),
+    .ADD .x6 .x11 .x6,
+    .LI .x7 (0 : Word),
+    .BEQ .x7 .x14 (112 : BitVec 13),
+    .SLLI .x28 .x7 (7 : BitVec 6),
+    .ADD .x28 .x13 .x28,
+    .LI .x29 (0 : Word),
+    .LI .x30 (20 : Word),
+    .BEQ .x29 .x30 (32 : BitVec 13),
+    .ADD .x30 .x10 .x29,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .ADD .x31 .x28 .x29,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .BNE .x30 .x31 (64 : BitVec 13),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LD .x30 .x6 (32 : BitVec 12),
+    .LD .x31 .x28 (32 : BitVec 12),
+    .BNE .x30 .x31 (44 : BitVec 13),
+    .LD .x30 .x6 (40 : BitVec 12),
+    .LD .x31 .x28 (40 : BitVec 12),
+    .BNE .x30 .x31 (32 : BitVec 13),
+    .LD .x30 .x6 (48 : BitVec 12),
+    .LD .x31 .x28 (48 : BitVec 12),
+    .BNE .x30 .x31 (20 : BitVec 13),
+    .LD .x30 .x6 (56 : BitVec 12),
+    .LD .x31 .x28 (56 : BitVec 12),
+    .BNE .x30 .x31 (8 : BitVec 13),
+    .JAL .x0 (80 : BitVec 21),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-108 : BitVec 21),
+    .BGEU .x14 .x15 (172 : BitVec 13),
+    .SLLI .x28 .x14 (7 : BitVec 6),
+    .ADD .x28 .x13 .x28,
+    .SD .x28 .x0 (0 : BitVec 12),
+    .SD .x28 .x0 (8 : BitVec 12),
+    .SD .x28 .x0 (16 : BitVec 12),
+    .SD .x28 .x0 (24 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .LI .x30 (20 : Word),
+    .BEQ .x29 .x30 (28 : BitVec 13),
+    .ADD .x30 .x10 .x29,
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .ADD .x30 .x28 .x29,
+    .SB .x30 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x14 .x14 (1 : BitVec 12),
+    .LD .x29 .x6 (32 : BitVec 12),
+    .SD .x28 .x29 (32 : BitVec 12),
+    .LD .x29 .x6 (40 : BitVec 12),
+    .SD .x28 .x29 (40 : BitVec 12),
+    .LD .x29 .x6 (48 : BitVec 12),
+    .SD .x28 .x29 (48 : BitVec 12),
+    .LD .x29 .x6 (56 : BitVec 12),
+    .SD .x28 .x29 (56 : BitVec 12),
+    .LD .x29 .x6 (64 : BitVec 12),
+    .SD .x28 .x29 (64 : BitVec 12),
+    .LD .x29 .x6 (72 : BitVec 12),
+    .SD .x28 .x29 (72 : BitVec 12),
+    .LD .x29 .x6 (80 : BitVec 12),
+    .SD .x28 .x29 (80 : BitVec 12),
+    .LD .x29 .x6 (88 : BitVec 12),
+    .SD .x28 .x29 (88 : BitVec 12),
+    .LD .x29 .x6 (96 : BitVec 12),
+    .SD .x28 .x29 (96 : BitVec 12),
+    .LD .x29 .x6 (104 : BitVec 12),
+    .SD .x28 .x29 (104 : BitVec 12),
+    .LD .x29 .x6 (112 : BitVec 12),
+    .SD .x28 .x29 (112 : BitVec 12),
+    .LD .x29 .x6 (120 : BitVec 12),
+    .SD .x28 .x29 (120 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-296 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .SD .x16 .x5 (0 : BitVec 12),
+    .MV .x10 .x14,
+    .LI .x11 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .MV .x10 .x14,
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def committedStorageSnapshotUpsertFunction : String :=
+  "bv_mtx_committed_snapshot_upsert:\n" ++ emitProgram bvMtxCommittedSnapshotUpsert_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bvMtxCommittedSnapshotUpsert_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem committedStorageSnapshotUpsertFunction_eq_prog :
+    committedStorageSnapshotUpsertFunction = "bv_mtx_committed_snapshot_upsert:\n" ++ emitProgram bvMtxCommittedSnapshotUpsert_prog := rfl
+
+#guard committedStorageSnapshotUpsertFunction.startsWith "bv_mtx_committed_snapshot_upsert:\n"
+#guard bvMtxCommittedSnapshotUpsert_prog.length = 84
 /-- `zisk_mtx_committed_snapshot_upsert`: focused probe.
     Input after ziskemu's length wrapper:
       +8  mode: 0 zero-live, 1 insert, 2 duplicate, 3 duplicate-plus-new,
@@ -252,52 +348,104 @@ def ziskCommittedStorageSnapshotUpsertProbeUnit : BuildUnit := {
     chunk pages. Existing keys update in place across page boundaries; new
     unique keys append at the global count and overflow only when total chunked
     capacity is exhausted. -/
-def committedStorageChunkedSnapshotUpsertFunction : String :=
-  "bv_mtx_committed_chunked_snapshot_upsert:\n" ++
-  "  li t0, 0                      # j = 0\n" ++
-  ".Lcscsu_loop:\n" ++
-  "  beq t0, a2, .Lcscsu_done\n" ++
-  "  slli t1, t0, 7; add t1, a1, t1   # src = live[j]\n" ++
-  "  li t2, 0                      # i = 0\n" ++
-  ".Lcscsu_scan:\n" ++
-  "  beq t2, a4, .Lcscsu_no_match\n" ++
-  "  slli t3, t2, 7; add t3, a3, t3   # entry = table[i]\n" ++
-  "  li t4, 0\n" ++
-  ".Lcscsu_addr_cmp:\n" ++
-  "  li t5, 20; beq t4, t5, .Lcscsu_slot_cmp\n" ++
-  "  add t5, a0, t4; lbu t5, 0(t5); add t6, t3, t4; lbu t6, 0(t6); bne t5, t6, .Lcscsu_next_entry\n" ++
-  "  addi t4, t4, 1; j .Lcscsu_addr_cmp\n" ++
-  ".Lcscsu_slot_cmp:\n" ++
-  "  ld t5, 32(t1);  ld t6, 32(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
-  "  ld t5, 40(t1);  ld t6, 40(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
-  "  ld t5, 48(t1);  ld t6, 48(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
-  "  ld t5, 56(t1);  ld t6, 56(t3);  bne t5, t6, .Lcscsu_next_entry\n" ++
-  "  j .Lcscsu_store_payload\n" ++
-  ".Lcscsu_next_entry:\n" ++
-  "  addi t2, t2, 1; j .Lcscsu_scan\n" ++
-  ".Lcscsu_no_match:\n" ++
-  "  bgeu a4, a5, .Lcscsu_overflow\n" ++
-  "  slli t3, a4, 7; add t3, a3, t3   # dst = table[count]\n" ++
-  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
-  "  li t4, 0\n" ++
-  ".Lcscsu_addr_copy:\n" ++
-  "  li t5, 20; beq t4, t5, .Lcscsu_store_payload_append\n" ++
-  "  add t5, a0, t4; lbu t6, 0(t5); add t5, t3, t4; sb t6, 0(t5); addi t4, t4, 1; j .Lcscsu_addr_copy\n" ++
-  ".Lcscsu_store_payload_append:\n" ++
-  "  addi a4, a4, 1\n" ++
-  ".Lcscsu_store_payload:\n" ++
-  "  ld t4, 32(t1);  sd t4, 32(t3);  ld t4, 40(t1);  sd t4, 40(t3)\n" ++
-  "  ld t4, 48(t1);  sd t4, 48(t3);  ld t4, 56(t1);  sd t4, 56(t3)\n" ++
-  "  ld t4, 64(t1);  sd t4, 64(t3);  ld t4, 72(t1);  sd t4, 72(t3)\n" ++
-  "  ld t4, 80(t1);  sd t4, 80(t3);  ld t4, 88(t1);  sd t4, 88(t3)\n" ++
-  "  ld t4, 96(t1);  sd t4, 96(t3);  ld t4, 104(t1); sd t4, 104(t3)\n" ++
-  "  ld t4, 112(t1); sd t4, 112(t3); ld t4, 120(t1); sd t4, 120(t3)\n" ++
-  "  addi t0, t0, 1; j .Lcscsu_loop\n" ++
-  ".Lcscsu_overflow:\n" ++
-  "  li t0, 1; sd t0, 0(a6); mv a0, a4; li a1, 1; ret\n" ++
-  ".Lcscsu_done:\n" ++
-  "  mv a0, a4; li a1, 0; ret"
+def bvMtxCommittedChunkedSnapshotUpsert_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .BEQ .x5 .x12 (320 : BitVec 13),
+    .SLLI .x6 .x5 (7 : BitVec 6),
+    .ADD .x6 .x11 .x6,
+    .LI .x7 (0 : Word),
+    .BEQ .x7 .x14 (112 : BitVec 13),
+    .SLLI .x28 .x7 (7 : BitVec 6),
+    .ADD .x28 .x13 .x28,
+    .LI .x29 (0 : Word),
+    .LI .x30 (20 : Word),
+    .BEQ .x29 .x30 (32 : BitVec 13),
+    .ADD .x30 .x10 .x29,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .ADD .x31 .x28 .x29,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .BNE .x30 .x31 (64 : BitVec 13),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LD .x30 .x6 (32 : BitVec 12),
+    .LD .x31 .x28 (32 : BitVec 12),
+    .BNE .x30 .x31 (44 : BitVec 13),
+    .LD .x30 .x6 (40 : BitVec 12),
+    .LD .x31 .x28 (40 : BitVec 12),
+    .BNE .x30 .x31 (32 : BitVec 13),
+    .LD .x30 .x6 (48 : BitVec 12),
+    .LD .x31 .x28 (48 : BitVec 12),
+    .BNE .x30 .x31 (20 : BitVec 13),
+    .LD .x30 .x6 (56 : BitVec 12),
+    .LD .x31 .x28 (56 : BitVec 12),
+    .BNE .x30 .x31 (8 : BitVec 13),
+    .JAL .x0 (80 : BitVec 21),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-108 : BitVec 21),
+    .BGEU .x14 .x15 (172 : BitVec 13),
+    .SLLI .x28 .x14 (7 : BitVec 6),
+    .ADD .x28 .x13 .x28,
+    .SD .x28 .x0 (0 : BitVec 12),
+    .SD .x28 .x0 (8 : BitVec 12),
+    .SD .x28 .x0 (16 : BitVec 12),
+    .SD .x28 .x0 (24 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .LI .x30 (20 : Word),
+    .BEQ .x29 .x30 (28 : BitVec 13),
+    .ADD .x30 .x10 .x29,
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .ADD .x30 .x28 .x29,
+    .SB .x30 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x14 .x14 (1 : BitVec 12),
+    .LD .x29 .x6 (32 : BitVec 12),
+    .SD .x28 .x29 (32 : BitVec 12),
+    .LD .x29 .x6 (40 : BitVec 12),
+    .SD .x28 .x29 (40 : BitVec 12),
+    .LD .x29 .x6 (48 : BitVec 12),
+    .SD .x28 .x29 (48 : BitVec 12),
+    .LD .x29 .x6 (56 : BitVec 12),
+    .SD .x28 .x29 (56 : BitVec 12),
+    .LD .x29 .x6 (64 : BitVec 12),
+    .SD .x28 .x29 (64 : BitVec 12),
+    .LD .x29 .x6 (72 : BitVec 12),
+    .SD .x28 .x29 (72 : BitVec 12),
+    .LD .x29 .x6 (80 : BitVec 12),
+    .SD .x28 .x29 (80 : BitVec 12),
+    .LD .x29 .x6 (88 : BitVec 12),
+    .SD .x28 .x29 (88 : BitVec 12),
+    .LD .x29 .x6 (96 : BitVec 12),
+    .SD .x28 .x29 (96 : BitVec 12),
+    .LD .x29 .x6 (104 : BitVec 12),
+    .SD .x28 .x29 (104 : BitVec 12),
+    .LD .x29 .x6 (112 : BitVec 12),
+    .SD .x28 .x29 (112 : BitVec 12),
+    .LD .x29 .x6 (120 : BitVec 12),
+    .SD .x28 .x29 (120 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-296 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .SD .x16 .x5 (0 : BitVec 12),
+    .MV .x10 .x14,
+    .LI .x11 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .MV .x10 .x14,
+    .LI .x11 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def committedStorageChunkedSnapshotUpsertFunction : String :=
+  "bv_mtx_committed_chunked_snapshot_upsert:\n" ++ emitProgram bvMtxCommittedChunkedSnapshotUpsert_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bvMtxCommittedChunkedSnapshotUpsert_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem committedStorageChunkedSnapshotUpsertFunction_eq_prog :
+    committedStorageChunkedSnapshotUpsertFunction = "bv_mtx_committed_chunked_snapshot_upsert:\n" ++ emitProgram bvMtxCommittedChunkedSnapshotUpsert_prog := rfl
+
+#guard committedStorageChunkedSnapshotUpsertFunction.startsWith "bv_mtx_committed_chunked_snapshot_upsert:\n"
+#guard bvMtxCommittedChunkedSnapshotUpsert_prog.length = 84
 /-- `zisk_mtx_committed_chunked_snapshot_upsert`: focused probe.
     Input after ziskemu's length wrapper:
       +8 mode: 0 zero-live, 1 129 unique inserts, 2 duplicate update across

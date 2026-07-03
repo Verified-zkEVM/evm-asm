@@ -53,6 +53,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Bls12Pairing
 
 namespace EvmAsm.Codegen
@@ -234,28 +235,36 @@ def bls12KzgFpPowQ14Function : String :=
 
 /-- a0 = 1 iff the a2-byte big-endian integer at a0 is strictly less
     than the one at a1. Leaf (generic sibling of `blsg_lt_p`). -/
-def bls12KzgLtBeFunction : String :=
-  "blsk_lt_be:\n" ++
-  "  mv t0, a0\n" ++
-  "  mv t1, a1\n" ++
-  "  mv t2, a2\n" ++
-  ".Lblsk_ltbe_loop:\n" ++
-  "  beqz t2, .Lblsk_ltbe_no        # equal => not less\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  lbu t4, 0(t1)\n" ++
-  "  bltu t3, t4, .Lblsk_ltbe_yes\n" ++
-  "  bltu t4, t3, .Lblsk_ltbe_no\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lblsk_ltbe_loop\n" ++
-  ".Lblsk_ltbe_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblsk_ltbe_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def blskLtBe_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x7 .x12,
+    .BEQ .x7 .x0 (44 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BLTU .x28 .x29 (24 : BitVec 13),
+    .BLTU .x29 .x28 (28 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12KzgLtBeFunction : String :=
+  "blsk_lt_be:\n" ++ emitProgram blskLtBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blskLtBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12KzgLtBeFunction_eq_prog :
+    bls12KzgLtBeFunction = "blsk_lt_be:\n" ++ emitProgram blskLtBe_prog := rfl
+
+#guard bls12KzgLtBeFunction.startsWith "blsk_lt_be:\n"
+#guard blskLtBe_prog.length = 16
 /-- Decompress one 48-byte compressed G1 point (py_ecc `decompress_G1`
     + the `validate_kzg_g1` infinity rule): a0 = input bytes (any
     alignment), a1 = compact 96-byte BE output. Returns a0 = 0 (valid
@@ -408,35 +417,43 @@ def bls12KzgNegScalarFunction : String :=
 /-- Encode a compact 96-byte BE G1 point (a0) as a 128-byte EIP-2537
     wire record at a1 (zero pads written; (0,0) stays all-zero). Leaf;
     byte ops, so alignment is free. -/
-def bls12KzgG1WireFunction : String :=
-  "blsk_g1_wire:\n" ++
-  "  li t0, 0                       # coord index 0/1\n" ++
-  ".Lblsk_g1w_coord:\n" ++
-  "  slli t1, t0, 6\n" ++
-  "  add t1, a1, t1                 # wire felt base\n" ++
-  "  li t2, 16\n" ++
-  ".Lblsk_g1w_pad:\n" ++
-  "  sb zero, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lblsk_g1w_pad\n" ++
-  "  slli t2, t0, 4\n" ++
-  "  slli t3, t0, 5\n" ++
-  "  add t2, t2, t3                 # 48 * coord index\n" ++
-  "  add t2, a0, t2\n" ++
-  "  li t3, 48\n" ++
-  ".Lblsk_g1w_copy:\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  sb t4, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  bnez t3, .Lblsk_g1w_copy\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 2\n" ++
-  "  bne t0, t1, .Lblsk_g1w_coord\n" ++
-  "  ret"
+def blskG1Wire_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .SLLI .x6 .x5 (6 : BitVec 6),
+    .ADD .x6 .x11 .x6,
+    .LI .x7 (16 : Word),
+    .SB .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .SLLI .x7 .x5 (4 : BitVec 6),
+    .SLLI .x28 .x5 (5 : BitVec 6),
+    .ADD .x7 .x7 .x28,
+    .ADD .x7 .x10 .x7,
+    .LI .x28 (48 : Word),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .BNE .x28 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (2 : Word),
+    .BNE .x5 .x6 (-80 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12KzgG1WireFunction : String :=
+  "blsk_g1_wire:\n" ++ emitProgram blskG1Wire_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blskG1Wire_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12KzgG1WireFunction_eq_prog :
+    bls12KzgG1WireFunction = "blsk_g1_wire:\n" ++ emitProgram blskG1Wire_prog := rfl
+
+#guard bls12KzgG1WireFunction.startsWith "blsk_g1_wire:\n"
+#guard blskG1Wire_prog.length = 23
 /-- Encode a 192-byte LE G2 point (a0) as a 256-byte EIP-2537 wire
     record at a1 (zero pads written; all-zero stays all-zero). -/
 def bls12KzgG2WireFunction : String :=

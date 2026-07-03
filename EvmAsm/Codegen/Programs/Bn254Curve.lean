@@ -23,6 +23,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Bn254Field
 
 namespace EvmAsm.Codegen
@@ -57,52 +58,78 @@ def bn254CurveDataSection : String :=
   bn254FieldDataSection ++ bn254CurveDataFragment
 
 /-- Copy 64 bytes from a0 to a1 (byte loop; alignment-free). -/
+def bncCopy64_prog : Program :=
+  [ .LI .x5 (64 : Word),
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .LBU .x6 .x10 (0 : BitVec 12),
+    .SB .x11 .x6 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bn254PointCopy64Function : String :=
-  "bnc_copy64:\n" ++
-  "  li t0, 64\n" ++
-  ".Lbnc_copy64_loop:\n" ++
-  "  beqz t0, .Lbnc_copy64_ret\n" ++
-  "  lbu t1, 0(a0)\n" ++
-  "  sb t1, 0(a1)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbnc_copy64_loop\n" ++
-  ".Lbnc_copy64_ret:\n" ++
-  "  ret"
+  "bnc_copy64:\n" ++ emitProgram bncCopy64_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bncCopy64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254PointCopy64Function_eq_prog :
+    bn254PointCopy64Function = "bnc_copy64:\n" ++ emitProgram bncCopy64_prog := rfl
+
+#guard bn254PointCopy64Function.startsWith "bnc_copy64:\n"
+#guard bncCopy64_prog.length = 9
 /-- Zero 64 bytes at a0 (byte loop; alignment-free). -/
+def bncZero64_prog : Program :=
+  [ .LI .x5 (64 : Word),
+    .BEQ .x5 .x0 (20 : BitVec 13),
+    .SB .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bn254PointZero64Function : String :=
-  "bnc_zero64:\n" ++
-  "  li t0, 64\n" ++
-  ".Lbnc_zero64_loop:\n" ++
-  "  beqz t0, .Lbnc_zero64_ret\n" ++
-  "  sb zero, 0(a0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbnc_zero64_loop\n" ++
-  ".Lbnc_zero64_ret:\n" ++
-  "  ret"
+  "bnc_zero64:\n" ++ emitProgram bncZero64_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bncZero64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254PointZero64Function_eq_prog :
+    bn254PointZero64Function = "bnc_zero64:\n" ++ emitProgram bncZero64_prog := rfl
+
+#guard bn254PointZero64Function.startsWith "bnc_zero64:\n"
+#guard bncZero64_prog.length = 7
 /-- Return a0 = 1 iff the 64-byte point at a0 is (0,0) (infinity). -/
-def bn254PointIsInfFunction : String :=
-  "bnc_is_inf64:\n" ++
-  "  li t0, 64\n" ++
-  "  mv t1, a0\n" ++
-  ".Lbnc_isinf_loop:\n" ++
-  "  beqz t0, .Lbnc_isinf_yes\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  bnez t2, .Lbnc_isinf_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lbnc_isinf_loop\n" ++
-  ".Lbnc_isinf_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lbnc_isinf_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def bncIsInf64_prog : Program :=
+  [ .LI .x5 (64 : Word),
+    .MV .x6 .x10,
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .BNE .x7 .x0 (24 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254PointIsInfFunction : String :=
+  "bnc_is_inf64:\n" ++ emitProgram bncIsInf64_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bncIsInf64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254PointIsInfFunction_eq_prog :
+    bn254PointIsInfFunction = "bnc_is_inf64:\n" ++ emitProgram bncIsInf64_prog := rfl
+
+#guard bn254PointIsInfFunction.startsWith "bnc_is_inf64:\n"
+#guard bncIsInf64_prog.length = 12
 /-- Double an affine point. a0 = input x||y (BE), a1 = output x||y.
     Returns a0 = 1 when the result is infinity (y = 0 input, which also
     covers the (0,0) infinity encoding), output zeroed; else 0. -/
@@ -409,23 +436,33 @@ def zkvmBn254G1MulRealFunction : String :=
     nonzero high limb caps at the 63/64 send limit) and remaining is the
     dispatcher gas cell at 568(x20). Leaf; clobbers x17/x23/x24, returns
     via x1 (callers inside the precompile dispatch tail use `jal x1`). -/
-def bn254CallAllotmentFunction : String :=
-  "bn254_call_allotment:\n" ++
-  "  ld x17, 568(x20)\n" ++
-  "  srli x22, x17, 6\n" ++
-  "  sub x22, x17, x22              # max send = remaining - remaining/64\n" ++
-  "  ld x23, 8(x12)\n" ++
-  "  ld x24, 16(x12)\n" ++
-  "  or x23, x23, x24\n" ++
-  "  ld x24, 24(x12)\n" ++
-  "  or x23, x23, x24\n" ++
-  "  bnez x23, .Lbn254_allot_cap    # gas word >= 2^64: cap\n" ++
-  "  ld x23, 0(x12)\n" ++
-  "  bgeu x23, x22, .Lbn254_allot_cap\n" ++
-  "  mv x22, x23\n" ++
-  ".Lbn254_allot_cap:\n" ++
-  "  ret"
+def bn254CallAllotment_prog : Program :=
+  [ .LD .x17 .x20 (568 : BitVec 12),
+    .SRLI .x22 .x17 (6 : BitVec 6),
+    .SUB .x22 .x17 .x22,
+    .LD .x23 .x12 (8 : BitVec 12),
+    .LD .x24 .x12 (16 : BitVec 12),
+    .OR .x23 .x23 .x24,
+    .LD .x24 .x12 (24 : BitVec 12),
+    .OR .x23 .x23 .x24,
+    .BNE .x23 .x0 (16 : BitVec 13),
+    .LD .x23 .x12 (0 : BitVec 12),
+    .BGEU .x23 .x22 (8 : BitVec 13),
+    .MV .x22 .x23,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254CallAllotmentFunction : String :=
+  "bn254_call_allotment:\n" ++ emitProgram bn254CallAllotment_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bn254CallAllotment_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254CallAllotmentFunction_eq_prog :
+    bn254CallAllotmentFunction = "bn254_call_allotment:\n" ++ emitProgram bn254CallAllotment_prog := rfl
+
+#guard bn254CallAllotmentFunction.startsWith "bn254_call_allotment:\n"
+#guard bn254CallAllotment_prog.length = 13
 /-- The full self-contained BN254 precompile suite (field + curve helpers,
     the two real `zkvm_bn254_g1_*` kernels, and the allotment helper).
     Linked by every closure that embeds the runtime dispatcher; pairs with

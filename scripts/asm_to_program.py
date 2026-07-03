@@ -219,6 +219,21 @@ def convert(asm):
     if not items or items[0][0] != 'label':
         raise ConvError("first line is not a label")
     entry = items[0][1]
+    # A converted function keeps ONLY its entry label ("entry:\n" ++ emitProgram);
+    # emitProgram strips every internal label, turning branches into PC-relative
+    # offsets. That is safe for `.L`-local labels (never cross-function targets by
+    # convention) but a secondary NON-`.L` label is a potential cross-function
+    # entry point: external `jal`s in OTHER files resolve to it, and stripping it
+    # silently breaks the guest link. Per-function byte-identity still passes (the
+    # bundle is self-consistent in isolation), so ONLY the whole-guest byte-identity
+    # gate catches it. Refuse such multi-entry bundles here so they are classified,
+    # not mis-converted. (bead evm-asm-4ch8f.9.1 finding: receiptRecordsFunction /
+    # storageEffectRecordsFunction expose *_clear/_append/_record_nth entries.)
+    for it in items[1:]:
+        if it[0] == 'label' and not it[1].startswith('.L'):
+            raise ConvError(f"secondary non-.L label {it[1]!r}: multi-entry bundle, "
+                            f"cross-function entry point stripped by emitProgram "
+                            f"(MULTI-ENTRY-BUNDLE)")
     # assign byte address to each insn; record label -> address
     label_addr = {}
     addr = 0
@@ -413,11 +428,22 @@ def lean_render(manifest):
     repo=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     mods=sorted({_module_of(p) for p in manifest.values()})
     funcs=sorted(manifest)
+    # Emit the render harness as a `forM` over a `List (String × String)` of
+    # (func-name, func-value) pairs rather than one giant `do` block: a `do`
+    # block desugars to nested binds and blows the default `maxRecDepth` once
+    # the manifest passes ~32 funcs (~96 statements).  The `forM` body has
+    # fixed nesting depth, so this scales to the full manifest without touching
+    # `maxRecDepth`.  This harness is a pure print tool run OUTSIDE the kernel;
+    # the trust-bearing artifact remains the per-func `rfl` theorem in-source.
     src =''.join(f"import {m}\n" for m in mods)
     src+="open EvmAsm.Codegen\n"
-    src+="def main : IO Unit := do\n"
-    for fn in funcs:
-        src+=f'  IO.print "{_BEG}{fn}{_MID}"; IO.print {fn}; IO.print "{_END}"\n'
+    src+="def _renderItems : List (String × String) :=\n"
+    src+="  [ "+",\n    ".join(f'("{fn}", {fn})' for fn in funcs)+" ]\n"
+    src+="def main : IO Unit :=\n"
+    src+="  _renderItems.forM fun (nm, s) => do\n"
+    src+=f'    IO.print ("{_BEG}" ++ nm ++ "{_MID}")\n'
+    src+="    IO.print s\n"
+    src+=f'    IO.print "{_END}"\n'
     with tempfile.NamedTemporaryFile('w',suffix='.lean',dir=repo,delete=False) as f:
         f.write(src); tmp=f.name
     try:
@@ -541,6 +567,7 @@ _CLS_DESC={
  'BLOCKED_ON_.6':'Contains `la <symbol>` scratch/global addressing or a cross-function `jal <callee>` — needs the authoritative linker-pinned address table (bead evm-asm-4ch8f.6).',
  'NEEDS-LI-EXPANSION':'Contains an `li rd, C` with C outside 12-bit signed range; a faithful 4-byte-per-`Instr` Program must emit the explicit `lui`/`addiw`/… expansion as separate `Instr`s (follow-up wave).',
  'CALLER-LOCAL-FRAGMENT':'Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first.',
+ 'MULTI-ENTRY-BUNDLE':'Defines secondary non-`.L` labels (e.g. `*_clear`/`*_append`/`*_record_nth`) that other files `jal` into as cross-function entry points; `emitProgram` keeps only the entry label, so converting would silently break the guest link (caught only by the whole-guest byte-identity gate). Needs a multi-entry ABI / the .6 layout.',
  'ALREADY-STRUCTURED':'RHS is already `"label:\\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm).',
  'COMPOSITE':'RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert.',
  'CMP-DIFFER':'Parses, but the `emitProgram` render does NOT assemble byte-identically — investigate before landing.',
@@ -567,7 +594,7 @@ def render_coverage(rows, landed):
     for r in sorted(rows,key=lambda r:r[1]):
         if r[1] in landed: L.append(f"| `{r[1]}` | `{r[0]}` | {r[3]} |")
     L.append("")
-    for cls in ['CONVERTED-CLEAN','NEEDS-LI-EXPANSION','CALLER-LOCAL-FRAGMENT']:
+    for cls in ['CONVERTED-CLEAN','NEEDS-LI-EXPANSION','CALLER-LOCAL-FRAGMENT','MULTI-ENTRY-BUNDLE']:
         items=sorted([r for r in rows if r[2]==cls],key=lambda r:(r[0],r[1]))
         L.append(f"## {cls} ({len(items)})\n")
         L.append("| Function | File | Instrs | Note |\n|---|---|---:|---|")
@@ -609,6 +636,7 @@ def classify_all():
                 except ConvError as e:
                     msg=str(e)
                     if 'BLOCKED_ON_.6' in msg: cls='BLOCKED_ON_.6'
+                    elif 'MULTI-ENTRY-BUNDLE' in msg: cls='MULTI-ENTRY-BUNDLE'
                     elif 'NEEDS-LI-EXPANSION' in msg: cls='NEEDS-LI-EXPANSION'
                     elif 'unresolved branch/jump target' in msg:
                         tgt=msg.split("'")[1]

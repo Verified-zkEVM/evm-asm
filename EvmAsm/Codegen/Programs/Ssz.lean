@@ -11,6 +11,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.HashBridge
 
@@ -538,39 +539,42 @@ def ziskSszMerkleizeProbeUnit : BuildUnit := {
     Byte-at-a-time copy (slow path, ~L instructions). Acceptable
     for bring-up; a future PR can specialise to 8-byte units
     when alignment is known. -/
-def sszPackBytesFunction : String :=
-  "ssz_pack_bytes:\n" ++
-  "  # a0 = src, a1 = L, a2 = dst.\n" ++
-  "  # First copy L bytes from src to dst (byte-wise).\n" ++
-  "  mv t0, a0                  # t0 = src cursor\n" ++
-  "  mv t1, a2                  # t1 = dst cursor\n" ++
-  "  mv t2, a1                  # t2 = remaining bytes\n" ++
-  ".Lszpb_copy:\n" ++
-  "  beqz t2, .Lszpb_check_pad\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  sb  t3, 0(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lszpb_copy\n" ++
-  ".Lszpb_check_pad:\n" ++
-  "  # remainder = L & 31; if zero, skip pad. else pad = 32 - remainder.\n" ++
-  "  andi t2, a1, 31\n" ++
-  "  beqz t2, .Lszpb_count\n" ++
-  "  li t3, 32\n" ++
-  "  sub t2, t3, t2             # t2 = pad bytes\n" ++
-  ".Lszpb_pad:\n" ++
-  "  beqz t2, .Lszpb_count\n" ++
-  "  sb zero, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lszpb_pad\n" ++
-  ".Lszpb_count:\n" ++
-  "  # chunks = ceil(L / 32) = (L + 31) >> 5\n" ++
-  "  addi t0, a1, 31\n" ++
-  "  srli a0, t0, 5\n" ++
-  "  ret"
+def sszPackBytes_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x12,
+    .MV .x7 .x11,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ANDI .x7 .x11 (31 : BitVec 12),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LI .x28 (32 : Word),
+    .SUB .x7 .x28 .x7,
+    .BEQ .x7 .x0 (20 : BitVec 13),
+    .SB .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .ADDI .x5 .x11 (31 : BitVec 12),
+    .SRLI .x10 .x5 (5 : BitVec 6),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def sszPackBytesFunction : String :=
+  "ssz_pack_bytes:\n" ++ emitProgram sszPackBytes_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `sszPackBytes_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem sszPackBytesFunction_eq_prog :
+    sszPackBytesFunction = "ssz_pack_bytes:\n" ++ emitProgram sszPackBytes_prog := rfl
+
+#guard sszPackBytesFunction.startsWith "ssz_pack_bytes:\n"
+#guard sszPackBytes_prog.length = 22
 /-- `zisk_ssz_pack_bytes`: probe BuildUnit that reads
     `(L : u64, data : L bytes)` from the host input region,
     calls `ssz_pack_bytes`, and writes the result to OUTPUT in

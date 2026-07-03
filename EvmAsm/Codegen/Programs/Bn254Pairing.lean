@@ -11,6 +11,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Bn254PairingCore
 
 namespace EvmAsm.Codegen
@@ -24,18 +25,28 @@ private def q12 (fn d a b : String) : String :=
   "  jal ra, " ++ fn ++ "\n"
 
 /-- Copy a 1152-byte FQ12 projective point: a0 = src, a1 = dst. -/
-def bn254PtCopyFunction : String :=
-  "bnq_pt_copy:\n" ++
-  "  li t2, 144\n" ++
-  ".Lbnq_pt_copy_loop:\n" ++
-  "  ld t3, 0(a0)\n" ++
-  "  sd t3, 0(a1)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi a1, a1, 8\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lbnq_pt_copy_loop\n" ++
-  "  ret"
+def bnqPtCopy_prog : Program :=
+  [ .LI .x7 (144 : Word),
+    .LD .x28 .x10 (0 : BitVec 12),
+    .SD .x11 .x28 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254PtCopyFunction : String :=
+  "bnq_pt_copy:\n" ++ emitProgram bnqPtCopy_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bnqPtCopy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254PtCopyFunction_eq_prog :
+    bn254PtCopyFunction = "bnq_pt_copy:\n" ++ emitProgram bnqPtCopy_prog := rfl
+
+#guard bn254PtCopyFunction.startsWith "bnq_pt_copy:\n"
+#guard bnqPtCopy_prog.length = 8
 /-- py_ecc `miller_loop(Q, P, final_exponentiate=False)` accumulated as
     a fraction: multiplies `bnq_tn` by f_num and `bnq_td` by f_den.
     Expects the twisted Q in `bnq_Q` and the cast P in `bnq_P` (both
