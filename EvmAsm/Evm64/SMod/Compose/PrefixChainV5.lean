@@ -914,5 +914,60 @@ theorem saveRa_signs_abs_then_modCall_dispatchReady_spec_in_smodCodeV5
       v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
       shiftMem nMem jMem retMem dMem dloMem scratchUn0 base)
 
+/-- SMOD wrapper prefix + any callable proof consuming the exact dispatch-ready
+    post (mirror of the SDIV `..._then_exact_callable_spec_in_sdivCodeV5`). -/
+theorem saveRa_signs_abs_then_modCall_dispatchReady_then_exact_callable_spec_in_smodCodeV5
+    {nSteps : Nat} {callPost : EvmAsm.Rv64.Assertion}
+    (vRa vSavedOld sp sDividendOld x13Old sDivisorOld
+      dividendMaskOld dividendValueOld dividendCarryOld
+      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop : Word)
+    (v2 v5 v6 : Word)
+    (q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+      shiftMem nMem jMem retMem dMem dloMem scratchUn0 scratchMem : Word)
+    (base callableExit : Word)
+    (hCallable :
+      EvmAsm.Rv64.cpsTripleWithin nSteps (base + wrapperEndOff) callableExit (smodCodeV5 base)
+        (saveRaAbsThenModCallDispatchReadyPost vRa sp base
+          dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+          divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+          v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0 **
+         ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem))
+        callPost) :
+    EvmAsm.Rv64.cpsTripleWithin (49 + nSteps) base callableExit (smodCodeV5 base)
+      (((((((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
+        ((.x12 ↦ᵣ sp) ** (.x8 ↦ᵣ sDividendOld) **
+         ((sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_smodDividendTopLimbOff) ↦ₘ
+           dividendTop))) **
+       (.x13 ↦ᵣ x13Old)) **
+       ((.x9 ↦ᵣ sDivisorOld) **
+        ((sp + EvmAsm.Rv64.signExtend12 EvmAsm.Evm64.evm_smodDivisorTopLimbOff) ↦ₘ
+          divisorTop))) **
+       (((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ dividendMaskOld) **
+         (.x7 ↦ᵣ dividendValueOld) ** (.x11 ↦ᵣ dividendCarryOld)) **
+        (((sp + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) ↦ₘ dividendLimb0) **
+         ((sp + EvmAsm.Rv64.signExtend12 (8 : BitVec 12)) ↦ₘ dividendLimb1) **
+         ((sp + EvmAsm.Rv64.signExtend12 (16 : BitVec 12)) ↦ₘ dividendLimb2)))) **
+       (((sp + EvmAsm.Rv64.signExtend12 (32 : BitVec 12)) ↦ₘ divisorLimb0) **
+        ((sp + EvmAsm.Rv64.signExtend12 (40 : BitVec 12)) ↦ₘ divisorLimb1) **
+        ((sp + EvmAsm.Rv64.signExtend12 (48 : BitVec 12)) ↦ₘ divisorLimb2))) **
+       ((.x2 ↦ᵣ v2) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        EvmAsm.Evm64.divScratchValuesCallNoX1 sp
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)) **
+       ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem))
+      callPost := by
+  have hPrefix := saveRa_signs_abs_then_modCall_dispatchReady_spec_in_smodCodeV5
+    vRa vSavedOld sp sDividendOld x13Old sDivisorOld
+    dividendMaskOld dividendValueOld dividendCarryOld
+    dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+    divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+    v2 v5 v6 q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+    shiftMem nMem jMem retMem dMem dloMem scratchUn0 base
+  have hPrefixFramed := EvmAsm.Rv64.cpsTripleWithin_frameR
+    ((sp + EvmAsm.Rv64.signExtend12 3936) ↦ₘ scratchMem) (by pcFree) hPrefix
+  exact EvmAsm.Rv64.cpsTripleWithin_seq_same_cr hPrefixFramed hCallable
+
 
 end EvmAsm.Evm64.SMod.Compose
