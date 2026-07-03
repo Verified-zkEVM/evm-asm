@@ -2525,8 +2525,17 @@ with its pre met, sp = disjunction of posts, soundness via
 `jalr_call_spec_within` reading the target out of `regFileIs`; table
 loads are ordinary ro-region blocks, correlation via per-call-site
 ghost instantiation, tail calls (`jalr x0`) future work
-(docs/sasm-design.md §3.6.3, CallRegDemo). Next for SAsm: more
-Stateless/SSZ ports. Assertion-state milestone started (approved plan
+(docs/sasm-design.md §3.6.3, CallRegDemo). ZisK accelerator semantics
+landed (`Rv64/ZiskAccel.lean` + `Instr.CSRS`, bead evm-asm-4ch8f.1):
+CONCRETE per-CSR semantics — Keccak-f[1600], SHA-256 compression,
+Arith256Mod exact (a*b+c) mod m — with kernel-checked KATs pinned to
+keccak256("")/sha256(""); step traps on invalid operand blocks AND on
+unmodeled CSR ids (no silent skips); emitInstr pre-encodes `.4byte`
+words matching the guest literals (0x80052073/0x8022a073/0x80552073);
+follow-up accelerators (secp add/dbl 0x803/4, blake2b 0x819, bn254,
+bls12) slot into the same execCsrs/csrsValid dispatch; SAsm block
+exposure deferred to beads .17/.18 (design §3.3.1). Next for SAsm:
+more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the

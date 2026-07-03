@@ -201,9 +201,48 @@ def regionsAssert : List Region → Assertion   -- ⋆ of bytesRegion-style atom
   Overlapping regions need no side condition — the separation conjunction
   makes them unsatisfiable.  Stores (to the writable region only) update
   the symbolic bytes via `setBytes`.
-- Other effects (syscalls/hints, publicValues, …) are future extensions at
+- Other effects (hints, publicValues, …) are future extensions at
   the same seam: enlarge `SymState` and the per-leaf soundness lemmas;
   the structural rules (§3.5) do not change.
+
+### 3.3.1 ZisK accelerator semantics (`Rv64/ZiskAccel.lean`, design decisions)
+
+The guest's hashing and crypto kernels call ZisK precompiles through raw
+`csrs <id>, <reg>` words (`.4byte 0x80052073` etc.); bead evm-asm-4ch8f.1
+models them (machine level, below SAsm):
+
+- **Concrete, not parametrized.**  `Instr.CSRS csr rs1` executes the
+  actual mathematical function per CSR id — Keccak-f[1600], the SHA-256
+  compression, exact-intermediate `(a*b + c) mod m` — rather than an
+  axiomatized accelerator contract.  Rationale: (1) evm-asm carries
+  *software* implementations of several hashes (RIPEMD-160, SHA-256
+  wrapper, P-256 over Arith256Mod), and their proofs must meet the
+  accelerator path at the same concrete function; (2) an axiomatized
+  contract widens the trusted base beyond the three classical axioms;
+  (3) concrete permutations admit in-repo kernel-checked known-answer
+  tests (`keccakF_kat_empty`, `sha256Compress_kat_empty`, pinned to
+  `keccak256("")`/`sha256("")`).  What a parametrized model would buy —
+  insulation from ziskemu version drift in operand packing — is instead
+  handled by pinning the layouts to the probe results
+  (`Codegen/Programs/HashProbes.lean`) and re-validating via EEST runs.
+- **Modeled ids** (v1): `0x800` Keccakf (25-lane LE state, in place),
+  `0x802` Arith256Mod (`[a*, b*, c*, module*, d*]`, 4 LE u64 limbs each),
+  `0x805` Sha256f (`[state*, input*]`, LE-u32-in-u64 packing).  Follow-ups
+  slot into the same `execCsrs`/`csrsValid` dispatch: Secp256k1Add/Dbl
+  (0x803/0x804), Blake2bRound (0x819), BN254, BLS12-381.
+- **Traps, not no-ops.**  `step` requires `csrsValid`: every operand dword
+  a valid access and (Arith256Mod) a nonzero modulus; an UNMODELED CSR id
+  always traps.  A verified triple over code containing a `csrs` therefore
+  cannot silently skip the accelerator — the proof obligation is exactly
+  the operand-block validity.
+- **The ECALL surfaces stay as they are**: SP1-convention HALT/WRITE/
+  read_input remain on `ECALL` in `step`; ZisK accelerators are csrs-only.
+- **SAsm exposure is deliberately deferred** to the consuming beads
+  (.17 keccak bridge, .18 sha256): `blockOk` rejects `CSRS` inside blocks
+  today; the bridge beads decide between a new block-leaf classification
+  (`accelSem`, mirroring `storeSem` with a multi-dword footprint) or a
+  `Stmt`-level node.  The machine-level `step_csrs`/`step_csrs_trap`
+  lemmas are the composition points either way.
 
 ### 3.4 Block symbolic execution (`SAsm/Sym.lean`)
 
