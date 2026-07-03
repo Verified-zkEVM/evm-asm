@@ -331,13 +331,13 @@ def basicPrecompileCallTail
     "  bgeu x19, x23, 6f\n" ++
     "  add x18, x18, x22\n" ++
     "  add x19, x19, x22\n" ++
-    "8:\n" ++
+    "25:\n" ++
     "  addi x18, x18, -1\n" ++
     "  addi x19, x19, -1\n" ++
     "  lbu x16, 0(x18)\n" ++
     "  sb x16, 0(x19)\n" ++
     "  addi x22, x22, -1\n" ++
-    "  bnez x22, 8b\n" ++
+    "  bnez x22, 25b\n" ++
     "  j 7f\n" ++
     "6:\n" ++
     "  lbu x16, 0(x18)\n" ++
