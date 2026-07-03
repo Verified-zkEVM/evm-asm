@@ -232,9 +232,13 @@ models them (machine level, below SAsm):
   (`[sigmaIdx, state*, input*]`, one RFC 7693 round on the 16-word
   working vector), `0x803`/`0x804` Secp256k1Add/Dbl (affine chord/
   tangent over concrete field arithmetic, fuel-indexed kernel-reducible
-  `powMod` inversion; degenerate inputs trap).  Follow-ups slot into the
-  same `execCsrs`/`csrsValid` dispatch: BN254 curve+Fp2 (0x806–0x80A),
-  BLS12-381 curve+Fp2 (0x80C–0x810).
+  `powMod` inversion; degenerate inputs trap), `0x806`–`0x80A` BN254
+  curve+Fp2, `0x80C`–`0x810` BLS12-381 curve+Fp2 (same generic helpers
+  at (modulus, limbs) = (bn254P, 4) / (bls12P, 6); complex ops are
+  componentwise mod p with `u² = −1`).  This closes every accelerator id
+  the guest emits.  `execCsrs` is definitionally ONE `writeWords` (a
+  pure `csrsWrite` computes target and payload), so state-projection
+  lemmas are branch-count-independent.
 - **Traps, not no-ops.**  `step` requires `csrsValid`: every operand dword
   a valid access and (Arith256Mod) a nonzero modulus; an UNMODELED CSR id
   always traps.  A verified triple over code containing a `csrs` therefore
