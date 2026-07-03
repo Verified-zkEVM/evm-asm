@@ -11,19 +11,20 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | Class | Count | Meaning |
 |---|---:|---|
 | BLOCKED_ON_.6 | 301 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
-| READY-WAVE3 | 169 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable. |
-| ALREADY-STRUCTURED | 169 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
+| ALREADY-STRUCTURED | 248 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
 | COMPOSITE | 139 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
+| READY-WAVE3 | 90 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable. |
 | NEEDS-DOTWORD | 33 | Contains a raw pre-encoded `.4byte N` word — the ZisK accelerator `.CSRS`/`csrrs` pattern `emitInstr` renders as `.4byte`. Needs a word-literal `Instr` (or a `.4byte`→`.CSRS` decoder) to convert; deferred to a follow-up wave. |
 | NEEDS-LI-EXPANSION | 28 | Contains an `li rd, C` with C outside 12-bit signed range; a faithful 4-byte-per-`Instr` Program must emit the explicit `lui`/`addiw`/… expansion as separate `Instr`s (follow-up wave). |
 | CALLER-LOCAL-FRAGMENT | 8 | Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first. |
 | MULTI-ENTRY-BUNDLE | 4 | Defines secondary non-`.L` labels (e.g. `*_clear`/`*_append`/`*_record_nth`) that other files `jal` into as cross-function entry points; `emitProgram` keeps only the entry label, so converting would silently break the guest link (caught only by the whole-guest byte-identity gate). Needs a multi-entry ABI / the .6 layout. |
 | **TOTAL** | **851** | |
 
-## Landed in this PR (162)
+## Landed in this PR (241)
 
 | Function | File | Instrs |
 |---|---|---:|
+| `accessListCountFunction` | `EvmAsm/Codegen/Programs/TxExtract.lean` | 0 |
 | `accountExtractBalanceFunction` | `EvmAsm/Codegen/Programs/AccountFieldExtract.lean` | 0 |
 | `accountExtractNonceFunction` | `EvmAsm/Codegen/Programs/AccountFieldExtract.lean` | 0 |
 | `b1SenderTableFindFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean` | 0 |
@@ -34,13 +35,20 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `blake2fLdLe64Function` | `EvmAsm/Codegen/Programs/Blake2f.lean` | 0 |
 | `blake2fStLe64Function` | `EvmAsm/Codegen/Programs/Blake2f.lean` | 0 |
 | `blockHashFromHeaderFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
+| `blockLogsBloomFromReceiptsListFunction` | `EvmAsm/Codegen/Programs/BloomBlock.lean` | 0 |
 | `blockRlpRebuiltSizeFunction` | `EvmAsm/Codegen/Programs/BlockRlpSize.lean` | 0 |
+| `blockValidateLogsBloomFunction` | `EvmAsm/Codegen/Programs/BloomBlock.lean` | 0 |
+| `blockVerdictEip7702AuthNonstorageEffectsArrayFunction` | `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 0 |
+| `blockVerdictTxStateGasArrayFunction` | `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 0 |
+| `bloomAddValueFunction` | `EvmAsm/Codegen/Programs/BloomAddValue.lean` | 0 |
 | `bloomEqFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `bloomOrIntoFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `bls12CopyQuadsFunction` | `EvmAsm/Codegen/Programs/Bls12Field.lean` | 0 |
 | `bls12Fq12CopyFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 0 |
 | `bls12Fq12EqFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 0 |
 | `bls12Fq12IsZeroFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 0 |
+| `bls12Fq12PowFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 0 |
+| `bls12Fq12SetOneFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 0 |
 | `bls12Fq12ZeroFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 0 |
 | `bls12G1BeToLeFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
 | `bls12G1Copy96Function` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
@@ -48,11 +56,24 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `bls12G1IsZeroFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
 | `bls12G1LeToBeFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
 | `bls12G1LtPFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
+| `bls12G1OnCurveFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
+| `bls12G1SubgroupFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
 | `bls12G1Zero96Function` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 0 |
+| `bls12G2ChordTailFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
+| `bls12G2Copy192Function` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
+| `bls12G2EncodeFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
 | `bls12G2EqNFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
+| `bls12G2Fp2InvFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
+| `bls12G2FpInvFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
+| `bls12G2ScalarMulFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
+| `bls12G2SubgroupFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
 | `bls12G2Zero192Function` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 0 |
+| `bls12KzgFpPowQ14Function` | `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 0 |
 | `bls12KzgG1WireFunction` | `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 0 |
+| `bls12KzgG2WireFunction` | `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 0 |
 | `bls12KzgLtBeFunction` | `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 0 |
+| `bls12MapFp2PowFunction` | `EvmAsm/Codegen/Programs/Bls12Map.lean` | 0 |
+| `bls12MapFpPowFunction` | `EvmAsm/Codegen/Programs/Bls12Map.lean` | 0 |
 | `bls12PtCopyFunction` | `EvmAsm/Codegen/Programs/Bls12Pairing.lean` | 0 |
 | `bn254CallAllotmentFunction` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 0 |
 | `bn254FieldBeToLeFunction` | `EvmAsm/Codegen/Programs/Bn254Field.lean` | 0 |
@@ -62,16 +83,22 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `bn254FieldLtPFunction` | `EvmAsm/Codegen/Programs/Bn254Field.lean` | 0 |
 | `bn254Fp2CopyFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 0 |
 | `bn254Fp2EqFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 0 |
+| `bn254Fp2InvFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 0 |
 | `bn254Fp2IsZeroFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 0 |
 | `bn254Fp2ZeroFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 0 |
+| `bn254FpPowLeFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 0 |
 | `bn254Fq12CopyFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 0 |
 | `bn254Fq12EqFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 0 |
 | `bn254Fq12IsZeroFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 0 |
+| `bn254Fq12PowFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 0 |
+| `bn254Fq12SetOneFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 0 |
 | `bn254Fq12ZeroFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 0 |
+| `bn254OnCurveFunction` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 0 |
 | `bn254PointCopy64Function` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 0 |
 | `bn254PointIsInfFunction` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 0 |
 | `bn254PointZero64Function` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 0 |
 | `bn254PtCopyFunction` | `EvmAsm/Codegen/Programs/Bn254Pairing.lean` | 0 |
+| `bn254ScalarMulFunction` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 0 |
 | `bn254ValidateG1Function` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 0 |
 | `bytesToNibblesFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `calcExcessBlobGasFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
@@ -86,17 +113,21 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `deriveConsolidationRequestsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 0 |
 | `deriveWithdrawalRequestsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 0 |
 | `dispatcherCaptureExecStateGasFunction` | `EvmAsm/Codegen/Programs/DispatcherExecStateGas.lean` | 0 |
+| `eip7702AuthorizationSigningHashFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 0 |
 | `eip8037BlockGasUsedFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `enrgU32leFunction` | `EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean` | 0 |
 | `ephU32leFunction` | `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 0 |
 | `execLogLatestValueFunction` | `EvmAsm/Codegen/Programs/ExecLogLatestValue.lean` | 0 |
 | `expGasFunction` | `EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean` | 0 |
+| `extractParentHeaderAndStateRootFunction` | `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 0 |
+| `extractPayloadAndWithdrawalsFunction` | `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 0 |
 | `extractWitnessStateSectionFunction` | `EvmAsm/Codegen/Programs/SszWitnessState.lean` | 0 |
 | `findCodeEffectByAddressFunction` | `EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean` | 0 |
 | `frameDepthPopFunction` | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 0 |
 | `frameDepthPushFunction` | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 0 |
 | `frameLoadRegsFunction` | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 0 |
 | `frameSaveRegsFunction` | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 0 |
+| `headerExtractLogsBloomFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `headerExtractNumberFunction` | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 0 |
 | `headersParentHashFunction` | `EvmAsm/Codegen/Programs/HeadersKeccak.lean` | 0 |
 | `hpDecodeNibblesFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
@@ -104,34 +135,50 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `initCodeCostFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `intrinsicGasCalldataFloorEip7623Function` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `keccak256WordGasFunction` | `EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean` | 0 |
+| `logBloomAddFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `logDataGasFunction` | `EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean` | 0 |
+| `logsListBloomAddFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `memoryExpansionGasFunction` | `EvmAsm/Codegen/Programs/MemoryExpansionGas.lean` | 0 |
 | `mptBranchChildFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `mptBranchPayloadTwoSlotsFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` | 0 |
 | `mptCompactToNibblesFunction` | `EvmAsm/Codegen/Programs/MptNibbles.lean` | 0 |
+| `mptDeleteAccFunction` | `EvmAsm/Codegen/Programs/MptDeleteAcc.lean` | 0 |
+| `mptDeleteWalkDbFunction` | `EvmAsm/Codegen/Programs/MptDeleteWalkDb.lean` | 0 |
 | `mptExtensionExtractFunction` | `EvmAsm/Codegen/Programs/MptInternal.lean` | 0 |
 | `mptIndexedTrieRootLargeFunction` | `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` | 0 |
+| `mptInsertAccFunction` | `EvmAsm/Codegen/Programs/MptInsertAcc.lean` | 0 |
+| `mptInsertWalkDbFunction` | `EvmAsm/Codegen/Programs/MptInsertWalkDb.lean` | 0 |
 | `mptLeafExtractFunction` | `EvmAsm/Codegen/Programs/MptInternal.lean` | 0 |
 | `mptLookupByKeyFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `mptNibblesToCompactFunction` | `EvmAsm/Codegen/Programs/MptNibbles.lean` | 0 |
 | `mptNodeKindFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `mptNodeSlotEncodeFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` | 0 |
+| `mptOneLeafRootIndexedFunction` | `EvmAsm/Codegen/Programs/TxRoot.lean` | 0 |
+| `mptSetAccFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
+| `mptSetRecordWalkDbFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `mptSpliceSlotFunction` | `EvmAsm/Codegen/Programs/MptSet.lean` | 0 |
 | `mptStateRootFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `mptStateRootInsFunction` | `EvmAsm/Codegen/Programs/MptStateRootIns.lean` | 0 |
+| `mptWalkFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `msetMemcpyFunction` | `EvmAsm/Codegen/Programs/MptSet.lean` | 0 |
 | `nibblesCommonPrefixLenFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` | 0 |
 | `nodeDbAppendFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `nodeDbLookupFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `nonstorageEffectLatestBalanceFunction` | `EvmAsm/Codegen/Programs/NonstorageEffectLog.lean` | 0 |
 | `p256BeToLeFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
+| `p256ChordTailFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
 | `p256CopyNFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
 | `p256Eq32Function` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
 | `p256IsZeroNFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
 | `p256LeToBeFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
 | `p256LtBeFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
+| `p256PointAddFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
+| `p256PointDblFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
+| `p256PowFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
+| `p256ScalarMulFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 0 |
 | `parentHeaderMatchesWitnessFirstFunction` | `EvmAsm/Codegen/Programs/BlockHashPredicates.lean` | 0 |
 | `priorityFeePerGasEip1559Function` | `EvmAsm/Codegen/Programs/U256GasPricing.lean` | 0 |
+| `receiptExtractLogsBloomFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `rlpBytesEncodedSizeFunction` | `EvmAsm/Codegen/Programs/BlockRlpSize.lean` | 0 |
 | `rlpEncodeBytesFunction` | `EvmAsm/Codegen/Programs/RlpRead.lean` | 0 |
 | `rlpEncodeListPrefixFunction` | `EvmAsm/Codegen/Programs/RlpRead.lean` | 0 |
@@ -142,36 +189,67 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `rlpListCountItemsFunction` | `EvmAsm/Codegen/Programs/RlpRead.lean` | 0 |
 | `rlpListEncodedSizeFunction` | `EvmAsm/Codegen/Programs/BlockRlpSize.lean` | 0 |
 | `rlpListNthItemFunction` | `EvmAsm/Codegen/Programs/RlpRead.lean` | 0 |
+| `rlpListTruncateToNFieldsFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 0 |
 | `runningBloomCopyFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `runningBloomZeroFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
+| `secp256k1FieldAddFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1FieldBeToLeFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1FieldCmpPFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1FieldCopy32Function` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1FieldEq32Function` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1FieldGetBitFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1FieldInvFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1FieldIsZeroFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1FieldLeToBeFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1FieldPowFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1FieldReduceOnceFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1FieldSqrtFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1FieldSquareFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1FieldSubFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1FieldZero32Function` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
 | `secp256k1PointCopy64Function` | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 0 |
 | `secp256k1PointZero64Function` | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 0 |
+| `secp256k1RecoverPubkeyStagedFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 0 |
+| `secp256k1RecoverRFunction` | `EvmAsm/Codegen/Programs/Secp256k1Recover.lean` | 0 |
+| `secp256k1ScalarFieldAddFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1ScalarFieldInvFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1ScalarFieldPowFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1ScalarFieldReduceOnceFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1ScalarFieldSquareFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 0 |
+| `secp256k1ScalarMulFunction` | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 0 |
 | `senderPostNonceConsistentFunction` | `EvmAsm/Codegen/Programs/SenderPostNonceConsistent.lean` | 0 |
 | `singleLeafTrieRootFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` | 0 |
 | `slotDecodeU256Function` | `EvmAsm/Codegen/Programs/State.lean` | 0 |
 | `slotTupleSequencesMatchFunction` | `EvmAsm/Codegen/Programs/SlotTupleSequencesMatch.lean` | 0 |
 | `spwU32leFunction` | `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 0 |
+| `sszHashTreeRootBytesFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
+| `sszMerkleizeFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
+| `sszMerkleizePow2Function` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
 | `sszPackBytesFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
+| `sszTxListVersionedHashesMatchFunction` | `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 0 |
+| `sszWithdrawalToRlpFunction` | `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 0 |
 | `swdMinimalCopyFunction` | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 0 |
 | `swdReadU64leFunction` | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 0 |
 | `swdWriteBe32U64Function` | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 0 |
 | `swdWriteBe8Function` | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 0 |
 | `swrRevLeBeFunction` | `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 0 |
 | `swsU32leFunction` | `EvmAsm/Codegen/Programs/SszWitnessState.lean` | 0 |
+| `txAccessListSpanFunction` | `EvmAsm/Codegen/Programs/SeedTxAccessList.lean` | 0 |
+| `txEffectiveGasPricingFunction` | `EvmAsm/Codegen/Programs/TxExtract.lean` | 0 |
 | `txEip1559DecodeFunction` | `EvmAsm/Codegen/Programs/TxDecode1559.lean` | 0 |
 | `txEip2930DecodeFunction` | `EvmAsm/Codegen/Programs/TxDecode2930.lean` | 0 |
 | `txEip4844DecodeFunction` | `EvmAsm/Codegen/Programs/TxDecode4844.lean` | 0 |
+| `txEip4844ValidateBlobHashesFunction` | `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 0 |
 | `txEip7702DecodeFunction` | `EvmAsm/Codegen/Programs/TxDecode7702.lean` | 0 |
 | `txGasResultIncrementsFunction` | `EvmAsm/Codegen/Programs/Account.lean` | 0 |
+| `txGasSenderBalLookupFunction` | `EvmAsm/Codegen/Programs/TxGasSenderBalLookup.lean` | 0 |
 | `txPubkeyEcrecoverStageMaterialFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 0 |
+| `txPubkeyPublicKeyMatchesFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 0 |
+| `txPubkeyRecoverRawFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 0 |
+| `txPubkeySignatureMaterialFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 0 |
 | `txRefundCapFunction` | `EvmAsm/Codegen/Programs/TxRefund.lean` | 0 |
+| `txSigningHashFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 0 |
+| `txSigningHashLegacyEip155Function` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 0 |
 | `txTypeDispatchFunction` | `EvmAsm/Codegen/Programs/TxExtract.lean` | 0 |
 | `txValidateAgainstBlockFunction` | `EvmAsm/Codegen/Programs/Tx.lean` | 0 |
 | `u256AddBeFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 0 |
@@ -182,12 +260,13 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `u256LtBeFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 0 |
 | `u256MaxFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 0 |
 | `u256MinFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 0 |
+| `u256MulU64BeFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 0 |
 | `u256SubBeFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 0 |
 | `u256ToU64BeFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 0 |
 | `validateHeaderBasicFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
 | `witnessCodesValidateLengthsFunction` | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 0 |
 
-## READY-WAVE3 (169)
+## READY-WAVE3 (90)
 
 | Function | File | Instrs | Note |
 |---|---|---:|---|
@@ -235,34 +314,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `bsrBeaconChangeFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean` | 429 | 42 reloc sym(s) |
 | `bsrSysChangeFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean` | 109 | 17 reloc sym(s) |
 | `btiScanStorageChangesFunction` | `EvmAsm/Codegen/Programs/BlockVerdictTxsIndependent.lean` | 48 | 4 reloc sym(s) |
-| `headerExtractLogsBloomFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 46 | 3 reloc sym(s) |
-| `logBloomAddFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 107 | 8 reloc sym(s) |
-| `logsListBloomAddFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 55 | 6 reloc sym(s) |
-| `receiptExtractLogsBloomFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 46 | 3 reloc sym(s) |
-| `bloomAddValueFunction` | `EvmAsm/Codegen/Programs/BloomAddValue.lean` | 45 | 2 reloc sym(s) |
-| `blockLogsBloomFromReceiptsListFunction` | `EvmAsm/Codegen/Programs/BloomBlock.lean` | 87 | 10 reloc sym(s) |
-| `blockValidateLogsBloomFunction` | `EvmAsm/Codegen/Programs/BloomBlock.lean` | 53 | 5 reloc sym(s) |
-| `bls12Fq12PowFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 48 | 4 reloc sym(s) |
-| `bls12Fq12SetOneFunction` | `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 11 | 1 reloc sym(s) |
-| `bls12G1OnCurveFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 35 | 7 reloc sym(s) |
-| `bls12G1SubgroupFunction` | `EvmAsm/Codegen/Programs/Bls12G1.lean` | 12 | 3 reloc sym(s) |
-| `bls12G2ChordTailFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 62 | 6 reloc sym(s) |
-| `bls12G2Copy192Function` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 7 | 1 reloc sym(s) |
-| `bls12G2EncodeFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 23 | 1 reloc sym(s) |
-| `bls12G2Fp2InvFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 50 | 7 reloc sym(s) |
-| `bls12G2FpInvFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 56 | 5 reloc sym(s) |
-| `bls12G2ScalarMulFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 60 | 5 reloc sym(s) |
-| `bls12G2SubgroupFunction` | `EvmAsm/Codegen/Programs/Bls12G2.lean` | 12 | 3 reloc sym(s) |
-| `bls12KzgFpPowQ14Function` | `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 56 | 5 reloc sym(s) |
-| `bls12KzgG2WireFunction` | `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 32 | 1 reloc sym(s) |
-| `bls12MapFp2PowFunction` | `EvmAsm/Codegen/Programs/Bls12Map.lean` | 42 | 1 reloc sym(s) |
-| `bls12MapFpPowFunction` | `EvmAsm/Codegen/Programs/Bls12Map.lean` | 41 | 3 reloc sym(s) |
-| `bn254OnCurveFunction` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 35 | 7 reloc sym(s) |
-| `bn254ScalarMulFunction` | `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 69 | 6 reloc sym(s) |
-| `bn254Fp2InvFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 74 | 8 reloc sym(s) |
-| `bn254FpPowLeFunction` | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 41 | 1 reloc sym(s) |
-| `bn254Fq12PowFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 48 | 4 reloc sym(s) |
-| `bn254Fq12SetOneFunction` | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 11 | 1 reloc sym(s) |
 | `chainValidateConsecutiveNumbersFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 93 | 5 reloc sym(s) |
 | `chainValidateExtraDataLengthFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 69 | 5 reloc sym(s) |
 | `chainValidateGasUsedUnderLimitFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 83 | 5 reloc sym(s) |
@@ -289,43 +340,9 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `headersKeccakArrayFunction` | `EvmAsm/Codegen/Programs/HeadersKeccak.lean` | 43 | 1 reloc sym(s) |
 | `headersValidateChainFunction` | `EvmAsm/Codegen/Programs/HeadersKeccak.lean` | 75 | 4 reloc sym(s) |
 | `blockVerdictEip8037TxStateGasNetArrayFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 54 | 1 reloc sym(s) |
-| `mptWalkFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 314 | 16 reloc sym(s) |
-| `mptDeleteAccFunction` | `EvmAsm/Codegen/Programs/MptDeleteAcc.lean` | 758 | 31 reloc sym(s) |
-| `mptDeleteWalkDbFunction` | `EvmAsm/Codegen/Programs/MptDeleteWalkDb.lean` | 1 | 1 reloc sym(s) |
-| `mptInsertAccFunction` | `EvmAsm/Codegen/Programs/MptInsertAcc.lean` | 689 | 32 reloc sym(s) |
-| `mptInsertWalkDbFunction` | `EvmAsm/Codegen/Programs/MptInsertWalkDb.lean` | 324 | 15 reloc sym(s) |
-| `mptSetAccFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 121 | 12 reloc sym(s) |
-| `mptSetRecordWalkDbFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 258 | 13 reloc sym(s) |
-| `p256ChordTailFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 74 | 7 reloc sym(s) |
-| `p256PointAddFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 71 | 11 reloc sym(s) |
-| `p256PointDblFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 94 | 11 reloc sym(s) |
-| `p256PowFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 62 | 4 reloc sym(s) |
-| `p256ScalarMulFunction` | `EvmAsm/Codegen/Programs/P256Verify.lean` | 66 | 4 reloc sym(s) |
 | `receiptEncodeFunction` | `EvmAsm/Codegen/Programs/Receipt.lean` | 117 | 7 reloc sym(s) |
 | `blockValidateReceiptsRootIndexedFunction` | `EvmAsm/Codegen/Programs/ReceiptsRootIndexed.lean` | 55 | 4 reloc sym(s) |
 | `runtimeSameBlockDelegationCodeFunction` | `EvmAsm/Codegen/Programs/RuntimeSameBlockCode.lean` | 187 | 17 reloc sym(s) |
-| `secp256k1ScalarMulFunction` | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 67 | 5 reloc sym(s) |
-| `secp256k1FieldAddFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 35 | 4 reloc sym(s) |
-| `secp256k1FieldCmpPFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 24 | 1 reloc sym(s) |
-| `secp256k1FieldInvFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 26 | 5 reloc sym(s) |
-| `secp256k1FieldPowFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 50 | 8 reloc sym(s) |
-| `secp256k1FieldReduceOnceFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 32 | 5 reloc sym(s) |
-| `secp256k1FieldSqrtFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 74 | 10 reloc sym(s) |
-| `secp256k1FieldSquareFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 2 | 1 reloc sym(s) |
-| `secp256k1FieldSubFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 36 | 4 reloc sym(s) |
-| `secp256k1ScalarFieldAddFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 35 | 4 reloc sym(s) |
-| `secp256k1ScalarFieldInvFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 26 | 5 reloc sym(s) |
-| `secp256k1ScalarFieldPowFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 50 | 8 reloc sym(s) |
-| `secp256k1ScalarFieldReduceOnceFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 32 | 5 reloc sym(s) |
-| `secp256k1ScalarFieldSquareFunction` | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 2 | 1 reloc sym(s) |
-| `secp256k1RecoverRFunction` | `EvmAsm/Codegen/Programs/Secp256k1Recover.lean` | 74 | 14 reloc sym(s) |
-| `txAccessListSpanFunction` | `EvmAsm/Codegen/Programs/SeedTxAccessList.lean` | 104 | 8 reloc sym(s) |
-| `sszHashTreeRootBytesFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 54 | 6 reloc sym(s) |
-| `sszMerkleizeFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 104 | 5 reloc sym(s) |
-| `sszMerkleizePow2Function` | `EvmAsm/Codegen/Programs/Ssz.lean` | 58 | 2 reloc sym(s) |
-| `extractParentHeaderAndStateRootFunction` | `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 59 | 5 reloc sym(s) |
-| `extractPayloadAndWithdrawalsFunction` | `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 53 | 1 reloc sym(s) |
-| `sszWithdrawalToRlpFunction` | `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 90 | 8 reloc sym(s) |
 | `accountAtAddressFunction` | `EvmAsm/Codegen/Programs/State.lean` | 59 | 4 reloc sym(s) |
 | `accountDecodeFunction` | `EvmAsm/Codegen/Programs/State.lean` | 136 | 3 reloc sym(s) |
 | `slotAtIndexFunction` | `EvmAsm/Codegen/Programs/State.lean` | 38 | 4 reloc sym(s) |
@@ -338,23 +355,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `step2VerdictFunction` | `EvmAsm/Codegen/Programs/Step2Verdict.lean` | 59 | 6 reloc sym(s) |
 | `accountSetStorageRootFunction` | `EvmAsm/Codegen/Programs/StorageWrite.lean` | 43 | 2 reloc sym(s) |
 | `storageRootSingleSlotFunction` | `EvmAsm/Codegen/Programs/StorageWrite.lean` | 40 | 6 reloc sym(s) |
-| `sszTxListVersionedHashesMatchFunction` | `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 173 | 12 reloc sym(s) |
-| `txEip4844ValidateBlobHashesFunction` | `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 90 | 7 reloc sym(s) |
-| `accessListCountFunction` | `EvmAsm/Codegen/Programs/TxExtract.lean` | 88 | 7 reloc sym(s) |
-| `txEffectiveGasPricingFunction` | `EvmAsm/Codegen/Programs/TxExtract.lean` | 68 | 7 reloc sym(s) |
-| `txGasSenderBalLookupFunction` | `EvmAsm/Codegen/Programs/TxGasSenderBalLookup.lean` | 184 | 14 reloc sym(s) |
-| `blockVerdictEip7702AuthNonstorageEffectsArrayFunction` | `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 66 | 2 reloc sym(s) |
-| `blockVerdictTxStateGasArrayFunction` | `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 96 | 3 reloc sym(s) |
-| `secp256k1RecoverPubkeyStagedFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 85 | 19 reloc sym(s) |
-| `txPubkeyPublicKeyMatchesFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 48 | 1 reloc sym(s) |
-| `txPubkeyRecoverRawFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 43 | 3 reloc sym(s) |
-| `txPubkeySignatureMaterialFunction` | `EvmAsm/Codegen/Programs/TxPubkey.lean` | 245 | 16 reloc sym(s) |
-| `mptOneLeafRootIndexedFunction` | `EvmAsm/Codegen/Programs/TxRoot.lean` | 38 | 5 reloc sym(s) |
-| `eip7702AuthorizationSigningHashFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 9 | 1 reloc sym(s) |
-| `rlpListTruncateToNFieldsFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 84 | 5 reloc sym(s) |
-| `txSigningHashFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 93 | 4 reloc sym(s) |
-| `txSigningHashLegacyEip155Function` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 120 | 10 reloc sym(s) |
-| `u256MulU64BeFunction` | `EvmAsm/Codegen/Programs/U256.lean` | 88 | 1 reloc sym(s) |
 | `validateHeaderRlpPairFunction` | `EvmAsm/Codegen/Programs/ValidateHeaderPair.lean` | 46 | 5 reloc sym(s) |
 | `verifyPublicKeysMatchSendersFunction` | `EvmAsm/Codegen/Programs/VerifyPublicKeysSenders.lean` | 77 | 8 reloc sym(s) |
 | `withdrawalDecodeFunction` | `EvmAsm/Codegen/Programs/Withdrawal.lean` | 60 | 4 reloc sym(s) |
@@ -640,7 +640,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WitnessStorageNodeKindDistribution.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 2 |
 
-## ALREADY-STRUCTURED (169) — by file
+## ALREADY-STRUCTURED (248) — by file
 
 | File | Count |
 |---|---:|
@@ -654,17 +654,20 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/BlockRlpSize.lean` | 3 |
 | `EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean` | 1 |
 | `EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Bloom.lean` | 4 |
+| `EvmAsm/Codegen/Programs/Bloom.lean` | 8 |
+| `EvmAsm/Codegen/Programs/BloomAddValue.lean` | 1 |
+| `EvmAsm/Codegen/Programs/BloomBlock.lean` | 2 |
 | `EvmAsm/Codegen/Programs/Bls12Field.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 4 |
-| `EvmAsm/Codegen/Programs/Bls12G1.lean` | 7 |
-| `EvmAsm/Codegen/Programs/Bls12G2.lean` | 2 |
-| `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 2 |
+| `EvmAsm/Codegen/Programs/Bls12Fq12.lean` | 6 |
+| `EvmAsm/Codegen/Programs/Bls12G1.lean` | 9 |
+| `EvmAsm/Codegen/Programs/Bls12G2.lean` | 9 |
+| `EvmAsm/Codegen/Programs/Bls12Kzg.lean` | 4 |
+| `EvmAsm/Codegen/Programs/Bls12Map.lean` | 2 |
 | `EvmAsm/Codegen/Programs/Bls12Pairing.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 5 |
+| `EvmAsm/Codegen/Programs/Bn254Curve.lean` | 7 |
 | `EvmAsm/Codegen/Programs/Bn254Field.lean` | 5 |
-| `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 4 |
-| `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 4 |
+| `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 6 |
+| `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 6 |
 | `EvmAsm/Codegen/Programs/Bn254Pairing.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CallFrameDescend.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 4 |
@@ -681,40 +684,51 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/HeadersKeccak.lean` | 1 |
 | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 4 |
 | `EvmAsm/Codegen/Programs/MemoryExpansionGas.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Mpt.lean` | 6 |
+| `EvmAsm/Codegen/Programs/Mpt.lean` | 7 |
+| `EvmAsm/Codegen/Programs/MptDeleteAcc.lean` | 1 |
+| `EvmAsm/Codegen/Programs/MptDeleteWalkDb.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptEncode.lean` | 4 |
 | `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` | 1 |
+| `EvmAsm/Codegen/Programs/MptInsertAcc.lean` | 1 |
+| `EvmAsm/Codegen/Programs/MptInsertWalkDb.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptInternal.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MptNibbles.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MptSet.lean` | 2 |
-| `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 3 |
+| `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 5 |
 | `EvmAsm/Codegen/Programs/MptStateRootIns.lean` | 1 |
 | `EvmAsm/Codegen/Programs/NonstorageEffectLog.lean` | 1 |
-| `EvmAsm/Codegen/Programs/P256Verify.lean` | 6 |
+| `EvmAsm/Codegen/Programs/P256Verify.lean` | 11 |
 | `EvmAsm/Codegen/Programs/Receipt.lean` | 1 |
 | `EvmAsm/Codegen/Programs/RlpRead.lean` | 5 |
 | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 5 |
-| `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 2 |
-| `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 7 |
+| `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 3 |
+| `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 20 |
+| `EvmAsm/Codegen/Programs/Secp256k1Recover.lean` | 1 |
+| `EvmAsm/Codegen/Programs/SeedTxAccessList.lean` | 1 |
 | `EvmAsm/Codegen/Programs/SenderPostNonceConsistent.lean` | 1 |
 | `EvmAsm/Codegen/Programs/SlotTupleSequencesMatch.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Ssz.lean` | 1 |
-| `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 1 |
-| `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 1 |
-| `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 1 |
+| `EvmAsm/Codegen/Programs/Ssz.lean` | 4 |
+| `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 2 |
+| `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 2 |
+| `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 2 |
 | `EvmAsm/Codegen/Programs/SszWitnessState.lean` | 2 |
 | `EvmAsm/Codegen/Programs/State.lean` | 1 |
 | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 2 |
 | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 4 |
 | `EvmAsm/Codegen/Programs/Tx.lean` | 4 |
+| `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 2 |
 | `EvmAsm/Codegen/Programs/TxDecode1559.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxDecode2930.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxDecode4844.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxDecode7702.lean` | 1 |
-| `EvmAsm/Codegen/Programs/TxExtract.lean` | 1 |
-| `EvmAsm/Codegen/Programs/TxPubkey.lean` | 1 |
+| `EvmAsm/Codegen/Programs/TxExtract.lean` | 3 |
+| `EvmAsm/Codegen/Programs/TxGasSenderBalLookup.lean` | 1 |
+| `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 2 |
+| `EvmAsm/Codegen/Programs/TxPubkey.lean` | 5 |
 | `EvmAsm/Codegen/Programs/TxRefund.lean` | 1 |
-| `EvmAsm/Codegen/Programs/U256.lean` | 10 |
+| `EvmAsm/Codegen/Programs/TxRoot.lean` | 1 |
+| `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 4 |
+| `EvmAsm/Codegen/Programs/U256.lean` | 11 |
 | `EvmAsm/Codegen/Programs/U256GasPricing.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 1 |
 
