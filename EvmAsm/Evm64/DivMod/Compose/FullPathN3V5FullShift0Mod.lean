@@ -130,7 +130,7 @@ theorem evm_mod_n3_full_shift0_param_v5_noNop (bltu_1 bltu_0 : Bool)
     (sp base : Word)
     (a0 a1 a2 a3 b0 b1 b2 v2 v5 v6 v7 v10 v11Old : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
-    (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
+    (retMem dMem dloMem scratchUn0 scratchMem raVal x9In : Word)
     (hbnz : b0 ||| b1 ||| b2 ||| (0 : Word) ≠ 0) (hb2nz : b2 ≠ 0)
     (hshift_z : (clzResult b2).1 = 0)
     (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
@@ -142,7 +142,7 @@ theorem evm_mod_n3_full_shift0_param_v5_noNop (bltu_1 bltu_0 : Bool)
       (modCode_noNop_v5 base)
       (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-        (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+        (.x9 ↦ᵣ x9In) **
         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -184,7 +184,7 @@ theorem evm_mod_n3_full_shift0_param_v5_noNop (bltu_1 bltu_0 : Bool)
   have hA := evm_mod_n3_to_denorm_shift0_param_v5_noNop bltu_1 bltu_0
     sp base a0 a1 a2 a3 b0 b1 b2 (0 : Word) v2 v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
-    retMem dMem dloMem scratchUn0 scratchMem raVal hbnz rfl hb2nz hshift_z halign
+    retMem dMem dloMem scratchUn0 scratchMem raVal x9In hbnz rfl hb2nz hshift_z halign
     hbltu_1 hbltu_0
   have hB := evm_mod_shift0_epilogue_spec_v5_noNop sp base
     (n3Shift0R0 bltu_1 bltu_0 a0 a1 a2 a3 b0 b1 b2).2.1

@@ -95,4 +95,12 @@ theorem modCallableCodeCanonical_eq_v4 {base : Word} :
     modCallableCodeCanonical base = modCallableCodeV4 base :=
   rfl
 
+/-- v5 full SMOD code region handle: wrapper followed by `evm_mod_callable_v5`. -/
+abbrev smodCodeV5 (base : Word) : EvmAsm.Rv64.CodeReq :=
+  EvmAsm.Rv64.CodeReq.ofProg base EvmAsm.Evm64.evm_smod_v5
+
+/-- Code handle for the appended v5 unsigned modulo callable. -/
+abbrev modCallableCodeV5 (base : Word) : EvmAsm.Rv64.CodeReq :=
+  EvmAsm.Rv64.CodeReq.ofProg (base + wrapperEndOff) EvmAsm.Evm64.evm_mod_callable_v5
+
 end EvmAsm.Evm64.SMod.Compose
