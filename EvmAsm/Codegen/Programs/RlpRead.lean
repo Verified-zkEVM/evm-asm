@@ -13,6 +13,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -48,191 +49,180 @@ open EvmAsm.Rv64
     another call to `rlp_list_nth_item`).
 
     Pure register arithmetic, no scratch memory, leaf-callable. -/
-def rlpListNthItemFunction : String :=
-  "rlp_list_nth_item:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # s0 = list_ptr\n" ++
-  "  add s1, a0, a1             # s1 = list_end\n" ++
-  "  mv s2, a2                  # s2 = N\n" ++
-  "  mv s3, a3                  # s3 = out_offset_ptr\n" ++
-  "  mv s4, a4                  # s4 = out_length_ptr\n" ++
-  "  # Parse outer list prefix.\n" ++
-  "  bgeu s0, s1, .Lrln_fail\n" ++
-  "  lbu t0, 0(s0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrln_fail    # not an RLP list\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrln_short_outer\n" ++
-  "  # Long outer: prefix bytes = 1 + (t0 - 0xf7)\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  addi t2, t2, 1             # prefix bytes\n" ++
-  "  add s5, s0, t2             # s5 = cursor at first item\n" ++
-  "  j .Lrln_walk\n" ++
-  ".Lrln_short_outer:\n" ++
-  "  addi s5, s0, 1\n" ++
-  ".Lrln_walk:\n" ++
-  "  li s6, 0                   # i\n" ++
-  ".Lrln_loop:\n" ++
-  "  beq s6, s2, .Lrln_at_target\n" ++
-  "  bgeu s5, s1, .Lrln_fail    # walked past end of list\n" ++
-  "  # Compute size of item at s5; advance s5 by it.\n" ++
-  "  lbu t0, 0(s5)\n" ++
-  "  li t1, 0x80\n" ++
-  "  bltu t0, t1, .Lrln_skip_single\n" ++
-  "  li t1, 0xb8\n" ++
-  "  bltu t0, t1, .Lrln_skip_short_string\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrln_skip_long_string\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrln_skip_short_list\n" ++
-  "  # Long list: lol = t0 - 0xf7\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li t3, 0                   # decoded length accumulator\n" ++
-  "  mv t4, t2                  # remaining length bytes\n" ++
-  "  addi t5, s5, 1\n" ++
-  ".Lrln_skll_be:\n" ++
-  "  beqz t4, .Lrln_skll_done\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t6, 0(t5)\n" ++
-  "  or t3, t3, t6\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lrln_skll_be\n" ++
-  ".Lrln_skll_done:\n" ++
-  "  addi t6, t2, 1\n" ++
-  "  add t6, t6, t3             # 1 + lol + decoded\n" ++
-  "  add s5, s5, t6\n" ++
-  "  j .Lrln_step\n" ++
-  ".Lrln_skip_short_list:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  sub t6, t0, t1\n" ++
-  "  addi t6, t6, 1             # 1 + (t0 - 0xc0)\n" ++
-  "  add s5, s5, t6\n" ++
-  "  j .Lrln_step\n" ++
-  ".Lrln_skip_long_string:\n" ++
-  "  li t1, 0xb7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li t3, 0\n" ++
-  "  mv t4, t2\n" ++
-  "  addi t5, s5, 1\n" ++
-  ".Lrln_skls_be:\n" ++
-  "  beqz t4, .Lrln_skls_done\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t6, 0(t5)\n" ++
-  "  or t3, t3, t6\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lrln_skls_be\n" ++
-  ".Lrln_skls_done:\n" ++
-  "  addi t6, t2, 1\n" ++
-  "  add t6, t6, t3\n" ++
-  "  add s5, s5, t6\n" ++
-  "  j .Lrln_step\n" ++
-  ".Lrln_skip_short_string:\n" ++
-  "  li t1, 0x80\n" ++
-  "  sub t6, t0, t1\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  add s5, s5, t6\n" ++
-  "  j .Lrln_step\n" ++
-  ".Lrln_skip_single:\n" ++
-  "  addi s5, s5, 1\n" ++
-  ".Lrln_step:\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lrln_loop\n" ++
-  ".Lrln_at_target:\n" ++
-  "  bgeu s5, s1, .Lrln_fail    # target index past last item\n" ++
-  "  lbu t0, 0(s5)\n" ++
-  "  li t1, 0x80\n" ++
-  "  bltu t0, t1, .Lrln_t_single\n" ++
-  "  li t1, 0xb8\n" ++
-  "  bltu t0, t1, .Lrln_t_short_string\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrln_t_long_string\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrln_t_short_list\n" ++
-  "  # Long list (full encoded form)\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1\n" ++
-  "  li t3, 0\n" ++
-  "  mv t4, t2\n" ++
-  "  addi t5, s5, 1\n" ++
-  ".Lrln_tll_be:\n" ++
-  "  beqz t4, .Lrln_tll_done\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t6, 0(t5)\n" ++
-  "  or t3, t3, t6\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lrln_tll_be\n" ++
-  ".Lrln_tll_done:\n" ++
-  "  addi t6, t2, 1\n" ++
-  "  add t6, t6, t3             # full encoded size\n" ++
-  "  sub t1, s5, s0\n" ++
-  "  sd t1, 0(s3)\n" ++
-  "  sd t6, 0(s4)\n" ++
-  "  j .Lrln_ok\n" ++
-  ".Lrln_t_short_list:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  sub t6, t0, t1\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  sub t1, s5, s0\n" ++
-  "  sd t1, 0(s3)\n" ++
-  "  sd t6, 0(s4)\n" ++
-  "  j .Lrln_ok\n" ++
-  ".Lrln_t_long_string:\n" ++
-  "  li t1, 0xb7\n" ++
-  "  sub t2, t0, t1\n" ++
-  "  li t3, 0\n" ++
-  "  mv t4, t2\n" ++
-  "  addi t5, s5, 1\n" ++
-  ".Lrln_tls_be:\n" ++
-  "  beqz t4, .Lrln_tls_done\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t6, 0(t5)\n" ++
-  "  or t3, t3, t6\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lrln_tls_be\n" ++
-  ".Lrln_tls_done:\n" ++
-  "  # content offset = s5 + 1 + lol - s0\n" ++
-  "  addi t6, t2, 1\n" ++
-  "  add t6, t6, s5\n" ++
-  "  sub t6, t6, s0\n" ++
-  "  sd t6, 0(s3)\n" ++
-  "  sd t3, 0(s4)               # content length = decoded\n" ++
-  "  j .Lrln_ok\n" ++
-  ".Lrln_t_short_string:\n" ++
-  "  # content offset = s5 + 1 - s0; length = t0 - 0x80\n" ++
-  "  addi t6, s5, 1\n" ++
-  "  sub t6, t6, s0\n" ++
-  "  sd t6, 0(s3)\n" ++
-  "  li t1, 0x80\n" ++
-  "  sub t1, t0, t1\n" ++
-  "  sd t1, 0(s4)\n" ++
-  "  j .Lrln_ok\n" ++
-  ".Lrln_t_single:\n" ++
-  "  # content offset = s5 - s0; length = 1\n" ++
-  "  sub t1, s5, s0\n" ++
-  "  sd t1, 0(s3)\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(s4)\n" ++
-  ".Lrln_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrln_ret\n" ++
-  ".Lrln_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lrln_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def rlpListNthItem_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .ADD .x9 .x10 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BGEU .x8 .x9 (540 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (528 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (24 : BitVec 13),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADD .x21 .x8 .x7,
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x21 .x8 (1 : BitVec 12),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x18 (224 : BitVec 13),
+    .BGEU .x21 .x9 (484 : BitVec 13),
+    .LBU .x5 .x21 (0 : BitVec 12),
+    .LI .x6 (128 : Word),
+    .BLTU .x5 .x6 (196 : BitVec 13),
+    .LI .x6 (184 : Word),
+    .BLTU .x5 .x6 (168 : BitVec 13),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (96 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (68 : BitVec 13),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x28 (0 : Word),
+    .MV .x29 .x7,
+    .ADDI .x30 .x21 (1 : BitVec 12),
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .OR .x28 .x28 .x31,
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x31 .x7 (1 : BitVec 12),
+    .ADD .x31 .x31 .x28,
+    .ADD .x21 .x21 .x31,
+    .JAL .x0 (112 : BitVec 21),
+    .LI .x6 (192 : Word),
+    .SUB .x31 .x5 .x6,
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADD .x21 .x21 .x31,
+    .JAL .x0 (92 : BitVec 21),
+    .LI .x6 (183 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x28 (0 : Word),
+    .MV .x29 .x7,
+    .ADDI .x30 .x21 (1 : BitVec 12),
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .OR .x28 .x28 .x31,
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x31 .x7 (1 : BitVec 12),
+    .ADD .x31 .x31 .x28,
+    .ADD .x21 .x21 .x31,
+    .JAL .x0 (28 : BitVec 21),
+    .LI .x6 (128 : Word),
+    .SUB .x31 .x5 .x6,
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADD .x21 .x21 .x31,
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-220 : BitVec 21),
+    .BGEU .x21 .x9 (264 : BitVec 13),
+    .LBU .x5 .x21 (0 : BitVec 12),
+    .LI .x6 (128 : Word),
+    .BLTU .x5 .x6 (228 : BitVec 13),
+    .LI .x6 (184 : Word),
+    .BLTU .x5 .x6 (192 : BitVec 13),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (112 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (76 : BitVec 13),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x28 (0 : Word),
+    .MV .x29 .x7,
+    .ADDI .x30 .x21 (1 : BitVec 12),
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .OR .x28 .x28 .x31,
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x31 .x7 (1 : BitVec 12),
+    .ADD .x31 .x31 .x28,
+    .SUB .x6 .x21 .x8,
+    .SD .x19 .x6 (0 : BitVec 12),
+    .SD .x20 .x31 (0 : BitVec 12),
+    .JAL .x0 (148 : BitVec 21),
+    .LI .x6 (192 : Word),
+    .SUB .x31 .x5 .x6,
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .SUB .x6 .x21 .x8,
+    .SD .x19 .x6 (0 : BitVec 12),
+    .SD .x20 .x31 (0 : BitVec 12),
+    .JAL .x0 (120 : BitVec 21),
+    .LI .x6 (183 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x28 (0 : Word),
+    .MV .x29 .x7,
+    .ADDI .x30 .x21 (1 : BitVec 12),
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .OR .x28 .x28 .x31,
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x31 .x7 (1 : BitVec 12),
+    .ADD .x31 .x31 .x21,
+    .SUB .x31 .x31 .x8,
+    .SD .x19 .x31 (0 : BitVec 12),
+    .SD .x20 .x28 (0 : BitVec 12),
+    .JAL .x0 (48 : BitVec 21),
+    .ADDI .x31 .x21 (1 : BitVec 12),
+    .SUB .x31 .x31 .x8,
+    .SD .x19 .x31 (0 : BitVec 12),
+    .LI .x6 (128 : Word),
+    .SUB .x6 .x5 .x6,
+    .SD .x20 .x6 (0 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
+    .SUB .x6 .x21 .x8,
+    .SD .x19 .x6 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def rlpListNthItemFunction : String :=
+  "rlp_list_nth_item:\n" ++ emitProgram rlpListNthItem_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpListNthItem_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpListNthItemFunction_eq_prog :
+    rlpListNthItemFunction = "rlp_list_nth_item:\n" ++ emitProgram rlpListNthItem_prog := rfl
+
+#guard rlpListNthItemFunction.startsWith "rlp_list_nth_item:\n"
+#guard rlpListNthItem_prog.length = 160
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
 
     Walk an RLP-encoded list once and return the number of
@@ -257,102 +247,96 @@ def rlpListNthItemFunction : String :=
 
     Pure register arithmetic except for the count store; no
     scratch memory; leaf-callable. -/
+def rlpListCountItems_prog : Program :=
+  [ .BEQ .x11 .x0 (292 : BitVec 13),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (280 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (24 : BitVec 13),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADD .x28 .x10 .x7,
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x28 .x10 (1 : BitVec 12),
+    .ADD .x29 .x10 .x11,
+    .LI .x30 (0 : Word),
+    .BEQ .x28 .x29 (224 : BitVec 13),
+    .BLTU .x29 .x28 (232 : BitVec 13),
+    .LBU .x5 .x28 (0 : BitVec 12),
+    .LI .x6 (128 : Word),
+    .BLTU .x5 .x6 (196 : BitVec 13),
+    .LI .x6 (184 : Word),
+    .BLTU .x5 .x6 (168 : BitVec 13),
+    .LI .x6 (192 : Word),
+    .BLTU .x5 .x6 (96 : BitVec 13),
+    .LI .x6 (248 : Word),
+    .BLTU .x5 .x6 (68 : BitVec 13),
+    .LI .x6 (247 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x13 (0 : Word),
+    .MV .x14 .x7,
+    .ADDI .x15 .x28 (1 : BitVec 12),
+    .BEQ .x14 .x0 (28 : BitVec 13),
+    .SLLI .x13 .x13 (8 : BitVec 6),
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .OR .x13 .x13 .x16,
+    .ADDI .x15 .x15 (1 : BitVec 12),
+    .ADDI .x14 .x14 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x16 .x7 (1 : BitVec 12),
+    .ADD .x16 .x16 .x13,
+    .ADD .x28 .x28 .x16,
+    .JAL .x0 (112 : BitVec 21),
+    .LI .x6 (192 : Word),
+    .SUB .x16 .x5 .x6,
+    .ADDI .x16 .x16 (1 : BitVec 12),
+    .ADD .x28 .x28 .x16,
+    .JAL .x0 (92 : BitVec 21),
+    .LI .x6 (183 : Word),
+    .SUB .x7 .x5 .x6,
+    .LI .x13 (0 : Word),
+    .MV .x14 .x7,
+    .ADDI .x15 .x28 (1 : BitVec 12),
+    .BEQ .x14 .x0 (28 : BitVec 13),
+    .SLLI .x13 .x13 (8 : BitVec 6),
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .OR .x13 .x13 .x16,
+    .ADDI .x15 .x15 (1 : BitVec 12),
+    .ADDI .x14 .x14 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x16 .x7 (1 : BitVec 12),
+    .ADD .x16 .x16 .x13,
+    .ADD .x28 .x28 .x16,
+    .JAL .x0 (28 : BitVec 21),
+    .LI .x6 (128 : Word),
+    .SUB .x16 .x5 .x6,
+    .ADDI .x16 .x16 (1 : BitVec 12),
+    .ADD .x28 .x28 .x16,
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-220 : BitVec 21),
+    .SD .x12 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x12 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def rlpListCountItemsFunction : String :=
-  "rlp_list_count_items:\n" ++
-  "  beqz a1, .Lrlc_fail        # empty input cannot encode a list\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrlc_fail    # not an RLP list\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrlc_short_outer\n" ++
-  "  # Long outer list: prefix bytes = 1 + (t0 - 0xf7)\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  addi t2, t2, 1             # total prefix bytes\n" ++
-  "  add t3, a0, t2             # cursor at first item\n" ++
-  "  j .Lrlc_walk\n" ++
-  ".Lrlc_short_outer:\n" ++
-  "  addi t3, a0, 1\n" ++
-  ".Lrlc_walk:\n" ++
-  "  add t4, a0, a1             # end-of-list cursor (exclusive)\n" ++
-  "  li t5, 0                   # count\n" ++
-  ".Lrlc_loop:\n" ++
-  "  beq t3, t4, .Lrlc_done\n" ++
-  "  bgtu t3, t4, .Lrlc_fail    # cursor walked past end → malformed\n" ++
-  "  lbu t0, 0(t3)\n" ++
-  "  li t1, 0x80\n" ++
-  "  bltu t0, t1, .Lrlc_skip_single\n" ++
-  "  li t1, 0xb8\n" ++
-  "  bltu t0, t1, .Lrlc_skip_short_str\n" ++
-  "  li t1, 0xc0\n" ++
-  "  bltu t0, t1, .Lrlc_skip_long_str\n" ++
-  "  li t1, 0xf8\n" ++
-  "  bltu t0, t1, .Lrlc_skip_short_list\n" ++
-  "  # Long list at t3: lol = t0 - 0xf7\n" ++
-  "  li t1, 0xf7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li a3, 0                   # decoded length accumulator\n" ++
-  "  mv a4, t2                  # remaining length bytes\n" ++
-  "  addi a5, t3, 1\n" ++
-  ".Lrlc_skll_be:\n" ++
-  "  beqz a4, .Lrlc_skll_done\n" ++
-  "  slli a3, a3, 8\n" ++
-  "  lbu a6, 0(a5)\n" ++
-  "  or  a3, a3, a6\n" ++
-  "  addi a5, a5, 1\n" ++
-  "  addi a4, a4, -1\n" ++
-  "  j .Lrlc_skll_be\n" ++
-  ".Lrlc_skll_done:\n" ++
-  "  addi a6, t2, 1\n" ++
-  "  add  a6, a6, a3            # 1 + lol + decoded\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_short_list:\n" ++
-  "  li t1, 0xc0\n" ++
-  "  sub a6, t0, t1\n" ++
-  "  addi a6, a6, 1             # 1 + (t0 - 0xc0)\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_long_str:\n" ++
-  "  li t1, 0xb7\n" ++
-  "  sub t2, t0, t1             # lol\n" ++
-  "  li a3, 0\n" ++
-  "  mv a4, t2\n" ++
-  "  addi a5, t3, 1\n" ++
-  ".Lrlc_skls_be:\n" ++
-  "  beqz a4, .Lrlc_skls_done\n" ++
-  "  slli a3, a3, 8\n" ++
-  "  lbu a6, 0(a5)\n" ++
-  "  or  a3, a3, a6\n" ++
-  "  addi a5, a5, 1\n" ++
-  "  addi a4, a4, -1\n" ++
-  "  j .Lrlc_skls_be\n" ++
-  ".Lrlc_skls_done:\n" ++
-  "  addi a6, t2, 1\n" ++
-  "  add  a6, a6, a3\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_short_str:\n" ++
-  "  li t1, 0x80\n" ++
-  "  sub a6, t0, t1\n" ++
-  "  addi a6, a6, 1\n" ++
-  "  add  t3, t3, a6\n" ++
-  "  j .Lrlc_step\n" ++
-  ".Lrlc_skip_single:\n" ++
-  "  addi t3, t3, 1\n" ++
-  ".Lrlc_step:\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  j .Lrlc_loop\n" ++
-  ".Lrlc_done:\n" ++
-  "  sd t5, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lrlc_fail:\n" ++
-  "  sd zero, 0(a2)\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+  "rlp_list_count_items:\n" ++ emitProgram rlpListCountItems_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpListCountItems_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpListCountItemsFunction_eq_prog :
+    rlpListCountItemsFunction = "rlp_list_count_items:\n" ++ emitProgram rlpListCountItems_prog := rfl
 
+#guard rlpListCountItemsFunction.startsWith "rlp_list_count_items:\n"
+#guard rlpListCountItems_prog.length = 76
 /-! ## rlp_encode_list_prefix -- PR-K129
 
     Write the RLP list-header prefix bytes for a list whose total
@@ -377,62 +361,66 @@ def rlpListCountItemsFunction : String :=
       a0 (output) : 0 (always succeeds — total function).
 
     Pure-leaf semantics: no scratch memory, no transitive calls. -/
+def rlpEncodeListPrefix_prog : Program :=
+  [ .LI .x5 (56 : Word),
+    .BGEU .x10 .x5 (28 : BitVec 13),
+    .ADDI .x6 .x10 (192 : BitVec 12),
+    .SB .x11 .x6 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .SD .x12 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x28 (1 : Word),
+    .LI .x29 (256 : Word),
+    .BLTU .x10 .x29 (80 : BitVec 13),
+    .LI .x28 (2 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x10 .x29 (68 : BitVec 13),
+    .LI .x28 (3 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x10 .x29 (56 : BitVec 13),
+    .LI .x28 (4 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x10 .x29 (44 : BitVec 13),
+    .LI .x28 (5 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x10 .x29 (32 : BitVec 13),
+    .LI .x28 (6 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x10 .x29 (20 : BitVec 13),
+    .LI .x28 (7 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x10 .x29 (8 : BitVec 13),
+    .LI .x28 (8 : Word),
+    .ADDI .x29 .x28 (247 : BitVec 12),
+    .SB .x11 .x29 (0 : BitVec 12),
+    .MV .x30 .x11,
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x28 (-1 : BitVec 12),
+    .BLT .x29 .x0 (28 : BitVec 13),
+    .SLLI .x31 .x29 (3 : BitVec 6),
+    .SRL .x5 .x10 .x31,
+    .SB .x30 .x5 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x30 .x28 (1 : BitVec 12),
+    .SD .x12 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def rlpEncodeListPrefixFunction : String :=
-  "rlp_encode_list_prefix:\n" ++
-  "  li t0, 56\n" ++
-  "  bgeu a0, t0, .Lrelp_long\n" ++
-  "  # Short list: prefix = 0xc0 + payload_length (1 byte).\n" ++
-  "  addi t1, a0, 0xc0\n" ++
-  "  sb t1, 0(a1)\n" ++
-  "  li t2, 1\n" ++
-  "  sd t2, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lrelp_long:\n" ++
-  "  # Long list: prefix = 0xf7 + bc, then bc-byte BE length.\n" ++
-  "  li t3, 1\n" ++
-  "  li t4, 0x100\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 2\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 3\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 4\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 5\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 6\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 7\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  bltu a0, t4, .Lrelp_have_bc\n" ++
-  "  li t3, 8\n" ++
-  ".Lrelp_have_bc:\n" ++
-  "  addi t4, t3, 0xf7\n" ++
-  "  sb t4, 0(a1)\n" ++
-  "  mv t5, a1\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t3, -1\n" ++
-  ".Lrelp_emit_be:\n" ++
-  "  bltz t4, .Lrelp_be_done\n" ++
-  "  slli t6, t4, 3\n" ++
-  "  srl t0, a0, t6\n" ++
-  "  sb t0, 0(t5)\n" ++
-  "  addi t5, t5, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lrelp_emit_be\n" ++
-  ".Lrelp_be_done:\n" ++
-  "  addi t5, t3, 1\n" ++
-  "  sd t5, 0(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "rlp_encode_list_prefix:\n" ++ emitProgram rlpEncodeListPrefix_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpEncodeListPrefix_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpEncodeListPrefixFunction_eq_prog :
+    rlpEncodeListPrefixFunction = "rlp_encode_list_prefix:\n" ++ emitProgram rlpEncodeListPrefix_prog := rfl
 
+#guard rlpEncodeListPrefixFunction.startsWith "rlp_encode_list_prefix:\n"
+#guard rlpEncodeListPrefix_prog.length = 46
 /-! ## rlp_encode_uint_be -- PR-K30 RLP canonical-form encoder
 
     Strip leading zeros from a big-endian byte array and emit
@@ -455,55 +443,55 @@ def rlpEncodeListPrefixFunction : String :=
       a0 (output) : number of bytes written
 
     Pure register arithmetic, no scratch, leaf-callable. -/
+def rlpEncodeUintBe_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .BEQ .x6 .x0 (24 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .BNE .x28 .x0 (32 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x28 (128 : Word),
+    .SB .x12 .x28 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .MV .x31 .x6,
+    .LI .x28 (1 : Word),
+    .BNE .x6 .x28 (28 : BitVec 13),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .LI .x30 (128 : Word),
+    .BGEU .x29 .x30 (16 : BitVec 13),
+    .SB .x12 .x29 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x28 (128 : Word),
+    .ADD .x28 .x28 .x31,
+    .SB .x12 .x28 (0 : BitVec 12),
+    .ADDI .x29 .x12 (1 : BitVec 12),
+    .MV .x6 .x31,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x5 (0 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x10 .x31 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def rlpEncodeUintBeFunction : String :=
-  "rlp_encode_uint_be:\n" ++
-  "  # Find first non-zero byte; stripped_len = src_len - leading_zeros.\n" ++
-  "  mv t0, a0\n" ++
-  "  mv t1, a1\n" ++
-  ".Lreu_skip_zero:\n" ++
-  "  beqz t1, .Lreu_all_zero\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  bnez t3, .Lreu_have\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lreu_skip_zero\n" ++
-  ".Lreu_all_zero:\n" ++
-  "  li t3, 0x80\n" ++
-  "  sb t3, 0(a2)\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lreu_have:\n" ++
-  "  # t0 = ptr to first non-zero byte; t1 = stripped_len.\n" ++
-  "  mv t6, t1\n" ++
-  "  li t3, 1\n" ++
-  "  bne t1, t3, .Lreu_multi\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  li t5, 0x80\n" ++
-  "  bgeu t4, t5, .Lreu_multi\n" ++
-  "  # Single-byte form.\n" ++
-  "  sb t4, 0(a2)\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lreu_multi:\n" ++
-  "  # Short-string form: 0x80 + stripped_len, then stripped bytes.\n" ++
-  "  li t3, 0x80\n" ++
-  "  add t3, t3, t6\n" ++
-  "  sb t3, 0(a2)\n" ++
-  "  addi t4, a2, 1\n" ++
-  "  mv t1, t6\n" ++
-  ".Lreu_copy:\n" ++
-  "  beqz t1, .Lreu_done\n" ++
-  "  lbu t5, 0(t0)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lreu_copy\n" ++
-  ".Lreu_done:\n" ++
-  "  addi a0, t6, 1               # 1 + stripped_len\n" ++
-  "  ret"
+  "rlp_encode_uint_be:\n" ++ emitProgram rlpEncodeUintBe_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpEncodeUintBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpEncodeUintBeFunction_eq_prog :
+    rlpEncodeUintBeFunction = "rlp_encode_uint_be:\n" ++ emitProgram rlpEncodeUintBe_prog := rfl
 
+#guard rlpEncodeUintBeFunction.startsWith "rlp_encode_uint_be:\n"
+#guard rlpEncodeUintBe_prog.length = 35
 /-! ## rlp_encode_bytes -- PR-K128
 
     Generic RLP encoder for a raw byte string. Matches the
@@ -533,107 +521,96 @@ def rlpEncodeUintBeFunction : String :=
       a0 (output) : 0 (always succeeds — total function).
 
     Pure-leaf semantics: no scratch memory, no transitive calls. -/
-def rlpEncodeBytesFunction : String :=
-  "rlp_encode_bytes:\n" ++
-  "  # t0 = data cursor; t1 = remaining; t2 = out cursor.\n" ++
-  "  mv t0, a0\n" ++
-  "  mv t1, a1\n" ++
-  "  mv t2, a2\n" ++
-  "  # Single-byte short-cut: len == 1 AND byte < 0x80.\n" ++
-  "  li t3, 1\n" ++
-  "  bne t1, t3, .Lreb_check_short\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  li t5, 0x80\n" ++
-  "  bgeu t4, t5, .Lreb_check_short\n" ++
-  "  sb t4, 0(t2)\n" ++
-  "  li t6, 1\n" ++
-  "  sd t6, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lreb_check_short:\n" ++
-  "  li t3, 56\n" ++
-  "  bgeu t1, t3, .Lreb_long\n" ++
-  "  # Short string: prefix = 0x80 + len, then data.\n" ++
-  "  addi t3, t1, 0x80\n" ++
-  "  sb t3, 0(t2)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  mv t4, t1                   # bytes to copy\n" ++
-  ".Lreb_short_copy:\n" ++
-  "  beqz t4, .Lreb_short_done\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  sb t3, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lreb_short_copy\n" ++
-  ".Lreb_short_done:\n" ++
-  "  addi t6, t1, 1              # out_len = 1 + len\n" ++
-  "  sd t6, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lreb_long:\n" ++
-  "  # Long string: prefix = 0xb7 + bc, then bc-byte BE len, then data.\n" ++
-  "  # Compute bc = effective byte count of t1 (1..8).\n" ++
-  "  # Write t1 as 8 BE bytes to a small scratch on the stack (or use\n" ++
-  "  # shifts directly into the out buffer). Use direct write approach:\n" ++
-  "  # determine bc, then write bc BE bytes from t1 by shifting right.\n" ++
-  "  li t3, 1\n" ++
-  "  li t4, 0x100                # 2^8\n" ++
-  "  bltu t1, t4, .Lreb_have_bc\n" ++
-  "  li t3, 2\n" ++
-  "  slli t4, t4, 8              # 2^16\n" ++
-  "  bltu t1, t4, .Lreb_have_bc\n" ++
-  "  li t3, 3\n" ++
-  "  slli t4, t4, 8              # 2^24\n" ++
-  "  bltu t1, t4, .Lreb_have_bc\n" ++
-  "  li t3, 4\n" ++
-  "  slli t4, t4, 8              # 2^32\n" ++
-  "  bltu t1, t4, .Lreb_have_bc\n" ++
-  "  li t3, 5\n" ++
-  "  slli t4, t4, 8              # 2^40\n" ++
-  "  bltu t1, t4, .Lreb_have_bc\n" ++
-  "  li t3, 6\n" ++
-  "  slli t4, t4, 8              # 2^48\n" ++
-  "  bltu t1, t4, .Lreb_have_bc\n" ++
-  "  li t3, 7\n" ++
-  "  slli t4, t4, 8              # 2^56\n" ++
-  "  bltu t1, t4, .Lreb_have_bc\n" ++
-  "  li t3, 8\n" ++
-  ".Lreb_have_bc:\n" ++
-  "  # t3 = bc. Write prefix 0xb7 + bc.\n" ++
-  "  addi t4, t3, 0xb7\n" ++
-  "  sb t4, 0(t2)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  # Write bc bytes of t1 in BE order. Use a counter i = bc-1..0,\n" ++
-  "  # shift t1 right by 8*i, store low byte.\n" ++
-  "  addi t4, t3, -1             # i = bc-1\n" ++
-  ".Lreb_emit_be:\n" ++
-  "  bltz t4, .Lreb_be_done\n" ++
-  "  slli t5, t4, 3              # 8 * i\n" ++
-  "  srl t6, t1, t5\n" ++
-  "  sb t6, 0(t2)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lreb_emit_be\n" ++
-  ".Lreb_be_done:\n" ++
-  "  # Copy data bytes.\n" ++
-  "  mv t4, t1\n" ++
-  ".Lreb_long_copy:\n" ++
-  "  beqz t4, .Lreb_long_done\n" ++
-  "  lbu t5, 0(t0)\n" ++
-  "  sb t5, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  j .Lreb_long_copy\n" ++
-  ".Lreb_long_done:\n" ++
-  "  # out_len = 1 + bc + len\n" ++
-  "  addi t5, t3, 1\n" ++
-  "  add t5, t5, t1\n" ++
-  "  sd t5, 0(a3)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def rlpEncodeBytes_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x7 .x12,
+    .LI .x28 (1 : Word),
+    .BNE .x6 .x28 (36 : BitVec 13),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .LI .x30 (128 : Word),
+    .BGEU .x29 .x30 (24 : BitVec 13),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .LI .x31 (1 : Word),
+    .SD .x13 .x31 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x28 (56 : Word),
+    .BGEU .x6 .x28 (64 : BitVec 13),
+    .ADDI .x28 .x6 (128 : BitVec 12),
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .MV .x29 .x6,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x31 .x6 (1 : BitVec 12),
+    .SD .x13 .x31 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x28 (1 : Word),
+    .LI .x29 (256 : Word),
+    .BLTU .x6 .x29 (80 : BitVec 13),
+    .LI .x28 (2 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x6 .x29 (68 : BitVec 13),
+    .LI .x28 (3 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x6 .x29 (56 : BitVec 13),
+    .LI .x28 (4 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x6 .x29 (44 : BitVec 13),
+    .LI .x28 (5 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x6 .x29 (32 : BitVec 13),
+    .LI .x28 (6 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x6 .x29 (20 : BitVec 13),
+    .LI .x28 (7 : Word),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .BLTU .x6 .x29 (8 : BitVec 13),
+    .LI .x28 (8 : Word),
+    .ADDI .x29 .x28 (183 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x29 .x28 (-1 : BitVec 12),
+    .BLT .x29 .x0 (28 : BitVec 13),
+    .SLLI .x30 .x29 (3 : BitVec 6),
+    .SRL .x31 .x6 .x30,
+    .SB .x7 .x31 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x29 .x6,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x30 .x5 (0 : BitVec 12),
+    .SB .x7 .x30 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x30 .x28 (1 : BitVec 12),
+    .ADD .x30 .x30 .x6,
+    .SD .x13 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def rlpEncodeBytesFunction : String :=
+  "rlp_encode_bytes:\n" ++ emitProgram rlpEncodeBytes_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpEncodeBytes_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpEncodeBytesFunction_eq_prog :
+    rlpEncodeBytesFunction = "rlp_encode_bytes:\n" ++ emitProgram rlpEncodeBytes_prog := rfl
+
+#guard rlpEncodeBytesFunction.startsWith "rlp_encode_bytes:\n"
+#guard rlpEncodeBytes_prog.length = 76
 /-- `zisk_rlp_encode_bytes`: probe BuildUnit. Reads (data_len,
     data_bytes) from host input, writes (status, out_len,
     out_bytes...) to OUTPUT. -/

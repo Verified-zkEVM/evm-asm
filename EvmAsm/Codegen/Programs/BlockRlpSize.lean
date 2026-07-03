@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Withdrawal
@@ -26,36 +27,67 @@ open EvmAsm.Rv64
 
     a0 = SSZ ExecutionPayload ptr   a1 = rebuilt header RLP length
     a2 = SSZ_BASE                   a0 = 0 ok / 1 malformed input, a1 = length -/
+def rlpBytesEncodedSize_prog : Program :=
+  [ .LI .x5 (1 : Word),
+    .BNE .x11 .x5 (16 : BitVec 13),
+    .LBU .x6 .x10 (0 : BitVec 12),
+    .LI .x7 (128 : Word),
+    .BLTU .x6 .x7 (20 : BitVec 13),
+    .LI .x5 (56 : Word),
+    .BGEU .x11 .x5 (20 : BitVec 13),
+    .ADDI .x10 .x11 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .MV .x5 .x11,
+    .LI .x6 (0 : Word),
+    .BEQ .x5 .x0 (16 : BitVec 13),
+    .SRLI .x5 .x5 (8 : BitVec 6),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-12 : BitVec 21),
+    .ADD .x10 .x11 .x6,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def rlpBytesEncodedSizeFunction : String :=
-  "rlp_bytes_encoded_size:\n" ++
-  "  li t0, 1\n" ++
-  "  bne a1, t0, .Lrbes_not_single\n" ++
-  "  lbu t1, 0(a0); li t2, 0x80; bltu t1, t2, .Lrbes_single_raw\n" ++
-  ".Lrbes_not_single:\n" ++
-  "  li t0, 56; bgeu a1, t0, .Lrbes_long\n" ++
-  "  addi a0, a1, 1; ret\n" ++
-  ".Lrbes_single_raw:\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Lrbes_long:\n" ++
-  "  mv t0, a1; li t1, 0\n" ++
-  ".Lrbes_len_loop:\n" ++
-  "  beqz t0, .Lrbes_len_done\n" ++
-  "  srli t0, t0, 8; addi t1, t1, 1; j .Lrbes_len_loop\n" ++
-  ".Lrbes_len_done:\n" ++
-  "  add a0, a1, t1; addi a0, a0, 1; ret"
+  "rlp_bytes_encoded_size:\n" ++ emitProgram rlpBytesEncodedSize_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpBytesEncodedSize_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpBytesEncodedSizeFunction_eq_prog :
+    rlpBytesEncodedSizeFunction = "rlp_bytes_encoded_size:\n" ++ emitProgram rlpBytesEncodedSize_prog := rfl
+
+#guard rlpBytesEncodedSizeFunction.startsWith "rlp_bytes_encoded_size:\n"
+#guard rlpBytesEncodedSize_prog.length = 20
+def rlpListEncodedSize_prog : Program :=
+  [ .LI .x5 (56 : Word),
+    .BGEU .x10 .x5 (12 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .MV .x5 .x10,
+    .LI .x6 (0 : Word),
+    .BEQ .x5 .x0 (16 : BitVec 13),
+    .SRLI .x5 .x5 (8 : BitVec 6),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-12 : BitVec 21),
+    .ADD .x10 .x10 .x6,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def rlpListEncodedSizeFunction : String :=
-  "rlp_list_encoded_size:\n" ++
-  "  li t0, 56; bgeu a0, t0, .Lrles_long\n" ++
-  "  addi a0, a0, 1; ret\n" ++
-  ".Lrles_long:\n" ++
-  "  mv t0, a0; li t1, 0\n" ++
-  ".Lrles_len_loop:\n" ++
-  "  beqz t0, .Lrles_len_done\n" ++
-  "  srli t0, t0, 8; addi t1, t1, 1; j .Lrles_len_loop\n" ++
-  ".Lrles_len_done:\n" ++
-  "  add a0, a0, t1; addi a0, a0, 1; ret"
+  "rlp_list_encoded_size:\n" ++ emitProgram rlpListEncodedSize_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpListEncodedSize_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpListEncodedSizeFunction_eq_prog :
+    rlpListEncodedSizeFunction = "rlp_list_encoded_size:\n" ++ emitProgram rlpListEncodedSize_prog := rfl
+
+#guard rlpListEncodedSizeFunction.startsWith "rlp_list_encoded_size:\n"
+#guard rlpListEncodedSize_prog.length = 13
 def blockRlpRebuiltSizeFunction : String :=
   "block_rlp_rebuilt_size:\n" ++
   "  addi sp, sp, -96\n" ++

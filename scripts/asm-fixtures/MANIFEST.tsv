@@ -1,4 +1,5 @@
 # asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
+bhrRevLeBeFunction	EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean
 bloomEqFunction	EvmAsm/Codegen/Programs/Bloom.lean
 bloomOrIntoFunction	EvmAsm/Codegen/Programs/Bloom.lean
 bls12CopyQuadsFunction	EvmAsm/Codegen/Programs/Bls12Field.lean
@@ -34,6 +35,14 @@ bn254PointCopy64Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254PointIsInfFunction	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254PointZero64Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254PtCopyFunction	EvmAsm/Codegen/Programs/Bn254Pairing.lean
+bytesToNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
+codesBlockhashRequiredHeadersFunction	EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean
+ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
+hpDecodeNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
+hpEncodeNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
+mptBranchPayloadTwoSlotsFunction	EvmAsm/Codegen/Programs/MptEncode.lean
+mptCompactToNibblesFunction	EvmAsm/Codegen/Programs/MptNibbles.lean
+mptNibblesToCompactFunction	EvmAsm/Codegen/Programs/MptNibbles.lean
 msetMemcpyFunction	EvmAsm/Codegen/Programs/MptSet.lean
 nibblesCommonPrefixLenFunction	EvmAsm/Codegen/Programs/MptEncode.lean
 p256BeToLeFunction	EvmAsm/Codegen/Programs/P256Verify.lean
@@ -42,6 +51,14 @@ p256Eq32Function	EvmAsm/Codegen/Programs/P256Verify.lean
 p256IsZeroNFunction	EvmAsm/Codegen/Programs/P256Verify.lean
 p256LeToBeFunction	EvmAsm/Codegen/Programs/P256Verify.lean
 p256LtBeFunction	EvmAsm/Codegen/Programs/P256Verify.lean
+rlpBytesEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
+rlpEncodeBytesFunction	EvmAsm/Codegen/Programs/RlpRead.lean
+rlpEncodeListPrefixFunction	EvmAsm/Codegen/Programs/RlpRead.lean
+rlpEncodeU64Function	EvmAsm/Codegen/Programs/Receipt.lean
+rlpEncodeUintBeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
+rlpListCountItemsFunction	EvmAsm/Codegen/Programs/RlpRead.lean
+rlpListEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
+rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 runningBloomCopyFunction	EvmAsm/Codegen/Programs/Bloom.lean
 runningBloomZeroFunction	EvmAsm/Codegen/Programs/Bloom.lean
 secp256k1FieldBeToLeFunction	EvmAsm/Codegen/Programs/Secp256k1Field.lean
@@ -53,6 +70,10 @@ secp256k1FieldLeToBeFunction	EvmAsm/Codegen/Programs/Secp256k1Field.lean
 secp256k1FieldZero32Function	EvmAsm/Codegen/Programs/Secp256k1Field.lean
 secp256k1PointCopy64Function	EvmAsm/Codegen/Programs/Secp256k1Curve.lean
 secp256k1PointZero64Function	EvmAsm/Codegen/Programs/Secp256k1Curve.lean
+spwU32leFunction	EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean
+sszPackBytesFunction	EvmAsm/Codegen/Programs/Ssz.lean
+swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
+swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
 u256AddBeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256DivU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256EqFunction	EvmAsm/Codegen/Programs/U256.lean
