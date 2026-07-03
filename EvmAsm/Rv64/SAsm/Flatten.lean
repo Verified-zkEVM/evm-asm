@@ -63,6 +63,8 @@ def flatten (addr : Word) : Stmt → List Instr
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
   | call _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
+  | callReg _ rs _ =>
+      [.JALR .x1 rs 0]
 
 /-- The flattened code of a statement occupies exactly `size` slots. -/
 theorem flatten_length (s : Stmt) (addr : Word) :
@@ -81,6 +83,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | «while» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
   | call _ callee => rfl
+  | callReg _ _ _ => rfl
 
 /-- Decidable well-formedness: every synthesized offset fits its immediate
     field, and every branch condition reads only exposed registers (or x0).
@@ -105,12 +108,15 @@ def offsetsOk : Stmt → Bool
            && decide (4 * (b.size + 1) ≤ 2^20)
            && b.offsetsOk
   | call _ _ => true
+  | callReg _ rs _ => Reg.isExposed rs
 
 /-- Address-aware side conditions of the call sites of a statement placed at
     `addr`: each `jal` offset round-trips through its 21-bit immediate, the
     return address is aligned, and the callee's code does not sit on the
-    call instruction itself.  Decidable for concrete layouts (`decide`),
-    `bv_omega` for relative ones. -/
+    call instruction itself.  For an indirect call, the return address must
+    be aligned and every table entry must be a `jalr`-fixed-point address.
+    Decidable for concrete layouts (`decide`), `bv_omega` for relative
+    ones. -/
 def callsOk : Stmt → Word → Prop
   | block _ _, _ => True
   | seq a b, addr =>
@@ -126,6 +132,9 @@ def callsOk : Stmt → Word → Prop
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
       ∧ f.code addr = none
+  | callReg _ _ handles, addr =>
+      ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
+      ∧ ∀ h ∈ handles, (h.entry &&& ~~~(1 : Word)) = h.entry
 
 end Stmt
 end SAsm

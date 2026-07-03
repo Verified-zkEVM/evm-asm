@@ -2518,7 +2518,14 @@ dword outside the callee's `widenRw` window and reload after `LI`
 re-materializing the pointer (SpillDemo); s-regs/`sp` are outside the
 exposed set (blockOk rejects them) so verified code can't clobber them;
 frames are STATIC windows of the stack arena (no dynamic `addi sp`),
-design in docs/sasm-design.md §3.6.2. Next for SAsm: more
+design in docs/sasm-design.md §3.6.2. Indirect calls landed
+(`Stmt.callReg`, bead evm-asm-4ch8f.4): `jalr ra, rs, 0` against a
+finite handle table — `.pre` VC = register pins some handle's entry
+with its pre met, sp = disjunction of posts, soundness via
+`jalr_call_spec_within` reading the target out of `regFileIs`; table
+loads are ordinary ro-region blocks, correlation via per-call-site
+ghost instantiation, tail calls (`jalr x0`) future work
+(docs/sasm-design.md §3.6.3, CallRegDemo). Next for SAsm: more
 Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`

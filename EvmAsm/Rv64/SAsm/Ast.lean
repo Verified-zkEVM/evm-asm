@@ -149,6 +149,14 @@ inductive Stmt where
       pre/post in the C-like ABI; the VC generator emits one `.pre`
       obligation per call site. -/
   | call   (label : String) (f : FnHandle)
+  /-- Indirect call (`jalr ra, rs, 0`) through an exposed register, against
+      a finite table of possible callees (docs/sasm-design.md §3.6.3).  The
+      `.pre` VC demands the register hold the entry address of one of the
+      handles whose precondition is met; the strongest postcondition is the
+      disjunction of the handles' postconditions.  Per-branch correlation
+      (which handler ran) is recovered by instantiating the handles' ghost
+      contracts per call site. -/
+  | callReg (label : String) (rs : Reg) (handles : List FnHandle)
 
 namespace Stmt
 
@@ -167,6 +175,7 @@ def size : Stmt → Nat
   | blockAt _ _ _ is  => is.length
   | «while» _ _ _ _ b   => b.size + 2
   | call _ _          => 1
+  | callReg _ _ _     => 1
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -184,6 +193,7 @@ def callFree : Stmt → Bool
   | blockAt _ _ _ _   => true
   | «while» _ _ _ _ b => b.callFree
   | call _ _          => false
+  | callReg _ _ _     => false
 
 end Stmt
 

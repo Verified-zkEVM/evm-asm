@@ -568,6 +568,8 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
         hsound
   | call lbl f =>
       exact absurd hleaf (by simp [Stmt.callFree])
+  | callReg lbl rs handles =>
+      exact absurd hleaf (by simp [Stmt.callFree])
 
 end SAsm
 end EvmAsm.Rv64

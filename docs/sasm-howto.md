@@ -208,6 +208,19 @@ contract; the call machinery consumes it unchanged.
   s-registers and `sp` never need either recipe: they are outside the
   exposed set, so verified code cannot touch them (frames are static
   windows of the stack arena; there is no `addi sp` in verified code).
+- **Indirect calls** (`Stmt.callReg lbl rs handles`; design §3.6.3).
+  Emits `jalr ra, rs, 0` against a finite table of candidate handles.
+  One `.pre` VC: produce `⟨h, membership, rf.get rs = h.entry, h.pre⟩`
+  for every reachable state — after a table `ld` or a branch of `LI`s,
+  this is `RegFile.get_set_self` plus picking the branch's handle.  The
+  call's sp is the disjunction `∃ h ∈ handles, h.post`; destructure the
+  membership with `simp only [List.mem_cons, ...] ; rcases ... with rfl | rfl`.
+  `callees` asks the per-handle triple (code ⊆ cr, regions equal —
+  widen each handle first if it owns a sub-window); `calls` asks
+  `pc + 4` aligned plus every entry a `jalr` fixed point (`decide`).
+  `offsetsOk` requires `rs` exposed.  To know WHICH handler ran,
+  instantiate the handles' ghost contracts per call site (see
+  `CallRegDemo` and §3.6.3).
 
 ### Calling an existing hand-verified `cpsTripleWithin`
 

@@ -451,6 +451,51 @@ How values survive calls and where frames live (bead evm-asm-4ch8f.3,
    interpreter's call depth) does not stack-allocate: it goes through the
    data-indexed EVM frame arena (beads evm-asm-4ch8f.5/.56).
 
+### 3.6.3 Indirect calls (`Stmt.callReg`, design decisions)
+
+The guest dispatches through function pointers in three places: the
+256-entry `opcode_handlers` jump table, `tx_type_dispatch`, and
+runtime-armed backends (`ecrecover_backend_ptr`).  All of them reduce to
+one primitive (bead evm-asm-4ch8f.4):
+
+- **`Stmt.callReg lbl rs handles`** emits a single `jalr ra, rs, 0` and
+  carries a *finite table* of candidate callees.  Its one `.pre` VC
+  demands that every reachable state pin the (exposed) register to the
+  entry address of some handle whose precondition holds:
+  `∃ h ∈ handles, rf.get rs = h.entry ∧ h.pre rf ws A`.  The strongest
+  postcondition is the disjunction `∃ h ∈ handles, h.post rf ws A`; the
+  step bound is `1 +` the folded maximum of the handles' bounds.
+  Soundness (the `callReg` case of `Stmt.soundR`) splits the symbolic
+  state, picks the handle the `.pre` VC names, steps the `jalr`
+  (`jalr_call_spec_within`, which reads the target out of `regFileIs`
+  and drops the return address into the owned `ra`), and runs that
+  handle's contract — no disjointness side conditions, since both the
+  jump and the callee code live in the ambient `cr`.
+- **Table loads are not a new primitive.**  A dispatch table in `.data`
+  is a read-only region of little-endian dword entries; the load
+  `ld rs, 8*i(table)` is ordinary block machinery, and its `.post`
+  relates `rf.get rs` to `Region.dwordAt` — exactly what the `.pre` VC
+  of the following `callReg` consumes.  Runtime-armed pointers live in a
+  `rw` dword instead; same shape.
+- **Correlation** (knowing WHICH handler ran): the bare disjunction
+  loses it, deliberately.  Callers that need it instantiate the handles'
+  ghost contracts per call site — e.g. handler `i`'s instantiated post
+  can pin the dispatch index or its distinguishing effect — the same
+  per-call-site instantiation used for regions (`RoWidenDemo`) and
+  saved registers (§3.6.2).  For the 256-entry opcode table this is one
+  handle family indexed by the opcode byte.
+- **Address side conditions** (`callsOk`): the return address `pc + 4`
+  is aligned and every table entry is a `jalr` fixed point
+  (`entry &&& ~1 = entry`) — decidable per concrete layout.  `offsetsOk`
+  additionally requires `rs` exposed.  Tail calls (`jalr x0`) remain
+  future work; they need a different contract shape (the callee returns
+  to the CALLER's caller), not just a new emitter.
+
+`CallRegDemo` exercises the construct end-to-end: two verified handlers,
+a caller that selects an entry address on a runtime condition and
+dispatches through `x28`, and a proof that the merged postcondition
+holds.
+
 ### 3.7 Flattening (`SAsm/Flatten.lean`)
 
 ```lean
@@ -468,6 +513,7 @@ Layouts (sizes in instructions):
 | `when c b`   | `B¬c → Lend` · `b` | `b.size + 1` |
 | `while c n _ b` | `Lhdr: B¬c → Lend` · `b` · `J → Lhdr` | `b.size + 2` |
 | `call _ f`   | `JAL x1, (f.entry − pc)` | `1` |
+| `callReg _ rs hs` | `JALR x1, rs, 0` | `1` |
 | `assert`     | (nothing) | `0` |
 
 `#eval`-able: flattened programs plug directly into the existing codegen
