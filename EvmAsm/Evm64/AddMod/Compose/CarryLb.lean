@@ -295,4 +295,69 @@ theorem lb_call2_in_C
   simp only [sepConj_assoc'] at hp ⊢
   xperm_hyp hp
 
+-- ============================================================================
+-- Lb link 3: call_mod_restore (byte 352 → 356), and the full Lb sub-chain
+-- ============================================================================
+
+/-- The call-2 post minus `x12`: the callable's x9-owned return frame (x12
+    peeled), the scratch cell, and the S1/S2/S3 park cells. `d` is the
+    preserved dividend `fromLimbs ![q..]`; `v` is the F+32 remainder value
+    (kept generic so the pow256 rewrite happens once, in `lb_spec_within`). -/
+def addmodAfterCall2Rest (F raVal : Word) (d v : EvmWord)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word) : Assertion :=
+  (regOwn .x2 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+   regOwn .x10 ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+   evmWordIs F d ** evmWordIs (F + 32) v **
+   divScratchOwnCallNoX1 F ** (.x1 ↦ᵣ raVal) ** regOwn .x9) **
+  memOwn (F + signExtend12 (3936 : BitVec 12)) **
+  addmodCall1Frame F n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3
+
+theorem addmodAfterCall2Rest_pcFree (F raVal : Word) (d v : EvmWord)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word) :
+    (addmodAfterCall2Rest F raVal d v n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3).pcFree := by
+  unfold addmodAfterCall2Rest addmodCall1Frame divScratchOwnCallNoX1 divScratchOwn evmWordIs
+  pcFree
+
+/-- Full Lb post bundle: after the second MOD call and the frame-pointer restore,
+    `x12 = F`, the `2^256 mod N` carry contribution `pow256ModN N` sits at
+    F+32..56, with N/r/(stale m) parked at S1/S2/S3 and the callable frame shed. -/
+def addmodCarryAfterCall2 (F raVal : Word) (d v : EvmWord)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word) : Assertion :=
+  (.x12 ↦ᵣ F) **
+  addmodAfterCall2Rest F raVal d v n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3
+
+/-- Link 3 of Lb: `call_mod_restore` (`ADDI x12 x12 −32` at byte 352) framed with
+    the callable return frame, over `C`. Restores `x12 = F+32 → F`. Mirror of
+    `la_restore_in_C`. -/
+theorem lb_restore_in_C
+    (bt F raVal : Word) (d v : EvmWord)
+    (n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word) :
+    cpsTripleWithin 1 (bt + 352) ((bt + 352) + 4)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      ((.x12 ↦ᵣ (F + 32)) **
+       addmodAfterCall2Rest F raVal d v n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+      (addmodCarryAfterCall2 F raVal d v n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3) := by
+  have hsubRestore : ∀ a i,
+      CodeReq.singleton (bt + 352) (.ADDI .x12 .x12 (4064 : BitVec 12)) a = some i →
+      (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC) a = some i := by
+    intro a i ha
+    refine evm_addmod_total_program_code_carry_call2_sub a i ?_
+    rw [← evm_addmod_carry_call_mod_code_eq_ofProg]
+    show (CodeReq.union (CodeReq.singleton (bt + 348) (.JAL .x1 mo2))
+        (CodeReq.singleton ((bt + 348) + 4) (.ADDI .x12 .x12 (4064 : BitVec 12)))) a = some i
+    refine CodeReq.mono_union_right
+      (CodeReq.Disjoint.singleton (by
+        rw [show (bt + 348) + 4 = bt + 352 from by bv_omega]; bv_omega))
+      (fun a' i' h => h) a i ?_
+    rw [show (bt + 348) + 4 = bt + 352 from by bv_omega]; exact ha
+  have hrestore := cpsTripleWithin_frameR
+    (addmodAfterCall2Rest F raVal d v n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+    (addmodAfterCall2Rest_pcFree F raVal d v n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+    (evm_addmod_carry_call_mod_restore_spec_within (F + 32) (bt + 352))
+  rw [show (F + 32) + signExtend12 (4064 : BitVec 12) = F from by
+    rw [show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide]
+    bv_omega] at hrestore
+  exact carry_block_in_C hsubRestore hrestore
+
 end EvmAsm.Evm64.AddMod.Compose
