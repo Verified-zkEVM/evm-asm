@@ -8,9 +8,15 @@
   empty code.
 -/
 
+import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## runtime_same_block_delegation_code
 
@@ -23,207 +29,250 @@ namespace EvmAsm.Codegen
            rsbd_code_ptr/rsbd_code_len name the marker bytes.
       a0 = 1 otherwise.
 -/
-def runtimeSameBlockDelegationCodeFunction : String :=
-  "runtime_same_block_delegation_code:
-" ++
-  "  addi sp, sp, -80
-" ++
-  "  sd ra, 0(sp)
-" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
-" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
-" ++
-  "  mv s0, a0                    # target address ptr
-" ++
-  "  la t0, runtime_current_bal_ptr; ld s1, 0(t0)
-" ++
-  "  la t0, runtime_current_bal_len; ld s2, 0(t0)
-" ++
-  "  beqz s1, .Lrsbd_no_bal_ptr
-" ++
-  "  beqz s2, .Lrsbd_no_bal_len
-" ++
-  "  mv a0, s1; mv a1, s2; la a2, rsbd_count
-" ++
-  "  jal ra, rlp_list_count_items
-" ++
-  "  bnez a0, .Lrsbd_no_count
-" ++
-  "  la t0, rsbd_count; ld s3, 0(t0)
-" ++
-  "  li s4, 0
-" ++
-  ".Lrsbd_loop:
-" ++
-  "  beq s4, s3, .Lrsbd_no_notfound
-" ++
-  "  mv a0, s1; mv a1, s2; mv a2, s4; la a3, rsbd_acct_off; la a4, rsbd_acct_len
-" ++
-  "  jal ra, rlp_item_span
-" ++
-  "  bnez a0, .Lrsbd_no_span
-" ++
-  "  la t0, rsbd_acct_off; ld t1, 0(t0); add s5, s1, t1
-" ++
-  "  la t0, rsbd_acct_len; ld s6, 0(t0)
-" ++
-  "  mv a0, s5; mv a1, s6; li a2, 0; la a3, rsbd_field_off; la a4, rsbd_field_len
-" ++
-  "  jal ra, rlp_list_nth_item
-" ++
-  "  bnez a0, .Lrsbd_next
-" ++
-  "  la t0, rsbd_field_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lrsbd_next
-" ++
-  "  la t0, rsbd_field_off; ld t1, 0(t0); add t1, s5, t1
-" ++
-  "  mv t2, s0; li t3, 20
-" ++
-  ".Lrsbd_addr_cmp:
-" ++
-  "  beqz t3, .Lrsbd_addr_match
-" ++
-  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lrsbd_next
-" ++
-  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lrsbd_addr_cmp
-" ++
-  ".Lrsbd_addr_match:
-" ++
-  "  mv a0, s5; mv a1, s6; li a2, 5; la a3, rsbd_field_off; la a4, rsbd_field_len
-" ++
-  "  jal ra, rlp_list_nth_item                  # code_changes
-" ++
-  "  bnez a0, .Lrsbd_no_code_item
-" ++
-  "  la t0, rsbd_field_off; ld t1, 0(t0); add s7, s5, t1
-" ++
-  "  la t0, rsbd_field_len; ld t1, 0(t0)
-" ++
-  "  mv a0, s7; mv a1, t1; la a2, rsbd_code_count
-" ++
-  "  jal ra, rlp_list_count_items
-" ++
-  "  bnez a0, .Lrsbd_no_code_count
-" ++
-  "  la t0, rsbd_code_count; ld t1, 0(t0); beqz t1, .Lrsbd_no_empty_code_changes
-" ++
-  "  addi t1, t1, -1
-" ++
-  "  la t0, rsbd_field_len; ld a1, 0(t0)
-" ++
-  "  mv a0, s7; mv a2, t1; la a3, rsbd_tuple_off; la a4, rsbd_tuple_len
-" ++
-  "  jal ra, rlp_list_nth_item
-" ++
-  "  bnez a0, .Lrsbd_no_tuple
-" ++
-  "  la t0, rsbd_tuple_off; ld t1, 0(t0); add t1, s7, t1
-" ++
-  "  la t0, rsbd_tuple_len; ld t2, 0(t0)
-" ++
-  "  mv a0, t1; mv a1, t2; li a2, 1; la a3, rsbd_code_off; la a4, rsbd_code_len_cell
-" ++
-  "  jal ra, rlp_list_nth_item
-" ++
-  "  bnez a0, .Lrsbd_no_code_field
-" ++
-  "  la t0, rsbd_code_len_cell; ld t2, 0(t0); li t3, 23; bne t2, t3, .Lrsbd_no_code_len
-" ++
-  "  la t0, rsbd_tuple_off; ld t1, 0(t0); add t1, s7, t1
-" ++
-  "  la t0, rsbd_code_off; ld t2, 0(t0); add t1, t1, t2
-" ++
-  "  lbu t3, 0(t1); li t4, 0xef; bne t3, t4, .Lrsbd_no_marker0
-" ++
-  "  lbu t3, 1(t1); li t4, 0x01; bne t3, t4, .Lrsbd_no_marker1
-" ++
-  "  lbu t3, 2(t1); bnez t3, .Lrsbd_no_marker2
-" ++
-  "  la t0, rsbd_code_ptr; sd t1, 0(t0)
-" ++
-  "  la t0, rsbd_code_len; li t1, 23; sd t1, 0(t0)
-" ++
-  "  li a0, 0; j .Lrsbd_ret
-" ++
-  ".Lrsbd_next:
-" ++
-  "  addi s4, s4, 1; j .Lrsbd_loop
-" ++
-  ".Lrsbd_no:
-" ++
-  "  li a0, 1
-" ++
-  "  j .Lrsbd_ret
-" ++
-  ".Lrsbd_no_bal_ptr:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_bal_len:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_count:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_notfound:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_span:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_code_item:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_code_count:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_empty_code_changes:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_tuple:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_code_field:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_code_len:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_marker0:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_marker1:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_no_marker2:
-" ++
-  "  j .Lrsbd_no
-" ++
-  ".Lrsbd_ret:
-" ++
-  "  ld ra, 0(sp)
-" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
-" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)
-" ++
-  "  addi sp, sp, 80
-" ++
-  "  ret"
+def runtimeSameBlockDelegationCode_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.runtime_current_bal_ptr (GuestAddrs.runtime_same_block_delegation_code + 44)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_current_bal_ptr (GuestAddrs.runtime_same_block_delegation_code + 44)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_current_bal_len (GuestAddrs.runtime_same_block_delegation_code + 56)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_current_bal_len (GuestAddrs.runtime_same_block_delegation_code + 56)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .BEQ .x9 .x0 (580 : BitVec 13),
+    .BEQ .x18 .x0 (580 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.rsbd_count (GuestAddrs.runtime_same_block_delegation_code + 84)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.rsbd_count (GuestAddrs.runtime_same_block_delegation_code + 84)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.runtime_same_block_delegation_code + 92)),
+    .BNE .x10 .x0 (560 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_count (GuestAddrs.runtime_same_block_delegation_code + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_count (GuestAddrs.runtime_same_block_delegation_code + 100)),
+    .LD .x19 .x5 (0 : BitVec 12),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x19 (544 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .MV .x12 .x20,
+    .AUIPC .x13 (laHi GuestAddrs.rsbd_acct_off (GuestAddrs.runtime_same_block_delegation_code + 132)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rsbd_acct_off (GuestAddrs.runtime_same_block_delegation_code + 132)),
+    .AUIPC .x14 (laHi GuestAddrs.rsbd_acct_len (GuestAddrs.runtime_same_block_delegation_code + 140)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rsbd_acct_len (GuestAddrs.runtime_same_block_delegation_code + 140)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (GuestAddrs.runtime_same_block_delegation_code + 148)),
+    .BNE .x10 .x0 (512 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_acct_off (GuestAddrs.runtime_same_block_delegation_code + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_acct_off (GuestAddrs.runtime_same_block_delegation_code + 156)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x21 .x9 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_acct_len (GuestAddrs.runtime_same_block_delegation_code + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_acct_len (GuestAddrs.runtime_same_block_delegation_code + 172)),
+    .LD .x22 .x5 (0 : BitVec 12),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 196)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 196)),
+    .AUIPC .x14 (laHi GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 204)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 204)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.runtime_same_block_delegation_code + 212)),
+    .BNE .x10 .x0 (416 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 220)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BNE .x6 .x7 (396 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 240)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x21 .x6,
+    .MV .x7 .x8,
+    .LI .x28 (20 : Word),
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .BNE .x29 .x30 (356 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .LI .x12 (5 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 308)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 308)),
+    .AUIPC .x14 (laHi GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 316)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 316)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.runtime_same_block_delegation_code + 324)),
+    .BNE .x10 .x0 (340 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 332)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_field_off (GuestAddrs.runtime_same_block_delegation_code + 332)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x21 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 348)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 348)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .MV .x10 .x23,
+    .MV .x11 .x6,
+    .AUIPC .x12 (laHi GuestAddrs.rsbd_code_count (GuestAddrs.runtime_same_block_delegation_code + 368)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.rsbd_code_count (GuestAddrs.runtime_same_block_delegation_code + 368)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.runtime_same_block_delegation_code + 376)),
+    .BNE .x10 .x0 (292 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_count (GuestAddrs.runtime_same_block_delegation_code + 384)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_count (GuestAddrs.runtime_same_block_delegation_code + 384)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (280 : BitVec 13),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 404)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_field_len (GuestAddrs.runtime_same_block_delegation_code + 404)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x10 .x23,
+    .MV .x12 .x6,
+    .AUIPC .x13 (laHi GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 424)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 424)),
+    .AUIPC .x14 (laHi GuestAddrs.rsbd_tuple_len (GuestAddrs.runtime_same_block_delegation_code + 432)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rsbd_tuple_len (GuestAddrs.runtime_same_block_delegation_code + 432)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.runtime_same_block_delegation_code + 440)),
+    .BNE .x10 .x0 (236 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 448)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 448)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x23 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_tuple_len (GuestAddrs.runtime_same_block_delegation_code + 464)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_tuple_len (GuestAddrs.runtime_same_block_delegation_code + 464)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .MV .x11 .x7,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 488)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 488)),
+    .AUIPC .x14 (laHi GuestAddrs.rsbd_code_len_cell (GuestAddrs.runtime_same_block_delegation_code + 496)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rsbd_code_len_cell (GuestAddrs.runtime_same_block_delegation_code + 496)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.runtime_same_block_delegation_code + 504)),
+    .BNE .x10 .x0 (176 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len_cell (GuestAddrs.runtime_same_block_delegation_code + 512)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len_cell (GuestAddrs.runtime_same_block_delegation_code + 512)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LI .x28 (23 : Word),
+    .BNE .x7 .x28 (160 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 532)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 532)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x23 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 548)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 548)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LI .x29 (239 : Word),
+    .BNE .x28 .x29 (120 : BitVec 13),
+    .LBU .x28 .x6 (1 : BitVec 12),
+    .LI .x29 (1 : Word),
+    .BNE .x28 .x29 (112 : BitVec 13),
+    .LBU .x28 .x6 (2 : BitVec 12),
+    .BNE .x28 .x0 (108 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 596)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 596)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 608)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 608)),
+    .LI .x6 (23 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (76 : BitVec 21),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-520 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (60 : BitVec 21),
+    .JAL .x0 (-8 : BitVec 21),
+    .JAL .x0 (-12 : BitVec 21),
+    .JAL .x0 (-16 : BitVec 21),
+    .JAL .x0 (-20 : BitVec 21),
+    .JAL .x0 (-24 : BitVec 21),
+    .JAL .x0 (-28 : BitVec 21),
+    .JAL .x0 (-32 : BitVec 21),
+    .JAL .x0 (-36 : BitVec 21),
+    .JAL .x0 (-40 : BitVec 21),
+    .JAL .x0 (-44 : BitVec 21),
+    .JAL .x0 (-48 : BitVec 21),
+    .JAL .x0 (-52 : BitVec 21),
+    .JAL .x0 (-56 : BitVec 21),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `runtimeSameBlockDelegationCode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def runtimeSameBlockDelegationCode_relocs : RelocTable :=
+  [ (11, .la .x5 "runtime_current_bal_ptr"),
+    (14, .la .x5 "runtime_current_bal_len"),
+    (21, .la .x12 "rsbd_count"),
+    (23, .jal .x1 "rlp_list_count_items"),
+    (25, .la .x5 "rsbd_count"),
+    (33, .la .x13 "rsbd_acct_off"),
+    (35, .la .x14 "rsbd_acct_len"),
+    (37, .jal .x1 "rlp_item_span"),
+    (39, .la .x5 "rsbd_acct_off"),
+    (43, .la .x5 "rsbd_acct_len"),
+    (49, .la .x13 "rsbd_field_off"),
+    (51, .la .x14 "rsbd_field_len"),
+    (53, .jal .x1 "rlp_list_nth_item"),
+    (55, .la .x5 "rsbd_field_len"),
+    (60, .la .x5 "rsbd_field_off"),
+    (77, .la .x13 "rsbd_field_off"),
+    (79, .la .x14 "rsbd_field_len"),
+    (81, .jal .x1 "rlp_list_nth_item"),
+    (83, .la .x5 "rsbd_field_off"),
+    (87, .la .x5 "rsbd_field_len"),
+    (92, .la .x12 "rsbd_code_count"),
+    (94, .jal .x1 "rlp_list_count_items"),
+    (96, .la .x5 "rsbd_code_count"),
+    (101, .la .x5 "rsbd_field_len"),
+    (106, .la .x13 "rsbd_tuple_off"),
+    (108, .la .x14 "rsbd_tuple_len"),
+    (110, .jal .x1 "rlp_list_nth_item"),
+    (112, .la .x5 "rsbd_tuple_off"),
+    (116, .la .x5 "rsbd_tuple_len"),
+    (122, .la .x13 "rsbd_code_off"),
+    (124, .la .x14 "rsbd_code_len_cell"),
+    (126, .jal .x1 "rlp_list_nth_item"),
+    (128, .la .x5 "rsbd_code_len_cell"),
+    (133, .la .x5 "rsbd_tuple_off"),
+    (137, .la .x5 "rsbd_code_off"),
+    (149, .la .x5 "rsbd_code_ptr"),
+    (152, .la .x5 "rsbd_code_len") ]
+
+def runtimeSameBlockDelegationCodeFunction : String :=
+  "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `runtimeSameBlockDelegationCode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem runtimeSameBlockDelegationCodeFunction_eq_prog :
+    runtimeSameBlockDelegationCodeFunction = "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs := rfl
+
+#guard runtimeSameBlockDelegationCodeFunction.startsWith "runtime_same_block_delegation_code:\n"
+#guard runtimeSameBlockDelegationCode_prog.length = 187
 def runtimeSameBlockDelegationCodeData : String :=
   ".balign 8
 " ++

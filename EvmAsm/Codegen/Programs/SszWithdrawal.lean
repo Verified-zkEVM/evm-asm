@@ -19,6 +19,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.U256
 
@@ -56,56 +58,139 @@ theorem swrRevLeBeFunction_eq_prog :
 /-- `ssz_withdrawal_to_rlp`.
     a0 = SSZ Withdrawal ptr (44 bytes), a1 = out RLP buffer ptr,
     a2 = u64 out length ptr.  a0 (output) = 0. -/
-def sszWithdrawalToRlpFunction : String :=
-  "ssz_withdrawal_to_rlp:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0                   # ssz withdrawal\n" ++
-  "  mv s1, a1                   # out\n" ++
-  "  mv s2, a2                   # out_len\n" ++
-  "  li s3, 0                    # payload cursor\n" ++
-  "  # field 0: index (u64 LE @0)\n" ++
-  "  addi a0, s0, 0; li a1, 8; la a2, swr_be\n" ++
-  "  jal ra, swr_rev_le_be\n" ++
-  "  la a0, swr_be; li a1, 8; la a2, swr_payload; add a2, a2, s3\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s3, s3, a0\n" ++
-  "  # field 1: validator_index (u64 LE @8)\n" ++
-  "  addi a0, s0, 8; li a1, 8; la a2, swr_be\n" ++
-  "  jal ra, swr_rev_le_be\n" ++
-  "  la a0, swr_be; li a1, 8; la a2, swr_payload; add a2, a2, s3\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s3, s3, a0\n" ++
-  "  # field 2: address (20 B @16)\n" ++
-  "  addi a0, s0, 16; li a1, 20\n" ++
-  "  la a2, swr_payload; add a2, a2, s3; la a3, swr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, swr_flen; ld t1, 0(t0); add s3, s3, t1\n" ++
-  "  # field 3: amount (u64 LE @36)\n" ++
-  "  addi a0, s0, 36; li a1, 8; la a2, swr_be\n" ++
-  "  jal ra, swr_rev_le_be\n" ++
-  "  la a0, swr_be; li a1, 8; la a2, swr_payload; add a2, a2, s3\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s3, s3, a0\n" ++
-  "  # list prefix + copy payload after it\n" ++
-  "  mv a0, s3; mv a1, s1; la a2, swr_prefix_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, swr_prefix_len; ld t1, 0(t0)\n" ++
-  "  add t2, s1, t1; la t3, swr_payload; mv t4, s3\n" ++
-  ".Lswr_cp:\n" ++
-  "  beqz t4, .Lswr_cpd\n" ++
-  "  lbu t5, 0(t3); sb t5, 0(t2)\n" ++
-  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1\n" ++
-  "  j .Lswr_cp\n" ++
-  ".Lswr_cpd:\n" ++
-  "  add t1, t1, s3; sd t1, 0(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def sszWithdrawalToRlp_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .LI .x19 (0 : Word),
+    .ADDI .x10 .x8 (0 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 48)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 48)),
+    .JAL .x1 (jalOff GuestAddrs.swr_rev_le_be (GuestAddrs.ssz_withdrawal_to_rlp + 56)),
+    .AUIPC .x10 (laHi GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 60)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 60)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 72)),
+    .ADD .x12 .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.ssz_withdrawal_to_rlp + 84)),
+    .ADD .x19 .x19 .x10,
+    .ADDI .x10 .x8 (8 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 100)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 100)),
+    .JAL .x1 (jalOff GuestAddrs.swr_rev_le_be (GuestAddrs.ssz_withdrawal_to_rlp + 108)),
+    .AUIPC .x10 (laHi GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 112)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 112)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 124)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 124)),
+    .ADD .x12 .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.ssz_withdrawal_to_rlp + 136)),
+    .ADD .x19 .x19 .x10,
+    .ADDI .x10 .x8 (16 : BitVec 12),
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 152)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 152)),
+    .ADD .x12 .x12 .x19,
+    .AUIPC .x13 (laHi GuestAddrs.swr_flen (GuestAddrs.ssz_withdrawal_to_rlp + 164)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.swr_flen (GuestAddrs.ssz_withdrawal_to_rlp + 164)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.ssz_withdrawal_to_rlp + 172)),
+    .AUIPC .x5 (laHi GuestAddrs.swr_flen (GuestAddrs.ssz_withdrawal_to_rlp + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.swr_flen (GuestAddrs.ssz_withdrawal_to_rlp + 176)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x19 .x19 .x6,
+    .ADDI .x10 .x8 (36 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 200)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 200)),
+    .JAL .x1 (jalOff GuestAddrs.swr_rev_le_be (GuestAddrs.ssz_withdrawal_to_rlp + 208)),
+    .AUIPC .x10 (laHi GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 212)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swr_be (GuestAddrs.ssz_withdrawal_to_rlp + 212)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 224)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 224)),
+    .ADD .x12 .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.ssz_withdrawal_to_rlp + 236)),
+    .ADD .x19 .x19 .x10,
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.swr_prefix_len (GuestAddrs.ssz_withdrawal_to_rlp + 252)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swr_prefix_len (GuestAddrs.ssz_withdrawal_to_rlp + 252)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.ssz_withdrawal_to_rlp + 260)),
+    .AUIPC .x5 (laHi GuestAddrs.swr_prefix_len (GuestAddrs.ssz_withdrawal_to_rlp + 264)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.swr_prefix_len (GuestAddrs.ssz_withdrawal_to_rlp + 264)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x9 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 280)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.swr_payload (GuestAddrs.ssz_withdrawal_to_rlp + 280)),
+    .MV .x29 .x19,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x7 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x6 .x6 .x19,
+    .SD .x18 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `sszWithdrawalToRlp_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def sszWithdrawalToRlp_relocs : RelocTable :=
+  [ (12, .la .x12 "swr_be"),
+    (14, .jal .x1 "swr_rev_le_be"),
+    (15, .la .x10 "swr_be"),
+    (18, .la .x12 "swr_payload"),
+    (21, .jal .x1 "rlp_encode_uint_be"),
+    (25, .la .x12 "swr_be"),
+    (27, .jal .x1 "swr_rev_le_be"),
+    (28, .la .x10 "swr_be"),
+    (31, .la .x12 "swr_payload"),
+    (34, .jal .x1 "rlp_encode_uint_be"),
+    (38, .la .x12 "swr_payload"),
+    (41, .la .x13 "swr_flen"),
+    (43, .jal .x1 "rlp_encode_bytes"),
+    (44, .la .x5 "swr_flen"),
+    (50, .la .x12 "swr_be"),
+    (52, .jal .x1 "swr_rev_le_be"),
+    (53, .la .x10 "swr_be"),
+    (56, .la .x12 "swr_payload"),
+    (59, .jal .x1 "rlp_encode_uint_be"),
+    (63, .la .x12 "swr_prefix_len"),
+    (65, .jal .x1 "rlp_encode_list_prefix"),
+    (66, .la .x5 "swr_prefix_len"),
+    (70, .la .x28 "swr_payload") ]
+
+def sszWithdrawalToRlpFunction : String :=
+  "ssz_withdrawal_to_rlp:\n" ++ emitProgramR sszWithdrawalToRlp_prog sszWithdrawalToRlp_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `sszWithdrawalToRlp_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem sszWithdrawalToRlpFunction_eq_prog :
+    sszWithdrawalToRlpFunction = "ssz_withdrawal_to_rlp:\n" ++ emitProgramR sszWithdrawalToRlp_prog sszWithdrawalToRlp_relocs := rfl
+
+#guard sszWithdrawalToRlpFunction.startsWith "ssz_withdrawal_to_rlp:\n"
+#guard sszWithdrawalToRlp_prog.length = 90
 /-- `zisk_ssz_withdrawal_to_rlp`: probe.
     Input: bytes 8.. = the 44-byte SSZ Withdrawal.
     Output: OUTPUT+0 = RLP length (u64); OUTPUT+8 = withdrawal RLP bytes. -/

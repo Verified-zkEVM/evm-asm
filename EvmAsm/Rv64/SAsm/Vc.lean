@@ -108,6 +108,9 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
           ** rest)
   | «while» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
+  | «whileS» _ c fuel inv _, reach =>
+      fun rf ws A => ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
+        ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf
   | call _ f, _ => fun rf ws A => f.post rf ws A
   | callReg _ _ handles, _ => fun rf ws A => ∃ h ∈ handles, h.post rf ws A
 
@@ -153,6 +156,17 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
       ⟨pfx ++ lbl ++ ".exhausted", ∀ rf ws A, inv fuel rf ws A → ¬ c.holds rf⟩ ::
       vcs reg rw b (pfx ++ lbl ++ ".body.")
         (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ c.holds rf)
+  | «whileS» lbl c fuel inv b, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv rf ws A 0 rf ws A⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_step", ∀ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀ → ∀ i, i < fuel →
+          ∀ rf' ws' A', sp reg rw b
+              (fun rf ws A => inv rf₀ ws₀ A₀ i rf ws A ∧ c.holds rf) rf' ws' A' →
+            inv rf₀ ws₀ A₀ (i + 1) rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted", ∀ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀ →
+          ∀ rf ws A, inv rf₀ ws₀ A₀ fuel rf ws A → ¬ c.holds rf⟩ ::
+      vcs reg rw b (pfx ++ lbl ++ ".body.")
+        (fun rf ws A => ∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀
+          ∧ ∃ i, i < fuel ∧ inv rf₀ ws₀ A₀ i rf ws A ∧ c.holds rf)
   | call lbl f, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A → f.pre rf ws A⟩]
   | callReg lbl rs handles, pfx, reach =>
@@ -170,6 +184,7 @@ def steps : Stmt → Nat
   | ghost _ _ => 0
   | blockAt _ _ _ is => is.length
   | «while» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
+  | «whileS» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | call _ f => 1 + f.nSteps
   | callReg _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
 
@@ -201,6 +216,9 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       exact ⟨rf, A, win, rest, hlen, h rf ws' A hr, hsat, hR, hrf, hA⟩
   | «while» lbl c fuel inv b ihb =>
       exact fun rf ws A hr => hr
+  | «whileS» lbl c fuel inv b ihb =>
+      rintro rf ws A ⟨rf₀, ws₀, A₀, hr, hrest⟩
+      exact ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr, hrest⟩
   | call lbl f =>
       exact fun rf ws A hr => hr
   | callReg lbl rs handles =>
@@ -334,6 +352,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | blockAt lbl p winR is => exact nomatch h
   | ghost lbl R => exact nomatch h
   | «while» lbl c fuel inv b ih => exact nomatch h
+  | «whileS» lbl c fuel inv b ih => exact nomatch h
   | call lbl f => exact nomatch h
   | callReg lbl rs handles => exact nomatch h
 
@@ -422,6 +441,17 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       · exact hvcs.tail.head
       · exact hvcs.tail.tail.head
       · exact hvcs.tail.tail.tail vc hvc
+  | «whileS» lbl c fuel inv b ihb =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons] at hvc
+      rcases hvc with rfl | rfl | rfl | hvc
+      · exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
+      · exact fun rf₀ ws₀ A₀ hr => hvcs.tail.head rf₀ ws₀ A₀ (h rf₀ ws₀ A₀ hr)
+      · exact fun rf₀ ws₀ A₀ hr => hvcs.tail.tail.head rf₀ ws₀ A₀ (h rf₀ ws₀ A₀ hr)
+      · exact ihb _ (fun rf ws A hr =>
+          hr.elim fun rf₀ hr => hr.elim fun ws₀ hr => hr.elim fun A₀ hr =>
+            ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr.1, hr.2⟩)
+          (hvcs.tail.tail.tail) vc hvc
   | call lbl f =>
       intro vc hvc
       simp only [vcs, List.mem_singleton] at hvc
@@ -447,6 +477,7 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | ghost _ _ => True
   | blockAt _ _ _ _ => True
   | «while» _ _ _ _ b => b.CalleesIn reg rw cr
+  | «whileS» _ _ _ _ b => b.CalleesIn reg rw cr
   | call _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw
   | callReg _ _ handles => ∀ h ∈ handles,

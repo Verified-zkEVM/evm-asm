@@ -226,6 +226,22 @@ This overlap inventory (`aliasedPairs` + the `_overlap` theorems + the mutual
 disjointness of the children) is that proof's input: it fixes *which* bytes are
 shared and *over what ranges*, leaving only the temporal-exclusion argument.
 
+> **STATUS — DELIVERED.** The phase-ownership model landed as
+> `EvmAsm/Rv64/SAsm/PhaseSplit.lean` (generic havoc'd-ownership machinery:
+> `anyBytes`, tiling equalities, `cpsTripleWithin_anyBytes_pre`) +
+> `EvmAsm/Codegen/CallFramePhase.lean` (the union instantiation:
+> `phaseD_eq_phaseH`, `phaseHView_children`, `phaseH_to_phaseD`). Design
+> write-up: `docs/sasm-design.md` §3.9. Items 1–3 above are realized as an
+> *ownership* discipline rather than a control-flow analysis: the arena is
+> ONE resource; exactly one phase's tiling of it exists in the ambient at
+> any point of the composed proof; transitions forget contents by
+> construction, so a stale reader receives havoc'd buffers (item 3's "loud
+> break" = its triple becomes unprovable for want of the child view).
+> Item 2's temporal claim is discharged per-routine as the `.41`–`.48` /
+> `.49`/`.56` triples land and `.61` composes them — the model makes the
+> unsound interleavings unexpressible rather than proving the current
+> binary avoids them.
+
 ---
 
 ## 5. Drift handling

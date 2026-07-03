@@ -22,6 +22,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
@@ -61,33 +63,56 @@ theorem swsU32leFunction_eq_prog :
     a1 = out: state section absolute ptr (u64)
     a2 = out: state section length (u64)
     a0 (output) = 0. -/
-def extractWitnessStateSectionFunction : String :=
-  "extract_witness_state_section:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # SSZ_BASE\n" ++
-  "  mv s1, a1                   # out state_ptr\n" ++
-  "  mv s2, a2                   # out state_len\n" ++
-  "  # witness = SSZ_BASE + outer.offsets[1] (u32 @ SSZ_BASE+4)\n" ++
-  "  addi a0, s0, 4\n" ++
-  "  jal ra, sws_u32le\n" ++
-  "  add s0, s0, a0              # s0 = witness addr (SSZ_BASE no longer needed)\n" ++
-  "  # state_off = u32 @ witness+0\n" ++
-  "  mv a0, s0\n" ++
-  "  jal ra, sws_u32le\n" ++
-  "  mv t4, a0                   # state_off (sws_u32le clobbers only t0/t1, so t4 survives)\n" ++
-  "  # codes_off = u32 @ witness+4\n" ++
-  "  addi a0, s0, 4\n" ++
-  "  jal ra, sws_u32le           # a0 = codes_off; t4 = state_off\n" ++
-  "  sub t5, a0, t4              # state_len = codes_off - state_off\n" ++
-  "  add t6, s0, t4              # state_ptr = witness + state_off\n" ++
-  "  sd t6, 0(s1)\n" ++
-  "  sd t5, 0(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def extractWitnessStateSection_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .ADDI .x10 .x8 (4 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.sws_u32le (GuestAddrs.extract_witness_state_section + 36)),
+    .ADD .x8 .x8 .x10,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.sws_u32le (GuestAddrs.extract_witness_state_section + 48)),
+    .MV .x29 .x10,
+    .ADDI .x10 .x8 (4 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.sws_u32le (GuestAddrs.extract_witness_state_section + 60)),
+    .SUB .x30 .x10 .x29,
+    .ADD .x31 .x8 .x29,
+    .SD .x9 .x31 (0 : BitVec 12),
+    .SD .x18 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `extractWitnessStateSection_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def extractWitnessStateSection_relocs : RelocTable :=
+  [ (9, .jal .x1 "sws_u32le"),
+    (12, .jal .x1 "sws_u32le"),
+    (15, .jal .x1 "sws_u32le") ]
+
+def extractWitnessStateSectionFunction : String :=
+  "extract_witness_state_section:\n" ++ emitProgramR extractWitnessStateSection_prog extractWitnessStateSection_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `extractWitnessStateSection_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem extractWitnessStateSectionFunction_eq_prog :
+    extractWitnessStateSectionFunction = "extract_witness_state_section:\n" ++ emitProgramR extractWitnessStateSection_prog extractWitnessStateSection_relocs := rfl
+
+#guard extractWitnessStateSectionFunction.startsWith "extract_witness_state_section:\n"
+#guard extractWitnessStateSection_prog.length = 27
 /-- `zisk_extract_witness_state_section`: probe. The input file (mapped to
     INPUT+8) is the SszStatelessInput SSZ blob directly (SSZ_BASE = INPUT+8 for
     the probe; in the real guest SSZ_BASE = INPUT+18 — same navigation, different

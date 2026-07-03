@@ -24,6 +24,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
@@ -56,110 +58,182 @@ open EvmAsm.Rv64.Program
       * nonce / balance : variable-length BE big-int (length
                           in [0, 8] for nonce, [0, 32] for balance)
       * storage_root / code_hash : exactly 32 bytes each. -/
-def accountDecodeFunction : String :=
-  "account_decode:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                  # account ptr\n" ++
-  "  mv s1, a1                  # account_len\n" ++
-  "  mv s2, a2                  # nonce out\n" ++
-  "  mv s3, a3                  # balance out\n" ++
-  "  mv s4, a4                  # storage_root out\n" ++
-  "  mv s5, a5                  # code_hash out\n" ++
-  "  # Field 0: nonce (u64 BE → LE store)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, ad_offset\n" ++
-  "  la a4, ad_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lad_fail\n" ++
-  "  la t0, ad_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Lad_fail      # nonce > 8 bytes\n" ++
-  "  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0                   # accumulator\n" ++
-  ".Lad_nonce_loop:\n" ++
-  "  beqz t1, .Lad_nonce_done\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lad_nonce_loop\n" ++
-  ".Lad_nonce_done:\n" ++
-  "  sd t2, 0(s2)               # nonce_out (LE u64)\n" ++
-  "  # Field 1: balance (u256 BE → BE 32-byte buffer)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, ad_offset\n" ++
-  "  la a4, ad_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lad_fail\n" ++
-  "  la t0, ad_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lad_fail      # balance > 32 bytes\n" ++
-  "  # Zero balance_out\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  # Right-align: write to s3 + (32 - length)\n" ++
-  "  sub t2, t2, t1             # 32 - length\n" ++
-  "  add t4, s3, t2             # dst\n" ++
-  "  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Lad_bal_loop:\n" ++
-  "  beqz t1, .Lad_bal_done\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lad_bal_loop\n" ++
-  ".Lad_bal_done:\n" ++
-  "  # Field 2: storage_root (must be exactly 32 bytes)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 2\n" ++
-  "  la a3, ad_offset\n" ++
-  "  la a4, ad_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lad_fail\n" ++
-  "  la t0, ad_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lad_fail\n" ++
-  "  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  ld t4,  0(t3); sd t4,  0(s4)\n" ++
-  "  ld t4,  8(t3); sd t4,  8(s4)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(s4)\n" ++
-  "  ld t4, 24(t3); sd t4, 24(s4)\n" ++
-  "  # Field 3: code_hash (must be exactly 32 bytes)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 3\n" ++
-  "  la a3, ad_offset\n" ++
-  "  la a4, ad_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lad_fail\n" ++
-  "  la t0, ad_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lad_fail\n" ++
-  "  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  ld t4,  0(t3); sd t4,  0(s5)\n" ++
-  "  ld t4,  8(t3); sd t4,  8(s5)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(s5)\n" ++
-  "  ld t4, 24(t3); sd t4, 24(s5)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lad_ret\n" ++
-  ".Lad_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lad_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def accountDecode_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 68)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 68)),
+    .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 76)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 76)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 84)),
+    .BNE .x10 .x0 (416 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 92)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .BLTU .x7 .x6 (396 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 112)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LI .x7 (0 : Word),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .SLLI .x7 .x7 (8 : BitVec 6),
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .OR .x7 .x7 .x29,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SD .x18 .x7 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 176)),
+    .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 184)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 184)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 192)),
+    .BNE .x10 .x0 (308 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 200)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (288 : BitVec 13),
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .SUB .x7 .x7 .x6,
+    .ADD .x29 .x19 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 244)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 244)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 300)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 300)),
+    .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 308)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 308)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 316)),
+    .BNE .x10 .x0 (184 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 324)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (164 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 344)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 344)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x20 .x29 (0 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x20 .x29 (8 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x20 .x29 (16 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x20 .x29 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (3 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 404)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 404)),
+    .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 412)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 412)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 420)),
+    .BNE .x10 .x0 (80 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 428)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 428)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (60 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 448)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 448)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x21 .x29 (0 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x21 .x29 (8 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x21 .x29 (16 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x21 .x29 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountDecode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountDecode_relocs : RelocTable :=
+  [ (17, .la .x13 "ad_offset"),
+    (19, .la .x14 "ad_length"),
+    (21, .jal .x1 "rlp_list_nth_item"),
+    (23, .la .x5 "ad_length"),
+    (28, .la .x5 "ad_offset"),
+    (44, .la .x13 "ad_offset"),
+    (46, .la .x14 "ad_length"),
+    (48, .jal .x1 "rlp_list_nth_item"),
+    (50, .la .x5 "ad_length"),
+    (61, .la .x5 "ad_offset"),
+    (75, .la .x13 "ad_offset"),
+    (77, .la .x14 "ad_length"),
+    (79, .jal .x1 "rlp_list_nth_item"),
+    (81, .la .x5 "ad_length"),
+    (86, .la .x5 "ad_offset"),
+    (101, .la .x13 "ad_offset"),
+    (103, .la .x14 "ad_length"),
+    (105, .jal .x1 "rlp_list_nth_item"),
+    (107, .la .x5 "ad_length"),
+    (112, .la .x5 "ad_offset") ]
+
+def accountDecodeFunction : String :=
+  "account_decode:\n" ++ emitProgramR accountDecode_prog accountDecode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountDecode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountDecodeFunction_eq_prog :
+    accountDecodeFunction = "account_decode:\n" ++ emitProgramR accountDecode_prog accountDecode_relocs := rfl
+
+#guard accountDecodeFunction.startsWith "account_decode:\n"
+#guard accountDecode_prog.length = 136
 /-- `zisk_account_decode`: probe BuildUnit. Reads
     (account_len, account_bytes) from host input, writes
     (status, nonce, balance, storage_root, code_hash) to OUTPUT.
@@ -240,49 +314,91 @@ def ziskAccountDecodeProbeUnit : BuildUnit := {
       Step 1: mpt_lookup_by_key(addr, ..., aa_value_scratch).
       Step 2: account_decode(scratch_val, scratch_len, ...).
     Reuses the K-stack primitive scratches. -/
-def accountAtAddressFunction : String :=
-  "account_at_address:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a5                   # output struct ptr\n" ++
-  "  # Step 1: mpt_lookup_by_key.\n" ++
-  "  la a5, aa_value_scratch\n" ++
-  "  la a6, aa_value_len\n" ++
-  "  jal ra, mpt_lookup_by_key\n" ++
-  "  mv s1, a0                   # save lookup status\n" ++
-  "  beqz a0, .Laa_lookup_ok\n" ++
-  "  # Not found / parse error: zero the output struct.\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  sd zero, 32(s0); sd zero, 40(s0); sd zero, 48(s0); sd zero, 56(s0)\n" ++
-  "  sd zero, 64(s0); sd zero, 72(s0); sd zero, 80(s0); sd zero, 88(s0)\n" ++
-  "  sd zero, 96(s0)\n" ++
-  "  mv a0, s1\n" ++
-  "  j .Laa_ret\n" ++
-  ".Laa_lookup_ok:\n" ++
-  "  la a0, aa_value_scratch\n" ++
-  "  la t0, aa_value_len; ld a1, 0(t0)\n" ++
-  "  mv a2, s0                   # nonce at struct + 0\n" ++
-  "  addi a3, s0, 8              # balance at struct + 8\n" ++
-  "  addi a4, s0, 40             # storage_root at struct + 40\n" ++
-  "  addi a5, s0, 72             # code_hash at struct + 72\n" ++
-  "  jal ra, account_decode\n" ++
-  "  beqz a0, .Laa_done\n" ++
-  "  # account_decode failed: zero struct, return 3.\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  sd zero, 32(s0); sd zero, 40(s0); sd zero, 48(s0); sd zero, 56(s0)\n" ++
-  "  sd zero, 64(s0); sd zero, 72(s0); sd zero, 80(s0); sd zero, 88(s0)\n" ++
-  "  sd zero, 96(s0)\n" ++
-  "  li a0, 3\n" ++
-  "  j .Laa_ret\n" ++
-  ".Laa_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Laa_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def accountAtAddress_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x15,
+    .AUIPC .x15 (laHi GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 20)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 20)),
+    .AUIPC .x16 (laHi GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 28)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 28)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_lookup_by_key (GuestAddrs.account_at_address + 36)),
+    .MV .x9 .x10,
+    .BEQ .x10 .x0 (64 : BitVec 13),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .SD .x8 .x0 (32 : BitVec 12),
+    .SD .x8 .x0 (40 : BitVec 12),
+    .SD .x8 .x0 (48 : BitVec 12),
+    .SD .x8 .x0 (56 : BitVec 12),
+    .SD .x8 .x0 (64 : BitVec 12),
+    .SD .x8 .x0 (72 : BitVec 12),
+    .SD .x8 .x0 (80 : BitVec 12),
+    .SD .x8 .x0 (88 : BitVec 12),
+    .SD .x8 .x0 (96 : BitVec 12),
+    .MV .x10 .x9,
+    .JAL .x0 (112 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 108)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 108)),
+    .AUIPC .x5 (laHi GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 116)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x8,
+    .ADDI .x13 .x8 (8 : BitVec 12),
+    .ADDI .x14 .x8 (40 : BitVec 12),
+    .ADDI .x15 .x8 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_decode (GuestAddrs.account_at_address + 144)),
+    .BEQ .x10 .x0 (64 : BitVec 13),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .SD .x8 .x0 (32 : BitVec 12),
+    .SD .x8 .x0 (40 : BitVec 12),
+    .SD .x8 .x0 (48 : BitVec 12),
+    .SD .x8 .x0 (56 : BitVec 12),
+    .SD .x8 .x0 (64 : BitVec 12),
+    .SD .x8 .x0 (72 : BitVec 12),
+    .SD .x8 .x0 (80 : BitVec 12),
+    .SD .x8 .x0 (88 : BitVec 12),
+    .SD .x8 .x0 (96 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountAtAddress_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountAtAddress_relocs : RelocTable :=
+  [ (5, .la .x15 "aa_value_scratch"),
+    (7, .la .x16 "aa_value_len"),
+    (9, .jal .x1 "mpt_lookup_by_key"),
+    (27, .la .x10 "aa_value_scratch"),
+    (29, .la .x5 "aa_value_len"),
+    (36, .jal .x1 "account_decode") ]
+
+def accountAtAddressFunction : String :=
+  "account_at_address:\n" ++ emitProgramR accountAtAddress_prog accountAtAddress_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountAtAddress_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountAtAddressFunction_eq_prog :
+    accountAtAddressFunction = "account_at_address:\n" ++ emitProgramR accountAtAddress_prog accountAtAddress_relocs := rfl
+
+#guard accountAtAddressFunction.startsWith "account_at_address:\n"
+#guard accountAtAddress_prog.length = 59
 /-- `zisk_account_at_address`: probe BuildUnit. Reads
     (witness_len, addr_len, state_root, addr, witness) from
     host input. Writes (status, nonce, balance, storage_root,
@@ -488,37 +604,70 @@ theorem slotDecodeU256Function_eq_prog :
 
 #guard slotDecodeU256Function.startsWith "slot_decode_u256:\n"
 #guard slotDecodeU256_prog.length = 32
-def slotAtIndexFunction : String :=
-  "slot_at_index:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a5                  # u256 out ptr\n" ++
-  "  la a5, si_value_scratch\n" ++
-  "  la a6, si_value_len\n" ++
-  "  jal ra, mpt_lookup_by_key\n" ++
-  "  mv s1, a0\n" ++
-  "  beqz a0, .Lsi_decode\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  mv a0, s1\n" ++
-  "  j .Lsi_ret\n" ++
-  ".Lsi_decode:\n" ++
-  "  la a0, si_value_scratch\n" ++
-  "  la t0, si_value_len; ld a1, 0(t0)\n" ++
-  "  mv a2, s0\n" ++
-  "  jal ra, slot_decode_u256\n" ++
-  "  beqz a0, .Lsi_done\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  li a0, 3\n" ++
-  "  j .Lsi_ret\n" ++
-  ".Lsi_done:\n" ++
-  "  li a0, 0\n" ++
-  ".Lsi_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def slotAtIndex_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x15,
+    .AUIPC .x15 (laHi GuestAddrs.si_value_scratch (GuestAddrs.slot_at_index + 20)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.si_value_scratch (GuestAddrs.slot_at_index + 20)),
+    .AUIPC .x16 (laHi GuestAddrs.si_value_len (GuestAddrs.slot_at_index + 28)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.si_value_len (GuestAddrs.slot_at_index + 28)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_lookup_by_key (GuestAddrs.slot_at_index + 36)),
+    .MV .x9 .x10,
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .MV .x10 .x9,
+    .JAL .x0 (64 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.si_value_scratch (GuestAddrs.slot_at_index + 72)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.si_value_scratch (GuestAddrs.slot_at_index + 72)),
+    .AUIPC .x5 (laHi GuestAddrs.si_value_len (GuestAddrs.slot_at_index + 80)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.si_value_len (GuestAddrs.slot_at_index + 80)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.slot_decode_u256 (GuestAddrs.slot_at_index + 96)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `slotAtIndex_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def slotAtIndex_relocs : RelocTable :=
+  [ (5, .la .x15 "si_value_scratch"),
+    (7, .la .x16 "si_value_len"),
+    (9, .jal .x1 "mpt_lookup_by_key"),
+    (18, .la .x10 "si_value_scratch"),
+    (20, .la .x5 "si_value_len"),
+    (24, .jal .x1 "slot_decode_u256") ]
+
+def slotAtIndexFunction : String :=
+  "slot_at_index:\n" ++ emitProgramR slotAtIndex_prog slotAtIndex_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `slotAtIndex_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem slotAtIndexFunction_eq_prog :
+    slotAtIndexFunction = "slot_at_index:\n" ++ emitProgramR slotAtIndex_prog slotAtIndex_relocs := rfl
+
+#guard slotAtIndexFunction.startsWith "slot_at_index:\n"
+#guard slotAtIndex_prog.length = 38
 /-- `zisk_slot_at_index`: probe BuildUnit. Reads
     (witness_len, slot_len, storage_root, slot_idx, witness)
     from host input. Writes (status, u256) to OUTPUT. -/

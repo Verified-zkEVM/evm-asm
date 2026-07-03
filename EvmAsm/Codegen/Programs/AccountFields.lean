@@ -23,6 +23,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpListCountProbe
 import EvmAsm.Codegen.Programs.RlpRead
@@ -524,85 +527,150 @@ def ziskAccountNonceEqProbeUnit : BuildUnit := {
         0 : success — predicate written
         1 : RLP parse failure / nonce > 8 bytes / balance > 32 bytes
         2 : code_hash field length != 32 -/
-def accountIsEip161EmptyFunction : String :=
-  "account_is_eip161_empty:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # account_ptr\n" ++
-  "  mv s1, a1                   # account_len\n" ++
-  "  mv s2, a2                   # is_empty out\n" ++
-  "  sd zero, 0(s2)\n" ++
-  "  # ---- Field 0: nonce ---- BE-decode and check == 0\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
-  "  la a3, aie_offset; la a4, aie_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Laie_fail\n" ++
-  "  la t0, aie_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Laie_fail      # nonce > 8 bytes\n" ++
-  "  la t0, aie_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0\n" ++
-  ".Laie_nloop:\n" ++
-  "  beqz t1, .Laie_ndone\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Laie_nloop\n" ++
-  ".Laie_ndone:\n" ++
-  "  bnez t2, .Laie_not_empty     # nonce != 0\n" ++
-  "  # ---- Field 1: balance ---- check all bytes == 0\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, aie_offset; la a4, aie_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Laie_fail\n" ++
-  "  la t0, aie_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Laie_fail      # balance > 32 bytes\n" ++
-  "  la t0, aie_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  ".Laie_bloop:\n" ++
-  "  beqz t1, .Laie_bdone\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  bnez t4, .Laie_not_empty     # balance non-zero byte\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Laie_bloop\n" ++
-  ".Laie_bdone:\n" ++
-  "  # ---- Field 3: code_hash ---- length == 32 and bytes match\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  la a3, aie_offset; la a4, aie_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Laie_fail\n" ++
-  "  la t0, aie_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Laie_sizefail\n" ++
-  "  la t0, aie_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  la t6, aie_empty_code_hash\n" ++
-  "  ld t5,  0(t3); ld t4,  0(t6); bne t5, t4, .Laie_not_empty\n" ++
-  "  ld t5,  8(t3); ld t4,  8(t6); bne t5, t4, .Laie_not_empty\n" ++
-  "  ld t5, 16(t3); ld t4, 16(t6); bne t5, t4, .Laie_not_empty\n" ++
-  "  ld t5, 24(t3); ld t4, 24(t6); bne t5, t4, .Laie_not_empty\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_not_empty:\n" ++
-  "  sd zero, 0(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Laie_ret\n" ++
-  ".Laie_sizefail:\n" ++
-  "  li a0, 2\n" ++
-  ".Laie_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def accountIsEip161Empty_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 48)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 48)),
+    .AUIPC .x14 (laHi GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 56)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 56)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_is_eip161_empty + 64)),
+    .BNE .x10 .x0 (328 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 72)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .BLTU .x7 .x6 (308 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 92)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LI .x7 (0 : Word),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .SLLI .x7 .x7 (8 : BitVec 6),
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .OR .x7 .x7 .x29,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .BNE .x7 .x0 (244 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 156)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 156)),
+    .AUIPC .x14 (laHi GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 164)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 164)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_is_eip161_empty + 172)),
+    .BNE .x10 .x0 (220 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 180)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 180)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (200 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 200)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .BEQ .x6 .x0 (24 : BitVec 13),
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .BNE .x29 .x0 (160 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (3 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 252)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 252)),
+    .AUIPC .x14 (laHi GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 260)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 260)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_is_eip161_empty + 268)),
+    .BNE .x10 .x0 (124 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_length (GuestAddrs.account_is_eip161_empty + 276)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (112 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_offset (GuestAddrs.account_is_eip161_empty + 296)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .AUIPC .x31 (laHi GuestAddrs.aie_empty_code_hash (GuestAddrs.account_is_eip161_empty + 312)),
+    .ADDI .x31 .x31 (laLo GuestAddrs.aie_empty_code_hash (GuestAddrs.account_is_eip161_empty + 312)),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .LD .x29 .x31 (0 : BitVec 12),
+    .BNE .x30 .x29 (56 : BitVec 13),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .LD .x29 .x31 (8 : BitVec 12),
+    .BNE .x30 .x29 (44 : BitVec 13),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .LD .x29 .x31 (16 : BitVec 12),
+    .BNE .x30 .x29 (32 : BitVec 13),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .LD .x29 .x31 (24 : BitVec 12),
+    .BNE .x30 .x29 (20 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .SD .x18 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (28 : BitVec 21),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountIsEip161Empty_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountIsEip161Empty_relocs : RelocTable :=
+  [ (12, .la .x13 "aie_offset"),
+    (14, .la .x14 "aie_length"),
+    (16, .jal .x1 "rlp_list_nth_item"),
+    (18, .la .x5 "aie_length"),
+    (23, .la .x5 "aie_offset"),
+    (39, .la .x13 "aie_offset"),
+    (41, .la .x14 "aie_length"),
+    (43, .jal .x1 "rlp_list_nth_item"),
+    (45, .la .x5 "aie_length"),
+    (50, .la .x5 "aie_offset"),
+    (63, .la .x13 "aie_offset"),
+    (65, .la .x14 "aie_length"),
+    (67, .jal .x1 "rlp_list_nth_item"),
+    (69, .la .x5 "aie_length"),
+    (74, .la .x5 "aie_offset"),
+    (78, .la .x31 "aie_empty_code_hash") ]
+
+def accountIsEip161EmptyFunction : String :=
+  "account_is_eip161_empty:\n" ++ emitProgramR accountIsEip161Empty_prog accountIsEip161Empty_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountIsEip161Empty_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountIsEip161EmptyFunction_eq_prog :
+    accountIsEip161EmptyFunction = "account_is_eip161_empty:\n" ++ emitProgramR accountIsEip161Empty_prog accountIsEip161Empty_relocs := rfl
+
+#guard accountIsEip161EmptyFunction.startsWith "account_is_eip161_empty:\n"
+#guard accountIsEip161Empty_prog.length = 108
 /-- `zisk_account_is_eip161_empty`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : account_rlp_len

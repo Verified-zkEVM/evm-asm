@@ -22,6 +22,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
@@ -146,51 +148,70 @@ def ziskHeadersKeccakChainProbeUnit : BuildUnit := {
       a0 (output) : N (element count)
       32 bytes at *(table + 32*i) = keccak256(element[i])
         for each i in 0..N. -/
-def headersKeccakArrayFunction : String :=
-  "headers_keccak_array:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                  # s0 = section ptr\n" ++
-  "  mv s1, a1                  # s1 = section_len\n" ++
-  "  mv s2, a2                  # s2 = table base\n" ++
-  "  beqz s1, .Lhka_n0\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s3, t0, 2             # s3 = N\n" ++
-  "  li s4, 0                   # s4 = i\n" ++
-  ".Lhka_loop:\n" ++
-  "  beq s4, s3, .Lhka_done\n" ++
-  "  slli t0, s4, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s4, 1\n" ++
-  "  beq t3, s3, .Lhka_use_end\n" ++
-  "  slli t3, t3, 2             # 4*(i+1)\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lhka_have_end\n" ++
-  ".Lhka_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lhka_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  slli t0, s4, 5             # 32*i\n" ++
-  "  add a2, s2, t0             # a2 = &table[i]\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lhka_loop\n" ++
-  ".Lhka_n0:\n" ++
-  "  li s3, 0\n" ++
-  ".Lhka_done:\n" ++
-  "  mv a0, s3                  # return N\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def headersKeccakArray_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .BEQ .x9 .x0 (92 : BitVec 13),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x19 .x5 (2 : BitVec 6),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x19 (80 : BitVec 13),
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x20 (1 : BitVec 12),
+    .BEQ .x28 .x19 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .SLLI .x5 .x20 (5 : BitVec 6),
+    .ADD .x12 .x18 .x5,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.headers_keccak_array + 120)),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-72 : BitVec 21),
+    .LI .x19 (0 : Word),
+    .MV .x10 .x19,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headersKeccakArray_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headersKeccakArray_relocs : RelocTable :=
+  [ (30, .jal .x1 "zkvm_keccak256") ]
+
+def headersKeccakArrayFunction : String :=
+  "headers_keccak_array:\n" ++ emitProgramR headersKeccakArray_prog headersKeccakArray_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headersKeccakArray_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headersKeccakArrayFunction_eq_prog :
+    headersKeccakArrayFunction = "headers_keccak_array:\n" ++ emitProgramR headersKeccakArray_prog headersKeccakArray_relocs := rfl
+
+#guard headersKeccakArrayFunction.startsWith "headers_keccak_array:\n"
+#guard headersKeccakArray_prog.length = 43
 /-- `zisk_headers_keccak_array`: probe BuildUnit that reads an
     SSZ list section from host input and writes (count, table)
     to OUTPUT, capped at N ≤ 7 to fit ziskemu's 256-byte output
@@ -363,43 +384,75 @@ def ziskHeadersParentHashProbeUnit : BuildUnit := {
 
     Uses 64 bytes of `.data` scratch (`hvph_claimed` 32 B +
     `hvph_computed` 32 B). -/
-def headerValidateParentHashFunction : String :=
-  "header_validate_parent_hash:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a2                   # parent_rlp ptr (stash)\n" ++
-  "  mv s1, a3                   # parent_rlp_len (stash)\n" ++
-  "  # Step 1: extract this header's parent_hash (field 0).\n" ++
-  "  la a2, hvph_claimed\n" ++
-  "  jal ra, headers_parent_hash\n" ++
-  "  beqz a0, .Lhvph_hash\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhvph_ret\n" ++
-  ".Lhvph_hash:\n" ++
-  "  # Step 2: keccak256(parent_rlp) → hvph_computed.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, hvph_computed\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # zkvm_keccak256 always returns 0 (ZKVM_EOK).\n" ++
-  "  # Step 3: byte-by-byte compare (32 bytes via 4 × dword).\n" ++
-  "  la t0, hvph_claimed\n" ++
-  "  la t1, hvph_computed\n" ++
-  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lhvph_diff\n" ++
-  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lhvph_diff\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lhvph_diff\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lhvph_diff\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhvph_ret\n" ++
-  ".Lhvph_diff:\n" ++
-  "  li a0, 2\n" ++
-  ".Lhvph_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def headerValidateParentHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .AUIPC .x12 (laHi GuestAddrs.hvph_claimed (GuestAddrs.header_validate_parent_hash + 28)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.hvph_claimed (GuestAddrs.header_validate_parent_hash + 28)),
+    .JAL .x1 (jalOff GuestAddrs.headers_parent_hash (GuestAddrs.header_validate_parent_hash + 36)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (100 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.hvph_computed (GuestAddrs.header_validate_parent_hash + 60)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.hvph_computed (GuestAddrs.header_validate_parent_hash + 60)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.header_validate_parent_hash + 68)),
+    .AUIPC .x5 (laHi GuestAddrs.hvph_claimed (GuestAddrs.header_validate_parent_hash + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hvph_claimed (GuestAddrs.header_validate_parent_hash + 72)),
+    .AUIPC .x6 (laHi GuestAddrs.hvph_computed (GuestAddrs.header_validate_parent_hash + 80)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.hvph_computed (GuestAddrs.header_validate_parent_hash + 80)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (48 : BitVec 13),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x28 .x6 (8 : BitVec 12),
+    .BNE .x7 .x28 (36 : BitVec 13),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .LD .x28 .x6 (16 : BitVec 12),
+    .BNE .x7 .x28 (24 : BitVec 13),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .LD .x28 .x6 (24 : BitVec 12),
+    .BNE .x7 .x28 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerValidateParentHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerValidateParentHash_relocs : RelocTable :=
+  [ (7, .la .x12 "hvph_claimed"),
+    (9, .jal .x1 "headers_parent_hash"),
+    (15, .la .x12 "hvph_computed"),
+    (17, .jal .x1 "zkvm_keccak256"),
+    (18, .la .x5 "hvph_claimed"),
+    (20, .la .x6 "hvph_computed") ]
+
+def headerValidateParentHashFunction : String :=
+  "header_validate_parent_hash:\n" ++ emitProgramR headerValidateParentHash_prog headerValidateParentHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerValidateParentHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerValidateParentHashFunction_eq_prog :
+    headerValidateParentHashFunction = "header_validate_parent_hash:\n" ++ emitProgramR headerValidateParentHash_prog headerValidateParentHash_relocs := rfl
+
+#guard headerValidateParentHashFunction.startsWith "header_validate_parent_hash:\n"
+#guard headerValidateParentHash_prog.length = 43
 /-- `zisk_header_validate_parent_hash`: probe BuildUnit. Reads
     (this_len, parent_len, this_bytes ‖ parent_bytes) from host
     input, writes 8-byte status to OUTPUT.
@@ -587,80 +640,107 @@ def ziskHeaderChainWalkStepProbeUnit : BuildUnit := {
       vh_keccak_table          : 256 × 32 = 8 KB
       vh_extracted_parent_hash : 32 B
 -/
-def headersValidateChainFunction : String :=
-  "headers_validate_chain:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                  # s0 = section ptr\n" ++
-  "  mv s1, a1                  # s1 = section_len\n" ++
-  "  mv s2, a2                  # s2 = N out ptr\n" ++
-  "  # Match execution-specs validate_headers: witness headers are capped at\n" ++
-  "  # 256. Enforce this before filling the fixed 256-entry keccak table.\n" ++
-  "  beqz s1, .Lvh_count_ok\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli t0, t0, 2             # first inner offset = 4*N\n" ++
-  "  li t1, 256\n" ++
-  "  bgtu t0, t1, .Lvh_fail\n" ++
-  ".Lvh_count_ok:\n" ++
-  "  # Step 1: keccak each header into vh_keccak_table.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, vh_keccak_table\n" ++
-  "  jal ra, headers_keccak_array\n" ++
-  "  mv s3, a0                  # s3 = N\n" ++
-  "  sd s3, 0(s2)               # *N_out = N\n" ++
-  "  # If N ≤ 1, no chain links to check → ok.\n" ++
-  "  li t0, 2\n" ++
-  "  bltu s3, t0, .Lvh_ok\n" ++
-  "  # Loop i = 1..N.\n" ++
-  "  li s4, 1\n" ++
-  ".Lvh_loop:\n" ++
-  "  beq s4, s3, .Lvh_ok\n" ++
-  "  # Find element i bounds from inner-offset table.\n" ++
-  "  slli t0, s4, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s4, 1\n" ++
-  "  beq t3, s3, .Lvh_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4\n" ++
-  "  j .Lvh_have_end\n" ++
-  ".Lvh_use_end:\n" ++
-  "  add t4, s0, s1\n" ++
-  ".Lvh_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  la a2, vh_extracted_parent_hash\n" ++
-  "  jal ra, headers_parent_hash\n" ++
-  "  bnez a0, .Lvh_fail         # RLP parse failed\n" ++
-  "  # Compare extracted parent_hash against vh_keccak_table[i-1].\n" ++
-  "  la t0, vh_keccak_table\n" ++
-  "  addi t1, s4, -1\n" ++
-  "  slli t1, t1, 5             # (i-1) * 32\n" ++
-  "  add t0, t0, t1             # &table[i-1]\n" ++
-  "  la t1, vh_extracted_parent_hash\n" ++
-  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvh_fail\n" ++
-  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvh_fail\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvh_fail\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvh_fail\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lvh_loop\n" ++
-  ".Lvh_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lvh_ret\n" ++
-  ".Lvh_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lvh_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def headersValidateChain_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .BEQ .x9 .x0 (20 : BitVec 13),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x5 .x5 (2 : BitVec 6),
+    .LI .x6 (256 : Word),
+    .BLTU .x6 .x5 (208 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.vh_keccak_table (GuestAddrs.headers_validate_chain + 68)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vh_keccak_table (GuestAddrs.headers_validate_chain + 68)),
+    .JAL .x1 (jalOff GuestAddrs.headers_keccak_array (GuestAddrs.headers_validate_chain + 76)),
+    .MV .x19 .x10,
+    .SD .x18 .x19 (0 : BitVec 12),
+    .LI .x5 (2 : Word),
+    .BLTU .x19 .x5 (164 : BitVec 13),
+    .LI .x20 (1 : Word),
+    .BEQ .x20 .x19 (156 : BitVec 13),
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x20 (1 : BitVec 12),
+    .BEQ .x28 .x19 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .AUIPC .x12 (laHi GuestAddrs.vh_extracted_parent_hash (GuestAddrs.headers_validate_chain + 156)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vh_extracted_parent_hash (GuestAddrs.headers_validate_chain + 156)),
+    .JAL .x1 (jalOff GuestAddrs.headers_parent_hash (GuestAddrs.headers_validate_chain + 164)),
+    .BNE .x10 .x0 (96 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.vh_keccak_table (GuestAddrs.headers_validate_chain + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.vh_keccak_table (GuestAddrs.headers_validate_chain + 172)),
+    .ADDI .x6 .x20 (-1 : BitVec 12),
+    .SLLI .x6 .x6 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x6 (laHi GuestAddrs.vh_extracted_parent_hash (GuestAddrs.headers_validate_chain + 192)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.vh_extracted_parent_hash (GuestAddrs.headers_validate_chain + 192)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (56 : BitVec 13),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x28 .x6 (8 : BitVec 12),
+    .BNE .x7 .x28 (44 : BitVec 13),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .LD .x28 .x6 (16 : BitVec 12),
+    .BNE .x7 .x28 (32 : BitVec 13),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .LD .x28 .x6 (24 : BitVec 12),
+    .BNE .x7 .x28 (20 : BitVec 13),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-152 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headersValidateChain_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headersValidateChain_relocs : RelocTable :=
+  [ (17, .la .x12 "vh_keccak_table"),
+    (19, .jal .x1 "headers_keccak_array"),
+    (39, .la .x12 "vh_extracted_parent_hash"),
+    (41, .jal .x1 "headers_parent_hash"),
+    (43, .la .x5 "vh_keccak_table"),
+    (48, .la .x6 "vh_extracted_parent_hash") ]
+
+def headersValidateChainFunction : String :=
+  "headers_validate_chain:\n" ++ emitProgramR headersValidateChain_prog headersValidateChain_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headersValidateChain_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headersValidateChainFunction_eq_prog :
+    headersValidateChainFunction = "headers_validate_chain:\n" ++ emitProgramR headersValidateChain_prog headersValidateChain_relocs := rfl
+
+#guard headersValidateChainFunction.startsWith "headers_validate_chain:\n"
+#guard headersValidateChain_prog.length = 75
 /-- `zisk_headers_validate_chain`: probe BuildUnit that reads an
     SSZ list of RLP-encoded headers from host input and writes
     (status, N) to OUTPUT.

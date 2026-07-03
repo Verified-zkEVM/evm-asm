@@ -7,6 +7,9 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.Programs.Mpt
 
@@ -38,128 +41,156 @@ open EvmAsm.Rv64
     Only successful windows and status 0/1 storage reads are materialized.
     Repeated reads of the same account/slot are compacted to the first
     descriptor. Paths are storage-trie paths: nibbles(keccak256(slot)). -/
-def balStorageAccessOutcomeDescriptorsFunction : String :=
-  "bal_storage_access_outcome_descriptors:\n" ++
-  "  addi sp, sp, -128\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # outcome table\n" ++
-  "  mv s1, a1                   # outcome count\n" ++
-  "  mv s2, a2                   # committed window table\n" ++
-  "  mv s3, a3                   # committed window count\n" ++
-  "  mv s4, a4                   # account token\n" ++
-  "  mv s5, a5                   # descriptor out base\n" ++
-  "  mv s6, a6                   # path cursor\n" ++
-  "  mv s7, a7                   # out_count ptr\n" ++
-  "  sd zero, 0(s7)\n" ++
-  "  li s8, 0                    # window index\n" ++
-  "  li s9, 0                    # emitted descriptor count\n" ++
-  ".Lbsaod_window_loop:\n" ++
-  "  beq s8, s3, .Lbsaod_ok\n" ++
-  "  slli t0, s8, 5\n" ++
-  "  add s10, s2, t0             # current window\n" ++
-  "  ld t1, 0(s10)               # window status\n" ++
-  "  beqz t1, .Lbsaod_next_window\n" ++
-  "  li t2, 1\n" ++
-  "  bne t1, t2, .Lbsaod_fail\n" ++
-  "  ld t3, 8(s10)               # start index\n" ++
-  "  ld t4, 16(s10)              # count\n" ++
-  "  add t5, t3, t4              # exclusive end\n" ++
-  "  bltu t5, t3, .Lbsaod_fail\n" ++
-  "  bgtu t5, s1, .Lbsaod_fail\n" ++
-  "  sd t5, 104(sp)              # caller-saved across hash helpers\n" ++
-  "  mv s11, t3                  # outcome index\n" ++
-  ".Lbsaod_outcome_loop:\n" ++
-  "  ld t5, 104(sp)\n" ++
-  "  beq s11, t5, .Lbsaod_next_window\n" ++
-  "  slli t0, s11, 6\n" ++
-  "  slli t1, s11, 5\n" ++
-  "  add t0, t0, t1\n" ++
-  "  add s10, s0, t0             # current outcome\n" ++
-  "  ld t1, 64(s10)              # status\n" ++
-  "  li t2, 1\n" ++
-  "  bgtu t1, t2, .Lbsaod_next_outcome\n" ++
-  "  # Keep only rows for the requested account token.\n" ++
-  "  mv t0, s10\n" ++
-  "  mv t1, s4\n" ++
-  "  li t2, 0\n" ++
-  ".Lbsaod_account_cmp:\n" ++
-  "  li t3, 32\n" ++
-  "  beq t2, t3, .Lbsaod_emit\n" ++
-  "  add t4, t0, t2\n" ++
-  "  add t6, t1, t2\n" ++
-  "  lbu t4, 0(t4)\n" ++
-  "  lbu t6, 0(t6)\n" ++
-  "  bne t4, t6, .Lbsaod_next_outcome\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Lbsaod_account_cmp\n" ++
-  ".Lbsaod_emit:\n" ++
-  "  addi a0, s10, 32\n" ++
-  "  li a1, 32\n" ++
-  "  la a2, bsaod_hash\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  la a0, bsaod_hash\n" ++
-  "  li a1, 32\n" ++
-  "  mv a2, s6\n" ++
-  "  jal ra, bytes_to_nibbles\n" ++
-  "  # Skip duplicate committed observations by comparing against emitted paths.\n" ++
-  "  li t0, 0\n" ++
-  ".Lbsaod_emitted_dup_scan:\n" ++
-  "  beq t0, s9, .Lbsaod_write_descriptor\n" ++
-  "  sub t1, s9, t0\n" ++
-  "  slli t1, t1, 6\n" ++
-  "  sub t2, s6, t1             # path for emitted row t0\n" ++
-  "  li t3, 0\n" ++
-  ".Lbsaod_emitted_dup_cmp:\n" ++
-  "  li t4, 64\n" ++
-  "  beq t3, t4, .Lbsaod_next_outcome\n" ++
-  "  add t5, t2, t3\n" ++
-  "  add t6, s6, t3\n" ++
-  "  lbu t5, 0(t5)\n" ++
-  "  lbu t6, 0(t6)\n" ++
-  "  bne t5, t6, .Lbsaod_emitted_dup_next\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  j .Lbsaod_emitted_dup_cmp\n" ++
-  ".Lbsaod_emitted_dup_next:\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lbsaod_emitted_dup_scan\n" ++
-  ".Lbsaod_write_descriptor:\n" ++
-  "  slli t0, s9, 5\n" ++
-  "  slli t1, s9, 3\n" ++
-  "  add t0, t0, t1\n" ++
-  "  add t0, s5, t0              # descriptor[out]\n" ++
-  "  sd s6, 0(t0)\n" ++
-  "  li t1, 64\n" ++
-  "  sd t1, 8(t0)\n" ++
-  "  la t1, bsaod_empty_value\n" ++
-  "  sd t1, 16(t0)\n" ++
-  "  sd zero, 24(t0)\n" ++
-  "  li t1, 3\n" ++
-  "  sd t1, 32(t0)\n" ++
-  "  addi s6, s6, 64\n" ++
-  "  addi s9, s9, 1\n" ++
-  "  sd s9, 0(s7)\n" ++
-  ".Lbsaod_next_outcome:\n" ++
-  "  addi s11, s11, 1\n" ++
-  "  j .Lbsaod_outcome_loop\n" ++
-  ".Lbsaod_next_window:\n" ++
-  "  addi s8, s8, 1\n" ++
-  "  j .Lbsaod_window_loop\n" ++
-  ".Lbsaod_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbsaod_ret\n" ++
-  ".Lbsaod_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbsaod_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 128\n" ++
-  "  ret"
+def balStorageAccessOutcomeDescriptors_prog : Program :=
+  [ .ADDI .x2 .x2 (-128 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x23 .x17,
+    .SD .x23 .x0 (0 : BitVec 12),
+    .LI .x24 (0 : Word),
+    .LI .x25 (0 : Word),
+    .BEQ .x24 .x19 (328 : BitVec 13),
+    .SLLI .x5 .x24 (5 : BitVec 6),
+    .ADD .x26 .x18 .x5,
+    .LD .x6 .x26 (0 : BitVec 12),
+    .BEQ .x6 .x0 (304 : BitVec 13),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (312 : BitVec 13),
+    .LD .x28 .x26 (8 : BitVec 12),
+    .LD .x29 .x26 (16 : BitVec 12),
+    .ADD .x30 .x28 .x29,
+    .BLTU .x30 .x28 (296 : BitVec 13),
+    .BLTU .x9 .x30 (292 : BitVec 13),
+    .SD .x2 .x30 (104 : BitVec 12),
+    .MV .x27 .x28,
+    .LD .x30 .x2 (104 : BitVec 12),
+    .BEQ .x27 .x30 (260 : BitVec 13),
+    .SLLI .x5 .x27 (6 : BitVec 6),
+    .SLLI .x6 .x27 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .ADD .x26 .x8 .x5,
+    .LD .x6 .x26 (64 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BLTU .x7 .x6 (224 : BitVec 13),
+    .MV .x5 .x26,
+    .MV .x6 .x20,
+    .LI .x7 (0 : Word),
+    .LI .x28 (32 : Word),
+    .BEQ .x7 .x28 (32 : BitVec 13),
+    .ADD .x29 .x5 .x7,
+    .ADD .x31 .x6 .x7,
+    .LBU .x29 .x29 (0 : BitVec 12),
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .BNE .x29 .x31 (184 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .ADDI .x10 .x26 (32 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 248)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 248)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bal_storage_access_outcome_descriptors + 256)),
+    .AUIPC .x10 (laHi GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 260)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 260)),
+    .LI .x11 (32 : Word),
+    .MV .x12 .x22,
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bal_storage_access_outcome_descriptors + 276)),
+    .LI .x5 (0 : Word),
+    .BEQ .x5 .x25 (64 : BitVec 13),
+    .SUB .x6 .x25 .x5,
+    .SLLI .x6 .x6 (6 : BitVec 6),
+    .SUB .x7 .x22 .x6,
+    .LI .x28 (0 : Word),
+    .LI .x29 (64 : Word),
+    .BEQ .x28 .x29 (104 : BitVec 13),
+    .ADD .x30 .x7 .x28,
+    .ADD .x31 .x22 .x28,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .BNE .x30 .x31 (12 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .SLLI .x5 .x25 (5 : BitVec 6),
+    .SLLI .x6 .x25 (3 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .ADD .x5 .x21 .x5,
+    .SD .x5 .x22 (0 : BitVec 12),
+    .LI .x6 (64 : Word),
+    .SD .x5 .x6 (8 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bsaod_empty_value (GuestAddrs.bal_storage_access_outcome_descriptors + 376)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsaod_empty_value (GuestAddrs.bal_storage_access_outcome_descriptors + 376)),
+    .SD .x5 .x6 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .LI .x6 (3 : Word),
+    .SD .x5 .x6 (32 : BitVec 12),
+    .ADDI .x22 .x22 (64 : BitVec 12),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .SD .x23 .x25 (0 : BitVec 12),
+    .ADDI .x27 .x27 (1 : BitVec 12),
+    .JAL .x0 (-260 : BitVec 21),
+    .ADDI .x24 .x24 (1 : BitVec 12),
+    .JAL .x0 (-324 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (128 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balStorageAccessOutcomeDescriptors_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balStorageAccessOutcomeDescriptors_relocs : RelocTable :=
+  [ (62, .la .x12 "bsaod_hash"),
+    (64, .jal .x1 "zkvm_keccak256"),
+    (65, .la .x10 "bsaod_hash"),
+    (69, .jal .x1 "bytes_to_nibbles"),
+    (94, .la .x6 "bsaod_empty_value") ]
+
+def balStorageAccessOutcomeDescriptorsFunction : String :=
+  "bal_storage_access_outcome_descriptors:\n" ++ emitProgramR balStorageAccessOutcomeDescriptors_prog balStorageAccessOutcomeDescriptors_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balStorageAccessOutcomeDescriptors_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balStorageAccessOutcomeDescriptorsFunction_eq_prog :
+    balStorageAccessOutcomeDescriptorsFunction = "bal_storage_access_outcome_descriptors:\n" ++ emitProgramR balStorageAccessOutcomeDescriptors_prog balStorageAccessOutcomeDescriptors_relocs := rfl
+
+#guard balStorageAccessOutcomeDescriptorsFunction.startsWith "bal_storage_access_outcome_descriptors:\n"
+#guard balStorageAccessOutcomeDescriptors_prog.length = 125
 /-- `zisk_bal_storage_access_outcome_descriptors`: synthetic probe.
     Output:
       +0  status

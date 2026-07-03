@@ -151,6 +151,83 @@ contract; the call machinery consumes it unchanged.
   `(rf.get .x13).toNat`.  Registers are the shared channel between
   reach-level and annotation-level facts.  (`TreeDemo.lean`.)
 
+### Runtime-data-dependent iteration counts (the static-cap idiom)
+
+When the count is loaded from the input at runtime (an RLP length
+field, a BAL item count), verify with a **static fuel cap** and a
+runtime exit.  Recipe (`rlpSkipFn`/`capScanFn` in `LoopFuelDemo.lean`;
+design §3.10; bridge lemmas in `SAsm/LoopFuel.lean`):
+
+1. Load the count into a limit register; because the engine is
+   deterministic over the region ghost, its value is a ghost expression
+   `n` (e.g. `(bs.getD 0 0).zeroExtend 64`, `packBytes (bs.take 8)`).
+2. `fuel := cap`, a literal (`256` for a byte count, `100000` for BAL).
+   Loop on `.bltu ctr lim`.
+3. Invariant: `i ≤ n ∧ rf.get ctr = BitVec.ofNat 64 i ∧
+   rf.get lim = <decoded ghost> ∧ <pointer ties>`.
+4. Take `n ≤ cap` (and payload-in-range facts like `8 + n ≤ bs.length`)
+   as **hypotheses of the spec theorem** — pure ghost facts in `Fn.pre`
+   do *not* reach loop-body VCs (the loop `sp` forgets the entry reach),
+   but theorem hypotheses are visible in every VC goal.  For a
+   single-byte count `n < 256` is free (`BitVec.isLt`).
+5. Discharge the recurring conversions with `SAsm/LoopFuel.lean`:
+   `Cond.holds_bltu_iff` (condition ↔ `i < n`, both directions),
+   `ofNat_succ` (counter increment), `toNat_ofNat_lt`,
+   `index_eq_of_not_bltu` (exit ⇒ `i = n`, for `exhausted`/post),
+   `toNat_zeroExtend_byte`.  Address `toNat` facts: `signExtend12`
+   literal `show` first, then `bv_omega` — and make sure the index is
+   *actually* bounded below `2^64` in context (for a u64 count that
+   needs `bs.length < 2^64` from `Region.wf`; with only
+   `i < capLen bs ≤ 2^64 − 1`, `8 + i` may wrap and `bv_omega` rightly
+   refuses).
+
+Elaboration is O(1) in the cap (measured flat at 32/1024/100000 —
+§3.10): the fuel only appears symbolically.  Never `decide` on
+fuel-scale arithmetic; `omega` the index bounds.
+
+### Nested loops: `Stmt.whileS` (entry-snapshot invariants)
+
+An inner loop cannot mention the outer loop's quantified index, and the
+plain `while` exit `sp` forgets the entry reach — so an outer `inv_step`
+loses its index ties across an inner `while` (design §3.10).  Use
+`Stmt.whileS` for the inner loop:
+
+```lean
+.«whileS» "inner" (.bltu .x7 .x28) 4
+  (fun rf₀ _ _ j rf _ _ =>          -- rf₀ = state at inner-loop entry
+    j ≤ 4 ∧ rf.get .x7 = BitVec.ofNat 64 j
+    ∧ rf.get .x5 = rf₀.get .x5      -- outer counter, snapshot-pinned
+    ∧ rf.get .x11 = rf₀.get .x11 + BitVec.ofNat 64 j)
+  (.block "istep" [...])
+```
+
+- The invariant takes the loop-entry state `(rf₀, ws₀, A₀)` before the
+  index; state everything the outer loop needs *relative to the
+  snapshot* (`rf.get .x5 = rf₀.get .x5`, pointers as
+  `rf₀.get .x11 + ofNat j`, `ws = ws₀`, `A = A₀`).
+- `inv_init` is near-trivial: the entry is its own snapshot, so the
+  pinned components are `rfl`.
+- `inv_step`/`exhausted` receive the entry reach as a hypothesis
+  (`reach rf₀ ws₀ A₀ →`): destructure it when you need entry facts
+  (e.g. the width register's value), ignore it (`-`) otherwise.  The
+  entry-reach hypothesis arrives with `rf₀` *equal to an engine term*
+  of the preceding block — name that equation in the `rintro` (don't
+  `rfl` it), `simp only [execBlock_cons, execBlock_nil, execInstrRF,
+  aluSem] at hrf₀` to shrink it to `rf₀ = rf₁.set …`, then derive
+  `rf₀.get r` projections from it.
+- The exit `sp` is `∃ rf₀ ws₀ A₀, reach rf₀ ws₀ A₀ ∧ (∃ j ≤ fuel,
+  inv rf₀ ws₀ A₀ j …) ∧ ¬cond`: the outer `inv_step` destructures it,
+  reads `rf₀.get .x5 = ofNat i` out of the recorded entry reach, and
+  transports it through the snapshot pins.  Recover the inner exit count
+  with `index_eq_of_not_bltu`.
+
+Worked instance: `gridScanFn` (`LoopFuelDemo.lean`) — outer per-item
+`while` over a ghost count `m ≤ 1024`, inner per-byte `whileS` over
+4-byte items, inner loads whose bounds need `4*i + j < 4*m` with the
+outer `i` entering through the snapshot.  Plain `while` stays the right
+node for non-nested loops (lighter VCs); `whileS` is only needed where
+facts must survive *across* an inner loop.
+
 ## 5. Calls
 
 - A callee is a `FnHandle` (entry, code, step bound, regions, pre/post,
