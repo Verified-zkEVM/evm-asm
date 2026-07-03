@@ -144,6 +144,22 @@ inductive Stmt where
       emits initialization, preservation, and fuel-exhaustion VCs. -/
   | «while»  (label : String) (c : Cond) (fuel : Nat)
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
+  /-- Bounded loop with an *entry-snapshot-parameterized* invariant
+      (docs/sasm-design.md §3.9): `inv rf₀ ws₀ A₀ i` must hold at the i-th
+      evaluation of the header, where `(rf₀, ws₀, A₀)` is the symbolic state
+      at loop entry.  This is the classic loop rule with logical variables:
+      the snapshot is the only channel by which facts of the *enclosing*
+      context — in particular an outer loop's quantified index, held in a
+      counter register — survive across the loop (`sp` forgets the entry
+      reach).  Use for inner loops of nested scans; `while` is the special
+      case of a snapshot-independent invariant.  Emits the same code and
+      the same three VCs as `while`, with the snapshot universally
+      quantified (constrained by the entry reach) in `inv_step` and
+      `exhausted`, and existentially recorded in the exit `sp`. -/
+  | «whileS» (label : String) (c : Cond) (fuel : Nat)
+           (inv : RegFile → List (BitVec 8) → Assertion →
+             Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (body : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -174,6 +190,7 @@ def size : Stmt → Nat
   | ghost _ _         => 0
   | blockAt _ _ _ is  => is.length
   | «while» _ _ _ _ b   => b.size + 2
+  | «whileS» _ _ _ _ b  => b.size + 2
   | call _ _          => 1
   | callReg _ _ _     => 1
 
@@ -192,6 +209,7 @@ def callFree : Stmt → Bool
   | ghost _ _         => true
   | blockAt _ _ _ _   => true
   | «while» _ _ _ _ b => b.callFree
+  | «whileS» _ _ _ _ b => b.callFree
   | call _ _          => false
   | callReg _ _ _     => false
 
