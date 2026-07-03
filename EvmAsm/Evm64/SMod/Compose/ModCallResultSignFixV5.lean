@@ -42,7 +42,7 @@ theorem saveRaAbsThenModCall_then_resultSignFix_of_callable_post_noX9_spec_in_sm
         (saveRaAbsThenModCallCallablePost vRa sp base
           dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
           divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
-         (regOwn .x9 ** memOwn (sp + signExtend12 3936)))) :
+         memOwn (sp + signExtend12 3936))) :
     EvmAsm.Rv64.cpsTripleWithin ((49 + nSteps) + 21)
       base ((base + resultSignFixOff) + 84) (smodCodeV5 base)
       (((((((((.x1 ↦ᵣ vRa) ** (.x18 ↦ᵣ vSavedOld)) **
@@ -76,7 +76,7 @@ theorem saveRaAbsThenModCall_then_resultSignFix_of_callable_post_noX9_spec_in_sm
          (modWord.getLimbN 0) (modWord.getLimbN 1)
          (modWord.getLimbN 2) (modWord.getLimbN 3) **
        (smodModCallResultSignFixFrame vRa sp base dividendTop dividendAbsWord **
-        (regOwn .x9 ** memOwn (sp + signExtend12 3936)))) := by
+        memOwn (sp + signExtend12 3936))) := by
   let dividendAbsWord : EvmWord :=
     smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
   let divisorAbsWord : EvmWord :=
@@ -88,7 +88,7 @@ theorem saveRaAbsThenModCall_then_resultSignFix_of_callable_post_noX9_spec_in_sm
       (callPost := saveRaAbsThenModCallCallablePost vRa sp base
           dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
           divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
-         (regOwn .x9 ** memOwn (sp + signExtend12 3936)))
+         memOwn (sp + signExtend12 3936))
       vRa vSavedOld sp sDividendOld x13Old sDivisorOld
       dividendMaskOld dividendValueOld dividendCarryOld
       dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
@@ -98,12 +98,12 @@ theorem saveRaAbsThenModCall_then_resultSignFix_of_callable_post_noX9_spec_in_sm
       base (base + resultSignFixOff) hCallable
   have hFramePc :
       (smodModCallResultSignFixFrame vRa sp base dividendTop dividendAbsWord **
-        (regOwn .x9 ** memOwn (sp + signExtend12 3936))).pcFree :=
+        memOwn (sp + signExtend12 3936)).pcFree :=
     EvmAsm.Rv64.pcFree_sepConj smodModCallResultSignFixFrame_pcFree (by pcFree)
   have hFix :=
     EvmAsm.Rv64.cpsTripleWithin_frameR
       (smodModCallResultSignFixFrame vRa sp base dividendTop dividendAbsWord **
-        (regOwn .x9 ** memOwn (sp + signExtend12 3936)))
+        memOwn (sp + signExtend12 3936))
       hFramePc
       (resultSignFix_regOwn_scratch_spec_in_smodCodeV5
         (sp + 32) resultSign

@@ -40,7 +40,7 @@ theorem saveRaAbsThenModCall_then_return_of_callable_post_noX9_spec_in_smodCodeV
         (saveRaAbsThenModCallCallablePost vRa sp base
           dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
           divisorLimb0 divisorLimb1 divisorLimb2 divisorTop **
-         (regOwn .x9 ** memOwn (sp + signExtend12 3936)))) :
+         memOwn (sp + signExtend12 3936))) :
     EvmAsm.Rv64.cpsTripleWithin (((49 + nSteps) + 21) + 1)
       base (((vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) +
         EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word)) (smodCodeV5 base)
@@ -76,7 +76,7 @@ theorem saveRaAbsThenModCall_then_return_of_callable_post_noX9_spec_in_smodCodeV
          (modWord.getLimbN 0) (modWord.getLimbN 1)
          (modWord.getLimbN 2) (modWord.getLimbN 3) **
         smodSavedRaRetFrame sp base dividendTop dividendAbsWord)) **
-       (regOwn .x9 ** memOwn (sp + signExtend12 3936))) := by
+       memOwn (sp + signExtend12 3936)) := by
   let dividendAbsWord : EvmWord :=
     smodAbsDividendWord dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
   let divisorAbsWord : EvmWord :=
@@ -106,11 +106,11 @@ theorem saveRaAbsThenModCall_then_return_of_callable_post_noX9_spec_in_smodCodeV
       hRetFramePc
       (savedRaRet_spec_in_smodCodeV5
         (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12)) base)
-  have hTpc : (regOwn .x9 ** memOwn (sp + signExtend12 3936)).pcFree := by
+  have hTpc : (memOwn (sp + signExtend12 3936)).pcFree := by
     pcFree
   have hRetFramed :=
     EvmAsm.Rv64.cpsTripleWithin_frameR
-      (regOwn .x9 ** memOwn (sp + signExtend12 3936))
+      (memOwn (sp + signExtend12 3936))
       hTpc hRetFramedInner
   have hFall :
       (base + resultSignFixOff) + 84 = base + savedRaRetOff := by
@@ -126,13 +126,13 @@ theorem saveRaAbsThenModCall_then_return_of_callable_post_noX9_spec_in_smodCodeV
           (modWord.getLimbN 0) (modWord.getLimbN 1)
           (modWord.getLimbN 2) (modWord.getLimbN 3) **
           smodSavedRaRetFrame sp base dividendTop dividendAbsWord)) **
-         (regOwn .x9 ** memOwn (sp + signExtend12 3936)))
+         memOwn (sp + signExtend12 3936))
         (((.x18 ↦ᵣ (vRa + EvmAsm.Rv64.signExtend12 (0 : BitVec 12))) **
          (smodResultSignFixPost (sp + 32) resultSign
           (modWord.getLimbN 0) (modWord.getLimbN 1)
           (modWord.getLimbN 2) (modWord.getLimbN 3) **
           smodSavedRaRetFrame sp base dividendTop dividendAbsWord)) **
-         (regOwn .x9 ** memOwn (sp + signExtend12 3936))) := by
+         memOwn (sp + signExtend12 3936)) := by
     rw [hFall]
     exact hRetFramed
   exact EvmAsm.Rv64.cpsTripleWithin_seq_perm_same_cr
