@@ -92,15 +92,24 @@ def extractWitnessStateSection_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def extractWitnessStateSectionFunction : String :=
-  "extract_witness_state_section:\n" ++ emitProgram extractWitnessStateSection_prog
+/-- Reloc side-table for `extractWitnessStateSection_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def extractWitnessStateSection_relocs : RelocTable :=
+  [ (9, .jal .x1 "sws_u32le"),
+    (12, .jal .x1 "sws_u32le"),
+    (15, .jal .x1 "sws_u32le") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `extractWitnessStateSection_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def extractWitnessStateSectionFunction : String :=
+  "extract_witness_state_section:\n" ++ emitProgramR extractWitnessStateSection_prog extractWitnessStateSection_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `extractWitnessStateSection_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem extractWitnessStateSectionFunction_eq_prog :
-    extractWitnessStateSectionFunction = "extract_witness_state_section:\n" ++ emitProgram extractWitnessStateSection_prog := rfl
+    extractWitnessStateSectionFunction = "extract_witness_state_section:\n" ++ emitProgramR extractWitnessStateSection_prog extractWitnessStateSection_relocs := rfl
 
 #guard extractWitnessStateSectionFunction.startsWith "extract_witness_state_section:\n"
 #guard extractWitnessStateSection_prog.length = 27

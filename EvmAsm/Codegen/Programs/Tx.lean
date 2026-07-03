@@ -110,15 +110,26 @@ def rlpFieldToU64_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def rlpFieldToU64Function : String :=
-  "rlp_field_to_u64:\n" ++ emitProgram rlpFieldToU64_prog
+/-- Reloc side-table for `rlpFieldToU64_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpFieldToU64_relocs : RelocTable :=
+  [ (6, .la .x13 "rfu_offset"),
+    (8, .la .x14 "rfu_length"),
+    (10, .jal .x1 "rlp_list_nth_item"),
+    (12, .la .x5 "rfu_length"),
+    (17, .la .x5 "rfu_offset") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `rlpFieldToU64_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def rlpFieldToU64Function : String :=
+  "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpFieldToU64_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem rlpFieldToU64Function_eq_prog :
-    rlpFieldToU64Function = "rlp_field_to_u64:\n" ++ emitProgram rlpFieldToU64_prog := rfl
+    rlpFieldToU64Function = "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs := rfl
 
 #guard rlpFieldToU64Function.startsWith "rlp_field_to_u64:\n"
 #guard rlpFieldToU64_prog.length = 42
@@ -220,15 +231,26 @@ def rlpFieldToU256Be_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def rlpFieldToU256BeFunction : String :=
-  "rlp_field_to_u256_be:\n" ++ emitProgram rlpFieldToU256Be_prog
+/-- Reloc side-table for `rlpFieldToU256Be_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpFieldToU256Be_relocs : RelocTable :=
+  [ (10, .la .x13 "rfu_offset"),
+    (12, .la .x14 "rfu_length"),
+    (14, .jal .x1 "rlp_list_nth_item"),
+    (16, .la .x5 "rfu_length"),
+    (21, .la .x5 "rfu_offset") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `rlpFieldToU256Be_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def rlpFieldToU256BeFunction : String :=
+  "rlp_field_to_u256_be:\n" ++ emitProgramR rlpFieldToU256Be_prog rlpFieldToU256Be_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpFieldToU256Be_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem rlpFieldToU256BeFunction_eq_prog :
-    rlpFieldToU256BeFunction = "rlp_field_to_u256_be:\n" ++ emitProgram rlpFieldToU256Be_prog := rfl
+    rlpFieldToU256BeFunction = "rlp_field_to_u256_be:\n" ++ emitProgramR rlpFieldToU256Be_prog rlpFieldToU256Be_relocs := rfl
 
 #guard rlpFieldToU256BeFunction.startsWith "rlp_field_to_u256_be:\n"
 #guard rlpFieldToU256Be_prog.length = 44

@@ -233,15 +233,22 @@ def blsgLtP_prog : Program :=
     .LI .x10 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def bls12G1LtPFunction : String :=
-  "blsg_lt_p:\n" ++ emitProgram blsgLtP_prog
+/-- Reloc side-table for `blsgLtP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgLtP_relocs : RelocTable :=
+  [ (0, .la .x5 "blsg_p_be") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `blsgLtP_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def bls12G1LtPFunction : String :=
+  "blsg_lt_p:\n" ++ emitProgramR blsgLtP_prog blsgLtP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgLtP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem bls12G1LtPFunction_eq_prog :
-    bls12G1LtPFunction = "blsg_lt_p:\n" ++ emitProgram blsgLtP_prog := rfl
+    bls12G1LtPFunction = "blsg_lt_p:\n" ++ emitProgramR blsgLtP_prog blsgLtP_relocs := rfl
 
 #guard bls12G1LtPFunction.startsWith "blsg_lt_p:\n"
 #guard blsgLtP_prog.length = 17

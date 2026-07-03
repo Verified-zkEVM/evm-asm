@@ -144,15 +144,40 @@ def mptStateRootIns_prog : Program :=
     .SD .x5 .x10 (0 : BitVec 12),
     .JAL .x0 (-84 : BitVec 21) ]
 
-def mptStateRootInsFunction : String :=
-  "mpt_state_root_ins:\n" ++ emitProgram mptStateRootIns_prog
+/-- Reloc side-table for `mptStateRootIns_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptStateRootIns_relocs : RelocTable :=
+  [ (13, .la .x5 "mset_dr_root"),
+    (23, .la .x5 "mset_db_count"),
+    (26, .la .x5 "mset_db_data"),
+    (28, .la .x6 "mset_db_top"),
+    (31, .jal .x1 "mpt_resolve_cache_reset"),
+    (32, .la .x5 "sri_fail_index"),
+    (35, .la .x5 "sri_fail_mode"),
+    (38, .la .x5 "sri_fail_status"),
+    (52, .la .x28 "sri_cur_mode"),
+    (55, .la .x10 "mset_dr_root"),
+    (59, .la .x17 "mset_dr_root"),
+    (66, .jal .x1 "mpt_insert_acc"),
+    (68, .jal .x1 "mpt_delete_acc"),
+    (70, .jal .x1 "mpt_set_acc"),
+    (76, .la .x5 "mset_dr_root"),
+    (96, .la .x5 "sri_fail_index"),
+    (99, .la .x5 "sri_cur_mode"),
+    (102, .la .x5 "sri_fail_mode"),
+    (105, .la .x5 "sri_fail_status") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptStateRootIns_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptStateRootInsFunction : String :=
+  "mpt_state_root_ins:\n" ++ emitProgramR mptStateRootIns_prog mptStateRootIns_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptStateRootIns_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptStateRootInsFunction_eq_prog :
-    mptStateRootInsFunction = "mpt_state_root_ins:\n" ++ emitProgram mptStateRootIns_prog := rfl
+    mptStateRootInsFunction = "mpt_state_root_ins:\n" ++ emitProgramR mptStateRootIns_prog mptStateRootIns_relocs := rfl
 
 #guard mptStateRootInsFunction.startsWith "mpt_state_root_ins:\n"
 #guard mptStateRootIns_prog.length = 109

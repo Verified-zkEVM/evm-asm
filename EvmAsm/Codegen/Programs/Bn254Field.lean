@@ -230,15 +230,22 @@ def bnfLtP_prog : Program :=
     .LI .x10 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def bn254FieldLtPFunction : String :=
-  "bnf_lt_p:\n" ++ emitProgram bnfLtP_prog
+/-- Reloc side-table for `bnfLtP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnfLtP_relocs : RelocTable :=
+  [ (0, .la .x5 "bnf_p_be") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `bnfLtP_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def bn254FieldLtPFunction : String :=
+  "bnf_lt_p:\n" ++ emitProgramR bnfLtP_prog bnfLtP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnfLtP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem bn254FieldLtPFunction_eq_prog :
-    bn254FieldLtPFunction = "bnf_lt_p:\n" ++ emitProgram bnfLtP_prog := rfl
+    bn254FieldLtPFunction = "bnf_lt_p:\n" ++ emitProgramR bnfLtP_prog bnfLtP_relocs := rfl
 
 #guard bn254FieldLtPFunction.startsWith "bnf_lt_p:\n"
 #guard bnfLtP_prog.length = 17

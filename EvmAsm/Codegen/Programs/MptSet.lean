@@ -553,15 +553,57 @@ def mptSpliceSlot_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptSpliceSlotFunction : String :=
-  "mpt_splice_slot:\n" ++ emitProgram mptSpliceSlot_prog
+/-- Reloc side-table for `mptSpliceSlot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptSpliceSlot_relocs : RelocTable :=
+  [ (19, .la .x13 "mset_span_start"),
+    (21, .la .x14 "mset_span_size"),
+    (23, .jal .x1 "rlp_item_span"),
+    (25, .la .x5 "mset_span_start"),
+    (28, .la .x5 "mset_payload_start"),
+    (34, .la .x13 "mset_span_start"),
+    (36, .la .x14 "mset_span_size"),
+    (38, .jal .x1 "rlp_item_span"),
+    (40, .la .x5 "mset_span_start"),
+    (43, .la .x5 "mset_span_size"),
+    (46, .la .x5 "mset_payload_start"),
+    (52, .la .x5 "mset_head_len"),
+    (55, .la .x5 "mset_tail_start"),
+    (58, .la .x5 "mset_tail_len"),
+    (63, .la .x5 "mset_new_payload_len"),
+    (68, .la .x12 "mset_prefix_len"),
+    (70, .jal .x1 "rlp_encode_list_prefix"),
+    (71, .la .x5 "mset_prefix_len"),
+    (75, .la .x5 "mset_cursor"),
+    (78, .la .x5 "mset_cursor"),
+    (81, .la .x5 "mset_payload_start"),
+    (85, .la .x5 "mset_head_len"),
+    (88, .jal .x1 "mset_memcpy"),
+    (89, .la .x5 "mset_cursor"),
+    (92, .la .x5 "mset_head_len"),
+    (96, .la .x5 "mset_cursor"),
+    (99, .la .x5 "mset_cursor"),
+    (104, .jal .x1 "mset_memcpy"),
+    (105, .la .x5 "mset_cursor"),
+    (109, .la .x5 "mset_cursor"),
+    (112, .la .x5 "mset_cursor"),
+    (115, .la .x5 "mset_tail_start"),
+    (119, .la .x5 "mset_tail_len"),
+    (122, .jal .x1 "mset_memcpy"),
+    (123, .la .x5 "mset_prefix_len"),
+    (126, .la .x5 "mset_new_payload_len") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptSpliceSlot_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptSpliceSlotFunction : String :=
+  "mpt_splice_slot:\n" ++ emitProgramR mptSpliceSlot_prog mptSpliceSlot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptSpliceSlot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptSpliceSlotFunction_eq_prog :
-    mptSpliceSlotFunction = "mpt_splice_slot:\n" ++ emitProgram mptSpliceSlot_prog := rfl
+    mptSpliceSlotFunction = "mpt_splice_slot:\n" ++ emitProgramR mptSpliceSlot_prog mptSpliceSlot_relocs := rfl
 
 #guard mptSpliceSlotFunction.startsWith "mpt_splice_slot:\n"
 #guard mptSpliceSlot_prog.length = 144

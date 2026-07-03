@@ -465,15 +465,25 @@ def mptIndexedTrieRootLarge_prog : Program :=
     .LD .x1 .x2 (144 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptIndexedTrieRootLargeFunction : String :=
-  "mpt_indexed_trie_root_large:\n" ++ emitProgram mptIndexedTrieRootLarge_prog
+/-- Reloc side-table for `mptIndexedTrieRootLarge_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptIndexedTrieRootLarge_relocs : RelocTable :=
+  [ (70, .jal .x1 "mpt_indexed_large_leaf_hash"),
+    (126, .jal .x1 "mpt_indexed_large_leaf_hash"),
+    (170, .jal .x1 "rlp_prefix_to_buffer"),
+    (186, .jal .x1 "zkvm_keccak256") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptIndexedTrieRootLarge_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptIndexedTrieRootLargeFunction : String :=
+  "mpt_indexed_trie_root_large:\n" ++ emitProgramR mptIndexedTrieRootLarge_prog mptIndexedTrieRootLarge_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptIndexedTrieRootLarge_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptIndexedTrieRootLargeFunction_eq_prog :
-    mptIndexedTrieRootLargeFunction = "mpt_indexed_trie_root_large:\n" ++ emitProgram mptIndexedTrieRootLarge_prog := rfl
+    mptIndexedTrieRootLargeFunction = "mpt_indexed_trie_root_large:\n" ++ emitProgramR mptIndexedTrieRootLarge_prog mptIndexedTrieRootLarge_relocs := rfl
 
 #guard mptIndexedTrieRootLargeFunction.startsWith "mpt_indexed_trie_root_large:\n"
 #guard mptIndexedTrieRootLarge_prog.length = 189

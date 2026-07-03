@@ -76,15 +76,23 @@ def priorityFeePerGasEip1559_prog : Program :=
     .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def priorityFeePerGasEip1559Function : String :=
-  "priority_fee_per_gas_eip1559:\n" ++ emitProgram priorityFeePerGasEip1559_prog
+/-- Reloc side-table for `priorityFeePerGasEip1559_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def priorityFeePerGasEip1559_relocs : RelocTable :=
+  [ (13, .jal .x1 "u256_sub_be"),
+    (18, .jal .x1 "u256_min") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `priorityFeePerGasEip1559_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def priorityFeePerGasEip1559Function : String :=
+  "priority_fee_per_gas_eip1559:\n" ++ emitProgramR priorityFeePerGasEip1559_prog priorityFeePerGasEip1559_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `priorityFeePerGasEip1559_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem priorityFeePerGasEip1559Function_eq_prog :
-    priorityFeePerGasEip1559Function = "priority_fee_per_gas_eip1559:\n" ++ emitProgram priorityFeePerGasEip1559_prog := rfl
+    priorityFeePerGasEip1559Function = "priority_fee_per_gas_eip1559:\n" ++ emitProgramR priorityFeePerGasEip1559_prog priorityFeePerGasEip1559_relocs := rfl
 
 #guard priorityFeePerGasEip1559Function.startsWith "priority_fee_per_gas_eip1559:\n"
 #guard priorityFeePerGasEip1559_prog.length = 29

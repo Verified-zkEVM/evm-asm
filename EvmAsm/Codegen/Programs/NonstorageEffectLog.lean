@@ -147,15 +147,23 @@ def nonstorageEffectLatestBalance_prog : Program :=
     .MV .x10 .x31,
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def nonstorageEffectLatestBalanceFunction : String :=
-  "nonstorage_effect_latest_balance:\n" ++ emitProgram nonstorageEffectLatestBalance_prog
+/-- Reloc side-table for `nonstorageEffectLatestBalance_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def nonstorageEffectLatestBalance_relocs : RelocTable :=
+  [ (1, .la .x30 "exec_nonstorage_effect_count"),
+    (4, .la .x12 "exec_nonstorage_effect_log") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `nonstorageEffectLatestBalance_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def nonstorageEffectLatestBalanceFunction : String :=
+  "nonstorage_effect_latest_balance:\n" ++ emitProgramR nonstorageEffectLatestBalance_prog nonstorageEffectLatestBalance_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `nonstorageEffectLatestBalance_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem nonstorageEffectLatestBalanceFunction_eq_prog :
-    nonstorageEffectLatestBalanceFunction = "nonstorage_effect_latest_balance:\n" ++ emitProgram nonstorageEffectLatestBalance_prog := rfl
+    nonstorageEffectLatestBalanceFunction = "nonstorage_effect_latest_balance:\n" ++ emitProgramR nonstorageEffectLatestBalance_prog nonstorageEffectLatestBalance_relocs := rfl
 
 #guard nonstorageEffectLatestBalanceFunction.startsWith "nonstorage_effect_latest_balance:\n"
 #guard nonstorageEffectLatestBalance_prog.length = 36

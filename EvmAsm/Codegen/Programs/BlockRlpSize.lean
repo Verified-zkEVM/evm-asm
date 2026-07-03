@@ -227,15 +227,40 @@ def blockRlpRebuiltSize_prog : Program :=
     .ADDI .x2 .x2 (96 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def blockRlpRebuiltSizeFunction : String :=
-  "block_rlp_rebuilt_size:\n" ++ emitProgram blockRlpRebuiltSize_prog
+/-- Reloc side-table for `blockRlpRebuiltSize_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockRlpRebuiltSize_relocs : RelocTable :=
+  [ (17, .jal .x1 "bgv_u32le"),
+    (20, .jal .x1 "bgv_u32le"),
+    (24, .jal .x1 "bgv_u32le"),
+    (32, .jal .x1 "bgv_u32le"),
+    (43, .jal .x1 "bgv_u32le"),
+    (44, .la .x5 "brl_item_start"),
+    (51, .jal .x1 "bgv_u32le"),
+    (52, .la .x5 "brl_item_end"),
+    (56, .la .x5 "brl_item_end"),
+    (59, .la .x5 "brl_item_start"),
+    (62, .la .x5 "brl_item_end"),
+    (75, .jal .x1 "rlp_bytes_encoded_size"),
+    (82, .jal .x1 "rlp_list_encoded_size"),
+    (96, .la .x11 "brl_wd_buf"),
+    (98, .la .x12 "brl_wd_len"),
+    (100, .jal .x1 "ssz_withdrawal_to_rlp"),
+    (102, .la .x5 "brl_wd_len"),
+    (109, .jal .x1 "rlp_list_encoded_size"),
+    (115, .jal .x1 "rlp_list_encoded_size") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `blockRlpRebuiltSize_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def blockRlpRebuiltSizeFunction : String :=
+  "block_rlp_rebuilt_size:\n" ++ emitProgramR blockRlpRebuiltSize_prog blockRlpRebuiltSize_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockRlpRebuiltSize_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem blockRlpRebuiltSizeFunction_eq_prog :
-    blockRlpRebuiltSizeFunction = "block_rlp_rebuilt_size:\n" ++ emitProgram blockRlpRebuiltSize_prog := rfl
+    blockRlpRebuiltSizeFunction = "block_rlp_rebuilt_size:\n" ++ emitProgramR blockRlpRebuiltSize_prog blockRlpRebuiltSize_relocs := rfl
 
 #guard blockRlpRebuiltSizeFunction.startsWith "block_rlp_rebuilt_size:\n"
 #guard blockRlpRebuiltSize_prog.length = 135

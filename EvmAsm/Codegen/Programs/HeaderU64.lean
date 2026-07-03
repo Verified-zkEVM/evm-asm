@@ -466,15 +466,22 @@ def headerExtractNumber_prog : Program :=
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def headerExtractNumberFunction : String :=
-  "header_extract_number:\n" ++ emitProgram headerExtractNumber_prog
+/-- Reloc side-table for `headerExtractNumber_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractNumber_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_field_to_u64") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `headerExtractNumber_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def headerExtractNumberFunction : String :=
+  "header_extract_number:\n" ++ emitProgramR headerExtractNumber_prog headerExtractNumber_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractNumber_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem headerExtractNumberFunction_eq_prog :
-    headerExtractNumberFunction = "header_extract_number:\n" ++ emitProgram headerExtractNumber_prog := rfl
+    headerExtractNumberFunction = "header_extract_number:\n" ++ emitProgramR headerExtractNumber_prog headerExtractNumber_relocs := rfl
 
 #guard headerExtractNumberFunction.startsWith "header_extract_number:\n"
 #guard headerExtractNumber_prog.length = 8

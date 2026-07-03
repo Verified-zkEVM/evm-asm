@@ -258,20 +258,22 @@ def render_insn(mn, ops, off_of):
 # top-level: asm string -> (label, [Instr-render], count)                     #
 # --------------------------------------------------------------------------- #
 def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
-    """Resolve ONE source instruction into (lean_renders, asm_lines).
+    """Resolve ONE source instruction into (lean_renders, asm_lines, reloc).
 
     Straight-line/local-control instructions delegate to `render_insn`
-    (one `Instr` each).  The two link-layout-dependent forms expand here:
+    (one `Instr` each, `reloc=None`).  The two link-layout-dependent forms:
 
       * `la reg, sym`            -> AUIPC+ADDI pair (2 `Instr`s, 8 bytes), with
-        immediates via `laHi`/`laLo GuestAddrs.sym (GuestAddrs.entry + cur)`.
-      * cross-function `jal`/`j`  -> single JAL with `jalOff GuestAddrs.callee …`.
+        the concrete guest-linked immediates via `laHi`/`laLo GuestAddrs.sym
+        (GuestAddrs.entry + cur)` (the VERIFICATION view), plus a reloc marker
+        `('la', reg, sym)` so the emitted string keeps the SYMBOLIC `la reg,sym`
+        (the image-agnostic EMISSION view — each image relocates it itself).
+      * cross-function `jal`/`j`  -> single JAL with `jalOff GuestAddrs.callee …`
+        + reloc marker `('jal', rd, callee)`.
 
-    `externals` accumulates {sym: addr} actually referenced, so the assemble
-    gate can `.set` them and `GuestAddrs.lean` can pin them.  `lean_renders`
-    reference named `GuestAddrs` constants (textually stable across relayouts);
-    `asm_lines` are the concrete GNU-as mnemonics used for the byte-identity
-    check (mirrors what Lean's `emitProgram` renders)."""
+    `asm_lines` are the CONCRETE guest-linked mnemonics used only by the
+    per-function consistency gate (numeric render ≟ symbolic form linked at the
+    guest addresses).  They are NOT what lands in any image."""
     if mn == 'la':
         rg = ops[0]; sym = ops[1].strip()
         if entry_addr is None:
@@ -285,7 +287,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
                 f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{sym} {pcx})"]
         hi, lo = _la_hi(SYMMAP[sym], pc), _la_lo(SYMMAP[sym], pc)
         asm = [f"auipc {xr(rg)}, 0x{hi:x}", f"addi {xr(rg)}, {xr(rg)}, {lo}"]
-        return lean, asm
+        return lean, asm, ('la', reg(rg), sym)
     if mn in ('jal', 'j'):
         if mn == 'j':                 rd, tgt = 'x0', ops[0]
         elif len(ops) == 1:           rd, tgt = 'ra', ops[0]
@@ -293,7 +295,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
         tgt = tgt.strip()
         # local (label or PC-relative) targets keep the ordinary single-JAL path
         if tgt in label_addr or tgt.startswith('.'):
-            return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)]
+            return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)], None
         # cross-function symbol target -> resolved PC-relative offset
         if entry_addr is None:
             raise ConvError(f"{mn}: entry {entry!r} address unknown (BLOCKED_ON_.6)")
@@ -303,8 +305,8 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
         off = _jal_off(SYMMAP[tgt], entry_addr + cur)
         lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} ({GA}.{entry} + {cur}))"]
         asm = [f"jal {xr(rd)}, {_br_off_asm(off)}"]
-        return lean, asm
-    return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)]
+        return lean, asm, ('jal', reg(rd), tgt)
+    return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)], None
 
 def _resolve(asm):
     """Tokenize + lay out `asm`, returning (entry, entry_addr, items, externals)
@@ -343,7 +345,9 @@ def _resolve(asm):
             seq.append((addr, mn, ops))
             addr += sz
     externals = {}
-    out = []
+    out = []          # list of (lean_renders, asm_lines) per source instruction
+    relocs = []       # [(flat_prog_index, kind, reg_lean, symbol)]
+    flat = 0          # running index into the flattened Program
     for cur, mn, ops in seq:
         def off_of(tok, cur=cur):
             tok=tok.strip()
@@ -354,11 +358,15 @@ def _resolve(asm):
             if tok in label_addr:
                 return label_addr[tok] - cur
             raise ConvError(f"unresolved branch/jump target {tok!r}")
-        out.append(_emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals))
-    return entry, entry_addr, out, externals
+        lean, asm, reloc = _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals)
+        if reloc is not None:
+            relocs.append((flat, reloc[0], reloc[1], reloc[2]))
+        out.append((lean, asm))
+        flat += len(lean)
+    return entry, entry_addr, out, externals, relocs
 
 def convert(asm):
-    entry, _entry_addr, out, _ext = _resolve(asm)
+    entry, _entry_addr, out, _ext, _rel = _resolve(asm)
     renders = [r for (lean, _asm) in out for r in lean]
     return entry, renders
 
@@ -427,7 +435,7 @@ def _render_to_asm(r):
 def emit_program_text(entry, asm):
     """Reproduce `"entry:\n" ++ emitProgram prog` purely in Python (the py_emit
     offline pre-flight render)."""
-    e, _ea, out, _ext = _resolve(asm)
+    e, _ea, out, _ext, _rel = _resolve(asm)
     lines = ["  " + l for (_lean, asml) in out for l in asml]
     return e + ":\n" + "\n".join(lines)
 
@@ -477,6 +485,24 @@ def _linked_text_bytes(asm_text, d, tag, entry_addr, externals):
                    stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     return open(b,'rb').read()
 
+READELF = (shutil.which('riscv64-unknown-elf-readelf') or
+           shutil.which('readelf') or 'readelf')
+def emitted_reloc_count(asm_text):
+    """Assemble `asm_text` and count RISC-V PC-relative / call / jump
+    relocations in the object. A reloc-bearing function's EMITTED (symbolic)
+    render MUST have >0 — i.e. `la`/`jal` stayed symbolic and each linked image
+    (guest, dispatcher, every `zisk_*` probe) relocates them for itself. Zero
+    would mean the immediates were baked from one image's layout (the defect
+    Fable caught) and would resolve to garbage in every other image."""
+    with tempfile.TemporaryDirectory() as d:
+        s=os.path.join(d,'r.s'); o=os.path.join(d,'r.o')
+        with open(s,'w') as f: f.write(".text\n.globl _f\n_f:\n"+asm_text+"\n")
+        subprocess.run([AS,'-march=rv64im','-mno-relax','-o',o,s],check=True,
+                       stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        out=subprocess.run([READELF,'-r',o],capture_output=True,text=True).stdout
+    return sum(1 for ln in out.splitlines()
+               if any(t in ln for t in ('R_RISCV_PCREL','R_RISCV_CALL','R_RISCV_JAL','R_RISCV_HI20')))
+
 def assemble_cmp(orig_asm, emitted_asm, entry_addr=None, externals=None):
     """Compare the `.text` of the original hand-written asm and the emitted
     render.  With `la`/cross-`jal` externals, both are assembled+linked at the
@@ -498,10 +524,12 @@ def lean_camel(entry):
     parts=entry.split('_')
     return parts[0]+''.join(p.capitalize() for p in parts[1:])
 
-def gen_lean(entry, renders, func_name, prog_name):
+def gen_lean(entry, renders, func_name, prog_name, relocs=None):
     body=",\n    ".join(renders)
     n=len(renders)
-    return f'''def {prog_name} : Program :=
+    if not relocs:
+        # straight-line / local-only: emitted string == the Program render.
+        return f'''def {prog_name} : Program :=
   [ {body} ]
 
 def {func_name} : String :=
@@ -517,6 +545,40 @@ theorem {func_name}_eq_prog :
 #guard {func_name}.startsWith "{entry}:\\n"
 #guard {prog_name}.length = {n}
 '''
+    # Reloc-bearing (`la`/cross-`jal`): TWO views (bead evm-asm-4ch8f.9.3).
+    #  * {prog_name}   — the VERIFICATION view: concrete guest-linked immediates
+    #    (`laHi`/`laLo`/`jalOff GuestAddrs.…`), the Program the guest triples run.
+    #  * {func_name}   — the EMISSION view: `emitProgramR` keeps `la`/`jal`
+    #    SYMBOLIC, so EVERY linked image (guest, dispatcher, every `zisk_*`
+    #    probe) relocates it against its own layout — image-agnostic and
+    #    byte-identical to the hand-written source in each image.
+    reloc_kind={'la':'la','jal':'jal'}
+    rel_body=",\n    ".join(
+        f"({idx}, .{reloc_kind[kind]} {rg} \"{sym}\")" for (idx,kind,rg,sym) in relocs)
+    reloc_name=prog_name[:-5]+'_relocs' if prog_name.endswith('_prog') else prog_name+'_relocs'
+    return f'''def {prog_name} : Program :=
+  [ {body} ]
+
+/-- Reloc side-table for `{prog_name}`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def {reloc_name} : RelocTable :=
+  [ {rel_body} ]
+
+def {func_name} : String :=
+  "{entry}:\\n" ++ emitProgramR {prog_name} {reloc_name}
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `{prog_name}` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem {func_name}_eq_prog :
+    {func_name} = "{entry}:\\n" ++ emitProgramR {prog_name} {reloc_name} := rfl
+
+#guard {func_name}.startsWith "{entry}:\\n"
+#guard {prog_name}.length = {n}
+'''
 
 # --------------------------------------------------------------------------- #
 # CLI                                                                         #
@@ -524,11 +586,13 @@ theorem {func_name}_eq_prog :
 FIXDIR=os.path.join(os.path.dirname(os.path.abspath(__file__)),'asm-fixtures')
 
 def do_asm(asm):
-    entry, entry_addr, out, externals = _resolve(asm)
+    entry, entry_addr, out, externals, relocs = _resolve(asm)
     renders = [r for (lean, _a) in out for r in lean]
+    # CONCRETE guest-linked render (numeric auipc/addi/jal); the consistency gate
+    # links the symbolic original at the guest addresses and compares .text.
     emitted = entry + ":\n" + "\n".join("  " + l for (_l, asml) in out for l in asml)
     ok, a, b = assemble_cmp(asm, emitted, entry_addr, externals)
-    return entry, renders, emitted, ok, len(a), len(b)
+    return entry, renders, emitted, ok, len(a), len(b), relocs
 
 def do_one(path, func_name):
     text=open(path).read()
@@ -552,8 +616,23 @@ def lean_render(manifest):
     repo=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     mods=sorted({_module_of(p) for p in manifest.values()})
     funcs=sorted(manifest)
+    # For reloc-bearing functions the emitted string ({fn}) is the SYMBOLIC
+    # image-agnostic view; we ALSO render `emitProgram <prog>` (key "{fn}#c") —
+    # the CONCRETE guest-linked verification Program — so the per-function gate
+    # can pin BOTH views to the fixture (symbolic == emitted, concrete ==
+    # symbolic linked at the guest addresses).
+    items=[(fn, fn) for fn in funcs]
+    for fn in funcs:
+        fp=fixture_path(fn)
+        if not os.path.exists(fp): continue
+        try:
+            entry,_ea,_out,_ext,relocs=_resolve(open(fp).read())
+        except ConvError:
+            continue
+        if relocs:
+            items.append((fn+"#c", f"emitProgram {lean_camel(entry)}_prog"))
     # Emit the render harness as a `forM` over a `List (String × String)` of
-    # (func-name, func-value) pairs rather than one giant `do` block: a `do`
+    # (key, lean-expr) pairs rather than one giant `do` block: a `do`
     # block desugars to nested binds and blows the default `maxRecDepth` once
     # the manifest passes ~32 funcs (~96 statements).  The `forM` body has
     # fixed nesting depth, so this scales to the full manifest without touching
@@ -562,7 +641,7 @@ def lean_render(manifest):
     src =''.join(f"import {m}\n" for m in mods)
     src+="open EvmAsm.Codegen\n"
     src+="def _renderItems : List (String × String) :=\n"
-    src+="  [ "+",\n    ".join(f'("{fn}", {fn})' for fn in funcs)+" ]\n"
+    src+="  [ "+",\n    ".join(f'("{k}", {v})' for k,v in items)+" ]\n"
     src+="def main : IO Unit :=\n"
     src+="  _renderItems.forM fun (nm, s) => do\n"
     src+=f'    IO.print ("{_BEG}" ++ nm ++ "{_MID}")\n'
@@ -576,10 +655,10 @@ def lean_render(manifest):
     finally:
         os.unlink(tmp)
     res={}
-    for fn in funcs:
-        beg=out.index(_BEG+fn+_MID)+len(_BEG+fn+_MID)
+    for k,_v in items:
+        beg=out.index(_BEG+k+_MID)+len(_BEG+k+_MID)
         end=out.index(_END,beg)
-        res[fn]=out[beg:end]
+        res[k]=out[beg:end]
     return res
 
 def _load_manifest():
@@ -619,13 +698,13 @@ def rewrite_file(path, funcs):
     uses_reloc=False
     for fn in funcs:
         asm=extract_function(text, fn)
-        entry,renders,emitted,ok,la,lb=do_asm(asm)
+        entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
         if not ok:
-            raise ConvError(f"{fn}: assemble .text differs -- refusing to rewrite")
-        if _resolve(asm)[3]: uses_reloc=True   # references la/cross-jal externals
+            raise ConvError(f"{fn}: guest-linked .text differs -- refusing to rewrite")
+        if relocs: uses_reloc=True   # references la/cross-jal externals
         open(fixture_path(fn),'w').write(asm if asm.endswith('\n') else asm+'\n')
         prog=lean_camel(entry)+'_prog'
-        block=gen_lean(entry, renders, fn, prog)
+        block=gen_lean(entry, renders, fn, prog, relocs)
         s,e=_def_span(text, fn)
         spans.append((s,e,block))
     spans.sort(reverse=True)
@@ -679,7 +758,7 @@ def _collect_guest_addr_syms():
         fp=fixture_path(fn)
         if not os.path.exists(fp): continue
         try:
-            entry,entry_addr,out,externals=_resolve(open(fp).read())
+            entry,entry_addr,out,externals,relocs=_resolve(open(fp).read())
         except ConvError:
             continue
         if externals:                      # only reloc-using functions need addrs
@@ -741,20 +820,47 @@ def check_file(path, funcs, rendered=None):
         fp=fixture_path(fn)
         if not os.path.exists(fp): problems.append(f"{fn}: missing fixture {fp}"); continue
         asm=open(fp).read()
-        entry,renders,emitted,ok,la,lb=do_asm(asm)          # (c) py_emit pre-flight
+        entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)   # py_emit consistency pre-flight
         if not ok: problems.append(f"{fn}: py_emit render no longer assembles identically"); continue
-        # (a) authoritative: real Lean render vs fixture (with .set prelude for
-        #     any `la`/cross-`jal` externals, so PC-relative deltas resolve).
         if fn not in rendered:
             problems.append(f"{fn}: no Lean render captured"); continue
-        _e,_ea,_out,_ext=_resolve(asm)
-        real_ok,_,_=assemble_cmp(asm, rendered[fn], _ea, _ext)
-        if not real_ok:
-            problems.append(f"{fn}: LEAN-RENDERED string does NOT assemble identically to fixture "
-                            f"(emitInstr/py_emit divergence or guest-binary change)"); continue
-        # (b) source drift
+        _e,_ea,_out,_ext,_rel=_resolve(asm)
+        if _rel:
+            # Reloc-bearing: TWO independent gates over the real Lean renders.
+            # (a) SAFETY — the emitted (symbolic, image-agnostic) string assembles
+            #     `.text`-identically to the fixture WITHOUT linking (both keep
+            #     `la`/`jal` symbolic, so this holds in every image, not just the
+            #     guest). Exercises Lean's `emitProgramR`.
+            safe_ok,_,_=assemble_cmp(asm, rendered[fn])
+            if not safe_ok:
+                problems.append(f"{fn}: emitted SYMBOLIC render is not byte-identical to the "
+                                f"hand-written source (would change the guest/probe images)"); continue
+            # image-agnostic guarantee: the emitted render must still carry
+            # PC-relative relocations (la/jal symbolic), never baked immediates.
+            if emitted_reloc_count(rendered[fn]) == 0:
+                problems.append(f"{fn}: emitted render has NO relocations — `la`/`jal` immediates "
+                                f"appear baked from one image's layout (breaks other images)"); continue
+            # (b) CONSISTENCY — the concrete verification Program (`emitProgram
+            #     <prog>`, key "{fn}#c") assembles to the SAME bytes the guest
+            #     link produces for the symbolic form (fixture linked at the
+            #     guest entry with the externals `--defsym`'d). Ties `_prog`'s
+            #     baked immediates to the actual guest layout.
+            ckey=fn+"#c"
+            if ckey not in rendered:
+                problems.append(f"{fn}: no concrete Lean render captured"); continue
+            cons_ok,_,_=assemble_cmp(asm, rendered[ckey], _ea, _ext)
+            if not cons_ok:
+                problems.append(f"{fn}: concrete verification Program does NOT match the guest-linked "
+                                f"`la`/`jal` (laHi/laLo/jalOff immediate wrong for this layout)"); continue
+        else:
+            # Straight-line / local-only: emitted == Program render; plain assemble.
+            real_ok,_,_=assemble_cmp(asm, rendered[fn])
+            if not real_ok:
+                problems.append(f"{fn}: LEAN-RENDERED string does NOT assemble identically to fixture "
+                                f"(emitInstr/py_emit divergence or guest-binary change)"); continue
+        # source drift
         prog=lean_camel(entry)+'_prog'
-        block=gen_lean(entry, renders, fn, prog).rstrip()
+        block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
         if block not in text:
             problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
@@ -764,7 +870,7 @@ SCAN_DIRS=['EvmAsm/Codegen/Programs','EvmAsm/Codegen']
 
 _CLS_DESC={
  'CONVERTED-CLEAN':'Parses to a `Program`; the `emitProgram` render assembles `.text`-identically to the original hand-written text. Directly landable (straight-line / local control only).',
- 'READY-WAVE3':'Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution: `la <sym>` → `auipc`+`addi` via `laHi`/`laLo`, cross-function `jal`/`j` → `jalOff`, all keyed off the linker-pinned address table (`GuestAddrs`). The `emitProgram` render assembles `.text`-identically. Directly landable.',
+ 'READY-WAVE3':'Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable.',
  'NEEDS-CALL-EXPANSION':'Contains a `call`/`tail` macro (auipc+jalr, linker-relaxable) — a separate expansion from the `la`/`jal`-offset story of wave .9.3; deferred to a follow-up wave.',
  'NEEDS-DOTWORD':'Contains a raw pre-encoded `.4byte N` word — the ZisK accelerator `.CSRS`/`csrrs` pattern `emitInstr` renders as `.4byte`. Needs a word-literal `Instr` (or a `.4byte`→`.CSRS` decoder) to convert; deferred to a follow-up wave.',
  'BLOCKED_ON_.6':'References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated.',
@@ -783,6 +889,17 @@ def render_coverage(rows, landed):
     L.append("# 4ch8f.9 — asm-string → Program conversion coverage\n")
     L.append("_Regenerate with `python3 scripts/asm_to_program.py coverage` (requires "
              "`riscv64-unknown-elf-as`/`-objcopy`)._\n")
+    L.append("**Multi-image constraint (wave .9.3).** A converted `*Function` string is "
+             "emitted into N linked images — the monolithic `stateless_guest`, the "
+             "`runtime_dispatcher`, and hundreds of `zisk_*` probe programs — each with a "
+             "different `.text`/`.data` layout. `la`/cross-`jal` are therefore emitted "
+             "**symbolically** (`emitProgramR` + a reloc side-table) so every image's linker "
+             "relocates them itself; the per-function `Program` separately carries the "
+             "**concrete** `stateless_guest`-linked immediates (`laHi`/`laLo`/`jalOff "
+             "GuestAddrs.…`) as the verification view. Only the guest link pins that view; "
+             "the emitted text stays byte-identical to the hand-written source in every "
+             "image (checked per-function by assemble/link+`cmp` and by a probe-image "
+             "execution check in CI).\n")
     L.append("Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and "
              "`EvmAsm/Codegen/Dispatch.lean` is parsed to a `Program`, rendered back with "
              "`emitProgram`, and the render is assembled with `riscv64-unknown-elf-as` and "
@@ -835,7 +952,7 @@ def classify_all():
                     cls='ALREADY-STRUCTURED' if 'emitProgram' in seg else 'COMPOSITE'
                     rows.append((rel,name,cls,0,'')); continue
                 try:
-                    entry,entry_addr,out,externals=_resolve(asm)
+                    entry,entry_addr,out,externals,relocs=_resolve(asm)
                     renders=[r for (lean,_a) in out for r in lean]
                 except ConvError as e:
                     msg=str(e)
@@ -934,14 +1051,14 @@ def main():
         n=rewrite_file(args.file, funcs)
         print(f"rewrote {n} defs in {args.file}")
         return
-    entry, renders, emitted, ok, la, lb = do_one(args.file, args.func)
+    entry, renders, emitted, ok, la, lb, relocs = do_one(args.file, args.func)
     if args.command=='check':
-        print(f"{args.func}: entry={entry} n={len(renders)} "
+        print(f"{args.func}: entry={entry} n={len(renders)} reloc={len(relocs)} "
               f"asm_cmp={'IDENTICAL' if ok else 'DIFFER'} ({la} vs {lb} bytes)")
         sys.exit(0 if ok else 1)
     if args.command=='emit-lean':
         prog=args.prog_name or (lean_camel(entry)+'_prog')
-        print(gen_lean(entry, renders, args.func, prog))
+        print(gen_lean(entry, renders, args.func, prog, relocs))
     else:
         print(f"-- entry {entry}, {len(renders)} instrs, "
               f"asm_cmp={'OK' if ok else 'FAIL'}")

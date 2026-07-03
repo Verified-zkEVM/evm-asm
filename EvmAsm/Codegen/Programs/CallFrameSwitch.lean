@@ -40,15 +40,22 @@ def frameSaveRegs_prog : Program :=
     .SD .x5 .x12 (8 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def frameSaveRegsFunction : String :=
-  "frame_save_regs:\n" ++ emitProgram frameSaveRegs_prog
+/-- Reloc side-table for `frameSaveRegs_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameSaveRegs_relocs : RelocTable :=
+  [ (0, .la .x5 "frame_save_area") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `frameSaveRegs_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def frameSaveRegsFunction : String :=
+  "frame_save_regs:\n" ++ emitProgramR frameSaveRegs_prog frameSaveRegs_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameSaveRegs_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem frameSaveRegsFunction_eq_prog :
-    frameSaveRegsFunction = "frame_save_regs:\n" ++ emitProgram frameSaveRegs_prog := rfl
+    frameSaveRegsFunction = "frame_save_regs:\n" ++ emitProgramR frameSaveRegs_prog frameSaveRegs_relocs := rfl
 
 #guard frameSaveRegsFunction.startsWith "frame_save_regs:\n"
 #guard frameSaveRegs_prog.length = 7
@@ -63,15 +70,22 @@ def frameLoadRegs_prog : Program :=
     .LD .x11 .x5 (8 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def frameLoadRegsFunction : String :=
-  "frame_load_regs:\n" ++ emitProgram frameLoadRegs_prog
+/-- Reloc side-table for `frameLoadRegs_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameLoadRegs_relocs : RelocTable :=
+  [ (0, .la .x5 "frame_save_area") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `frameLoadRegs_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def frameLoadRegsFunction : String :=
+  "frame_load_regs:\n" ++ emitProgramR frameLoadRegs_prog frameLoadRegs_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameLoadRegs_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem frameLoadRegsFunction_eq_prog :
-    frameLoadRegsFunction = "frame_load_regs:\n" ++ emitProgram frameLoadRegs_prog := rfl
+    frameLoadRegsFunction = "frame_load_regs:\n" ++ emitProgramR frameLoadRegs_prog frameLoadRegs_relocs := rfl
 
 #guard frameLoadRegsFunction.startsWith "frame_load_regs:\n"
 #guard frameLoadRegs_prog.length = 7
@@ -84,15 +98,22 @@ def frameDepthPush_prog : Program :=
     .SD .x5 .x10 (0 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def frameDepthPushFunction : String :=
-  "frame_depth_push:\n" ++ emitProgram frameDepthPush_prog
+/-- Reloc side-table for `frameDepthPush_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameDepthPush_relocs : RelocTable :=
+  [ (0, .la .x5 "evm_call_depth") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `frameDepthPush_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def frameDepthPushFunction : String :=
+  "frame_depth_push:\n" ++ emitProgramR frameDepthPush_prog frameDepthPush_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameDepthPush_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem frameDepthPushFunction_eq_prog :
-    frameDepthPushFunction = "frame_depth_push:\n" ++ emitProgram frameDepthPush_prog := rfl
+    frameDepthPushFunction = "frame_depth_push:\n" ++ emitProgramR frameDepthPush_prog frameDepthPush_relocs := rfl
 
 #guard frameDepthPushFunction.startsWith "frame_depth_push:\n"
 #guard frameDepthPush_prog.length = 6
@@ -105,15 +126,22 @@ def frameDepthPop_prog : Program :=
     .SD .x5 .x10 (0 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def frameDepthPopFunction : String :=
-  "frame_depth_pop:\n" ++ emitProgram frameDepthPop_prog
+/-- Reloc side-table for `frameDepthPop_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameDepthPop_relocs : RelocTable :=
+  [ (0, .la .x5 "evm_call_depth") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `frameDepthPop_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def frameDepthPopFunction : String :=
+  "frame_depth_pop:\n" ++ emitProgramR frameDepthPop_prog frameDepthPop_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameDepthPop_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem frameDepthPopFunction_eq_prog :
-    frameDepthPopFunction = "frame_depth_pop:\n" ++ emitProgram frameDepthPop_prog := rfl
+    frameDepthPopFunction = "frame_depth_pop:\n" ++ emitProgramR frameDepthPop_prog frameDepthPop_relocs := rfl
 
 #guard frameDepthPopFunction.startsWith "frame_depth_pop:\n"
 #guard frameDepthPop_prog.length = 6

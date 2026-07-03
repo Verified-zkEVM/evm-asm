@@ -2,6 +2,8 @@
 
 _Regenerate with `python3 scripts/asm_to_program.py coverage` (requires `riscv64-unknown-elf-as`/`-objcopy`)._
 
+**Multi-image constraint (wave .9.3).** A converted `*Function` string is emitted into N linked images — the monolithic `stateless_guest`, the `runtime_dispatcher`, and hundreds of `zisk_*` probe programs — each with a different `.text`/`.data` layout. `la`/cross-`jal` are therefore emitted **symbolically** (`emitProgramR` + a reloc side-table) so every image's linker relocates them itself; the per-function `Program` separately carries the **concrete** `stateless_guest`-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) as the verification view. Only the guest link pins that view; the emitted text stays byte-identical to the hand-written source in every image (checked per-function by assemble/link+`cmp` and by a probe-image execution check in CI).
+
 Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Codegen/Dispatch.lean` is parsed to a `Program`, rendered back with `emitProgram`, and the render is assembled with `riscv64-unknown-elf-as` and byte-compared against the original hand-written text (`.text` of both). See `docs/4ch8f-asm-to-program.md` for the design and trust model.
 
 ## Summary
@@ -9,7 +11,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | Class | Count | Meaning |
 |---|---:|---|
 | BLOCKED_ON_.6 | 301 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
-| READY-WAVE3 | 169 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution: `la <sym>` → `auipc`+`addi` via `laHi`/`laLo`, cross-function `jal`/`j` → `jalOff`, all keyed off the linker-pinned address table (`GuestAddrs`). The `emitProgram` render assembles `.text`-identically. Directly landable. |
+| READY-WAVE3 | 169 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable. |
 | ALREADY-STRUCTURED | 169 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
 | COMPOSITE | 139 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
 | NEEDS-DOTWORD | 33 | Contains a raw pre-encoded `.4byte N` word — the ZisK accelerator `.CSRS`/`csrrs` pattern `emitInstr` renders as `.4byte`. Needs a word-literal `Instr` (or a `.4byte`→`.CSRS` decoder) to convert; deferred to a follow-up wave. |

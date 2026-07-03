@@ -187,15 +187,29 @@ def mptNodeKind_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptNodeKindFunction : String :=
-  "mpt_node_kind:\n" ++ emitProgram mptNodeKind_prog
+/-- Reloc side-table for `mptNodeKind_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptNodeKind_relocs : RelocTable :=
+  [ (7, .la .x13 "mnk_dummy_offset"),
+    (9, .la .x14 "mnk_dummy_length"),
+    (11, .jal .x1 "rlp_list_nth_item"),
+    (16, .la .x13 "mnk_path_offset"),
+    (18, .la .x14 "mnk_path_length"),
+    (20, .jal .x1 "rlp_list_nth_item"),
+    (22, .la .x5 "mnk_path_offset"),
+    (25, .la .x5 "mnk_path_length") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptNodeKind_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptNodeKindFunction : String :=
+  "mpt_node_kind:\n" ++ emitProgramR mptNodeKind_prog mptNodeKind_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptNodeKind_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptNodeKindFunction_eq_prog :
-    mptNodeKindFunction = "mpt_node_kind:\n" ++ emitProgram mptNodeKind_prog := rfl
+    mptNodeKindFunction = "mpt_node_kind:\n" ++ emitProgramR mptNodeKind_prog mptNodeKind_relocs := rfl
 
 #guard mptNodeKindFunction.startsWith "mpt_node_kind:\n"
 #guard mptNodeKind_prog.length = 49
@@ -345,15 +359,27 @@ def mptBranchChild_prog : Program :=
     .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptBranchChildFunction : String :=
-  "mpt_branch_child:\n" ++ emitProgram mptBranchChild_prog
+/-- Reloc side-table for `mptBranchChild_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptBranchChild_relocs : RelocTable :=
+  [ (15, .la .x13 "mbc_offset"),
+    (17, .la .x14 "mbc_length"),
+    (19, .jal .x1 "rlp_list_nth_item"),
+    (21, .la .x5 "mbc_length"),
+    (27, .la .x5 "mbc_offset"),
+    (51, .la .x5 "mbc_offset") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptBranchChild_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptBranchChildFunction : String :=
+  "mpt_branch_child:\n" ++ emitProgramR mptBranchChild_prog mptBranchChild_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptBranchChild_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptBranchChildFunction_eq_prog :
-    mptBranchChildFunction = "mpt_branch_child:\n" ++ emitProgram mptBranchChild_prog := rfl
+    mptBranchChildFunction = "mpt_branch_child:\n" ++ emitProgramR mptBranchChild_prog mptBranchChild_relocs := rfl
 
 #guard mptBranchChildFunction.startsWith "mpt_branch_child:\n"
 #guard mptBranchChild_prog.length = 77
@@ -1050,15 +1076,28 @@ def mptLookupByKey_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptLookupByKeyFunction : String :=
-  "mpt_lookup_by_key:\n" ++ emitProgram mptLookupByKey_prog
+/-- Reloc side-table for `mptLookupByKey_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptLookupByKey_relocs : RelocTable :=
+  [ (12, .la .x12 "mlk_keccak_buf"),
+    (14, .jal .x1 "zkvm_keccak256"),
+    (15, .la .x10 "mlk_keccak_buf"),
+    (18, .la .x12 "mlk_nibble_buf"),
+    (20, .jal .x1 "bytes_to_nibbles"),
+    (24, .la .x13 "mlk_nibble_buf"),
+    (29, .jal .x1 "mpt_walk") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptLookupByKey_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptLookupByKeyFunction : String :=
+  "mpt_lookup_by_key:\n" ++ emitProgramR mptLookupByKey_prog mptLookupByKey_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptLookupByKey_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptLookupByKeyFunction_eq_prog :
-    mptLookupByKeyFunction = "mpt_lookup_by_key:\n" ++ emitProgram mptLookupByKey_prog := rfl
+    mptLookupByKeyFunction = "mpt_lookup_by_key:\n" ++ emitProgramR mptLookupByKey_prog mptLookupByKey_relocs := rfl
 
 #guard mptLookupByKeyFunction.startsWith "mpt_lookup_by_key:\n"
 #guard mptLookupByKey_prog.length = 38

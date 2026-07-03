@@ -224,15 +224,43 @@ def txEip1559Decode_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def txEip1559DecodeFunction : String :=
-  "tx_eip1559_decode:\n" ++ emitProgram txEip1559Decode_prog
+/-- Reloc side-table for `txEip1559Decode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEip1559Decode_relocs : RelocTable :=
+  [ (8, .jal .x1 "rlp_walk_init"),
+    (14, .jal .x1 "rlp_walk_next"),
+    (19, .jal .x1 "rlp_content_to_u64"),
+    (24, .jal .x1 "rlp_walk_next"),
+    (29, .jal .x1 "rlp_content_to_u64"),
+    (34, .jal .x1 "rlp_walk_next"),
+    (40, .jal .x1 "rlp_content_to_u256_be"),
+    (44, .jal .x1 "rlp_walk_next"),
+    (50, .jal .x1 "rlp_content_to_u256_be"),
+    (54, .jal .x1 "rlp_walk_next"),
+    (59, .jal .x1 "rlp_content_to_u64"),
+    (64, .jal .x1 "rlp_walk_next"),
+    (88, .jal .x1 "rlp_walk_next"),
+    (94, .jal .x1 "rlp_content_to_u256_be"),
+    (98, .jal .x1 "rlp_walk_next"),
+    (107, .jal .x1 "rlp_walk_next"),
+    (116, .jal .x1 "rlp_walk_next"),
+    (121, .jal .x1 "rlp_content_to_u64"),
+    (126, .jal .x1 "rlp_walk_next"),
+    (132, .jal .x1 "rlp_content_to_u256_be"),
+    (136, .jal .x1 "rlp_walk_next"),
+    (142, .jal .x1 "rlp_content_to_u256_be") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `txEip1559Decode_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def txEip1559DecodeFunction : String :=
+  "tx_eip1559_decode:\n" ++ emitProgramR txEip1559Decode_prog txEip1559Decode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEip1559Decode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem txEip1559DecodeFunction_eq_prog :
-    txEip1559DecodeFunction = "tx_eip1559_decode:\n" ++ emitProgram txEip1559Decode_prog := rfl
+    txEip1559DecodeFunction = "tx_eip1559_decode:\n" ++ emitProgramR txEip1559Decode_prog txEip1559Decode_relocs := rfl
 
 #guard txEip1559DecodeFunction.startsWith "tx_eip1559_decode:\n"
 #guard txEip1559Decode_prog.length = 154

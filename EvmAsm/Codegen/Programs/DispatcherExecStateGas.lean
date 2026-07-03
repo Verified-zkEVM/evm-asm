@@ -77,15 +77,23 @@ def dispatcherCaptureExecStateGas_prog : Program :=
     .SD .x6 .x5 (0 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def dispatcherCaptureExecStateGasFunction : String :=
-  "dispatcher_capture_exec_state_gas:\n" ++ emitProgram dispatcherCaptureExecStateGas_prog
+/-- Reloc side-table for `dispatcherCaptureExecStateGas_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def dispatcherCaptureExecStateGas_relocs : RelocTable :=
+  [ (0, .la .x5 "evm_state_gas_used"),
+    (3, .la .x6 "bvgr_tx_exec_state_gas") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `dispatcherCaptureExecStateGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def dispatcherCaptureExecStateGasFunction : String :=
+  "dispatcher_capture_exec_state_gas:\n" ++ emitProgramR dispatcherCaptureExecStateGas_prog dispatcherCaptureExecStateGas_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `dispatcherCaptureExecStateGas_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem dispatcherCaptureExecStateGasFunction_eq_prog :
-    dispatcherCaptureExecStateGasFunction = "dispatcher_capture_exec_state_gas:\n" ++ emitProgram dispatcherCaptureExecStateGas_prog := rfl
+    dispatcherCaptureExecStateGasFunction = "dispatcher_capture_exec_state_gas:\n" ++ emitProgramR dispatcherCaptureExecStateGas_prog dispatcherCaptureExecStateGas_relocs := rfl
 
 #guard dispatcherCaptureExecStateGasFunction.startsWith "dispatcher_capture_exec_state_gas:\n"
 #guard dispatcherCaptureExecStateGas_prog.length = 9

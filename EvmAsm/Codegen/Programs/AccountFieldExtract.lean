@@ -67,15 +67,22 @@ def accountExtractNonce_prog : Program :=
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def accountExtractNonceFunction : String :=
-  "account_extract_nonce:\n" ++ emitProgram accountExtractNonce_prog
+/-- Reloc side-table for `accountExtractNonce_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountExtractNonce_relocs : RelocTable :=
+  [ (7, .jal .x1 "rlp_field_to_u64") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `accountExtractNonce_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def accountExtractNonceFunction : String :=
+  "account_extract_nonce:\n" ++ emitProgramR accountExtractNonce_prog accountExtractNonce_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountExtractNonce_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem accountExtractNonceFunction_eq_prog :
-    accountExtractNonceFunction = "account_extract_nonce:\n" ++ emitProgram accountExtractNonce_prog := rfl
+    accountExtractNonceFunction = "account_extract_nonce:\n" ++ emitProgramR accountExtractNonce_prog accountExtractNonce_relocs := rfl
 
 #guard accountExtractNonceFunction.startsWith "account_extract_nonce:\n"
 #guard accountExtractNonce_prog.length = 15
@@ -161,15 +168,22 @@ def accountExtractBalance_prog : Program :=
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def accountExtractBalanceFunction : String :=
-  "account_extract_balance:\n" ++ emitProgram accountExtractBalance_prog
+/-- Reloc side-table for `accountExtractBalance_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountExtractBalance_relocs : RelocTable :=
+  [ (10, .jal .x1 "rlp_field_to_u256_be") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `accountExtractBalance_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def accountExtractBalanceFunction : String :=
+  "account_extract_balance:\n" ++ emitProgramR accountExtractBalance_prog accountExtractBalance_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountExtractBalance_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem accountExtractBalanceFunction_eq_prog :
-    accountExtractBalanceFunction = "account_extract_balance:\n" ++ emitProgram accountExtractBalance_prog := rfl
+    accountExtractBalanceFunction = "account_extract_balance:\n" ++ emitProgramR accountExtractBalance_prog accountExtractBalance_relocs := rfl
 
 #guard accountExtractBalanceFunction.startsWith "account_extract_balance:\n"
 #guard accountExtractBalance_prog.length = 21

@@ -305,15 +305,25 @@ def bncValidateG1_prog : Program :=
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def bn254ValidateG1Function : String :=
-  "bnc_validate_g1:\n" ++ emitProgram bncValidateG1_prog
+/-- Reloc side-table for `bncValidateG1_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bncValidateG1_relocs : RelocTable :=
+  [ (4, .jal .x1 "bnf_lt_p"),
+    (7, .jal .x1 "bnf_lt_p"),
+    (10, .jal .x1 "bnc_is_inf64"),
+    (15, .jal .x1 "bnc_on_curve") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `bncValidateG1_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def bn254ValidateG1Function : String :=
+  "bnc_validate_g1:\n" ++ emitProgramR bncValidateG1_prog bncValidateG1_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bncValidateG1_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem bn254ValidateG1Function_eq_prog :
-    bn254ValidateG1Function = "bnc_validate_g1:\n" ++ emitProgram bncValidateG1_prog := rfl
+    bn254ValidateG1Function = "bnc_validate_g1:\n" ++ emitProgramR bncValidateG1_prog bncValidateG1_relocs := rfl
 
 #guard bn254ValidateG1Function.startsWith "bnc_validate_g1:\n"
 #guard bncValidateG1_prog.length = 24

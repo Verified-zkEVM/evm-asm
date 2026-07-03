@@ -649,15 +649,32 @@ def mptLeafExtract_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptLeafExtractFunction : String :=
-  "mpt_leaf_extract:\n" ++ emitProgram mptLeafExtract_prog
+/-- Reloc side-table for `mptLeafExtract_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptLeafExtract_relocs : RelocTable :=
+  [ (21, .la .x13 "mle_path_off"),
+    (23, .la .x14 "mle_path_len"),
+    (25, .jal .x1 "rlp_list_nth_item"),
+    (27, .la .x5 "mle_path_len"),
+    (31, .la .x5 "mle_path_off"),
+    (47, .la .x5 "mle_path_len"),
+    (67, .la .x13 "mle_path_off"),
+    (69, .la .x14 "mle_path_len"),
+    (71, .jal .x1 "rlp_list_nth_item"),
+    (73, .la .x5 "mle_path_off"),
+    (78, .la .x5 "mle_path_len") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptLeafExtract_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptLeafExtractFunction : String :=
+  "mpt_leaf_extract:\n" ++ emitProgramR mptLeafExtract_prog mptLeafExtract_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptLeafExtract_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptLeafExtractFunction_eq_prog :
-    mptLeafExtractFunction = "mpt_leaf_extract:\n" ++ emitProgram mptLeafExtract_prog := rfl
+    mptLeafExtractFunction = "mpt_leaf_extract:\n" ++ emitProgramR mptLeafExtract_prog mptLeafExtract_relocs := rfl
 
 #guard mptLeafExtractFunction.startsWith "mpt_leaf_extract:\n"
 #guard mptLeafExtract_prog.length = 97
@@ -847,15 +864,32 @@ def mptExtensionExtract_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptExtensionExtractFunction : String :=
-  "mpt_extension_extract:\n" ++ emitProgram mptExtensionExtract_prog
+/-- Reloc side-table for `mptExtensionExtract_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptExtensionExtract_relocs : RelocTable :=
+  [ (21, .la .x13 "mee_path_off"),
+    (23, .la .x14 "mee_path_len"),
+    (25, .jal .x1 "rlp_list_nth_item"),
+    (27, .la .x5 "mee_path_len"),
+    (31, .la .x5 "mee_path_off"),
+    (47, .la .x5 "mee_path_len"),
+    (67, .la .x13 "mee_path_off"),
+    (69, .la .x14 "mee_path_len"),
+    (71, .jal .x1 "rlp_list_nth_item"),
+    (73, .la .x5 "mee_path_off"),
+    (78, .la .x5 "mee_path_len") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptExtensionExtract_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptExtensionExtractFunction : String :=
+  "mpt_extension_extract:\n" ++ emitProgramR mptExtensionExtract_prog mptExtensionExtract_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptExtensionExtract_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptExtensionExtractFunction_eq_prog :
-    mptExtensionExtractFunction = "mpt_extension_extract:\n" ++ emitProgram mptExtensionExtract_prog := rfl
+    mptExtensionExtractFunction = "mpt_extension_extract:\n" ++ emitProgramR mptExtensionExtract_prog mptExtensionExtract_relocs := rfl
 
 #guard mptExtensionExtractFunction.startsWith "mpt_extension_extract:\n"
 #guard mptExtensionExtract_prog.length = 97

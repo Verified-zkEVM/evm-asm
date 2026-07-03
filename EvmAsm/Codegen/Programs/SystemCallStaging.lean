@@ -178,15 +178,23 @@ def deriveWithdrawalRequests_prog : Program :=
     .ADDI .x10 .x10 (laLo GuestAddrs.withdrawal_request_predeploy_addr (GuestAddrs.derive_withdrawal_requests + 16)),
     .JAL .x0 (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_withdrawal_requests + 24)) ]
 
-def deriveWithdrawalRequestsFunction : String :=
-  "derive_withdrawal_requests:\n" ++ emitProgram deriveWithdrawalRequests_prog
+/-- Reloc side-table for `deriveWithdrawalRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def deriveWithdrawalRequests_relocs : RelocTable :=
+  [ (4, .la .x10 "withdrawal_request_predeploy_addr"),
+    (6, .jal .x0 "stage_system_call") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `deriveWithdrawalRequests_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def deriveWithdrawalRequestsFunction : String :=
+  "derive_withdrawal_requests:\n" ++ emitProgramR deriveWithdrawalRequests_prog deriveWithdrawalRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `deriveWithdrawalRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem deriveWithdrawalRequestsFunction_eq_prog :
-    deriveWithdrawalRequestsFunction = "derive_withdrawal_requests:\n" ++ emitProgram deriveWithdrawalRequests_prog := rfl
+    deriveWithdrawalRequestsFunction = "derive_withdrawal_requests:\n" ++ emitProgramR deriveWithdrawalRequests_prog deriveWithdrawalRequests_relocs := rfl
 
 #guard deriveWithdrawalRequestsFunction.startsWith "derive_withdrawal_requests:\n"
 #guard deriveWithdrawalRequests_prog.length = 7
@@ -222,15 +230,23 @@ def deriveConsolidationRequests_prog : Program :=
     .ADDI .x10 .x10 (laLo GuestAddrs.consolidation_request_predeploy_addr (GuestAddrs.derive_consolidation_requests + 16)),
     .JAL .x0 (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_consolidation_requests + 24)) ]
 
-def deriveConsolidationRequestsFunction : String :=
-  "derive_consolidation_requests:\n" ++ emitProgram deriveConsolidationRequests_prog
+/-- Reloc side-table for `deriveConsolidationRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def deriveConsolidationRequests_relocs : RelocTable :=
+  [ (4, .la .x10 "consolidation_request_predeploy_addr"),
+    (6, .jal .x0 "stage_system_call") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `deriveConsolidationRequests_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def deriveConsolidationRequestsFunction : String :=
+  "derive_consolidation_requests:\n" ++ emitProgramR deriveConsolidationRequests_prog deriveConsolidationRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `deriveConsolidationRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem deriveConsolidationRequestsFunction_eq_prog :
-    deriveConsolidationRequestsFunction = "derive_consolidation_requests:\n" ++ emitProgram deriveConsolidationRequests_prog := rfl
+    deriveConsolidationRequestsFunction = "derive_consolidation_requests:\n" ++ emitProgramR deriveConsolidationRequests_prog deriveConsolidationRequests_relocs := rfl
 
 #guard deriveConsolidationRequestsFunction.startsWith "derive_consolidation_requests:\n"
 #guard deriveConsolidationRequests_prog.length = 7

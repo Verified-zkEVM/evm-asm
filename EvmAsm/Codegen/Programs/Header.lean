@@ -1084,15 +1084,22 @@ def blockHashFromHeader_prog : Program :=
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def blockHashFromHeaderFunction : String :=
-  "block_hash_from_header:\n" ++ emitProgram blockHashFromHeader_prog
+/-- Reloc side-table for `blockHashFromHeader_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockHashFromHeader_relocs : RelocTable :=
+  [ (2, .jal .x1 "zkvm_keccak256") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `blockHashFromHeader_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def blockHashFromHeaderFunction : String :=
+  "block_hash_from_header:\n" ++ emitProgramR blockHashFromHeader_prog blockHashFromHeader_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockHashFromHeader_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem blockHashFromHeaderFunction_eq_prog :
-    blockHashFromHeaderFunction = "block_hash_from_header:\n" ++ emitProgram blockHashFromHeader_prog := rfl
+    blockHashFromHeaderFunction = "block_hash_from_header:\n" ++ emitProgramR blockHashFromHeader_prog blockHashFromHeader_relocs := rfl
 
 #guard blockHashFromHeaderFunction.startsWith "block_hash_from_header:\n"
 #guard blockHashFromHeader_prog.length = 6

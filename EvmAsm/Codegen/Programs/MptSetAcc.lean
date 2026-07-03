@@ -105,15 +105,28 @@ def nodeDbAppend_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def nodeDbAppendFunction : String :=
-  "node_db_append:\n" ++ emitProgram nodeDbAppend_prog
+/-- Reloc side-table for `nodeDbAppend_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def nodeDbAppend_relocs : RelocTable :=
+  [ (9, .la .x12 "mset_db_hash"),
+    (11, .jal .x1 "zkvm_keccak256"),
+    (12, .la .x5 "mset_db_top"),
+    (15, .la .x6 "mset_db_hash"),
+    (29, .jal .x1 "mset_memcpy"),
+    (34, .la .x6 "mset_db_top"),
+    (37, .la .x6 "mset_db_count") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `nodeDbAppend_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def nodeDbAppendFunction : String :=
+  "node_db_append:\n" ++ emitProgramR nodeDbAppend_prog nodeDbAppend_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `nodeDbAppend_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem nodeDbAppendFunction_eq_prog :
-    nodeDbAppendFunction = "node_db_append:\n" ++ emitProgram nodeDbAppend_prog := rfl
+    nodeDbAppendFunction = "node_db_append:\n" ++ emitProgramR nodeDbAppend_prog nodeDbAppend_relocs := rfl
 
 #guard nodeDbAppendFunction.startsWith "node_db_append:\n"
 #guard nodeDbAppend_prog.length = 48
@@ -158,15 +171,23 @@ def nodeDbLookup_prog : Program :=
     .LI .x10 (1 : Word),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def nodeDbLookupFunction : String :=
-  "node_db_lookup:\n" ++ emitProgram nodeDbLookup_prog
+/-- Reloc side-table for `nodeDbLookup_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def nodeDbLookup_relocs : RelocTable :=
+  [ (0, .la .x5 "mset_db_count"),
+    (3, .la .x30 "mset_db_data") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `nodeDbLookup_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def nodeDbLookupFunction : String :=
+  "node_db_lookup:\n" ++ emitProgramR nodeDbLookup_prog nodeDbLookup_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `nodeDbLookup_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem nodeDbLookupFunction_eq_prog :
-    nodeDbLookupFunction = "node_db_lookup:\n" ++ emitProgram nodeDbLookup_prog := rfl
+    nodeDbLookupFunction = "node_db_lookup:\n" ++ emitProgramR nodeDbLookup_prog nodeDbLookup_relocs := rfl
 
 #guard nodeDbLookupFunction.startsWith "node_db_lookup:\n"
 #guard nodeDbLookup_prog.length = 33
@@ -681,15 +702,30 @@ def mptStateRoot_prog : Program :=
     .JALR .x0 .x1 (0 : BitVec 12),
     .JAL .x0 (-36 : BitVec 21) ]
 
-def mptStateRootFunction : String :=
-  "mpt_state_root:\n" ++ emitProgram mptStateRoot_prog
+/-- Reloc side-table for `mptStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptStateRoot_relocs : RelocTable :=
+  [ (13, .la .x5 "mset_dr_root"),
+    (23, .la .x5 "mset_db_count"),
+    (26, .la .x5 "mset_db_data"),
+    (28, .la .x6 "mset_db_top"),
+    (31, .jal .x1 "mpt_resolve_cache_reset"),
+    (40, .la .x10 "mset_dr_root"),
+    (44, .la .x17 "mset_dr_root"),
+    (46, .jal .x1 "mpt_set_acc"),
+    (50, .la .x5 "mset_dr_root") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptStateRoot_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptStateRootFunction : String :=
+  "mpt_state_root:\n" ++ emitProgramR mptStateRoot_prog mptStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptStateRootFunction_eq_prog :
-    mptStateRootFunction = "mpt_state_root:\n" ++ emitProgram mptStateRoot_prog := rfl
+    mptStateRootFunction = "mpt_state_root:\n" ++ emitProgramR mptStateRoot_prog mptStateRoot_relocs := rfl
 
 #guard mptStateRootFunction.startsWith "mpt_state_root:\n"
 #guard mptStateRoot_prog.length = 71

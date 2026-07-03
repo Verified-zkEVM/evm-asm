@@ -196,15 +196,52 @@ def singleLeafTrieRoot_prog : Program :=
     .ADDI .x2 .x2 (56 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def singleLeafTrieRootFunction : String :=
-  "single_leaf_trie_root:\n" ++ emitProgram singleLeafTrieRoot_prog
+/-- Reloc side-table for `singleLeafTrieRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def singleLeafTrieRoot_relocs : RelocTable :=
+  [ (15, .la .x12 "sltr_nibbles"),
+    (17, .jal .x1 "bytes_to_nibbles"),
+    (18, .la .x5 "sltr_nibble_count"),
+    (21, .la .x10 "sltr_nibbles"),
+    (23, .la .x5 "sltr_nibble_count"),
+    (27, .la .x13 "sltr_hp_buf"),
+    (29, .jal .x1 "hp_encode_nibbles"),
+    (30, .la .x5 "sltr_hp_len"),
+    (33, .la .x10 "sltr_hp_buf"),
+    (35, .la .x5 "sltr_hp_len"),
+    (38, .la .x12 "sltr_payload_buf"),
+    (40, .la .x13 "sltr_field_len"),
+    (42, .jal .x1 "rlp_encode_bytes"),
+    (43, .la .x5 "sltr_field_len"),
+    (46, .la .x5 "sltr_cursor"),
+    (49, .la .x5 "sltr_cursor"),
+    (54, .la .x12 "sltr_payload_buf"),
+    (57, .la .x13 "sltr_field_len"),
+    (59, .jal .x1 "rlp_encode_bytes"),
+    (60, .la .x5 "sltr_field_len"),
+    (63, .la .x5 "sltr_cursor"),
+    (67, .la .x5 "sltr_total_payload"),
+    (71, .la .x11 "sltr_node_buf"),
+    (73, .la .x12 "sltr_field_len"),
+    (75, .jal .x1 "rlp_encode_list_prefix"),
+    (76, .la .x5 "sltr_field_len"),
+    (79, .la .x5 "sltr_total_payload"),
+    (82, .la .x28 "sltr_node_buf"),
+    (85, .la .x29 "sltr_payload_buf"),
+    (96, .la .x10 "sltr_node_buf"),
+    (100, .jal .x1 "zkvm_keccak256") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `singleLeafTrieRoot_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def singleLeafTrieRootFunction : String :=
+  "single_leaf_trie_root:\n" ++ emitProgramR singleLeafTrieRoot_prog singleLeafTrieRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `singleLeafTrieRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem singleLeafTrieRootFunction_eq_prog :
-    singleLeafTrieRootFunction = "single_leaf_trie_root:\n" ++ emitProgram singleLeafTrieRoot_prog := rfl
+    singleLeafTrieRootFunction = "single_leaf_trie_root:\n" ++ emitProgramR singleLeafTrieRoot_prog singleLeafTrieRoot_relocs := rfl
 
 #guard singleLeafTrieRootFunction.startsWith "single_leaf_trie_root:\n"
 #guard singleLeafTrieRoot_prog.length = 111
@@ -521,15 +558,22 @@ def mptNodeSlotEncode_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def mptNodeSlotEncodeFunction : String :=
-  "mpt_node_slot_encode:\n" ++ emitProgram mptNodeSlotEncode_prog
+/-- Reloc side-table for `mptNodeSlotEncode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptNodeSlotEncode_relocs : RelocTable :=
+  [ (13, .jal .x1 "zkvm_keccak256") ]
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `mptNodeSlotEncode_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+def mptNodeSlotEncodeFunction : String :=
+  "mpt_node_slot_encode:\n" ++ emitProgramR mptNodeSlotEncode_prog mptNodeSlotEncode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptNodeSlotEncode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem mptNodeSlotEncodeFunction_eq_prog :
-    mptNodeSlotEncodeFunction = "mpt_node_slot_encode:\n" ++ emitProgram mptNodeSlotEncode_prog := rfl
+    mptNodeSlotEncodeFunction = "mpt_node_slot_encode:\n" ++ emitProgramR mptNodeSlotEncode_prog mptNodeSlotEncode_relocs := rfl
 
 #guard mptNodeSlotEncodeFunction.startsWith "mpt_node_slot_encode:\n"
 #guard mptNodeSlotEncode_prog.length = 36
