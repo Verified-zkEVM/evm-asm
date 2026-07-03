@@ -156,6 +156,30 @@ theorem condSub_mask_eq (m rMod N : EvmWord) (carry b3 : Word)
     refine ⟨by rw [hcarry, if_neg hov]; decide, ?_⟩
     rw [hb3, if_pos hult]; decide
 
+/-- **Carry-path result bridge.** The pre-reduced modular add's machine output
+    `(m + rMod) − (N &&& condSubMask take)` — with `m = pow256ModN N`,
+    `rMod = mod (a+b) N`, and `take` the arithmetic subtract-fires flag — equals
+    the EVM `ADDMOD` result, when the 257-bit add carried. Combines
+    `masked_sub_eq_modAdd` (the pre-reduced cond-subtract) with
+    `addmod_carry_eq_modAdd` (the carry-split semantics). This is the pure value
+    fold the Ld machine chain lands into. -/
+theorem sum_minus_masked_N_eq_addmod (a b N : EvmWord) (hN : N ≠ 0)
+    (hcarry : (EvmWord.addCarry a b).fst = true) :
+    (EvmWord.pow256ModN N + EvmWord.mod (a + b) N)
+        - (N &&& EvmWord.condSubMask
+            (decide ((EvmWord.pow256ModN N).toNat
+              + (EvmWord.mod (a + b) N).toNat ≥ N.toNat)))
+      = EvmWord.addmod a b N := by
+  have hNpos : 0 < N.toNat := by
+    have : N.toNat ≠ 0 := fun hz => hN (BitVec.eq_of_toNat_eq (by simpa using hz))
+    omega
+  have hm : (EvmWord.pow256ModN N).toNat < N.toNat := EvmWord.pow256ModN_lt N hN
+  have hr : (EvmWord.mod (a + b) N).toNat < N.toNat := by
+    rw [EvmWord.mod_correct, if_neg hN]; exact Nat.mod_lt _ hNpos
+  rw [EvmWord.masked_sub_eq_modAdd (EvmWord.pow256ModN N) (EvmWord.mod (a + b) N) N
+    hm hr _ (by simp)]
+  exact (EvmWord.addmod_carry_eq_modAdd a b N hN hcarry).symm
+
 end EvmWord
 
 end EvmAsm.Evm64
