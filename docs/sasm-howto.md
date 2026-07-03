@@ -180,6 +180,16 @@ contract; the call machinery consumes it unchanged.
   `win := ws.drop preB.length` and `List.take_append_drop`.  See
   `WidenDemo` (`wLeafFn` owns 8 bytes; `wCallerRVFn` keeps its ra-spill
   slot in its own dword at `x13 - 8`).
+- **Read-only slices** (`FnHandle.widenRo`): same move for `.ro` —
+  verify the callee against its own slice, widen at the call site with
+  the outside bytes (`preR`/`sufR`); pre/post pass through unchanged.
+  One code copy serves every slice: instantiate the handle per call site
+  and materialize the slice pointer with `LI` (see `RoWidenDemo`).
+  Pitfalls (both wideners): pass `hbytes`-style side conditions as
+  `show <projection-free form>; ...` — `decide` refuses goals whose
+  unreduced projections mention free variables — and if `vcgen` reports
+  a `Fn.Spec`/`SpecR` mismatch, insert `show Fn.SpecR _ _ _` before it.
+  Design rationale for named arenas: docs/sasm-design.md §3.6.1.
 
 ### Calling an existing hand-verified `cpsTripleWithin`
 
