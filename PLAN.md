@@ -2532,10 +2532,14 @@ Arith256Mod exact (a*b+c) mod m — with kernel-checked KATs pinned to
 keccak256("")/sha256(""); step traps on invalid operand blocks AND on
 unmodeled CSR ids (no silent skips); emitInstr pre-encodes `.4byte`
 words matching the guest literals (0x80052073/0x8022a073/0x80552073);
-follow-up accelerators (secp add/dbl 0x803/4, blake2b 0x819, bn254,
-bls12) slot into the same execCsrs/csrsValid dispatch; SAsm block
-exposure deferred to beads .17/.18 (design §3.3.1). Next for SAsm:
-more Stateless/SSZ ports. Assertion-state milestone started (approved plan
+the full accelerator set the guest emits is now modeled (stacked PRs:
+Arith384Mod+Blake2bRound, Secp256k1Add/Dbl with fuel-indexed
+kernel-reducible powMod inversion, BN254+BLS12-381 curve+Fp2) — all
+with independently-generated kernel decide KATs; execCsrs is
+definitionally ONE writeWords (csrsWrite computes target+payload), so
+projection lemmas are branch-count-independent; SAsm block exposure
+deferred to beads .17/.18 (design §3.3.1). Next for SAsm: more
+Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the

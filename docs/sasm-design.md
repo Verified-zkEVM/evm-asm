@@ -225,11 +225,20 @@ models them (machine level, below SAsm):
   insulation from ziskemu version drift in operand packing — is instead
   handled by pinning the layouts to the probe results
   (`Codegen/Programs/HashProbes.lean`) and re-validating via EEST runs.
-- **Modeled ids** (v1): `0x800` Keccakf (25-lane LE state, in place),
+- **Modeled ids**: `0x800` Keccakf (25-lane LE state, in place),
   `0x802` Arith256Mod (`[a*, b*, c*, module*, d*]`, 4 LE u64 limbs each),
-  `0x805` Sha256f (`[state*, input*]`, LE-u32-in-u64 packing).  Follow-ups
-  slot into the same `execCsrs`/`csrsValid` dispatch: Secp256k1Add/Dbl
-  (0x803/0x804), Blake2bRound (0x819), BN254, BLS12-381.
+  `0x805` Sha256f (`[state*, input*]`, LE-u32-in-u64 packing),
+  `0x80B` Arith384Mod (6-limb Arith256Mod sibling), `0x819` Blake2bRound
+  (`[sigmaIdx, state*, input*]`, one RFC 7693 round on the 16-word
+  working vector), `0x803`/`0x804` Secp256k1Add/Dbl (affine chord/
+  tangent over concrete field arithmetic, fuel-indexed kernel-reducible
+  `powMod` inversion; degenerate inputs trap), `0x806`–`0x80A` BN254
+  curve+Fp2, `0x80C`–`0x810` BLS12-381 curve+Fp2 (same generic helpers
+  at (modulus, limbs) = (bn254P, 4) / (bls12P, 6); complex ops are
+  componentwise mod p with `u² = −1`).  This closes every accelerator id
+  the guest emits.  `execCsrs` is definitionally ONE `writeWords` (a
+  pure `csrsWrite` computes target and payload), so state-projection
+  lemmas are branch-count-independent.
 - **Traps, not no-ops.**  `step` requires `csrsValid`: every operand dword
   a valid access and (Arith256Mod) a nonzero modulus; an UNMODELED CSR id
   always traps.  A verified triple over code containing a `csrs` therefore
