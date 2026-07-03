@@ -19,64 +19,35 @@ open EvmAsm.Rv64
 
 /-! ## M10 self-calling opcode handlers: ADDMOD (0x08) and EXP (0x0a) -/
 
-/-- Runtime ADDMOD handler body for the dispatcher.
+/-- ADDMOD (0x08) handler body: the verified total three-way ADDMOD program
+    inlined with `evm_mod_callable_v5`.
 
-    The proof-facing `evm_addmod` skeleton still only reduces the truncated
-    low 256-bit sum. The dispatcher needs total EVM behavior now, so this
-    raw handler uses assembler labels for the internal calls and handles the
-    carry-out path empirically:
+    Composition (mirrors `AddMod/ProgramTest.lean`'s canonical layout, whose
+    `#guard` vectors execute exactly this program):
+      - `evm_addmod_total 624 520 416 32`: 216 instr (864 B). The four
+        interior `JAL .x1` MOD-call sites (bytes 244 / 348 / 452 / 836) all
+        target the callable entry at byte 868.
+      - skip-JAL `JAL .x0 +1416`: 1 instr (4 B) at byte 864; jumps past the
+        inlined callable to the handler tail (1416 = 4 + 1412).
+      - `evm_mod_callable_v5`: 353 instr (1412 B) at byte 868.
 
-      * if `N = 0`, write zero and advance by one stack word;
-      * if the ADD carry is zero, reduce the truncated sum with MOD;
-      * if the ADD carry is one, compute `m = 2^256 mod N`, reduce the
-        truncated sum first, add `m`, then perform the single conditional
-        subtract required because both addends are already `< N`.
+    This replaces the earlier hand-written `.Laddmod_*` label-based runtime
+    tail, which (a) still called the buggy v4 MOD callable, and (b) carried a
+    borrow-chain bug in its conditional-subtract path (`sub x5, x5, x11;
+    sltu x11, x5, x11` tests the borrow *after* subtracting it, inverting the
+    borrow whenever a limb difference is 0 or 1 with an incoming borrow).
+    `evm_addmod_total` uses the verified `evm_sub` idiom and parks its carry
+    scratch below the callable's own `F−160..F−8` scratch band, so no
+    absolute-addressed scratch symbols are needed.
 
-    The carry helper uses `addmod_runtime_scratch` for the extra callable MOD
-    frames so temporary reduction state cannot alias deeper live EVM stack
-    words. This wrapper exists only to avoid brittle
-    hand-counted JAL offsets in the runtime dispatcher while the verified
-    top-level ADDMOD assembly catches up. -/
-private def evmAddmodRuntimeTail : HandlerTail :=
-  .custom <| String.intercalate "\n" [
-    emitProgram EvmAsm.Evm64.evm_addmod_prologue,
-    emitProgram EvmAsm.Evm64.evm_addmod_phase1_carry,
-    "  ld x6, 32(x12)\n  ld x5, 40(x12)\n  or x6, x6, x5\n  ld x5, 48(x12)\n  or x6, x6, x5\n  ld x5, 56(x12)\n  or x6, x6, x5\n  beq x6, x0, .Laddmod_zero\n  beq x7, x0, .Laddmod_no_carry\n  la x16, addmod_saved_stack_ptr\n  sd x12, 0(x16)\n  la x15, addmod_runtime_scratch\n  ld x5, 64(x12)\n  sd x5, 128(x15)\n  ld x5, 72(x12)\n  sd x5, 136(x15)\n  ld x5, 80(x12)\n  sd x5, 144(x15)\n  ld x5, 88(x12)\n  sd x5, 152(x15)\n  addi x5, x0, -1\n  sd x5, 0(x15)\n  sd x5, 8(x15)\n  sd x5, 16(x15)\n  sd x5, 24(x15)\n  ld x5, 32(x12)\n  sd x5, 32(x15)\n  ld x5, 40(x12)\n  sd x5, 40(x15)\n  ld x5, 48(x12)\n  sd x5, 48(x15)\n  ld x5, 56(x12)\n  sd x5, 56(x15)\n  mv x12, x15\n  jal x1, .Laddmod_mod_callable\n  la x16, addmod_saved_stack_ptr\n  ld x12, 0(x16)\n  la x15, addmod_runtime_scratch\n  ld x5, 32(x15)\n  addi x6, x5, 1\n  sltiu x7, x6, 1\n  sd x6, 64(x15)\n  ld x5, 40(x15)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 72(x15)\n  ld x5, 48(x15)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 80(x15)\n  ld x5, 56(x15)\n  add x6, x5, x7\n  sltu x7, x6, x7\n  sd x6, 88(x15)\n  ld x5, 32(x12)\n  sd x5, 96(x15)\n  ld x5, 40(x12)\n  sd x5, 104(x15)\n  ld x5, 48(x12)\n  sd x5, 112(x15)\n  ld x5, 56(x12)\n  sd x5, 120(x15)\n  addi x12, x15, 64\n  jal x1, .Laddmod_mod_callable\n  la x16, addmod_saved_stack_ptr\n  ld x12, 0(x16)\n  la x15, addmod_runtime_scratch\n  ld x5, 32(x12)\n  sd x5, 64(x12)\n  ld x5, 40(x12)\n  sd x5, 72(x12)\n  ld x5, 48(x12)\n  sd x5, 80(x12)\n  ld x5, 56(x12)\n  sd x5, 88(x12)\n  jal x1, .Laddmod_mod_callable\n  addi x12, x12, -32\n  ld x5, 32(x12)\n  sd x5, 0(x12)\n  ld x5, 40(x12)\n  sd x5, 8(x12)\n  ld x5, 48(x12)\n  sd x5, 16(x12)\n  ld x5, 56(x12)\n  sd x5, 24(x12)\n  la x15, addmod_runtime_scratch\n  ld x5, 96(x15)\n  sd x5, 32(x12)\n  ld x5, 104(x15)\n  sd x5, 40(x12)\n  ld x5, 112(x15)\n  sd x5, 48(x12)\n  ld x5, 120(x15)\n  sd x5, 56(x12)",
-    emitProgram EvmAsm.Evm64.evm_add,
-    "  bne x5, x0, .Laddmod_sub_n\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_carry_done\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_carry_done\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  bltu x7, x6, .Laddmod_sub_n\n  bltu x6, x7, .Laddmod_carry_done\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  bltu x6, x7, .Laddmod_carry_done\n.Laddmod_sub_n:\n  ld x6, 0(x12)\n  ld x7, 32(x12)\n  sub x5, x6, x7\n  sltu x11, x6, x7\n  sd x5, 0(x12)\n  ld x6, 8(x12)\n  ld x7, 40(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 8(x12)\n  ld x6, 16(x12)\n  ld x7, 48(x12)\n  sub x5, x6, x7\n  sltu x10, x6, x7\n  sub x5, x5, x11\n  sltu x11, x5, x11\n  or x11, x10, x11\n  sd x5, 16(x12)\n  ld x6, 24(x12)\n  ld x7, 56(x12)\n  sub x5, x6, x7\n  sub x5, x5, x11\n  sd x5, 24(x12)\n  j .Laddmod_carry_done\n.Laddmod_no_carry:\n  jal x1, .Laddmod_mod_callable\n  j .Laddmod_dispatch\n.Laddmod_zero:",
-    emitProgram EvmAsm.Evm64.evm_addmod_phase2_zero_path,
-    emitProgram EvmAsm.Evm64.evm_addmod_epilogue,
-    "  j .Laddmod_dispatch",
-    -- The carry/no-carry paths `jal x1, .Laddmod_mod_callable` into
-    -- `evm_mod_callable_v4` (the verified DIV/MOD core), which uses `x2` (= `sp`)
-    -- as a general-purpose register. Restore the LP64 helper-call stack pointer
-    -- before resuming `.dispatch_loop`, else the next helper-call prologue
-    -- (`sd ra, 0(sp)`) faults on a garbage `sp` (ziskemu `mem.rs:593`). Same
-    -- `sp`-restore as `divModTail` / `expTail`. The carry helper also uses the
-    -- caller-tail window at `x12+64..120`; restore the original tail under the
-    -- final ADDMOD result before dispatching the next opcode.
-    ".Laddmod_carry_done:\n  la x15, addmod_runtime_scratch\n  ld x5, 128(x15)\n  sd x5, 32(x12)\n  ld x5, 136(x15)\n  sd x5, 40(x12)\n  ld x5, 144(x15)\n  sd x5, 48(x12)\n  ld x5, 152(x15)\n  sd x5, 56(x12)\n.Laddmod_dispatch:\n  mv x10, x14\n  la x15, addmod_saved_env_ptr\n  ld x20, 0(x15)\n  la sp, lp64_sp_top\n  addi x10, x10, 1\n  j .dispatch_loop\n.Laddmod_mod_callable:",
-    emitProgram EvmAsm.Evm64.evm_mod_callable_v4]
-
-/-- Runtime ADDMOD handler assembly. Supports the no-carry lane by reusing
-    `evmAddmodComposed`'s snippets, but rejects carry-out sums explicitly.
-    The full ADDMOD semantics need 257-bit reduction `(c * 2^256 + r) mod N`;
-    until that lands, `x7 != 0` is an unsupported development halt
-    (`halt_kind = 3`) rather than a false successful low-256-bit result. -/
-private def addmodRuntimeAsm : String :=
-  "  mv x14, x10\n" ++
-  emitProgram EvmAsm.Evm64.evm_addmod_prologue ++ "\n" ++
-  emitProgram EvmAsm.Evm64.evm_addmod_phase1_carry ++ "\n" ++
-  "  bnez x7, .exit_invalid_op\n" ++
-  emitProgram (EvmAsm.Evm64.evm_addmod_phase2_reduce 8) ++ "\n" ++
-  emitProgram (single (Instr.JAL .x0 (1376 : BitVec 21))) ++ "\n" ++
-  emitProgram EvmAsm.Evm64.evm_mod_callable_v4 ++ "\n" ++
-  "  mv x10, x14\n" ++
-  "  addi x10, x10, 1\n" ++
-  "  j .dispatch_loop"
+    Net `x12` advance: +64 on every branch (pops 3, pushes 1). -/
+def evmAddmodComposedTotal : Program :=
+  EvmAsm.Evm64.evm_addmod_total 624 520 416 32 ;;
+  single (Instr.JAL .x0 (1416 : BitVec 21)) ;;
+  EvmAsm.Evm64.evm_mod_callable_v5
 
 /-- EXP (0x0a) handler body: the double-fixed verified EXP body inlined
-    with `mul_callable`, mirroring `evmAddmodComposed`.
+    with `mul_callable`, mirroring `evmAddmodComposedTotal`.
 
     Uses the architecture-B **headroom** body
     (`evm_exp_..._fixed_fixed_headroom_canonical`), which fixes the
@@ -106,10 +77,13 @@ def evmExpComposed : Program :=
   single (Instr.JAL .x0 (260 : BitVec 21)) ;;
   EvmAsm.Evm64.mul_callable
 
-/-- Tail for EXP (0x0a): the inner `JAL .x1` into `mul_callable` clobbers
-    `x1`, so `ret` would jump to garbage. Restore the LP64 stack pointer
-    that h_EXP's `preBody` repointed at `exp_scratch`, then dispatch again. -/
-private def expTail : HandlerTail :=
+/-- Shared tail for the self-calling handlers (ADDMOD / EXP): their inner
+    `JAL .x1` calls (into `evm_mod_callable_v5` / `mul_callable`) clobber
+    `x1`, so `ret` would jump to garbage — dispatch again via
+    `.dispatch_loop` instead. The callables also use `x2` (= `sp`) as a
+    general-purpose register, so restore the LP64 helper-call stack pointer
+    first (same `sp`-restore as `divModTail`). -/
+private def selfCallingTail : HandlerTail :=
   .custom ("  mv x10, x14\n" ++
            "  la sp, lp64_sp_top\n" ++
            "  addi x10, x10, 1\n" ++
@@ -118,13 +92,13 @@ private def expTail : HandlerTail :=
 def selfCallingHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_ADDMOD"
       opcodes       := [0x08]
-      preBody       := stackUnderflowGuardAsm 3 ++ "\n  mv x14, x10\n  la x15, addmod_saved_env_ptr\n  sd x20, 0(x15)"
-      body          := []
-      tail          := evmAddmodRuntimeTail }
+      preBody       := stackUnderflowGuardAsm 3 ++ "\n  mv x14, x10"
+      body          := evmAddmodComposedTotal
+      tail          := selfCallingTail }
   , { label         := "h_EXP"
       opcodes       := [0x0a]
       preBody       := stackUnderflowGuardAsm 2 ++ "\n" ++ expDynamicGasAsm ++ "  mv x14, x10\n  la x2, exp_scratch"
       body          := evmExpComposed
-      tail          := expTail } ]
+      tail          := selfCallingTail } ]
 
 end EvmAsm.Codegen

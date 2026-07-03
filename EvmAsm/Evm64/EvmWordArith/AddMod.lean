@@ -228,6 +228,147 @@ theorem pow256ModN_correct (N : EvmWord) :
       omega
     exact Nat.mod_eq_of_lt hlt
 
+-- ============================================================================
+-- Carry-path value bridges (runtime ADDMOD, `evm_addmod_total` carry branch)
+-- ============================================================================
+--
+-- The total ADDMOD carry branch (`a.toNat + b.toNat ≥ 2^256`) materializes
+-- `2^256 mod N` at runtime via `((2^256 − 1) mod N + 1) mod N` (two MOD calls
+-- plus a limb add-one), reduces the truncated sum `r` via a third MOD call,
+-- and combines them with a pre-reduced modular add. These lemmas certify the
+-- word-level values the three runtime blocks compute.
+
+/-- The runtime construction of `2^256 mod N`: `((2^256 − 1) mod N + 1) mod N`.
+    The RISC-V carry path materializes the all-ones word `-1 = 2^256 − 1`,
+    reduces it mod `N` (call 1), adds one at the limb level, and reduces again
+    (call 2). This equals `pow256ModN N` for every `N ≠ 0`.
+
+    The intermediate word-add `EvmWord.mod (-1) N + 1` does not wrap 2^256
+    because `(2^256 − 1) mod N ≤ N − 1 ≤ 2^256 − 2`, so the `+1` is exact at
+    the `Nat` level and the second `mod N` collapses to `2^256 mod N` via
+    `Nat.add_mod`. -/
+theorem pow256ModN_runtime_construction (N : EvmWord) (hN : N ≠ 0) :
+    EvmWord.mod (EvmWord.mod (-1 : EvmWord) N + 1) N = EvmWord.pow256ModN N := by
+  have hNpos : 0 < N.toNat := by
+    rcases Nat.eq_zero_or_pos N.toNat with h | h
+    · exact absurd (BitVec.eq_of_toNat_eq (by simpa using h)) hN
+    · exact h
+  have hNlt : N.toNat < 2 ^ 256 := N.isLt
+  -- `(-1 : EvmWord).toNat = 2^256 − 1`.
+  have hneg : (-1 : EvmWord).toNat = 2 ^ 256 - 1 := by decide
+  -- Reduce `EvmWord.mod (-1) N` to the Nat value `(2^256 − 1) % N.toNat`.
+  have hmod1 : (EvmWord.mod (-1 : EvmWord) N).toNat = (2 ^ 256 - 1) % N.toNat := by
+    rw [EvmWord.mod_correct, if_neg hN, hneg]
+  -- `(2^256 − 1) % N.toNat ≤ N.toNat − 1`, so the word-add `+1` is exact.
+  have hbound : (2 ^ 256 - 1) % N.toNat < N.toNat := Nat.mod_lt _ hNpos
+  have haddNat : (EvmWord.mod (-1 : EvmWord) N + 1).toNat
+      = (2 ^ 256 - 1) % N.toNat + 1 := by
+    rw [BitVec.toNat_add, hmod1]
+    have : ((1 : EvmWord)).toNat = 1 := by decide
+    rw [this]
+    apply Nat.mod_eq_of_lt
+    omega
+  -- Now the outer `mod N` collapses via `Nat.add_mod` + `Nat.sub_add_cancel`.
+  apply BitVec.eq_of_toNat_eq
+  rw [EvmWord.mod_correct, if_neg hN, haddNat, EvmWord.pow256ModN_correct, if_neg hN]
+  -- `((2^256 − 1) % N + 1) % N = ((2^256 − 1) + 1) % N = 2^256 % N`.
+  conv_lhs => rw [Nat.add_mod, Nat.mod_mod_of_dvd _ (dvd_refl _)]
+  rw [← Nat.add_mod]
+  have : 2 ^ 256 - 1 + 1 = 2 ^ 256 := by
+    have : (1 : Nat) ≤ 2 ^ 256 := Nat.one_le_two_pow
+    omega
+  rw [this]
+
+/-- The carry-path modular-add operands are pre-reduced: `2^256 mod N` and
+    `r mod N` are both `< N`, so `EvmWord.modAdd` applies to them. -/
+theorem pow256ModN_lt (N : EvmWord) (hN : N ≠ 0) :
+    (EvmWord.pow256ModN N).toNat < N.toNat := by
+  have hNpos : 0 < N.toNat := by
+    rcases Nat.eq_zero_or_pos N.toNat with h | h
+    · exact absurd (BitVec.eq_of_toNat_eq (by simpa using h)) hN
+    · exact h
+  rw [EvmWord.pow256ModN_correct, if_neg hN]
+  exact Nat.mod_lt _ hNpos
+
+/-- Carry-path semantic identity: when `a.toNat + b.toNat` overflows 256 bits
+    (`(addCarry a b).fst = true`), ADDMOD equals the pre-reduced modular add of
+    the carry contribution `2^256 mod N` and the reduced truncated sum
+    `(a + b) mod N`. This is exactly what the runtime carry branch computes:
+    `m := 2^256 mod N`, `rMod := r mod N`, `result := (m + rMod) mod N`. -/
+theorem addmod_carry_eq_modAdd (a b N : EvmWord) (hN : N ≠ 0)
+    (hcarry : (EvmWord.addCarry a b).fst = true) :
+    EvmWord.addmod a b N
+      = EvmWord.modAdd (EvmWord.pow256ModN N) (EvmWord.mod (a + b) N) N := by
+  have hNpos : 0 < N.toNat := by
+    rcases Nat.eq_zero_or_pos N.toNat with h | h
+    · exact absurd (BitVec.eq_of_toNat_eq (by simpa using h)) hN
+    · exact h
+  -- The truncated sum `(addCarry a b).snd = a + b`.
+  apply BitVec.eq_of_toNat_eq
+  rw [EvmWord.modAdd, BitVec.toNat_ofNat]
+  rw [EvmWord.addmod_correct, if_neg hN]
+  -- `pow256ModN N` and `(a+b) mod N` are both `< N`, so the outer ofNat is a no-op.
+  have hmLt : (EvmWord.pow256ModN N).toNat < N.toNat := pow256ModN_lt N hN
+  have hrLt : (EvmWord.mod (a + b) N).toNat < N.toNat := by
+    rw [EvmWord.mod_correct, if_neg hN]; exact Nat.mod_lt _ hNpos
+  have hpow : (EvmWord.pow256ModN N).toNat = 2 ^ 256 % N.toNat := by
+    rw [EvmWord.pow256ModN_correct, if_neg hN]
+  have hr : (EvmWord.mod (a + b) N).toNat = (a + b).toNat % N.toNat := by
+    rw [EvmWord.mod_correct, if_neg hN]
+  -- `(a+b).toNat = (a.toNat + b.toNat) % 2^256`; with carry, the split gives
+  -- `a.toNat + b.toNat = 2^256 + (a+b).toNat`.
+  have hsplit : a.toNat + b.toNat = 2 ^ 256 + (a + b).toNat := by
+    have hsnd : (EvmWord.addCarry a b).snd = a + b := rfl
+    have hspec := EvmWord.addCarry_spec a b
+    rw [hcarry, hsnd] at hspec
+    simpa using hspec
+  have hlt : ((EvmWord.pow256ModN N).toNat + (EvmWord.mod (a + b) N).toNat) % N.toNat < 2 ^ 256 := by
+    have hN256 : N.toNat < 2 ^ 256 := N.isLt
+    have : ((EvmWord.pow256ModN N).toNat + (EvmWord.mod (a + b) N).toNat) % N.toNat < N.toNat :=
+      Nat.mod_lt _ hNpos
+    omega
+  rw [Nat.mod_eq_of_lt hlt, hpow, hr]
+  -- `(a.toNat+b.toNat) % N = (2^256 + (a+b).toNat) % N = (2^256 % N + (a+b).toNat % N) % N`.
+  rw [hsplit, Nat.add_mod (2 ^ 256) ((a + b).toNat)]
+
+/-- Word-level correctness of the branch-free conditional subtract that closes
+    the pre-reduced modular add. With both operands `< N`, the true sum
+    `σ = m.toNat + rMod.toNat < 2N`, so `σ mod N = σ − N` exactly when `σ ≥ N`.
+    The runtime detects `σ ≥ N` as `carry-out ∨ (m + rMod) ≥ N` (`carry` = the
+    257th bit of the add; the `≥ N` test = the borrow-out of `(m + rMod) − N`),
+    passed in here as the Bool `take` with its spec `htake`.
+
+    This is the word-level heart of `evm_addmod_carry_cond_sub`: the per-limb
+    borrow chain maps to `(m + rMod) − N` via `sub_borrow_chain_correct`, the
+    `≥ N` test to `¬ ult` via `lt_borrow_chain_correct`, and the mask-select
+    `N &&& mask` to `if take then N else 0`. -/
+theorem modAdd_eq_condSub_of (m rMod N : EvmWord)
+    (hm : m.toNat < N.toNat) (hr : rMod.toNat < N.toNat)
+    (take : Bool) (htake : take = true ↔ m.toNat + rMod.toNat ≥ N.toNat) :
+    EvmWord.modAdd m rMod N =
+      (if take then (m + rMod) - N else (m + rMod)) := by
+  have hNpos : 0 < N.toNat := Nat.lt_of_le_of_lt (Nat.zero_le _) hm
+  have hN256 : N.toNat < 2 ^ 256 := N.isLt
+  have hmodAdd : (EvmWord.modAdd m rMod N).toNat
+      = (m.toNat + rMod.toNat) % N.toNat := modAdd_correct m rMod N hm hr
+  apply BitVec.eq_of_toNat_eq
+  rw [hmodAdd]
+  by_cases hge : m.toNat + rMod.toNat ≥ N.toNat
+  · -- `σ % N = σ − N` (using `σ < 2N`); the remaining `% 2^256` is a numeral for omega.
+    have hmodN : (m.toNat + rMod.toNat) % N.toNat = (m.toNat + rMod.toNat) - N.toNat := by
+      rw [Nat.mod_eq_sub_mod hge, Nat.mod_eq_of_lt (by omega)]
+    rw [hmodN, if_pos (htake.mpr hge), BitVec.toNat_sub, BitVec.toNat_add]
+    omega
+  · have hlt : m.toNat + rMod.toNat < N.toNat := by omega
+    have hmodN : (m.toNat + rMod.toNat) % N.toNat = m.toNat + rMod.toNat :=
+      Nat.mod_eq_of_lt hlt
+    have hnottake : take = false := by
+      cases take with
+      | false => rfl
+      | true => exact absurd (htake.mp rfl) hge
+    rw [hmodN, hnottake, if_neg (by simp), BitVec.toNat_add]
+    omega
+
 end EvmWord
 
 end EvmAsm.Evm64

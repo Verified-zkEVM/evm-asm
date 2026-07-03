@@ -1948,18 +1948,11 @@ def emitDispatcherDataSection
                           -- `lp64_sp_top` (top of a down-growing stack), so
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
-  ".balign 32\n" ++
-  "addmod_runtime_scratch_pad:\n" ++
-  "  .zero 160\n" ++      -- Headroom for callable MOD's negative scratch offsets.
-  ".balign 32\n" ++
-  "addmod_runtime_scratch:\n" ++
-  "  .zero 160\n" ++      -- ADDMOD (0x08): two callable MOD frames plus saved caller tail.
-  ".balign 8\n" ++
-  "addmod_saved_stack_ptr:\n" ++
-  "  .zero 8\n" ++        -- Live EVM stack pointer across ADDMOD carry helper calls.
-  "addmod_saved_env_ptr:\n" ++
-  "  .zero 8\n" ++        -- Original dispatcher env pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
+                          -- (ADDMOD (0x08) needs no scratch symbols here: the
+                          -- verified `evm_addmod_total` body parks its carry
+                          -- scratch below `x12`, inside the guarded EVM stack
+                          -- region — see EvmSelfCallingHandlers.lean.)
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++
   emitJumpdestBitmapData ++
@@ -3128,18 +3121,11 @@ def emitRuntimeDispatcherDataSectionCore
                           -- `lp64_sp_top` (top of a down-growing stack), so
                           -- `sp+0..24` would scribble into the jump table.
                           -- h_EXP's preBody repoints `x2` here and its tail
-  ".balign 32\n" ++
-  "addmod_runtime_scratch_pad:\n" ++
-  "  .zero 160\n" ++      -- Headroom for callable MOD's negative scratch offsets.
-  ".balign 32\n" ++
-  "addmod_runtime_scratch:\n" ++
-  "  .zero 160\n" ++      -- ADDMOD (0x08): two callable MOD frames plus saved caller tail.
-  ".balign 8\n" ++
-  "addmod_saved_stack_ptr:\n" ++
-  "  .zero 8\n" ++        -- Live EVM stack pointer across ADDMOD carry helper calls.
-  "addmod_saved_env_ptr:\n" ++
-  "  .zero 8\n" ++        -- Original dispatcher env pointer across inner MOD calls.
                           -- restores `sp = lp64_sp_top`.
+                          -- (ADDMOD (0x08) needs no scratch symbols here: the
+                          -- verified `evm_addmod_total` body parks its carry
+                          -- scratch below `x12`, inside the guarded EVM stack
+                          -- region — see EvmSelfCallingHandlers.lean.)
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++
   emitJumpdestBitmapData ++
