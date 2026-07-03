@@ -121,6 +121,8 @@ def emitInstr : Instr → String
 example : emitInstr (.CSRS 0x800 .x10) = s!".4byte {0x80052073}" := rfl
 example : emitInstr (.CSRS 0x802 .x5) = s!".4byte {0x8022a073}" := rfl
 example : emitInstr (.CSRS 0x805 .x10) = s!".4byte {0x80552073}" := rfl
+example : emitInstr (.CSRS 0x803 .x5) = s!".4byte {0x8032a073}" := rfl
+example : emitInstr (.CSRS 0x804 .x5) = s!".4byte {0x8042a073}" := rfl
 example : emitInstr (.CSRS 0x80B .x10) = s!".4byte {0x80b52073}" := rfl
 example : emitInstr (.CSRS 0x819 .x10) = s!".4byte {0x81952073}" := rfl
 

@@ -230,9 +230,11 @@ models them (machine level, below SAsm):
   `0x805` Sha256f (`[state*, input*]`, LE-u32-in-u64 packing),
   `0x80B` Arith384Mod (6-limb Arith256Mod sibling), `0x819` Blake2bRound
   (`[sigmaIdx, state*, input*]`, one RFC 7693 round on the 16-word
-  working vector).  Follow-ups slot into the same `execCsrs`/`csrsValid`
-  dispatch: Secp256k1Add/Dbl (0x803/0x804), BN254 curve+Fp2
-  (0x806–0x80A), BLS12-381 curve+Fp2 (0x80C–0x810).
+  working vector), `0x803`/`0x804` Secp256k1Add/Dbl (affine chord/
+  tangent over concrete field arithmetic, fuel-indexed kernel-reducible
+  `powMod` inversion; degenerate inputs trap).  Follow-ups slot into the
+  same `execCsrs`/`csrsValid` dispatch: BN254 curve+Fp2 (0x806–0x80A),
+  BLS12-381 curve+Fp2 (0x80C–0x810).
 - **Traps, not no-ops.**  `step` requires `csrsValid`: every operand dword
   a valid access and (Arith256Mod) a nonzero modulus; an UNMODELED CSR id
   always traps.  A verified triple over code containing a `csrs` therefore

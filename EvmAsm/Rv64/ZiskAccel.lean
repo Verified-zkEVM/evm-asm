@@ -32,6 +32,11 @@
     0x805  Sha256f      rs1 → [state*, input*]; state = 8 u32 (LE-u32
                         packed in u64), input = 16 u32; one compression,
                         in place
+    0x803  Secp256k1Add rs1 → [p1*, p2*], 64-byte affine points (x||y,
+                        4 LE u64 limbs each); p1 := p1 + p2 by the chord
+                        formula (coords reduced, x1 ≠ x2 — else trap)
+    0x804  Secp256k1Dbl rs1 → 64-byte affine point, doubled in place by
+                        the tangent formula (coords reduced, y ≠ 0)
     0x80B  Arith384Mod  rs1 → [a*, b*, c*, module*, d*], 6 LE u64 limbs
                         each; d := (a*b + c) mod module (module = 0 traps)
     0x819  Blake2bRound rs1 → [sigmaIdx, state*, input*]; one BLAKE2b
@@ -273,6 +278,88 @@ theorem blake2bRound_kat_abc :
        0x2318a24e2140fc64] := by decide
 
 -- ============================================================================
+-- Modular exponentiation and affine short-Weierstrass point operations
+-- ============================================================================
+
+/-- Fuel-indexed square-and-multiply core.  STRUCTURAL recursion on the
+    fuel (not well-founded on the exponent) so the kernel can reduce it —
+    `decide` KATs and downstream concrete evaluation depend on that. -/
+def powModAux (m : Nat) : Nat → Nat → Nat → Nat
+  | 0, _, _ => 1 % m
+  | fuel + 1, b, e =>
+      if e = 0 then 1 % m
+      else
+        let h := powModAux m fuel (b * b % m) (e / 2)
+        if e % 2 = 1 then h * (b % m) % m else h
+
+/-- `b ^ e mod m`.  512 fuel covers every exponent below `2^512` — far
+    beyond the 256/384-bit field exponents the accelerators need. -/
+def powMod (b e m : Nat) : Nat := powModAux m 512 (b % m) e
+
+/-- Modular inverse via Fermat (callers guarantee `m` prime and
+    `x % m ≠ 0`). -/
+def invMod (x m : Nat) : Nat := powMod x (m - 2) m
+
+/-- Affine chord addition on `y² = x³ + b` (all three accelerator curves
+    have `a = 0`): `λ = (y2−y1)/(x2−x1)`.  Inputs reduced (`< p`) and
+    `x1 ≠ x2` — both guarded by `csrsValid`. -/
+def curveAdd (p x1 y1 x2 y2 : Nat) : Nat × Nat :=
+  let lam := (y2 + p - y1) * invMod ((x2 + p - x1) % p) p % p
+  let x3 := (lam * lam + 2 * p - x1 - x2) % p
+  (x3, (lam * ((x1 + p - x3) % p) + p - y1) % p)
+
+/-- Affine tangent doubling on `y² = x³ + b`: `λ = 3x₁²/(2y₁)`.  Inputs
+    reduced and `y1 ≠ 0` — guarded by `csrsValid`. -/
+def curveDbl (p x1 y1 : Nat) : Nat × Nat :=
+  let lam := 3 * x1 * x1 % p * invMod (2 * y1 % p) p % p
+  let x3 := (lam * lam + 2 * p - x1 - x1) % p
+  (x3, (lam * ((x1 + p - x3) % p) + p - y1) % p)
+
+/-- Point operations on the accelerator wire format: a point is `2*nl`
+    LE u64 limbs, `x` first. -/
+def curveAddL (p nl : Nat) (pt1 pt2 : List Word) : List Word :=
+  let r := curveAdd p (leLimbsToNat (pt1.take nl)) (leLimbsToNat (pt1.drop nl))
+    (leLimbsToNat (pt2.take nl)) (leLimbsToNat (pt2.drop nl))
+  natToLeLimbs nl r.1 ++ natToLeLimbs nl r.2
+
+def curveDblL (p nl : Nat) (pt : List Word) : List Word :=
+  let r := curveDbl p (leLimbsToNat (pt.take nl)) (leLimbsToNat (pt.drop nl))
+  natToLeLimbs nl r.1 ++ natToLeLimbs nl r.2
+
+/-- Both coordinates reduced below the field modulus. -/
+def ptValid (p nl : Nat) (pt : List Word) : Bool :=
+  decide (leLimbsToNat (pt.take nl) < p)
+    && decide (leLimbsToNat (pt.drop nl) < p)
+
+/-- The secp256k1 base-field modulus. -/
+def secpP : Nat :=
+  0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
+
+set_option maxRecDepth 40000 in
+/-- Known-answer test, kernel-checked: doubling the secp256k1 generator
+    yields 2·G (expected coordinates from an independent Python
+    implementation). -/
+theorem secp_curveDbl_kat :
+    curveDbl secpP
+      0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
+      0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
+    = (0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5,
+       0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A)
+    := by decide
+
+set_option maxRecDepth 40000 in
+/-- Known-answer test, kernel-checked: `G + 2G = 3G` on secp256k1. -/
+theorem secp_curveAdd_kat :
+    curveAdd secpP
+      0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
+      0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
+      0xC6047F9441ED7D6D3045406E95C07CD85C778E4B8CEF3CA7ABAC09B95C709EE5
+      0x1AE168FEA63DC339A3C58419466CEAEEF7F632653266D0E1236431A950CFE52A
+    = (0xF9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9,
+       0x388F7B0F632DE8140FE337E62A37F3566500A99934C2231B6CB9FD7584B8E672)
+    := by decide
+
+-- ============================================================================
 -- u32-in-dword packing (the pinned ziskemu 0.18 Sha256f layout)
 -- ============================================================================
 
@@ -338,6 +425,14 @@ def execCsrs (s : MachineState) (csr : BitVec 12) (rs1 : Reg) : MachineState :=
     let st := Accel.dwordsToU32s (s.readWords stP 4)
     let blk := Accel.dwordsToU32s (s.readWords (s.getMem (p + 8)) 8)
     s.writeWords stP (Accel.u32sToDwords (Accel.sha256Compress st blk))
+  else if csr = 0x803 then
+    -- Secp256k1Add: parameter block [p1*, p2*] at p; p1 += p2 (chord)
+    let p1P := s.getMem p
+    s.writeWords p1P (Accel.curveAddL Accel.secpP 4
+      (s.readWords p1P 8) (s.readWords (s.getMem (p + 8)) 8))
+  else if csr = 0x804 then
+    -- Secp256k1Dbl: rs1 → point, doubled in place (tangent)
+    s.writeWords p (Accel.curveDblL Accel.secpP 4 (s.readWords p 8))
   else if csr = 0x80B then
     -- Arith384Mod: parameter block [a*, b*, c*, module*, d*] at p,
     -- 6 LE u64 limbs each (the 384-bit sibling of Arith256Mod)
@@ -378,6 +473,18 @@ def csrsValid (s : MachineState) (csr : BitVec 12) (rs1 : Reg) : Bool :=
     validDwordRange p 2 &&
     validDwordRange (s.getMem p) 4 &&
     validDwordRange (s.getMem (p + 8)) 8
+  else if csr = 0x803 then
+    validDwordRange p 2 &&
+    validDwordRange (s.getMem p) 8 &&
+    validDwordRange (s.getMem (p + 8)) 8 &&
+    Accel.ptValid Accel.secpP 4 (s.readWords (s.getMem p) 8) &&
+    Accel.ptValid Accel.secpP 4 (s.readWords (s.getMem (p + 8)) 8) &&
+    !(Accel.leLimbsToNat ((s.readWords (s.getMem p) 8).take 4)
+        == Accel.leLimbsToNat ((s.readWords (s.getMem (p + 8)) 8).take 4))
+  else if csr = 0x804 then
+    validDwordRange p 8 &&
+    Accel.ptValid Accel.secpP 4 (s.readWords p 8) &&
+    !(Accel.leLimbsToNat ((s.readWords p 8).drop 4) == 0)
   else if csr = 0x80B then
     validDwordRange p 5 &&
     validDwordRange (s.getMem p) 6 &&
