@@ -339,4 +339,80 @@ theorem la_call1_in_C
       (fun a i h => evm_addmod_total_program_code_carry_call1_sub a i h)
       hdisjTC)
 
+/-- La123: `save_operands ;; minus_one_args ;; [call1]` over `C`, from carry
+    entry (byte 160) to the first MOD-call return (byte 248). Leaves
+    `EvmWord.mod (-1) N` at F+32..56 with `x12 = F+32`, `x1 = bt+248`. -/
+theorem la123_spec_within
+    (bt F x5Old n0 n1 n2 n3 r0 r1 r2 r3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3 : Word)
+    (x1v x2v x6v x7v x9v x10v x11v : Word)
+    (sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7 : Word)
+    (shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word)
+    (hoffset : (bt + 244) + signExtend21 mo1 = calleeEntry)
+    (callerAlign : ((bt + 244) + 4) &&& ~~~(1 : Word) = (bt + 244) + 4)
+    (retAlign : ((calleeEntry + div128CallRetOff) + signExtend12 (0 : BitVec 12))
+        &&& ~~~(1 : Word) = calleeEntry + div128CallRetOff)
+    (hdisj : (CodeReq.singleton (bt + 244) (.JAL .x1 mo1)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisjTC : (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry)) :
+    cpsTripleWithin (21 + (1 + (unifiedDivBound + 1))) (bt + 160) ((bt + 244) + 4)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (((.x12 ↦ᵣ F) ** (.x5 ↦ᵣ x5Old) **
+        ((F + signExtend12 (32 : BitVec 12)) ↦ₘ n0) **
+        ((F + signExtend12 (40 : BitVec 12)) ↦ₘ n1) **
+        ((F + signExtend12 (48 : BitVec 12)) ↦ₘ n2) **
+        ((F + signExtend12 (56 : BitVec 12)) ↦ₘ n3) **
+        ((F + signExtend12 (0 : BitVec 12)) ↦ₘ r0) **
+        ((F + signExtend12 (8 : BitVec 12)) ↦ₘ r1) **
+        ((F + signExtend12 (16 : BitVec 12)) ↦ₘ r2) **
+        ((F + signExtend12 (24 : BitVec 12)) ↦ₘ r3) **
+        ((F + signExtend12 (3904 : BitVec 12)) ↦ₘ sp0) **
+        ((F + signExtend12 (3912 : BitVec 12)) ↦ₘ sp1) **
+        ((F + signExtend12 (3920 : BitVec 12)) ↦ₘ sp2) **
+        ((F + signExtend12 (3928 : BitVec 12)) ↦ₘ sp3) **
+        ((F + signExtend12 (3872 : BitVec 12)) ↦ₘ sq0) **
+        ((F + signExtend12 (3880 : BitVec 12)) ↦ₘ sq1) **
+        ((F + signExtend12 (3888 : BitVec 12)) ↦ₘ sq2) **
+        ((F + signExtend12 (3896 : BitVec 12)) ↦ₘ sq3)) **
+       addmodLaTail F x1v x2v x6v x7v x9v x10v x11v
+         sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+         shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem)
+      ((modStackDispatchPostCallableX9Owned F (-1 : EvmWord)
+          (EvmWord.fromLimbs ![n0, n1, n2, n3]) ((bt + 244) + 4) **
+        memOwn (F + signExtend12 (3936 : BitVec 12))) **
+       addmodCall1Frame F n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3) := by
+  have h12 := la12_spec_within bt F x5Old n0 n1 n2 n3 r0 r1 r2 r3 sp0 sp1 sp2 sp3 sq0 sq1 sq2 sq3
+    x1v x2v x6v x7v x9v x10v x11v
+    sm0 sm1 sm2 sm3 dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+    shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem mo1 mo2 mo3 moNC calleeEntry
+  rw [show (bt + 224) + 20 = bt + 244 from by bv_omega] at h12
+  refine cpsTripleWithin_seq_perm_same_cr ?_ h12
+    (la_call1_in_C bt F calleeEntry x1v x2v x6v x7v x9v x10v x11v
+      n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3
+      dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
+      shiftMem nMem jMem retMem dMem dloMem scratch_un0 scratchMem
+      mo1 mo2 mo3 moNC hoffset callerAlign retAlign hdisj hdisjTC)
+  intro h hp
+  have e0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have e8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+  have e16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+  have e24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+  have e32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+  have e40 : signExtend12 (40 : BitVec 12) = 40#64 := by decide
+  have e48 : signExtend12 (48 : BitVec 12) = 48#64 := by decide
+  have e56 : signExtend12 (56 : BitVec 12) = 56#64 := by decide
+  simp only [addmodLaMinusOneFrame, addmodLaRegTail, addmodLaScratchTail,
+    addmodCall1Frame, divModStackDispatchPreNoX1_unfold, divScratchValuesCallNoX1_unfold,
+    evmWordIs, EvmWord.getLimbN_fromLimbs_gen_0, EvmWord.getLimbN_fromLimbs_gen_1,
+    EvmWord.getLimbN_fromLimbs_gen_2, EvmWord.getLimbN_fromLimbs_gen_3,
+    Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val,
+    show (-1 : EvmWord).getLimbN 0 = signExtend12 (4095 : BitVec 12) from by decide,
+    show (-1 : EvmWord).getLimbN 1 = signExtend12 (4095 : BitVec 12) from by decide,
+    show (-1 : EvmWord).getLimbN 2 = signExtend12 (4095 : BitVec 12) from by decide,
+    show (-1 : EvmWord).getLimbN 3 = signExtend12 (4095 : BitVec 12) from by decide,
+    e0, e8, e16, e24, e32, e40, e48, e56,
+    BitVec.add_assoc, BitVec.reduceAdd, add_zero] at hp ⊢
+  xperm_hyp hp
+
 end EvmAsm.Evm64.AddMod.Compose
