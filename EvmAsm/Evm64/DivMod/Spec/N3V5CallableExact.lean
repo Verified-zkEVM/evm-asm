@@ -32,7 +32,7 @@ open EvmAsm.Rv64.AddrNorm (word_add_zero)
     into `divStackDispatchPostCallableExactFrame`. -/
 theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
     (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratch_un0 scratchMem : Word)
     (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
@@ -42,7 +42,7 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        x2In v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
@@ -96,7 +96,7 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
     v5 v6 v7 v10 v11Old q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal x9In
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem raVal x9In x2In
     hbnz' hb3z hb2nz hshift_nz halign hbltu_1 hbltu_0
   refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
     cpsTripleWithin_weaken ?_ ?_ hpath
@@ -125,7 +125,7 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
 /-- n=3 v5 callable exact-frame lane, shift=0 arm. -/
 theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
     (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratch_un0 scratchMem : Word)
     (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
@@ -135,7 +135,7 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        x2In v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
@@ -175,7 +175,7 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
   have hpath := evm_div_n3_full_shift0_param_v5_noNop bltu_1 bltu_0 sp base
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2)
-    ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+    x2In v5 v6 v7 v10 v11Old
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratch_un0 scratchMem raVal x9In hbnz' hb2nz hshift_z halign
     hbltu_1 hbltu_0
@@ -211,7 +211,7 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
     arms), at shape: only `b3 = 0`, `b2 ≠ 0`, and alignment remain. -/
 theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
     (sp base : Word) (a b : EvmWord)
-    (raVal v5 v6 v7 v10 v11Old x9In : Word)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratch_un0 scratchMem : Word)
     (hb3z : b.getLimbN 3 = 0) (hb2nz : b.getLimbN 2 ≠ 0)
@@ -220,7 +220,7 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
     cpsTripleWithin unifiedDivBound base (base + nopOff) (divCode_noNop_v5 base)
       (divModStackDispatchPreNoX1 sp a b
         x9In raVal
-        ((clzResult (b.getLimbN 2)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+        x2In v5 v6 v7 v10 v11Old
         q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
        ((sp + signExtend12 3936) ↦ₘ scratchMem))
@@ -229,11 +229,11 @@ theorem evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
        memOwn (sp + signExtend12 3936)) := by
   by_cases hsh : (clzResult (b.getLimbN 2)).1 = 0
   · exact evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
-      sp base a b raVal v5 v6 v7 v10 v11Old x9In
+      sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
       retMem dMem dloMem scratch_un0 scratchMem hb3z hb2nz hsh halign
   · exact evm_div_n3_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
-      sp base a b raVal v5 v6 v7 v10 v11Old x9In
+      sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
       q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
       retMem dMem dloMem scratch_un0 scratchMem hb3z hb2nz hsh halign
 

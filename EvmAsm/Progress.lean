@@ -52,6 +52,8 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathV5DivUnconditionalFull
 import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
 import EvmAsm.Evm64.DivMod.Compose.V6ModStackSpec
 import EvmAsm.Evm64.SDiv.Spec
+import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
+import EvmAsm.Evm64.SMod.Compose.StackSpecV5
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
 import EvmAsm.Evm64.AddMod.LiveStackPost
@@ -142,18 +144,22 @@ def registry : List OpcodeEntry := [
        "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
        "proof (evm_div_v5_unconditional_over_divCodeV6), the n=1 fast arm is " ++
        "divK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch"),
-  entry "SDIV" .conditional (some "evm_sdiv_exact_callable_return_stack_spec_within")
-      ("callable+dispatch shim; evm_sdiv_stack_spec_within conditional on " ++
-       "hStack (discharged for divisor=0 and n=1/2/3/n4-call-skip); blocked " ++
-       "on DIV/MOD spec-layer migration (bead evm-asm-9iqmw)"),
+  entry "SDIV" .proven (some "evm_sdiv_exact_callable_return_stack_spec_within_v5")
+      ("unconditional SDIV stack spec over sdivCodeV5 (the shipped v5 codegen — " ++
+       "signed DIV via the proven unsigned evm_div_callable_v5); the former " ++
+       "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
+       "generalized (both dead), x9 shed at the return"),
   entry "MOD" .proven (some "evm_mod_v6_stack_spec")
       ("full-domain unconditional v6 MOD stack spec over modCodeV6 (n=1 " ++
        "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
        "proof (evm_mod_v5_unconditional_over_modCodeV6), the n=1 fast arm is " ++
        "modK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch"),
-  entry "SMOD" .conditional
-      (some "evm_smod_stack_spec_within")
-      ("all-case v4 wrapper result-stack spec; zero divisor discharged, " ++
+  entry "SMOD" .proven
+      (some "evm_smod_exact_callable_return_stack_spec_within_v5")
+      ("unconditional SMOD stack spec over smodCodeV5 (the shipped v5 codegen — " ++
+       "signed MOD via the proven unsigned evm_mod_callable_v5); the former " ++
+       "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
+       "generalized (both dead), x9 shed at the return.  (was: " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
   entry "ADDMOD" .partly (some "evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within")
       ("addmod_correct proven; zero-modulus stack spec done for arbitrary b; " ++
@@ -288,9 +294,9 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 45 := by decide
+theorem provenCount_eq      : provenCount      = 47 := by decide
 theorem partialCount_eq     : partialCount     = 3  := by decide
-theorem conditionalCount_eq : conditionalCount = 2  := by decide
+theorem conditionalCount_eq : conditionalCount = 0  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
@@ -322,9 +328,9 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 105 := by decide
+theorem provenBytes_eq      : provenBytes      = 107 := by decide
 theorem partialBytes_eq     : partialBytes     = 3   := by decide
-theorem conditionalBytes_eq : conditionalBytes = 2   := by decide
+theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
@@ -344,10 +350,10 @@ private noncomputable abbrev _mul_witness        := @EvmAsm.Evm64.evm_mul_stack_
 private noncomputable abbrev _sub_witness        := @EvmAsm.Evm64.evm_sub_stack_spec_within
 private noncomputable abbrev _div_witness        := @EvmAsm.Evm64.evm_div_v6_stack_spec
 private noncomputable abbrev _sdiv_witness       :=
-  @EvmAsm.Evm64.evm_sdiv_exact_callable_return_stack_spec_within
+  @EvmAsm.Evm64.SDiv.Compose.evm_sdiv_exact_callable_return_stack_spec_within_v5
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_v6_stack_spec
 private noncomputable abbrev _smod_witness       :=
-  @EvmAsm.Evm64.evm_smod_stack_spec_within
+  @EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_stack_spec_within_v5
 private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
 private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_result_stack_program_spec_within

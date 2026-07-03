@@ -17,7 +17,7 @@ theorem evm_div_phaseAB_n1_clz_c2_normB_spec_v4 (sp base : Word)
     (hshift_nz : (clzResult b0).1 ≠ 0) :
     cpsTripleWithin (8 + 21 + 24 + 4 + 21) base (base + normAOff) (divCode_v4 base)
       (evmDivPhaseABN1ClzC2NormBPre sp v5 v6 v7 v10 b0 b1 b2 b3
-        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem)
+        q0 q1 q2 q3 u5 u6 u7 nMem shiftMem ((clzResult b0).2 >>> (63 : Nat)))
       (evmDivPhaseABN1ClzC2NormBFullPost sp b0 b1 b2 b3) := by
   exact cpsTripleWithin_divCode_noNop_v4_to_divCode_v4
     (evm_div_phaseAB_n1_clz_c2_normB_spec_v4_noNop sp base
