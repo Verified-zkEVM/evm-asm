@@ -23,6 +23,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 
 namespace EvmAsm.Codegen
@@ -49,40 +52,76 @@ open EvmAsm.Rv64.Program
         0 : success
         1 : RLP parse failure / field 3 missing
         2 : field 3 length != 32 -/
-def headerExtractStateRootFunction : String :=
-  "header_extract_state_root:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 3\n" ++
-  "  la a3, hesr_offset; la a4, hesr_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhesr_parse_fail\n" ++
-  "  la t0, hesr_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lhesr_size_fail\n" ++
-  "  la t0, hesr_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s0, t1\n" ++
-  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
-  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
-  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhesr_ret\n" ++
-  ".Lhesr_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhesr_ret\n" ++
-  ".Lhesr_size_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lhesr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def headerExtractStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (3 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 44)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 44)),
+    .AUIPC .x14 (laHi GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 52)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 52)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_extract_state_root + 60)),
+    .BNE .x10 .x0 (80 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 68)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x6,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x18 .x29 (0 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x18 .x29 (8 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x18 .x29 (16 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x18 .x29 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractStateRoot_relocs : RelocTable :=
+  [ (11, .la .x13 "hesr_offset"),
+    (13, .la .x14 "hesr_length"),
+    (15, .jal .x1 "rlp_list_nth_item"),
+    (17, .la .x5 "hesr_length"),
+    (22, .la .x5 "hesr_offset") ]
+
+def headerExtractStateRootFunction : String :=
+  "header_extract_state_root:\n" ++ emitProgramR headerExtractStateRoot_prog headerExtractStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractStateRootFunction_eq_prog :
+    headerExtractStateRootFunction = "header_extract_state_root:\n" ++ emitProgramR headerExtractStateRoot_prog headerExtractStateRoot_relocs := rfl
+
+#guard headerExtractStateRootFunction.startsWith "header_extract_state_root:\n"
+#guard headerExtractStateRoot_prog.length = 45
 /-- `zisk_header_extract_state_root`: probe BuildUnit.
     Input layout:
       bytes 0..8 : header_rlp_len
@@ -218,40 +257,76 @@ def ziskHeaderExtractParentHashProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / field 5 missing
         2 : field 5 length != 32 -/
-def headerExtractReceiptsRootFunction : String :=
-  "header_extract_receipts_root:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5\n" ++
-  "  la a3, herr_offset; la a4, herr_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lherr_parse_fail\n" ++
-  "  la t0, herr_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lherr_size_fail\n" ++
-  "  la t0, herr_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s0, t1\n" ++
-  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
-  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
-  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lherr_ret\n" ++
-  ".Lherr_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lherr_ret\n" ++
-  ".Lherr_size_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lherr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def headerExtractReceiptsRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (5 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 44)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 44)),
+    .AUIPC .x14 (laHi GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 52)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 52)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_extract_receipts_root + 60)),
+    .BNE .x10 .x0 (80 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 68)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x6,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x18 .x29 (0 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x18 .x29 (8 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x18 .x29 (16 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x18 .x29 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractReceiptsRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractReceiptsRoot_relocs : RelocTable :=
+  [ (11, .la .x13 "herr_offset"),
+    (13, .la .x14 "herr_length"),
+    (15, .jal .x1 "rlp_list_nth_item"),
+    (17, .la .x5 "herr_length"),
+    (22, .la .x5 "herr_offset") ]
+
+def headerExtractReceiptsRootFunction : String :=
+  "header_extract_receipts_root:\n" ++ emitProgramR headerExtractReceiptsRoot_prog headerExtractReceiptsRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractReceiptsRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractReceiptsRootFunction_eq_prog :
+    headerExtractReceiptsRootFunction = "header_extract_receipts_root:\n" ++ emitProgramR headerExtractReceiptsRoot_prog headerExtractReceiptsRoot_relocs := rfl
+
+#guard headerExtractReceiptsRootFunction.startsWith "header_extract_receipts_root:\n"
+#guard headerExtractReceiptsRoot_prog.length = 45
 /-- `zisk_header_extract_receipts_root`: probe BuildUnit. -/
 def ziskHeaderExtractReceiptsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -377,40 +452,76 @@ def ziskHeaderExtractTransactionsRootProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / field 16 missing (pre-Shanghai)
         2 : field 16 length != 32 -/
-def headerExtractWithdrawalsRootFunction : String :=
-  "header_extract_withdrawals_root:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 16\n" ++
-  "  la a3, hewr_offset; la a4, hewr_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lhewr_parse_fail\n" ++
-  "  la t0, hewr_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lhewr_size_fail\n" ++
-  "  la t0, hewr_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s0, t1\n" ++
-  "  ld t4,  0(t3); sd t4,  0(s2)\n" ++
-  "  ld t4,  8(t3); sd t4,  8(s2)\n" ++
-  "  ld t4, 16(t3); sd t4, 16(s2)\n" ++
-  "  ld t4, 24(t3); sd t4, 24(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhewr_ret\n" ++
-  ".Lhewr_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhewr_ret\n" ++
-  ".Lhewr_size_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lhewr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def headerExtractWithdrawalsRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (16 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 44)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 44)),
+    .AUIPC .x14 (laHi GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 52)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 52)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_extract_withdrawals_root + 60)),
+    .BNE .x10 .x0 (80 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 68)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x6,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x18 .x29 (0 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x18 .x29 (8 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x18 .x29 (16 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x18 .x29 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractWithdrawalsRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractWithdrawalsRoot_relocs : RelocTable :=
+  [ (11, .la .x13 "hewr_offset"),
+    (13, .la .x14 "hewr_length"),
+    (15, .jal .x1 "rlp_list_nth_item"),
+    (17, .la .x5 "hewr_length"),
+    (22, .la .x5 "hewr_offset") ]
+
+def headerExtractWithdrawalsRootFunction : String :=
+  "header_extract_withdrawals_root:\n" ++ emitProgramR headerExtractWithdrawalsRoot_prog headerExtractWithdrawalsRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractWithdrawalsRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractWithdrawalsRootFunction_eq_prog :
+    headerExtractWithdrawalsRootFunction = "header_extract_withdrawals_root:\n" ++ emitProgramR headerExtractWithdrawalsRoot_prog headerExtractWithdrawalsRoot_relocs := rfl
+
+#guard headerExtractWithdrawalsRootFunction.startsWith "header_extract_withdrawals_root:\n"
+#guard headerExtractWithdrawalsRoot_prog.length = 45
 /-- `zisk_header_extract_withdrawals_root`: probe BuildUnit. -/
 def ziskHeaderExtractWithdrawalsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++

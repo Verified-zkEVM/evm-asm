@@ -24,6 +24,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.MptEncode
@@ -37,65 +40,145 @@ open EvmAsm.Rv64
     a0 = slot_key ptr (32 B)   a1 = value ptr (minimal big-endian word bytes)
     a2 = value byte length     a3 = 32-byte out root ptr
     a0 (output) = 0. -/
-def storageRootSingleSlotFunction : String :=
-  "storage_root_single_slot:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0                   # slot_key\n" ++
-  "  mv s1, a1                   # value ptr\n" ++
-  "  mv s2, a2                   # value len\n" ++
-  "  mv s3, a3                   # out root\n" ++
-  "  # The storage-trie leaf value is RLP(stored word), which the leaf node\n" ++
-  "  # then wraps again -- so RLP-encode the value FIRST (for a >=0x80 / multi-\n" ++
-  "  # byte word this adds the 0x80+len prefix; small words are unchanged).\n" ++
-  "  mv a0, s1; mv a1, s2; la a2, srss_rlpval; la a3, srss_rlpval_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  # trie key = keccak256(slot_key, 32) -> srss_key\n" ++
-  "  mv a0, s0; li a1, 32; la a2, srss_key\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # root = single_leaf_trie_root(srss_key, 32, RLP(value), len, out)\n" ++
-  "  la a0, srss_key; li a1, 32; la a2, srss_rlpval; la t0, srss_rlpval_len; ld a3, 0(t0); mv a4, s3\n" ++
-  "  jal ra, single_leaf_trie_root\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def storageRootSingleSlot_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.srss_rlpval (GuestAddrs.storage_root_single_slot + 48)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_rlpval (GuestAddrs.storage_root_single_slot + 48)),
+    .AUIPC .x13 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.storage_root_single_slot + 56)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.storage_root_single_slot + 56)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.storage_root_single_slot + 64)),
+    .MV .x10 .x8,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_key (GuestAddrs.storage_root_single_slot + 76)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_key (GuestAddrs.storage_root_single_slot + 76)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.storage_root_single_slot + 84)),
+    .AUIPC .x10 (laHi GuestAddrs.srss_key (GuestAddrs.storage_root_single_slot + 88)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.srss_key (GuestAddrs.storage_root_single_slot + 88)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_rlpval (GuestAddrs.storage_root_single_slot + 100)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_rlpval (GuestAddrs.storage_root_single_slot + 100)),
+    .AUIPC .x5 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.storage_root_single_slot + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.storage_root_single_slot + 108)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .MV .x14 .x19,
+    .JAL .x1 (jalOff GuestAddrs.single_leaf_trie_root (GuestAddrs.storage_root_single_slot + 124)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `storageRootSingleSlot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def storageRootSingleSlot_relocs : RelocTable :=
+  [ (12, .la .x12 "srss_rlpval"),
+    (14, .la .x13 "srss_rlpval_len"),
+    (16, .jal .x1 "rlp_encode_bytes"),
+    (19, .la .x12 "srss_key"),
+    (21, .jal .x1 "zkvm_keccak256"),
+    (22, .la .x10 "srss_key"),
+    (25, .la .x12 "srss_rlpval"),
+    (27, .la .x5 "srss_rlpval_len"),
+    (31, .jal .x1 "single_leaf_trie_root") ]
+
+def storageRootSingleSlotFunction : String :=
+  "storage_root_single_slot:\n" ++ emitProgramR storageRootSingleSlot_prog storageRootSingleSlot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `storageRootSingleSlot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem storageRootSingleSlotFunction_eq_prog :
+    storageRootSingleSlotFunction = "storage_root_single_slot:\n" ++ emitProgramR storageRootSingleSlot_prog storageRootSingleSlot_relocs := rfl
+
+#guard storageRootSingleSlotFunction.startsWith "storage_root_single_slot:\n"
+#guard storageRootSingleSlot_prog.length = 40
 /-! ## account_set_storage_root -- replace field 2 (storageRoot) of an account.
     a0 = account RLP ptr   a1 = account RLP length   a2 = new storage_root (32 B)
     a3 = out account RLP ptr   a4 = u64 out length ptr
     a0 (output) = 0 (ok) / 1 (splice parse fail). -/
-def accountSetStorageRootFunction : String :=
-  "account_set_storage_root:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # account rlp\n" ++
-  "  mv s1, a1                   # account len\n" ++
-  "  mv s2, a2                   # new storage_root (32 B)\n" ++
-  "  mv s3, a3                   # out ptr\n" ++
-  "  mv s4, a4                   # out len ptr\n" ++
-  "  # build new_ref = 0xa0 || storage_root (33 B) at asr_ref\n" ++
-  "  la t0, asr_ref; li t1, 0xa0; sb t1, 0(t0)\n" ++
-  "  li t2, 0\n" ++
-  ".Lasr_cp:\n" ++
-  "  li t3, 32; beq t2, t3, .Lasr_cpdone\n" ++
-  "  add t4, s2, t2; lbu t5, 0(t4)\n" ++
-  "  add t6, t0, t2; addi t6, t6, 1; sb t5, 0(t6)\n" ++
-  "  addi t2, t2, 1; j .Lasr_cp\n" ++
-  ".Lasr_cpdone:\n" ++
-  "  # mpt_splice_slot(account, len, 2, asr_ref, 33, out, out_len)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 2\n" ++
-  "  la a3, asr_ref; li a4, 33\n" ++
-  "  mv a5, s3; mv a6, s4\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def accountSetStorageRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .AUIPC .x5 (laHi GuestAddrs.asr_ref (GuestAddrs.account_set_storage_root + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.asr_ref (GuestAddrs.account_set_storage_root + 48)),
+    .LI .x6 (160 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .LI .x7 (0 : Word),
+    .LI .x28 (32 : Word),
+    .BEQ .x7 .x28 (32 : BitVec 13),
+    .ADD .x29 .x18 .x7,
+    .LBU .x30 .x29 (0 : BitVec 12),
+    .ADD .x31 .x5 .x7,
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .SB .x31 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.asr_ref (GuestAddrs.account_set_storage_root + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.asr_ref (GuestAddrs.account_set_storage_root + 116)),
+    .LI .x14 (33 : Word),
+    .MV .x15 .x19,
+    .MV .x16 .x20,
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.account_set_storage_root + 136)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountSetStorageRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountSetStorageRoot_relocs : RelocTable :=
+  [ (12, .la .x5 "asr_ref"),
+    (29, .la .x13 "asr_ref"),
+    (34, .jal .x1 "mpt_splice_slot") ]
+
+def accountSetStorageRootFunction : String :=
+  "account_set_storage_root:\n" ++ emitProgramR accountSetStorageRoot_prog accountSetStorageRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountSetStorageRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountSetStorageRootFunction_eq_prog :
+    accountSetStorageRootFunction = "account_set_storage_root:\n" ++ emitProgramR accountSetStorageRoot_prog accountSetStorageRoot_relocs := rfl
+
+#guard accountSetStorageRootFunction.startsWith "account_set_storage_root:\n"
+#guard accountSetStorageRoot_prog.length = 43
 /-! ### zisk_storage_root_single_slot probe.
     Input (-> INPUT+8): +8 value_len; +16 slot_key (32 B); +48 value bytes.
     Output: OUTPUT+0 = 32-byte storage root. -/

@@ -6,178 +6,751 @@
   Carved out of BlockVerdict.lean to stay within the 1500-line file-size cap.
 -/
 
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
+
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## bsr_sys_change -- record one system-contract storage-write change.
     a0 = contract addr ptr (20 B)   a1 = slot_key ptr (32 B)
     a2 = value ptr   a3 = value len   a4 = change index
     Reads shared state from bsr_root_p / bsr_wit_p / bsr_wl_v; writes the change
     entry at bsr_changes[index]. a0 (output) = 0 ok / 1 conservative. -/
-def bsrSysChangeFunction : String :=
-  "bsr_sys_change:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  # keccak(addr, 20) -> bsr_kbuf\n" ++
-  "  mv a0, s0; li a1, 20; la a2, bsr_kbuf; jal ra, zkvm_keccak256\n" ++
-  "  # path = bsr_paths + 64*index; bytes_to_nibbles(bsr_kbuf, 32, path)\n" ++
-  "  slli t0, s4, 6; la t1, bsr_paths; add t2, t1, t0\n" ++
-  "  la t3, bsr_pathp; sd t2, 0(t3)              # stash path ptr\n" ++
-  "  la a0, bsr_kbuf; li a1, 32; mv a2, t2; jal ra, bytes_to_nibbles\n" ++
-  "  # mpt_walk(root, witness, wlen, path, 64, bsr_acct, bsr_acct_len)\n" ++
-  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la t0, bsr_pathp; ld a3, 0(t0); li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
-  "  jal ra, mpt_walk\n" ++
-  "  bnez a0, .Lbsc_fail\n" ++
-  "  # account_apply_storage_slot_acc(acct, len, slot, val, vlen, newacct, bsr_tmplen)\n" ++
-  "  # The accumulator helper replays non-empty system-contract storage roots.\n" ++
-  "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
-  "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
-  "  la a0, bsr_acct; la t0, bsr_acct_len; ld a1, 0(t0); mv a2, s1; mv a3, s2; mv a4, s3\n" ++
-  "  slli t0, s4, 7; la t1, bsr_newaccts; add a5, t1, t0; la a6, bsr_tmplen\n" ++
-  "  jal ra, account_apply_storage_slot_acc\n" ++
-  "  bnez a0, .Lbsc_fail\n" ++
-  "  # record change[index] = (path, 64, newacct, tmplen, is_insert=0) -- 40 B\n" ++
-  "  slli t0, s4, 5; slli t4, s4, 3; add t0, t0, t4; la t1, bsr_changes; add t1, t1, t0\n" ++
-  "  la t2, bsr_pathp; ld t2, 0(t2); sd t2, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
-  "  slli t0, s4, 7; la t2, bsr_newaccts; add t2, t2, t0; sd t2, 16(t1)\n" ++
-  "  la t2, bsr_tmplen; ld t2, 0(t2); sd t2, 24(t1)\n" ++
-  "  sd zero, 32(t1)             # is_insert = 0 (system contract MODIFY)\n" ++
-  "  li a0, 0; j .Lbsc_ret\n" ++
-  ".Lbsc_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbsc_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def bsrSysChange_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bsr_kbuf (GuestAddrs.bsr_sys_change + 56)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsr_kbuf (GuestAddrs.bsr_sys_change + 56)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bsr_sys_change + 64)),
+    .SLLI .x5 .x20 (6 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bsr_paths (GuestAddrs.bsr_sys_change + 72)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsr_paths (GuestAddrs.bsr_sys_change + 72)),
+    .ADD .x7 .x6 .x5,
+    .AUIPC .x28 (laHi GuestAddrs.bsr_pathp (GuestAddrs.bsr_sys_change + 84)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bsr_pathp (GuestAddrs.bsr_sys_change + 84)),
+    .SD .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bsr_kbuf (GuestAddrs.bsr_sys_change + 96)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_kbuf (GuestAddrs.bsr_sys_change + 96)),
+    .LI .x11 (32 : Word),
+    .MV .x12 .x7,
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bsr_sys_change + 112)),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_root_p (GuestAddrs.bsr_sys_change + 116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_root_p (GuestAddrs.bsr_sys_change + 116)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_sys_change + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_sys_change + 128)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_sys_change + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_sys_change + 140)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_pathp (GuestAddrs.bsr_sys_change + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_pathp (GuestAddrs.bsr_sys_change + 152)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.bsr_acct (GuestAddrs.bsr_sys_change + 168)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.bsr_acct (GuestAddrs.bsr_sys_change + 168)),
+    .AUIPC .x16 (laHi GuestAddrs.bsr_acct_len (GuestAddrs.bsr_sys_change + 176)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.bsr_acct_len (GuestAddrs.bsr_sys_change + 176)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.bsr_sys_change + 184)),
+    .BNE .x10 .x0 (212 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_sys_change + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_sys_change + 192)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.bsr_sys_change + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.bsr_sys_change + 204)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_sys_change + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_sys_change + 216)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_len (GuestAddrs.bsr_sys_change + 228)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_len (GuestAddrs.bsr_sys_change + 228)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bsr_acct (GuestAddrs.bsr_sys_change + 240)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_acct (GuestAddrs.bsr_sys_change + 240)),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_acct_len (GuestAddrs.bsr_sys_change + 248)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_acct_len (GuestAddrs.bsr_sys_change + 248)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x9,
+    .MV .x13 .x18,
+    .MV .x14 .x19,
+    .SLLI .x5 .x20 (7 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bsr_newaccts (GuestAddrs.bsr_sys_change + 276)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsr_newaccts (GuestAddrs.bsr_sys_change + 276)),
+    .ADD .x15 .x6 .x5,
+    .AUIPC .x16 (laHi GuestAddrs.bsr_tmplen (GuestAddrs.bsr_sys_change + 288)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.bsr_tmplen (GuestAddrs.bsr_sys_change + 288)),
+    .JAL .x1 (jalOff GuestAddrs.account_apply_storage_slot_acc (GuestAddrs.bsr_sys_change + 296)),
+    .BNE .x10 .x0 (100 : BitVec 13),
+    .SLLI .x5 .x20 (5 : BitVec 6),
+    .SLLI .x29 .x20 (3 : BitVec 6),
+    .ADD .x5 .x5 .x29,
+    .AUIPC .x6 (laHi GuestAddrs.bsr_changes (GuestAddrs.bsr_sys_change + 316)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsr_changes (GuestAddrs.bsr_sys_change + 316)),
+    .ADD .x6 .x6 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bsr_pathp (GuestAddrs.bsr_sys_change + 328)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bsr_pathp (GuestAddrs.bsr_sys_change + 328)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LI .x28 (64 : Word),
+    .SD .x6 .x28 (8 : BitVec 12),
+    .SLLI .x5 .x20 (7 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.bsr_newaccts (GuestAddrs.bsr_sys_change + 356)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bsr_newaccts (GuestAddrs.bsr_sys_change + 356)),
+    .ADD .x7 .x7 .x5,
+    .SD .x6 .x7 (16 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bsr_tmplen (GuestAddrs.bsr_sys_change + 372)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bsr_tmplen (GuestAddrs.bsr_sys_change + 372)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .SD .x6 .x0 (32 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bsrSysChange_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bsrSysChange_relocs : RelocTable :=
+  [ (14, .la .x12 "bsr_kbuf"),
+    (16, .jal .x1 "zkvm_keccak256"),
+    (18, .la .x6 "bsr_paths"),
+    (21, .la .x28 "bsr_pathp"),
+    (24, .la .x10 "bsr_kbuf"),
+    (28, .jal .x1 "bytes_to_nibbles"),
+    (29, .la .x5 "bsr_root_p"),
+    (32, .la .x5 "bsr_wit_p"),
+    (35, .la .x5 "bsr_wl_v"),
+    (38, .la .x5 "bsr_pathp"),
+    (42, .la .x15 "bsr_acct"),
+    (44, .la .x16 "bsr_acct_len"),
+    (46, .jal .x1 "mpt_walk"),
+    (48, .la .x5 "bsr_wit_p"),
+    (51, .la .x5 "aps_witness_ptr"),
+    (54, .la .x5 "bsr_wl_v"),
+    (57, .la .x5 "aps_witness_len"),
+    (60, .la .x10 "bsr_acct"),
+    (62, .la .x5 "bsr_acct_len"),
+    (69, .la .x6 "bsr_newaccts"),
+    (72, .la .x16 "bsr_tmplen"),
+    (74, .jal .x1 "account_apply_storage_slot_acc"),
+    (79, .la .x6 "bsr_changes"),
+    (82, .la .x7 "bsr_pathp"),
+    (89, .la .x7 "bsr_newaccts"),
+    (93, .la .x7 "bsr_tmplen") ]
+
+def bsrSysChangeFunction : String :=
+  "bsr_sys_change:\n" ++ emitProgramR bsrSysChange_prog bsrSysChange_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bsrSysChange_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bsrSysChangeFunction_eq_prog :
+    bsrSysChangeFunction = "bsr_sys_change:\n" ++ emitProgramR bsrSysChange_prog bsrSysChange_relocs := rfl
+
+#guard bsrSysChangeFunction.startsWith "bsr_sys_change:\n"
+#guard bsrSysChange_prog.length = 109
 /-! ## bsr_beacon_change -- record the EIP-4788 two-slot account change.
     EIP-4788 writes two storage slots in the same beacon-roots account.  The
     state trie must therefore receive one account-leaf descriptor whose
     storageRoot reflects both slot writes, not two duplicate state descriptors.
     a4 = change index. -/
-def bsrBeaconChangeFunction : String :=
-  "bsr_beacon_change:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a4                   # state change index\n" ++
-  "  la a0, bsr_addr_4788; li a1, 20; la a2, bsr_kbuf; jal ra, zkvm_keccak256\n" ++
-  "  slli t0, s0, 6; la t1, bsr_paths; add t2, t1, t0\n" ++
-  "  la t3, bsr_pathp; sd t2, 0(t3)\n" ++
-  "  la a0, bsr_kbuf; li a1, 32; mv a2, t2; jal ra, bytes_to_nibbles\n" ++
-  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la t0, bsr_pathp; ld a3, 0(t0); li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
-  "  jal ra, mpt_walk\n" ++
-  "  bnez a0, .Lbbc_fail\n" ++
-  "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
-  "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
-  "  la a0, bsr_acct; la t0, bsr_acct_len; ld a1, 0(t0); li a2, 2; la a3, aps_off; la a4, aps_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbbc_fail\n" ++
-  "  la t0, aps_len; ld t1, 0(t0); li t2, 32; bne t1, t2, .Lbbc_fail\n" ++
-  "  la t0, aps_off; ld t0, 0(t0); la t1, bsr_acct; add t1, t1, t0; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
-  "  la t2, aps_empty_root; li t3, 32\n" ++
-  ".Lbbc_empty_cmp:\n" ++
-  "  beqz t3, .Lbbc_empty\n" ++
-  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbbc_nonempty\n" ++
-  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbbc_empty_cmp\n" ++
-  ".Lbbc_empty:\n" ++
-  "  li t0, 1; la t1, baap_storage_empty_flag; sd t0, 0(t1); j .Lbbc_init\n" ++
-  ".Lbbc_nonempty:\n" ++
-  "  la t0, baap_storage_empty_flag; sd zero, 0(t0)\n" ++
-  ".Lbbc_init:\n" ++
-  "  la t0, baap_storage_values; la t1, baap_storage_value_cursor; sd t0, 0(t1)\n" ++
-  "  la t0, baap_sc_out_count; sd zero, 0(t0)\n" ++
-  "  # Descriptor 0: timestamp slot -> timestamp value.\n" ++
-  "  la t0, swd_4788_vlen; ld a1, 0(t0); beqz a1, .Lbbc_after_ts\n" ++
-  "  la a0, swd_4788_val; la t2, baap_storage_value_cursor; ld a2, 0(t2); la a3, srss_rlpval_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la a0, swd_4788_slot; li a1, 32; la a2, srss_key; jal ra, zkvm_keccak256\n" ++
-  "  la a0, srss_key; li a1, 32; la a2, baap_storage_paths; jal ra, bytes_to_nibbles\n" ++
-  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbbc_ts_insert\n" ++
-  "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la a3, baap_storage_paths; li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len; jal ra, mpt_walk\n" ++
-  "  beqz a0, .Lbbc_ts_modify\n" ++
-  "  li t0, 1; bne a0, t0, .Lbbc_fail\n" ++
-  ".Lbbc_ts_insert:\n" ++
-  "  li t5, 1; j .Lbbc_ts_mode\n" ++
-  ".Lbbc_ts_modify:\n" ++
-  "  li t5, 0\n" ++
-  ".Lbbc_ts_mode:\n" ++
-  "  la t1, baap_storage_desc; la t2, baap_storage_paths; sd t2, 0(t1); li t2, 64; sd t2, 8(t1)\n" ++
-  "  la t2, baap_storage_value_cursor; ld t3, 0(t2); sd t3, 16(t1); la t4, srss_rlpval_len; ld t4, 0(t4); sd t4, 24(t1); sd t5, 32(t1)\n" ++
-  "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2)\n" ++
-  "  la t0, baap_sc_out_count; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lbbc_after_ts:\n" ++
-  "  # Descriptor 1: timestamp+8191 slot -> parent_beacon_block_root.\n" ++
-  "  la t0, swd_4788_root_vlen; ld a1, 0(t0); beqz a1, .Lbbc_root_zero\n" ++
-  "  la a0, swd_4788_root_val; la t2, baap_storage_value_cursor; ld a2, 0(t2); la a3, srss_rlpval_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la a0, swd_4788_root_slot; li a1, 32; la a2, srss_key; jal ra, zkvm_keccak256\n" ++
-  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
-  "  la a0, srss_key; li a1, 32; jal ra, bytes_to_nibbles\n" ++
-  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbbc_root_insert\n" ++
-  "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1\n" ++
-  "  li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len; jal ra, mpt_walk\n" ++
-  "  beqz a0, .Lbbc_root_modify\n" ++
-  "  li t0, 1; bne a0, t0, .Lbbc_fail\n" ++
-  ".Lbbc_root_insert:\n" ++
-  "  li t5, 1; j .Lbbc_root_mode\n" ++
-  ".Lbbc_root_modify:\n" ++
-  "  li t5, 0\n" ++
-  ".Lbbc_root_mode:\n" ++
-  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, baap_storage_desc; add t1, t2, t1\n" ++
-  "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1)\n" ++
-  "  la t2, baap_storage_value_cursor; ld t3, 0(t2); sd t3, 16(t1); la t4, srss_rlpval_len; ld t4, 0(t4); sd t4, 24(t1); sd t5, 32(t1)\n" ++
-  "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2)\n" ++
-  "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
-  "  j .Lbbc_apply_storage\n" ++
-  ".Lbbc_root_zero:\n" ++
-  "  # EIP-4788 writes zero to the root slot as a storage deletion. If the\n" ++
-  "  # storage trie is empty or the key is absent, deleting is a no-op.\n" ++
-  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbbc_apply_storage\n" ++
-  "  la a0, swd_4788_root_slot; li a1, 32; la a2, srss_key; jal ra, zkvm_keccak256\n" ++
-  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
-  "  la a0, srss_key; li a1, 32; jal ra, bytes_to_nibbles\n" ++
-  "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1\n" ++
-  "  li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len; jal ra, mpt_walk\n" ++
-  "  beqz a0, .Lbbc_root_delete_desc\n" ++
-  "  li t0, 1; beq a0, t0, .Lbbc_apply_storage\n" ++
-  "  j .Lbbc_fail\n" ++
-  ".Lbbc_root_delete_desc:\n" ++
-  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, baap_storage_desc; add t1, t2, t1\n" ++
-  "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1)\n" ++
-  "  sd zero, 16(t1); sd zero, 24(t1); li t5, 2; sd t5, 32(t1)\n" ++
-  "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
-  ".Lbbc_apply_storage:\n" ++
-  "  la t0, baap_sc_out_count; ld a4, 0(t0); beqz a4, .Lbbc_fail\n" ++
-  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); beqz t0, .Lbbc_apply_nonempty\n" ++
-  "  la a0, aps_empty_root; mv a1, zero; mv a2, zero; la a3, baap_storage_desc; j .Lbbc_apply_call\n" ++
-  ".Lbbc_apply_nonempty:\n" ++
-  "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0); la a3, baap_storage_desc\n" ++
-  ".Lbbc_apply_call:\n" ++
-  "  la a5, aps_newsroot; jal ra, mpt_state_root_ins\n" ++
-  "  bnez a0, .Lbbc_fail\n" ++
-  "  la a0, bsr_acct; la t0, bsr_acct_len; ld a1, 0(t0); la a2, aps_newsroot\n" ++
-  "  slli t0, s0, 7; la t1, bsr_newaccts; add a3, t1, t0; la a4, bsr_tmplen\n" ++
-  "  jal ra, account_set_storage_root\n" ++
-  "  bnez a0, .Lbbc_fail\n" ++
-  "  slli t0, s0, 5; slli t4, s0, 3; add t0, t0, t4; la t1, bsr_changes; add t1, t1, t0\n" ++
-  "  la t2, bsr_pathp; ld t2, 0(t2); sd t2, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
-  "  slli t0, s0, 7; la t2, bsr_newaccts; add t2, t2, t0; sd t2, 16(t1)\n" ++
-  "  la t2, bsr_tmplen; ld t2, 0(t2); sd t2, 24(t1); sd zero, 32(t1)\n" ++
-  "  li a0, 0; j .Lbbc_ret\n" ++
-  ".Lbbc_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbbc_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def bsrBeaconChange_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x14,
+    .AUIPC .x10 (laHi GuestAddrs.bsr_addr_4788 (GuestAddrs.bsr_beacon_change + 32)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_addr_4788 (GuestAddrs.bsr_beacon_change + 32)),
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bsr_kbuf (GuestAddrs.bsr_beacon_change + 44)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsr_kbuf (GuestAddrs.bsr_beacon_change + 44)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bsr_beacon_change + 52)),
+    .SLLI .x5 .x8 (6 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bsr_paths (GuestAddrs.bsr_beacon_change + 60)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsr_paths (GuestAddrs.bsr_beacon_change + 60)),
+    .ADD .x7 .x6 .x5,
+    .AUIPC .x28 (laHi GuestAddrs.bsr_pathp (GuestAddrs.bsr_beacon_change + 72)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bsr_pathp (GuestAddrs.bsr_beacon_change + 72)),
+    .SD .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bsr_kbuf (GuestAddrs.bsr_beacon_change + 84)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_kbuf (GuestAddrs.bsr_beacon_change + 84)),
+    .LI .x11 (32 : Word),
+    .MV .x12 .x7,
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bsr_beacon_change + 100)),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_root_p (GuestAddrs.bsr_beacon_change + 104)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_root_p (GuestAddrs.bsr_beacon_change + 104)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 116)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 128)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_pathp (GuestAddrs.bsr_beacon_change + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_pathp (GuestAddrs.bsr_beacon_change + 140)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 156)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 156)),
+    .AUIPC .x16 (laHi GuestAddrs.bsr_acct_len (GuestAddrs.bsr_beacon_change + 164)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.bsr_acct_len (GuestAddrs.bsr_beacon_change + 164)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.bsr_beacon_change + 172)),
+    .BNE .x10 .x0 (1504 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 180)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 180)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_ptr (GuestAddrs.bsr_beacon_change + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_ptr (GuestAddrs.bsr_beacon_change + 192)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 204)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.aps_witness_len (GuestAddrs.bsr_beacon_change + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_witness_len (GuestAddrs.bsr_beacon_change + 216)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 228)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 228)),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_acct_len (GuestAddrs.bsr_beacon_change + 236)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_acct_len (GuestAddrs.bsr_beacon_change + 236)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aps_off (GuestAddrs.bsr_beacon_change + 252)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aps_off (GuestAddrs.bsr_beacon_change + 252)),
+    .AUIPC .x14 (laHi GuestAddrs.aps_len (GuestAddrs.bsr_beacon_change + 260)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.aps_len (GuestAddrs.bsr_beacon_change + 260)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.bsr_beacon_change + 268)),
+    .BNE .x10 .x0 (1408 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_len (GuestAddrs.bsr_beacon_change + 276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_len (GuestAddrs.bsr_beacon_change + 276)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (1388 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aps_off (GuestAddrs.bsr_beacon_change + 296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aps_off (GuestAddrs.bsr_beacon_change + 296)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 308)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 308)),
+    .ADD .x6 .x6 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 320)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 320)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.aps_empty_root (GuestAddrs.bsr_beacon_change + 332)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aps_empty_root (GuestAddrs.bsr_beacon_change + 332)),
+    .LI .x28 (32 : Word),
+    .BEQ .x28 .x0 (32 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .BNE .x29 .x30 (40 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 380)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 380)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (16 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 396)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 396)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_values (GuestAddrs.bsr_beacon_change + 408)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_values (GuestAddrs.bsr_beacon_change + 408)),
+    .AUIPC .x6 (laHi GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 416)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 416)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 428)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 428)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.swd_4788_vlen (GuestAddrs.bsr_beacon_change + 440)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.swd_4788_vlen (GuestAddrs.bsr_beacon_change + 440)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .BEQ .x11 .x0 (288 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.swd_4788_val (GuestAddrs.bsr_beacon_change + 456)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swd_4788_val (GuestAddrs.bsr_beacon_change + 456)),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 464)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 464)),
+    .LD .x12 .x7 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 476)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 476)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.bsr_beacon_change + 484)),
+    .AUIPC .x10 (laHi GuestAddrs.swd_4788_slot (GuestAddrs.bsr_beacon_change + 488)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swd_4788_slot (GuestAddrs.bsr_beacon_change + 488)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 500)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 500)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bsr_beacon_change + 508)),
+    .AUIPC .x10 (laHi GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 512)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 512)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 524)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 524)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bsr_beacon_change + 532)),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 536)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 536)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BNE .x5 .x0 (84 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 552)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 552)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 564)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 564)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 576)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 576)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 588)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 588)),
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.baap_walk_val (GuestAddrs.bsr_beacon_change + 600)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.baap_walk_val (GuestAddrs.bsr_beacon_change + 600)),
+    .AUIPC .x16 (laHi GuestAddrs.baap_walk_val_len (GuestAddrs.bsr_beacon_change + 608)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.baap_walk_val_len (GuestAddrs.bsr_beacon_change + 608)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.bsr_beacon_change + 616)),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (1052 : BitVec 13),
+    .LI .x30 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x30 (0 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 644)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 644)),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 652)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 652)),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LI .x7 (64 : Word),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 672)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 672)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .SD .x6 .x28 (16 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 688)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 688)),
+    .LD .x29 .x29 (0 : BitVec 12),
+    .SD .x6 .x29 (24 : BitVec 12),
+    .SD .x6 .x30 (32 : BitVec 12),
+    .ADD .x28 .x28 .x29,
+    .ADDI .x28 .x28 (7 : BitVec 12),
+    .ANDI .x28 .x28 (-8 : BitVec 12),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 724)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 724)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.swd_4788_root_vlen (GuestAddrs.bsr_beacon_change + 740)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.swd_4788_root_vlen (GuestAddrs.bsr_beacon_change + 740)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .BEQ .x11 .x0 (368 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.swd_4788_root_val (GuestAddrs.bsr_beacon_change + 756)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swd_4788_root_val (GuestAddrs.bsr_beacon_change + 756)),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 764)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 764)),
+    .LD .x12 .x7 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 776)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 776)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.bsr_beacon_change + 784)),
+    .AUIPC .x10 (laHi GuestAddrs.swd_4788_root_slot (GuestAddrs.bsr_beacon_change + 788)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swd_4788_root_slot (GuestAddrs.bsr_beacon_change + 788)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 800)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 800)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bsr_beacon_change + 808)),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 812)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 812)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SLLI .x6 .x5 (6 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 828)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 828)),
+    .ADD .x12 .x7 .x6,
+    .AUIPC .x10 (laHi GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 840)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 840)),
+    .LI .x11 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bsr_beacon_change + 852)),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 856)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 856)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BNE .x5 .x0 (104 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 872)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 872)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 884)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 884)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 896)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 896)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 908)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 908)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SLLI .x6 .x5 (6 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 924)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 924)),
+    .ADD .x13 .x7 .x6,
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.baap_walk_val (GuestAddrs.bsr_beacon_change + 940)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.baap_walk_val (GuestAddrs.bsr_beacon_change + 940)),
+    .AUIPC .x16 (laHi GuestAddrs.baap_walk_val_len (GuestAddrs.bsr_beacon_change + 948)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.baap_walk_val_len (GuestAddrs.bsr_beacon_change + 948)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.bsr_beacon_change + 956)),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (712 : BitVec 13),
+    .LI .x30 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x30 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 984)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 984)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SLLI .x6 .x5 (5 : BitVec 6),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1008)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1008)),
+    .ADD .x6 .x7 .x6,
+    .SLLI .x7 .x5 (6 : BitVec 6),
+    .AUIPC .x28 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1024)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1024)),
+    .ADD .x7 .x28 .x7,
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LI .x7 (64 : Word),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 1048)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_value_cursor (GuestAddrs.bsr_beacon_change + 1048)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .SD .x6 .x28 (16 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 1064)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.srss_rlpval_len (GuestAddrs.bsr_beacon_change + 1064)),
+    .LD .x29 .x29 (0 : BitVec 12),
+    .SD .x6 .x29 (24 : BitVec 12),
+    .SD .x6 .x30 (32 : BitVec 12),
+    .ADD .x28 .x28 .x29,
+    .ADDI .x28 .x28 (7 : BitVec 12),
+    .ANDI .x28 .x28 (-8 : BitVec 12),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1104)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1104)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (288 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 1120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 1120)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BNE .x5 .x0 (272 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.swd_4788_root_slot (GuestAddrs.bsr_beacon_change + 1136)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swd_4788_root_slot (GuestAddrs.bsr_beacon_change + 1136)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 1148)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 1148)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bsr_beacon_change + 1156)),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1160)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SLLI .x6 .x5 (6 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1176)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1176)),
+    .ADD .x12 .x7 .x6,
+    .AUIPC .x10 (laHi GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 1188)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.srss_key (GuestAddrs.bsr_beacon_change + 1188)),
+    .LI .x11 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bsr_beacon_change + 1200)),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 1204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 1204)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 1216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 1216)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 1228)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 1228)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1240)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SLLI .x6 .x5 (6 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1256)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1256)),
+    .ADD .x13 .x7 .x6,
+    .LI .x14 (64 : Word),
+    .AUIPC .x15 (laHi GuestAddrs.baap_walk_val (GuestAddrs.bsr_beacon_change + 1272)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.baap_walk_val (GuestAddrs.bsr_beacon_change + 1272)),
+    .AUIPC .x16 (laHi GuestAddrs.baap_walk_val_len (GuestAddrs.bsr_beacon_change + 1280)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.baap_walk_val_len (GuestAddrs.bsr_beacon_change + 1280)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.bsr_beacon_change + 1288)),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (104 : BitVec 13),
+    .JAL .x0 (376 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1308)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1308)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .SLLI .x6 .x5 (5 : BitVec 6),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x7 (laHi GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1332)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1332)),
+    .ADD .x6 .x7 .x6,
+    .SLLI .x7 .x5 (6 : BitVec 6),
+    .AUIPC .x28 (laHi GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1348)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.baap_storage_paths (GuestAddrs.bsr_beacon_change + 1348)),
+    .ADD .x7 .x28 .x7,
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LI .x7 (64 : Word),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .SD .x6 .x0 (16 : BitVec 12),
+    .SD .x6 .x0 (24 : BitVec 12),
+    .LI .x30 (2 : Word),
+    .SD .x6 .x30 (32 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1392)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1392)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1404)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_sc_out_count (GuestAddrs.bsr_beacon_change + 1404)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .BEQ .x14 .x0 (264 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 1420)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_empty_flag (GuestAddrs.bsr_beacon_change + 1420)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.aps_empty_root (GuestAddrs.bsr_beacon_change + 1436)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.aps_empty_root (GuestAddrs.bsr_beacon_change + 1436)),
+    .MV .x11 .x0,
+    .MV .x12 .x0,
+    .AUIPC .x13 (laHi GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1452)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1452)),
+    .JAL .x0 (48 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 1464)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.baap_storage_root_ptr (GuestAddrs.bsr_beacon_change + 1464)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 1476)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wit_p (GuestAddrs.bsr_beacon_change + 1476)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 1488)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_wl_v (GuestAddrs.bsr_beacon_change + 1488)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1500)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.baap_storage_desc (GuestAddrs.bsr_beacon_change + 1500)),
+    .AUIPC .x15 (laHi GuestAddrs.aps_newsroot (GuestAddrs.bsr_beacon_change + 1508)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.aps_newsroot (GuestAddrs.bsr_beacon_change + 1508)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_state_root_ins (GuestAddrs.bsr_beacon_change + 1516)),
+    .BNE .x10 .x0 (160 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 1524)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_acct (GuestAddrs.bsr_beacon_change + 1524)),
+    .AUIPC .x5 (laHi GuestAddrs.bsr_acct_len (GuestAddrs.bsr_beacon_change + 1532)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_acct_len (GuestAddrs.bsr_beacon_change + 1532)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.aps_newsroot (GuestAddrs.bsr_beacon_change + 1544)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aps_newsroot (GuestAddrs.bsr_beacon_change + 1544)),
+    .SLLI .x5 .x8 (7 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bsr_newaccts (GuestAddrs.bsr_beacon_change + 1556)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsr_newaccts (GuestAddrs.bsr_beacon_change + 1556)),
+    .ADD .x13 .x6 .x5,
+    .AUIPC .x14 (laHi GuestAddrs.bsr_tmplen (GuestAddrs.bsr_beacon_change + 1568)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsr_tmplen (GuestAddrs.bsr_beacon_change + 1568)),
+    .JAL .x1 (jalOff GuestAddrs.account_set_storage_root (GuestAddrs.bsr_beacon_change + 1576)),
+    .BNE .x10 .x0 (100 : BitVec 13),
+    .SLLI .x5 .x8 (5 : BitVec 6),
+    .SLLI .x29 .x8 (3 : BitVec 6),
+    .ADD .x5 .x5 .x29,
+    .AUIPC .x6 (laHi GuestAddrs.bsr_changes (GuestAddrs.bsr_beacon_change + 1596)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsr_changes (GuestAddrs.bsr_beacon_change + 1596)),
+    .ADD .x6 .x6 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bsr_pathp (GuestAddrs.bsr_beacon_change + 1608)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bsr_pathp (GuestAddrs.bsr_beacon_change + 1608)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LI .x28 (64 : Word),
+    .SD .x6 .x28 (8 : BitVec 12),
+    .SLLI .x5 .x8 (7 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.bsr_newaccts (GuestAddrs.bsr_beacon_change + 1636)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bsr_newaccts (GuestAddrs.bsr_beacon_change + 1636)),
+    .ADD .x7 .x7 .x5,
+    .SD .x6 .x7 (16 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bsr_tmplen (GuestAddrs.bsr_beacon_change + 1652)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bsr_tmplen (GuestAddrs.bsr_beacon_change + 1652)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .SD .x6 .x0 (32 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bsrBeaconChange_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bsrBeaconChange_relocs : RelocTable :=
+  [ (8, .la .x10 "bsr_addr_4788"),
+    (11, .la .x12 "bsr_kbuf"),
+    (13, .jal .x1 "zkvm_keccak256"),
+    (15, .la .x6 "bsr_paths"),
+    (18, .la .x28 "bsr_pathp"),
+    (21, .la .x10 "bsr_kbuf"),
+    (25, .jal .x1 "bytes_to_nibbles"),
+    (26, .la .x5 "bsr_root_p"),
+    (29, .la .x5 "bsr_wit_p"),
+    (32, .la .x5 "bsr_wl_v"),
+    (35, .la .x5 "bsr_pathp"),
+    (39, .la .x15 "bsr_acct"),
+    (41, .la .x16 "bsr_acct_len"),
+    (43, .jal .x1 "mpt_walk"),
+    (45, .la .x5 "bsr_wit_p"),
+    (48, .la .x5 "aps_witness_ptr"),
+    (51, .la .x5 "bsr_wl_v"),
+    (54, .la .x5 "aps_witness_len"),
+    (57, .la .x10 "bsr_acct"),
+    (59, .la .x5 "bsr_acct_len"),
+    (63, .la .x13 "aps_off"),
+    (65, .la .x14 "aps_len"),
+    (67, .jal .x1 "rlp_list_nth_item"),
+    (69, .la .x5 "aps_len"),
+    (74, .la .x5 "aps_off"),
+    (77, .la .x6 "bsr_acct"),
+    (80, .la .x5 "baap_storage_root_ptr"),
+    (83, .la .x7 "aps_empty_root"),
+    (95, .la .x6 "baap_storage_empty_flag"),
+    (99, .la .x5 "baap_storage_empty_flag"),
+    (102, .la .x5 "baap_storage_values"),
+    (104, .la .x6 "baap_storage_value_cursor"),
+    (107, .la .x5 "baap_sc_out_count"),
+    (110, .la .x5 "swd_4788_vlen"),
+    (114, .la .x10 "swd_4788_val"),
+    (116, .la .x7 "baap_storage_value_cursor"),
+    (119, .la .x13 "srss_rlpval_len"),
+    (121, .jal .x1 "rlp_encode_bytes"),
+    (122, .la .x10 "swd_4788_slot"),
+    (125, .la .x12 "srss_key"),
+    (127, .jal .x1 "zkvm_keccak256"),
+    (128, .la .x10 "srss_key"),
+    (131, .la .x12 "baap_storage_paths"),
+    (133, .jal .x1 "bytes_to_nibbles"),
+    (134, .la .x5 "baap_storage_empty_flag"),
+    (138, .la .x5 "baap_storage_root_ptr"),
+    (141, .la .x5 "bsr_wit_p"),
+    (144, .la .x5 "bsr_wl_v"),
+    (147, .la .x13 "baap_storage_paths"),
+    (150, .la .x15 "baap_walk_val"),
+    (152, .la .x16 "baap_walk_val_len"),
+    (154, .jal .x1 "mpt_walk"),
+    (161, .la .x6 "baap_storage_desc"),
+    (163, .la .x7 "baap_storage_paths"),
+    (168, .la .x7 "baap_storage_value_cursor"),
+    (172, .la .x29 "srss_rlpval_len"),
+    (181, .la .x5 "baap_sc_out_count"),
+    (185, .la .x5 "swd_4788_root_vlen"),
+    (189, .la .x10 "swd_4788_root_val"),
+    (191, .la .x7 "baap_storage_value_cursor"),
+    (194, .la .x13 "srss_rlpval_len"),
+    (196, .jal .x1 "rlp_encode_bytes"),
+    (197, .la .x10 "swd_4788_root_slot"),
+    (200, .la .x12 "srss_key"),
+    (202, .jal .x1 "zkvm_keccak256"),
+    (203, .la .x5 "baap_sc_out_count"),
+    (207, .la .x7 "baap_storage_paths"),
+    (210, .la .x10 "srss_key"),
+    (213, .jal .x1 "bytes_to_nibbles"),
+    (214, .la .x5 "baap_storage_empty_flag"),
+    (218, .la .x5 "baap_storage_root_ptr"),
+    (221, .la .x5 "bsr_wit_p"),
+    (224, .la .x5 "bsr_wl_v"),
+    (227, .la .x5 "baap_sc_out_count"),
+    (231, .la .x7 "baap_storage_paths"),
+    (235, .la .x15 "baap_walk_val"),
+    (237, .la .x16 "baap_walk_val_len"),
+    (239, .jal .x1 "mpt_walk"),
+    (246, .la .x5 "baap_sc_out_count"),
+    (252, .la .x7 "baap_storage_desc"),
+    (256, .la .x28 "baap_storage_paths"),
+    (262, .la .x7 "baap_storage_value_cursor"),
+    (266, .la .x29 "srss_rlpval_len"),
+    (276, .la .x6 "baap_sc_out_count"),
+    (280, .la .x5 "baap_storage_empty_flag"),
+    (284, .la .x10 "swd_4788_root_slot"),
+    (287, .la .x12 "srss_key"),
+    (289, .jal .x1 "zkvm_keccak256"),
+    (290, .la .x5 "baap_sc_out_count"),
+    (294, .la .x7 "baap_storage_paths"),
+    (297, .la .x10 "srss_key"),
+    (300, .jal .x1 "bytes_to_nibbles"),
+    (301, .la .x5 "baap_storage_root_ptr"),
+    (304, .la .x5 "bsr_wit_p"),
+    (307, .la .x5 "bsr_wl_v"),
+    (310, .la .x5 "baap_sc_out_count"),
+    (314, .la .x7 "baap_storage_paths"),
+    (318, .la .x15 "baap_walk_val"),
+    (320, .la .x16 "baap_walk_val_len"),
+    (322, .jal .x1 "mpt_walk"),
+    (327, .la .x5 "baap_sc_out_count"),
+    (333, .la .x7 "baap_storage_desc"),
+    (337, .la .x28 "baap_storage_paths"),
+    (348, .la .x6 "baap_sc_out_count"),
+    (351, .la .x5 "baap_sc_out_count"),
+    (355, .la .x5 "baap_storage_empty_flag"),
+    (359, .la .x10 "aps_empty_root"),
+    (363, .la .x13 "baap_storage_desc"),
+    (366, .la .x5 "baap_storage_root_ptr"),
+    (369, .la .x5 "bsr_wit_p"),
+    (372, .la .x5 "bsr_wl_v"),
+    (375, .la .x13 "baap_storage_desc"),
+    (377, .la .x15 "aps_newsroot"),
+    (379, .jal .x1 "mpt_state_root_ins"),
+    (381, .la .x10 "bsr_acct"),
+    (383, .la .x5 "bsr_acct_len"),
+    (386, .la .x12 "aps_newsroot"),
+    (389, .la .x6 "bsr_newaccts"),
+    (392, .la .x14 "bsr_tmplen"),
+    (394, .jal .x1 "account_set_storage_root"),
+    (399, .la .x6 "bsr_changes"),
+    (402, .la .x7 "bsr_pathp"),
+    (409, .la .x7 "bsr_newaccts"),
+    (413, .la .x7 "bsr_tmplen") ]
+
+def bsrBeaconChangeFunction : String :=
+  "bsr_beacon_change:\n" ++ emitProgramR bsrBeaconChange_prog bsrBeaconChange_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bsrBeaconChange_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bsrBeaconChangeFunction_eq_prog :
+    bsrBeaconChangeFunction = "bsr_beacon_change:\n" ++ emitProgramR bsrBeaconChange_prog bsrBeaconChange_relocs := rfl
+
+#guard bsrBeaconChangeFunction.startsWith "bsr_beacon_change:\n"
+#guard bsrBeaconChange_prog.length = 429
 end EvmAsm.Codegen

@@ -17,6 +17,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 
 namespace EvmAsm.Codegen
@@ -190,100 +192,168 @@ def ziskRlpEncodeU64ProbeUnit : BuildUnit := {
     receipt payloads (logs_bloom is 257 RLP bytes, status/gas
     add <= 18 bytes, logs section is variable but typically
     KBs at most). -/
-def receiptEncodeFunction : String :=
-  "receipt_encode:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # status\n" ++
-  "  mv s1, a1                   # cumulative_gas\n" ++
-  "  mv s2, a2                   # bloom ptr\n" ++
-  "  mv s3, a3                   # logs_rlp ptr\n" ++
-  "  mv s4, a4                   # logs_rlp len\n" ++
-  "  mv s5, a5                   # output ptr\n" ++
-  "  mv s6, a6                   # out_length ptr\n" ++
-  "  # The running cursor (payload offset within re_payload_buf) is\n" ++
-  "  # stashed to `re_cursor` across `jal` calls since t-registers are\n" ++
-  "  # caller-saved and the encode helpers clobber them.\n" ++
-  "  la t0, re_cursor; sd zero, 0(t0)\n" ++
-  "  # ---- Step 1: encode status into re_payload_buf[0..] ----\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, re_payload_buf\n" ++
-  "  la a2, re_field_len\n" ++
-  "  jal ra, rlp_encode_u64\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)         # status_len\n" ++
-  "  la t0, re_cursor; sd t1, 0(t0)            # cursor = status_len\n" ++
-  "  # ---- Step 2: encode cumulative_gas at re_payload_buf[cursor] ----\n" ++
-  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, re_payload_buf; add a1, a1, t2\n" ++
-  "  la a2, re_field_len\n" ++
-  "  jal ra, rlp_encode_u64\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)         # gas_len\n" ++
-  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
-  "  add t2, t2, t1\n" ++
-  "  la t0, re_cursor; sd t2, 0(t0)\n" ++
-  "  # ---- Step 3: encode bloom (256 B) ----\n" ++
-  "  mv a0, s2; li a1, 256\n" ++
-  "  la a2, re_payload_buf; add a2, a2, t2\n" ++
-  "  la a3, re_field_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)         # bloom_enc_len\n" ++
-  "  la t0, re_cursor; ld t2, 0(t0)\n" ++
-  "  add t2, t2, t1\n" ++
-  "  # ---- Step 4: copy logs_rlp verbatim ----\n" ++
-  "  la t3, re_payload_buf; add t3, t3, t2     # dst\n" ++
-  "  mv t4, s3                                 # src\n" ++
-  "  mv t5, s4                                 # remaining bytes\n" ++
-  ".Lre_logs_cp:\n" ++
-  "  beqz t5, .Lre_logs_done\n" ++
-  "  lbu t6, 0(t4)\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lre_logs_cp\n" ++
-  ".Lre_logs_done:\n" ++
-  "  add t2, t2, s4                            # total payload len\n" ++
-  "  # Stash total_payload before the next jal clobbers caller-saved t2.\n" ++
-  "  la t0, re_total_payload; sd t2, 0(t0)\n" ++
-  "  # ---- Step 5: write outer list prefix at output[0..] ----\n" ++
-  "  mv a0, t2; mv a1, s5\n" ++
-  "  la a2, re_field_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, re_field_len; ld t1, 0(t0)        # outer_prefix_len\n" ++
-  "  # ---- Step 6: copy re_payload_buf[..total_payload] to output[prefix_len..] ----\n" ++
-  "  # Total payload was last stashed in t2; restore via .data\n" ++
-  "  # Actually we lost t2 across jal. Re-derive: total_payload =\n" ++
-  "  # bytes_written - bytes_p, but cleaner to re-compute it from\n" ++
-  "  # re_payload_buf metadata. Save total_payload before jal next time.\n" ++
-  "  # Use the stashed value: we'll save t2 to .data BEFORE the\n" ++
-  "  # rlp_encode_list_prefix call.\n" ++
-  "  # (Fixed by re-reading the saved payload total below.)\n" ++
-  "  la t0, re_total_payload; ld t2, 0(t0)\n" ++
-  "  add t3, s5, t1                            # dst = output + prefix_len\n" ++
-  "  la t4, re_payload_buf                     # src\n" ++
-  "  mv t5, t2                                 # remaining\n" ++
-  ".Lre_body_cp:\n" ++
-  "  beqz t5, .Lre_body_done\n" ++
-  "  lbu t6, 0(t4)\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lre_body_cp\n" ++
-  ".Lre_body_done:\n" ++
-  "  # total_written = outer_prefix_len + total_payload\n" ++
-  "  add t1, t1, t2\n" ++
-  "  sd t1, 0(s6)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def receiptEncode_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .AUIPC .x5 (laHi GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 64)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 80)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 80)),
+    .AUIPC .x12 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 88)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 88)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_u64 (GuestAddrs.receipt_encode + 96)),
+    .AUIPC .x5 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 100)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 100)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 112)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 124)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 140)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 140)),
+    .ADD .x11 .x11 .x7,
+    .AUIPC .x12 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 152)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 152)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_u64 (GuestAddrs.receipt_encode + 160)),
+    .AUIPC .x5 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 164)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 176)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 192)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x11 (256 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 212)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 212)),
+    .ADD .x12 .x12 .x7,
+    .AUIPC .x13 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 224)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 224)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.receipt_encode + 232)),
+    .AUIPC .x5 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 236)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 236)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 248)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_cursor (GuestAddrs.receipt_encode + 248)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 264)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 264)),
+    .ADD .x28 .x28 .x7,
+    .MV .x29 .x19,
+    .MV .x30 .x20,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x7 .x7 .x20,
+    .AUIPC .x5 (laHi GuestAddrs.re_total_payload (GuestAddrs.receipt_encode + 316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_total_payload (GuestAddrs.receipt_encode + 316)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .MV .x10 .x7,
+    .MV .x11 .x21,
+    .AUIPC .x12 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 336)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 336)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.receipt_encode + 344)),
+    .AUIPC .x5 (laHi GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 348)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_field_len (GuestAddrs.receipt_encode + 348)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.re_total_payload (GuestAddrs.receipt_encode + 360)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.re_total_payload (GuestAddrs.receipt_encode + 360)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x28 .x21 .x6,
+    .AUIPC .x29 (laHi GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 376)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.re_payload_buf (GuestAddrs.receipt_encode + 376)),
+    .MV .x30 .x7,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x6 .x6 .x7,
+    .SD .x22 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `receiptEncode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def receiptEncode_relocs : RelocTable :=
+  [ (16, .la .x5 "re_cursor"),
+    (20, .la .x11 "re_payload_buf"),
+    (22, .la .x12 "re_field_len"),
+    (24, .jal .x1 "rlp_encode_u64"),
+    (25, .la .x5 "re_field_len"),
+    (28, .la .x5 "re_cursor"),
+    (31, .la .x5 "re_cursor"),
+    (35, .la .x11 "re_payload_buf"),
+    (38, .la .x12 "re_field_len"),
+    (40, .jal .x1 "rlp_encode_u64"),
+    (41, .la .x5 "re_field_len"),
+    (44, .la .x5 "re_cursor"),
+    (48, .la .x5 "re_cursor"),
+    (53, .la .x12 "re_payload_buf"),
+    (56, .la .x13 "re_field_len"),
+    (58, .jal .x1 "rlp_encode_bytes"),
+    (59, .la .x5 "re_field_len"),
+    (62, .la .x5 "re_cursor"),
+    (66, .la .x28 "re_payload_buf"),
+    (79, .la .x5 "re_total_payload"),
+    (84, .la .x12 "re_field_len"),
+    (86, .jal .x1 "rlp_encode_list_prefix"),
+    (87, .la .x5 "re_field_len"),
+    (90, .la .x5 "re_total_payload"),
+    (94, .la .x29 "re_payload_buf") ]
+
+def receiptEncodeFunction : String :=
+  "receipt_encode:\n" ++ emitProgramR receiptEncode_prog receiptEncode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `receiptEncode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem receiptEncodeFunction_eq_prog :
+    receiptEncodeFunction = "receipt_encode:\n" ++ emitProgramR receiptEncode_prog receiptEncode_relocs := rfl
+
+#guard receiptEncodeFunction.startsWith "receipt_encode:\n"
+#guard receiptEncode_prog.length = 117
 /-- `zisk_receipt_encode`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : status (u64 LE)

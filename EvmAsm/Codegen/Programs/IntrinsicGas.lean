@@ -17,6 +17,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
@@ -629,43 +631,81 @@ def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
     Returns:
       a0 = 0 on success, 1 if a row underflows
       a1 = first failing 0-based index, or 0 on success. -/
-def blockVerdictEip8037TxStateGasNetArrayFunction : String :=
-  "block_verdict_eip8037_tx_state_gas_net_array:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0                   # intrinsic_state_gas ptr\n" ++
-  "  mv s1, a1                   # executed_state_gas ptr\n" ++
-  "  mv s2, a2                   # state_refund ptr\n" ++
-  "  mv s3, a3                   # tx_status ptr (1 success, 0 error)\n" ++
-  "  mv s4, a4                   # is_creation ptr\n" ++
-  "  mv s5, a5                   # count\n" ++
-  "  mv s6, a6                   # output ptr\n" ++
-  "  li s7, 0                    # i\n" ++
-  ".Lbve8037sg_loop:\n" ++
-  "  beq s7, s5, .Lbve8037sg_ok\n" ++
-  "  slli s8, s7, 3\n" ++
-  "  add t0, s0, s8; ld a0, 0(t0)        # intrinsic_state_gas[i]\n" ++
-  "  add t0, s1, s8; ld a1, 0(t0)        # executed_state_gas[i]\n" ++
-  "  add t0, s2, s8; ld a2, 0(t0)        # state_refund[i]\n" ++
-  "  add t0, s3, s8; ld t1, 0(t0); seqz a3, t1  # error_flag = tx_status[i] == 0\n" ++
-  "  add t0, s4, s8; ld a4, 0(t0)        # is_creation[i]\n" ++
-  "  add a5, s6, s8                      # out[i]\n" ++
-  "  jal ra, eip8037_tx_state_gas\n" ++
-  "  bnez a0, .Lbve8037sg_fail\n" ++
-  "  addi s7, s7, 1; j .Lbve8037sg_loop\n" ++
-  ".Lbve8037sg_ok:\n" ++
-  "  li a0, 0; li a1, 0; j .Lbve8037sg_ret\n" ++
-  ".Lbve8037sg_fail:\n" ++
-  "  li a0, 1; mv a1, s7\n" ++
-  ".Lbve8037sg_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def blockVerdictEip8037TxStateGasNetArray_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .LI .x23 (0 : Word),
+    .BEQ .x23 .x21 (72 : BitVec 13),
+    .SLLI .x24 .x23 (3 : BitVec 6),
+    .ADD .x5 .x8 .x24,
+    .LD .x10 .x5 (0 : BitVec 12),
+    .ADD .x5 .x9 .x24,
+    .LD .x11 .x5 (0 : BitVec 12),
+    .ADD .x5 .x18 .x24,
+    .LD .x12 .x5 (0 : BitVec 12),
+    .ADD .x5 .x19 .x24,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SLTIU .x13 .x6 (1 : BitVec 12),
+    .ADD .x5 .x20 .x24,
+    .LD .x14 .x5 (0 : BitVec 12),
+    .ADD .x15 .x22 .x24,
+    .JAL .x1 (jalOff GuestAddrs.eip8037_tx_state_gas (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array + 132)),
+    .BNE .x10 .x0 (24 : BitVec 13),
+    .ADDI .x23 .x23 (1 : BitVec 12),
+    .JAL .x0 (-68 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LI .x11 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .MV .x11 .x23,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockVerdictEip8037TxStateGasNetArray_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockVerdictEip8037TxStateGasNetArray_relocs : RelocTable :=
+  [ (33, .jal .x1 "eip8037_tx_state_gas") ]
+
+def blockVerdictEip8037TxStateGasNetArrayFunction : String :=
+  "block_verdict_eip8037_tx_state_gas_net_array:\n" ++ emitProgramR blockVerdictEip8037TxStateGasNetArray_prog blockVerdictEip8037TxStateGasNetArray_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockVerdictEip8037TxStateGasNetArray_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockVerdictEip8037TxStateGasNetArrayFunction_eq_prog :
+    blockVerdictEip8037TxStateGasNetArrayFunction = "block_verdict_eip8037_tx_state_gas_net_array:\n" ++ emitProgramR blockVerdictEip8037TxStateGasNetArray_prog blockVerdictEip8037TxStateGasNetArray_relocs := rfl
+
+#guard blockVerdictEip8037TxStateGasNetArrayFunction.startsWith "block_verdict_eip8037_tx_state_gas_net_array:\n"
+#guard blockVerdictEip8037TxStateGasNetArray_prog.length = 54
 /-- `zisk_eip8037_tx_state_gas_net_array`: focused array probe for the
     block-verdict net state-gas materializer.
 

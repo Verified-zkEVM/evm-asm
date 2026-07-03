@@ -7,6 +7,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxExtract
@@ -65,92 +68,212 @@ open EvmAsm.Rv64
       +176 tx inner ptr
       +184 tx inner len
 -/
-def simpleTransferTxContextFunction : String :=
-  "simple_transfer_tx_context:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # output ptr\n" ++
-  "  sd zero,   0(s0); sd zero,   8(s0); sd zero,  16(s0); sd zero,  24(s0)\n" ++
-  "  sd zero,  32(s0); sd zero,  40(s0); sd zero,  48(s0); sd zero,  56(s0)\n" ++
-  "  sd zero,  64(s0); sd zero,  72(s0); sd zero,  80(s0); sd zero,  88(s0)\n" ++
-  "  sd zero,  96(s0); sd zero, 104(s0); sd zero, 112(s0); sd zero, 120(s0)\n" ++
-  "  sd zero, 128(s0); sd zero, 136(s0); sd zero, 144(s0); sd zero, 152(s0)\n" ++
-  "  sd zero, 160(s0); sd zero, 168(s0); sd zero, 176(s0); sd zero, 184(s0)\n" ++
-  "  la t0, bv_tx_count; ld t1, 0(t0); li t2, 1; beq t1, t2, .Lsttc_count_ok\n" ++
-  "  li t0, 1; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_count_ok:\n" ++
-  "  la t0, bv_public_keys_len; ld t1, 0(t0); li t2, 65; beq t1, t2, .Lsttc_pubkey_ok\n" ++
-  "  li t0, 2; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_pubkey_ok:\n" ++
-  "  la t0, bv_tx_list_ptr; ld s1, 0(t0)\n" ++
-  "  la t0, bv_tx_list_len; ld s2, 0(t0)\n" ++
-  "  la t0, bv_tx_item_start; ld s3, 0(t0)\n" ++
-  "  bltu s2, s3, .Lsttc_item_oob\n" ++
-  "  beq s2, s3, .Lsttc_item_empty\n" ++
-  "  add s1, s1, s3              # tx ptr\n" ++
-  "  sub s2, s2, s3              # tx len\n" ++
-  "  sd s1, 8(s0); sd s2, 16(s0)\n" ++
-  "  la t0, bv_public_keys_ptr; ld t1, 0(t0); addi t1, t1, 1; sd t1, 24(s0)\n" ++
-  "  la t0, bv_exec_p; ld t1, 0(t0); addi t1, t1, 440\n" ++
-  "  la t2, sttc_base_fee_be; li t3, 0\n" ++
-  ".Lsttc_base_fee_rev:\n" ++
-  "  li t4, 32; beq t3, t4, .Lsttc_base_fee_done\n" ++
-  "  sub t5, t4, t3; addi t5, t5, -1; add t5, t1, t5\n" ++
-  "  lbu t6, 0(t5); add t5, t2, t3; sb t6, 0(t5)\n" ++
-  "  addi t3, t3, 1; j .Lsttc_base_fee_rev\n" ++
-  ".Lsttc_base_fee_done:\n" ++
-  "  sd t2, 32(s0)\n" ++
-  "  mv a0, s1; mv a1, s2; la a2, tea_type; la a3, tea_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  beqz a0, .Lsttc_type_ok\n" ++
-  "  li t0, 20; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_type_ok:\n" ++
-  "  la t0, tea_type; ld t1, 0(t0); sd t1, 160(s0)\n" ++
-  "  la t0, tea_inner_off; ld t3, 0(t0); sd t3, 168(s0)\n" ++
-  "  bltu s2, t3, .Lsttc_inner_oob\n" ++
-  "  add t4, s1, t3; sd t4, 176(s0)\n" ++
-  "  sub t4, s2, t3; sd t4, 184(s0)\n" ++
-  "  mv a0, s1; mv a1, s2; la a2, sttc_nonce; addi a3, s0, 40\n" ++
-  "  jal ra, tx_extract_nonce_and_gas\n" ++
-  "  sd a0, 128(s0)\n" ++
-  "  beqz a0, .Lsttc_gas_ok\n" ++
-  "  li t0, 20; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_gas_ok:\n" ++
-  "  mv a0, s1; mv a1, s2; addi a2, s0, 72; addi a3, s0, 48\n" ++
-  "  jal ra, tx_extract_to_address\n" ++
-  "  sd a0, 136(s0)\n" ++
-  "  beqz a0, .Lsttc_to_ok\n" ++
-  "  li t0, 30; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_to_ok:\n" ++
-  "  mv a0, s1; mv a1, s2; addi a2, s0, 96\n" ++
-  "  jal ra, tx_extract_value\n" ++
-  "  sd a0, 144(s0)\n" ++
-  "  beqz a0, .Lsttc_value_ok\n" ++
-  "  li t0, 40; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_value_ok:\n" ++
-  "  mv a0, s1; mv a1, s2; addi a2, s0, 56; addi a3, s0, 64\n" ++
-  "  jal ra, tx_extract_data_section\n" ++
-  "  sd a0, 152(s0)\n" ++
-  "  beqz a0, .Lsttc_data_ok\n" ++
-  "  li t0, 50; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_data_ok:\n" ++
-  ".Lsttc_not_creation:\n" ++
-  ".Lsttc_ok:\n" ++
-  "  sd zero, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_item_oob:\n" ++
-  "  li t0, 3; sd t0, 0(s0); j .Lsttc_ret\n" ++
-  ".Lsttc_item_empty:\n" ++
-  "  li t0, 4; sd t0, 0(s0)\n" ++
-  "  j .Lsttc_ret\n" ++
-  ".Lsttc_inner_oob:\n" ++
-  "  li t0, 21; sd t0, 0(s0)\n" ++
-  ".Lsttc_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def simpleTransferTxContext_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .SD .x8 .x0 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .SD .x8 .x0 (32 : BitVec 12),
+    .SD .x8 .x0 (40 : BitVec 12),
+    .SD .x8 .x0 (48 : BitVec 12),
+    .SD .x8 .x0 (56 : BitVec 12),
+    .SD .x8 .x0 (64 : BitVec 12),
+    .SD .x8 .x0 (72 : BitVec 12),
+    .SD .x8 .x0 (80 : BitVec 12),
+    .SD .x8 .x0 (88 : BitVec 12),
+    .SD .x8 .x0 (96 : BitVec 12),
+    .SD .x8 .x0 (104 : BitVec 12),
+    .SD .x8 .x0 (112 : BitVec 12),
+    .SD .x8 .x0 (120 : BitVec 12),
+    .SD .x8 .x0 (128 : BitVec 12),
+    .SD .x8 .x0 (136 : BitVec 12),
+    .SD .x8 .x0 (144 : BitVec 12),
+    .SD .x8 .x0 (152 : BitVec 12),
+    .SD .x8 .x0 (160 : BitVec 12),
+    .SD .x8 .x0 (168 : BitVec 12),
+    .SD .x8 .x0 (176 : BitVec 12),
+    .SD .x8 .x0 (184 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_count (GuestAddrs.simple_transfer_tx_context + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_count (GuestAddrs.simple_transfer_tx_context + 128)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BEQ .x6 .x7 (16 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (484 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_len (GuestAddrs.simple_transfer_tx_context + 160)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_len (GuestAddrs.simple_transfer_tx_context + 160)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (65 : Word),
+    .BEQ .x6 .x7 (16 : BitVec 13),
+    .LI .x5 (2 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (452 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_ptr (GuestAddrs.simple_transfer_tx_context + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_ptr (GuestAddrs.simple_transfer_tx_context + 192)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_len (GuestAddrs.simple_transfer_tx_context + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_len (GuestAddrs.simple_transfer_tx_context + 204)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_item_start (GuestAddrs.simple_transfer_tx_context + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_item_start (GuestAddrs.simple_transfer_tx_context + 216)),
+    .LD .x19 .x5 (0 : BitVec 12),
+    .BLTU .x18 .x19 (380 : BitVec 13),
+    .BEQ .x18 .x19 (388 : BitVec 13),
+    .ADD .x9 .x9 .x19,
+    .SUB .x18 .x18 .x19,
+    .SD .x8 .x9 (8 : BitVec 12),
+    .SD .x8 .x18 (16 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_ptr (GuestAddrs.simple_transfer_tx_context + 252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_ptr (GuestAddrs.simple_transfer_tx_context + 252)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x8 .x6 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_exec_p (GuestAddrs.simple_transfer_tx_context + 272)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_exec_p (GuestAddrs.simple_transfer_tx_context + 272)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (440 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.sttc_base_fee_be (GuestAddrs.simple_transfer_tx_context + 288)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.sttc_base_fee_be (GuestAddrs.simple_transfer_tx_context + 288)),
+    .LI .x28 (0 : Word),
+    .LI .x29 (32 : Word),
+    .BEQ .x28 .x29 (36 : BitVec 13),
+    .SUB .x30 .x29 .x28,
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .ADD .x30 .x6 .x30,
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .ADD .x30 .x7 .x28,
+    .SB .x30 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .SD .x8 .x7 (32 : BitVec 12),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 352)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 352)),
+    .AUIPC .x13 (laHi GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 360)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 360)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.simple_transfer_tx_context + 368)),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (20 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (256 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 388)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 388)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x8 .x6 (160 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 404)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 404)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x8 .x28 (168 : BitVec 12),
+    .BLTU .x18 .x28 (212 : BitVec 13),
+    .ADD .x29 .x9 .x28,
+    .SD .x8 .x29 (176 : BitVec 12),
+    .SUB .x29 .x18 .x28,
+    .SD .x8 .x29 (184 : BitVec 12),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.sttc_nonce (GuestAddrs.simple_transfer_tx_context + 448)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sttc_nonce (GuestAddrs.simple_transfer_tx_context + 448)),
+    .ADDI .x13 .x8 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_nonce_and_gas (GuestAddrs.simple_transfer_tx_context + 460)),
+    .SD .x8 .x10 (128 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (20 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (160 : BitVec 21),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .ADDI .x12 .x8 (72 : BitVec 12),
+    .ADDI .x13 .x8 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_to_address (GuestAddrs.simple_transfer_tx_context + 500)),
+    .SD .x8 .x10 (136 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (30 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (120 : BitVec 21),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .ADDI .x12 .x8 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_value (GuestAddrs.simple_transfer_tx_context + 536)),
+    .SD .x8 .x10 (144 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (40 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (84 : BitVec 21),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .ADDI .x12 .x8 (56 : BitVec 12),
+    .ADDI .x13 .x8 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_data_section (GuestAddrs.simple_transfer_tx_context + 576)),
+    .SD .x8 .x10 (152 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (50 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (44 : BitVec 21),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .JAL .x0 (36 : BitVec 21),
+    .LI .x5 (3 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x5 (4 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x5 (21 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `simpleTransferTxContext_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def simpleTransferTxContext_relocs : RelocTable :=
+  [ (32, .la .x5 "bv_tx_count"),
+    (40, .la .x5 "bv_public_keys_len"),
+    (48, .la .x5 "bv_tx_list_ptr"),
+    (51, .la .x5 "bv_tx_list_len"),
+    (54, .la .x5 "bv_tx_item_start"),
+    (63, .la .x5 "bv_public_keys_ptr"),
+    (68, .la .x5 "bv_exec_p"),
+    (72, .la .x7 "sttc_base_fee_be"),
+    (88, .la .x12 "tea_type"),
+    (90, .la .x13 "tea_inner_off"),
+    (92, .jal .x1 "tx_type_dispatch"),
+    (97, .la .x5 "tea_type"),
+    (101, .la .x5 "tea_inner_off"),
+    (112, .la .x12 "sttc_nonce"),
+    (115, .jal .x1 "tx_extract_nonce_and_gas"),
+    (125, .jal .x1 "tx_extract_to_address"),
+    (134, .jal .x1 "tx_extract_value"),
+    (144, .jal .x1 "tx_extract_data_section") ]
+
+def simpleTransferTxContextFunction : String :=
+  "simple_transfer_tx_context:\n" ++ emitProgramR simpleTransferTxContext_prog simpleTransferTxContext_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `simpleTransferTxContext_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem simpleTransferTxContextFunction_eq_prog :
+    simpleTransferTxContextFunction = "simple_transfer_tx_context:\n" ++ emitProgramR simpleTransferTxContext_prog simpleTransferTxContext_relocs := rfl
+
+#guard simpleTransferTxContextFunction.startsWith "simple_transfer_tx_context:\n"
+#guard simpleTransferTxContext_prog.length = 168
 def blockVerdictSimpleTransferDataSection : String :=
   ".balign 8\n" ++
   "sttc_nonce:\n  .zero 8\n" ++
