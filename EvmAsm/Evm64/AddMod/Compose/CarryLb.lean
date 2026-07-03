@@ -252,8 +252,8 @@ theorem lb_plus_one_in_C
     `cpsTripleWithin_pre_divScratchValued`. The registers `x2/x9/x10/x11` are
     already carried as generic values (untouched by `plus_one_args`). -/
 theorem lb_call2_in_C
-    (bt F calleeEntry raVal x2v x9v x10v x11v : Word)
-    (q0 q1 q2 q3 n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 nn3 : Word)
+    (bt F calleeEntry raVal x2v x9v x10v x11v x5v x6v x7v : Word)
+    (q0 q1 q2 q3 n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word)
     (mo1 mo2 mo3 moNC : BitVec 21)
     (hoffset : (bt + 348) + signExtend21 mo2 = calleeEntry)
     (callerAlign : ((bt + 348) + 4) &&& ~~~(1 : Word) = (bt + 348) + 4)
@@ -266,9 +266,9 @@ theorem lb_call2_in_C
     cpsTripleWithin (1 + (unifiedDivBound + 1)) (bt + 348) ((bt + 348) + 4)
       (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
       ((divScratchOwnCallNoX1 F **
-        ((F + signExtend12 (3936 : BitVec 12)) ↦ₘ nn3) **
+        memOwn (F + signExtend12 (3936 : BitVec 12)) **
         (.x12 ↦ᵣ F) ** (.x9 ↦ᵣ x9v) ** (.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ x2v) **
-        (.x5 ↦ᵣ n3) ** (.x6 ↦ᵣ q3) ** (.x7 ↦ᵣ nn3) **
+        (.x5 ↦ᵣ x5v) ** (.x6 ↦ᵣ x6v) ** (.x7 ↦ᵣ x7v) **
         (.x10 ↦ᵣ x10v) ** (.x11 ↦ᵣ x11v) ** (.x0 ↦ᵣ (0 : Word)) **
         evmWordIs F (EvmWord.fromLimbs ![q0, q1, q2, q3]) **
         evmWordIs (F + 32) (EvmWord.fromLimbs ![n0, n1, n2, n3])) **
@@ -281,11 +281,12 @@ theorem lb_call2_in_C
     (addmodCall1Frame_pcFree F n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3) ?_
   refine cpsTripleWithin_pre_divScratchValued (fun dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
     shiftMem nMem jMem retMem dMem dloMem scratch_un0 => ?_)
+  refine cpsTripleWithin_pre_memOwn_under (fun scratchMem => ?_)
   have hadapter := evm_addmod_v5_call_adapter_in_C (bt + 348) F calleeEntry mo2
     (EvmWord.fromLimbs ![q0, q1, q2, q3]) (EvmWord.fromLimbs ![n0, n1, n2, n3])
-    x9v raVal x2v n3 q3 nn3 x10v x11v
+    x9v raVal x2v x5v x6v x7v x10v x11v
     dq0 dq1 dq2 dq3 du0 du1 du2 du3 du4 du5 du6 du7
-    nMem shiftMem jMem retMem dMem dloMem scratch_un0 nn3
+    nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
     (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC)
     hoffset callerAlign retAlign hdisj
     (fun a i h => evm_addmod_total_program_code_carry_call2_sub a i h)
@@ -359,5 +360,93 @@ theorem lb_restore_in_C
     rw [show signExtend12 (4064 : BitVec 12) = (18446744073709551584 : Word) from by decide]
     bv_omega] at hrestore
   exact carry_block_in_C hsubRestore hrestore
+
+/-- **Lb complete** (chain form): `plus_one_args ;; [call2] ;; restore` over `C`,
+    byte 252 → 356. Kept with generic `m`/`w` (the call-1 remainder / all-ones
+    dividend limbs) and the F+32 remainder value left as
+    `EvmWord.mod (fromLimbs ![q..]) N`; the `pow256ModN` value-fold lands in the
+    La;;Lb compose, where `m` becomes `getLimbN (EvmWord.mod (-1) N)`. -/
+theorem lb_spec_within
+    (bt F raVal x2v x9v x10v x11v : Word)
+    (m0 m1 m2 m3 w0 w1 w2 w3 n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word)
+    (hoffset : (bt + 348) + signExtend21 mo2 = calleeEntry)
+    (callerAlign : ((bt + 348) + 4) &&& ~~~(1 : Word) = (bt + 348) + 4)
+    (retAlign : ((calleeEntry + div128CallRetOff) + signExtend12 (0 : BitVec 12))
+        &&& ~~~(1 : Word) = calleeEntry + div128CallRetOff)
+    (hdisj : (CodeReq.singleton (bt + 348) (.JAL .x1 mo2)).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry))
+    (hdisjTC : (evm_addmod_total_program_code bt mo1 mo2 mo3 moNC).Disjoint
+      (evm_mod_callable_code_v5 calleeEntry)) :
+    let q0 := m0 + signExtend12 (1 : BitVec 12)
+    let k0 := if BitVec.ult q0 (signExtend12 (1 : BitVec 12)) then (1 : Word) else 0
+    let q1 := m1 + k0
+    let k1 := if BitVec.ult q1 k0 then (1 : Word) else 0
+    let q2 := m2 + k1
+    let k2 := if BitVec.ult q2 k1 then (1 : Word) else 0
+    let q3 := m3 + k2
+    cpsTripleWithin ((24 + (1 + (unifiedDivBound + 1))) + 1) (bt + 252) (((bt + 348) + 4) + 4)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (((.x12 ↦ᵣ F) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        ((F + signExtend12 (32 : BitVec 12)) ↦ₘ m0) **
+        ((F + signExtend12 (40 : BitVec 12)) ↦ₘ m1) **
+        ((F + signExtend12 (48 : BitVec 12)) ↦ₘ m2) **
+        ((F + signExtend12 (56 : BitVec 12)) ↦ₘ m3) **
+        ((F + signExtend12 (0 : BitVec 12)) ↦ₘ w0) **
+        ((F + signExtend12 (8 : BitVec 12)) ↦ₘ w1) **
+        ((F + signExtend12 (16 : BitVec 12)) ↦ₘ w2) **
+        ((F + signExtend12 (24 : BitVec 12)) ↦ₘ w3) **
+        ((F + signExtend12 (3904 : BitVec 12)) ↦ₘ n0) **
+        ((F + signExtend12 (3912 : BitVec 12)) ↦ₘ n1) **
+        ((F + signExtend12 (3920 : BitVec 12)) ↦ₘ n2) **
+        ((F + signExtend12 (3928 : BitVec 12)) ↦ₘ n3)) **
+       addmodLbPlusOneFrame F raVal x2v x9v x10v x11v r0 r1 r2 r3 sm0 sm1 sm2 sm3)
+      (addmodCarryAfterCall2 F ((bt + 348) + 4)
+        (EvmWord.fromLimbs ![q0, q1, q2, q3])
+        (EvmWord.mod (EvmWord.fromLimbs ![q0, q1, q2, q3])
+          (EvmWord.fromLimbs ![n0, n1, n2, n3]))
+        n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3) := by
+  intro q0 k0 q1 k1 q2 k2 q3
+  -- link 1: plus_one (252→348)
+  have hp := lb_plus_one_in_C bt F raVal x2v x9v x10v x11v
+    m0 m1 m2 m3 w0 w1 w2 w3 n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3
+    mo1 mo2 mo3 moNC calleeEntry
+  simp only at hp
+  rw [show (bt + 252) + 96 = bt + 348 from by bv_omega] at hp
+  -- link 2: call2 (348→352); plus_one leaves x5=n3, x6=q3, x7=k3
+  have hc := lb_call2_in_C bt F calleeEntry raVal x2v x9v x10v x11v
+    n3 q3 (if BitVec.ult q3 k2 then (1 : Word) else 0)
+    q0 q1 q2 q3 n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3
+    mo1 mo2 mo3 moNC hoffset callerAlign retAlign hdisj hdisjTC
+  -- link 3: restore (352→356)
+  have hr := lb_restore_in_C bt F ((bt + 348) + 4)
+    (EvmWord.fromLimbs ![q0, q1, q2, q3])
+    (EvmWord.mod (EvmWord.fromLimbs ![q0, q1, q2, q3]) (EvmWord.fromLimbs ![n0, n1, n2, n3]))
+    n0 n1 n2 n3 r0 r1 r2 r3 sm0 sm1 sm2 sm3 mo1 mo2 mo3 moNC calleeEntry
+  rw [show bt + 352 = (bt + 348) + 4 from by bv_omega] at hr
+  have e0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have e8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+  have e16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+  have e24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+  have e32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+  have e40 : signExtend12 (40 : BitVec 12) = 40#64 := by decide
+  have e48 : signExtend12 (48 : BitVec 12) = 48#64 := by decide
+  have e56 : signExtend12 (56 : BitVec 12) = 56#64 := by decide
+  refine cpsTripleWithin_seq_perm_same_cr ?_
+    (cpsTripleWithin_seq_perm_same_cr ?_ hp hc) hr
+  · -- call2 post → restore pre
+    intro h hp2
+    simp only [addmodCall1Frame, addmodAfterCall2Rest,
+      modStackDispatchPostCallableX9Owned_unfold, modStackDispatchPostCallable_unfold] at hp2 ⊢
+    xperm_hyp hp2
+  · -- plus_one post → call2 pre (fold q/n cells → fromLimbs, permute scratch to lead)
+    intro h hp1
+    simp only [addmodLbPlusOneFrame, addmodCall1Frame,
+      evmWordIs, EvmWord.getLimbN_fromLimbs_gen_0, EvmWord.getLimbN_fromLimbs_gen_1,
+      EvmWord.getLimbN_fromLimbs_gen_2, EvmWord.getLimbN_fromLimbs_gen_3,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val,
+      e0, e8, e16, e24, e32, e40, e48, e56,
+      BitVec.add_assoc, BitVec.reduceAdd, add_zero] at hp1 ⊢
+    xperm_hyp hp1
 
 end EvmAsm.Evm64.AddMod.Compose
