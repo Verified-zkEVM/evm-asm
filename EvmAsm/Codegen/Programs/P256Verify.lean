@@ -47,6 +47,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 
 namespace EvmAsm.Codegen
 
@@ -143,137 +144,188 @@ def p256VerifyDataFragment : String :=
   "p256_ptmp:\n  .zero 64\n"
 
 /-- Copy a2 bytes from a0 to a1. Leaf. -/
+def p256CopyN_prog : Program :=
+  [ .BEQ .x12 .x0 (28 : BitVec 13),
+    .LBU .x5 .x10 (0 : BitVec 12),
+    .SB .x11 .x5 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def p256CopyNFunction : String :=
-  "p256_copy_n:\n" ++
-  ".Lp256_cpn_loop:\n" ++
-  "  beqz a2, .Lp256_cpn_done\n" ++
-  "  lbu t0, 0(a0)\n" ++
-  "  sb t0, 0(a1)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lp256_cpn_loop\n" ++
-  ".Lp256_cpn_done:\n" ++
-  "  ret"
+  "p256_copy_n:\n" ++ emitProgram p256CopyN_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `p256CopyN_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem p256CopyNFunction_eq_prog :
+    p256CopyNFunction = "p256_copy_n:\n" ++ emitProgram p256CopyN_prog := rfl
+
+#guard p256CopyNFunction.startsWith "p256_copy_n:\n"
+#guard p256CopyN_prog.length = 8
 /-- a0 = 1 iff the a1 bytes at a0 are all zero. Leaf. -/
+def p256IsZeroN_prog : Program :=
+  [ .MV .x6 .x10,
+    .MV .x5 .x11,
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .BNE .x7 .x0 (24 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def p256IsZeroNFunction : String :=
-  "p256_is_zero_n:\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t0, a1\n" ++
-  ".Lp256_iz_loop:\n" ++
-  "  beqz t0, .Lp256_iz_yes\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  bnez t2, .Lp256_iz_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lp256_iz_loop\n" ++
-  ".Lp256_iz_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lp256_iz_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "p256_is_zero_n:\n" ++ emitProgram p256IsZeroN_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `p256IsZeroN_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem p256IsZeroNFunction_eq_prog :
+    p256IsZeroNFunction = "p256_is_zero_n:\n" ++ emitProgram p256IsZeroN_prog := rfl
+
+#guard p256IsZeroNFunction.startsWith "p256_is_zero_n:\n"
+#guard p256IsZeroN_prog.length = 12
 /-- a0 = 1 iff the two 32-byte buffers at a0/a1 are equal. Leaf. -/
-def p256Eq32Function : String :=
-  "p256_eq32:\n" ++
-  "  li t0, 32\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t2, a1\n" ++
-  ".Lp256_eq_loop:\n" ++
-  "  beqz t0, .Lp256_eq_yes\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bne t3, t4, .Lp256_eq_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lp256_eq_loop\n" ++
-  ".Lp256_eq_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lp256_eq_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def p256Eq32_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .MV .x6 .x10,
+    .MV .x7 .x11,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def p256Eq32Function : String :=
+  "p256_eq32:\n" ++ emitProgram p256Eq32_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `p256Eq32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem p256Eq32Function_eq_prog :
+    p256Eq32Function = "p256_eq32:\n" ++ emitProgram p256Eq32_prog := rfl
+
+#guard p256Eq32Function.startsWith "p256_eq32:\n"
+#guard p256Eq32_prog.length = 15
 /-- a0 = 1 iff the 32-byte BE integer at a0 is strictly less than the
     one at a1. Leaf. -/
-def p256LtBeFunction : String :=
-  "p256_lt_be:\n" ++
-  "  li t2, 32\n" ++
-  "  mv t0, a0\n" ++
-  "  mv t1, a1\n" ++
-  ".Lp256_lt_loop:\n" ++
-  "  beqz t2, .Lp256_lt_no          # equal => not less\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  lbu t4, 0(t1)\n" ++
-  "  bltu t3, t4, .Lp256_lt_yes\n" ++
-  "  bltu t4, t3, .Lp256_lt_no\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lp256_lt_loop\n" ++
-  ".Lp256_lt_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lp256_lt_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def p256LtBe_prog : Program :=
+  [ .LI .x7 (32 : Word),
+    .MV .x5 .x10,
+    .MV .x6 .x11,
+    .BEQ .x7 .x0 (44 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BLTU .x28 .x29 (24 : BitVec 13),
+    .BLTU .x29 .x28 (28 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def p256LtBeFunction : String :=
+  "p256_lt_be:\n" ++ emitProgram p256LtBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `p256LtBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem p256LtBeFunction_eq_prog :
+    p256LtBeFunction = "p256_lt_be:\n" ++ emitProgram p256LtBe_prog := rfl
+
+#guard p256LtBeFunction.startsWith "p256_lt_be:\n"
+#guard p256LtBe_prog.length = 16
 /-- Convert a 32-byte BE buffer (a0, any alignment) into four LE u64
     limbs (a1, 8-aligned), LSB limb first. Leaf. -/
-def p256BeToLeFunction : String :=
-  "p256_be_to_le:\n" ++
-  "  li t0, 0                       # limb index\n" ++
-  ".Lp256_b2l_quad:\n" ++
-  "  li t1, 24\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a0, t1                 # BE offset of the limb's MSB\n" ++
-  "  li t3, 0\n" ++
-  "  li t4, 8\n" ++
-  ".Lp256_b2l_byte:\n" ++
-  "  slli t3, t3, 8\n" ++
-  "  lbu t5, 0(t1)\n" ++
-  "  or t3, t3, t5\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lp256_b2l_byte\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  add t2, a1, t2\n" ++
-  "  sd t3, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 4\n" ++
-  "  bne t0, t1, .Lp256_b2l_quad\n" ++
-  "  ret"
+def p256BeToLe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (24 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x10 .x6,
+    .LI .x28 (0 : Word),
+    .LI .x29 (8 : Word),
+    .SLLI .x28 .x28 (8 : BitVec 6),
+    .LBU .x30 .x6 (0 : BitVec 12),
+    .OR .x28 .x28 .x30,
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .ADD .x7 .x11 .x7,
+    .SD .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (-68 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def p256BeToLeFunction : String :=
+  "p256_be_to_le:\n" ++ emitProgram p256BeToLe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `p256BeToLe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem p256BeToLeFunction_eq_prog :
+    p256BeToLeFunction = "p256_be_to_le:\n" ++ emitProgram p256BeToLe_prog := rfl
+
+#guard p256BeToLeFunction.startsWith "p256_be_to_le:\n"
+#guard p256BeToLe_prog.length = 20
 /-- Convert four LE u64 limbs (a0, 8-aligned) into a 32-byte BE buffer
     (a1, any alignment). Inverse of `p256_be_to_le`. Leaf. -/
-def p256LeToBeFunction : String :=
-  "p256_le_to_be:\n" ++
-  "  li t0, 0                       # limb index\n" ++
-  ".Lp256_l2b_quad:\n" ++
-  "  slli t1, t0, 3\n" ++
-  "  add t2, a0, t1\n" ++
-  "  ld t3, 0(t2)\n" ++
-  "  li t1, 31\n" ++
-  "  slli t2, t0, 3\n" ++
-  "  sub t1, t1, t2\n" ++
-  "  add t1, a1, t1                 # BE offset of the limb's LSB\n" ++
-  "  li t4, 8\n" ++
-  ".Lp256_l2b_byte:\n" ++
-  "  andi t5, t3, 0xff\n" ++
-  "  sb t5, 0(t1)\n" ++
-  "  srli t3, t3, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  bnez t4, .Lp256_l2b_byte\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li t1, 4\n" ++
-  "  bne t0, t1, .Lp256_l2b_quad\n" ++
-  "  ret"
+def p256LeToBe_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .SLLI .x6 .x5 (3 : BitVec 6),
+    .ADD .x7 .x10 .x6,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LI .x6 (31 : Word),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .SUB .x6 .x6 .x7,
+    .ADD .x6 .x11 .x6,
+    .LI .x29 (8 : Word),
+    .ANDI .x30 .x28 (255 : BitVec 12),
+    .SB .x6 .x30 (0 : BitVec 12),
+    .SRLI .x28 .x28 (8 : BitVec 6),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .BNE .x29 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (-64 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def p256LeToBeFunction : String :=
+  "p256_le_to_be:\n" ++ emitProgram p256LeToBe_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `p256LeToBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem p256LeToBeFunction_eq_prog :
+    p256LeToBeFunction = "p256_le_to_be:\n" ++ emitProgram p256LeToBe_prog := rfl
+
+#guard p256LeToBeFunction.startsWith "p256_le_to_be:\n"
+#guard p256LeToBe_prog.length = 19
 /-- Fused Arith256Mod op: a0/a1 = 32-byte BE operands (staged into
     `p256_le_a`/`p256_le_b`), a2 = 32-byte BE output, a3 = the
     {a,b,c,module,d} parameter block selecting the operation

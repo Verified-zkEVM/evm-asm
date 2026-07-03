@@ -38,6 +38,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.Bls12G1
 
 namespace EvmAsm.Codegen
@@ -250,38 +251,56 @@ def bls12G2Copy192Function : String :=
   "  ret"
 
 /-- Zero 192 bytes at a0 (8-aligned). Leaf; clobbers t0, a0. -/
+def blsg2Zero192_prog : Program :=
+  [ .LI .x5 (24 : Word),
+    .SD .x10 .x0 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-12 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def bls12G2Zero192Function : String :=
-  "blsg2_zero192:\n" ++
-  "  li t0, 24\n" ++
-  ".Lblsg2_z192:\n" ++
-  "  sd zero, 0(a0)\n" ++
-  "  addi a0, a0, 8\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lblsg2_z192\n" ++
-  "  ret"
+  "blsg2_zero192:\n" ++ emitProgram blsg2Zero192_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsg2Zero192_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G2Zero192Function_eq_prog :
+    bls12G2Zero192Function = "blsg2_zero192:\n" ++ emitProgram blsg2Zero192_prog := rfl
+
+#guard bls12G2Zero192Function.startsWith "blsg2_zero192:\n"
+#guard blsg2Zero192_prog.length = 6
 /-- a0 = 1 iff the two a2-byte buffers at a0/a1 are equal. Leaf. -/
-def bls12G2EqNFunction : String :=
-  "blsg2_eq_n:\n" ++
-  "  mv t1, a0\n" ++
-  "  mv t2, a1\n" ++
-  "  mv t0, a2\n" ++
-  ".Lblsg2_eqn_loop:\n" ++
-  "  beqz t0, .Lblsg2_eqn_yes\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bne t3, t4, .Lblsg2_eqn_no\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  j .Lblsg2_eqn_loop\n" ++
-  ".Lblsg2_eqn_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblsg2_eqn_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def blsg2EqN_prog : Program :=
+  [ .MV .x6 .x10,
+    .MV .x7 .x11,
+    .MV .x5 .x12,
+    .BEQ .x5 .x0 (32 : BitVec 13),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12G2EqNFunction : String :=
+  "blsg2_eq_n:\n" ++ emitProgram blsg2EqN_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsg2EqN_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G2EqNFunction_eq_prog :
+    bls12G2EqNFunction = "blsg2_eq_n:\n" ++ emitProgram blsg2EqN_prog := rfl
+
+#guard bls12G2EqNFunction.startsWith "blsg2_eq_n:\n"
+#guard blsg2EqN_prog.length = 15
 /-- Shared chord/tangent tail: with lambda staged at `blsg2_lam`,
     a0 = P, a1 = Q, a2 = out (192 B LE; out may alias P/Q — the result
     is staged through t1/t2 before the output copy):

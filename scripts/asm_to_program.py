@@ -413,11 +413,22 @@ def lean_render(manifest):
     repo=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     mods=sorted({_module_of(p) for p in manifest.values()})
     funcs=sorted(manifest)
+    # Emit the render harness as a `forM` over a `List (String × String)` of
+    # (func-name, func-value) pairs rather than one giant `do` block: a `do`
+    # block desugars to nested binds and blows the default `maxRecDepth` once
+    # the manifest passes ~32 funcs (~96 statements).  The `forM` body has
+    # fixed nesting depth, so this scales to the full manifest without touching
+    # `maxRecDepth`.  This harness is a pure print tool run OUTSIDE the kernel;
+    # the trust-bearing artifact remains the per-func `rfl` theorem in-source.
     src =''.join(f"import {m}\n" for m in mods)
     src+="open EvmAsm.Codegen\n"
-    src+="def main : IO Unit := do\n"
-    for fn in funcs:
-        src+=f'  IO.print "{_BEG}{fn}{_MID}"; IO.print {fn}; IO.print "{_END}"\n'
+    src+="def _renderItems : List (String × String) :=\n"
+    src+="  [ "+",\n    ".join(f'("{fn}", {fn})' for fn in funcs)+" ]\n"
+    src+="def main : IO Unit :=\n"
+    src+="  _renderItems.forM fun (nm, s) => do\n"
+    src+=f'    IO.print ("{_BEG}" ++ nm ++ "{_MID}")\n'
+    src+="    IO.print s\n"
+    src+=f'    IO.print "{_END}"\n'
     with tempfile.NamedTemporaryFile('w',suffix='.lean',dir=repo,delete=False) as f:
         f.write(src); tmp=f.name
     try:
