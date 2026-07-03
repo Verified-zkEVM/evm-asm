@@ -2509,8 +2509,16 @@ materializing its slice pointer with `LI` (the SAsm rendering of
 `la`-per-arena). Named-region/`la` design decisions recorded in
 docs/sasm-design.md §3.6.1 (contiguous slices → wideners; disjoint
 arenas → ambient `A` + blockAt + frameA; the named symbol-address table
-is the memory-layout bead's deliverable). Remaining for deep call
-trees: exposed s-register preservation conventions, then more
+is the memory-layout bead's deliverable). Register-preservation + frame
+conventions landed (`SAsm/FrameConv.lean`, completes bead
+evm-asm-4ch8f.3): exposed regs are caller-saved (call sp replaces the
+register file by the callee's post) — preserve via `Reach.pin`
+ghost-pinned contract families (PinDemo) or spill to a caller-private
+dword outside the callee's `widenRw` window and reload after `LI`
+re-materializing the pointer (SpillDemo); s-regs/`sp` are outside the
+exposed set (blockOk rejects them) so verified code can't clobber them;
+frames are STATIC windows of the stack arena (no dynamic `addi sp`),
+design in docs/sasm-design.md §3.6.2. Next for SAsm: more
 Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`

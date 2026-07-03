@@ -377,9 +377,8 @@ structure FnHandle where
   (e.g. `dwordBytes v` for the spilled `ra`).  The underlying frame seam
   is `bytesRegion_append` (split a byte region at a dword boundary).
   `WidenDemo` replays the ra-spill two-level tree with the leaf owning
-  only its 8-byte window; the remaining deep-tree follow-up is exposed
-  s-register preservation conventions (today a callee's post must state
-  which exposed registers it preserves).
+  only its 8-byte window; register-preservation conventions across calls
+  are §3.6.2 (`SAsm/FrameConv.lean`).
 - **Read-only sub-slices** (`FnHandle.widenRo`, same file): the `.ro`
   analogue — a callee verified against its own slice of a larger
   read-only buffer is repackaged over the caller's full region, pre/post
@@ -414,6 +413,43 @@ the first widening adapters (bead evm-asm-4ch8f.2):
    table plus pairwise-disjointness facts is the memory-layout
    formalization's deliverable (bead evm-asm-4ch8f.6); SAsm consumes
    those names, it does not define them.
+
+### 3.6.2 Register preservation and frame layout (design decisions)
+
+How values survive calls and where frames live (bead evm-asm-4ch8f.3,
+`SAsm/FrameConv.lean`):
+
+1. **Exposed registers (t0–t6, a0–a7) are caller-saved.**  `Stmt.sp` for
+   a `.call` replaces the reachable set by the callee's postcondition —
+   the callee owns the whole exposed file, so any register its post does
+   not mention is forgotten.  Two conventions keep a value live:
+   - *contract pinning* (`Reach.pin r v`): when the callee provably does
+     not touch `r`, its contract family carries the entry value `v` as a
+     ghost through pre AND post; the callee's own `.post` VC proves the
+     preservation and the caller gets it for free — zero runtime cost
+     (`PinDemo`: `w` survives in `x15` across a call and is used after);
+   - *spill/reload*: the caller stores the value into a private dword of
+     its own frame window — outside the callee's `widenRw` window, so
+     the widened post preserves the slot by construction — and reloads
+     after the call (`SpillDemo`: `w` survives a callee that clobbers
+     `x15`).  Pointers are never spilled: they are re-materialized with
+     `LI` from the static layout (§3.6.1), which keeps reload blocks
+     self-contained.
+2. **s-registers (and `sp`/`gp`/`tp`) need no machinery.**  They are
+   outside the exposed set: `blockOk` rejects any read or write, so a
+   verified SAsm routine can never clobber them.  They only matter at
+   boundaries with unverified raw asm, where the boundary spec owns them.
+3. **Frames are static windows; no dynamic `addi sp`.**  Each verified
+   routine gets a fixed dword-aligned window of the stack arena, assigned
+   by the global memory layout (bead evm-asm-4ch8f.6) and carved per call
+   edge by `FnHandle.widenRw`; `ra` spill slots live in the routine's own
+   window (`Fn.toHandleR`, slot dword `k` of `.rw`, first dword by
+   convention).  The guest's existing `addi sp`-style frames are
+   *replaced* by this convention, not modeled — sound because the
+   verified call graph is a finite static tree, so total stack need is
+   known at layout time.  Dynamically-deep recursion (the EVM
+   interpreter's call depth) does not stack-allocate: it goes through the
+   data-indexed EVM frame arena (beads evm-asm-4ch8f.5/.56).
 
 ### 3.7 Flattening (`SAsm/Flatten.lean`)
 
