@@ -243,29 +243,6 @@ theorem ld_ra_spec_within (rs : Reg) (sofs : BitVec 12) (rwBase : Word)
 -- Existential-precondition splitters with the `ra` atom alongside
 -- ============================================================================
 
-/-- Split `asrtM ** X` into a per-symbolic-state family (both regions and the
-    extra atom `X` alongside). -/
-theorem cpsTripleWithin_exists_pre_M_frame {n : Nat} {entry exit_ : Word}
-    {cr : CodeReq} {X : Assertion} {reg : Region} {rw : RwRegion}
-    {reach : Reach} {Q : Assertion}
-    (h : ∀ rf ws (A : Assertion), ws.length = rw.len → A.pcFree → reach rf ws A →
-      cpsTripleWithin n entry exit_ cr
-        ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
-          (bytesRegion reg.base reg.bytes ** X)) Q) :
-    cpsTripleWithin n entry exit_ cr (asrtM reg rw reach ** X) Q := by
-  intro R hR s hcr hPR hpc
-  rw [show asrtM reg rw reach
-      = (asrtOf rw reach ** bytesRegion reg.base reg.bytes) from rfl,
-    sepConj_assoc', sepConj_assoc'] at hPR
-  -- hPR : (asrtOf ** (bytesRegion reg ** (X ** R)))
-  obtain ⟨hp, hcompat, h1, h2, hd, hu, ⟨rf, ws, A, hlen, hApc, hreach, hsts⟩, hR2⟩ := hPR
-  have hPR' : (((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
-      (bytesRegion reg.base reg.bytes ** (X ** R)))).holdsFor s :=
-    ⟨hp, hcompat, h1, h2, hd, hu, hsts, hR2⟩
-  rw [← sepConj_assoc' (bytesRegion reg.base reg.bytes) X R,
-    ← sepConj_assoc'] at hPR'
-  exact h rf ws A hlen hApc hreach R hR s hcr hPR' hpc
-
 /-- Split an `asrtR` precondition into a per-symbolic-state family, including
     a concrete value for the owned `ra`. -/
 theorem cpsTripleWithin_exists_pre_R {n : Nat} {entry exit_ : Word}

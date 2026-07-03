@@ -109,6 +109,7 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
   | «while» _ c fuel inv _, _ =>
       fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf
   | call _ f, _ => fun rf ws A => f.post rf ws A
+  | callReg _ _ handles, _ => fun rf ws A => ∃ h ∈ handles, h.post rf ws A
 
 /-- Labeled verification conditions of a statement, given the reachable set
     at its entry.  `pfx` is the path prefix for labels. -/
@@ -154,6 +155,9 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
         (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ c.holds rf)
   | call lbl f, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A → f.pre rf ws A⟩]
+  | callReg lbl rs handles, pfx, reach =>
+      [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A →
+          ∃ h ∈ handles, rf.get rs = h.entry ∧ h.pre rf ws A⟩]
 
 /-- Exact step bound of a statement (docs/sasm-design.md §3.5; the loop bound
     is `WP.loopBound`). -/
@@ -167,6 +171,7 @@ def steps : Stmt → Nat
   | blockAt _ _ _ is => is.length
   | «while» _ _ fuel _ b => WP.loopBound 1 (b.steps + 1) 1 fuel
   | call _ f => 1 + f.nSteps
+  | callReg _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
 
 /-- `sp` is monotone in the reachable set. -/
 theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
@@ -197,6 +202,8 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | «while» lbl c fuel inv b ihb =>
       exact fun rf ws A hr => hr
   | call lbl f =>
+      exact fun rf ws A hr => hr
+  | callReg lbl rs handles =>
       exact fun rf ws A hr => hr
 
 -- ============================================================================
@@ -328,6 +335,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | ghost lbl R => exact nomatch h
   | «while» lbl c fuel inv b ih => exact nomatch h
   | call lbl f => exact nomatch h
+  | callReg lbl rs handles => exact nomatch h
 
 /-- `vcs` is antitone in the reachable set: obligations proven for a larger
     reachable set cover any smaller one.  Used to specialize loop-body VCs
@@ -419,6 +427,11 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
       exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
+  | callReg lbl rs handles =>
+      intro vc hvc
+      simp only [vcs, List.mem_singleton] at hvc
+      subst hvc
+      exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
 
 /-- Per call site: the callee's code is contained in `cr` and the callee
     shares the caller's regions.  Stated structurally (rather than as a union
@@ -436,6 +449,9 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | «while» _ _ _ _ b => b.CalleesIn reg rw cr
   | call _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw
+  | callReg _ _ handles => ∀ h ∈ handles,
+      (∀ a i, h.code a = some i → cr a = some i)
+      ∧ h.region = reg ∧ h.rw = rw
 
 end Stmt
 
