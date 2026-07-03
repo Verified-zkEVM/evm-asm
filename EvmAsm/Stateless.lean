@@ -35,3 +35,4 @@ import EvmAsm.Stateless.Headers
 import EvmAsm.Stateless.State
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.EntrySpec
+import EvmAsm.Stateless.SpecRef
