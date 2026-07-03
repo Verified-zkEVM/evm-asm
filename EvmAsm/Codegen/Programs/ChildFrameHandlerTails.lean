@@ -230,11 +230,9 @@ def basicPrecompileCallTail
     "  bnez x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "  li x15, 1\n" ++
     "  bltu x14, x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
-    "  li x15, 0x12\n" ++
+    "  li x15, 0x11\n" ++
     "  bgeu x15, x14, .L" ++ tag ++ "_supported_precompile\n" ++
     "  li x15, 0x100\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_supported_precompile\n" ++
-    "  li x15, 0x101\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_supported_precompile\n" ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     ".L" ++ tag ++ "_supported_precompile:\n" ++
@@ -269,12 +267,8 @@ def basicPrecompileCallTail
     "  beq x14, x15, 18f\n" ++
     "  li x15, 0x11\n" ++
     "  beq x14, x15, 19f\n" ++
-    "  li x15, 0x12\n" ++
-    "  beq x14, x15, 12f\n" ++
     "  li x15, 0x100\n" ++
     "  beq x14, x15, .L" ++ tag ++ "_p256verify\n" ++
-    "  li x15, 0x101\n" ++
-    "  beq x14, x15, 12f\n" ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "11:\n" ++
     "  la x15, evm_precompile_frame\n" ++

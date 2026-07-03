@@ -281,7 +281,7 @@ def runtimeAccessWordToBe20Asm (tag srcReg dstReg idxReg tmpReg : String) : Stri
       - ADDRESS/current executing account at env+0
       - CALLER at env+64
       - COINBASE at env+192
-      - ORIGIN/sender at env+256
+      - ORIGIN/sender at env+128
 
     The standalone runtime does not currently carry a distinct tx.to/create
     address outside ADDRESS, so follow-up frame work can extend this surface
@@ -319,7 +319,7 @@ def runtimeAccessSeedInitialAccountsFunction : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_seed\n" ++
-  "  addi t1, x20, 256\n" ++
+  "  addi t1, x20, 128\n" ++
   "  mv t2, s0\n" ++
   runtimeAccessWordToBe20Asm "origin" "t1" "t2" "t3" "t4" ++
   "  mv a0, s0\n" ++
