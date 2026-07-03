@@ -190,6 +190,24 @@ contract; the call machinery consumes it unchanged.
   unreduced projections mention free variables — and if `vcgen` reports
   a `Fn.Spec`/`SpecR` mismatch, insert `show Fn.SpecR _ _ _` before it.
   Design rationale for named arenas: docs/sasm-design.md §3.6.1.
+- **Preserving a value across a call** (`SAsm/FrameConv.lean`; design
+  §3.6.2).  The call's sp replaces the reachable set by the callee's
+  post, so exposed registers are caller-saved.  Two recipes:
+  1. *Contract pinning* — callee doesn't touch the register: wrap both
+     its pre and post in `Reach.pin r v` with ghost `v`; the callee's
+     `.post` VC discharges the preservation (`RegFile.get_set_ne`), and
+     the caller instantiates the handle at its live value
+     (`PinDemo.pinCallerFn`).
+  2. *Spill/reload* — callee clobbers the register: `SD` the value into
+     a caller-private dword before the call (its bytes become the
+     `preB`/`sufB` ghost of the callee's `widenRw` widening, so the
+     widened post returns them intact), then re-materialize the frame
+     pointer with `LI` and `LD` the value back
+     (`SpillDemo.spCallerFn`).  Don't spill pointers — reload them with
+     `LI` from the static layout.
+  s-registers and `sp` never need either recipe: they are outside the
+  exposed set, so verified code cannot touch them (frames are static
+  windows of the stack arena; there is no `addi sp` in verified code).
 
 ### Calling an existing hand-verified `cpsTripleWithin`
 
