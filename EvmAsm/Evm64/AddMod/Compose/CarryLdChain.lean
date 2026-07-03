@@ -16,6 +16,7 @@
 -/
 
 import EvmAsm.Evm64.AddMod.Compose.CarryLd
+import EvmAsm.Evm64.EvmWordArith.Comparison
 
 namespace EvmAsm.Evm64.AddMod.Compose
 
@@ -198,5 +199,205 @@ theorem ld_pass1take_owned
     (ld_pass1take_in_C bt G carry x6g x7g x10Old x11g s0 s1 s2 s3 n0 n1 n2 n3 mask
       mo1 mo2 mo3 moNC calleeEntry hmask)
   xperm_hyp hp
+
+-- ============================================================================
+-- The full Ld chain (byte 460 → 832): mod_add_stage ;; evm_add ;;
+-- pass1take_owned ;; pass2, over C, with the untouched carry-path state framed.
+-- ============================================================================
+
+/-- The `mask` word produced by pass1 from the sum/N limbs `s_i`/`n_i`. -/
+def ldMask (carry s0 s1 s2 s3 n0 n1 n2 n3 : Word) : Word :=
+  (0 : Word) -
+    ((carry + signExtend12 (0 : BitVec 12)) |||
+     (((if BitVec.ult s3 n3 then (1 : Word) else 0) |||
+        (if BitVec.ult (s3 - n3)
+          ((if BitVec.ult s2 n2 then (1 : Word) else 0) |||
+           (if BitVec.ult (s2 - n2)
+             ((if BitVec.ult s1 n1 then (1 : Word) else 0) |||
+              (if BitVec.ult (s1 - n1)
+                (if BitVec.ult s0 n0 then (1 : Word) else 0)
+                then (1 : Word) else 0))
+             then (1 : Word) else 0))
+          then (1 : Word) else 0))
+       ^^^ signExtend12 (1 : BitVec 12)))
+
+/-- **Ld complete** (chain form): the four Ld links over `C`, byte 460 → 832,
+    with the ADDMOD carry-path result `(m + rMod) − (N &&& condSubMask take)`
+    folded into `x12+0..24` and everything else shed to owned. Keeps `m`, `rMod`,
+    `N = fromLimbs ![n]` abstract; the carry-branch compose instantiates
+    `m := pow256ModN N`, `rMod := mod (a+b) N` and rewrites the result to
+    `EvmWord.addmod a b N` via `sum_minus_masked_N_eq_addmod`. -/
+theorem ld_spec_within
+    (bt F raVal x2v x6v x7v x9v x10v x11v : Word) (m rMod : EvmWord)
+    (n0 n1 n2 n3 r0 r1 r2 r3 dd0 dd1 dd2 dd3 : Word)
+    (mo1 mo2 mo3 moNC : BitVec 21) (calleeEntry : Word) :
+    cpsTripleWithin (((8 + 30) + 25) + 30) (bt + 460) (bt + 832)
+      (addmodCarryCode bt mo1 mo2 mo3 moNC calleeEntry)
+      (((.x12 ↦ᵣ F) ** regOwn .x5 **
+        ((F + signExtend12 (3840 : BitVec 12)) ↦ₘ m.getLimbN 0) **
+        ((F + signExtend12 (3848 : BitVec 12)) ↦ₘ m.getLimbN 1) **
+        ((F + signExtend12 (3856 : BitVec 12)) ↦ₘ m.getLimbN 2) **
+        ((F + signExtend12 (3864 : BitVec 12)) ↦ₘ m.getLimbN 3) **
+        ((F + signExtend12 (0 : BitVec 12)) ↦ₘ dd0) **
+        ((F + signExtend12 (8 : BitVec 12)) ↦ₘ dd1) **
+        ((F + signExtend12 (16 : BitVec 12)) ↦ₘ dd2) **
+        ((F + signExtend12 (24 : BitVec 12)) ↦ₘ dd3)) **
+       addmodLdModAddFrame F raVal x2v x6v x7v x9v x10v x11v rMod n0 n1 n2 n3 r0 r1 r2 r3)
+      (addmodLdResultOwned F
+        ((m + rMod) - (EvmWord.fromLimbs ![n0, n1, n2, n3] &&&
+          EvmWord.condSubMask
+            (decide (m.toNat + rMod.toNat ≥ (EvmWord.fromLimbs ![n0, n1, n2, n3]).toNat))))) := by
+  -- abbreviations for the overflow bit (evm_add's x5), the sum limbs, and the mask
+  set carry : Word := if m.toNat + rMod.toNat ≥ 2 ^ 256 then (1 : Word) else 0 with hcarrydef
+  set s0 := (m + rMod).getLimbN 0 with hs0
+  set s1 := (m + rMod).getLimbN 1 with hs1
+  set s2 := (m + rMod).getLimbN 2 with hs2
+  set s3 := (m + rMod).getLimbN 3 with hs3
+  set mask := ldMask carry s0 s1 s2 s3 n0 n1 n2 n3 with hmaskdef
+  have e0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  have e8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+  have e16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+  have e24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+  -- coordinate-shift identities for the N cells: at x12 = G = F+32, the divisor
+  -- `N` parked at S1 (`F−192..−168`) is reached as `(F+32)+signExtend12 3872..3896`,
+  -- i.e. `F+signExtend12 3904..3928`.
+  have hn0 : (F + 32) + signExtend12 (3872 : BitVec 12) = F + signExtend12 (3904 : BitVec 12) := by
+    rw [show signExtend12 (3872 : BitVec 12) = (18446744073709551392 : Word) from by decide,
+      show signExtend12 (3904 : BitVec 12) = (18446744073709551424 : Word) from by decide]
+    bv_omega
+  have hn1 : (F + 32) + signExtend12 (3880 : BitVec 12) = F + signExtend12 (3912 : BitVec 12) := by
+    rw [show signExtend12 (3880 : BitVec 12) = (18446744073709551400 : Word) from by decide,
+      show signExtend12 (3912 : BitVec 12) = (18446744073709551432 : Word) from by decide]
+    bv_omega
+  have hn2 : (F + 32) + signExtend12 (3888 : BitVec 12) = F + signExtend12 (3920 : BitVec 12) := by
+    rw [show signExtend12 (3888 : BitVec 12) = (18446744073709551408 : Word) from by decide,
+      show signExtend12 (3920 : BitVec 12) = (18446744073709551440 : Word) from by decide]
+    bv_omega
+  have hn3 : (F + 32) + signExtend12 (3896 : BitVec 12) = F + signExtend12 (3928 : BitVec 12) := by
+    rw [show signExtend12 (3896 : BitVec 12) = (18446744073709551416 : Word) from by decide,
+      show signExtend12 (3928 : BitVec 12) = (18446744073709551448 : Word) from by decide]
+    bv_omega
+  -- the four links
+  have hstage := ld_mod_add_stage_in_C bt F raVal x2v x6v x7v x9v x10v x11v rMod
+    (m.getLimbN 0) (m.getLimbN 1) (m.getLimbN 2) (m.getLimbN 3) n0 n1 n2 n3 r0 r1 r2 r3
+    dd0 dd1 dd2 dd3 mo1 mo2 mo3 moNC calleeEntry
+  rw [show (bt + 460) + 32 = bt + 492 from by bv_omega] at hstage
+  have hadd := ld_evm_add_in_C bt F raVal x2v x9v x10v (m.getLimbN 3) x6v x7v x11v m rMod
+    n0 n1 n2 n3 r0 r1 r2 r3 (m.getLimbN 0) (m.getLimbN 1) (m.getLimbN 2) (m.getLimbN 3)
+    mo1 mo2 mo3 moNC calleeEntry
+  simp only at hadd
+  rw [show (bt + 492) + 120 = bt + 612 from by bv_omega] at hadd
+  have hpass1 := ld_pass1take_owned bt (F + 32) carry x10v s0 s1 s2 s3 n0 n1 n2 n3 mask
+    mo1 mo2 mo3 moNC calleeEntry hmaskdef
+  rw [show (bt + 612) + 100 = bt + 712 from by bv_omega] at hpass1
+  have hpass2 := ld_pass2_in_C bt (F + 32) mask (carry + signExtend12 (0 : BitVec 12))
+    s0 s1 s2 s3 n0 n1 n2 n3 mo1 mo2 mo3 moNC calleeEntry
+  simp only at hpass2
+  rw [show (bt + 712) + 120 = bt + 832 from by bv_omega] at hpass2
+  -- frame the untouched carry-path tail around the two cond-sub links
+  have hpass1f := cpsTripleWithin_frameR
+    (addmodLdCondSubTail F raVal x2v x9v m r0 r1 r2 r3
+      (m.getLimbN 0) (m.getLimbN 1) (m.getLimbN 2) (m.getLimbN 3))
+    (addmodLdCondSubTail_pcFree F raVal x2v x9v m r0 r1 r2 r3
+      (m.getLimbN 0) (m.getLimbN 1) (m.getLimbN 2) (m.getLimbN 3))
+    hpass1
+  have hpass2f := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** addmodLdCondSubTail F raVal x2v x9v m r0 r1 r2 r3
+      (m.getLimbN 0) (m.getLimbN 1) (m.getLimbN 2) (m.getLimbN 3))
+    (by rw [addmodLdCondSubTail] ; pcFree)
+    hpass2
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?post)
+    (cpsTripleWithin_seq_perm_same_cr ?rc
+      (cpsTripleWithin_seq_perm_same_cr ?rb
+        (cpsTripleWithin_seq_perm_same_cr ?ra hstage hadd) hpass1f) hpass2f)
+  case ra =>
+    intro h hp
+    simp only [addmodLdModAddFrame, addmodLdAddFrame, evmWordIs,
+      e0, e8, e16, e24, BitVec.add_assoc, BitVec.reduceAdd, add_zero] at hp ⊢
+    xperm_hyp hp
+  case rb =>
+    intro h hp
+    simp only [addmodLdAddFrame, addmodLdCondSubTail, evmWordIs,
+      e0, e8, e16, e24, hn0, hn1, hn2, hn3,
+      BitVec.add_assoc, BitVec.reduceAdd, add_zero, sepConj_assoc'] at hp ⊢
+    exact sepConj_mono (regIs_implies_regOwn .x6)
+      (sepConj_mono (regIs_implies_regOwn .x7)
+        (sepConj_mono (regIs_implies_regOwn .x11) (fun _ x => x))) h (by xperm_hyp hp)
+  case rc =>
+    intro h hp
+    simp only [addmodLdCondSubTail] at hp ⊢
+    xperm_hyp hp
+  case post =>
+    -- (1) the pass1 borrow chain in `mask` equals `s < N`
+    have hb3 := @EvmWord.lt_borrow_chain_correct (m + rMod) (EvmWord.fromLimbs ![n0, n1, n2, n3])
+    simp only [EvmWord.getLimb_as_getLimbN_0, EvmWord.getLimb_as_getLimbN_1,
+      EvmWord.getLimb_as_getLimbN_2, EvmWord.getLimb_as_getLimbN_3,
+      EvmWord.getLimbN_fromLimbs_gen_0, EvmWord.getLimbN_fromLimbs_gen_1,
+      EvmWord.getLimbN_fromLimbs_gen_2, EvmWord.getLimbN_fromLimbs_gen_3,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val,
+      ← hs0, ← hs1, ← hs2, ← hs3] at hb3
+    -- (2) hence `mask = if (m+rMod ≥ N) then -1 else 0`
+    have hmaskval : mask = if m.toNat + rMod.toNat ≥ (EvmWord.fromLimbs ![n0, n1, n2, n3]).toNat
+        then (-1 : Word) else 0 := by
+      rw [hmaskdef, ldMask, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+        show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide, add_zero]
+      exact EvmWord.condSub_mask_eq m rMod (EvmWord.fromLimbs ![n0, n1, n2, n3]) carry _ hcarrydef hb3
+    -- (3) so the pass2 output word equals the ADDMOD carry-path result:
+    --     massage `ld_pass2_fromLimbs_sub`'s RHS into the goal's result form
+    have hmaskbool : mask =
+        if decide (m.toNat + rMod.toNat ≥ (EvmWord.fromLimbs ![n0, n1, n2, n3]).toNat)
+        then (-1 : Word) else 0 := by
+      rw [hmaskval]
+      by_cases hc : m.toNat + rMod.toNat ≥ (EvmWord.fromLimbs ![n0, n1, n2, n3]).toNat <;>
+        simp [hc]
+    have hfold := ld_pass2_fromLimbs_sub s0 s1 s2 s3 n0 n1 n2 n3 mask
+    simp only at hfold
+    rw [show EvmWord.fromLimbs ![s0, s1, s2, s3] = m + rMod from by
+      rw [hs0, hs1, hs2, hs3]; exact fromLimbs_getLimbN_vec _] at hfold
+    simp only [hmaskbool] at hfold
+    rw [mask_fromLimbs_const_eq] at hfold
+    -- (4) rewrite the goal's result to the pass2 output limbs, expand the
+    --     result word into its four cells, and shed everything else valued →
+    --     owned via a pointwise `sepConj_mono` chain over the goal's atom
+    --     order (the source side is `hq` reordered by `xperm_hyp`).
+    simp only [addmodLdResultOwned, addmodLdCondSubTail,
+      e0, e8, e16, e24, hn0, hn1, hn2, hn3,
+      BitVec.add_assoc, BitVec.reduceAdd, add_zero, sepConj_assoc'] at hq ⊢
+    simp only [hmaskbool] at hq
+    rw [← hfold]
+    simp only [evmWordIs,
+      EvmWord.getLimbN_fromLimbs_gen_0, EvmWord.getLimbN_fromLimbs_gen_1,
+      EvmWord.getLimbN_fromLimbs_gen_2, EvmWord.getLimbN_fromLimbs_gen_3,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val,
+      BitVec.add_assoc, BitVec.reduceAdd, sepConj_assoc']
+    exact sepConj_mono (fun _ x => x)                                 -- x12
+      (sepConj_mono (fun _ x => x)                                    -- out0
+      (sepConj_mono (fun _ x => x)                                    -- out1
+      (sepConj_mono (fun _ x => x)                                    -- out2
+      (sepConj_mono (fun _ x => x)                                    -- out3
+      (sepConj_mono (regIs_implies_regOwn .x0)
+      (sepConj_mono (regIs_implies_regOwn .x1)
+      (sepConj_mono (regIs_implies_regOwn .x2)
+      (sepConj_mono (regIs_implies_regOwn .x5)
+      (sepConj_mono (regIs_implies_regOwn .x6)
+      (sepConj_mono (regIs_implies_regOwn .x7)
+      (sepConj_mono (regIs_implies_regOwn .x9)
+      (sepConj_mono (regIs_implies_regOwn .x10)
+      (sepConj_mono (regIs_implies_regOwn .x11)
+      (sepConj_mono (fun _ x => x)                                    -- divScratch
+      (sepConj_mono (fun _ x => x)                                    -- memOwn F−160
+      (sepConj_mono (fun _ hw => evmWordIs_to_evmWordOwn hw)          -- evmWordOwn F
+      (sepConj_mono memIs_implies_memOwn                              -- S2 r cells
+      (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn                              -- S3 p cells
+      (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn                              -- N cells
+      (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        memIs_implies_memOwn))))))))))))))))))))))))))) h (by xperm_hyp hq)
 
 end EvmAsm.Evm64.AddMod.Compose
