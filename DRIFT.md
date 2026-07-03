@@ -50,7 +50,7 @@ precondition; the excluded domain is **unverified**.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `SMOD` | all-case v4 wrapper result-stack spec; zero divisor discharged, nonzero path still parameterized by unsigned-MOD callable h_stack |
+
 
 ### 🟡 `partly` opcodes — no complete top-level triple yet
 
