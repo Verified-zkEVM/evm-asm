@@ -167,7 +167,7 @@ theorem divK_loop_n2_shift0_param_v5_noNop_modCode (bltu_2 bltu_1 bltu_0 : Bool)
     flag-param loop, the carry discharged from shape.  Flag-param form of #7472. -/
 theorem evm_mod_n2_to_denorm_shift0_param_v5_noNop (bltu_2 bltu_1 bltu_0 : Bool)
     (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 v2 v5 v6 v7 v10 v11Old : Word)
+    (a0 a1 a2 a3 b0 b1 v2 v5 v6 v7 v10 v11Old x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
     (hbnz : b0 ||| b1 ||| (0 : Word) ||| 0 ≠ 0) (hb1nz : b1 ≠ 0)
@@ -183,7 +183,7 @@ theorem evm_mod_n2_to_denorm_shift0_param_v5_noNop (bltu_2 bltu_1 bltu_0 : Bool)
       (modCode_noNop_v5 base)
       (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-        (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+        (.x9 ↦ᵣ x9In) **
         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -210,7 +210,7 @@ theorem evm_mod_n2_to_denorm_shift0_param_v5_noNop (bltu_2 bltu_1 bltu_0 : Bool)
         ((sp + signExtend12 3992) ↦ₘ (clzResult b1).1))) := by
   have hb1ge : b1.toNat ≥ 2^63 := clz_zero_imp_msb hshift_z
   have hPre := evm_mod_n2_to_loopSetup_shift0_spec_v5_noNop sp base a0 a1 a2 a3 b0 b1 0 0
-    v2 v5 v6 v7 v10 (signExtend12 (4 : BitVec 12) - (4 : Word)) q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
+    v2 v5 v6 v7 v10 x9In q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem
     hbnz rfl rfl hb1nz hshift_z
   have hPref := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11Old) ** ((sp + signExtend12 3976) ↦ₘ jMem) **
@@ -244,7 +244,7 @@ theorem evm_mod_n2_to_denorm_shift0_param_v5_noNop (bltu_2 bltu_1 bltu_0 : Bool)
     `evm_div_n2_full_shift0_spec_v5_noNop` (#7478). -/
 theorem evm_mod_n2_full_shift0_param_v5_noNop (bltu_2 bltu_1 bltu_0 : Bool)
     (sp base : Word)
-    (a0 a1 a2 a3 b0 b1 v2 v5 v6 v7 v10 v11Old : Word)
+    (a0 a1 a2 a3 b0 b1 v2 v5 v6 v7 v10 v11Old x9In : Word)
     (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
     (retMem dMem dloMem scratchUn0 scratchMem raVal : Word)
     (hbnz : b0 ||| b1 ||| (0 : Word) ||| 0 ≠ 0) (hb1nz : b1 ≠ 0)
@@ -260,7 +260,7 @@ theorem evm_mod_n2_full_shift0_param_v5_noNop (bltu_2 bltu_1 bltu_0 : Bool)
       (modCode_noNop_v5 base)
       (((.x12 ↦ᵣ sp) ** (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x2 ↦ᵣ v2) **
-        (.x9 ↦ᵣ signExtend12 (4 : BitVec 12) - (4 : Word)) **
+        (.x9 ↦ᵣ x9In) **
         ((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
         ((sp + 16) ↦ₘ a2) ** ((sp + 24) ↦ₘ a3) **
         ((sp + 32) ↦ₘ b0) ** ((sp + 40) ↦ₘ b1) **
@@ -295,7 +295,7 @@ theorem evm_mod_n2_full_shift0_param_v5_noNop (bltu_2 bltu_1 bltu_0 : Bool)
        fullModN2FrameShift0V5 bltu_2 bltu_1 bltu_0 sp base a0 a1 a2 a3 b0 b1
          retMem dMem dloMem scratchUn0 scratchMem raVal) := by
   have hA := evm_mod_n2_to_denorm_shift0_param_v5_noNop bltu_2 bltu_1 bltu_0
-    sp base a0 a1 a2 a3 b0 b1 v2 v5 v6 v7 v10 v11Old
+    sp base a0 a1 a2 a3 b0 b1 v2 v5 v6 v7 v10 v11Old x9In
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratchUn0 scratchMem raVal hbnz hb1nz hshift_z halign
     hbltu_2 hbltu_1 hbltu_0

@@ -255,6 +255,7 @@ theorem evm_mod_n2_lane_shift0_v5 (sp base : Word) (a b : EvmWord)
     hb1ge hc2 hm2 hc1 hm1 hc0 hm0
   have hpath := evm_mod_n2_full_shift0_param_v5_noNop bltu_2 bltu_1 bltu_0 sp base
     a0 a1 a2 a3 b0 (b.getLimbN 1) ((clzResult (b.getLimbN 1)).2 >>> (63 : Nat)) v5 v6 v7 v10 v11Old
+    (signExtend12 (4 : BitVec 12) - (4 : Word))
     q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
     retMem dMem dloMem scratch_un0 scratchMem raVal hbnz' hb1ne hshift_z halign
     hbltu_2 hbltu_1 hbltu_0

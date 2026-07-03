@@ -192,4 +192,123 @@ theorem n2_shift0_fullPost_to_modStackDispatchPostCallableExactFrame
     (fun h hp => memIs_implies_memOwn h hp)
     h hExact
 
+/-- n=2 v5 MOD callable exact-frame lane, shift=0 arm.  Mirrors the DIV
+    `evm_div_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0`, using the
+    mod shift0 remainder facts + the x9In/x2In-generic mod shift0 param path + the
+    mod shift0 post bridge. -/
+theorem evm_mod_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
+    (sp base : Word) (a b : EvmWord)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0) (hb1nz : b.getLimbN 1 ≠ 0)
+    (hshift_z : (clzResult (b.getLimbN 1)).1 = 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode_noNop_v5 base)
+      (divModStackDispatchPreNoX1 sp a b
+        x9In raVal
+        x2In v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (modStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       memOwn (sp + signExtend12 3936)) := by
+  have hb1ge : (b.getLimbN 1).toNat ≥ 2 ^ 63 := clz_zero_imp_msb hshift_z
+  have hb1ne : b.getLimbN 1 ≠ 0 := hb1nz
+  have hbnz' : b.getLimbN 0 ||| b.getLimbN 1 ||| (0 : Word) ||| 0 ≠ 0 := by
+    intro hz
+    exact hb1ne ((BitVec.or_eq_zero_iff.mp (BitVec.or_eq_zero_iff.mp
+      (BitVec.or_eq_zero_iff.mp hz).1).1).2)
+  obtain ⟨bltu_2, hbltu_2⟩ : ∃ x, x = BitVec.ult (0 : Word) (b.getLimbN 1) := ⟨_, rfl⟩
+  obtain ⟨bltu_1, hbltu_1⟩ :
+      ∃ x, x = BitVec.ult (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0
+        (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.2.1
+        (b.getLimbN 1) := ⟨_, rfl⟩
+  obtain ⟨bltu_0, hbltu_0⟩ :
+      ∃ x, x = BitVec.ult (iterN2V5 bltu_1 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 1)
+        (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.1
+        (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.2.1 0 0).2.2.1
+        (b.getLimbN 1) := ⟨_, rfl⟩
+  have hc2 : bltu_2 = true → BitVec.ult (0 : Word) (b.getLimbN 1) = true :=
+    fun h => by rw [← hbltu_2]; exact h
+  have hm2 : bltu_2 = false → ¬ BitVec.ult (0 : Word) (b.getLimbN 1) :=
+    fun h => by rw [← hbltu_2, h]; decide
+  have hc1 : bltu_1 = true →
+      BitVec.ult (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0
+        (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.2.1 (b.getLimbN 1) = true :=
+    fun h => by rw [← hbltu_1]; exact h
+  have hm1 : bltu_1 = false →
+      ¬ BitVec.ult (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0
+        (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.2.1 (b.getLimbN 1) :=
+    fun h => by rw [← hbltu_1, h]; decide
+  have hc0 : bltu_0 = true →
+      BitVec.ult (iterN2V5 bltu_1 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 1)
+        (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.1
+        (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.2.1 0 0).2.2.1
+        (b.getLimbN 1) = true :=
+    fun h => by rw [← hbltu_0]; exact h
+  have hm0 : bltu_0 = false →
+      ¬ BitVec.ult (iterN2V5 bltu_1 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 1)
+        (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.1
+        (iterN2V5 bltu_2 (b.getLimbN 0) (b.getLimbN 1) 0 0 (a.getLimbN 2) (a.getLimbN 3) 0 0 0).2.2.1 0 0).2.2.1
+        (b.getLimbN 1) :=
+    fun h => by rw [← hbltu_0, h]; decide
+  obtain ⟨hdiv0, hdiv1, hdiv2, hdiv3⟩ := n2_shift0_mod_getLimbN_threaded a b
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1)
+    bltu_2 bltu_1 bltu_0 rfl rfl rfl rfl rfl rfl hb2z hb3z
+    hb1ge hc2 hm2 hc1 hm1 hc0 hm0
+  have hpath := evm_mod_n2_full_shift0_param_v5_noNop bltu_2 bltu_1 bltu_0 sp base
+    (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1)
+    x2In v5 v6 v7 v10 v11Old x9In
+    q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
+    retMem dMem dloMem scratch_un0 scratchMem raVal hbnz' hb1ne hshift_z halign
+    hbltu_2 hbltu_1 hbltu_0
+  refine cpsTripleWithin_mono_nSteps (by have h : unifiedDivBound = 946 := rfl; omega) <|
+    cpsTripleWithin_weaken ?_ ?_ hpath
+  · intro h hp
+    exact n2_shift0_dispatchPre_to_pathEntry sp a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1)
+      raVal v5 v6 v7 v10 v11Old x9In x2In
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+      nMem shiftMem jMem retMem dMem dloMem scratch_un0 scratchMem
+      rfl rfl rfl rfl rfl rfl hb2z hb3z h hp
+  · intro h hq
+    exact n2_shift0_fullPost_to_modStackDispatchPostCallableExactFrame bltu_2 bltu_1 bltu_0 sp base a b
+      (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3) (b.getLimbN 0) (b.getLimbN 1)
+      retMem dMem dloMem scratch_un0 scratchMem raVal
+      rfl rfl rfl rfl hdiv0 hdiv1 hdiv2 hdiv3 h hq
+
+/-- n=2 v5 MOD callable exact-frame lane, shape-level combiner: `by_cases` on the
+    normalization shift, delegating to the shift=0 and shift≠0 arms. -/
+theorem evm_mod_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_of_shape
+    (sp base : Word) (a b : EvmWord)
+    (raVal v5 v6 v7 v10 v11Old x9In x2In : Word)
+    (q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem : Word)
+    (retMem dMem dloMem scratch_un0 scratchMem : Word)
+    (hbnz : b ≠ 0)
+    (hb3z : b.getLimbN 3 = 0) (hb2z : b.getLimbN 2 = 0) (hb1nz : b.getLimbN 1 ≠ 0)
+    (halign : ((base + div128CallRetOff) + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) =
+      base + div128CallRetOff) :
+    cpsTripleWithin unifiedDivBound base (base + nopOff) (modCode_noNop_v5 base)
+      (divModStackDispatchPreNoX1 sp a b
+        x9In raVal
+        x2In v5 v6 v7 v10 v11Old
+        q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7
+        shiftMem nMem jMem retMem dMem dloMem scratch_un0 **
+       ((sp + signExtend12 3936) ↦ₘ scratchMem))
+      (modStackDispatchPostCallableExactFrame sp a b raVal
+        (signExtend12 4095 : Word) **
+       memOwn (sp + signExtend12 3936)) := by
+  by_cases hsh : (clzResult (b.getLimbN 1)).1 = 0
+  · exact evm_mod_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_shift0
+      sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
+      retMem dMem dloMem scratch_un0 scratchMem hb3z hb2z hb1nz hsh halign
+  · exact evm_mod_n2_stack_spec_noNop_v5_preNoX1_callableExactFrame_shiftNz
+      sp base a b raVal v5 v6 v7 v10 v11Old x9In x2In
+      q0 q1 q2 q3 u0Old u1Old u2Old u3Old u4Old u5 u6 u7 nMem shiftMem jMem
+      retMem dMem dloMem scratch_un0 scratchMem hbnz hb3z hb2z hb1nz hsh halign
+
 end EvmAsm.Evm64
