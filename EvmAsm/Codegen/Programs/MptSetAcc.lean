@@ -33,6 +33,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -52,64 +55,121 @@ open EvmAsm.Rv64
       keccak[32] | len:u64 | bytes[len] (padded to 8)
     laid out from `mset_db_data`. Append keccaks the node and writes the
     record. a0 = node ptr, a1 = node length. -/
-def nodeDbAppendFunction : String :=
-  "node_db_append:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # node ptr\n" ++
-  "  mv s1, a1                   # node len\n" ++
-  "  # keccak(node) -> mset_db_hash\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, mset_db_hash\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  la t0, mset_db_top; ld s2, 0(t0)   # dst record ptr\n" ++
-  "  la t1, mset_db_hash\n" ++
-  "  ld t2,  0(t1); sd t2,  0(s2)\n" ++
-  "  ld t2,  8(t1); sd t2,  8(s2)\n" ++
-  "  ld t2, 16(t1); sd t2, 16(s2)\n" ++
-  "  ld t2, 24(t1); sd t2, 24(s2)\n" ++
-  "  sd s1, 32(s2)               # len\n" ++
-  "  addi a0, s2, 40             # dst bytes\n" ++
-  "  mv a1, s0; mv a2, s1\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  # advance top by 40 + roundup8(len)\n" ++
-  "  addi t0, s1, 7; andi t0, t0, -8; addi t0, t0, 40\n" ++
-  "  add s2, s2, t0\n" ++
-  "  la t1, mset_db_top; sd s2, 0(t1)\n" ++
-  "  la t1, mset_db_count; ld t2, 0(t1); addi t2, t2, 1; sd t2, 0(t1)\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def nodeDbAppend_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.mset_db_hash (GuestAddrs.node_db_append + 36)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mset_db_hash (GuestAddrs.node_db_append + 36)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.node_db_append + 44)),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_top (GuestAddrs.node_db_append + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_top (GuestAddrs.node_db_append + 48)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_hash (GuestAddrs.node_db_append + 60)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_hash (GuestAddrs.node_db_append + 60)),
+    .LD .x7 .x6 (0 : BitVec 12),
+    .SD .x18 .x7 (0 : BitVec 12),
+    .LD .x7 .x6 (8 : BitVec 12),
+    .SD .x18 .x7 (8 : BitVec 12),
+    .LD .x7 .x6 (16 : BitVec 12),
+    .SD .x18 .x7 (16 : BitVec 12),
+    .LD .x7 .x6 (24 : BitVec 12),
+    .SD .x18 .x7 (24 : BitVec 12),
+    .SD .x18 .x9 (32 : BitVec 12),
+    .ADDI .x10 .x18 (40 : BitVec 12),
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.node_db_append + 116)),
+    .ADDI .x5 .x9 (7 : BitVec 12),
+    .ANDI .x5 .x5 (-8 : BitVec 12),
+    .ADDI .x5 .x5 (40 : BitVec 12),
+    .ADD .x18 .x18 .x5,
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_top (GuestAddrs.node_db_append + 136)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_top (GuestAddrs.node_db_append + 136)),
+    .SD .x6 .x18 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_count (GuestAddrs.node_db_append + 148)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_count (GuestAddrs.node_db_append + 148)),
+    .LD .x7 .x6 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def nodeDbAppendFunction : String :=
+  "node_db_append:\n" ++ emitProgram nodeDbAppend_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `nodeDbAppend_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem nodeDbAppendFunction_eq_prog :
+    nodeDbAppendFunction = "node_db_append:\n" ++ emitProgram nodeDbAppend_prog := rfl
+
+#guard nodeDbAppendFunction.startsWith "node_db_append:\n"
+#guard nodeDbAppend_prog.length = 48
 /-! ## node_db_lookup -- find a DB node by 32-byte keccak (leaf, pure)
 
     a0 = target hash ptr, a1 = out_ptr ptr (absolute node bytes ptr),
     a2 = out_len ptr. a0 = 0 (found) / 1 (miss). Linear scan; reads only
     8-aligned record fields (the variable node bytes are skipped, not
     loaded). -/
-def nodeDbLookupFunction : String :=
-  "node_db_lookup:\n" ++
-  "  la t0, mset_db_count; ld t6, 0(t0)   # remaining\n" ++
-  "  la t5, mset_db_data                   # record cursor\n" ++
-  ".Lndbl_loop:\n" ++
-  "  beqz t6, .Lndbl_miss\n" ++
-  "  ld t0,  0(t5); ld t1,  0(a0); bne t0, t1, .Lndbl_next\n" ++
-  "  ld t0,  8(t5); ld t1,  8(a0); bne t0, t1, .Lndbl_next\n" ++
-  "  ld t0, 16(t5); ld t1, 16(a0); bne t0, t1, .Lndbl_next\n" ++
-  "  ld t0, 24(t5); ld t1, 24(a0); bne t0, t1, .Lndbl_next\n" ++
-  "  addi t0, t5, 40; sd t0, 0(a1)        # out_ptr = record + 40\n" ++
-  "  ld t1, 32(t5);   sd t1, 0(a2)        # out_len\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lndbl_next:\n" ++
-  "  ld t1, 32(t5)\n" ++
-  "  addi t1, t1, 7; andi t1, t1, -8; addi t1, t1, 40   # skip = 40 + roundup8(len)\n" ++
-  "  add t5, t5, t1\n" ++
-  "  addi t6, t6, -1\n" ++
-  "  j .Lndbl_loop\n" ++
-  ".Lndbl_miss:\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+def nodeDbLookup_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.mset_db_count (GuestAddrs.node_db_lookup + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_count (GuestAddrs.node_db_lookup + 0)),
+    .LD .x31 .x5 (0 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.mset_db_data (GuestAddrs.node_db_lookup + 12)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.mset_db_data (GuestAddrs.node_db_lookup + 12)),
+    .BEQ .x31 .x0 (104 : BitVec 13),
+    .LD .x5 .x30 (0 : BitVec 12),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .BNE .x5 .x6 (64 : BitVec 13),
+    .LD .x5 .x30 (8 : BitVec 12),
+    .LD .x6 .x10 (8 : BitVec 12),
+    .BNE .x5 .x6 (52 : BitVec 13),
+    .LD .x5 .x30 (16 : BitVec 12),
+    .LD .x6 .x10 (16 : BitVec 12),
+    .BNE .x5 .x6 (40 : BitVec 13),
+    .LD .x5 .x30 (24 : BitVec 12),
+    .LD .x6 .x10 (24 : BitVec 12),
+    .BNE .x5 .x6 (28 : BitVec 13),
+    .ADDI .x5 .x30 (40 : BitVec 12),
+    .SD .x11 .x5 (0 : BitVec 12),
+    .LD .x6 .x30 (32 : BitVec 12),
+    .SD .x12 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LD .x6 .x30 (32 : BitVec 12),
+    .ADDI .x6 .x6 (7 : BitVec 12),
+    .ANDI .x6 .x6 (-8 : BitVec 12),
+    .ADDI .x6 .x6 (40 : BitVec 12),
+    .ADD .x30 .x30 .x6,
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-100 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def nodeDbLookupFunction : String :=
+  "node_db_lookup:\n" ++ emitProgram nodeDbLookup_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `nodeDbLookup_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem nodeDbLookupFunction_eq_prog :
+    nodeDbLookupFunction = "node_db_lookup:\n" ++ emitProgram nodeDbLookup_prog := rfl
+
+#guard nodeDbLookupFunction.startsWith "node_db_lookup:\n"
+#guard nodeDbLookup_prog.length = 33
 /-! ## mpt_resolve_cache_reset -- clear the witness-node resolver cache.
 
     The cache is direct-mapped and stores only successful witness-section
@@ -548,59 +608,91 @@ def ziskMptSetAccProbeUnit : BuildUnit := {
     next change traverses the updated trie. The threaded root is kept in
     `mset_dr_root` (reading a0 then writing a7 to the same buffer is safe:
     mpt_set_acc consumes the input root before writing the output). -/
-def mptStateRootFunction : String :=
-  "mpt_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a1                   # witness\n" ++
-  "  mv s1, a2                   # witness_len\n" ++
-  "  mv s2, a3                   # changes\n" ++
-  "  mv s3, a4                   # n_changes\n" ++
-  "  mv s4, a5                   # out_root\n" ++
-  "  # current root := root_hash (a0) -> mset_dr_root\n" ++
-  "  la t0, mset_dr_root\n" ++
-  "  ld t1,  0(a0); sd t1,  0(t0)\n" ++
-  "  ld t1,  8(a0); sd t1,  8(t0)\n" ++
-  "  ld t1, 16(a0); sd t1, 16(t0)\n" ++
-  "  ld t1, 24(a0); sd t1, 24(t0)\n" ++
-  "  # init node DB\n" ++
-  "  la t0, mset_db_count; sd zero, 0(t0)\n" ++
-  "  la t0, mset_db_data; la t1, mset_db_top; sd t0, 0(t1)\n" ++
-  "  jal ra, mpt_resolve_cache_reset\n" ++
-  "  li s5, 0                    # i\n" ++
-  ".Lsr_loop:\n" ++
-  "  beq s5, s3, .Lsr_done\n" ++
-  "  slli t0, s5, 5; add t0, s2, t0   # &change[i]\n" ++
-  "  ld a3, 0(t0)                # path_ptr\n" ++
-  "  ld a4, 8(t0)                # path_len\n" ++
-  "  ld a5, 16(t0)               # value_ptr\n" ++
-  "  ld a6, 24(t0)               # value_len\n" ++
-  "  la a0, mset_dr_root\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  la a7, mset_dr_root\n" ++
-  "  jal ra, mpt_set_acc\n" ++
-  "  bnez a0, .Lsr_fail\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lsr_loop\n" ++
-  ".Lsr_done:\n" ++
-  "  la t0, mset_dr_root\n" ++
-  "  ld t1,  0(t0); sd t1,  0(s4)\n" ++
-  "  ld t1,  8(t0); sd t1,  8(s4)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(s4)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(s4)\n" ++
-  "  li a0, 0\n" ++
-  ".Lsr_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n" ++
-  ".Lsr_fail:\n" ++
-  "  j .Lsr_ret"
+def mptStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .MV .x19 .x14,
+    .MV .x20 .x15,
+    .AUIPC .x5 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 52)),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x10 (8 : BitVec 12),
+    .SD .x5 .x6 (8 : BitVec 12),
+    .LD .x6 .x10 (16 : BitVec 12),
+    .SD .x5 .x6 (16 : BitVec 12),
+    .LD .x6 .x10 (24 : BitVec 12),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_count (GuestAddrs.mpt_state_root + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_count (GuestAddrs.mpt_state_root + 92)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_db_data (GuestAddrs.mpt_state_root + 104)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_db_data (GuestAddrs.mpt_state_root + 104)),
+    .AUIPC .x6 (laHi GuestAddrs.mset_db_top (GuestAddrs.mpt_state_root + 112)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_db_top (GuestAddrs.mpt_state_root + 112)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.mpt_resolve_cache_reset (GuestAddrs.mpt_state_root + 124)),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x19 (68 : BitVec 13),
+    .SLLI .x5 .x21 (5 : BitVec 6),
+    .ADD .x5 .x18 .x5,
+    .LD .x13 .x5 (0 : BitVec 12),
+    .LD .x14 .x5 (8 : BitVec 12),
+    .LD .x15 .x5 (16 : BitVec 12),
+    .LD .x16 .x5 (24 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 160)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 160)),
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .AUIPC .x17 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 176)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 176)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_set_acc (GuestAddrs.mpt_state_root + 184)),
+    .BNE .x10 .x0 (92 : BitVec 13),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-64 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root + 200)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x20 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x20 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x20 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21) ]
 
+def mptStateRootFunction : String :=
+  "mpt_state_root:\n" ++ emitProgram mptStateRoot_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `mptStateRoot_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem mptStateRootFunction_eq_prog :
+    mptStateRootFunction = "mpt_state_root:\n" ++ emitProgram mptStateRoot_prog := rfl
+
+#guard mptStateRootFunction.startsWith "mpt_state_root:\n"
+#guard mptStateRoot_prog.length = 71
 /-- `zisk_mpt_state_root`: probe applying a LIST of value-only changes.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  witness_len            +16 n_changes (N)

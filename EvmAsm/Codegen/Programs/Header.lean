@@ -37,6 +37,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -1074,16 +1076,26 @@ def ziskHeaderValidateExtraDataLengthProbeUnit : BuildUnit := {
       a2 (input)  : 32-byte output ptr (block_hash lands here)
       ra (input)  : return
       (no output register; result is in memory at `a2`) -/
-def blockHashFromHeaderFunction : String :=
-  "block_hash_from_header:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  # zkvm_keccak256(a0=header, a1=len, a2=out)\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def blockHashFromHeader_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.block_hash_from_header + 8)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def blockHashFromHeaderFunction : String :=
+  "block_hash_from_header:\n" ++ emitProgram blockHashFromHeader_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blockHashFromHeader_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem blockHashFromHeaderFunction_eq_prog :
+    blockHashFromHeaderFunction = "block_hash_from_header:\n" ++ emitProgram blockHashFromHeader_prog := rfl
+
+#guard blockHashFromHeaderFunction.startsWith "block_hash_from_header:\n"
+#guard blockHashFromHeader_prog.length = 6
 /-- `zisk_block_hash_from_header`: probe BuildUnit.
     Input layout:
       bytes 0..8  : header_rlp byte length

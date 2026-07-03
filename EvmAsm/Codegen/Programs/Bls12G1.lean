@@ -33,6 +33,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bls12Field
 
 namespace EvmAsm.Codegen
@@ -212,28 +214,37 @@ theorem bls12G1Eq48Function_eq_prog :
 #guard bls12G1Eq48Function.startsWith "blsg_eq48:\n"
 #guard blsgEq48_prog.length = 15
 /-- a0 = 1 iff the 48-byte big-endian integer at a0 is `< p`. Leaf. -/
-def bls12G1LtPFunction : String :=
-  "blsg_lt_p:\n" ++
-  "  la t0, blsg_p_be\n" ++
-  "  li t1, 48\n" ++
-  "  mv t2, a0\n" ++
-  ".Lblsg_ltp_loop:\n" ++
-  "  beqz t1, .Lblsg_ltp_no      # equal => not less\n" ++
-  "  lbu t3, 0(t2)\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  bltu t3, t4, .Lblsg_ltp_yes\n" ++
-  "  bltu t4, t3, .Lblsg_ltp_no\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lblsg_ltp_loop\n" ++
-  ".Lblsg_ltp_yes:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Lblsg_ltp_no:\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def blsgLtP_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.blsg_p_be (GuestAddrs.blsg_lt_p + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.blsg_p_be (GuestAddrs.blsg_lt_p + 0)),
+    .LI .x6 (48 : Word),
+    .MV .x7 .x10,
+    .BEQ .x6 .x0 (44 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .BLTU .x28 .x29 (24 : BitVec 13),
+    .BLTU .x29 .x28 (28 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bls12G1LtPFunction : String :=
+  "blsg_lt_p:\n" ++ emitProgram blsgLtP_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `blsgLtP_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bls12G1LtPFunction_eq_prog :
+    bls12G1LtPFunction = "blsg_lt_p:\n" ++ emitProgram blsgLtP_prog := rfl
+
+#guard bls12G1LtPFunction.startsWith "blsg_lt_p:\n"
+#guard blsgLtP_prog.length = 17
 /-- Copy 96 bytes from a0 to a1 (quad loop; every call site — frame
     lanes, probe OUTPUT+8, the `.data` point cells — is 8-aligned). -/
 def blsgCopy96_prog : Program :=

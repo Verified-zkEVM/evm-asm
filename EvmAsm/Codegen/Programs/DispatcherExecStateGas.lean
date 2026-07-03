@@ -43,6 +43,9 @@
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
 
@@ -63,16 +66,29 @@ open EvmAsm.Rv64
 
     The 8-byte stride keeps every store 8-aligned (the array is `.balign 8`),
     honouring the project's no-misaligned-access rule. -/
-def dispatcherCaptureExecStateGasFunction : String :=
-  "dispatcher_capture_exec_state_gas:\n" ++
-  "  la t0, evm_state_gas_used\n" ++
-  "  ld t0, 0(t0)               # raw tx_output.state_gas_used for this tx\n" ++
-  "  la t1, bvgr_tx_exec_state_gas\n" ++
-  "  slli t2, a0, 3             # i * 8 (8-aligned)\n" ++
-  "  add t1, t1, t2\n" ++
-  "  sd t0, 0(t1)               # bvgr_tx_exec_state_gas[i] = state_gas_used\n" ++
-  "  ret"
+def dispatcherCaptureExecStateGas_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_capture_exec_state_gas + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_capture_exec_state_gas + 0)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bvgr_tx_exec_state_gas (GuestAddrs.dispatcher_capture_exec_state_gas + 12)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bvgr_tx_exec_state_gas (GuestAddrs.dispatcher_capture_exec_state_gas + 12)),
+    .SLLI .x7 .x10 (3 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def dispatcherCaptureExecStateGasFunction : String :=
+  "dispatcher_capture_exec_state_gas:\n" ++ emitProgram dispatcherCaptureExecStateGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `dispatcherCaptureExecStateGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem dispatcherCaptureExecStateGasFunction_eq_prog :
+    dispatcherCaptureExecStateGasFunction = "dispatcher_capture_exec_state_gas:\n" ++ emitProgram dispatcherCaptureExecStateGas_prog := rfl
+
+#guard dispatcherCaptureExecStateGasFunction.startsWith "dispatcher_capture_exec_state_gas:\n"
+#guard dispatcherCaptureExecStateGas_prog.length = 9
 /-- The per-tx executed-state-gas array definition (`bvMtxArenaTxCap` entries,
     matching `bvgr_tx_state_gas`). c1 adds this identical line next to
     `bvgr_tx_state_gas` in `BlockVerdictDataSection.lean` so the verdict program

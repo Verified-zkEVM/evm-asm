@@ -12,6 +12,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 
@@ -47,26 +50,35 @@ open EvmAsm.Rv64
       a0 (output) :
         0 : success
         1 : RLP parse failure / field 0 missing / > 64 bits -/
-def accountExtractNonceFunction : String :=
-  "account_extract_nonce:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  mv s0, a2                   # u64 out ptr (stash)\n" ++
-  "  sd zero, 0(s0)\n" ++
-  "  # a0, a1 still hold (account_ptr, account_len).\n" ++
-  "  li a2, 0\n" ++
-  "  mv a3, s0\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  beqz a0, .Laen_ret\n" ++
-  "  sd zero, 0(s0)\n" ++
-  "  li a0, 1\n" ++
-  ".Laen_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def accountExtractNonce_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x12,
+    .SD .x8 .x0 (0 : BitVec 12),
+    .LI .x12 (0 : Word),
+    .MV .x13 .x8,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.account_extract_nonce + 28)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def accountExtractNonceFunction : String :=
+  "account_extract_nonce:\n" ++ emitProgram accountExtractNonce_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `accountExtractNonce_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem accountExtractNonceFunction_eq_prog :
+    accountExtractNonceFunction = "account_extract_nonce:\n" ++ emitProgram accountExtractNonce_prog := rfl
+
+#guard accountExtractNonceFunction.startsWith "account_extract_nonce:\n"
+#guard accountExtractNonce_prog.length = 15
 /-- `zisk_account_extract_nonce`: probe BuildUnit. Reads
     (account_len, account_bytes), writes (status, nonce u64) to
     OUTPUT (16 bytes). -/
@@ -126,26 +138,41 @@ def ziskAccountExtractNonceProbeUnit : BuildUnit := {
       a0 (output) :
         0 : success
         1 : RLP parse failure / field 1 missing / > 256 bits -/
-def accountExtractBalanceFunction : String :=
-  "account_extract_balance:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  mv s0, a2                   # output 32B ptr (stash)\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  # a0, a1 still hold (account_ptr, account_len).\n" ++
-  "  li a2, 1\n" ++
-  "  mv a3, s0\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  beqz a0, .Laeb_ret\n" ++
-  "  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)\n" ++
-  "  li a0, 1\n" ++
-  ".Laeb_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def accountExtractBalance_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x12,
+    .SD .x8 .x0 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .MV .x13 .x8,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u256_be (GuestAddrs.account_extract_balance + 40)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def accountExtractBalanceFunction : String :=
+  "account_extract_balance:\n" ++ emitProgram accountExtractBalance_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `accountExtractBalance_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem accountExtractBalanceFunction_eq_prog :
+    accountExtractBalanceFunction = "account_extract_balance:\n" ++ emitProgram accountExtractBalance_prog := rfl
+
+#guard accountExtractBalanceFunction.startsWith "account_extract_balance:\n"
+#guard accountExtractBalance_prog.length = 21
 /-- `zisk_account_extract_balance`: probe BuildUnit. Reads
     (account_len, account_bytes), writes (status, 32-byte balance
     BE) to OUTPUT (40 bytes). -/

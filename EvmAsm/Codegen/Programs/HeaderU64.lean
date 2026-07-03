@@ -21,6 +21,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HeaderGasLimits
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -453,17 +456,28 @@ def ziskHeaderValidateDifficultyZeroProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure
         2 : field 8 exceeds 8 bytes BE -/
-def headerExtractNumberFunction : String :=
-  "header_extract_number:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 8\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def headerExtractNumber_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x13 .x12,
+    .LI .x12 (8 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.header_extract_number + 16)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def headerExtractNumberFunction : String :=
+  "header_extract_number:\n" ++ emitProgram headerExtractNumber_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `headerExtractNumber_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem headerExtractNumberFunction_eq_prog :
+    headerExtractNumberFunction = "header_extract_number:\n" ++ emitProgram headerExtractNumber_prog := rfl
+
+#guard headerExtractNumberFunction.startsWith "header_extract_number:\n"
+#guard headerExtractNumber_prog.length = 8
 def ziskHeaderExtractNumberPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

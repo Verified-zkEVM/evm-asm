@@ -6,6 +6,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
@@ -42,32 +45,49 @@ open EvmAsm.Rv64
       a3 (input)  : output ptr (32 B BE; receives priority fee)
       ra (input)  : return
       a0 (output) : 0 success / 1 max_fee < base_fee (reject tx). -/
-def priorityFeePerGasEip1559Function : String :=
-  "priority_fee_per_gas_eip1559:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0                   # max_priority ptr\n" ++
-  "  mv s1, a1                   # max_fee ptr\n" ++
-  "  mv s2, a2                   # base_fee ptr\n" ++
-  "  mv s3, a3                   # out ptr\n" ++
-  "  # surplus = max_fee - base_fee  (store in out)\n" ++
-  "  mv a0, s1; mv a1, s2; mv a2, s3\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  "  bnez a0, .Lpfee_fail        # borrow -> max_fee < base_fee\n" ++
-  "  # priority_fee = min(max_priority, surplus); aliasing OK\n" ++
-  "  mv a0, s0; mv a1, s3; mv a2, s3\n" ++
-  "  jal ra, u256_min\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lpfee_ret\n" ++
-  ".Lpfee_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lpfee_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def priorityFeePerGasEip1559_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.priority_fee_per_gas_eip1559 + 52)),
+    .BNE .x10 .x0 (28 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x19,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.u256_min (GuestAddrs.priority_fee_per_gas_eip1559 + 72)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def priorityFeePerGasEip1559Function : String :=
+  "priority_fee_per_gas_eip1559:\n" ++ emitProgram priorityFeePerGasEip1559_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `priorityFeePerGasEip1559_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem priorityFeePerGasEip1559Function_eq_prog :
+    priorityFeePerGasEip1559Function = "priority_fee_per_gas_eip1559:\n" ++ emitProgram priorityFeePerGasEip1559_prog := rfl
+
+#guard priorityFeePerGasEip1559Function.startsWith "priority_fee_per_gas_eip1559:\n"
+#guard priorityFeePerGasEip1559_prog.length = 29
 /-- `zisk_priority_fee_per_gas_eip1559`: probe BuildUnit. Reads
     (32B max_priority, 32B max_fee, 32B base_fee) from host
     input, writes (status, 32B priority fee BE) to OUTPUT (40

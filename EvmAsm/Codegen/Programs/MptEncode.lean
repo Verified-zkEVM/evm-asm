@@ -31,6 +31,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.Mpt
@@ -81,81 +83,131 @@ open EvmAsm.Rv64.Program
       a4 (input)  : 32-byte output root ptr
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def singleLeafTrieRootFunction : String :=
-  "single_leaf_trie_root:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # key ptr\n" ++
-  "  mv s1, a1                   # key len\n" ++
-  "  mv s2, a2                   # value ptr\n" ++
-  "  mv s3, a3                   # value len\n" ++
-  "  mv s4, a4                   # output root ptr\n" ++
-  "  # ---- Step 1: expand key bytes to nibbles ----\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  la a2, sltr_nibbles\n" ++
-  "  jal ra, bytes_to_nibbles\n" ++
-  "  # a0 = 2 * key_len nibbles emitted -- store for HP step\n" ++
-  "  la t0, sltr_nibble_count; sd a0, 0(t0)\n" ++
-  "  # ---- Step 2: HP-encode the nibbles (leaf=true) ----\n" ++
-  "  la a0, sltr_nibbles\n" ++
-  "  la t0, sltr_nibble_count; ld a1, 0(t0)\n" ++
-  "  li a2, 1                                    # is_leaf = 1\n" ++
-  "  la a3, sltr_hp_buf\n" ++
-  "  jal ra, hp_encode_nibbles\n" ++
-  "  la t0, sltr_hp_len; sd a0, 0(t0)\n" ++
-  "  # ---- Step 3: RLP-encode hp_path into the payload buffer ----\n" ++
-  "  la a0, sltr_hp_buf\n" ++
-  "  la t0, sltr_hp_len; ld a1, 0(t0)\n" ++
-  "  la a2, sltr_payload_buf\n" ++
-  "  la a3, sltr_field_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, sltr_field_len; ld t1, 0(t0)         # hp_rlp_len\n" ++
-  "  la t0, sltr_cursor; sd t1, 0(t0)            # cursor = hp_rlp_len\n" ++
-  "  # ---- Step 4: RLP-encode value at payload[cursor..] ----\n" ++
-  "  la t0, sltr_cursor; ld t1, 0(t0)\n" ++
-  "  mv a0, s2; mv a1, s3\n" ++
-  "  la a2, sltr_payload_buf; add a2, a2, t1\n" ++
-  "  la a3, sltr_field_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, sltr_field_len; ld t1, 0(t0)         # value_rlp_len\n" ++
-  "  la t0, sltr_cursor; ld t2, 0(t0)\n" ++
-  "  add t2, t2, t1                              # total inner payload len\n" ++
-  "  la t0, sltr_total_payload; sd t2, 0(t0)\n" ++
-  "  # ---- Step 5: write outer list prefix at node_buf[0..] ----\n" ++
-  "  mv a0, t2\n" ++
-  "  la a1, sltr_node_buf\n" ++
-  "  la a2, sltr_field_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, sltr_field_len; ld t1, 0(t0)         # outer_prefix_len\n" ++
-  "  la t0, sltr_total_payload; ld t2, 0(t0)\n" ++
-  "  # ---- Step 6: copy payload after prefix in node_buf ----\n" ++
-  "  la t3, sltr_node_buf; add t3, t3, t1        # dst\n" ++
-  "  la t4, sltr_payload_buf                     # src\n" ++
-  "  mv t5, t2                                   # remaining\n" ++
-  ".Lsltr_cp:\n" ++
-  "  beqz t5, .Lsltr_cp_done\n" ++
-  "  lbu t6, 0(t4)\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lsltr_cp\n" ++
-  ".Lsltr_cp_done:\n" ++
-  "  add t1, t1, t2                              # full leaf-node RLP length\n" ++
-  "  # ---- Step 7: keccak256(node_buf, full_len) → root ----\n" ++
-  "  la a0, sltr_node_buf\n" ++
-  "  mv a1, t1\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def singleLeafTrieRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.sltr_nibbles (GuestAddrs.single_leaf_trie_root + 60)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sltr_nibbles (GuestAddrs.single_leaf_trie_root + 60)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.single_leaf_trie_root + 68)),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_nibble_count (GuestAddrs.single_leaf_trie_root + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_nibble_count (GuestAddrs.single_leaf_trie_root + 72)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.sltr_nibbles (GuestAddrs.single_leaf_trie_root + 84)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sltr_nibbles (GuestAddrs.single_leaf_trie_root + 84)),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_nibble_count (GuestAddrs.single_leaf_trie_root + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_nibble_count (GuestAddrs.single_leaf_trie_root + 92)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.sltr_hp_buf (GuestAddrs.single_leaf_trie_root + 108)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.sltr_hp_buf (GuestAddrs.single_leaf_trie_root + 108)),
+    .JAL .x1 (jalOff GuestAddrs.hp_encode_nibbles (GuestAddrs.single_leaf_trie_root + 116)),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_hp_len (GuestAddrs.single_leaf_trie_root + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_hp_len (GuestAddrs.single_leaf_trie_root + 120)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.sltr_hp_buf (GuestAddrs.single_leaf_trie_root + 132)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sltr_hp_buf (GuestAddrs.single_leaf_trie_root + 132)),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_hp_len (GuestAddrs.single_leaf_trie_root + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_hp_len (GuestAddrs.single_leaf_trie_root + 140)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.sltr_payload_buf (GuestAddrs.single_leaf_trie_root + 152)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sltr_payload_buf (GuestAddrs.single_leaf_trie_root + 152)),
+    .AUIPC .x13 (laHi GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 160)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 160)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.single_leaf_trie_root + 168)),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 172)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_cursor (GuestAddrs.single_leaf_trie_root + 184)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_cursor (GuestAddrs.single_leaf_trie_root + 184)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_cursor (GuestAddrs.single_leaf_trie_root + 196)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_cursor (GuestAddrs.single_leaf_trie_root + 196)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.sltr_payload_buf (GuestAddrs.single_leaf_trie_root + 216)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sltr_payload_buf (GuestAddrs.single_leaf_trie_root + 216)),
+    .ADD .x12 .x12 .x6,
+    .AUIPC .x13 (laHi GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 228)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 228)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.single_leaf_trie_root + 236)),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 240)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_cursor (GuestAddrs.single_leaf_trie_root + 252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_cursor (GuestAddrs.single_leaf_trie_root + 252)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.sltr_total_payload (GuestAddrs.single_leaf_trie_root + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_total_payload (GuestAddrs.single_leaf_trie_root + 268)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .MV .x10 .x7,
+    .AUIPC .x11 (laHi GuestAddrs.sltr_node_buf (GuestAddrs.single_leaf_trie_root + 284)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.sltr_node_buf (GuestAddrs.single_leaf_trie_root + 284)),
+    .AUIPC .x12 (laHi GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 292)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 292)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.single_leaf_trie_root + 300)),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 304)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_field_len (GuestAddrs.single_leaf_trie_root + 304)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sltr_total_payload (GuestAddrs.single_leaf_trie_root + 316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sltr_total_payload (GuestAddrs.single_leaf_trie_root + 316)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.sltr_node_buf (GuestAddrs.single_leaf_trie_root + 328)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.sltr_node_buf (GuestAddrs.single_leaf_trie_root + 328)),
+    .ADD .x28 .x28 .x6,
+    .AUIPC .x29 (laHi GuestAddrs.sltr_payload_buf (GuestAddrs.single_leaf_trie_root + 340)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.sltr_payload_buf (GuestAddrs.single_leaf_trie_root + 340)),
+    .MV .x30 .x7,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x10 (laHi GuestAddrs.sltr_node_buf (GuestAddrs.single_leaf_trie_root + 384)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sltr_node_buf (GuestAddrs.single_leaf_trie_root + 384)),
+    .MV .x11 .x6,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.single_leaf_trie_root + 400)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def singleLeafTrieRootFunction : String :=
+  "single_leaf_trie_root:\n" ++ emitProgram singleLeafTrieRoot_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `singleLeafTrieRoot_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem singleLeafTrieRootFunction_eq_prog :
+    singleLeafTrieRootFunction = "single_leaf_trie_root:\n" ++ emitProgram singleLeafTrieRoot_prog := rfl
+
+#guard singleLeafTrieRootFunction.startsWith "single_leaf_trie_root:\n"
+#guard singleLeafTrieRoot_prog.length = 111
 /-- `zisk_single_leaf_trie_root`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : key_len
@@ -431,48 +483,56 @@ def ziskMptLeafNodeEncodeProbeUnit : BuildUnit := {
                     (33 when hashed, node_rlp_len when inline)
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def mptNodeSlotEncodeFunction : String :=
-  "mpt_node_slot_encode:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a2                   # output ptr\n" ++
-  "  mv s1, a3                   # out_length ptr\n" ++
-  "  li t0, 32\n" ++
-  "  bltu a1, t0, .Lmnse_inline\n" ++
-  "  # Hash path: out[0] = 0xa0; keccak256(node_rlp) -> out[1..33].\n" ++
-  "  li t1, 0xa0\n" ++
-  "  sb t1, 0(s0)\n" ++
-  "  mv s2, a0                   # node_rlp ptr stashed\n" ++
-  "  # zkvm_keccak256(node_rlp, len, out + 1).\n" ++
-  "  addi a2, s0, 1\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li t0, 33\n" ++
-  "  sd t0, 0(s1)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmnse_ret\n" ++
-  ".Lmnse_inline:\n" ++
-  "  # Inline path: copy node_rlp bytes to out.\n" ++
-  "  mv t0, a0                   # src cursor\n" ++
-  "  mv t1, s0                   # dst cursor\n" ++
-  "  mv t2, a1                   # remaining\n" ++
-  ".Lmnse_cp:\n" ++
-  "  beqz t2, .Lmnse_cp_done\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  sb  t3, 0(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lmnse_cp\n" ++
-  ".Lmnse_cp_done:\n" ++
-  "  sd a1, 0(s1)\n" ++
-  "  li a0, 0\n" ++
-  ".Lmnse_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def mptNodeSlotEncode_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .LI .x5 (32 : Word),
+    .BLTU .x11 .x5 (40 : BitVec 13),
+    .LI .x6 (160 : Word),
+    .SB .x8 .x6 (0 : BitVec 12),
+    .MV .x18 .x10,
+    .ADDI .x12 .x8 (1 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.mpt_node_slot_encode + 52)),
+    .LI .x5 (33 : Word),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (52 : BitVec 21),
+    .MV .x5 .x10,
+    .MV .x6 .x8,
+    .MV .x7 .x11,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SD .x9 .x11 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def mptNodeSlotEncodeFunction : String :=
+  "mpt_node_slot_encode:\n" ++ emitProgram mptNodeSlotEncode_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `mptNodeSlotEncode_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem mptNodeSlotEncodeFunction_eq_prog :
+    mptNodeSlotEncodeFunction = "mpt_node_slot_encode:\n" ++ emitProgram mptNodeSlotEncode_prog := rfl
+
+#guard mptNodeSlotEncodeFunction.startsWith "mpt_node_slot_encode:\n"
+#guard mptNodeSlotEncode_prog.length = 36
 /-- `zisk_mpt_node_slot_encode`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : node_rlp_len

@@ -9,6 +9,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.MptStateRootIns
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
@@ -271,206 +274,209 @@ def mptIndexedLargeLeafHashFunction : String :=
 
     a0 = value descriptor array ptr, a1 = number of values, a2 = out root ptr.
     Returns a0 = 0 ok / 1 internal failure / 2 unsupported, use generic path. -/
-def mptIndexedTrieRootLargeFunction : String :=
-  "mpt_indexed_trie_root_large:\n" ++
-  "  addi sp, sp, -2016\n" ++
-  "  sd ra,   0(sp)\n" ++
-  "  sd s0,   8(sp); sd s1,  16(sp); sd s2,  24(sp); sd s3,  32(sp)\n" ++
-  "  sd s4,  40(sp); sd s5,  48(sp); sd s6,  56(sp); sd s7,  64(sp)\n" ++
-  "  sd s8,  72(sp); sd s9,  80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # value descriptors\n" ++
-  "  mv s1, a1                   # n values\n" ++
-  "  mv s2, a2                   # out root\n" ++
-  "  addi s6, sp, 160            # root branch payload buffer\n" ++
-  "  addi s7, sp, 760            # child branch payload buffer\n" ++
-  "  addi s8, sp, 1360           # branch node buffer\n" ++
-  "  li t0, 2\n" ++
-  "  bltu s1, t0, .Lilig_fallback\n" ++
-  "  li t0, 129\n" ++
-  "  bgeu s1, t0, .Lilig_fallback\n" ++
-  "  li s10, 0\n" ++
-  ".Lilig_check_loop:\n" ++
-  "  beq s10, s1, .Lilig_build_root\n" ++
-  "  slli t0, s10, 4; add t0, s0, t0\n" ++
-  "  ld t1, 8(t0)\n" ++
-  "  li t2, 56\n" ++
-  "  bltu t1, t2, .Lilig_fallback\n" ++
-  "  addi s10, s10, 1\n" ++
-  "  j .Lilig_check_loop\n" ++
-  ".Lilig_build_root:\n" ++
-  "  mv s9, s6                   # root payload cursor\n" ++
-  "  li s3, 0                    # root first-nibble slot\n" ++
-  ".Lilig_root_slot_loop:\n" ++
-  "  li t0, 16\n" ++
-  "  beq s3, t0, .Lilig_root_value_slot\n" ++
-  "  li s4, 0                    # count in this first-nibble group\n" ++
-  "  li s5, 0                    # first index in group\n" ++
-  "  li s10, 0\n" ++
-  ".Lilig_count_loop:\n" ++
-  "  beq s10, s1, .Lilig_count_done\n" ++
-  "  beqz s10, .Lilig_first_zero\n" ++
-  "  srli t1, s10, 4\n" ++
-  "  j .Lilig_first_done\n" ++
-  ".Lilig_first_zero:\n" ++
-  "  li t1, 8\n" ++
-  ".Lilig_first_done:\n" ++
-  "  bne t1, s3, .Lilig_count_next\n" ++
-  "  bnez s4, .Lilig_count_inc\n" ++
-  "  mv s5, s10\n" ++
-  ".Lilig_count_inc:\n" ++
-  "  addi s4, s4, 1\n" ++
-  ".Lilig_count_next:\n" ++
-  "  addi s10, s10, 1\n" ++
-  "  j .Lilig_count_loop\n" ++
-  ".Lilig_count_done:\n" ++
-  "  beqz s4, .Lilig_root_empty\n" ++
-  "  li t0, 1\n" ++
-  "  beq s4, t0, .Lilig_root_single\n" ++
-  "  jal ra, .Lilig_build_child\n" ++
-  "  addi a1, sp, 1968\n" ++
-  "  mv a0, s9\n" ++
-  "  jal ra, .Lilig_write_ref\n" ++
-  "  mv s9, a0\n" ++
-  "  j .Lilig_root_next\n" ++
-  ".Lilig_root_single:\n" ++
-  "  slli t0, s5, 4; add t0, s0, t0\n" ++
-  "  ld a0, 0(t0)\n" ++
-  "  ld a1, 8(t0)\n" ++
-  "  li a2, 1\n" ++
-  "  beqz s5, .Lilig_single_second_zero\n" ++
-  "  andi a3, s5, 15\n" ++
-  "  j .Lilig_single_second_done\n" ++
-  ".Lilig_single_second_zero:\n" ++
-  "  li a3, 0\n" ++
-  ".Lilig_single_second_done:\n" ++
-  "  addi a4, sp, 1968\n" ++
-  "  jal ra, mpt_indexed_large_leaf_hash\n" ++
-  "  bnez a0, .Lilig_fail\n" ++
-  "  mv a0, s9\n" ++
-  "  addi a1, sp, 1968\n" ++
-  "  jal ra, .Lilig_write_ref\n" ++
-  "  mv s9, a0\n" ++
-  "  j .Lilig_root_next\n" ++
-  ".Lilig_root_empty:\n" ++
-  "  li t0, 0x80\n" ++
-  "  sb t0, 0(s9)\n" ++
-  "  addi s9, s9, 1\n" ++
-  ".Lilig_root_next:\n" ++
-  "  addi s3, s3, 1\n" ++
-  "  j .Lilig_root_slot_loop\n" ++
-  ".Lilig_root_value_slot:\n" ++
-  "  li t0, 0x80\n" ++
-  "  sb t0, 0(s9)\n" ++
-  "  addi s9, s9, 1\n" ++
-  "  sub a1, s9, s6\n" ++
-  "  mv a0, s6\n" ++
-  "  mv a2, s2\n" ++
-  "  jal ra, .Lilig_hash_branch\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lilig_ret\n" ++
-  ".Lilig_fallback:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lilig_ret\n" ++
-  ".Lilig_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lilig_ret:\n" ++
-  "  ld ra,   0(sp)\n" ++
-  "  ld s0,   8(sp); ld s1,  16(sp); ld s2,  24(sp); ld s3,  32(sp)\n" ++
-  "  ld s4,  40(sp); ld s5,  48(sp); ld s6,  56(sp); ld s7,  64(sp)\n" ++
-  "  ld s8,  72(sp); ld s9,  80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 2016\n" ++
-  "  ret\n" ++
-  ".Lilig_build_child:\n" ++
-  "  sd s9, 128(sp)\n" ++
-  "  sd ra, 152(sp)\n" ++
-  "  mv s9, s7                   # child payload cursor\n" ++
-  "  li s4, 0                    # second nibble\n" ++
-  ".Lilig_child_slot_loop:\n" ++
-  "  li t0, 16\n" ++
-  "  beq s4, t0, .Lilig_child_value_slot\n" ++
-  "  slli s10, s3, 4\n" ++
-  "  add s10, s10, s4\n" ++
-  "  beqz s10, .Lilig_child_empty\n" ++
-  "  bgeu s10, s1, .Lilig_child_empty\n" ++
-  "  slli t0, s10, 4; add t0, s0, t0\n" ++
-  "  ld a0, 0(t0)\n" ++
-  "  ld a1, 8(t0)\n" ++
-  "  li a2, 0\n" ++
-  "  li a3, 0\n" ++
-  "  addi a4, sp, 1968\n" ++
-  "  jal ra, mpt_indexed_large_leaf_hash\n" ++
-  "  bnez a0, .Lilig_child_fail\n" ++
-  "  mv a0, s9\n" ++
-  "  addi a1, sp, 1968\n" ++
-  "  jal ra, .Lilig_write_ref\n" ++
-  "  mv s9, a0\n" ++
-  "  j .Lilig_child_next\n" ++
-  ".Lilig_child_empty:\n" ++
-  "  li t0, 0x80\n" ++
-  "  sb t0, 0(s9)\n" ++
-  "  addi s9, s9, 1\n" ++
-  ".Lilig_child_next:\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lilig_child_slot_loop\n" ++
-  ".Lilig_child_value_slot:\n" ++
-  "  li t0, 0x80\n" ++
-  "  sb t0, 0(s9)\n" ++
-  "  addi s9, s9, 1\n" ++
-  "  sub a1, s9, s7\n" ++
-  "  mv a0, s7\n" ++
-  "  addi a2, sp, 1968\n" ++
-  "  jal ra, .Lilig_hash_branch\n" ++
-  "  ld s9, 128(sp)\n" ++
-  "  ld ra, 152(sp)\n" ++
-  "  ret\n" ++
-  ".Lilig_child_fail:\n" ++
-  "  ld s9, 128(sp)\n" ++
-  "  ld ra, 152(sp)\n" ++
-  "  j .Lilig_fail\n" ++
-  ".Lilig_write_ref:\n" ++
-  "  li t0, 0xa0\n" ++
-  "  sb t0, 0(a0)\n" ++
-  "  addi t0, a0, 1\n" ++
-  "  li t1, 32\n" ++
-  ".Lilig_write_ref_loop:\n" ++
-  "  lbu t2, 0(a1)\n" ++
-  "  sb t2, 0(t0)\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  bnez t1, .Lilig_write_ref_loop\n" ++
-  "  addi a0, a0, 33\n" ++
-  "  ret\n" ++
-  ".Lilig_hash_branch:\n" ++
-  "  sd a0, 104(sp)\n" ++
-  "  sd a1, 112(sp)\n" ++
-  "  sd a2, 120(sp)\n" ++
-  "  sd ra, 144(sp)\n" ++
-  "  li a0, 0xc0\n" ++
-  "  ld a1, 112(sp)\n" ++
-  "  mv a2, s8\n" ++
-  "  jal ra, rlp_prefix_to_buffer\n" ++
-  "  mv t0, a0                   # prefix len\n" ++
-  "  add t1, s8, t0              # node payload cursor\n" ++
-  "  ld t2, 104(sp)              # payload src\n" ++
-  "  ld t3, 112(sp)              # remaining payload len\n" ++
-  ".Lilig_hash_copy_loop:\n" ++
-  "  beqz t3, .Lilig_hash_copy_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  sb t4, 0(t1)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lilig_hash_copy_loop\n" ++
-  ".Lilig_hash_copy_done:\n" ++
-  "  ld t3, 112(sp)\n" ++
-  "  add a1, t0, t3\n" ++
-  "  mv a0, s8\n" ++
-  "  ld a2, 120(sp)\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  ld ra, 144(sp)\n" ++
-  "  ret"
+def mptIndexedTrieRootLarge_prog : Program :=
+  [ .ADDI .x2 .x2 (-2016 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .ADDI .x22 .x2 (160 : BitVec 12),
+    .ADDI .x23 .x2 (760 : BitVec 12),
+    .ADDI .x24 .x2 (1360 : BitVec 12),
+    .LI .x5 (2 : Word),
+    .BLTU .x9 .x5 (280 : BitVec 13),
+    .LI .x5 (129 : Word),
+    .BGEU .x9 .x5 (272 : BitVec 13),
+    .LI .x26 (0 : Word),
+    .BEQ .x26 .x9 (32 : BitVec 13),
+    .SLLI .x5 .x26 (4 : BitVec 6),
+    .ADD .x5 .x8 .x5,
+    .LD .x6 .x5 (8 : BitVec 12),
+    .LI .x7 (56 : Word),
+    .BLTU .x6 .x7 (244 : BitVec 13),
+    .ADDI .x26 .x26 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x25 .x22,
+    .LI .x19 (0 : Word),
+    .LI .x5 (16 : Word),
+    .BEQ .x19 .x5 (184 : BitVec 13),
+    .LI .x20 (0 : Word),
+    .LI .x21 (0 : Word),
+    .LI .x26 (0 : Word),
+    .BEQ .x26 .x9 (44 : BitVec 13),
+    .BEQ .x26 .x0 (12 : BitVec 13),
+    .SRLI .x6 .x26 (4 : BitVec 6),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x6 (8 : Word),
+    .BNE .x6 .x19 (16 : BitVec 13),
+    .BNE .x20 .x0 (8 : BitVec 13),
+    .MV .x21 .x26,
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .ADDI .x26 .x26 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .BEQ .x20 .x0 (104 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x20 .x5 (28 : BitVec 13),
+    .JAL .x1 (220 : BitVec 21),
+    .ADDI .x11 .x2 (1968 : BitVec 12),
+    .MV .x10 .x25,
+    .JAL .x1 (376 : BitVec 21),
+    .MV .x25 .x10,
+    .JAL .x0 (84 : BitVec 21),
+    .SLLI .x5 .x21 (4 : BitVec 6),
+    .ADD .x5 .x8 .x5,
+    .LD .x10 .x5 (0 : BitVec 12),
+    .LD .x11 .x5 (8 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .BEQ .x21 .x0 (12 : BitVec 13),
+    .ANDI .x13 .x21 (15 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x13 (0 : Word),
+    .ADDI .x14 .x2 (1968 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.mpt_indexed_large_leaf_hash (GuestAddrs.mpt_indexed_trie_root_large + 280)),
+    .BNE .x10 .x0 (88 : BitVec 13),
+    .MV .x10 .x25,
+    .ADDI .x11 .x2 (1968 : BitVec 12),
+    .JAL .x1 (308 : BitVec 21),
+    .MV .x25 .x10,
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x5 (128 : Word),
+    .SB .x25 .x5 (0 : BitVec 12),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (-184 : BitVec 21),
+    .LI .x5 (128 : Word),
+    .SB .x25 .x5 (0 : BitVec 12),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .SUB .x11 .x25 .x22,
+    .MV .x10 .x22,
+    .MV .x12 .x18,
+    .JAL .x1 (300 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (2016 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x2 .x25 (128 : BitVec 12),
+    .SD .x2 .x1 (152 : BitVec 12),
+    .MV .x25 .x23,
+    .LI .x20 (0 : Word),
+    .LI .x5 (16 : Word),
+    .BEQ .x20 .x5 (96 : BitVec 13),
+    .SLLI .x26 .x19 (4 : BitVec 6),
+    .ADD .x26 .x26 .x20,
+    .BEQ .x26 .x0 (64 : BitVec 13),
+    .BGEU .x26 .x9 (60 : BitVec 13),
+    .SLLI .x5 .x26 (4 : BitVec 6),
+    .ADD .x5 .x8 .x5,
+    .LD .x10 .x5 (0 : BitVec 12),
+    .LD .x11 .x5 (8 : BitVec 12),
+    .LI .x12 (0 : Word),
+    .LI .x13 (0 : Word),
+    .ADDI .x14 .x2 (1968 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.mpt_indexed_large_leaf_hash (GuestAddrs.mpt_indexed_trie_root_large + 504)),
+    .BNE .x10 .x0 (84 : BitVec 13),
+    .MV .x10 .x25,
+    .ADDI .x11 .x2 (1968 : BitVec 12),
+    .JAL .x1 (84 : BitVec 21),
+    .MV .x25 .x10,
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x5 (128 : Word),
+    .SB .x25 .x5 (0 : BitVec 12),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-96 : BitVec 21),
+    .LI .x5 (128 : Word),
+    .SB .x25 .x5 (0 : BitVec 12),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .SUB .x11 .x25 .x23,
+    .MV .x10 .x23,
+    .ADDI .x12 .x2 (1968 : BitVec 12),
+    .JAL .x1 (76 : BitVec 21),
+    .LD .x25 .x2 (128 : BitVec 12),
+    .LD .x1 .x2 (152 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LD .x25 .x2 (128 : BitVec 12),
+    .LD .x1 .x2 (152 : BitVec 12),
+    .JAL .x0 (-228 : BitVec 21),
+    .LI .x5 (160 : Word),
+    .SB .x10 .x5 (0 : BitVec 12),
+    .ADDI .x5 .x10 (1 : BitVec 12),
+    .LI .x6 (32 : Word),
+    .LBU .x7 .x11 (0 : BitVec 12),
+    .SB .x5 .x7 (0 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-20 : BitVec 13),
+    .ADDI .x10 .x10 (33 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (104 : BitVec 12),
+    .SD .x2 .x11 (112 : BitVec 12),
+    .SD .x2 .x12 (120 : BitVec 12),
+    .SD .x2 .x1 (144 : BitVec 12),
+    .LI .x10 (192 : Word),
+    .LD .x11 .x2 (112 : BitVec 12),
+    .MV .x12 .x24,
+    .JAL .x1 (jalOff GuestAddrs.rlp_prefix_to_buffer (GuestAddrs.mpt_indexed_trie_root_large + 680)),
+    .MV .x5 .x10,
+    .ADD .x6 .x24 .x5,
+    .LD .x7 .x2 (104 : BitVec 12),
+    .LD .x28 .x2 (112 : BitVec 12),
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LD .x28 .x2 (112 : BitVec 12),
+    .ADD .x11 .x5 .x28,
+    .MV .x10 .x24,
+    .LD .x12 .x2 (120 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.mpt_indexed_trie_root_large + 744)),
+    .LD .x1 .x2 (144 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def mptIndexedTrieRootLargeFunction : String :=
+  "mpt_indexed_trie_root_large:\n" ++ emitProgram mptIndexedTrieRootLarge_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `mptIndexedTrieRootLarge_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem mptIndexedTrieRootLargeFunction_eq_prog :
+    mptIndexedTrieRootLargeFunction = "mpt_indexed_trie_root_large:\n" ++ emitProgram mptIndexedTrieRootLarge_prog := rfl
+
+#guard mptIndexedTrieRootLargeFunction.startsWith "mpt_indexed_trie_root_large:\n"
+#guard mptIndexedTrieRootLarge_prog.length = 189
 def mptIndexedTrieRootSmallFunction : String :=
   "mpt_indexed_trie_root_small:\n" ++
   "  addi sp, sp, -56\n" ++

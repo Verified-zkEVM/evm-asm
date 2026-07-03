@@ -24,6 +24,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bn254Field
 
 namespace EvmAsm.Codegen
@@ -277,34 +279,44 @@ def bn254OnCurveFunction : String :=
 /-- execution-specs `bytes_to_g1` validity for a staged 64-byte point.
     a0 = point; returns a0 = 0 (valid finite), 1 (the (0,0) infinity
     encoding), or 2 (coordinate >= p, or not on the curve). -/
-def bn254ValidateG1Function : String :=
-  "bnc_validate_g1:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  jal ra, bnf_lt_p\n" ++
-  "  beqz a0, .Lbnc_val_bad        # x >= p\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  jal ra, bnf_lt_p\n" ++
-  "  beqz a0, .Lbnc_val_bad        # y >= p\n" ++
-  "  mv a0, s0\n" ++
-  "  jal ra, bnc_is_inf64\n" ++
-  "  beqz a0, .Lbnc_val_finite\n" ++
-  "  li a0, 1                      # (0,0) = infinity, valid\n" ++
-  "  j .Lbnc_val_ret\n" ++
-  ".Lbnc_val_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  jal ra, bnc_on_curve\n" ++
-  "  beqz a0, .Lbnc_val_bad\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbnc_val_ret\n" ++
-  ".Lbnc_val_bad:\n" ++
-  "  li a0, 2\n" ++
-  ".Lbnc_val_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def bncValidateG1_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .JAL .x1 (jalOff GuestAddrs.bnf_lt_p (GuestAddrs.bnc_validate_g1 + 16)),
+    .BEQ .x10 .x0 (56 : BitVec 13),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_lt_p (GuestAddrs.bnc_validate_g1 + 28)),
+    .BEQ .x10 .x0 (44 : BitVec 13),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnc_is_inf64 (GuestAddrs.bnc_validate_g1 + 40)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (28 : BitVec 21),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnc_on_curve (GuestAddrs.bnc_validate_g1 + 60)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def bn254ValidateG1Function : String :=
+  "bnc_validate_g1:\n" ++ emitProgram bncValidateG1_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `bncValidateG1_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem bn254ValidateG1Function_eq_prog :
+    bn254ValidateG1Function = "bnc_validate_g1:\n" ++ emitProgram bncValidateG1_prog := rfl
+
+#guard bn254ValidateG1Function.startsWith "bnc_validate_g1:\n"
+#guard bncValidateG1_prog.length = 24
 /-- Multiply an affine point by a 256-bit big-endian scalar (MSB-first
     double-and-add; the scalar is NOT reduced mod the group order, matching
     execution-specs `multiply(p0, n)` over the raw 32-byte value — the G1

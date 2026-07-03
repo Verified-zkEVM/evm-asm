@@ -37,6 +37,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
@@ -64,47 +66,62 @@ open EvmAsm.Rv64
 
     Composes PR-K20 `rlp_list_nth_item` + per-byte BE decode.
     The output is stored as a native LE u64 at *a3. -/
-def rlpFieldToU64Function : String :=
-  "rlp_field_to_u64:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                  # container ptr\n" ++
-  "  mv s1, a3                  # u64 out ptr\n" ++
-  "  la a3, rfu_offset\n" ++
-  "  la a4, rfu_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lrfu_fail\n" ++
-  "  la t0, rfu_length; ld t1, 0(t0)\n" ++
-  "  li t2, 8\n" ++
-  "  bgtu t1, t2, .Lrfu_too_long\n" ++
-  "  la t0, rfu_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  li t2, 0                   # accumulator\n" ++
-  ".Lrfu_loop:\n" ++
-  "  beqz t1, .Lrfu_done\n" ++
-  "  slli t2, t2, 8\n" ++
-  "  lbu t4, 0(t3)\n" ++
-  "  or t2, t2, t4\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lrfu_loop\n" ++
-  ".Lrfu_done:\n" ++
-  "  sd t2, 0(s1)               # *out = u64 LE\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrfu_ret\n" ++
-  ".Lrfu_too_long:\n" ++
-  "  sd zero, 0(s1)\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lrfu_ret\n" ++
-  ".Lrfu_fail:\n" ++
-  "  sd zero, 0(s1)\n" ++
-  "  li a0, 1\n" ++
-  ".Lrfu_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def rlpFieldToU64_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .AUIPC .x13 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 24)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 24)),
+    .AUIPC .x14 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 32)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 32)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.rlp_field_to_u64 + 40)),
+    .BNE .x10 .x0 (96 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 48)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (8 : Word),
+    .BLTU .x7 .x6 (64 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 68)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LI .x7 (0 : Word),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .SLLI .x7 .x7 (8 : BitVec 6),
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .OR .x7 .x7 .x29,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SD .x9 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def rlpFieldToU64Function : String :=
+  "rlp_field_to_u64:\n" ++ emitProgram rlpFieldToU64_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpFieldToU64_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpFieldToU64Function_eq_prog :
+    rlpFieldToU64Function = "rlp_field_to_u64:\n" ++ emitProgram rlpFieldToU64_prog := rfl
+
+#guard rlpFieldToU64Function.startsWith "rlp_field_to_u64:\n"
+#guard rlpFieldToU64_prog.length = 42
 /-- `zisk_rlp_field_to_u64`: probe BuildUnit. Reads
     (container_len, field_index, container_bytes) from host
     input, writes (status, u64) to OUTPUT. -/
@@ -157,47 +174,64 @@ def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
 
     Composes PR-K20 `rlp_list_nth_item`; reuses K34's
     `rfu_offset` / `rfu_length` scratch slots. -/
-def rlpFieldToU256BeFunction : String :=
-  "rlp_field_to_u256_be:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                  # container ptr\n" ++
-  "  mv s1, a3                  # u256 BE out ptr\n" ++
-  "  # Zero output up front (also covers fail/too-long paths).\n" ++
-  "  sd zero,  0(s1); sd zero,  8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
-  "  la a3, rfu_offset\n" ++
-  "  la a4, rfu_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lrf256_fail\n" ++
-  "  la t0, rfu_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bgtu t1, t2, .Lrf256_too_long\n" ++
-  "  la t0, rfu_offset; ld t3, 0(t0); add t3, s0, t3\n" ++
-  "  sub t2, t2, t1             # 32 - len\n" ++
-  "  add t4, s1, t2             # dst start (right-aligned)\n" ++
-  ".Lrf256_copy:\n" ++
-  "  beqz t1, .Lrf256_done\n" ++
-  "  lbu t5, 0(t3)\n" ++
-  "  sb  t5, 0(t4)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lrf256_copy\n" ++
-  ".Lrf256_done:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lrf256_ret\n" ++
-  ".Lrf256_too_long:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lrf256_ret\n" ++
-  ".Lrf256_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lrf256_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def rlpFieldToU256Be_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 40)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 40)),
+    .AUIPC .x14 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 48)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 48)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.rlp_field_to_u256_be + 56)),
+    .BNE .x10 .x0 (92 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 64)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (64 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 84)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .SUB .x7 .x7 .x6,
+    .ADD .x29 .x9 .x7,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def rlpFieldToU256BeFunction : String :=
+  "rlp_field_to_u256_be:\n" ++ emitProgram rlpFieldToU256Be_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `rlpFieldToU256Be_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem rlpFieldToU256BeFunction_eq_prog :
+    rlpFieldToU256BeFunction = "rlp_field_to_u256_be:\n" ++ emitProgram rlpFieldToU256Be_prog := rfl
+
+#guard rlpFieldToU256BeFunction.startsWith "rlp_field_to_u256_be:\n"
+#guard rlpFieldToU256Be_prog.length = 44
 /-- `zisk_rlp_field_to_u256_be`: probe BuildUnit. Reads
     (container_len, field_index, container_bytes), writes
     (status, u256 BE) to OUTPUT. -/
