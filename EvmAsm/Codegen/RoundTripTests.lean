@@ -90,6 +90,11 @@ open EvmAsm.Rv64
 #guard emitInstr .FENCE  = "fence"
 #guard emitInstr .EBREAK = "ebreak"
 
+-- ZisK accelerator CSR calls (pre-encoded `.4byte` for the rv64imac toolchain)
+#guard emitInstr (.CSRS 0x800 .x10) = s!".4byte {0x80052073}"
+#guard emitInstr (.CSRS 0x802 .x5)  = s!".4byte {0x8022a073}"
+#guard emitInstr (.CSRS 0x805 .x10) = s!".4byte {0x80552073}"
+
 -- RV64M
 #guard emitInstr (.MUL    .x5 .x6 .x7) = "mul x5, x6, x7"
 #guard emitInstr (.MULH   .x5 .x6 .x7) = "mulh x5, x6, x7"
