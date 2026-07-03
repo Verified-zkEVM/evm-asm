@@ -1,5 +1,19 @@
 # ADDMOD total runtime plan
 
+> **Status (2026-07-03, issue #9704):** LANDED. The verified total program is
+> `evm_addmod_total` (`EvmAsm/Evm64/AddMod/Program.lean`), functionally tested
+> in `AddMod/ProgramTest.lean`, and the dispatcher handler
+> (`EvmAsm/Codegen/Programs/EvmSelfCallingHandlers.lean`) now emits it inlined
+> with `evm_mod_callable_v5` — replacing both the no-carry-only `evm_addmod`
+> composition and the hand-written `.Laddmod_*` carry tail described below
+> (which also carried a borrow-chain bug in its conditional subtract and
+> called the buggy v4 callable). The block layout below documents the design
+> rationale; the landed layout differs in two ways: the parking scratch lives
+> below `x12` (at `F − 192/−224/−256`, under the callable's own
+> `F − 160..F − 8` scratch band) instead of in `addmod_runtime_scratch`
+> symbols, and all MOD calls share the single frame base `F = sp + 32`.
+> Remaining work is the unconditional stack spec + `.proven` flip.
+
 This note is the implementation handoff for total ADDMOD runtime work, tracked by
 beads `evm-asm-fhsxz.2.4.2.60.2.4.*`.
 
