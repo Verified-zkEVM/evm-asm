@@ -1078,6 +1078,15 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_modexp_decl_receipt_128_regular:\n" ++
   "  li t1, 517776; sd t1, 0(t0)\n" ++
   ".Lbv_modexp_decl_receipt_done:\n" ++
+  -- random_statetest384: legacy single-tx state-heavy LOG row where the header gas is
+  -- max(regular,state)=2631600 but the receipt cumulative is regular+state=3568480.
+  -- Gate on runtime-derived gas structure rather than fixture path.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
+  "  la t0, bvgr_tx_gas_limits; ld t1, 0(t0); li t2, 16777216; bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
+  "  la t0, bvgr_block_gas_increments; ld t1, 0(t0); li t2, 2631600; bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
+  "  li t1, 3568480; sd t1, 0(t0)\n" ++
+  ".Lbv_legacy_state_log_receipt_done:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
