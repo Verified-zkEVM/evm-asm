@@ -20,7 +20,7 @@
   As in the binary family the proof reuses the existing HandlerSpecs
   `cpsTripleWithin` verbatim (the arithmetic is NOT re-derived); each
   `<op>PostS` is `[irreducible]` so its `let`-bundle stays folded during
-  unification (no `maxHeartbeats` raise).
+  unification (keeping the proof within the default budget).
 -/
 
 import EvmAsm.Codegen.Proofs.HandlerHandles
