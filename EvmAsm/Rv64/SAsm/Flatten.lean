@@ -68,6 +68,8 @@ def flatten (addr : Word) : Stmt → List Instr
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
   | callReg _ rs _ =>
       [.JALR .x1 rs 0]
+  | callRegS _ rs _ =>
+      [.JALR .x1 rs 0]
 
 /-- The flattened code of a statement occupies exactly `size` slots. -/
 theorem flatten_length (s : Stmt) (addr : Word) :
@@ -89,6 +91,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
       simp [flatten, size, ihb]
   | call _ callee => rfl
   | callReg _ _ _ => rfl
+  | callRegS _ _ _ => rfl
 
 /-- Decidable well-formedness: every synthesized offset fits its immediate
     field, and every branch condition reads only exposed registers (or x0).
@@ -118,6 +121,7 @@ def offsetsOk : Stmt → Bool
            && b.offsetsOk
   | call _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
+  | callRegS _ rs _ => Reg.isExposed rs
 
 /-- Address-aware side conditions of the call sites of a statement placed at
     `addr`: each `jal` offset round-trips through its 21-bit immediate, the
@@ -143,6 +147,9 @@ def callsOk : Stmt → Word → Prop
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
       ∧ f.code addr = none
   | callReg _ _ handles, addr =>
+      ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
+      ∧ ∀ h ∈ handles, (h.entry &&& ~~~(1 : Word)) = h.entry
+  | callRegS _ _ handles, addr =>
       ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
       ∧ ∀ h ∈ handles, (h.entry &&& ~~~(1 : Word)) = h.entry
 

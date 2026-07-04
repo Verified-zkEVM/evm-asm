@@ -88,6 +88,9 @@ jobs:
       - name: Build codegen and link stateless_guest.elf
         run: scripts/codegen-stateless-link-check.sh
 
+      - name: Region-map / link-layout drift (RegionMap sizes + symbol-addresses.tsv match ELF)
+        run: scripts/check-region-map.sh
+
       - name: Progress-report drift check
         run: scripts/check-progress.sh
 
