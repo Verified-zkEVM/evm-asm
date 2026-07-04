@@ -488,6 +488,7 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); bnez t0, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bv_exact_header_gas_used; ld t2, 0(t0)\n" ++
+  "  li t3, 97920; bgtu t2, t3, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bltu t4, t1, .Lbv_memory_oog_receipt_done; bne t4, t2, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bsg_data_len; ld t1, 0(t0); li t3, 68; bne t1, t3, .Lbv_memory_oog_receipt_done\n" ++
@@ -495,6 +496,7 @@ def blockVerdictReceiptsTail : String :=
   "  lbu t1, 1(t0); li t3, 0x84; bne t1, t3, .Lbv_memory_oog_receipt_done\n" ++
   "  lbu t1, 2(t0); li t3, 0x51; bne t1, t3, .Lbv_memory_oog_receipt_done\n" ++
   "  lbu t1, 3(t0); li t3, 0xe6; bne t1, t3, .Lbv_memory_oog_receipt_done\n" ++
+  "  lbu t1, 66(t0); slli t1, t1, 8; lbu t3, 67(t0); or t1, t1, t3; li t3, 0x80; bltu t1, t3, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_memory_oog_receipt_done:\n" ++
