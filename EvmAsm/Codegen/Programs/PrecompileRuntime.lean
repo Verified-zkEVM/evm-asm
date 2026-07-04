@@ -335,7 +335,7 @@ def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
   "  sd x0, 16(x12)\n" ++
   "  sd x0, 24(x12)\n" ++
   "  addi x10, x10, 1\n" ++
-  "  j .dispatch_loop\n"
+  dispatchContinueRet ++ "\n"
 
 def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
