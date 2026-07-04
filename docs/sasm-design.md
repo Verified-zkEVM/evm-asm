@@ -762,6 +762,32 @@ iteration-dependent facts through registers pinned by `Reach.pin`-style
 relational contracts, or extend `call` analogously if that proves too
 weak.
 
+### 3.11 Snapshot-parameterized callees and the interpreter loop (`FnHandleS`, `Stmt.callRegS`)
+
+The gap flagged at the end of §3.10 is closed by applying the `whileS`
+move to callee contracts: **`FnHandleS`** (`SAsm/Handle.lean`) carries a
+postcondition *parameterized by the call's entry state* — the
+auxiliary-variable triple, `sound` quantified over every entry state
+satisfying `pre` — and **`Stmt.callRegS`** dispatches through a register
+against a finite table of such handles, recording the entry snapshot in
+its strongest postcondition.  A monomorphic `FnHandle` provably cannot
+verify a state-transforming callee at a looped dispatch site (it cannot
+carry the gas variant across the call).  The full analysis — invariant
+shape, gas-derived fuel, the 256-handler dispatch plan, frame
+descend/return as window movement over `phaseDView`, and the bead
+decomposition — lives in **docs/4ch8f-interp-strategy.md**; the
+end-to-end pilot is `SAsm/InterpLoopDemo.lean`
+(`InterpLoopDemo.interpFn_spec`).
+
+The same handle mechanism is the sanctioned crossing for the ZisK
+accelerator seam: a `CSRS` step is *not* a block leaf (`instrOk`
+rejects it); instead an accelerator wrapper is verified once at machine
+level (`step_csrs` + the concrete `csrsWrite`/`csrsValid` semantics)
+and packaged as a hand-proven `FnHandleS` (`SAsm/AccelStep.lean`,
+`arith256ModHandle`).  Strategy and pilot (an MSB modular-exponentiation
+ladder computing `x ^ e mod m` through `callRegS` at the handle):
+**docs/4ch8f-crypto-strategy.md**, `SAsm/PowLadderDemo.lean`.
+
 ## 4. What this buys for `run_stateless_guest`
 
 - The existing SSZ decode/encode routines in `Stateless/SSZ/*/Program.lean`
