@@ -80,7 +80,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     ".Lextcodehash_same_block_rev_done:\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_after_same_block:\n" ++
     -- During initcode, ADDRESS denotes the account being created. It exists
     -- for EIP-1052 but has no deployed code yet, so EXTCODEHASH(ADDRESS)
@@ -105,7 +105,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     ".Lextcodehash_create_self_done:\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_not_create_self:\n" ++
     -- Check exec_code_effect_log for CREATE'd contract code (extcodehash
     -- after CREATE: the deployed code is in the log but not in the BAL
@@ -132,7 +132,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     ".Lextcodehash_create_rev_done:\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_witness_check:\n" ++
     "  la t0, eahsr_same_tx_empty_flag; sd zero, 0(t0)\n" ++
     "  la t0, exec_nonstorage_effect_count; ld t2, 0(t0)\n" ++
@@ -200,14 +200,14 @@ private def extcodehashWitnessTail : HandlerTail :=
     ".Lextcodehash_witness_rev_done:\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_no_context:\n" ++
     "  sd zero, 0(x12)\n" ++
     "  sd zero, 8(x12)\n" ++
     "  sd zero, 16(x12)\n" ++
     "  sd zero, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop"
+    dispatchContinueRet
 
 /-- Raw dispatcher handler for EXTCODESIZE backed by
     `extcodesize_at_header_state_root`.
@@ -252,7 +252,7 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  sd zero, 16(x12)\n" ++
     "  sd zero, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_after_same_block:\n" ++
     -- Check exec_code_effect_log for CREATE'd contract code
     "  la a0, exec_code_effect_log\n" ++
@@ -272,7 +272,7 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  sd zero, 16(x12)\n" ++
     "  sd zero, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_witness_check:\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
@@ -306,14 +306,14 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  sd zero, 16(x12)\n" ++
     "  sd zero, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_no_context:\n" ++
     "  sd zero, 0(x12)\n" ++
     "  sd zero, 8(x12)\n" ++
     "  sd zero, 16(x12)\n" ++
     "  sd zero, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop"
+    dispatchContinueRet
 
 def accountWitnessHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_EXTCODESIZE"

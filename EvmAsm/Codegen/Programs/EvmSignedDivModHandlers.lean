@@ -24,7 +24,11 @@ namespace EvmAsm.Codegen
 -- garbage `sp` (ziskemu `mem.rs:593` invalid addr). Mirrors `divModTail` /
 -- `expTail`.
 private def signedDivModTail : HandlerTail :=
-  .custom "  mv x13, x15\n  mv x10, x14\n  la sp, lp64_sp_top\n  addi x10, x10, 1\n  j .dispatch_loop"
+  -- 4ch8f.10.3: `ret` to the dispatch resume point (the wrapper's inner
+  -- `JAL .x1` clobbered x1, so restore the continuation explicitly) instead
+  -- of `j .dispatch_loop`, so the handler satisfies the callRegS contract.
+  .custom ("  mv x13, x15\n  mv x10, x14\n  la sp, lp64_sp_top\n  addi x10, x10, 1\n" ++
+    dispatchContinueRet)
 
 /-- M9 signed division handlers: SDIV (0x05) and SMOD (0x07).
 
