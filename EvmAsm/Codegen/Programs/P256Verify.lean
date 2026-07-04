@@ -332,27 +332,59 @@ theorem p256LeToBeFunction_eq_prog :
     `p256_le_a`/`p256_le_b`), a2 = 32-byte BE output, a3 = the
     {a,b,c,module,d} parameter block selecting the operation
     (mul/add/sub mod p, mul mod n). -/
-def p256OpWithFunction : String :=
-  "p256_op_with:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  mv s2, a3\n" ++
-  "  la a1, p256_le_a\n" ++
-  "  jal ra, p256_be_to_le\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, p256_le_b\n" ++
-  "  jal ra, p256_be_to_le\n" ++
-  "  mv t0, s2\n" ++
-  "  .4byte 0x8022a073              # csrs 0x802, t0 -> Arith256Mod\n" ++
-  "  la a0, p256_le_d\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, p256_le_to_be\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def p256OpWith_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .AUIPC .x11 (laHi GuestAddrs.p256_le_a (GuestAddrs.p256_op_with + 32)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_le_a (GuestAddrs.p256_op_with + 32)),
+    .JAL .x1 (jalOff GuestAddrs.p256_be_to_le (GuestAddrs.p256_op_with + 40)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.p256_le_b (GuestAddrs.p256_op_with + 48)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.p256_le_b (GuestAddrs.p256_op_with + 48)),
+    .JAL .x1 (jalOff GuestAddrs.p256_be_to_le (GuestAddrs.p256_op_with + 56)),
+    .MV .x5 .x18,
+    .CSRS (2050 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.p256_le_d (GuestAddrs.p256_op_with + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.p256_le_d (GuestAddrs.p256_op_with + 68)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.p256_le_to_be (GuestAddrs.p256_op_with + 80)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `p256OpWith_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def p256OpWith_relocs : RelocTable :=
+  [ (8, .la .x11 "p256_le_a"),
+    (10, .jal .x1 "p256_be_to_le"),
+    (12, .la .x11 "p256_le_b"),
+    (14, .jal .x1 "p256_be_to_le"),
+    (17, .la .x10 "p256_le_d"),
+    (20, .jal .x1 "p256_le_to_be") ]
+
+def p256OpWithFunction : String :=
+  "p256_op_with:\n" ++ emitProgramR p256OpWith_prog p256OpWith_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `p256OpWith_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem p256OpWithFunction_eq_prog :
+    p256OpWithFunction = "p256_op_with:\n" ++ emitProgramR p256OpWith_prog p256OpWith_relocs := rfl
+
+#guard p256OpWithFunction.startsWith "p256_op_with:\n"
+#guard p256OpWith_prog.length = 27
 /-- Modular pow: a0 = base (32 B BE, reduced), a1 = 32-byte BE
     exponent, a2 = output, a3 = the mul parameter block (mod p or
     mod n). MSB-first square-and-multiply; acc in `p256_acc` (output

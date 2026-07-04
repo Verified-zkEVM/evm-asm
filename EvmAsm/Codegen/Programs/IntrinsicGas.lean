@@ -304,66 +304,75 @@ def ziskInitCodeCostProbeUnit : BuildUnit := {
     This intentionally returns the regular intrinsic component and calldata
     floor. Amsterdam's EIP-8037 state-gas component is handled by the caller's
     reservoir path. -/
-def intrinsicGasAmsterdamCountsFunction : String :=
-  "intrinsic_gas_amsterdam_counts:\n" ++
-  "  # a0=data ptr, a1=data len, a2=is_creation, a3=access addrs,\n" ++
-  "  # a4=access slots, a5=authorization count, a6=intrinsic out, a7=floor out\n" ++
-  "  li t0, 0                    # zero_count\n" ++
-  "  li t1, 0                    # non_zero_count\n" ++
-  "  mv t2, a0                   # cursor\n" ++
-  "  mv t3, a1                   # remaining\n" ++
-  ".Ligac_loop:\n" ++
-  "  beqz t3, .Ligac_count_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  bnez t4, .Ligac_nz\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Ligac_step\n" ++
-  ".Ligac_nz:\n" ++
-  "  addi t1, t1, 1\n" ++
-  ".Ligac_step:\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Ligac_loop\n" ++
-  ".Ligac_count_done:\n" ++
-  "  slli t5, t1, 2              # non_zero_count * 4\n" ++
-  "  add t5, t5, t0              # tokens\n" ++
-  "  slli t6, t5, 2              # data cost = tokens * 4\n" ++
-  "  li t4, 21000\n" ++
-  "  add t6, t6, t4              # intrinsic = base + data\n" ++
-  "  beqz a2, .Ligac_after_creation\n" ++
-  "  li t4, 9000\n" ++
-  "  add t6, t6, t4\n" ++
-  "  addi t4, a1, 31\n" ++
-  "  srli t4, t4, 5\n" ++
-  "  slli t4, t4, 1              # init code cost = 2 * ceil(len / 32)\n" ++
-  "  add t6, t6, t4\n" ++
-  ".Ligac_after_creation:\n" ++
-  "  li t4, 2400\n" ++
-  "  mul t4, a3, t4\n" ++
-  "  add t6, t6, t4\n" ++
-  "  li t4, 1900\n" ++
-  "  mul t4, a4, t4\n" ++
-  "  add t6, t6, t4\n" ++
-  "  li t4, 80\n" ++
-  "  mul t2, a3, t4             # access-list floor tokens: addresses\n" ++
-  "  li t4, 128\n" ++
-  "  mul t4, a4, t4             # access-list floor tokens: storage keys\n" ++
-  "  add t2, t2, t4             # access_tokens\n" ++
-  "  slli t4, t2, 4             # access-list floor gas = access_tokens * 16\n" ++
-  "  add t6, t6, t4\n" ++
-  "  li t4, 7500\n" ++
-  "  mul t4, a5, t4\n" ++
-  "  add t6, t6, t4\n" ++
-  "  sd t6, 0(a6)\n" ++
-  "  slli t5, a1, 2             # floor calldata tokens = 4 * data_len\n" ++
-  "  add t5, t5, t2             # total floor tokens\n" ++
-  "  slli t5, t5, 4             # calldata floor gas = total tokens * 16\n" ++
-  "  li t4, 21000\n" ++
-  "  add t5, t5, t4\n" ++
-  "  sd t5, 0(a7)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+def intrinsicGasAmsterdamCounts_prog : Program :=
+  [ .LI .x5 (0 : Word),
+    .LI .x6 (0 : Word),
+    .MV .x7 .x10,
+    .MV .x28 .x11,
+    .BEQ .x28 .x0 (36 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x29 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .SLLI .x30 .x6 (2 : BitVec 6),
+    .ADD .x30 .x30 .x5,
+    .SLLI .x31 .x30 (2 : BitVec 6),
+    .LUI .x29 (5 : BitVec 20),
+    .ADDIW .x29 .x29 (520 : BitVec 12),
+    .ADD .x31 .x31 .x29,
+    .BEQ .x12 .x0 (32 : BitVec 13),
+    .LUI .x29 (2 : BitVec 20),
+    .ADDIW .x29 .x29 (808 : BitVec 12),
+    .ADD .x31 .x31 .x29,
+    .ADDI .x29 .x11 (31 : BitVec 12),
+    .SRLI .x29 .x29 (5 : BitVec 6),
+    .SLLI .x29 .x29 (1 : BitVec 6),
+    .ADD .x31 .x31 .x29,
+    .LUI .x29 (1 : BitVec 20),
+    .ADDIW .x29 .x29 (-1696 : BitVec 12),
+    .MUL .x29 .x13 .x29,
+    .ADD .x31 .x31 .x29,
+    .LI .x29 (1900 : Word),
+    .MUL .x29 .x14 .x29,
+    .ADD .x31 .x31 .x29,
+    .LI .x29 (80 : Word),
+    .MUL .x7 .x13 .x29,
+    .LI .x29 (128 : Word),
+    .MUL .x29 .x14 .x29,
+    .ADD .x7 .x7 .x29,
+    .SLLI .x29 .x7 (4 : BitVec 6),
+    .ADD .x31 .x31 .x29,
+    .LUI .x29 (2 : BitVec 20),
+    .ADDIW .x29 .x29 (-692 : BitVec 12),
+    .MUL .x29 .x15 .x29,
+    .ADD .x31 .x31 .x29,
+    .SD .x16 .x31 (0 : BitVec 12),
+    .SLLI .x30 .x11 (2 : BitVec 6),
+    .ADD .x30 .x30 .x7,
+    .SLLI .x30 .x30 (4 : BitVec 6),
+    .LUI .x29 (5 : BitVec 20),
+    .ADDIW .x29 .x29 (520 : BitVec 12),
+    .ADD .x30 .x30 .x29,
+    .SD .x17 .x30 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def intrinsicGasAmsterdamCountsFunction : String :=
+  "intrinsic_gas_amsterdam_counts:\n" ++ emitProgram intrinsicGasAmsterdamCounts_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `intrinsicGasAmsterdamCounts_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
+    intrinsicGasAmsterdamCountsFunction = "intrinsic_gas_amsterdam_counts:\n" ++ emitProgram intrinsicGasAmsterdamCounts_prog := rfl
+
+#guard intrinsicGasAmsterdamCountsFunction.startsWith "intrinsic_gas_amsterdam_counts:\n"
+#guard intrinsicGasAmsterdamCounts_prog.length = 55
 /-- `zisk_intrinsic_gas_amsterdam_counts`: focused probe.
     Input layout:
       bytes  0.. 8 : data length
@@ -454,35 +463,41 @@ def ziskIntrinsicGasAmsterdamCountsProbeUnit : BuildUnit := {
     The helper intentionally accepts both intrinsic totals as inputs so it can
     compose with the existing regular/calldata probe and the EIP-8037
     intrinsic-state component without redoing either calculation. -/
-def eip8037ReservoirSplitFunction : String :=
-  "eip8037_reservoir_split:\n" ++
-  "  # a0=tx_gas, a1=intrinsic_total, a2=intrinsic_regular,\n" ++
-  "  # a3=gas_out, a4=state_reservoir_out\n" ++
-  "  bltu a0, a1, .Le8037_underflow\n" ++
-  "  li t0, 16777216            # TX_MAX_GAS_LIMIT\n" ++
-  "  bltu t0, a2, .Le8037_regular_too_large\n" ++
-  "  sub t1, a0, a1             # execution_gas\n" ++
-  "  sub t2, t0, a2             # regular_gas_budget\n" ++
-  "  mv t3, t1                  # gas = execution_gas by default\n" ++
-  "  bltu t1, t2, .Le8037_have_gas\n" ++
-  "  mv t3, t2                  # gas = regular_gas_budget\n" ++
-  ".Le8037_have_gas:\n" ++
-  "  sub t4, t1, t3             # state_gas_reservoir\n" ++
-  "  sd t3, 0(a3)\n" ++
-  "  sd t4, 0(a4)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Le8037_underflow:\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  sd zero, 0(a4)\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
-  ".Le8037_regular_too_large:\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  sd zero, 0(a4)\n" ++
-  "  li a0, 2\n" ++
-  "  ret"
+def eip8037ReservoirSplit_prog : Program :=
+  [ .BLTU .x10 .x11 (52 : BitVec 13),
+    .LUI .x5 (4096 : BitVec 20),
+    .BLTU .x5 .x12 (60 : BitVec 13),
+    .SUB .x6 .x10 .x11,
+    .SUB .x7 .x5 .x12,
+    .MV .x28 .x6,
+    .BLTU .x6 .x7 (8 : BitVec 13),
+    .MV .x28 .x7,
+    .SUB .x29 .x6 .x28,
+    .SD .x13 .x28 (0 : BitVec 12),
+    .SD .x14 .x29 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .SD .x14 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SD .x13 .x0 (0 : BitVec 12),
+    .SD .x14 .x0 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def eip8037ReservoirSplitFunction : String :=
+  "eip8037_reservoir_split:\n" ++ emitProgram eip8037ReservoirSplit_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `eip8037ReservoirSplit_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem eip8037ReservoirSplitFunction_eq_prog :
+    eip8037ReservoirSplitFunction = "eip8037_reservoir_split:\n" ++ emitProgram eip8037ReservoirSplit_prog := rfl
+
+#guard eip8037ReservoirSplitFunction.startsWith "eip8037_reservoir_split:\n"
+#guard eip8037ReservoirSplit_prog.length = 21
 /-- `zisk_eip8037_reservoir_split`: focused probe.
     Input layout:
       bytes  0.. 8 : tx.gas

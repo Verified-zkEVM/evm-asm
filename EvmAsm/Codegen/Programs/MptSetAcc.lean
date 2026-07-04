@@ -196,19 +196,36 @@ theorem nodeDbLookupFunction_eq_prog :
     The cache is direct-mapped and stores only successful witness-section
     resolutions. It is reset alongside the appended node DB so cached absolute
     input pointers never cross probe/block invocations. -/
-def mptResolveCacheResetFunction : String :=
-  "mpt_resolve_cache_reset:\n" ++
-  "  la t0, mset_res_cache_valid\n" ++
-  "  li t1, 4096\n" ++
-  ".Lmrc_reset_loop:\n" ++
-  "  beqz t1, .Lmrc_reset_done\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmrc_reset_loop\n" ++
-  ".Lmrc_reset_done:\n" ++
-  "  ret"
+def mptResolveCacheReset_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.mset_res_cache_valid (GuestAddrs.mpt_resolve_cache_reset + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_res_cache_valid (GuestAddrs.mpt_resolve_cache_reset + 0)),
+    .LUI .x6 (1 : BitVec 20),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptResolveCacheReset_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptResolveCacheReset_relocs : RelocTable :=
+  [ (0, .la .x5 "mset_res_cache_valid") ]
+
+def mptResolveCacheResetFunction : String :=
+  "mpt_resolve_cache_reset:\n" ++ emitProgramR mptResolveCacheReset_prog mptResolveCacheReset_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptResolveCacheReset_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptResolveCacheResetFunction_eq_prog :
+    mptResolveCacheResetFunction = "mpt_resolve_cache_reset:\n" ++ emitProgramR mptResolveCacheReset_prog mptResolveCacheReset_relocs := rfl
+
+#guard mptResolveCacheResetFunction.startsWith "mpt_resolve_cache_reset:\n"
+#guard mptResolveCacheReset_prog.length = 9
 /-- Backing storage for `mpt_node_resolve`'s direct-mapped witness cache. -/
 def mptResolveCacheDataSection : String :=
   ".balign 8\n" ++
@@ -222,58 +239,148 @@ def mptResolveCacheDataSection : String :=
     a3 = out_ptr ptr (ABSOLUTE), a4 = out_len ptr. a0 = 0 / 1. Tries the
     appended DB first, then the witness SSZ section (witness_lookup_by_hash
     returns a section offset, converted to absolute here). -/
-def mptNodeResolveFunction : String :=
-  "mpt_node_resolve:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s4\n" ++
-  "  jal ra, node_db_lookup\n" ++
-  "  beqz a0, .Lres_ret\n" ++
-  "  # Direct-mapped cache for witness-section resolutions. DB lookup wins;\n" ++
-  "  # the cache only avoids repeated scans of the immutable witness list.\n" ++
-  "  lbu t0, 0(s2)\n" ++
-  "  lbu t1, 1(s2); slli t1, t1, 8; or t0, t0, t1; li t2, 4095; and t0, t0, t2\n" ++
-  "  la t1, mset_res_cache_valid\n" ++
-  "  slli t2, t0, 3; add t1, t1, t2\n" ++
-  "  ld t2, 0(t1); beqz t2, .Lres_cache_miss\n" ++
-  "  slli t2, t0, 5; slli t3, t0, 4; add t2, t2, t3   # 48 * index\n" ++
-  "  la t3, mset_res_cache_data; add t2, t3, t2\n" ++
-  "  ld t3,  0(t2); ld t4,  0(s2); bne t3, t4, .Lres_cache_miss\n" ++
-  "  ld t3,  8(t2); ld t4,  8(s2); bne t3, t4, .Lres_cache_miss\n" ++
-  "  ld t3, 16(t2); ld t4, 16(s2); bne t3, t4, .Lres_cache_miss\n" ++
-  "  ld t3, 24(t2); ld t4, 24(s2); bne t3, t4, .Lres_cache_miss\n" ++
-  "  ld t3, 32(t2); sd t3, 0(s3)\n" ++
-  "  ld t3, 40(t2); sd t3, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lres_ret\n" ++
-  ".Lres_cache_miss:\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, mset_res_off; la a4, mset_res_len\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lres_ret\n" ++
-  "  la t0, mset_res_off; ld t1, 0(t0); add t1, s0, t1   # abs = witness + off\n" ++
-  "  sd t1, 0(s3)\n" ++
-  "  la t0, mset_res_len; ld t1, 0(t0); sd t1, 0(s4)\n" ++
-  "  lbu t0, 0(s2)\n" ++
-  "  lbu t1, 1(s2); slli t1, t1, 8; or t0, t0, t1; li t2, 4095; and t0, t0, t2\n" ++
-  "  slli t2, t0, 5; slli t3, t0, 4; add t2, t2, t3   # 48 * index\n" ++
-  "  la t3, mset_res_cache_data; add t2, t3, t2\n" ++
-  "  ld t3,  0(s2); sd t3,  0(t2)\n" ++
-  "  ld t3,  8(s2); sd t3,  8(t2)\n" ++
-  "  ld t3, 16(s2); sd t3, 16(t2)\n" ++
-  "  ld t3, 24(s2); sd t3, 24(t2)\n" ++
-  "  ld t3, 0(s3); sd t3, 32(t2)\n" ++
-  "  ld t3, 0(s4); sd t3, 40(t2)\n" ++
-  "  la t1, mset_res_cache_valid; slli t3, t0, 3; add t1, t1, t3; li t3, 1; sd t3, 0(t1)\n" ++
-  "  li a0, 0\n" ++
-  ".Lres_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def mptNodeResolve_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.node_db_lookup (GuestAddrs.mpt_node_resolve + 60)),
+    .BEQ .x10 .x0 (352 : BitVec 13),
+    .LBU .x5 .x18 (0 : BitVec 12),
+    .LBU .x6 .x18 (1 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (-1 : BitVec 12),
+    .AND .x5 .x5 .x7,
+    .AUIPC .x6 (laHi GuestAddrs.mset_res_cache_valid (GuestAddrs.mpt_node_resolve + 96)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_res_cache_valid (GuestAddrs.mpt_node_resolve + 96)),
+    .SLLI .x7 .x5 (3 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .BEQ .x7 .x0 (100 : BitVec 13),
+    .SLLI .x7 .x5 (5 : BitVec 6),
+    .SLLI .x28 .x5 (4 : BitVec 6),
+    .ADD .x7 .x7 .x28,
+    .AUIPC .x28 (laHi GuestAddrs.mset_res_cache_data (GuestAddrs.mpt_node_resolve + 132)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.mset_res_cache_data (GuestAddrs.mpt_node_resolve + 132)),
+    .ADD .x7 .x28 .x7,
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LD .x29 .x18 (0 : BitVec 12),
+    .BNE .x28 .x29 (64 : BitVec 13),
+    .LD .x28 .x7 (8 : BitVec 12),
+    .LD .x29 .x18 (8 : BitVec 12),
+    .BNE .x28 .x29 (52 : BitVec 13),
+    .LD .x28 .x7 (16 : BitVec 12),
+    .LD .x29 .x18 (16 : BitVec 12),
+    .BNE .x28 .x29 (40 : BitVec 13),
+    .LD .x28 .x7 (24 : BitVec 12),
+    .LD .x29 .x18 (24 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .LD .x28 .x7 (32 : BitVec 12),
+    .SD .x19 .x28 (0 : BitVec 12),
+    .LD .x28 .x7 (40 : BitVec 12),
+    .SD .x20 .x28 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (204 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.mset_res_off (GuestAddrs.mpt_node_resolve + 228)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mset_res_off (GuestAddrs.mpt_node_resolve + 228)),
+    .AUIPC .x14 (laHi GuestAddrs.mset_res_len (GuestAddrs.mpt_node_resolve + 236)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mset_res_len (GuestAddrs.mpt_node_resolve + 236)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_node_resolve + 244)),
+    .BNE .x10 .x0 (168 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mset_res_off (GuestAddrs.mpt_node_resolve + 252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_res_off (GuestAddrs.mpt_node_resolve + 252)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x6 .x8 .x6,
+    .SD .x19 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mset_res_len (GuestAddrs.mpt_node_resolve + 272)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mset_res_len (GuestAddrs.mpt_node_resolve + 272)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x20 .x6 (0 : BitVec 12),
+    .LBU .x5 .x18 (0 : BitVec 12),
+    .LBU .x6 .x18 (1 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (-1 : BitVec 12),
+    .AND .x5 .x5 .x7,
+    .SLLI .x7 .x5 (5 : BitVec 6),
+    .SLLI .x28 .x5 (4 : BitVec 6),
+    .ADD .x7 .x7 .x28,
+    .AUIPC .x28 (laHi GuestAddrs.mset_res_cache_data (GuestAddrs.mpt_node_resolve + 328)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.mset_res_cache_data (GuestAddrs.mpt_node_resolve + 328)),
+    .ADD .x7 .x28 .x7,
+    .LD .x28 .x18 (0 : BitVec 12),
+    .SD .x7 .x28 (0 : BitVec 12),
+    .LD .x28 .x18 (8 : BitVec 12),
+    .SD .x7 .x28 (8 : BitVec 12),
+    .LD .x28 .x18 (16 : BitVec 12),
+    .SD .x7 .x28 (16 : BitVec 12),
+    .LD .x28 .x18 (24 : BitVec 12),
+    .SD .x7 .x28 (24 : BitVec 12),
+    .LD .x28 .x19 (0 : BitVec 12),
+    .SD .x7 .x28 (32 : BitVec 12),
+    .LD .x28 .x20 (0 : BitVec 12),
+    .SD .x7 .x28 (40 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.mset_res_cache_valid (GuestAddrs.mpt_node_resolve + 388)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.mset_res_cache_valid (GuestAddrs.mpt_node_resolve + 388)),
+    .SLLI .x28 .x5 (3 : BitVec 6),
+    .ADD .x6 .x6 .x28,
+    .LI .x28 (1 : Word),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptNodeResolve_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptNodeResolve_relocs : RelocTable :=
+  [ (15, .jal .x1 "node_db_lookup"),
+    (24, .la .x6 "mset_res_cache_valid"),
+    (33, .la .x28 "mset_res_cache_data"),
+    (57, .la .x13 "mset_res_off"),
+    (59, .la .x14 "mset_res_len"),
+    (61, .jal .x1 "witness_lookup_by_hash"),
+    (63, .la .x5 "mset_res_off"),
+    (68, .la .x5 "mset_res_len"),
+    (82, .la .x28 "mset_res_cache_data"),
+    (97, .la .x6 "mset_res_cache_valid") ]
+
+def mptNodeResolveFunction : String :=
+  "mpt_node_resolve:\n" ++ emitProgramR mptNodeResolve_prog mptNodeResolve_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptNodeResolve_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptNodeResolveFunction_eq_prog :
+    mptNodeResolveFunction = "mpt_node_resolve:\n" ++ emitProgramR mptNodeResolve_prog mptNodeResolve_relocs := rfl
+
+#guard mptNodeResolveFunction.startsWith "mpt_node_resolve:\n"
+#guard mptNodeResolve_prog.length = 112
 /-! ## mpt_set_record_walk_db -- record-walk resolving via witness+DB
 
     Same descent as `mpt_set_record_walk`, but every node hash is resolved

@@ -288,27 +288,49 @@ def bls12Fq12SubFunction : String :=
 
 /-- FQ12 dst = a * s for a 48-byte LE Fp scalar at a2 (coefficient-wise
     d = (a*s + 0)). Aliasing allowed; pass the scalar CELL in a2. -/
-def bls12Fq12SMulFunction : String :=
-  "blq_smul:\n" ++
-  "  li t5, 12\n" ++
-  ".Lblq_smul_loop:\n" ++
-  "  la t0, blq_arith_params\n" ++
-  "  sd a1, 0(t0)\n" ++
-  "  sd a2, 8(t0)\n" ++
-  "  la t4, blsf_le_zero\n" ++
-  "  sd t4, 16(t0)\n" ++
-  "  la t4, blsf_le_p\n" ++
-  "  sd t4, 24(t0)\n" ++
-  "  sd a0, 32(t0)\n" ++
-  "  mv t6, a0\n" ++
-  "  mv a0, t0\n" ++
-  "  .4byte 0x80b52073\n" ++
-  "  addi a0, t6, 48\n" ++
-  "  addi a1, a1, 48\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  bnez t5, .Lblq_smul_loop\n" ++
-  "  ret"
+def blqSmul_prog : Program :=
+  [ .LI .x30 (12 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.blq_arith_params (GuestAddrs.blq_smul + 4)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.blq_arith_params (GuestAddrs.blq_smul + 4)),
+    .SD .x5 .x11 (0 : BitVec 12),
+    .SD .x5 .x12 (8 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.blsf_le_zero (GuestAddrs.blq_smul + 20)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.blsf_le_zero (GuestAddrs.blq_smul + 20)),
+    .SD .x5 .x29 (16 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.blsf_le_p (GuestAddrs.blq_smul + 32)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.blsf_le_p (GuestAddrs.blq_smul + 32)),
+    .SD .x5 .x29 (24 : BitVec 12),
+    .SD .x5 .x10 (32 : BitVec 12),
+    .MV .x31 .x10,
+    .MV .x10 .x5,
+    .CSRS (2059 : BitVec 12) .x10,
+    .ADDI .x10 .x31 (48 : BitVec 12),
+    .ADDI .x11 .x11 (48 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .BNE .x30 .x0 (-68 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blqSmul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blqSmul_relocs : RelocTable :=
+  [ (1, .la .x5 "blq_arith_params"),
+    (5, .la .x29 "blsf_le_zero"),
+    (8, .la .x29 "blsf_le_p") ]
+
+def bls12Fq12SMulFunction : String :=
+  "blq_smul:\n" ++ emitProgramR blqSmul_prog blqSmul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blqSmul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12Fq12SMulFunction_eq_prog :
+    bls12Fq12SMulFunction = "blq_smul:\n" ++ emitProgramR blqSmul_prog blqSmul_relocs := rfl
+
+#guard bls12Fq12SMulFunction.startsWith "blq_smul:\n"
+#guard blqSmul_prog.length = 20
 /-- Copy a 576-byte FQ12 value: a0 = src, a1 = dst. -/
 def blqCopy_prog : Program :=
   [ .LI .x7 (72 : Word),

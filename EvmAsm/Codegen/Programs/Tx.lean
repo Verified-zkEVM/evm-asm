@@ -753,30 +753,38 @@ def ziskTxValidateAgainstBlockProbeUnit : BuildUnit := {
     Pure register arithmetic, no scratch memory, leaf-callable.
     Cannot overflow u64 in practice: even at max gas_limit ~30M,
     data length << 2^59, so 16 * data_len is well within u64. -/
-def intrinsicGasLegacyFunction : String :=
-  "intrinsic_gas_legacy:\n" ++
-  "  li t0, 21000               # base\n" ++
-  "  beqz a2, .Ligl_skip_creation\n" ++
-  "  li t1, 32000\n" ++
-  "  add t0, t0, t1\n" ++
-  ".Ligl_skip_creation:\n" ++
-  "  mv t2, a0                  # data cursor\n" ++
-  "  add t3, a0, a1             # data end\n" ++
-  ".Ligl_loop:\n" ++
-  "  bgeu t2, t3, .Ligl_done\n" ++
-  "  lbu t4, 0(t2)\n" ++
-  "  beqz t4, .Ligl_zero\n" ++
-  "  addi t0, t0, 16\n" ++
-  "  j .Ligl_step\n" ++
-  ".Ligl_zero:\n" ++
-  "  addi t0, t0, 4\n" ++
-  ".Ligl_step:\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  j .Ligl_loop\n" ++
-  ".Ligl_done:\n" ++
-  "  mv a0, t0\n" ++
-  "  ret"
+def intrinsicGasLegacy_prog : Program :=
+  [ .LUI .x5 (5 : BitVec 20),
+    .ADDIW .x5 .x5 (520 : BitVec 12),
+    .BEQ .x12 .x0 (16 : BitVec 13),
+    .LUI .x6 (8 : BitVec 20),
+    .ADDIW .x6 .x6 (-768 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .MV .x7 .x10,
+    .ADD .x28 .x10 .x11,
+    .BGEU .x7 .x28 (32 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BEQ .x29 .x0 (12 : BitVec 13),
+    .ADDI .x5 .x5 (16 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x5 .x5 (4 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def intrinsicGasLegacyFunction : String :=
+  "intrinsic_gas_legacy:\n" ++ emitProgram intrinsicGasLegacy_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `intrinsicGasLegacy_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem intrinsicGasLegacyFunction_eq_prog :
+    intrinsicGasLegacyFunction = "intrinsic_gas_legacy:\n" ++ emitProgram intrinsicGasLegacy_prog := rfl
+
+#guard intrinsicGasLegacyFunction.startsWith "intrinsic_gas_legacy:\n"
+#guard intrinsicGasLegacy_prog.length = 18
 /-- `zisk_intrinsic_gas_legacy`: probe BuildUnit. Reads
     (data_len, is_creation, data_bytes) from host input, writes
     the u64 intrinsic gas to OUTPUT. -/

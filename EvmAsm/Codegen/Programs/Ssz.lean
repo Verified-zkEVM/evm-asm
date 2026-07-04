@@ -856,123 +856,192 @@ def ziskSszHashTreeRootBytesProbeUnit : BuildUnit := {
     `ssz_hash_tree_root_bytes` stateless scratch. Output is byte-identical to
     `SszList[ByteList[B], M](...).hash_tree_root()` from
     `remerkleable` for any input within those helper bounds. -/
-def sszHashTreeRootListByteListFunction : String :=
-  "ssz_hash_tree_root_list_bytelist:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # s0 = section ptr\n" ++
-  "  mv s1, a1                  # s1 = section_len\n" ++
-  "  mv s2, a2                  # s2 = byte_log2\n" ++
-  "  mv s3, a3                  # s3 = count_log2\n" ++
-  "  mv s4, a4                  # s4 = out ptr\n" ++
-  "  beqz s1, .Lszls_N0          # empty section ⇒ N = 0\n" ++
-  "  lbu t0, 0(s0)              # offset_0 = 4*N (LBU-packed: section ptr may be unaligned)\n" ++
-  "  lbu t5, 1(s0); slli t5, t5, 8;  or t0, t0, t5\n" ++
-  "  lbu t5, 2(s0); slli t5, t5, 16; or t0, t0, t5\n" ++
-  "  lbu t5, 3(s0); slli t5, t5, 24; or t0, t0, t5\n" ++
-  "  andi t5, t0, 3\n" ++
-  "  bnez t5, .Lszls_fail       # offset_0 must equal 4*N\n" ++
-  "  srli s5, t0, 2             # s5 = N (element count)\n" ++
-  "  beqz s5, .Lszls_fail       # non-empty section cannot encode an empty list\n" ++
-  "  li t5, 4096\n" ++
-  "  bltu t5, s5, .Lszls_fail   # child root scratch is 4096 roots\n" ++
-  "  bltu s1, t0, .Lszls_fail   # offset table must fit in section\n" ++
-  "  li s6, 0                   # s6 = i (loop counter)\n" ++
-  ".Lszls_loop:\n" ++
-  "  beq s6, s5, .Lszls_done_loop\n" ++
-  "  slli t0, s6, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lbu t2, 0(t1)              # inner_off_i (LBU-packed)\n" ++
-  "  lbu t5, 1(t1); slli t5, t5, 8;  or t2, t2, t5\n" ++
-  "  lbu t5, 2(t1); slli t5, t5, 16; or t2, t2, t5\n" ++
-  "  lbu t5, 3(t1); slli t5, t5, 24; or t2, t2, t5\n" ++
-  "  slli t3, s5, 2\n" ++
-  "  bltu t2, t3, .Lszls_fail   # element data starts after offset table\n" ++
-  "  bltu s1, t2, .Lszls_fail   # element start must be in section\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s6, 1\n" ++
-  "  beq t3, s5, .Lszls_use_end\n" ++
-  "  slli t3, t3, 2             # 4*(i+1)\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lbu t4, 0(t3)              # inner_off_{i+1} (LBU-packed)\n" ++
-  "  lbu t5, 1(t3); slli t5, t5, 8;  or t4, t4, t5\n" ++
-  "  lbu t5, 2(t3); slli t5, t5, 16; or t4, t4, t5\n" ++
-  "  lbu t5, 3(t3); slli t5, t5, 24; or t4, t4, t5\n" ++
-  "  bltu t4, t2, .Lszls_fail   # offsets must be monotone\n" ++
-  "  bltu s1, t4, .Lszls_fail   # next element start must be in section\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lszls_have_end\n" ++
-  ".Lszls_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lszls_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  li t1, 32\n" ++
-  "  sll t1, t1, s2             # declared ByteList byte capacity\n" ++
-  "  bltu t1, a1, .Lszls_fail   # reject element longer than ByteList[B]\n" ++
-  "  li t0, 0x200000\n" ++
-  "  bltu t0, a1, .Lszls_fail   # ssz_hash_tree_root_bytes scratch supports <=2MiB\n" ++
-  "  mv a2, s2                  # byte_log2\n" ++
-  "  la a3, ssz_ltb_child_roots\n" ++
-  "  slli t0, s6, 5             # 32*i\n" ++
-  "  add a3, a3, t0             # &child_roots[i]\n" ++
-  "  jal ra, ssz_hash_tree_root_bytes\n" ++
-  "  bnez a0, .Lszls_fail\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lszls_loop\n" ++
-  ".Lszls_done_loop:\n" ++
-  "  la a0, ssz_ltb_child_roots\n" ++
-  "  mv a1, s5                  # N\n" ++
-  "  mv a2, s3                  # count_log2\n" ++
-  "  la a3, ssz_ltb_partial\n" ++
-  "  jal ra, ssz_merkleize\n" ++
-  "  la t0, ssz_ltb_partial\n" ++
-  "  la t1, ssz_ltb_mix\n" ++
-  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
-  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
-  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
-  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  sd s5, 32(t1)              # length = N (u64 LE)\n" ++
-  "  sd zero, 40(t1)\n" ++
-  "  sd zero, 48(t1)\n" ++
-  "  sd zero, 56(t1)\n" ++
-  "  la a0, ssz_ltb_mix\n" ++
-  "  li a1, 64\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, zkvm_sha256\n" ++
-  "  j .Lszls_ret\n" ++
-  ".Lszls_N0:\n" ++
-  "  la t0, ssz_zero_hashes\n" ++
-  "  slli t1, s3, 5\n" ++
-  "  add t0, t0, t1             # &Z_{count_log2}\n" ++
-  "  la t1, ssz_ltb_mix\n" ++
-  "  ld t2,  0(t0); sd t2,  0(t1)\n" ++
-  "  ld t2,  8(t0); sd t2,  8(t1)\n" ++
-  "  ld t2, 16(t0); sd t2, 16(t1)\n" ++
-  "  ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  sd zero, 32(t1); sd zero, 40(t1)\n" ++
-  "  sd zero, 48(t1); sd zero, 56(t1)\n" ++
-  "  la a0, ssz_ltb_mix\n" ++
-  "  li a1, 64\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, zkvm_sha256\n" ++
-  ".Lszls_ret:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lszls_restore\n" ++
-  ".Lszls_fail:\n" ++
-  "  sd zero,  0(s4)\n" ++
-  "  sd zero,  8(s4)\n" ++
-  "  sd zero, 16(s4)\n" ++
-  "  sd zero, 24(s4)\n" ++
-  "  li a0, 1\n" ++
-  ".Lszls_restore:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def sszHashTreeRootListBytelist_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x9 .x0 (396 : BitVec 13),
+    .LBU .x5 .x8 (0 : BitVec 12),
+    .LBU .x30 .x8 (1 : BitVec 12),
+    .SLLI .x30 .x30 (8 : BitVec 6),
+    .OR .x5 .x5 .x30,
+    .LBU .x30 .x8 (2 : BitVec 12),
+    .SLLI .x30 .x30 (16 : BitVec 6),
+    .OR .x5 .x5 .x30,
+    .LBU .x30 .x8 (3 : BitVec 12),
+    .SLLI .x30 .x30 (24 : BitVec 6),
+    .OR .x5 .x5 .x30,
+    .ANDI .x30 .x5 (3 : BitVec 12),
+    .BNE .x30 .x0 (448 : BitVec 13),
+    .SRLI .x21 .x5 (2 : BitVec 6),
+    .BEQ .x21 .x0 (440 : BitVec 13),
+    .LUI .x30 (1 : BitVec 20),
+    .BLTU .x30 .x21 (432 : BitVec 13),
+    .BLTU .x9 .x5 (428 : BitVec 13),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x21 (204 : BitVec 13),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .LBU .x30 .x6 (1 : BitVec 12),
+    .SLLI .x30 .x30 (8 : BitVec 6),
+    .OR .x7 .x7 .x30,
+    .LBU .x30 .x6 (2 : BitVec 12),
+    .SLLI .x30 .x30 (16 : BitVec 6),
+    .OR .x7 .x7 .x30,
+    .LBU .x30 .x6 (3 : BitVec 12),
+    .SLLI .x30 .x30 (24 : BitVec 6),
+    .OR .x7 .x7 .x30,
+    .SLLI .x28 .x21 (2 : BitVec 6),
+    .BLTU .x7 .x28 (364 : BitVec 13),
+    .BLTU .x9 .x7 (360 : BitVec 13),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x22 (1 : BitVec 12),
+    .BEQ .x28 .x21 (68 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .LBU .x30 .x28 (1 : BitVec 12),
+    .SLLI .x30 .x30 (8 : BitVec 6),
+    .OR .x29 .x29 .x30,
+    .LBU .x30 .x28 (2 : BitVec 12),
+    .SLLI .x30 .x30 (16 : BitVec 6),
+    .OR .x29 .x29 .x30,
+    .LBU .x30 .x28 (3 : BitVec 12),
+    .SLLI .x30 .x30 (24 : BitVec 6),
+    .OR .x29 .x29 .x30,
+    .BLTU .x29 .x7 (296 : BitVec 13),
+    .BLTU .x9 .x29 (292 : BitVec 13),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .LI .x6 (32 : Word),
+    .SLL .x6 .x6 .x18,
+    .BLTU .x6 .x11 (264 : BitVec 13),
+    .LUI .x5 (512 : BitVec 20),
+    .BLTU .x5 .x11 (256 : BitVec 13),
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 304)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 304)),
+    .SLLI .x5 .x22 (5 : BitVec 6),
+    .ADD .x13 .x13 .x5,
+    .JAL .x1 (jalOff GuestAddrs.ssz_hash_tree_root_bytes (GuestAddrs.ssz_hash_tree_root_list_bytelist + 320)),
+    .BNE .x10 .x0 (228 : BitVec 13),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-200 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 336)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_ltb_child_roots (GuestAddrs.ssz_hash_tree_root_list_bytelist + 336)),
+    .MV .x11 .x21,
+    .MV .x12 .x19,
+    .AUIPC .x13 (laHi GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 352)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 352)),
+    .JAL .x1 (jalOff GuestAddrs.ssz_merkleize (GuestAddrs.ssz_hash_tree_root_list_bytelist + 360)),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 364)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_ltb_partial (GuestAddrs.ssz_hash_tree_root_list_bytelist + 364)),
+    .AUIPC .x6 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 372)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 372)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .SD .x6 .x21 (32 : BitVec 12),
+    .SD .x6 .x0 (40 : BitVec 12),
+    .SD .x6 .x0 (48 : BitVec 12),
+    .SD .x6 .x0 (56 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 428)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 428)),
+    .LI .x11 (64 : Word),
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.ssz_hash_tree_root_list_bytelist + 444)),
+    .JAL .x0 (96 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_hash_tree_root_list_bytelist + 452)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssz_zero_hashes (GuestAddrs.ssz_hash_tree_root_list_bytelist + 452)),
+    .SLLI .x6 .x19 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x6 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 468)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 468)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .SD .x6 .x0 (32 : BitVec 12),
+    .SD .x6 .x0 (40 : BitVec 12),
+    .SD .x6 .x0 (48 : BitVec 12),
+    .SD .x6 .x0 (56 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 524)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.ssz_ltb_mix (GuestAddrs.ssz_hash_tree_root_list_bytelist + 524)),
+    .LI .x11 (64 : Word),
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.ssz_hash_tree_root_list_bytelist + 540)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .SD .x20 .x0 (8 : BitVec 12),
+    .SD .x20 .x0 (16 : BitVec 12),
+    .SD .x20 .x0 (24 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `sszHashTreeRootListBytelist_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def sszHashTreeRootListBytelist_relocs : RelocTable :=
+  [ (76, .la .x13 "ssz_ltb_child_roots"),
+    (80, .jal .x1 "ssz_hash_tree_root_bytes"),
+    (84, .la .x10 "ssz_ltb_child_roots"),
+    (88, .la .x13 "ssz_ltb_partial"),
+    (90, .jal .x1 "ssz_merkleize"),
+    (91, .la .x5 "ssz_ltb_partial"),
+    (93, .la .x6 "ssz_ltb_mix"),
+    (107, .la .x10 "ssz_ltb_mix"),
+    (111, .jal .x1 "zkvm_sha256"),
+    (113, .la .x5 "ssz_zero_hashes"),
+    (117, .la .x6 "ssz_ltb_mix"),
+    (131, .la .x10 "ssz_ltb_mix"),
+    (135, .jal .x1 "zkvm_sha256") ]
+
+def sszHashTreeRootListByteListFunction : String :=
+  "ssz_hash_tree_root_list_bytelist:\n" ++ emitProgramR sszHashTreeRootListBytelist_prog sszHashTreeRootListBytelist_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `sszHashTreeRootListBytelist_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem sszHashTreeRootListByteListFunction_eq_prog :
+    sszHashTreeRootListByteListFunction = "ssz_hash_tree_root_list_bytelist:\n" ++ emitProgramR sszHashTreeRootListBytelist_prog sszHashTreeRootListBytelist_relocs := rfl
+
+#guard sszHashTreeRootListByteListFunction.startsWith "ssz_hash_tree_root_list_bytelist:\n"
+#guard sszHashTreeRootListBytelist_prog.length = 153
 /-- `zisk_ssz_hash_tree_root_list_bytelist`: probe BuildUnit
     that reads the SSZ-encoded list section from host input and
     writes the SSZ root to OUTPUT.

@@ -252,59 +252,115 @@ theorem bn254FieldLtPFunction_eq_prog :
 /-- Multiply two field elements modulo p via the ziskemu `Arith256Mod`
     accelerator: `d = (a*b + 0) mod p`. a0/a1 = 32-byte BE inputs,
     a2 = 32-byte BE output. Always returns a0 = 0. -/
-def bn254FieldMulFunction : String :=
-  "bnf_mul_mod_p:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  la a1, bnf_le_a\n" ++
-  "  jal ra, bnf_be_to_le\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, bnf_le_b\n" ++
-  "  jal ra, bnf_be_to_le\n" ++
-  "  la t0, bnf_mul_params\n" ++
-  "  .4byte 0x8022a073           # csrs 0x802, t0 -> Arith256Mod\n" ++
-  "  la a0, bnf_le_d\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, bnf_le_to_be\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def bnfMulModP_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .AUIPC .x11 (laHi GuestAddrs.bnf_le_a (GuestAddrs.bnf_mul_mod_p + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_a (GuestAddrs.bnf_mul_mod_p + 24)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_mul_mod_p + 32)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.bnf_le_b (GuestAddrs.bnf_mul_mod_p + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_b (GuestAddrs.bnf_mul_mod_p + 40)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_mul_mod_p + 48)),
+    .AUIPC .x5 (laHi GuestAddrs.bnf_mul_params (GuestAddrs.bnf_mul_mod_p + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnf_mul_params (GuestAddrs.bnf_mul_mod_p + 52)),
+    .CSRS (2050 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.bnf_le_d (GuestAddrs.bnf_mul_mod_p + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnf_le_d (GuestAddrs.bnf_mul_mod_p + 64)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnf_mul_mod_p + 76)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnfMulModP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnfMulModP_relocs : RelocTable :=
+  [ (6, .la .x11 "bnf_le_a"),
+    (8, .jal .x1 "bnf_be_to_le"),
+    (10, .la .x11 "bnf_le_b"),
+    (12, .jal .x1 "bnf_be_to_le"),
+    (13, .la .x5 "bnf_mul_params"),
+    (16, .la .x10 "bnf_le_d"),
+    (19, .jal .x1 "bnf_le_to_be") ]
+
+def bn254FieldMulFunction : String :=
+  "bnf_mul_mod_p:\n" ++ emitProgramR bnfMulModP_prog bnfMulModP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnfMulModP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254FieldMulFunction_eq_prog :
+    bn254FieldMulFunction = "bnf_mul_mod_p:\n" ++ emitProgramR bnfMulModP_prog bnfMulModP_relocs := rfl
+
+#guard bn254FieldMulFunction.startsWith "bnf_mul_mod_p:\n"
+#guard bnfMulModP_prog.length = 26
 /-- Add two field elements modulo p via the same accelerator with the
     `bnf_add_params` block: `d = (a*1 + b) mod p`. a0/a1 = 32-byte BE
     inputs, a2 = 32-byte BE output. Always returns a0 = 0. -/
-def bn254FieldAddFunction : String :=
-  "bnf_add_mod_p:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  la a1, bnf_le_a\n" ++
-  "  jal ra, bnf_be_to_le\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, bnf_le_b\n" ++
-  "  jal ra, bnf_be_to_le\n" ++
-  "  la t0, bnf_add_params\n" ++
-  "  .4byte 0x8022a073           # csrs 0x802, t0 -> Arith256Mod\n" ++
-  "  la a0, bnf_le_d\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, bnf_le_to_be\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def bnfAddModP_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .AUIPC .x11 (laHi GuestAddrs.bnf_le_a (GuestAddrs.bnf_add_mod_p + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_a (GuestAddrs.bnf_add_mod_p + 24)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_add_mod_p + 32)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.bnf_le_b (GuestAddrs.bnf_add_mod_p + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnf_le_b (GuestAddrs.bnf_add_mod_p + 40)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnf_add_mod_p + 48)),
+    .AUIPC .x5 (laHi GuestAddrs.bnf_add_params (GuestAddrs.bnf_add_mod_p + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnf_add_params (GuestAddrs.bnf_add_mod_p + 52)),
+    .CSRS (2050 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.bnf_le_d (GuestAddrs.bnf_add_mod_p + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnf_le_d (GuestAddrs.bnf_add_mod_p + 64)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnf_add_mod_p + 76)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnfAddModP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnfAddModP_relocs : RelocTable :=
+  [ (6, .la .x11 "bnf_le_a"),
+    (8, .jal .x1 "bnf_be_to_le"),
+    (10, .la .x11 "bnf_le_b"),
+    (12, .jal .x1 "bnf_be_to_le"),
+    (13, .la .x5 "bnf_add_params"),
+    (16, .la .x10 "bnf_le_d"),
+    (19, .jal .x1 "bnf_le_to_be") ]
+
+def bn254FieldAddFunction : String :=
+  "bnf_add_mod_p:\n" ++ emitProgramR bnfAddModP_prog bnfAddModP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnfAddModP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254FieldAddFunction_eq_prog :
+    bn254FieldAddFunction = "bnf_add_mod_p:\n" ++ emitProgramR bnfAddModP_prog bnfAddModP_relocs := rfl
+
+#guard bn254FieldAddFunction.startsWith "bnf_add_mod_p:\n"
+#guard bnfAddModP_prog.length = 26
 /-- The full BN254 base-field helper suite (self-contained). -/
 def bn254FieldCommonFunctions : String :=
   bn254FieldBeToLeFunction ++ "\n" ++
