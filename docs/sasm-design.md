@@ -779,6 +779,15 @@ decomposition — lives in **docs/4ch8f-interp-strategy.md**; the
 end-to-end pilot is `SAsm/InterpLoopDemo.lean`
 (`InterpLoopDemo.interpFn_spec`).
 
+The same handle mechanism is the sanctioned crossing for the ZisK
+accelerator seam: a `CSRS` step is *not* a block leaf (`instrOk`
+rejects it); instead an accelerator wrapper is verified once at machine
+level (`step_csrs` + the concrete `csrsWrite`/`csrsValid` semantics)
+and packaged as a hand-proven `FnHandleS` (`SAsm/AccelStep.lean`,
+`arith256ModHandle`).  Strategy and pilot (an MSB modular-exponentiation
+ladder computing `x ^ e mod m` through `callRegS` at the handle):
+**docs/4ch8f-crypto-strategy.md**, `SAsm/PowLadderDemo.lean`.
+
 ## 4. What this buys for `run_stateless_guest`
 
 - The existing SSZ decode/encode routines in `Stateless/SSZ/*/Program.lean`
