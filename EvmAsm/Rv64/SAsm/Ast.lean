@@ -173,6 +173,14 @@ inductive Stmt where
       (which handler ran) is recovered by instantiating the handles' ghost
       contracts per call site. -/
   | callReg (label : String) (rs : Reg) (handles : List FnHandle)
+  /-- Indirect call (`jalr ra, rs, 0`) against a finite table of
+      *snapshot-parameterized* callees (docs/4ch8f-interp-strategy.md).
+      Same code, same `.pre` VC shape as `callReg`; the strongest
+      postcondition additionally records the call's entry state, so each
+      handle's `post` may relate exit to entry.  This is the dispatch
+      construct for state-transforming callees invoked repeatedly at one
+      call site (the interpreter's opcode handlers). -/
+  | callRegS (label : String) (rs : Reg) (handles : List FnHandleS)
 
 namespace Stmt
 
@@ -193,6 +201,7 @@ def size : Stmt → Nat
   | «whileS» _ _ _ _ b  => b.size + 2
   | call _ _          => 1
   | callReg _ _ _     => 1
+  | callRegS _ _ _    => 1
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -212,6 +221,7 @@ def callFree : Stmt → Bool
   | «whileS» _ _ _ _ b => b.callFree
   | call _ _          => false
   | callReg _ _ _     => false
+  | callRegS _ _ _    => false
 
 end Stmt
 
