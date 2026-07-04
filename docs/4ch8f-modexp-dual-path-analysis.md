@@ -88,6 +88,12 @@ instructions into `zkvm_modexp` and shifts downstream image addresses, so it is
 neither byte-identical nor cheaply probe-verifiable and is out of scope for this
 investigation-only bead.
 
+**FIXED in PR #9741** (bead evm-asm-4ch8f.11.5): the `exp == 0` branch now
+routes through a `.Lmexp_expzero` stanza that reduces `result` mod modulus via
+`modexp_binmod` before formatting, so `modulus == 1` yields 0. Verified end-to-end
+by the new real-linked probe `scripts/codegen-zisk-modexp-backend-real-probe-check.sh`
+(record 0: `exp==0, mod==1 → 0`), which FAILS on pre-fix code and PASSES after.
+
 ## Conclusions
 
 - D2 as stated ("two paths, same input, must agree") is **not** a live risk:
