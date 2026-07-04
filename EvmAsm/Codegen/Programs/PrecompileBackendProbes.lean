@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.ModexpBackend
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -325,6 +326,69 @@ def ziskModexpBackendProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskModexpBackendProbePrologue
   dataAsm     := ziskModexpBackendProbeDataSection
+}
+
+/-- One MODEXP real-backend probe vector. Zeroes the shared 8-byte output word,
+    calls the *real* linked `zkvm_modexp` with the given operand buffers and
+    byte-lengths, then records at `0xa0010000 + 16*recordIdx`:
+
+      +0  returned zkvm_status as u64
+      +8  first output word (LE-loaded from the BE output buffer)
+
+    Callers pick operands so the low output word is a compact regression witness
+    (e.g. `exp==0, mod==1` must yield 0, not the raw result=1). -/
+private def modexpRealProbeVector
+    (baseLabel expLabel modLabel : String)
+    (blen elen mlen recordIdx : Nat) : String :=
+  "  la t0, modexp_real_output\n" ++ "  sd zero, 0(t0)\n" ++
+  "  la a0, " ++ baseLabel ++ "\n" ++ "  li a1, " ++ toString blen ++ "\n" ++
+  "  la a2, " ++ expLabel ++ "\n" ++ "  li a3, " ++ toString elen ++ "\n" ++
+  "  la a4, " ++ modLabel ++ "\n" ++ "  li a5, " ++ toString mlen ++ "\n" ++
+  "  la a6, modexp_real_output\n" ++
+  "  jal ra, zkvm_modexp\n" ++
+  "  li t0, " ++ toString (0xa0010000 + 16 * recordIdx) ++ "\n" ++
+  "  sd a0, 0(t0)\n" ++
+  "  la t1, modexp_real_output\n" ++ "  ld t2, 0(t1)\n" ++ "  sd t2, 8(t0)\n"
+
+/-- Probe driver for the *real* linked MODEXP backend (`zkvmModexpBackendImpl`),
+    with no deterministic safe-fail shim. Unlike `ziskModexpBackendProbeUnit`,
+    this exercises the actual bignum square-and-multiply and records four
+    regression vectors (each routed to the bignum path via base_len=5):
+
+      record 0 : exp==0, mod==1   → 0    (the 4ch8f.11.5 divergence witness)
+      record 1 : exp==0, mod==13  → 1
+      record 2 : exp==0, mod==0   → zeros
+      record 3 : 2^5 mod 13       → 6    (unchanged happy path)
+
+    On pre-fix code record 0's output word is 1 (raw, unreduced); the fix
+    reduces it to 0. -/
+def ziskModexpBackendRealProbePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  modexpRealProbeVector "modexp_real_base" "modexp_real_exp0" "modexp_real_mod1" 5 1 5 0 ++
+  modexpRealProbeVector "modexp_real_base" "modexp_real_exp0" "modexp_real_mod13" 5 1 5 1 ++
+  modexpRealProbeVector "modexp_real_base" "modexp_real_exp0" "modexp_real_mod0" 5 1 5 2 ++
+  modexpRealProbeVector "modexp_real_base" "modexp_real_exp5" "modexp_real_mod13" 5 1 5 3 ++
+  "  j .Lmodexp_real_done\n" ++
+  zkvmModexpBackendImpl ++ "\n" ++
+  ".Lmodexp_real_done:"
+
+def ziskModexpBackendRealProbeDataSection : String :=
+  ".section .data\n" ++
+  emitModexpBnScratchData ++
+  ".balign 8\n" ++
+  "modexp_real_base:\n" ++ "  .byte 0x00,0x00,0x00,0x00,0x02\n" ++
+  "modexp_real_exp0:\n" ++ "  .byte 0x00\n" ++
+  "modexp_real_exp5:\n" ++ "  .byte 0x05\n" ++
+  "modexp_real_mod1:\n" ++ "  .byte 0x00,0x00,0x00,0x00,0x01\n" ++
+  "modexp_real_mod13:\n" ++ "  .byte 0x00,0x00,0x00,0x00,0x0d\n" ++
+  "modexp_real_mod0:\n" ++ "  .byte 0x00,0x00,0x00,0x00,0x00\n" ++
+  ".balign 8\n" ++
+  "modexp_real_output:\n" ++ "  .zero 16"
+
+def ziskModexpBackendRealProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskModexpBackendRealProbePrologue
+  dataAsm     := ziskModexpBackendRealProbeDataSection
 }
 
 private def bls12BackendProbePrologue
