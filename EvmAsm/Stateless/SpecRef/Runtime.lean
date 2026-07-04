@@ -181,6 +181,29 @@ theorem Reaches.le {code : List Byte} {s t : Nat} (h : Reaches code s t) : s ≤
   | refl => exact Nat.le_refl _
   | step s t hlt hr ih => have := jdAdvance_pos code s; omega
 
+/-- The boundary step advances by at most 33 (a `PUSH32` opcode plus its 32
+    immediates). -/
+theorem jdAdvance_le (code : List Byte) (pc : Nat) : jdAdvance code pc ≤ 33 := by
+  simp only [jdAdvance]
+  repeat' split
+  all_goals omega
+
+/-- A boundary reached from `0` lies within `code.length + 32` (the last step
+    starts below `code.length` and advances by `≤ 33`).  Bounds the scan
+    pointer's overshoot past the code end. -/
+theorem Reaches_zero_le {code : List Byte} {t : Nat} (h : Reaches code 0 t) :
+    t ≤ code.length + 32 := by
+  have aux : ∀ {s t : Nat}, Reaches code s t → t ≤ s ∨ t ≤ code.length + 32 := by
+    intro s t h
+    induction h with
+    | refl => exact Or.inl (Nat.le_refl _)
+    | step s t hlt hr ih =>
+      have hadv := jdAdvance_le code s
+      rcases ih with h1 | h1
+      · exact Or.inr (by omega)
+      · exact Or.inr h1
+  rcases aux h with h1 | h1 <;> omega
+
 /-- Reachability extends by one boundary step at the far end — the invariant's
     "advance `x5`" transition. -/
 theorem Reaches.extend {code : List Byte} {s p : Nat} (hr : Reaches code s p)
