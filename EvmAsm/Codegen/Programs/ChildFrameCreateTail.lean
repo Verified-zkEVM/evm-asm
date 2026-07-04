@@ -459,7 +459,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     -- bbow4.4: EIP-684 CREATE/CREATE2 address collision consumes the child
     -- create-message gas allocation, while the pre-execute NEW_ACCOUNT state-gas
     -- charge is immediately refunded. The shared `7f` zero-result path kept all
@@ -493,6 +493,6 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  sd x0, 24(x12)\n" ++
     "8:\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop"
+    dispatchContinueRet
 
 end EvmAsm.Codegen

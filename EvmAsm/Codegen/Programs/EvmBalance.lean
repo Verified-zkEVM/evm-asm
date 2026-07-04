@@ -113,8 +113,7 @@ private def balanceWitnessTail : HandlerTail :=
     balanceWitnessOutputCopy ++
     "  addi x10, x10, 1
 " ++
-    "  j .dispatch_loop
-" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lbalance_no_context:
 " ++
     "  sd zero, 0(x12)
@@ -127,7 +126,7 @@ private def balanceWitnessTail : HandlerTail :=
 " ++
     "  addi x10, x10, 1
 " ++
-    "  j .dispatch_loop"
+    dispatchContinueRet
 
 def balanceWitnessHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_BALANCE"

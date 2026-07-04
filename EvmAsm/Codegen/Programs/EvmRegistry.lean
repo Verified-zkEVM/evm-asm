@@ -48,7 +48,7 @@ def stopHandler : OpcodeHandlerSpec :=
   { label   := "h_STOP"
     opcodes := [0x00]
     body    := []
-    tail    := .custom "  j .exit_label" }
+    tail    := .custom (dispatchHaltRet 1) }
 
 /-- M5b dispatch registry. Order doesn't affect correctness; the 256-entry
     jump table is built by `jumpTargetLabel`, which scans the list for a
@@ -80,7 +80,11 @@ def stopHandlerCF : OpcodeHandlerSpec :=
     tail    := .custom (
       "  la t0, evm_call_depth\n" ++
       "  ld t0, 0(t0)\n" ++
-      "  beqz t0, .exit_label\n" ++
+      -- 4ch8f.10.3: depth-0 STOP halts via the flag+ret discipline (routes to
+      -- .exit_label) instead of jumping there directly; depth>0 continues below.
+      "  bnez t0, .Lstop_depth_nonzero\n" ++
+      dispatchHaltRet 1 ++ "\n" ++
+      ".Lstop_depth_nonzero:\n" ++
       -- drj99.1.7: a STOP in a CREATE child frame deposits an EMPTY deployed code (STOP = RETURN
       -- with no data). Route it through the RETURN handler's create-deposit (record code-effect +
       -- the created account's nonstorage effect + push the derived address), exactly like RETURN
@@ -101,7 +105,7 @@ def stopHandlerCF : OpcodeHandlerSpec :=
       "  li a1, 0\n" ++
       "  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
-      "  j .dispatch_loop") }
+      dispatchContinueRet) }
 
 /-- Registry for the call-frame round-trip probe: depth-aware STOP (so a child
     frame returns to its parent) but the push-0 CALL fall-through, so the emitted
