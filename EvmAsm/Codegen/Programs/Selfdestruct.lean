@@ -367,19 +367,36 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  la t0, sdai_transfer_status\n" ++
   "  ld t1, 0(t0)\n" ++
   "  bnez t1, .L_selfdestruct_eip7708_done\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd x10, 0(sp)\n" ++
-  "  sd x12, 8(sp)\n" ++
+  -- Prefer the live non-storage post-balance when this account already received/sent
+  -- value in the current transaction; the block-pre account RLP is stale in that case.
+  "  addi sp, sp, -96\n" ++
+  "  sd x10, 64(sp)\n" ++
+  "  sd x12, 72(sp)\n" ++
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  "  la t0, sdai_origin_address; mv t1, sp; li t2, 20\n" ++
+  ".L_sd7708_live_key:\n" ++
+  "  beqz t2, .L_sd7708_live_lookup\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sd7708_live_key\n" ++
+  ".L_sd7708_live_lookup:\n" ++
+  "  mv a0, sp\n" ++
+  "  la a1, evm_selfdestruct_balance_scratch\n" ++
+  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  bnez a0, .L_sd7708_live_found\n" ++
   "  la a0, sdai_origin_rlp\n" ++
   "  la t0, sdai_origin_len\n" ++
   "  ld a1, 0(t0)\n" ++
   "  la a2, evm_selfdestruct_balance_scratch\n" ++
   "  jal ra, account_extract_balance\n" ++
   "  mv t6, a0\n" ++
-  "  ld x10, 0(sp)\n" ++
-  "  ld x12, 8(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
+  "  ld x10, 64(sp)\n" ++
+  "  ld x12, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  bnez t6, .L_selfdestruct_eip7708_balance_fail\n" ++
+  "  j .L_selfdestruct_eip7708_have_balance\n" ++
+  ".L_sd7708_live_found:\n" ++
+  "  ld x10, 64(sp)\n" ++
+  "  ld x12, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  j .L_selfdestruct_eip7708_have_balance\n" ++
   ".L_selfdestruct_eip7708_created:\n" ++
   -- Stack frame (64B): sp+0 key(32B: 20B BE child addr + 12B zero), sp+32 = x10/x12 save.
