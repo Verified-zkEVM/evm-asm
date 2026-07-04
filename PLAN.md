@@ -2864,6 +2864,29 @@ recorded authority divergence: execution-specs' Euler pre-check rejects
 tx-sender, .40 EIP-7702 (substrate decision recorded as a
 crypto-strategy §4 amendment).
 
+Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
+`docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
+handlers opened with a *multi-exit* stack-underflow/overflow guard
+(`bltu/bleu … .exit_stack_*`), so `addrOf h_<OP>` (the dispatch-table
+witness) was not a `callRegS`-conformant entry — blocking `.49`'s
+`callRegS .pre`. Fix (option **c**, finishing `.10.3`): the guards now
+set `evm_halt_flag := 7|8` and `ret` (`stackGuardHaltAsm`, `x1`
+preserved so the ∀-`ret` handle contract holds), and `emitDispatchResume`
+routes `7`→`.exit_stack_underflow`/`8`→`.exit_stack_overflow`. Guest-byte
+change: layout regen (`textSizeBytes 0x59bf8→0x5a688`), scoped `.s` diff =
+exactly the 167 guard conversions + 2 resume arms, EEST A/B identical
+base-vs-branch (100-fixture parity + 40-fixture underflow probe, 0
+per-case diffs). Raw-triple proof layer
+`Codegen/Proofs/GuardedHandlerSpecs.lean` (axiom-clean, default
+heartbeats): `stackGuardBranch`/`stackGuardHalt` +
+`guardedCleanRetHandlerSpec` (guard+halt+body template, underflow-
+*conditional* post — guard live, not proved away) +
+`evmAddGuardedHandlerSpec` (the `.10.1` ADD handle re-packaged to enter at
+`h_ADD` incl. the guard). Byte-tie `scripts/check-guarded-handler-bytes.sh`
+(CI): verified guarded-ADD `Program` == emitted `h_ADD` bytes at the
+table address. Remaining for `.49.d`: `FnHandleS` wrap (entry =
+`addrOf h_ADD`) + `.49.1` `FnHandleS.focus` embedding.
+
 ## Stateless Guest (parallel STF track)
 
 Full plan: `~/.claude/plans/please-cut-a-branch-warm-wand.md`.

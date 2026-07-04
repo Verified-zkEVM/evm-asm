@@ -115,7 +115,9 @@ def dupnHandlerAsm : String :=
   "  slli x15, x14, 5\n" ++
   "  la x16, evm_stack_top\n" ++
   "  sub x16, x16, x15\n" ++
-  "  bltu x16, x12, .exit_stack_underflow\n" ++
+  "  bgeu x16, x12, 137f\n" ++
+  stackGuardHaltAsm 7 ++
+  "137:\n" ++
   "  addi x12, x12, -32\n" ++
   "  add x16, x12, x15\n" ++
   copyWordAsm "x16" "x12"
@@ -126,7 +128,9 @@ def swapnHandlerAsm : String :=
   "  slli x15, x14, 5\n" ++
   "  la x16, evm_stack_top\n" ++
   "  sub x16, x16, x15\n" ++
-  "  bltu x16, x12, .exit_stack_underflow\n" ++
+  "  bgeu x16, x12, 137f\n" ++
+  stackGuardHaltAsm 7 ++
+  "137:\n" ++
   "  addi x14, x14, -1\n" ++
   "  slli x15, x14, 5\n" ++
   "  add x17, x12, x15\n" ++
@@ -161,7 +165,9 @@ def exchangeHandlerAsm : String :=
   "  slli x19, x19, 5\n" ++
   "  la x15, evm_stack_top\n" ++
   "  sub x15, x15, x19\n" ++
-  "  bltu x15, x12, .exit_stack_underflow\n" ++
+  "  bgeu x15, x12, 137f\n" ++
+  stackGuardHaltAsm 7 ++
+  "137:\n" ++
   "  slli x17, x17, 5\n" ++
   "  slli x18, x18, 5\n" ++
   "  add x17, x12, x17\n" ++
