@@ -365,6 +365,15 @@ merged into a feature branch, not `main`). All three had to be reopened.
 Detailed material has been split out of this file to keep the agent guide compact. **Load each
 doc only when its trigger applies** — they are reference material, not required reading.
 
+- [`docs/agents/roadmap-4ch8f.md`](docs/agents/roadmap-4ch8f.md) — the epic's master map:
+  layer DAG + pick-next rules, recipe-by-routine-shape table, the gate matrix (what CI runs
+  vs what you must run per change type), non-negotiable conventions, the family-bead
+  decomposition pattern, and the session-knowledge index ("where the bodies are buried").
+  **Load when:** starting ANY 4ch8f bead, or unsure what to pick up next.
+- [`docs/agents/review-playbook.md`](docs/agents/review-playbook.md) — how to review a PR
+  here: per-PR-type gate checklists (the ones CI does NOT run), the adversarial
+  statement-reading checklist, and the known-hole catalog (every entry was a real defect
+  caught in review). **Load when:** reviewing any PR.
 - [`docs/agents/port-playbook.md`](docs/agents/port-playbook.md) — THE entry point for
   verifying one guest routine end-to-end: class decision table → exemplar → recipe →
   acceptance (`scripts/port-check.sh`, `scripts/gen-port-kit.py` scaffolds).

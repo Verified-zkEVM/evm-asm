@@ -155,7 +155,7 @@ The top RW `LOAD` segment ends at `.data` end `0xb8945a70`, comfortably below th
 ## 3. Overlap inventory (the `call_frame_arena` union) — the ONLY aliasing
 
 The guest has exactly one intentional physical overlap. `call_frame_arena`
-(~164 MiB EVM call-frame overlay, `frameArrayBytes = 1025 × 0x29000`) coalesces
+(~228 MiB EVM call-frame overlay, `frameArrayBytes = 1025 × 0x39000`) coalesces
 **seven** execution-dead Phase-H arenas into its front. ELF ground truth
 (`readelf -s`, this build) — all offsets confirmed by `check-region-map.sh`:
 

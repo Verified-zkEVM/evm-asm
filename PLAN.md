@@ -2597,7 +2597,14 @@ OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. REVISED post
 residue gives entry-owned resources a home at halt (original form was
 unprovable), while the pinned 40-byte window blocks the ∃-out
 decode-vacuity hole of the #9734 variant (record §3a). Next for
-SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
+SAsm: more Stateless/SSZ ports. AGENT-HANDOFF layer landed (bead epic
+4ch8f): docs/agents/roadmap-4ch8f.md (layer DAG, pick-next rules,
+recipe-by-shape table, gate matrix per change type, decomposition
+pattern) + docs/agents/review-playbook.md (per-PR-type gates CI doesn't
+run, adversarial statement checklist, known-hole catalog) are the entry
+points for ALL future 4ch8f sessions at any capability tier; one-session
+port children exist under .12-.16/.20/.22-.24/.26, composition beads
+carry plan notes, remaining families carry DECOMPOSE FIRST notes. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the
@@ -2762,6 +2769,36 @@ call primitive; `jalr x0` tail calls NOT needed → .4 closed with
 callRegS as the shipped remainder; frames = window movement over
 `phaseDView` (one flat loop, depth as data, per-depth `anyBytes`
 carving), exec-log as monotone-append invariant component.
+Crypto-kernel strategy + pilot landed (bead evm-asm-4ch8f.11, doc
+docs/4ch8f-crypto-strategy.md): every software crypto kernel gets FULL
+functional verification (trusted-kernel status rejected as terminal —
+the .11.5 MODEXP corner is the standing counterexample to
+"differential tests suffice"); spec vocabulary is Nat-modular
+arithmetic matching `Accel.*` (no ZMod at interfaces; mathlib enters
+only via one Fermat/QR lemma file); specs are algorithm-faithful ports
+of execution-specs where pure-Python (ECDSA needs project-side
+references — coincurve/cryptography are native), so heavy abstract math
+is out of scope and number theory enters only at named kernel↔spec
+divergences. Canonical seam shape: accelerator wrappers are
+hand-proven snapshot-parameterized handles (`FnHandleS.sound` = a
+machine-level `cpsTripleWithin` from `step_csrs` + the .1 semantics;
+the SAsm block engine is NEVER extended with CSRS), consumed via
+`Stmt.callRegS`. Landed machinery: `SAsm/AccelStep.lean` (the FIRST
+machine-level CSRS triple `csrs_arith256Mod_spec_within`,
+`readWords`/`writeWords` ↔ `bytesRegion` bridges,
+`arith256ModHandle`), `Crypto/PowLadder.lean` (MSB ladder = `x^e mod m`
+over `Nat.pow`, kernel KATs), pilot `SAsm/PowLadderDemo.lean`
+(`powFn_spec`, zero sorries, classical axioms only): the full ladder —
+ro-region exponent bit fetch, aliased square + conditional multiply
+through two param blocks, symbolic width to 4096 bytes (covers the
+4569-bit final-exp constants; cap-VC closes by counter arithmetic) —
+leaves `x ^ e mod m` in the accumulator. The `1 < m` precondition is
+load-bearing (the .11.5 corner). Sequencing: secp field stack (.38)
+first, then hashes/BLAKE2F, MODEXP, P256VERIFY, group laws, towers,
+pairings/maps/KZG last (their RFC 9380/KZG-unreachable gaps are
+completeness-only under the .8 soundness headline). New shared-library
+beads .11.6–.11.9 (nLimbs-generic + curve handles; BE↔LE; Fermat;
+scalar-mul skeleton); .38/.57/.58 re-scoped accordingly.
 
 ## Stateless Guest (parallel STF track)
 
