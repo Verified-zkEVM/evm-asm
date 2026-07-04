@@ -2542,8 +2542,11 @@ finite handle table — `.pre` VC = register pins some handle's entry
 with its pre met, sp = disjunction of posts, soundness via
 `jalr_call_spec_within` reading the target out of `regFileIs`; table
 loads are ordinary ro-region blocks, correlation via per-call-site
-ghost instantiation, tail calls (`jalr x0`) future work
-(docs/sasm-design.md §3.6.3, CallRegDemo). ZisK accelerator semantics
+ghost instantiation (docs/sasm-design.md §3.6.3, CallRegDemo); bead
+closed by .10 — `jalr x0` tail calls turned out unneeded (dispatch is
+jalr-x1 + ret; non-ret tails get the flag+ret restructure in .49), the
+real remainder was snapshot-parameterized handles, shipped as
+`FnHandleS`/`Stmt.callRegS` (design §3.11). ZisK accelerator semantics
 landed (`Rv64/ZiskAccel.lean` + `Instr.CSRS`, bead evm-asm-4ch8f.1):
 CONCRETE per-CSR semantics — Keccak-f[1600], SHA-256 compression,
 Arith256Mod exact (a*b+c) mod m — with kernel-checked KATs pinned to
@@ -2711,6 +2714,36 @@ counter; capScanFn: cap-parametric BAL-scan shape, instantiated at
 Unblocks .49 (dispatch loop) and .14 (RLP walks); open question flagged
 for .49: per-iteration ghost contracts of `call`s inside loop bodies
 (same shape of problem, see design §3.10).
+Interpreter-loop strategy + pilot landed (bead evm-asm-4ch8f.10, doc
+docs/4ch8f-interp-strategy.md, design §3.11): the §3.10 open question is
+resolved by the `whileS` move applied to callees — `FnHandleS`
+(entry-snapshot-parameterized post, the auxiliary-variable triple;
+SAsm/Handle.lean) + `Stmt.callRegS` (indirect call against a table of
+such handles; sp records the call's entry state; soundness adapts the
+callReg case via the same per-state split). A monomorphic FnHandle
+provably can't verify a state-transforming handler at a looped dispatch
+site (can't carry the gas variant). `Fn.SpecS`/`Fn.toHandleS` package
+vcgen-provable spec families as handles. Pilot
+SAsm/InterpLoopDemo.lean (zero sorries, classical axioms only):
+`interpFn_spec` — a fetch-charge-select-dispatch `whileS` loop over a
+3-opcode toy ISA (PUSH imm8/ADD/STOP+invalid), value stack a grow-down
+rw window at x12 (real dispatcher convention), gas-derived static cap
+(`gas₀ < cap`), `callRegS` into three real handler Fns with
+snapshot-parameterized functional posts, simulating the Lean-side
+`toyRun` trace whose initial gas is read from the LOOP-ENTRY SNAPSHOT's
+gas register; post pins the exit state to the deterministic frozen halt
+state (adequacy: the invariant names the trace function, no ∃-EvmState
+to get wrong; `toyRun_gas` is the variant closing `exhausted`).
+Strategy decisions for .49/.56 (rejected alternatives in the doc):
+invariant relates machine to Evm64 `EvmState` via the existing
+bridge stack; fuel = gas-derived cap with loop-body charge as variant;
+dispatch = one FnHandleS family indexed by opcode (table load =
+ordinary ro block); non-`ret` handler tails (STOP/halt/frame `j ...`)
+to be restructured to flag+`ret` in .49 rather than adding a multi-exit
+call primitive; `jalr x0` tail calls NOT needed → .4 closed with
+callRegS as the shipped remainder; frames = window movement over
+`phaseDView` (one flat loop, depth as data, per-depth `anyBytes`
+carving), exec-log as monotone-append invariant component.
 
 ## Stateless Guest (parallel STF track)
 
