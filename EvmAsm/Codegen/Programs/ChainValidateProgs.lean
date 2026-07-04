@@ -1,10 +1,13 @@
 /-
   EvmAsm.Codegen.Programs.ChainValidateProgs
 
-  Extracted `Program`/`RelocTable` verification-view defs for the larger
-  chain-validation routines, split out of ChainValidate.lean to keep that file
-  within the 1500-line size cap. The `*Function` string defs and their `rfl`
-  drift theorems remain in ChainValidate.lean, which imports this module.
+  chain_validate_increasing_timestamps (PR-K229), split out of
+  ChainValidate.lean to keep that file within the 1500-line size cap.
+  Hosts the FULL generated conversion block (verification-view `Program`,
+  reloc side-table, the `*Function` string def, its `rfl` drift theorem and
+  `#guard` pins) so the `check-asm-to-program` verbatim source-drift guard
+  finds it in one file; the MANIFEST row points here. ChainValidate.lean
+  imports this module for the probe prologues.
 -/
 
 import EvmAsm.Rv64.Program
@@ -17,8 +20,28 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
 
-/-- Verification-view Program for `chain_validate_increasing_timestamps`
-    (see `chainValidateIncreasingTimestampsFunction` in ChainValidate.lean). -/
+/-! ## chain_validate_increasing_timestamps -- PR-K229
+
+    Verify that an N-element header chain has strictly
+    increasing `timestamp` fields: `headers[i+1].timestamp >
+    headers[i].timestamp` for every adjacent pair. Pure
+    timestamp-only check; no parent_hash / number / gas_limit
+    invariants. The K174 pair check enforces this as part of
+    the four-invariant bundle -- K229 is the tight standalone.
+
+    Vacuous-true on N <= 1.
+
+    Calling convention:
+      a0 (input)  : N (header count)
+      a1 (input)  : header_lengths ptr
+      a2 (input)  : headers ptr (concatenated)
+      a3 (input)  : u64 out (is_valid)
+      a4 (input)  : u64 out (first_bad_index)
+      ra (input)  : return
+      a0 (output) :
+        0 : success
+        1 : RLP parse failure on some header
+        2 : timestamp field > 8 bytes BE on some header -/
 def chainValidateIncreasingTimestamps_prog : Program :=
   [ .ADDI .x2 .x2 (-56 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -132,4 +155,18 @@ def chainValidateIncreasingTimestamps_relocs : RelocTable :=
     (71, .la .x5 "cvit_iter_i"),
     (77, .la .x5 "cvit_iter_i") ]
 
+def chainValidateIncreasingTimestampsFunction : String :=
+  "chain_validate_increasing_timestamps:\n" ++ emitProgramR chainValidateIncreasingTimestamps_prog chainValidateIncreasingTimestamps_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainValidateIncreasingTimestamps_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainValidateIncreasingTimestampsFunction_eq_prog :
+    chainValidateIncreasingTimestampsFunction = "chain_validate_increasing_timestamps:\n" ++ emitProgramR chainValidateIncreasingTimestamps_prog chainValidateIncreasingTimestamps_relocs := rfl
+
+#guard chainValidateIncreasingTimestampsFunction.startsWith "chain_validate_increasing_timestamps:\n"
+#guard chainValidateIncreasingTimestamps_prog.length = 92
+
+end EvmAsm.Codegen
