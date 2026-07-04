@@ -190,6 +190,41 @@ proof.  The `.4` remainder ships here as `callRegS` instead;
   single-exit); the flag+`ret` restructure achieves the same behavior
   inside the existing theory.
 
+**Shipped (`.10.1`, `Codegen/Proofs/HandlerHandles*.lean`).**  The clean-ret
+arithmetic/logic family is packaged as snapshot-parameterized `FnHandleS`
+handles, each `(base sp : Word) → FnHandleS` (fully base-parameterized — no
+`GuestAddrs` pins; `.9.5` layout regen is free to move constants).  Each handle
+is verified against a *minimal* value-stack window `rw := ⟨sp, 64⟩` (or
+`⟨sp, 32⟩` for unary, `RwRegion.empty` for POP): the operand words at fixed
+window offsets, no junk framing.  `.49`/`.56a` embed it into the full arena via
+the existing `FnHandle.widenRw`.  The `pre` is the §3 uniform shape
+(`x12 = sp`); the `postS rf₀ ws₀ A₀` pins the exit registers/window as functions
+of the entry snapshot (no ∃-state escapes).  The adapter reuses the existing
+`HandlerSpecs` `cpsTripleWithin` verbatim (arithmetic not re-derived), bridging
+raw `↦ₘ` operand cells to the window `bytesRegion` (`bytesRegion_eq_8cells` /
+`_4cells`) and peeling the touched registers off `regFileIs`
+(`regFileIs_split_bin`); it mirrors the documented template
+`Rv64/SAsm/ExamplesVc.handAdd_sound`.  Every `<op>PostS` is `[irreducible]` to
+keep the let-bundle folded during `isDefEq` (no `maxHeartbeats` raise);
+`#print axioms` on each `<op>Handle`/`<op>Handle_sound` is
+`[propext, Classical.choice, Quot.sound]`.
+
+Packaged handles (13): `evmAddHandle`, `evmSubHandle`, `evmLtHandle`,
+`evmGtHandle`, `evmSltHandle`, `evmSgtHandle`, `evmEqHandle`, `evmAndHandle`,
+`evmOrHandle`, `evmXorHandle`, `evmIsZeroHandle`, `evmNotHandle`, `evmPopHandle`
+(entry point for `.49`: these `*Handle` defs).
+
+Skipped here (out of `.10.1` scope), by owning bead:
+- **PUSH0, PUSH1, DUP*, SWAP\*** (stack group, PUSH-family `n=2` /
+  passthrough-ret tail) → `.50`.
+- **MUL, SIGNEXTEND, BYTE** (reload-ret: `x10`-clobbering save/reload tail),
+  plus SHR/SHL/SAR/DIV/MOD/SDIV/SMOD/ADDMOD/MULMOD/EXP/CLZ → `.51`.
+- **MSTORE, MSTORE8, MLOAD, MSIZE, MCOPY, env loads, CALLDATA\*** (memory/env
+  traffic, memory-expansion gas) → `.52`.
+- **halts / STOP / RETURN / REVERT / control flow** (non-`ret` tails needing
+  the flag+`ret` restructure) → `.10.3` then `.55`.
+- **CALL-family / frame machinery** (window-moving posts) → `.56`.
+
 ## 4. Frames
 
 **Decision: window movement over the Phase-D arena, one flat loop, depth

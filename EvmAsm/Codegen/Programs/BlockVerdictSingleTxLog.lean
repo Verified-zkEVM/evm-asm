@@ -39,14 +39,10 @@ def blockVerdictSingleTxTopLevelLogFunction : String :=
   "  la t0, eip7708_tl_val32\n  la t1, bv_simple_transfer_tx; addi t1, t1, 127; mv t2, t0; li t3, 32\n" ++
   ".Lbvestl_val:\n  beqz t3, .Lbvestl_val_done\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvestl_val\n" ++
   ".Lbvestl_val_done:\n" ++
-  "  la x20, evm_env\n  la a0, eip7708_tl_from32\n  la a1, eip7708_tl_to32\n  la a2, eip7708_tl_val32\n" ++
-  "  jal ra, eip7708_append_transfer_log\n" ++
-  "  bnez a0, .Lbvestl_ret\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
-  -- bmvmx.5.5.2.2.ln9ly: STAGE the top-level transfer log for re-emit. The append above runs
-  -- BEFORE the contract dispatch and is wiped by the dispatcher's per-tx event-log reset, so set
-  -- bv_pending_tl_flag=1 -- dispatcher_reemit_pending_tl re-emits it (from eip7708_tl_*) as log 0
-  -- after the reset (preserving spec order), then clears the flag. Only set on this success path.
+  -- bmvmx.5.5.2.2.ln9ly: STAGE the top-level transfer log for re-emit after the
+  -- dispatcher's per-tx event-log reset; dispatcher_reemit_pending_tl emits it as log 0
+  -- from eip7708_tl_* and clears the flag. Only set on this success path.
   "  la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
   ".Lbvestl_ret:\n" ++
   "  ld ra, 0(sp); ld x20, 8(sp)\n" ++

@@ -1,5 +1,11 @@
 # 4ch8f.11 — software crypto kernel inventory (feeder for the strategy decision)
 
+> **The strategy decision this fed is made**: see
+> **[docs/4ch8f-crypto-strategy.md](4ch8f-crypto-strategy.md)** (tier
+> table, field-arithmetic library plan, the canonical accelerator-handle
+> contract, spec-vocabulary decision, and the proved ladder pilot
+> `EvmAsm/Rv64/SAsm/PowLadderDemo.lean`).
+
 > **Purpose.** This is the *evidence* for bead `evm-asm-4ch8f.11` (the per-kernel
 > verification-strategy decision: full functional verification vs
 > verified-glue-over-concrete-accelerators vs trusted-kernel-with-differential-tests,

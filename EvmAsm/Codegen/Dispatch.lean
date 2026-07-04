@@ -80,6 +80,10 @@ def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
     nearby stack-relative offsets as internal scratch. -/
 def evmStackGuardBytes : Nat := 512
 
+/-- Concrete byte capacity of the root runtime EVM memory arena.
+    This is a guest implementation bound, not a protocol limit. -/
+def runtimeMemoryBytes : Nat := 0x20000
+
 /-- Maximum bytecode length (in bytes) covered by the precomputed
     valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
     executable-code size (`MAX_INIT_CODE_SIZE` — initcode executes).
@@ -97,8 +101,9 @@ def evmStackGuardBytes : Nat := 512
     already covers a future specs sync to the current draft. The 16 KiB
     bitmap costs nothing per jump — capacity only sizes the loader-zeroed
     region and bounds the prologue's build scan (which still stops at the
-    actual `codeSize`). Note the 64 KiB `evm_memory` arena does NOT have
-    this headroom; CODECOPY of >64 KiB initcode is a separate gap.
+    actual `codeSize`). The root `evm_memory` arena also has 128 KiB headroom for large
+    runtime memory ranges; initcode staging remains separately capped by
+    protocol limits.
 
     The prologue clamps its bitmap-build scan to this many code bytes
     and the JUMP/JUMPI validity tail rejects any destination at or
@@ -1937,7 +1942,7 @@ def emitDispatcherCallableEpilogueSharedHelpers
     ```
     evm_code:         <bytecode> (~50 B)
     .balign 32
-    evm_memory:       .zero 0x10000         (64 KiB EVM memory, M7 onward)
+    evm_memory:       .zero runtimeMemoryBytes (128 KiB EVM memory, M7 onward)
     .balign 8
     evm_env:          runtime environment and helper scratch follows
     lp64_stack:       helper-call stack
@@ -1965,7 +1970,7 @@ def emitDispatcherDataSection
   "evm_code_end:\n" ++   -- M33: exact end of baked bytecode (CODESIZE/CODECOPY length)
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 128 KiB root EVM memory for large runtime LOG/COPY ranges
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data
@@ -2626,6 +2631,7 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  "  jal ra, dispatcher_reemit_pending_tl\n" ++
   emitTxAccessListSeedLoop ++ "\n" ++
   emitTxAuthListWarmLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
@@ -3123,7 +3129,7 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 131072\n" ++   -- 16384 entries × 8 B
   ".balign 32\n" ++
   "evm_memory:\n" ++
-  "  .zero 0x10000\n" ++  -- 64 KiB EVM memory, enough for Amsterdam MAX_INIT_CODE_SIZE
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 128 KiB root EVM memory for large runtime LOG/COPY ranges
   ".balign 8\n" ++
   "evm_env:\n" ++
   "  .zero 656\n" ++      -- 13 SimpleEnvField slots × 32 B + calldata/return-data

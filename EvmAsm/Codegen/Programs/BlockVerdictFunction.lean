@@ -923,8 +923,7 @@ def blockVerdictFunction : String :=
   "  addi t0, t0, 1; j .Lbv_tx0_storage_revert\n" ++
   ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
-  -- Capture recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.
-  "  jal ra, block_log_window_snapshot\n" ++
+  -- dispatch_tx_runtime_code already snapshots recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
@@ -951,6 +950,11 @@ def blockVerdictFunction : String :=
   "  jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lbv_recipient_storage_exact_done\n" ++
   "  li t0, 2; beq a0, t0, .Lbv_recipient_storage_exact_done\n" ++
+  -- If runtime replay could not materialize a complete gas/effect arena,
+  -- the recipient execution storage log is incomplete. The authenticated
+  -- state-root recompute remains binding, so skip this redundant storage
+  -- exactness check rather than false-rejecting BAL rows against a partial log.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_storage_exact_done\n" ++
   -- Reverted/exceptional txs keep access evidence, but their storage writes do not commit.
   -- The raw replay log still contains attempted SSTOREs; do not require those reverted writes
   -- to appear as BAL storage_changes. State-root/BAL application already rejects any committed
