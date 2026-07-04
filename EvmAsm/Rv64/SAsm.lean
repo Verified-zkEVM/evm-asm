@@ -26,6 +26,7 @@ import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.RaSpill
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Rv64.SAsm.HandleWiden
+import EvmAsm.Rv64.SAsm.HandleFocus
 import EvmAsm.Rv64.SAsm.FrameConv
 import EvmAsm.Rv64.SAsm.CallRegDemo
 import EvmAsm.Rv64.SAsm.Examples
@@ -35,3 +36,5 @@ import EvmAsm.Rv64.SAsm.LoopFuelDemo
 import EvmAsm.Rv64.SAsm.InterpLoopDemo
 import EvmAsm.Rv64.SAsm.AccelStep
 import EvmAsm.Rv64.SAsm.PowLadderDemo
+import EvmAsm.Rv64.SAsm.MultiRw
+import EvmAsm.Rv64.SAsm.WhileBreakDemo

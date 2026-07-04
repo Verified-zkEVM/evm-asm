@@ -9,6 +9,9 @@
 
   Module map (mirrors the Python modules):
   * `Crypto`       — full keccak256/sha256 on the ZisK accel permutations
+  * `Secp256k1Recover` — the project-side ECDSA recovery reference
+                     (execution-specs delegates to native coincurve; 4ch8f.38.1)
+  * `Runtime`      — `vm/runtime.py` (`get_valid_jump_destinations`)
   * `Types`        — the `@dataclass`/`StrEnum` mirrors + `SpecError`
   * `SszCodec`     — generic SSZ serialize / deserialize / hash_tree_root
   * `Ssz`          — `stateless_ssz.py` containers + 34 conversions
@@ -18,6 +21,8 @@
 -/
 
 import EvmAsm.Stateless.SpecRef.Crypto
+import EvmAsm.Stateless.SpecRef.Runtime
+import EvmAsm.Stateless.SpecRef.Secp256k1Recover
 import EvmAsm.Stateless.SpecRef.Types
 import EvmAsm.Stateless.SpecRef.SszCodec
 import EvmAsm.Stateless.SpecRef.Ssz
