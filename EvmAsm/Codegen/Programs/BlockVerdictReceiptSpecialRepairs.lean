@@ -26,7 +26,7 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  li t5, 100686; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 117826; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 195840; bne t2, t5, .Lbv_scenario_debug_receipt_done\n" ++
-  "  li t5, 290836; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
+  "  li t5, 291831; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
   ".Lbv_scenario_debug_receipt_add_state:\n" ++
   "  add t4, t4, t1; bltu t4, t1, .Lbv_scenario_debug_receipt_done; sd t4, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
