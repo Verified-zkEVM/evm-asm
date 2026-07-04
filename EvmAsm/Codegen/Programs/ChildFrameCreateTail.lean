@@ -199,6 +199,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la x18, create_nonce\n" ++
     "  sd a0, 0(x18)\n" ++
     "  mv x10, s10\n" ++
+    "  la x18, create_nonce; ld x19, 0(x18); li x18, -1; beq x19, x18, 7f\n" ++
     (if hasSalt then
       -- Convert the CREATE2 salt stack word to canonical 32-byte big-endian.
       "  la x18, create_salt_be\n" ++

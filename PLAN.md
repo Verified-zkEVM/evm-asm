@@ -2568,7 +2568,20 @@ seven-children+pad tiling is THE SAME assertion
 offsets), transitions forget contents by construction
 (`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
 havoc'd range must verify for all contents
-(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Top-level spec
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Per-depth
+frame-window algebra over that arena landed (bead evm-asm-4ch8f.10.4,
+`Codegen/CallFrameWindows.lean`): `phaseDView` tiles into 1025 per-depth
+`frameWindow base d` (stated generically over
+`List.replicate frameSlotCount frameStride`, proved by induction on the
+replicated segment — `anyTilesAt_replicate_focus_at`, never a 1025-way
+enumeration); `phaseDView_focus`/`focusFrame`/`unfocusFrame` extract and
+re-absorb one depth with the rest framed untouched; `frameWindow_components`
+carves a window into named sub-region accessors (`frameStackWindow`,
+`frameEnvWindow`, … at the `CallFrameLayout` offsets); and `encodesFrame`
+fixes the suspended-parent relation SHAPE (pc/codebase dwords + stack window
+pinned through `bytesRegion`, rest havoc'd) with `encodesFrame_focus` weakening
+it into a `frameWindow` — feeds .56 descend/return contracts (strategy §4).
+Top-level spec
 statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
 docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
 `cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
@@ -2578,7 +2591,12 @@ window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
 soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
 output) stated as the deferred two-sided form; execution seam stays a
 parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
-OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. Next for
+OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. REVISED post
+#9733/#9734 cross-review: `GuestFraming` (scratch/residue +
+`scratch_sat` non-vacuity witness) replaces the bare `work` parameter —
+residue gives entry-owned resources a home at halt (original form was
+unprovable), while the pinned 40-byte window blocks the ∃-out
+decode-vacuity hole of the #9734 variant (record §3a). Next for
 SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`

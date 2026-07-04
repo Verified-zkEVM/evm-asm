@@ -252,10 +252,10 @@ def zkvmModexpBackendImpl : String :=
   "  j .Lmexp_res_zero\n" ++
   ".Lmexp_res_one:\n" ++
   "  la t0, modexp_bn_result\n" ++ "  li t1, 1\n" ++ "  sd t1, 0(t0)\n" ++
-  -- Check exp == 0: if so, result = 1 mod modulus
+  -- Check exp == 0: if so, result = 1 mod modulus (0 when modulus == 1)
   "  la a0, modexp_bn_exp\n" ++ "  mv a1, s9\n" ++
   "  jal ra, modexp_iszero\n" ++
-  "  bnez a0, .Lmexp_format\n" ++
+  "  bnez a0, .Lmexp_expzero\n" ++
   -- Find highest set bit in exp: scan from MSB limb/bit down
   -- s10 = current bit index (global), start at ne*64-1
   "  slli s10, s9, 6\n" ++ "  addi s10, s10, -1\n" ++
@@ -305,6 +305,14 @@ def zkvmModexpBackendImpl : String :=
   ".Lmexp_next_bit:\n" ++
   "  addi s10, s10, -1\n" ++
   "  bgez s10, .Lmexp_sqmul\n" ++
+  -- exp == 0: pow(base, 0, m) = 1 % m. result currently holds 1; reduce it mod
+  -- modulus so modulus == 1 yields 0 (EIP-198). modulus == 0 handled earlier.
+  ".Lmexp_expzero:\n" ++
+  "  la a0, modexp_bn_result\n" ++ "  mv a1, s7\n" ++
+  "  la a2, modexp_bn_mod\n" ++ "  mv a3, s7\n" ++
+  "  la a4, modexp_bn_result\n" ++
+  "  jal ra, modexp_binmod\n" ++
+  -- fall through to format
   -- Format output: result (nm LE limbs) → output (Mlen BE bytes)
   ".Lmexp_format:\n" ++
   "  la a0, modexp_bn_result\n" ++ "  mv a1, s7\n" ++
