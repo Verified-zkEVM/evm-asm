@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.CallFramePhase
+import EvmAsm.Codegen.CallFrameWindows
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Cli
 import EvmAsm.Codegen.RoundTripTests

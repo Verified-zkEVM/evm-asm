@@ -36,6 +36,41 @@ structure FnHandle where
       ((.x1 ↦ᵣ ret) ** asrtM region rw pre)
       ((.x1 ↦ᵣ ret) ** asrtM region rw post)
 
+/-- The one-point reachable set: exactly the symbolic state
+    `(rf₀, ws₀, A₀)`.  Used to state snapshot-parameterized callee
+    contracts (`FnHandleS`): the callee family is verified at every
+    concrete entry state, so its postcondition may *depend* on that
+    state. -/
+def Reach.exact (rf₀ : RegFile) (ws₀ : List (BitVec 8)) (A₀ : Assertion) :
+    Reach :=
+  fun rf ws A => rf = rf₀ ∧ ws = ws₀ ∧ A = A₀
+
+/-- Caller-facing interface of a verified routine whose postcondition is
+    parameterized by the *entry snapshot* (docs/4ch8f-interp-strategy.md).
+
+    A monomorphic `FnHandle` states one fixed `pre`/`post` pair, which
+    cannot relate the callee's exit state to its entry state — fatal for
+    a state-transforming callee invoked repeatedly at one call site (an
+    opcode handler inside the dispatch loop).  `FnHandleS` is the
+    universally-quantified (auxiliary-variable) contract: `sound` holds
+    at every concrete entry state satisfying `pre`, with the exit state
+    constrained by `post rf₀ ws₀ A₀` — the callee analogue of
+    `Stmt.whileS`'s entry-snapshot invariants. -/
+structure FnHandleS where
+  entry : Word
+  code : CodeReq
+  nSteps : Nat
+  region : Region
+  rw : RwRegion
+  pre : Reach
+  post : RegFile → List (BitVec 8) → Assertion → Reach
+  sound : ∀ (rf₀ : RegFile) (ws₀ : List (BitVec 8)) (A₀ : Assertion),
+    ws₀.length = rw.len → A₀.pcFree → pre rf₀ ws₀ A₀ →
+    ∀ ret : Word, (ret &&& ~~~(1 : Word)) = ret →
+    cpsTripleWithin nSteps entry ret code
+      ((.x1 ↦ᵣ ret) ** asrtM region rw (Reach.exact rf₀ ws₀ A₀))
+      ((.x1 ↦ᵣ ret) ** asrtM region rw (post rf₀ ws₀ A₀))
+
 /-- A stub handle with an unsatisfiable precondition: lets `Stmt` values
     mention a routine that is not verified yet.  Any call to it generates
     an unprovable `.pre` VC, so nothing can be concluded past it. -/
