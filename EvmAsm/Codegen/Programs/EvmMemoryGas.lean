@@ -20,6 +20,11 @@ namespace EvmAsm.Codegen
     `mcopyActiveMemorySizeOff` in `EvmMcopyGas.lean`.) -/
 def activeMemorySizeOff : Nat := 488
 
+/-- Runtime EVM memory arena size for root and child frames. Keep in sync with
+    `runtimeMemoryBytes` in `Dispatch.lean` and the frame offsets in
+    `CallFrameBase.lean`. -/
+def runtimeMemoryArenaLimitBytes : Nat := 0x20000
+
 /-- Inline asm that updates the runtime `MSIZE` high-water mark from one
     memory access `(offset, length)` (low u64 limbs) and — when
     `chargeGas` is true — charges the EVM memory-expansion gas for any
@@ -102,7 +107,7 @@ def memConstOffsetOogGuardAsm
   "  bnez " ++ scratchReg ++ ", .exit_outofgas\n" ++
   "  addi " ++ scratchReg ++ ", " ++ offsetReg ++ ", " ++ toString length ++ "\n" ++
   "  bltu " ++ scratchReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
-  "  li x6, 0x10000\n" ++
+  "  li x6, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
   "  bltu x6, " ++ scratchReg ++ ", .exit_outofgas\n"
 
 /-- Runtime memory arena guard for a dynamic memory range `(offset, length)`
@@ -116,7 +121,7 @@ def memDynamicArenaOogGuardAsm
   "  beqz " ++ lengthReg ++ ", .Lmemarena_" ++ tag ++ "_done\n" ++
   "  add " ++ endReg ++ ", " ++ offsetReg ++ ", " ++ lengthReg ++ "\n" ++
   "  bltu " ++ endReg ++ ", " ++ offsetReg ++ ", .exit_outofgas\n" ++
-  "  li " ++ limitReg ++ ", 0x10000\n" ++
+  "  li " ++ limitReg ++ ", " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
   "  bltu " ++ limitReg ++ ", " ++ endReg ++ ", .exit_outofgas\n" ++
   ".Lmemarena_" ++ tag ++ "_done:\n"
 
@@ -162,7 +167,7 @@ def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String 
     this charges only memory expansion over `(offset, size)` before the
     terminating data copy. Zero-size ranges do not expand memory, matching
     execution-specs. Nonzero ranges with high offset/size limbs, low-limb
-    wraparound, or an end past the current 32 KiB runtime memory arena route
+    wraparound, or an end past the current 128 KiB runtime memory arena route
     to `.exit_outofgas` before any return/revert output is emitted.
 
     Stack layout before RETURN/REVERT body: `offset` at `0(x12)`, `size` at
@@ -187,7 +192,7 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
   "  ld x14, 0(x12)\n" ++
   "  add x18, x14, x15\n" ++
   "  bltu x18, x14, .exit_outofgas\n" ++
-  "  li x19, 0x8000\n" ++
+  "  li x19, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
   "  bltu x19, x18, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm tag "x14" "x15" "x16" "x17" "x18" "x6" true ++
   ".Lreturn_revert_mem_" ++ tag ++ "_ok:\n"
@@ -200,7 +205,7 @@ def returnRevertMemoryGasAsm (tag : String) : String :=
     `(out_offset, out_size)`. Zero-size ranges do not expand memory, so high
     offset limbs are tolerated when the corresponding low size limb is zero.
     Non-zero high size limbs, high offsets for non-zero sizes, low-limb
-    offset+size wraparound, and ranges past the 64 KiB per-frame memory arena
+    offset+size wraparound, and ranges past the 128 KiB per-frame memory arena
     route to `.exit_outofgas`. -/
 def callMemoryExpansionGasAsm
     (tag : String)
@@ -222,7 +227,7 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString inOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
-  "  li x6, 0x10000\n" ++
+  "  li x6, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
   "  bltu x6, x5, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_in") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_out:\n" ++
@@ -243,7 +248,7 @@ def callMemoryExpansionGasAsm
   "  ld x14, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x5, x14, x15\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
-  "  li x6, 0x10000\n" ++
+  "  li x6, " ++ toString runtimeMemoryArenaLimitBytes ++ "\n" ++
   "  bltu x6, x5, .exit_outofgas\n" ++
   updateActiveMemorySizeAsm ("call_" ++ tag ++ "_out") "x14" "x15" "x16" "x17" "x5" "x6" true ++
   ".Lcallmem_" ++ tag ++ "_done:\n"
