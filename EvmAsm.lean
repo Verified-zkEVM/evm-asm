@@ -1,4 +1,5 @@
 import EvmAsm.Rv64
+import EvmAsm.Crypto
 import EvmAsm.Evm64
 import EvmAsm.EL
 import EvmAsm.Codegen

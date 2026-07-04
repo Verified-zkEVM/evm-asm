@@ -2863,6 +2863,37 @@ recorded authority divergence: execution-specs' Euler pre-check rejects
 (`neg7_not_cube`). Consumers: .38c recovery orchestration, .39
 tx-sender, .40 EIP-7702 (substrate decision recorded as a
 crypto-strategy §4 amendment).
+Crypto foundation library landed (Fable batch, beads .11.10/.11.13/
+.11.12 = strategy labels .11.6/.11.9/.11.8), unblocking the Opus wave
+(.38/.57/.58c): (1) `SAsm/AccelStep.lean` generalized into THE seam
+contract — generic one-step skeleton (`csrs_step_spec_within` +
+`csrs_ret_spec_of_step` + `csrs_handleS_sound`) instantiated at every
+crypto accelerator id: `arithModHandle` (nLimbs-parametric, `ArithWidth`
+0x802/0x80B), `curveAddHandle`/`curveDblHandle` (`CurveId` secp/BN254/
+BLS12, ptValid + `x₁≠x₂`/`y≠0` pres exactly matching `csrsValid`),
+`cxHandle` (`Fp2Id`×`CxOp`, six Fp2 ids, `u²=−1`); all posts
+decode-valued (`Accel.*` of the ENTRY window, aliasing-free); pilot
+locality lemmas promoted into AccelStep nl-generically
+(`wsNat`/`leBytesN`/`wsPair`/`pairBytes`, `*_setBytes_low/high`,
+`wsNat_setBytes_leBytesN`, `wsPair_setBytes_pairBytes`); pilot handle
+tied to the generic one (`arithModPre/Post_w256`). (2)
+`Crypto/ScalarMul.lean` — the MSB double-and-add skeleton `dblAdd` over
+abstract `(add, zero, dbl)` with the software-∞ `Option` convention:
+`dblAdd_correct` (= `nsmul k P` under `AddLaws`, the abelian laws being
+per-curve on-curve obligations, deliberately hypotheses — false on raw
+carriers), the `.38.1` bit-order bridge (`binMulAux_eq` +
+`dblAdd_eq_binMulAux` + definitional `scalarMulAux_eq_binMulAux`),
+identity corners closed (`dblAdd_zero_scalar/_zero_point`), secp KATs
+vs `scalarMul` by `decide +kernel`. (3) `Crypto/Fermat.lean` — the ONE
+mathlib-heavy file (Euler via `Nat.ModEq.pow_totient`, nowhere else):
+`powMod_eq_pow` (Accel ladder = `Nat.pow`, any modulus, e < 2^512),
+`fermat_little`/`fermat_inv_pow`/`fermat_invMod` (`Accel.invMod` IS the
+inverse; `p.Prime` a hypothesis — per-prime Lucas certificates are the
+Opus instances), `qr_sqrt_pow/_powMod` (p≡3 mod 4 root candidate
+squares back on residues), and the secp sqrt skip-bit ladder PROVED
+(`secpSqrtExp_value`, `secpSqrt_skip_bits` = the {255,254,30,7,6,5,4,
+1,0} audit, `secp_sqrt_ladder_correct` — no primality needed). New
+aggregator `EvmAsm/Crypto.lean`. All headline decls classical-3.
 
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
