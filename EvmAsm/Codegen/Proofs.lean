@@ -9,6 +9,7 @@
 import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.CallReturn
 import EvmAsm.Codegen.Proofs.HandlerSpecs
+import EvmAsm.Codegen.Proofs.GuardedHandlerSpecs
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic

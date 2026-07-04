@@ -75,5 +75,4 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  sd t2, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
   ".Lbv_eip1559_diff_places_receipt_done:\n"
-
 end EvmAsm.Codegen
