@@ -125,6 +125,17 @@ theorem FnHandle.nSteps_le_foldr_max {h : FnHandle} :
       · exact Nat.le_trans (FnHandle.nSteps_le_foldr_max hmem')
           (Nat.le_max_right _ _)
 
+/-- A table member's step bound is below the table's folded maximum
+    (snapshot-parameterized handles). -/
+theorem FnHandleS.nSteps_le_foldr_max {h : FnHandleS} :
+    ∀ {hs : List FnHandleS}, h ∈ hs →
+      h.nSteps ≤ hs.foldr (fun f m => max f.nSteps m) 0
+  | a :: as, hmem => by
+      rcases List.mem_cons.mp hmem with rfl | hmem'
+      · exact Nat.le_max_left _ _
+      · exact Nat.le_trans (FnHandleS.nSteps_le_foldr_max hmem')
+          (Nat.le_max_right _ _)
+
 /-- Caller-shaped soundness (Milestone M4): the flattened code of `s`
     satisfies a bounded CPS triple at `asrtR` granularity, provided the
     ambient `cr` also contains every callee's code (`hcallees`) and the call
@@ -754,6 +765,103 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
           hsoundC
         exact cpsTripleWithin_mono_nSteps
           (Nat.add_le_add_left (FnHandle.nSteps_le_foldr_max hmem) 1)
+          (cpsTripleWithin_seq_same_cr hjalW hsoundW)
+      simp only [Stmt.steps, Stmt.size, Nat.mul_one]
+      have h4 : base + BitVec.ofNat 64 4 = base + 4 := rfl
+      rw [h4]
+      exact hfinal
+  | callRegS lbl rs handles =>
+      obtain ⟨halignRet, hentries⟩ := hcalls
+      have hrs : Reg.isExposed rs = true := hofs
+      have hpreVC : ∀ rf ws A, reach rf ws A →
+          ∃ h ∈ handles, rf.get rs = h.entry ∧ h.pre rf ws A :=
+        hvcs _ (List.mem_singleton_self _)
+      have hcodeJalr : ∀ a' i,
+          CodeReq.singleton base (.JALR .x1 rs 0) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [show Stmt.flatten base (.callRegS lbl rs handles)
+          = [.JALR .x1 rs 0] from rfl, CodeReq.ofProg_singleton]
+        exact h
+      have hfinal : cpsTripleWithin
+          (1 + handles.foldr (fun f m => max f.nSteps m) 0)
+          base (base + 4) cr
+          (asrtR reg rw reach)
+          (asrtR reg rw (Stmt.sp reg rw (.callRegS lbl rs handles) reach)) := by
+        show cpsTripleWithin _ _ _ _ (asrtM reg rw reach ** regOwn .x1) _
+        apply cpsTripleWithin_regOwn_right_pre
+        intro vOld
+        apply cpsTripleWithin_exists_pre_M_frame
+        intro rf ws A hlen hApc hreach
+        obtain ⟨h, hmem, hrsentry, hpre⟩ := hpreVC rf ws A hreach
+        obtain ⟨hcalleeCode, hregeq, hrweq⟩ := hcallees h hmem
+        have htarget : ((rf.get rs + signExtend12 (0 : BitVec 12))
+            &&& ~~~(1 : Word)) = h.entry := by
+          rw [hrsentry,
+            show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+            show h.entry + (0 : Word) = h.entry from by bv_omega]
+          exact hentries h hmem
+        -- the jump
+        have hjal := jalr_call_spec_within rs rf vOld base hrs
+        rw [htarget] at hjal
+        have hjalC := cpsTripleWithin_extend_code hcodeJalr hjal
+        have hjalF := cpsTripleWithin_frameR
+          ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes)
+          (pcFree_sepConj (pcFree_sepConj (bytesRegion_pcFree _ _) hApc)
+            (bytesRegion_pcFree _ _))
+          hjalC
+        -- the callee, retargeted at the return address and instantiated at
+        -- THIS entry state (the snapshot that its post may depend on)
+        have hsound := h.sound rf ws A (by rw [hrweq]; exact hlen) hApc hpre
+          (base + 4) halignRet
+        rw [hregeq, hrweq] at hsound
+        have hsoundC := cpsTripleWithin_extend_code hcalleeCode hsound
+        -- glue the shapes
+        have hjalW := cpsTripleWithin_weaken
+          (P := (((.x1 : Reg) ↦ᵣ vOld) ** regFileIs rf) **
+            ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+          (P' := (((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
+            (bytesRegion reg.base reg.bytes ** ((.x1 : Reg) ↦ᵣ vOld)))
+          (Q' := (((.x1 : Reg) ↦ᵣ (base + 4)) ** regFileIs rf) **
+            ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+          (fun hp hh => by
+            rw [show ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
+                (bytesRegion reg.base reg.bytes ** ((.x1 : Reg) ↦ᵣ vOld)))
+              = ((((.x1 : Reg) ↦ᵣ vOld) ** regFileIs rf) **
+                ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+              from by ac_rfl] at hh
+            exact hh)
+          (fun hp hh => hh)
+          hjalF
+        have hsoundW := cpsTripleWithin_weaken
+          (P := ((.x1 : Reg) ↦ᵣ (base + 4))
+            ** asrtM reg rw (Reach.exact rf ws A))
+          (P' := (((.x1 : Reg) ↦ᵣ (base + 4)) ** regFileIs rf) **
+            ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+          (Q' := asrtR reg rw (Stmt.sp reg rw (.callRegS lbl rs handles) reach))
+          (fun hp hh => by
+            rw [show ((((.x1 : Reg) ↦ᵣ (base + 4)) ** regFileIs rf) **
+                ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+              = (((.x1 : Reg) ↦ᵣ (base + 4)) **
+                ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
+                  bytesRegion reg.base reg.bytes))
+              from by ac_rfl] at hh
+            refine sepConj_mono_right (fun hq hx => ?_) hp hh
+            show asrtM reg rw (Reach.exact rf ws A) hq
+            exact sepConj_mono_left
+              (fun hv hy => ⟨rf, ws, A, hlen, hApc, ⟨rfl, rfl, rfl⟩, hy⟩) hq hx)
+          (fun hp hh => by
+            rw [sepConj_comm'] at hh
+            -- hh : (asrtM reg rw (h.post rf ws A) ** ((.x1) ↦ᵣ (base + 4))) hp
+            refine sepConj_mono_right
+              (fun hq hx => (⟨base + 4, hx⟩ : regOwn .x1 hq)) hp ?_
+            exact sepConj_mono_left
+              (asrtM_mono (fun rf' ws' A' hp' =>
+                ⟨rf, ws, A, hreach, h, hmem, hrsentry, hpre, hp'⟩)) hp hh)
+          hsoundC
+        exact cpsTripleWithin_mono_nSteps
+          (Nat.add_le_add_left (FnHandleS.nSteps_le_foldr_max hmem) 1)
           (cpsTripleWithin_seq_same_cr hjalW hsoundW)
       simp only [Stmt.steps, Stmt.size, Nat.mul_one]
       have h4 : base + BitVec.ofNat 64 4 = base + 4 := rfl
