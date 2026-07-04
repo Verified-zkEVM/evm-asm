@@ -176,95 +176,146 @@ def mptIndexedTrieRootOneLeafFunction : String :=
     a0 = value ptr, a1 = value len, a2 = path kind (0 empty, 1 one nibble),
     a3 = low nibble when kind=1, a4 = out hash ptr.
     Returns a0 = 0 ok / 1 unsupported small value or bad path kind. -/
-def mptIndexedLargeLeafHashFunction : String :=
-  "mpt_indexed_large_leaf_hash:\n" ++
-  "  addi sp, sp, -144\n" ++
-  "  sd ra,   0(sp)\n" ++
-  "  sd s0,   8(sp); sd s1,  16(sp); sd s2,  24(sp); sd s3,  32(sp)\n" ++
-  "  sd s4,  40(sp); sd s5,  48(sp); sd s6,  56(sp); sd s7,  64(sp)\n" ++
-  "  sd s8,  72(sp); sd s9,  80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s1, a0                   # value ptr\n" ++
-  "  mv s2, a1                   # value len\n" ++
-  "  mv s3, a2                   # path kind\n" ++
-  "  mv s4, a3                   # nibble for kind=1\n" ++
-  "  mv s5, a4                   # out hash\n" ++
-  "  li t0, 56\n" ++
-  "  bltu s2, t0, .Lillh_fail    # large-only: branch slots will use hash ref\n" ++
-  "  li t0, 1\n" ++
-  "  bgtu s3, t0, .Lillh_fail\n" ++
-  "  li t0, 15\n" ++
-  "  bgtu s4, t0, .Lillh_fail\n" ++
-  "  la s0, zk3_state\n" ++
-  "  mv t0, s0; li t1, 25\n" ++
-  ".Lillh_zero:\n" ++
-  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lillh_zero\n" ++
-  "  li s6, 0                    # current keccak rate offset\n" ++
-  "  li a0, 0x80\n" ++
-  "  mv a1, s2\n" ++
-  "  addi a2, sp, 104            # value prefix scratch\n" ++
-  "  jal ra, rlp_prefix_to_buffer\n" ++
-  "  mv s7, a0                   # value prefix len\n" ++
-  "  add s8, s7, s2              # encoded value item len\n" ++
-  "  addi a1, s8, 1              # list payload: one-byte hp item + value item\n" ++
-  "  li a0, 0xc0\n" ++
-  "  addi a2, sp, 120            # list prefix scratch\n" ++
-  "  jal ra, rlp_prefix_to_buffer\n" ++
-  "  mv s9, a0                   # list prefix len\n" ++
-  "  addi t0, sp, 136            # hp item scratch\n" ++
-  "  beqz s3, .Lillh_hp_empty\n" ++
-  "  ori t1, s4, 0x30\n" ++
-  "  j .Lillh_hp_store\n" ++
-  ".Lillh_hp_empty:\n" ++
-  "  li t1, 0x20\n" ++
-  ".Lillh_hp_store:\n" ++
-  "  sb t1, 0(t0)\n" ++
-  "  addi a0, sp, 120; mv a1, s9; jal ra, .Lillh_absorb\n" ++
-  "  addi a0, sp, 136; li a1, 1; jal ra, .Lillh_absorb\n" ++
-  "  addi a0, sp, 104; mv a1, s7; jal ra, .Lillh_absorb\n" ++
-  "  mv a0, s1; mv a1, s2; jal ra, .Lillh_absorb\n" ++
-  "  add t0, s0, s6\n" ++
-  "  lbu t1, 0(t0); xori t1, t1, 0x01; sb t1, 0(t0)\n" ++
-  "  addi t0, s0, 135\n" ++
-  "  lbu t1, 0(t0); xori t1, t1, 0x80; sb t1, 0(t0)\n" ++
-  "  mv a0, s0\n" ++
-  "  .4byte 0x80052073\n" ++
-  "  ld t0,  0(s0); sd t0,  0(s5)\n" ++
-  "  ld t0,  8(s0); sd t0,  8(s5)\n" ++
-  "  ld t0, 16(s0); sd t0, 16(s5)\n" ++
-  "  ld t0, 24(s0); sd t0, 24(s5)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lillh_ret\n" ++
-  ".Lillh_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lillh_ret:\n" ++
-  "  ld ra,   0(sp)\n" ++
-  "  ld s0,   8(sp); ld s1,  16(sp); ld s2,  24(sp); ld s3,  32(sp)\n" ++
-  "  ld s4,  40(sp); ld s5,  48(sp); ld s6,  56(sp); ld s7,  64(sp)\n" ++
-  "  ld s8,  72(sp); ld s9,  80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 144\n" ++
-  "  ret\n" ++
-  ".Lillh_absorb:\n" ++
-  "  mv s10, a0\n" ++
-  "  mv s11, a1\n" ++
-  ".Lillh_absorb_loop:\n" ++
-  "  beqz s11, .Lillh_absorb_ret\n" ++
-  "  lbu t0, 0(s10)\n" ++
-  "  add t1, s0, s6\n" ++
-  "  lbu t2, 0(t1)\n" ++
-  "  xor t2, t2, t0\n" ++
-  "  sb t2, 0(t1)\n" ++
-  "  addi s10, s10, 1\n" ++
-  "  addi s11, s11, -1\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  li t3, 136\n" ++
-  "  bne s6, t3, .Lillh_absorb_loop\n" ++
-  "  mv a0, s0\n" ++
-  "  .4byte 0x80052073\n" ++
-  "  li s6, 0\n" ++
-  "  j .Lillh_absorb_loop\n" ++
-  ".Lillh_absorb_ret:\n" ++
-  "  ret"
+def mptIndexedLargeLeafHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-144 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x9 .x10,
+    .MV .x18 .x11,
+    .MV .x19 .x12,
+    .MV .x20 .x13,
+    .MV .x21 .x14,
+    .LI .x5 (56 : Word),
+    .BLTU .x18 .x5 (252 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BLTU .x5 .x19 (244 : BitVec 13),
+    .LI .x5 (15 : Word),
+    .BLTU .x5 .x20 (236 : BitVec 13),
+    .AUIPC .x8 (laHi GuestAddrs.zk3_state (GuestAddrs.mpt_indexed_large_leaf_hash + 100)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.zk3_state (GuestAddrs.mpt_indexed_large_leaf_hash + 100)),
+    .MV .x5 .x8,
+    .LI .x6 (25 : Word),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-12 : BitVec 13),
+    .LI .x22 (0 : Word),
+    .LI .x10 (128 : Word),
+    .MV .x11 .x18,
+    .ADDI .x12 .x2 (104 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_prefix_to_buffer (GuestAddrs.mpt_indexed_large_leaf_hash + 148)),
+    .MV .x23 .x10,
+    .ADD .x24 .x23 .x18,
+    .ADDI .x11 .x24 (1 : BitVec 12),
+    .LI .x10 (192 : Word),
+    .ADDI .x12 .x2 (120 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_prefix_to_buffer (GuestAddrs.mpt_indexed_large_leaf_hash + 172)),
+    .MV .x25 .x10,
+    .ADDI .x5 .x2 (136 : BitVec 12),
+    .BEQ .x19 .x0 (12 : BitVec 13),
+    .ORI .x6 .x20 (48 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x6 (32 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .ADDI .x10 .x2 (120 : BitVec 12),
+    .MV .x11 .x25,
+    .JAL .x1 (184 : BitVec 21),
+    .ADDI .x10 .x2 (136 : BitVec 12),
+    .LI .x11 (1 : Word),
+    .JAL .x1 (172 : BitVec 21),
+    .ADDI .x10 .x2 (104 : BitVec 12),
+    .MV .x11 .x23,
+    .JAL .x1 (160 : BitVec 21),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (148 : BitVec 21),
+    .ADD .x5 .x8 .x22,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .XORI .x6 .x6 (1 : BitVec 12),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .ADDI .x5 .x8 (135 : BitVec 12),
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .XORI .x6 .x6 (128 : BitVec 12),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .CSRS (2048 : BitVec 12) .x10,
+    .LD .x5 .x8 (0 : BitVec 12),
+    .SD .x21 .x5 (0 : BitVec 12),
+    .LD .x5 .x8 (8 : BitVec 12),
+    .SD .x21 .x5 (8 : BitVec 12),
+    .LD .x5 .x8 (16 : BitVec 12),
+    .SD .x21 .x5 (16 : BitVec 12),
+    .LD .x5 .x8 (24 : BitVec 12),
+    .SD .x21 .x5 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (144 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .MV .x26 .x10,
+    .MV .x27 .x11,
+    .BEQ .x27 .x0 (60 : BitVec 13),
+    .LBU .x5 .x26 (0 : BitVec 12),
+    .ADD .x6 .x8 .x22,
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .XOR .x7 .x7 .x5,
+    .SB .x6 .x7 (0 : BitVec 12),
+    .ADDI .x26 .x26 (1 : BitVec 12),
+    .ADDI .x27 .x27 (-1 : BitVec 12),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .LI .x28 (136 : Word),
+    .BNE .x22 .x28 (-40 : BitVec 13),
+    .MV .x10 .x8,
+    .CSRS (2048 : BitVec 12) .x10,
+    .LI .x22 (0 : Word),
+    .JAL .x0 (-56 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptIndexedLargeLeafHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptIndexedLargeLeafHash_relocs : RelocTable :=
+  [ (25, .la .x8 "zk3_state"),
+    (37, .jal .x1 "rlp_prefix_to_buffer"),
+    (43, .jal .x1 "rlp_prefix_to_buffer") ]
+
+def mptIndexedLargeLeafHashFunction : String :=
+  "mpt_indexed_large_leaf_hash:\n" ++ emitProgramR mptIndexedLargeLeafHash_prog mptIndexedLargeLeafHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptIndexedLargeLeafHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptIndexedLargeLeafHashFunction_eq_prog :
+    mptIndexedLargeLeafHashFunction = "mpt_indexed_large_leaf_hash:\n" ++ emitProgramR mptIndexedLargeLeafHash_prog mptIndexedLargeLeafHash_relocs := rfl
+
+#guard mptIndexedLargeLeafHashFunction.startsWith "mpt_indexed_large_leaf_hash:\n"
+#guard mptIndexedLargeLeafHash_prog.length = 117
 /-! ## mpt_indexed_trie_root_large -- grouped large-value indexed trie root
 
     Fast path for contiguous indexed keys 0..n-1, n <= 128, when every value is

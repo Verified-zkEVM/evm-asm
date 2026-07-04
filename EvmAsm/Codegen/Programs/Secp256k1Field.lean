@@ -568,31 +568,59 @@ theorem secp256k1FieldSubFunction_eq_prog :
   `-march=rv64imac` toolchain assembles it without `Zicsr` (the same pattern
   as the Keccak-f probe's `.4byte 0x80052073`).
 -/
-def secp256k1FieldMulFunction : String :=
-  "secf_mul_mod_p:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  la a1, secf_le_a\n" ++
-  "  jal ra, secf_be_to_le\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, secf_le_b\n" ++
-  "  jal ra, secf_be_to_le\n" ++
-  "  la t0, secf_arith_params_p\n" ++
-  "  .4byte 0x8022a073           # csrs 0x802, t0 -> Arith256Mod\n" ++
-  "  la a0, secf_le_d\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, secf_le_to_be\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def secfMulModP_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .AUIPC .x11 (laHi GuestAddrs.secf_le_a (GuestAddrs.secf_mul_mod_p + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secf_le_a (GuestAddrs.secf_mul_mod_p + 24)),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secf_mul_mod_p + 32)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.secf_le_b (GuestAddrs.secf_mul_mod_p + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secf_le_b (GuestAddrs.secf_mul_mod_p + 40)),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secf_mul_mod_p + 48)),
+    .AUIPC .x5 (laHi GuestAddrs.secf_arith_params_p (GuestAddrs.secf_mul_mod_p + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.secf_arith_params_p (GuestAddrs.secf_mul_mod_p + 52)),
+    .CSRS (2050 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.secf_le_d (GuestAddrs.secf_mul_mod_p + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secf_le_d (GuestAddrs.secf_mul_mod_p + 64)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.secf_le_to_be (GuestAddrs.secf_mul_mod_p + 76)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `secfMulModP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def secfMulModP_relocs : RelocTable :=
+  [ (6, .la .x11 "secf_le_a"),
+    (8, .jal .x1 "secf_be_to_le"),
+    (10, .la .x11 "secf_le_b"),
+    (12, .jal .x1 "secf_be_to_le"),
+    (13, .la .x5 "secf_arith_params_p"),
+    (16, .la .x10 "secf_le_d"),
+    (19, .jal .x1 "secf_le_to_be") ]
+
+def secp256k1FieldMulFunction : String :=
+  "secf_mul_mod_p:\n" ++ emitProgramR secfMulModP_prog secfMulModP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `secfMulModP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem secp256k1FieldMulFunction_eq_prog :
+    secp256k1FieldMulFunction = "secf_mul_mod_p:\n" ++ emitProgramR secfMulModP_prog secfMulModP_relocs := rfl
+
+#guard secp256k1FieldMulFunction.startsWith "secf_mul_mod_p:\n"
+#guard secfMulModP_prog.length = 26
 /-- Square one field element modulo p. -/
 def secfSquareModP_prog : Program :=
   [ .MV .x11 .x10,
@@ -1001,31 +1029,59 @@ theorem secp256k1ScalarFieldAddFunction_eq_prog :
 /-- Multiply two scalars modulo n via the ziskemu `Arith256Mod` accelerator
     (same route as `secf_mul_mod_p`, with the modulus parameter block
     pointing at n instead of p). -/
-def secp256k1ScalarFieldMulFunction : String :=
-  "secf_mul_mod_n:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  la a1, secf_le_a\n" ++
-  "  jal ra, secf_be_to_le\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, secf_le_b\n" ++
-  "  jal ra, secf_be_to_le\n" ++
-  "  la t0, secf_arith_params_n\n" ++
-  "  .4byte 0x8022a073           # csrs 0x802, t0 -> Arith256Mod\n" ++
-  "  la a0, secf_le_d\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, secf_le_to_be\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def secfMulModN_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .AUIPC .x11 (laHi GuestAddrs.secf_le_a (GuestAddrs.secf_mul_mod_n + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secf_le_a (GuestAddrs.secf_mul_mod_n + 24)),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secf_mul_mod_n + 32)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.secf_le_b (GuestAddrs.secf_mul_mod_n + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secf_le_b (GuestAddrs.secf_mul_mod_n + 40)),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secf_mul_mod_n + 48)),
+    .AUIPC .x5 (laHi GuestAddrs.secf_arith_params_n (GuestAddrs.secf_mul_mod_n + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.secf_arith_params_n (GuestAddrs.secf_mul_mod_n + 52)),
+    .CSRS (2050 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.secf_le_d (GuestAddrs.secf_mul_mod_n + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secf_le_d (GuestAddrs.secf_mul_mod_n + 64)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.secf_le_to_be (GuestAddrs.secf_mul_mod_n + 76)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `secfMulModN_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def secfMulModN_relocs : RelocTable :=
+  [ (6, .la .x11 "secf_le_a"),
+    (8, .jal .x1 "secf_be_to_le"),
+    (10, .la .x11 "secf_le_b"),
+    (12, .jal .x1 "secf_be_to_le"),
+    (13, .la .x5 "secf_arith_params_n"),
+    (16, .la .x10 "secf_le_d"),
+    (19, .jal .x1 "secf_le_to_be") ]
+
+def secp256k1ScalarFieldMulFunction : String :=
+  "secf_mul_mod_n:\n" ++ emitProgramR secfMulModN_prog secfMulModN_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `secfMulModN_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem secp256k1ScalarFieldMulFunction_eq_prog :
+    secp256k1ScalarFieldMulFunction = "secf_mul_mod_n:\n" ++ emitProgramR secfMulModN_prog secfMulModN_relocs := rfl
+
+#guard secp256k1ScalarFieldMulFunction.startsWith "secf_mul_mod_n:\n"
+#guard secfMulModN_prog.length = 26
 /-- Square one scalar modulo n. -/
 def secfSquareModN_prog : Program :=
   [ .MV .x11 .x10,

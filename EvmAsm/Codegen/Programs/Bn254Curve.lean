@@ -135,118 +135,202 @@ theorem bn254PointIsInfFunction_eq_prog :
 /-- Double an affine point. a0 = input x||y (BE), a1 = output x||y.
     Returns a0 = 1 when the result is infinity (y = 0 input, which also
     covers the (0,0) infinity encoding), output zeroed; else 0. -/
-def bn254PointDblFunction : String :=
-  "bnc_point_dbl:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  jal ra, bnf_is_zero32\n" ++
-  "  beqz a0, .Lbnc_dbl_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, bnc_zero64\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lbnc_dbl_ret\n" ++
-  ".Lbnc_dbl_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, bnc_le_p1\n" ++
-  "  jal ra, bnf_be_to_le          # p1.x\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  la a1, bnc_le_p1\n" ++
-  "  addi a1, a1, 32\n" ++
-  "  jal ra, bnf_be_to_le          # p1.y\n" ++
-  "  la t0, bnc_le_p1\n" ++
-  "  .4byte 0x8072a073             # csrs 0x807, t0 -> Bn254CurveDbl\n" ++
-  "  la a0, bnc_le_p1\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, bnf_le_to_be          # out.x\n" ++
-  "  la a0, bnc_le_p1\n" ++
-  "  addi a0, a0, 32\n" ++
-  "  addi a1, s1, 32\n" ++
-  "  jal ra, bnf_le_to_be          # out.y\n" ++
-  "  li a0, 0\n" ++
-  ".Lbnc_dbl_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def bncPointDbl_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_is_zero32 (GuestAddrs.bnc_point_dbl + 28)),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnc_zero64 (GuestAddrs.bnc_point_dbl + 40)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (92 : BitVec 21),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 56)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 56)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnc_point_dbl + 64)),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 72)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 72)),
+    .ADDI .x11 .x11 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnc_point_dbl + 84)),
+    .AUIPC .x5 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 88)),
+    .CSRS (2055 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 100)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 100)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnc_point_dbl + 112)),
+    .AUIPC .x10 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 116)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_dbl + 116)),
+    .ADDI .x10 .x10 (32 : BitVec 12),
+    .ADDI .x11 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnc_point_dbl + 132)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bncPointDbl_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bncPointDbl_relocs : RelocTable :=
+  [ (7, .jal .x1 "bnf_is_zero32"),
+    (10, .jal .x1 "bnc_zero64"),
+    (14, .la .x11 "bnc_le_p1"),
+    (16, .jal .x1 "bnf_be_to_le"),
+    (18, .la .x11 "bnc_le_p1"),
+    (21, .jal .x1 "bnf_be_to_le"),
+    (22, .la .x5 "bnc_le_p1"),
+    (25, .la .x10 "bnc_le_p1"),
+    (28, .jal .x1 "bnf_le_to_be"),
+    (29, .la .x10 "bnc_le_p1"),
+    (33, .jal .x1 "bnf_le_to_be") ]
+
+def bn254PointDblFunction : String :=
+  "bnc_point_dbl:\n" ++ emitProgramR bncPointDbl_prog bncPointDbl_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bncPointDbl_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254PointDblFunction_eq_prog :
+    bn254PointDblFunction = "bnc_point_dbl:\n" ++ emitProgramR bncPointDbl_prog bncPointDbl_relocs := rfl
+
+#guard bn254PointDblFunction.startsWith "bnc_point_dbl:\n"
+#guard bncPointDbl_prog.length = 40
 /-- Add two affine points. a0 = P, a1 = Q, a2 = out (all 64-byte BE x||y,
     infinity = (0,0)). Handles the accelerator-excluded cases in software:
     P or Q at infinity, equal x with equal y (doubling), and equal x with
     opposite y (result infinity). Returns a0 = 1 when the result is
     infinity (output zeroed), else 0. -/
-def bn254PointAddFunction : String :=
-  "bnc_point_add:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  mv a0, s0\n" ++
-  "  jal ra, bnc_is_inf64\n" ++
-  "  beqz a0, .Lbnc_add_p_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, bnc_copy64            # P = inf: result = Q\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, bnc_is_inf64\n" ++
-  "  j .Lbnc_add_ret\n" ++
-  ".Lbnc_add_p_finite:\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, bnc_is_inf64\n" ++
-  "  beqz a0, .Lbnc_add_q_finite\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, bnc_copy64            # Q = inf: result = P (finite)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbnc_add_ret\n" ++
-  ".Lbnc_add_q_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, bnf_eq32\n" ++
-  "  beqz a0, .Lbnc_add_distinct_x\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  addi a1, s1, 32\n" ++
-  "  jal ra, bnf_eq32\n" ++
-  "  beqz a0, .Lbnc_add_inf        # x equal, y opposite: P + (-P) = inf\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, bnc_point_dbl         # x and y equal: P + P\n" ++
-  "  j .Lbnc_add_ret\n" ++
-  ".Lbnc_add_distinct_x:\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, bnc_le_p1\n" ++
-  "  jal ra, bnf_be_to_le          # p1.x\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  la a1, bnc_le_p1\n" ++
-  "  addi a1, a1, 32\n" ++
-  "  jal ra, bnf_be_to_le          # p1.y\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, bnc_le_p2\n" ++
-  "  jal ra, bnf_be_to_le          # p2.x\n" ++
-  "  addi a0, s1, 32\n" ++
-  "  la a1, bnc_le_p2\n" ++
-  "  addi a1, a1, 32\n" ++
-  "  jal ra, bnf_be_to_le          # p2.y\n" ++
-  "  la t0, bnc_add_params\n" ++
-  "  .4byte 0x8062a073             # csrs 0x806, t0 -> Bn254CurveAdd\n" ++
-  "  la a0, bnc_le_p1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, bnf_le_to_be          # out.x\n" ++
-  "  la a0, bnc_le_p1\n" ++
-  "  addi a0, a0, 32\n" ++
-  "  addi a1, s2, 32\n" ++
-  "  jal ra, bnf_le_to_be          # out.y\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbnc_add_ret\n" ++
-  ".Lbnc_add_inf:\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, bnc_zero64\n" ++
-  "  li a0, 1\n" ++
-  ".Lbnc_add_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def bncPointAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnc_is_inf64 (GuestAddrs.bnc_point_add + 36)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_copy64 (GuestAddrs.bnc_point_add + 52)),
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_is_inf64 (GuestAddrs.bnc_point_add + 60)),
+    .JAL .x0 (224 : BitVec 21),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnc_is_inf64 (GuestAddrs.bnc_point_add + 72)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_copy64 (GuestAddrs.bnc_point_add + 88)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (192 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnf_eq32 (GuestAddrs.bnc_point_add + 108)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .ADDI .x11 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_eq32 (GuestAddrs.bnc_point_add + 124)),
+    .BEQ .x10 .x0 (148 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_point_dbl (GuestAddrs.bnc_point_add + 140)),
+    .JAL .x0 (144 : BitVec 21),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 152)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 152)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnc_point_add + 160)),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 168)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 168)),
+    .ADDI .x11 .x11 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnc_point_add + 180)),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.bnc_le_p2 (GuestAddrs.bnc_point_add + 188)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_le_p2 (GuestAddrs.bnc_point_add + 188)),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnc_point_add + 196)),
+    .ADDI .x10 .x9 (32 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.bnc_le_p2 (GuestAddrs.bnc_point_add + 204)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnc_le_p2 (GuestAddrs.bnc_point_add + 204)),
+    .ADDI .x11 .x11 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_be_to_le (GuestAddrs.bnc_point_add + 216)),
+    .AUIPC .x5 (laHi GuestAddrs.bnc_add_params (GuestAddrs.bnc_point_add + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnc_add_params (GuestAddrs.bnc_point_add + 220)),
+    .CSRS (2054 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 232)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 232)),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnc_point_add + 244)),
+    .AUIPC .x10 (laHi GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 248)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnc_le_p1 (GuestAddrs.bnc_point_add + 248)),
+    .ADDI .x10 .x10 (32 : BitVec 12),
+    .ADDI .x11 .x18 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnf_le_to_be (GuestAddrs.bnc_point_add + 264)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bnc_zero64 (GuestAddrs.bnc_point_add + 280)),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bncPointAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bncPointAdd_relocs : RelocTable :=
+  [ (9, .jal .x1 "bnc_is_inf64"),
+    (13, .jal .x1 "bnc_copy64"),
+    (15, .jal .x1 "bnc_is_inf64"),
+    (18, .jal .x1 "bnc_is_inf64"),
+    (22, .jal .x1 "bnc_copy64"),
+    (27, .jal .x1 "bnf_eq32"),
+    (31, .jal .x1 "bnf_eq32"),
+    (35, .jal .x1 "bnc_point_dbl"),
+    (38, .la .x11 "bnc_le_p1"),
+    (40, .jal .x1 "bnf_be_to_le"),
+    (42, .la .x11 "bnc_le_p1"),
+    (45, .jal .x1 "bnf_be_to_le"),
+    (47, .la .x11 "bnc_le_p2"),
+    (49, .jal .x1 "bnf_be_to_le"),
+    (51, .la .x11 "bnc_le_p2"),
+    (54, .jal .x1 "bnf_be_to_le"),
+    (55, .la .x5 "bnc_add_params"),
+    (58, .la .x10 "bnc_le_p1"),
+    (61, .jal .x1 "bnf_le_to_be"),
+    (62, .la .x10 "bnc_le_p1"),
+    (66, .jal .x1 "bnf_le_to_be"),
+    (70, .jal .x1 "bnc_zero64") ]
+
+def bn254PointAddFunction : String :=
+  "bnc_point_add:\n" ++ emitProgramR bncPointAdd_prog bncPointAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bncPointAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254PointAddFunction_eq_prog :
+    bn254PointAddFunction = "bnc_point_add:\n" ++ emitProgramR bncPointAdd_prog bncPointAdd_relocs := rfl
+
+#guard bn254PointAddFunction.startsWith "bnc_point_add:\n"
+#guard bncPointAdd_prog.length = 78
 /-- a0 = 1 iff the finite point at a0 (coords already `< p`) satisfies
     y^2 = x^3 + 3 mod p. -/
 def bncOnCurve_prog : Program :=
