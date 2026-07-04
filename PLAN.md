@@ -147,7 +147,13 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
   `a0 := leU32 (bytes@a0) 0`) are verified straight-line byte-wise readers
   over the SAsm `Region` model (own-budget engine lemma per the heavy
-  `execBlock` reduction).
+  `execBlock` reduction).  Big-endian writers (`whileS` loops over a writable
+  region): `SwdWriteBe8SAsm.lean` (`swdWriteBe8Fn_spec`, `ws = beBytes a0`) and
+  `SwdWriteBe32U64SAsm.lean` (`swdWriteBe32U64Fn_spec`, `ws = replicate 24 0 ++
+  beBytes a0`, two sequential loops).  Byte-identity caveat: the emitted loops
+  re-init the limit register inside the loop (back-`JAL` targets the `LI`), so a
+  structured `while` (back-edge → guard) differs by exactly that one offset
+  field; explicit structured flattens are pinned and the divergence documented.
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
@@ -2590,7 +2596,9 @@ it into a `frameWindow` — feeds .56 descend/return contracts (strategy §4).
 Top-level spec
 statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
 docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
-`cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
+`cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤
+`MAX_INPUT_BYTES` (revised to `0x37FFFFF8` ≈ 896 MiB by .63 — the sharp
+machine-model satisfiability bound, record §2a) framed
 at INPUT_ADDR, the guest halts within `fuel` and the 40-byte OUTPUT
 window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
 `SpecRef.verify_stateless_new_payload` validates + root matches);
@@ -2866,6 +2874,36 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   **docs/4ch8f-top-spec.md**. The obligation decomposition lives in
   **docs/agents/top-theorem-ledger.md** (14 rows, each with bead +
   exemplar) — update a row whenever a stateless proof lands.
+- ✅ **Guest-image composition, structural half** (bead evm-asm-4ch8f.63,
+  2026-07-04): `EvmAsm/Codegen/Proofs/GuestImage.lean` —
+  `guestImageCodeReq` (the `CodeReq.unionAll` of the 358 LINKED wave-.9
+  conversions at their `GuestAddrs` entries, table GENERATED into
+  `GuestImageEntries.lean` by `scripts/guest_image_coverage.py
+  --emit-lean`), with whole-image disjointness as ONE kernel `decide`
+  (`guestImageEntries_extentsOk`) and the generic lift chain in new
+  `Rv64/CodeReqExtents.lean` (`ofProg_sub_ofEntries_of_extentsOk` →
+  `cps*_extend_code`) — compose-don't-enumerate, no 384-case proof.
+  Coverage accounting: 23.76% of `.text`; the 443 uncovered ranges are
+  enumerated in **docs/4ch8f-guest-image-coverage.md** and filed as
+  beads 4ch8f.63.2–.63.12. `guestFraming : GuestFraming` instantiated
+  (scratch = `anyBytes` over the six `zone = .ram` `guestRegionMap`
+  regions, drift-pinned; residue = the same havoc MINUS the 40-byte
+  observation window, carved out of the OUTPUT tile so
+  `guestOutputSound ** residue` re-tiles OUTPUT exactly — retiling
+  identity `guestScratch_eq_window_residue`, #9785 review fix;
+  `scratch_sat` witness via new
+  `Rv64/MemSat.lean` footprint-satisfiability combinators). STATEMENT
+  REPAIR: `MAX_INPUT_BYTES` 2^30 → `0x37FFFFF8` (2^30 made
+  `scratch_sat` unprovable — `isValidDwordAccess` cuts at `MEM_END`;
+  record §2a). Verdict-stamp audit → record §6a: stamp
+  `sb a0, 32(t0)` (`StatelessGuestEpilogue.lean:842`) is the single
+  final byte-32 writer, gated on verdict ∧ schema-id ∧ canonical
+  offsets; one P1 finding (4ch8f.63.1): the dispatcher's `halt_kind`
+  slot at OUTPUT+32 holds transient `1` (RETURN) inside the verdict
+  save/restore window — a trap there would be an observation-level
+  false accept, so `.64` needs verdict-window trap-freedom (or move
+  `halt_kind` off OUTPUT+32). Remaining `.63` half: the shell pipeline
+  triples.
 - ✅ **Smaller-model port toolchain** (2026-07-04):
   `docs/agents/port-playbook.md` (single entry point: class table →
   exemplar → recipe → stop-rule), `scripts/gen-port-kit.py` (skeleton

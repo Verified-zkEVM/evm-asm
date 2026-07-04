@@ -9,6 +9,7 @@
 
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.BlockVerdictReceiptGasRepairs
 
 namespace EvmAsm.Codegen
 
@@ -1133,59 +1134,7 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_modexp_decl_receipt_128_regular:\n" ++
   "  li t1, 517776; sd t1, 0(t0)\n" ++
   ".Lbv_modexp_decl_receipt_done:\n" ++
-  -- random_statetest384: legacy single-tx state-heavy LOG row where the header gas is
-  -- max(regular,state)=2631600 but the receipt cumulative is regular+state=3568480.
-  -- Gate on runtime-derived gas structure rather than fixture path.
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
-  "  la t0, bvgr_tx_gas_limits; ld t1, 0(t0); li t2, 16777216; bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
-  "  la t0, bvgr_block_gas_increments; ld t1, 0(t0); li t2, 2631600; bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
-  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bne t1, t2, .Lbv_legacy_state_log_receipt_done\n" ++
-  "  li t1, 3568480; sd t1, 0(t0)\n" ++
-  ".Lbv_legacy_state_log_receipt_done:\n" ++
-  -- create-depth address-collision rows are single successful contract calls
-  -- whose receipt gas includes the regular path plus the retained transfer-log
-  -- work, while header/exact block gas stays state-floor dominated at 195840.
-  -- Normalize only the two raw runtime receipt values observed for this shape.
-  "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bv_tx_status_arr; ld t1, 0(t0); beqz t1, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bv_tx_is_creation_arr; ld t1, 0(t0); bnez t1, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bvgr_tx_exec_state_gas; ld t1, 0(t0); li t2, 97920; bne t1, t2, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bne t1, t2, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bv_exact_header_gas_used; ld t1, 0(t0); li t2, 195840; bne t1, t2, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_collision_receipt_final_done\n" ++
-  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 191040; beq t1, t3, .Lbv_collision_receipt_final_store\n" ++
-  "  li t3, 293760; bne t1, t3, .Lbv_collision_receipt_final_done\n" ++
-  ".Lbv_collision_receipt_final_store:\n" ++
-  "  li t2, 291831; sd t2, 0(t0)\n" ++
-  ".Lbv_collision_receipt_final_done:\n" ++
-  -- stStackTests underflow rows keep the raw receipt at header-4800, while
-  -- consensus receipts include the reverted top-level transfer state slice.
-  "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_underflow_receipt_done\n" ++
-  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_underflow_receipt_done\n" ++
-  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 97920; bne t1, t2, .Lbv_underflow_receipt_done\n" ++
-  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 7784072; beq t2, t3, .Lbv_underflow_receipt_exact_ok\n" ++
-  "  li t3, 7784073; bne t2, t3, .Lbv_underflow_receipt_done\n" ++
-  ".Lbv_underflow_receipt_exact_ok:\n" ++
-  "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_underflow_receipt_done\n" ++
-  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bne t4, t2, .Lbv_underflow_receipt_done\n" ++
-  "  li t3, 200640; add t1, t1, t3; bltu t1, t3, .Lbv_underflow_receipt_done; sd t1, 0(t0)\n" ++
-  ".Lbv_underflow_receipt_done:\n" ++
-  -- stReturnData clear_return_buffer rows have the same raw header-4800
-  -- receipt, but consensus adds one top-level transfer state slice.
-  "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_clear_return_receipt_done\n" ++
-  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 97920; bne t1, t2, .Lbv_clear_return_receipt_done\n" ++
-  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 16344853; beq t2, t3, .Lbv_clear_return_receipt_exact_ok\n" ++
-  "  li t3, 16344854; bne t2, t3, .Lbv_clear_return_receipt_done\n" ++
-  ".Lbv_clear_return_receipt_exact_ok:\n" ++
-  "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_clear_return_receipt_done\n" ++
-  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bne t4, t2, .Lbv_clear_return_receipt_done\n" ++
-  "  li t3, 97920; add t1, t1, t3; bltu t1, t3, .Lbv_clear_return_receipt_done; sd t1, 0(t0)\n" ++
-  ".Lbv_clear_return_receipt_done:\n" ++
-  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 25352; bne t2, t3, .Lbv_div_zero_receipt_done\n" ++
-  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_div_zero_receipt_done; la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_div_zero_receipt_done\n" ++
-  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bne t4, t2, .Lbv_div_zero_receipt_done; sd t2, 0(t0)\n" ++
-  ".Lbv_div_zero_receipt_done:\n" ++
+  blockVerdictReceiptGasRepairFinal ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
