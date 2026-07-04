@@ -288,7 +288,22 @@ template; "Fable" = novel proof design.
 2. **`.49b` — opcode-table load spec** (Opus): ro-region load of
    `opcode_handlers[op]`/`opcode_gas_costs[op]` with the witness
    `rf.get rs = (handlers op).entry`; ELF-drift-guarded table contents
-   (RegionMap pattern).
+   (RegionMap pattern).  **DONE** (bead `.10.2`,
+   `EvmAsm/Codegen/Proofs/OpcodeTables.lean`): generic address-free
+   `exec_table_load` (the `slli/add/ld` block over any `tableAt` ro
+   region → `entries[op]`), the mirrors `opcodeGasCostEntries`/
+   `opcodeHandlerLabels` (256 each, over the shipped
+   `callFrameGuestRegistry`), and the `.pre` bridge
+   `handler_table_load_witness` (`rf.get dstR =
+   opcodeHandlerEntries[op] = addrOf (opcodeHandlerLabels[op])`, no
+   ∃).  Note: the handler *labels* (`h_ADD`…`h_invalid`) are emitted by
+   the raw jump-table string, not a converted `_prog`, so they are NOT
+   `GuestAddrs.*` constants; the addressed image is parameterized by an
+   `addrOf : String → Word` resolver (`.49` supplies the `.10.1` handle
+   entry map).  Drift guard: `scripts/check-opcode-tables.sh` reads the
+   2048 bytes at each symbol and compares to the Lean mirror (gas =
+   numeric, handlers = `symtab[label]`); wire into `build.yml` after
+   #9740 lands (`bash scripts/check-opcode-tables.sh`).
 3. **`.49c` — flag+`ret` tail restructure** (Fable decision, Opus
    execution): change the emitted non-`ret` handler tails to the flag
    discipline (§3); re-run EEST parity.
