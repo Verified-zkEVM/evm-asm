@@ -691,6 +691,18 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 17301559; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_create_warm_code_too_big_receipt_done:\n" ++
+  -- stCreateTest create_address_warm_after_fail invalid-opcode rows
+  -- are successful outer transactions. The inner CREATE/CREATE2 fails and
+  -- leaves tx_status_arr at zero, while consensus receipts use status=1 and
+  -- carry the warm-after-fail gas suffix above the exact block gas.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_create_warm_invalid_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t1, 0(t0); li t2, 16521000; bne t1, t2, .Lbv_create_warm_invalid_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_create_warm_invalid_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_create_warm_invalid_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bne t1, t2, .Lbv_create_warm_invalid_receipt_done\n" ++
+  "  li t1, 17301560; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_create_warm_invalid_receipt_done:\n" ++
   -- stCreateTest create_address_warm_after_fail successful CREATE/CREATE2
   -- rows are exact-header at 1066410 but consensus receipts include the
   -- warm-after-fail CREATE accounting suffix. Distinguish CREATE vs CREATE2
