@@ -21,6 +21,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
@@ -448,36 +451,72 @@ def ziskBlockValidateTransactionsRootTwoTxProbeUnit : BuildUnit := {
       a1 (input)  : value byte length
       a2 (input)  : 32-byte output root ptr
       ra (input)  : return -/
-def mptOneLeafRootIndexedFunction : String :=
-  "mpt_one_leaf_root_indexed:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # value ptr\n" ++
-  "  mv s1, a1                   # value len\n" ++
-  "  mv s2, a2                   # output root ptr\n" ++
-  "  # Build path = [8, 0] (rlp(0)=0x80 -> nibbles [8,0])\n" ++
-  "  la t0, mtoli_nibbles\n" ++
-  "  li t1, 8; sb t1, 0(t0)\n" ++
-  "  li t1, 0; sb t1, 1(t0)\n" ++
-  "  # ---- Encode leaf node ----\n" ++
-  "  la a0, mtoli_nibbles\n" ++
-  "  li a1, 2\n" ++
-  "  mv a2, s0; mv a3, s1\n" ++
-  "  la a4, mtoli_leaf_buf\n" ++
-  "  la a5, mtoli_leaf_len\n" ++
-  "  jal ra, mpt_leaf_node_encode_from_nibbles\n" ++
-  "  # ---- keccak256 the leaf ----\n" ++
-  "  la a0, mtoli_leaf_buf\n" ++
-  "  la t0, mtoli_leaf_len; ld a1, 0(t0)\n" ++
-  "  mv a2, s2\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def mptOneLeafRootIndexed_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x5 (laHi GuestAddrs.mtoli_nibbles (GuestAddrs.mpt_one_leaf_root_indexed + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mtoli_nibbles (GuestAddrs.mpt_one_leaf_root_indexed + 32)),
+    .LI .x6 (8 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .LI .x6 (0 : Word),
+    .SB .x5 .x6 (1 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.mtoli_nibbles (GuestAddrs.mpt_one_leaf_root_indexed + 56)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.mtoli_nibbles (GuestAddrs.mpt_one_leaf_root_indexed + 56)),
+    .LI .x11 (2 : Word),
+    .MV .x12 .x8,
+    .MV .x13 .x9,
+    .AUIPC .x14 (laHi GuestAddrs.mtoli_leaf_buf (GuestAddrs.mpt_one_leaf_root_indexed + 76)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mtoli_leaf_buf (GuestAddrs.mpt_one_leaf_root_indexed + 76)),
+    .AUIPC .x15 (laHi GuestAddrs.mtoli_leaf_len (GuestAddrs.mpt_one_leaf_root_indexed + 84)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.mtoli_leaf_len (GuestAddrs.mpt_one_leaf_root_indexed + 84)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_leaf_node_encode_from_nibbles (GuestAddrs.mpt_one_leaf_root_indexed + 92)),
+    .AUIPC .x10 (laHi GuestAddrs.mtoli_leaf_buf (GuestAddrs.mpt_one_leaf_root_indexed + 96)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.mtoli_leaf_buf (GuestAddrs.mpt_one_leaf_root_indexed + 96)),
+    .AUIPC .x5 (laHi GuestAddrs.mtoli_leaf_len (GuestAddrs.mpt_one_leaf_root_indexed + 104)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mtoli_leaf_len (GuestAddrs.mpt_one_leaf_root_indexed + 104)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.mpt_one_leaf_root_indexed + 120)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptOneLeafRootIndexed_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptOneLeafRootIndexed_relocs : RelocTable :=
+  [ (8, .la .x5 "mtoli_nibbles"),
+    (14, .la .x10 "mtoli_nibbles"),
+    (19, .la .x14 "mtoli_leaf_buf"),
+    (21, .la .x15 "mtoli_leaf_len"),
+    (23, .jal .x1 "mpt_leaf_node_encode_from_nibbles"),
+    (24, .la .x10 "mtoli_leaf_buf"),
+    (26, .la .x5 "mtoli_leaf_len"),
+    (30, .jal .x1 "zkvm_keccak256") ]
+
+def mptOneLeafRootIndexedFunction : String :=
+  "mpt_one_leaf_root_indexed:\n" ++ emitProgramR mptOneLeafRootIndexed_prog mptOneLeafRootIndexed_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptOneLeafRootIndexed_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptOneLeafRootIndexedFunction_eq_prog :
+    mptOneLeafRootIndexedFunction = "mpt_one_leaf_root_indexed:\n" ++ emitProgramR mptOneLeafRootIndexed_prog mptOneLeafRootIndexed_relocs := rfl
+
+#guard mptOneLeafRootIndexedFunction.startsWith "mpt_one_leaf_root_indexed:\n"
+#guard mptOneLeafRootIndexed_prog.length = 38
 /-- `zisk_mpt_one_leaf_root_indexed`: probe BuildUnit.
     Input layout:
       bytes 0..8 : value_len

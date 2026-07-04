@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -291,6 +292,25 @@ def bn254ChargeGateAsm (tag : String) : String :=
     the parked allotment remainder and falls into `.L<tag>_bn254_fail_burn`,
     which burns x22 gas, then pushes 0 (failed call, empty returndata) and
     resumes the dispatch loop. Only reachable via branches. -/
+def failedPrecompileCallNewAccountStateGasAsm (tag : String) : String :=
+  if tag != "call_target" then "" else
+    "  ld t0, 64(x12)\n" ++
+    "  ld t1, 72(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, 80(x12)\n  or t0, t0, t1\n" ++
+    "  ld t1, 88(x12)\n  or t0, t0, t1\n" ++
+    "  beqz t0, .L" ++ tag ++ "_fp_nacc_done\n" ++
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
+    "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+    "  bgeu t2, t0, .L" ++ tag ++ "_fp_nacc_res\n" ++
+    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+    "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .L" ++ tag ++ "_fp_nacc_used\n" ++
+    ".L" ++ tag ++ "_fp_nacc_res:\n" ++
+    "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    ".L" ++ tag ++ "_fp_nacc_used:\n" ++
+    "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    ".L" ++ tag ++ "_fp_nacc_done:\n"
+
 def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
   -- Entry for failures detected BEFORE the charge gate parked the
   -- allotment (for example, a pairing gas-formula overflow or MODEXP
@@ -305,6 +325,7 @@ def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
   "  ld x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
   "  sub x17, x17, x22\n" ++
   "  sd x17, " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
+  failedPrecompileCallNewAccountStateGasAsm tag ++
   "  la x15, evm_precompile_frame\n" ++
   "  sd x0, 0(x15)\n" ++
   "  sd x0, 8(x15)\n" ++

@@ -21,6 +21,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
 
@@ -28,44 +31,120 @@ open EvmAsm.Rv64
 
 /-- `frame_save_regs(a0=depth, a1=pc, a2=codebase)`: store the saved PC and
     code-base for `depth` into `frame_save_area + depth*16`. Clobbers t0/t1. -/
-def frameSaveRegsFunction : String :=
-  "frame_save_regs:\n" ++
-  "  la t0, frame_save_area\n" ++
-  "  slli t1, a0, 4                 # depth*16\n" ++
-  "  add t0, t0, t1\n" ++
-  "  sd a1, 0(t0)                   # saved pc\n" ++
-  "  sd a2, 8(t0)                   # saved codebase\n" ++
-  "  ret"
+def frameSaveRegs_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.frame_save_area (GuestAddrs.frame_save_regs + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.frame_save_area (GuestAddrs.frame_save_regs + 0)),
+    .SLLI .x6 .x10 (4 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .SD .x5 .x11 (0 : BitVec 12),
+    .SD .x5 .x12 (8 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `frameSaveRegs_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameSaveRegs_relocs : RelocTable :=
+  [ (0, .la .x5 "frame_save_area") ]
+
+def frameSaveRegsFunction : String :=
+  "frame_save_regs:\n" ++ emitProgramR frameSaveRegs_prog frameSaveRegs_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameSaveRegs_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem frameSaveRegsFunction_eq_prog :
+    frameSaveRegsFunction = "frame_save_regs:\n" ++ emitProgramR frameSaveRegs_prog frameSaveRegs_relocs := rfl
+
+#guard frameSaveRegsFunction.startsWith "frame_save_regs:\n"
+#guard frameSaveRegs_prog.length = 7
 /-- `frame_load_regs(a0=depth)`: load the saved (pc, codebase) for `depth` into
     (a0, a1). Clobbers t0/t1. -/
+def frameLoadRegs_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.frame_save_area (GuestAddrs.frame_load_regs + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.frame_save_area (GuestAddrs.frame_load_regs + 0)),
+    .SLLI .x6 .x10 (4 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .LD .x10 .x5 (0 : BitVec 12),
+    .LD .x11 .x5 (8 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `frameLoadRegs_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameLoadRegs_relocs : RelocTable :=
+  [ (0, .la .x5 "frame_save_area") ]
+
 def frameLoadRegsFunction : String :=
-  "frame_load_regs:\n" ++
-  "  la t0, frame_save_area\n" ++
-  "  slli t1, a0, 4\n" ++
-  "  add t0, t0, t1\n" ++
-  "  ld a0, 0(t0)                   # saved pc\n" ++
-  "  ld a1, 8(t0)                   # saved codebase\n" ++
-  "  ret"
+  "frame_load_regs:\n" ++ emitProgramR frameLoadRegs_prog frameLoadRegs_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameLoadRegs_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem frameLoadRegsFunction_eq_prog :
+    frameLoadRegsFunction = "frame_load_regs:\n" ++ emitProgramR frameLoadRegs_prog frameLoadRegs_relocs := rfl
+
+#guard frameLoadRegsFunction.startsWith "frame_load_regs:\n"
+#guard frameLoadRegs_prog.length = 7
 /-- `frame_depth_push`: increment `evm_call_depth`, return new depth in a0. -/
+def frameDepthPush_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.evm_call_depth (GuestAddrs.frame_depth_push + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_call_depth (GuestAddrs.frame_depth_push + 0)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `frameDepthPush_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameDepthPush_relocs : RelocTable :=
+  [ (0, .la .x5 "evm_call_depth") ]
+
 def frameDepthPushFunction : String :=
-  "frame_depth_push:\n" ++
-  "  la t0, evm_call_depth\n" ++
-  "  ld a0, 0(t0)\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  ret"
+  "frame_depth_push:\n" ++ emitProgramR frameDepthPush_prog frameDepthPush_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameDepthPush_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem frameDepthPushFunction_eq_prog :
+    frameDepthPushFunction = "frame_depth_push:\n" ++ emitProgramR frameDepthPush_prog frameDepthPush_relocs := rfl
+
+#guard frameDepthPushFunction.startsWith "frame_depth_push:\n"
+#guard frameDepthPush_prog.length = 6
 /-- `frame_depth_pop`: decrement `evm_call_depth`, return new depth in a0. -/
-def frameDepthPopFunction : String :=
-  "frame_depth_pop:\n" ++
-  "  la t0, evm_call_depth\n" ++
-  "  ld a0, 0(t0)\n" ++
-  "  addi a0, a0, -1\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  ret"
+def frameDepthPop_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.evm_call_depth (GuestAddrs.frame_depth_pop + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_call_depth (GuestAddrs.frame_depth_pop + 0)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .ADDI .x10 .x10 (-1 : BitVec 12),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `frameDepthPop_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameDepthPop_relocs : RelocTable :=
+  [ (0, .la .x5 "evm_call_depth") ]
+
+def frameDepthPopFunction : String :=
+  "frame_depth_pop:\n" ++ emitProgramR frameDepthPop_prog frameDepthPop_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameDepthPop_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem frameDepthPopFunction_eq_prog :
+    frameDepthPopFunction = "frame_depth_pop:\n" ++ emitProgramR frameDepthPop_prog frameDepthPop_relocs := rfl
+
+#guard frameDepthPopFunction.startsWith "frame_depth_pop:\n"
+#guard frameDepthPop_prog.length = 6
 /-- `zisk_frame_switch`: round-trips the depth counter + per-depth save area.
     Output:
       +0  depth after push from 0           (expect 1)

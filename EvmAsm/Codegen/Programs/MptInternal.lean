@@ -25,6 +25,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.HashBridge
 
@@ -547,83 +550,134 @@ def ziskMptBranchGetValueProbeUnit : BuildUnit := {
 
     Uses two 8-byte `.data` scratch slots (`mle_path_off`,
     `mle_path_len`). -/
-def mptLeafExtractFunction : String :=
-  "mpt_leaf_extract:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # node ptr\n" ++
-  "  mv s1, a1                   # node len\n" ++
-  "  mv s2, a2                   # nibbles out\n" ++
-  "  mv s3, a3                   # nibble_count out\n" ++
-  "  mv s4, a4                   # value_ptr out\n" ++
-  "  mv s5, a5                   # value_len out\n" ++
-  "  sd zero, 0(s3); sd zero, 0(s4); sd zero, 0(s5)\n" ++
-  "  # Field 0: compact path bytes.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
-  "  la a3, mle_path_off; la a4, mle_path_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmle_parse_fail\n" ++
-  "  la t0, mle_path_len; ld t6, 0(t0)\n" ++
-  "  beqz t6, .Lmle_parse_fail\n" ++
-  "  la t0, mle_path_off; ld t5, 0(t0)\n" ++
-  "  add s6, s0, t5\n" ++
-  "  # Inline compact_to_nibbles: read prefix byte.\n" ++
-  "  lbu t0, 0(s6)\n" ++
-  "  srli t1, t0, 4\n" ++
-  "  andi t2, t1, 2\n" ++
-  "  beqz t2, .Lmle_not_leaf\n" ++
-  "  andi t3, t1, 1\n" ++
-  "  mv t4, s2\n" ++
-  "  li t5, 0\n" ++
-  "  beqz t3, .Lmle_path_even\n" ++
-  "  andi t6, t0, 0xf\n" ++
-  "  sb t6, 0(t4)\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, 1\n" ++
-  ".Lmle_path_even:\n" ++
-  "  la t0, mle_path_len; ld t1, 0(t0)\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t6, s6, 1\n" ++
-  ".Lmle_path_loop:\n" ++
-  "  beqz t1, .Lmle_path_done\n" ++
-  "  lbu t0, 0(t6)\n" ++
-  "  srli t2, t0, 4\n" ++
-  "  andi t3, t0, 0xf\n" ++
-  "  sb t2, 0(t4)\n" ++
-  "  sb t3, 1(t4)\n" ++
-  "  addi t4, t4, 2\n" ++
-  "  addi t5, t5, 2\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmle_path_loop\n" ++
-  ".Lmle_path_done:\n" ++
-  "  sd t5, 0(s3)\n" ++
-  "  # Field 1: value bytes.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, mle_path_off; la a4, mle_path_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmle_parse_fail\n" ++
-  "  la t0, mle_path_off; ld t1, 0(t0)\n" ++
-  "  add t2, s0, t1\n" ++
-  "  sd t2, 0(s4)\n" ++
-  "  la t0, mle_path_len; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s5)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmle_ret\n" ++
-  ".Lmle_not_leaf:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lmle_ret\n" ++
-  ".Lmle_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lmle_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def mptLeafExtract_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 84)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 84)),
+    .AUIPC .x14 (laHi GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 92)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 92)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_leaf_extract + 100)),
+    .BNE .x10 .x0 (240 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 108)),
+    .LD .x31 .x5 (0 : BitVec 12),
+    .BEQ .x31 .x0 (224 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 124)),
+    .LD .x30 .x5 (0 : BitVec 12),
+    .ADD .x22 .x8 .x30,
+    .LBU .x5 .x22 (0 : BitVec 12),
+    .SRLI .x6 .x5 (4 : BitVec 6),
+    .ANDI .x7 .x6 (2 : BitVec 12),
+    .BEQ .x7 .x0 (184 : BitVec 13),
+    .ANDI .x28 .x6 (1 : BitVec 12),
+    .MV .x29 .x18,
+    .LI .x30 (0 : Word),
+    .BEQ .x28 .x0 (20 : BitVec 13),
+    .ANDI .x31 .x5 (15 : BitVec 12),
+    .SB .x29 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 188)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x31 .x22 (1 : BitVec 12),
+    .BEQ .x6 .x0 (44 : BitVec 13),
+    .LBU .x5 .x31 (0 : BitVec 12),
+    .SRLI .x7 .x5 (4 : BitVec 6),
+    .ANDI .x28 .x5 (15 : BitVec 12),
+    .SB .x29 .x7 (0 : BitVec 12),
+    .SB .x29 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (2 : BitVec 12),
+    .ADDI .x30 .x30 (2 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .SD .x19 .x30 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 268)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 268)),
+    .AUIPC .x14 (laHi GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 276)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 276)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_leaf_extract + 284)),
+    .BNE .x10 .x0 (56 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_off (GuestAddrs.mpt_leaf_extract + 292)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x8 .x6,
+    .SD .x20 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mle_path_len (GuestAddrs.mpt_leaf_extract + 312)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptLeafExtract_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptLeafExtract_relocs : RelocTable :=
+  [ (21, .la .x13 "mle_path_off"),
+    (23, .la .x14 "mle_path_len"),
+    (25, .jal .x1 "rlp_list_nth_item"),
+    (27, .la .x5 "mle_path_len"),
+    (31, .la .x5 "mle_path_off"),
+    (47, .la .x5 "mle_path_len"),
+    (67, .la .x13 "mle_path_off"),
+    (69, .la .x14 "mle_path_len"),
+    (71, .jal .x1 "rlp_list_nth_item"),
+    (73, .la .x5 "mle_path_off"),
+    (78, .la .x5 "mle_path_len") ]
+
+def mptLeafExtractFunction : String :=
+  "mpt_leaf_extract:\n" ++ emitProgramR mptLeafExtract_prog mptLeafExtract_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptLeafExtract_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptLeafExtractFunction_eq_prog :
+    mptLeafExtractFunction = "mpt_leaf_extract:\n" ++ emitProgramR mptLeafExtract_prog mptLeafExtract_relocs := rfl
+
+#guard mptLeafExtractFunction.startsWith "mpt_leaf_extract:\n"
+#guard mptLeafExtract_prog.length = 97
 /-- `zisk_mpt_leaf_extract`: probe BuildUnit. Reads
     (node_len, node_bytes), writes (status, nibble_count,
     value_offset_in_node, value_len, nibbles...) to OUTPUT.
@@ -711,83 +765,134 @@ def ziskMptLeafExtractProbeUnit : BuildUnit := {
 
     Uses two 8-byte `.data` scratch slots (`mee_path_off`,
     `mee_path_len`). -/
-def mptExtensionExtractFunction : String :=
-  "mpt_extension_extract:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # node ptr\n" ++
-  "  mv s1, a1                   # node len\n" ++
-  "  mv s2, a2                   # nibbles out\n" ++
-  "  mv s3, a3                   # nibble_count out\n" ++
-  "  mv s4, a4                   # child_ref_ptr out\n" ++
-  "  mv s5, a5                   # child_ref_len out\n" ++
-  "  sd zero, 0(s3); sd zero, 0(s4); sd zero, 0(s5)\n" ++
-  "  # Field 0: compact path bytes.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0\n" ++
-  "  la a3, mee_path_off; la a4, mee_path_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmee_parse_fail\n" ++
-  "  la t0, mee_path_len; ld t6, 0(t0)\n" ++
-  "  beqz t6, .Lmee_parse_fail\n" ++
-  "  la t0, mee_path_off; ld t5, 0(t0)\n" ++
-  "  add s6, s0, t5\n" ++
-  "  # Read prefix; reject if is_leaf bit set.\n" ++
-  "  lbu t0, 0(s6)\n" ++
-  "  srli t1, t0, 4\n" ++
-  "  andi t2, t1, 2\n" ++
-  "  bnez t2, .Lmee_not_extension\n" ++
-  "  andi t3, t1, 1\n" ++
-  "  mv t4, s2\n" ++
-  "  li t5, 0\n" ++
-  "  beqz t3, .Lmee_path_even\n" ++
-  "  andi t6, t0, 0xf\n" ++
-  "  sb t6, 0(t4)\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, 1\n" ++
-  ".Lmee_path_even:\n" ++
-  "  la t0, mee_path_len; ld t1, 0(t0)\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  addi t6, s6, 1\n" ++
-  ".Lmee_path_loop:\n" ++
-  "  beqz t1, .Lmee_path_done\n" ++
-  "  lbu t0, 0(t6)\n" ++
-  "  srli t2, t0, 4\n" ++
-  "  andi t3, t0, 0xf\n" ++
-  "  sb t2, 0(t4)\n" ++
-  "  sb t3, 1(t4)\n" ++
-  "  addi t4, t4, 2\n" ++
-  "  addi t5, t5, 2\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lmee_path_loop\n" ++
-  ".Lmee_path_done:\n" ++
-  "  sd t5, 0(s3)\n" ++
-  "  # Field 1: child_ref bytes.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, mee_path_off; la a4, mee_path_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lmee_parse_fail\n" ++
-  "  la t0, mee_path_off; ld t1, 0(t0)\n" ++
-  "  add t2, s0, t1\n" ++
-  "  sd t2, 0(s4)\n" ++
-  "  la t0, mee_path_len; ld t1, 0(t0)\n" ++
-  "  sd t1, 0(s5)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmee_ret\n" ++
-  ".Lmee_not_extension:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lmee_ret\n" ++
-  ".Lmee_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lmee_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def mptExtensionExtract_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 84)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 84)),
+    .AUIPC .x14 (laHi GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 92)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 92)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_extension_extract + 100)),
+    .BNE .x10 .x0 (240 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 108)),
+    .LD .x31 .x5 (0 : BitVec 12),
+    .BEQ .x31 .x0 (224 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 124)),
+    .LD .x30 .x5 (0 : BitVec 12),
+    .ADD .x22 .x8 .x30,
+    .LBU .x5 .x22 (0 : BitVec 12),
+    .SRLI .x6 .x5 (4 : BitVec 6),
+    .ANDI .x7 .x6 (2 : BitVec 12),
+    .BNE .x7 .x0 (184 : BitVec 13),
+    .ANDI .x28 .x6 (1 : BitVec 12),
+    .MV .x29 .x18,
+    .LI .x30 (0 : Word),
+    .BEQ .x28 .x0 (20 : BitVec 13),
+    .ANDI .x31 .x5 (15 : BitVec 12),
+    .SB .x29 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 188)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x31 .x22 (1 : BitVec 12),
+    .BEQ .x6 .x0 (44 : BitVec 13),
+    .LBU .x5 .x31 (0 : BitVec 12),
+    .SRLI .x7 .x5 (4 : BitVec 6),
+    .ANDI .x28 .x5 (15 : BitVec 12),
+    .SB .x29 .x7 (0 : BitVec 12),
+    .SB .x29 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (2 : BitVec 12),
+    .ADDI .x30 .x30 (2 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .SD .x19 .x30 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 268)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 268)),
+    .AUIPC .x14 (laHi GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 276)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 276)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_extension_extract + 284)),
+    .BNE .x10 .x0 (56 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mee_path_off (GuestAddrs.mpt_extension_extract + 292)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x8 .x6,
+    .SD .x20 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mee_path_len (GuestAddrs.mpt_extension_extract + 312)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptExtensionExtract_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptExtensionExtract_relocs : RelocTable :=
+  [ (21, .la .x13 "mee_path_off"),
+    (23, .la .x14 "mee_path_len"),
+    (25, .jal .x1 "rlp_list_nth_item"),
+    (27, .la .x5 "mee_path_len"),
+    (31, .la .x5 "mee_path_off"),
+    (47, .la .x5 "mee_path_len"),
+    (67, .la .x13 "mee_path_off"),
+    (69, .la .x14 "mee_path_len"),
+    (71, .jal .x1 "rlp_list_nth_item"),
+    (73, .la .x5 "mee_path_off"),
+    (78, .la .x5 "mee_path_len") ]
+
+def mptExtensionExtractFunction : String :=
+  "mpt_extension_extract:\n" ++ emitProgramR mptExtensionExtract_prog mptExtensionExtract_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptExtensionExtract_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptExtensionExtractFunction_eq_prog :
+    mptExtensionExtractFunction = "mpt_extension_extract:\n" ++ emitProgramR mptExtensionExtract_prog mptExtensionExtract_relocs := rfl
+
+#guard mptExtensionExtractFunction.startsWith "mpt_extension_extract:\n"
+#guard mptExtensionExtract_prog.length = 97
 /-- `zisk_mpt_extension_extract`: probe BuildUnit. Reads
     (node_len, node_bytes), writes (status, nibble_count,
     child_ref_offset_in_node, child_ref_len, nibbles...) to OUTPUT.

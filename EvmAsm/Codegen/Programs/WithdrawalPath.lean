@@ -24,6 +24,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.Withdrawal
 
@@ -40,41 +43,77 @@ open EvmAsm.Rv64
 
     path  = bytes_to_nibbles(keccak256(address))
     delta = amount_gwei * 1_000_000_000 -/
-def withdrawalToPathDeltaFunction : String :=
-  "withdrawal_to_path_delta:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a2                   # out path ptr\n" ++
-  "  mv s1, a3                   # out delta ptr\n" ++
-  "  # decode the withdrawal RLP into wtpd_struct (a0/a1 already set).\n" ++
-  "  la a2, wtpd_struct\n" ++
-  "  jal ra, withdrawal_decode\n" ++
-  "  bnez a0, .Lwtpd_fail\n" ++
-  "  # keccak256(address @ struct+16, 20 bytes) -> wtpd_hash.\n" ++
-  "  la a0, wtpd_struct; addi a0, a0, 16\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, wtpd_hash\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # path = bytes_to_nibbles(wtpd_hash, 32) -> out path (64 nibbles).\n" ++
-  "  la a0, wtpd_hash; li a1, 32; mv a2, s0\n" ++
-  "  jal ra, bytes_to_nibbles\n" ++
-  "  # delta = amount (Gwei, struct+40) zero-extended to u256 BE...\n" ++
-  "  la t0, wtpd_struct; ld a0, 40(t0)\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, u256_from_u64_be\n" ++
-  "  # ... times 1e9 (Gwei -> wei), in place.\n" ++
-  "  mv a0, s1; li a1, 1000000000; mv a2, s1\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lwtpd_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lwtpd_ret\n" ++
-  ".Lwtpd_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lwtpd_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def withdrawalToPathDelta_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .AUIPC .x12 (laHi GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 24)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 24)),
+    .JAL .x1 (jalOff GuestAddrs.withdrawal_decode (GuestAddrs.withdrawal_to_path_delta + 32)),
+    .BNE .x10 .x0 (104 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 40)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 40)),
+    .ADDI .x10 .x10 (16 : BitVec 12),
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.wtpd_hash (GuestAddrs.withdrawal_to_path_delta + 56)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.wtpd_hash (GuestAddrs.withdrawal_to_path_delta + 56)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.withdrawal_to_path_delta + 64)),
+    .AUIPC .x10 (laHi GuestAddrs.wtpd_hash (GuestAddrs.withdrawal_to_path_delta + 68)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.wtpd_hash (GuestAddrs.withdrawal_to_path_delta + 68)),
+    .LI .x11 (32 : Word),
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.withdrawal_to_path_delta + 84)),
+    .AUIPC .x5 (laHi GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 88)),
+    .LD .x10 .x5 (40 : BitVec 12),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.u256_from_u64_be (GuestAddrs.withdrawal_to_path_delta + 104)),
+    .MV .x10 .x9,
+    .LUI .x11 (244141 : BitVec 20),
+    .ADDIW .x11 .x11 (-1536 : BitVec 12),
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.withdrawal_to_path_delta + 124)),
+    .BNE .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `withdrawalToPathDelta_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def withdrawalToPathDelta_relocs : RelocTable :=
+  [ (6, .la .x12 "wtpd_struct"),
+    (8, .jal .x1 "withdrawal_decode"),
+    (10, .la .x10 "wtpd_struct"),
+    (14, .la .x12 "wtpd_hash"),
+    (16, .jal .x1 "zkvm_keccak256"),
+    (17, .la .x10 "wtpd_hash"),
+    (21, .jal .x1 "bytes_to_nibbles"),
+    (22, .la .x5 "wtpd_struct"),
+    (26, .jal .x1 "u256_from_u64_be"),
+    (31, .jal .x1 "u256_mul_u64_be") ]
+
+def withdrawalToPathDeltaFunction : String :=
+  "withdrawal_to_path_delta:\n" ++ emitProgramR withdrawalToPathDelta_prog withdrawalToPathDelta_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `withdrawalToPathDelta_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem withdrawalToPathDeltaFunction_eq_prog :
+    withdrawalToPathDeltaFunction = "withdrawal_to_path_delta:\n" ++ emitProgramR withdrawalToPathDelta_prog withdrawalToPathDelta_relocs := rfl
+
+#guard withdrawalToPathDeltaFunction.startsWith "withdrawal_to_path_delta:\n"
+#guard withdrawalToPathDelta_prog.length = 41
 /-- `zisk_withdrawal_to_path_delta`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  withdrawal RLP length (u64)

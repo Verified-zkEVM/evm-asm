@@ -25,6 +25,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.Account
@@ -41,80 +44,150 @@ open EvmAsm.Rv64
     a0 (output) = 0 (ok) / 1 (parse fail / balance > 32 bytes)
 
     new account = rlp([nonce, balance+delta, storageRoot, codeHash]). -/
-def accountAddBalanceFunction : String :=
-  "account_add_balance:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # account ptr\n" ++
-  "  mv s1, a1                   # account len\n" ++
-  "  mv s2, a2                   # delta32 ptr\n" ++
-  "  mv s3, a3                   # out ptr\n" ++
-  "  mv s4, a4                   # out_len ptr\n" ++
-  "  # read balance item (index 1).\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, aab_bal_off; la a4, aab_bal_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Laab_fail\n" ++
-  "  # zero the 32-byte balance buffer.\n" ++
-  "  la t0, aab_bal32\n" ++
-  "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  la t1, aab_bal_len; ld t1, 0(t1)   # balance content length\n" ++
-  "  li t2, 32; bgtu t1, t2, .Laab_fail\n" ++
-  "  # src = account + bal_off; dst = aab_bal32 + (32 - bal_len) (right-align).\n" ++
-  "  la t2, aab_bal_off; ld t2, 0(t2); add t2, s0, t2\n" ++
-  "  la t3, aab_bal32; li t4, 32; sub t4, t4, t1; add t3, t3, t4\n" ++
-  "  mv t5, t1\n" ++
-  ".Laab_cp:\n" ++
-  "  beqz t5, .Laab_cp_done\n" ++
-  "  lbu t6, 0(t2); sb t6, 0(t3)\n" ++
-  "  addi t2, t2, 1; addi t3, t3, 1; addi t5, t5, -1\n" ++
-  "  j .Laab_cp\n" ++
-  ".Laab_cp_done:\n" ++
-  "  # big-endian add delta32 into aab_bal32: i = 31 .. 0, carry.\n" ++
-  "  la t0, aab_bal32                  # balance buf base\n" ++
-  "  li t2, 31                         # byte index\n" ++
-  "  li t3, 0                          # carry\n" ++
-  ".Laab_add:\n" ++
-  "  add t4, t0, t2                    # &bal[i]\n" ++
-  "  lbu t5, 0(t4)\n" ++
-  "  add t6, s2, t2; lbu t6, 0(t6)     # delta[i]\n" ++
-  "  add t5, t5, t6; add t5, t5, t3\n" ++
-  "  andi t6, t5, 0xff; sb t6, 0(t4)\n" ++
-  "  srli t3, t5, 8                    # new carry\n" ++
-  "  beqz t2, .Laab_add_done\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Laab_add\n" ++
-  ".Laab_add_done:\n" ++
-  "  # minimal length: first nonzero byte from index 0.\n" ++
-  "  la t0, aab_bal32; li t1, 0\n" ++
-  ".Laab_scan:\n" ++
-  "  li t2, 32; beq t1, t2, .Laab_scan_done\n" ++
-  "  add t3, t0, t1; lbu t3, 0(t3); bnez t3, .Laab_scan_done\n" ++
-  "  addi t1, t1, 1; j .Laab_scan\n" ++
-  ".Laab_scan_done:\n" ++
-  "  li t2, 32; sub t2, t2, t1         # minimal length\n" ++
-  "  la t3, aab_bal32; add t3, t3, t1  # minimal ptr\n" ++
-  "  # rlp_encode_bytes(minimal) -> aab_enc (the new balance item bytes).\n" ++
-  "  mv a0, t3; mv a1, t2\n" ++
-  "  la a2, aab_enc; la a3, aab_enc_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  # splice account item 1 with the new balance encoding.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, aab_enc; la t0, aab_enc_len; ld a4, 0(t0)\n" ++
-  "  mv a5, s3; mv a6, s4\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  j .Laab_ret\n" ++
-  ".Laab_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Laab_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def accountAddBalance_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aab_bal_off (GuestAddrs.account_add_balance + 60)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aab_bal_off (GuestAddrs.account_add_balance + 60)),
+    .AUIPC .x14 (laHi GuestAddrs.aab_bal_len (GuestAddrs.account_add_balance + 68)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.aab_bal_len (GuestAddrs.account_add_balance + 68)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_add_balance + 76)),
+    .BNE .x10 .x0 (316 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 84)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.aab_bal_len (GuestAddrs.account_add_balance + 108)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.aab_bal_len (GuestAddrs.account_add_balance + 108)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BLTU .x7 .x6 (272 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.aab_bal_off (GuestAddrs.account_add_balance + 128)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aab_bal_off (GuestAddrs.account_add_balance + 128)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .ADD .x7 .x8 .x7,
+    .AUIPC .x28 (laHi GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 144)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 144)),
+    .LI .x29 (32 : Word),
+    .SUB .x29 .x29 .x6,
+    .ADD .x28 .x28 .x29,
+    .MV .x30 .x6,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x7 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 196)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 196)),
+    .LI .x7 (31 : Word),
+    .LI .x28 (0 : Word),
+    .ADD .x29 .x5 .x7,
+    .LBU .x30 .x29 (0 : BitVec 12),
+    .ADD .x31 .x18 .x7,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x30 .x30 .x31,
+    .ADD .x30 .x30 .x28,
+    .ANDI .x31 .x30 (255 : BitVec 12),
+    .SB .x29 .x31 (0 : BitVec 12),
+    .SRLI .x28 .x30 (8 : BitVec 6),
+    .BEQ .x7 .x0 (12 : BitVec 13),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-44 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 260)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 260)),
+    .LI .x6 (0 : Word),
+    .LI .x7 (32 : Word),
+    .BEQ .x6 .x7 (24 : BitVec 13),
+    .ADD .x28 .x5 .x6,
+    .LBU .x28 .x28 (0 : BitVec 12),
+    .BNE .x28 .x0 (12 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x7 (32 : Word),
+    .SUB .x7 .x7 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 308)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.aab_bal32 (GuestAddrs.account_add_balance + 308)),
+    .ADD .x28 .x28 .x6,
+    .MV .x10 .x28,
+    .MV .x11 .x7,
+    .AUIPC .x12 (laHi GuestAddrs.aab_enc (GuestAddrs.account_add_balance + 328)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aab_enc (GuestAddrs.account_add_balance + 328)),
+    .AUIPC .x13 (laHi GuestAddrs.aab_enc_len (GuestAddrs.account_add_balance + 336)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aab_enc_len (GuestAddrs.account_add_balance + 336)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.account_add_balance + 344)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aab_enc (GuestAddrs.account_add_balance + 360)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aab_enc (GuestAddrs.account_add_balance + 360)),
+    .AUIPC .x5 (laHi GuestAddrs.aab_enc_len (GuestAddrs.account_add_balance + 368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_enc_len (GuestAddrs.account_add_balance + 368)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .MV .x15 .x19,
+    .MV .x16 .x20,
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.account_add_balance + 388)),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountAddBalance_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountAddBalance_relocs : RelocTable :=
+  [ (15, .la .x13 "aab_bal_off"),
+    (17, .la .x14 "aab_bal_len"),
+    (19, .jal .x1 "rlp_list_nth_item"),
+    (21, .la .x5 "aab_bal32"),
+    (27, .la .x6 "aab_bal_len"),
+    (32, .la .x7 "aab_bal_off"),
+    (36, .la .x28 "aab_bal32"),
+    (49, .la .x5 "aab_bal32"),
+    (65, .la .x5 "aab_bal32"),
+    (77, .la .x28 "aab_bal32"),
+    (82, .la .x12 "aab_enc"),
+    (84, .la .x13 "aab_enc_len"),
+    (86, .jal .x1 "rlp_encode_bytes"),
+    (90, .la .x13 "aab_enc"),
+    (92, .la .x5 "aab_enc_len"),
+    (97, .jal .x1 "mpt_splice_slot") ]
+
+def accountAddBalanceFunction : String :=
+  "account_add_balance:\n" ++ emitProgramR accountAddBalance_prog accountAddBalance_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountAddBalance_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountAddBalanceFunction_eq_prog :
+    accountAddBalanceFunction = "account_add_balance:\n" ++ emitProgramR accountAddBalance_prog accountAddBalance_relocs := rfl
+
+#guard accountAddBalanceFunction.startsWith "account_add_balance:\n"
+#guard accountAddBalance_prog.length = 108
 /-! ## account_set_uint_field -- replace an account RLP uint field exactly
 
     a0 = account RLP ptr        a1 = account RLP length
@@ -127,37 +200,81 @@ def accountAddBalanceFunction : String :=
     account list at the requested field. This is the BAL post-value analogue of
     account_add_balance: withdrawal replay adds a delta, BAL replay sets the
     exact post nonce/balance reported by the block access list. -/
-def accountSetUintFieldFunction : String :=
-  "account_set_uint_field:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # account ptr\n" ++
-  "  mv s1, a1                   # account len\n" ++
-  "  mv s2, a2                   # field index\n" ++
-  "  mv s3, a3                   # value ptr\n" ++
-  "  mv s4, a4                   # value len\n" ++
-  "  mv s5, a5                   # out ptr\n" ++
-  "  mv s6, a6                   # out len ptr\n" ++
-  "  li t0, 32; bgtu s4, t0, .Lasuf_fail\n" ++
-  "  mv a0, s3; mv a1, s4; la a2, aab_enc\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  la t0, aab_enc_len; sd a0, 0(t0)\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  la a3, aab_enc; la t0, aab_enc_len; ld a4, 0(t0)\n" ++
-  "  mv a5, s5; mv a6, s6\n" ++
-  "  jal ra, mpt_splice_slot\n" ++
-  "  j .Lasuf_ret\n" ++
-  ".Lasuf_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lasuf_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def accountSetUintField_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .LI .x5 (32 : Word),
+    .BLTU .x5 .x20 (84 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .AUIPC .x12 (laHi GuestAddrs.aab_enc (GuestAddrs.account_set_uint_field + 80)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aab_enc (GuestAddrs.account_set_uint_field + 80)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.account_set_uint_field + 88)),
+    .AUIPC .x5 (laHi GuestAddrs.aab_enc_len (GuestAddrs.account_set_uint_field + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_enc_len (GuestAddrs.account_set_uint_field + 92)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.aab_enc (GuestAddrs.account_set_uint_field + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aab_enc (GuestAddrs.account_set_uint_field + 116)),
+    .AUIPC .x5 (laHi GuestAddrs.aab_enc_len (GuestAddrs.account_set_uint_field + 124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_enc_len (GuestAddrs.account_set_uint_field + 124)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .MV .x15 .x21,
+    .MV .x16 .x22,
+    .JAL .x1 (jalOff GuestAddrs.mpt_splice_slot (GuestAddrs.account_set_uint_field + 144)),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountSetUintField_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountSetUintField_relocs : RelocTable :=
+  [ (20, .la .x12 "aab_enc"),
+    (22, .jal .x1 "rlp_encode_uint_be"),
+    (23, .la .x5 "aab_enc_len"),
+    (29, .la .x13 "aab_enc"),
+    (31, .la .x5 "aab_enc_len"),
+    (36, .jal .x1 "mpt_splice_slot") ]
+
+def accountSetUintFieldFunction : String :=
+  "account_set_uint_field:\n" ++ emitProgramR accountSetUintField_prog accountSetUintField_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountSetUintField_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountSetUintFieldFunction_eq_prog :
+    accountSetUintFieldFunction = "account_set_uint_field:\n" ++ emitProgramR accountSetUintField_prog accountSetUintField_relocs := rfl
+
+#guard accountSetUintFieldFunction.startsWith "account_set_uint_field:\n"
+#guard accountSetUintField_prog.length = 49
 /-- `zisk_account_add_balance`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account_len (u64)
@@ -281,73 +398,147 @@ def ziskAccountSetUintFieldProbeUnit : BuildUnit := {
       +128  beneficiary result account bytes
 
     a0 returns 0 on success, 1 on parse/splice failure. -/
-def selfdestructBalanceTransferFunction : String :=
-  "selfdestruct_balance_transfer:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0                   # origin ptr\n" ++
-  "  mv s1, a1                   # origin len\n" ++
-  "  mv s2, a2                   # beneficiary ptr\n" ++
-  "  mv s3, a3                   # beneficiary len\n" ++
-  "  mv s4, a4                   # same-address flag\n" ++
-  "  mv s5, a5                   # origin created in tx flag\n" ++
-  "  mv s6, a6                   # output base\n" ++
-  "  sd zero, 0(s6); sd zero, 8(s6)\n" ++
-  "  addi s7, s6, 16             # origin output ptr\n" ++
-  "  bnez s4, .Lsdbt_same\n" ++
-  "  # Different beneficiary: extract origin balance as the beneficiary delta.\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, aab_bal32\n" ++
-  "  jal ra, account_extract_balance\n" ++
-  "  bnez a0, .Lsdbt_fail\n" ++
-  "  la t0, aab_bal32; la t1, sdbt_delta32\n" ++
-  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1)\n" ++
-  "  ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  # Set origin balance to zero.\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1; la a3, aab_bal32; li a4, 0\n" ++
-  "  mv a5, s7; mv a6, s6\n" ++
-  "  jal ra, account_set_uint_field\n" ++
-  "  bnez a0, .Lsdbt_fail\n" ++
-  "  # Credit beneficiary with the extracted origin balance.\n" ++
-  "  addi t0, s6, 128\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, sdbt_delta32; mv a3, t0\n" ++
-  "  addi a4, s6, 8\n" ++
-  "  jal ra, account_add_balance\n" ++
-  "  bnez a0, .Lsdbt_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lsdbt_ret\n" ++
-  ".Lsdbt_same:\n" ++
-  "  bnez s5, .Lsdbt_same_created\n" ++
-  "  # Same non-created account: move_ether subtracts and adds back, net no-op.\n" ++
-  "  sd s1, 0(s6); sd s1, 8(s6)\n" ++
-  "  mv a0, s7; mv a1, s0; mv a2, s1\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  addi a0, s6, 128; mv a1, s0; mv a2, s1\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lsdbt_ret\n" ++
-  ".Lsdbt_same_created:\n" ++
-  "  # Same created account: move_ether is a no-op, then the created account burns.\n" ++
-  "  la t0, aab_bal32; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1; mv a3, t0; li a4, 0\n" ++
-  "  mv a5, s7; mv a6, s6\n" ++
-  "  jal ra, account_set_uint_field\n" ++
-  "  bnez a0, .Lsdbt_fail\n" ++
-  "  ld t0, 0(s6); sd t0, 8(s6)\n" ++
-  "  addi a0, s6, 128; mv a1, s7; mv a2, t0\n" ++
-  "  jal ra, mset_memcpy\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lsdbt_ret\n" ++
-  ".Lsdbt_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lsdbt_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def selfdestructBalanceTransfer_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .SD .x22 .x0 (0 : BitVec 12),
+    .SD .x22 .x0 (8 : BitVec 12),
+    .ADDI .x23 .x22 (16 : BitVec 12),
+    .BNE .x20 .x0 (160 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 92)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 92)),
+    .JAL .x1 (jalOff GuestAddrs.account_extract_balance (GuestAddrs.selfdestruct_balance_transfer + 100)),
+    .BNE .x10 .x0 (280 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 108)),
+    .AUIPC .x6 (laHi GuestAddrs.sdbt_delta32 (GuestAddrs.selfdestruct_balance_transfer + 116)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.sdbt_delta32 (GuestAddrs.selfdestruct_balance_transfer + 116)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 168)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 168)),
+    .LI .x14 (0 : Word),
+    .MV .x15 .x23,
+    .MV .x16 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_set_uint_field (GuestAddrs.selfdestruct_balance_transfer + 188)),
+    .BNE .x10 .x0 (192 : BitVec 13),
+    .ADDI .x5 .x22 (128 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.sdbt_delta32 (GuestAddrs.selfdestruct_balance_transfer + 208)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sdbt_delta32 (GuestAddrs.selfdestruct_balance_transfer + 208)),
+    .MV .x13 .x5,
+    .ADDI .x14 .x22 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_add_balance (GuestAddrs.selfdestruct_balance_transfer + 224)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (152 : BitVec 21),
+    .BNE .x21 .x0 (52 : BitVec 13),
+    .SD .x22 .x9 (0 : BitVec 12),
+    .SD .x22 .x9 (8 : BitVec 12),
+    .MV .x10 .x23,
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.selfdestruct_balance_transfer + 264)),
+    .ADDI .x10 .x22 (128 : BitVec 12),
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.selfdestruct_balance_transfer + 280)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (100 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aab_bal32 (GuestAddrs.selfdestruct_balance_transfer + 292)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .MV .x13 .x5,
+    .LI .x14 (0 : Word),
+    .MV .x15 .x23,
+    .MV .x16 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_set_uint_field (GuestAddrs.selfdestruct_balance_transfer + 344)),
+    .BNE .x10 .x0 (36 : BitVec 13),
+    .LD .x5 .x22 (0 : BitVec 12),
+    .SD .x22 .x5 (8 : BitVec 12),
+    .ADDI .x10 .x22 (128 : BitVec 12),
+    .MV .x11 .x23,
+    .MV .x12 .x5,
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.selfdestruct_balance_transfer + 372)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `selfdestructBalanceTransfer_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def selfdestructBalanceTransfer_relocs : RelocTable :=
+  [ (23, .la .x12 "aab_bal32"),
+    (25, .jal .x1 "account_extract_balance"),
+    (27, .la .x5 "aab_bal32"),
+    (29, .la .x6 "sdbt_delta32"),
+    (42, .la .x13 "aab_bal32"),
+    (47, .jal .x1 "account_set_uint_field"),
+    (52, .la .x12 "sdbt_delta32"),
+    (56, .jal .x1 "account_add_balance"),
+    (66, .jal .x1 "mset_memcpy"),
+    (70, .jal .x1 "mset_memcpy"),
+    (73, .la .x5 "aab_bal32"),
+    (86, .jal .x1 "account_set_uint_field"),
+    (93, .jal .x1 "mset_memcpy") ]
+
+def selfdestructBalanceTransferFunction : String :=
+  "selfdestruct_balance_transfer:\n" ++ emitProgramR selfdestructBalanceTransfer_prog selfdestructBalanceTransfer_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `selfdestructBalanceTransfer_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem selfdestructBalanceTransferFunction_eq_prog :
+    selfdestructBalanceTransferFunction = "selfdestruct_balance_transfer:\n" ++ emitProgramR selfdestructBalanceTransfer_prog selfdestructBalanceTransfer_relocs := rfl
+
+#guard selfdestructBalanceTransferFunction.startsWith "selfdestruct_balance_transfer:\n"
+#guard selfdestructBalanceTransfer_prog.length = 108
 /-- `zisk_selfdestruct_balance_transfer`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8   origin_len

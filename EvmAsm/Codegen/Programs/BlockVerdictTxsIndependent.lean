@@ -24,6 +24,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
@@ -102,38 +105,82 @@ def btiScanTuplesFunction : String :=
 /-- Internal: scan storage_changes (a list of `SlotChanges = [slot, [tuples]]`)
     by delegating each slot's inner change list to `bti_scan_tuples`.
     a0=ptr, a1=len. -/
-def btiScanStorageChangesFunction : String :=
-  "bti_scan_storage_changes:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  jal ra, rlp_walk_init\n" ++
-  "  beqz a2, .Lbtxi_sc_ok\n" ++
-  "  li t0, 1; la t1, bti_err; sd t0, 0(t1); j .Lbtxi_sc_ret\n" ++
-  ".Lbtxi_sc_ok:\n" ++
-  "  mv s0, a0; mv s1, a1\n" ++
-  ".Lbtxi_sc_loop:\n" ++
-  "  beq s0, s1, .Lbtxi_sc_ret\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbtxi_sc_err\n" ++
-  "  mv s0, a0; sub s2, a0, a2; mv s3, a2              # SlotChanges ptr/len\n" ++
-  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbtxi_sc_err\n" ++
-  "  mv s3, a1                                         # SlotChanges end\n" ++
-  "  jal ra, rlp_walk_next                              # item 0 = slot\n" ++
-  "  bnez a1, .Lbtxi_sc_err\n" ++
-  "  mv a1, s3\n" ++
-  "  jal ra, rlp_walk_next                              # item 1 = [tuples]\n" ++
-  "  bnez a1, .Lbtxi_sc_err\n" ++
-  "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, bti_scan_tuples\n" ++
-  "  j .Lbtxi_sc_loop\n" ++
-  ".Lbtxi_sc_err:\n" ++
-  "  li t0, 1; la t1, bti_err; sd t0, 0(t1)\n" ++
-  ".Lbtxi_sc_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def btiScanStorageChanges_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bti_scan_storage_changes + 24)),
+    .BEQ .x12 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bti_err (GuestAddrs.bti_scan_storage_changes + 36)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bti_err (GuestAddrs.bti_scan_storage_changes + 36)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (116 : BitVec 21),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .BEQ .x8 .x9 (104 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bti_scan_storage_changes + 72)),
+    .BNE .x11 .x0 (72 : BitVec 13),
+    .MV .x8 .x10,
+    .SUB .x18 .x10 .x12,
+    .MV .x19 .x12,
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bti_scan_storage_changes + 100)),
+    .BNE .x12 .x0 (44 : BitVec 13),
+    .MV .x19 .x11,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bti_scan_storage_changes + 112)),
+    .BNE .x11 .x0 (32 : BitVec 13),
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bti_scan_storage_changes + 124)),
+    .BNE .x11 .x0 (20 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.bti_scan_tuples (GuestAddrs.bti_scan_storage_changes + 140)),
+    .JAL .x0 (-84 : BitVec 21),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.bti_err (GuestAddrs.bti_scan_storage_changes + 152)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bti_err (GuestAddrs.bti_scan_storage_changes + 152)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `btiScanStorageChanges_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def btiScanStorageChanges_relocs : RelocTable :=
+  [ (6, .jal .x1 "rlp_walk_init"),
+    (9, .la .x6 "bti_err"),
+    (18, .jal .x1 "rlp_walk_next"),
+    (25, .jal .x1 "rlp_walk_init"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (31, .jal .x1 "rlp_walk_next"),
+    (35, .jal .x1 "bti_scan_tuples"),
+    (38, .la .x6 "bti_err") ]
+
+def btiScanStorageChangesFunction : String :=
+  "bti_scan_storage_changes:\n" ++ emitProgramR btiScanStorageChanges_prog btiScanStorageChanges_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `btiScanStorageChanges_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem btiScanStorageChangesFunction_eq_prog :
+    btiScanStorageChangesFunction = "bti_scan_storage_changes:\n" ++ emitProgramR btiScanStorageChanges_prog btiScanStorageChanges_relocs := rfl
+
+#guard btiScanStorageChangesFunction.startsWith "bti_scan_storage_changes:\n"
+#guard btiScanStorageChanges_prog.length = 48
 /-- `bal_txs_independent` — the outer per-account walk + the storage_reads
     read-after-write bail. -/
 def balTxsIndependentFunction : String :=

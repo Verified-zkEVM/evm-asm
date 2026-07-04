@@ -11,6 +11,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
@@ -55,51 +58,74 @@ open EvmAsm.Rv64
     Bloom is mutated in place; the caller owns the buffer and
     is responsible for zero-initialising it before the first
     `bloom_add_value` call of a logs sequence. -/
-def bloomAddValueFunction : String :=
-  "bloom_add_value:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # bloom ptr\n" ++
-  "  mv s1, a1                   # value ptr\n" ++
-  "  mv s2, a2                   # value len\n" ++
-  "  # ---- Compute keccak256(value) → bav_hash ----\n" ++
-  "  mv a0, s1; mv a1, s2\n" ++
-  "  la a2, bav_hash\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  # ---- Set three bits derived from h[0..6] ----\n" ++
-  "  la t0, bav_hash\n" ++
-  "  li t1, 0                    # idx loop counter (0, 2, 4)\n" ++
-  ".Lbav_loop:\n" ++
-  "  li t2, 6\n" ++
-  "  bge t1, t2, .Lbav_done\n" ++
-  "  add t3, t0, t1\n" ++
-  "  lbu t4, 0(t3)               # hi byte\n" ++
-  "  lbu t5, 1(t3)               # lo byte\n" ++
-  "  slli t4, t4, 8\n" ++
-  "  or  t4, t4, t5              # raw_word\n" ++
-  "  li  t5, 0x7ff\n" ++
-  "  and t4, t4, t5              # raw_bit (0..2047)\n" ++
-  "  sub t4, t5, t4              # bit_index = 0x7ff - raw_bit\n" ++
-  "  srli t5, t4, 3              # byte_index = bit_index / 8\n" ++
-  "  andi t6, t4, 7              # bit_index mod 8\n" ++
-  "  li  t4, 7\n" ++
-  "  sub t6, t4, t6              # bit_pos = 7 - (bit_index mod 8)\n" ++
-  "  li  t4, 1\n" ++
-  "  sll t6, t4, t6              # bit_mask = 1 << bit_pos\n" ++
-  "  add t5, s0, t5              # &bloom[byte_index]\n" ++
-  "  lbu t4, 0(t5)\n" ++
-  "  or  t4, t4, t6\n" ++
-  "  sb  t4, 0(t5)\n" ++
-  "  addi t1, t1, 2\n" ++
-  "  j .Lbav_loop\n" ++
-  ".Lbav_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def bloomAddValue_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 40)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 40)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bloom_add_value + 48)),
+    .AUIPC .x5 (laHi GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 52)),
+    .LI .x6 (0 : Word),
+    .LI .x7 (6 : Word),
+    .BGE .x6 .x7 (84 : BitVec 13),
+    .ADD .x28 .x5 .x6,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .LBU .x30 .x28 (1 : BitVec 12),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .OR .x29 .x29 .x30,
+    .LI .x30 (2047 : Word),
+    .AND .x29 .x29 .x30,
+    .SUB .x29 .x30 .x29,
+    .SRLI .x30 .x29 (3 : BitVec 6),
+    .ANDI .x31 .x29 (7 : BitVec 12),
+    .LI .x29 (7 : Word),
+    .SUB .x31 .x29 .x31,
+    .LI .x29 (1 : Word),
+    .SLL .x31 .x29 .x31,
+    .ADD .x30 .x8 .x30,
+    .LBU .x29 .x30 (0 : BitVec 12),
+    .OR .x29 .x29 .x31,
+    .SB .x30 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (2 : BitVec 12),
+    .JAL .x0 (-84 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bloomAddValue_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bloomAddValue_relocs : RelocTable :=
+  [ (10, .la .x12 "bav_hash"),
+    (12, .jal .x1 "zkvm_keccak256"),
+    (13, .la .x5 "bav_hash") ]
+
+def bloomAddValueFunction : String :=
+  "bloom_add_value:\n" ++ emitProgramR bloomAddValue_prog bloomAddValue_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bloomAddValue_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bloomAddValueFunction_eq_prog :
+    bloomAddValueFunction = "bloom_add_value:\n" ++ emitProgramR bloomAddValue_prog bloomAddValue_relocs := rfl
+
+#guard bloomAddValueFunction.startsWith "bloom_add_value:\n"
+#guard bloomAddValue_prog.length = 45
 /-- `zisk_bloom_add_value`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : value_len

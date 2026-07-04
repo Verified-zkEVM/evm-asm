@@ -30,6 +30,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
@@ -45,62 +48,91 @@ open EvmAsm.Rv64
 
     Internally calls bal_account_nonstorage_finals into a scratch buffer, then for
     balance and nonce applies the forward+reverse FINAL checks described above. -/
-def balAccountNonstorageConsistentFunction : String :=
-  "bal_account_nonstorage_consistent:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a2                   # exec effect record ptr\n" ++
-  "  la s1, c2nsc_finals         # 88-byte finals scratch\n" ++
-  "  mv a2, s1                   # finals out = scratch (a0/a1 still AccountChanges ptr/len)\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lc2nsc_parsefail  # BAL parse failure -> 2\n" ++
-  "  # ---- balance: reverse (exec changed -> declared) + forward (declared -> BAL==exec post) ----\n" ++
-  "  ld t0, 0(s1)                # has_balance\n" ++
-  "  addi t2, s0, 32             # exec pre_balance\n" ++
-  "  addi t3, s0, 64             # exec post_balance\n" ++
-  "  li t1, 0                    # exec_balance_changed\n" ++
-  "  ld t4, 0(t2);  ld t5, 0(t3);  bne t4, t5, .Lc2nsc_bal_chg\n" ++
-  "  ld t4, 8(t2);  ld t5, 8(t3);  bne t4, t5, .Lc2nsc_bal_chg\n" ++
-  "  ld t4, 16(t2); ld t5, 16(t3); bne t4, t5, .Lc2nsc_bal_chg\n" ++
-  "  ld t4, 24(t2); ld t5, 24(t3); bne t4, t5, .Lc2nsc_bal_chg\n" ++
-  "  j .Lc2nsc_bal_chk\n" ++
-  ".Lc2nsc_bal_chg:\n" ++
-  "  li t1, 1\n" ++
-  ".Lc2nsc_bal_chk:\n" ++
-  "  beqz t1, .Lc2nsc_bal_fwd    # exec unchanged -> no reverse obligation\n" ++
-  "  beqz t0, .Lc2nsc_bad        # exec changed but BAL silent -> inconsistent\n" ++
-  ".Lc2nsc_bal_fwd:\n" ++
-  "  beqz t0, .Lc2nsc_nonce      # BAL silent -> nothing to forward-check\n" ++
-  "  addi t2, s1, 8              # BAL final post_balance (32 B BE)\n" ++
-  "  addi t3, s0, 64             # exec post_balance\n" ++
-  "  ld t4, 0(t2);  ld t5, 0(t3);  bne t4, t5, .Lc2nsc_bad\n" ++
-  "  ld t4, 8(t2);  ld t5, 8(t3);  bne t4, t5, .Lc2nsc_bad\n" ++
-  "  ld t4, 16(t2); ld t5, 16(t3); bne t4, t5, .Lc2nsc_bad\n" ++
-  "  ld t4, 24(t2); ld t5, 24(t3); bne t4, t5, .Lc2nsc_bad\n" ++
-  ".Lc2nsc_nonce:\n" ++
-  "  # ---- nonce: reverse + forward, u64 ----\n" ++
-  "  ld t0, 40(s1)               # has_nonce\n" ++
-  "  ld t2, 96(s0)               # exec pre_nonce\n" ++
-  "  ld t3, 104(s0)              # exec post_nonce\n" ++
-  "  beq t2, t3, .Lc2nsc_nonce_fwd  # exec unchanged -> no reverse obligation\n" ++
-  "  beqz t0, .Lc2nsc_bad           # exec changed but BAL silent -> inconsistent\n" ++
-  ".Lc2nsc_nonce_fwd:\n" ++
-  "  beqz t0, .Lc2nsc_ok         # BAL silent -> nothing to forward-check\n" ++
-  "  ld t4, 48(s1)               # BAL final post_nonce (u64)\n" ++
-  "  bne t4, t3, .Lc2nsc_bad\n" ++
-  ".Lc2nsc_ok:\n" ++
-  "  li a0, 0; j .Lc2nsc_ret\n" ++
-  ".Lc2nsc_bad:\n" ++
-  "  li a0, 1; j .Lc2nsc_ret\n" ++
-  ".Lc2nsc_parsefail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lc2nsc_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def balAccountNonstorageConsistent_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x12,
+    .AUIPC .x9 (laHi GuestAddrs.c2nsc_finals (GuestAddrs.bal_account_nonstorage_consistent + 20)),
+    .ADDI .x9 .x9 (laLo GuestAddrs.c2nsc_finals (GuestAddrs.bal_account_nonstorage_consistent + 20)),
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bal_account_nonstorage_finals (GuestAddrs.bal_account_nonstorage_consistent + 32)),
+    .BNE .x10 .x0 (192 : BitVec 13),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .ADDI .x7 .x8 (32 : BitVec 12),
+    .ADDI .x28 .x8 (64 : BitVec 12),
+    .LI .x6 (0 : Word),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (44 : BitVec 13),
+    .LD .x29 .x7 (8 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .BNE .x29 .x30 (32 : BitVec 13),
+    .LD .x29 .x7 (16 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .BNE .x29 .x30 (20 : BitVec 13),
+    .LD .x29 .x7 (24 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .BNE .x29 .x30 (8 : BitVec 13),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x6 (1 : Word),
+    .BEQ .x6 .x0 (8 : BitVec 13),
+    .BEQ .x5 .x0 (104 : BitVec 13),
+    .BEQ .x5 .x0 (60 : BitVec 13),
+    .ADDI .x7 .x9 (8 : BitVec 12),
+    .ADDI .x28 .x8 (64 : BitVec 12),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (80 : BitVec 13),
+    .LD .x29 .x7 (8 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .BNE .x29 .x30 (68 : BitVec 13),
+    .LD .x29 .x7 (16 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .BNE .x29 .x30 (56 : BitVec 13),
+    .LD .x29 .x7 (24 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .BNE .x29 .x30 (44 : BitVec 13),
+    .LD .x5 .x9 (40 : BitVec 12),
+    .LD .x7 .x8 (96 : BitVec 12),
+    .LD .x28 .x8 (104 : BitVec 12),
+    .BEQ .x7 .x28 (8 : BitVec 13),
+    .BEQ .x5 .x0 (24 : BitVec 13),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LD .x29 .x9 (48 : BitVec 12),
+    .BNE .x29 .x28 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAccountNonstorageConsistent_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAccountNonstorageConsistent_relocs : RelocTable :=
+  [ (5, .la .x9 "c2nsc_finals"),
+    (8, .jal .x1 "bal_account_nonstorage_finals") ]
+
+def balAccountNonstorageConsistentFunction : String :=
+  "bal_account_nonstorage_consistent:\n" ++ emitProgramR balAccountNonstorageConsistent_prog balAccountNonstorageConsistent_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAccountNonstorageConsistent_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAccountNonstorageConsistentFunction_eq_prog :
+    balAccountNonstorageConsistentFunction = "bal_account_nonstorage_consistent:\n" ++ emitProgramR balAccountNonstorageConsistent_prog balAccountNonstorageConsistent_relocs := rfl
+
+#guard balAccountNonstorageConsistentFunction.startsWith "bal_account_nonstorage_consistent:\n"
+#guard balAccountNonstorageConsistent_prog.length = 63
 /-- `zisk_bal_account_nonstorage_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes 8..16   : AccountChanges byte length

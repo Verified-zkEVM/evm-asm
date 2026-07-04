@@ -9,6 +9,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 
@@ -38,50 +41,87 @@ open EvmAsm.Rv64.Program
         2 : header.withdrawals_root length != 32
         3 : indexed trie builder failure
       a1 (output) : 1 iff the extracted root equals the computed root -/
-def blockValidateWithdrawalsRootIndexedFunction : String :=
-  "block_validate_withdrawals_root_indexed:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp)\n" ++
-  "  mv s0, a0                   # header_rlp ptr\n" ++
-  "  mv s1, a1                   # header_rlp len\n" ++
-  "  mv s2, a2                   # value descriptors\n" ++
-  "  mv s3, a3                   # n withdrawals\n" ++
-  "  # ---- Extract header.withdrawals_root (field 16) ----\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, bvwri_expected_root\n" ++
-  "  jal ra, header_extract_withdrawals_root\n" ++
-  "  bnez a0, .Lbvwri_header_fail\n" ++
-  "  # ---- Compute indexed withdrawals trie root ----\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, bvwri_computed_root\n" ++
-  "  jal ra, mpt_indexed_trie_root_small\n" ++
-  "  bnez a0, .Lbvwri_trie_fail\n" ++
-  "  la t0, bvwri_expected_root\n" ++
-  "  la t1, bvwri_computed_root\n" ++
-  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lbvwri_neq\n" ++
-  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lbvwri_neq\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbvwri_neq\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbvwri_neq\n" ++
-  "  li a0, 0\n" ++
-  "  li a1, 1\n" ++
-  "  j .Lbvwri_ret\n" ++
-  ".Lbvwri_neq:\n" ++
-  "  li a0, 0\n" ++
-  "  li a1, 0\n" ++
-  "  j .Lbvwri_ret\n" ++
-  ".Lbvwri_header_fail:\n" ++
-  "  li a1, 0\n" ++
-  "  j .Lbvwri_ret\n" ++
-  ".Lbvwri_trie_fail:\n" ++
-  "  li a0, 3\n" ++
-  "  li a1, 0\n" ++
-  ".Lbvwri_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def blockValidateWithdrawalsRootIndexed_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.bvwri_expected_root (GuestAddrs.block_validate_withdrawals_root_indexed + 48)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bvwri_expected_root (GuestAddrs.block_validate_withdrawals_root_indexed + 48)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_withdrawals_root (GuestAddrs.block_validate_withdrawals_root_indexed + 56)),
+    .BNE .x10 .x0 (116 : BitVec 13),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.bvwri_computed_root (GuestAddrs.block_validate_withdrawals_root_indexed + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bvwri_computed_root (GuestAddrs.block_validate_withdrawals_root_indexed + 72)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_indexed_trie_root_small (GuestAddrs.block_validate_withdrawals_root_indexed + 80)),
+    .BNE .x10 .x0 (100 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bvwri_expected_root (GuestAddrs.block_validate_withdrawals_root_indexed + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bvwri_expected_root (GuestAddrs.block_validate_withdrawals_root_indexed + 88)),
+    .AUIPC .x6 (laHi GuestAddrs.bvwri_computed_root (GuestAddrs.block_validate_withdrawals_root_indexed + 96)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bvwri_computed_root (GuestAddrs.block_validate_withdrawals_root_indexed + 96)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (52 : BitVec 13),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x28 .x6 (8 : BitVec 12),
+    .BNE .x7 .x28 (40 : BitVec 13),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .LD .x28 .x6 (16 : BitVec 12),
+    .BNE .x7 .x28 (28 : BitVec 13),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .LD .x28 .x6 (24 : BitVec 12),
+    .BNE .x7 .x28 (16 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .LI .x11 (1 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LI .x11 (0 : Word),
+    .JAL .x0 (20 : BitVec 21),
+    .LI .x11 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .LI .x11 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockValidateWithdrawalsRootIndexed_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockValidateWithdrawalsRootIndexed_relocs : RelocTable :=
+  [ (12, .la .x12 "bvwri_expected_root"),
+    (14, .jal .x1 "header_extract_withdrawals_root"),
+    (18, .la .x12 "bvwri_computed_root"),
+    (20, .jal .x1 "mpt_indexed_trie_root_small"),
+    (22, .la .x5 "bvwri_expected_root"),
+    (24, .la .x6 "bvwri_computed_root") ]
+
+def blockValidateWithdrawalsRootIndexedFunction : String :=
+  "block_validate_withdrawals_root_indexed:\n" ++ emitProgramR blockValidateWithdrawalsRootIndexed_prog blockValidateWithdrawalsRootIndexed_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockValidateWithdrawalsRootIndexed_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockValidateWithdrawalsRootIndexedFunction_eq_prog :
+    blockValidateWithdrawalsRootIndexedFunction = "block_validate_withdrawals_root_indexed:\n" ++ emitProgramR blockValidateWithdrawalsRootIndexed_prog blockValidateWithdrawalsRootIndexed_relocs := rfl
+
+#guard blockValidateWithdrawalsRootIndexedFunction.startsWith "block_validate_withdrawals_root_indexed:\n"
+#guard blockValidateWithdrawalsRootIndexed_prog.length = 55
 /-- `zisk_block_validate_withdrawals_root_indexed`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : header_rlp_len

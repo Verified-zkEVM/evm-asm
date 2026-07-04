@@ -29,6 +29,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.Bn254Field
 
 namespace EvmAsm.Codegen
@@ -64,32 +66,89 @@ def bn254Fp2DataSection : String :=
   bn254FieldDataSection ++ bn254Fp2DataFragment
 
 /-- Fp2 dst += src (LE 64-byte buffers). Leaf; clobbers t0. -/
+def bnpFp2Add_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_add + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_add + 0)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .SD .x5 .x11 (8 : BitVec 12),
+    .CSRS (2056 : BitVec 12) .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `bnpFp2Add_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnpFp2Add_relocs : RelocTable :=
+  [ (0, .la .x5 "bnp_cplx_params") ]
+
 def bn254Fp2AddFunction : String :=
-  "bnp_fp2_add:\n" ++
-  "  la t0, bnp_cplx_params\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  sd a1, 8(t0)\n" ++
-  "  .4byte 0x8082a073             # csrs 0x808, t0 -> Bn254ComplexAdd\n" ++
-  "  ret"
+  "bnp_fp2_add:\n" ++ emitProgramR bnpFp2Add_prog bnpFp2Add_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnpFp2Add_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fp2AddFunction_eq_prog :
+    bn254Fp2AddFunction = "bnp_fp2_add:\n" ++ emitProgramR bnpFp2Add_prog bnpFp2Add_relocs := rfl
+
+#guard bn254Fp2AddFunction.startsWith "bnp_fp2_add:\n"
+#guard bnpFp2Add_prog.length = 6
 /-- Fp2 dst -= src. Leaf; clobbers t0. -/
+def bnpFp2Sub_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_sub + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_sub + 0)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .SD .x5 .x11 (8 : BitVec 12),
+    .CSRS (2057 : BitVec 12) .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `bnpFp2Sub_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnpFp2Sub_relocs : RelocTable :=
+  [ (0, .la .x5 "bnp_cplx_params") ]
+
 def bn254Fp2SubFunction : String :=
-  "bnp_fp2_sub:\n" ++
-  "  la t0, bnp_cplx_params\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  sd a1, 8(t0)\n" ++
-  "  .4byte 0x8092a073             # csrs 0x809, t0 -> Bn254ComplexSub\n" ++
-  "  ret"
+  "bnp_fp2_sub:\n" ++ emitProgramR bnpFp2Sub_prog bnpFp2Sub_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnpFp2Sub_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fp2SubFunction_eq_prog :
+    bn254Fp2SubFunction = "bnp_fp2_sub:\n" ++ emitProgramR bnpFp2Sub_prog bnpFp2Sub_relocs := rfl
+
+#guard bn254Fp2SubFunction.startsWith "bnp_fp2_sub:\n"
+#guard bnpFp2Sub_prog.length = 6
 /-- Fp2 dst *= src ((x0 + x1 u)(y0 + y1 u), u^2 = -1). Leaf; clobbers t0. -/
-def bn254Fp2MulFunction : String :=
-  "bnp_fp2_mul:\n" ++
-  "  la t0, bnp_cplx_params\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  sd a1, 8(t0)\n" ++
-  "  .4byte 0x80a2a073             # csrs 0x80A, t0 -> Bn254ComplexMul\n" ++
-  "  ret"
+def bnpFp2Mul_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_mul + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_mul + 0)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .SD .x5 .x11 (8 : BitVec 12),
+    .CSRS (2058 : BitVec 12) .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnpFp2Mul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnpFp2Mul_relocs : RelocTable :=
+  [ (0, .la .x5 "bnp_cplx_params") ]
+
+def bn254Fp2MulFunction : String :=
+  "bnp_fp2_mul:\n" ++ emitProgramR bnpFp2Mul_prog bnpFp2Mul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnpFp2Mul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fp2MulFunction_eq_prog :
+    bn254Fp2MulFunction = "bnp_fp2_mul:\n" ++ emitProgramR bnpFp2Mul_prog bnpFp2Mul_relocs := rfl
+
+#guard bn254Fp2MulFunction.startsWith "bnp_fp2_mul:\n"
+#guard bnpFp2Mul_prog.length = 6
 /-- Copy a 64-byte LE Fp2 value: a0 = src, a1 = dst (both 8-aligned). -/
 def bnpFp2Copy_prog : Program :=
   [ .LD .x5 .x10 (0 : BitVec 12),
@@ -204,129 +263,269 @@ theorem bn254Fp2IsZeroFunction_eq_prog :
     d = (a*b + 0) mod p). a0 = dst, a1 = a, a2 = b; dst may alias a/b
     (the accelerator reads its inputs before writing d). Leaf; clobbers
     t0/t1. -/
-def bn254FpMulLeFunction : String :=
-  "bnp_fp_mul:\n" ++
-  "  la t0, bnp_arith_params\n" ++
-  "  sd a1, 0(t0)\n" ++
-  "  sd a2, 8(t0)\n" ++
-  "  la t1, bnf_le_zero\n" ++
-  "  sd t1, 16(t0)\n" ++
-  "  la t1, bnf_le_p\n" ++
-  "  sd t1, 24(t0)\n" ++
-  "  sd a0, 32(t0)\n" ++
-  "  .4byte 0x8022a073             # csrs 0x802, t0 -> Arith256Mod\n" ++
-  "  ret"
+def bnpFpMul_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.bnp_arith_params (GuestAddrs.bnp_fp_mul + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_arith_params (GuestAddrs.bnp_fp_mul + 0)),
+    .SD .x5 .x11 (0 : BitVec 12),
+    .SD .x5 .x12 (8 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bnf_le_zero (GuestAddrs.bnp_fp_mul + 16)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bnf_le_zero (GuestAddrs.bnp_fp_mul + 16)),
+    .SD .x5 .x6 (16 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bnf_le_p (GuestAddrs.bnp_fp_mul + 28)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bnf_le_p (GuestAddrs.bnp_fp_mul + 28)),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .SD .x5 .x10 (32 : BitVec 12),
+    .CSRS (2050 : BitVec 12) .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnpFpMul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnpFpMul_relocs : RelocTable :=
+  [ (0, .la .x5 "bnp_arith_params"),
+    (4, .la .x6 "bnf_le_zero"),
+    (7, .la .x6 "bnf_le_p") ]
+
+def bn254FpMulLeFunction : String :=
+  "bnp_fp_mul:\n" ++ emitProgramR bnpFpMul_prog bnpFpMul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnpFpMul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254FpMulLeFunction_eq_prog :
+    bn254FpMulLeFunction = "bnp_fp_mul:\n" ++ emitProgramR bnpFpMul_prog bnpFpMul_relocs := rfl
+
+#guard bn254FpMulLeFunction.startsWith "bnp_fp_mul:\n"
+#guard bnpFpMul_prog.length = 13
 /-- Fp dst = a + b mod p over 32-byte LE buffers (d = (a*1 + b) mod p).
     a0 = dst, a1 = a, a2 = b; aliasing allowed. Leaf; clobbers t0/t1. -/
-def bn254FpAddLeFunction : String :=
-  "bnp_fp_add:\n" ++
-  "  la t0, bnp_arith_params\n" ++
-  "  sd a1, 0(t0)\n" ++
-  "  la t1, bnf_le_one\n" ++
-  "  sd t1, 8(t0)\n" ++
-  "  sd a2, 16(t0)\n" ++
-  "  la t1, bnf_le_p\n" ++
-  "  sd t1, 24(t0)\n" ++
-  "  sd a0, 32(t0)\n" ++
-  "  .4byte 0x8022a073             # csrs 0x802, t0 -> Arith256Mod\n" ++
-  "  ret"
+def bnpFpAdd_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.bnp_arith_params (GuestAddrs.bnp_fp_add + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_arith_params (GuestAddrs.bnp_fp_add + 0)),
+    .SD .x5 .x11 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bnf_le_one (GuestAddrs.bnp_fp_add + 12)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bnf_le_one (GuestAddrs.bnp_fp_add + 12)),
+    .SD .x5 .x6 (8 : BitVec 12),
+    .SD .x5 .x12 (16 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bnf_le_p (GuestAddrs.bnp_fp_add + 28)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bnf_le_p (GuestAddrs.bnp_fp_add + 28)),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .SD .x5 .x10 (32 : BitVec 12),
+    .CSRS (2050 : BitVec 12) .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnpFpAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnpFpAdd_relocs : RelocTable :=
+  [ (0, .la .x5 "bnp_arith_params"),
+    (3, .la .x6 "bnf_le_one"),
+    (7, .la .x6 "bnf_le_p") ]
+
+def bn254FpAddLeFunction : String :=
+  "bnp_fp_add:\n" ++ emitProgramR bnpFpAdd_prog bnpFpAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnpFpAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254FpAddLeFunction_eq_prog :
+    bn254FpAddLeFunction = "bnp_fp_add:\n" ++ emitProgramR bnpFpAdd_prog bnpFpAdd_relocs := rfl
+
+#guard bn254FpAddLeFunction.startsWith "bnp_fp_add:\n"
+#guard bnpFpAdd_prog.length = 13
 /-- Fp dst = base ^ exp mod p over 32-byte LE buffers, MSB-first
     square-and-multiply over bits 253..0 (enough for any exponent < p).
     a0 = dst, a1 = base, a2 = exp (LE limbs). dst must NOT alias base or
     exp. -/
-def bn254FpPowLeFunction : String :=
-  "bnp_fp_pow:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s0)\n" ++
-  "  sd zero, 8(s0)\n" ++
-  "  sd zero, 16(s0)\n" ++
-  "  sd zero, 24(s0)\n" ++
-  "  li s3, 253                     # bit index\n" ++
-  ".Lbnp_pow_loop:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s0\n" ++
-  "  jal ra, bnp_fp_mul             # dst = dst^2\n" ++
-  "  srli t0, s3, 6\n" ++
-  "  slli t0, t0, 3\n" ++
-  "  add t0, s2, t0\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  andi t2, s3, 63\n" ++
-  "  srl t1, t1, t2\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  beqz t1, .Lbnp_pow_skip\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, bnp_fp_mul             # dst *= base\n" ++
-  ".Lbnp_pow_skip:\n" ++
-  "  beqz s3, .Lbnp_pow_done\n" ++
-  "  addi s3, s3, -1\n" ++
-  "  j .Lbnp_pow_loop\n" ++
-  ".Lbnp_pow_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def bnpFpPow_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .LI .x5 (1 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .SD .x8 .x0 (8 : BitVec 12),
+    .SD .x8 .x0 (16 : BitVec 12),
+    .SD .x8 .x0 (24 : BitVec 12),
+    .LI .x19 (253 : Word),
+    .MV .x10 .x8,
+    .MV .x11 .x8,
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp_pow + 72)),
+    .SRLI .x5 .x19 (6 : BitVec 6),
+    .SLLI .x5 .x5 (3 : BitVec 6),
+    .ADD .x5 .x18 .x5,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ANDI .x7 .x19 (63 : BitVec 12),
+    .SRL .x6 .x6 .x7,
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp_pow + 120)),
+    .BEQ .x19 .x0 (12 : BitVec 13),
+    .ADDI .x19 .x19 (-1 : BitVec 12),
+    .JAL .x0 (-72 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnpFpPow_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnpFpPow_relocs : RelocTable :=
+  [ (18, .jal .x1 "bnp_fp_mul"),
+    (30, .jal .x1 "bnp_fp_mul") ]
+
+def bn254FpPowLeFunction : String :=
+  "bnp_fp_pow:\n" ++ emitProgramR bnpFpPow_prog bnpFpPow_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnpFpPow_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254FpPowLeFunction_eq_prog :
+    bn254FpPowLeFunction = "bnp_fp_pow:\n" ++ emitProgramR bnpFpPow_prog bnpFpPow_relocs := rfl
+
+#guard bn254FpPowLeFunction.startsWith "bnp_fp_pow:\n"
+#guard bnpFpPow_prog.length = 41
 /-- Fp2 inverse: dst = src^-1 = (x0 - x1 u) / (x0^2 + x1^2).
     a0 = dst, a1 = src (64-byte LE; aliasing allowed — the result is
     composed in scratch). Inverse of zero yields zero (the Fermat power
     of 0 is 0); callers gate on `bnp_fp2_is_zero` where it matters. -/
-def bn254Fp2InvFunction : String :=
-  "bnp_fp2_inv:\n" ++
-  "  addi sp, sp, -24\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  la a0, bnp_t0\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, bnp_fp_mul             # t0 = x0^2\n" ++
-  "  la a0, bnp_t1\n" ++
-  "  addi a1, s1, 32\n" ++
-  "  addi a2, s1, 32\n" ++
-  "  jal ra, bnp_fp_mul             # t1 = x1^2\n" ++
-  "  la a0, bnp_t0\n" ++
-  "  la a1, bnp_t0\n" ++
-  "  la a2, bnp_t1\n" ++
-  "  jal ra, bnp_fp_add             # t0 = x0^2 + x1^2\n" ++
-  "  la a0, bnp_t1\n" ++
-  "  la a1, bnp_t0\n" ++
-  "  la a2, bnp_p_minus_2_le\n" ++
-  "  jal ra, bnp_fp_pow             # t1 = norm^(p-2)\n" ++
-  "  la a0, bnp_t2\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, bnp_t1\n" ++
-  "  jal ra, bnp_fp_mul             # t2 = x0 / norm\n" ++
-  "  la a0, bnp_t0\n" ++
-  "  addi a1, s1, 32\n" ++
-  "  la a2, bnp_t1\n" ++
-  "  jal ra, bnp_fp_mul             # t0 = x1 / norm\n" ++
-  "  la a0, bnp_t0\n" ++
-  "  la a1, bnp_t0\n" ++
-  "  la a2, bnp_p_minus_1_le\n" ++
-  "  jal ra, bnp_fp_mul             # t0 = -x1 / norm\n" ++
-  "  la t0, bnp_t2\n" ++
-  "  ld t1, 0(t0);  sd t1,  0(s0)\n" ++
-  "  ld t1, 8(t0);  sd t1,  8(s0)\n" ++
-  "  ld t1, 16(t0); sd t1, 16(s0)\n" ++
-  "  ld t1, 24(t0); sd t1, 24(s0)\n" ++
-  "  la t0, bnp_t0\n" ++
-  "  ld t1, 0(t0);  sd t1, 32(s0)\n" ++
-  "  ld t1, 8(t0);  sd t1, 40(s0)\n" ++
-  "  ld t1, 16(t0); sd t1, 48(s0)\n" ++
-  "  ld t1, 24(t0); sd t1, 56(s0)\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 24\n" ++
-  "  ret"
+def bnpFp2Inv_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 24)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 24)),
+    .MV .x11 .x9,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 40)),
+    .AUIPC .x10 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 44)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 44)),
+    .ADDI .x11 .x9 (32 : BitVec 12),
+    .ADDI .x12 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 60)),
+    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 64)),
+    .AUIPC .x11 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 72)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 72)),
+    .AUIPC .x12 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 80)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 80)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_add (GuestAddrs.bnp_fp2_inv + 88)),
+    .AUIPC .x10 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 92)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 92)),
+    .AUIPC .x11 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 100)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 100)),
+    .AUIPC .x12 (laHi GuestAddrs.bnp_p_minus_2_le (GuestAddrs.bnp_fp2_inv + 108)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_p_minus_2_le (GuestAddrs.bnp_fp2_inv + 108)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_pow (GuestAddrs.bnp_fp2_inv + 116)),
+    .AUIPC .x10 (laHi GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 120)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 120)),
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 132)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 132)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 140)),
+    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 144)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 144)),
+    .ADDI .x11 .x9 (32 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 156)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 156)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 164)),
+    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 168)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 168)),
+    .AUIPC .x11 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 176)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 176)),
+    .AUIPC .x12 (laHi GuestAddrs.bnp_p_minus_1_le (GuestAddrs.bnp_fp2_inv + 184)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_p_minus_1_le (GuestAddrs.bnp_fp2_inv + 184)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 192)),
+    .AUIPC .x5 (laHi GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 196)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 196)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x8 .x6 (0 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x8 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x8 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x8 .x6 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 236)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 236)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x8 .x6 (32 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x8 .x6 (40 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x8 .x6 (48 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x8 .x6 (56 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnpFp2Inv_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnpFp2Inv_relocs : RelocTable :=
+  [ (6, .la .x10 "bnp_t0"),
+    (10, .jal .x1 "bnp_fp_mul"),
+    (11, .la .x10 "bnp_t1"),
+    (15, .jal .x1 "bnp_fp_mul"),
+    (16, .la .x10 "bnp_t0"),
+    (18, .la .x11 "bnp_t0"),
+    (20, .la .x12 "bnp_t1"),
+    (22, .jal .x1 "bnp_fp_add"),
+    (23, .la .x10 "bnp_t1"),
+    (25, .la .x11 "bnp_t0"),
+    (27, .la .x12 "bnp_p_minus_2_le"),
+    (29, .jal .x1 "bnp_fp_pow"),
+    (30, .la .x10 "bnp_t2"),
+    (33, .la .x12 "bnp_t1"),
+    (35, .jal .x1 "bnp_fp_mul"),
+    (36, .la .x10 "bnp_t0"),
+    (39, .la .x12 "bnp_t1"),
+    (41, .jal .x1 "bnp_fp_mul"),
+    (42, .la .x10 "bnp_t0"),
+    (44, .la .x11 "bnp_t0"),
+    (46, .la .x12 "bnp_p_minus_1_le"),
+    (48, .jal .x1 "bnp_fp_mul"),
+    (49, .la .x5 "bnp_t2"),
+    (59, .la .x5 "bnp_t0") ]
+
+def bn254Fp2InvFunction : String :=
+  "bnp_fp2_inv:\n" ++ emitProgramR bnpFp2Inv_prog bnpFp2Inv_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnpFp2Inv_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fp2InvFunction_eq_prog :
+    bn254Fp2InvFunction = "bnp_fp2_inv:\n" ++ emitProgramR bnpFp2Inv_prog bnpFp2Inv_relocs := rfl
+
+#guard bn254Fp2InvFunction.startsWith "bnp_fp2_inv:\n"
+#guard bnpFp2Inv_prog.length = 74
 /-- The Fp2 layer suite (requires `bn254FieldDataFragment` +
     `bn254Fp2DataFragment` in the data section). -/
 def bn254Fp2CommonFunctions : String :=

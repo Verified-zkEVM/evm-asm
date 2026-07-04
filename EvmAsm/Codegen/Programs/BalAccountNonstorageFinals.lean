@@ -17,6 +17,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
@@ -34,108 +37,242 @@ open EvmAsm.Rv64
       +56 has_code
       +64 code_off  (offset of the final code field RELATIVE to a0; 0 if none)
       +72 code_len  (byte length of the final code field content) -/
-def balAccountNonstorageFinalsFunction : String :=
-  "bal_account_nonstorage_finals:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # AccountChanges ptr\n" ++
-  "  mv s1, a1                   # AccountChanges len\n" ++
-  "  mv s2, a2                   # out ptr\n" ++
-  "  sd zero, 0(s2); sd zero, 40(s2); sd zero, 56(s2); sd zero, 64(s2); sd zero, 72(s2)\n" ++
-  "  sd zero, 8(s2); sd zero, 16(s2); sd zero, 24(s2); sd zero, 32(s2); sd zero, 48(s2)\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc2nsf_fail\n" ++
-  "  sd a0, 48(sp); sd a1, 56(sp)\n" ++
-  "  # Skip address, storage_changes, storage_reads.\n" ++
-  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 48(sp)\n" ++
-  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 48(sp)\n" ++
-  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 48(sp)\n" ++
-  "  # --- balance_changes = item 3; final post_balance = item 1 of its last tuple ---\n" ++
-  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sd a0, 48(sp); sub s3, a0, a2; mv s4, a2\n" ++
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc2nsf_fail\n" ++
-  "  beq a0, a1, .Lc2nsf_nonce\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
-  ".Lc2nsf_balance_last_loop:\n" ++
-  "  ld t0, 64(sp); ld t1, 72(sp); beq t0, t1, .Lc2nsf_balance_have_last\n" ++
-  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sd a0, 64(sp); sub s3, a0, a2; mv s4, a2\n" ++
-  "  j .Lc2nsf_balance_last_loop\n" ++
-  ".Lc2nsf_balance_have_last:\n" ++
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc2nsf_fail\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
-  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 64(sp)\n" ++
-  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2; addi a2, s2, 8; jal ra, rlp_content_to_u256_be\n" ++
-  "  bnez a0, .Lc2nsf_fail\n" ++
-  "  li t0, 1; sd t0, 0(s2)\n" ++
-  "  # --- nonce_changes = item 4; final new_nonce = item 1 of its last tuple (u64) ---\n" ++
-  ".Lc2nsf_nonce:\n" ++
-  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sd a0, 48(sp); sub s3, a0, a2; mv s4, a2\n" ++
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc2nsf_fail\n" ++
-  "  beq a0, a1, .Lc2nsf_code\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
-  ".Lc2nsf_nonce_last_loop:\n" ++
-  "  ld t0, 64(sp); ld t1, 72(sp); beq t0, t1, .Lc2nsf_nonce_have_last\n" ++
-  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sd a0, 64(sp); sub s3, a0, a2; mv s4, a2\n" ++
-  "  j .Lc2nsf_nonce_last_loop\n" ++
-  ".Lc2nsf_nonce_have_last:\n" ++
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc2nsf_fail\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
-  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 64(sp)\n" ++
-  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sd a0, 48(s2)\n" ++
-  "  li t0, 1; sd t0, 40(s2)\n" ++
-  "  # --- code_changes = item 5; locate item 1 of its last tuple (no conversion) ---\n" ++
-  ".Lc2nsf_code:\n" ++
-  "  ld a0, 48(sp); ld a1, 56(sp); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sub s3, a0, a2; mv s4, a2\n" ++
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc2nsf_fail\n" ++
-  "  beq a0, a1, .Lc2nsf_ok\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
-  ".Lc2nsf_code_last_loop:\n" ++
-  "  ld t0, 64(sp); ld t1, 72(sp); beq t0, t1, .Lc2nsf_code_have_last\n" ++
-  "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sd a0, 64(sp); sub s3, a0, a2; mv s4, a2\n" ++
-  "  j .Lc2nsf_code_last_loop\n" ++
-  ".Lc2nsf_code_have_last:\n" ++
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lc2nsf_fail\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp)\n" ++
-  "  ld a0, 64(sp); ld a1, 72(sp); jal ra, rlp_walk_next; bnez a1, .Lc2nsf_fail; sd a0, 64(sp)\n" ++
-  "  ld t3, 64(sp); ld a1, 72(sp); mv a0, t3; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lc2nsf_fail\n" ++
-  "  sub t4, a0, a2; sub t4, t4, s0; sd t4, 64(s2)\n" ++
-  "  sd a2, 72(s2)\n" ++
-  "  li t0, 1; sd t0, 56(s2)\n" ++
-  ".Lc2nsf_ok:\n" ++
-  "  li a0, 0; j .Lc2nsf_ret\n" ++
-  ".Lc2nsf_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lc2nsf_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret"
+def balAccountNonstorageFinals_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (40 : BitVec 12),
+    .SD .x18 .x0 (56 : BitVec 12),
+    .SD .x18 .x0 (64 : BitVec 12),
+    .SD .x18 .x0 (72 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .SD .x18 .x0 (32 : BitVec 12),
+    .SD .x18 .x0 (48 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_nonstorage_finals + 88)),
+    .BNE .x12 .x0 (640 : BitVec 13),
+    .SD .x2 .x10 (48 : BitVec 12),
+    .SD .x2 .x11 (56 : BitVec 12),
+    .LD .x10 .x2 (48 : BitVec 12),
+    .LD .x11 .x2 (56 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 112)),
+    .BNE .x11 .x0 (616 : BitVec 13),
+    .SD .x2 .x10 (48 : BitVec 12),
+    .LD .x10 .x2 (48 : BitVec 12),
+    .LD .x11 .x2 (56 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 132)),
+    .BNE .x11 .x0 (596 : BitVec 13),
+    .SD .x2 .x10 (48 : BitVec 12),
+    .LD .x10 .x2 (48 : BitVec 12),
+    .LD .x11 .x2 (56 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 152)),
+    .BNE .x11 .x0 (576 : BitVec 13),
+    .SD .x2 .x10 (48 : BitVec 12),
+    .LD .x10 .x2 (48 : BitVec 12),
+    .LD .x11 .x2 (56 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 172)),
+    .BNE .x11 .x0 (556 : BitVec 13),
+    .SD .x2 .x10 (48 : BitVec 12),
+    .SUB .x19 .x10 .x12,
+    .MV .x20 .x12,
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_nonstorage_finals + 200)),
+    .BNE .x12 .x0 (528 : BitVec 13),
+    .BEQ .x10 .x11 (144 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SD .x2 .x11 (72 : BitVec 12),
+    .LD .x5 .x2 (64 : BitVec 12),
+    .LD .x6 .x2 (72 : BitVec 12),
+    .BEQ .x5 .x6 (36 : BitVec 13),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 240)),
+    .BNE .x11 .x0 (488 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SUB .x19 .x10 .x12,
+    .MV .x20 .x12,
+    .JAL .x0 (-40 : BitVec 21),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_nonstorage_finals + 272)),
+    .BNE .x12 .x0 (456 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SD .x2 .x11 (72 : BitVec 12),
+    .LD .x10 .x2 (64 : BitVec 12),
+    .LD .x11 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 296)),
+    .BNE .x11 .x0 (432 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .LD .x10 .x2 (64 : BitVec 12),
+    .LD .x11 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 316)),
+    .BNE .x11 .x0 (412 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .ADDI .x12 .x18 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be (GuestAddrs.bal_account_nonstorage_finals + 336)),
+    .BNE .x10 .x0 (392 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .SD .x18 .x5 (0 : BitVec 12),
+    .LD .x10 .x2 (48 : BitVec 12),
+    .LD .x11 .x2 (56 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 360)),
+    .BNE .x11 .x0 (368 : BitVec 13),
+    .SD .x2 .x10 (48 : BitVec 12),
+    .SUB .x19 .x10 .x12,
+    .MV .x20 .x12,
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_nonstorage_finals + 388)),
+    .BNE .x12 .x0 (340 : BitVec 13),
+    .BEQ .x10 .x11 (144 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SD .x2 .x11 (72 : BitVec 12),
+    .LD .x5 .x2 (64 : BitVec 12),
+    .LD .x6 .x2 (72 : BitVec 12),
+    .BEQ .x5 .x6 (36 : BitVec 13),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 428)),
+    .BNE .x11 .x0 (300 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SUB .x19 .x10 .x12,
+    .MV .x20 .x12,
+    .JAL .x0 (-40 : BitVec 21),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_nonstorage_finals + 460)),
+    .BNE .x12 .x0 (268 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SD .x2 .x11 (72 : BitVec 12),
+    .LD .x10 .x2 (64 : BitVec 12),
+    .LD .x11 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 484)),
+    .BNE .x11 .x0 (244 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .LD .x10 .x2 (64 : BitVec 12),
+    .LD .x11 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 504)),
+    .BNE .x11 .x0 (224 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.bal_account_nonstorage_finals + 520)),
+    .BNE .x11 .x0 (208 : BitVec 13),
+    .SD .x18 .x10 (48 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x18 .x5 (40 : BitVec 12),
+    .LD .x10 .x2 (48 : BitVec 12),
+    .LD .x11 .x2 (56 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 548)),
+    .BNE .x11 .x0 (180 : BitVec 13),
+    .SUB .x19 .x10 .x12,
+    .MV .x20 .x12,
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_nonstorage_finals + 572)),
+    .BNE .x12 .x0 (156 : BitVec 13),
+    .BEQ .x10 .x11 (144 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SD .x2 .x11 (72 : BitVec 12),
+    .LD .x5 .x2 (64 : BitVec 12),
+    .LD .x6 .x2 (72 : BitVec 12),
+    .BEQ .x5 .x6 (36 : BitVec 13),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 612)),
+    .BNE .x11 .x0 (116 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SUB .x19 .x10 .x12,
+    .MV .x20 .x12,
+    .JAL .x0 (-40 : BitVec 21),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_nonstorage_finals + 644)),
+    .BNE .x12 .x0 (84 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SD .x2 .x11 (72 : BitVec 12),
+    .LD .x10 .x2 (64 : BitVec 12),
+    .LD .x11 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 668)),
+    .BNE .x11 .x0 (60 : BitVec 13),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .LD .x28 .x2 (64 : BitVec 12),
+    .LD .x11 .x2 (72 : BitVec 12),
+    .MV .x10 .x28,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_nonstorage_finals + 692)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x29 .x10 .x12,
+    .SUB .x29 .x29 .x8,
+    .SD .x18 .x29 (64 : BitVec 12),
+    .SD .x18 .x12 (72 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x18 .x5 (56 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAccountNonstorageFinals_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAccountNonstorageFinals_relocs : RelocTable :=
+  [ (22, .jal .x1 "rlp_walk_init"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (38, .jal .x1 "rlp_walk_next"),
+    (43, .jal .x1 "rlp_walk_next"),
+    (50, .jal .x1 "rlp_walk_init"),
+    (60, .jal .x1 "rlp_walk_next"),
+    (68, .jal .x1 "rlp_walk_init"),
+    (74, .jal .x1 "rlp_walk_next"),
+    (79, .jal .x1 "rlp_walk_next"),
+    (84, .jal .x1 "rlp_content_to_u256_be"),
+    (90, .jal .x1 "rlp_walk_next"),
+    (97, .jal .x1 "rlp_walk_init"),
+    (107, .jal .x1 "rlp_walk_next"),
+    (115, .jal .x1 "rlp_walk_init"),
+    (121, .jal .x1 "rlp_walk_next"),
+    (126, .jal .x1 "rlp_walk_next"),
+    (130, .jal .x1 "rlp_content_to_u64"),
+    (137, .jal .x1 "rlp_walk_next"),
+    (143, .jal .x1 "rlp_walk_init"),
+    (153, .jal .x1 "rlp_walk_next"),
+    (161, .jal .x1 "rlp_walk_init"),
+    (167, .jal .x1 "rlp_walk_next"),
+    (173, .jal .x1 "rlp_walk_next") ]
+
+def balAccountNonstorageFinalsFunction : String :=
+  "bal_account_nonstorage_finals:\n" ++ emitProgramR balAccountNonstorageFinals_prog balAccountNonstorageFinals_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAccountNonstorageFinals_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAccountNonstorageFinalsFunction_eq_prog :
+    balAccountNonstorageFinalsFunction = "bal_account_nonstorage_finals:\n" ++ emitProgramR balAccountNonstorageFinals_prog balAccountNonstorageFinals_relocs := rfl
+
+#guard balAccountNonstorageFinalsFunction.startsWith "bal_account_nonstorage_finals:\n"
+#guard balAccountNonstorageFinals_prog.length = 192
 /-- `zisk_bal_account_nonstorage_finals`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes 8..16 : AccountChanges byte length

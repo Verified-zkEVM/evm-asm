@@ -33,6 +33,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 
 namespace EvmAsm.Codegen
@@ -181,37 +183,112 @@ theorem swdMinimalCopyFunction_eq_prog :
 /-! ## system_write_descriptors
     a0 = SSZ_BASE.  Fills (slot_key 32 B, value, value_len) for EIP-2935 and
     EIP-4788 into swd_* buffers.  a0 (output) = 0. -/
-def systemWriteDescriptorsFunction : String :=
-  "system_write_descriptors:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                   # SSZ_BASE\n" ++
-  "  addi s1, s0, 60             # exec_payload\n" ++
-  "  # ---- EIP-2935: slot = (number-1) % 8191, value = parent_hash ----\n" ++
-  "  addi a0, s1, 404; jal ra, swd_read_u64le\n" ++
-  "  addi a0, a0, -1             # number - 1\n" ++
-  "  li t0, 8191; remu a0, a0, t0\n" ++
-  "  la a1, swd_2935_slot; jal ra, swd_write_be32_u64\n" ++
-  "  mv a0, s1; li a1, 32; la a2, swd_2935_val; la a3, swd_2935_vlen\n" ++
-  "  jal ra, swd_minimal_copy\n" ++
-  "  # ---- EIP-4788: slot = timestamp % 8191, value = timestamp ----\n" ++
-  "  addi a0, s1, 428; jal ra, swd_read_u64le\n" ++
-  "  mv s2, a0                   # timestamp\n" ++
-  "  li t0, 8191; remu a0, a0, t0\n" ++
-  "  la a1, swd_4788_slot; jal ra, swd_write_be32_u64\n" ++
-  "  mv a0, s2; la a1, swd_ts_be8; jal ra, swd_write_be8\n" ++
-  "  la a0, swd_ts_be8; li a1, 8; la a2, swd_4788_val; la a3, swd_4788_vlen\n" ++
-  "  jal ra, swd_minimal_copy\n" ++
-  "  # ---- EIP-4788: slot = timestamp + 8191, value = parent_beacon_block_root ----\n" ++
-  "  mv a0, s2; li t0, 8191; remu a0, a0, t0; add a0, a0, t0\n" ++
-  "  la a1, swd_4788_root_slot; jal ra, swd_write_be32_u64\n" ++
-  "  addi a0, s0, 24; li a1, 32; la a2, swd_4788_root_val; la a3, swd_4788_root_vlen\n" ++
-  "  jal ra, swd_minimal_copy\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def systemWriteDescriptors_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .ADDI .x9 .x8 (60 : BitVec 12),
+    .ADDI .x10 .x9 (404 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.swd_read_u64le (GuestAddrs.system_write_descriptors + 32)),
+    .ADDI .x10 .x10 (-1 : BitVec 12),
+    .LUI .x5 (2 : BitVec 20),
+    .ADDIW .x5 .x5 (-1 : BitVec 12),
+    .REMU .x10 .x10 .x5,
+    .AUIPC .x11 (laHi GuestAddrs.swd_2935_slot (GuestAddrs.system_write_descriptors + 52)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.swd_2935_slot (GuestAddrs.system_write_descriptors + 52)),
+    .JAL .x1 (jalOff GuestAddrs.swd_write_be32_u64 (GuestAddrs.system_write_descriptors + 60)),
+    .MV .x10 .x9,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swd_2935_val (GuestAddrs.system_write_descriptors + 72)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swd_2935_val (GuestAddrs.system_write_descriptors + 72)),
+    .AUIPC .x13 (laHi GuestAddrs.swd_2935_vlen (GuestAddrs.system_write_descriptors + 80)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.swd_2935_vlen (GuestAddrs.system_write_descriptors + 80)),
+    .JAL .x1 (jalOff GuestAddrs.swd_minimal_copy (GuestAddrs.system_write_descriptors + 88)),
+    .ADDI .x10 .x9 (428 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.swd_read_u64le (GuestAddrs.system_write_descriptors + 96)),
+    .MV .x18 .x10,
+    .LUI .x5 (2 : BitVec 20),
+    .ADDIW .x5 .x5 (-1 : BitVec 12),
+    .REMU .x10 .x10 .x5,
+    .AUIPC .x11 (laHi GuestAddrs.swd_4788_slot (GuestAddrs.system_write_descriptors + 116)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.swd_4788_slot (GuestAddrs.system_write_descriptors + 116)),
+    .JAL .x1 (jalOff GuestAddrs.swd_write_be32_u64 (GuestAddrs.system_write_descriptors + 124)),
+    .MV .x10 .x18,
+    .AUIPC .x11 (laHi GuestAddrs.swd_ts_be8 (GuestAddrs.system_write_descriptors + 132)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.swd_ts_be8 (GuestAddrs.system_write_descriptors + 132)),
+    .JAL .x1 (jalOff GuestAddrs.swd_write_be8 (GuestAddrs.system_write_descriptors + 140)),
+    .AUIPC .x10 (laHi GuestAddrs.swd_ts_be8 (GuestAddrs.system_write_descriptors + 144)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.swd_ts_be8 (GuestAddrs.system_write_descriptors + 144)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swd_4788_val (GuestAddrs.system_write_descriptors + 156)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swd_4788_val (GuestAddrs.system_write_descriptors + 156)),
+    .AUIPC .x13 (laHi GuestAddrs.swd_4788_vlen (GuestAddrs.system_write_descriptors + 164)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.swd_4788_vlen (GuestAddrs.system_write_descriptors + 164)),
+    .JAL .x1 (jalOff GuestAddrs.swd_minimal_copy (GuestAddrs.system_write_descriptors + 172)),
+    .MV .x10 .x18,
+    .LUI .x5 (2 : BitVec 20),
+    .ADDIW .x5 .x5 (-1 : BitVec 12),
+    .REMU .x10 .x10 .x5,
+    .ADD .x10 .x10 .x5,
+    .AUIPC .x11 (laHi GuestAddrs.swd_4788_root_slot (GuestAddrs.system_write_descriptors + 196)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.swd_4788_root_slot (GuestAddrs.system_write_descriptors + 196)),
+    .JAL .x1 (jalOff GuestAddrs.swd_write_be32_u64 (GuestAddrs.system_write_descriptors + 204)),
+    .ADDI .x10 .x8 (24 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.swd_4788_root_val (GuestAddrs.system_write_descriptors + 216)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.swd_4788_root_val (GuestAddrs.system_write_descriptors + 216)),
+    .AUIPC .x13 (laHi GuestAddrs.swd_4788_root_vlen (GuestAddrs.system_write_descriptors + 224)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.swd_4788_root_vlen (GuestAddrs.system_write_descriptors + 224)),
+    .JAL .x1 (jalOff GuestAddrs.swd_minimal_copy (GuestAddrs.system_write_descriptors + 232)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `systemWriteDescriptors_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def systemWriteDescriptors_relocs : RelocTable :=
+  [ (8, .jal .x1 "swd_read_u64le"),
+    (13, .la .x11 "swd_2935_slot"),
+    (15, .jal .x1 "swd_write_be32_u64"),
+    (18, .la .x12 "swd_2935_val"),
+    (20, .la .x13 "swd_2935_vlen"),
+    (22, .jal .x1 "swd_minimal_copy"),
+    (24, .jal .x1 "swd_read_u64le"),
+    (29, .la .x11 "swd_4788_slot"),
+    (31, .jal .x1 "swd_write_be32_u64"),
+    (33, .la .x11 "swd_ts_be8"),
+    (35, .jal .x1 "swd_write_be8"),
+    (36, .la .x10 "swd_ts_be8"),
+    (39, .la .x12 "swd_4788_val"),
+    (41, .la .x13 "swd_4788_vlen"),
+    (43, .jal .x1 "swd_minimal_copy"),
+    (49, .la .x11 "swd_4788_root_slot"),
+    (51, .jal .x1 "swd_write_be32_u64"),
+    (54, .la .x12 "swd_4788_root_val"),
+    (56, .la .x13 "swd_4788_root_vlen"),
+    (58, .jal .x1 "swd_minimal_copy") ]
+
+def systemWriteDescriptorsFunction : String :=
+  "system_write_descriptors:\n" ++ emitProgramR systemWriteDescriptors_prog systemWriteDescriptors_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `systemWriteDescriptors_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem systemWriteDescriptorsFunction_eq_prog :
+    systemWriteDescriptorsFunction = "system_write_descriptors:\n" ++ emitProgramR systemWriteDescriptors_prog systemWriteDescriptors_relocs := rfl
+
+#guard systemWriteDescriptorsFunction.startsWith "system_write_descriptors:\n"
+#guard systemWriteDescriptors_prog.length = 66
 /-! ### zisk_system_write_descriptors probe. Fed a real fixture SSZ input.
     Output: +0 swd_2935_slot(32) +32 2935_vlen +40 2935_val(32)
             +72 swd_4788_slot(32) +104 4788_vlen +112 4788_val(32)

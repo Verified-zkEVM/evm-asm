@@ -998,9 +998,27 @@ bundle). Tracked by issue #313.
   files with a shared body + per-sibling epilogue split from the first PR
   (do not copy DIV's retrofit-style parallel MOD clone).
 
-#### 4.4 ADDMOD and MULMOD
+#### ~~4.4 ADDMOD and MULMOD~~ ✅
 - **Approach**: ADDMOD needs 257-bit intermediate (carry). MULMOD needs
-  512-bit intermediate. Both reuse DIV/MOD.
+  512-bit intermediate.
+- **MULMOD `.proven`** (`evm_mulmod_stack_spec_within`, bespoke bit-serial
+  512-by-256 reducer, below-sp scratch).
+- **ADDMOD `.proven` (2026-07-04, issue #9704, PRs #9705 + #9708)**: total
+  three-way program `evm_addmod_total` (`AddMod/Program.lean`) — `N = 0` zero
+  path, no-carry low-sum reduction, and the carry-out branch computing
+  `(2^256 + r) mod N` via three `evm_mod_callable_v5` near-calls (all at one
+  frame base `F = sp+32`, single div-scratch band; parking scratch below the
+  callable's `F−160..F−8` band at `F−192/−224/−256`) plus an embedded
+  `evm_add` + branch-free conditional subtract. Registry witness
+  `evm_addmod_total_result_stack_spec_within`
+  (`AddMod/Compose/ResultStack.lean`): unconditional public-form triple
+  `evmStackIs sp [a, b, N]` → `evmStackIs (sp+64) [EvmWord.addmod a b N]`,
+  only dispatcher-pinned code-layout side conditions. The dispatcher ships
+  the emitted verified program (replacing the hand-written `.Laddmod_*`
+  runtime tail, which called the buggy v4 callable and mis-propagated
+  borrows through equal limbs — fixed in #9705). Composition chain under
+  `AddMod/Compose/` (TotalBase → CarryBlockSpecs/CondSubSpec → CallAdapter →
+  CarryLa/Lb/Lc/Ld(+Chain) → ZeroNoCarryArms → TotalDispatch → ResultStack).
 
 #### 4.5 EXP (Exponentiation)
 - **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
@@ -2550,7 +2568,17 @@ seven-children+pad tiling is THE SAME assertion
 offsets), transitions forget contents by construction
 (`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
 havoc'd range must verify for all contents
-(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Next for
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Top-level spec
+statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
+docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
+`cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
+at INPUT_ADDR, the guest halts within `fuel` and the 40-byte OUTPUT
+window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
+`SpecRef.verify_stateless_new_payload` validates + root matches);
+soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
+output) stated as the deferred two-sided form; execution seam stays a
+parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
+OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. Next for
 SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
