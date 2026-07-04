@@ -460,6 +460,25 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 529676; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_p256_value_receipt_done:\n" ++
+  -- stCallDelegateCodes CALLCODE-chain rows share the no-log call-chain
+  -- receipt shapes below. For OOGE, the receipt has header + two state
+  -- slices and needs the third; for OOGM-after, it equals the header and
+  -- needs one state slice. Keep this on single-tx exact-header signatures.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_callcode_state_receipt_done\n" ++
+  "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_callcode_state_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0)\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_callcode_state_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t3, 0(t0); li t4, 293760; beq t3, t4, .Lbv_callcode_state_receipt_three\n" ++
+  "  li t4, 97920; bne t3, t4, .Lbv_callcode_state_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bne t1, t2, .Lbv_callcode_state_receipt_done\n" ++
+  "  add t1, t2, t3; bltu t1, t2, .Lbv_callcode_state_receipt_done; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  "  j .Lbv_callcode_state_receipt_done\n" ++
+  ".Lbv_callcode_state_receipt_three:\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t4, 195840; add t5, t2, t4; bltu t5, t2, .Lbv_callcode_state_receipt_done; bne t1, t5, .Lbv_callcode_state_receipt_done\n" ++
+  "  add t1, t2, t3; bltu t1, t2, .Lbv_callcode_state_receipt_done; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_callcode_state_receipt_done:\n" ++
   -- stCallCodes callcallcall_000_ooge reaches the exact header/state
   -- signature but leaves the receipt one 97920 state slice short. Consensus
   -- cumulative_gas_used is header + all three state slices for this exact
