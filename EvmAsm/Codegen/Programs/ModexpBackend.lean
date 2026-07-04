@@ -3,13 +3,25 @@
 
   Pure-RV64 implementation of the MODEXP precompile (EIP-198) backend,
   replacing the deterministic safe-fail stub. Computes `(base^exp) mod modulus`
-  for arbitrary-precision operands up to 2048 bytes using schoolbook
-  multiplication and binary long division.
+  for arbitrary-precision operands using schoolbook multiplication and binary
+  long division.
+
+  Length domain: the backend statically sizes for up to 2048 bytes / 256 limbs
+  per operand, but this is unreachable headroom. The precompile dispatcher
+  (`Programs.Modexp`, `modexpReadLengthAsm`) enforces the EIP-7823 cap and
+  rejects any base/exp/modulus length > 1024 bytes BEFORE routing here, so the
+  reachable maximum is 1024 bytes = 128 limbs. The `<= 2048` validation and the
+  2048-byte staging arenas below are dead-defensive; they are consistent with
+  (never narrower than) the dispatcher cap, so they cannot cause a false-accept.
 -/
 
 namespace EvmAsm.Codegen
 
-/-- Maximum number of 64-bit limbs (2048 bytes / 8). -/
+/-- Static maximum number of 64-bit limbs for the staging arenas (2048 bytes /
+    8). This is headroom only: the dispatcher's EIP-7823 cap (1024 bytes) means
+    the reachable maximum is 128 limbs, so this constant OVERSTATES the live
+    domain and must not be used as the domain bound in any correctness proof.
+    Currently referenced nowhere (kept for documentation of the arena sizes). -/
 def modexpBnMaxLimbs : Nat := 256
 
 /-- Scratch data section for the BigNum modexp backend. -/
