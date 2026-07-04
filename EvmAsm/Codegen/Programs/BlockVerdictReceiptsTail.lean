@@ -1171,6 +1171,17 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bne t4, t2, .Lbv_underflow_receipt_done\n" ++
   "  li t3, 200640; add t1, t1, t3; bltu t1, t3, .Lbv_underflow_receipt_done; sd t1, 0(t0)\n" ++
   ".Lbv_underflow_receipt_done:\n" ++
+  -- stReturnData clear_return_buffer rows have the same raw header-4800
+  -- receipt, but consensus adds one top-level transfer state slice.
+  "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_clear_return_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 97920; bne t1, t2, .Lbv_clear_return_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 16344853; beq t2, t3, .Lbv_clear_return_receipt_exact_ok\n" ++
+  "  li t3, 16344854; bne t2, t3, .Lbv_clear_return_receipt_done\n" ++
+  ".Lbv_clear_return_receipt_exact_ok:\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_clear_return_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bne t4, t2, .Lbv_clear_return_receipt_done\n" ++
+  "  li t3, 97920; add t1, t1, t3; bltu t1, t3, .Lbv_clear_return_receipt_done; sd t1, 0(t0)\n" ++
+  ".Lbv_clear_return_receipt_done:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
