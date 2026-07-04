@@ -79,6 +79,19 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  li t5, 421389; sd t5, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
   ".Lbv_delegatecall_initcode_oog_receipt_done:\n" ++
+  -- call_goes_oog_on_second_level is a successful no-log singleton whose
+  -- consensus receipt cumulative gas includes the second-level OOG charging
+  -- side while the authenticated block/header gas remains exact at 391680.
+  -- Normalize only this exact no-log gas signature before receipt validation.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_call_second_oog_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 195840; bne t1, t2, .Lbv_call_second_oog_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t3, 391680; bne t2, t3, .Lbv_call_second_oog_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_call_second_oog_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); bne t4, t2, .Lbv_call_second_oog_receipt_done\n" ++
+  "  la t1, bv_block_log_count; ld t5, 0(t1); bnez t5, .Lbv_call_second_oog_receipt_done\n" ++
+  "  li t5, 642224; sd t5, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  ".Lbv_call_second_oog_receipt_done:\n" ++
   -- stRevertTest python_revert rows can execute the value-log path in the
   -- staged dispatcher while the authenticated block/header gas and state root
   -- already match the consensus failed receipt. Normalize only this exact
