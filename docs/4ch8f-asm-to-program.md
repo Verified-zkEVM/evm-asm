@@ -71,12 +71,18 @@ pseudo `li rd, c`, which the assembler expands to 1–6 machine instructions
 depending on `c`. When `c` fits in signed 12 bits (`[-2048, 2047]`) the
 expansion is a single `addi` = 4 bytes and the model is faithful.
 
-The generator therefore **refuses** any `li rd, C` with `C` outside 12-bit
-signed range and reports the function `NEEDS-LI-EXPANSION`. A later wave will
-emit the explicit multi-instruction expansion (`lui`/`addiw`/`slli`/`addi` as
-separate `Instr`s), which restores the 4-byte invariant *and* still assembles
-identically (`emitInstr` renders real mnemonics that `as` encodes the same way
-the `li` pseudo would).
+For `li rd, C` with `C` outside 12-bit signed range the generator emits the
+**explicit multi-instruction expansion** as separate `Instr`s (bead
+`evm-asm-4ch8f.9.2`). Rather than reimplement the assembler's constant-
+materialization algorithm, `_li_expand` assembles the real `li` pseudo with
+`riscv64-unknown-elf-as` and *decodes the emitted machine words* back to source
+tuples — the only opcodes `li` ever expands to are `lui`/`addiw`/`addi`/`slli`.
+This restores the 4-byte invariant and, by construction, reassembles to the
+exact bytes `li` produced (the assemble+`cmp` gate is the arbiter). The constant
+is image-independent — it does not relocate — so no reloc-table entry is needed;
+the emitted string simply carries the real mnemonics in every image. (A `li`
+whose expansion word is not one of those four opcodes is refused, still
+`NEEDS-LI-EXPANSION`.)
 
 ## Normalization policy
 
@@ -164,8 +170,10 @@ table exists.
 
 1. Convert the remaining **111** CONVERTED-CLEAN leaves (mechanical; batch by
    file).
-2. **NEEDS-LI-EXPANSION** (20): teach the generator the explicit `li` expansion,
-   then convert.
+2. **NEEDS-LI-EXPANSION** (28) — **DONE** (bead `evm-asm-4ch8f.9.2`): the
+   generator now emits the explicit `li` expansion. 22 of the 28 converted; the
+   remaining 6 revealed a deeper `la`/cross-`jal` blocker (their own entry is not
+   linked into the guest) and moved to `BLOCKED_ON_.6`.
 3. **BLOCKED_ON_.6** (550): after `evm-asm-4ch8f.6` publishes the address table,
    resolve `la`→`LI`/region pointers and cross-function `jal` offsets (the
    latter also needs the call-composition combinator, bead `evm-asm-tj9ts`).

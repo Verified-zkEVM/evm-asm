@@ -156,14 +156,61 @@ def fits(v, bits):  # signed fit
     return lo <= v <= hi
 
 # --------------------------------------------------------------------------- #
+# li-expansion: mirror the EXACT `li rd, C` machine sequence GNU-as emits      #
+#   (bead evm-asm-4ch8f.9.2). A `li` with C outside signed-12 range assembles  #
+#   to 1-6 real instructions (lui/addiw/slli/addi); a faithful 4-byte-per-     #
+#   Instr Program must carry that exact sequence. Rather than reimplement the  #
+#   assembler's constant-materialization algorithm, we assemble the real `li`  #
+#   pseudo and DECODE the emitted words back to (mn, ops) source tuples — the  #
+#   ONLY opcodes `li` ever expands to are LUI/ADDIW/ADDI/SLLI. The whole-guest #
+#   byte-identity gate is the arbiter that this sequence reassembles to the    #
+#   same bytes as the original `li` (it must, since it was decoded from it).   #
+# --------------------------------------------------------------------------- #
+_LI_EXPAND_CACHE = {}
+def _li_expand(rd_tok, imm_tok):
+    """Return the exact GAS `li rd, C` expansion as a list of (mn, ops) source
+    tuples, obtained by assembling the real `li` pseudo and decoding the raw
+    machine words (offline, outside the TCB; validated by assemble+cmp)."""
+    key = (reg_num(rd_tok), parse_imm(imm_tok))
+    if key in _LI_EXPAND_CACHE: return _LI_EXPAND_CACHE[key]
+    with tempfile.TemporaryDirectory() as d:
+        s=os.path.join(d,'li.s'); o=os.path.join(d,'li.o'); b=os.path.join(d,'li.bin')
+        with open(s,'w') as f:
+            f.write(f".text\n.globl _f\n_f:\n  li {xr(rd_tok)}, {imm_tok}\n")
+        subprocess.run([AS,'-march=rv64im','-mno-relax','-o',o,s],check=True,
+                       stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        subprocess.run([OBJCOPY,'-O','binary','-j','.text',o,b],check=True,
+                       stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        words=open(b,'rb').read()
+    out=[]
+    for i in range(0,len(words),4):
+        w=int.from_bytes(words[i:i+4],'little')
+        opc=w&0x7f; rd=(w>>7)&0x1f; f3=(w>>12)&7; rs1=(w>>15)&0x1f
+        def simm12(x): return x-0x1000 if x>=0x800 else x
+        if opc==0x37:                       # LUI rd, imm20
+            out.append(('lui',  [f"x{rd}", f"0x{(w>>12)&0xfffff:x}"]))
+        elif opc==0x1b and f3==0:           # ADDIW rd, rs1, simm12
+            out.append(('addiw',[f"x{rd}", f"x{rs1}", str(simm12((w>>20)&0xfff))]))
+        elif opc==0x13 and f3==0:           # ADDI rd, rs1, simm12
+            out.append(('addi', [f"x{rd}", f"x{rs1}", str(simm12((w>>20)&0xfff))]))
+        elif opc==0x13 and f3==1:           # SLLI rd, rs1, shamt6
+            out.append(('slli', [f"x{rd}", f"x{rs1}", str((w>>20)&0x3f)]))
+        else:
+            raise ConvError(f"li {imm_tok}: unexpected expansion word 0x{w:08x} "
+                            f"(NEEDS-LI-EXPANSION)")
+    _LI_EXPAND_CACHE[key]=out
+    return out
+
+# --------------------------------------------------------------------------- #
 # instruction byte size in the 4-byte model (all must be 4; li may not be)    #
 # --------------------------------------------------------------------------- #
 def insn_size(mn, ops):
     if mn == 'li':
         v = parse_imm(ops[1])
         if not fits(v, 12):
-            raise ConvError(f"li {ops[1]}: constant needs multi-instruction expansion "
-                            f"(NEEDS-LI-EXPANSION)")
+            # Explicit multi-instruction expansion (bead evm-asm-4ch8f.9.2): the
+            # real GAS `li` sequence, each word a separate 4-byte `Instr`.
+            return 4 * len(_li_expand(ops[0], ops[1]))
     if mn in ('call','tail'):
         # `call`/`tail` expand to auipc+jalr (8 bytes) with a linker-relaxable
         # relocation; not handled by the la/jal-offset story of this wave.
@@ -306,6 +353,14 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
         lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} ({GA}.{entry} + {cur}))"]
         asm = [f"jal {xr(rd)}, {_br_off_asm(off)}"]
         return lean, asm, ('jal', reg(rd), tgt)
+    if mn == 'li' and not fits(parse_imm(ops[1]), 12):
+        # Explicit `li` expansion (bead evm-asm-4ch8f.9.2): emit the real
+        # lui/addiw/slli/addi machine instructions as separate `Instr`s. The
+        # constant is image-independent (no relocation), so no reloc marker.
+        tuples = _li_expand(ops[0], ops[1])
+        lean = [render_insn(m2, o2, off_of) for (m2, o2) in tuples]
+        asm  = [py_emit_line(m2, o2, off_of) for (m2, o2) in tuples]
+        return lean, asm, None
     return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)], None
 
 def _resolve(asm):

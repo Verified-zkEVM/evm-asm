@@ -7,6 +7,7 @@
 -/
 
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -41,49 +42,56 @@ open EvmAsm.Rv64
       a2 = gas made available to the child frame
       a3 = capped requested gas actually selected
 -/
-def messageCallGasFunction : String :=
-  "message_call_gas:\n" ++
-  "  mv t0, a0                   # value_nonzero\n" ++
-  "  mv t1, a1                   # requested gas\n" ++
-  "  mv t2, a2                   # gas_left\n" ++
-  "  mv t3, a3                   # memory_cost\n" ++
-  "  mv t4, a4                   # extra_gas\n" ++
-  "  add t5, t3, t4              # memory_cost + extra_gas\n" ++
-  "  bltu t5, t3, .Lmcg_input_overflow\n" ++
-  "  li t6, 0\n" ++
-  "  beqz t0, .Lmcg_have_stipend\n" ++
-  "  li t6, 2300\n" ++
-  ".Lmcg_have_stipend:\n" ++
-  "  bltu t2, t5, .Lmcg_uncapped\n" ++
-  "  sub a5, t2, t5              # available after memory/extra\n" ++
-  "  srli a6, a5, 6\n" ++
-  "  sub a6, a5, a6              # max_message_call_gas\n" ++
-  "  mv a3, t1\n" ++
-  "  bgeu a6, t1, .Lmcg_have_capped\n" ++
-  "  mv a3, a6\n" ++
-  "  j .Lmcg_have_capped\n" ++
-  ".Lmcg_uncapped:\n" ++
-  "  mv a3, t1\n" ++
-  ".Lmcg_have_capped:\n" ++
-  "  add a1, a3, t4              # cost\n" ++
-  "  bltu a1, a3, .Lmcg_output_overflow\n" ++
-  "  add a2, a3, t6              # sub_call\n" ++
-  "  bltu a2, a3, .Lmcg_output_overflow\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lmcg_input_overflow:\n" ++
-  "  li a0, 1\n" ++
-  "  li a1, 0\n" ++
-  "  li a2, 0\n" ++
-  "  li a3, 0\n" ++
-  "  ret\n" ++
-  ".Lmcg_output_overflow:\n" ++
-  "  li a0, 2\n" ++
-  "  li a1, 0\n" ++
-  "  li a2, 0\n" ++
-  "  li a3, 0\n" ++
-  "  ret"
+def messageCallGas_prog : Program :=
+  [ .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x7 .x12,
+    .MV .x28 .x13,
+    .MV .x29 .x14,
+    .ADD .x30 .x28 .x29,
+    .BLTU .x30 .x28 (80 : BitVec 13),
+    .LI .x31 (0 : Word),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LUI .x31 (1 : BitVec 20),
+    .ADDIW .x31 .x31 (-1796 : BitVec 12),
+    .BLTU .x7 .x30 (32 : BitVec 13),
+    .SUB .x15 .x7 .x30,
+    .SRLI .x16 .x15 (6 : BitVec 6),
+    .SUB .x16 .x15 .x16,
+    .MV .x13 .x6,
+    .BGEU .x16 .x6 (16 : BitVec 13),
+    .MV .x13 .x16,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x13 .x6,
+    .ADD .x11 .x13 .x29,
+    .BLTU .x11 .x13 (40 : BitVec 13),
+    .ADD .x12 .x13 .x31,
+    .BLTU .x12 .x13 (32 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LI .x13 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LI .x13 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def messageCallGasFunction : String :=
+  "message_call_gas:\n" ++ emitProgram messageCallGas_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `messageCallGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem messageCallGasFunction_eq_prog :
+    messageCallGasFunction = "message_call_gas:\n" ++ emitProgram messageCallGas_prog := rfl
+
+#guard messageCallGasFunction.startsWith "message_call_gas:\n"
+#guard messageCallGas_prog.length = 36
 /-- `zisk_message_call_gas`: focused probe for EIP-150 message-call gas math.
     Host input payload after the zisk length prefix:
       +0  value_nonzero u64

@@ -18,6 +18,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
 
@@ -28,15 +31,34 @@ open EvmAsm.Rv64
     a0 = depth (>= 1). Returns a0 = `call_frame_arena + (depth-1) * 0x29000`.
     (depth 0 is NOT handled here — it uses the existing evm_memory/stack/env
     labels directly; see the layout doc §1.) Clobbers t0/t1. -/
-def frameBaseFunction : String :=
-  "frame_base:\n" ++
-  "  addi t0, a0, -1                 # depth-1\n" ++
-  "  li t1, 0x29000                  # FRAME_STRIDE\n" ++
-  "  mul t0, t0, t1                  # (depth-1)*FRAME_STRIDE\n" ++
-  "  la t1, call_frame_arena\n" ++
-  "  add a0, t1, t0\n" ++
-  "  ret"
+def frameBase_prog : Program :=
+  [ .ADDI .x5 .x10 (-1 : BitVec 12),
+    .LUI .x6 (41 : BitVec 20),
+    .MUL .x5 .x5 .x6,
+    .AUIPC .x6 (laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)),
+    .ADD .x10 .x6 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `frameBase_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def frameBase_relocs : RelocTable :=
+  [ (3, .la .x6 "call_frame_arena") ]
+
+def frameBaseFunction : String :=
+  "frame_base:\n" ++ emitProgramR frameBase_prog frameBase_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `frameBase_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem frameBaseFunction_eq_prog :
+    frameBaseFunction = "frame_base:\n" ++ emitProgramR frameBase_prog frameBase_relocs := rfl
+
+#guard frameBaseFunction.startsWith "frame_base:\n"
+#guard frameBase_prog.length = 7
 /-- `zisk_frame_base`: probe over a local `call_frame_arena` stub. Verifies the
     offsets `frame_base(d) - call_frame_arena` for d = 1, 2, 1024 are
     `0`, `0x29000`, `1023*0x29000` respectively (the layout arithmetic). -/

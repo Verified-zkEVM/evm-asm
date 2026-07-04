@@ -10,16 +10,15 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 
 | Class | Count | Meaning |
 |---|---:|---|
-| ALREADY-STRUCTURED | 338 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
-| BLOCKED_ON_.6 | 301 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
+| ALREADY-STRUCTURED | 360 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion (this PR: 16) or a prior template splice (RlpWalk, *SAsm). |
+| BLOCKED_ON_.6 | 307 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
 | COMPOSITE | 139 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
 | NEEDS-DOTWORD | 33 | Contains a raw pre-encoded `.4byte N` word — the ZisK accelerator `.CSRS`/`csrrs` pattern `emitInstr` renders as `.4byte`. Needs a word-literal `Instr` (or a `.4byte`→`.CSRS` decoder) to convert; deferred to a follow-up wave. |
-| NEEDS-LI-EXPANSION | 28 | Contains an `li rd, C` with C outside 12-bit signed range; a faithful 4-byte-per-`Instr` Program must emit the explicit `lui`/`addiw`/… expansion as separate `Instr`s (follow-up wave). |
 | CALLER-LOCAL-FRAGMENT | 8 | Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first. |
 | MULTI-ENTRY-BUNDLE | 4 | Defines secondary non-`.L` labels (e.g. `*_clear`/`*_append`/`*_record_nth`) that other files `jal` into as cross-function entry points; `emitProgram` keeps only the entry label, so converting would silently break the guest link (caught only by the whole-guest byte-identity gate). Needs a multi-entry ABI / the .6 layout. |
 | **TOTAL** | **851** | |
 
-## Landed in this PR (331)
+## Landed in this PR (353)
 
 | Function | File | Instrs |
 |---|---|---:|
@@ -41,6 +40,8 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `addressComputeCreate2Function` | `EvmAsm/Codegen/Programs/Address.lean` | 0 |
 | `addressComputeCreateFunction` | `EvmAsm/Codegen/Programs/Address.lean` | 0 |
 | `addressFromPubkeyFunction` | `EvmAsm/Codegen/Programs/Address.lean` | 0 |
+| `amsterdamBlobGasPriceFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
+| `amsterdamBlobGasPriceU256Function` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
 | `b1SenderTableFindFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean` | 0 |
 | `baapDeleteSingleLeafStorageFunction` | `EvmAsm/Codegen/Programs/BalAccountApplyPostFields.lean` | 0 |
 | `bahU32leFunction` | `EvmAsm/Codegen/Programs/BlockAccessListHash.lean` | 0 |
@@ -144,15 +145,19 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `bsrBeaconChangeFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean` | 0 |
 | `bsrSysChangeFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean` | 0 |
 | `btiScanStorageChangesFunction` | `EvmAsm/Codegen/Programs/BlockVerdictTxsIndependent.lean` | 0 |
+| `bvSumWithdrawalsToAddressFunction` | `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 0 |
 | `bytesToNibblesFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `calcExcessBlobGasFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
 | `callFrameSetCalldataFunction` | `EvmAsm/Codegen/Programs/CallFrameDescend.lean` | 0 |
 | `calldataByteCountsFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
+| `chainValidateBlobGasUsedMultipleFunction` | `EvmAsm/Codegen/Programs/ChainValidateBlob.lean` | 0 |
+| `chainValidateBlobGasUsedUnderMaxFunction` | `EvmAsm/Codegen/Programs/ChainValidateBlob.lean` | 0 |
 | `chainValidateConsecutiveNumbersFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
 | `chainValidateExtraDataLengthFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
 | `chainValidateGasUsedUnderLimitFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
 | `chainValidateIncreasingTimestampsFunction` | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 0 |
 | `chainValidatePostMergeFullFunction` | `EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean` | 0 |
+| `checkGasLimitFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
 | `codeAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/StateCompose.lean` | 0 |
 | `codeHashAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/AccountFieldGetters.lean` | 0 |
 | `codesBlockhashRequiredHeadersFunction` | `EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean` | 0 |
@@ -168,22 +173,26 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `deriveConsolidationRequestsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 0 |
 | `deriveWithdrawalRequestsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 0 |
 | `dispatcherCaptureExecStateGasFunction` | `EvmAsm/Codegen/Programs/DispatcherExecStateGas.lean` | 0 |
+| `dispatcherTxGasSettleFunction` | `EvmAsm/Codegen/Dispatch.lean` | 0 |
 | `eip1559CalcBaseFeePerGasFunction` | `EvmAsm/Codegen/Programs/HeaderBaseFee.lean` | 0 |
 | `eip7702AuthorizationRecoverAddressFunction` | `EvmAsm/Codegen/Programs/Eip7702Authority.lean` | 0 |
 | `eip7702AuthorizationSigningHashFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 0 |
 | `eip7702NonceReuseGuardFunction` | `EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean` | 0 |
 | `eip7778RemainingBlockGasFromResultsFunction` | `EvmAsm/Codegen/Programs/BlockGasRemaining.lean` | 0 |
 | `eip8037BlockGasUsedFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
+| `eip8037ReservoirSplitFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `enrgU32leFunction` | `EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean` | 0 |
 | `ephU32leFunction` | `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 0 |
 | `execLogLatestValueFunction` | `EvmAsm/Codegen/Programs/ExecLogLatestValue.lean` | 0 |
 | `expGasFunction` | `EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean` | 0 |
+| `extcodecopyAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean` | 0 |
 | `extcodehashAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/EvmOpcodes.lean` | 0 |
 | `extcodesizeAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/StateCompose.lean` | 0 |
 | `extractParentHeaderAndStateRootFunction` | `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 0 |
 | `extractPayloadAndWithdrawalsFunction` | `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 0 |
 | `extractWitnessStateSectionFunction` | `EvmAsm/Codegen/Programs/SszWitnessState.lean` | 0 |
 | `findCodeEffectByAddressFunction` | `EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean` | 0 |
+| `frameBaseFunction` | `EvmAsm/Codegen/Programs/CallFrameBase.lean` | 0 |
 | `frameDepthPopFunction` | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 0 |
 | `frameDepthPushFunction` | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 0 |
 | `frameLoadRegsFunction` | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 0 |
@@ -196,6 +205,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `headerExtractStateRootFunction` | `EvmAsm/Codegen/Programs/HeaderFields.lean` | 0 |
 | `headerExtractWithdrawalsRootFunction` | `EvmAsm/Codegen/Programs/HeaderFields.lean` | 0 |
 | `headerValidateBaseFeeFunction` | `EvmAsm/Codegen/Programs/HeaderBaseFee.lean` | 0 |
+| `headerValidateExcessBlobGasFunction` | `EvmAsm/Codegen/Programs/HeaderBaseFee.lean` | 0 |
 | `headerValidateExtraDataLengthFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
 | `headerValidateParentHashFunction` | `EvmAsm/Codegen/Programs/HeadersKeccak.lean` | 0 |
 | `headerValidatePostMergeFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
@@ -205,27 +215,34 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `hpDecodeNibblesFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `hpEncodeNibblesFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `initCodeCostFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
+| `intrinsicGasAmsterdamCountsFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `intrinsicGasCalldataFloorEip7623Function` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
+| `intrinsicGasLegacyFunction` | `EvmAsm/Codegen/Programs/Tx.lean` | 0 |
 | `keccak256WordGasFunction` | `EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean` | 0 |
 | `logBloomAddFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `logDataGasFunction` | `EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean` | 0 |
 | `logsListBloomAddFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `memoryExpansionGasFunction` | `EvmAsm/Codegen/Programs/MemoryExpansionGas.lean` | 0 |
+| `messageCallGasFunction` | `EvmAsm/Codegen/Programs/EvmMessageCallGas.lean` | 0 |
 | `mptBranchChildFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `mptBranchPayloadTwoSlotsFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` | 0 |
 | `mptCompactToNibblesFunction` | `EvmAsm/Codegen/Programs/MptNibbles.lean` | 0 |
 | `mptDeleteAccFunction` | `EvmAsm/Codegen/Programs/MptDeleteAcc.lean` | 0 |
 | `mptDeleteWalkDbFunction` | `EvmAsm/Codegen/Programs/MptDeleteWalkDb.lean` | 0 |
 | `mptExtensionExtractFunction` | `EvmAsm/Codegen/Programs/MptInternal.lean` | 0 |
+| `mptExtensionNodeEncodeFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` | 0 |
 | `mptIndexedTrieRootLargeFunction` | `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` | 0 |
+| `mptIndexedTrieRootSmallFunction` | `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` | 0 |
 | `mptInsertAccFunction` | `EvmAsm/Codegen/Programs/MptInsertAcc.lean` | 0 |
 | `mptInsertWalkDbFunction` | `EvmAsm/Codegen/Programs/MptInsertWalkDb.lean` | 0 |
 | `mptLeafExtractFunction` | `EvmAsm/Codegen/Programs/MptInternal.lean` | 0 |
 | `mptLookupByKeyFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
 | `mptNibblesToCompactFunction` | `EvmAsm/Codegen/Programs/MptNibbles.lean` | 0 |
 | `mptNodeKindFunction` | `EvmAsm/Codegen/Programs/Mpt.lean` | 0 |
+| `mptNodeResolveFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `mptNodeSlotEncodeFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` | 0 |
 | `mptOneLeafRootIndexedFunction` | `EvmAsm/Codegen/Programs/TxRoot.lean` | 0 |
+| `mptResolveCacheResetFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `mptSetAccFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `mptSetRecordWalkDbFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 0 |
 | `mptSpliceSlotFunction` | `EvmAsm/Codegen/Programs/MptSet.lean` | 0 |
@@ -303,11 +320,13 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `slotTupleSequencesMatchFunction` | `EvmAsm/Codegen/Programs/SlotTupleSequencesMatch.lean` | 0 |
 | `spwU32leFunction` | `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 0 |
 | `sszHashTreeRootBytesFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
+| `sszHashTreeRootListByteListFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
 | `sszMerkleizeFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
 | `sszMerkleizePow2Function` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
 | `sszPackBytesFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 0 |
 | `sszTxListVersionedHashesMatchFunction` | `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 0 |
 | `sszWithdrawalToRlpFunction` | `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 0 |
+| `statelessVerdictFromSszFunction` | `EvmAsm/Codegen/Programs/StatelessVerdict.lean` | 0 |
 | `step2VerdictFunction` | `EvmAsm/Codegen/Programs/Step2Verdict.lean` | 0 |
 | `storageRootSingleSlotFunction` | `EvmAsm/Codegen/Programs/StorageWrite.lean` | 0 |
 | `swdMinimalCopyFunction` | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 0 |
@@ -316,6 +335,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `swdWriteBe8Function` | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 0 |
 | `swrRevLeBeFunction` | `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 0 |
 | `swsU32leFunction` | `EvmAsm/Codegen/Programs/SszWitnessState.lean` | 0 |
+| `systemWriteDescriptorsFunction` | `EvmAsm/Codegen/Programs/SystemWrites.lean` | 0 |
 | `txAccessListSpanFunction` | `EvmAsm/Codegen/Programs/SeedTxAccessList.lean` | 0 |
 | `txEffectiveGasPricingFunction` | `EvmAsm/Codegen/Programs/TxExtract.lean` | 0 |
 | `txEip1559DecodeFunction` | `EvmAsm/Codegen/Programs/TxDecode1559.lean` | 0 |
@@ -352,6 +372,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `validateParentHashLinkFunction` | `EvmAsm/Codegen/Programs/HeaderChain.lean` | 0 |
 | `verifyPublicKeysMatchSendersFunction` | `EvmAsm/Codegen/Programs/VerifyPublicKeysSenders.lean` | 0 |
 | `withdrawalDecodeFunction` | `EvmAsm/Codegen/Programs/Withdrawal.lean` | 0 |
+| `withdrawalToPathDeltaFunction` | `EvmAsm/Codegen/Programs/WithdrawalPath.lean` | 0 |
 | `withdrawalsStateRootFunction` | `EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean` | 0 |
 | `witnessCodesValidateLengthsFunction` | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 0 |
 
@@ -365,38 +386,10 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | Function | File | Instrs | Note |
 |---|---|---:|---|
 
-## NEEDS-LI-EXPANSION (28)
+## NEEDS-LI-EXPANSION (0)
 
 | Function | File | Instrs | Note |
 |---|---|---:|---|
-| `dispatcherTxGasSettleFunction` | `EvmAsm/Codegen/Dispatch.lean` |  | li 0xa0010000: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `frameBaseFunction` | `EvmAsm/Codegen/Programs/CallFrameBase.lean` |  | li 0x29000: constant needs multi-instruction expansion (NEEDS-LI-EXPAN |
-| `chainValidateBlobGasUsedMultipleFunction` | `EvmAsm/Codegen/Programs/ChainValidateBlob.lean` |  | li 0x1ffff: constant needs multi-instruction expansion (NEEDS-LI-EXPAN |
-| `chainValidateBlobGasUsedUnderMaxFunction` | `EvmAsm/Codegen/Programs/ChainValidateBlob.lean` |  | li 2752512: constant needs multi-instruction expansion (NEEDS-LI-EXPAN |
-| `eip2935BlockhashLookupFunction` | `EvmAsm/Codegen/Programs/Eip2935.lean` |  | li 8191: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `eip4788BeaconRootLookupFunction` | `EvmAsm/Codegen/Programs/Eip4788.lean` |  | li 8191: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `messageCallGasFunction` | `EvmAsm/Codegen/Programs/EvmMessageCallGas.lean` |  | li 2300: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `extcodecopyAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean` |  | li 32768: constant needs multi-instruction expansion (NEEDS-LI-EXPANSI |
-| `amsterdamBlobGasPriceFunction` | `EvmAsm/Codegen/Programs/Header.lean` |  | li 11684671: constant needs multi-instruction expansion (NEEDS-LI-EXPA |
-| `amsterdamBlobGasPriceU256Function` | `EvmAsm/Codegen/Programs/Header.lean` |  | li 11684671: constant needs multi-instruction expansion (NEEDS-LI-EXPA |
-| `checkGasLimitFunction` | `EvmAsm/Codegen/Programs/Header.lean` |  | li 5000: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `headerValidateExcessBlobGasFunction` | `EvmAsm/Codegen/Programs/HeaderBaseFee.lean` |  | li 1835008: constant needs multi-instruction expansion (NEEDS-LI-EXPAN |
-| `eip8037ReservoirSplitFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` |  | li 16777216: constant needs multi-instruction expansion (NEEDS-LI-EXPA |
-| `intrinsicGasAmsterdamCountsFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` |  | li 21000: constant needs multi-instruction expansion (NEEDS-LI-EXPANSI |
-| `mptBranchNodeEncodeFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` |  | li 0xa0000000: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `mptExtensionNodeEncodeFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` |  | li 0xa0000000: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `mptLeafNodeEncodeFunction` | `EvmAsm/Codegen/Programs/MptEncode.lean` |  | li 0xa0000000: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `mptIndexedTrieRootSmallFunction` | `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` |  | li 2049: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `mptNodeResolveFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` |  | li 4095: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `mptResolveCacheResetFunction` | `EvmAsm/Codegen/Programs/MptSetAcc.lean` |  | li 4096: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `sszHashTreeRootListByteListFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` |  | li 4096: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `bvSumWithdrawalsToAddressFunction` | `EvmAsm/Codegen/Programs/SszWithdrawal.lean` |  | li 1000000000: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `statelessVerdictFromSszFunction` | `EvmAsm/Codegen/Programs/StatelessVerdict.lean` |  | li 0x40000000: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `systemWriteDescriptorsFunction` | `EvmAsm/Codegen/Programs/SystemWrites.lean` |  | li 8191: constant needs multi-instruction expansion (NEEDS-LI-EXPANSIO |
-| `intrinsicGasLegacyFunction` | `EvmAsm/Codegen/Programs/Tx.lean` |  | li 21000: constant needs multi-instruction expansion (NEEDS-LI-EXPANSI |
-| `validateTransactionBasicFunction` | `EvmAsm/Codegen/Programs/Tx.lean` |  | li 0xffffffff: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `processWithdrawalFunction` | `EvmAsm/Codegen/Programs/Withdrawal.lean` |  | li 1000000000: constant needs multi-instruction expansion (NEEDS-LI-EX |
-| `withdrawalToPathDeltaFunction` | `EvmAsm/Codegen/Programs/WithdrawalPath.lean` |  | li 1000000000: constant needs multi-instruction expansion (NEEDS-LI-EX |
 
 ## NEEDS-CALL-EXPANSION (0)
 
@@ -463,7 +456,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `receiptRecordsFunction` | `EvmAsm/Codegen/Programs/ReceiptRecords.lean` |  | secondary non-.L label 'receipt_records_clear': multi-entry bundle, cr |
 | `storageEffectRecordsFunction` | `EvmAsm/Codegen/Programs/StorageEffectRecords.lean` |  | secondary non-.L label 'storage_effect_records_clear': multi-entry bun |
 
-## BLOCKED_ON_.6 (301) — by file
+## BLOCKED_ON_.6 (307) — by file
 
 | File | Count |
 |---|---:|
@@ -524,6 +517,8 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/CodeVerify.lean` | 1 |
 | `EvmAsm/Codegen/Programs/DifficultyAtBlockHash.lean` | 1 |
 | `EvmAsm/Codegen/Programs/DifficultyAtBlockNumber.lean` | 1 |
+| `EvmAsm/Codegen/Programs/Eip2935.lean` | 1 |
+| `EvmAsm/Codegen/Programs/Eip4788.lean` | 1 |
 | `EvmAsm/Codegen/Programs/EvmOpcodes.lean` | 1 |
 | `EvmAsm/Codegen/Programs/EvmOpcodesStorageRoot.lean` | 1 |
 | `EvmAsm/Codegen/Programs/ExcessBlobGasAtBlockHash.lean` | 1 |
@@ -558,6 +553,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/LogsBloomKeccakAtBlockHash.lean` | 1 |
 | `EvmAsm/Codegen/Programs/LogsBloomKeccakAtBlockNumber.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Mpt.lean` | 1 |
+| `EvmAsm/Codegen/Programs/MptEncode.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MptEncodeLeafBranch.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptInsert.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptInsertWalk.lean` | 1 |
@@ -615,13 +611,13 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/TimestampAtBlockNumber.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TransactionsRootAtBlockHash.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TransactionsRootAtBlockNumber.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Tx.lean` | 6 |
+| `EvmAsm/Codegen/Programs/Tx.lean` | 7 |
 | `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxDecode.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxRoot.lean` | 3 |
 | `EvmAsm/Codegen/Programs/TxTotalBlobGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/U256GasPricing.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Withdrawal.lean` | 5 |
+| `EvmAsm/Codegen/Programs/Withdrawal.lean` | 6 |
 | `EvmAsm/Codegen/Programs/WithdrawalBlockSummary.lean` | 2 |
 | `EvmAsm/Codegen/Programs/WithdrawalsRootAtBlockHash.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WithdrawalsRootAtBlockNumber.lean` | 1 |
@@ -639,11 +635,11 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WitnessStorageNodeKindDistribution.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 2 |
 
-## ALREADY-STRUCTURED (338) — by file
+## ALREADY-STRUCTURED (360) — by file
 
 | File | Count |
 |---|---:|
-| `EvmAsm/Codegen/Dispatch.lean` | 2 |
+| `EvmAsm/Codegen/Dispatch.lean` | 3 |
 | `EvmAsm/Codegen/Programs/Account.lean` | 3 |
 | `EvmAsm/Codegen/Programs/AccountApplyStorage.lean` | 2 |
 | `EvmAsm/Codegen/Programs/AccountBalance.lean` | 3 |
@@ -698,9 +694,11 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/Bn254Fp2.lean` | 6 |
 | `EvmAsm/Codegen/Programs/Bn254Fq12.lean` | 6 |
 | `EvmAsm/Codegen/Programs/Bn254Pairing.lean` | 1 |
+| `EvmAsm/Codegen/Programs/CallFrameBase.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CallFrameDescend.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CallFrameSwitch.lean` | 4 |
 | `EvmAsm/Codegen/Programs/ChainValidate.lean` | 4 |
+| `EvmAsm/Codegen/Programs/ChainValidateBlob.lean` | 2 |
 | `EvmAsm/Codegen/Programs/ChainValidatePostMerge.lean` | 1 |
 | `EvmAsm/Codegen/Programs/CommittedStorageLookup.lean` | 2 |
 | `EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean` | 3 |
@@ -712,29 +710,31 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/Eip7702Authority.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean` | 2 |
 | `EvmAsm/Codegen/Programs/EvmCodes.lean` | 1 |
+| `EvmAsm/Codegen/Programs/EvmMessageCallGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/EvmNonce.lean` | 1 |
 | `EvmAsm/Codegen/Programs/EvmOpcodes.lean` | 1 |
+| `EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean` | 1 |
 | `EvmAsm/Codegen/Programs/ExecLogLatestValue.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Header.lean` | 5 |
-| `EvmAsm/Codegen/Programs/HeaderBaseFee.lean` | 3 |
+| `EvmAsm/Codegen/Programs/Header.lean` | 8 |
+| `EvmAsm/Codegen/Programs/HeaderBaseFee.lean` | 4 |
 | `EvmAsm/Codegen/Programs/HeaderChain.lean` | 1 |
 | `EvmAsm/Codegen/Programs/HeaderDecode.lean` | 1 |
 | `EvmAsm/Codegen/Programs/HeaderFields.lean` | 3 |
 | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 1 |
 | `EvmAsm/Codegen/Programs/HeadersKeccak.lean` | 4 |
-| `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 5 |
+| `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 7 |
 | `EvmAsm/Codegen/Programs/MemoryExpansionGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Mpt.lean` | 7 |
 | `EvmAsm/Codegen/Programs/MptDeleteAcc.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptDeleteWalkDb.lean` | 1 |
-| `EvmAsm/Codegen/Programs/MptEncode.lean` | 4 |
-| `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` | 1 |
+| `EvmAsm/Codegen/Programs/MptEncode.lean` | 5 |
+| `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MptInsertAcc.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptInsertWalkDb.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptInternal.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MptNibbles.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MptSet.lean` | 2 |
-| `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 5 |
+| `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 7 |
 | `EvmAsm/Codegen/Programs/MptStateRootIns.lean` | 1 |
 | `EvmAsm/Codegen/Programs/NonstorageEffectLog.lean` | 1 |
 | `EvmAsm/Codegen/Programs/P256Verify.lean` | 11 |
@@ -749,19 +749,20 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/SeedTxAccessList.lean` | 1 |
 | `EvmAsm/Codegen/Programs/SenderPostNonceConsistent.lean` | 1 |
 | `EvmAsm/Codegen/Programs/SlotTupleSequencesMatch.lean` | 1 |
-| `EvmAsm/Codegen/Programs/Ssz.lean` | 4 |
+| `EvmAsm/Codegen/Programs/Ssz.lean` | 5 |
 | `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 2 |
 | `EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean` | 2 |
-| `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 2 |
+| `EvmAsm/Codegen/Programs/SszWithdrawal.lean` | 3 |
 | `EvmAsm/Codegen/Programs/SszWitnessState.lean` | 2 |
 | `EvmAsm/Codegen/Programs/State.lean` | 4 |
 | `EvmAsm/Codegen/Programs/StateCompose.lean` | 4 |
 | `EvmAsm/Codegen/Programs/StatePredicates.lean` | 2 |
+| `EvmAsm/Codegen/Programs/StatelessVerdict.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Step2Verdict.lean` | 1 |
 | `EvmAsm/Codegen/Programs/StorageWrite.lean` | 2 |
 | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 2 |
-| `EvmAsm/Codegen/Programs/SystemWrites.lean` | 4 |
-| `EvmAsm/Codegen/Programs/Tx.lean` | 4 |
+| `EvmAsm/Codegen/Programs/SystemWrites.lean` | 5 |
+| `EvmAsm/Codegen/Programs/Tx.lean` | 5 |
 | `EvmAsm/Codegen/Programs/TxBlobGas.lean` | 2 |
 | `EvmAsm/Codegen/Programs/TxDecode1559.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxDecode2930.lean` | 1 |
@@ -779,6 +780,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/ValidateHeaderPair.lean` | 1 |
 | `EvmAsm/Codegen/Programs/VerifyPublicKeysSenders.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Withdrawal.lean` | 1 |
+| `EvmAsm/Codegen/Programs/WithdrawalPath.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WithdrawalsRootIndexed.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 1 |

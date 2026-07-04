@@ -394,65 +394,106 @@ def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
 
     Uses 32 bytes of `.data` scratch (`hvebg_threshold`) and the existing
     u256 multiplication scratch (`u256m_acc`). -/
-def headerValidateExcessBlobGasFunction : String :=
-  "header_validate_excess_blob_gas:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # this.excess_blob_gas\n" ++
-  "  mv s1, a1                   # parent.blob_gas_used\n" ++
-  "  mv s2, a2                   # parent.excess_blob_gas\n" ++
-  "  mv s3, a3                   # parent.base_fee_per_gas ptr\n" ++
-  "  add s4, s2, s1              # parent_blob_gas\n" ++
-  "  bltu s4, s2, .Lhvebg_overflow\n" ++
-  "  li t0, 1835008              # 14 * 131072\n" ++
-  "  bltu s4, t0, .Lhvebg_expected_zero\n" ++
-  "  mv a0, s2\n" ++
-  "  la a1, hvebg_threshold\n" ++
-  "  jal ra, amsterdam_blob_gas_price_u256   # threshold = blob gas price (u256)\n" ++
-  "  bnez a0, .Lhvebg_overflow\n" ++
-  "  la a0, hvebg_threshold\n" ++
-  "  li a1, 16\n" ++
-  "  la a2, hvebg_threshold\n" ++
-  "  jal ra, u256_mul_u64_be     # threshold = 16 * price\n" ++
-  "  bnez a0, .Lhvebg_overflow\n" ++
-  "  la a0, hvebg_threshold\n" ++
-  "  mv a1, s3\n" ++
-  "  la a2, u256m_acc            # u256_lt_be writes the verdict to *a2 (a0 is status)\n" ++
-  "  jal ra, u256_lt_be          # [u256m_acc] = 1 iff threshold < parent_base_fee\n" ++
-  "  la t0, u256m_acc\n" ++
-  "  ld t0, 0(t0)\n" ++
-  "  beqz t0, .Lhvebg_normal\n" ++
-  "  li t0, 2635249153387078802  # (2^64-1) // 7\n" ++
-  "  bltu t0, s1, .Lhvebg_overflow  # spec: U64 used * 7 raises OverflowError\n" ++
-  "  li t0, 3\n" ++
-  "  divu t1, s1, t0             # used * 7 // 21 == used // 3\n" ++
-  "  add s5, s2, t1\n" ++
-  "  bltu s5, s2, .Lhvebg_overflow\n" ++
-  "  j .Lhvebg_compare\n" ++
-  ".Lhvebg_normal:\n" ++
-  "  li t0, 1835008\n" ++
-  "  sub s5, s4, t0\n" ++
-  "  j .Lhvebg_compare\n" ++
-  ".Lhvebg_expected_zero:\n" ++
-  "  li s5, 0\n" ++
-  ".Lhvebg_compare:\n" ++
-  "  bne s0, s5, .Lhvebg_mismatch\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lhvebg_ret\n" ++
-  ".Lhvebg_overflow:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhvebg_ret\n" ++
-  ".Lhvebg_mismatch:\n" ++
-  "  li a0, 2\n" ++
-  ".Lhvebg_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def headerValidateExcessBlobGas_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .ADD .x20 .x18 .x9,
+    .BLTU .x20 .x18 (184 : BitVec 13),
+    .LUI .x5 (448 : BitVec 20),
+    .BLTU .x20 .x5 (160 : BitVec 13),
+    .MV .x10 .x18,
+    .AUIPC .x11 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 68)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 68)),
+    .JAL .x1 (jalOff GuestAddrs.amsterdam_blob_gas_price_u256 (GuestAddrs.header_validate_excess_blob_gas + 76)),
+    .BNE .x10 .x0 (156 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 84)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 84)),
+    .LI .x11 (16 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.header_validate_excess_blob_gas + 104)),
+    .BNE .x10 .x0 (128 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 124)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 124)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.header_validate_excess_blob_gas + 132)),
+    .AUIPC .x5 (laHi GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 136)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 136)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (60 : BitVec 13),
+    .LUI .x5 (4681 : BitVec 20),
+    .ADDIW .x5 .x5 (585 : BitVec 12),
+    .SLLI .x5 .x5 (12 : BitVec 6),
+    .ADDI .x5 .x5 (585 : BitVec 12),
+    .SLLI .x5 .x5 (12 : BitVec 6),
+    .ADDI .x5 .x5 (585 : BitVec 12),
+    .SLLI .x5 .x5 (13 : BitVec 6),
+    .ADDI .x5 .x5 (1170 : BitVec 12),
+    .BLTU .x5 .x9 (52 : BitVec 13),
+    .LI .x5 (3 : Word),
+    .DIVU .x6 .x9 .x5,
+    .ADD .x21 .x18 .x6,
+    .BLTU .x21 .x18 (36 : BitVec 13),
+    .JAL .x0 (20 : BitVec 21),
+    .LUI .x5 (448 : BitVec 20),
+    .SUB .x21 .x20 .x5,
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x21 (0 : Word),
+    .BNE .x8 .x21 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerValidateExcessBlobGas_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerValidateExcessBlobGas_relocs : RelocTable :=
+  [ (17, .la .x11 "hvebg_threshold"),
+    (19, .jal .x1 "amsterdam_blob_gas_price_u256"),
+    (21, .la .x10 "hvebg_threshold"),
+    (24, .la .x12 "hvebg_threshold"),
+    (26, .jal .x1 "u256_mul_u64_be"),
+    (28, .la .x10 "hvebg_threshold"),
+    (31, .la .x12 "u256m_acc"),
+    (33, .jal .x1 "u256_lt_be"),
+    (34, .la .x5 "u256m_acc") ]
+
+def headerValidateExcessBlobGasFunction : String :=
+  "header_validate_excess_blob_gas:\n" ++ emitProgramR headerValidateExcessBlobGas_prog headerValidateExcessBlobGas_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerValidateExcessBlobGas_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerValidateExcessBlobGasFunction_eq_prog :
+    headerValidateExcessBlobGasFunction = "header_validate_excess_blob_gas:\n" ++ emitProgramR headerValidateExcessBlobGas_prog headerValidateExcessBlobGas_relocs := rfl
+
+#guard headerValidateExcessBlobGasFunction.startsWith "header_validate_excess_blob_gas:\n"
+#guard headerValidateExcessBlobGas_prog.length = 71
 /-! ## validate_header_full -- PR-K75 complete per-header validation
 
     Run all six per-header validation checks in sequence, returning
