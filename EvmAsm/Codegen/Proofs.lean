@@ -10,6 +10,9 @@ import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.CallReturn
 import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.HandlerHandles
+import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
+import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
+import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
 import EvmAsm.Codegen.Proofs.CreateDeployedCodeValidSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
