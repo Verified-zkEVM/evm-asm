@@ -32,6 +32,7 @@ review) · `blocked` (waiting on another bead/branch — name it) · `merged` ·
 
 | Bead id (`bd`) | Branch | PR | Worker | Claimed | Status | Notes / blocked-by |
 |---|---|---|---|---|---|---|
+| evm-asm-vgyg9 (=4ch8f.49.a) | `feat/vgyg9-guard-flag-ret` | — | Fable | 2026-07-04 | active | guard→flag+ret (guest-byte, races layout); coordinate merge order with #9792 (.49.1) |
 | _(steering rollout)_ | `feat/phase4-review-throughput` | — | c1 | 2026-06-04 | review | Phase 4 review-throughput; stacked on `feat/phase3-divclass-defense` |
 | _(steering rollout)_ | `feat/phase3-divclass-defense` | #8050 | c1 | — | review | stacked on `feat/phase2-direction-tracking` |
 | _(steering rollout)_ | `feat/phase2-direction-tracking` | #8040 | c1 | — | review | base of the Phase 3/4 stack |

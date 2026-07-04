@@ -62,5 +62,4 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  li t5, 17044246; sd t5, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
   ".Lbv_contract_creation_spam_receipt_done:\n"
-
 end EvmAsm.Codegen

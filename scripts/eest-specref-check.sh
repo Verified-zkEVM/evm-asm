@@ -79,6 +79,7 @@ RUN_DIR_OVERRIDE=""
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
+JOBS="${EEST_JOBS:-auto}"
 
 usage() {
   cat <<'USAGE'
@@ -100,6 +101,7 @@ Options:
   --tag TAG                EEST fixture tag (default zkevm@v0.4.0)
   --run-dir DIR            use DIR instead of an auto run dir
   --no-build               skip lake build (reuse the built exe)
+  --jobs N|auto            parallel `lake exe` jobs (default auto, capped at nproc)
   -h, --help               show this help
 USAGE
 }
@@ -130,6 +132,7 @@ while [[ $# -gt 0 ]]; do
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
+    --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
@@ -162,8 +165,13 @@ fi
 if [[ "$REVERSE_ORDER" != "0" && "$REVERSE_ORDER" != "1" ]]; then
   echo "EEST_REVERSE_ORDER must be 0 or 1 (got: $REVERSE_ORDER)" >&2; exit 1
 fi
-
-echo "==> SpecRef EEST conformance check (reference model, no ziskemu)"
+CPUS="$(nproc 2>/dev/null || echo 1)"
+if [[ "$JOBS" == "auto" ]]; then
+  JOBS="$CPUS"
+elif ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 ]]; then
+  echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2; exit 1
+fi
+echo "==> SpecRef EEST conformance check (reference model, no ziskemu, jobs=$JOBS)"
 
 # --- build the Lean exe -----------------------------------------------------
 if [[ "$NO_BUILD" -eq 0 ]]; then
@@ -264,26 +272,57 @@ case_identity() {
 # See the file header for why `succ` diverges (placeholder execution seam).
 total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0
 
-run_case() {
+# Worker: invoke the exe and write a per-case result TSV so the dispatcher
+# can run many cases in parallel and the classifier can read them back in
+# manifest order. Result schema: "<STATUS>\t<actual_hex|reason>".
+run_worker() {
   local line="$1"
   local label input expected_hex succ_bit input_len gas_limit relpath
   IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.log"
+  local result="$RUN_DIR/$label.result.tsv"
 
   if ! lake exe specref-eest-check "$input" "$out" >"$log" 2>&1; then
-    echo "  ERROR(spec)   $(case_identity "$label" "$relpath") (see $log)"
-    err=$((err + 1))
-    total=$((total + 1))
+    printf 'ERROR\tspec\n' > "$result"
     return 0
   fi
-
   local actual_hex
   actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
   if [[ "${#actual_hex}" -lt 210 ]]; then
-    echo "  ERROR(short)  $(case_identity "$label" "$relpath") (${#actual_hex} hex chars)"
+    printf 'ERROR\tshort:%s\n' "${#actual_hex}" > "$result"
+    return 0
+  fi
+  printf 'OK\t%s\n' "$actual_hex" > "$result"
+}
+
+wait_for_one_worker() {
+  # Workers always write a per-case result.tsv; their exit code is irrelevant
+  # (a lake-exe failure is recorded as an ERROR row, not a crash). Swallow it
+  # so `set -e` in the dispatcher never aborts on a finished-but-nonzero job.
+  wait -n 2>/dev/null || true
+}
+
+classify_case() {
+  local line="$1"
+  local label input expected_hex succ_bit input_len gas_limit relpath
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local result="$RUN_DIR/$label.result.tsv"
+  total=$((total + 1))
+  if [[ ! -f "$result" ]]; then
     err=$((err + 1))
-    total=$((total + 1))
+    echo "  ERROR(missing) $(case_identity "$label" "$relpath")"
+    return 0
+  fi
+  local status actual_hex
+  IFS=$'\t' read -r status actual_hex < "$result"
+  if [[ "$status" != "OK" ]]; then
+    err=$((err + 1))
+    case "$actual_hex" in
+      spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath") (see $RUN_DIR/$label.log)" ;;
+      short:*) echo "  ERROR(short)  $(case_identity "$label" "$relpath") (${actual_hex#short:} hex chars)" ;;
+      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
+    esac
     return 0
   fi
 
@@ -299,7 +338,6 @@ run_case() {
   [[ "$exp_succ" == "$act_succ" ]] || s="----"
   [[ "$exp_tail" == "$act_tail" ]] || t="----"
 
-  total=$((total + 1))
   [[ "$r" == "root" ]] && root=$((root + 1))
   [[ "$t" == "tail" ]] && tail=$((tail + 1))
   # `succ` accounting: only count a succ MATCH when root+tail also match
@@ -319,13 +357,13 @@ run_case() {
   # known execution-seam gap and is reported separately at the end.
   if [[ "$r" == "root" && "$t" == "tail" ]]; then
     if [[ "$s" == "succ" ]]; then
-      [[ "$QUIET_PASSES" -eq 0 ]] && echo "  PASS(full)  $(case_identity "$label" "$relpath")"
+      if [[ "$QUIET_PASSES" -eq 0 ]]; then
+        echo "  PASS(full)  $(case_identity "$label" "$relpath")"
+      fi
     else
       echo "  PASS(seam)  $(case_identity "$label" "$relpath") [root/succ(div:execution-seam)/tail]"
     fi
   else
-    fail_label=""
-    [[ "$r" == "root" ]] && fail_label="root"
     echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath")"
     echo "    expected: $expected_hex"
     echo "    actual:   $actual_hex"
@@ -333,9 +371,26 @@ run_case() {
   fi
 }
 
-echo "==> run SpecRef on $selectedCount case(s) ($selection)"
+echo "==> run SpecRef on $selectedCount case(s) ($selection, jobs=$JOBS)"
+running=0
 for line in "${manifestLines[@]}"; do
-  run_case "$line"
+  run_worker "$line" &
+  running=$((running + 1))
+  if [[ "$running" -ge "$JOBS" ]]; then
+    wait_for_one_worker
+    running=$((running - 1))
+  fi
+done
+# Drain remaining workers.
+while [[ "$running" -gt 0 ]]; do
+  wait_for_one_worker || true
+  running=$((running - 1))
+done
+
+# Classify in manifest order so the report is stable regardless of completion
+# order.
+for line in "${manifestLines[@]}"; do
+  classify_case "$line"
 done
 
 # --- summary ----------------------------------------------------------------
