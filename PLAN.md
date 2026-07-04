@@ -2568,7 +2568,20 @@ seven-children+pad tiling is THE SAME assertion
 offsets), transitions forget contents by construction
 (`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
 havoc'd range must verify for all contents
-(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Top-level spec
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Per-depth
+frame-window algebra over that arena landed (bead evm-asm-4ch8f.10.4,
+`Codegen/CallFrameWindows.lean`): `phaseDView` tiles into 1025 per-depth
+`frameWindow base d` (stated generically over
+`List.replicate frameSlotCount frameStride`, proved by induction on the
+replicated segment — `anyTilesAt_replicate_focus_at`, never a 1025-way
+enumeration); `phaseDView_focus`/`focusFrame`/`unfocusFrame` extract and
+re-absorb one depth with the rest framed untouched; `frameWindow_components`
+carves a window into named sub-region accessors (`frameStackWindow`,
+`frameEnvWindow`, … at the `CallFrameLayout` offsets); and `encodesFrame`
+fixes the suspended-parent relation SHAPE (pc/codebase dwords + stack window
+pinned through `bytesRegion`, rest havoc'd) with `encodesFrame_focus` weakening
+it into a `frameWindow` — feeds .56 descend/return contracts (strategy §4).
+Top-level spec
 statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
 docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
 `cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
