@@ -1,17 +1,16 @@
 /-
   EvmAsm.Codegen.Programs.SwdMinimalCopySAsm
 
-  Bead evm-asm-4ch8f.12.9 — `swd_minimal_copy`: SAsm port.
+  Bead evm-asm-4ch8f.12.9 — `swd_minimal_copy`: **verified SAsm port**
+  (`swdMinimalCopyFn_spec`, classical-3 axioms).
 
-  ## Status: faithful `Fn` contract stated + byte-identity machine-checked;
-  the `Fn.Spec` proof (`swdMinimalCopyFn.Spec`) is the remaining work item.
-  Both former blockers are gone — `.67` (`blockAt`/`focus_rwAtom`, the `*a3`
-  store) and `.huy8w` (`Stmt.whileBreak`, the strip loop's mid-loop early
-  exit) — and the composed structure flattens byte-for-byte to the guest
-  routine (`swdMinimalCopyBody_eq_prog`).  The `Fn` below states the intended
-  contract (`swdMinimalCopyFn.pre`/`.post`); proving `swdMinimalCopyFn.Spec`
-  composes the three verified phase-templates (`scanNzFn` strip, `MultiRw`
-  `blockAt` store, `SwrRevLeBe` `«while»` copy).
+  Both former blockers were resolved and merged to main — `.67`
+  (`blockAt`/`focus_rwAtom`, the `*a3` store) and `.huy8w`
+  (`Stmt.whileBreak`, the strip loop's mid-loop early exit) — and the port
+  composes the three verified phases: `whileBreak` strip (the `scanNzFn`
+  shape), a `blockAt` `*a3` store discharged by `focus_rwAtom`, and a
+  `«while»` copy (the `SwrRevLeBe` shape).  Byte-identity to the guest
+  routine is pinned (`swdMinimalCopyBody_eq_prog`).
 
   `a0=src, a1=len, a2=dst, a3=len-out ptr`.  Strip the leading zero bytes of
   `src[0..len)`, copy the remainder into `dst`, and write the remaining length
@@ -239,6 +238,443 @@ theorem swdMinimalCopyBody_pic :
 #guard swdMinimalCopy_prog.length = 19
 #guard (swdMinimalCopyBody 0 0 0 [] [] [] 0).flatten 0 ++ [Instr.JALR .x0 .x1 0]
   = swdMinimalCopy_prog
+
+-- ============================================================================
+-- Per-phase engine lemmas
+-- ============================================================================
+
+/-- An `LBU` that misses the writable window reads the read-only region. -/
+private theorem execInstrRF_lbu_ro (ro : Region) (rwBase : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12)
+    (h : ¬ inRw rwBase ws (rf.get rs1 + signExtend12 ofs) 1) :
+    execInstrRF ro rwBase rf ws (.LBU rd rs1 ofs)
+      = (rf.set rd ((ro.byteAt (rf.get rs1 + signExtend12 ofs)).zeroExtend 64), ws) := by
+  unfold execInstrRF; dsimp only [aluSem, loadSem]; rw [if_neg h]
+
+/-- A load from address `src + m` (`m < len`) misses the writable window
+    `⟨dst, ·⟩` when the two regions are disjoint (`hdisj`). -/
+theorem load_miss (src dst : Word) (bs : List (BitVec 8)) (len m : Nat)
+    (ws : List (BitVec 8)) (rs1 : Reg) (rf : RegFile)
+    (hrs1 : rf.get rs1 = src + BitVec.ofNat 64 m) (hm : m < len)
+    (hws : ws.length = strippedLen bs len)
+    (hsrc : src.toNat + len < 2 ^ 64) (hdst : dst.toNat + strippedLen bs len < 2 ^ 64)
+    (hdisj : src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat) :
+    ¬ inRw dst ws (rf.get rs1 + signExtend12 (0 : BitVec 12)) 1 := by
+  have hsl : strippedLen bs len ≤ len := by simp only [strippedLen]; omega
+  unfold inRw
+  rw [hrs1, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide, hws]
+  have hm2 : (BitVec.ofNat 64 m).toNat = m := by rw [BitVec.toNat_ofNat]; omega
+  have hsub : (src + BitVec.ofNat 64 m + 0 - dst).toNat
+      = (src.toNat + m + (2 ^ 64 - dst.toNat)) % 2 ^ 64 := by
+    rw [show src + BitVec.ofNat 64 m + 0 = src + BitVec.ofNat 64 m from by bv_omega,
+      BitVec.toNat_sub, BitVec.toNat_add, hm2]; congr 1; omega
+  rw [hsub]; rcases hdisj with hd | hd <;> omega
+
+/-- The byte at `src + m` in the read-only region is `bs.getD m 0`. -/
+theorem byteAt_src (src : Word) (bs : List (BitVec 8)) (m : Nat) (rf : RegFile) (rs1 : Reg)
+    (hrs1 : rf.get rs1 = src + BitVec.ofNat 64 m) (hm : src.toNat + m < 2 ^ 64) :
+    (Region.mk src bs).byteAt (rf.get rs1 + signExtend12 (0 : BitVec 12)) = bs.getD m 0 := by
+  unfold Region.byteAt
+  rw [hrs1, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; congr 1
+  have hm2 : (BitVec.ofNat 64 m).toNat = m := by rw [BitVec.toNat_ofNat]; omega
+  bv_omega
+
+/-- **`loadBlock` engine**: one strip `LBU`, resolved. -/
+theorem loadBlock_engine (src dst : Word) (bs : List (BitVec 8)) (len i : Nat)
+    (rf : RegFile) (ws : List (BitVec 8))
+    (hx5 : rf.get .x5 = src + BitVec.ofNat 64 i) (hi : i < len)
+    (hws : ws.length = strippedLen bs len)
+    (hsrc : src.toNat + len < 2 ^ 64) (hdst : dst.toNat + strippedLen bs len < 2 ^ 64)
+    (hdisj : src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat) :
+    execBlock (Region.mk src bs) dst rf ws loadBlock
+      = (rf.set .x7 (BitVec.zeroExtend 64 (bs.getD i 0)), ws) := by
+  rw [loadBlock, execBlock_cons,
+    execInstrRF_lbu_ro _ _ _ _ _ _ _ (load_miss src dst bs len i ws .x5 rf hx5 hi hws hsrc hdst hdisj),
+    byteAt_src src bs i rf .x5 hx5 (by omega), execBlock_nil]
+
+/-- Register file after the `decBlock`. -/
+def decRf (rf : RegFile) : RegFile :=
+  let r1 := rf.set .x5 (rf.get .x5 + signExtend12 (1 : BitVec 12))
+  r1.set .x6 (r1.get .x6 + signExtend12 (-1 : BitVec 12))
+
+/-- **`decBlock` engine**: the two `ADDI`s, resolved (no memory). -/
+theorem decBlock_engine (reg : Region) (rwb : Word) (rf : RegFile) (ws : List (BitVec 8)) :
+    execBlock reg rwb rf ws decBlock = (decRf rf, ws) := by
+  rw [decBlock, execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_nil]; rfl
+
+theorem decRf_get_x5 (rf : RegFile) :
+    (decRf rf).get .x5 = rf.get .x5 + signExtend12 (1 : BitVec 12) := by
+  unfold decRf
+  rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6), RegFile.get_set_self _ _ _ (by decide)]
+
+theorem decRf_get_x6 (rf : RegFile) :
+    (decRf rf).get .x6 = rf.get .x6 + signExtend12 (-1 : BitVec 12) := by
+  unfold decRf
+  rw [RegFile.get_set_self _ _ _ (by decide),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x5)]
+
+theorem decRf_get_other (rf : RegFile) (r : Reg) (h5 : r ≠ .x5) (h6 : r ≠ .x6) :
+    (decRf rf).get r = rf.get r := by
+  unfold decRf
+  rw [RegFile.get_set_ne _ _ _ _ h6, RegFile.get_set_ne _ _ _ _ h5]
+
+/-- Register file after one `cstepBlock` (given the loaded byte). -/
+def cstepRf (rf : RegFile) (b : BitVec 8) : RegFile :=
+  let r0 := rf.set .x30 (rf.get .x5 + rf.get .x29)
+  let r1 := r0.set .x31 (b.zeroExtend 64)
+  let r2 := r1.set .x7 (r1.get .x28 + r1.get .x29)
+  r2.set .x29 (r2.get .x29 + signExtend12 (1 : BitVec 12))
+
+theorem cstepRf_get_x29 (rf : RegFile) (b : BitVec 8) :
+    (cstepRf rf b).get .x29 = rf.get .x29 + signExtend12 (1 : BitVec 12) := by
+  unfold cstepRf
+  rw [RegFile.get_set_self _ _ _ (by decide),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x7),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x31),
+    RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x30)]
+
+theorem cstepRf_get_of (rf : RegFile) (b : BitVec 8) (r : Reg)
+    (h30 : r ≠ .x30) (h31 : r ≠ .x31) (h7 : r ≠ .x7) (h29 : r ≠ .x29) :
+    (cstepRf rf b).get r = rf.get r := by
+  unfold cstepRf
+  rw [RegFile.get_set_ne _ _ _ _ h29, RegFile.get_set_ne _ _ _ _ h7,
+    RegFile.get_set_ne _ _ _ _ h31, RegFile.get_set_ne _ _ _ _ h30]
+
+/-- **`cstepBlock` engine**: one copy iteration, resolved.  Loads `src[nlz+j]`
+    from the read-only region (missing the writable window) and stores it at
+    `dst[j]` (index `j` of the writable window). -/
+theorem cstepBlock_engine (src dst : Word) (bs : List (BitVec 8)) (len j : Nat)
+    (rf : RegFile) (ws : List (BitVec 8))
+    (hx5 : rf.get .x5 = src + BitVec.ofNat 64 (numLeadingZeros bs len))
+    (hx28 : rf.get .x28 = dst) (hx29 : rf.get .x29 = BitVec.ofNat 64 j)
+    (hj : j < strippedLen bs len) (hws : ws.length = strippedLen bs len)
+    (hsrc : src.toNat + len < 2 ^ 64) (hdst : dst.toNat + strippedLen bs len < 2 ^ 64)
+    (hdisj : src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat) :
+    execBlock (Region.mk src bs) dst rf ws cstepBlock
+      = (cstepRf rf (bs.getD (numLeadingZeros bs len + j) 0),
+         setBytes ws j [bs.getD (numLeadingZeros bs len + j) 0]) := by
+  have hnlz : numLeadingZeros bs len ≤ len := numLeadingZeros_le bs len
+  have hsldef : strippedLen bs len = len - numLeadingZeros bs len := rfl
+  have hsl : strippedLen bs len ≤ len := by omega
+  have hj2 : (BitVec.ofNat 64 j).toNat = j := by rw [BitVec.toNat_ofNat]; omega
+  -- x30 (after ADD x30 x5 x29) = src + (nlz + j)
+  have hx30 : (rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30
+      = src + BitVec.ofNat 64 (numLeadingZeros bs len + j) := by
+    rw [RegFile.get_set_self _ _ _ (by decide), hx5, hx29]
+    have hnn : (BitVec.ofNat 64 (numLeadingZeros bs len)).toNat = numLeadingZeros bs len := by
+      rw [BitVec.toNat_ofNat]; omega
+    bv_omega
+  have hljlt : numLeadingZeros bs len + j < len := by omega
+  have hmiss := load_miss src dst bs len (numLeadingZeros bs len + j) ws .x30
+    (rf.set .x30 (rf.get .x5 + rf.get .x29)) hx30 hljlt hws hsrc hdst hdisj
+  have hbyte := byteAt_src src bs (numLeadingZeros bs len + j)
+    (rf.set .x30 (rf.get .x5 + rf.get .x29)) .x30 hx30 (by omega)
+  have hjb : j < 2 ^ 64 := by omega
+  rw [cstepBlock, execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons, execInstrRF_lbu_ro _ _ _ _ _ _ _ hmiss, hbyte]
+  dsimp only
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_cons, execInstrRF_sb_byte _ _ _ _ _ _ _ j
+    (by
+      rw [RegFile.get_set_self _ _ _ (by decide : (Reg.x7 : Reg) ≠ .x0),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x28 ≠ .x31),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x28 ≠ .x30),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x31),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x30), hx28, hx29,
+        show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      have hj2' : (BitVec.ofNat 64 j).toNat = j := hj2
+      bv_omega)]
+  dsimp only
+  rw [execBlock_cons]
+  dsimp only [execInstrRF, aluSem]
+  rw [execBlock_nil]
+  refine Prod.ext ?_ ?_
+  · rfl
+  · dsimp only
+    rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x31 ≠ .x7),
+      RegFile.get_set_self _ _ _ (by decide : (Reg.x31 : Reg) ≠ .x0), truncate_zeroExtend_byte]
+
+-- ============================================================================
+-- The verified triple
+-- ============================================================================
+
+theorem swdMinimalCopyFn_spec (src dst a3 : Word) (bs orig w2 : List (BitVec 8)) (len : Nat)
+    (hwf : (Region.mk src bs).wf) (hrww : RwRegion.wf ⟨dst, strippedLen bs len⟩)
+    (hbwf : RwRegion.wf ⟨a3, 8⟩) (hw2 : w2.length = 8)
+    (horig : orig.length = strippedLen bs len)
+    (hlen : len ≤ bs.length) (hsrc : src.toNat + len < 2 ^ 64)
+    (hdst : dst.toNat + strippedLen bs len < 2 ^ 64)
+    (hdisj : src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat)
+    (base : Word) :
+    (swdMinimalCopyFn src dst a3 bs orig w2 len).Spec base := by
+  have hnlz : numLeadingZeros bs len ≤ len := numLeadingZeros_le bs len
+  have hsldef : strippedLen bs len = len - numLeadingZeros bs len := rfl
+  have hsl : strippedLen bs len ≤ len := by omega
+  have hRw : (swdMinimalCopyFn src dst a3 bs orig w2 len).rw.base = dst := rfl
+  have hReg : (swdMinimalCopyFn src dst a3 bs orig w2 len).region = (⟨src, bs⟩ : Region) := rfl
+  have hRwlen : (swdMinimalCopyFn src dst a3 bs orig w2 len).rw.len = strippedLen bs len := rfl
+  vcgen
+  case region => exact ⟨hwf, hrww⟩
+  -- ===== strip loop (whileBreak) =====
+  case swdMinimalCopy.strip.inv_init =>
+    rintro rf ws A ⟨rf₀, ws₀, hws₀, ⟨hx10, hx11, hx12, hx13, hwso, -, -, -, -, -, -, hA⟩, rfl, rfl⟩
+    simp only [sinitBlock, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    refine ⟨?_, ?_, ?_, ?_, Nat.zero_le _, hwso, hA⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
+        RegFile.get_set_self _ _ _ (by decide), hx10]; simp
+    · rw [RegFile.get_set_self _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x5), hx11]; simp
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x6),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x5)]; exact hx12
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x13 ≠ .x6),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x13 ≠ .x5)]; exact hx13
+  case swdMinimalCopy.strip.inv_step =>
+    rintro i hi rf' ws' A'
+      ⟨rfa, wsa, hwsa, ⟨⟨rfb, wsb, hwsb, ⟨hinv, hg⟩, hrfa, hwsaeq⟩, hnbreak⟩, hrf', hwseq⟩
+    obtain ⟨hx5, hx6, hx12, hx13, hle, hwso, hA⟩ := hinv
+    have hwsblen : wsb.length = strippedLen bs len := by rw [hwsb, hRwlen]
+    have hilt : i < len := by
+      rcases Nat.lt_or_ge i len with h | h
+      · exact h
+      · exact absurd (by rw [hx6, show len - i = 0 from by omega]; rfl : rfb.get .x6 = rfb.get .x0) hg
+    rw [hReg, hRw, loadBlock_engine src dst bs len i rfb wsb hx5 hilt hwsblen hsrc hdst hdisj]
+      at hrfa hwsaeq
+    subst hrfa; subst hwsaeq
+    have hz : bs.getD i 0 = 0 := by
+      have hne : (rfb.set .x7 (BitVec.zeroExtend 64 (bs.getD i 0))).get .x7
+          = (rfb.set .x7 (BitVec.zeroExtend 64 (bs.getD i 0))).get .x0 := by
+        by_contra h; exact hnbreak h
+      rw [RegFile.get_set_self _ _ _ (by decide : (Reg.x7 : Reg) ≠ .x0),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x0 ≠ .x7), show rfb.get .x0 = 0 from rfl] at hne
+      bv_omega
+    rw [decBlock_engine] at hrf' hwseq
+    subst hrf'; subst hwseq
+    refine ⟨?_, ?_, ?_, ?_, ?_, hwso, hA⟩
+    · rw [decRf_get_x5, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x7), hx5,
+        show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+      have h1 : (BitVec.ofNat 64 i).toNat = i := by rw [BitVec.toNat_ofNat]; omega
+      have h2 : (BitVec.ofNat 64 (i + 1)).toNat = i + 1 := by rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    · rw [decRf_get_x6, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x7), hx6,
+        show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
+      have h1 : (BitVec.ofNat 64 (len - i)).toNat = len - i := by rw [BitVec.toNat_ofNat]; omega
+      have h2 : (BitVec.ofNat 64 (len - (i + 1))).toNat = len - (i + 1) := by
+        rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    · rw [decRf_get_other _ _ (by decide) (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x7)]; exact hx12
+    · rw [decRf_get_other _ _ (by decide) (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x13 ≠ .x7)]; exact hx13
+    · rw [numLeadingZeros_eq_nlz]
+      refine WhileBreakDemo.nlz_continue bs len i hilt hlen hz ?_
+      rw [← numLeadingZeros_eq_nlz]; exact hle
+  case swdMinimalCopy.strip.exhausted =>
+    rintro rf ws A ⟨-, hx6, -, -, -, -, -⟩
+    intro hc; apply hc
+    rw [hx6, show len - len = 0 from by omega]; rfl
+  case swdMinimalCopy.strip.guard_exit =>
+    rintro i hile rf ws A ⟨hx5, hx6, hx12, hx13, hle, hwso, hA⟩ hng
+    have hil : i = len := by
+      by_contra hne; apply hng
+      show rf.get .x6 ≠ rf.get .x0
+      rw [hx6, show rf.get .x0 = 0 from rfl]
+      intro h
+      have := congrArg (fun w : Word => w.toNat) h
+      simp only [BitVec.toNat_ofNat, show (0 : Word).toNat = 0 from rfl] at this; omega
+    have hnlzlen : numLeadingZeros bs len = len := by omega
+    refine ⟨?_, ?_, hx12, hx13, hwso, hA⟩
+    · rw [hx5, hnlzlen, hil]
+    · rw [hx6, hil]; congr 1; omega
+  case swdMinimalCopy.strip.break =>
+    rintro i hi rf' ws' A' ⟨rfb, wsb, hwsb, ⟨hinv, hg⟩, hrf', hwseq⟩ hbreak
+    obtain ⟨hx5, hx6, hx12, hx13, hle, hwso, hA⟩ := hinv
+    have hwsblen : wsb.length = strippedLen bs len := by rw [hwsb, hRwlen]
+    rw [hReg, hRw, loadBlock_engine src dst bs len i rfb wsb hx5 hi hwsblen hsrc hdst hdisj]
+      at hrf' hwseq
+    subst hrf'; subst hwseq
+    have hnz : bs.getD i 0 ≠ 0 := by
+      have hne : (rfb.set .x7 (BitVec.zeroExtend 64 (bs.getD i 0))).get .x7
+          ≠ (rfb.set .x7 (BitVec.zeroExtend 64 (bs.getD i 0))).get .x0 := hbreak
+      rw [RegFile.get_set_self _ _ _ (by decide : (Reg.x7 : Reg) ≠ .x0),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x0 ≠ .x7), show rfb.get .x0 = 0 from rfl] at hne
+      intro hzz; exact hne (by rw [hzz]; rfl)
+    have hieq : i = numLeadingZeros bs len := by
+      rw [numLeadingZeros_eq_nlz]
+      exact WhileBreakDemo.nlz_break bs len i (by rw [← numLeadingZeros_eq_nlz]; exact hle) hnz
+    refine ⟨?_, ?_, ?_, ?_, hwso, hA⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x7), hx5, hieq]
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x7), hx6, hieq]; congr 1
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x7)]; exact hx12
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x13 ≠ .x7)]; exact hx13
+  case swdMinimalCopy.strip.before.load.mem =>
+    rintro rf ws A hws ⟨i, hi, ⟨hx5, hx6, hx12, hx13, hle, hwso, hA⟩, hg⟩
+    have hwslen : ws.length = strippedLen bs len := by rw [hws, hRwlen]
+    have haddr : ((rf.get .x5 + signExtend12 (0 : BitVec 12)) - src).toNat = i := by
+      rw [hx5, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      have hti : (BitVec.ofNat 64 i).toNat = i := by rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    simp only [loadBlock, blockVCs, loadSem, and_true]
+    rw [hReg, hRw, if_neg (load_miss src dst bs len i ws .x5 rf hx5 hi hwslen hsrc hdst hdisj)]
+    refine ⟨one_dvd _, ?_⟩
+    show ((rf.get .x5 + signExtend12 (0 : BitVec 12)) - src).toNat + 1 ≤ bs.length
+    omega
+  -- ===== SD → a3 (blockAt on region B) =====
+  case swdMinimalCopy.lenout.focus =>
+    rintro rf ws A ⟨hx5, hx6, hx12, hx13, hwso, hA⟩ hApc hp hhp
+    refine ⟨w2, ⌜RwRegion.wf ⟨a3, 8⟩⌝, ⟨hx13, rfl, rfl⟩, ?_, pcFree_pure, ?_⟩
+    · rw [hx13]
+      have hh := hA ▸ hhp
+      rw [regB] at hh
+      xperm_hyp hh
+    · rw [hx13, hw2]; exact hbwf
+  case swdMinimalCopy.lenout.mem =>
+    rintro rf ws A win rest hws hreach ⟨hx13, hwin, hrest⟩ hsat
+    have haddr : (rf.get .x13 + signExtend12 (0 : BitVec 12) - rf.get .x13).toNat = 0 := by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega
+    have hwl : win.length = 8 := by rw [hwin, hw2]
+    simp only [sdBlock, blockVCs, storeSem, inRw, and_true]
+    refine ⟨?_, ?_⟩
+    · rw [haddr, hwl]
+    · rw [haddr]; exact ⟨0, rfl⟩
+  -- ===== copy loop (while) =====
+  case swdMinimalCopy.copy.inv_init =>
+    rintro rf ws A ⟨rf₀, ws₀, hws₀, hbA, rfl, rfl⟩
+    obtain ⟨rfB, AB, winB, restB, hws₀', hstrip, hsatB, ⟨hx13B, hwinB, hrestB⟩, hrf₀, hAeq⟩ := hbA
+    obtain ⟨hx5B, hx6B, hx12B, hx13B', hwsoB, hAB⟩ := hstrip
+    have hsdws : (execBlock (⟨src, bs⟩ : Region) a3 rfB w2 sdBlock).2
+        = dwordBytes (rfB.get .x6) := by
+      rw [sdBlock, execBlock_cons,
+        execInstrRF_sd_dword _ _ _ _ _ _ _ 0
+          (by rw [hx13B, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega),
+        execBlock_nil, setBytes_dword_full _ _ hw2]
+    have hrf₀' : rf₀ = rfB := by
+      rw [hrf₀, sdBlock, execBlock_cons, execBlock_nil]; rfl
+    subst hrf₀'
+    rw [hReg, hx13B, hwinB, hsdws, hrestB, hx6B] at hAeq
+    simp only [cinitBlock, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+    refine ⟨?_, ?_, ?_, ?_, Nat.zero_le _, ?_, ?_⟩
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x29),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x28)]; exact hx5B
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x29),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x28)]; exact hx6B
+    · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x28 ≠ .x29),
+        RegFile.get_set_self _ _ _ (by decide)]; exact hx12B
+    · rw [RegFile.get_set_self _ _ _ (by decide)]; rfl
+    · rw [copyWin_zero]; exact hwsoB
+    · rw [hAeq, regB, sepConj_comm']
+  case swdMinimalCopy.copy.inv_step =>
+    rintro j hj rf' ws' A' ⟨rf₀, ws₀, hws₀, ⟨hcinv, hcond⟩, rfl, rfl⟩
+    obtain ⟨hx5, hx6, hx28, hx29, hjle, hwsw, hA⟩ := hcinv
+    have hwslen : ws₀.length = strippedLen bs len := by
+      rw [hwsw]; exact length_copyWin bs len orig j horig hjle
+    have hjlt : j < strippedLen bs len := by
+      rcases Nat.lt_or_ge j (strippedLen bs len) with h | h
+      · exact h
+      · exact absurd (by rw [hx29, hx6]; congr 1; omega : rf₀.get .x29 = rf₀.get .x6) hcond
+    rw [hReg, hRw, cstepBlock_engine src dst bs len j rf₀ ws₀ hx5 hx28 hx29 hjlt hwslen hsrc hdst hdisj]
+    refine ⟨?_, ?_, ?_, ?_, by omega, ?_, hA⟩
+    · rw [cstepRf_get_of _ _ _ (by decide) (by decide) (by decide) (by decide)]; exact hx5
+    · rw [cstepRf_get_of _ _ _ (by decide) (by decide) (by decide) (by decide)]; exact hx6
+    · rw [cstepRf_get_of _ _ _ (by decide) (by decide) (by decide) (by decide)]; exact hx28
+    · rw [cstepRf_get_x29, hx29, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+      have h1 : (BitVec.ofNat 64 j).toNat = j := by rw [BitVec.toNat_ofNat]; omega
+      have h2 : (BitVec.ofNat 64 (j + 1)).toNat = j + 1 := by rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    · rw [hwsw, show bs.getD (numLeadingZeros bs len + j) 0 = copyByte bs len j from rfl]
+      exact copyWin_step bs len orig j horig hjlt
+  case swdMinimalCopy.copy.exhausted =>
+    rintro rf ws A ⟨-, hx6, -, hx29, hjle, -, -⟩
+    intro hc; apply hc
+    rw [hx29, hx6]; congr 1; omega
+  case swdMinimalCopy.copy.body.cstep.mem =>
+    rintro rf ws A hws ⟨j, hj, ⟨hx5, hx6, hx28, hx29, hjle, hwsw, hA⟩, hcond⟩
+    have hwslen : ws.length = strippedLen bs len := by rw [hws, hRwlen]
+    have hjlt : j < strippedLen bs len := by
+      rcases Nat.lt_or_ge j (strippedLen bs len) with h | h
+      · exact h
+      · exact absurd (by rw [hx29, hx6]; congr 1; omega : rf.get .x29 = rf.get .x6) hcond
+    have hjj : (BitVec.ofNat 64 j).toNat = j := by rw [BitVec.toNat_ofNat]; omega
+    have hx30 : (rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30
+        = src + BitVec.ofNat 64 (numLeadingZeros bs len + j) := by
+      rw [RegFile.get_set_self _ _ _ (by decide), hx5, hx29]
+      have hnn : (BitVec.ofNat 64 (numLeadingZeros bs len)).toNat = numLeadingZeros bs len := by
+        rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    have hljlt : numLeadingZeros bs len + j < len := by omega
+    have hmiss := load_miss src dst bs len (numLeadingZeros bs len + j) ws .x30
+      (rf.set .x30 (rf.get .x5 + rf.get .x29)) hx30 hljlt hwslen hsrc hdst hdisj
+    have haddrL : ((rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30
+        + signExtend12 (0 : BitVec 12) - src).toNat = numLeadingZeros bs len + j := by
+      rw [hx30, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      have : (BitVec.ofNat 64 (numLeadingZeros bs len + j)).toNat = numLeadingZeros bs len + j := by
+        rw [BitVec.toNat_ofNat]; omega
+      bv_omega
+    -- store address, after ADD x30, LBU x31, ADD x7 : x7 = dst + j
+    have haddrS : ∀ v : Word,
+        ((((rf.set .x30 (rf.get .x5 + rf.get .x29)).set .x31 v).get .x28
+          + ((rf.set .x30 (rf.get .x5 + rf.get .x29)).set .x31 v).get .x29)
+          + signExtend12 (0 : BitVec 12) - dst).toNat = j := by
+      intro v
+      rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x28 ≠ .x31),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x28 ≠ .x30),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x31),
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x29 ≠ .x30), hx28, hx29,
+        show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+      bv_omega
+    rw [hReg, hRw, cstepBlock]
+    -- ADD x30 (no mem)
+    refine ⟨trivial, ?_⟩
+    rw [show execInstrRF (⟨src, bs⟩ : Region) dst rf ws (.ADD .x30 .x5 .x29)
+        = (rf.set .x30 (rf.get .x5 + rf.get .x29), ws) from rfl]
+    -- LBU x31 x30 (routes to RO)
+    refine ⟨?_, ?_⟩
+    · simp only [loadSem]
+      rw [if_neg hmiss]
+      refine ⟨one_dvd _, ?_⟩
+      show ((rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30 + signExtend12 (0 : BitVec 12)
+        - src).toNat + 1 ≤ bs.length
+      rw [haddrL]; omega
+    · rw [execInstrRF_lbu_ro _ _ _ _ _ _ _ hmiss]
+      -- ADD x7 (no mem)
+      refine ⟨trivial, ?_⟩
+      rw [show execInstrRF (⟨src, bs⟩ : Region) dst
+          ((rf.set .x30 (rf.get .x5 + rf.get .x29)).set .x31
+            (BitVec.zeroExtend 64 ((⟨src, bs⟩ : Region).byteAt
+              ((rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30 + signExtend12 0)))) ws
+          (.ADD .x7 .x28 .x29)
+          = (((rf.set .x30 (rf.get .x5 + rf.get .x29)).set .x31
+              (BitVec.zeroExtend 64 ((⟨src, bs⟩ : Region).byteAt
+                ((rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30 + signExtend12 0)))).set .x7
+              (((rf.set .x30 (rf.get .x5 + rf.get .x29)).set .x31
+                (BitVec.zeroExtend 64 ((⟨src, bs⟩ : Region).byteAt
+                  ((rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30 + signExtend12 0)))).get .x28
+                + ((rf.set .x30 (rf.get .x5 + rf.get .x29)).set .x31
+                  (BitVec.zeroExtend 64 ((⟨src, bs⟩ : Region).byteAt
+                    ((rf.set .x30 (rf.get .x5 + rf.get .x29)).get .x30 + signExtend12 0)))).get .x29),
+              ws) from rfl]
+      -- SB x7 x31 (into region A at index j), then ADDI x29 (no mem)
+      refine ⟨⟨?_, ?_⟩, trivial, trivial⟩
+      · show inRw dst ws _ 1
+        rw [RegFile.get_set_self _ _ _ (by decide : (Reg.x7 : Reg) ≠ .x0)]
+        unfold inRw
+        rw [haddrS, hwslen]; omega
+      · rw [RegFile.get_set_self _ _ _ (by decide : (Reg.x7 : Reg) ≠ .x0), haddrS]
+        exact one_dvd _
+  case swdMinimalCopy.post =>
+    rintro rf ws A ⟨⟨j, hjfuel, hx5, hx6, hx28, hx29, hjle, hwsw, hA⟩, hncond⟩
+    have hjeq : j = strippedLen bs len := by
+      have hne : rf.get .x29 = rf.get .x6 := by by_contra h; exact hncond h
+      rw [hx29, hx6] at hne
+      have := congrArg (fun w : Word => w.toNat) hne
+      simp only [BitVec.toNat_ofNat] at this; omega
+    subst hjeq
+    exact ⟨by rw [hwsw]; exact copyWin_len_eq bs len orig horig hlen, hA⟩
 
 end SwdMinimalCopySAsm
 
