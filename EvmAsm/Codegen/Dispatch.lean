@@ -266,6 +266,83 @@ def stackOverflowGuardAsm : String :=
   "  ld x14, 0(x14)\n" ++
   "  bleu x12, x14, .exit_stack_overflow"
 
+/-! ### flag+`ret` handler-tail discipline (bead 4ch8f.10.3)
+
+    Every opcode handler is invoked via `jalr x1, x7, 0` at the dispatch
+    site and MUST return via `ret` so it satisfies the `Stmt.callRegS` /
+    `FnHandleS` contract (docs/4ch8f-interp-strategy.md §3).  Historically
+    some handlers ended by *jumping* elsewhere instead of returning:
+      * STOP → `j .exit_label`
+      * RETURN/REVERT (depth-0 halt) → `j .exit_no_epilogue`
+      * INVALID → `j .exit_invalid_op`
+      * SELFDESTRUCT (depth-0) → `j .exit_selfdestruct`
+      * CALL-family / depth-aware halts (frame descend/return) → `j .dispatch_loop`
+
+    Convention (§3 amendment):
+      * A **memory flag cell** `evm_halt_flag` (u64) carries the routing
+        decision across the handler's `ret`.  `0` = continue the loop;
+        a nonzero routing code selects an exit join (see `dispatchHaltRet`).
+        A memory cell is used (not a register) so it survives the handler's
+        own register restores / `sp` resets / helper calls, and it does not
+        collide with any EVM-ABI register the handlers pin (x5/x6/x7 are
+        handler-clobbered scratch; x10/x11/x12 the a0/a1/a2 aliases).
+      * The dispatch site's continuation label is `.Ldispatch_resume`,
+        emitted immediately after the `jalr`.  A handler "returns to the
+        loop" by loading that label into `x1` and `ret`-ing
+        (`dispatchContinueRet`); a handler "halts" by additionally setting
+        `evm_halt_flag` (`dispatchHaltRet kind`).
+      * `emitDispatchResume` (at `.Ldispatch_resume`) reads the flag,
+        resets it, and branches to the encoded exit join — otherwise falls
+        straight through to `.dispatch_loop`.
+
+    Byte-behavior preservation: for a *continue* handler,
+    `la x1, .Ldispatch_resume; ret` reaches `.Ldispatch_resume` with the
+    flag `0`, which falls through to `.dispatch_loop` exactly as the old
+    `j .dispatch_loop` did (the only observable difference is x1/x5/x6
+    clobbers, all dead/reassigned at the loop head).  For a *halt* handler,
+    the flag is set, `ret` reaches `.Ldispatch_resume`, the flag is reset,
+    and control lands at the same exit join the old `j .exit_*` targeted
+    (x5/x6/x7/x1 are dead at every join, which reload x16/x17/x20). -/
+
+/-- Routing flag cell name (see the discipline note above). -/
+def haltFlagLabel : String := "evm_halt_flag"
+
+/-- Dispatch-site continuation label, emitted right after the `jalr`. -/
+def dispatchResumeLabel : String := ".Ldispatch_resume"
+
+/-- Handler exit that continues the loop: restore the dispatch
+    continuation into `x1` and `ret`.  Byte-behavior-identical to the old
+    `j .dispatch_loop`. -/
+def dispatchContinueRet : String :=
+  s!"  la x1, {dispatchResumeLabel}\n  ret"
+
+/-- Handler exit that halts the interpreter: set `evm_halt_flag` to the
+    routing code `kind`, then `ret` to `.Ldispatch_resume`, which routes on
+    the flag.  Routing codes: `1` STOP→`.exit_label`, `2`
+    RETURN/REVERT→`.exit_no_epilogue`, `3` INVALID→`.exit_invalid_op`,
+    `4` SELFDESTRUCT→`.exit_selfdestruct`. -/
+def dispatchHaltRet (kind : Nat) : String :=
+  s!"  li x5, {kind}\n" ++
+  s!"  la x6, {haltFlagLabel}\n" ++
+  "  sd x5, 0(x6)\n" ++
+  s!"  la x1, {dispatchResumeLabel}\n  ret"
+
+/-- Dispatch resume point + flag routing, emitted immediately after the
+    loop's `jalr x1, x7, 0` (replacing the bare `j .dispatch_loop`).  When
+    the halt flag is `0` (the overwhelmingly common case) this is a single
+    load + `beqz` fall-through into `.dispatch_loop`. -/
+def emitDispatchResume : String :=
+  s!"{dispatchResumeLabel}:\n" ++
+  s!"  la x5, {haltFlagLabel}\n" ++
+  "  ld x6, 0(x5)\n" ++
+  "  beqz x6, .dispatch_loop\n" ++
+  "  sd x0, 0(x5)\n" ++
+  "  li x7, 1\n  beq x6, x7, .exit_label\n" ++
+  "  li x7, 2\n  beq x6, x7, .exit_no_epilogue\n" ++
+  "  li x7, 3\n  beq x6, x7, .exit_invalid_op\n" ++
+  "  li x7, 4\n  beq x6, x7, .exit_selfdestruct\n" ++
+  "  j .dispatch_loop"
+
 /-- Tail emitted after each handler's verified body.
 
     `advanceAndRet width` is the standard subroutine return: advance
@@ -1105,7 +1182,7 @@ def emitDispatcherPrologue : String :=
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
   "  jalr x1, x7, 0\n" ++
-  "  j .dispatch_loop\n"
+  emitDispatchResume ++ "\n"
 
 /-- Emit an exceptional-halt exit block: zero the result bytes at
     `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
@@ -2531,7 +2608,7 @@ def emitRuntimeDispatcherLoop (depthAwareStop : Bool := false) : String :=
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
   "  jalr x1, x7, 0\n" ++
-  "  j .dispatch_loop"
+  emitDispatchResume
 
 /-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
 def emitRuntimeDispatcherPrologue : String :=
@@ -2898,6 +2975,12 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- (BlockVerdictDataSection, a standalone block after basr_accounts).
   ".balign 8\n" ++
   "evm_call_depth:\n" ++
+  "  .zero 8\n" ++
+  -- 4ch8f.10.3: handler-tail routing flag (0 = continue the dispatch loop;
+  -- nonzero routing code read+reset by `.Ldispatch_resume`). See the
+  -- flag+`ret` discipline note near `HandlerTail`.
+  ".balign 8\n" ++
+  "evm_halt_flag:\n" ++
   "  .zero 8\n" ++
   ".balign 16\n" ++
   "frame_save_area:\n" ++
@@ -3290,6 +3373,8 @@ def runtimeDispatcherStandaloneFrameHelpers : String :=
 def runtimeDispatcherStandaloneFrameData : String :=
   ".balign 8\n" ++
   "evm_call_depth:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "evm_halt_flag:\n  .zero 8\n" ++   -- 4ch8f.10.3 handler-tail routing flag
   ".balign 16\n" ++
   "frame_save_area:\n  .zero 16400\n" ++
   ".balign 32\n" ++
