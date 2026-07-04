@@ -47,7 +47,7 @@ operand stack / `evm_env`), left **completely unchanged** — depth-0 is the onl
 currently-executed path and the verdict-critical one, so it must stay
 byte-identical. Frames **1..1024** (the nested children) live in the overlay
 arena: `frame[d] = call_frame_arena + (d-1) * FRAME_STRIDE` for `d ≥ 1`
-(1024 slots × `FRAME_STRIDE` = 164 MiB ≤ the 244 MiB union). A CALL descends by
+(1024 slots × `FRAME_STRIDE` = 228 MiB ≤ the 244 MiB union). A CALL descends by
 bumping a depth counter and, for `d ≥ 1`, computing the child register bases
 from `call_frame_arena + (d-1)*FRAME_STRIDE`; the parent of a depth-1 child is
 `frame[0]` (the existing `evm_memory`/env). This **avoids rebasing the
@@ -69,7 +69,7 @@ the register conventions in `EvmTinyInterp.lean`:
 | Region | Size | Reg | Notes |
 |---|---|---|---|
 | `evm_code` | bytecode | x10 (PC) base | baked bytecode; will become x21→witness.codes slice |
-| `evm_memory` | `0x10000` (64 KiB) | x13 (memBaseReg), grows ↑ | EVM memory |
+| `evm_memory` | `0x20000` (128 KiB) | x13 (memBaseReg), grows ↑ | EVM memory |
 | `evm_env` | 656 B | x20 (env base) | **mixed** per-frame + shared fields (see §3) |
 | `evm_blob_hashes` | 512 B | — | 16 × 32 B tx blob versioned hashes (SHARED) |
 | `evm_block_hashes` | 8192 B | — | 256 × 32 B recent BLOCKHASH ancestors (SHARED) |
@@ -158,25 +158,25 @@ Each depth slot is a contiguous, 32-aligned block:
 ```
 frame[d] for d>=1 (at call_frame_arena + (d-1)*FRAME_STRIDE); frame[0] = the
 existing dispatcher evm_memory/stack/env (see §1, NOT in this arena):
-  +0x00000  frame_mem:        .zero 0x10000   (64 KiB EVM memory)          x13
+  +0x00000  frame_mem:        .zero 0x20000   (128 KiB EVM memory)         x13
   +0x10000  frame_stack_glo:  .zero 512        (guard)
   +0x10200  frame_stack_low:  .zero 0x8000    (32 KiB operand stack)
-  +0x18200  frame_stack_top:                   (x12 init = here, grows ↓)
-  +0x18200  frame_stack_ghi:  .zero 512        (guard)
-  +0x18400  frame_returndata: .zero 0x10000   (64 KiB last-subcall returndata) 
-  +0x28400  frame_env:        .zero 0x300     (768 B per-frame env, §3)     x20
+  +0x28200  frame_stack_top:                   (x12 init = here, grows ↓)
+  +0x28200  frame_stack_ghi:  .zero 512        (guard)
+  +0x28400  frame_returndata: .zero 0x10000   (64 KiB last-subcall returndata) 
+  +0x38400  frame_env:        .zero 0x300     (768 B per-frame env, §3)     x20
   +0x28700  frame_pc:         .zero 8          (saved PC / x10 on descent)
   +0x28708  frame_codebase:   .zero 8          (saved x21 = witness.codes slice)
   +0x28710  frame_meta:       .zero 0xF0       (caller depth, ret-offset/len in
                                                 parent mem, is_static, is_create,
                                                 created-address, state checkpoint id)
-  ── round up to FRAME_STRIDE = 0x29000 (164 KiB, 32-aligned) ──
+  ── round up to FRAME_STRIDE = 0x39000 (228 KiB, 32-aligned) ──
 ```
 
-`FRAME_STRIDE = 0x29000` (164 KiB). Components: 64 KiB mem + 33 KiB stack(+guards)
+`FRAME_STRIDE = 0x39000` (228 KiB). Components: 128 KiB mem + 33 KiB stack(+guards)
 + 64 KiB returndata + 768 B env + meta, rounded.
 
-Total frame array = `1025 * 0x29000` = `0xA429000` ≈ **164.2 MiB** (depths
+Total frame array = `1025 * 0x39000` = `0xE439000` ≈ **228.2 MiB** (depths
 0..1024 inclusive — see §1).
 
 > **Returndata sizing.** Returndata is per-frame (RETURNDATASIZE/COPY read the
@@ -327,7 +327,7 @@ Transitions (depth d → d+1 on call, d+1 → d on return):
      caller depth, and a **state checkpoint id** (see revert below).
   7. recompute x12/x13/x20 from `d+1`; `depth++`; jump to interpreter.
 - **CREATE / CREATE2**: like CALL but child code = init code from parent memory
-  (≤ `MAX_INIT_CODE_SIZE`=0x20000 — note this exceeds one 64 KiB `frame_mem`;
+  (≤ `MAX_INIT_CODE_SIZE`=0x20000 — note this fits one 128 KiB `frame_mem`;
   init code is read from the *parent's* memory slice as calldata-style, executed
   with `x21`→ a staged init-code buffer; the deployed code is the init code's
   RETURN output, validated ≤ `MAX_CODE_SIZE`). Computed address via
@@ -373,8 +373,8 @@ merged-or-reverted state exactly as `run_stateless_guest` would.
   addressed. (Off-by-one trap: the limit is on the child depth, depth is 0-based
   — `depth + 1 > 1024`, not `depth >= 1024`.)
 - **63/64 gas taper** (optimization, not v1): a frame at depth d has ≤
-  `G·(63/64)^d` gas, so frames past ~depth 490 cannot expand memory to 64 KiB
-  (a 64 KiB expansion costs ~14k gas). A *tapered* stride (large mem arenas for
+  `G·(63/64)^d` gas, so frames past ~depth 490 cannot expand memory to 128 KiB
+  (a 128 KiB expansion costs ~34k gas). A *tapered* stride (large mem arenas for
   shallow frames, small for deep) could cut the 164 MiB substantially. Deferred:
   v1 uses uniform stride for simplicity/correctness; revisit if the map tightens.
 - **Returndata 64 MiB** (see §4): could be a shared spill buffer or tapered.
