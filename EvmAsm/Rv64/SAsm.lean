@@ -32,3 +32,4 @@ import EvmAsm.Rv64.SAsm.Examples
 import EvmAsm.Rv64.SAsm.ExamplesVc
 import EvmAsm.Rv64.SAsm.LoopFuel
 import EvmAsm.Rv64.SAsm.LoopFuelDemo
+import EvmAsm.Rv64.SAsm.InterpLoopDemo
