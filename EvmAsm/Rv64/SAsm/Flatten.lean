@@ -64,6 +64,12 @@ def flatten (addr : Word) : Stmt → List Instr
   | «whileS» _ c _ _ b =>
       c.neg.toInstr (brOfs (b.size + 2))
         :: (b.flatten (addr + 4) ++ [.JAL .x0 (jBack (b.size + 1))])
+  | «whileBreak» _ guard _ _ _ bb breakCond ba =>
+      guard.neg.toInstr (brOfs (bb.size + ba.size + 3))
+        :: (bb.flatten (addr + 4)
+            ++ breakCond.toInstr (brOfs (ba.size + 2))
+            :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
+                ++ [.JAL .x0 (jBack (bb.size + ba.size + 2))]))
   | call _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
   | callReg _ rs _ =>
@@ -89,6 +95,8 @@ theorem flatten_length (s : Stmt) (addr : Word) :
       simp [flatten, size, ihb]
   | «whileS» _ c fuel inv b ihb =>
       simp [flatten, size, ihb]
+  | «whileBreak» _ guard fuel inv post bb breakCond ba ihbb ihba =>
+      simp [flatten, size, ihbb, ihba]; omega
   | call _ callee => rfl
   | callReg _ _ _ => rfl
   | callRegS _ _ _ => rfl
@@ -119,6 +127,12 @@ def offsetsOk : Stmt → Bool
       c.wf && decide (4 * (b.size + 2) < 2^12)
            && decide (4 * (b.size + 1) ≤ 2^20)
            && b.offsetsOk
+  | «whileBreak» _ guard _ _ _ bb breakCond ba =>
+      guard.wf && breakCond.wf
+           && decide (4 * (bb.size + ba.size + 3) < 2^12)
+           && decide (4 * (ba.size + 2) < 2^12)
+           && decide (4 * (bb.size + ba.size + 2) ≤ 2^20)
+           && bb.offsetsOk && ba.offsetsOk
   | call _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
@@ -142,6 +156,9 @@ def callsOk : Stmt → Word → Prop
   | blockAt _ _ _ _, _ => True
   | «while» _ _ _ _ b, addr => b.callsOk (addr + 4)
   | «whileS» _ _ _ _ b, addr => b.callsOk (addr + 4)
+  | «whileBreak» _ _ _ _ _ bb _ ba, addr =>
+      bb.callsOk (addr + 4)
+        ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
   | call _ f, addr =>
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
