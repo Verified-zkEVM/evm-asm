@@ -177,3 +177,42 @@ verbatim. Each `class SszX(Container)` → `sszXType : SszType`. Each `_x_to_ssz
 No disagreement between the Python spec and the emitted guest / existing Lean was
 found while porting (the port is a fresh functional model, disjoint from the SAsm
 side). If a future audit surfaces one, file a P1 bead per standing project policy.
+
+## EEST conformance harness
+
+`scripts/eest-specref-check.sh` ties SpecRef to the *same* EEST `zkevm@v0.4.0`
+conformance fixtures exercised by `scripts/codegen-eest-stateless-check.sh`,
+so regressions in the port's SSZ codec / NPR-root hashing / header /
+chain-config / witness-assembly path surface without spinning up ziskemu.
+
+- **Driver**: `lake exe specref-eest-check <input_file> <output_file>`
+  (`MainSpecRefEestCheck.lean` → `EvmAsm.Tests.SpecRefEestCheck`). It reads a
+  ziskemu-framed input, strips the host transport (inverse of
+  `pack_ziskemu_input`), runs `SpecRef.run_stateless_guest` (default seam
+  `executeAlwaysOk`), and writes the 105-byte `StatelessValidationResult`.
+  It lives under `EvmAsm/Tests/` (the unverified escape-hatch layer); no proof
+  imports it.
+- **Fixture selection** is identical to the ziskemu harness
+  (`--all/--skip/--limit/--filter/--random/--seed/--reverse/--tag`), reusing
+  `scripts/eest-stateless-to-input.py`, so the two report on the same rows.
+
+### The three-region verdict
+
+The 105-byte `SszStatelessValidationResult` decomposes into three
+independently-checkable regions. SpecRef's execution seam is the placeholder
+`executeAlwaysOk`, while the Python reference runs the real EVM, so only the
+pre-execution regions are expected to match:
+
+| region | bytes | meaning | gateable? |
+|---|---|---|---|
+| `root` | 0:32 | `new_payload_request_root` (pre-execution hashing) | yes — `--min-root` |
+| `succ` | 32 | `successful_validation` | no — diverges on fixtures whose real EVM execution failed (placeholder seam); reported separately as `succ diverg` |
+| `tail` | 33:105 | u32 offset + 68-byte chain-config echo | yes — `--min-tail` |
+| `full` | all 105 | exact guest output | informational |
+
+A per-case line shows which regions matched, e.g. `[root/succ(div:execution-seam)/tail]`
+means root + tail matched but the succ bit diverged (expected); `[----/----/----]`
+means the pre-execution path itself disagreed with the fixture — a real SpecRef
+bug worth a P1 bead. `--min-succ` / `--min-full` are deliberately **not** offered
+until the execution seam is real (bead `4ch8f.8`); the harness is advisory-only
+and not wired into CI for the same reason.

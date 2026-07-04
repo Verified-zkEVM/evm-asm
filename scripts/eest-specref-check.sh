@@ -1,0 +1,369 @@
+#!/usr/bin/env bash
+# eest-specref-check.sh -- Run the SpecRef reference model
+# (`EvmAsm.Stateless.SpecRef.run_stateless_guest`, the pure-Lean functional
+# port of execution-specs' Amsterdam stateless-guest spec) against the *same*
+# EEST "zkevm" conformance fixtures exercised by
+# scripts/codegen-eest-stateless-check.sh, and report how the reference
+# output compares to each fixture's recorded `statelessOutputBytes`.
+#
+# Why this exists alongside the ziskemu harness:
+#   SpecRef runs in-process (a `lake exe`, no ELF / ziskemu / step budget), so
+#   it is a fast, environment-free way to tie the Lean port's
+#   deserialization / SSZ-codec / NPR-root hashing / header /
+#   chain-config / witness-assembly path to the canonical conformance
+#   fixtures. Fixture selection (tag, --all/--skip/--limit/--filter,
+#   --random/--seed/--reverse) is identical to the ziskemu harness so the two
+#   report on the same rows.
+#
+# The execution seam:
+#   SpecRef's `run_stateless_guest` takes an `ExecutionSeam` defaulting to
+#   `executeAlwaysOk` -- a placeholder that accepts every payload. The Python
+#   `run_stateless_guest` at tests-zkevm@v0.4.0 runs the REAL EVM. Therefore:
+#
+#     * root  (bytes 0:32,  new_payload_request_root)  -- pre-execution hashing;
+#              SpecRef MUST match on every fixture.            [gateable]
+#     * tail  (bytes 33:105, chain_config echo)        -- pure echo;
+#              SpecRef MUST match on every fixture.            [gateable]
+#     * succ  (byte 32,     successful_validation)     -- SpecRef always reports
+#              true here; it DIVERGES on every fixture whose real EVM execution
+#              failed (succ=0). This is the expected execution-seam gap, NOT a
+#              SpecRef defect, and is reported separately rather than folded
+#              into fail / the --min-* gates.
+#     * full  (all 105 bytes match)                    -- informational only.
+#
+#   A per-case line shows which regions matched, e.g. "[root/----/tail]" means
+#   root + tail matched but the succ bit diverged. "[----/----/----]" means the
+#   pre-execution path itself disagreed with the fixture (a real SpecRef bug).
+#
+# Usage:
+#   scripts/eest-specref-check.sh [options]
+#     --all              run every stateless block (slow); default: smoke subset
+#     --skip N           skip first N selected stateless blocks after filtering
+#     --limit N          cap to N guest invocations (default 50)
+#     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
+#     --min-root N       exit 1 if fewer than N root-region matches
+#     --min-tail N       exit 1 if fewer than N tail-region matches
+#     --quiet-passes     suppress per-case PASS(full) lines
+#     --show-passes      print per-case PASS(full) lines
+#     --random           shuffle fixtures before --limit
+#     --seed N           integer seed for --random
+#     --reverse          process selected fixtures last-to-first
+#     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or zkevm@v0.4.0)
+#     --run-dir DIR      use DIR instead of an auto run dir under gen-out/eest-specref-run
+#     --no-build         skip `lake build specref-eest-check` (reuse the built exe)
+#     -h, --help         show this help
+#
+# Environment:
+#   EEST_FIXTURES_DIR   fixtures root (default gen-out/eest-fixtures/<tag>/fixtures/fixtures)
+#   EEST_FIXTURE_TAG    default fixture tag
+#   EEST_RUN_DIR        explicit run directory
+#
+# Exit:
+#   0 -- ran to completion, and all --min-{root,tail} thresholds met
+#   1 -- build/convert failure, no fixtures, or a --min-{root,tail} regression
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+REPO_ROOT="$(pwd)"
+
+ALL=0
+SKIP=0
+LIMIT=50
+FILTER=""
+MIN_ROOT=""
+MIN_TAIL=""
+QUIET_PASSES="${EEST_QUIET_PASSES:-0}"
+TAG="${EEST_FIXTURE_TAG:-zkevm@v0.4.0}"
+NO_BUILD="${EEST_NO_BUILD:-0}"
+RUN_DIR_OVERRIDE=""
+RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
+RANDOM_SEED="${EEST_RANDOM_SEED:-}"
+REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  scripts/eest-specref-check.sh [options]
+
+Options:
+  --all                    run every stateless block (slow); default: smoke subset
+  --skip N                 skip first N selected stateless blocks after filtering
+  --limit N                cap to N invocations (default 50)
+  --filter SUBSTR          only fixtures whose relpath contains SUBSTR
+  --min-root N             exit 1 if fewer than N root-region matches
+  --min-tail N             exit 1 if fewer than N tail-region matches
+  --quiet-passes           suppress per-case PASS(full) lines
+  --show-passes            print per-case PASS(full) lines
+  --random                 shuffle fixtures before --limit
+  --seed N                 integer seed for --random
+  --reverse                process selected fixtures last-to-first
+  --tag TAG                EEST fixture tag (default zkevm@v0.4.0)
+  --run-dir DIR            use DIR instead of an auto run dir
+  --no-build               skip lake build (reuse the built exe)
+  -h, --help               show this help
+USAGE
+}
+
+require_arg() {
+  local opt="$1"
+  if [[ $# -lt 2 || -z "${2:-}" ]]; then
+    echo "$opt requires an argument" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --all) ALL=1; shift ;;
+    --skip) require_arg "$1" "${2:-}"; SKIP="$2"; shift 2 ;;
+    --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; shift 2 ;;
+    --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
+    --min-root) require_arg "$1" "${2:-}"; MIN_ROOT="$2"; shift 2 ;;
+    --min-tail) require_arg "$1" "${2:-}"; MIN_TAIL="$2"; shift 2 ;;
+    --quiet-passes) QUIET_PASSES=1; shift ;;
+    --show-passes) QUIET_PASSES=0; shift ;;
+    --random) RANDOM_ORDER=1; shift ;;
+    --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
+    --reverse) REVERSE_ORDER=1; shift ;;
+    --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
+    --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
+    --no-build) NO_BUILD=1; shift ;;
+    *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
+if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
+  echo "--skip must be a nonnegative integer (got: $SKIP)" >&2; exit 1
+fi
+if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || [[ "$LIMIT" -lt 1 ]]; then
+  echo "--limit must be a positive integer (got: $LIMIT)" >&2; exit 1
+fi
+if [[ -n "$MIN_ROOT" ]] && { ! [[ "$MIN_ROOT" =~ ^[0-9]+$ ]] || [[ "$MIN_ROOT" -lt 1 ]]; }; then
+  echo "--min-root must be a positive integer when set (got: $MIN_ROOT)" >&2; exit 1
+fi
+if [[ -n "$MIN_TAIL" ]] && { ! [[ "$MIN_TAIL" =~ ^[0-9]+$ ]] || [[ "$MIN_TAIL" -lt 1 ]]; }; then
+  echo "--min-tail must be a positive integer when set (got: $MIN_TAIL)" >&2; exit 1
+fi
+case "$QUIET_PASSES" in
+  1|true|yes) QUIET_PASSES=1 ;;
+  *) QUIET_PASSES=0 ;;
+esac
+if [[ "$RANDOM_ORDER" != "0" && "$RANDOM_ORDER" != "1" ]]; then
+  echo "EEST_RANDOM_ORDER must be 0 or 1 (got: $RANDOM_ORDER)" >&2; exit 1
+fi
+if [[ -n "$RANDOM_SEED" ]] && ! [[ "$RANDOM_SEED" =~ ^[0-9]+$ ]]; then
+  echo "--seed must be a nonnegative integer (got: $RANDOM_SEED)" >&2; exit 1
+fi
+if [[ -n "$RANDOM_SEED" && "$RANDOM_ORDER" -eq 0 ]]; then
+  echo "--seed requires --random" >&2; exit 1
+fi
+if [[ "$REVERSE_ORDER" != "0" && "$REVERSE_ORDER" != "1" ]]; then
+  echo "EEST_REVERSE_ORDER must be 0 or 1 (got: $REVERSE_ORDER)" >&2; exit 1
+fi
+
+echo "==> SpecRef EEST conformance check (reference model, no ziskemu)"
+
+# --- build the Lean exe -----------------------------------------------------
+if [[ "$NO_BUILD" -eq 0 ]]; then
+  echo "==> lake build specref-eest-check"
+  lake build specref-eest-check
+else
+  echo "==> skipping build (--no-build)"
+fi
+
+# --- locate fixtures --------------------------------------------------------
+FX="${EEST_FIXTURES_DIR:-$REPO_ROOT/gen-out/eest-fixtures/$TAG/fixtures/fixtures}"
+if [[ ! -d "$FX" ]]; then
+  echo "EEST fixtures not found at: $FX" >&2
+  echo "  run: scripts/eest-fetch-fixtures.sh '$TAG'" >&2
+  exit 1
+fi
+
+mkdir -p gen-out
+
+if [[ -n "${RUN_DIR_OVERRIDE:-}" ]]; then
+  RUN_DIR="$RUN_DIR_OVERRIDE"
+elif [[ -n "${EEST_RUN_DIR:-}" ]]; then
+  RUN_DIR="$EEST_RUN_DIR"
+else
+  RUN_DIR="$REPO_ROOT/gen-out/eest-specref-run/run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+fi
+rm -rf "$RUN_DIR"
+mkdir -p "$RUN_DIR"
+
+# --- convert fixtures -> inputs + manifest (same selection as the guest) -----
+conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
+[[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
+[[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
+[[ -n "$FILTER" ]] && conv_args+=(--filter "$FILTER")
+selection="$([[ $ALL -eq 1 ]] && echo all || echo "limit=$LIMIT")"
+[[ "$SKIP" != "0" ]] && selection="$selection, skip=$SKIP"
+[[ -n "$FILTER" ]] && selection="$selection, filter=$FILTER"
+echo "==> convert fixtures (tag=$TAG, $selection)"
+echo "    run dir: $RUN_DIR"
+python3 scripts/eest-stateless-to-input.py "${conv_args[@]}"
+
+MANIFEST="$RUN_DIR/manifest.tsv"
+[[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
+mapfile -t manifestLines < "$MANIFEST"
+
+selectedCount="${#manifestLines[@]}"
+declare -A manifestRowByLabel=()
+for i in "${!manifestLines[@]}"; do
+  IFS=$'\t' read -r label _ <<< "${manifestLines[$i]}"
+  manifestRowByLabel["$label"]=$((i + 1))
+done
+
+if [[ "$RANDOM_ORDER" -eq 1 ]]; then
+  if [[ -z "$RANDOM_SEED" ]]; then
+    RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
+  fi
+  echo "==> random order: seed=$RANDOM_SEED"
+  mapfile -t manifestLines < <(
+    printf '%s\n' "${manifestLines[@]}" | python3 -c "
+import sys, random
+lines = sys.stdin.read().splitlines()
+random.Random(int(sys.argv[1])).shuffle(lines)
+print('\n'.join(lines))
+" "$RANDOM_SEED"
+  )
+  selection="$selection, random(seed=$RANDOM_SEED)"
+fi
+
+if [[ "$REVERSE_ORDER" -eq 1 ]]; then
+  echo "==> reverse order: processing selected fixtures last-to-first"
+  reversedLines=()
+  for ((i = ${#manifestLines[@]} - 1; i >= 0; i--)); do
+    reversedLines+=("${manifestLines[$i]}")
+  done
+  manifestLines=("${reversedLines[@]}")
+  selection="$selection, reverse"
+fi
+
+case_identity() {
+  local label="$1"
+  local relpath="$2"
+  local manifest_row="${manifestRowByLabel[$label]:-?}"
+  local id="$relpath (label=$label manifest_row=$manifest_row/$selectedCount"
+  if [[ "$manifest_row" != "?" ]]; then
+    id="$id rerun_skip=$((SKIP + manifest_row - 1)) rerun_limit=1"
+  fi
+  if [[ "$RANDOM_ORDER" -eq 1 ]]; then
+    id="$id random_seed=$RANDOM_SEED"
+  fi
+  printf '%s)' "$id"
+}
+
+# --- run + classify ---------------------------------------------------------
+# The 105-byte SszStatelessValidationResult decomposes into three regions:
+#   root  [0:32]   (hex chars 0..64)   = new_payload_request_root
+#   succ  [32]     (hex chars 64..66)  = successful_validation
+#   tail  [33:105] (hex chars 66..210) = u32 offset + 68-byte chain_config
+# See the file header for why `succ` diverges (placeholder execution seam).
+total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0
+
+run_case() {
+  local line="$1"
+  local label input expected_hex succ_bit input_len gas_limit relpath
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local out="$RUN_DIR/$label.output"
+  local log="$RUN_DIR/$label.log"
+
+  if ! lake exe specref-eest-check "$input" "$out" >"$log" 2>&1; then
+    echo "  ERROR(spec)   $(case_identity "$label" "$relpath") (see $log)"
+    err=$((err + 1))
+    total=$((total + 1))
+    return 0
+  fi
+
+  local actual_hex
+  actual_hex="$(xxd -p -l 105 "$out" 2>/dev/null | tr -d '\n' || true)"
+  if [[ "${#actual_hex}" -lt 210 ]]; then
+    echo "  ERROR(short)  $(case_identity "$label" "$relpath") (${#actual_hex} hex chars)"
+    err=$((err + 1))
+    total=$((total + 1))
+    return 0
+  fi
+
+  local exp_root="${expected_hex:0:64}"
+  local act_root="${actual_hex:0:64}"
+  local exp_succ="${expected_hex:64:2}"
+  local act_succ="${actual_hex:64:2}"
+  local exp_tail="${expected_hex:66:144}"
+  local act_tail="${actual_hex:66:144}"
+
+  local r="root" s="succ" t="tail"
+  [[ "$exp_root" == "$act_root" ]] || r="----"
+  [[ "$exp_succ" == "$act_succ" ]] || s="----"
+  [[ "$exp_tail" == "$act_tail" ]] || t="----"
+
+  total=$((total + 1))
+  [[ "$r" == "root" ]] && root=$((root + 1))
+  [[ "$t" == "tail" ]] && tail=$((tail + 1))
+  # `succ` accounting: only count a succ MATCH when root+tail also match
+  # (a spurious succ match on a broken case is meaningless).
+  if [[ "$r" == "root" && "$t" == "tail" ]]; then
+    if [[ "$s" == "succ" ]]; then
+      succ=$((succ + 1))
+      full=$((full + 1))
+    else
+      # Expected divergence: placeholder seam reports true, fixture says false.
+      succdiv=$((succdiv + 1))
+    fi
+  fi
+
+  # Reporting: a case is a real failure only when the pre-execution path
+  # itself disagrees (root or tail mismatch). A succ-only divergence is the
+  # known execution-seam gap and is reported separately at the end.
+  if [[ "$r" == "root" && "$t" == "tail" ]]; then
+    if [[ "$s" == "succ" ]]; then
+      [[ "$QUIET_PASSES" -eq 0 ]] && echo "  PASS(full)  $(case_identity "$label" "$relpath")"
+    else
+      echo "  PASS(seam)  $(case_identity "$label" "$relpath") [root/succ(div:execution-seam)/tail]"
+    fi
+  else
+    fail_label=""
+    [[ "$r" == "root" ]] && fail_label="root"
+    echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath")"
+    echo "    expected: $expected_hex"
+    echo "    actual:   $actual_hex"
+    err=$((err + 1))
+  fi
+}
+
+echo "==> run SpecRef on $selectedCount case(s) ($selection)"
+for line in "${manifestLines[@]}"; do
+  run_case "$line"
+done
+
+# --- summary ----------------------------------------------------------------
+echo
+echo "============================================================"
+echo " SpecRef EEST conformance summary"
+echo "============================================================"
+echo "  total cases : $total"
+echo "  full match  : $full   (root + succ + tail -- the guest's exact output)"
+echo "  root match  : $root   (pre-execution NPR-root hashing)   [gateable]"
+echo "  tail match  : $tail   (chain-config echo)                [gateable]"
+echo "  succ match  : $succ   (only on fixtures whose real EVM execution succeeded)"
+echo "  succ diverg : $succdiv  (expected: placeholder execution seam on succ=0 fixtures)"
+echo "  ERROR/FAIL  : $err    (pre-execution disagreement -- a real SpecRef bug)"
+echo "============================================================"
+
+rc=0
+if [[ -n "$MIN_ROOT" && "$root" -lt "$MIN_ROOT" ]]; then
+  echo "REGRESSION: --min-root $MIN_ROOT not met (root matches = $root)" >&2
+  rc=1
+fi
+if [[ -n "$MIN_TAIL" && "$tail" -lt "$MIN_TAIL" ]]; then
+  echo "REGRESSION: --min-tail $MIN_TAIL not met (tail matches = $tail)" >&2
+  rc=1
+fi
+if [[ "$err" -gt 0 && -z "$MIN_ROOT$MIN_TAIL" ]]; then
+  # With no explicit gate, surface pre-execution failures via exit code too.
+  rc=1
+fi
+
+exit "$rc"
