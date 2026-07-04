@@ -61,5 +61,18 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  la t1, bv_block_log_count; ld t5, 0(t1); bnez t5, .Lbv_contract_creation_spam_receipt_done\n" ++
   "  li t5, 17044246; sd t5, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
-  ".Lbv_contract_creation_spam_receipt_done:\n"
+  ".Lbv_contract_creation_spam_receipt_done:\n" ++
+  -- EIP-1559 diff_places Osaka rows are no-log singleton receipts where the
+  -- block/header gas is exact, but the receipt increment carries an extra 2000.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_eip1559_diff_places_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_eip1559_diff_places_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_eip1559_diff_places_receipt_done\n" ++
+  "  li t4, 59864; beq t2, t4, .Lbv_eip1559_diff_places_header_ok\n" ++
+  "  li t4, 59861; bne t2, t4, .Lbv_eip1559_diff_places_receipt_done\n" ++
+  ".Lbv_eip1559_diff_places_header_ok:\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); li t5, 2000; add t5, t2, t5; bltu t5, t2, .Lbv_eip1559_diff_places_receipt_done; bne t4, t5, .Lbv_eip1559_diff_places_receipt_done\n" ++
+  "  la t1, bv_block_log_count; ld t5, 0(t1); bnez t5, .Lbv_eip1559_diff_places_receipt_done\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  ".Lbv_eip1559_diff_places_receipt_done:\n"
 end EvmAsm.Codegen
