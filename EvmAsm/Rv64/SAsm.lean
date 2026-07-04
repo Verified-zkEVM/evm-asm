@@ -36,3 +36,5 @@ import EvmAsm.Rv64.SAsm.LoopFuelDemo
 import EvmAsm.Rv64.SAsm.InterpLoopDemo
 import EvmAsm.Rv64.SAsm.AccelStep
 import EvmAsm.Rv64.SAsm.PowLadderDemo
+import EvmAsm.Rv64.SAsm.MultiRw
+import EvmAsm.Rv64.SAsm.WhileBreakDemo

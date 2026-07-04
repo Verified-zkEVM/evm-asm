@@ -160,6 +160,21 @@ inductive Stmt where
            (inv : RegFile → List (BitVec 8) → Assertion →
              Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (body : Stmt)
+  /-- Bounded loop with a **mid-body early exit** (`break`).  The loop runs
+      while `guard` holds, at most `fuel` iterations; each iteration runs
+      `bodyBefore`, then — if `breakCond` holds — jumps out of the loop to
+      `post` (the break), otherwise runs `bodyAfter` and takes the back-edge.
+      Both the guard-fail exit and the break exit establish `post` directly.
+      `inv i` must hold at the i-th header evaluation.  This is the structured
+      form of the machine idiom "scan until a predicate holds" (a header
+      guard plus a mid-loop conditional branch to the loop exit, past the
+      back-edge — a shape the single-exit `«while»` cannot express).  The
+      generator emits initialization, continue-preservation, fuel-exhaustion,
+      guard-exit, and break VCs (docs/sasm-design.md §3.10). -/
+  | «whileBreak» (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (post : RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -199,6 +214,7 @@ def size : Stmt → Nat
   | blockAt _ _ _ is  => is.length
   | «while» _ _ _ _ b   => b.size + 2
   | «whileS» _ _ _ _ b  => b.size + 2
+  | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
@@ -219,6 +235,7 @@ def callFree : Stmt → Bool
   | blockAt _ _ _ _   => true
   | «while» _ _ _ _ b => b.callFree
   | «whileS» _ _ _ _ b => b.callFree
+  | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
   | call _ _          => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
