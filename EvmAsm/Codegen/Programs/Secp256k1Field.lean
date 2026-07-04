@@ -47,11 +47,19 @@ def secp256k1FieldDataSection : String :=
   "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
   "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
   "  .byte 0xff,0xff,0xff,0xfe,0xff,0xff,0xfc,0x2d\n" ++
+  -- sqrt exponent (p+1)/4 for the Tonelli-Shanks-free square root (p ≡ 3 mod 4).
+  -- Kept as a documented reference for the hardcoded skip-bit ladder in
+  -- `secfSqrtModP_prog` (its zero bits are {255,254,30,7,6,5,4,1,0}; bit 0 is
+  -- handled by that routine's separate `BEQ x19,x0` rather than the LI/BEQ
+  -- chain, which lists {255,254,30,7,6,5,4,1}). The routine does NOT read this
+  -- datum — it exists only to pin the intended exponent. The previous bytes
+  -- (…fb,ff,ff,ff,0c) did NOT equal (p+1)/4 (wrong at bits 30 and 34); corrected
+  -- below to the true value (…ff,bf,ff,ff,0c). Verified: value == (p+1)/4.
   "secp256k1_sqrt_exp_be:\n" ++
   "  .byte 0x3f,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
   "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
   "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
-  "  .byte 0xff,0xff,0xff,0xfb,0xff,0xff,0xff,0x0c\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xbf,0xff,0xff,0x0c\n" ++
   -- secp256k1 group order n, its 2^256 complement (2^256 - n, for folding an
   -- add carry back like `secp256k1_c_be` does for p), and n-2 (the Fermat
   -- exponent for the scalar inverse). Used by the mod-n scalar helpers.
@@ -741,7 +749,14 @@ theorem secp256k1FieldInvFunction_eq_prog :
 
 #guard secp256k1FieldInvFunction.startsWith "secf_inv_mod_p:\n"
 #guard secfInvModP_prog.length = 26
-/-- Square root modulo p. Returns a0 = 1 if no root exists, else 0. -/
+/-- Square root modulo p. Returns a0 = 1 if no root exists, else 0.
+
+    Square-and-multiply for x^((p+1)/4) (p ≡ 3 mod 4). The multiply is SKIPPED
+    at each bit where the exponent (p+1)/4 is zero. The zero bits of (p+1)/4 are
+    {255,254,30,7,6,5,4,1,0}: bits {255,254,30,7,6,5,4,1} are matched by the
+    `LI x5,k; BEQ x19,x5` chain below, and bit 0 by the separate `BEQ x19,x0`.
+    These bits must equal the zero bits of `secp256k1_sqrt_exp_be` = (p+1)/4;
+    keep the two in sync if either changes. -/
 def secfSqrtModP_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),

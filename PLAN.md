@@ -2565,7 +2565,17 @@ seven-children+pad tiling is THE SAME assertion
 offsets), transitions forget contents by construction
 (`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
 havoc'd range must verify for all contents
-(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Next for
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Top-level spec
+statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
+docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
+`cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
+at INPUT_ADDR, the guest halts within `fuel` and the 40-byte OUTPUT
+window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
+`SpecRef.verify_stateless_new_payload` validates + root matches);
+soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
+output) stated as the deferred two-sided form; execution seam stays a
+parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
+OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. Next for
 SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
