@@ -2597,7 +2597,14 @@ OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. REVISED post
 residue gives entry-owned resources a home at halt (original form was
 unprovable), while the pinned 40-byte window blocks the ∃-out
 decode-vacuity hole of the #9734 variant (record §3a). Next for
-SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
+SAsm: more Stateless/SSZ ports. AGENT-HANDOFF layer landed (bead epic
+4ch8f): docs/agents/roadmap-4ch8f.md (layer DAG, pick-next rules,
+recipe-by-shape table, gate matrix per change type, decomposition
+pattern) + docs/agents/review-playbook.md (per-PR-type gates CI doesn't
+run, adversarial statement checklist, known-hole catalog) are the entry
+points for ALL future 4ch8f sessions at any capability tier; one-session
+port children exist under .12-.16/.20/.22-.24/.26, composition beads
+carry plan notes, remaining families carry DECOMPOSE FIRST notes. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
 threads an ambient (pc-free) separation-logic assertion through the
