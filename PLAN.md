@@ -2661,7 +2661,25 @@ of the ambient assertion for the block; the decomposition (window bytes,
 remainder) is a user annotation on the node, so sp stays fully
 determined and post-VCs compute. VCs: .ok, .focus (decomposition eq +
 remainder pcFree + window RwRegion.wf), .mem (window-routed blockVCs).
-Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
+Multiple writable regions landed (bead evm-asm-4ch8f.67,
+`SAsm/MultiRw.lean`, unblocks `.12.9` swd_minimal_copy and the
+result-buffer+length-dword class): the assertion-atom-routable-store
+design realized at block granularity by the EXISTING `blockAt` — a
+routine owns region 1 as its primary `rw` and regions 2+ as
+`bytesRegion` conjuncts of the ambient `A`, each written through a
+`blockAt` at that region's pointer register; zero engine/AST change
+(the `List RwRegion` alternative would re-prove the machine-level
+block soundness multi-window and rewrite `Reach` corpus-wide),
+disjointness structural via `**` (overlap ⇒ unsatisfiable pre, never a
+misroute; the only arithmetic hypotheses are the routing facts VCs
+already demand), block granularity costs zero instructions (seq of
+block/blockAt leaves flattens contiguously). Artifacts: focus_rwAtom
+(generic second-region `.focus` discharge), dwordBytes_packBytes
+(round-trip), twoRwFn + twoRwFn_spec — a genuine two-independent-
+pointer demo (copy ro→primary-rw dst + count dword at cnt via blockAt),
+post pins BOTH regions as functions of the input, kernel-clean
+(classical-3). Recipe: howto §6 "Multiple writable regions"; design
+§3.6.1 item 2 updated. Stage 5b LANDED: TreeInsert.lean — the slot-based predicate layer
 (slotCell/keyCell, mutual treeAtS/treeFrom, ctxS slot-zipper with
 ctxS_zip_fold + ctxS_push_left/right, the 3-dword bytesRegion split,
 setBytes_junk_node) plus treeInsertFn + treeInsertFn_spec: the full BST
