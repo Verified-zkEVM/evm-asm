@@ -1182,6 +1182,10 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bne t4, t2, .Lbv_clear_return_receipt_done\n" ++
   "  li t3, 97920; add t1, t1, t3; bltu t1, t3, .Lbv_clear_return_receipt_done; sd t1, 0(t0)\n" ++
   ".Lbv_clear_return_receipt_done:\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 25352; bne t2, t3, .Lbv_div_zero_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_div_zero_receipt_done; la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_div_zero_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 4800; add t4, t1, t3; bne t4, t2, .Lbv_div_zero_receipt_done; sd t2, 0(t0)\n" ++
+  ".Lbv_div_zero_receipt_done:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
