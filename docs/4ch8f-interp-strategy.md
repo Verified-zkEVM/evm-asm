@@ -216,7 +216,63 @@ helpers `dispatchContinueRet` / `dispatchHaltRet` / `emitDispatchResume`):
   are loop machinery reached from the header, not `jalr`-called handler
   subroutines, so they are outside the callRegS contract.
 
-**Rejected alternatives.**
+**Amendment (`vgyg9` = `.49.a` — stack-guard prologues join the
+flag+`ret` discipline).**  `.10.3` converted the non-`ret` *tails* but
+missed the **stack-guard prologues**: every stack-consuming/pushing
+handler opened with `stackUnderflowGuardAsm`/`stackOverflowGuardAsm`
+(`Codegen/Dispatch.lean`), whose `bltu/bleu … .exit_stack_underflow/
+overflow` made the emitted handler multi-exit *at the front* — while the
+`.10.1` handles verified a guard-free clean-ret shape entered at the
+body.  So the dispatch-table witness (`addrOf h_<OP>`, the guard entry)
+could not discharge the `callRegS` `.pre` (`rf.get rs = handle.entry`),
+and the emitted entry was not `callRegS`-conformant.  Options weighed:
+
+- *(a) prove the guard not-taken under the dispatch pre* — **unsound as
+  a general fix**: stack underflow/overflow is genuinely reachable from
+  real bytecode, so the guard is live and must route to its exit; no
+  spec-only fix makes the as-emitted handler single-`ret`-exit.
+- *(b) guards → loop header* — architecturally clean ("guards are loop
+  exits") but needs a new per-opcode arity table + ELF drift guard, a
+  bigger byte diff, and re-opens the charge/guard ordering; rejected as
+  more invasive for no proof-side gain over (c).
+- *(d) multi-exit call primitive* — stays rejected (see (C) below).
+
+**Decision: (c) — finish `.10.3`: guards set `evm_halt_flag` and
+`ret`.**  Each guard's exit branch becomes a skip-branch over an inline
+halt block (`li x5, 7|8; la x6, evm_halt_flag; sd x5, 0(x6); ret`,
+emitted under a numeric local label), and `emitDispatchResume` routes
+`7`→`.exit_stack_underflow`, `8`→`.exit_stack_overflow`.  Handlers are
+then single-`ret`-exit with the guard *in place and live*; the `.10.1`
+handles re-package to enter at `h_<OP>` (guard included) with a post
+*conditional* on the guard outcome (≥ arity → body post, flag cell
+untouched; < arity → window/registers preserved modulo scratch, flag
+:= 7).  Routing codes 7/8 deliberately coincide with the exceptional
+exit-join kinds.
+
+One deliberate deviation from `dispatchHaltRet`: the guard halt block
+does **not** load `.Ldispatch_resume` into `x1`.  Guards run at handler
+*entry*, where `x1` still holds the `jalr`-passed return address, so a
+plain `ret` reaches the same resume point — and preserving the caller's
+`x1` is what keeps the packaged handle's `FnHandleS.sound` contract
+(quantified over an *arbitrary* aligned `ret`) provable.  A hardcoded
+`la x1, .Ldispatch_resume` would pin the exit to one address and make
+the ∀-`ret` obligation false.  (The same wrinkle will apply when the
+`.10.3` *tails* are packaged in `.55`: `dispatchContinueRet`/
+`dispatchHaltRet` load `x1` because cross-`j` entries and `ra`-clobbering
+helper calls need it; handles for those handlers will have to treat the
+constant-resume exit explicitly.)
+
+Packaging consequence (coordinates with `.49.1`'s `FnHandleS.focus`,
+PR #9792): the guard reads `evm_cur_stack_top`/`evm_cur_stack_low`
+(read-only for these handlers → `region` cells, per the #9792
+coordination note) and *writes* `evm_halt_flag` on the taken path — a
+write outside the minimal `⟨sp, 64⟩` window.  Since `callRegS` forces
+`h.rw = caller.rw` (one fixed window), the guarded handles are stated
+over a wider fixed `rw` arena containing both the value-stack window
+and the flag cell, with the guard-taken/not-taken split expressed in
+the snapshot post (no ∃-state).  `focus`-style embedding applies with a
+guard-aware post (window transformed per body on the not-taken path;
+window framed + flag dword := 7 on the taken path).
 - *(A) Monomorphic handles + trace-indexed ghost posts* ("∃ j, exit
   encodes trace (j+1)"): cannot correlate `j` with the iteration, so
   `inv_step` cannot re-establish `encodes (trace (i+1))` and no variant
