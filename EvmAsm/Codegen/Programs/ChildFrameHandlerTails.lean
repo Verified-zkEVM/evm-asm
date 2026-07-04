@@ -121,9 +121,10 @@ def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) 
     ".L" ++ tag ++ "_precompile_xlog_selfcmp:\n" ++
     "  beqz t2, .L" ++ tag ++ "_precompile_xlog_skip\n" ++
     "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n" ++
-    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
+    "  bne t3, t4, .L" ++ tag ++ "_precompile_xlog_prev_start\n" ++
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  j .L" ++ tag ++ "_precompile_xlog_selfcmp\n" ++
+    ".L" ++ tag ++ "_precompile_xlog_prev_start:\n" ++
     "  ld t1, 472(x20); beqz t1, .L" ++ tag ++ "_precompile_xlog_emit\n" ++
     "  li t2, 0; la t3, evm_event_logs\n" ++
     ".L" ++ tag ++ "_precompile_xlog_prev_scan:\n" ++
