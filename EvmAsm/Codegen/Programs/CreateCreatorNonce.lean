@@ -64,6 +64,7 @@ def createCreatorNonceUseFunction : String :=
   "  addi t2, t2, 1; j .Lccnu_loop\n" ++
   ".Lccnu_found:\n" ++
   "  ld a0, 32(t3)               # ret = entry.nonce\n" ++
+  "  li t4, -1; beq a0, t4, .Lccnu_ret  # max nonce: CREATE must fail; do not wrap table\n" ++
   "  addi t4, a0, 1; sd t4, 32(t3)   # entry.nonce += 1\n" ++
   "  j .Lccnu_ret\n" ++
   ".Lccnu_new:\n" ++
