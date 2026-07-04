@@ -79,15 +79,15 @@ def evmExpComposed : Program :=
 
 /-- Shared tail for the self-calling handlers (ADDMOD / EXP): their inner
     `JAL .x1` calls (into `evm_mod_callable_v5` / `mul_callable`) clobber
-    `x1`, so `ret` would jump to garbage — dispatch again via
-    `.dispatch_loop` instead. The callables also use `x2` (= `sp`) as a
-    general-purpose register, so restore the LP64 helper-call stack pointer
-    first (same `sp`-restore as `divModTail`). -/
+    `x1`, so restore the dispatch continuation into `x1` and `ret` (4ch8f.10.3
+    callRegS contract) instead of `j .dispatch_loop`. The callables also use
+    `x2` (= `sp`) as a general-purpose register, so restore the LP64
+    helper-call stack pointer first (same `sp`-restore as `divModTail`). -/
 private def selfCallingTail : HandlerTail :=
   .custom ("  mv x10, x14\n" ++
            "  la sp, lp64_sp_top\n" ++
            "  addi x10, x10, 1\n" ++
-           "  j .dispatch_loop")
+           dispatchContinueRet)
 
 def selfCallingHandlers : List OpcodeHandlerSpec :=
   [ { label         := "h_ADDMOD"

@@ -56,7 +56,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  bltu t1, t2, .Lrr_crrev_cr_" ++ toString kind ++ "\n" ++
       "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
       ".Lrr_crrev_cr_" ++ toString kind ++ ":\n" ++
-      "  j .dispatch_loop\n"
+      dispatchContinueRet ++ "\n"
      else
       -- RETURN: validity-gate child mem[x14..x14+x15] (the deployed code), record the
       -- code-effect (copies it into the log BEFORE the frame pop), pop via frame_return
@@ -160,7 +160,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  la a0, create_sender_be\n  la a1, create_creator_newbal\n  la a2, nse_create_post_bal\n" ++   -- a1=pre_bal, a2=post_bal
       "  jal ra, record_nonstorage_effect\n" ++
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-      "  j .dispatch_loop\n" ++
+      dispatchContinueRet ++ "\n" ++
       ".Lrr_crinv_" ++ toString kind ++ ":\n" ++
       -- bbow4.2.5.1: invalid deployed code / code-deposit OOG is an
       -- exceptional CREATE failure. execution-specs process_create_message
@@ -177,13 +177,13 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  bltu t1, t2, .Lrr_crinv_cr_" ++ toString kind ++ "\n" ++
       "  sub t1, t1, t2\n  sd t1, 0(t0)\n" ++
       ".Lrr_crinv_cr_" ++ toString kind ++ ":\n" ++
-      "  j .dispatch_loop\n") ++
+      dispatchContinueRet ++ "\n") ++
     ".Lrr_call_" ++ toString kind ++ ":\n" ++
     "  li a0, " ++ (if kind == 2 then "0" else "1") ++ "\n" ++
     "  add a1, x13, x14\n" ++
     "  mv a2, x15\n" ++
     "  jal ra, frame_return\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lrr_halt_" ++ toString kind ++ ":\n"
    else "") ++
   -- 8uld3.2.1a: when system_call_mode!=0, capture the top-level (depth-0) RETURN data
@@ -254,7 +254,8 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
   s!"  li x17, {kind}\n" ++
   "  sd x17, 32(x16)\n" ++
   rollbackAsm ++
-  "  j .exit_no_epilogue"
+  -- 4ch8f.10.3: depth-0 RETURN/REVERT halt via flag+ret (routes to .exit_no_epilogue).
+  dispatchHaltRet 2
 
 /-- Stage the popped SELFDESTRUCT beneficiary for later EIP-6780 state work. -/
 private def selfdestructTailAsm : String :=
@@ -374,7 +375,9 @@ private def selfdestructTailAsm : String :=
   "  bnez t3, .L_sd_create_return\n" ++
   ".L_sd_flag_clear_done:\n" ++
   "  addi x12, x12, 32\n" ++
-  "  j .exit_selfdestruct\n" ++
+  -- 4ch8f.10.3: SELFDESTRUCT halt via flag+ret (routes to .exit_selfdestruct,
+  -- which is itself depth-aware).
+  dispatchHaltRet 4 ++ "\n" ++
   ".L_sd_create_return:\n" ++
   "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
   "  jal ra, frame_return\n" ++
@@ -383,7 +386,7 @@ private def selfdestructTailAsm : String :=
   "  beqz t3, .L_sd_create_addr_done\n" ++
   "  lbu t4, 0(t1)\n  sb t4, 0(t2)\n  addi t1, t1, -1\n  addi t2, t2, 1\n  addi t3, t3, -1\n  j .L_sd_create_addr_loop\n" ++
   ".L_sd_create_addr_done:\n" ++
-  "  j .dispatch_loop"
+  dispatchContinueRet
 
 /-- M18 / M23 / M31 EVM-terminating opcodes. `depthAware` makes RETURN/REVERT
     return to the parent frame (via `frame_return`) when `evm_call_depth > 0`
@@ -410,7 +413,7 @@ def haltHandlers (depthAware : Bool) : List OpcodeHandlerSpec :=
            "  sd x17, 472(x20)\n") depthAware }
   , { label := "h_INVALID", opcodes := [0xfe]
     , body := []
-    , tail := .custom "  j .exit_invalid_op" }
+    , tail := .custom (dispatchHaltRet 3) }
   , { label := "h_SELFDESTRUCT", opcodes := [0xff]
     , preBody := stackUnderflowGuardAsm 1 ++ "\n" ++ staticContextWriteGuardAsm
     , body := []

@@ -166,7 +166,8 @@ def logCapturePreBody (topicCount : Nat) : String :=
   "  li x16, 0xa0010000\n" ++
   "  li x17, 4\n" ++                 -- LOG buffer overflow
   "  sd x17, 32(x16)\n" ++
-  "  j .exit_no_epilogue\n" ++
+  -- 4ch8f.10.3: LOG-overflow halt via flag+ret (routes to .exit_no_epilogue).
+  dispatchHaltRet 2 ++ "\n" ++
   "8:\n"
 
 /-- M26 LOG opcodes (LOG0..LOG4). Each handler captures a bounded
