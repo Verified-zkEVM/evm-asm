@@ -2584,7 +2584,9 @@ it into a `frameWindow` — feeds .56 descend/return contracts (strategy §4).
 Top-level spec
 statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
 docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
-`cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
+`cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤
+`MAX_INPUT_BYTES` (revised to `0x37FFFFF8` ≈ 896 MiB by .63 — the sharp
+machine-model satisfiability bound, record §2a) framed
 at INPUT_ADDR, the guest halts within `fuel` and the 40-byte OUTPUT
 window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
 `SpecRef.verify_stateless_new_payload` validates + root matches);
@@ -2838,6 +2840,32 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   **docs/4ch8f-top-spec.md**. The obligation decomposition lives in
   **docs/agents/top-theorem-ledger.md** (14 rows, each with bead +
   exemplar) — update a row whenever a stateless proof lands.
+- ✅ **Guest-image composition, structural half** (bead evm-asm-4ch8f.63,
+  2026-07-04): `EvmAsm/Codegen/Proofs/GuestImage.lean` —
+  `guestImageCodeReq` (the `CodeReq.unionAll` of the 358 LINKED wave-.9
+  conversions at their `GuestAddrs` entries, table GENERATED into
+  `GuestImageEntries.lean` by `scripts/guest_image_coverage.py
+  --emit-lean`), with whole-image disjointness as ONE kernel `decide`
+  (`guestImageEntries_extentsOk`) and the generic lift chain in new
+  `Rv64/CodeReqExtents.lean` (`ofProg_sub_ofEntries_of_extentsOk` →
+  `cps*_extend_code`) — compose-don't-enumerate, no 384-case proof.
+  Coverage accounting: 23.76% of `.text`; the 443 uncovered ranges are
+  enumerated in **docs/4ch8f-guest-image-coverage.md** and filed as
+  beads 4ch8f.63.2–.63.12. `guestFraming : GuestFraming` instantiated
+  (scratch = residue = `anyBytes` over the six `zone = .ram`
+  `guestRegionMap` regions, drift-pinned; `scratch_sat` witness via new
+  `Rv64/MemSat.lean` footprint-satisfiability combinators). STATEMENT
+  REPAIR: `MAX_INPUT_BYTES` 2^30 → `0x37FFFFF8` (2^30 made
+  `scratch_sat` unprovable — `isValidDwordAccess` cuts at `MEM_END`;
+  record §2a). Verdict-stamp audit → record §6a: stamp
+  `sb a0, 32(t0)` (`StatelessGuestEpilogue.lean:842`) is the single
+  final byte-32 writer, gated on verdict ∧ schema-id ∧ canonical
+  offsets; one P1 finding (4ch8f.63.1): the dispatcher's `halt_kind`
+  slot at OUTPUT+32 holds transient `1` (RETURN) inside the verdict
+  save/restore window — a trap there would be an observation-level
+  false accept, so `.64` needs verdict-window trap-freedom (or move
+  `halt_kind` off OUTPUT+32). Remaining `.63` half: the shell pipeline
+  triples.
 - ✅ **Smaller-model port toolchain** (2026-07-04):
   `docs/agents/port-playbook.md` (single entry point: class table →
   exemplar → recipe → stop-rule), `scripts/gen-port-kit.py` (skeleton

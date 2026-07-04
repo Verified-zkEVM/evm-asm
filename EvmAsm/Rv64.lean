@@ -54,3 +54,7 @@ import EvmAsm.Rv64.SailEquiv.MemReduce
 import EvmAsm.Rv64.SailEquiv.MemMonad
 -- SAsm: structured-assembly DSL (docs/sasm-design.md).
 import EvmAsm.Rv64.SAsm
+-- Image composition: footprint-satisfiability + CodeReq extent machinery
+-- (bead 4ch8f.63).
+import EvmAsm.Rv64.MemSat
+import EvmAsm.Rv64.CodeReqExtents

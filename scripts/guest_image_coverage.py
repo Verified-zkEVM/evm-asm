@@ -96,10 +96,48 @@ def read_function_bindings(files):
     return out
 
 
+ENTRIES_LEAN = "EvmAsm/Codegen/Proofs/GuestImageEntries.lean"
+
+
+def emit_entries_lean(linked, files):
+    """Write the GENERATED (address-by-name, Program) entries module.
+    `linked`: [(entry_symbol, prog_name, addr)] sorted by addr."""
+    mods = sorted({p[:-len(".lean")].replace("/", ".") for p in files})
+    L = ["/-", "  EvmAsm.Codegen.Proofs.GuestImageEntries", "",
+         "  GENERATED — do not edit by hand.",
+         "  `python3 scripts/guest_image_coverage.py --emit-lean` regenerates",
+         "  this from scripts/asm-fixtures/MANIFEST.tsv +",
+         "  scripts/asm-fixtures/symbol-addresses.tsv (bead evm-asm-4ch8f.63).",
+         "",
+         "  One row per converted `_prog` that is LINKED into the",
+         "  `stateless_guest` image: (entry address BY NAME via `GuestAddrs`,",
+         "  the verification-view `Program`), sorted by entry address.",
+         "  Conversions whose entry symbol is absent from the linker-facts",
+         "  table (converted but not linked) are excluded — the image",
+         "  `CodeReq` must reflect the emitted ELF, nothing more.",
+         "  Consumer: `guestImageCodeReq` (EvmAsm/Codegen/Proofs/GuestImage.lean).",
+         "-/", "import EvmAsm.Codegen.GuestAddrs"]
+    L += [f"import {m}" for m in mods]
+    L += ["", "namespace EvmAsm.Codegen", "",
+          "open EvmAsm.Rv64 in",
+          "/-- The linked converted functions of the guest image, ascending by",
+          "    entry address: `(GuestAddrs.<entry>, <entry>_prog)`. -/",
+          "def guestImageEntries : List (Nat × Program) := ["]
+    rows = [f"  (GuestAddrs.{e}, {p})" for e, p, _ in linked]
+    L.append(",\n".join(rows) + " ]")
+    L += ["", f"#guard guestImageEntries.length = {len(linked)}", "",
+          "end EvmAsm.Codegen", ""]
+    with open(os.path.join(ROOT, ENTRIES_LEAN), "w") as f:
+        f.write("\n".join(L))
+    print(f"wrote {ENTRIES_LEAN} ({len(linked)} entries, {len(mods)} imports)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gaps", action="store_true", help="tsv gap list only")
     ap.add_argument("--md", action="store_true", help="markdown output")
+    ap.add_argument("--emit-lean", action="store_true",
+                    help=f"regenerate {ENTRIES_LEAN}")
     args = ap.parse_args()
 
     text_size = read_text_size()
@@ -120,6 +158,16 @@ def main():
             sys.exit(f"no `#guard {prog}.length = N` pin found "
                      f"(manifest entry {func} in {path})")
         converted[entry] = (prog, 4 * prog_lens[prog], path)
+
+    if args.emit_lean:
+        addr_of = dict((n, a) for a, n in syms)
+        linked = sorted(
+            ((e, prog, addr_of[e]) for e, (prog, _, _) in converted.items()
+             if e in addr_of),
+            key=lambda t: t[2])
+        emit_entries_lean(linked,
+                          [converted[e][2] for e, _, _ in linked])
+        return
 
     rows = []          # (addr, extent_end, name, status, covered_end)
     gaps = []          # (start, end, owner_symbol, kind)

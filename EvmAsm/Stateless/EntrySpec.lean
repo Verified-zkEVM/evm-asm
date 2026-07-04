@@ -65,15 +65,29 @@ open EvmAsm.Stateless.SpecRef
       `[32]`, chain-config echo after.
     * `GUEST_ENTRY = 0x80000000`: the `stateless_guest.elf` entry point
       (`e_entry`, `-Ttext=0x80000000`, `_start` first).
-    * `MAX_INPUT_BYTES = 2^30`: the project's 1 GiB input bound; keeps
-      the input window `[0x40000000, 0x80000000)` below `.text`. -/
+    * `MAX_INPUT_BYTES = 0x37FFFFF8` (~896 MiB): the largest length whose
+      zero-padded payload dwords `[0x40000010, 0x40000010 + 8·⌈len/8⌉)`
+      all stay inside the machine model's valid memory map — the legacy
+      zone ends at `Rv64.MEM_END = 0x78000000` (inclusive; see
+      `Rv64.isValidDwordAccess`, whose validity `↦ₘ` bakes in). Any
+      larger bound makes `guestInputAssertion` unsatisfiable and the
+      `GuestFraming.scratch_sat` witness unprovable. REVISED by bead
+      `.63` from the original `2^30` (which also overhung `.text` by 16
+      bytes: `0x40000010 + 2^30 = 0x80000010`); the `#guard` below pins
+      the constant to the model boundary so a `MEM_END` change re-derives
+      it. Decision record: docs/4ch8f-top-spec.md §2a. -/
 
 def INPUT_ADDR : Word := 0x40000000
 def INPUT_LEN_OFFSET : Word := 8
 def INPUT_BODY_OFFSET : Word := 16
 def OUTPUT_ADDR : Word := 0xa0010000
 def GUEST_ENTRY : Word := 0x80000000
-def MAX_INPUT_BYTES : Nat := 0x40000000
+def MAX_INPUT_BYTES : Nat := 0x37FFFFF8
+
+-- The bound is exactly "last payload dword sits at `MEM_END`":
+-- `INPUT_ADDR + INPUT_BODY_OFFSET + MAX_INPUT_BYTES - 8 = MEM_END`.
+#guard INPUT_ADDR.toNat + INPUT_BODY_OFFSET.toNat + MAX_INPUT_BYTES == MEM_END + 8
+#guard MAX_INPUT_BYTES % 8 == 0
 
 /-- The observation window at `OUTPUT_ADDR` the soundness claim is stated
     over: root (32) + validation byte (1), padded to the 40-byte dword
