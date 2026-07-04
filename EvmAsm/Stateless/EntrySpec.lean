@@ -7,24 +7,32 @@
 
   ## What the top theorem says (decisions, 4ch8f.8)
 
-  1. **Soundness direction only (one-sided).** The guest may
-     false-reject (output `successful_validation = 0`) for any reason
-     — unsupported feature, fuel, witness shape — without violating
-     the spec. What it may never do is false-accept: if the OUTPUT
-     region claims `successful_validation = 1`, then the Python
+  1. **Soundness direction only (one-sided), over a PINNED
+     observation window.** The guest may false-reject (flag byte 0)
+     for any reason — unsupported feature, fuel, witness shape —
+     without violating the spec. What it may never do is
+     false-accept: if the flag byte at the fixed offset 32 of the
+     40-byte OUTPUT observation window is 1, then the Python
      reference (`SpecRef.run_stateless_guest`, the Lean port of
      `execution-specs/.../stateless_guest.py`) run on the same input
-     bytes must return exactly those output bytes (`GuestOutputSound`).
-     Equality of the full SSZ output pins the NPR root and chain
-     config too, not just the bit. The completeness direction is
-     documented as `GuestOutputComplete` but is NOT part of the
-     headline statement.
+     succeeds and agrees on the observed root+flag bytes
+     (`GuestOutputSound`). The window length is pinned INSIDE the
+     postcondition — review of the first draft found that an
+     existential output with a self-delimiting decode is vacuously
+     dischargeable (empty or over-extended `out` decodes to no claim);
+     see the §per-run-contracts comment. Full-serialization byte
+     equality (which also pins the chain-config echo) is the separate
+     `GuestOutputFaithful` clause, the guest-shell bead's target; the
+     completeness direction is documented as `GuestOutputComplete`.
+     Neither is part of the headline statement.
 
   2. **Trust boundary.**
-     - Host input bytes: the ZisK transport record at `INPUT_ADDR`
-       (`ziskInputHeader` + payload; docs/agents/stateless-input-contract.md).
-       The statement quantifies over ALL payloads — nothing about the
-       host is trusted beyond placement.
+     - Host input bytes: the ZisK transport record at `INPUT_ADDR + 8`
+       (`ziskInputRecord` = length word + payload;
+       docs/agents/stateless-input-contract.md). The statement
+       quantifies over ALL payloads — nothing about the host is
+       trusted beyond placement; the 8 ZisK meta bytes at `+0` are
+       deliberately unconstrained.
      - Machine model: `EvmAsm.Rv64` step semantics including the
        concrete ZisK accelerator semantics (`Rv64/ZiskAccel.lean`,
        kernel-checked KATs) — part of the model, not an axiom.
@@ -85,23 +93,23 @@ def STATELESS_OUTPUT_ADDR : Word := 0xa0010000
     metadata then the LE u64 payload length. -/
 def STATELESS_INPUT_DATA_OFFSET : Nat := 16
 
-/-- The ZisK host-transport header preceding the SSZ payload in the
-    input region: 8 metadata bytes (zero) followed by the LE u64
-    payload length (see `Stateless/MemoryLayout.lean` top-level map and
-    docs/agents/stateless-input-contract.md). -/
-def ziskInputHeader (payloadLen : Nat) : SpecRef.Bytes :=
-  List.replicate 8 (0 : BitVec 8) ++ SpecRef.natToBytesLE 8 payloadLen
-
-/-- The full byte image of the input region for a given payload:
-    transport header, then the schema-prefixed SSZ
-    `SszStatelessInput` bytes. -/
+/-- The guest-relevant transport record: the LE u64 payload length at
+    `INPUT_ADDR + 8`, then the schema-prefixed SSZ `SszStatelessInput`
+    bytes at `INPUT_ADDR + 16` (see `Stateless/MemoryLayout.lean` and
+    docs/agents/stateless-input-contract.md). The 8 ZisK metadata bytes
+    at `INPUT_ADDR + 0` are intentionally NOT part of the record — the
+    statement must not constrain host transport bytes the guest never
+    relies on (they stay in `fr.scratch`). Note `bytesRegion`'s
+    trailing-dword convention pins the pad bytes of a
+    non-multiple-of-8 payload to zero — matching the ziskemu host
+    packing rule (zero padding to 8 bytes). -/
 def ziskInputRecord (payload : SpecRef.Bytes) : SpecRef.Bytes :=
-  ziskInputHeader payload.length ++ payload
+  SpecRef.natToBytesLE 8 payload.length ++ payload
 
 /-- Assertion: the input region holds the transport record for
-    `payload`. -/
+    `payload` (length word + payload; ZisK meta dwords excluded). -/
 def inputRecordAt (payload : SpecRef.Bytes) : Assertion :=
-  bytesRegion STATELESS_INPUT_ADDR (ziskInputRecord payload)
+  bytesRegion (STATELESS_INPUT_ADDR + 8) (ziskInputRecord payload)
 
 /-- Assertion: the output region starts with exactly `out`. Bytes of
     the 64 KiB output window past `out.length` are intentionally
@@ -126,16 +134,49 @@ def guestOutputClaimsValid (out : SpecRef.Bytes) : Bool :=
   | some r => r.successfulValidation
   | none => false
 
-/-! ## The per-run contracts -/
+/-! ## The per-run contracts
 
-/-- **Soundness** (the headline obligation): if the output claims
-    validity, the Lean reference run on the same payload returns
-    exactly these bytes. Full byte equality pins the NPR root and the
-    echoed chain config along with the bit; reference *errors*
-    (including input-deserialization failures, which Python
-    propagates) make the right-hand side unsatisfiable, so the guest
-    must reject any input the reference rejects. -/
+    The headline soundness claim is stated over a FIXED-length
+    observation window, not a self-delimiting decode of an
+    existentially chosen byte list. Review of the first draft
+    (PR #9734, Fable) found two vacuity escapes in the decode-based
+    form: choose `out = []` (nothing owns the OUTPUT dwords — the
+    residue can hide them) or extend `out` past the true serialization
+    (exact-length SSZ decode fails ⇒ claims nothing). Pinning
+    `out.length` to the observation window and reading the flag byte
+    at its fixed offset closes both. -/
+
+/-- SSZ layout of `StatelessValidationResult`: 32-byte NPR root, then
+    the `successful_validation` flag byte, then the (variable-length)
+    chain-config offset+body. The external verifier observes the first
+    33 bytes; the window is padded to the containing dword boundary so
+    `outputBytesAt` owns whole dwords. -/
+def STATELESS_OUTPUT_FLAG_OFFSET : Nat := 32
+def STATELESS_OUTPUT_OBS_BYTES : Nat := 40
+
+/-- **Soundness** (the headline obligation), over the pinned
+    40-byte observation window `obs`: if the flag byte at offset 32
+    claims validity, the Lean reference run on the same payload
+    succeeds and agrees on the observed bytes (NPR root + flag).
+    Reference *errors* (including input-deserialization failures,
+    which Python propagates) make the right-hand side unsatisfiable,
+    so the guest must not stamp the flag on any input the reference
+    rejects. -/
 def GuestOutputSound (execute : SpecRef.ExecutionSeam)
+    (payload obs : SpecRef.Bytes) : Prop :=
+  obs.getD STATELESS_OUTPUT_FLAG_OFFSET 0 = 1 →
+    ∃ specOut, SpecRef.run_stateless_guest payload execute = .ok specOut ∧
+      specOut.take (STATELESS_OUTPUT_FLAG_OFFSET + 1)
+        = obs.take (STATELESS_OUTPUT_FLAG_OFFSET + 1)
+
+/-- **Fidelity** (the stronger accept-path clause, target of the guest
+    shell bead): the FULL serialized output — chain-config echo
+    included — is byte-identical to the reference output whenever it
+    decodes to a claim of validity. Implies the observed-window
+    agreement of `GuestOutputSound`; kept separate because the
+    headline statement must not depend on a prover-chosen
+    self-delimiting decode. -/
+def GuestOutputFaithful (execute : SpecRef.ExecutionSeam)
     (payload out : SpecRef.Bytes) : Prop :=
   guestOutputClaimsValid out = true →
     SpecRef.run_stateless_guest payload execute = .ok out
@@ -182,10 +223,14 @@ def RunStatelessGuestSound (execute : SpecRef.ExecutionSeam)
   ∀ payload : SpecRef.Bytes,
     cpsHaltTripleWithin nSteps entry (CodeReq.ofProg entry guest)
       (inputRecordAt payload ** fr.scratch)
-      (fun h => ∃ out : SpecRef.Bytes,
-        (outputBytesAt out **
-         ⌜GuestOutputSound execute payload out⌝ **
+      (fun h => ∃ obs : SpecRef.Bytes,
+        (outputBytesAt obs **
+         ⌜obs.length = STATELESS_OUTPUT_OBS_BYTES⌝ **
+         ⌜GuestOutputSound execute payload obs⌝ **
          fr.residue) h)
+  -- `obs.length` is pinned, so `outputBytesAt obs` necessarily owns
+  -- OUTPUT[0..40) — the residue cannot absorb the observed window and
+  -- the flag byte the claim reads is uniquely the memory content.
 
 /-! ## Sanity pins (kernel-evaluated)
 
@@ -205,9 +250,25 @@ def RunStatelessGuestSound (execute : SpecRef.ExecutionSeam)
 -- Garbage output claims nothing.
 #guard guestOutputClaimsValid [0xff, 0xff] == false
 
--- The transport record places the payload at the documented offset.
-#guard (ziskInputRecord [0xab]).length == STATELESS_INPUT_DATA_OFFSET + 1
-#guard (ziskInputRecord (List.replicate 300 (0 : BitVec 8))).take 16 ==
-  (List.replicate 8 (0 : BitVec 8) ++ [0x2c, 0x01] ++ List.replicate 6 (0 : BitVec 8))
+-- The flag byte sits at the documented fixed offset of the serialized
+-- output (32-byte root, then successful_validation) — the offset the
+-- headline observation window reads.
+#guard (SpecRef.serialize_stateless_output SpecRef.sanityResult).getD
+  STATELESS_OUTPUT_FLAG_OFFSET 0 == 1
+#guard (SpecRef.serialize_stateless_output
+  { SpecRef.sanityResult with successfulValidation := false }).getD
+  STATELESS_OUTPUT_FLAG_OFFSET 0 == 0
+#guard (SpecRef.serialize_stateless_output SpecRef.sanityResult).take 32 ==
+  SpecRef.sanityResult.newPayloadRequestRoot
+
+-- The observation window covers the root + flag and is dword-aligned.
+#guard STATELESS_OUTPUT_FLAG_OFFSET + 1 ≤ STATELESS_OUTPUT_OBS_BYTES
+#guard STATELESS_OUTPUT_OBS_BYTES % 8 == 0
+
+-- The transport record (length word at +8, payload at +16, ZisK meta
+-- excluded) places the payload at the documented offset.
+#guard 8 + (ziskInputRecord [0xab]).length == STATELESS_INPUT_DATA_OFFSET + 1
+#guard (ziskInputRecord (List.replicate 300 (0 : BitVec 8))).take 8 ==
+  ([0x2c, 0x01] ++ List.replicate 6 (0 : BitVec 8))
 
 end EvmAsm.Stateless

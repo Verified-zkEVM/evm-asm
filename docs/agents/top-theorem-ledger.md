@@ -14,12 +14,19 @@ RunStatelessGuestSound execute guest nSteps entry fr :
   ∀ payload,
     cpsHaltTripleWithin nSteps entry (CodeReq.ofProg entry guest)
       (inputRecordAt payload ** fr.scratch)
-      (∃ out, outputBytesAt out ** ⌜GuestOutputSound execute payload out⌝ ** fr.residue)
+      (∃ obs, outputBytesAt obs ** ⌜obs.length = 40⌝ **
+              ⌜GuestOutputSound execute payload obs⌝ ** fr.residue)
 ```
 
-- **One-sided**: `GuestOutputSound` = "if the output claims
-  `successful_validation = 1`, then `SpecRef.run_stateless_guest payload
-  execute = .ok out`". False-rejects are allowed; false-accepts are not.
+- **One-sided, pinned observation window**: `GuestOutputSound` = "if the flag
+  byte at fixed offset 32 of the 40-byte window is 1, then
+  `SpecRef.run_stateless_guest payload execute` succeeds and agrees on the
+  observed root+flag bytes". False-rejects are allowed; false-accepts are not.
+  The window length is pinned inside the postcondition — an existential output
+  judged by a self-delimiting decode is vacuously dischargeable (PR #9734
+  review). Full-serialization equality is the separate `GuestOutputFaithful`
+  clause (guest-shell bead); completeness is `GuestOutputComplete` (not
+  required).
 - **Non-vacuity**: `GuestFraming.scratch_sat` forces a satisfiability witness
   for the precondition — an obligation cannot be closed with an unsatisfiable
   scratch assertion.
@@ -31,8 +38,12 @@ The final theorem (bead `evm-asm-4ch8f.64`):
 
 ```
 theorem run_stateless_guest_spec :
-  RunStatelessGuestSound <real seam> Entry.run_stateless_guest <fuel> <entry> <framing>
+  RunStatelessGuestSound <real seam> <composed guest image> <fuel> <entry> <framing>
 ```
+
+The `guest` instantiation is the COMPOSED guest image the codegen emits
+(beads 4ch8f.63/.64) — today's `Entry.run_stateless_guest` is still the PR6
+stub; the statement is parameterized so leaf work is instantiation-agnostic.
 
 ## How a leaf proof plugs in
 
