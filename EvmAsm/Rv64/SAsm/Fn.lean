@@ -185,6 +185,43 @@ def toHandle (f : Fn) (base : Word) (hspec : f.Spec base)
   post := f.post
   sound := f.retSpec base hspec hsz
 
+-- ============================================================================
+-- Packaging a verified family as a snapshot-parameterized handle
+-- ============================================================================
+
+/-- Snapshot-parameterized correctness of a call-free function: one body,
+    one code placement, but a *family* of specs — at every entry state
+    `(rf₀, ws₀, A₀)` satisfying `f.pre`, the body carries the one-point
+    entry `Reach.exact rf₀ ws₀ A₀` to `postS rf₀ ws₀ A₀`.  This is the
+    auxiliary-variable (universally-quantified) contract shape: `postS`
+    may relate the exit state to the entry state, which a fixed
+    `Fn.post` cannot (docs/4ch8f-interp-strategy.md). -/
+def SpecS (f : Fn) (base : Word)
+    (postS : RegFile → List (BitVec 8) → Assertion → Reach) : Prop :=
+  ∀ rf₀ ws₀ A₀, f.pre rf₀ ws₀ A₀ →
+    Fn.Spec { f with pre := Reach.exact rf₀ ws₀ A₀
+                     post := postS rf₀ ws₀ A₀ } base
+
+/-- Package a snapshot-parameterized spec family as a `FnHandleS`
+    (consumed by `Stmt.callRegS`).  The body, regions, and code are those
+    of `f`; `f.pre` is the call-site obligation and `postS` the
+    entry-state-indexed guarantee. -/
+def toHandleS (f : Fn) (base : Word)
+    (postS : RegFile → List (BitVec 8) → Assertion → Reach)
+    (hspec : f.SpecS base postS)
+    (hsz : 4 * (f.body.size + 1) ≤ 2 ^ 64) : FnHandleS where
+  entry := base
+  code := CodeReq.ofProg base (f.programRet base)
+  nSteps := f.body.steps + 1
+  region := f.region
+  rw := f.rw
+  pre := f.pre
+  post := postS
+  sound := fun rf₀ ws₀ A₀ _hlen _hApc hpre ret halign =>
+    Fn.retSpec { f with pre := Reach.exact rf₀ ws₀ A₀
+                        post := postS rf₀ ws₀ A₀ } base
+      (hspec rf₀ ws₀ A₀ hpre) hsz ret halign
+
 end Fn
 
 end SAsm
