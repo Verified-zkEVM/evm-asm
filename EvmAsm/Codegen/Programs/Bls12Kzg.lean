@@ -418,48 +418,80 @@ def bls12KzgDecompressG1Function : String :=
     v. Returns a0 = 0 with `blsk_scal_be` = (n - v) mod n as a 48-byte
     BE value (16-byte zero pad), or a0 = 1 when v >= n
     (`bytes_to_bls_field` assertion failure). -/
-def bls12KzgNegScalarFunction : String :=
-  "blsk_neg_scalar:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  la a1, blsg_n_be\n" ++
-  "  li a2, 32\n" ++
-  "  jal ra, blsk_lt_be\n" ++
-  "  beqz a0, .Lblsk_negs_bad       # v >= BLS_MODULUS\n" ++
-  "  la t1, blsk_scal_be\n" ++
-  "  li t0, 16\n" ++
-  ".Lblsk_negs_pad:\n" ++
-  "  sb zero, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lblsk_negs_pad\n" ++
-  "  mv t2, s0\n" ++
-  "  li t0, 32\n" ++
-  ".Lblsk_negs_copy:\n" ++
-  "  lbu t3, 0(t2)\n" ++
-  "  sb t3, 0(t1)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lblsk_negs_copy\n" ++
-  "  la a0, blsk_scal_be\n" ++
-  "  la a1, blsk_scal_le\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  la a0, blsk_negn_params\n" ++
-  "  .4byte 0x80b52073              # d = (v*(n-1) + 0) mod n = (n-v) mod n\n" ++
-  "  la a0, blsk_scal_le\n" ++
-  "  la a1, blsk_scal_be\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsk_negs_ret\n" ++
-  ".Lblsk_negs_bad:\n" ++
-  "  li a0, 1\n" ++
-  ".Lblsk_negs_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def blskNegScalar_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x11 (laHi GuestAddrs.blsg_n_be (GuestAddrs.blsk_neg_scalar + 16)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg_n_be (GuestAddrs.blsk_neg_scalar + 16)),
+    .LI .x12 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsk_lt_be (GuestAddrs.blsk_neg_scalar + 28)),
+    .BEQ .x10 .x0 (124 : BitVec 13),
+    .AUIPC .x6 (laHi GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 36)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 36)),
+    .LI .x5 (16 : Word),
+    .SB .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-12 : BitVec 13),
+    .MV .x7 .x8,
+    .LI .x5 (32 : Word),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-20 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 96)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 96)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_scal_le (GuestAddrs.blsk_neg_scalar + 104)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_scal_le (GuestAddrs.blsk_neg_scalar + 104)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsk_neg_scalar + 112)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_negn_params (GuestAddrs.blsk_neg_scalar + 116)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_negn_params (GuestAddrs.blsk_neg_scalar + 116)),
+    .CSRS (2059 : BitVec 12) .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsk_scal_le (GuestAddrs.blsk_neg_scalar + 128)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_scal_le (GuestAddrs.blsk_neg_scalar + 128)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 136)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 136)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsk_neg_scalar + 144)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blskNegScalar_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blskNegScalar_relocs : RelocTable :=
+  [ (4, .la .x11 "blsg_n_be"),
+    (7, .jal .x1 "blsk_lt_be"),
+    (9, .la .x6 "blsk_scal_be"),
+    (24, .la .x10 "blsk_scal_be"),
+    (26, .la .x11 "blsk_scal_le"),
+    (28, .jal .x1 "blsg_be_to_le"),
+    (29, .la .x10 "blsk_negn_params"),
+    (32, .la .x10 "blsk_scal_le"),
+    (34, .la .x11 "blsk_scal_be"),
+    (36, .jal .x1 "blsg_le_to_be") ]
+
+def bls12KzgNegScalarFunction : String :=
+  "blsk_neg_scalar:\n" ++ emitProgramR blskNegScalar_prog blskNegScalar_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blskNegScalar_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12KzgNegScalarFunction_eq_prog :
+    bls12KzgNegScalarFunction = "blsk_neg_scalar:\n" ++ emitProgramR blskNegScalar_prog blskNegScalar_relocs := rfl
+
+#guard bls12KzgNegScalarFunction.startsWith "blsk_neg_scalar:\n"
+#guard blskNegScalar_prog.length = 44
 /-- Encode a compact 96-byte BE G1 point (a0) as a 128-byte EIP-2537
     wire record at a1 (zero pads written; (0,0) stays all-zero). Leaf;
     byte ops, so alignment is free. -/

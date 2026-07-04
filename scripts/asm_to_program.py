@@ -217,9 +217,10 @@ def insn_size(mn, ops):
         raise ConvError(f"{mn}: cross-function call macro (NEEDS-CALL-EXPANSION)")
     if mn == '.4byte':
         # Raw pre-encoded word (the ZisK accelerator `.CSRS`/`csrrs` pattern that
-        # `emitInstr` renders as `.4byte N`). A faithful conversion needs a
-        # word-literal `Instr` or to decode it back to `.CSRS`; deferred.
-        raise ConvError(f".4byte: raw pre-encoded word (NEEDS-DOTWORD)")
+        # `emitInstr` renders as `.4byte N`). Decoded back to `.CSRS` in
+        # `render_insn`; one 4-byte instruction. A `.4byte` that is NOT a `csrrs`
+        # accelerator word is refused there (NEEDS-DOTWORD; bead .9.3.3).
+        return 4
     if mn == 'la':
         # `la reg, symbol` -> auipc reg,%pcrel_hi + addi reg,reg,%pcrel_lo = 8 B.
         return 8
@@ -272,6 +273,18 @@ def render_insn(mn, ops, off_of):
         if len(ops)==2: off,base=mem(ops[1]); return f".JALR {R(ops[0])} {R(base)} {bv(off,12)}"
         # jalr rd, rs, imm
         return f".JALR {R(ops[0])} {R(ops[1])} {bv(parse_imm(ops[2]),12)}"
+    if mn=='.4byte':
+        # Raw pre-encoded word -> `.CSRS csr rs1` (the ZisK accelerator `csrrs
+        # x0, csr, rs1` pattern `emitInstr` renders back as `.4byte`). Encoding:
+        # (csr << 20) | (rs1 << 15) | 0x2073 (funct3=csrrs, rd=x0, opcode=SYSTEM).
+        # Any word NOT matching that fixed pattern is not an accelerator call and
+        # is refused (bead evm-asm-4ch8f.9.3.3).
+        n=parse_imm(ops[0])
+        if n < 0 or n >= (1<<32) or (n & 0x7fff) != 0x2073:
+            raise ConvError(f".4byte 0x{n & 0xffffffff:08x}: not a csrrs/CSRS "
+                            f"accelerator word (NEEDS-DOTWORD)")
+        csr=(n>>20)&0xfff; rs1=(n>>15)&0x1f
+        return f".CSRS ({csr} : BitVec 12) .x{rs1}"
     if mn=='mv': return f".MV {R(ops[0])} {R(ops[1])}"
     if mn=='li': return f".LI {R(ops[0])} ({parse_imm(ops[1])} : Word)"
     if mn=='nop': return ".NOP"
@@ -485,6 +498,11 @@ def _render_to_asm(r):
     if c=='ECALL': return "ecall"
     if c=='FENCE': return "fence"
     if c=='EBREAK': return "ebreak"
+    if c=='CSRS':
+        # .CSRS (csr : BitVec 12) .xN  ->  ".4byte <word>" (mirror emitInstr:
+        # (csr << 20) | (rs1 << 15) | 0x2073), decimal like Lean renders it.
+        csr=intval(rest[rest.index('('):]); rs1=reg_num(toks[-1][1:])
+        return f".4byte {(csr<<20)|(rs1<<15)|0x2073}"
     raise ConvError(f"_render_to_asm: unhandled {c}")
 
 def emit_program_text(entry, asm):
@@ -768,6 +786,7 @@ def rewrite_file(path, funcs):
         new=new[:s]+block.rstrip()+'\n'+new[e:]
     new=_ensure_emit_import(new)
     if uses_reloc: new=_ensure_reloc_imports(new)
+    new=_ensure_rv64_open(new)   # `.ADDI`/`.CSRS` dot-notation needs Instr in scope
     if new!=text: open(path,'w').write(new)
     man=_load_manifest()
     rel=os.path.relpath(os.path.abspath(path),
@@ -776,23 +795,60 @@ def rewrite_file(path, funcs):
     _save_manifest(man)
     return len(funcs)
 
+def _import_insert_pos(text):
+    """Char index at which to insert a top-level `import`. After the last
+    real `^import …` line if any; otherwise after a leading `/- … -/` block
+    comment and any `--` line comments (never inside prose — the old regex
+    matched a stray "import" WORD in the module doc comment)."""
+    last=None
+    for m in re.finditer(r'(?m)^import\s+\S+.*\n', text):
+        last=m.end()
+    if last is not None: return last
+    i=0; n=len(text)
+    # skip a leading block comment /- ... -/ (Lean block comments don't nest here)
+    while i<n:
+        # skip blank lines
+        while i<n and text[i] in ' \t\r\n': i+=1
+        if text.startswith('/-', i):
+            end=text.find('-/', i+2)
+            i = (end+2) if end!=-1 else n
+        elif text.startswith('--', i):
+            nl=text.find('\n', i); i=(nl+1) if nl!=-1 else n
+        else:
+            break
+    return i
+
+def _ensure_import(text, mod):
+    if re.search(r'(?m)^import\s+'+re.escape(mod)+r'\s*$', text): return text
+    p=_import_insert_pos(text)
+    had_import = re.search(r'(?m)^import\s', text) is not None
+    lead='' if (p==0 or text[p-1]=='\n') else '\n'
+    # If this is the FIRST import (inserted before code, no prior imports), add a
+    # blank line after it to separate the import block from the following code.
+    trail='' if had_import else '\n'
+    return text[:p]+lead+'import '+mod+'\n'+trail+text[p:]
+
 def _ensure_emit_import(text):
-    if 'EvmAsm.Codegen.Emit' in text: return text
-    t=re.sub(r'(import EvmAsm\.Codegen\.Layout\n)',
-             r'\1import EvmAsm.Codegen.Emit\n', text, count=1)
-    if 'EvmAsm.Codegen.Emit' not in t:
-        t=re.sub(r'(import [^\n]+\n)', r'\1import EvmAsm.Codegen.Emit\n', t, count=1)
-    return t
+    return _ensure_import(text, 'EvmAsm.Codegen.Emit')
+
+def _ensure_rv64_open(text):
+    """`Program` is `def … := List Instr` (not an abbrev), so a `[ .ADDI …,
+    .CSRS … ]` literal only resolves its dot-notation constructors when
+    `EvmAsm.Rv64` is opened. Files with pre-existing `_prog` conversions already
+    open it; a string-only file (e.g. HashBridge) does not — add it after the
+    first `namespace` (or at the import-insert point if there is no namespace)."""
+    if re.search(r'(?m)^open\s+EvmAsm\.Rv64\b', text): return text
+    m=re.search(r'(?m)^namespace\s+\S+.*\n', text)
+    if m:
+        return text[:m.end()]+'\nopen EvmAsm.Rv64\n'+text[m.end():]
+    p=_import_insert_pos(text)
+    return text[:p]+'open EvmAsm.Rv64\n'+text[p:]
 
 def _ensure_reloc_imports(text):
     """Ensure `AsmReloc` (laHi/laLo/jalOff) + `GuestAddrs` (address constants)
     are imported for functions that resolve a `la`/cross-`jal`."""
     for mod in ('EvmAsm.Codegen.AsmReloc', 'EvmAsm.Codegen.GuestAddrs'):
-        if mod in text: continue
-        t=re.sub(r'(import EvmAsm\.Codegen\.Emit\n)', r'\1import '+mod+'\n', text, count=1)
-        if mod not in t:
-            t=re.sub(r'(import [^\n]+\n)', r'\1import '+mod+'\n', text, count=1)
-        text=t
+        text=_ensure_import(text, mod)
     return text
 
 # --------------------------------------------------------------------------- #

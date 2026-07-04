@@ -258,25 +258,47 @@ def bn254Fq12SubFunction : String :=
     d = (a*s + 0)). Aliasing allowed. NOTE: a2 is the SCALAR pointer and
     is advanced past in lockstep but re-staged per iteration via t2 —
     so pass the scalar cell, not an FQ12. -/
-def bn254Fq12SMulFunction : String :=
-  "bnq_smul:\n" ++
-  "  li t5, 12\n" ++
-  ".Lbnq_smul_loop:\n" ++
-  "  la t0, bnp_arith_params\n" ++
-  "  sd a1, 0(t0)\n" ++
-  "  sd a2, 8(t0)\n" ++
-  "  la t4, bnf_le_zero\n" ++
-  "  sd t4, 16(t0)\n" ++
-  "  la t4, bnf_le_p\n" ++
-  "  sd t4, 24(t0)\n" ++
-  "  sd a0, 32(t0)\n" ++
-  "  .4byte 0x8022a073\n" ++
-  "  addi a0, a0, 32\n" ++
-  "  addi a1, a1, 32\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  bnez t5, .Lbnq_smul_loop\n" ++
-  "  ret"
+def bnqSmul_prog : Program :=
+  [ .LI .x30 (12 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bnp_arith_params (GuestAddrs.bnq_smul + 4)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_arith_params (GuestAddrs.bnq_smul + 4)),
+    .SD .x5 .x11 (0 : BitVec 12),
+    .SD .x5 .x12 (8 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.bnf_le_zero (GuestAddrs.bnq_smul + 20)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bnf_le_zero (GuestAddrs.bnq_smul + 20)),
+    .SD .x5 .x29 (16 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.bnf_le_p (GuestAddrs.bnq_smul + 32)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bnf_le_p (GuestAddrs.bnq_smul + 32)),
+    .SD .x5 .x29 (24 : BitVec 12),
+    .SD .x5 .x10 (32 : BitVec 12),
+    .CSRS (2050 : BitVec 12) .x5,
+    .ADDI .x10 .x10 (32 : BitVec 12),
+    .ADDI .x11 .x11 (32 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .BNE .x30 .x0 (-60 : BitVec 13),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnqSmul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnqSmul_relocs : RelocTable :=
+  [ (1, .la .x5 "bnp_arith_params"),
+    (5, .la .x29 "bnf_le_zero"),
+    (8, .la .x29 "bnf_le_p") ]
+
+def bn254Fq12SMulFunction : String :=
+  "bnq_smul:\n" ++ emitProgramR bnqSmul_prog bnqSmul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnqSmul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fq12SMulFunction_eq_prog :
+    bn254Fq12SMulFunction = "bnq_smul:\n" ++ emitProgramR bnqSmul_prog bnqSmul_relocs := rfl
+
+#guard bn254Fq12SMulFunction.startsWith "bnq_smul:\n"
+#guard bnqSmul_prog.length = 18
 /-- Copy a 384-byte FQ12 value: a0 = src, a1 = dst. -/
 def bnqCopy_prog : Program :=
   [ .LI .x7 (48 : Word),

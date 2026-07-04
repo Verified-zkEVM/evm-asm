@@ -102,6 +102,8 @@ which is **encoding-preserving** (verified by the byte-compare):
 | `bgtu a,b,L` / `bleu a,b,L` | `.BLTU/.BGEU b a off` (operands swapped) | `bltu/bgeu b, a, .+N` | yes (bgtu ≡ bltu-swapped) |
 | `bltz/bgez/blez/bgtz`, `seqz/snez/sltz/sgtz`, `not/neg/mv/sext.w` | canonical base op | as rendered | yes |
 | symbolic branch/jump target `L` | signed byte offset `4·(idx_L − idx_branch)` | `.+N` / `.-N` | yes (if 4-byte model holds) |
+| `.4byte N` (ZisK accelerator `csrrs x0,csr,rs1`) | `.CSRS csr rs1` (bead `.9.3.3`) | `.4byte N` | yes (round-trips exactly) |
+| `li rd, C` (`C` > 12-bit) | explicit `lui`/`addiw`/`slli`/`addi` (bead `.9.2`) | real mnemonics | yes (decoded from real `li`) |
 
 The full pseudo-expansion table is in `render_insn`
 (`scripts/asm_to_program.py`). Every row is validated per-function by the
