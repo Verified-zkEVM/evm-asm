@@ -142,6 +142,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   value byte-reverse as a genuine bounded SAsm `while` loop with a proved
   `Fn.Spec`; `AccountTupleSequencesConsistent.lean` splices the emitted
   PC-relative branch program into the per-record BAL value normalization.
+  Byte/copy leaf ports (bead 4ch8f.12): `SwdReadU64leSAsm.lean`
+  (`swdReadU64leFn_spec`, `a0 := leU64 (bytes@a0) 0`, byte-identity pinned to
+  `swdReadU64le_prog`) and `SgLoadU32leSAsm.lean` (`sgLoadU32leFn_spec`,
+  `a0 := leU32 (bytes@a0) 0`) are verified straight-line byte-wise readers
+  over the SAsm `Region` model (own-budget engine lemma per the heavy
+  `execBlock` reduction).
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
