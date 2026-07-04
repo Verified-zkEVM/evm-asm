@@ -130,7 +130,10 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- exec_nonstorage_effect_count back to the pre-child snapshot, ERASING the created-account record
       -- (record fired but log_count dropped to 0). The pushed success word is overwritten by the derived
       -- address below, so a0=1 here is purely the keep-effects signal (not the CREATE result).
-      "  li a0, 1\n  add a1, x13, x14\n  mv a2, x15\n" ++
+      -- A successful CREATE exposes empty returndata to the parent (execution-specs
+      -- generic_create sets return_data = b"" after incorporate_child_on_success);
+      -- the returned constructor bytes were already consumed as deployed code above.
+      "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       "  la t1, create_address_be\n  addi t1, t1, 19\n  mv t2, x12\n  li t3, 20\n" ++
       ".Lrr_craddr_" ++ toString kind ++ ":\n" ++
