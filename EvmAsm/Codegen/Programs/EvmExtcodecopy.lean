@@ -248,8 +248,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi x10, x10, 1
 " ++
-    "  j .dispatch_loop
-" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lrt_ecc_after_same_block:
 " ++
     "  ld x10, 0(sp)
@@ -384,8 +383,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi x10, x10, 1
 " ++
-    "  j .dispatch_loop
-" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lrt_ecc_no_context:
 " ++
     "  mv t0, x19
@@ -420,7 +418,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi x10, x10, 1
 " ++
-    "  j .dispatch_loop"
+    dispatchContinueRet
 
 def extcodecopyWitnessHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_EXTCODECOPY"

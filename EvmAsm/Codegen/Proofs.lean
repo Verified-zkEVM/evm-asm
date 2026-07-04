@@ -17,3 +17,5 @@ import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
 import EvmAsm.Codegen.Proofs.CreateDeployedCodeValidSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Proofs.OpcodeTables
+import EvmAsm.Codegen.Proofs.GuestImageEntries
+import EvmAsm.Codegen.Proofs.GuestImage
