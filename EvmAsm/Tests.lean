@@ -10,3 +10,4 @@
 import EvmAsm.Tests.Div128V5RandomCheck
 import EvmAsm.Tests.ArithDiffCheck
 import EvmAsm.Tests.RlpDiffCheck
+import EvmAsm.Tests.SpecRefEestCheck

@@ -45,3 +45,8 @@ supportInterpreter = true
 name = "rlp-diff-check"
 root = "MainRlpDiffCheck"
 supportInterpreter = true
+
+[[lean_exe]]
+name = "specref-eest-check"
+root = "MainSpecRefEestCheck"
+supportInterpreter = true
