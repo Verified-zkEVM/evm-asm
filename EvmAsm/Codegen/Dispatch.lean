@@ -2626,6 +2626,7 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  "  jal ra, dispatcher_reemit_pending_tl\n" ++
   emitTxAccessListSeedLoop ++ "\n" ++
   emitTxAuthListWarmLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
