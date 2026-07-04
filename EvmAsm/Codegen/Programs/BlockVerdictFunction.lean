@@ -923,8 +923,7 @@ def blockVerdictFunction : String :=
   "  addi t0, t0, 1; j .Lbv_tx0_storage_revert\n" ++
   ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
-  -- Capture recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.
-  "  jal ra, block_log_window_snapshot\n" ++
+  -- dispatch_tx_runtime_code already snapshots recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
