@@ -154,6 +154,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   re-init the limit register inside the loop (back-`JAL` targets the `LI`), so a
   structured `while` (back-edge → guard) differs by exactly that one offset
   field; explicit structured flattens are pinned and the divergence documented.
+  Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
+  `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
+  byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
+  disjointness — reverse-copy into a separate buffer) and `BhrRevLeBeSAsm.lean`
+  (`bhrRevLeBeFn_spec`, reuses the generic core since `bhrRevLeBe_prog` is
+  byte-identical to `swrRevLeBe_prog`).
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
