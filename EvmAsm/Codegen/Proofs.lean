@@ -11,3 +11,4 @@ import EvmAsm.Codegen.Proofs.CallReturn
 import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
 import EvmAsm.Codegen.Proofs.CreateDeployedCodeValidSpec
+import EvmAsm.Codegen.Proofs.U256IsZeroSpec

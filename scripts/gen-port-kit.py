@@ -94,7 +94,29 @@ def main():
     prog_name = camel + "_ported"
     converted = None
     conv_note = ""
+    # Already converted to a Program (asm→Program waves)? Then the port
+    # job is the SPEC over that Program — don't duplicate the conversion.
+    m = re.search(
+        r"def\s+" + re.escape(fn_def)
+        + r"\s*:\s*String\s*:=\s*\n?\s*\"[^\"]*\"\s*\+\+\s*emitProgramR?\s+([A-Za-z0-9_']+)",
+        text)
+    if m:
+        existing = m.group(1)
+        prog_name = existing
+        converted = (
+            f"-- `{args.entry}` is ALREADY converted: `{existing} : Program` in {rel}\n"
+            f"-- (correspondence theorem `{fn_def}_eq_prog` exists there).\n"
+            f"-- The remaining work is the SPEC over `{existing}`:\n"
+            f"--   * straight-line leaf -> cpsTripleWithin block spec directly over it;\n"
+            f"--   * otherwise rebuild as an SAsm `Fn` whose flatten equals it,\n"
+            f"--     with a `#guard <fn>.flatten 0 = {existing}` pin.\n"
+            f"-- NOTE: this skeleton lives in the verified core and must NOT import\n"
+            f"-- Codegen (layering L1) — restate the Program here with a value-equality\n"
+            f"-- `#guard`/`decide` pin against the Codegen copy in the PR description,\n"
+            f"-- or verify it under EvmAsm/Codegen/Proofs/ (which may import both).\n\n")
     try:
+        if m:
+            raise atp.ConvError("already converted; spec-only skeleton emitted")
         asm = atp.extract_function(text, fn_def)
         entry, renders, _emitted, ok, la, lb, relocs = atp.do_asm(asm)
         if not ok:

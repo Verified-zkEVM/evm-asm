@@ -62,7 +62,7 @@ Status: `todo` / `in-progress (bead)` / `done (file:theorem)`.
 | 3 | Header validation family | `validate_headers` | 4ch8f.26/.33/.34 | todo | ChainIdSAsm (byte-wise reads), ClzSAsm (branchy leaf) |
 | 4 | Witness DBs (node_db/code_db build + lookups) | `Witness.{NodeDb,CodeDb}` | 4ch8f.21/.28 | todo (unblocked by RegionMap) | TreeInsert.lean (slot predicates over arenas) |
 | 5 | MPT read/walk/mutation + trie roots | state access | 4ch8f.22/.29/.31/.32 | todo | TreeDemo.lean `treeMinFn` (zipper-ghost walk) |
-| 6 | Byte/copy + u256 + RLP + SSZ-HTR + bloom leaf families | shared leaves | 4ch8f.12–.20 | todo — **bottom of the dependency tree, start here** | ChainIdSAsm / howto §6 recipes |
+| 6 | Byte/copy + u256 + RLP + SSZ-HTR + bloom leaf families | shared leaves | 4ch8f.12–.20 | in-progress — `u256_is_zero` **done** (`Codegen/Proofs/U256IsZeroSpec.lean:u256_is_zero_deployed_spec`, the playbook acceptance test); rest is the 24 `port: verify …` beads — **start here** | U256IsZeroSpec.lean (straight-line leaf over a converted Program); ChainIdSAsm / howto §6 |
 | 7 | Tx decode + signing hashes + secp256k1 recovery | `Transaction` | 4ch8f.25/.38/.39/.40 | todo | accelerator bridges: `Rv64/ZiskAccel.lean` KATs |
 | 8 | Interpreter loop + opcode handlers + frames (the seam's guest side) | `ExecutionEngine` → `Block`/`VM` | 4ch8f.10 (strategy), .49–.59 | strategy in-progress | `Codegen/Proofs/HandlerSpecs.lean` (13/91 handler specs) |
 | 9 | Verdict orchestration + validators (BAL, receipts, gas) | `Block` verdict | 4ch8f.36/.37/.41–.47/.61 | todo | `Codegen/Proofs/CreateDeployedCodeValidSpec.lean` (deployed-spec template) |

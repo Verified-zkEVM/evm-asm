@@ -70,6 +70,15 @@ decide                  -- concrete, closed goals only (coerce fvars first)
 simp only [...]         -- keep BitVec form; NO bare simp on sepConj chains
 ```
 
+Known trap (found by the acceptance-test port, `Codegen/Proofs/U256IsZeroSpec.lean`):
+`runBlock` cannot extend singleton specs to a goal whose CodeReq is
+`CodeReq.ofProg <list-literal Program def>` — it reports
+"don't know how to synthesize placeholder" at every `have` line while its own
+trace shows all steps green. Fix: unfold to the union chain first:
+`simp only [<prog def>, CodeReq.ofProg_cons, CodeReq.ofProg_nil]` before `runBlock`.
+Also: rewrite `signExtend12`-literal mismatches in spec hypotheses
+(`rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at SL`).
+
 When a VC will not close, look up the SYMPTOM in this order:
 1. sasm-howto §8 (pitfalls — check here first, most failures are listed);
 2. docs/agents/proof-patterns.md (xperm cliffs, defeq traps, omega blowups);
