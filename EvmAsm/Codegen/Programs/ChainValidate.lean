@@ -30,41 +30,6 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
 
-/-! ## chain_validate_increasing_timestamps -- PR-K229
-
-    Verify that an N-element header chain has strictly
-    increasing `timestamp` fields: `headers[i+1].timestamp >
-    headers[i].timestamp` for every adjacent pair. Pure
-    timestamp-only check; no parent_hash / number / gas_limit
-    invariants. The K174 pair check enforces this as part of
-    the four-invariant bundle -- K229 is the tight standalone.
-
-    Vacuous-true on N <= 1.
-
-    Calling convention:
-      a0 (input)  : N (header count)
-      a1 (input)  : header_lengths ptr
-      a2 (input)  : headers ptr (concatenated)
-      a3 (input)  : u64 out (is_valid)
-      a4 (input)  : u64 out (first_bad_index)
-      ra (input)  : return
-      a0 (output) :
-        0 : success
-        1 : RLP parse failure on some header
-        2 : timestamp field > 8 bytes BE on some header -/
-def chainValidateIncreasingTimestampsFunction : String :=
-  "chain_validate_increasing_timestamps:\n" ++ emitProgramR chainValidateIncreasingTimestamps_prog chainValidateIncreasingTimestamps_relocs
-
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `chainValidateIncreasingTimestamps_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem chainValidateIncreasingTimestampsFunction_eq_prog :
-    chainValidateIncreasingTimestampsFunction = "chain_validate_increasing_timestamps:\n" ++ emitProgramR chainValidateIncreasingTimestamps_prog chainValidateIncreasingTimestamps_relocs := rfl
-
-#guard chainValidateIncreasingTimestampsFunction.startsWith "chain_validate_increasing_timestamps:\n"
-#guard chainValidateIncreasingTimestamps_prog.length = 92
 def ziskChainValidateIncreasingTimestampsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
