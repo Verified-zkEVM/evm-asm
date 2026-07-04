@@ -4,7 +4,7 @@
   The top-level specification SHAPE for the verified stateless guest
   (bead evm-asm-4ch8f.8). Decision record: docs/4ch8f-top-spec.md.
 
-  The headline Prop is `runStatelessGuestSound cr fuel work execute`:
+  The headline Prop is `runStatelessGuestSound cr fuel fr execute`:
 
     for every host-supplied input (≤ `MAX_INPUT_BYTES`), starting at the
     guest ELF entry with the input framed at `INPUT_ADDR` and owning the
@@ -21,8 +21,11 @@
       composes it from the wave-.9 `Program` conversions).
     * `fuel : Nat`     — the step budget (a gas-derived static cap in the
       `.5` `whileS` style; wrong cap ⇒ unprovable, never unsound).
-    * `work : Assertion` — ownership of the guest's scratch/work regions
-      (bead .6 phase views over `RegionMap`; bead .63 fixes the bundle).
+    * `fr : GuestFraming` — ownership of the guest's scratch/work regions
+      at entry (`fr.scratch`, bead .6 phase views over `RegionMap`; bead
+      .63 fixes the bundle) and the residue left at halt (`fr.residue`).
+      `fr.scratch_sat` is the non-vacuity witness: an unsatisfiable
+      scratch would make the halt triple hold trivially.
     * `execute : SpecRef.ExecutionSeam` — the Lean model of
       `execute_new_payload_request` (bead .10's interpreter model closes
       this seam; until then the Prop is stated against the seam
@@ -127,23 +130,53 @@ def guestOutputSound (execute : ExecutionSeam) (input : Bytes) : Assertion :=
     bytesRegion OUTPUT_ADDR out h ∧
     (out.getD 32 0 = 1 → SpecAccepts execute input (out.take 32))
 
+/-! ## The framing bundle -/
+
+/-- The guest's working-state framing (decision record §3, revised after
+    the #9733/#9734 cross-review):
+
+    * `scratch` — the resources the guest owns at entry beyond the input
+      record (working RAM, the OUTPUT window, the stack, …; bead .63
+      instantiates it from the RegionMap phase views).
+    * `residue` — whatever those resources have become at halt. Without
+      this slot the halt triple is UNPROVABLE: the postcondition heap
+      must account for every resource owned at entry, and the soundness
+      claim alone owns only the 40-byte observation window.
+    * `scratch_sat` — the non-vacuity witness (from #9734): a
+      `cpsHaltTripleWithin` with an unsatisfiable precondition holds
+      trivially, so a framing must come with evidence that the
+      precondition is inhabited for every admissible input.
+
+    Note the OUTPUT observation window is deliberately NOT allowed to
+    hide in `residue`: `guestOutputSound` pins `out.length` to the fixed
+    window size, so its `bytesRegion OUTPUT_ADDR out` conjunct must own
+    the window dwords in the postcondition split, and `out` is therefore
+    uniquely the memory content the verifier reads (this closes the
+    ∃-out vacuity hole found in #9734's decode-based variant). -/
+structure GuestFraming where
+  scratch : Assertion
+  residue : Assertion
+  scratch_sat : ∀ input : Bytes, input.length ≤ MAX_INPUT_BYTES →
+    ∃ h, (guestInputAssertion input ** scratch) h
+
 /-! ## The top-level Props -/
 
 /-- **The headline statement shape** (soundness + termination): for every
     host input within the size bound, the guest — running from the ELF
-    entry with the input framed and the work regions owned — halts within
-    `fuel` steps in a state whose output window is a sound claim.
+    entry with the input framed and `fr.scratch` owned — halts within
+    `fuel` steps in a state that splits into the sound 40-byte
+    observation window and `fr.residue`.
 
-    Bead `.64` proves this for the concrete `(cr, fuel, work, execute)`
+    Bead `.64` proves this for the concrete `(cr, fuel, fr, execute)`
     quadruple: the guest-image `CodeReq` (bead .63), the gas-derived step
-    cap, the `.6`-style work-region bundle, and the `.10` interpreter
-    model closing the execution seam. -/
-def runStatelessGuestSound (cr : CodeReq) (fuel : Nat) (work : Assertion)
+    cap, the `.6`-style framing bundle (with its satisfiability witness),
+    and the `.10` interpreter model closing the execution seam. -/
+def runStatelessGuestSound (cr : CodeReq) (fuel : Nat) (fr : GuestFraming)
     (execute : ExecutionSeam) : Prop :=
   ∀ input : Bytes, input.length ≤ MAX_INPUT_BYTES →
     cpsHaltTripleWithin fuel GUEST_ENTRY cr
-      (guestInputAssertion input ** work)
-      (guestOutputSound execute input)
+      (guestInputAssertion input ** fr.scratch)
+      (guestOutputSound execute input ** fr.residue)
 
 /-- The two-sided fidelity Prop (stated, NOT a `.64` v1 goal): on every
     deserializable input the guest's full output equals the spec's
@@ -152,14 +185,24 @@ def runStatelessGuestSound (cr : CodeReq) (fuel : Nat) (work : Assertion)
     requires the exact chain-config echo produced by
     `SSZ.Encode.serialize_stateless_output` to match the SpecRef
     serializer — tracked as a `.64` follow-up. -/
-def runStatelessGuestFaithful (cr : CodeReq) (fuel : Nat) (work : Assertion)
+def runStatelessGuestFaithful (cr : CodeReq) (fuel : Nat) (fr : GuestFraming)
     (execute : ExecutionSeam) : Prop :=
   ∀ input si, input.length ≤ MAX_INPUT_BYTES →
     deserialize_stateless_input input = .ok si →
     cpsHaltTripleWithin fuel GUEST_ENTRY cr
-      (guestInputAssertion input ** work)
+      (guestInputAssertion input ** fr.scratch)
       (bytesRegion OUTPUT_ADDR
-        (serialize_stateless_output (verify_stateless_new_payload si execute)))
+        (serialize_stateless_output (verify_stateless_new_payload si execute))
+        ** fr.residue)
+
+/- Fidelity refines soundness pointwise on the halt heap: a byte-exact
+   output window satisfies the sound-claim window (the serialized
+   result's first 40 bytes are the observation, and its claim clause
+   holds because the spec result IS the source of the bytes) — recorded
+   here as the reason `.64` v1 can target `runStatelessGuestSound`
+   without losing the upgrade path. Proving the implication between the
+   two Props needs `serialize` length facts and belongs to the `.64`
+   follow-up, not the statement layer. -/
 
 /-! ## Kernel-checked layout pins
 

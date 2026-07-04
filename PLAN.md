@@ -2568,7 +2568,20 @@ seven-children+pad tiling is THE SAME assertion
 offsets), transitions forget contents by construction
 (`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
 havoc'd range must verify for all contents
-(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Top-level spec
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Per-depth
+frame-window algebra over that arena landed (bead evm-asm-4ch8f.10.4,
+`Codegen/CallFrameWindows.lean`): `phaseDView` tiles into 1025 per-depth
+`frameWindow base d` (stated generically over
+`List.replicate frameSlotCount frameStride`, proved by induction on the
+replicated segment — `anyTilesAt_replicate_focus_at`, never a 1025-way
+enumeration); `phaseDView_focus`/`focusFrame`/`unfocusFrame` extract and
+re-absorb one depth with the rest framed untouched; `frameWindow_components`
+carves a window into named sub-region accessors (`frameStackWindow`,
+`frameEnvWindow`, … at the `CallFrameLayout` offsets); and `encodesFrame`
+fixes the suspended-parent relation SHAPE (pc/codebase dwords + stack window
+pinned through `bytesRegion`, rest havoc'd) with `encodesFrame_focus` weakening
+it into a `frameWindow` — feeds .56 descend/return contracts (strategy §4).
+Top-level spec
 statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
 docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
 `cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
@@ -2578,7 +2591,12 @@ window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
 soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
 output) stated as the deferred two-sided form; execution seam stays a
 parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
-OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. Next for
+OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. REVISED post
+#9733/#9734 cross-review: `GuestFraming` (scratch/residue +
+`scratch_sat` non-vacuity witness) replaces the bare `work` parameter —
+residue gives entry-owned resources a home at halt (original form was
+unprovable), while the pinned 40-byte window blocks the ∃-out
+decode-vacuity hole of the #9734 variant (record §3a). Next for
 SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
@@ -2744,6 +2762,36 @@ call primitive; `jalr x0` tail calls NOT needed → .4 closed with
 callRegS as the shipped remainder; frames = window movement over
 `phaseDView` (one flat loop, depth as data, per-depth `anyBytes`
 carving), exec-log as monotone-append invariant component.
+Crypto-kernel strategy + pilot landed (bead evm-asm-4ch8f.11, doc
+docs/4ch8f-crypto-strategy.md): every software crypto kernel gets FULL
+functional verification (trusted-kernel status rejected as terminal —
+the .11.5 MODEXP corner is the standing counterexample to
+"differential tests suffice"); spec vocabulary is Nat-modular
+arithmetic matching `Accel.*` (no ZMod at interfaces; mathlib enters
+only via one Fermat/QR lemma file); specs are algorithm-faithful ports
+of execution-specs where pure-Python (ECDSA needs project-side
+references — coincurve/cryptography are native), so heavy abstract math
+is out of scope and number theory enters only at named kernel↔spec
+divergences. Canonical seam shape: accelerator wrappers are
+hand-proven snapshot-parameterized handles (`FnHandleS.sound` = a
+machine-level `cpsTripleWithin` from `step_csrs` + the .1 semantics;
+the SAsm block engine is NEVER extended with CSRS), consumed via
+`Stmt.callRegS`. Landed machinery: `SAsm/AccelStep.lean` (the FIRST
+machine-level CSRS triple `csrs_arith256Mod_spec_within`,
+`readWords`/`writeWords` ↔ `bytesRegion` bridges,
+`arith256ModHandle`), `Crypto/PowLadder.lean` (MSB ladder = `x^e mod m`
+over `Nat.pow`, kernel KATs), pilot `SAsm/PowLadderDemo.lean`
+(`powFn_spec`, zero sorries, classical axioms only): the full ladder —
+ro-region exponent bit fetch, aliased square + conditional multiply
+through two param blocks, symbolic width to 4096 bytes (covers the
+4569-bit final-exp constants; cap-VC closes by counter arithmetic) —
+leaves `x ^ e mod m` in the accumulator. The `1 < m` precondition is
+load-bearing (the .11.5 corner). Sequencing: secp field stack (.38)
+first, then hashes/BLAKE2F, MODEXP, P256VERIFY, group laws, towers,
+pairings/maps/KZG last (their RFC 9380/KZG-unreachable gaps are
+completeness-only under the .8 soundness headline). New shared-library
+beads .11.6–.11.9 (nLimbs-generic + curve handles; BE↔LE; Fermat;
+scalar-mul skeleton); .38/.57/.58 re-scoped accordingly.
 
 ## Stateless Guest (parallel STF track)
 
