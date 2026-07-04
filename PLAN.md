@@ -998,9 +998,27 @@ bundle). Tracked by issue #313.
   files with a shared body + per-sibling epilogue split from the first PR
   (do not copy DIV's retrofit-style parallel MOD clone).
 
-#### 4.4 ADDMOD and MULMOD
+#### ~~4.4 ADDMOD and MULMOD~~ ✅
 - **Approach**: ADDMOD needs 257-bit intermediate (carry). MULMOD needs
-  512-bit intermediate. Both reuse DIV/MOD.
+  512-bit intermediate.
+- **MULMOD `.proven`** (`evm_mulmod_stack_spec_within`, bespoke bit-serial
+  512-by-256 reducer, below-sp scratch).
+- **ADDMOD `.proven` (2026-07-04, issue #9704, PRs #9705 + #9708)**: total
+  three-way program `evm_addmod_total` (`AddMod/Program.lean`) — `N = 0` zero
+  path, no-carry low-sum reduction, and the carry-out branch computing
+  `(2^256 + r) mod N` via three `evm_mod_callable_v5` near-calls (all at one
+  frame base `F = sp+32`, single div-scratch band; parking scratch below the
+  callable's `F−160..F−8` band at `F−192/−224/−256`) plus an embedded
+  `evm_add` + branch-free conditional subtract. Registry witness
+  `evm_addmod_total_result_stack_spec_within`
+  (`AddMod/Compose/ResultStack.lean`): unconditional public-form triple
+  `evmStackIs sp [a, b, N]` → `evmStackIs (sp+64) [EvmWord.addmod a b N]`,
+  only dispatcher-pinned code-layout side conditions. The dispatcher ships
+  the emitted verified program (replacing the hand-written `.Laddmod_*`
+  runtime tail, which called the buggy v4 callable and mis-propagated
+  borrows through equal limbs — fixed in #9705). Composition chain under
+  `AddMod/Compose/` (TotalBase → CarryBlockSpecs/CondSubSpec → CallAdapter →
+  CarryLa/Lb/Lc/Ld(+Chain) → ZeroNoCarryArms → TotalDispatch → ResultStack).
 
 #### 4.5 EXP (Exponentiation)
 - **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
@@ -2547,7 +2565,17 @@ seven-children+pad tiling is THE SAME assertion
 offsets), transitions forget contents by construction
 (`bytesRegion_anyBytes`, `phaseH_to_phaseD`), and consumers of a
 havoc'd range must verify for all contents
-(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Next for
+(`cpsTripleWithin_anyBytes_pre`, LBU demo) — design §3.9. Top-level spec
+statement landed (bead evm-asm-4ch8f.8, `Stateless/EntrySpec.lean` +
+docs/4ch8f-top-spec.md): `runStatelessGuestSound cr fuel work execute` =
+`cpsHaltTripleWithin` at whole-guest granularity — ∀ input ≤ 1 GiB framed
+at INPUT_ADDR, the guest halts within `fuel` and the 40-byte OUTPUT
+window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
+`SpecRef.verify_stateless_new_payload` validates + root matches);
+soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
+output) stated as the deferred two-sided form; execution seam stays a
+parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
+OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. Next for
 SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`
@@ -2655,6 +2683,34 @@ read_active_fork ported (ActiveForkSAsm.lean:
 byte-wise u32-at-cfg+8 + u64 fork read, drop-in read_active_fork_verified
 swapped into run_stateless_guest, EEST A/B validated). Next port:
 decode_validation_bit.
+Loop fuel + nested loops landed (bead evm-asm-4ch8f.5, design §3.10):
+(1) runtime-data-dependent iteration counts need NO new mechanism — the
+static-cap idiom (fuel = literal cap, runtime `.bltu ctr lim` exit, the
+loaded limit tied to its ghost decode in the invariant, `n ≤ cap` as a
+spec-theorem hypothesis consumed by the `exhausted` VC); bridge lemmas
+in SAsm/LoopFuel.lean (Cond.holds_bltu_iff, index_eq_of_not_bltu,
+ofNat_succ, toNat_ofNat_lt). (2) nested loops DID need an AST extension:
+`Stmt.whileS`, the loop rule with logical variables — the invariant is
+parameterized by the loop-entry snapshot (rf₀, ws₀, A₀), which is the
+only channel by which an outer loop's index ties survive an inner
+loop's sp (the counter-register bridge alone is provably insufficient:
+while's exit sp discards the entry reach). Same emitted code as while;
+snapshot ∀-quantified + reach-constrained in inv_step/exhausted,
+∃-recorded in the exit sp; soundness in both Stmt.sound and Stmt.soundR
+by fixing the entry state (cpsTripleWithin_exists_pre_M/_frame) and
+running the entry-instantiated family through the SAME WP.loopNatCert —
+no new trusted loop rule; `while` kept unchanged (all existing users
+compile untouched). (3) scale measured: the monomorphized capScanFn
+proof (u64 count LD-loaded from input) elaborates flat at fuel
+32/1024/100000 (~0.22 s tactics + ~0.23 s kernel each) — VCs and step
+budgets are symbolic in the fuel. Demos in SAsm/LoopFuelDemo.lean
+(rlpSkipFn: byte count loaded from ro region, cap 256; gridScanFn:
+outer per-item while + inner per-byte whileS with snapshot-pinned outer
+counter; capScanFn: cap-parametric BAL-scan shape, instantiated at
+32/1024/100000). Howto §4 gained the static-cap and whileS recipes.
+Unblocks .49 (dispatch loop) and .14 (RLP walks); open question flagged
+for .49: per-iteration ghost contracts of `call`s inside loop bodies
+(same shape of problem, see design §3.10).
 
 ## Stateless Guest (parallel STF track)
 
@@ -2687,21 +2743,18 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 ### Status
 
 - ✅ **Top-level spec statement landed** (bead evm-asm-4ch8f.8,
-  2026-07-04): `EvmAsm/Stateless/EntrySpec.lean` now defines the real
-  statement shape — `RunStatelessGuestSound` (a `cpsHaltTripleWithin`
-  over `CodeReq.ofProg`, quantified over ALL host payloads),
-  `GuestOutputSound` (one-sided soundness over a PINNED 40-byte
-  observation window: flag byte at fixed offset 32, root+flag
-  agreement with the reference on accept — the pinned length closes
-  the self-delimiting-decode vacuity escapes found in the #9734
-  review; false-rejects allowed), `GuestOutputFaithful`
-  (full-serialization accept-path fidelity, the guest-shell target),
-  `GuestOutputComplete` (documented, not required), `GuestFraming`
-  with a `scratch_sat` non-vacuity witness, and kernel `#guard` pins
-  tying the flag offset + verdict decoder to the SpecRef codec; the
-  ZisK meta bytes at `INPUT_ADDR+0` are deliberately unconstrained. Decisions (trust boundary, seam
-  parameterization, deployment gap) recorded in the file header.
-  The obligation decomposition lives in
+  2026-07-04, synthesis of PRs #9733 + #9734 review): `EvmAsm/Stateless/
+  EntrySpec.lean` defines `runStatelessGuestSound cr fuel work execute`
+  (a `cpsHaltTripleWithin` from `GUEST_ENTRY`, ∀ inputs ≤
+  `MAX_INPUT_BYTES`), with `guestOutputSound` — soundness over the
+  PINNED 40-byte observation window (`OUTPUT[32]` flag, `OUTPUT[0..32)`
+  = spec NPR root via `SpecAccepts`; the pinned length closes the
+  self-delimiting-decode vacuity escapes found in review) — and
+  `runStatelessGuestFaithful` (full-byte fidelity, declared NON-goal
+  for .64 v1). ZisK meta bytes at `INPUT_ADDR+0` unconstrained; kernel
+  `#guard`s pin the flag/root offsets to the SpecRef encoder and
+  witness `SpecAccepts` on the sanity pipeline. Full decision record:
+  **docs/4ch8f-top-spec.md**. The obligation decomposition lives in
   **docs/agents/top-theorem-ledger.md** (14 rows, each with bead +
   exemplar) — update a row whenever a stateless proof lands.
 - ✅ **Smaller-model port toolchain** (2026-07-04):

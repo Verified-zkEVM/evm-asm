@@ -59,6 +59,7 @@ import EvmAsm.Evm64.SMod.Compose.ResultStackV5
 import EvmAsm.Evm64.SMod.SpecAllCase
 import EvmAsm.Evm64.AddMod.Spec
 import EvmAsm.Evm64.AddMod.LiveStackPost
+import EvmAsm.Evm64.AddMod.Compose.ResultStack
 import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
 import EvmAsm.Evm64.Exp.Spec
 import EvmAsm.Evm64.Exp.HeadroomProgramSpec
@@ -163,10 +164,17 @@ def registry : List OpcodeEntry := [
        "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
        "generalized (both dead), x9 shed at the return.  (was: " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
-  entry "ADDMOD" .partly (some "evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within")
-      ("addmod_correct proven; zero-modulus stack spec done for arbitrary b; " ++
-       "no-overflow skeleton composed through legacy MOD no-NOP body proof; " ++
-       "current partial theorem has a final live-stack post at sp+64 preserving an arbitrary caller stack tail, consumed operand cells and all leftover registers in the current frame weakened to ownership, and old register/scratch witnesses packaged in an existential precondition that can carry the runtime OR-fold zero-test guard, with the MOD callable base specialized to the canonical JAL target; zero-modulus and no-overflow branches also have canonical existential stack-tail surfaces evm_addmod_n0_canonical_existential_regs_owned_stack_tail_spec_within and evm_addmod_no_overflow_canonical_existential_regs_owned_stack_tail_spec_within, with explicit zero-result N=0 and OR-zero tail surfaces evm_addmod_n0_canonical_existential_regs_owned_zero_stack_tail_spec_within and evm_addmod_or_zero_domain_canonical_existential_regs_owned_zero_stack_tail_spec_within, plus no-overflow and OR-guard domain-pre surfaces evm_addmod_no_overflow_domain_canonical_existential_regs_owned_stack_tail_spec_within and evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within"),
+  entry "ADDMOD" .proven (some "evm_addmod_total_result_stack_spec_within")
+      ("unconditional total ADDMOD stack spec over evm_addmod_total ∪ " ++
+       "evm_mod_callable_v5 (the shipped codegen — issue #9704): all three " ++
+       "runtime branches covered (N = 0 zero path; no-carry low-sum " ++
+       "reduction; the 257-bit carry-out path computing (2^256 + r) mod N " ++
+       "via three MOD near-calls — rMod, pow256ModN N as ((2^256−1) mod N " ++
+       "+ 1) mod N, and a pre-reduced modular add with branch-free " ++
+       "conditional subtract). Public form evmStackIs sp [a, b, N] → " ++
+       "evmStackIs (sp+64) [EvmWord.addmod a b N]; only dispatcher-pinned " ++
+       "code-layout side conditions.  (was: partial OR-guard domain " ++
+       "surface over the legacy v1 callable)"),
   entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
       ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
        "n ≤ 2^255 hypothesis); bit-serial 512-bit reducer. Scratchpad " ++
@@ -296,8 +304,8 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 47 := by decide
-theorem partialCount_eq     : partialCount     = 3  := by decide
+theorem provenCount_eq      : provenCount      = 48 := by decide
+theorem partialCount_eq     : partialCount     = 2  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
@@ -330,8 +338,8 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 107 := by decide
-theorem partialBytes_eq     : partialBytes     = 3   := by decide
+theorem provenBytes_eq      : provenBytes      = 108 := by decide
+theorem partialBytes_eq     : partialBytes     = 2   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
@@ -356,7 +364,8 @@ private noncomputable abbrev _sdiv_witness       :=
 private noncomputable abbrev _mod_witness        := @EvmAsm.Evm64.evm_mod_v6_stack_spec
 private noncomputable abbrev _smod_witness       :=
   @EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_result_stack_spec_within_v5
-private noncomputable abbrev _addmod_witness     := @EvmAsm.Evm64.evm_addmod_partial_or_guard_domain_canonical_existential_regs_owned_stack_tail_spec_within
+private noncomputable abbrev _addmod_witness     :=
+  @EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
 private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_result_stack_program_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within

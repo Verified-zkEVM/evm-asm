@@ -20,6 +20,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -61,63 +64,116 @@ open EvmAsm.Rv64.Program
         0 : success -- predicate written
         1 : child RLP parse failure / field 0 missing
         2 : child.parent_hash length != 32 -/
-def validateParentHashLinkFunction : String :=
-  "validate_parent_hash_link:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # parent_rlp ptr\n" ++
-  "  mv s1, a1                   # parent_rlp len\n" ++
-  "  mv s2, a2                   # child_rlp ptr\n" ++
-  "  mv s3, a3                   # child_rlp len\n" ++
-  "  mv s4, a4                   # is_valid out\n" ++
-  "  sd zero, 0(s4)\n" ++
-  "  # ---- Extract child.parent_hash (field 0) ----\n" ++
-  "  mv a0, s2; mv a1, s3; li a2, 0\n" ++
-  "  la a3, vphl_offset; la a4, vphl_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lvphl_parse_fail\n" ++
-  "  la t0, vphl_length; ld t1, 0(t0)\n" ++
-  "  li t2, 32\n" ++
-  "  bne t1, t2, .Lvphl_size_fail\n" ++
-  "  # Copy claimed parent_hash into vphl_claimed\n" ++
-  "  la t0, vphl_offset; ld t1, 0(t0)\n" ++
-  "  add t3, s2, t1                              # &child[off]\n" ++
-  "  la t4, vphl_claimed\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
-  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
-  "  # ---- Compute keccak256(parent_rlp) ----\n" ++
-  "  mv a0, s0; mv a1, s1\n" ++
-  "  la a2, vphl_computed\n" ++
-  "  jal ra, block_hash_from_header\n" ++
-  "  # ---- 32-byte compare ----\n" ++
-  "  la t0, vphl_claimed\n" ++
-  "  la t1, vphl_computed\n" ++
-  "  ld t2,  0(t0); ld t3,  0(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  ld t2,  8(t0); ld t3,  8(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lvphl_neq\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lvphl_ret\n" ++
-  ".Lvphl_neq:\n" ++
-  "  sd zero, 0(s4)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lvphl_ret\n" ++
-  ".Lvphl_parse_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lvphl_ret\n" ++
-  ".Lvphl_size_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lvphl_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def validateParentHashLink_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .SD .x20 .x0 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64)),
+    .AUIPC .x14 (laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.validate_parent_hash_link + 80)),
+    .BNE .x10 .x0 (192 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (32 : Word),
+    .BNE .x6 .x7 (180 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x28 .x18 .x6,
+    .AUIPC .x29 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .SD .x29 .x30 (8 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .SD .x29 .x30 (16 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .SD .x29 .x30 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172)),
+    .JAL .x1 (jalOff GuestAddrs.block_hash_from_header (GuestAddrs.validate_parent_hash_link + 180)),
+    .AUIPC .x5 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184)),
+    .AUIPC .x6 (laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (56 : BitVec 13),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x28 .x6 (8 : BitVec 12),
+    .BNE .x7 .x28 (44 : BitVec 13),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .LD .x28 .x6 (16 : BitVec 12),
+    .BNE .x7 .x28 (32 : BitVec 13),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .LD .x28 .x6 (24 : BitVec 12),
+    .BNE .x7 .x28 (20 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .SD .x20 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (28 : BitVec 21),
+    .SD .x20 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `validateParentHashLink_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def validateParentHashLink_relocs : RelocTable :=
+  [ (16, .la .x13 "vphl_offset"),
+    (18, .la .x14 "vphl_length"),
+    (20, .jal .x1 "rlp_list_nth_item"),
+    (22, .la .x5 "vphl_length"),
+    (27, .la .x5 "vphl_offset"),
+    (31, .la .x29 "vphl_claimed"),
+    (43, .la .x12 "vphl_computed"),
+    (45, .jal .x1 "block_hash_from_header"),
+    (46, .la .x5 "vphl_claimed"),
+    (48, .la .x6 "vphl_computed") ]
+
+def validateParentHashLinkFunction : String :=
+  "validate_parent_hash_link:\n" ++ emitProgramR validateParentHashLink_prog validateParentHashLink_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `validateParentHashLink_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem validateParentHashLinkFunction_eq_prog :
+    validateParentHashLinkFunction = "validate_parent_hash_link:\n" ++ emitProgramR validateParentHashLink_prog validateParentHashLink_relocs := rfl
+
+#guard validateParentHashLinkFunction.startsWith "validate_parent_hash_link:\n"
+#guard validateParentHashLink_prog.length = 80
 /-- `zisk_validate_parent_hash_link`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : parent_rlp_len

@@ -6,44 +6,40 @@ changes status (same discipline as PLAN.md).
 
 ## The statement
 
-`EvmAsm/Stateless/EntrySpec.lean` defines the shape (bead `evm-asm-4ch8f.8`,
-decisions recorded in the file header):
+`EvmAsm/Stateless/EntrySpec.lean` defines the shape (bead `evm-asm-4ch8f.8`);
+the full decision record — trust boundary, one-sided direction, rejected
+alternatives, review synthesis of PRs #9733/#9734 — is
+**docs/4ch8f-top-spec.md**.
 
 ```
-RunStatelessGuestSound execute guest nSteps entry fr :
-  ∀ payload,
-    cpsHaltTripleWithin nSteps entry (CodeReq.ofProg entry guest)
-      (inputRecordAt payload ** fr.scratch)
-      (∃ obs, outputBytesAt obs ** ⌜obs.length = 40⌝ **
-              ⌜GuestOutputSound execute payload obs⌝ ** fr.residue)
+runStatelessGuestSound cr fuel work execute :
+  ∀ input, input.length ≤ MAX_INPUT_BYTES →
+    cpsHaltTripleWithin fuel GUEST_ENTRY cr
+      (guestInputAssertion input ** work)
+      (guestOutputSound execute input)
 ```
 
-- **One-sided, pinned observation window**: `GuestOutputSound` = "if the flag
-  byte at fixed offset 32 of the 40-byte window is 1, then
-  `SpecRef.run_stateless_guest payload execute` succeeds and agrees on the
-  observed root+flag bytes". False-rejects are allowed; false-accepts are not.
-  The window length is pinned inside the postcondition — an existential output
-  judged by a self-delimiting decode is vacuously dischargeable (PR #9734
-  review). Full-serialization equality is the separate `GuestOutputFaithful`
-  clause (guest-shell bead); completeness is `GuestOutputComplete` (not
-  required).
-- **Non-vacuity**: `GuestFraming.scratch_sat` forces a satisfiability witness
-  for the precondition — an obligation cannot be closed with an unsatisfiable
-  scratch assertion.
-- **Seam**: `execute : SpecRef.ExecutionSeam` is the EVM re-execution cut
-  (docs/4ch8f-specref-port.md). The final theorem instantiates it with the
-  Block/VM model.
+- **One-sided, pinned observation window**: `guestOutputSound` = "the 40-byte
+  window at `OUTPUT_ADDR` (`out.length = OUTPUT_CLAIM_BYTES` pinned inside the
+  post) is a sound claim: if the validation byte `OUTPUT[32]` is 1, then
+  `SpecAccepts` — the input deserializes, `verify_stateless_new_payload`
+  succeeds under the seam, and `OUTPUT[0..32)` is the spec's NPR root".
+  False-rejects are allowed; false-accepts are not. The pinned length exists
+  because an existential output judged by a self-delimiting decode is
+  vacuously dischargeable (#9734 review).
+- **Fidelity**: `runStatelessGuestFaithful` (full output = the spec's
+  serialized result, byte-for-byte) is stated but a declared NON-goal for
+  `.64` v1 (decision record §1).
+- **Non-vacuity**: kernel `#guard`s pin the flag/root offsets to the SpecRef
+  encoder and witness `SpecAccepts` end-to-end on the sanity pipeline.
+- **Seam**: parameter `execute : ExecutionSeam` — the `.10` interpreter model
+  closes it.
 
-The final theorem (bead `evm-asm-4ch8f.64`):
-
-```
-theorem run_stateless_guest_spec :
-  RunStatelessGuestSound <real seam> <composed guest image> <fuel> <entry> <framing>
-```
-
-The `guest` instantiation is the COMPOSED guest image the codegen emits
-(beads 4ch8f.63/.64) — today's `Entry.run_stateless_guest` is still the PR6
-stub; the statement is parameterized so leaf work is instantiation-agnostic.
+The final theorem (bead `evm-asm-4ch8f.64`) instantiates the
+`(cr, fuel, work, execute)` quadruple: the COMPOSED guest image `CodeReq`
+(bead .63, from the wave-.9 conversions — today's `Entry.run_stateless_guest`
+is still the PR6 stub), the gas-derived step cap, the `.6` work-region
+bundle, and the real seam.
 
 ## How a leaf proof plugs in
 
@@ -67,8 +63,8 @@ Status: `todo` / `in-progress (bead)` / `done (file:theorem)`.
 
 | # | Obligation | Pipeline stage | Bead(s) | Status | Exemplar to copy |
 |---|---|---|---|---|---|
-| 0 | Statement shape (`RunStatelessGuestSound`) | — | 4ch8f.8 | **done** (`EvmAsm/Stateless/EntrySpec.lean`) | — |
-| 1 | Canonical `GuestFraming` (scratch = working-RAM anyBytes tiling per RegionMap + phase model; `scratch_sat` witness) | entry | 4ch8f.63 | todo | `SAsm/PhaseSplit.lean` (`anyBytes`), `Codegen/RegionMap.lean` |
+| 0 | Statement shape (`runStatelessGuestSound`) | — | 4ch8f.8 | **done** (`EvmAsm/Stateless/EntrySpec.lean`; decision record docs/4ch8f-top-spec.md) | — |
+| 1 | Canonical `work` bundle (working-RAM anyBytes tiling per RegionMap + phase model) + a satisfiability witness for `guestInputAssertion input ** work` | entry | 4ch8f.63 | todo | `SAsm/PhaseSplit.lean` (`anyBytes`), `Codegen/RegionMap.lean` |
 | 2 | Input decode: SSZ offset chase over the schema-prefixed payload | `deserialize_stateless_input` | 4ch8f.27 | in-progress — `read_chain_id`/`read_active_fork` **done** (`SSZ/Decode/ChainIdSAsm.lean:readChainIdFn_spec`, `ActiveForkSAsm.lean:readActiveForkFn_spec`); `decode_validation_bit`, `decode_header_count`, extractors todo | ChainIdSAsm.lean |
 | 3 | Header validation family | `validate_headers` | 4ch8f.26/.33/.34 | todo | ChainIdSAsm (byte-wise reads), ClzSAsm (branchy leaf) |
 | 4 | Witness DBs (node_db/code_db build + lookups) | `Witness.{NodeDb,CodeDb}` | 4ch8f.21/.28 | todo (unblocked by RegionMap) | TreeInsert.lean (slot predicates over arenas) |
@@ -85,7 +81,7 @@ Status: `todo` / `in-progress (bead)` / `done (file:theorem)`.
 ## Vacuity guards (read before closing any obligation)
 
 - A `.Spec`/triple with an unsatisfiable precondition proves nothing — provide
-  or reuse a satisfiability witness (`GuestFraming.scratch_sat` at the top;
+  or reuse a satisfiability witness (a `guestInputAssertion ** work` satisfiability witness at the top;
   per-routine, an `inputRegion_wf`-style lemma).
 - `#print axioms` on every closed obligation: `propext`, `Classical.choice`,
   `Quot.sound` only.

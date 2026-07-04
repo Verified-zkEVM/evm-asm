@@ -631,6 +631,23 @@ def callDescendFallThrough
     ".Lcd_nacc_sdskip_next_" ++ tag ++ ":\n" ++
     "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lcd_nacc_sdskip_scan_" ++ tag ++ "\n" ++
     ".Lcd_nacc_sdskip_done_" ++ tag ++ ":\n" ++
+    -- A previous same-tx value transfer makes an absent callee alive for EIP-8037 new-account charging.
+    -- The current CALL has already appended its own callee-credit record immediately before this block,
+    -- so scan all but the last non-storage effect entry. First CALL to a fresh address still charges;
+    -- the second CALL to that address skips the charge.
+    "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); beqz t1, .Lcd_nacc_prev_done_" ++ tag ++ "\n" ++
+    "  addi t1, t1, -1; beqz t1, .Lcd_nacc_prev_done_" ++ tag ++ "\n" ++
+    "  li t2, 0; la t3, exec_nonstorage_effect_log\n" ++
+    ".Lcd_nacc_prev_scan_" ++ tag ++ ":\n" ++
+    "  beq t2, t1, .Lcd_nacc_prev_done_" ++ tag ++ "\n" ++
+    "  mv t4, t3; la t5, cd_callee_be; li t6, 20\n" ++
+    ".Lcd_nacc_prev_cmp_" ++ tag ++ ":\n" ++
+    "  beqz t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++
+    "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lcd_nacc_prev_next_" ++ tag ++ "\n" ++
+    "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lcd_nacc_prev_cmp_" ++ tag ++ "\n" ++
+    ".Lcd_nacc_prev_next_" ++ tag ++ ":\n" ++
+    "  addi t3, t3, 112; addi t2, t2, 1; j .Lcd_nacc_prev_scan_" ++ tag ++ "\n" ++
+    ".Lcd_nacc_prev_done_" ++ tag ++ ":\n" ++
     -- account_exists_at_header_state_root(callee) -> aex_predicate (helper clobbers a-regs aliasing x10/x12/x13)
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_callee_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n" ++

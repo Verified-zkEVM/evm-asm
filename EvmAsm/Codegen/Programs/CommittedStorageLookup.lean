@@ -9,6 +9,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
 
@@ -33,38 +36,75 @@ open EvmAsm.Rv64
     used by runtime SLOAD/SSTORE entries, then scans at most the named committed
     table count. Duplicate matches preserve `exec_log_latest_value` last-wins
     semantics. -/
-def committedStorageLatestValueFunction : String :=
-  "bv_mtx_committed_latest_value:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  bgtu a3, a4, .Lcslookup_overflow\n" ++
-  "  mv s0, a5                    # out value ptr\n" ++
-  "  mv s1, a6                    # recipient scratch\n" ++
-  "  mv s2, a7                    # LE slot scratch\n" ++
-  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
-  "  li t0, 0\n" ++
-  ".Lcslookup_rkey:\n" ++
-  "  li t1, 20; beq t0, t1, .Lcslookup_rkey_done\n" ++
-  "  add t2, a0, t0; lbu t3, 0(t2); add t2, s1, t0; sb t3, 0(t2); addi t0, t0, 1; j .Lcslookup_rkey\n" ++
-  ".Lcslookup_rkey_done:\n" ++
-  "  addi t0, a1, 31; mv t1, s2; li t2, 32\n" ++
-  ".Lcslookup_slot_rev:\n" ++
-  "  beqz t2, .Lcslookup_call\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lcslookup_slot_rev\n" ++
-  ".Lcslookup_call:\n" ++
-  "  mv a0, s1; mv a1, s2; mv a4, s0\n" ++
-  "  jal ra, exec_log_latest_value\n" ++
-  "  beqz a0, .Lcslookup_no_match\n" ++
-  "  li a0, 1; j .Lcslookup_ret\n" ++
-  ".Lcslookup_no_match:\n" ++
-  "  li a0, 0; j .Lcslookup_ret\n" ++
-  ".Lcslookup_overflow:\n" ++
-  "  li a0, 2\n" ++
-  ".Lcslookup_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def bvMtxCommittedLatestValue_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .BLTU .x14 .x13 (144 : BitVec 13),
+    .MV .x8 .x15,
+    .MV .x9 .x16,
+    .MV .x18 .x17,
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .LI .x5 (0 : Word),
+    .LI .x6 (20 : Word),
+    .BEQ .x5 .x6 (28 : BitVec 13),
+    .ADD .x7 .x10 .x5,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .ADD .x7 .x9 .x5,
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x5 .x11 (31 : BitVec 12),
+    .MV .x6 .x18,
+    .LI .x7 (32 : Word),
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .MV .x14 .x8,
+    .JAL .x1 (jalOff GuestAddrs.exec_log_latest_value (GuestAddrs.bv_mtx_committed_latest_value + 140)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bvMtxCommittedLatestValue_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bvMtxCommittedLatestValue_relocs : RelocTable :=
+  [ (35, .jal .x1 "exec_log_latest_value") ]
+
+def committedStorageLatestValueFunction : String :=
+  "bv_mtx_committed_latest_value:\n" ++ emitProgramR bvMtxCommittedLatestValue_prog bvMtxCommittedLatestValue_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bvMtxCommittedLatestValue_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem committedStorageLatestValueFunction_eq_prog :
+    committedStorageLatestValueFunction = "bv_mtx_committed_latest_value:\n" ++ emitProgramR bvMtxCommittedLatestValue_prog bvMtxCommittedLatestValue_relocs := rfl
+
+#guard committedStorageLatestValueFunction.startsWith "bv_mtx_committed_latest_value:\n"
+#guard bvMtxCommittedLatestValue_prog.length = 48
 /-- `zisk_mtx_committed_latest_value`: focused probe.
     Input after ziskemu's length wrapper:
       +8 mode: 0 empty, 1 no-match, 2 one-match, 3 duplicate latest, 4 over-capacity
@@ -135,38 +175,75 @@ def ziskCommittedStorageLookupProbeUnit : BuildUnit := {
     single-page table, so the lookup normalizes the query key and delegates to
     `exec_log_latest_value` over the populated contiguous prefix. Duplicate
     matches across page boundaries preserve last-wins semantics. -/
-def committedStorageChunkedLatestValueFunction : String :=
-  "bv_mtx_committed_chunked_latest_value:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  bgtu a3, a4, .Lcschunk_overflow\n" ++
-  "  mv s0, a5                    # out value ptr\n" ++
-  "  mv s1, a6                    # recipient scratch\n" ++
-  "  mv s2, a7                    # LE slot scratch\n" ++
-  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1)\n" ++
-  "  li t0, 0\n" ++
-  ".Lcschunk_rkey:\n" ++
-  "  li t1, 20; beq t0, t1, .Lcschunk_rkey_done\n" ++
-  "  add t2, a0, t0; lbu t3, 0(t2); add t2, s1, t0; sb t3, 0(t2); addi t0, t0, 1; j .Lcschunk_rkey\n" ++
-  ".Lcschunk_rkey_done:\n" ++
-  "  addi t0, a1, 31; mv t1, s2; li t2, 32\n" ++
-  ".Lcschunk_slot_rev:\n" ++
-  "  beqz t2, .Lcschunk_call\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lcschunk_slot_rev\n" ++
-  ".Lcschunk_call:\n" ++
-  "  mv a0, s1; mv a1, s2; mv a4, s0\n" ++
-  "  jal ra, exec_log_latest_value\n" ++
-  "  beqz a0, .Lcschunk_no_match\n" ++
-  "  li a0, 1; j .Lcschunk_ret\n" ++
-  ".Lcschunk_no_match:\n" ++
-  "  li a0, 0; j .Lcschunk_ret\n" ++
-  ".Lcschunk_overflow:\n" ++
-  "  li a0, 2\n" ++
-  ".Lcschunk_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def bvMtxCommittedChunkedLatestValue_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .BLTU .x14 .x13 (144 : BitVec 13),
+    .MV .x8 .x15,
+    .MV .x9 .x16,
+    .MV .x18 .x17,
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .LI .x5 (0 : Word),
+    .LI .x6 (20 : Word),
+    .BEQ .x5 .x6 (28 : BitVec 13),
+    .ADD .x7 .x10 .x5,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .ADD .x7 .x9 .x5,
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x5 .x11 (31 : BitVec 12),
+    .MV .x6 .x18,
+    .LI .x7 (32 : Word),
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .MV .x14 .x8,
+    .JAL .x1 (jalOff GuestAddrs.exec_log_latest_value (GuestAddrs.bv_mtx_committed_chunked_latest_value + 140)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bvMtxCommittedChunkedLatestValue_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bvMtxCommittedChunkedLatestValue_relocs : RelocTable :=
+  [ (35, .jal .x1 "exec_log_latest_value") ]
+
+def committedStorageChunkedLatestValueFunction : String :=
+  "bv_mtx_committed_chunked_latest_value:\n" ++ emitProgramR bvMtxCommittedChunkedLatestValue_prog bvMtxCommittedChunkedLatestValue_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bvMtxCommittedChunkedLatestValue_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem committedStorageChunkedLatestValueFunction_eq_prog :
+    committedStorageChunkedLatestValueFunction = "bv_mtx_committed_chunked_latest_value:\n" ++ emitProgramR bvMtxCommittedChunkedLatestValue_prog bvMtxCommittedChunkedLatestValue_relocs := rfl
+
+#guard committedStorageChunkedLatestValueFunction.startsWith "bv_mtx_committed_chunked_latest_value:\n"
+#guard bvMtxCommittedChunkedLatestValue_prog.length = 48
 /-- `zisk_mtx_committed_chunked_latest_value`: focused probe.
     Input after ziskemu's length wrapper:
       +8 mode: 0 empty, 1 no-match, 2 chunk0 match, 3 chunk1 match,

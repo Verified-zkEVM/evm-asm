@@ -17,6 +17,8 @@
 -/
 
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.SstoreGasRefund
@@ -369,7 +371,8 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     not assigned a real opcode are 0, so trusted programs never spuriously
     run out of gas on a terminator or an unwired byte. -/
 def staticGasCost (op : Nat) : Nat :=
-  if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
+  if op = 0x5f then 2                     -- PUSH0 (BASE)
+  else if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
   else if 0x80 ≤ op ∧ op ≤ 0x8f then 3   -- DUP1..DUP16 (VERYLOW)
   else if 0x90 ≤ op ∧ op ≤ 0x9f then 3   -- SWAP1..SWAP16 (VERYLOW)
   else if 0xe6 ≤ op ∧ op ≤ 0xe8 then 3   -- DUPN/SWAPN/EXCHANGE (EIP-8024, VERYLOW)
@@ -1196,276 +1199,348 @@ def emitSelfdestructExit : String :=
 This duplicates the standalone probe helper label intentionally: each BuildUnit
 links one asm image, and the dispatcher image needs the same callable label for
 CREATE/CREATE2 handlers. -/
+def createStageInitcodeFrame_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.create_child_status (GuestAddrs.create_stage_initcode_frame + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_status (GuestAddrs.create_stage_initcode_frame + 0)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_kind (GuestAddrs.create_stage_initcode_frame + 12)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_kind (GuestAddrs.create_stage_initcode_frame + 12)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_return_len (GuestAddrs.create_stage_initcode_frame + 24)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_return_len (GuestAddrs.create_stage_initcode_frame + 24)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_code_len (GuestAddrs.create_stage_initcode_frame + 36)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_code_len (GuestAddrs.create_stage_initcode_frame + 36)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_init_size (GuestAddrs.create_stage_initcode_frame + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_init_size (GuestAddrs.create_stage_initcode_frame + 48)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.create_child_init_len (GuestAddrs.create_stage_initcode_frame + 60)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_child_init_len (GuestAddrs.create_stage_initcode_frame + 60)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_sender_be (GuestAddrs.create_stage_initcode_frame + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_sender_be (GuestAddrs.create_stage_initcode_frame + 72)),
+    .AUIPC .x7 (laHi GuestAddrs.create_child_creator_be (GuestAddrs.create_stage_initcode_frame + 80)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_child_creator_be (GuestAddrs.create_stage_initcode_frame + 80)),
+    .LI .x28 (32 : Word),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .BNE .x28 .x0 (-20 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.create_address_be (GuestAddrs.create_stage_initcode_frame + 116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_address_be (GuestAddrs.create_stage_initcode_frame + 116)),
+    .AUIPC .x7 (laHi GuestAddrs.create_child_target_be (GuestAddrs.create_stage_initcode_frame + 124)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_child_target_be (GuestAddrs.create_stage_initcode_frame + 124)),
+    .LI .x28 (32 : Word),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .BNE .x28 .x0 (-20 : BitVec 13),
+    .ADDI .x5 .x11 (31 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.create_child_value_be (GuestAddrs.create_stage_initcode_frame + 164)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_child_value_be (GuestAddrs.create_stage_initcode_frame + 164)),
+    .LI .x28 (32 : Word),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .BNE .x28 .x0 (-20 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.create_init_offset (GuestAddrs.create_stage_initcode_frame + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_init_offset (GuestAddrs.create_stage_initcode_frame + 200)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x5 .x10 .x7,
+    .AUIPC .x7 (laHi GuestAddrs.create_child_initcode (GuestAddrs.create_stage_initcode_frame + 216)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_child_initcode (GuestAddrs.create_stage_initcode_frame + 216)),
+    .MV .x28 .x6,
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x5 (0 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_status (GuestAddrs.create_stage_initcode_frame + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_status (GuestAddrs.create_stage_initcode_frame + 256)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `createStageInitcodeFrame_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def createStageInitcodeFrame_relocs : RelocTable :=
+  [ (0, .la .x5 "create_child_status"),
+    (3, .la .x5 "create_child_kind"),
+    (6, .la .x5 "create_child_return_len"),
+    (9, .la .x5 "create_child_code_len"),
+    (12, .la .x5 "create_init_size"),
+    (15, .la .x7 "create_child_init_len"),
+    (18, .la .x5 "create_sender_be"),
+    (20, .la .x7 "create_child_creator_be"),
+    (29, .la .x5 "create_address_be"),
+    (31, .la .x7 "create_child_target_be"),
+    (41, .la .x7 "create_child_value_be"),
+    (50, .la .x5 "create_init_offset"),
+    (54, .la .x7 "create_child_initcode"),
+    (64, .la .x5 "create_child_status") ]
+
 def createStageInitcodeFrameRuntimeFunction : String :=
-  "create_stage_initcode_frame:\n" ++
-  "  la t0, create_child_status\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  la t0, create_child_kind\n" ++
-  "  sd a2, 0(t0)\n" ++
-  "  la t0, create_child_return_len\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  la t0, create_child_code_len\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  la t0, create_init_size\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  la t2, create_child_init_len\n" ++
-  "  sd t1, 0(t2)\n" ++
-  "  la t0, create_sender_be\n" ++
-  "  la t2, create_child_creator_be\n" ++
-  "  li t3, 32\n" ++
-  ".Lcreate_stage_copy_creator:\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  sb t4, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  bnez t3, .Lcreate_stage_copy_creator\n" ++
-  "  la t0, create_address_be\n" ++
-  "  la t2, create_child_target_be\n" ++
-  "  li t3, 32\n" ++
-  ".Lcreate_stage_copy_target:\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  sb t4, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  bnez t3, .Lcreate_stage_copy_target\n" ++
-  "  addi t0, a1, 31\n" ++
-  "  la t2, create_child_value_be\n" ++
-  "  li t3, 32\n" ++
-  ".Lcreate_stage_copy_value:\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  sb t4, 0(t2)\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  bnez t3, .Lcreate_stage_copy_value\n" ++
-  "  la t0, create_init_offset\n" ++
-  "  ld t2, 0(t0)\n" ++
-  "  add t0, a0, t2\n" ++
-  "  la t2, create_child_initcode\n" ++
-  "  mv t3, t1\n" ++
-  ".Lcreate_stage_copy_initcode:\n" ++
-  "  beqz t3, .Lcreate_stage_done\n" ++
-  "  lbu t4, 0(t0)\n" ++
-  "  sb t4, 0(t2)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lcreate_stage_copy_initcode\n" ++
-  ".Lcreate_stage_done:\n" ++
-  "  la t0, create_child_status\n" ++
-  "  li t1, 1\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  li a0, 0\n" ++
-  "  ret"
+  "create_stage_initcode_frame:\n" ++ emitProgramR createStageInitcodeFrame_prog createStageInitcodeFrame_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `createStageInitcodeFrame_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem createStageInitcodeFrameRuntimeFunction_eq_prog :
+    createStageInitcodeFrameRuntimeFunction = "create_stage_initcode_frame:\n" ++ emitProgramR createStageInitcodeFrame_prog createStageInitcodeFrame_relocs := rfl
 
-
+#guard createStageInitcodeFrameRuntimeFunction.startsWith "create_stage_initcode_frame:\n"
+#guard createStageInitcodeFrame_prog.length = 70
 /-- Bounded CREATE initcode executor over the staged child-frame arena.
 
 Supported in this first executable slice: STOP, RETURN, REVERT, INVALID,
 PUSH0/PUSH1..PUSH32 with u64 values, MSTORE, and MSTORE8. All other opcodes
 fail deterministically. Result status uses the child-frame status word:
   2 deployed, 3 reverted, 4 failed/unsupported, 5 bounded-step exhaustion. -/
-def createExecuteInitcodeFrameRuntimeFunction : String :=
-  "create_execute_initcode_frame:\n" ++
-  "  la t0, create_child_status\n" ++
-  "  li t1, 4\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  la t0, create_child_return_len\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  la t0, create_child_code_len\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  la t0, create_child_returndata\n" ++
-  "  la t1, create_child_code\n" ++
-  "  li t2, 256\n" ++
-  ".Lcreate_exec_zero_loop:\n" ++
-  "  sb zero, 0(t0)\n" ++
-  "  sb zero, 0(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lcreate_exec_zero_loop\n" ++
-  "  li t0, 0\n" ++
-  "  la t2, create_child_initcode\n" ++
-  "  la t3, create_child_stack\n" ++
-  "  li t4, 0\n" ++
-  "  li t5, 1024\n" ++
-  "  la t1, create_child_init_len\n" ++
-  "  ld t1, 0(t1)\n" ++
-  ".Lcreate_exec_loop:\n" ++
-  "  beqz t5, .Lcreate_exec_oog\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  bgeu t0, t1, .Lcreate_exec_stop\n" ++
-  "  add a0, t2, t0\n" ++
-  "  lbu t6, 0(a0)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  beqz t6, .Lcreate_exec_stop\n" ++
-  "  li a0, 0xf3\n" ++
-  "  beq t6, a0, .Lcreate_exec_return\n" ++
-  "  li a0, 0xfd\n" ++
-  "  beq t6, a0, .Lcreate_exec_revert\n" ++
-  "  li a0, 0xfe\n" ++
-  "  beq t6, a0, .Lcreate_exec_fail\n" ++
-  "  li a0, 0x52\n" ++
-  "  beq t6, a0, .Lcreate_exec_mstore\n" ++
-  "  li a0, 0x53\n" ++
-  "  beq t6, a0, .Lcreate_exec_mstore8\n" ++
-  "  li a0, 0x5f\n" ++
-  "  beq t6, a0, .Lcreate_exec_push0\n" ++
-  "  li a0, 0x60\n" ++
-  "  bltu t6, a0, .Lcreate_exec_fail\n" ++
-  "  li a0, 0x80\n" ++
-  "  bgeu t6, a0, .Lcreate_exec_fail\n" ++
-  "  j .Lcreate_exec_pushn\n" ++
-  ".Lcreate_exec_push0:\n" ++
-  "  li a1, 0\n" ++
-  "  j .Lcreate_exec_push_value\n" ++
-  ".Lcreate_exec_pushn:\n" ++
-  "  addi a2, t6, -0x5f\n" ++
-  "  add a3, t0, a2\n" ++
-  "  bltu t1, a3, .Lcreate_exec_fail\n" ++
-  "  li a1, 0\n" ++
-  ".Lcreate_exec_pushn_loop:\n" ++
-  "  beqz a2, .Lcreate_exec_push_value\n" ++
-  "  add a3, t2, t0\n" ++
-  "  lbu a4, 0(a3)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  li a3, 8\n" ++
-  "  bltu a3, a2, .Lcreate_exec_pushn_high\n" ++
-  "  slli a1, a1, 8\n" ++
-  "  or a1, a1, a4\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lcreate_exec_pushn_loop\n" ++
-  ".Lcreate_exec_pushn_high:\n" ++
-  "  bnez a4, .Lcreate_exec_fail\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  j .Lcreate_exec_pushn_loop\n" ++
-  ".Lcreate_exec_push_value:\n" ++
-  "  li a0, 16\n" ++
-  "  bgeu t4, a0, .Lcreate_exec_fail\n" ++
-  "  slli a0, t4, 3\n" ++
-  "  add a0, t3, a0\n" ++
-  "  sd a1, 0(a0)\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  j .Lcreate_exec_loop\n" ++
-  ".Lcreate_exec_mstore:\n" ++
-  "  li a0, 2\n" ++
-  "  bltu t4, a0, .Lcreate_exec_fail\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  slli a0, t4, 3\n" ++
-  "  add a0, t3, a0\n" ++
-  "  ld a1, 0(a0)\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  slli a0, t4, 3\n" ++
-  "  add a0, t3, a0\n" ++
-  "  ld a2, 0(a0)\n" ++
-  "  li a0, 224\n" ++
-  "  bltu a0, a1, .Lcreate_exec_fail\n" ++
-  "  la a3, create_child_returndata\n" ++
-  "  add a3, a3, a1\n" ++
-  "  li a4, 24\n" ++
-  ".Lcreate_exec_mstore_zero_loop:\n" ++
-  "  sb zero, 0(a3)\n" ++
-  "  addi a3, a3, 1\n" ++
-  "  addi a4, a4, -1\n" ++
-  "  bnez a4, .Lcreate_exec_mstore_zero_loop\n" ++
-  "  li a4, 56\n" ++
-  ".Lcreate_exec_mstore_value_loop:\n" ++
-  "  srl a5, a2, a4\n" ++
-  "  sb a5, 0(a3)\n" ++
-  "  addi a3, a3, 1\n" ++
-  "  addi a4, a4, -8\n" ++
-  "  bgez a4, .Lcreate_exec_mstore_value_loop\n" ++
-  "  j .Lcreate_exec_loop\n" ++
-  ".Lcreate_exec_mstore8:\n" ++
-  "  li a0, 2\n" ++
-  "  bltu t4, a0, .Lcreate_exec_fail\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  slli a0, t4, 3\n" ++
-  "  add a0, t3, a0\n" ++
-  "  ld a1, 0(a0)\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  slli a0, t4, 3\n" ++
-  "  add a0, t3, a0\n" ++
-  "  ld a2, 0(a0)\n" ++
-  "  li a0, 255\n" ++
-  "  bltu a0, a1, .Lcreate_exec_fail\n" ++
-  "  la a3, create_child_returndata\n" ++
-  "  add a3, a3, a1\n" ++
-  "  sb a2, 0(a3)\n" ++
-  "  j .Lcreate_exec_loop\n" ++
-  ".Lcreate_exec_return:\n" ++
-  "  li a6, 2\n" ++
-  "  la a7, create_child_code_len\n" ++
-  "  la a5, create_child_code\n" ++
-  "  j .Lcreate_exec_finish_copy\n" ++
-  ".Lcreate_exec_revert:\n" ++
-  "  li a6, 3\n" ++
-  "  la a7, create_child_return_len\n" ++
-  "  la a5, create_child_returndata\n" ++
-  "  j .Lcreate_exec_finish_copy\n" ++
-  ".Lcreate_exec_finish_copy:\n" ++
-  "  li a0, 2\n" ++
-  "  bltu t4, a0, .Lcreate_exec_fail\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  slli a0, t4, 3\n" ++
-  "  add a0, t3, a0\n" ++
-  "  ld a1, 0(a0)\n" ++
-  "  addi t4, t4, -1\n" ++
-  "  slli a0, t4, 3\n" ++
-  "  add a0, t3, a0\n" ++
-  "  ld a2, 0(a0)\n" ++
-  "  li a0, 256\n" ++
-  "  bltu a0, a2, .Lcreate_exec_fail\n" ++
-  "  add a0, a1, a2\n" ++
-  "  bltu a0, a1, .Lcreate_exec_fail\n" ++
-  "  li a3, 256\n" ++
-  "  bltu a3, a0, .Lcreate_exec_fail\n" ++
-  "  sd a2, 0(a7)\n" ++
-  "  beqz a2, .Lcreate_exec_set_status\n" ++
-  "  la a3, create_child_returndata\n" ++
-  "  add a3, a3, a1\n" ++
-  "  mv a4, a2\n" ++
-  ".Lcreate_exec_copy_result_loop:\n" ++
-  "  lbu a0, 0(a3)\n" ++
-  "  sb a0, 0(a5)\n" ++
-  "  addi a3, a3, 1\n" ++
-  "  addi a5, a5, 1\n" ++
-  "  addi a4, a4, -1\n" ++
-  "  bnez a4, .Lcreate_exec_copy_result_loop\n" ++
-  "  j .Lcreate_exec_set_status\n" ++
-  ".Lcreate_exec_stop:\n" ++
-  "  li a6, 2\n" ++
-  ".Lcreate_exec_set_status:\n" ++
-  "  li a0, 2\n" ++
-  "  bne a6, a0, .Lcreate_exec_store_status\n" ++
-  "  la a1, create_child_returndata\n" ++
-  "  li a2, 256\n" ++
-  ".Lcreate_exec_clear_return_buffer_loop:\n" ++
-  "  sb zero, 0(a1)\n" ++
-  "  addi a1, a1, 1\n" ++
-  "  addi a2, a2, -1\n" ++
-  "  bnez a2, .Lcreate_exec_clear_return_buffer_loop\n" ++
-  ".Lcreate_exec_store_status:\n" ++
-  "  la a0, create_child_status\n" ++
-  "  sd a6, 0(a0)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lcreate_exec_oog:\n" ++
-  "  la a0, create_child_status\n" ++
-  "  li a1, 5\n" ++
-  "  sd a1, 0(a0)\n" ++
-  "  li a0, 5\n" ++
-  "  ret\n" ++
-  ".Lcreate_exec_fail:\n" ++
-  "  la a0, create_child_status\n" ++
-  "  li a1, 4\n" ++
-  "  sd a1, 0(a0)\n" ++
-  "  li a0, 4\n" ++
-  "  ret"
+def createExecuteInitcodeFrame_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 0)),
+    .LI .x6 (4 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_return_len (GuestAddrs.create_execute_initcode_frame + 16)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_return_len (GuestAddrs.create_execute_initcode_frame + 16)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_code_len (GuestAddrs.create_execute_initcode_frame + 28)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_code_len (GuestAddrs.create_execute_initcode_frame + 28)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 40)),
+    .AUIPC .x6 (laHi GuestAddrs.create_child_code (GuestAddrs.create_execute_initcode_frame + 48)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_child_code (GuestAddrs.create_execute_initcode_frame + 48)),
+    .LI .x7 (256 : Word),
+    .SB .x5 .x0 (0 : BitVec 12),
+    .SB .x6 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .LI .x5 (0 : Word),
+    .AUIPC .x7 (laHi GuestAddrs.create_child_initcode (GuestAddrs.create_execute_initcode_frame + 88)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_child_initcode (GuestAddrs.create_execute_initcode_frame + 88)),
+    .AUIPC .x28 (laHi GuestAddrs.create_child_stack (GuestAddrs.create_execute_initcode_frame + 96)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.create_child_stack (GuestAddrs.create_execute_initcode_frame + 96)),
+    .LI .x29 (0 : Word),
+    .LI .x30 (1024 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.create_child_init_len (GuestAddrs.create_execute_initcode_frame + 112)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_child_init_len (GuestAddrs.create_execute_initcode_frame + 112)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .BEQ .x30 .x0 (600 : BitVec 13),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .BGEU .x5 .x6 (532 : BitVec 13),
+    .ADD .x10 .x7 .x5,
+    .LBU .x31 .x10 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .BEQ .x31 .x0 (516 : BitVec 13),
+    .LI .x10 (243 : Word),
+    .BEQ .x31 .x10 (344 : BitVec 13),
+    .LI .x10 (253 : Word),
+    .BEQ .x31 .x10 (360 : BitVec 13),
+    .LI .x10 (254 : Word),
+    .BEQ .x31 .x10 (576 : BitVec 13),
+    .LI .x10 (82 : Word),
+    .BEQ .x31 .x10 (144 : BitVec 13),
+    .LI .x10 (83 : Word),
+    .BEQ .x31 .x10 (244 : BitVec 13),
+    .LI .x10 (95 : Word),
+    .BEQ .x31 .x10 (24 : BitVec 13),
+    .LI .x10 (96 : Word),
+    .BLTU .x31 .x10 (544 : BitVec 13),
+    .LI .x10 (128 : Word),
+    .BGEU .x31 .x10 (536 : BitVec 13),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x11 (0 : Word),
+    .JAL .x0 (72 : BitVec 21),
+    .ADDI .x12 .x31 (-95 : BitVec 12),
+    .ADD .x13 .x5 .x12,
+    .BLTU .x6 .x13 (512 : BitVec 13),
+    .LI .x11 (0 : Word),
+    .BEQ .x12 .x0 (52 : BitVec 13),
+    .ADD .x13 .x7 .x5,
+    .LBU .x14 .x13 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .LI .x13 (8 : Word),
+    .BLTU .x13 .x12 (20 : BitVec 13),
+    .SLLI .x11 .x11 (8 : BitVec 6),
+    .OR .x11 .x11 .x14,
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .BNE .x14 .x0 (464 : BitVec 13),
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .JAL .x0 (-48 : BitVec 21),
+    .LI .x10 (16 : Word),
+    .BGEU .x29 .x10 (448 : BitVec 13),
+    .SLLI .x10 .x29 (3 : BitVec 6),
+    .ADD .x10 .x28 .x10,
+    .SD .x10 .x11 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-196 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .BLTU .x29 .x10 (420 : BitVec 13),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .SLLI .x10 .x29 (3 : BitVec 6),
+    .ADD .x10 .x28 .x10,
+    .LD .x11 .x10 (0 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .SLLI .x10 .x29 (3 : BitVec 6),
+    .ADD .x10 .x28 .x10,
+    .LD .x12 .x10 (0 : BitVec 12),
+    .LI .x10 (224 : Word),
+    .BLTU .x10 .x11 (380 : BitVec 13),
+    .AUIPC .x13 (laHi GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 372)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 372)),
+    .ADD .x13 .x13 .x11,
+    .LI .x14 (24 : Word),
+    .SB .x13 .x0 (0 : BitVec 12),
+    .ADDI .x13 .x13 (1 : BitVec 12),
+    .ADDI .x14 .x14 (-1 : BitVec 12),
+    .BNE .x14 .x0 (-12 : BitVec 13),
+    .LI .x14 (56 : Word),
+    .SRL .x15 .x12 .x14,
+    .SB .x13 .x15 (0 : BitVec 12),
+    .ADDI .x13 .x13 (1 : BitVec 12),
+    .ADDI .x14 .x14 (-8 : BitVec 12),
+    .BGE .x14 .x0 (-16 : BitVec 13),
+    .JAL .x0 (-304 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .BLTU .x29 .x10 (312 : BitVec 13),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .SLLI .x10 .x29 (3 : BitVec 6),
+    .ADD .x10 .x28 .x10,
+    .LD .x11 .x10 (0 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .SLLI .x10 .x29 (3 : BitVec 6),
+    .ADD .x10 .x28 .x10,
+    .LD .x12 .x10 (0 : BitVec 12),
+    .LI .x10 (255 : Word),
+    .BLTU .x10 .x11 (272 : BitVec 13),
+    .AUIPC .x13 (laHi GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 480)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 480)),
+    .ADD .x13 .x13 .x11,
+    .SB .x13 .x12 (0 : BitVec 12),
+    .JAL .x0 (-372 : BitVec 21),
+    .LI .x16 (2 : Word),
+    .AUIPC .x17 (laHi GuestAddrs.create_child_code_len (GuestAddrs.create_execute_initcode_frame + 504)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.create_child_code_len (GuestAddrs.create_execute_initcode_frame + 504)),
+    .AUIPC .x15 (laHi GuestAddrs.create_child_code (GuestAddrs.create_execute_initcode_frame + 512)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.create_child_code (GuestAddrs.create_execute_initcode_frame + 512)),
+    .JAL .x0 (28 : BitVec 21),
+    .LI .x16 (3 : Word),
+    .AUIPC .x17 (laHi GuestAddrs.create_child_return_len (GuestAddrs.create_execute_initcode_frame + 528)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.create_child_return_len (GuestAddrs.create_execute_initcode_frame + 528)),
+    .AUIPC .x15 (laHi GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 536)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 536)),
+    .JAL .x0 (4 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .BLTU .x29 .x10 (196 : BitVec 13),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .SLLI .x10 .x29 (3 : BitVec 6),
+    .ADD .x10 .x28 .x10,
+    .LD .x11 .x10 (0 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .SLLI .x10 .x29 (3 : BitVec 6),
+    .ADD .x10 .x28 .x10,
+    .LD .x12 .x10 (0 : BitVec 12),
+    .LI .x10 (256 : Word),
+    .BLTU .x10 .x12 (156 : BitVec 13),
+    .ADD .x10 .x11 .x12,
+    .BLTU .x10 .x11 (148 : BitVec 13),
+    .LI .x13 (256 : Word),
+    .BLTU .x13 .x10 (140 : BitVec 13),
+    .SD .x17 .x12 (0 : BitVec 12),
+    .BEQ .x12 .x0 (52 : BitVec 13),
+    .AUIPC .x13 (laHi GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 620)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 620)),
+    .ADD .x13 .x13 .x11,
+    .MV .x14 .x12,
+    .LBU .x10 .x13 (0 : BitVec 12),
+    .SB .x15 .x10 (0 : BitVec 12),
+    .ADDI .x13 .x13 (1 : BitVec 12),
+    .ADDI .x15 .x15 (1 : BitVec 12),
+    .ADDI .x14 .x14 (-1 : BitVec 12),
+    .BNE .x14 .x0 (-20 : BitVec 13),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x16 (2 : Word),
+    .LI .x10 (2 : Word),
+    .BNE .x16 .x10 (32 : BitVec 13),
+    .AUIPC .x11 (laHi GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 676)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.create_child_returndata (GuestAddrs.create_execute_initcode_frame + 676)),
+    .LI .x12 (256 : Word),
+    .SB .x11 .x0 (0 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .BNE .x12 .x0 (-12 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 704)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 704)),
+    .SD .x10 .x16 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 724)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 724)),
+    .LI .x11 (5 : Word),
+    .SD .x10 .x11 (0 : BitVec 12),
+    .LI .x10 (5 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 748)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.create_child_status (GuestAddrs.create_execute_initcode_frame + 748)),
+    .LI .x11 (4 : Word),
+    .SD .x10 .x11 (0 : BitVec 12),
+    .LI .x10 (4 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `createExecuteInitcodeFrame_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def createExecuteInitcodeFrame_relocs : RelocTable :=
+  [ (0, .la .x5 "create_child_status"),
+    (4, .la .x5 "create_child_return_len"),
+    (7, .la .x5 "create_child_code_len"),
+    (10, .la .x5 "create_child_returndata"),
+    (12, .la .x6 "create_child_code"),
+    (22, .la .x7 "create_child_initcode"),
+    (24, .la .x28 "create_child_stack"),
+    (28, .la .x6 "create_child_init_len"),
+    (93, .la .x13 "create_child_returndata"),
+    (120, .la .x13 "create_child_returndata"),
+    (126, .la .x17 "create_child_code_len"),
+    (128, .la .x15 "create_child_code"),
+    (132, .la .x17 "create_child_return_len"),
+    (134, .la .x15 "create_child_returndata"),
+    (155, .la .x13 "create_child_returndata"),
+    (169, .la .x11 "create_child_returndata"),
+    (176, .la .x10 "create_child_status"),
+    (181, .la .x10 "create_child_status"),
+    (187, .la .x10 "create_child_status") ]
+
+def createExecuteInitcodeFrameRuntimeFunction : String :=
+  "create_execute_initcode_frame:\n" ++ emitProgramR createExecuteInitcodeFrame_prog createExecuteInitcodeFrame_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `createExecuteInitcodeFrame_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
+    createExecuteInitcodeFrameRuntimeFunction = "create_execute_initcode_frame:\n" ++ emitProgramR createExecuteInitcodeFrame_prog createExecuteInitcodeFrame_relocs := rfl
+
+#guard createExecuteInitcodeFrameRuntimeFunction.startsWith "create_execute_initcode_frame:\n"
+#guard createExecuteInitcodeFrame_prog.length = 193
 /-- Post-dispatch per-transaction gas settlement fold (nxio8 / EIP-8037).
 
     The spec's transaction settlement is

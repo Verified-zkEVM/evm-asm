@@ -1,274 +1,204 @@
 /-
   EvmAsm.Stateless.EntrySpec
 
-  The top-level specification STATEMENT for
-  `Stateless.Entry.run_stateless_guest` (bead evm-asm-4ch8f.8; the
-  end-to-end theorem itself is bead evm-asm-4ch8f.64).
+  The top-level specification SHAPE for the verified stateless guest
+  (bead evm-asm-4ch8f.8). Decision record: docs/4ch8f-top-spec.md.
 
-  ## What the top theorem says (decisions, 4ch8f.8)
+  The headline Prop is `runStatelessGuestSound cr fuel work execute`:
 
-  1. **Soundness direction only (one-sided), over a PINNED
-     observation window.** The guest may false-reject (flag byte 0)
-     for any reason — unsupported feature, fuel, witness shape —
-     without violating the spec. What it may never do is
-     false-accept: if the flag byte at the fixed offset 32 of the
-     40-byte OUTPUT observation window is 1, then the Python
-     reference (`SpecRef.run_stateless_guest`, the Lean port of
-     `execution-specs/.../stateless_guest.py`) run on the same input
-     succeeds and agrees on the observed root+flag bytes
-     (`GuestOutputSound`). The window length is pinned INSIDE the
-     postcondition — review of the first draft found that an
-     existential output with a self-delimiting decode is vacuously
-     dischargeable (empty or over-extended `out` decodes to no claim);
-     see the §per-run-contracts comment. Full-serialization byte
-     equality (which also pins the chain-config echo) is the separate
-     `GuestOutputFaithful` clause, the guest-shell bead's target; the
-     completeness direction is documented as `GuestOutputComplete`.
-     Neither is part of the headline statement.
+    for every host-supplied input (≤ `MAX_INPUT_BYTES`), starting at the
+    guest ELF entry with the input framed at `INPUT_ADDR` and owning the
+    work regions, the guest HALTS within `fuel` steps, and whatever the
+    verifier then reads at `OUTPUT_ADDR` is a SOUND claim: if the
+    `successful_validation` byte (OUTPUT[32]) is 1, then the input
+    deserializes per the spec, the spec's `verify_stateless_new_payload`
+    (with execution seam `execute`) also validates, and the 32-byte root
+    at OUTPUT[0..32) is the spec's `compute_new_payload_request_root`.
 
-  2. **Trust boundary.**
-     - Host input bytes: the ZisK transport record at `INPUT_ADDR + 8`
-       (`ziskInputRecord` = length word + payload;
-       docs/agents/stateless-input-contract.md). The statement
-       quantifies over ALL payloads — nothing about the host is
-       trusted beyond placement; the 8 ZisK meta bytes at `+0` are
-       deliberately unconstrained.
-     - Machine model: `EvmAsm.Rv64` step semantics including the
-       concrete ZisK accelerator semantics (`Rv64/ZiskAccel.lean`,
-       kernel-checked KATs) — part of the model, not an axiom.
-     - The execution seam: `SpecRef.verify_stateless_new_payload` cuts
-       EVM re-execution at `execute : ExecutionSeam`
-       (docs/4ch8f-specref-port.md §"The execution seam"). The
-       statement is parameterized by the seam; instantiating it with
-       the real STF model is the Block/VM subtree's obligation
-       (beads 4ch8f.10/.49–.62).
+  Parameters deliberately left open (supplied by later beads, see the
+  decision record §4):
+    * `cr : CodeReq`   — the guest image's code requirement (bead .63
+      composes it from the wave-.9 `Program` conversions).
+    * `fuel : Nat`     — the step budget (a gas-derived static cap in the
+      `.5` `whileS` style; wrong cap ⇒ unprovable, never unsound).
+    * `work : Assertion` — ownership of the guest's scratch/work regions
+      (bead .6 phase views over `RegionMap`; bead .63 fixes the bundle).
+    * `execute : SpecRef.ExecutionSeam` — the Lean model of
+      `execute_new_payload_request` (bead .10's interpreter model closes
+      this seam; until then the Prop is stated against the seam
+      parameter, exactly as `SpecRef.verify_stateless_new_payload` is).
 
-  3. **Vehicle.** `cpsHaltTripleWithin` over
-     `CodeReq.ofProg entry guest`: from any state where the code is
-     placed, the input record sits at `INPUT_ADDR`, and the guest's
-     working-state framing `fr.scratch` holds, execution HALTS within
-     `nSteps` and the OUTPUT region holds sound bytes. The framing is
-     bundled in `GuestFraming` with a SATISFIABILITY witness
-     (`scratch_sat`) so the statement cannot be discharged vacuously
-     by an unsatisfiable scratch assertion. Pinning the canonical
-     scratch (working-RAM anyBytes tiling per `Codegen/RegionMap.lean`
-     + the phase-ownership model) is part of bead 4ch8f.63.
+  Direction: soundness-only (one-sided). `runStatelessGuestFaithful` is
+  the stronger two-sided fidelity Prop (output bytes = the spec's
+  serialized result on deserializable inputs); it is a stated NON-goal
+  for the first end-to-end theorem (bead .64) — see the decision record.
 
-  4. **Deployment gap.** This statement is about the Lean `Program`
-     value `Stateless.Entry.run_stateless_guest`. The emitted-ELF
-     correspondence (`emitProgram` string equality, bead evm-asm-tj9ts
-     / 4ch8f.9) is a separate, mechanical layer.
-
-  The obligation ledger that decomposes this statement into leaf work
-  lives at `docs/agents/top-theorem-ledger.md`.
+  The machine-side notions come from `Rv64.CPSSpec`:
+  `cpsHaltTripleWithin` (halt = `step = none`; the clean guest halt is
+  the ECALL-t0=0 stub emitted by `--halt linux93`, and traps also
+  satisfy `isHalted` — since `step` is deterministic, the ∃-run in the
+  triple is THE run, so the postcondition constrains the actual outcome).
 -/
 
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SpecRef.Guest
+import EvmAsm.Rv64.CPSSpec
+import EvmAsm.Rv64.MemRegion
 
 namespace EvmAsm.Stateless
 
 open EvmAsm.Rv64
+open EvmAsm.Stateless.SpecRef
 
-/-! ## Guest I/O region constants
+/-! ## Trust-boundary constants (decision record §2)
 
-    Numeric mirrors of `EvmAsm.Codegen.Programs.EvmBasic.INPUT_ADDR` /
-    `OUTPUT_ADDR` / `INPUT_DATA_OFFSET`. Layering rule L1
-    (`scripts/check-layering.sh`) forbids the verified core from
-    importing `Codegen`, so the values are restated here; drift is
-    caught by the `#guard`s in `EvmAsm/Codegen/RegionMap.lean` pinning
-    the same addresses. -/
+    Framing follows the emitted reality recorded in
+    `Codegen.RegionMap.inputRegion` / `outputRegion` and the ELF:
+    * `INPUT_ADDR = 0x40000000`: `[+0..8)` ZisK meta, `[+8..16)` u64-LE
+      payload length, `[+16..)` payload (= the `input_bytes` the Python
+      `run_stateless_guest` receives: 2-byte schema id ++ SSZ body).
+    * `OUTPUT_ADDR = 0xa0010000` (= `SSZ.Encode.OUTPUT_BASE`): the SSZ
+      `StatelessValidationResult` — root `[0..32)`, validation byte
+      `[32]`, chain-config echo after.
+    * `GUEST_ENTRY = 0x80000000`: the `stateless_guest.elf` entry point
+      (`e_entry`, `-Ttext=0x80000000`, `_start` first).
+    * `MAX_INPUT_BYTES = 2^30`: the project's 1 GiB input bound; keeps
+      the input window `[0x40000000, 0x80000000)` below `.text`. -/
 
-/-- Base of the host-supplied input region (mirrors
-    `Codegen.Programs.EvmBasic.INPUT_ADDR`). -/
-def STATELESS_INPUT_ADDR : Word := 0x40000000
+def INPUT_ADDR : Word := 0x40000000
+def INPUT_LEN_OFFSET : Word := 8
+def INPUT_BODY_OFFSET : Word := 16
+def OUTPUT_ADDR : Word := 0xa0010000
+def GUEST_ENTRY : Word := 0x80000000
+def MAX_INPUT_BYTES : Nat := 0x40000000
 
-/-- Base of the public output region (mirrors
-    `Codegen.Programs.EvmBasic.OUTPUT_ADDR`; same value as
-    `UNIMPL_OUTPUT_ADDR` in `Stateless/Unimplemented.lean`). -/
-def STATELESS_OUTPUT_ADDR : Word := 0xa0010000
+/-- The observation window at `OUTPUT_ADDR` the soundness claim is stated
+    over: root (32) + validation byte (1), padded to the 40-byte dword
+    boundary. The verifier's accept signal is byte 32; bytes beyond the
+    window (the chain-config echo) are outside the soundness claim (they
+    belong to `runStatelessGuestFaithful`). -/
+def OUTPUT_CLAIM_BYTES : Nat := 40
 
-/-- Offset of the SSZ payload inside the input region (mirrors
-    `Codegen.Programs.EvmBasic.INPUT_DATA_OFFSET`): 8 bytes of ZisK
-    metadata then the LE u64 payload length. -/
-def STATELESS_INPUT_DATA_OFFSET : Nat := 16
+/-- The u64 little-endian byte encoding of `n` (the input length field at
+    `INPUT_ADDR + 8`). -/
+def u64LEBytes (n : Nat) : List (BitVec 8) :=
+  (List.range 8).map (fun i => BitVec.ofNat 8 (n >>> (8 * i)))
 
-/-- The guest-relevant transport record: the LE u64 payload length at
-    `INPUT_ADDR + 8`, then the schema-prefixed SSZ `SszStatelessInput`
-    bytes at `INPUT_ADDR + 16` (see `Stateless/MemoryLayout.lean` and
-    docs/agents/stateless-input-contract.md). The 8 ZisK metadata bytes
-    at `INPUT_ADDR + 0` are intentionally NOT part of the record — the
-    statement must not constrain host transport bytes the guest never
-    relies on (they stay in `fr.scratch`). Note `bytesRegion`'s
-    trailing-dword convention pins the pad bytes of a
-    non-multiple-of-8 payload to zero — matching the ziskemu host
-    packing rule (zero padding to 8 bytes). -/
-def ziskInputRecord (payload : SpecRef.Bytes) : SpecRef.Bytes :=
-  SpecRef.natToBytesLE 8 payload.length ++ payload
+@[simp] theorem u64LEBytes_length (n : Nat) : (u64LEBytes n).length = 8 := by
+  simp [u64LEBytes]
 
-/-- Assertion: the input region holds the transport record for
-    `payload` (length word + payload; ZisK meta dwords excluded). -/
-def inputRecordAt (payload : SpecRef.Bytes) : Assertion :=
-  bytesRegion (STATELESS_INPUT_ADDR + 8) (ziskInputRecord payload)
+/-! ## Precondition: host input framing -/
 
-/-- Assertion: the output region starts with exactly `out`. Bytes of
-    the 64 KiB output window past `out.length` are intentionally
-    unconstrained (they stay inside the guest's scratch framing). -/
-def outputBytesAt (out : SpecRef.Bytes) : Assertion :=
-  bytesRegion STATELESS_OUTPUT_ADDR out
+/-- Ownership + contents of the host input framing: the length dword at
+    `INPUT_ADDR+8` and the payload bytes at `INPUT_ADDR+16`. The ZisK
+    meta dword `[+0..8)` is not read by the guest and stays in the frame.
 
-/-! ## Decoding the guest's verdict -/
+    NOTE (`bytesRegion` tail convention): the payload region asserts whole
+    trailing dwords, so a payload whose length is not a multiple of 8 has
+    its final-dword tail bytes pinned to 0 — i.e. the statement assumes
+    the host zero-pads the input buffer to the next dword, which matches
+    the ziskemu input convention (8-byte-padded inputs; see the
+    `reference` memory note and the probe harness). -/
+def guestInputAssertion (input : Bytes) : Assertion :=
+  bytesRegion (INPUT_ADDR + INPUT_LEN_OFFSET) (u64LEBytes input.length) **
+  bytesRegion (INPUT_ADDR + INPUT_BODY_OFFSET) input
 
-/-- Decode OUTPUT-region bytes as an SSZ `StatelessValidationResult`
-    (exactly the reference codec — no parallel decoder). -/
-def decodeGuestOutput (out : SpecRef.Bytes) :
-    Option SpecRef.StatelessValidationResult :=
-  (do
-    let sv ← SpecRef.deserialize SpecRef.sszStatelessValidationResultType out
-    SpecRef.sszToValidationResult sv).toOption
+/-! ## Postcondition: the verifier-facing claim -/
 
-/-- Does the guest's output claim `successful_validation = 1`?
-    Undecodable output claims nothing (counts as a reject). -/
-def guestOutputClaimsValid (out : SpecRef.Bytes) : Bool :=
-  match decodeGuestOutput out with
-  | some r => r.successfulValidation
-  | none => false
+/-- The spec-side acceptance condition the guest's `valid = 1` claim must
+    imply: the payload deserializes (a Python deserialization exception
+    would propagate out of `run_stateless_guest`, so an undeserializable
+    input can never be validly claimed), the spec's stateless validation
+    succeeds under the execution seam `execute`, and the claimed root is
+    the spec's NPR root (binding the claim to the actual payload). -/
+def SpecAccepts (execute : ExecutionSeam) (input root : Bytes) : Prop :=
+  ∃ si, deserialize_stateless_input input = .ok si ∧
+    (verify_stateless_new_payload si execute).successfulValidation = true ∧
+    root = compute_new_payload_request_root si
 
-/-! ## The per-run contracts
+/-- Soundness of the output window: whatever 40 bytes sit at
+    `OUTPUT_ADDR` when the guest halts, IF the validation byte
+    (OUTPUT[32]) is 1 THEN the spec accepts the input with the claimed
+    root (OUTPUT[0..32)). Reject paths (validation byte ≠ 1, including
+    the `0xFE…` unimplemented-exit marker) satisfy this vacuously —
+    soundness never constrains rejections. -/
+def guestOutputSound (execute : ExecutionSeam) (input : Bytes) : Assertion :=
+  fun h => ∃ out : Bytes, out.length = OUTPUT_CLAIM_BYTES ∧
+    bytesRegion OUTPUT_ADDR out h ∧
+    (out.getD 32 0 = 1 → SpecAccepts execute input (out.take 32))
 
-    The headline soundness claim is stated over a FIXED-length
-    observation window, not a self-delimiting decode of an
-    existentially chosen byte list. Review of the first draft
-    (PR #9734, Fable) found two vacuity escapes in the decode-based
-    form: choose `out = []` (nothing owns the OUTPUT dwords — the
-    residue can hide them) or extend `out` past the true serialization
-    (exact-length SSZ decode fails ⇒ claims nothing). Pinning
-    `out.length` to the observation window and reading the flag byte
-    at its fixed offset closes both. -/
+/-! ## The top-level Props -/
 
-/-- SSZ layout of `StatelessValidationResult`: 32-byte NPR root, then
-    the `successful_validation` flag byte, then the (variable-length)
-    chain-config offset+body. The external verifier observes the first
-    33 bytes; the window is padded to the containing dword boundary so
-    `outputBytesAt` owns whole dwords. -/
-def STATELESS_OUTPUT_FLAG_OFFSET : Nat := 32
-def STATELESS_OUTPUT_OBS_BYTES : Nat := 40
+/-- **The headline statement shape** (soundness + termination): for every
+    host input within the size bound, the guest — running from the ELF
+    entry with the input framed and the work regions owned — halts within
+    `fuel` steps in a state whose output window is a sound claim.
 
-/-- **Soundness** (the headline obligation), over the pinned
-    40-byte observation window `obs`: if the flag byte at offset 32
-    claims validity, the Lean reference run on the same payload
-    succeeds and agrees on the observed bytes (NPR root + flag).
-    Reference *errors* (including input-deserialization failures,
-    which Python propagates) make the right-hand side unsatisfiable,
-    so the guest must not stamp the flag on any input the reference
-    rejects. -/
-def GuestOutputSound (execute : SpecRef.ExecutionSeam)
-    (payload obs : SpecRef.Bytes) : Prop :=
-  obs.getD STATELESS_OUTPUT_FLAG_OFFSET 0 = 1 →
-    ∃ specOut, SpecRef.run_stateless_guest payload execute = .ok specOut ∧
-      specOut.take (STATELESS_OUTPUT_FLAG_OFFSET + 1)
-        = obs.take (STATELESS_OUTPUT_FLAG_OFFSET + 1)
+    Bead `.64` proves this for the concrete `(cr, fuel, work, execute)`
+    quadruple: the guest-image `CodeReq` (bead .63), the gas-derived step
+    cap, the `.6`-style work-region bundle, and the `.10` interpreter
+    model closing the execution seam. -/
+def runStatelessGuestSound (cr : CodeReq) (fuel : Nat) (work : Assertion)
+    (execute : ExecutionSeam) : Prop :=
+  ∀ input : Bytes, input.length ≤ MAX_INPUT_BYTES →
+    cpsHaltTripleWithin fuel GUEST_ENTRY cr
+      (guestInputAssertion input ** work)
+      (guestOutputSound execute input)
 
-/-- **Fidelity** (the stronger accept-path clause, target of the guest
-    shell bead): the FULL serialized output — chain-config echo
-    included — is byte-identical to the reference output whenever it
-    decodes to a claim of validity. Implies the observed-window
-    agreement of `GuestOutputSound`; kept separate because the
-    headline statement must not depend on a prover-chosen
-    self-delimiting decode. -/
-def GuestOutputFaithful (execute : SpecRef.ExecutionSeam)
-    (payload out : SpecRef.Bytes) : Prop :=
-  guestOutputClaimsValid out = true →
-    SpecRef.run_stateless_guest payload execute = .ok out
+/-- The two-sided fidelity Prop (stated, NOT a `.64` v1 goal): on every
+    deserializable input the guest's full output equals the spec's
+    serialized result byte-for-byte. This subsumes completeness
+    (no false rejects) for deserializable inputs; proving it additionally
+    requires the exact chain-config echo produced by
+    `SSZ.Encode.serialize_stateless_output` to match the SpecRef
+    serializer — tracked as a `.64` follow-up. -/
+def runStatelessGuestFaithful (cr : CodeReq) (fuel : Nat) (work : Assertion)
+    (execute : ExecutionSeam) : Prop :=
+  ∀ input si, input.length ≤ MAX_INPUT_BYTES →
+    deserialize_stateless_input input = .ok si →
+    cpsHaltTripleWithin fuel GUEST_ENTRY cr
+      (guestInputAssertion input ** work)
+      (bytesRegion OUTPUT_ADDR
+        (serialize_stateless_output (verify_stateless_new_payload si execute)))
 
-/-- **Completeness** (documented, NOT required by the headline
-    statement): whenever the reference validates, the guest does too.
-    False-rejects are explicitly allowed in the deployed guest
-    (fuel, unsupported precompiles, witness-shape limits). -/
-def GuestOutputComplete (execute : SpecRef.ExecutionSeam)
-    (payload out : SpecRef.Bytes) : Prop :=
-  ∀ specOut, SpecRef.run_stateless_guest payload execute = .ok specOut →
-    guestOutputClaimsValid specOut = true →
-    out = specOut
+/-! ## Kernel-checked layout pins
 
-/-! ## The machine-level statement -/
+    These tie the observation window's offsets to the SpecRef SSZ
+    encoder, so `guestOutputSound`'s byte-32 / first-32-bytes reads are
+    justified from the spec side (not just the guest's layout comments):
+    on the sanity pipeline the serialized result carries the NPR root at
+    `[0..32)` and the validation flag at `[32]`. -/
 
-/-- The guest's working-state framing: the scratch resources the guest
-    owns before the run (working RAM, output window, stack, …) and the
-    residue it leaves behind. `scratch_sat` is the non-vacuity
-    witness: an unsatisfiable `scratch` would make any
-    `cpsHaltTripleWithin` with this precondition hold trivially, so a
-    framing must come with evidence that the precondition is
-    inhabited for every payload. -/
-structure GuestFraming where
-  /-- Resources owned at entry, beyond the input record. -/
-  scratch : Assertion
-  /-- Residue at halt, beyond the output bytes. -/
-  residue : Assertion
-  /-- Non-vacuity: the precondition is satisfiable for every payload. -/
-  scratch_sat : ∀ payload : SpecRef.Bytes,
-    ∃ h, (inputRecordAt payload ** scratch) h
+private def sanityResult : StatelessValidationResult :=
+  verify_stateless_new_payload sanityInput executeAlwaysOk
 
-/-- The top-level soundness statement SHAPE (bead 4ch8f.8): placed at
-    `entry` with framing `fr`, for EVERY host payload the guest halts
-    within `nSteps` and the output region holds bytes that are sound
-    w.r.t. the reference under the seam `execute`.
+-- Byte 32 of the serialized result is the successful_validation flag.
+#guard (serialize_stateless_output sanityResult).getD 32 0
+        == (if sanityResult.successfulValidation then 1 else 0)
 
-    The final theorem (bead 4ch8f.64) provides concrete
-    `execute`/`nSteps`/`fr` and proves
-    `RunStatelessGuestSound execute Entry.run_stateless_guest nSteps entry fr`. -/
-def RunStatelessGuestSound (execute : SpecRef.ExecutionSeam)
-    (guest : Program) (nSteps : Nat) (entry : Word)
-    (fr : GuestFraming) : Prop :=
-  ∀ payload : SpecRef.Bytes,
-    cpsHaltTripleWithin nSteps entry (CodeReq.ofProg entry guest)
-      (inputRecordAt payload ** fr.scratch)
-      (fun h => ∃ obs : SpecRef.Bytes,
-        (outputBytesAt obs **
-         ⌜obs.length = STATELESS_OUTPUT_OBS_BYTES⌝ **
-         ⌜GuestOutputSound execute payload obs⌝ **
-         fr.residue) h)
-  -- `obs.length` is pinned, so `outputBytesAt obs` necessarily owns
-  -- OUTPUT[0..40) — the residue cannot absorb the observed window and
-  -- the flag byte the claim reads is uniquely the memory content.
+-- Bytes [0..32) of the serialized result are the NPR root.
+#guard (serialize_stateless_output sanityResult).take 32
+        == compute_new_payload_request_root sanityInput
 
-/-! ## Sanity pins (kernel-evaluated)
+-- `SpecAccepts` is inhabited end-to-end on the sanity pipeline: the
+-- schema-prefixed sanity bytes deserialize, validate (placeholder seam),
+-- and yield the matching root — i.e. the soundness target is satisfiable.
+#guard match sanityInputBytes with
+  | .ok bytes =>
+      (match deserialize_stateless_input bytes with
+       | .ok si =>
+           (verify_stateless_new_payload si executeAlwaysOk).successfulValidation
+             && (compute_new_payload_request_root si
+                   == compute_new_payload_request_root sanityInput)
+       | .error _ => false)
+  | .error _ => false
 
-    Tie the verdict decoder to the reference codec on the SpecRef
-    sanity vectors, so `guestOutputClaimsValid` cannot silently drift
-    from `serialize_stateless_output`. -/
-
--- The reference's own sanity result decodes and claims validity.
-#guard guestOutputClaimsValid
-  (SpecRef.serialize_stateless_output SpecRef.sanityResult) == true
-
--- Flipping the bit is visible to the decoder.
-#guard guestOutputClaimsValid
-  (SpecRef.serialize_stateless_output
-    { SpecRef.sanityResult with successfulValidation := false }) == false
-
--- Garbage output claims nothing.
-#guard guestOutputClaimsValid [0xff, 0xff] == false
-
--- The flag byte sits at the documented fixed offset of the serialized
--- output (32-byte root, then successful_validation) — the offset the
--- headline observation window reads.
-#guard (SpecRef.serialize_stateless_output SpecRef.sanityResult).getD
-  STATELESS_OUTPUT_FLAG_OFFSET 0 == 1
-#guard (SpecRef.serialize_stateless_output
-  { SpecRef.sanityResult with successfulValidation := false }).getD
-  STATELESS_OUTPUT_FLAG_OFFSET 0 == 0
-#guard (SpecRef.serialize_stateless_output SpecRef.sanityResult).take 32 ==
-  SpecRef.sanityResult.newPayloadRequestRoot
-
--- The observation window covers the root + flag and is dword-aligned.
-#guard STATELESS_OUTPUT_FLAG_OFFSET + 1 ≤ STATELESS_OUTPUT_OBS_BYTES
-#guard STATELESS_OUTPUT_OBS_BYTES % 8 == 0
-
--- The transport record (length word at +8, payload at +16, ZisK meta
--- excluded) places the payload at the documented offset.
-#guard 8 + (ziskInputRecord [0xab]).length == STATELESS_INPUT_DATA_OFFSET + 1
-#guard (ziskInputRecord (List.replicate 300 (0 : BitVec 8))).take 8 ==
-  ([0x2c, 0x01] ++ List.replicate 6 (0 : BitVec 8))
+/- A Prop-level `SpecAccepts` witness theorem is deliberately NOT stated
+   here: the SpecRef decoders (`decodeFully`, the SSZ deserializer) are
+   well-founded-recursive, so concrete runs do not kernel-reduce under
+   `decide` (the `#guard`s above are interpreter-evaluated, which is the
+   project-standard sanity artifact for such pipelines). Prop-level
+   witnesses on concrete inputs arrive with `.64`'s simulation machinery,
+   which never needs to reduce the spec on concrete bytes. -/
 
 end EvmAsm.Stateless
