@@ -241,11 +241,34 @@ def precompileFrameBls12G2OutputOff : Nat := 944
 /-- ECRECOVER staged input words: hash, v, r, s after buffer_read padding. -/
 def precompileFrameEcrecoverInputOff : Nat := 1152
 
+/-- Routing flag cell name (see the flag+`ret` discipline note below;
+    defined here because the stack guards reference it). -/
+def haltFlagLabel : String := "evm_halt_flag"
+
+/-- Inline flag+`ret` halt block for the stack guards (bead `evm-asm-vgyg9`
+    = `.49.a`; §3 amendment in docs/4ch8f-interp-strategy.md): set
+    `evm_halt_flag := code` and return.  `emitDispatchResume` routes the code
+    to the matching exceptional exit join (`7`→`.exit_stack_underflow`,
+    `8`→`.exit_stack_overflow`).
+
+    Deliberately does NOT load `.Ldispatch_resume` into `x1` (contrast
+    `dispatchHaltRet`): guards run at handler entry, where `x1` still holds
+    the `jalr`-passed return address, so a plain `ret` reaches the same
+    resume point — and preserving the caller's `x1` keeps the packaged
+    handle's `FnHandleS.sound` contract (∀ aligned `ret`) provable. -/
+def stackGuardHaltAsm (code : Nat) : String :=
+  s!"  li x5, {code}\n" ++
+  s!"  la x6, {haltFlagLabel}\n" ++
+  "  sd x5, 0(x6)\n" ++
+  "  ret\n"
+
 /-- Raw dispatcher guard for handlers that read `wordCount` EVM stack
     words before their body runs. The EVM stack grows downward from the
     CURRENT frame's stack top; a handler needing `n` words requires
-    `x12 <= cur_stack_top - 32*n`. If not, route to the exceptional
-    stack-underflow exit before any body performs unchecked loads.
+    `x12 <= cur_stack_top - 32*n`. If not, halt via the flag+`ret`
+    discipline with routing code 7 (`.exit_stack_underflow`) before any
+    body performs unchecked loads — the skip-branch keeps the handler
+    single-`ret`-exit (vgyg9; the local label `137` is repo-unique).
 
     Frame-relative: reads `evm_cur_stack_top` (a cell holding the current
     frame's stack-top address) rather than the global `evm_stack_top` label,
@@ -256,11 +279,15 @@ def stackUnderflowGuardAsm (wordCount : Nat) : String :=
   "  la x14, evm_cur_stack_top\n" ++
   "  ld x14, 0(x14)\n" ++
   s!"  addi x14, x14, -{wordCount * evmStackWordBytes}\n" ++
-  "  bltu x14, x12, .exit_stack_underflow"
+  "  bgeu x14, x12, 137f\n" ++
+  stackGuardHaltAsm 7 ++
+  "137:"
 
 /-- Raw dispatcher guard for handlers that push one EVM stack word. The EVM
     stack is full exactly when the live pointer has reached the current frame's
     stack low; pushing then would decrement below the protocol 1024-word arena.
+    On overflow, halt via the flag+`ret` discipline with routing code 8
+    (`.exit_stack_overflow`); see `stackUnderflowGuardAsm` for the shape.
 
     Frame-relative: reads `evm_cur_stack_low` (the current frame's stack-low
     address) instead of the global `evm_stack_low` label, so a child call
@@ -269,7 +296,9 @@ def stackUnderflowGuardAsm (wordCount : Nat) : String :=
 def stackOverflowGuardAsm : String :=
   "  la x14, evm_cur_stack_low\n" ++
   "  ld x14, 0(x14)\n" ++
-  "  bleu x12, x14, .exit_stack_overflow"
+  "  bltu x14, x12, 137f\n" ++
+  stackGuardHaltAsm 8 ++
+  "137:"
 
 /-! ### flag+`ret` handler-tail discipline (bead 4ch8f.10.3)
 
@@ -309,9 +338,6 @@ def stackOverflowGuardAsm : String :=
     and control lands at the same exit join the old `j .exit_*` targeted
     (x5/x6/x7/x1 are dead at every join, which reload x16/x17/x20). -/
 
-/-- Routing flag cell name (see the discipline note above). -/
-def haltFlagLabel : String := "evm_halt_flag"
-
 /-- Dispatch-site continuation label, emitted right after the `jalr`. -/
 def dispatchResumeLabel : String := ".Ldispatch_resume"
 
@@ -325,7 +351,9 @@ def dispatchContinueRet : String :=
     routing code `kind`, then `ret` to `.Ldispatch_resume`, which routes on
     the flag.  Routing codes: `1` STOP→`.exit_label`, `2`
     RETURN/REVERT→`.exit_no_epilogue`, `3` INVALID→`.exit_invalid_op`,
-    `4` SELFDESTRUCT→`.exit_selfdestruct`. -/
+    `4` SELFDESTRUCT→`.exit_selfdestruct`; the stack guards set `7`
+    →`.exit_stack_underflow` / `8`→`.exit_stack_overflow` inline via
+    `stackGuardHaltAsm` (which preserves `x1`, unlike this helper). -/
 def dispatchHaltRet (kind : Nat) : String :=
   s!"  li x5, {kind}\n" ++
   s!"  la x6, {haltFlagLabel}\n" ++
@@ -346,6 +374,8 @@ def emitDispatchResume : String :=
   "  li x7, 2\n  beq x6, x7, .exit_no_epilogue\n" ++
   "  li x7, 3\n  beq x6, x7, .exit_invalid_op\n" ++
   "  li x7, 4\n  beq x6, x7, .exit_selfdestruct\n" ++
+  "  li x7, 7\n  beq x6, x7, .exit_stack_underflow\n" ++
+  "  li x7, 8\n  beq x6, x7, .exit_stack_overflow\n" ++
   "  j .dispatch_loop"
 
 /-- Tail emitted after each handler's verified body.
