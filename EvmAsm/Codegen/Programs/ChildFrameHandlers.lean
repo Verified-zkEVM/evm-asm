@@ -159,7 +159,7 @@ def callPushZeroFallThrough (netPopBytes : Nat) : String :=
   "  sd x0, 16(x12)\n" ++
   "  sd x0, 24(x12)\n" ++
   "  addi x10, x10, 1\n" ++
-  "  j .dispatch_loop"
+  dispatchContinueRet
 
 /-- The real non-precompile CALL/STATICCALL descent (bead .61.6). At the `1:`
     fall-through (regs: x10=parent pc at the CALL, x12=parent stack top with the
@@ -837,7 +837,7 @@ def callDescendFallThrough
   "  addi x12, x12, " ++ np ++ "\n" ++
   "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
   "  addi x10, x10, 1\n" ++
-  "  j .dispatch_loop\n" ++
+  dispatchContinueRet ++ "\n" ++
   -- coc3g.7 (bv_fail=41): a value-bearing CALL (mode 0/2) whose caller balance < value
   -- still pays the value-transfer REGULAR gas, then fails (push 0). The balance gate jumps
   -- here (NOT to the shared .Lcd_fail_) so this charge does NOT touch the depth-gate or the
@@ -965,7 +965,7 @@ def callDescendFallThrough
   "  li t0, 1\n" ++
   "  sd t0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
   "  addi x10, x10, 1\n" ++
-  "  j .dispatch_loop\n" ++
+  dispatchContinueRet ++ "\n" ++
   -- descend (status 0): build the call descriptor then switch frames
   ".Lcd_descend_" ++ tag ++ ":\n" ++
   "  ld t0, 608(x20)\n" ++
@@ -1008,6 +1008,6 @@ def callDescendFallThrough
   -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
   emitPendingXferLog "desc_" ++
   emitPendingBurnLog "desc_" ++
-  "  j .dispatch_loop"
+  dispatchContinueRet
 
 end EvmAsm.Codegen

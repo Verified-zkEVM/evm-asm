@@ -69,6 +69,8 @@ def hashHandlers : List OpcodeHandlerSpec :=
         -- (e.g. precompile call_types storing keccak(returndata)). coc3g.5.
         emitProgram KeccakReverseSAsm.byteReverse32_verified ++ "\n" ++
         "  addi x10, x10, 1\n" ++       -- advance PC by 1
-        "  j .dispatch_loop") } ]
+        -- 4ch8f.10.3: `jal x1, zkvm_keccak256` clobbered x1, so restore the
+        -- dispatch continuation and `ret` (callRegS contract) not `j .dispatch_loop`.
+        dispatchContinueRet) } ]
 
 end EvmAsm.Codegen

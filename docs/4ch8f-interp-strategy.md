@@ -174,6 +174,48 @@ for never adding a multi-exit call primitive to the trusted soundness
 proof.  The `.4` remainder ships here as `callRegS` instead;
 `jalr x0` support is recorded as not required by any current consumer.
 
+**Amendment (`.10.3`, shipped — flag+`ret` concrete convention).**  The
+restructure landed with this concrete discipline (`Codegen/Dispatch.lean`,
+helpers `dispatchContinueRet` / `dispatchHaltRet` / `emitDispatchResume`):
+
+- **Routing cell `evm_halt_flag`** (u64, dispatcher `.data`): `0` = continue
+  the loop; a nonzero *routing code* selects the exit join —
+  `1`→`.exit_label` (STOP), `2`→`.exit_no_epilogue` (RETURN/REVERT and the
+  LOG-overflow halt), `3`→`.exit_invalid_op` (INVALID/`h_invalid`),
+  `4`→`.exit_selfdestruct` (SELFDESTRUCT).  A **memory cell** was chosen (not
+  a register) so it survives (a) the handler's own register restores /
+  `sp` resets (DIV/EXP `la sp, lp64_sp_top`), (b) helper calls that clobber
+  `ra` (`jal ra, frame_return`), and (c) cross-jumps into a handler tail
+  from the loop header (the depth-aware code-size-STOP guard jumps into the
+  RETURN handler's `.Lcreate_deposit_from_halt_*`).  It is readable by the
+  loop header in ≤2 instructions (`la`+`ld`), and cannot collide with the
+  EVM-ABI registers the handlers pin (the flag store uses x5/x6, which are
+  per-iteration scratch; x10/x11/x12 = a0/a1/a2 are untouched).
+- **Continuation `.Ldispatch_resume`** is emitted immediately after the
+  `jalr x1, x7, 0`.  A handler "continues" via `la x1, .Ldispatch_resume; ret`
+  (`dispatchContinueRet`) and "halts" via `dispatchHaltRet kind` (set the
+  flag, then the same `la x1; ret`).  Loading the fixed continuation into
+  `x1` restores the return address the loop always passes, so a handler that
+  clobbered `ra` still returns to the right place *and* the same code is
+  reached even when the tail was entered by a cross-`j` rather than the
+  `jalr`.
+- **`emitDispatchResume`** (at `.Ldispatch_resume`) reads the flag; when `0`
+  it falls straight through to `.dispatch_loop` (one `ld`+`beqz`); otherwise
+  it resets the flag to `0` and `beq`-routes to the encoded exit join.  The
+  reset makes the depth-aware joins (`.exit_selfdestruct` / `.exit_invalid_op`
+  continue the loop at depth>0) safe from a stale flag on the next iteration.
+- **Byte-behavior preserved.** The exit joins reload their own state
+  (x16/x17/x20) and the loop head reloads x5/x6/x7 and re-sets x1, so the
+  only observable effect of the inserted instructions is a fresh
+  read-reset-route through the flag — the control-flow target on every path
+  is identical to the old `j .exit_*` / `j .dispatch_loop`.  (Validated: the
+  base-vs-branch `runtime_dispatcher.s` diff is exactly the 50 tail
+  conversions + the flag cell + the resume block, and the EEST stateless
+  pass/fail set is unchanged.)  The exit *joins* themselves keep their
+  internal `j .dispatch_loop` (depth>0 `frame_return` continuation) — they
+  are loop machinery reached from the header, not `jalr`-called handler
+  subroutines, so they are outside the callRegS contract.
+
 **Rejected alternatives.**
 - *(A) Monomorphic handles + trace-indexed ghost posts* ("∃ j, exit
   encodes trace (j+1)"): cannot correlate `j` with the iteration, so
