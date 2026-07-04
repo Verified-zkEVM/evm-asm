@@ -2558,7 +2558,18 @@ ghost instantiation (docs/sasm-design.md §3.6.3, CallRegDemo); bead
 closed by .10 — `jalr x0` tail calls turned out unneeded (dispatch is
 jalr-x1 + ret; non-ret tails get the flag+ret restructure in .49), the
 real remainder was snapshot-parameterized handles, shipped as
-`FnHandleS`/`Stmt.callRegS` (design §3.11). ZisK accelerator semantics
+`FnHandleS`/`Stmt.callRegS` (design §3.11). Data-dependent dispatch windows
+landed (`SAsm/HandleFocus.lean`, bead evm-asm-4ch8f.49.1): `FnHandleS.focus`
+repackages a *family* of minimal-window handles `family sp` (each verified
+against `⟨sp, winLen⟩`, the `.10.1` shape) as ONE handle over a FIXED arena
+whose `pre` focuses the operative window at the register `x12` and whose
+`post` pins the window results as a function of the entry snapshot, framing
+the arena remainder — so `callRegS`'s `h.rw = caller.rw` holds while the
+window position varies per iteration (the `widenRw` fixed-offset embedding
+cannot). `FocusDemo` discharges the real `callRegS` `.pre` VC at two distinct
+`x12`; `Codegen/Proofs/HandleFocusReal` witnesses `focus` on the actual
+`evmAddHandle`/`evmSubHandle` (field hyps by `rfl`). Unblocks `.49.d`. ZisK
+accelerator semantics
 landed (`Rv64/ZiskAccel.lean` + `Instr.CSRS`, bead evm-asm-4ch8f.1):
 CONCRETE per-CSR semantics — Keccak-f[1600], SHA-256 compression,
 Arith256Mod exact (a*b+c) mod m — with kernel-checked KATs pinned to
