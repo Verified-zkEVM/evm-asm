@@ -247,6 +247,35 @@ it would import the heaviest corners of mathlib to prove facts
 `BitVec 256`-valued spec layer — every seam crossing would re-prove
 `toNat` transport that `Nat` gets for free.
 
+**Amendment (bead .38.1, the ECDSA recovery reference — substrate
+decision record).**  The "is mathlib useful for the *definitions*?"
+question was reopened and decided: the recovery reference
+(`EvmAsm/Stateless/SpecRef/Secp256k1Recover.lean`) keeps the
+**`Nat`-modular value substrate** — affine points are `Option (Nat ×
+Nat)` over `Accel.curveAdd`/`curveDbl`/`powMod`/`invMod`, so the
+reference pins the *same* `Nat` constants and formulas the accelerator
+seam computes with, and seam comparisons need no `ZMod.val` transport.
+Two hard constraints outranked elegance: (1) the kernel↔spec value seam
+is `Nat`/`BitVec`-limb (`Accel.arith256Mod` is a `Nat` function), and
+(2) the trusted-base KATs must reduce in the kernel (`decide +kernel`
+closes full 256-bit recovery vectors in ~25 s each with **no**
+`maxRecDepth`/heartbeat overrides), which mathlib's proof-carrying
+affine `Point.add` does not do.  `ZMod p`/mathlib remain available as a
+justification *oracle* inside the named divergence lemmas (`.11.8`
+Fermat/QR facts), stated over `Nat`, proven via `ZMod` where convenient
+— prefer `Mathlib.Data.ZMod.*`/`Mathlib.FieldTheory.*` over the
+`EllipticCurve` stack.  One authority divergence was found and recorded
+(not silently resolved): execution-specs' Euler-criterion pre-check
+(`pow(x³+7, (p−1)/2, p) == 1`) rejects `x³+7 ≡ 0` while the SEC1-style
+`y² ≟ x³+7` acceptance used by the guest and the reference accepts it
+with `y = 0`; the disagreeing class is empty (no `y = 0` point exists on
+secp256k1 — `−7` is not a cube mod `p`, kernel-checked as
+`neg7_not_cube`).  Downstream consumers: `.38c` (recovery
+orchestration proves the guest against `decompressR`/`recover`), `.39`
+(tx-sender verification calls `recover` + `addressOfPoint` with its
+EIP-2 low-`s` caller gate), `.40` (EIP-7702 authority recovery,
+same surface).
+
 ## 5. What the pilot proves (for the adversarial reviewer)
 
 `EvmAsm/Rv64/SAsm/PowLadderDemo.powFn_spec` — zero sorries, axioms
