@@ -2690,12 +2690,16 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   2026-07-04): `EvmAsm/Stateless/EntrySpec.lean` now defines the real
   statement shape — `RunStatelessGuestSound` (a `cpsHaltTripleWithin`
   over `CodeReq.ofProg`, quantified over ALL host payloads),
-  `GuestOutputSound` (one-sided soundness: output claims
-  `successful_validation = 1` ⟹ `SpecRef.run_stateless_guest` returns
-  exactly those bytes; false-rejects allowed, `GuestOutputComplete`
-  documented but not required), `GuestFraming` with a `scratch_sat`
-  non-vacuity witness, and kernel `#guard` pins tying the verdict
-  decoder to the SpecRef codec. Decisions (trust boundary, seam
+  `GuestOutputSound` (one-sided soundness over a PINNED 40-byte
+  observation window: flag byte at fixed offset 32, root+flag
+  agreement with the reference on accept — the pinned length closes
+  the self-delimiting-decode vacuity escapes found in the #9734
+  review; false-rejects allowed), `GuestOutputFaithful`
+  (full-serialization accept-path fidelity, the guest-shell target),
+  `GuestOutputComplete` (documented, not required), `GuestFraming`
+  with a `scratch_sat` non-vacuity witness, and kernel `#guard` pins
+  tying the flag offset + verdict decoder to the SpecRef codec; the
+  ZisK meta bytes at `INPUT_ADDR+0` are deliberately unconstrained. Decisions (trust boundary, seam
   parameterization, deployment gap) recorded in the file header.
   The obligation decomposition lives in
   **docs/agents/top-theorem-ledger.md** (14 rows, each with bead +
