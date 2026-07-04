@@ -872,7 +872,13 @@ def _collect_guest_addr_syms():
             entry,entry_addr,out,externals,relocs=_resolve(open(fp).read())
         except ConvError:
             continue
-        if externals:                      # only reloc-using functions need addrs
+        if entry in SYMMAP:
+            # every linked converted function's entry: the guest-image CodeReq
+            # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
+            # must exist even for straight-line (reloc-free) functions.
+            # Unlinked conversions (entry absent from the TSV) are skipped.
+            need.add(entry)
+        if externals:                      # reloc-using functions also need addrs
             need.add(entry); need.update(externals)
     missing=sorted(s for s in need if s not in SYMMAP)
     if missing:

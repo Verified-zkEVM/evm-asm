@@ -217,7 +217,7 @@ def secp256k1PointAddFunction : String :=
   "  ret"
 
 
-private def secp256k1PointCopy64_prog : Program :=
+def secp256k1PointCopy64_prog : Program :=
   [ .LI .x5 (64 : Word),
     .BEQ .x5 .x0 (28 : BitVec 13),
     .LBU .x6 .x10 (0 : BitVec 12),
@@ -240,7 +240,7 @@ theorem secp256k1PointCopy64Function_eq_prog :
 
 #guard secp256k1PointCopy64Function.startsWith "secp256k1_point_copy64:\n"
 #guard secp256k1PointCopy64_prog.length = 9
-private def secp256k1PointZero64_prog : Program :=
+def secp256k1PointZero64_prog : Program :=
   [ .LI .x5 (64 : Word),
     .BEQ .x5 .x0 (20 : BitVec 13),
     .SB .x10 .x0 (0 : BitVec 12),
