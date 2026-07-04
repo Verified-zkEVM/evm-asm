@@ -301,7 +301,7 @@ def blockVerdictExactGasCheck : String :=
   "  la t0, eip7708_tl_typed_avail; ld t1, 0(t0); beqz t1, .Lbv_exact_wip_header_regular_receipt_store\n" ++
   "  li t4, 4800; bltu t2, t4, .Lbv_exact_wip_header_skip_receipt_store\n" ++
   "  sub t4, t2, t4\n" ++
-  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bgeu t1, t4, .Lbv_exact_wip_header_skip_receipt_store\n" ++
+  "  la t0, bvgr_receipt_gas_increments\n" ++
   "  sd t4, 0(t0)\n" ++
   "  j .Lbv_exact_wip_header_skip_receipt_store\n" ++
   ".Lbv_exact_wip_header_regular_receipt_store:\n" ++
