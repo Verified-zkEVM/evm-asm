@@ -366,6 +366,37 @@ records `winR`, satisfiability of the decomposition, and the engine
 result; the window after the block is `(execBlock …).2` (definitionally
 the window itself for load/ALU-only blocks).
 
+### Multiple writable regions (result buffer + count dword)
+
+A routine that writes TWO+ independent writable pointers (a `dst`
+buffer AND a length/count dword at an unrelated pointer — the
+`swd_minimal_copy` shape) owns region 1 as its primary `rw` and every
+further region as a `bytesRegion` conjunct of the ambient `A`, written
+through a `blockAt` focused at that region's pointer register.  This is
+the sanctioned multi-writable-region design (bead evm-asm-4ch8f.67; the
+decision record is the header of `SAsm/MultiRw.lean`, the worked
+two-region function is `MultiRw.twoRwFn`):
+
+- pre/post pin the extra region exactly:
+  `A = ⌜RwRegion.wf ⟨b, n⟩⌝ ** bytesRegion b w` (carry the wf fact as a
+  pure conjunct — the `.focus` VC consumes it via `focus_rwAtom`);
+- routing is per block: stores in a plain `block` go to the primary
+  `rw` (the `.mem` VC forces the address inside it), stores in the
+  `blockAt` go to that region's window; a store placed against the
+  wrong region is an unprovable `.mem` goal, never a misroute;
+- framing is automatic: inside a `blockAt` the primary `ws` and the
+  read-only region are untouched by construction (`Stmt.sp`), and the
+  other `A`-atoms ride in `rest`;
+- disjointness is structural: the regions live under `**`, so an
+  overlapping instantiation makes the precondition unsatisfiable — no
+  pairwise side conditions.  The only arithmetic hypotheses are the
+  routing facts the VCs already demand (e.g. `src ≠ dst` to resolve a
+  load's routing `if`);
+- block granularity costs nothing: `seq` of `block`/`blockAt` leaves
+  flattens to the same contiguous code (zero synthesized instructions),
+  so interleaved stores to different regions are expressed by cutting
+  the instruction list at region-switch boundaries.
+
 ### Engine-value lemmas
 
 For post-VCs you'll want the block's register effects as equations.

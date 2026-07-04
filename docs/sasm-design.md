@@ -452,6 +452,15 @@ the first widening adapters (bead evm-asm-4ch8f.2):
    by blocks through `.blockAt` focus windows and framed across calls by
    `FnHandle.frameA`.  A function's contract thus lists exactly the
    arenas it touches: primary region + rw + the `A`-conjuncts of its pre.
+   This is also the sanctioned **multiple-writable-regions** design
+   (bead evm-asm-4ch8f.67): a routine writing two+ independent writable
+   pointers (result buffer + length/count dword, the `swd_minimal_copy`
+   shape) keeps region 1 as its primary `rw` and writes each further
+   region through a `blockAt` at that region's pointer — assertion-atom
+   store routing at block granularity, with disjointness structural
+   (`**`) rather than an arithmetic side condition.  Decision record +
+   worked two-region function: `SAsm/MultiRw.lean`; recipe:
+   docs/sasm-howto.md §6 ("Multiple writable regions").
 3. **Symbol (`la`) addressing**: guest symbol addresses are concrete at
    build time (`.data` is linker-pinned), so SAsm code materializes them
    with `LI` (64-bit pseudo already in `Instr`) and specs pin pointer
