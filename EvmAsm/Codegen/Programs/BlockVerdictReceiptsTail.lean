@@ -277,7 +277,8 @@ def blockVerdictReceiptsTail : String :=
   -- Successful child CREATE2 smart-init rows can be state-dominated after EIP-8037:
   -- exact/header gas and the net tx state dimension agree, but the receipt still
   -- carries the regular smart-init path plus the two synthetic transfer logs. Keep
-  -- this on the single legacy contract-call shape surfaced by create2_smart_init_code:
+  -- this on the single legacy contract-call shape and exact state-gas signature
+  -- surfaced by create2_smart_init_code:
   -- successful non-creation tx, no refund, raw receipt == before_refund, and exactly
   -- the two descriptor logs from the smart-init deployment path.
   "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_create2_smart_init_receipt_done\n" ++
@@ -287,7 +288,7 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_refund_counter; ld t1, 0(t0); bnez t1, .Lbv_create2_smart_init_receipt_done\n" ++
   "  la t0, bvgr_applied_refund; ld t1, 0(t0); bnez t1, .Lbv_create2_smart_init_receipt_done\n" ++
   "  la t0, bv_block_log_count; ld t1, 0(t0); li t2, 2; bne t1, t2, .Lbv_create2_smart_init_receipt_done\n" ++
-  "  la t0, bvgr_tx_total_state_gas; ld t2, 0(t0)\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t2, 0(t0); li t5, 563040; bne t2, t5, .Lbv_create2_smart_init_receipt_done\n" ++
   "  la t0, bvgr_tx_exec_state_gas; ld t3, 0(t0); bne t3, t2, .Lbv_create2_smart_init_receipt_done\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t3, t2, .Lbv_create2_smart_init_receipt_done\n" ++
   "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t3, t2, .Lbv_create2_smart_init_receipt_done\n" ++
