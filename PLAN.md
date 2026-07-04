@@ -2578,7 +2578,12 @@ window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
 soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
 output) stated as the deferred two-sided form; execution seam stays a
 parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
-OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. Next for
+OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. REVISED post
+#9733/#9734 cross-review: `GuestFraming` (scratch/residue +
+`scratch_sat` non-vacuity witness) replaces the bare `work` parameter —
+residue gives entry-owned resources a home at halt (original form was
+unprovable), while the pinned 40-byte window blocks the ∃-out
+decode-vacuity hole of the #9734 variant (record §3a). Next for
 SAsm: more Stateless/SSZ ports. Assertion-state milestone started (approved plan
 ~/.claude/plans/federated-wandering-pudding.md; epic evm-asm-6dt3v):
 Stages 1+2a landed — `Reach := RegFile → List Byte → Assertion → Prop`

@@ -66,7 +66,8 @@ the verdict — the entire guest body.
 ## 3. Statement shape (decision)
 
 `cpsHaltTripleWithin fuel GUEST_ENTRY cr (input ** work) (sound-output)`,
-wrapped as a plain `Prop` parameterized over `(cr, fuel, work, execute)`.
+wrapped as a plain `Prop` parameterized over `(cr, fuel, fr, execute)`
+(`fr : GuestFraming` — the scratch/residue bundle, see §3a).
 
 - **Why `cpsHaltTripleWithin`** (not `cpsTripleWithin` to an exit pc):
   the guest ends in a halt ecall, not a return; the halt triple
@@ -103,6 +104,33 @@ Rejected alternatives:
   put the EVM inside the trusted base; instead the seam stays a
   parameter until `.10` supplies the model (§4).
 
+## 3a. The framing bundle (post-review revision, PRs #9733/#9734)
+
+Bead `.8` was executed twice in parallel (#9733 and #9734); the
+cross-review found one defect in each statement, and the landed form is
+the synthesis:
+
+- **#9733 defect (this record's original form): no residue slot.** The
+  postcondition owned only the 40-byte observation window, but the
+  precondition owned all scratch — a `cpsHaltTripleWithin` must account
+  for every entry-owned resource in its post, so the triple was
+  *unprovable*. Fix: `GuestFraming.residue` joins the post
+  (`guestOutputSound … ** fr.residue`).
+- **#9734 defect: ∃-out vacuity.** Its post was `∃ out,
+  outputBytesAt out ** ⌜sound⌝ ** residue` with the claim judged by a
+  self-delimiting SSZ decode and no length pin. The prover chooses
+  `out`: `out = []` lets the residue absorb the OUTPUT window, and any
+  over-long `out` fails the exact-length decode — both make the claim
+  vacuous even on accept runs. Fix kept from #9733: `out.length =
+  OUTPUT_CLAIM_BYTES` is pinned *inside* the post, so the
+  `bytesRegion OUTPUT_ADDR out` conjunct must own the window dwords and
+  `out` is uniquely the memory the verifier reads.
+- **Kept from #9734**: `GuestFraming.scratch_sat` — the satisfiability
+  witness that rules out discharging the triple with an unsatisfiable
+  scratch assertion; and the framing of the input meta dwords stays
+  *unconstrained* (asserting them zero, as #9734 did, would make the
+  theorem inapplicable to hosts that write nonzero ZisK meta).
+
 ## 4. Closing the execution seam (interface to `.10`)
 
 `SpecRef.verify_stateless_new_payload` takes
@@ -136,8 +164,8 @@ txs, EVM) — call it `elExecute`. Then:
 
 ## 6. Obligations this creates downstream
 
-- **`.63` (shell)**: compose the image `CodeReq`; fix the `work` bundle
-  (RegionMap-derived, `.6` phase views); prove the verdict stamp writes
+- **`.63` (shell)**: compose the image `CodeReq`; fix the `GuestFraming`
+  bundle (RegionMap-derived, `.6` phase views + the `scratch_sat` witness); prove the verdict stamp writes
   `OUTPUT[32] = 1` only on the all-pass path and that no bail marker or
   reason code writes 1 there (reason codes land at `OUTPUT[32..40)` —
   audit the encoding); reconcile/retire the legacy `Stateless.Entry`
