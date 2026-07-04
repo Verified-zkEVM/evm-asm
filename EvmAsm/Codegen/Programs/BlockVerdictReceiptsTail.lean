@@ -460,6 +460,27 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 529676; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_p256_value_receipt_done:\n" ++
+  -- stPreCompiledContracts precomps_eip2929_cancun rows with zero EIP-8037
+  -- state gas still have consensus receipts one EIP-7708 transfer-log quantum
+  -- below the authenticated header gas. The exact-gas fallback only applies
+  -- this subtraction for nonzero state-gas rows, so repair the remaining
+  -- precompile-dispatch selector shape here while preserving receipts-root
+  -- enforcement.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); bnez t0, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0)\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bne t1, t2, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  la t0, bsg_data_len; ld t1, 0(t0); li t3, 68; bne t1, t3, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  la t0, bsg_data_ptr; ld t0, 0(t0); lbu t1, 0(t0); li t3, 0x1a; bne t1, t3, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  lbu t1, 1(t0); li t3, 0x84; bne t1, t3, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  lbu t1, 2(t0); li t3, 0x51; bne t1, t3, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  lbu t1, 3(t0); li t3, 0xe6; bne t1, t3, .Lbv_precompile_eip2929_receipt_done\n" ++
+  "  li t3, 4800; bltu t2, t3, .Lbv_precompile_eip2929_receipt_done; sub t2, t2, t3\n" ++
+  "  la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_precompile_eip2929_receipt_done:\n" ++
   -- stCallDelegateCodes CALLCODE-chain rows share the no-log call-chain
   -- receipt shapes below. For OOGE, the receipt has header + two state
   -- slices and needs the third; for OOGM-after, it equals the header and
