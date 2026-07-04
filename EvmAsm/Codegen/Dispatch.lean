@@ -371,7 +371,8 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
     not assigned a real opcode are 0, so trusted programs never spuriously
     run out of gas on a terminator or an unwired byte. -/
 def staticGasCost (op : Nat) : Nat :=
-  if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
+  if op = 0x5f then 2                     -- PUSH0 (BASE)
+  else if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
   else if 0x80 ≤ op ∧ op ≤ 0x8f then 3   -- DUP1..DUP16 (VERYLOW)
   else if 0x90 ≤ op ∧ op ≤ 0x9f then 3   -- SWAP1..SWAP16 (VERYLOW)
   else if 0xe6 ≤ op ∧ op ≤ 0xe8 then 3   -- DUPN/SWAPN/EXCHANGE (EIP-8024, VERYLOW)
