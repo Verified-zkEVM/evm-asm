@@ -294,11 +294,12 @@ def blockVerdictExactGasCheck : String :=
   "  la t0, bv_exact_expected_gas_used; sd t2, 0(t0)\n" ++
   "  la t0, bvgr_block_gas_increments; sd t2, 0(t0)\n" ++
   "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t3, 1; bne t1, t3, .Lbv_exact_wip_header_skip_receipt_store\n" ++
-  -- EIP-7708 synthetic transfer logs contribute to header/block gas but not to
-  -- the transaction receipt's cumulative_gas_used. For the supported single-tx
-  -- top-level transfer-log shape, derive the receipt side from the authenticated
-  -- header gas by removing the one log's storage refund counter quantum.
+  -- EIP-7708 synthetic transfer-log rows with nonzero state-gas dimensions can
+  -- keep the receipt side one log quantum below the authenticated header gas.
+  -- Pure execution-gas rows, such as CALLDATACOPY underflow, use the header
+  -- value directly because consensus receipts include the emitted transfer log gas.
   "  la t0, eip7708_tl_typed_avail; ld t1, 0(t0); beqz t1, .Lbv_exact_wip_header_regular_receipt_store\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); beqz t1, .Lbv_exact_wip_header_regular_receipt_store\n" ++
   "  li t4, 4800; bltu t2, t4, .Lbv_exact_wip_header_skip_receipt_store\n" ++
   "  sub t4, t2, t4\n" ++
   "  la t0, bvgr_receipt_gas_increments\n" ++
