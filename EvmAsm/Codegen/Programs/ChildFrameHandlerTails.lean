@@ -131,6 +131,48 @@ def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) 
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".L" ++ tag ++ "_precompile_xlog_skip:\n"
 
+def successfulPrecompileNewAccountStateGasAsm (tag : String) (valueOff? : Option Nat) : String :=
+  if tag != "call_target" then "" else
+  match valueOff? with
+  | none => ""
+  | some valueOff =>
+    -- CALL with nonzero value creates the callee account when it was not alive
+    -- before the call. Active precompiles execute through this fast path, so mirror
+    -- generic CALL's EIP-8037 NEW_ACCOUNT state-gas charge before child gas is
+    -- allotted. Successful precompile transfers emit EIP-7708 descriptors in
+    -- this frame, so scan existing Transfer logs for prior same-tx liveness.
+    "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+    "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+    "  beqz t3, .L" ++ tag ++ "_pc_nacc_done\n" ++
+    "  ld t3, 584(x20)\n  beqz t3, .L" ++ tag ++ "_pc_nacc_done\n" ++
+    "  ld t1, 472(x20); beqz t1, .L" ++ tag ++ "_pc_nacc_prev_done\n" ++
+    "  li t2, 0; la t3, evm_event_logs\n" ++
+    ".L" ++ tag ++ "_pc_nacc_prev_scan:\n" ++
+    "  beq t2, t1, .L" ++ tag ++ "_pc_nacc_prev_done\n" ++
+    "  ld t4, 0(t3); li t5, 3; bne t4, t5, .L" ++ tag ++ "_pc_nacc_prev_next\n" ++
+    "  addi t4, t3, 96; addi t5, x12, 32; li t6, 20\n" ++
+    ".L" ++ tag ++ "_pc_nacc_prev_cmp:\n" ++
+    "  beqz t6, .L" ++ tag ++ "_pc_nacc_done\n" ++
+    "  lbu x16, 0(t4); lbu x17, 0(t5); bne x16, x17, .L" ++ tag ++ "_pc_nacc_prev_next\n" ++
+    "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .L" ++ tag ++ "_pc_nacc_prev_cmp\n" ++
+    ".L" ++ tag ++ "_pc_nacc_prev_next:\n" ++
+    "  addi t3, t3, 256; addi t2, t2, 1; j .L" ++ tag ++ "_pc_nacc_prev_scan\n" ++
+    ".L" ++ tag ++ "_pc_nacc_prev_done:\n" ++
+    ".L" ++ tag ++ "_pc_nacc_charge:\n" ++
+    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
+    "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
+    "  bgeu t2, t0, .L" ++ tag ++ "_pc_nacc_res\n" ++
+    "  sub t3, t0, t2\n  sd x0, 0(t1)\n" ++
+    "  ld t2, 568(x20)\n  bltu t2, t3, .exit_outofgas\n" ++
+    "  sub t2, t2, t3\n  sd t2, 568(x20)\n  j .L" ++ tag ++ "_pc_nacc_used\n" ++
+    ".L" ++ tag ++ "_pc_nacc_res:\n" ++
+    "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    ".L" ++ tag ++ "_pc_nacc_used:\n" ++
+    "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
+    ".L" ++ tag ++ "_pc_nacc_done:\n"
+
 def basicPrecompileCallTail
       (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
       (valueOff? : Option Nat)
@@ -239,6 +281,7 @@ def basicPrecompileCallTail
     (match valueOff? with
     | none => ".L" ++ tag ++ "_precompile_dispatch:\n"
     | some valueOff => precompileValueBalanceGateAsm tag netPopBytes valueOff) ++
+    successfulPrecompileNewAccountStateGasAsm tag valueOff? ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
     "  li x15, 5\n" ++
