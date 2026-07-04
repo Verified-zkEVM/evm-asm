@@ -2813,6 +2813,21 @@ pairings/maps/KZG last (their RFC 9380/KZG-unreachable gaps are
 completeness-only under the .8 soundness headline). New shared-library
 beads .11.6–.11.9 (nLimbs-generic + curve handles; BE↔LE; Fermat;
 scalar-mul skeleton); .38/.57/.58 re-scoped accordingly.
+ECDSA recovery reference spec landed (bead evm-asm-4ch8f.38.1,
+`EvmAsm/Stateless/SpecRef/Secp256k1Recover.lean`): the project-side
+trusted-base recovery math (`decompressR`/`recover`/`addressOfPoint`/
+`ecrecoverAddress`) over `Nat`-modular affine points reusing
+`Accel.curveAdd/curveDbl/powMod/invMod`, every equation cited to two
+authorities in-file, explicit `Except` failure taxonomy mapped to the
+guest status codes, KATs cross-derived (EEST `valid_signature_1` probe
+vector + coincurve-reproduced RFC 6979 vector + an independent textbook
+vector) and kernel-checked via `decide +kernel` (no maxRecDepth/
+heartbeat overrides; full 256-bit recovery ≈ 25 s per KAT). One
+recorded authority divergence: execution-specs' Euler pre-check rejects
+`x³+7 ≡ 0` where SEC1/guest `y² ≟ rhs` accepts — class proven empty
+(`neg7_not_cube`). Consumers: .38c recovery orchestration, .39
+tx-sender, .40 EIP-7702 (substrate decision recorded as a
+crypto-strategy §4 amendment).
 
 ## Stateless Guest (parallel STF track)
 
