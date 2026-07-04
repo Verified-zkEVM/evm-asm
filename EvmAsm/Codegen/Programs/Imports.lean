@@ -86,6 +86,8 @@ import EvmAsm.Codegen.Programs.SwdWriteBe32U64SAsm
 import EvmAsm.Codegen.Programs.SwrRevLeBeSAsm
 import EvmAsm.Codegen.Programs.BhrRevLeBeSAsm
 import EvmAsm.Codegen.Programs.SwdMinimalCopySAsm
+import EvmAsm.Codegen.Programs.SgMemcpySAsm
+import EvmAsm.Codegen.Programs.MsetMemcpySAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
