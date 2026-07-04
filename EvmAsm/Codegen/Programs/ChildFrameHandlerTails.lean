@@ -104,6 +104,7 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   ".L" ++ tag ++ "_precompile_dispatch:\n"
 
 def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) : String :=
+  if tag != "call_target" then "" else
   match valueOff? with
   | none => ""
   | some valueOff =>
