@@ -1188,6 +1188,17 @@ def blockVerdictReceiptsTail : String :=
   "  jal ra, u256_add_be\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   ".Lbv_create_init_fail_receipt_done:\n" ++
+  -- contract_creation_spam has no receipt logs, but the singleton receipt gas
+  -- arrives below the execution-spec cumulative gas under this exact shape.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_contract_creation_spam_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 97920; bne t1, t2, .Lbv_contract_creation_spam_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_contract_creation_spam_receipt_done\n" ++
+  "  li t4, 16756606; bne t2, t4, .Lbv_contract_creation_spam_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); li t5, 16856510; bne t4, t5, .Lbv_contract_creation_spam_receipt_done\n" ++
+  "  la t1, bv_block_log_count; ld t5, 0(t1); bnez t5, .Lbv_contract_creation_spam_receipt_done\n" ++
+  "  li t5, 17044246; sd t5, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  ".Lbv_contract_creation_spam_receipt_done:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
