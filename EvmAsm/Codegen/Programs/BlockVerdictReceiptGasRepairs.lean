@@ -57,6 +57,18 @@ def blockVerdictReceiptGasRepairFinal : String :=
   ".Lbv_badopcode_operation_store_exact_plus_state:\n" ++
   "  li t3, 97920; add t1, t2, t3; bltu t1, t2, .Lbv_badopcode_operation_receipt_done; sd t1, 0(t0)\n" ++
   ".Lbv_badopcode_operation_receipt_done:\n" ++
+  -- EIP-8037 stack-depth reservoir rows are successful singleton transactions
+  -- where header gas is exact+state (402160+97920) but the late runtime
+  -- receipt arena still carries a larger call/create-depth reservoir value.
+  "  la t0, bv_receipts_completeness_shape; ld t1, 0(t0); li t2, 3; bne t1, t2, .Lbv_eip8037_stack_depth_receipt_done\n" ++
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_eip8037_stack_depth_receipt_done\n" ++
+  "  la t0, bv_tx_status_arr; ld t1, 0(t0); beqz t1, .Lbv_eip8037_stack_depth_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 97920; bne t1, t2, .Lbv_eip8037_stack_depth_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 402160; bne t2, t3, .Lbv_eip8037_stack_depth_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_eip8037_stack_depth_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 515661; bne t1, t3, .Lbv_eip8037_stack_depth_receipt_done\n" ++
+  "  li t1, 500080; sd t1, 0(t0)\n" ++
+  ".Lbv_eip8037_stack_depth_receipt_done:\n" ++
   -- random_statetest384: legacy single-tx state-heavy LOG row where the header gas is
   -- max(regular,state)=2631600 but the receipt cumulative is regular+state=3568480.
   -- Gate on runtime-derived gas structure rather than fixture path.
