@@ -12,11 +12,11 @@ alternatives, review synthesis of PRs #9733/#9734 — is
 **docs/4ch8f-top-spec.md**.
 
 ```
-runStatelessGuestSound cr fuel work execute :
+runStatelessGuestSound cr fuel fr execute :
   ∀ input, input.length ≤ MAX_INPUT_BYTES →
     cpsHaltTripleWithin fuel GUEST_ENTRY cr
-      (guestInputAssertion input ** work)
-      (guestOutputSound execute input)
+      (guestInputAssertion input ** fr.scratch)
+      (guestOutputSound execute input ** fr.residue)
 ```
 
 - **One-sided, pinned observation window**: `guestOutputSound` = "the 40-byte
@@ -31,12 +31,15 @@ runStatelessGuestSound cr fuel work execute :
   serialized result, byte-for-byte) is stated but a declared NON-goal for
   `.64` v1 (decision record §1).
 - **Non-vacuity**: kernel `#guard`s pin the flag/root offsets to the SpecRef
-  encoder and witness `SpecAccepts` end-to-end on the sanity pipeline.
+  encoder and witness `SpecAccepts` end-to-end on the sanity pipeline; the
+  `GuestFraming.scratch_sat` witness rules out an unsatisfiable-precondition
+  discharge, and `fr.residue` gives the entry-owned resources a home at halt
+  (without it the triple is unprovable — #9733 review defect, fixed).
 - **Seam**: parameter `execute : ExecutionSeam` — the `.10` interpreter model
   closes it.
 
 The final theorem (bead `evm-asm-4ch8f.64`) instantiates the
-`(cr, fuel, work, execute)` quadruple: the COMPOSED guest image `CodeReq`
+`(cr, fuel, fr, execute)` quadruple: the COMPOSED guest image `CodeReq`
 (bead .63, from the wave-.9 conversions — today's `Entry.run_stateless_guest`
 is still the PR6 stub), the gas-derived step cap, the `.6` work-region
 bundle, and the real seam.
