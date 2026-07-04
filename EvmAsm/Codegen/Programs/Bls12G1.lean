@@ -299,177 +299,317 @@ theorem bls12G1Zero96Function_eq_prog :
 #guard blsgZero96_prog.length = 6
 /-- Fp d = (a*b) mod p: a0/a1 = 48-byte BE inputs, a2 = 48-byte BE
     output, via the Arith384Mod `blsf_mul_params` block. -/
-def bls12G1MulModPFunction : String :=
-  "blsg_mul_mod_p:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  la a1, blsf_le_a\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, blsf_le_b\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  la a0, blsf_mul_params\n" ++
-  "  .4byte 0x80b52073           # csrs 0x80B, a0 -> Arith384Mod\n" ++
-  "  la a0, blsf_le_d\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blsgMulModP_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_a (GuestAddrs.blsg_mul_mod_p + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_a (GuestAddrs.blsg_mul_mod_p + 24)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_mul_mod_p + 32)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_b (GuestAddrs.blsg_mul_mod_p + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_b (GuestAddrs.blsg_mul_mod_p + 40)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_mul_mod_p + 48)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_mul_params (GuestAddrs.blsg_mul_mod_p + 52)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_mul_params (GuestAddrs.blsg_mul_mod_p + 52)),
+    .CSRS (2059 : BitVec 12) .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_le_d (GuestAddrs.blsg_mul_mod_p + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_le_d (GuestAddrs.blsg_mul_mod_p + 64)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsg_mul_mod_p + 76)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgMulModP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgMulModP_relocs : RelocTable :=
+  [ (6, .la .x11 "blsf_le_a"),
+    (8, .jal .x1 "blsg_be_to_le"),
+    (10, .la .x11 "blsf_le_b"),
+    (12, .jal .x1 "blsg_be_to_le"),
+    (13, .la .x10 "blsf_mul_params"),
+    (16, .la .x10 "blsf_le_d"),
+    (19, .jal .x1 "blsg_le_to_be") ]
+
+def bls12G1MulModPFunction : String :=
+  "blsg_mul_mod_p:\n" ++ emitProgramR blsgMulModP_prog blsgMulModP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgMulModP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1MulModPFunction_eq_prog :
+    bls12G1MulModPFunction = "blsg_mul_mod_p:\n" ++ emitProgramR blsgMulModP_prog blsgMulModP_relocs := rfl
+
+#guard bls12G1MulModPFunction.startsWith "blsg_mul_mod_p:\n"
+#guard blsgMulModP_prog.length = 26
 /-- Fp d = (a + b) mod p: same surface via `blsf_add_params`
     (`d = a*1 + b`). -/
-def bls12G1AddModPFunction : String :=
-  "blsg_add_mod_p:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp)\n" ++
-  "  sd s1, 16(sp)\n" ++
-  "  mv s0, a1\n" ++
-  "  mv s1, a2\n" ++
-  "  la a1, blsf_le_a\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, blsf_le_b\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  la a0, blsf_add_params\n" ++
-  "  .4byte 0x80b52073           # csrs 0x80B, a0 -> Arith384Mod\n" ++
-  "  la a0, blsf_le_d\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp)\n" ++
-  "  ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blsgAddModP_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_a (GuestAddrs.blsg_add_mod_p + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_a (GuestAddrs.blsg_add_mod_p + 24)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_add_mod_p + 32)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_b (GuestAddrs.blsg_add_mod_p + 40)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_b (GuestAddrs.blsg_add_mod_p + 40)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_add_mod_p + 48)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_add_params (GuestAddrs.blsg_add_mod_p + 52)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_add_params (GuestAddrs.blsg_add_mod_p + 52)),
+    .CSRS (2059 : BitVec 12) .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_le_d (GuestAddrs.blsg_add_mod_p + 64)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_le_d (GuestAddrs.blsg_add_mod_p + 64)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsg_add_mod_p + 76)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgAddModP_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgAddModP_relocs : RelocTable :=
+  [ (6, .la .x11 "blsf_le_a"),
+    (8, .jal .x1 "blsg_be_to_le"),
+    (10, .la .x11 "blsf_le_b"),
+    (12, .jal .x1 "blsg_be_to_le"),
+    (13, .la .x10 "blsf_add_params"),
+    (16, .la .x10 "blsf_le_d"),
+    (19, .jal .x1 "blsg_le_to_be") ]
+
+def bls12G1AddModPFunction : String :=
+  "blsg_add_mod_p:\n" ++ emitProgramR blsgAddModP_prog blsgAddModP_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgAddModP_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1AddModPFunction_eq_prog :
+    bls12G1AddModPFunction = "blsg_add_mod_p:\n" ++ emitProgramR blsgAddModP_prog blsgAddModP_relocs := rfl
+
+#guard bls12G1AddModPFunction.startsWith "blsg_add_mod_p:\n"
+#guard blsgAddModP_prog.length = 26
 /-- Double an affine point. a0 = input x||y (compact BE 96), a1 = output.
     Returns a0 = 1 when the result is infinity (y = 0 input, which also
     covers the (0,0) infinity encoding), output zeroed; else 0. -/
-def bls12G1PointDblFunction : String :=
-  "blsg_point_dbl:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  li a1, 48\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg_dbl_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, blsg_zero96\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lblsg_dbl_ret\n" ++
-  ".Lblsg_dbl_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, blsf_p1\n" ++
-  "  jal ra, blsg_be_to_le          # p1.x\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  la a1, blsf_p1\n" ++
-  "  addi a1, a1, 48\n" ++
-  "  jal ra, blsg_be_to_le          # p1.y\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  .4byte 0x80d52073              # csrs 0x80D, a0 -> Bls12_381CurveDbl\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg_le_to_be          # out.x\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  addi a0, a0, 48\n" ++
-  "  addi a1, s1, 48\n" ++
-  "  jal ra, blsg_le_to_be          # out.y\n" ++
-  "  li a0, 0\n" ++
-  ".Lblsg_dbl_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blsgPointDbl_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .LI .x11 (48 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_point_dbl + 32)),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_zero96 (GuestAddrs.blsg_point_dbl + 44)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (92 : BitVec 21),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 60)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 60)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_point_dbl + 68)),
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 76)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 76)),
+    .ADDI .x11 .x11 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_point_dbl + 88)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 92)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 92)),
+    .CSRS (2061 : BitVec 12) .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 104)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 104)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsg_point_dbl + 116)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 120)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_dbl + 120)),
+    .ADDI .x10 .x10 (48 : BitVec 12),
+    .ADDI .x11 .x9 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsg_point_dbl + 136)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgPointDbl_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgPointDbl_relocs : RelocTable :=
+  [ (8, .jal .x1 "blsg_is_zero_n"),
+    (11, .jal .x1 "blsg_zero96"),
+    (15, .la .x11 "blsf_p1"),
+    (17, .jal .x1 "blsg_be_to_le"),
+    (19, .la .x11 "blsf_p1"),
+    (22, .jal .x1 "blsg_be_to_le"),
+    (23, .la .x10 "blsf_p1"),
+    (26, .la .x10 "blsf_p1"),
+    (29, .jal .x1 "blsg_le_to_be"),
+    (30, .la .x10 "blsf_p1"),
+    (34, .jal .x1 "blsg_le_to_be") ]
+
+def bls12G1PointDblFunction : String :=
+  "blsg_point_dbl:\n" ++ emitProgramR blsgPointDbl_prog blsgPointDbl_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgPointDbl_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1PointDblFunction_eq_prog :
+    bls12G1PointDblFunction = "blsg_point_dbl:\n" ++ emitProgramR blsgPointDbl_prog blsgPointDbl_relocs := rfl
+
+#guard bls12G1PointDblFunction.startsWith "blsg_point_dbl:\n"
+#guard blsgPointDbl_prog.length = 41
 /-- Add two affine points. a0 = P, a1 = Q, a2 = out (all compact BE 96,
     infinity = all-zero). Software-handles the accelerator-excluded
     cases: P or Q at infinity, equal x with equal y (doubling), equal x
     with opposite y (infinity). Returns a0 = 1 when the result is
     infinity (output zeroed), else 0. -/
-def bls12G1PointAddFunction : String :=
-  "blsg_point_add:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  mv a0, s0\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg_add_p_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_copy96            # P = inf: result = Q\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  j .Lblsg_add_ret\n" ++
-  ".Lblsg_add_p_finite:\n" ++
-  "  mv a0, s1\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg_add_q_finite\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_copy96            # Q = inf: result = P (finite)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg_add_ret\n" ++
-  ".Lblsg_add_q_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg_eq48\n" ++
-  "  beqz a0, .Lblsg_add_distinct_x\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  addi a1, s1, 48\n" ++
-  "  jal ra, blsg_eq48\n" ++
-  "  beqz a0, .Lblsg_add_inf        # x equal, y opposite: P + (-P) = inf\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_point_dbl         # x and y equal: P + P\n" ++
-  "  j .Lblsg_add_ret\n" ++
-  ".Lblsg_add_distinct_x:\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, blsf_p1\n" ++
-  "  jal ra, blsg_be_to_le          # p1.x\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  la a1, blsf_p1\n" ++
-  "  addi a1, a1, 48\n" ++
-  "  jal ra, blsg_be_to_le          # p1.y\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, blsf_p2\n" ++
-  "  jal ra, blsg_be_to_le          # p2.x\n" ++
-  "  addi a0, s1, 48\n" ++
-  "  la a1, blsf_p2\n" ++
-  "  addi a1, a1, 48\n" ++
-  "  jal ra, blsg_be_to_le          # p2.y\n" ++
-  "  la a0, blsf_curve_params\n" ++
-  "  .4byte 0x80c52073              # csrs 0x80C, a0 -> Bls12_381CurveAdd\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_le_to_be          # out.x\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  addi a0, a0, 48\n" ++
-  "  addi a1, s2, 48\n" ++
-  "  jal ra, blsg_le_to_be          # out.y\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg_add_ret\n" ++
-  ".Lblsg_add_inf:\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, blsg_zero96\n" ++
-  "  li a0, 1\n" ++
-  ".Lblsg_add_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def blsgPointAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .LI .x11 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_point_add + 40)),
+    .BEQ .x10 .x0 (32 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_copy96 (GuestAddrs.blsg_point_add + 56)),
+    .MV .x10 .x18,
+    .LI .x11 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_point_add + 68)),
+    .JAL .x0 (228 : BitVec 21),
+    .MV .x10 .x9,
+    .LI .x11 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_point_add + 84)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_copy96 (GuestAddrs.blsg_point_add + 100)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (192 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_eq48 (GuestAddrs.blsg_point_add + 120)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .ADDI .x11 .x9 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_eq48 (GuestAddrs.blsg_point_add + 136)),
+    .BEQ .x10 .x0 (148 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_point_dbl (GuestAddrs.blsg_point_add + 152)),
+    .JAL .x0 (144 : BitVec 21),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 164)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 164)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_point_add + 172)),
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 180)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 180)),
+    .ADDI .x11 .x11 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_point_add + 192)),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p2 (GuestAddrs.blsg_point_add + 200)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p2 (GuestAddrs.blsg_point_add + 200)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_point_add + 208)),
+    .ADDI .x10 .x9 (48 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p2 (GuestAddrs.blsg_point_add + 216)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p2 (GuestAddrs.blsg_point_add + 216)),
+    .ADDI .x11 .x11 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg_point_add + 228)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_curve_params (GuestAddrs.blsg_point_add + 232)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_curve_params (GuestAddrs.blsg_point_add + 232)),
+    .CSRS (2060 : BitVec 12) .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 244)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 244)),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsg_point_add + 256)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 260)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_point_add + 260)),
+    .ADDI .x10 .x10 (48 : BitVec 12),
+    .ADDI .x11 .x18 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsg_point_add + 276)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_zero96 (GuestAddrs.blsg_point_add + 292)),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgPointAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgPointAdd_relocs : RelocTable :=
+  [ (10, .jal .x1 "blsg_is_zero_n"),
+    (14, .jal .x1 "blsg_copy96"),
+    (17, .jal .x1 "blsg_is_zero_n"),
+    (21, .jal .x1 "blsg_is_zero_n"),
+    (25, .jal .x1 "blsg_copy96"),
+    (30, .jal .x1 "blsg_eq48"),
+    (34, .jal .x1 "blsg_eq48"),
+    (38, .jal .x1 "blsg_point_dbl"),
+    (41, .la .x11 "blsf_p1"),
+    (43, .jal .x1 "blsg_be_to_le"),
+    (45, .la .x11 "blsf_p1"),
+    (48, .jal .x1 "blsg_be_to_le"),
+    (50, .la .x11 "blsf_p2"),
+    (52, .jal .x1 "blsg_be_to_le"),
+    (54, .la .x11 "blsf_p2"),
+    (57, .jal .x1 "blsg_be_to_le"),
+    (58, .la .x10 "blsf_curve_params"),
+    (61, .la .x10 "blsf_p1"),
+    (64, .jal .x1 "blsg_le_to_be"),
+    (65, .la .x10 "blsf_p1"),
+    (69, .jal .x1 "blsg_le_to_be"),
+    (73, .jal .x1 "blsg_zero96") ]
+
+def bls12G1PointAddFunction : String :=
+  "blsg_point_add:\n" ++ emitProgramR blsgPointAdd_prog blsgPointAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgPointAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1PointAddFunction_eq_prog :
+    bls12G1PointAddFunction = "blsg_point_add:\n" ++ emitProgramR blsgPointAdd_prog blsgPointAdd_relocs := rfl
+
+#guard bls12G1PointAddFunction.startsWith "blsg_point_add:\n"
+#guard blsgPointAdd_prog.length = 81
 /-- a0 = 1 iff the finite point at a0 (coords already `< p`) satisfies
     y^2 = x^3 + 4 mod p. -/
 def blsgOnCurve_prog : Program :=
@@ -609,106 +749,175 @@ def bls12G1DecodeFunction : String :=
 /-- Double an LE affine point: a0 = input, a1 = output (96 B LE limbs,
     8-aligned, may alias). Returns a0 = 1 when the result is infinity
     (y = 0 input, which covers the all-zero infinity; output zeroed). -/
-def bls12G1LeDblFunction : String :=
-  "blsg_le_dbl:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  li a1, 48\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg_ldbl_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, blsg_zero96\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lblsg_ldbl_ret\n" ++
-  ".Lblsg_ldbl_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, blsf_p1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  .4byte 0x80d52073              # csrs 0x80D, a0 -> Bls12_381CurveDbl\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  li a0, 0\n" ++
-  ".Lblsg_ldbl_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blsgLeDbl_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .LI .x11 (48 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_le_dbl + 32)),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_zero96 (GuestAddrs.blsg_le_dbl + 44)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (60 : BitVec 21),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_dbl + 60)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_dbl + 60)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg_le_dbl + 72)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_dbl + 76)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_dbl + 76)),
+    .CSRS (2061 : BitVec 12) .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_dbl + 88)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_dbl + 88)),
+    .MV .x11 .x9,
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg_le_dbl + 104)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgLeDbl_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgLeDbl_relocs : RelocTable :=
+  [ (8, .jal .x1 "blsg_is_zero_n"),
+    (11, .jal .x1 "blsg_zero96"),
+    (15, .la .x11 "blsf_p1"),
+    (18, .jal .x1 "blsf_copy_quads"),
+    (19, .la .x10 "blsf_p1"),
+    (22, .la .x10 "blsf_p1"),
+    (26, .jal .x1 "blsf_copy_quads") ]
+
+def bls12G1LeDblFunction : String :=
+  "blsg_le_dbl:\n" ++ emitProgramR blsgLeDbl_prog blsgLeDbl_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgLeDbl_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1LeDblFunction_eq_prog :
+    bls12G1LeDblFunction = "blsg_le_dbl:\n" ++ emitProgramR blsgLeDbl_prog blsgLeDbl_relocs := rfl
+
+#guard bls12G1LeDblFunction.startsWith "blsg_le_dbl:\n"
+#guard blsgLeDbl_prog.length = 33
 /-- Add two LE affine points: a0 = P, a1 = Q, a2 = out (96 B LE,
     8-aligned; out may alias — checks read the originals and the result
     is copied last). Software-handles infinity, equal-x doubling, and
     P + (-P). Returns a0 = 1 when the result is infinity. -/
-def bls12G1LeAddFunction : String :=
-  "blsg_le_add:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  mv a0, s0\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg_ladd_p_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_copy96            # P = inf: result = Q\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  j .Lblsg_ladd_ret\n" ++
-  ".Lblsg_ladd_p_finite:\n" ++
-  "  mv a0, s1\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg_ladd_q_finite\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_copy96            # Q = inf: result = P (finite)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg_ladd_ret\n" ++
-  ".Lblsg_ladd_q_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg_eq48              # byte equality works on LE too\n" ++
-  "  beqz a0, .Lblsg_ladd_distinct\n" ++
-  "  addi a0, s0, 48\n" ++
-  "  addi a1, s1, 48\n" ++
-  "  jal ra, blsg_eq48\n" ++
-  "  beqz a0, .Lblsg_ladd_inf       # x equal, y opposite: inf\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg_le_dbl            # x and y equal: P + P\n" ++
-  "  j .Lblsg_ladd_ret\n" ++
-  ".Lblsg_ladd_distinct:\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, blsf_p1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, blsf_p2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blsf_curve_params\n" ++
-  "  .4byte 0x80c52073              # csrs 0x80C, a0 -> Bls12_381CurveAdd\n" ++
-  "  la a0, blsf_p1\n" ++
-  "  mv a1, s2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg_ladd_ret\n" ++
-  ".Lblsg_ladd_inf:\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, blsg_zero96\n" ++
-  "  li a0, 1\n" ++
-  ".Lblsg_ladd_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def blsgLeAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .LI .x11 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_le_add + 40)),
+    .BEQ .x10 .x0 (32 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_copy96 (GuestAddrs.blsg_le_add + 56)),
+    .MV .x10 .x18,
+    .LI .x11 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_le_add + 68)),
+    .JAL .x0 (180 : BitVec 21),
+    .MV .x10 .x9,
+    .LI .x11 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg_le_add + 84)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_copy96 (GuestAddrs.blsg_le_add + 100)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (144 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_eq48 (GuestAddrs.blsg_le_add + 120)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .ADDI .x11 .x9 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_eq48 (GuestAddrs.blsg_le_add + 136)),
+    .BEQ .x10 .x0 (100 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_dbl (GuestAddrs.blsg_le_add + 152)),
+    .JAL .x0 (96 : BitVec 21),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_add + 164)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_add + 164)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg_le_add + 176)),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.blsf_p2 (GuestAddrs.blsg_le_add + 184)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_p2 (GuestAddrs.blsg_le_add + 184)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg_le_add + 196)),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_curve_params (GuestAddrs.blsg_le_add + 200)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_curve_params (GuestAddrs.blsg_le_add + 200)),
+    .CSRS (2060 : BitVec 12) .x10,
+    .AUIPC .x10 (laHi GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_add + 212)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_p1 (GuestAddrs.blsg_le_add + 212)),
+    .MV .x11 .x18,
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg_le_add + 228)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg_zero96 (GuestAddrs.blsg_le_add + 244)),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsgLeAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsgLeAdd_relocs : RelocTable :=
+  [ (10, .jal .x1 "blsg_is_zero_n"),
+    (14, .jal .x1 "blsg_copy96"),
+    (17, .jal .x1 "blsg_is_zero_n"),
+    (21, .jal .x1 "blsg_is_zero_n"),
+    (25, .jal .x1 "blsg_copy96"),
+    (30, .jal .x1 "blsg_eq48"),
+    (34, .jal .x1 "blsg_eq48"),
+    (38, .jal .x1 "blsg_le_dbl"),
+    (41, .la .x11 "blsf_p1"),
+    (44, .jal .x1 "blsf_copy_quads"),
+    (46, .la .x11 "blsf_p2"),
+    (49, .jal .x1 "blsf_copy_quads"),
+    (50, .la .x10 "blsf_curve_params"),
+    (53, .la .x10 "blsf_p1"),
+    (57, .jal .x1 "blsf_copy_quads"),
+    (61, .jal .x1 "blsg_zero96") ]
+
+def bls12G1LeAddFunction : String :=
+  "blsg_le_add:\n" ++ emitProgramR blsgLeAdd_prog blsgLeAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsgLeAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G1LeAddFunction_eq_prog :
+    bls12G1LeAddFunction = "blsg_le_add:\n" ++ emitProgramR blsgLeAdd_prog blsgLeAdd_relocs := rfl
+
+#guard bls12G1LeAddFunction.startsWith "blsg_le_add:\n"
+#guard blsgLeAdd_prog.length = 69
 /-- Multiply an affine point by a big-endian scalar (MSB-first
     double-and-add over the raw bytes, matching py_ecc `multiply`).
     a0 = scalar bytes, a1 = scalar byte length, a2 = base x||y,

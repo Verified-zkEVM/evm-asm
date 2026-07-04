@@ -1567,34 +1567,60 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
     5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
     drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3. Read-only
     (callable repeatedly; mutates no dispatcher state). -/
-def dispatcherTxGasSettleFunction : String :=
-  "dispatcher_tx_gas_settle:\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  ld t1, 32(t0)               # halt_kind\n" ++
-  "  la t0, evm_env\n" ++
-  "  ld t0, 568(t0)              # gas_left\n" ++
-  "  la t2, evm_state_gas_left\n" ++
-  "  ld t2, 0(t2)\n" ++
-  "  la t3, evm_refund_acc\n" ++
-  "  ld a1, 0(t3)\n" ++
-  "  li a2, 1                    # tx success bit (receipt `succeeded`)\n" ++
-  "  beqz t1, .Ldtgs_success\n" ++
-  "  li t3, 1\n" ++
-  "  beq t1, t3, .Ldtgs_success\n" ++
-  "  li t3, 5\n" ++
-  "  beq t1, t3, .Ldtgs_success\n" ++
-  "  li a1, 0                    # error: refund counter discarded\n" ++
-  "  li a2, 0                    # error: receipt status = 0\n" ++
-  "  la t3, evm_state_gas_used\n" ++
-  "  ld t3, 0(t3)\n" ++
-  "  add t2, t2, t3              # error: state_gas_left += state_gas_used\n" ++
-  "  li t3, 2\n" ++
-  "  beq t1, t3, .Ldtgs_success  # REVERT keeps gas_left\n" ++
-  "  li t0, 0                    # exceptional halt burns remaining regular gas\n" ++
-  ".Ldtgs_success:\n" ++
-  "  add a0, t0, t2\n" ++
-  "  ret"
+def dispatcherTxGasSettle_prog : Program :=
+  [ .LUI .x5 (10 : BitVec 20),
+    .ADDIW .x5 .x5 (1 : BitVec 12),
+    .SLLI .x5 .x5 (16 : BitVec 6),
+    .LD .x6 .x5 (32 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_env (GuestAddrs.dispatcher_tx_gas_settle + 16)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_env (GuestAddrs.dispatcher_tx_gas_settle + 16)),
+    .LD .x5 .x5 (568 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 28)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 28)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
+    .LD .x11 .x28 (0 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .BEQ .x6 .x0 (56 : BitVec 13),
+    .LI .x28 (1 : Word),
+    .BEQ .x6 .x28 (48 : BitVec 13),
+    .LI .x28 (5 : Word),
+    .BEQ .x6 .x28 (40 : BitVec 13),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .AUIPC .x28 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
+    .LD .x28 .x28 (0 : BitVec 12),
+    .ADD .x7 .x7 .x28,
+    .LI .x28 (2 : Word),
+    .BEQ .x6 .x28 (8 : BitVec 13),
+    .LI .x5 (0 : Word),
+    .ADD .x10 .x5 .x7,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `dispatcherTxGasSettle_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def dispatcherTxGasSettle_relocs : RelocTable :=
+  [ (4, .la .x5 "evm_env"),
+    (7, .la .x7 "evm_state_gas_left"),
+    (10, .la .x28 "evm_refund_acc"),
+    (21, .la .x28 "evm_state_gas_used") ]
+
+def dispatcherTxGasSettleFunction : String :=
+  "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `dispatcherTxGasSettle_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem dispatcherTxGasSettleFunction_eq_prog :
+    dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
+
+#guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
+#guard dispatcherTxGasSettle_prog.length = 30
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through

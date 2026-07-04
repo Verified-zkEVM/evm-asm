@@ -245,51 +245,107 @@ def ziskSszWithdrawalToRlpProbeUnit : BuildUnit := {
       a3 (input)  : output u256 ptr (32 bytes, BE; receives the summed wei)
       ra (input)  : return
       a0 (output) : 0 ok, 1 on u256 overflow (mul or add) -/
-def bvSumWithdrawalsToAddressFunction : String :=
-  "bv_sum_withdrawals_to_address:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # target address ptr (20B)\n" ++
-  "  mv s1, a1                   # SSZ withdrawals base\n" ++
-  "  mv s2, a2                   # withdrawal count\n" ++
-  "  mv s3, a3                   # out u256 BE\n" ++
-  "  sd zero, 0(s3); sd zero, 8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  li s4, 0                    # i\n" ++
-  ".Lbsw_loop:\n" ++
-  "  beq s4, s2, .Lbsw_ok\n" ++
-  "  li t0, 44; mul t0, s4, t0; add t1, s1, t0   # entry ptr\n" ++
-  "  addi t2, t1, 16             # entry address @ +16\n" ++
-  "  mv t3, s0; li t4, 20\n" ++
-  ".Lbsw_addr_cmp:\n" ++
-  "  beqz t4, .Lbsw_match\n" ++
-  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lbsw_next\n" ++
-  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1\n" ++
-  "  j .Lbsw_addr_cmp\n" ++
-  ".Lbsw_match:\n" ++
-  "  li t0, 44; mul t0, s4, t0; add t1, s1, t0   # re-derive entry ptr\n" ++
-  "  la t2, bsw_amount\n" ++
-  "  sd zero, 0(t2); sd zero, 8(t2); sd zero, 16(t2); sd zero, 24(t2)\n" ++
-  "  addi a0, t1, 36; li a1, 8; la a2, bsw_amount; addi a2, a2, 24\n" ++
-  "  jal ra, swr_rev_le_be       # amount_gwei LE@36 -> BE in low 8 bytes\n" ++
-  "  la a0, bsw_amount; li a1, 1000000000; la a2, bsw_wei\n" ++
-  "  jal ra, u256_mul_u64_be     # wei = amount_gwei * 1e9\n" ++
-  "  bnez a0, .Lbsw_overflow\n" ++
-  "  mv a0, s3; la a1, bsw_wei; mv a2, s3\n" ++
-  "  jal ra, u256_add_be         # acc += wei\n" ++
-  "  bnez a0, .Lbsw_overflow\n" ++
-  ".Lbsw_next:\n" ++
-  "  addi s4, s4, 1; j .Lbsw_loop\n" ++
-  ".Lbsw_ok:\n" ++
-  "  li a0, 0; j .Lbsw_ret\n" ++
-  ".Lbsw_overflow:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbsw_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def bvSumWithdrawalsToAddress_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x18 (184 : BitVec 13),
+    .LI .x5 (44 : Word),
+    .MUL .x5 .x20 .x5,
+    .ADD .x6 .x9 .x5,
+    .ADDI .x7 .x6 (16 : BitVec 12),
+    .MV .x28 .x8,
+    .LI .x29 (20 : Word),
+    .BEQ .x29 .x0 (32 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .LBU .x31 .x28 (0 : BitVec 12),
+    .BNE .x30 .x31 (136 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x5 (44 : Word),
+    .MUL .x5 .x20 .x5,
+    .ADD .x6 .x9 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bsw_amount (GuestAddrs.bv_sum_withdrawals_to_address + 136)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bsw_amount (GuestAddrs.bv_sum_withdrawals_to_address + 136)),
+    .SD .x7 .x0 (0 : BitVec 12),
+    .SD .x7 .x0 (8 : BitVec 12),
+    .SD .x7 .x0 (16 : BitVec 12),
+    .SD .x7 .x0 (24 : BitVec 12),
+    .ADDI .x10 .x6 (36 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bsw_amount (GuestAddrs.bv_sum_withdrawals_to_address + 168)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsw_amount (GuestAddrs.bv_sum_withdrawals_to_address + 168)),
+    .ADDI .x12 .x12 (24 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.swr_rev_le_be (GuestAddrs.bv_sum_withdrawals_to_address + 180)),
+    .AUIPC .x10 (laHi GuestAddrs.bsw_amount (GuestAddrs.bv_sum_withdrawals_to_address + 184)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsw_amount (GuestAddrs.bv_sum_withdrawals_to_address + 184)),
+    .LUI .x11 (244141 : BitVec 20),
+    .ADDIW .x11 .x11 (-1536 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.bsw_wei (GuestAddrs.bv_sum_withdrawals_to_address + 200)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsw_wei (GuestAddrs.bv_sum_withdrawals_to_address + 200)),
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.bv_sum_withdrawals_to_address + 208)),
+    .BNE .x10 .x0 (44 : BitVec 13),
+    .MV .x10 .x19,
+    .AUIPC .x11 (laHi GuestAddrs.bsw_wei (GuestAddrs.bv_sum_withdrawals_to_address + 220)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bsw_wei (GuestAddrs.bv_sum_withdrawals_to_address + 220)),
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.bv_sum_withdrawals_to_address + 232)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (-180 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bvSumWithdrawalsToAddress_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bvSumWithdrawalsToAddress_relocs : RelocTable :=
+  [ (34, .la .x7 "bsw_amount"),
+    (42, .la .x12 "bsw_amount"),
+    (45, .jal .x1 "swr_rev_le_be"),
+    (46, .la .x10 "bsw_amount"),
+    (50, .la .x12 "bsw_wei"),
+    (52, .jal .x1 "u256_mul_u64_be"),
+    (55, .la .x11 "bsw_wei"),
+    (58, .jal .x1 "u256_add_be") ]
+
+def bvSumWithdrawalsToAddressFunction : String :=
+  "bv_sum_withdrawals_to_address:\n" ++ emitProgramR bvSumWithdrawalsToAddress_prog bvSumWithdrawalsToAddress_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bvSumWithdrawalsToAddress_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bvSumWithdrawalsToAddressFunction_eq_prog :
+    bvSumWithdrawalsToAddressFunction = "bv_sum_withdrawals_to_address:\n" ++ emitProgramR bvSumWithdrawalsToAddress_prog bvSumWithdrawalsToAddress_relocs := rfl
+
+#guard bvSumWithdrawalsToAddressFunction.startsWith "bv_sum_withdrawals_to_address:\n"
+#guard bvSumWithdrawalsToAddress_prog.length = 73
 /-- `zisk_bv_sum_withdrawals_to_address`: probe.
     Input payload (after the zisk 8-byte length prefix, i.e. machine 0x40000000+8):
       user +0  : target address (20 bytes)
