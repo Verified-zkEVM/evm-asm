@@ -210,12 +210,86 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     hs (by omega) (by omega)
   exact hall.sat
 
-/-- **The `.63` framing bundle**: scratch = residue = the six-region havoc
-    (the weakest useful residue — the halt state re-owns the same regions
-    with forgotten contents), with the non-vacuity witness. -/
+/-! ### The residue: `guestScratch` minus the observation window
+
+    The top Props place the OUTPUT claim in STRICT separation with the
+    residue (`guestOutputSound execute input ** fr.residue`), and
+    `guestOutputSound` itself owns the `OUTPUT_CLAIM_BYTES`-byte window's
+    dwords (the pinned length that closes the #9734 ∃-out vacuity hole —
+    "the observation window is deliberately NOT allowed to hide in
+    `residue`", EntrySpec.lean). So the residue must NOT re-own the
+    window: it carves the first `OUTPUT_CLAIM_BYTES` bytes out of the
+    OUTPUT tile and keeps only the tail, so that
+    `guestOutputSound ** guestResidue` re-tiles the OUTPUT region
+    exactly. (Found in the #9785 review: `residue := guestScratch`
+    over-owned the window and made the `.64` post unsatisfiable.)
+
+    NOTE (`runStatelessGuestFaithful`): the faithful Prop's window is the
+    full input-dependent `serialize_stateless_output` byte string, wider
+    than `OUTPUT_CLAIM_BYTES` and not constant across inputs, so THIS
+    residue serves the soundness Prop only — the faithful follow-up
+    needs its own carve (it is a stated `.64` v1 non-goal). -/
+
+/-- The OUTPUT region above the observation window: havoc ownership of
+    `[OUTPUT_ADDR + OUTPUT_CLAIM_BYTES, OUTPUT_ADDR + size)`. -/
+def outputTailScratch : Assertion :=
+  anyBytes
+    (BitVec.ofNat 64 RegionMap.outputRegion.base +
+      BitVec.ofNat 64 OUTPUT_CLAIM_BYTES)
+    (RegionMap.outputRegion.size - OUTPUT_CLAIM_BYTES)
+
+/-- Carve the OUTPUT entry tile at the (dword-aligned) claim boundary:
+    entry tile = observation window ++ tail. `.64` uses this to convert
+    `guestScratch`'s OUTPUT ownership into
+    `anyBytes OUTPUT_ADDR OUTPUT_CLAIM_BYTES ** outputTailScratch`, hand
+    the window to `guestOutputSound`, and drop the tail into the
+    residue. -/
+theorem regionScratch_output_carve :
+    regionScratch RegionMap.outputRegion =
+      (anyBytes (BitVec.ofNat 64 RegionMap.outputRegion.base)
+          OUTPUT_CLAIM_BYTES **
+        outputTailScratch) := by
+  show anyBytes (BitVec.ofNat 64 RegionMap.outputRegion.base)
+      RegionMap.outputRegion.size = _
+  rw [show RegionMap.outputRegion.size
+        = OUTPUT_CLAIM_BYTES +
+            (RegionMap.outputRegion.size - OUTPUT_CLAIM_BYTES) from by decide]
+  exact EvmAsm.Rv64.SAsm.anyBytes_add _ _ _ (by decide)
+
+/-- The halt-state residue: the six-region havoc with the observation
+    window carved out of the OUTPUT tile. -/
+def guestResidue : Assertion :=
+  regionScratch RegionMap.ziskSystemRegion **
+  outputTailScratch **
+  regionScratch RegionMap.guestStackRegion **
+  regionScratch RegionMap.stateTrackerLiveRegion **
+  regionScratch RegionMap.dataRegion **
+  regionScratch RegionMap.sszScratchRegion
+
+/-- **The retiling identity `.64` consumes**: the entry scratch is
+    exactly the observation window alongside the residue, so the halt
+    post `guestOutputSound ** guestResidue` accounts for precisely the
+    entry-owned work regions (window ownership moves from the havoc'd
+    entry tile into `guestOutputSound`'s pinned-length `bytesRegion`). -/
+theorem guestScratch_eq_window_residue :
+    guestScratch =
+      (anyBytes (BitVec.ofNat 64 RegionMap.outputRegion.base)
+          OUTPUT_CLAIM_BYTES **
+        guestResidue) := by
+  unfold guestScratch guestResidue
+  rw [regionScratch_output_carve, sepConj_assoc',
+    ← sepConj_assoc' (regionScratch RegionMap.ziskSystemRegion),
+    sepConj_comm' (regionScratch RegionMap.ziskSystemRegion),
+    sepConj_assoc']
+
+/-- **The `.63` framing bundle**: `scratch` = the six-region havoc (the
+    guest owns the FULL OUTPUT region at entry), `residue` = the same
+    havoc minus the observation window (which `guestOutputSound` owns in
+    the post — see the carve note above), with the non-vacuity
+    witness. -/
 def guestFraming : GuestFraming where
   scratch := guestScratch
-  residue := guestScratch
+  residue := guestResidue
   scratch_sat := guestScratch_sat
 
 end EvmAsm.Codegen

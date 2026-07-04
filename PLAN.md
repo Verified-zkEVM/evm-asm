@@ -2852,8 +2852,12 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   Coverage accounting: 23.76% of `.text`; the 443 uncovered ranges are
   enumerated in **docs/4ch8f-guest-image-coverage.md** and filed as
   beads 4ch8f.63.2–.63.12. `guestFraming : GuestFraming` instantiated
-  (scratch = residue = `anyBytes` over the six `zone = .ram`
-  `guestRegionMap` regions, drift-pinned; `scratch_sat` witness via new
+  (scratch = `anyBytes` over the six `zone = .ram` `guestRegionMap`
+  regions, drift-pinned; residue = the same havoc MINUS the 40-byte
+  observation window, carved out of the OUTPUT tile so
+  `guestOutputSound ** residue` re-tiles OUTPUT exactly — retiling
+  identity `guestScratch_eq_window_residue`, #9785 review fix;
+  `scratch_sat` witness via new
   `Rv64/MemSat.lean` footprint-satisfiability combinators). STATEMENT
   REPAIR: `MAX_INPUT_BYTES` 2^30 → `0x37FFFFF8` (2^30 made
   `scratch_sat` unprovable — `isValidDwordAccess` cuts at `MEM_END`;
