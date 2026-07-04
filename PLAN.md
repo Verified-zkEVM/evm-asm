@@ -2775,6 +2775,30 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 
 ### Status
 
+- ✅ **Top-level spec statement landed** (bead evm-asm-4ch8f.8,
+  2026-07-04, synthesis of PRs #9733 + #9734 review): `EvmAsm/Stateless/
+  EntrySpec.lean` defines `runStatelessGuestSound cr fuel work execute`
+  (a `cpsHaltTripleWithin` from `GUEST_ENTRY`, ∀ inputs ≤
+  `MAX_INPUT_BYTES`), with `guestOutputSound` — soundness over the
+  PINNED 40-byte observation window (`OUTPUT[32]` flag, `OUTPUT[0..32)`
+  = spec NPR root via `SpecAccepts`; the pinned length closes the
+  self-delimiting-decode vacuity escapes found in review) — and
+  `runStatelessGuestFaithful` (full-byte fidelity, declared NON-goal
+  for .64 v1). ZisK meta bytes at `INPUT_ADDR+0` unconstrained; kernel
+  `#guard`s pin the flag/root offsets to the SpecRef encoder and
+  witness `SpecAccepts` on the sanity pipeline. Full decision record:
+  **docs/4ch8f-top-spec.md**. The obligation decomposition lives in
+  **docs/agents/top-theorem-ledger.md** (14 rows, each with bead +
+  exemplar) — update a row whenever a stateless proof lands.
+- ✅ **Smaller-model port toolchain** (2026-07-04):
+  `docs/agents/port-playbook.md` (single entry point: class table →
+  exemplar → recipe → stop-rule), `scripts/gen-port-kit.py` (skeleton
+  generator over the asm→Program pipeline), `scripts/port-check.sh` +
+  `scripts/port_check_axioms.lean` (one-command acceptance gate:
+  build, zero warnings, forbidden-tactic scan, per-module kernel
+  axiom audit). Family beads 4ch8f.12/.13/.14 decomposed into 24
+  one-session `port: verify …` child beads with the gate as
+  acceptance criterion.
 - ✅ PR1 scaffold committed: `EvmAsm/Stateless/` with
   `MemoryLayout.lean`, `Unimplemented.lean`, `Entry.lean`,
   `EntrySpec.lean`, and the `Stateless.lean` umbrella.
