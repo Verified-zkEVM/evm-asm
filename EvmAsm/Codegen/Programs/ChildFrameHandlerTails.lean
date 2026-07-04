@@ -100,7 +100,7 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   "  sd x0, 16(x12)\n" ++
   "  sd x0, 24(x12)\n" ++
   "  addi x10, x10, 1\n" ++
-  "  j .dispatch_loop\n" ++
+  dispatchContinueRet ++ "\n" ++
   ".L" ++ tag ++ "_precompile_dispatch:\n"
 
 def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) : String :=
@@ -274,7 +274,7 @@ def basicPrecompileCallTail
     "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
     "  li x14, 1; sd x14, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     ".L" ++ tag ++ "_eip4788_fallthrough:\n"
     ) else "") ++
     "  ld x14, 32(x12)\n" ++
@@ -406,7 +406,7 @@ def basicPrecompileCallTail
     "  sd x0, 16(x12)\n" ++
     "  sd x0, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
-    "  j .dispatch_loop\n" ++
+    dispatchContinueRet ++ "\n" ++
     -- SHA256: digest = sha256(memory[in_offset .. in_offset+in_size)).
     -- The wrapper uses the LP64 a0/a1/a2 registers, so save the
     -- dispatcher code and stack pointers before setting up arguments.
