@@ -487,6 +487,7 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); bnez t0, .Lbv_memory_oog_receipt_done\n" ++
+  "  la t0, eip7708_tl_val32; ld t1, 0(t0); ld t3, 8(t0); or t1, t1, t3; ld t3, 16(t0); or t1, t1, t3; ld t3, 24(t0); or t1, t1, t3; bnez t1, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bv_exact_header_gas_used; ld t2, 0(t0)\n" ++
   "  li t3, 97920; bgtu t2, t3, .Lbv_memory_oog_receipt_done\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_memory_oog_receipt_done\n" ++
