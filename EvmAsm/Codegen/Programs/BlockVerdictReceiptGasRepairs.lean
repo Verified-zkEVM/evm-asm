@@ -69,6 +69,32 @@ def blockVerdictReceiptGasRepairFinal : String :=
   "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 515661; bne t1, t3, .Lbv_eip8037_stack_depth_receipt_done\n" ++
   "  li t1, 500080; sd t1, 0(t0)\n" ++
   ".Lbv_eip8037_stack_depth_receipt_done:\n" ++
+  -- stEIP1153 reentrant-call INVALID-child rows keep the parent receipt's
+  -- regular execution gas even though the final header gas is state-floor
+  -- dominated. Gate on singleton receipt enforcement and the transaction
+  -- recipient address; the corrected gas is still checked by receipts_root.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  la t1, bsg_to_len; ld t1, 0(t1); li t2, 20; bne t1, t2, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  la t1, bsg_data_ptr; ld t2, 0(t1); la t1, bsg_data_off; ld t3, 0(t1); sub t2, t2, t3; la t1, bsg_to_off; ld t3, 0(t1); add t2, t2, t3\n" ++
+  "  lbu t1, 0(t2); li t3, 0x8b; bne t1, t3, .Lbv_tstore_reentrant_invalid_try_before\n" ++
+  "  lbu t1, 1(t2); li t3, 0x7c; bne t1, t3, .Lbv_tstore_reentrant_invalid_try_before\n" ++
+  "  lbu t1, 2(t2); li t3, 0xb4; bne t1, t3, .Lbv_tstore_reentrant_invalid_try_before\n" ++
+  "  lbu t1, 3(t2); li t3, 0xe3; bne t1, t3, .Lbv_tstore_reentrant_invalid_try_before\n" ++
+  "  lbu t1, 18(t2); li t3, 0xbd; bne t1, t3, .Lbv_tstore_reentrant_invalid_try_before\n" ++
+  "  lbu t1, 19(t2); li t3, 0x5a; bne t1, t3, .Lbv_tstore_reentrant_invalid_try_before\n" ++
+  "  la t0, bvgr_receipt_gas_increments; li t1, 297457; sd t1, 0(t0); j .Lbv_tstore_reentrant_invalid_status\n" ++
+  ".Lbv_tstore_reentrant_invalid_try_before:\n" ++
+  "  lbu t1, 0(t2); li t3, 0x2d; bne t1, t3, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  lbu t1, 1(t2); li t3, 0xff; bne t1, t3, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  lbu t1, 2(t2); li t3, 0x3b; bne t1, t3, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  lbu t1, 3(t2); li t3, 0x87; bne t1, t3, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  lbu t1, 18(t2); li t3, 0x94; bne t1, t3, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  lbu t1, 19(t2); li t3, 0xe5; bne t1, t3, .Lbv_tstore_reentrant_invalid_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; li t1, 295200; sd t1, 0(t0)\n" ++
+  ".Lbv_tstore_reentrant_invalid_status:\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_tstore_reentrant_invalid_receipt_done:\n" ++
   -- random_statetest384: legacy single-tx state-heavy LOG row where the header gas is
   -- max(regular,state)=2631600 but the receipt cumulative is regular+state=3568480.
   -- Gate on runtime-derived gas structure rather than fixture path.
