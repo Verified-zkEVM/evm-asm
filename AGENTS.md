@@ -365,6 +365,15 @@ merged into a feature branch, not `main`). All three had to be reopened.
 Detailed material has been split out of this file to keep the agent guide compact. **Load each
 doc only when its trigger applies** — they are reference material, not required reading.
 
+- [`docs/agents/port-playbook.md`](docs/agents/port-playbook.md) — THE entry point for
+  verifying one guest routine end-to-end: class decision table → exemplar → recipe →
+  acceptance (`scripts/port-check.sh`, `scripts/gen-port-kit.py` scaffolds).
+  **Load when:** working any `port: verify …` bead or any 4ch8f routine-family bead.
+- [`docs/agents/top-theorem-ledger.md`](docs/agents/top-theorem-ledger.md) — the obligation
+  ledger decomposing `run_stateless_guest_spec` (statement: `EvmAsm/Stateless/EntrySpec.lean`)
+  into leaf work, with per-row status and exemplars.
+  **Load when:** deciding what stateless-guest proof work to pick up, or closing a port bead
+  (update the row).
 - [`docs/agents/tactics-deep.md`](docs/agents/tactics-deep.md) — Frame-automation tactics,
   separation-conjunction permutation (`xperm`), LP64 calling convention, three-level opcode
   proof architecture, Compose file splitting, file-size guardrail, benchmark-history branch.
