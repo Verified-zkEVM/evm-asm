@@ -154,6 +154,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   re-init the limit register inside the loop (back-`JAL` targets the `LI`), so a
   structured `while` (back-edge → guard) differs by exactly that one offset
   field; explicit structured flattens are pinned and the divergence documented.
+  Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
+  `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
+  byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
+  disjointness — reverse-copy into a separate buffer) and `BhrRevLeBeSAsm.lean`
+  (`bhrRevLeBeFn_spec`, reuses the generic core since `bhrRevLeBe_prog` is
+  byte-identical to `swrRevLeBe_prog`).
 - **runTacticSilent**: Suppresses bv_omega diagnostic leaks from speculative
   tactic calls (Lean 4.29 regression fix in SeqFrame.lean/RunBlock.lean).
 - **`bv_decide` purge — COMPLETE** (fully kernel-checkable trust base):
@@ -2558,7 +2564,18 @@ ghost instantiation (docs/sasm-design.md §3.6.3, CallRegDemo); bead
 closed by .10 — `jalr x0` tail calls turned out unneeded (dispatch is
 jalr-x1 + ret; non-ret tails get the flag+ret restructure in .49), the
 real remainder was snapshot-parameterized handles, shipped as
-`FnHandleS`/`Stmt.callRegS` (design §3.11). ZisK accelerator semantics
+`FnHandleS`/`Stmt.callRegS` (design §3.11). Data-dependent dispatch windows
+landed (`SAsm/HandleFocus.lean`, bead evm-asm-4ch8f.49.1): `FnHandleS.focus`
+repackages a *family* of minimal-window handles `family sp` (each verified
+against `⟨sp, winLen⟩`, the `.10.1` shape) as ONE handle over a FIXED arena
+whose `pre` focuses the operative window at the register `x12` and whose
+`post` pins the window results as a function of the entry snapshot, framing
+the arena remainder — so `callRegS`'s `h.rw = caller.rw` holds while the
+window position varies per iteration (the `widenRw` fixed-offset embedding
+cannot). `FocusDemo` discharges the real `callRegS` `.pre` VC at two distinct
+`x12`; `Codegen/Proofs/HandleFocusReal` witnesses `focus` on the actual
+`evmAddHandle`/`evmSubHandle` (field hyps by `rfl`). Unblocks `.49.d`. ZisK
+accelerator semantics
 landed (`Rv64/ZiskAccel.lean` + `Instr.CSRS`, bead evm-asm-4ch8f.1):
 CONCRETE per-CSR semantics — Keccak-f[1600], SHA-256 compression,
 Arith256Mod exact (a*b+c) mod m — with kernel-checked KATs pinned to
@@ -2813,6 +2830,21 @@ pairings/maps/KZG last (their RFC 9380/KZG-unreachable gaps are
 completeness-only under the .8 soundness headline). New shared-library
 beads .11.6–.11.9 (nLimbs-generic + curve handles; BE↔LE; Fermat;
 scalar-mul skeleton); .38/.57/.58 re-scoped accordingly.
+ECDSA recovery reference spec landed (bead evm-asm-4ch8f.38.1,
+`EvmAsm/Stateless/SpecRef/Secp256k1Recover.lean`): the project-side
+trusted-base recovery math (`decompressR`/`recover`/`addressOfPoint`/
+`ecrecoverAddress`) over `Nat`-modular affine points reusing
+`Accel.curveAdd/curveDbl/powMod/invMod`, every equation cited to two
+authorities in-file, explicit `Except` failure taxonomy mapped to the
+guest status codes, KATs cross-derived (EEST `valid_signature_1` probe
+vector + coincurve-reproduced RFC 6979 vector + an independent textbook
+vector) and kernel-checked via `decide +kernel` (no maxRecDepth/
+heartbeat overrides; full 256-bit recovery ≈ 25 s per KAT). One
+recorded authority divergence: execution-specs' Euler pre-check rejects
+`x³+7 ≡ 0` where SEC1/guest `y² ≟ rhs` accepts — class proven empty
+(`neg7_not_cube`). Consumers: .38c recovery orchestration, .39
+tx-sender, .40 EIP-7702 (substrate decision recorded as a
+crypto-strategy §4 amendment).
 
 ## Stateless Guest (parallel STF track)
 

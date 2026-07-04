@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
+import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
 import EvmAsm.Codegen.Proofs.CreateDeployedCodeValidSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
