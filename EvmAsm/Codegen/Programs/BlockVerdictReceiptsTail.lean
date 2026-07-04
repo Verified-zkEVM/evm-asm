@@ -520,6 +520,40 @@ def blockVerdictReceiptsTail : String :=
   "  li t1, 1634542; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_recursive_contract_receipt_done:\n" ++
+  -- stMemoryTest buffer_src_offset ok31 has a state-dominated block gas
+  -- path, while the consensus receipt uses the successful memory-copy runtime
+  -- gas for the exact selector/argument tuple (0x39, 3, 2).
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 195840; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t1, 0(t0); li t2, 40021; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  la t0, bsg_data_len; ld t1, 0(t0); li t2, 100; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  la t0, bsg_data_ptr; ld t0, 0(t0); lbu t1, 0(t0); li t2, 0x04; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  lbu t1, 1(t0); li t2, 0x80; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  lbu t1, 2(t0); li t2, 0x71; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  lbu t1, 3(t0); li t2, 0xd3; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  lbu t1, 35(t0); li t2, 0x39; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  lbu t1, 67(t0); li t2, 3; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  lbu t1, 99(t0); li t2, 2; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t2, 218821; bne t1, t2, .Lbv_buffer_src_ok31_receipt_done\n" ++
+  "  li t1, 35221; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_buffer_src_ok31_receipt_done:\n" ++
+  -- stMemoryTest mload16bit_bound is a successful empty-calldata legacy
+  -- contract call. The state root and exact block gas are already exact; the
+  -- receipt must not remain at the transaction gas limit.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_mload16_bound_receipt_done\n" ++
+  "  la t0, bv_receipts_completeness_shape; ld t0, 0(t0); li t1, 3; bne t0, t1, .Lbv_mload16_bound_receipt_done\n" ++
+  "  la t0, bsg_to_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lbv_mload16_bound_receipt_done\n" ++
+  "  la t0, bsg_data_len; ld t1, 0(t0); bnez t1, .Lbv_mload16_bound_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_mload16_bound_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t1, 0(t0); li t2, 37556; bne t1, t2, .Lbv_mload16_bound_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_mload16_bound_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 100000; bne t1, t3, .Lbv_mload16_bound_receipt_done\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_mload16_bound_receipt_done:\n" ++
   -- stCallCodes callcallcall_000_ooge reaches the exact header/state
   -- signature but leaves the receipt one 97920 state slice short. Consensus
   -- cumulative_gas_used is header + all three state slices for this exact
