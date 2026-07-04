@@ -273,6 +273,30 @@ and the flag cell, with the guard-taken/not-taken split expressed in
 the snapshot post (no ∃-state).  `focus`-style embedding applies with a
 guard-aware post (window transformed per body on the not-taken path;
 window framed + flag dword := 7 on the taken path).
+
+**Shipped (`vgyg9`).**  Codegen: `stackUnderflowGuardAsm`/
+`stackOverflowGuardAsm` (and the three raw DUPN/SWAPN/EXCHANGE branches)
+convert their exit branch to a skip-branch over `stackGuardHaltAsm 7|8`
+(`li x5, code; la x6, evm_halt_flag; sd; ret`), and `emitDispatchResume`
+routes `7`→`.exit_stack_underflow`, `8`→`.exit_stack_overflow`.  Scoped
+`.s` diff = exactly those conversions; EEST A/B is identical base-vs-branch
+on a 100-fixture parity subset and a 40-fixture genuine-underflow probe
+(the exit still fires and routes).  Raw-triple proof layer
+(`Codegen/Proofs/GuardedHandlerSpecs.lean`, axiom-clean classical-3):
+`stackGuardBranch` (5-instr check → two-exit `cpsBranchWithin`),
+`stackGuardHalt` (5-instr halt block, flag := 7, `x1` preserved),
+`guardedCleanRetHandlerSpec` (reusable guard+halt+body template with the
+underflow-conditional post), and `evmAddGuardedHandlerSpec` (the `.10.1`
+ADD handle re-packaged to enter at `h_ADD` including the guard).  A
+byte-tie (`scripts/check-guarded-handler-bytes.sh`, in CI) proves the
+verified guarded-ADD `Program` is byte-identical to the emitted `h_ADD` at
+the dispatch-table address.  **Remaining for `.49.d`:** wrap
+`evmAddGuardedHandlerSpec` as a `FnHandleS` (entry `= addrOf h_ADD`) and
+embed via `.49.1`'s `FnHandleS.focus` over the widened arena — the
+`callRegS` `.pre` then discharges from `handler_table_load_witness` by
+construction.
+
+**Rejected alternatives.**
 - *(A) Monomorphic handles + trace-indexed ghost posts* ("∃ j, exit
   encodes trace (j+1)"): cannot correlate `j` with the iteration, so
   `inv_step` cannot re-establish `encodes (trace (i+1))` and no variant

@@ -593,13 +593,10 @@ theorem evmAddGuardedHandlerSpec (sp base cell flag : Word)
     (guardedCleanRetHandlerSpec hi1 lo1 hi2 lo2 (-64) (by omega) (by pcFree)
       (by decide) hla1 hla2 v5 v6 x10_init x1_init x14_init curTop f0 h_add')
 
--- ============================================================================
--- 5. Axiom audit
--- ============================================================================
-
-#print axioms stackGuardBranch
-#print axioms stackGuardHalt
-#print axioms guardedCleanRetHandlerSpec
-#print axioms evmAddGuardedHandlerSpec
+-- Axiom audit: `stackGuardBranch`, `stackGuardHalt`,
+-- `guardedCleanRetHandlerSpec`, and `evmAddGuardedHandlerSpec` each kernel-
+-- depend only on `[propext, Classical.choice, Quot.sound]` (verified by
+-- `scripts/port-check.sh` / `scripts/check-axioms.sh`; `#print axioms` omitted
+-- here to keep re-elaboration output-free per the zero-warning policy).
 
 end EvmAsm.Codegen.Proofs
