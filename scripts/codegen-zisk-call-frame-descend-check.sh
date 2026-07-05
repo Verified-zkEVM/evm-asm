@@ -51,7 +51,7 @@ checks = [
     ('ctx[1].outSize',                  0x20),
     ('ctx[1].netPopBytes',              192),
     ('child x13 - &call_frame_arena',   0),
-    ('child x20 - &arena (frameEnvOff)',0x28400),
+    ('child x20 - &arena (frameEnvOff)',0x38400),
     ('child x21 - &code (callee base)', 0),
     ('child x10 - &code (child PC)',    0),
     ('child env.ADDRESS (to)',          0xbb),
@@ -62,8 +62,8 @@ checks = [
     ('child env.gasRemaining (EIP-150)',3300),
     ('child env.codeSize',              0x33),
     ('child env witness.state ptr',     0x592),
-    ('evm_cur_stack_top - &arena',      0x18200),
-    ('evm_cur_stack_low - &arena',      0x10200),
+    ('evm_cur_stack_top - &arena',      0x28200),
+    ('evm_cur_stack_low - &arena',      0x20200),
     ('parent gas after transfer+cost',  90000),
     # nxio8.4.1: descend snapshots the parent's pre-child state gas into the child
     # env at +624/632 so frame_return can restore it on a child REVERT.

@@ -1,5 +1,19 @@
 # Nested CALL/CREATE frame memory layout (depth-indexed pre-allocated frame array)
 
+> **STATUS (2026-07-05): historical design record — superseded on three points.**
+> The live authorities are `EvmAsm/Codegen/CallFrameLayout.lean` (constants,
+> re-pinned to the emitted geometry by #9852), `EvmAsm/Codegen/RegionMap.lean`
+> (region extents + overlap inventory, ELF-drift-guarded), and
+> `EvmAsm/Codegen/CallFramePhase.lean` + `docs/4ch8f-callframe-audit.md`
+> (the union-aliasing soundness story). Specifically superseded here:
+> (1) §5's grep-based "SOUNDNESS GATE" is replaced by the verified
+> phase-ownership model + the Own-not-Is / sequencing audits; (2) the union now
+> coalesces SEVEN Phase-H children (not just the basr pair), inventoried in
+> `RegionMap.dataUnionChildren`; (3) one child — `bv_system_storage_log` — is
+> in fact read post-dispatch, violating the phase-liveness assumption (open
+> P0 bug bead `evm-asm-4ch8f.73`). Sizes/addresses below are design-time
+> snapshots; trust the Lean constants + `scripts/check-region-map.sh`.
+
 Design for bead `evm-asm-fhsxz.2.4.2.61.2` (P0, foundational). Owner: claude-c2.
 This settles the guest `.data` layout and register conventions for nested EVM
 call frames up to the protocol depth limit (1024) **before** the
