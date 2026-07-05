@@ -290,8 +290,11 @@ theorem nestedDoWhileSDemoFn_spec (base : Word) : nestedDoWhileSDemoFn.Spec base
     obtain rfl := List.eq_nil_of_length_eq_zero hws
     -- `hreach₀` records that `innerInit` (`LI x29,3`) already ran.
     obtain ⟨rfJ, wsJ, hwsJ, -, rfl, rfl⟩ := hreach₀
-    refine ⟨?_, ?_, ?_⟩ <;>
-      simp [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem] <;> decide
+    refine ⟨?_, ?_, ?_⟩
+    · simp [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem]
+      decide
+    · simp [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem]
+    · simp [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem]
   case nestedDoWhileSDemo.outer.body.inner.inv_step =>
     rintro rf₀ ws₀ A₀ hreach₀ j hj rf' ws' A' ⟨rf, ws, hws, ⟨⟨hx29, hx5, hx6⟩, hg⟩, rfl, rfl⟩
     obtain rfl := List.eq_nil_of_length_eq_zero hws
