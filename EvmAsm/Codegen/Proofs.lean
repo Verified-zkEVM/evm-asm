@@ -22,3 +22,4 @@ import EvmAsm.Codegen.Proofs.JumpdestBitmap
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.GuestImageEntries
 import EvmAsm.Codegen.Proofs.GuestImage
+import EvmAsm.Codegen.Proofs.DoWhileDemo
