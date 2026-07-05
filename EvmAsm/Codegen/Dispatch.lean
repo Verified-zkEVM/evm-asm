@@ -1816,6 +1816,7 @@ def emitDispatcherEpilogueCore
     createCreatorNonceUseFunction ++ "\n" ++
     zkvmModexpBackendImpl ++ "\n" ++
     emitModexpBnScratchData ++ "\n" ++
+    ".section .text\n" ++ "\n" ++
     storageAccessGasFunction ++ "\n" ++
     sstoreGasRefundOutcomeFunction ++ "\n" ++
     dispatcherTxGasSettleFunction ++ "\n" ++
@@ -2781,6 +2782,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpBackendImpl ++ "\n" ++
   emitModexpBnScratchData ++ "\n" ++
+  ".section .text\n" ++ "\n" ++
   -- Real RIPEMD160 (0x03) software kernel for the guest closures
   -- (the guest provides `zkvm_sha256` itself, but `zkvm_ripemd160`
   -- only exists here and in the shared-helpers epilogue branch).
