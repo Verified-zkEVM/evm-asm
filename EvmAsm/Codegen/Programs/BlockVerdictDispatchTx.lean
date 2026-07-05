@@ -491,9 +491,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  beqz t6, .Ldtrc_ctx_done\n" ++
   "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_codes_copy\n" ++
   ".Ldtrc_ctx_done:\n" ++
-  -- 3vc2p.1: stage CALLER (env+64) + ORIGIN (env+128) = tx.sender into the runtime
+  -- 3vc2p.1: stage CALLER (env+64) + ORIGIN (env+128) = tx'sender into the runtime
   -- payload's env words, so CALLER/ORIGIN resolve once 3vc2p.4 activates them (for a
-  -- top-level tx, CALLER == ORIGIN == tx.sender). The sender is derived from the
+  -- top-level tx, CALLER == ORIGIN == tx'sender). The sender is derived from the
   -- selected pubkey (ctx+24, 64-byte x||y) via address_from_pubkey. env_base (in the
   -- payload) = round8(codelen) + 80; CALLER = env_base+64, ORIGIN = env_base+128 (the
   -- same word slots stage_runtime_payload_code wrote ADDRESS@+0 / CALLVALUE@+96 to).
@@ -718,10 +718,6 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, evm_env; ld t1, 472(t0); la t2, dtrc_hdr_len; ld t2, 0(t2); bne t1, t2, .Ldtrc_log_count_ready\n" ++
   "  sd x0, 472(t0); sd x0, 480(t0)\n" ++
   ".Ldtrc_log_count_ready:\n" ++
-  -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
-  -- BEFORE the next dispatch overwrites the capture buffers; the caller stores
-  -- the bv_last_log_* window into its per-tx slot.
-  "  jal ra, block_log_window_snapshot\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle
   -- returns a0 = gas_left + state_gas_left with the tx-error rules applied
   -- (exceptional halt burns regular gas; any error restores state gas and
@@ -729,12 +725,22 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- consumers' `tx.gas - gas_left` formula matches
   -- `tx.gas - gas_left - state_gas_left` from fork.py process_transaction.
   "  jal ra, dispatcher_tx_gas_settle\n" ++
-  "  mv t3, a0                    # effective gas_left\n" ++
-  "  mv a3, a1                    # effective refund_counter\n" ++
-  "  mv a4, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
-  "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
+  "  mv s0, a0                    # effective gas_left\n" ++
+  "  mv s1, a1                    # effective refund_counter\n" ++
+  "  mv s2, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
+  "  la t4, runtime_tx_calldata_floor; ld s3, 0(t4)\n" ++
+  -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
+  -- after settlement has classified the top-level tx status. A failed top-level
+  -- transaction rolls back all LOGs, even logs committed by successful child calls.
+  "  bnez s2, .Ldtrc_snapshot_logs\n" ++
+  "  la t0, evm_env; sd x0, 472(t0); sd x0, 480(t0)\n" ++
+  ".Ldtrc_snapshot_logs:\n" ++
+  "  jal ra, block_log_window_snapshot\n" ++
+  "  mv t3, s0                    # effective gas_left\n" ++
+  "  mv a3, s1                    # effective refund_counter\n" ++
+  "  mv a4, s2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  mv a1, t3                    # gas_left\n" ++
-  "  mv a2, t5                    # calldata_floor\n" ++
+  "  mv a2, s3                    # calldata_floor\n" ++
   "  li a0, 0\n" ++
   "  j .Ldtrc_ret\n" ++
   -- Structured unsupported reason codes. Callers continue to treat any nonzero
