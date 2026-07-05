@@ -128,27 +128,51 @@ def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommitt
 def bvSystemTransactionGas : Nat := 30000000
 def bvSystemRequestCallCount : Nat := 2
 
-/-- Conservative row bound for system-call SSTORE side capture. `SSTORE` costs at
-    least 100 gas even for the cheapest warm/dirty case, so two 30M-gas system
-    transactions can append at most 600,000 storage rows before gas exhaustion.
-    This bound is independent of the regular runtime storage-log arena
-    (`0xa0630000..0xa0830000` = 16,384 rows): system-call rows are copied aside
-    before the verdict restores the user log count, and must not inherit that
-    smaller incidental runtime window. -/
 def bvSystemStorageMinSstoreGas : Nat := 100
-def bvSystemStorageLogCapacity : Nat :=
-  bvSystemRequestCallCount * (bvSystemTransactionGas / bvSystemStorageMinSstoreGas)
+
+/-- **Runtime persistent storage exec-log capacity** — the hard, fail-closed cap
+    on how many rows the SSTORE opcode handler can append to the exec-log at
+    `0xa0630000..0xa0830000` (`Storage.lean:380-382`:
+    `li x14,16384; bgeu x15,x14,.exit_outofgas`; mirrored on the preload seed at
+    `Dispatch.lean:2246-2247`). The 16385th append triggers an exceptional exit,
+    so `evm_env+448` (persistentLogLength) can never exceed this. Kept in sync
+    with `Evm64.StorageAssertions.STORAGE_LOG_CAPACITY = 16384` (which carries the
+    in-bounds proof). -/
+def bvPersistentStorageLogCapacity : Nat := 16384
+
+/-- **Row bound for the system-call SSTORE side capture (`bv_system_storage_log`),
+    tightened for `evm-asm-4ch8f.73`.** `capture_system_storage_exec_rows`
+    (`BlockVerdictSystemStorageCapture.lean`) copies rows out of the runtime
+    persistent exec-log at `0xa0630000` over `[cursor, evm_env+448)`. Because that
+    source is hard-capped at `bvPersistentStorageLogCapacity` (fail-closed at
+    SSTORE time), and the two end-of-block system txs share the same non-reset log
+    (the cursor only advances, `BlockVerdictStateRoot.lean:457/510/555`; the length
+    is restored, not reset, at `:556`), their combined captured rows are
+    `≤ bvPersistentStorageLogCapacity`. The modeled EIP-2935/4788 startup
+    descriptors (`appendModeledSystemStorageTupleRows`) add only a fixed handful
+    (3). So `2 * bvPersistentStorageLogCapacity` is a sound ~2× over-approximation
+    of the true `≤ 16387` worst case.
+
+    This REPLACES the former gas-derived `600,000` reservation
+    (`2 * 30M / 100`), which was unreachable: the 100-gas figure ignored the
+    16384-row fail-closed source cap. The old `76.8 MiB` reservation was UNIONED
+    into `call_frame_arena`'s front, where per-tx dispatch frames at depth ≥ 221
+    physically zeroed it before the post-dispatch BAL validators read it (the
+    `.73` clobber). At `2 * 16384` rows (4 MiB) the syslog is small enough to live
+    in its OWN standalone `.data` region, fully outside the frame arena — see
+    `syslog_disjoint_from_frameArena`. -/
+def bvSystemStorageLogCapacity : Nat := 2 * bvPersistentStorageLogCapacity
 
 /-- Full committed-storage unique-key target for the 200M resource work.
 
     This is keyed by unique `(recipient, slotKey)`, not by transaction count or
-    raw duplicate writes. Every unique committed key must originate from at least
-    one persistent storage exec-log row, so the system-call SSTORE side-capture
-    arena is the current guest-wide upper bound. The active block-verdict path
-    still uses `bvMtxCommittedChunkCapacity`; follow-up slices migrate the
-    upsert/lookup substrate to this full target or to an equivalent streaming
-    design. -/
-def bvMtxCommittedFullKeyCap : Nat := bvSystemStorageLogCapacity
+    raw duplicate writes. The active block-verdict path uses
+    `bvMtxCommittedChunkCapacity`; follow-up slices migrate the upsert/lookup
+    substrate to this full target or to an equivalent streaming design.
+    (Independent of `bvSystemStorageLogCapacity` since `.73`: that syslog arena is
+    a per-block system-call side buffer bounded by the runtime exec-log source
+    cap, whereas this is a whole-block cross-tx unique-key capacity target.) -/
+def bvMtxCommittedFullKeyCap : Nat := 600000
 def bvMtxCommittedFullBytes : Nat :=
   bvMtxCommittedFullKeyCap * bvMtxCommittedEntryBytes
 def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
@@ -327,9 +351,10 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvSystemTransactionGas = 30000000
 #guard bvSystemRequestCallCount = 2
 #guard bvSystemStorageMinSstoreGas = 100
-#guard bvSystemStorageLogCapacity = 600000
-#guard bvSystemStorageLogBytes = 76800000
-#guard bvSystemStorageTxindexBytes = 4800000
+#guard bvPersistentStorageLogCapacity = 16384
+#guard bvSystemStorageLogCapacity = 32768
+#guard bvSystemStorageLogBytes = 4194304
+#guard bvSystemStorageTxindexBytes = 262144
 #guard bvMtxFullTxCap = 9523
 #guard bvMtxArenaTxCap = bvMtxActiveTxCap
 #guard bvMtxU64ArenaBytes = 76184

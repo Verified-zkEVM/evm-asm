@@ -12,7 +12,8 @@ import EvmAsm.Evm64.Exp.Spec
 
 namespace EvmAsm.Evm64
 
-open EvmAsm.Rv64 (CodeReq Program cpsTripleWithin)
+open EvmAsm.Rv64 (CodeReq Program cpsTripleWithin cpsTripleWithin_weaken
+  regOwn signExtend12)
 
 namespace Exp.Compose
 
@@ -177,5 +178,80 @@ theorem evm_exp_headroom_run_stack_self_program_spec_within
     (fun _ hp => evmExpHeadroomVisibleResultStackPost_to_runStackPost_self hp)
     (evm_exp_headroom_visible_result_stack_program_spec_within
       evmSp base baseWord exponentWord rest hbase)
+
+/-- **The public EXP stack spec** (`0x0a`), over the concrete appended headroom
+    program `evm_exp_msb_saved_bit_two_mul_fixed_headroom ;; mul_callable`
+    (entry `base`, exit `base + 408` = the appended `mul_callable` entry).
+
+    Pops the top two stack words and pushes `EvmWord.exp baseWord exponentWord`:
+    from `evmStackIs evmSp (baseWord :: exponentWord :: rest)` the machine
+    reaches `evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)`
+    with `x12 = evmSp + 32`, everything clobbered shed to the owned
+    `evmExpHeadroomPublicLeftoverFrame evmSp`. Unconditional in the operands;
+    the only hypothesis is the even entry base `hbase`.
+
+    Besides the live EVM stack, the precondition names the implementation's
+    working resources explicitly (all values universally quantified, so no
+    real caller restriction beyond ownership):
+    * the RISC-V local frame at `x2 = sp` (4 dwords `sp .. sp+24` holding the
+      result accumulator);
+    * 8 headroom dwords plus two scratch EVM words BELOW the live stack
+      (`evmSp-128 .. evmSp-32`) — the loop's MUL operand workspace (below-sp
+      scratch follows the MULMOD `.proven` precedent, `sp-160..sp-8`);
+    * the caller register frame (`x9/x5/x20/x16/x19/x6/x18/x1` at arbitrary
+      values, `x10/x7/x11` owned, `x0 = 0`).
+
+    This is the `.proven`-tier registry witness for EXP; it repackages
+    `evm_exp_headroom_visible_result_stack_program_spec_within` with the
+    existential pre/post bundles unfolded into the ADDMOD/MULMOD-style
+    explicit public form. -/
+theorem evm_exp_stack_spec_within
+    (evmSp base sp : Word)
+    (cOld tOld c6Old c16Old c19Old m0 m1 m2 m3 v6
+      h0 h1 h2 h3 h4 h5 h6 h7 v18 vOld : Word)
+    (baseWord exponentWord dWord eWord : EvmWord) (rest : List EvmWord)
+    (hbase : base &&& 1 = 0) :
+    cpsTripleWithin (29 + ((255 + 1) * 193) + (1 + 9)) base (base + 408)
+      (CodeReq.ofProg base
+        EvmAsm.Evm64.Exp.Compose.evmExpHeadroomCanonicalAppendedMulProgram)
+      -- RISC-V local frame at x2 = sp (result accumulator dwords)
+      (((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ cOld) **
+       (.x5 ↦ᵣ tOld) ** (.x20 ↦ᵣ c6Old) ** (.x16 ↦ᵣ c16Old) ** (.x19 ↦ᵣ c19Old) **
+       ((sp + signExtend12 (0 : BitVec 12)) ↦ₘ m0) **
+       ((sp + signExtend12 (8 : BitVec 12)) ↦ₘ m1) **
+       ((sp + signExtend12 (16 : BitVec 12)) ↦ₘ m2) **
+       ((sp + signExtend12 (24 : BitVec 12)) ↦ₘ m3) **
+       -- EVM stack pointer + headroom dwords below the live stack
+       (.x12 ↦ᵣ evmSp) ** (.x6 ↦ᵣ v6) **
+       ((evmSp + signExtend12 ((-128) : BitVec 12)) ↦ₘ h0) **
+       ((evmSp + signExtend12 ((-120) : BitVec 12)) ↦ₘ h1) **
+       ((evmSp + signExtend12 ((-112) : BitVec 12)) ↦ₘ h2) **
+       ((evmSp + signExtend12 ((-104) : BitVec 12)) ↦ₘ h3) **
+       ((evmSp + signExtend12 ((-96) : BitVec 12)) ↦ₘ h4) **
+       ((evmSp + signExtend12 ((-88) : BitVec 12)) ↦ₘ h5) **
+       ((evmSp + signExtend12 ((-80) : BitVec 12)) ↦ₘ h6) **
+       ((evmSp + signExtend12 ((-72) : BitVec 12)) ↦ₘ h7) **
+       -- caller register frame
+       (.x18 ↦ᵣ v18) ** (.x1 ↦ᵣ vOld) **
+       regOwn .x10 ** regOwn .x7 ** regOwn .x11 **
+       -- scratch EVM words below the live stack
+       evmWordIs (evmSp + signExtend12 ((-64) : BitVec 12)) dWord **
+       evmWordIs (evmSp + signExtend12 ((-32) : BitVec 12)) eWord **
+       -- the live EVM stack
+       evmStackIs evmSp (baseWord :: exponentWord :: rest)))
+      (((.x12 ↦ᵣ (evmSp + 32)) **
+        evmStackIs (evmSp + 32) (EvmWord.exp baseWord exponentWord :: rest)) **
+        evmExpHeadroomPublicLeftoverFrame evmSp) := by
+  refine cpsTripleWithin_weaken (fun _ hp => ?_)
+    (fun _ hq => by
+      rw [evmExpHeadroomVisibleResultStackPost_unfold] at hq; exact hq)
+    (evm_exp_headroom_visible_result_stack_program_spec_within
+      evmSp base baseWord exponentWord rest hbase)
+  rw [evmExpHeadroomPublicStackPre_unfold]
+  refine ⟨sp, ?_⟩
+  rw [evmExpHeadroomExistentialPre_unfold]
+  exact ⟨⟨cOld, tOld, c6Old, c16Old, c19Old, m0, m1, m2, m3, v6,
+          h0, h1, h2, h3, h4, h5, h6, h7, v18, vOld, dWord, eWord⟩,
+    by rw [evmExpHeadroomPre_unfold]; exact hp⟩
 
 end EvmAsm.Evm64

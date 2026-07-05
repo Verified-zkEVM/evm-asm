@@ -80,9 +80,13 @@ def evmStackScratchBytes : Nat := evmStackWordCapacity * evmStackWordBytes
     nearby stack-relative offsets as internal scratch. -/
 def evmStackGuardBytes : Nat := 512
 
-/-- Concrete byte capacity of the root runtime EVM memory arena.
-    This is a guest implementation bound, not a protocol limit. -/
-def runtimeMemoryBytes : Nat := 0x20000
+/-- Concrete byte capacity of the root runtime EVM memory arena (depth-0
+    `evm_memory`). This is a guest implementation bound, not a protocol limit.
+    **Single-sourced** from `CallFrameLayout.frameMemBytes`: the depth-0 global
+    memory and every per-frame arena memory window are the same EVM-memory
+    capacity, so they cannot drift (the `.71` reconciliation — the model file is
+    the canonical home). Value: `0x20000` (128 KiB). -/
+def runtimeMemoryBytes : Nat := frameMemBytes
 
 /-- Maximum bytecode length (in bytes) covered by the precomputed
     valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
