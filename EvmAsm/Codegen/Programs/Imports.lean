@@ -88,6 +88,7 @@ import EvmAsm.Codegen.Programs.BhrRevLeBeSAsm
 import EvmAsm.Codegen.Programs.SwdMinimalCopySAsm
 import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.MsetMemcpySAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
