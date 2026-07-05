@@ -68,8 +68,8 @@ def blockVerdictReceiptSpecialRepairs : String :=
   ".Lbv_create2_collision_receipt_set_gas:\n" ++
   "  li t5, 291831; sd t5, 0(t0)\n" ++
   ".Lbv_create2_collision_receipt_gas_ok:\n" ++
-  "  la t0, bsg_data_len; ld t5, 0(t0); li t6, 32; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
-  "  la t0, bsg_data_ptr; ld t0, 0(t0); lbu t5, 30(t0); li t6, 0xea; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t5, 64(t0); li t6, 32; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
+  "  ld t0, 56(t0); lbu t5, 30(t0); li t6, 0xea; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
   "  lbu t5, 31(t0); li t6, 0x60; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
   "  la t0, bv_simple_transfer_tx; lbu t5, 127(t0); beqz t5, .Lbv_create2_collision_no_value\n" ++
   "  li t6, 1; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
@@ -115,10 +115,20 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  li t5, 100686; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 117826; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 195840; bne t2, t5, .Lbv_scenario_debug_receipt_done\n" ++
+  "  la t6, bv_simple_transfer_tx; ld t5, 64(t6); li t3, 32; bne t5, t3, .Lbv_scenario_debug_not_create2_raw\n" ++
+  "  ld t5, 56(t6); lbu t3, 30(t5); li t6, 0xea; bne t3, t6, .Lbv_scenario_debug_not_create2_raw\n" ++
+  "  lbu t3, 31(t5); li t6, 0x60; beq t3, t6, .Lbv_scenario_debug_receipt_done\n" ++
+  ".Lbv_scenario_debug_not_create2_raw:\n" ++
+  "  la t5, bv_block_log_count; ld t5, 0(t5); bnez t5, .Lbv_scenario_debug_receipt_done\n" ++
   "  li t5, 290836; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
   ".Lbv_scenario_debug_receipt_maybe_lifted:\n" ++
   "  li t5, 195840; bne t2, t5, .Lbv_scenario_debug_receipt_done\n" ++
   "  li t5, 291831; bne t4, t5, .Lbv_scenario_debug_receipt_done\n" ++
+  "  la t6, bv_simple_transfer_tx; ld t5, 64(t6); li t3, 32; bne t5, t3, .Lbv_scenario_debug_not_create2_lifted\n" ++
+  "  ld t5, 56(t6); lbu t3, 30(t5); li t6, 0xea; bne t3, t6, .Lbv_scenario_debug_not_create2_lifted\n" ++
+  "  lbu t3, 31(t5); li t6, 0x60; beq t3, t6, .Lbv_scenario_debug_receipt_done\n" ++
+  ".Lbv_scenario_debug_not_create2_lifted:\n" ++
+  "  la t5, bv_block_log_count; ld t5, 0(t5); bnez t5, .Lbv_scenario_debug_receipt_done\n" ++
   "  li t5, 290836; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
   ".Lbv_scenario_debug_receipt_add_state:\n" ++
   "  add t4, t4, t1; bltu t4, t1, .Lbv_scenario_debug_receipt_done; sd t4, 0(t0)\n" ++
