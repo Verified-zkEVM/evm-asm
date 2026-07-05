@@ -178,8 +178,8 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x5c560`). Link-layout-dependent; the drift guard re-derives it. -/
-def textSizeBytes : Nat := 0x5c560
+    (`readelf -S`, `0x5c818`). Link-layout-dependent; the drift guard re-derives it. -/
+def textSizeBytes : Nat := 0x5c818
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x159a9a70`). Link-layout-dependent. -/
