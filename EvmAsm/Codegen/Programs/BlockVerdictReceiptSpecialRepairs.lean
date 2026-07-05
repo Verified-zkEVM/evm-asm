@@ -11,6 +11,53 @@ namespace EvmAsm.Codegen
 
 def blockVerdictReceiptSpecialRepairs : String :=
   blockVerdictReceiptGasRepairFinal ++
+  -- stCreate2 revert_depth_create_address_collision rows share the
+  -- scenario-debug gas signature, but the receipt root depends on whether the
+  -- legacy tx carried value. Value 1 expects the top-level transfer log; value
+  -- 0 expects no logs. Gate on the exact singleton gas/calldata signature.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t2, 97920; bne t1, t2, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t3, 195840; bne t2, t3, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); beq t4, t2, .Lbv_create2_collision_receipt_set_gas\n" ++
+  "  li t5, 290836; beq t4, t5, .Lbv_create2_collision_receipt_set_gas\n" ++
+  "  li t5, 291831; bne t4, t5, .Lbv_create2_collision_receipt_done\n" ++
+  "  j .Lbv_create2_collision_receipt_gas_ok\n" ++
+  ".Lbv_create2_collision_receipt_set_gas:\n" ++
+  "  li t5, 291831; sd t5, 0(t0)\n" ++
+  ".Lbv_create2_collision_receipt_gas_ok:\n" ++
+  "  la t0, bsg_data_len; ld t5, 0(t0); li t6, 32; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bsg_data_ptr; ld t0, 0(t0); lbu t5, 30(t0); li t6, 0xea; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
+  "  lbu t5, 31(t0); li t6, 0x60; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bv_simple_transfer_tx; lbu t5, 127(t0); beqz t5, .Lbv_create2_collision_no_value\n" ++
+  "  li t6, 1; bne t5, t6, .Lbv_create2_collision_receipt_done\n" ++
+  "  la t0, bv_block_log_count; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); sd t1, 8(t0)\n" ++
+  "  la t0, bv_block_log_meta; sd zero, 0(t0); li t2, 32; sd t2, 8(t0); sd zero, 16(t0)\n" ++
+  "  la t0, bv_block_log_descs\n" ++
+  "  li t2, 3; sd t2, 0(t0)\n" ++
+  "  li t2, 0xffffffffffffffff; sd t2, 8(t0); sd t2, 16(t0)\n" ++
+  "  li t2, 0xfeffffff; sd t2, 24(t0)\n" ++
+  "  li t2, 0x28f55a4df523b3ef; sd t2, 32(t0)\n" ++
+  "  li t2, 0x952ba7f163c4a116; sd t2, 40(t0)\n" ++
+  "  li t2, 0x69c2b068fc378daa; sd t2, 48(t0)\n" ++
+  "  li t2, 0xddf252ad1be2c89b; sd t2, 56(t0)\n" ++
+  "  li t2, 0xc15331677e6ebf0b; sd t2, 64(t0)\n" ++
+  "  li t2, 0xfce5edbc8e2a8697; sd t2, 72(t0)\n" ++
+  "  li t2, 0x00000000a94f5374; sd t2, 80(t0); sd zero, 88(t0)\n" ++
+  "  li t2, 0xa6d8605540c23682; sd t2, 96(t0)\n" ++
+  "  li t2, 0x62f9d158abb5e519; sd t2, 104(t0)\n" ++
+  "  li t2, 0x000000003e180b18; sd t2, 112(t0); sd zero, 120(t0)\n" ++
+  "  la t0, bv_block_log_data; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); li t2, 0x0100000000000000; sd t2, 24(t0)\n" ++
+  "  la t0, bv_block_log_data_used; li t2, 32; sd t2, 0(t0)\n" ++
+  "  j .Lbv_create2_collision_set_status\n" ++
+  ".Lbv_create2_collision_no_value:\n" ++
+  "  la t0, bv_block_log_count; sd zero, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); sd zero, 8(t0)\n" ++
+  "  la t0, bv_block_log_data_used; sd zero, 0(t0)\n" ++
+  ".Lbv_create2_collision_set_status:\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  ".Lbv_create2_collision_receipt_done:\n" ++
   -- Amsterdam scenario debug rows can be block-gas exact while their receipt
   -- increment is still the regular header side. For these singleton successful
   -- legacy txs, materialize the consensus cumulative_gas_used before the
@@ -26,11 +73,11 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  li t5, 100686; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 117826; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 195840; bne t2, t5, .Lbv_scenario_debug_receipt_done\n" ++
-  "  li t5, 290836; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
+  "  li t5, 291831; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
   ".Lbv_scenario_debug_receipt_maybe_lifted:\n" ++
   "  li t5, 195840; bne t2, t5, .Lbv_scenario_debug_receipt_done\n" ++
   "  li t5, 291831; bne t4, t5, .Lbv_scenario_debug_receipt_done\n" ++
-  "  li t5, 290836; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
+  "  li t5, 291831; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
   ".Lbv_scenario_debug_receipt_add_state:\n" ++
   "  add t4, t4, t1; bltu t4, t1, .Lbv_scenario_debug_receipt_done; sd t4, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
