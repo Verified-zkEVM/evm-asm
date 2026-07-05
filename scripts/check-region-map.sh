@@ -9,7 +9,7 @@
 #       --section-start flags and RegionMap constants;
 #     * the top RW LOAD segment stays below the 0xc0000000 RAM ceiling;
 #     * .data ends below .sszscratch;
-#     * the call_frame_arena union: call_frame_arena == basr_values, the seven
+#     * the call_frame_arena union: call_frame_arena == basr_values, the six
 #       coalesced children sit at the RegionMap arena-relative offsets, the arena
 #       is fully inside .data, and its extent == frameArrayBytes.
 #
@@ -104,18 +104,19 @@ import sys
 (cfa, bval, bacc, syslog, desc, paths, dpaths, vals, cend, dbase, dsize) = [int(x,16) for x in sys.argv[1:]]
 # RegionMap constants (kept in sync with BlockVerdictParams.lean).
 S = 100018*256          # bsrMaxStateChanges*bsrEncodedAccountBytes
-L = 600000*128          # bvSystemStorageLogBytes
+syslogL = 32768*128     # bvSystemStorageLogBytes (4ch8f.73: 2*16384 rows, standalone)
 descB = 100000*40       # bsrMaxBalItems*baapStorageDescBytes
 pathB = 100000*64       # bsrMaxBalItems*bsrPathBytes
 frameArrayBytes = 1025*0x39000  # frameSlotCount * CallFrameLayout.frameStride (keep in sync)
+# 4ch8f.73: bv_system_storage_log is NO LONGER unioned into call_frame_arena; the
+# six remaining children are basr pair + four baap_storage_* (baap at offset 2S).
 exp = {
  "call_frame_arena == basr_values": (cfa, bval),
  "basr_accounts off": (bacc-cfa, S),
- "bv_system_storage_log off": (syslog-cfa, 2*S),
- "baap_storage_desc off": (desc-cfa, 2*S+L),
- "baap_storage_paths off": (paths-cfa, 2*S+L+descB),
- "baap_storage_delete_paths off": (dpaths-cfa, 2*S+L+descB+pathB),
- "baap_storage_values off": (vals-cfa, 2*S+L+descB+2*pathB),
+ "baap_storage_desc off": (desc-cfa, 2*S),
+ "baap_storage_paths off": (paths-cfa, 2*S+descB),
+ "baap_storage_delete_paths off": (dpaths-cfa, 2*S+descB+pathB),
+ "baap_storage_values off": (vals-cfa, 2*S+descB+2*pathB),
  "arena extent == frameArrayBytes": (cend-cfa, frameArrayBytes),
 }
 bad = 0
@@ -126,6 +127,12 @@ for k,(a,b) in exp.items():
 within = dbase <= cfa and cfa+frameArrayBytes <= dbase+dsize
 print(f"  {'OK  ' if within else 'DRIFT'} call_frame_arena within .data")
 bad |= (not within)
+# 4ch8f.73 clobber-closed: standalone bv_system_storage_log must NOT overlap the
+# frame arena (else deep dispatch frames would zero it before the BAL validators
+# read it). It is emitted below the arena, so syslog end <= arena base.
+sys_ok = (syslog + syslogL <= cfa) or (cend <= syslog)
+print(f"  {'OK  ' if sys_ok else 'DRIFT'} bv_system_storage_log disjoint from call_frame_arena")
+bad |= (not sys_ok)
 sys.exit(1 if bad else 0)
 PY
 
