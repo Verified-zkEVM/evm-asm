@@ -368,6 +368,15 @@ def callFrameDescendFunction : String :=
   "  ld t0, 528(s3); sd t0, 528(s9)\n" ++
   "  ld t0, 536(s3); sd t0, 536(s9)\n" ++
   "  ld t0, 544(s3); sd t0, 544(s9)\n" ++
+  -- 4ch8f.72: propagate currentBlockNumber (env+552) and blockHashCount (env+560)
+  -- from parent to child. Same garbage-read class as BLOBHASH above: h_BLOCKHASH
+  -- (EvmBlockHashHandlers.lean) reads both cells; only frame-0's env is initialized
+  -- (Dispatch.lean:2299/2300 + trailer load), so a nested frame over the BAL-replay
+  -- union front would read Phase-H garbage and, if the two range guards pass, index
+  -- evm_block_hashes out of bounds. Both are block constants (identical every frame),
+  -- so a verbatim copy is exact. The evm_block_hashes table is global (.data).
+  "  ld t0, 552(s3); sd t0, 552(s9)\n" ++
+  "  ld t0, 560(s3); sd t0, 560(s9)\n" ++
   -- 8c (1ipxd.1): stage the child's SELFBALANCE (env+32) from the pre-resolved balance table.
   -- call_frame_set_call_env stages ADDRESS/CALLER/CALLVALUE but NOT selfBalance (a per-frame
   -- balance, not a tx constant), so a nested SELFBALANCE would read BAL-replay-dirtied garbage;
