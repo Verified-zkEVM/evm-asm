@@ -175,6 +175,19 @@ inductive Stmt where
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (post : RegFile → List (BitVec 8) → Assertion → Prop)
            (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+  /-- Bottom-test (`do`-`while`) loop: `body` runs unconditionally, then the
+      trailing branch loops back to the body's start while `guard` holds, at
+      most `fuel` iterations — the machine idiom `body ++ [B guard → Lbody]`
+      with no header guard and no unconditional jump (the conditional branch
+      itself *is* the back-edge).  `inv i` must hold immediately after the
+      i-th run of the body (before the i-th guard test); the body always
+      runs at least once.  The generator emits initialization (from the
+      statement's entry reach, through one run of `body`), preservation
+      (guard holds ⇒ another run of `body` reaches `inv (i+1)`), and
+      fuel-exhaustion (`inv fuel` ⇒ `¬ guard`) VCs — the bottom-test sibling
+      of `«while»` (docs/sasm-design.md §3.10). -/
+  | «doWhile» (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -215,6 +228,7 @@ def size : Stmt → Nat
   | «while» _ _ _ _ b   => b.size + 2
   | «whileS» _ _ _ _ b  => b.size + 2
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
+  | «doWhile» _ _ _ _ b => b.size + 1
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
@@ -236,6 +250,7 @@ def callFree : Stmt → Bool
   | «while» _ _ _ _ b => b.callFree
   | «whileS» _ _ _ _ b => b.callFree
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
+  | «doWhile» _ _ _ _ b => b.callFree
   | call _ _          => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
