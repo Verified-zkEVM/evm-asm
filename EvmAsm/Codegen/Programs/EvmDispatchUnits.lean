@@ -244,7 +244,7 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++
@@ -388,7 +388,7 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++
@@ -480,7 +480,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++
@@ -572,7 +572,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++
@@ -664,7 +664,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++
@@ -793,7 +793,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++
@@ -886,7 +886,7 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++
@@ -1003,7 +1003,7 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     ".balign 16\n" ++
     "frame_parent_bases:\n  .zero 16400\n" ++
     ".balign 32\n" ++
-    "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+    "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
     ".balign 8\n" ++
     "rb_running_block_bloom:\n  .zero 256\n" ++
     "rb_running_receipt_bloom:\n  .zero 256\n" ++

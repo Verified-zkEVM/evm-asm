@@ -37,11 +37,12 @@
 # stable across rebuilds. Editing a grandfathered proof may change its
 # owner set; rerun `--write-allow` (with review) if so.
 #
-# Scope: the witness theorems referenced by the `@EvmAsm.Evm64.…`
-# abbrevs in EvmAsm/Progress.lean — the proven/conditional/partly surface
-# the registry claims. Witnesses are discovered by grepping those abbrev
-# refs, not by tier, so the conditional tier needs no logic change here.
-# (A broader sweep of all of EvmAsm/ is future work.)
+# Scope: the witness theorems referenced by the `@EvmAsm.Evm64.…` /
+# `@EvmAsm.Stateless.…` abbrevs in EvmAsm/Progress.lean — the
+# proven/conditional/partly surface the registry claims plus the
+# state-assertion vocabulary. Witnesses are discovered by grepping those
+# abbrev refs, not by tier, so the conditional tier needs no logic change
+# here. (A broader sweep of all of EvmAsm/ is future work.)
 #
 # Usage:
 #   scripts/check-axioms.sh                # enforce; exit 1 on a new
@@ -73,10 +74,13 @@ esac
 
 # --------------------------------------------------------------------
 # 1. Witness theorem names — single source is the abbrev section of
-#    EvmAsm/Progress.lean (the only place `@EvmAsm.Evm64.…` refs appear).
+#    EvmAsm/Progress.lean (the only place `@EvmAsm.<layer>.…` refs
+#    appear). Covers the verified-core namespaces the witnesses live in:
+#    Evm64 (opcodes + state assertions) and Stateless (spec-reference
+#    port assertions, e.g. the account-record vocabulary).
 # --------------------------------------------------------------------
 mapfile -t NAMES < <(
-  grep -oE '@EvmAsm\.Evm64[A-Za-z0-9_.]*' "$PROGRESS_LEAN" \
+  grep -oE '@EvmAsm\.(Evm64|Stateless)[A-Za-z0-9_.]*' "$PROGRESS_LEAN" \
     | sed 's/^@//' | LC_ALL=C sort -u
 )
 if (( ${#NAMES[@]} == 0 )); then
