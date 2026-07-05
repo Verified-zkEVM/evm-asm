@@ -9,6 +9,7 @@ writing hits one of these symptoms; do **not** read end-to-end:
 - **End-to-end composition needs existential intermediates** → §End-to-End Composition with Existential Intermediates.
 - **`xperm` hits scaling limits / atom-count cliffs** → §XPerm Scaling Limits and Sub-Assertion Bundling.
 - **Double-addback (`_da`) postcondition shape needed** → §Double-Addback (_da) Postcondition Pattern.
+- **Folded framed post fights `xperm`/`whnf`, or `extract_pure`/`drop_pure` misbehave** → §Folded Framed Posts.
 
 Each section is self-contained — jump to the matching heading instead of reading top-to-bottom.
 
@@ -585,3 +586,38 @@ Be careful with the projection depth — off-by-one here causes type mismatches
 that are hard to diagnose (the error appears at the `hbltu` application site,
 far from the definition).
 
+
+## Folded Framed Posts: DivMod-Scale xperm/whnf Blowups and Framed-Pure Extraction
+
+(Moved from AGENTS.md "Critical Rules" to keep the agent guide compact;
+tracking issue for the pure-extraction tactic gaps:
+https://github.com/Verified-zkEVM/evm-asm/issues/7174.)
+
+### When DivMod postconditions explode under `xperm` or kernel `whnf`
+
+Fold the postcondition before trying harder tactics. Put the final register/memory assertion spine behind a small `@[irreducible]` helper such as `...PostCore`, parameterized by the final values that the branch proof should expose. If the public post has a deep body let-chain, add a second folded helper such as `...PostFromBody` that takes already-computed intermediates; the public `...Post` should compute the lets and delegate to the helper. In branch bridge proofs, use `change` to refold the expanded target to the helper with local names, simplify only the relevant `if_pos`/`if_neg`, then unfold only the small core immediately before `xperm_hyp`. Split repeated bridge obligations into named lemmas for fresh heartbeat budgets. Use `lean_goal` at the failing line to confirm the target is folded; if it prints a huge `BitVec.toNat 32` or nested-let/nested-if term, fold first instead of running `xperm` on the expanded goal.
+
+### When extracting framed pure facts in bridge posts
+
+Inspect the shape with `lean_goal` before repeatedly applying `drop_pure` or `extract_pure`. Framed pures may remain behind an extra `sepConj` layer, so remove one layer at a time with small local rewrites (`rw [sepConj_assoc']`, `simp only [sepConj_pure_mid_left]`) and `obtain` the pure fact you need. Broad `simp` or blind repeated extraction can expand the folded post again or destruct useful `sepConj` structure.
+### When `extract_pure`, `drop_pure`, or `xperm_pure` struggle on a folded framed post
+
+Avoid broad pure-extraction tactics on the whole post if they expand the folded helper, trigger kernel `whnf`, leave `xperm` atom-count mismatches, or report an expected-type/free-variable error. First extract only the outer pure fact you need, then rewrite the specific remaining pure assertion to `empAssertion` with a local extensional proof and simplify the emp frame before calling `xperm_hyp`. Shape:
+
+  ```lean
+  extract_pure hp
+  obtain ⟨hp, h_pure⟩ := hp
+  rw [show (⌜P⌝ : Assertion) = empAssertion by
+    funext h
+    unfold EvmAsm.Rv64.pure EvmAsm.Rv64.empAssertion
+    apply propext
+    constructor
+    · intro h_p
+      exact h_p.1
+    · intro h_empty
+      exact ⟨h_empty, h_pure⟩] at hp
+  simp only [the relevant sepConj_emp lemma] at hp
+  xperm_hyp hp
+  ```
+
+  Keep `EvmAsm.Rv64.pure` qualified in the unfold so Lean does not choose an unrelated `pure`, and keep the target folded until the final local rewrite. Tracking issue: https://github.com/Verified-zkEVM/evm-asm/issues/7174.

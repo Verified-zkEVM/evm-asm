@@ -1,10 +1,20 @@
 # Authoritative guest region map (bead `evm-asm-4ch8f.6`, mechanical half)
 
 This document reconciles the two memory-layout schemes the stateless guest has
-carried unreconciled, records the evidence for every region's extent, gives the
-machine-checked overlap inventory for the one intentional aliasing, and states
-what the deferred *phase-ownership* proof (bead `.6`'s hard half, reserved for
-Fable) must establish.
+carried unreconciled, records the evidence for every region's extent, and gives
+the machine-checked overlap inventory for the one intentional aliasing.
+
+> **Status update (2026-07-05, bead `.6` CLOSED):** the phase-ownership proof
+> this doc originally deferred is DELIVERED — `EvmAsm/Rv64/SAsm/PhaseSplit.lean`
+> + `EvmAsm/Codegen/CallFramePhase.lean` (#9724, one-resource/two-views model),
+> plus the soundness audits in `docs/4ch8f-callframe-audit.md` (#9851). The
+> audits found and led to fixing the stride/geometry divergence (beads
+> `.71`/`.74`, fixed by #9852 — `CallFrameLayout` re-pinned to the emitted
+> `0x39000`/128 KiB geometry, arena resized). Two residual bugs remain open:
+> `.72` (child env 552/560) and `.73` (`bv_system_storage_log` is read
+> POST-dispatch — the "Phase-H-only" liveness claim below is FALSE for that one
+> child; see the audit doc). Numeric snapshot tables in this file may lag the
+> ELF — `RegionMap.lean` + `scripts/check-region-map.sh` are the live authority.
 
 Source of truth, in order of authority:
 
@@ -93,7 +103,8 @@ the sole `sp` init surfaced two regions neither scheme covered:
    is kernel-checked: `guestStack_overlaps_executionWitnessArea` and
    `guestStack_not_disjoint_from_schemeA`. **A P1 divergence bead is filed** to
    reflow the scheme-A anchors clear of the stack before the port goes live; the
-   collision is also input to the deferred phase-ownership half.
+   collision was input to the phase-ownership half (now delivered — see the
+status update at the top).
 2. **ZisK system band.** The guest reads/writes `0xa0009828` (the ZisK MTVEC
    trap-vector slot, `StatelessGuestEpilogue` trap save/restore), inside
    `[0xa0000000, 0xa0010000)`, which no scheme covered. Modelled as `zisk_system`
@@ -199,7 +210,7 @@ unmuddied. `callFrameArena_within_data` composes the two views.
 
 ---
 
-## 4. What the deferred phase-ownership proof must establish
+## 4. What the phase-ownership proof establishes (DELIVERED — kept for the record)
 
 The overlaps above are documented, **not** proven safe. The current safety
 argument (`CallFrameLayout.lean:99-120`, `docs/call-frame-memory-layout.md` §5)
@@ -211,7 +222,8 @@ recompute — `BalAccountStateRoot`/`BlockVerdictStateRoot`/`BalAccountApplyPost
 phases run sequentially with disjoint live windows, so time-sharing the bytes is
 claimed sound.
 
-The deferred half (bead `.6`, Fable) must turn that prose into a verified
+The hard half (bead `.6`, delivered in #9724 + audited in #9851) turned that
+prose into a verified
 separation-logic / phase-ownership model:
 
 1. A formal notion of the two live windows (Phase-H state-root recompute vs

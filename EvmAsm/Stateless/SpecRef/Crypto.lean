@@ -44,6 +44,10 @@ def bytesLEtoNat : Bytes → Nat
 def natToBytesLE (width x : Nat) : Bytes :=
   (List.range width).map (fun i => BitVec.ofNat 8 (x >>> (8 * i)))
 
+@[simp] theorem natToBytesLE_length (width x : Nat) :
+    (natToBytesLE width x).length = width := by
+  simp [natToBytesLE]
+
 /-- The low `width` bytes of `x`, big-endian (first byte most
     significant). Fixed-width companion to the minimal
     `EvmAsm.EL.RLP.Nat.toBytesBE`. -/
@@ -100,6 +104,31 @@ def keccak256 (msg : Bytes) : Bytes :=
   let st0 : List (BitVec 64) := List.replicate 25 (0 : BitVec 64)
   let st := keccakAbsorb st0 (chunkBytes keccakRateBytes (keccakPad msg))
   (st.take 4).flatMap (fun lane => natToBytesLE 8 lane.toNat)
+
+/-- Absorption preserves the 25-lane state shape. -/
+theorem keccakAbsorb_length (blocks : List Bytes) (st : List (BitVec 64))
+    (hst : st.length = 25) : (keccakAbsorb st blocks).length = 25 := by
+  induction blocks generalizing st with
+  | nil => exact hst
+  | cons b rest ih => exact ih _ (Accel.keccakF_length _)
+
+/-- The digest is always exactly 32 bytes — four 8-byte LE lanes. -/
+theorem keccak256_length (msg : Bytes) : (keccak256 msg).length = 32 := by
+  unfold keccak256
+  have hst : (keccakAbsorb (List.replicate 25 (0 : BitVec 64))
+      (chunkBytes keccakRateBytes (keccakPad msg))).length = 25 :=
+    keccakAbsorb_length _ _ (by simp)
+  rw [List.length_flatMap]
+  rw [List.map_congr_left (fun lane _ => natToBytesLE_length 8 lane.toNat)]
+  have hrep : ∀ (l : List (BitVec 64)), (l.map (fun _ => (8 : Nat))).sum = 8 * l.length := by
+    intro l
+    induction l with
+    | nil => rfl
+    | cons a rest ih =>
+      rw [List.map_cons, List.sum_cons, ih, List.length_cons]
+      omega
+  rw [hrep, List.length_take, hst]
+  rfl
 
 /-! ## SHA-256 (Merkle–Damgård over `Accel.sha256Compress`) -/
 
