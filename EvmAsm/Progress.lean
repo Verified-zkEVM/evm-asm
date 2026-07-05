@@ -44,6 +44,8 @@ import EvmAsm.Evm64.Push.ImmediateCompose
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
+import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
@@ -420,5 +422,24 @@ private noncomputable abbrev _push1_witness      := @EvmAsm.Evm64.evm_push1_stac
 private noncomputable abbrev _push_witness       := @EvmAsm.Evm64.evm_push_stack_spec_within
 private noncomputable abbrev _dup_witness        := @EvmAsm.Evm64.evm_dup_stack_spec_within
 private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack_spec_within
+
+/-! ### State-assertion vocabulary witnesses
+
+    Headline lemmas of the separation-logic Assertions over the guest's
+    structured arenas (`evmMemoryIs` PR #9844; witness-section / code-DB
+    assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
+
+private noncomputable abbrev _evm_memory_is_mload_witness :=
+  @EvmAsm.Evm64.evm_mload_stack_spec_within_evmMemoryIs
+private noncomputable abbrev _evm_memory_is_peel_witness :=
+  @EvmAsm.Evm64.evmMemoryIs_peel_window64
+private noncomputable abbrev _witness_lookup_spec_witness :=
+  @EvmAsm.Evm64.witnessLookupSpec_correct
+private noncomputable abbrev _witness_index_split_witness :=
+  @EvmAsm.Evm64.witnessIndexIs_split_at
+private noncomputable abbrev _index_of_section_hashes_witness :=
+  @EvmAsm.Evm64.indexOfSection_hashes_eq_build_code_db
+private noncomputable abbrev _index_of_section_matches_witness :=
+  @EvmAsm.Evm64.indexOfSection_matchesSection
 
 end EvmAsm.Progress
