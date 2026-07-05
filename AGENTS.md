@@ -48,15 +48,6 @@ EvmAsm/
 EvmAsm.lean            -- Root module: imports Rv64, Evm64, EL
 ```
 
-## Key Lean 4 API Compatibility Notes
-
-When working with this codebase, be aware of these Lean 4 nightly API changes:
-
-1. **Logic lemmas**: Use lowercase names (`and_assoc`, `and_comm` instead of `And.assoc`, `And.comm`)
-2. **Doc comments**: Cannot place `/-- ... -/` doc comments immediately before `#eval` commands (use regular `--` comments)
-3. **Proof tactics**: `simp` may need explicit lemma lists or `rw` for manual rewriting
-4. **Namespace**: Most theorems are in `namespace MachineState`, so use full names like `MachineState.getReg_setPC`
-
 ## Verification Workflow
 
 When adding or modifying proofs:
@@ -113,29 +104,11 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   1. Splitting the proof into smaller named lemmas.
   2. Marking expensive intermediate definitions `@[irreducible]` and proving a small set of lemmas about them, so later proofs unfold via those lemmas instead of re-reducing the body each time.
   3. Breaking up large `have`s into separate lemmas so the core composition step has fewer atoms to permute.
-- **When DivMod postconditions explode under `xperm` or kernel `whnf`:** fold the postcondition before trying harder tactics. Put the final register/memory assertion spine behind a small `@[irreducible]` helper such as `...PostCore`, parameterized by the final values that the branch proof should expose. If the public post has a deep body let-chain, add a second folded helper such as `...PostFromBody` that takes already-computed intermediates; the public `...Post` should compute the lets and delegate to the helper. In branch bridge proofs, use `change` to refold the expanded target to the helper with local names, simplify only the relevant `if_pos`/`if_neg`, then unfold only the small core immediately before `xperm_hyp`. Split repeated bridge obligations into named lemmas for fresh heartbeat budgets. Use `lean_goal` at the failing line to confirm the target is folded; if it prints a huge `BitVec.toNat 32` or nested-let/nested-if term, fold first instead of running `xperm` on the expanded goal.
-- **When extracting framed pure facts in bridge posts:** inspect the shape with `lean_goal` before repeatedly applying `drop_pure` or `extract_pure`. Framed pures may remain behind an extra `sepConj` layer, so remove one layer at a time with small local rewrites (`rw [sepConj_assoc']`, `simp only [sepConj_pure_mid_left]`) and `obtain` the pure fact you need. Broad `simp` or blind repeated extraction can expand the folded post again or destruct useful `sepConj` structure.
-- **When `extract_pure`, `drop_pure`, or `xperm_pure` struggle on a folded framed post:** avoid broad pure-extraction tactics on the whole post if they expand the folded helper, trigger kernel `whnf`, leave `xperm` atom-count mismatches, or report an expected-type/free-variable error. First extract only the outer pure fact you need, then rewrite the specific remaining pure assertion to `empAssertion` with a local extensional proof and simplify the emp frame before calling `xperm_hyp`. Shape:
-
-  ```lean
-  extract_pure hp
-  obtain ⟨hp, h_pure⟩ := hp
-  rw [show (⌜P⌝ : Assertion) = empAssertion by
-    funext h
-    unfold EvmAsm.Rv64.pure EvmAsm.Rv64.empAssertion
-    apply propext
-    constructor
-    · intro h_p
-      exact h_p.1
-    · intro h_empty
-      exact ⟨h_empty, h_pure⟩] at hp
-  simp only [the relevant sepConj_emp lemma] at hp
-  xperm_hyp hp
-  ```
-
-  Keep `EvmAsm.Rv64.pure` qualified in the unfold so Lean does not choose an unrelated `pure`, and keep the target folded until the final local rewrite. Tracking issue: https://github.com/Verified-zkEVM/evm-asm/issues/7174.
-- **Exception for Shift composition files**: `set_option maxHeartbeats` up to 6400000 is acceptable for body/path composition proofs (Section 4+) which are bottlenecked by `xperm_hyp` permutation on large atom chains. Subsumption lemmas (Section 2) should NOT need heartbeat overrides — they use structural `unionAll` reasoning.
-
+- **Large-post `xperm`/`whnf` blowups and framed-pure extraction** (DivMod-scale
+  posts, `extract_pure`/`drop_pure` struggles): fold posts behind
+  `@[irreducible]` helpers and extract pures one layer at a time — full
+  recipes moved to `docs/agents/proof-patterns.md`
+  §"Folded framed posts" (tracking issue #7174).
 - **All memory accesses must be aligned.** The verified RV64 operational semantics in `EvmAsm/Rv64/Basic.lean` defines `isValidDwordAccess = isValidMemAddr && isAligned8` and `isValidMemAccess = isValidMemAddr && isAligned4` — i.e. an `LD`/`SD` has no semantics unless its address is a multiple of 8, and `LW`/`LWU`/`SW` likewise need a multiple of 4. Per-width requirements:
 
   | Op            | Width | Required alignment |
@@ -172,13 +145,6 @@ All concrete examples should pass with no sorries:
 ```bash
 lake build  # Should succeed with 0 errors and 0 sorries
 ```
-
-The project includes concrete test cases using `decide` (kernel-checkable):
-- Multiply by constants: 0, 1, 3, 6, 10, 255
-- Swap macro correctness
-- Zero and triple macros
-- ECALL/halt termination examples
-- COMMIT-then-halt examples
 
 ### Codegen & ziskemu round-trips
 
@@ -378,6 +344,15 @@ doc only when its trigger applies** — they are reference material, not require
   verifying one guest routine end-to-end: class decision table → exemplar → recipe →
   acceptance (`scripts/port-check.sh`, `scripts/gen-port-kit.py` scaffolds).
   **Load when:** working any `port: verify …` bead or any 4ch8f routine-family bead.
+- [`docs/agents/verified-replacement-strategy.md`](docs/agents/verified-replacement-strategy.md) —
+  the strategy layer above the port playbook: the drop-in principle (functional
+  drop-in, NOT byte equality — and the two byte-tie strategies with their gates),
+  how to formulate a routine's specification (vocabulary altitude, value-carrying
+  assertions, honest domains, outcome disjunctions), and the escalation ladder for
+  when a verified callee doesn't expose enough (bridging lemma → variant theorem →
+  reframe → strengthen → re-emit → STOP-and-file-bug).
+  **Load when:** replacing an unverified routine with a verified one, deciding what
+  a routine's spec should say, or blocked on a callee's spec shape.
 - [`docs/agents/top-theorem-ledger.md`](docs/agents/top-theorem-ledger.md) — the obligation
   ledger decomposing `run_stateless_guest_spec` (statement: `EvmAsm/Stateless/EntrySpec.lean`)
   into leaf work, with per-row status and exemplars.
