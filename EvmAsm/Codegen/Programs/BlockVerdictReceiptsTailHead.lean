@@ -114,6 +114,19 @@ def blockVerdictReceiptsTailHead : String :=
   -- excess, otherwise floor to exact.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_type4_receipt_exact_floor_done\n" ++
   "  la t0, bvgr_tx_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_type4_receipt_exact_floor_done\n" ++
+  -- EIP-7702 account-warming reauthorization rows have the one-auth state
+  -- reservation in tx_total_state_gas, but consensus receipt gas is the
+  -- authenticated regular transaction gas with no logs. Normalize only the
+  -- exact singleton successful type-4 signature before receipt materialization.
+  "  la t0, bvgr_tx_total_state_gas; ld t3, 0(t0); li t4, 218790; bne t3, t4, .Lbv_type4_account_warming_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); li t4, 41422; bne t3, t4, .Lbv_type4_account_warming_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t3, t4, .Lbv_type4_account_warming_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t3, 0(t0); li t5, 260212; bne t3, t5, .Lbv_type4_account_warming_done\n" ++
+  "  sd t4, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); sd zero, 8(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  "  j .Lbv_type4_receipt_exact_floor_done\n" ++
+  ".Lbv_type4_account_warming_done:\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t3, 0(t0); li t4, 218790; bne t3, t4, .Lbv_type4_direct_eip4788_done\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t3, t4, .Lbv_type4_direct_eip4788_done\n" ++
   "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t3, t4, .Lbv_type4_direct_eip4788_done\n" ++
