@@ -1,68 +1,101 @@
 # AI Agent Guide for EvmAsm
 
-This document provides guidance for AI agents working on the EvmAsm project.
+Guidance for AI agents working on the EvmAsm project. This page is the compact
+router: non-negotiable rules + where to find everything else. Deep material is
+in `docs/agents/` — load a deep page only when its trigger applies.
 
-## Project Overview
+## What this project is (and where it's going)
 
-EvmAsm is a verified macro assembler for RISC-V in Lean 4, inspired by "Coq: The world's best macro assembler?" (Kennedy et al., PPDP 2013). The project demonstrates using Lean 4 as both a macro language and verification framework for assembly code.
+EvmAsm is a **verified macro assembler for RISC-V in Lean 4** (in the lineage of
+"Coq: The world's best macro assembler?", Kennedy et al., PPDP 2013), applied to
+one goal: a **formally verified zkEVM stateless guest**. The guest
+(`stateless_guest`, run under the ZisK zkVM / `ziskemu`) validates an Ethereum
+execution payload against a witness; the north-star theorem is
+`run_stateless_guest_spec` (`EvmAsm/Stateless/EntrySpec.lean`) — the emitted
+guest's output is correct per the `SpecRef` port of
+`execution-specs`' `run_stateless_guest`.
+
+Two layers, with a CI-enforced boundary (`check-layering.sh`):
+
+- **The verified core** (`EvmAsm/` except `Codegen/`/`Tests/`/`Examples/`):
+  machine model, separation logic, proofs, the executable spec ports. The core
+  must NEVER import `Codegen`.
+- **`EvmAsm/Codegen/`**: the *unverified-but-emitted* guest (asm strings,
+  emission, region maps, probes) that the verification is progressively
+  replacing routine-by-routine. Verified ↔ emitted correspondence is tied by
+  byte-identity `_eq_prog` drift guards or full re-emit gates (EEST A/B) — see
+  `docs/agents/verified-replacement-strategy.md`.
+
+**The center of gravity is the `evm-asm-4ch8f` epic** ("replace every guest
+routine with a verified triple"). The per-opcode Evm64 track that built this
+substrate is largely complete (52 opcodes, kernel-checked registry in
+`EvmAsm/Progress.lean`); most new work is porting guest routines, in
+callee-first order, against the separation-logic state-assertion vocabulary.
+
+## Start here
+
+1. **Beads is the source of truth for work**: `bd ready`, `bd show <id>`
+   (tracker DB configured via `BEADS_DIR`). Roadmap prose lives in `PLAN.md`
+   (see `CLAUDE.md` for its maintenance protocol).
+2. Starting any 4ch8f bead → `docs/agents/roadmap-4ch8f.md` (layer DAG,
+   pick-next rules, recipe table).
+3. Verifying one routine → `docs/agents/port-playbook.md` (mechanics) +
+   `docs/agents/verified-replacement-strategy.md` (what to prove, spec shape,
+   what to do when a callee doesn't expose enough).
+4. What remains for the north star → `docs/agents/top-theorem-ledger.md`.
+5. Reviewing a PR → `docs/agents/review-playbook.md`.
 
 ## Build System
 
-- **Build tool**: Lake (Lean 4's build system)
-- **Toolchain**: Lean 4.28.0-nightly-2026-01-22 (specified in `lean-toolchain`)
-- **Build command**: `lake build`
-- **Clean build**: `lake clean && lake build`
-
-### Important Lake Configuration Notes
-
-- The `lakefile.toml` uses Lake 5.0 format (root-level package fields, no `[package]` section)
-- `defaultTargets = ["EvmAsm"]` is required for `lake build` to work
-- The library name is `EvmAsm` and sources are in `EvmAsm/` directory
+- **Build tool**: Lake; **toolchain** pinned in `lean-toolchain`.
+- `lake build` (library `EvmAsm`, sources under `EvmAsm/`); heartbeat/recursion
+  limits are configured globally in `lakefile.toml` — never per-file.
 
 ## Project Structure
 
 ```
 EvmAsm/
-  Rv64/                -- RV64IM machine model + infrastructure
-    Basic.lean         -- Machine state: registers, memory, PC
-    Instructions.lean  -- RV64IM instruction semantics (incl. ECALL)
-    Program.lean       -- Programs as instruction lists, sequential composition
-    Execution.lean     -- Step execution, code memory, ECALL dispatch
-    SepLogic.lean      -- Separation logic assertions and combinators
-    CPSSpec.lean       -- CPS-style Hoare triples, branch specs, structural rules
-    GenericSpecs.lean  -- Generic instruction spec templates
-    InstructionSpecs.lean -- Concrete instruction specs
-    SyscallSpecs.lean  -- Spec database (@[spec_gen_rv64])
-    ControlFlow.lean   -- if_eq macro, symbolic proofs
-    ByteOps.lean       -- Byte-level: extractByte algebra, LBU/SB specs
-    Tactics/           -- Automation: xperm, runBlock, liftSpec, etc.
-  Evm64/               -- 256-bit EVM opcodes on RV64IM (4×64-bit limbs)
-    Basic.lean         -- EvmWord (BitVec 256), getLimb/fromLimbs
-    Stack.lean         -- evmWordIs, evmStackIs assertions
-    Add/, Sub/, ...    -- Individual opcode implementations (30+ files)
-  EL/                  -- Pure Ethereum Execution Layer specs
-    RLP/               -- RLP encoding/decoding (no RISC-V dependency)
-      Basic.lean       -- RLPItem type, encode
-      Decode.lean      -- decode with canonical enforcement
-      Properties.lean  -- Round-trip proofs (kernel-checkable `decide`)
-EvmAsm.lean            -- Root module: imports Rv64, Evm64, EL
+  Rv64/                -- RV64IM machine model + proof infrastructure
+    Basic/Instructions/Program/Execution -- machine state, semantics, step fn
+    SepLogic.lean      -- Assertions, sepConj, pure embedding (assertPure)
+    CPSSpec.lean       -- cpsTripleWithin Hoare triples + structural rules
+    MemRegion.lean     -- bytesRegion byte-region primitive
+    ByteOps.lean       -- extractByte/packBytes algebra, LBU/SB specs
+    SAsm/              -- structured assembly: Fn/Stmt combinators (while,
+                       --   doWhile, whileBreak, call/callReg), vcgen,
+                       --   PhaseSplit (anyBytes/aliased-arena views)
+    Tactics/           -- xperm, runBlock, seqFrame, WP, extract_pure, ...
+  Evm64/               -- 256-bit EVM opcodes on RV64 (4×64-bit LE limbs)
+    Basic.lean, Stack.lean            -- EvmWord; evmWordIs/evmStackIs
+    StateAssertions.lean, StorageAssertions.lean, MptAssertions.lean,
+      WitnessAssertions.lean          -- the state-assertion vocabulary
+    Add/, MLoad/, ...                 -- per-opcode subtrees (proven specs)
+    EvmState.lean, InterpreterLoop*   -- executable interpreter models
+  EL/                  -- pure Ethereum EL specs (RLP, WorldState; no RISC-V)
+  Stateless/           -- the stateless-guest port: SpecRef/ (executable port
+                       --   of execution-specs), EntrySpec.lean (top theorem),
+                       --   SSZ/, Witness/, State/ (incl. AccountAssertions)
+  Codegen/             -- UNVERIFIED emitted guest: Programs/ (asm strings),
+                       --   Dispatch, RegionMap/CallFrameLayout/CallFramePhase,
+                       --   Proofs/ (handler specs, guest image), emitters
+  Progress.lean        -- kernel-checked opcode registry + witness abbrevs
+                       --   (check-axioms.sh audits every @-ref'd witness)
+EvmAsm.lean            -- root umbrella (see Common Pitfalls: new files must
+                       --   be reachable from here)
 ```
 
 ## Verification Workflow
 
-When adding or modifying proofs:
-
-1. **Build first**: Always run `lake build` to see current errors
-2. **Use MCP tools**: The lean-lsp MCP server provides:
-   - `lean_goal`: Check proof state at a position
-   - `lean_diagnostic_messages`: Get compiler errors
-   - `lean_hover_info`: Get type information
-   - `lean_completions`: Get IDE completions
-   - `lean_local_search`: Search for declarations locally
-   - `lean_leansearch`: Natural language search in mathlib
-   - `lean_loogle`: Type-based search in mathlib
-3. **Test concretely**: Verify specific cases with `decide` before generalizing (NOT `native_decide`/`bv_decide` — both are forbidden and CI-gated; see CONTRIBUTING.md. The kernel's `Nat` is GMP-backed, so `decide` is fast even on concrete 256-bit `BitVec` goals.)
-4. **Incremental development**: Prove helper lemmas before the main theorem
+1. **Build first** (`lake build`) to see the current error state; iterate
+   incrementally (helper lemmas before the main theorem).
+2. If the lean-lsp MCP server is available, `lean_goal` /
+   `lean_diagnostic_messages` beat rebuild loops for inspecting proof states.
+3. **Test concretely** with `decide` before generalizing (NOT
+   `native_decide`/`bv_decide` — both forbidden and CI-gated; the kernel's
+   GMP-backed `Nat` makes `decide` fast even on concrete 256-bit `BitVec`
+   goals).
+4. When stuck, route by symptom: `docs/sasm-howto.md` §8 →
+   `docs/agents/proof-patterns.md` → `GRIND.md`.
 
 ### Proof-tier rubric (`EvmAsm/Progress.lean`)
 
@@ -140,36 +173,17 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 ## Testing
 
-All concrete examples should pass with no sorries:
-
-```bash
-lake build  # Should succeed with 0 errors and 0 sorries
-```
+All examples and `#guard`s must pass with zero sorries/warnings: `lake build`.
 
 ### Codegen & ziskemu round-trips
 
-Verified `Program`s can be emitted to executable RV64 ELFs and run on
-`ziskemu` — see [`CODEGEN.md`](CODEGEN.md) for the roadmap. Three
-shell scripts under `scripts/` codify the per-milestone end-to-end
-regression:
-
-- `scripts/codegen-smoke.sh` — synthetic `LI/ADD/halt` toolchain check.
-- `scripts/codegen-evm_add-check.sh` — verified 256-bit `evm_add` with
-  operands baked into `.data`.
-- `scripts/codegen-evm_add-from-input-check.sh` — same `evm_add`, but
-  operands loaded at runtime from `ziskemu -i <file>`.
-
-Each script builds via `lake exe codegen`, assembles via
-`riscv64-elf-as -march=rv64imac`, links with
-`-Ttext=0x80000000 -Tdata=0xa0000000`, runs `ziskemu`, and diffs the
-public output against the expected value. They require
-`riscv64-elf-binutils` and `ziskemu` on the host; use `--asm-only` on
-the codegen invocation to skip assembly/link/run.
-
-`EvmAsm/Codegen/RoundTripTests.lean` houses ~60 `#guard` assertions
-covering every `Instr` constructor → GNU-as line; failures abort
-`lake build`. Treat this as the build-time correctness gate for
-`emitInstr` drift.
+Verified `Program`s are emitted to RV64 ELFs and run on `ziskemu` — roadmap in
+[`CODEGEN.md`](CODEGEN.md). Per-milestone end-to-end regressions live in
+`scripts/codegen-*.sh` (toolchain smoke, `evm_add` from `.data` and from
+`ziskemu -i`); they need `riscv64-elf-binutils` + `ziskemu` on the host.
+`EvmAsm/Codegen/RoundTripTests.lean` (`#guard` per `Instr` constructor → GNU-as
+line) is the build-time gate for `emitInstr` drift. The conformance harness for
+guest changes is `scripts/codegen-eest-stateless-check.sh` (EEST A/B).
 
 ## Architecture fitness functions (`scripts/check-*.sh`)
 
@@ -390,55 +404,15 @@ doc only when its trigger applies** — they are reference material, not require
 Companion files (already separate, unchanged):
 - [`TACTICS.md`](TACTICS.md) — user-facing tactic reference.
 - [`GRIND.md`](GRIND.md) — domain-specific grindset definitions.
-- [`PLAN.md`](PLAN.md) — roadmap.
-- [`docs/OPCODE_TEMPLATE.md`](docs/OPCODE_TEMPLATE.md) — new-opcode conventions (referenced below).
 
-## Roadmap (PLAN.md)
+## Conventions with their own pages
 
-The project roadmap is maintained in `PLAN.md`. See `CLAUDE.md` for the
-maintenance protocol (when and how to update it).
-
-## Scratchpad Layout (#334)
-
-Routines that need `sp`-relative internal scratch cells (DivMod today, EXP /
-Multiply with internal scratch later) must take their scratchpad layout as a
-**parameter**, not bake offsets into the spec. Hardcoding offsets like
-`sp + signExtend12 4056` makes the routine impossible to compose from a
-non-trivial caller frame and forces every call site to use the same fixed
-placement.
-
-Convention (per `docs/scratchpad-layout-design.md`):
-
-- One `XxxScratchpadLayout` structure per routine, with named fields for
-  each scratch cell (e.g. `dividendNorm`, `divisorNorm`, `quotientHi`).
-- A companion `XxxScratchpadLayout.Valid (L : XxxScratchpadLayout) : Prop`
-  bundling per-cell validity (`isValidDwordAccess`) plus disjointness from
-  the caller frame and from each other.
-- A `canonicalXxxScratchpadLayout : XxxScratchpadLayout` matching today's
-  hardcoded offsets, and a `canonicalXxxScratchpadLayout_valid` instance.
-- Specs take `(L : XxxScratchpadLayout) (hL : L.Valid)` as parameters and
-  reference `L.fieldName` instead of `sp + signExtend12 N` literals.
-- The routine's existing fixed-offset spec stays as a thin shim that
-  instantiates the canonical layout, so existing call sites keep compiling.
-
-The naming convention is fixed: `EvmAsm/Evm64/<Routine>/Layout.lean`,
-`<Routine>ScratchpadLayout`, `.Valid`, `canonical<Routine>ScratchpadLayout`,
-`canonical<Routine>ScratchpadLayout_valid`. Slice 3 (`EvmAsm/Evm64/Multiply/Layout.lean`)
-is the canonical empty-layout pilot — copy its file shape when adding scratch
-to a new routine.
-
-When introducing a new opcode subtree that will carry internal scratch
-(EXP-class routines, future precompiles), define the layout struct from day
-one — even if it starts empty — to avoid the retrofit tax. See `docs/scratchpad-layout-design.md`
-for the full design and `docs/scratchpad-layout-survey.md` for the
-hardcoded-offset inventory that motivated the change.
-
-## New opcode conventions (OPCODE_TEMPLATE.md)
-
-Before starting a new opcode subtree (SDIV, SMOD, ADDMOD, MULMOD, EXP, …),
-read **[`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md)**.
-It codifies the directory layout, unified-dispatch-first rule, named offset
-constants, address grindset, validity bundling, and review checklist
-distilled from the DivMod retrofit work. Landing a new opcode on this
-substrate from day one avoids the retrofit tax documented in issues
-#262 / #263 / #264 / #265 / #266 / #283 / #301 / #312.
+- **Roadmap**: `PLAN.md` (maintenance protocol in `CLAUDE.md`).
+- **New opcode subtrees** (rare now): read
+  [`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) first —
+  directory layout, unified-dispatch-first, named offsets, review checklist.
+- **Scratchpad layouts**: routines with `sp`-relative internal scratch take a
+  `<Routine>ScratchpadLayout` structure parameter (+ `.Valid`, canonical
+  instance) instead of hardcoded offsets — full convention in
+  [`docs/scratchpad-layout-design.md`](docs/scratchpad-layout-design.md);
+  pilot: `EvmAsm/Evm64/Multiply/Layout.lean`.
