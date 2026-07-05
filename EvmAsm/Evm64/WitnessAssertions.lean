@@ -61,8 +61,8 @@
 
   ## Static sizing
 
-  Index arena: fixed 131072 × 48 B = 6 MiB (pinned to the Codegen
-  constants by `#guard` below). The SSZ spec-side envelope allows up to
+  Index arena: fixed 131072 × 48 B = 6 MiB (the Codegen constants,
+  restated below — see the layering note). The SSZ spec-side envelope allows up to
   `MAX_WITNESS_NODES = 2^20` state entries (`SpecRef/Ssz.lean`) — more
   than the 2^17 index capacity; the builder returns failure (falling
   back to linear scan) rather than truncating, so the capacity bound
@@ -78,8 +78,7 @@
     computes carries exactly the hashes of the spec-reference
     `build_code_db` (the `witness_state.py` port).
   * `#guard`s running the whole pipeline on a concrete two-code section
-    (also cross-checked against the spec-level SSZ serializer) and
-    pinning the record/capacity constants to the Codegen ones.
+    (also cross-checked against the spec-level SSZ serializer).
   * An `LBU` example consuming `witnessSectionIs` through the proven
     `bytesRegion_lbu_within` triple (the byte-read primitive the
     linear-scan keccak loop is built from).
@@ -93,13 +92,19 @@
 import EvmAsm.Evm64.StateAssertions
 import EvmAsm.Stateless.SpecRef.WitnessState
 import EvmAsm.Stateless.SpecRef.SszCodec
-import EvmAsm.Codegen.Programs.MptWitnessIndex
 
 namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-! ## Constants (pinned to the Codegen source of truth) -/
+/-! ## Constants
+
+Mirrors of the Codegen source of truth (`mptWitnessIndexRecordBytes` /
+`mptWitnessIndexCapacity` / `mptWitnessIndexArenaBytes`,
+`EvmAsm/Codegen/Programs/MptWitnessIndex.lean:12-25`). The verified core
+must not import `Codegen` (CI layering invariant), so the values are
+restated here with the citation; drift would be caught by any consumer
+bridging the two. -/
 
 /-- 48-byte index records: `hash[32] | offset:u64 | len:u64`. -/
 def WITNESS_INDEX_RECORD_BYTES : Nat := 48
@@ -107,10 +112,7 @@ def WITNESS_INDEX_RECORD_BYTES : Nat := 48
 /-- 131072-record capacity (6 MiB arena). -/
 def WITNESS_INDEX_CAPACITY : Nat := 131072
 
-#guard WITNESS_INDEX_RECORD_BYTES = EvmAsm.Codegen.mptWitnessIndexRecordBytes
-#guard WITNESS_INDEX_CAPACITY = EvmAsm.Codegen.mptWitnessIndexCapacity
-#guard WITNESS_INDEX_CAPACITY * WITNESS_INDEX_RECORD_BYTES =
-  EvmAsm.Codegen.mptWitnessIndexArenaBytes
+#guard WITNESS_INDEX_CAPACITY * WITNESS_INDEX_RECORD_BYTES = 6291456
 
 /-! ## SSZ `List[ByteList]` section navigation
 
