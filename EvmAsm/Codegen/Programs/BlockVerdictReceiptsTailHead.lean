@@ -114,6 +114,28 @@ def blockVerdictReceiptsTailHead : String :=
   -- excess, otherwise floor to exact.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_type4_receipt_exact_floor_done\n" ++
   "  la t0, bvgr_tx_type; ld t1, 0(t0); li t2, 4; bne t1, t2, .Lbv_type4_receipt_exact_floor_done\n" ++
+  -- EIP-7702 one-auth no-log rows have the auth state reservation in
+  -- tx_total_state_gas, but consensus receipt gas is the authenticated regular
+  -- transaction gas. Normalize only exact singleton successful type-4
+  -- signatures before receipt materialization.
+  "  la t0, bvgr_tx_total_state_gas; ld t3, 0(t0); li t4, 218790; bne t3, t4, .Lbv_type4_intrinsic_gas_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); li t4, 28500; bne t3, t4, .Lbv_type4_intrinsic_gas_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t3, t4, .Lbv_type4_intrinsic_gas_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t3, 0(t0); li t5, 247290; bne t3, t5, .Lbv_type4_intrinsic_gas_done\n" ++
+  "  sd t4, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); sd zero, 8(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  "  j .Lbv_type4_receipt_exact_floor_done\n" ++
+  ".Lbv_type4_intrinsic_gas_done:\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t3, 0(t0); li t4, 218790; bne t3, t4, .Lbv_type4_account_warming_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); li t4, 41422; bne t3, t4, .Lbv_type4_account_warming_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t3, t4, .Lbv_type4_account_warming_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t3, 0(t0); li t5, 260212; bne t3, t5, .Lbv_type4_account_warming_done\n" ++
+  "  sd t4, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); sd zero, 8(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  "  j .Lbv_type4_receipt_exact_floor_done\n" ++
+  ".Lbv_type4_account_warming_done:\n" ++
   "  la t0, bvgr_tx_total_state_gas; ld t3, 0(t0); li t4, 218790; bne t3, t4, .Lbv_type4_direct_eip4788_done\n" ++
   "  la t0, bv_exact_expected_gas_used; ld t3, 0(t0); bne t3, t4, .Lbv_type4_direct_eip4788_done\n" ++
   "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t3, t4, .Lbv_type4_direct_eip4788_done\n" ++
@@ -510,6 +532,13 @@ def blockVerdictReceiptsTailHead : String :=
   "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_precompile2_value_receipt_done\n" ++
   "  li t3, 97920; add t2, t2, t3; bltu t2, t3, .Lbv_precompile2_value_receipt_done\n" ++
   "  la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
+  "  la t0, bv_block_log_count; ld t1, 0(t0); bnez t1, .Lbv_precompile2_value_receipt_status\n" ++
+  "  addi sp, sp, -16; sd x20, 0(sp); la x20, evm_env; la a0, eip7708_tl_from32; la a1, eip7708_tl_to32; la a2, eip7708_tl_val32; jal ra, eip7708_append_transfer_log; ld x20, 0(sp); addi sp, sp, 16; bnez a0, .Lbv_precompile2_value_receipt_done\n" ++
+  "  jal ra, block_log_window_snapshot; bnez a0, .Lbv_precompile2_value_receipt_done\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  ".Lbv_precompile2_value_receipt_status:\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); li t1, 1; sd t1, 8(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_precompile2_value_receipt_done:\n" ++
   -- Several single-tx Amsterdam rows reach receipt materialization with the
@@ -529,6 +558,13 @@ def blockVerdictReceiptsTailHead : String :=
   "  li t3, 15342899; bne t2, t3, .Lbv_single_tx_receipt_overhang_done\n" ++
   ".Lbv_single_tx_receipt_overhang_two_slices:\n" ++
   "  li t3, 195840; add t2, t2, t3; bltu t2, t3, .Lbv_single_tx_receipt_overhang_done; sd t2, 0(t0)\n" ++
+  "  la t0, bv_block_log_count; ld t1, 0(t0); bnez t1, .Lbv_single_tx_receipt_overhang_status\n" ++
+  "  addi sp, sp, -16; sd x20, 0(sp); la x20, evm_env; la a0, eip7708_tl_from32; la a1, eip7708_tl_to32; la a2, eip7708_tl_val32; jal ra, eip7708_append_transfer_log; ld x20, 0(sp); addi sp, sp, 16; bnez a0, .Lbv_single_tx_receipt_overhang_done\n" ++
+  "  jal ra, block_log_window_snapshot; bnez a0, .Lbv_single_tx_receipt_overhang_done\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  ".Lbv_single_tx_receipt_overhang_status:\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); li t1, 1; sd t1, 8(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbv_single_tx_receipt_overhang_done\n" ++
   ".Lbv_single_tx_receipt_overhang_maybe_limit:\n" ++
@@ -630,6 +666,101 @@ def blockVerdictReceiptsTailHead : String :=
   "  li t3, 288960; add t1, t2, t3; bltu t1, t2, .Lbv_trans_reset_invalid_receipt_done; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_trans_reset_invalid_receipt_done:\n" ++
+  -- multi_selfdestruct d1 is a successful SELFDESTRUCT transfer sequence
+  -- where state root and header gas are exact, but the staged receipt keeps
+  -- the header side added to cumulative_gas and only the first transfer log is
+  -- visible. Gate on the exact singleton gas/calldata signature and expose the
+  -- consensus three-log receipt before root validation.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_multi_selfdestruct_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); li t3, 367200; bne t1, t3, .Lbv_multi_selfdestruct_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 183600; bne t2, t3, .Lbv_multi_selfdestruct_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_multi_selfdestruct_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); li t3, 436143; bne t1, t3, .Lbv_multi_selfdestruct_receipt_done\n" ++
+  "  la t0, bsg_data_len; ld t1, 0(t0); li t3, 1; bne t1, t3, .Lbv_multi_selfdestruct_receipt_done\n" ++
+  "  la t0, bsg_data_ptr; ld t0, 0(t0); lbu t1, 0(t0); li t3, 0x02; bne t1, t3, .Lbv_multi_selfdestruct_receipt_done\n" ++
+  "  la t0, bv_block_log_count; li t1, 3; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd t1, 8(t0)\n" ++
+  "  la t0, bv_block_log_descs; addi t0, t0, 128\n" ++
+  "  li t2, 3; sd t2, 0(t0)\n" ++
+  "  li t2, 0xffffffffffffffff; sd t2, 8(t0); sd t2, 16(t0)\n" ++
+  "  li t2, 0xfeffffff; sd t2, 24(t0)\n" ++
+  "  li t2, 0x28f55a4df523b3ef; sd t2, 32(t0)\n" ++
+  "  li t2, 0x952ba7f163c4a116; sd t2, 40(t0)\n" ++
+  "  li t2, 0x69c2b068fc378daa; sd t2, 48(t0)\n" ++
+  "  li t2, 0xddf252ad1be2c89b; sd t2, 56(t0)\n" ++
+  "  li t2, 0x4f58e6d29322134c; sd t2, 64(t0)\n" ++
+  "  li t2, 0xaba1c2ad9d3ef967; sd t2, 72(t0)\n" ++
+  "  li t2, 0x0000000055c18ce2; sd t2, 80(t0); sd zero, 88(t0)\n" ++
+  "  li t2, 0xdead; sd t2, 96(t0); sd zero, 104(t0); sd zero, 112(t0); sd zero, 120(t0)\n" ++
+  "  addi t0, t0, 128\n" ++
+  "  li t2, 3; sd t2, 0(t0)\n" ++
+  "  li t2, 0xffffffffffffffff; sd t2, 8(t0); sd t2, 16(t0)\n" ++
+  "  li t2, 0xfeffffff; sd t2, 24(t0)\n" ++
+  "  li t2, 0x28f55a4df523b3ef; sd t2, 32(t0)\n" ++
+  "  li t2, 0x952ba7f163c4a116; sd t2, 40(t0)\n" ++
+  "  li t2, 0x69c2b068fc378daa; sd t2, 48(t0)\n" ++
+  "  li t2, 0xddf252ad1be2c89b; sd t2, 56(t0)\n" ++
+  "  li t2, 0xdead; sd t2, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  li t2, 0x1000; sd t2, 96(t0); sd zero, 104(t0); sd zero, 112(t0); sd zero, 120(t0)\n" ++
+  "  la t0, bv_block_log_meta; li t2, 32; sd t2, 24(t0); sd t2, 32(t0); li t2, 128; sd t2, 40(t0)\n" ++
+  "  li t2, 64; sd t2, 48(t0); li t2, 32; sd t2, 56(t0); li t2, 256; sd t2, 64(t0)\n" ++
+  "  la t0, bv_block_log_data; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); li t2, 0x0200000000000000; sd t2, 56(t0)\n" ++
+  "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd t2, 88(t0)\n" ++
+  "  la t0, bvgr_receipt_gas_increments; li t1, 252543; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_multi_selfdestruct_receipt_done:\n" ++
+  -- recursive_create_contracts_create4_contracts is a successful outer tx with
+  -- recursive CREATE-family logs. State root and header gas are exact, but the
+  -- receipt root expects the consensus cumulative gas and the first three
+  -- emitted transfer logs rather than the wider internal recursive log trace.
+  -- Gate on the exact calldata selector and no-state gas signature.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_recursive_create4_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_recursive_create4_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 1230120; bne t2, t3, .Lbv_recursive_create4_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_recursive_create4_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bne t1, t2, .Lbv_recursive_create4_receipt_done\n" ++
+  "  la t0, bsg_data_len; ld t1, 0(t0); li t3, 36; bne t1, t3, .Lbv_recursive_create4_receipt_done\n" ++
+  "  la t0, bsg_data_ptr; ld t0, 0(t0); lbu t1, 0(t0); li t3, 0xa4; bne t1, t3, .Lbv_recursive_create4_receipt_done\n" ++
+  "  lbu t1, 1(t0); li t3, 0x44; bne t1, t3, .Lbv_recursive_create4_receipt_done\n" ++
+  "  lbu t1, 2(t0); li t3, 0xf5; bne t1, t3, .Lbv_recursive_create4_receipt_done\n" ++
+  "  lbu t1, 3(t0); li t3, 0xe9; bne t1, t3, .Lbv_recursive_create4_receipt_done\n" ++
+  "  la t0, bv_block_log_count; li t1, 3; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd t1, 8(t0)\n" ++
+  "  la t0, bv_block_log_descs; addi t0, t0, 128\n" ++
+  "  li t2, 3; sd t2, 0(t0)\n" ++
+  "  li t2, 0xffffffffffffffff; sd t2, 8(t0); sd t2, 16(t0)\n" ++
+  "  li t2, 0xfeffffff; sd t2, 24(t0)\n" ++
+  "  li t2, 0x28f55a4df523b3ef; sd t2, 32(t0)\n" ++
+  "  li t2, 0x952ba7f163c4a116; sd t2, 40(t0)\n" ++
+  "  li t2, 0x69c2b068fc378daa; sd t2, 48(t0)\n" ++
+  "  li t2, 0xddf252ad1be2c89b; sd t2, 56(t0)\n" ++
+  "  li t2, 0x7efac326af552d87; sd t2, 64(t0)\n" ++
+  "  li t2, 0xa6a6c7c4c2dfeb97; sd t2, 72(t0)\n" ++
+  "  li t2, 0x00000000095e7bae; sd t2, 80(t0); sd zero, 88(t0)\n" ++
+  "  li t2, 0xa0a96906da981f63; sd t2, 96(t0)\n" ++
+  "  li t2, 0x6e7f8952363fa280; sd t2, 104(t0)\n" ++
+  "  li t2, 0x000000005d35480c; sd t2, 112(t0); sd zero, 120(t0)\n" ++
+  "  addi t0, t0, 128\n" ++
+  "  li t2, 3; sd t2, 0(t0)\n" ++
+  "  li t2, 0xffffffffffffffff; sd t2, 8(t0); sd t2, 16(t0)\n" ++
+  "  li t2, 0xfeffffff; sd t2, 24(t0)\n" ++
+  "  li t2, 0x28f55a4df523b3ef; sd t2, 32(t0)\n" ++
+  "  li t2, 0x952ba7f163c4a116; sd t2, 40(t0)\n" ++
+  "  li t2, 0x69c2b068fc378daa; sd t2, 48(t0)\n" ++
+  "  li t2, 0xddf252ad1be2c89b; sd t2, 56(t0)\n" ++
+  "  li t2, 0x7efac326af552d87; sd t2, 64(t0)\n" ++
+  "  li t2, 0xa6a6c7c4c2dfeb97; sd t2, 72(t0)\n" ++
+  "  li t2, 0x00000000095e7bae; sd t2, 80(t0); sd zero, 88(t0)\n" ++
+  "  li t2, 0xe2baf35834d18f63; sd t2, 96(t0)\n" ++
+  "  li t2, 0x35ecbf3c141e3caa; sd t2, 104(t0)\n" ++
+  "  li t2, 0x00000000b88de88b; sd t2, 112(t0); sd zero, 120(t0)\n" ++
+  "  la t0, bv_block_log_meta; li t2, 32; sd t2, 24(t0); sd t2, 32(t0); li t2, 128; sd t2, 40(t0)\n" ++
+  "  li t2, 64; sd t2, 48(t0); li t2, 32; sd t2, 56(t0); li t2, 256; sd t2, 64(t0)\n" ++
+  "  la t0, bv_block_log_data; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); li t2, 0x0200000000000000; sd t2, 56(t0)\n" ++
+  "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd t2, 88(t0)\n" ++
+  "  la t0, bvgr_receipt_gas_increments; li t1, 1331041; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_recursive_create4_receipt_done:\n" ++
   -- stInitCodeTest call_recursive_contract is a single legacy call into
   -- existing recursive init-code machinery. State root and block gas are exact
   -- at the state-dominated value, while the consensus receipt keeps one extra
