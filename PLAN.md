@@ -1038,8 +1038,24 @@ bundle). Tracked by issue #313.
   `AddMod/Compose/` (TotalBase → CarryBlockSpecs/CondSubSpec → CallAdapter →
   CarryLa/Lb/Lc/Ld(+Chain) → ZeroNoCarryArms → TotalDispatch → ResultStack).
 
-#### 4.5 EXP (Exponentiation)
-- **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
+#### ~~4.5 EXP (Exponentiation)~~ ✅
+- **Approach**: Square-and-multiply using MUL. Loop over exponent bits
+  (256 iterations, MSB-first walk through the saved exponent).
+- **EXP `.proven` (2026-07-05, PRs #9841 + #9842)**: public witness
+  `evm_exp_stack_spec_within` (`Exp/HeadroomProgramSpec.lean`) — unconditional
+  stack spec over the concrete appended headroom program
+  (`evm_exp_msb_saved_bit_two_mul_fixed_headroom ;; mul_callable`,
+  `CodeReq.ofProg`, entry `base` → `base+408`, only side condition the even
+  entry base). Pre = `evmStackIs evmSp (base :: exponent :: rest)` plus an
+  explicit x2 local frame and 8 headroom dwords + 2 scratch EVM words below
+  the live stack (`evmSp-128..evmSp-32`, MULMOD below-sp precedent); post =
+  `evmStackIs (evmSp+32) (EvmWord.exp base exponent :: rest)` with clobbered
+  state shed to `evmExpHeadroomPublicLeftoverFrame`. Cycle bound 49447.
+  Proof is a `cpsTripleWithin_weaken` repackaging of the headroom
+  visible-result program theorem with the existential pre/post bundles
+  unfolded to the ADDMOD/MULMOD-style explicit public form. With this the
+  arithmetic family 0x01..0x0b is fully `.proven` (provenCount 49);
+  CALLDATACOPY is the only remaining `.partly` entry.
 
 #### ~~4.6 SIGNEXTEND~~ ✅
 - **Files**: `Evm64/SignExtend/` — `Program.lean` (program + 16 tests), `LimbSpec.lean` (per-body + phase A/B/C specs),
