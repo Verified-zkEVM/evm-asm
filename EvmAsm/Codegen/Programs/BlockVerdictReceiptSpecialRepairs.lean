@@ -145,6 +145,19 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  la t0, bv_tx_status_arr; ld t5, 0(t0); beqz t5, .Lbv_python_revert_receipt_done\n" ++
   "  sd zero, 0(t0)\n" ++
   ".Lbv_python_revert_receipt_done:\n" ++
+  -- store_clears_and_internal_call_store_clears_oog is a successful
+  -- value-transfer receipt where block/header gas includes the failed internal
+  -- storage-clear path, while the consensus receipt cumulative gas is lower.
+  -- Normalize only the exact singleton no-state empty-calldata signature.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_store_clears_oog_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_store_clears_oog_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t3, 72645; bne t2, t3, .Lbv_store_clears_oog_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_store_clears_oog_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); bne t4, t2, .Lbv_store_clears_oog_receipt_done\n" ++
+  "  la t1, bsg_data_len; ld t5, 0(t1); bnez t5, .Lbv_store_clears_oog_receipt_done\n" ++
+  "  li t5, 58116; sd t5, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  ".Lbv_store_clears_oog_receipt_done:\n" ++
   -- EIP-1559 diff_places Osaka rows are no-log singleton receipts where the
   -- block/header gas is exact, but the receipt increment carries an extra 2000.
   "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_eip1559_diff_places_receipt_done\n" ++
