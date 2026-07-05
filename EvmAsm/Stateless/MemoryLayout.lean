@@ -1,15 +1,42 @@
 /-
   EvmAsm.Stateless.MemoryLayout
 
-  Single source of truth for the address-space layout used by the
+  ############################################################################
+  ##  STATUS: ASPIRATIONAL (scheme A) — NOT the emitted guest's layout.     ##
+  ##                                                                        ##
+  ##  These "working-RAM anchors" are the layout contract for the           ##
+  ##  in-progress `EvmAsm/Stateless/` port, which does NOT drive the        ##
+  ##  emitted `stateless_guest` today. With one partial exception           ##
+  ##  (`STATE_TRACKER_AREA`, wired into the M24 storage exec-logs), NO      ##
+  ##  emitted guest instruction references any anchor below; the guest's    ##
+  ##  real EVM memory / value stack / node & code tables live in `.data`    ##
+  ##  (`-Tdata=0xa3000000`) and in place in the INPUT blob. Worse, the      ##
+  ##  live RV64 call stack (`_start`: `li sp, 0xa0050000`, grows down)      ##
+  ##  OCCUPIES `[0xa0020000, 0xa0050000)` — i.e. `SSZ_INPUT_DECODED` and    ##
+  ##  the bottom of `EXECUTION_WITNESS_AREA` are stack memory in the        ##
+  ##  current build. Both facts are kernel-checked in                       ##
+  ##  `EvmAsm/Codegen/RegionMap.lean`                                       ##
+  ##  (`guestStack_overlaps_executionWitnessArea`,                          ##
+  ##  `guestStack_not_disjoint_from_schemeA`); the reflow is bead           ##
+  ##  `evm-asm-0z5qy` (P1).                                                 ##
+  ##                                                                        ##
+  ##  For the EMITTED-REALITY region map — what routine triples must        ##
+  ##  frame against — use `EvmAsm/Codegen/RegionMap.lean`                   ##
+  ##  (`guestRegionMap`, pairwise-disjoint, ELF-drift-guarded by            ##
+  ##  `scripts/check-region-map.sh`). Do NOT derive assertions or specs     ##
+  ##  from the anchors below; see the per-anchor notes for where each       ##
+  ##  structure actually lives today.                                       ##
+  ############################################################################
+
+  Single source of truth for the address-space layout INTENDED by the
   stateless-guest port of `run_stateless_guest`
   (`execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py`).
 
   All RISC-V modules under `EvmAsm/Stateless/` agree on the constants
-  declared here. Treat this file as the contract: any new module must
-  document, in its file header, which regions it reads, writes, and
-  leaves untouched, plus which exit ECALLs it can take. Mirrors the
-  "memory layout + side effects" convention already used by
+  declared here. Treat this file as the (aspirational) port contract: any
+  new module must document, in its file header, which regions it reads,
+  writes, and leaves untouched, plus which exit ECALLs it can take.
+  Mirrors the "memory layout + side effects" convention already used by
   `EvmAsm/Evm64/DivMod/AddrNorm.lean` and the Keccak ECALL bridge.
 
   ## Top-level map (RV64IM, ZisK host-IO compatible)
@@ -95,19 +122,79 @@ namespace EvmAsm.Stateless
 
 open EvmAsm.Rv64
 
-/-! ## Working-RAM anchors (see table above). -/
+/-! ## Working-RAM anchors (see table above)
 
+**Every anchor below is ASPIRATIONAL unless its note says otherwise** —
+see the header status block. Each note names the emitted structure that
+actually plays the role today, so no future reader derives layout facts
+from a dead anchor. The `def`s are kept (values unchanged) because
+`Codegen/RegionMap.lean` pins them (`schemeA_matches_layout`) and the
+scheme-A port contract still targets them post-reflow (`evm-asm-0z5qy`). -/
+
+/-- ASPIRATIONAL — and currently **inside the live RV64 stack**
+    `[0xa0020000, 0xa0050000)`. Unusable until the `evm-asm-0z5qy` reflow. -/
 def STATELESS_WORK_BASE     : Word := 0xa0020000
+/-- ASPIRATIONAL — **collides with the live RV64 stack** (kernel-checked:
+    `RegionMap.guestStack_not_disjoint_from_schemeA`). Emitted reality:
+    nothing is decoded out of the input; the SSZ blob is navigated in
+    place at `SSZ_BASE = INPUT + 18`
+    (`Codegen/Programs/StatelessVerdict.lean`). -/
 def SSZ_INPUT_DECODED       : Word := 0xa0020000
+/-- ASPIRATIONAL — its bottom `[0xa0030000, 0xa0050000)` is **live RV64
+    stack** (kernel-checked:
+    `RegionMap.guestStack_overlaps_executionWitnessArea`). Emitted
+    reality: witness sections stay in place in INPUT as `(ptr, len)`
+    views (`extract_witness_state_section`,
+    `Codegen/Programs/SszWitnessState.lean`); assertion vocabulary in
+    `EvmAsm/Evm64/WitnessAssertions.lean`. -/
 def EXECUTION_WITNESS_AREA  : Word := 0xa0030000
+/-- ASPIRATIONAL — no emitted instruction references it
+    (`Stateless/Witness/NodeDb/*` are scaffolds). Emitted reality: the
+    node DB is the `mset_db_*` append log in `.data` (8 MiB,
+    `Codegen/Programs/MptSetAcc.lean`); assertion vocabulary in
+    `EvmAsm/Evm64/MptAssertions.lean`. -/
 def NODE_DB_BUCKETS         : Word := 0xa0130000
+/-- ASPIRATIONAL — no emitted instruction references it
+    (`Stateless/Witness/CodeDb/*` are scaffolds). Emitted reality: the
+    code DB is the `wcidx_*` sorted 48-byte-record index over the
+    in-place SSZ codes section (`Codegen/Programs/MptWitnessIndex.lean`,
+    `WitnessCodeLookup.lean`); assertion vocabulary in
+    `EvmAsm/Evm64/WitnessAssertions.lean`. -/
 def CODE_DB_BUCKETS         : Word := 0xa0530000
+/-- **LIVE (the one wired-in anchor)**: the M24 storage exec-logs —
+    persistent log at `0xa0630000`, transient at `0xa0830000`, 128-byte
+    entries, 2 MiB live extent (`Codegen/Programs/Storage.lean`,
+    `RegionMap.lean` `state_tracker_live`); assertion vocabulary in
+    `EvmAsm/Evm64/StorageAssertions.lean`. The remaining 2 MiB of the
+    4 MiB budget is unused. -/
 def STATE_TRACKER_AREA      : Word := 0xa0630000
+/-- ASPIRATIONAL — `Stateless/VM/Message.lean` is scaffold-only. Emitted
+    reality: per-frame slots live in `call_frame_arena` in `.data`
+    (~164 MiB, `Codegen/CallFrameLayout.lean`), with the Phase-H/Phase-D
+    ownership model in `Codegen/CallFramePhase.lean` /
+    `Codegen/CallFrameWindows.lean`. -/
 def EVM_FRAME_STACK         : Word := 0xa0a30000
+/-- ASPIRATIONAL — emitted reality: the operand stack is per-frame inside
+    `call_frame_arena` (32 KiB window per slot,
+    `Codegen/CallFrameLayout.lean`). -/
 def EVM_VALUE_STACK         : Word := 0xa0a70000
+/-- ASPIRATIONAL — emitted reality: EVM memory is per-frame inside
+    `call_frame_arena` (64 KiB window per slot,
+    `Codegen/CallFrameLayout.lean`; dispatcher-era global `evm_memory`
+    lives in `.data`). The `evmMemoryIs` assertion
+    (`EvmAsm/Evm64/StateAssertions.lean`) is base-parametrized; only its
+    `..._evmMemoryArea` convenience corollary targets this anchor and is
+    therefore a port-contract statement, not an emitted-guest one. -/
 def EVM_MEMORY_AREA         : Word := 0xa0b70000
+/-- ASPIRATIONAL — emitted reality: keccak inputs are staged in `.data`
+    scratch (`wlh_scratch_hash`, `mset_db_hash`, …) and via the ZisK
+    keccak ECALL. -/
 def KECCAK_SCRATCH          : Word := 0xa1b70000
+/-- ASPIRATIONAL — emitted reality: ecrecover staging is `.data` scratch
+    around the ZisK ECALL bridges. -/
 def ECRECOVER_SCRATCH       : Word := 0xa1b80000
+/-- ASPIRATIONAL — emitted reality: sha256 staging is `.data` scratch
+    around the ZisK ECALL bridges. -/
 def SHA256_SCRATCH          : Word := 0xa1b90000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
