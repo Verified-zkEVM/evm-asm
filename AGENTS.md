@@ -34,9 +34,13 @@ callee-first order, against the separation-logic state-assertion vocabulary.
 
 ## Start here
 
-1. **Beads is the source of truth for work**: `bd ready`, `bd show <id>`
-   (tracker DB configured via `BEADS_DIR`). Roadmap prose lives in `PLAN.md`
-   (see `CLAUDE.md` for its maintenance protocol).
+1. **What to work on**: the in-repo sources are `PLAN.md` (roadmap; see
+   `CLAUDE.md` for its maintenance protocol) and
+   `docs/agents/top-theorem-ledger.md` (what remains for the north star).
+   Work items are coordinated in an external issue tracker ("beads", ids like
+   `evm-asm-4ch8f.75.1`) that most agents do NOT have access to — treat bead
+   ids appearing in docs/PRs as opaque work-item references; if your session
+   does have the tracker, use it, otherwise your task assignment supersedes.
 2. Starting any 4ch8f bead → `docs/agents/roadmap-4ch8f.md` (layer DAG,
    pick-next rules, recipe table).
 3. Verifying one routine → `docs/agents/port-playbook.md` (mechanics) +
@@ -267,46 +271,6 @@ Pitfalls:
   (e.g. `refactor: extract shared Shift Compose helpers`,
   `fix(shr): address canonicalization in sign-fill path`). The PR summary bot
   flags titles that don't match this format.
-
-## Bead closure rules (`bd close`)
-
-The beads tracker is the source of truth for outstanding work. Closing a bead
-incorrectly hides unfinished obligations and bumping its priority later does
-nothing because the bead is no longer in the queue. Before running
-`bd close <id>`, satisfy **all** of the following:
-
-1. **The named deliverable must exist on `origin/main`.** If the bead title
-   says "prove `foo_spec_within`", "define `evm_foo`", or "lift X to Y", that
-   exact declaration has to be present on `origin/main` — not on a feature
-   branch, not in an unmerged stacked PR. Verify with:
-   `git fetch origin && git grep -n '<decl name>' origin/main -- '<expected path>'`.
-   If the grep is empty, **do not close the bead**.
-
-2. **A "related" PR merging is not the same as the deliverable shipping.** A
-   PR titled similarly, or that adds scaffolding, wrappers, or preparation
-   lemmas around the deliverable, does not satisfy the bead. If the named
-   theorem is still a `placeholder`, `sorry`, or absent, the bead stays open.
-
-3. **Stacked PRs into feature branches don't count.** A PR merged into
-   `feat/foo` instead of `main` has not landed. Wait for the bottom of the
-   stack to merge into `main`, then verify per (1) before closing the
-   dependent beads.
-
-4. **`close_reason` must be truthful.** `"shipped in PR #N"` is only valid
-   when PR #N's merge commit is an ancestor of `origin/main` *and* the named
-   deliverable is grep-visible there. Otherwise use
-   `"superseded by <bead-id>"` or `"duplicate of <bead-id>"`. Never close as
-   "shipped" against a PR that merged into a feature branch.
-
-5. **If you finished real work but the named theorem isn't done yet**,
-   prefer adding a `bd comment` with status, or filing a follow-up bead, or
-   updating the existing bead's description — instead of closing the wrong
-   thing.
-
-Recent violations to learn from: `evm-asm-01uh` (SDIV), `evm-asm-6snn` and
-`evm-asm-w5mk` (EXP) — all closed as "shipped in PR #…" while the named
-theorem was still a placeholder on `main` (and in the EXP cases the PR was
-merged into a feature branch, not `main`). All three had to be reopened.
 
 ## References
 
