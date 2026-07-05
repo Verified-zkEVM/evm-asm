@@ -119,6 +119,21 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Separation-logic state assertions** (`EvmAsm/Evm64/StateAssertions.lean`):
+  `evmMemoryIs base capacity contents` — the EVM interpreter memory region
+  (`EVM_MEMORY_AREA = 0xa0b70000`, statically 16 MiB =
+  `EVM_MEMORY_CAPACITY` per the gas-limit sizing) as `bytesRegion` +
+  pinned length. Split/peel lemmas (`bytesRegion_split`,
+  `evmMemoryIs_peel_word`, `evmMemoryIs_peel_window64`), pcFree,
+  placement facts (`isValidMemAddr_evmMemoryArea`,
+  disjointness vs `EVM_VALUE_STACK`/`KECCAK_SCRATCH`). Honesty gate:
+  `evm_mload_stack_spec_within_evmMemoryIs` /
+  `..._evmMemoryArea` (`EvmAsm/Evm64/MLoad/MemoryRegionStackSpec.lean`)
+  restate the proven public MLOAD stack spec against `evmMemoryIs`, with
+  the pushed word shown to be `evmMemoryReadWord contents offset.toNat`.
+  Remaining: MSTORE reframing (needs contents-update fold), account
+  (`accountIs`) and storage (`storageSlotIs`) assertions — see the
+  "State-assertion vocabulary" notes in the session PRs.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
@@ -1038,8 +1053,24 @@ bundle). Tracked by issue #313.
   `AddMod/Compose/` (TotalBase → CarryBlockSpecs/CondSubSpec → CallAdapter →
   CarryLa/Lb/Lc/Ld(+Chain) → ZeroNoCarryArms → TotalDispatch → ResultStack).
 
-#### 4.5 EXP (Exponentiation)
-- **Approach**: Square-and-multiply using MUL. Loop over exponent bits.
+#### ~~4.5 EXP (Exponentiation)~~ ✅
+- **Approach**: Square-and-multiply using MUL. Loop over exponent bits
+  (256 iterations, MSB-first walk through the saved exponent).
+- **EXP `.proven` (2026-07-05, PRs #9841 + #9842)**: public witness
+  `evm_exp_stack_spec_within` (`Exp/HeadroomProgramSpec.lean`) — unconditional
+  stack spec over the concrete appended headroom program
+  (`evm_exp_msb_saved_bit_two_mul_fixed_headroom ;; mul_callable`,
+  `CodeReq.ofProg`, entry `base` → `base+408`, only side condition the even
+  entry base). Pre = `evmStackIs evmSp (base :: exponent :: rest)` plus an
+  explicit x2 local frame and 8 headroom dwords + 2 scratch EVM words below
+  the live stack (`evmSp-128..evmSp-32`, MULMOD below-sp precedent); post =
+  `evmStackIs (evmSp+32) (EvmWord.exp base exponent :: rest)` with clobbered
+  state shed to `evmExpHeadroomPublicLeftoverFrame`. Cycle bound 49447.
+  Proof is a `cpsTripleWithin_weaken` repackaging of the headroom
+  visible-result program theorem with the existential pre/post bundles
+  unfolded to the ADDMOD/MULMOD-style explicit public form. With this the
+  arithmetic family 0x01..0x0b is fully `.proven` (provenCount 49);
+  CALLDATACOPY is the only remaining `.partly` entry.
 
 #### ~~4.6 SIGNEXTEND~~ ✅
 - **Files**: `Evm64/SignExtend/` — `Program.lean` (program + 16 tests), `LimbSpec.lean` (per-body + phase A/B/C specs),

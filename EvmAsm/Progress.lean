@@ -181,8 +181,18 @@ def registry : List OpcodeEntry := [
        "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
        "sp-160..sp-8) so the live EVM stack is preserved")
       (cycleBound := some 34295),
-  entry "EXP" .partly (some "evm_exp_headroom_visible_result_stack_program_spec_within")
-      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a canonical concrete-program theorem over CodeReq.ofProg with ordinary entry-base alignment, old register/scratch values and the internal scratch base existentially packaged, and the semantic result stack exposed directly at evmSp+32 as EvmWord.exp base exponent :: rest; consumed operand/scratch cells and leftover headroom stack cells are weakened to ownership, with leftover implementation resources existentially framed; public evm_exp_stack_spec_within wrapper still pending",
+  entry "EXP" .proven (some "evm_exp_stack_spec_within")
+      ("unconditional EXP stack spec over the concrete appended headroom " ++
+       "program (evm_exp_msb_saved_bit_two_mul_fixed_headroom ;; mul_callable, " ++
+       "CodeReq.ofProg): full 256-iteration square-and-multiply loop via the " ++
+       "proven MUL callable; pre = evmStackIs evmSp (base :: exponent :: rest) " ++
+       "plus an explicit x2 local frame and 8 headroom dwords + 2 scratch EVM " ++
+       "words below the live stack (evmSp-128..evmSp-32 — MULMOD below-sp " ++
+       "precedent); post = evmStackIs (evmSp+32) (EvmWord.exp base exponent " ++
+       ":: rest) with clobbered state shed to evmExpHeadroomPublicLeftoverFrame; " ++
+       "only side condition is the even entry base.  (was: partial headroom " ++
+       "surface pending the public wrapper)")
+      (cycleBound := some 49447),
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
   -- Comparison and bitwise (0x10..0x1d)
@@ -304,8 +314,8 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 48 := by decide
-theorem partialCount_eq     : partialCount     = 2  := by decide
+theorem provenCount_eq      : provenCount      = 49 := by decide
+theorem partialCount_eq     : partialCount     = 1  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
@@ -338,8 +348,8 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 108 := by decide
-theorem partialBytes_eq     : partialBytes     = 2   := by decide
+theorem provenBytes_eq      : provenBytes      = 109 := by decide
+theorem partialBytes_eq     : partialBytes     = 1   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
@@ -367,7 +377,7 @@ private noncomputable abbrev _smod_witness       :=
 private noncomputable abbrev _addmod_witness     :=
   @EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
-private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_result_stack_program_spec_within
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_stack_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within

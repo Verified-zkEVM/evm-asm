@@ -58,7 +58,6 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `EXP` | exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a canonical concrete-program theorem over CodeReq.ofProg with ordinary entry-base alignment, old register/scratch values and the internal scratch base existentially packaged, and the semantic result stack exposed directly at evmSp+32 as EvmWord.exp base exponent :: rest; consumed operand/scratch cells and leftover headroom stack cells are weakened to ownership, with leftover implementation resources existentially framed; public evm_exp_stack_spec_within wrapper still pending |
 | `CALLDATACOPY` | preamble + partial memory effect; full loop pending |
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
