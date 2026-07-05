@@ -119,6 +119,21 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Separation-logic state assertions** (`EvmAsm/Evm64/StateAssertions.lean`):
+  `evmMemoryIs base capacity contents` — the EVM interpreter memory region
+  (`EVM_MEMORY_AREA = 0xa0b70000`, statically 16 MiB =
+  `EVM_MEMORY_CAPACITY` per the gas-limit sizing) as `bytesRegion` +
+  pinned length. Split/peel lemmas (`bytesRegion_split`,
+  `evmMemoryIs_peel_word`, `evmMemoryIs_peel_window64`), pcFree,
+  placement facts (`isValidMemAddr_evmMemoryArea`,
+  disjointness vs `EVM_VALUE_STACK`/`KECCAK_SCRATCH`). Honesty gate:
+  `evm_mload_stack_spec_within_evmMemoryIs` /
+  `..._evmMemoryArea` (`EvmAsm/Evm64/MLoad/MemoryRegionStackSpec.lean`)
+  restate the proven public MLOAD stack spec against `evmMemoryIs`, with
+  the pushed word shown to be `evmMemoryReadWord contents offset.toNat`.
+  Remaining: MSTORE reframing (needs contents-update fold), account
+  (`accountIs`) and storage (`storageSlotIs`) assertions — see the
+  "State-assertion vocabulary" notes in the session PRs.
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
