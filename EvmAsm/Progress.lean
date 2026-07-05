@@ -44,6 +44,10 @@ import EvmAsm.Evm64.Push.ImmediateCompose
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Stateless.State.AccountAssertions
+import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
+import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
@@ -181,8 +185,18 @@ def registry : List OpcodeEntry := [
        "relocated below the stack pointer (sp + signExtend12 3936..4088 = " ++
        "sp-160..sp-8) so the live EVM stack is preserved")
       (cycleBound := some 34295),
-  entry "EXP" .partly (some "evm_exp_headroom_visible_result_stack_program_spec_within")
-      "exp_correct proven; pure executable stack transition names EvmWord.exp; headroom RV64 full-loop composition now reaches a canonical concrete-program theorem over CodeReq.ofProg with ordinary entry-base alignment, old register/scratch values and the internal scratch base existentially packaged, and the semantic result stack exposed directly at evmSp+32 as EvmWord.exp base exponent :: rest; consumed operand/scratch cells and leftover headroom stack cells are weakened to ownership, with leftover implementation resources existentially framed; public evm_exp_stack_spec_within wrapper still pending",
+  entry "EXP" .proven (some "evm_exp_stack_spec_within")
+      ("unconditional EXP stack spec over the concrete appended headroom " ++
+       "program (evm_exp_msb_saved_bit_two_mul_fixed_headroom ;; mul_callable, " ++
+       "CodeReq.ofProg): full 256-iteration square-and-multiply loop via the " ++
+       "proven MUL callable; pre = evmStackIs evmSp (base :: exponent :: rest) " ++
+       "plus an explicit x2 local frame and 8 headroom dwords + 2 scratch EVM " ++
+       "words below the live stack (evmSp-128..evmSp-32 — MULMOD below-sp " ++
+       "precedent); post = evmStackIs (evmSp+32) (EvmWord.exp base exponent " ++
+       ":: rest) with clobbered state shed to evmExpHeadroomPublicLeftoverFrame; " ++
+       "only side condition is the even entry base.  (was: partial headroom " ++
+       "surface pending the public wrapper)")
+      (cycleBound := some 49447),
   entry "SIGNEXTEND" .proven (some "evm_signextend_stack_spec_within") (cycleBound := some 28),
 
   -- Comparison and bitwise (0x10..0x1d)
@@ -304,8 +318,8 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 48 := by decide
-theorem partialCount_eq     : partialCount     = 2  := by decide
+theorem provenCount_eq      : provenCount      = 49 := by decide
+theorem partialCount_eq     : partialCount     = 1  := by decide
 theorem conditionalCount_eq : conditionalCount = 0  := by decide
 theorem execSpecCount_eq    : execSpecCount    = 32 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 3  := by decide
@@ -338,8 +352,8 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 108 := by decide
-theorem partialBytes_eq     : partialBytes     = 2   := by decide
+theorem provenBytes_eq      : provenBytes      = 109 := by decide
+theorem partialBytes_eq     : partialBytes     = 1   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 0   := by decide
 theorem execSpecBytes_eq    : execSpecBytes    = 36  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 3   := by decide
@@ -367,7 +381,7 @@ private noncomputable abbrev _smod_witness       :=
 private noncomputable abbrev _addmod_witness     :=
   @EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 private noncomputable abbrev _mulmod_witness      := @EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
-private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_headroom_visible_result_stack_program_spec_within
+private noncomputable abbrev _exp_witness         := @EvmAsm.Evm64.evm_exp_stack_spec_within
 private noncomputable abbrev _signextend_witness := @EvmAsm.Evm64.evm_signextend_stack_spec_within
 private noncomputable abbrev _lt_witness         := @EvmAsm.Evm64.evm_lt_stack_spec_within
 private noncomputable abbrev _gt_witness         := @EvmAsm.Evm64.evm_gt_stack_spec_within
@@ -410,5 +424,41 @@ private noncomputable abbrev _push1_witness      := @EvmAsm.Evm64.evm_push1_stac
 private noncomputable abbrev _push_witness       := @EvmAsm.Evm64.evm_push_stack_spec_within
 private noncomputable abbrev _dup_witness        := @EvmAsm.Evm64.evm_dup_stack_spec_within
 private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack_spec_within
+
+/-! ### State-assertion vocabulary witnesses
+
+    Headline lemmas of the separation-logic Assertions over the guest's
+    structured arenas (`evmMemoryIs` PR #9844; MPT node / node-DB;
+    witness-section / code-DB
+    assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
+
+private noncomputable abbrev _evm_memory_is_mload_witness :=
+  @EvmAsm.Evm64.evm_mload_stack_spec_within_evmMemoryIs
+private noncomputable abbrev _evm_memory_is_peel_witness :=
+  @EvmAsm.Evm64.evmMemoryIs_peel_window64
+private noncomputable abbrev _mpt_node_kind_spec_witness :=
+  @EvmAsm.Evm64.mptNodeKindSpec_rlp
+private noncomputable abbrev _hp_roundtrip_witness :=
+  @EvmAsm.Evm64.hpDecode_hpEncode
+private noncomputable abbrev _node_db_snoc_witness :=
+  @EvmAsm.Evm64.nodeDbIs_snoc
+private noncomputable abbrev _node_db_lookup_spec_witness :=
+  @EvmAsm.Evm64.nodeDbLookupSpec_eq_build_node_db
+private noncomputable abbrev _node_db_stride_witness :=
+  @EvmAsm.Evm64.roundUp8_eq_alignToDword
+private noncomputable abbrev _witness_lookup_spec_witness :=
+  @EvmAsm.Evm64.witnessLookupSpec_correct
+private noncomputable abbrev _witness_index_split_witness :=
+  @EvmAsm.Evm64.witnessIndexIs_split_at
+private noncomputable abbrev _index_of_section_hashes_witness :=
+  @EvmAsm.Evm64.indexOfSection_hashes_eq_build_code_db
+private noncomputable abbrev _index_of_section_matches_witness :=
+  @EvmAsm.Evm64.indexOfSection_matchesSection
+private noncomputable abbrev _account_rlp_decode_witness :=
+  @EvmAsm.Stateless.decode_account_from_leaf_accountRlp
+private noncomputable abbrev _account_balance_slot_witness :=
+  @EvmAsm.Stateless.bytesBEtoNat_beBytes32
+private noncomputable abbrev _account_rlp_length_witness :=
+  @EvmAsm.Stateless.accountRlp_length_le
 
 end EvmAsm.Progress

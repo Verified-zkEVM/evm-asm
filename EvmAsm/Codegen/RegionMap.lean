@@ -24,12 +24,14 @@
   core → Codegen), so the region map lives here rather than under `Stateless/`.
 
   **Aliasing (soundness-critical, deferred proof).** The guest has exactly one
-  intentional physical overlap: `call_frame_arena` (~164 MiB, EVM call-frame
-  overlay) coalesces seven execution-dead Phase-H arenas into its front
-  (`basr_values`, `basr_accounts`, `bv_system_storage_log`, `baap_storage_desc`,
+  intentional physical overlap: `call_frame_arena` (~228 MiB, EVM call-frame
+  overlay) coalesces six execution-dead Phase-H arenas into its front
+  (`basr_values`, `basr_accounts`, `baap_storage_desc`,
   `baap_storage_paths`, `baap_storage_delete_paths`, `baap_storage_values`).
+  (`bv_system_storage_log` was un-unioned in `4ch8f.73` — it is read
+  post-dispatch, so it now lives standalone, `syslog_disjoint_from_frameArena`.)
   This file *documents* those overlaps precisely (`aliasedPairs` + the per-pair
-  `_overlap` theorems) and proves the seven coalesced children are mutually
+  `_overlap` theorems) and proves the six coalesced children are mutually
   disjoint. It does **not** prove they are safe to share — the verified
   phase-ownership / separation-logic model is bead `.6`'s other (deferred) half.
   See `docs/4ch8f-region-map.md` §"Overlap inventory" and
@@ -178,12 +180,14 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x5cb18`). Link-layout-dependent; the drift guard re-derives it. -/
-def textSizeBytes : Nat := 0x5cb18
+    (`readelf -S`, `0x5cb20`). Link-layout-dependent; the drift guard re-derives it. -/
+def textSizeBytes : Nat := 0x5cb20
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
-    (`readelf -S`, `0x159a9a70`). Link-layout-dependent. -/
-def dataSizeBytes : Nat := 0x159a9a70
+    (`readelf -S`, `0x19511e90`). Link-layout-dependent. Grew by `0x4010000`
+    (~64 MiB) when the `.71` reconciliation raised `frameStride` `0x29000→0x39000`
+    (the `call_frame_arena` trailing pad = `frameArrayBytes - unionChildren`). -/
+def dataSizeBytes : Nat := 0x19511e90
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -204,7 +208,7 @@ def textRegion : GuestRegion :=
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xb8945a70" }
+    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xbc511e90" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf500000`). -/
@@ -257,7 +261,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xb8945a70` below `.sszscratch`; INPUT and
+    (`0xa3000000`); `.data` ends `0xbc511e90` below `.sszscratch`; INPUT and
     `.text` sit in their own zones. The guest's one intentional overlap lives
     strictly inside the `.data` member and is expanded — as its own inventory —
     in `dataUnionChildren`/`aliasedPairs` below. The scheme-A anchors are the
@@ -335,26 +339,26 @@ theorem schemeA_matches_layout :
 
 /-! ## Within-`.data` aliasing inventory (the `call_frame_arena` union).
 
-    ELF ground truth (`readelf -s`, this build):
+    ELF ground truth (`readelf -s`, this build; post-`4ch8f.73` — six children,
+    `bv_system_storage_log` un-unioned):
     ```
-    ac44d520  call_frame_arena  == basr_values
-    adcb8720  basr_accounts          (+  S)
-    af523920  bv_system_storage_log  (+ 2S)
-    b3e61920  baap_storage_desc      (+ 2S + L)
-    b4232220  baap_storage_paths
-    b484ca20  baap_storage_delete_paths
-    b4e67220  baap_storage_values
-    b6876520  call_frame_arena_end   (== base + frameArrayBytes)
+    ac44d740  call_frame_arena  == basr_values
+    adcb8940  basr_accounts          (+  S)
+    af523b40  baap_storage_desc      (+ 2S)
+    af8f4440  baap_storage_paths
+    aff0ec40  baap_storage_delete_paths
+    b0529440  baap_storage_values
+    ba886740  call_frame_arena_end   (== base + frameArrayBytes)
     ```
-    with `S = bsrMaxStateChanges * bsrEncodedAccountBytes`,
-    `L = bvSystemStorageLogBytes`. These are relocatable symbols reached via
-    independent `la`; only the *offsets within the arena* are layout-invariant,
-    so this inventory uses arena-relative offsets, not the absolute build
-    addresses. The absolute base is captured once for cross-checking. -/
+    with `S = bsrMaxStateChanges * bsrEncodedAccountBytes`. These are relocatable
+    symbols reached via independent `la`; only the *offsets within the arena* are
+    layout-invariant, so this inventory uses arena-relative offsets, not the
+    absolute build addresses. The absolute base is captured once for
+    cross-checking. -/
 
 /-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
     LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
-def callFrameArenaBase : Nat := 0xac44d520
+def callFrameArenaBase : Nat := 0xac44d740
 
 /-- `S` — the `basr_values`/`basr_accounts` per-arena stride. -/
 def basrArenaBytes : Nat := bsrMaxStateChanges * bsrEncodedAccountBytes
@@ -366,21 +370,22 @@ structure UnionChild where
   size : Nat
   deriving Repr
 
-/-- The seven Phase-H arenas coalesced into the front of `call_frame_arena`,
+/-- The six Phase-H arenas coalesced into the front of `call_frame_arena`,
     in layout order, as arena-relative offset/size pairs. Mirrors the emit in
-    `BlockVerdictDataSection.lean` (the `basr_values`/`basr_accounts` pair, the
-    `bv_system_storage_log` arena, then the four `baap_storage_*` arenas). -/
+    `BlockVerdictDataSection.lean` (the `basr_values`/`basr_accounts` pair, then
+    the four `baap_storage_*` arenas). `bv_system_storage_log` was removed from
+    the union in `4ch8f.73` (it is read post-dispatch, so a frame slot would
+    clobber it — it now lives standalone, see `syslogRegion`). -/
 def dataUnionChildren : List UnionChild :=
   [ { name := "basr_values",              off := 0,                                          size := basrArenaBytes },
     { name := "basr_accounts",            off := basrArenaBytes,                             size := basrArenaBytes },
-    { name := "bv_system_storage_log",    off := 2 * basrArenaBytes,                         size := bvSystemStorageLogBytes },
-    { name := "baap_storage_desc",        off := 2 * basrArenaBytes + bvSystemStorageLogBytes,
+    { name := "baap_storage_desc",        off := 2 * basrArenaBytes,
                                           size := bsrMaxBalItems * baapStorageDescBytes },
-    { name := "baap_storage_paths",       off := 2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes,
+    { name := "baap_storage_paths",       off := 2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes,
                                           size := bsrMaxBalItems * bsrPathBytes },
-    { name := "baap_storage_delete_paths",off := 2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes + bsrMaxBalItems * bsrPathBytes,
+    { name := "baap_storage_delete_paths",off := 2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes + bsrMaxBalItems * bsrPathBytes,
                                           size := bsrMaxBalItems * bsrPathBytes },
-    { name := "baap_storage_values",      off := 2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes + 2 * (bsrMaxBalItems * bsrPathBytes),
+    { name := "baap_storage_values",      off := 2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes + 2 * (bsrMaxBalItems * bsrPathBytes),
                                           size := bsrMaxBalItems * bsrPathBytes } ]
 
 /-- Two union children occupy disjoint arena-relative ranges. -/
@@ -394,7 +399,7 @@ def unionChildrenPairwiseDisjoint : List UnionChild → Bool
 /-- Each child's range fits inside the arena `[0, frameArrayBytes)`. -/
 def unionChildFitsArena (c : UnionChild) : Bool := decide (c.off + c.size ≤ frameArrayBytes)
 
-/-- **The seven coalesced arenas are mutually disjoint** (each owns a distinct
+/-- **The six coalesced arenas are mutually disjoint** (each owns a distinct
     sub-range of `call_frame_arena`). This is the "no self-corruption *among the
     unioned arenas*" fact — NOT the phase-liveness fact that they may share bytes
     with the frame array (that is the deferred half). -/
@@ -408,10 +413,50 @@ theorem dataUnionChildren_fit_arena :
     dataUnionChildren.all unionChildFitsArena = true := by decide
 
 /-- The `call_frame_arena` byte range `[base, base + frameArrayBytes)` sits inside
-    the `.data` section. (`call_frame_arena_end = 0xb6876520 < .data end 0xb8945a70`.) -/
+    the `.data` section. (`call_frame_arena_end = 0xba886740 < .data end 0xbc511e90`.) -/
 theorem callFrameArena_within_data :
     dataRegion.base ≤ callFrameArenaBase
       ∧ callFrameArenaBase + frameArrayBytes ≤ dataRegion.base + dataRegion.size := by decide
+
+/-! ## `bv_system_storage_log` standalone placement (`4ch8f.73`).
+
+    Un-unioned from `call_frame_arena` because it is WRITTEN pre-dispatch
+    (`capture_system_storage_exec_rows`) but READ post-dispatch by the BAL
+    validators (`bal_storage_matches_exec_log` / `_covers_exec_log` /
+    `account_tuple_sequences_consistent`), while per-tx dispatch frames zero every
+    byte of the arena. It now lives in its own `.data` region, entirely BELOW the
+    arena. Sized `bvSystemStorageLogBytes` (= `2 * 16384` rows), sound per the
+    runtime-exec-log source cap — see `BlockVerdictParams.bvSystemStorageLogCapacity`. -/
+
+/-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
+    LINK-LAYOUT-DEPENDENT — read from the ELF, guarded by `check-region-map.sh`. -/
+def syslogBase : Nat := 0xaa30bea0
+
+/-- **The `.73` clobber is closed (load-bearing).** The un-unioned
+    `bv_system_storage_log` region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
+    ends at or before `call_frame_arena`'s base — it is entirely disjoint from the
+    arena. Under the OLD union placement the syslog sat at arena offset `[2S, 2S+L)`
+    and per-tx dispatch frames at depth ≥ 221 zeroed it before the post-dispatch BAL
+    validators read it (the bug). Now it cannot be reached by the frame array at all. -/
+theorem syslog_disjoint_from_frameArena :
+    syslogBase + bvSystemStorageLogBytes ≤ callFrameArenaBase := by decide
+
+/-- **No frame slot can clobber the syslog, for any call depth.** Frame slot `d`
+    occupies `[callFrameArenaBase + (d-1)*frameStride, + frameStride)`, which starts
+    at or after `callFrameArenaBase`; the syslog ends at or before it
+    (`syslog_disjoint_from_frameArena`). So every reachable dispatch frame
+    (`1 ≤ d`, in fact all `d`) is strictly above the entire syslog extent — the
+    captured system-storage rows survive the whole per-tx dispatch window. This is
+    the property that FAILED under the union placement and now holds by
+    construction, complementing `CallFrameLayout.frameArray_covers_all_depths`
+    (which keeps every slot inside the arena). -/
+theorem syslog_below_every_frame_slot (d : Nat) (_hd : 1 ≤ d) :
+    syslogBase + bvSystemStorageLogBytes
+      ≤ callFrameArenaBase + (d - 1) * frameStride := by
+  have h := syslog_disjoint_from_frameArena
+  have hmono : callFrameArenaBase ≤ callFrameArenaBase + (d - 1) * frameStride :=
+    Nat.le_add_right _ _
+  omega
 
 /-! ## Explicit overlap inventory (`aliasedPairs`).
 
@@ -426,11 +471,11 @@ def aliasedPairs : List (String × String) :=
   dataUnionChildren.map (fun c => ("call_frame_arena", c.name))
 
 /-- Every aliased pair names `call_frame_arena` as the umbrella and a real
-    coalesced child; there are exactly seven, matching `dataUnionChildren`. -/
+    coalesced child; there are exactly six, matching `dataUnionChildren`
+    (`bv_system_storage_log` was un-unioned in `4ch8f.73`). -/
 theorem aliasedPairs_shape :
     aliasedPairs = [ ("call_frame_arena", "basr_values"),
                      ("call_frame_arena", "basr_accounts"),
-                     ("call_frame_arena", "bv_system_storage_log"),
                      ("call_frame_arena", "baap_storage_desc"),
                      ("call_frame_arena", "baap_storage_paths"),
                      ("call_frame_arena", "baap_storage_delete_paths"),
@@ -444,19 +489,17 @@ theorem aliasedPairs_overlap_ranges :
     dataUnionChildren.map (fun c => (c.off, c.off + c.size)) =
       [ (0,          basrArenaBytes),
         (basrArenaBytes, 2 * basrArenaBytes),
-        (2 * basrArenaBytes, 2 * basrArenaBytes + bvSystemStorageLogBytes),
-        (2 * basrArenaBytes + bvSystemStorageLogBytes,
-           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes),
-        (2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes,
-           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+        (2 * basrArenaBytes, 2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes),
+        (2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes,
+           2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes
              + bsrMaxBalItems * bsrPathBytes),
-        (2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+        (2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes
            + bsrMaxBalItems * bsrPathBytes,
-           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+           2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes
              + 2 * (bsrMaxBalItems * bsrPathBytes)),
-        (2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+        (2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes
            + 2 * (bsrMaxBalItems * bsrPathBytes),
-           2 * basrArenaBytes + bvSystemStorageLogBytes + bsrMaxBalItems * baapStorageDescBytes
+           2 * basrArenaBytes + bsrMaxBalItems * baapStorageDescBytes
              + 3 * (bsrMaxBalItems * bsrPathBytes)) ] := by decide
 
 /-! ## Linker-facts bridge (data arena bases derivable from the map).
