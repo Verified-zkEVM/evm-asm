@@ -51,87 +51,11 @@ set_option linter.unusedSimpArgs false
 
 open Stmt
 
--- ============================================================================
--- Window-locality lemmas (shared with every future ladder instantiation)
--- ============================================================================
-
-/-- Reading a dword strictly below a splice is unchanged. -/
-theorem wsDword_setBytes_low {bs ns : List (BitVec 8)} {j k : Nat}
-    (h : k + 8 ≤ j) :
-    wsDword (setBytes bs j ns) k = wsDword bs k := by
-  unfold wsDword
-  have htake : (setBytes bs j ns).take j = bs.take j :=
-    setBytes_take_of_ge ns bs j j (Nat.le_refl j)
-  have h1 : (((setBytes bs j ns).take j).drop k).take 8
-      = ((bs.take j).drop k).take 8 := by rw [htake]
-  rw [List.drop_take, List.drop_take, List.take_take, List.take_take,
-    Nat.min_eq_left (by omega)] at h1
-  rw [h1]
-
-/-- Reading a 256-bit operand strictly below a splice is unchanged. -/
-theorem wsNat256_setBytes_low {bs ns : List (BitVec 8)} {j k : Nat}
-    (h : k + 32 ≤ j) :
-    wsNat256 (setBytes bs j ns) k = wsNat256 bs k := by
-  unfold wsNat256
-  rw [wsDword_setBytes_low (by omega), wsDword_setBytes_low (by omega),
-    wsDword_setBytes_low (by omega), wsDword_setBytes_low (by omega)]
-
-/-- Slicing dword `t` back out of a limb list's byte image. -/
-theorem flatMap_dwordBytes_slice :
-    ∀ (wsL : List Word) (t : Nat), t < wsL.length →
-      ((wsL.flatMap dwordBytes).drop (8 * t)).take 8 = dwordBytes (wsL.getD t 0)
-  | [], t, ht => absurd ht (by simp)
-  | w :: rest, 0, _ => by
-      simp only [List.flatMap_cons, Nat.mul_zero, List.drop_zero, List.getD_cons_zero]
-      rw [List.take_append_of_le_length (by rw [length_dwordBytes])]
-      exact List.take_of_length_le (by rw [length_dwordBytes])
-  | w :: rest, t + 1, ht => by
-      simp only [List.flatMap_cons, List.getD_cons_succ]
-      rw [show 8 * (t + 1) = (dwordBytes w).length + (8 * t) from by
-          rw [length_dwordBytes]; omega,
-        ← List.drop_drop, List.drop_left]
-      exact flatMap_dwordBytes_slice rest t (by simpa using ht)
-
-/-- Decoding the freshly written output buffer recovers the value. -/
-theorem wsNat256_setBytes_leBytes32 {bs : List (BitVec 8)} {j v : Nat}
-    (hv : v < 2 ^ 256) (hfit : j + 32 ≤ bs.length) :
-    wsNat256 (setBytes bs j (leBytes32 v)) j = v := by
-  have hslot : ((setBytes bs j (leBytes32 v)).drop j).take 32 = leBytes32 v := by
-    have := setBytes_slot bs (leBytes32 v) j
-      (by rw [length_leBytes32]; omega)
-    rwa [length_leBytes32] at this
-  -- per-limb: the dword at j + 8t is limb t of the payload
-  have hlimb : ∀ t : Nat, t < 4 →
-      wsDword (setBytes bs j (leBytes32 v)) (j + 8 * t)
-        = (Accel.natToLeLimbs 4 v).getD t 0 := by
-    intro t ht
-    unfold wsDword
-    have hs8 : (((setBytes bs j (leBytes32 v)).drop j).drop (8 * t)).take 8
-        = ((leBytes32 v).drop (8 * t)).take 8 := by
-      conv_rhs => rw [← hslot]
-      rw [List.drop_take, List.take_take, Nat.min_eq_left (by omega)]
-    rw [show j + 8 * t = j + (8 * t) from rfl, ← List.drop_drop, hs8,
-      show leBytes32 v = (Accel.natToLeLimbs 4 v).flatMap dwordBytes from rfl,
-      flatMap_dwordBytes_slice (Accel.natToLeLimbs 4 v) t
-        (by simpa using ht),
-      packBytes_dwordBytes]
-  have h0 := hlimb 0 (by omega)
-  have h1 := hlimb 1 (by omega)
-  have h2 := hlimb 2 (by omega)
-  have h3 := hlimb 3 (by omega)
-  rw [show j + 8 * 0 = j from by omega] at h0
-  rw [show j + 8 * 1 = j + 8 from by omega] at h1
-  rw [show j + 8 * 2 = j + 16 from by omega] at h2
-  rw [show j + 8 * 3 = j + 24 from by omega] at h3
-  unfold wsNat256
-  rw [h0, h1, h2, h3]
-  rw [show ∀ ns : List Word, ns.length = 4 →
-        [ns.getD 0 0, ns.getD 1 0, ns.getD 2 0, ns.getD 3 0] = ns from by
-      intro ns hns
-      match ns, hns with
-      | [a, b, c, d], _ => rfl]
-  · exact Crypto.leLimbsToNat_natToLeLimbs 4 v hv
-  · simp
+-- The pilot's window-locality lemmas (`wsDword_setBytes_low`,
+-- `wsNat256_setBytes_low`, `flatMap_dwordBytes_slice`,
+-- `wsNat256_setBytes_leBytes32`) were promoted into AccelStep.lean
+-- (bead 4ch8f.11.6), generalized to `nl` limbs — this file consumes them
+-- from there.
 
 -- ============================================================================
 -- The arena layout (demo-local; no GuestAddrs dependence)
