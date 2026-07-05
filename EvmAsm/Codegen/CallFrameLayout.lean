@@ -166,7 +166,7 @@ def balArenaTotalBytes : Nat :=
 /-- The stride is 32-aligned (the project avoids misaligned load/store). -/
 theorem frameStride_aligned : frameStride % 32 = 0 := by decide
 
-/-- All sub-regions fit within one stride (with slack rounding up to 0x29000). -/
+/-- All sub-regions fit within one stride (with slack rounding up to `frameStride`). -/
 theorem frameUsed_fits_stride : frameUsedBytes ≤ frameStride := by decide
 
 /-- Sub-region offsets are strictly increasing and the last ends within stride. -/

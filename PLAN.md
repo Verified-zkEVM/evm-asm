@@ -119,21 +119,22 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
-- **Separation-logic state assertions** (`EvmAsm/Evm64/StateAssertions.lean`):
-  `evmMemoryIs base capacity contents` — the EVM interpreter memory region
-  (`EVM_MEMORY_AREA = 0xa0b70000`, statically 16 MiB =
-  `EVM_MEMORY_CAPACITY` per the gas-limit sizing) as `bytesRegion` +
-  pinned length. Split/peel lemmas (`bytesRegion_split`,
-  `evmMemoryIs_peel_word`, `evmMemoryIs_peel_window64`), pcFree,
-  placement facts (`isValidMemAddr_evmMemoryArea`,
-  disjointness vs `EVM_VALUE_STACK`/`KECCAK_SCRATCH`). Honesty gate:
-  `evm_mload_stack_spec_within_evmMemoryIs` /
-  `..._evmMemoryArea` (`EvmAsm/Evm64/MLoad/MemoryRegionStackSpec.lean`)
-  restate the proven public MLOAD stack spec against `evmMemoryIs`, with
-  the pushed word shown to be `evmMemoryReadWord contents offset.toNat`.
-  Remaining: MSTORE reframing (needs contents-update fold), account
-  (`accountIs`) and storage (`storageSlotIs`) assertions — see the
-  "State-assertion vocabulary" notes in the session PRs.
+- **Separation-logic state-assertion vocabulary** (layout-faithful Assertions
+  over the guest's structured arenas, each with a proven faithfulness tie;
+  all headline lemmas fenced as `Progress.lean` witnesses):
+  `evmMemoryIs` + peel lemmas + the reframed MLOAD spec
+  (`EvmAsm/Evm64/StateAssertions.lean`, `MLoad/MemoryRegionStackSpec.lean`);
+  `accountRlpIs`/`accountDecodedIs` tied to `decode_account_from_leaf`
+  (`Stateless/State/AccountAssertions.lean`); `storageSlotIs`/`storageLogIs`/
+  `committedStorageIs` for the 128-byte exec-logs
+  (`Evm64/StorageAssertions.lean`); `mptNodeIs`/`nodeDbIs` with the
+  `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
+  `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
+  tie (`Evm64/WitnessAssertions.lean`). The concrete↔abstract refinement
+  map (abstraction functions, divergences, `guestStateCorresponds`
+  north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
+  work is decomposed as beads `evm-asm-4ch8f.75.*` (MSTORE
+  contents-update fold, `rlpToMutableNode`, storage log-replay lemmas, …).
 - RV64: Basic, Instructions, Program, Execution, CPSSpec,
   ControlFlow, SepLogic, GenericSpecs, InstructionSpecs, SyscallSpecs,
   HalfwordOps, WordOps
