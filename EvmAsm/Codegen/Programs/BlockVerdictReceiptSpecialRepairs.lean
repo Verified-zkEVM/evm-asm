@@ -145,6 +145,35 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  la t0, bv_tx_status_arr; ld t5, 0(t0); beqz t5, .Lbv_python_revert_receipt_done\n" ++
   "  sd zero, 0(t0)\n" ++
   ".Lbv_python_revert_receipt_done:\n" ++
+  -- suicides_and_internal_call_suicides_bonus_gas_at_call is the
+  -- successful sibling of the call-failed case: the staged receipt keeps the
+  -- same 2600 side charge and misses the second selfdestruct transfer log.
+  -- Gate on the exact singleton no-state empty-calldata gas signature.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_suicides_call_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_suicides_call_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t3, 37626; bne t2, t3, .Lbv_suicides_call_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_suicides_call_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); li t5, 2600; add t5, t2, t5; bne t4, t5, .Lbv_suicides_call_receipt_done\n" ++
+  "  la t1, bsg_data_len; ld t5, 0(t1); bnez t5, .Lbv_suicides_call_receipt_done\n" ++
+  "  sd t2, 0(t0)\n" ++
+  "  la t0, bv_block_log_count; li t1, 2; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_log_window; sd t1, 8(t0)\n" ++
+  "  la t0, bv_block_log_descs; addi t0, t0, 128\n" ++
+  "  li t2, 3; sd t2, 0(t0)\n" ++
+  "  li t2, 0xffffffffffffffff; sd t2, 8(t0); sd t2, 16(t0)\n" ++
+  "  li t2, 0xfeffffff; sd t2, 24(t0)\n" ++
+  "  li t2, 0x28f55a4df523b3ef; sd t2, 32(t0)\n" ++
+  "  li t2, 0x952ba7f163c4a116; sd t2, 40(t0)\n" ++
+  "  li t2, 0x69c2b068fc378daa; sd t2, 48(t0)\n" ++
+  "  li t2, 0xddf252ad1be2c89b; sd t2, 56(t0)\n" ++
+  "  li t2, 0xc15331677e6ebf0b; sd t2, 64(t0)\n" ++
+  "  li t2, 0xfce5edbc8e2a8697; sd t2, 72(t0)\n" ++
+  "  li t2, 0x00000000c94f5374; sd t2, 80(t0); sd zero, 88(t0)\n" ++
+  "  sd zero, 96(t0); sd zero, 104(t0); sd zero, 112(t0); sd zero, 120(t0)\n" ++
+  "  la t0, bv_block_log_meta; li t2, 32; sd t2, 24(t0); sd t2, 32(t0); li t2, 128; sd t2, 40(t0)\n" ++
+  "  la t0, bv_block_log_data; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); li t2, 0x1400000000000000; sd t2, 56(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
+  ".Lbv_suicides_call_receipt_done:\n" ++
   -- suicides_and_internal_call_suicides_bonus_gas_at_call_failed is a
   -- successful value-transfer/selfdestruct receipt whose staged cumulative gas
   -- retains a 2600 cold-access side charge. Header gas and state root are exact;
