@@ -12,10 +12,10 @@
   topic_count@32, topic0@40, data_len@72, data@80) exactly agrees with what
   parse_deposit_requests CONSUMES — a risk the unit probes can't see.
 
-  The probe synthesizes one M26 descriptor for a real DepositEvent: the address (+192)
-  and topic0 (+32) are stored LITTLE-endian (env / stack order) by reversing the
-  canonical-BE `pdr_deposit_addr` / `pdr_deposit_sig` constants, so materialize reverses
-  them back to BE and parse_deposit_requests's address+topic0 filters match. The 576-byte
+  The probe synthesizes one packed block-log descriptor for a real DepositEvent:
+  the address (+8) is stored canonical-BE and topic0 (+32) is stored in stack-word
+  order by reversing `pdr_deposit_sig`, so materialize copies the address and
+  reverses topic0 back to BE before parse_deposit_requests's filters. The 576-byte
   DepositEvent ABI payload is supplied via the ziskemu input and placed in the probe's
   evm_log_data buffer at offset 0; meta[0] = (0, 576).
 -/
@@ -50,17 +50,17 @@ def ziskDepositDerivationE2EPrologue : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldde_cpdata\n" ++
   ".Ldde_cpdata_d:\n" ++
   -- PACK: descriptor 0 at dde_descs: topic_count=1 @+0; topic0 @+32 = reverse(pdr_deposit_sig);
-  -- address @+8 (packed header) = reverse(pdr_deposit_addr BE)->LE. (dde_descs is .zero.)
+  -- address @+8 (packed header) = pdr_deposit_addr BE. (dde_descs is .zero.)
   "  la s0, dde_descs\n" ++
   "  li t0, 1\n  sd t0, 0(s0)\n" ++                       -- topic_count = 1
   -- topic0: dde_descs+32+k = pdr_deposit_sig[31-k]  (LE)
   "  la t0, pdr_deposit_sig\n  addi t0, t0, 31\n  addi t1, s0, 32\n  li t2, 32\n" ++
   ".Ldde_sig:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldde_sig\n" ++
-  -- address: dde_descs+8+k = pdr_deposit_addr[19-k] (LE) at the packed header +8
-  "  la t0, pdr_deposit_addr\n  addi t0, t0, 19\n  addi t1, s0, 8\n  li t2, 20\n" ++
+  -- address: dde_descs+8+k = pdr_deposit_addr[k] (canonical BE) at the packed header +8
+  "  la t0, pdr_deposit_addr\n  addi t1, s0, 8\n  li t2, 20\n" ++
   ".Ldde_addr:\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldde_addr\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldde_addr\n" ++
   -- meta[0] = (offset 0, len 576)
   "  la t0, dde_meta\n  sd zero, 0(t0)\n  li t1, 576\n  sd t1, 8(t0)\n" ++
   -- materialize_log_records(descs, 1, data, meta, records)

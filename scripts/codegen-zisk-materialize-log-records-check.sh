@@ -3,8 +3,8 @@
 #
 # materialize_log_records bridges the M26 evm_event_logs descriptors + the persistent
 # evm_log_data full-data buffer (8uld3.1a) into the CANONICAL big-endian log-record
-# array parse_deposit_requests consumes: it byte-reverses the descriptor's little-endian
-# address (+192) and topic0 (+32) to Ethereum BE and copies the full data verbatim.
+# array parse_deposit_requests consumes: it copies the packed descriptor's canonical-BE
+# address (+8), byte-reverses topic0 (+32) to Ethereum BE, and copies the full data verbatim.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -52,5 +52,5 @@ print(f"  rec1.addr={r1[0:20].hex()} rec1.topic0={r1[40:72].hex()}")
 if not ok:
     print("  FAIL: canonicalization incorrect")
     raise SystemExit(1)
-print("  PASS: address + topic0 reversed LE->BE, full data copied, canonical layout")
+print("  PASS: address copied BE, topic0 reversed LE->BE, full data copied, canonical layout")
 PY
