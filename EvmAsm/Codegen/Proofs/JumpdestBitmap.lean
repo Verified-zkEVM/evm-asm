@@ -118,8 +118,43 @@ def plainArm : Stmt := .block "plain" [.ADDI .x5 .x5 1]
 def pushArm : Stmt :=
   .block "push" [.ADDI .x28 .x28 (-94 : BitVec 12), .ADD .x5 .x5 .x28]
 
+/-- EIP-8024 immediate-skip: advance the scan pointer by two bytes (opcode +
+    the one-byte operand). -/
+def skipEip8024ImmArm : Stmt := .block "skipEip8024Imm" [.ADDI .x5 .x5 2]
+
+/-- Shared shape of the EIP-8024 `DUPN`/`SWAPN`/`EXCHANGE` immediate-skip
+    test, parameterized by the invalid-immediate lower threshold (`0x5b` for
+    `DUPN`/`SWAPN`, `0x52` for `EXCHANGE`): if `pc+1` is past the scan end,
+    or the byte there is `< thresh`, or it is `≥ 0x80`, skip two bytes
+    (`skipEip8024ImmArm`); otherwise (`thresh ≤ code[pc+1] < 0x80`, the
+    *invalid* immediate range) the byte stays an instruction boundary
+    (`plainArm`) — mirrors `Dispatch.lean`'s `.jdbm_dupn_swapn`/
+    `.jdbm_exchange` and `jdAdvance`'s `0xe6`/`0xe7`/`0xe8` arms. -/
+def eip8024ImmArm (thresh : Word) : Stmt :=
+  .block "dsBound" [.ADDI .x29 .x5 1] ;;;
+  .ite "dsBoundCk" (.bgeu .x29 .x6)
+    skipEip8024ImmArm
+    ( .block "dsLoad" [.LBU .x29 .x5 1, .LI .x11 thresh] ;;;
+      .ite "dsLo" (.bltu .x29 .x11)
+        skipEip8024ImmArm
+        ( .block "dsHi" [.LI .x11 0x80] ;;;
+          .ite "dsHiCk" (.bltu .x29 .x11)
+            plainArm
+            skipEip8024ImmArm ) )
+
+/-- `DUPN`/`SWAPN` (`0xe6`/`0xe7`): invalid immediate range `0x5b..0x7f`. -/
+def dupnSwapnArm : Stmt := eip8024ImmArm 0x5b
+
+/-- `EXCHANGE` (`0xe8`): invalid immediate range `0x52..0x7f`. -/
+def exchangeArm : Stmt := eip8024ImmArm 0x52
+
 /-- One iteration of the scan (EIP-8024-free input): load the code byte, then
-    dispatch JUMPDEST / plain-below-`0x60` / `PUSHn` / plain-`≥0x80`. -/
+    dispatch JUMPDEST / plain-below-`0x60` / `PUSHn` / plain-`≥0x80`.
+    `eip8024ImmArm`/`dupnSwapnArm`/`exchangeArm` above give the general
+    (EIP-8024-aware) per-step engine `eip8024ImmArm_step` (fully proved) that a
+    follow-up wires into this cascade in place of `plainArm`'s final arm,
+    matching `Dispatch.lean`'s full `.jdbm_not_jumpdest` cascade — see bead
+    `evm-asm-cfjzu.2`. -/
 def scanBody : Stmt :=
   .block "load" [.LBU .x28 .x5 0] ;;;
   .block "c5b" [.LI .x29 0x5b] ;;;
@@ -277,6 +312,230 @@ theorem pushArm_exec (reg : Region) (rwB : Word) (rf : RegFile) (ws : List (BitV
           (rf.get .x5 + (rf.get .x28 + signExtend12 (-94))), ws) := by
   simp only [execBlock, execInstrRF, aluSem, RegFile.get_set_self, RegFile.get_set_ne, ne_eq,
     reduceCtorEq, not_false_eq_true]
+
+/-- `execBlock` of the EIP-8024 immediate-skip arm (over an abstract entry
+    `rf`). -/
+theorem skipEip8024ImmArm_exec (reg : Region) (rwB : Word) (rf : RegFile) (ws : List (BitVec 8)) :
+    execBlock reg rwB rf ws [.ADDI .x5 .x5 2] = (rf.set .x5 (rf.get .x5 + signExtend12 2), ws) := by
+  simp only [execBlock, execInstrRF, aluSem]
+
+/-- **The shared EIP-8024 immediate-skip engine.**  `eip8024ImmArm thresh`
+    (the `DUPN`/`SWAPN`/`EXCHANGE` shape, parameterized by the invalid-range
+    threshold) advances `x5` by exactly `jdAdvance code pc`, leaves
+    `x6`/`x7`/`x30`/the bitmap untouched, and reads at most `code[pc+1]` —
+    justified by `hdisj1` exactly like the main scan load, since the
+    `dsBoundCk` branch only reaches the load when `pc+1 < code.length ≤ x6`'s
+    scan bound.  `hadvEq` is the arm's own bound/threshold case split,
+    restated as an equation against `jdAdvance` — trivial to discharge at
+    each call site from `jdAdvance`'s definition (mirrors how the JUMPDEST
+    and PUSH arms establish their own `jdAdvance` facts). -/
+theorem eip8024ImmArm_step (thresh : Word) (reach : Reach)
+    (codeBase bitmapBase : Word) (code ws0 : List (BitVec 8)) (A0 : Assertion) (pc : Nat)
+    (hentail : ∀ rf ws A, reach rf ws A →
+      rf.get .x5 = codeBase + BitVec.ofNat 64 pc
+      ∧ rf.get .x6 = codeBase + BitVec.ofNat 64 code.length
+      ∧ rf.get .x7 = bitmapBase ∧ rf.get .x30 = codeBase
+      ∧ ws = ws0 ∧ A = A0)
+    (hpclt : pc < code.length) (hpc64 : pc < 2 ^ 64)
+    (hnowrap : codeBase.toNat + (code.length + 32) < 2 ^ 64)
+    (hwslen : ws0.length = bitmapBytes)
+    (hdisj1 : bitmapBytes ≤ (codeBase + BitVec.ofNat 64 (pc + 1) - bitmapBase).toNat)
+    (hadvEq : jdAdvance code pc =
+      if pc + 1 < code.length ∧ thresh.toNat ≤ (code.getD (pc + 1) 0).toNat
+          ∧ (code.getD (pc + 1) 0).toNat ≤ 0x7f
+        then 1 else 2) :
+    ∀ rf' ws' A', Stmt.sp (Region.mk codeBase code) ⟨bitmapBase, bitmapBytes⟩ (eip8024ImmArm thresh)
+        reach rf' ws' A' →
+      ws' = ws0 ∧ A' = A0
+      ∧ rf'.get .x5 = codeBase + BitVec.ofNat 64 (pc + jdAdvance code pc)
+      ∧ rf'.get .x6 = codeBase + BitVec.ofNat 64 code.length
+      ∧ rf'.get .x7 = bitmapBase ∧ rf'.get .x30 = codeBase := by
+  have hse1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+  have hse2 : signExtend12 (2 : BitVec 12) = (2 : Word) := by decide
+  have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+  -- The `dsBound` block always runs first: `x29 := x5 + 1`, everything else
+  -- unchanged.  Every one of the four leaves below starts from this state.
+  have hR1 : ∀ rf1 ws1 A1, Stmt.sp (Region.mk codeBase code) ⟨bitmapBase, bitmapBytes⟩
+      (.block "dsBound" [.ADDI .x29 .x5 1]) reach rf1 ws1 A1 →
+        rf1.get .x29 = codeBase + BitVec.ofNat 64 (pc + 1)
+        ∧ rf1.get .x5 = codeBase + BitVec.ofNat 64 pc
+        ∧ rf1.get .x6 = codeBase + BitVec.ofNat 64 code.length
+        ∧ rf1.get .x7 = bitmapBase ∧ rf1.get .x30 = codeBase
+        ∧ ws1 = ws0 ∧ A1 = A0 := by
+    rintro rf1 ws1 A1 ⟨rfa, wsX, hlena, hex, hrf1e, hws1e⟩
+    obtain ⟨hax5, hax6, hax7, hax30, hwsae, hAe⟩ := hentail rfa wsX A1 hex
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, hAe⟩
+    · rw [hrf1e]
+      simp only [execBlock, execInstrRF, aluSem, RegFile.get_set_self, ne_eq, reduceCtorEq,
+        not_false_eq_true, hax5, hse1]
+      bv_omega
+    · rw [hrf1e]
+      simp only [execBlock, execInstrRF, aluSem, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+        not_false_eq_true, hax5]
+    · rw [hrf1e]
+      simp only [execBlock, execInstrRF, aluSem, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+        not_false_eq_true, hax6]
+    · rw [hrf1e]
+      simp only [execBlock, execInstrRF, aluSem, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+        not_false_eq_true, hax7]
+    · rw [hrf1e]
+      simp only [execBlock, execInstrRF, aluSem, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+        not_false_eq_true, hax30]
+    · rw [hws1e, hwsae]
+      simp only [execBlock, execInstrRF, aluSem]
+  -- The `dsLoad` block, run from any entry with the known `x29` value.
+  have hLoad : ∀ (rfa : RegFile) (wsX : List (BitVec 8)),
+      rfa.get .x5 = codeBase + BitVec.ofNat 64 pc →
+      ¬ inRw bitmapBase wsX (codeBase + BitVec.ofNat 64 (pc + 1)) 1 →
+      execBlock (Region.mk codeBase code) bitmapBase rfa wsX [.LBU .x29 .x5 1, .LI .x11 thresh]
+        = ((rfa.set .x29 ((code.getD (pc + 1) 0).zeroExtend 64)).set .x11 thresh, wsX) := by
+    intro rfa wsX hax5 hbnd
+    have hax5d : rfa.get .x5 + signExtend12 (1 : BitVec 12) = codeBase + BitVec.ofNat 64 (pc + 1) := by
+      rw [hax5, hse1]; bv_omega
+    simp only [execBlock, execInstrRF, aluSem, loadSem, Region.byteAt, hax5d, if_neg hbnd]
+    rw [show codeBase + BitVec.ofNat 64 (pc + 1) - codeBase
+          = BitVec.ofNat 64 (pc + 1) from by bv_omega,
+      show (BitVec.ofNat 64 (pc + 1)).toNat = pc + 1 from by
+        rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]]
+  rintro rf' ws' A' hsp
+  simp only [eip8024ImmArm] at hsp
+  rcases hsp with ha | hb | hc | hd
+  · -- `dsBoundCk` taken: `pc + 1 ≥ code.length` (past the scan end) → skip
+    obtain ⟨rfa, wsX, hlena, hcase, hrfe, hwse⟩ := ha
+    obtain ⟨hR1', hbgeu⟩ := hcase
+    obtain ⟨ha29, ha5, ha6, ha7, ha30, hwsae, hAe⟩ := hR1 rfa wsX A' hR1'
+    rw [hrfe, hwse, skipEip8024ImmArm_exec]
+    simp only [Cond.holds] at hbgeu
+    rw [ha29, ha6] at hbgeu
+    have hge : ¬ pc + 1 < code.length := by
+      simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat] at hbgeu
+      omega
+    have hadv : jdAdvance code pc = 2 := by rw [hadvEq, if_neg (fun h => hge h.1)]
+    refine ⟨hwsae, hAe, ?_, ?_, ?_, ?_⟩ <;>
+      simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true,
+        ha5, ha6, ha7, ha30, hadv, hse2]
+    bv_omega
+  · -- `dsBoundCk` not taken, `dsLo` taken: `code[pc+1] < thresh` → skip
+    obtain ⟨rfb, wsb, hlenb, hcase, hrfe, hwse⟩ := hb
+    obtain ⟨hR2, hbltu⟩ := hcase
+    obtain ⟨rfa, wsX, hlena, hcase2, hrfbe, hwsbe⟩ := hR2
+    obtain ⟨hR1', hnbgeu⟩ := hcase2
+    obtain ⟨ha29, ha5, ha6, ha7, ha30, hwsae, hAe⟩ := hR1 rfa wsX A' hR1'
+    simp only [Cond.holds] at hnbgeu
+    have hbnd : ¬ inRw bitmapBase wsX (codeBase + BitVec.ofNat 64 (pc + 1)) 1 := by
+      show ¬ (codeBase + BitVec.ofNat 64 (pc + 1) - bitmapBase).toNat + 1 ≤ wsX.length
+      rw [hwsae]; bv_omega
+    have hge : pc + 1 < code.length := by
+      by_contra hge
+      apply hnbgeu
+      rw [ha29, ha6]
+      simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat]
+      omega
+    rw [hLoad rfa wsX ha5 hbnd] at hrfbe hwsbe
+    simp only [] at hrfbe hwsbe
+    rw [hrfbe] at hbltu
+    simp only [Cond.holds, RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+      not_false_eq_true] at hbltu
+    have hlt : (code.getD (pc + 1) 0).toNat < thresh.toNat := by
+      simp only [BitVec.ult, decide_eq_true_eq] at hbltu
+      rwa [toNat_zeroExtend_byte] at hbltu
+    have hadv : jdAdvance code pc = 2 := by
+      rw [hadvEq, if_neg (fun h => absurd h.2.1 (by omega))]
+    rw [hrfe, hwse, hrfbe, hwsbe, skipEip8024ImmArm_exec]
+    refine ⟨hwsae, hAe, ?_, ?_, ?_, ?_⟩ <;>
+      simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true,
+        ha5, ha6, ha7, ha30, hadv, hse2]
+    bv_omega
+  · -- `dsHiCk` taken: `thresh ≤ code[pc+1] < 0x80` → stays a boundary (plain)
+    obtain ⟨rfc, wsc, hlenc, hcase, hrfe, hwse⟩ := hc
+    obtain ⟨hR3, hbltu2⟩ := hcase
+    obtain ⟨rfb, wsb, hlenb, hcase2, hrfce, hwsce⟩ := hR3
+    obtain ⟨hR2, hnbltu⟩ := hcase2
+    obtain ⟨rfa, wsX, hlena, hcase3, hrfbe, hwsbe⟩ := hR2
+    obtain ⟨hR1', hnbgeu⟩ := hcase3
+    obtain ⟨ha29, ha5, ha6, ha7, ha30, hwsae, hAe⟩ := hR1 rfa wsX A' hR1'
+    simp only [Cond.holds] at hnbgeu
+    have hbnd : ¬ inRw bitmapBase wsX (codeBase + BitVec.ofNat 64 (pc + 1)) 1 := by
+      show ¬ (codeBase + BitVec.ofNat 64 (pc + 1) - bitmapBase).toNat + 1 ≤ wsX.length
+      rw [hwsae]; bv_omega
+    have hge : pc + 1 < code.length := by
+      by_contra hge
+      apply hnbgeu
+      rw [ha29, ha6]
+      simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat]
+      omega
+    rw [hLoad rfa wsX ha5 hbnd] at hrfbe hwsbe
+    simp only [] at hrfbe hwsbe
+    rw [hrfbe] at hnbltu
+    simp only [Cond.holds, RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+      not_false_eq_true] at hnbltu
+    have hge2 : thresh.toNat ≤ (code.getD (pc + 1) 0).toNat := by
+      simp only [BitVec.ult, decide_eq_true_eq, not_lt] at hnbltu
+      rwa [toNat_zeroExtend_byte] at hnbltu
+    have hli : execBlock (Region.mk codeBase code) bitmapBase
+        ((rfa.set .x29 ((code.getD (pc + 1) 0).zeroExtend 64)).set .x11 thresh) wsX
+        [.LI .x11 0x80]
+        = (((rfa.set .x29 ((code.getD (pc + 1) 0).zeroExtend 64)).set .x11 thresh).set .x11 0x80,
+            wsX) := by
+      simp only [execBlock, execInstrRF, aluSem]
+    rw [hrfce, hrfbe, hwsbe, hli] at hbltu2
+    simp only [Cond.holds, RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+      not_false_eq_true] at hbltu2
+    have hlt80 : (code.getD (pc + 1) 0).toNat < 0x80 := by
+      simp only [BitVec.ult, decide_eq_true_eq] at hbltu2
+      rwa [toNat_zeroExtend_byte] at hbltu2
+    have hadv : jdAdvance code pc = 1 := by
+      rw [hadvEq, if_pos ⟨hge, hge2, by omega⟩]
+    rw [hrfe, hwse, hrfce, hwsce, hrfbe, hwsbe, plainArm_exec, hli]
+    refine ⟨hwsae, hAe, ?_, ?_, ?_, ?_⟩ <;>
+      simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true,
+        ha5, ha6, ha7, ha30, hadv, hse1]
+    bv_omega
+  · -- `dsHiCk` not taken: `code[pc+1] ≥ 0x80` → skip
+    obtain ⟨rfc, wsc, hlenc, hcase, hrfe, hwse⟩ := hd
+    obtain ⟨hR3, hnbltu2⟩ := hcase
+    obtain ⟨rfb, wsb, hlenb, hcase2, hrfce, hwsce⟩ := hR3
+    obtain ⟨hR2, hnbltu⟩ := hcase2
+    obtain ⟨rfa, wsX, hlena, hcase3, hrfbe, hwsbe⟩ := hR2
+    obtain ⟨hR1', hnbgeu⟩ := hcase3
+    obtain ⟨ha29, ha5, ha6, ha7, ha30, hwsae, hAe⟩ := hR1 rfa wsX A' hR1'
+    simp only [Cond.holds] at hnbgeu
+    have hbnd : ¬ inRw bitmapBase wsX (codeBase + BitVec.ofNat 64 (pc + 1)) 1 := by
+      show ¬ (codeBase + BitVec.ofNat 64 (pc + 1) - bitmapBase).toNat + 1 ≤ wsX.length
+      rw [hwsae]; bv_omega
+    have hge : pc + 1 < code.length := by
+      by_contra hge
+      apply hnbgeu
+      rw [ha29, ha6]
+      simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat]
+      omega
+    rw [hLoad rfa wsX ha5 hbnd] at hrfbe hwsbe
+    simp only [] at hrfbe hwsbe
+    rw [hrfbe] at hnbltu
+    simp only [Cond.holds, RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+      not_false_eq_true] at hnbltu
+    have hge2 : thresh.toNat ≤ (code.getD (pc + 1) 0).toNat := by
+      simp only [BitVec.ult, decide_eq_true_eq, not_lt] at hnbltu
+      rwa [toNat_zeroExtend_byte] at hnbltu
+    have hli : execBlock (Region.mk codeBase code) bitmapBase
+        ((rfa.set .x29 ((code.getD (pc + 1) 0).zeroExtend 64)).set .x11 thresh) wsX
+        [.LI .x11 0x80]
+        = (((rfa.set .x29 ((code.getD (pc + 1) 0).zeroExtend 64)).set .x11 thresh).set .x11 0x80,
+            wsX) := by
+      simp only [execBlock, execInstrRF, aluSem]
+    rw [hrfce, hrfbe, hwsbe, hli] at hnbltu2
+    simp only [Cond.holds, RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq,
+      not_false_eq_true] at hnbltu2
+    have hge80 : 0x80 ≤ (code.getD (pc + 1) 0).toNat := by
+      simp only [BitVec.ult, decide_eq_true_eq, not_lt] at hnbltu2
+      rwa [toNat_zeroExtend_byte] at hnbltu2
+    have hadv : jdAdvance code pc = 2 := by
+      rw [hadvEq, if_neg (fun h => absurd h.2.2 (by omega))]
+    rw [hrfe, hwse, hrfce, hwsce, hrfbe, hwsbe, skipEip8024ImmArm_exec, hli]
+    refine ⟨hwsae, hAe, ?_, ?_, ?_, ?_⟩ <;>
+      simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true,
+        ha5, ha6, ha7, ha30, hadv, hse2]
+    bv_omega
 
 theorem scanFn_inv_step (codeBase bitmapBase : Word) (code : List (BitVec 8))
     (hcap : code.length ≤ bitmapCap)
