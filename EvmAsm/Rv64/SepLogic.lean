@@ -2904,7 +2904,7 @@ def assertPure (P : Prop) (Q : Assertion) : Assertion := fun h => P ∧ Q h
 /-- With `P` discharged, the pure conjunct disappears. -/
 theorem assertPure_eq_of {P : Prop} {Q : Assertion} (hp : P) :
     assertPure P Q = Q :=
-  funext fun h => propext ⟨And.right, fun hq => ⟨hp, hq⟩⟩
+  funext fun _ => propext ⟨And.right, fun hq => ⟨hp, hq⟩⟩
 
 theorem assertPure_pure {P : Prop} {Q : Assertion} {h : PartialState}
     (hx : assertPure P Q h) : P := hx.1
@@ -2918,7 +2918,7 @@ theorem assertPure_intro {P : Prop} {Q : Assertion} {h : PartialState}
 /-- Nested pure facts merge. -/
 theorem assertPure_assertPure (P₁ P₂ : Prop) (Q : Assertion) :
     assertPure P₁ (assertPure P₂ Q) = assertPure (P₁ ∧ P₂) Q :=
-  funext fun h => propext and_assoc.symm
+  funext fun _ => propext and_assoc.symm
 
 /-- The pure fact floats out of a separating conjunction. -/
 theorem assertPure_sepConj (P : Prop) (Q R : Assertion) :
