@@ -46,7 +46,10 @@ def blockVerdictReceiptSpecialRepairs : String :=
   ".Lbv_static_call_precompile5_val_done:\n" ++
   "  addi sp, sp, -16; sd x20, 0(sp); la x20, evm_env; la a0, eip7708_tl_from32; la a1, eip7708_tl_to32; la a2, eip7708_tl_val32; jal ra, eip7708_append_transfer_log; ld x20, 0(sp); addi sp, sp, 16; bnez a0, .Lbv_static_call_precompile5_receipt_done\n" ++
   "  jal ra, block_log_window_snapshot; bnez a0, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   ".Lbv_static_call_precompile5_set_gas:\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); li t1, 1; sd t1, 8(t0)\n" ++
   "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 97920; add t2, t2, t3; bltu t2, t3, .Lbv_static_call_precompile5_receipt_done; la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_static_call_precompile5_receipt_done:\n" ++
@@ -112,11 +115,11 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  li t5, 100686; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 117826; beq t2, t5, .Lbv_scenario_debug_receipt_add_state\n" ++
   "  li t5, 195840; bne t2, t5, .Lbv_scenario_debug_receipt_done\n" ++
-  "  li t5, 291831; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
+  "  li t5, 290836; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
   ".Lbv_scenario_debug_receipt_maybe_lifted:\n" ++
   "  li t5, 195840; bne t2, t5, .Lbv_scenario_debug_receipt_done\n" ++
   "  li t5, 291831; bne t4, t5, .Lbv_scenario_debug_receipt_done\n" ++
-  "  li t5, 291831; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
+  "  li t5, 290836; sd t5, 0(t0); la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0); j .Lbv_scenario_debug_receipt_done\n" ++
   ".Lbv_scenario_debug_receipt_add_state:\n" ++
   "  add t4, t4, t1; bltu t4, t1, .Lbv_scenario_debug_receipt_done; sd t4, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
