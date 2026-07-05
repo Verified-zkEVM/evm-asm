@@ -24,7 +24,7 @@
   core → Codegen), so the region map lives here rather than under `Stateless/`.
 
   **Aliasing (soundness-critical, deferred proof).** The guest has exactly one
-  intentional physical overlap: `call_frame_arena` (~164 MiB, EVM call-frame
+  intentional physical overlap: `call_frame_arena` (~228 MiB, EVM call-frame
   overlay) coalesces seven execution-dead Phase-H arenas into its front
   (`basr_values`, `basr_accounts`, `bv_system_storage_log`, `baap_storage_desc`,
   `baap_storage_paths`, `baap_storage_delete_paths`, `baap_storage_values`).
@@ -178,12 +178,14 @@ def schemeAAnchors : List GuestRegion :=
     `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
 /-- ELF-measured `.text` size for the `stateless_guest` unit
-    (`readelf -S`, `0x5cb18`). Link-layout-dependent; the drift guard re-derives it. -/
-def textSizeBytes : Nat := 0x5cb18
+    (`readelf -S`, `0x5cb28`). Link-layout-dependent; the drift guard re-derives it. -/
+def textSizeBytes : Nat := 0x5cb28
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
-    (`readelf -S`, `0x159a9a70`). Link-layout-dependent. -/
-def dataSizeBytes : Nat := 0x159a9a70
+    (`readelf -S`, `0x199b9a70`). Link-layout-dependent. Grew by `0x4010000`
+    (~64 MiB) when the `.71` reconciliation raised `frameStride` `0x29000→0x39000`
+    (the `call_frame_arena` trailing pad = `frameArrayBytes - unionChildren`). -/
+def dataSizeBytes : Nat := 0x199b9a70
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -204,7 +206,7 @@ def textRegion : GuestRegion :=
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xb8945a70" }
+    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xbc9b9a70" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf500000`). -/
@@ -257,7 +259,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xb8945a70` below `.sszscratch`; INPUT and
+    (`0xa3000000`); `.data` ends `0xbc9b9a70` below `.sszscratch`; INPUT and
     `.text` sit in their own zones. The guest's one intentional overlap lives
     strictly inside the `.data` member and is expanded — as its own inventory —
     in `dataUnionChildren`/`aliasedPairs` below. The scheme-A anchors are the
@@ -337,14 +339,14 @@ theorem schemeA_matches_layout :
 
     ELF ground truth (`readelf -s`, this build):
     ```
-    ac44d520  call_frame_arena  == basr_values
-    adcb8720  basr_accounts          (+  S)
-    af523920  bv_system_storage_log  (+ 2S)
-    b3e61920  baap_storage_desc      (+ 2S + L)
-    b4232220  baap_storage_paths
-    b484ca20  baap_storage_delete_paths
-    b4e67220  baap_storage_values
-    b6876520  call_frame_arena_end   (== base + frameArrayBytes)
+    ac4a1520  call_frame_arena  == basr_values
+    add0c720  basr_accounts          (+  S)
+    af577920  bv_system_storage_log  (+ 2S)
+    b3eb5920  baap_storage_desc      (+ 2S + L)
+    b4286220  baap_storage_paths
+    b48a0a20  baap_storage_delete_paths
+    b4ebb220  baap_storage_values
+    ba8da520  call_frame_arena_end   (== base + frameArrayBytes)
     ```
     with `S = bsrMaxStateChanges * bsrEncodedAccountBytes`,
     `L = bvSystemStorageLogBytes`. These are relocatable symbols reached via
@@ -354,7 +356,7 @@ theorem schemeA_matches_layout :
 
 /-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
     LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
-def callFrameArenaBase : Nat := 0xac44d520
+def callFrameArenaBase : Nat := 0xac4a1520
 
 /-- `S` — the `basr_values`/`basr_accounts` per-arena stride. -/
 def basrArenaBytes : Nat := bsrMaxStateChanges * bsrEncodedAccountBytes
@@ -408,7 +410,7 @@ theorem dataUnionChildren_fit_arena :
     dataUnionChildren.all unionChildFitsArena = true := by decide
 
 /-- The `call_frame_arena` byte range `[base, base + frameArrayBytes)` sits inside
-    the `.data` section. (`call_frame_arena_end = 0xb6876520 < .data end 0xb8945a70`.) -/
+    the `.data` section. (`call_frame_arena_end = 0xba8da520 < .data end 0xbc9b9a70`.) -/
 theorem callFrameArena_within_data :
     dataRegion.base ≤ callFrameArenaBase
       ∧ callFrameArenaBase + frameArrayBytes ≤ dataRegion.base + dataRegion.size := by decide

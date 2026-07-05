@@ -107,7 +107,7 @@ S = 100018*256          # bsrMaxStateChanges*bsrEncodedAccountBytes
 L = 600000*128          # bvSystemStorageLogBytes
 descB = 100000*40       # bsrMaxBalItems*baapStorageDescBytes
 pathB = 100000*64       # bsrMaxBalItems*bsrPathBytes
-frameArrayBytes = 1025*0x29000
+frameArrayBytes = 1025*0x39000  # frameSlotCount * CallFrameLayout.frameStride (keep in sync)
 exp = {
  "call_frame_arena == basr_values": (cfa, bval),
  "basr_accounts off": (bacc-cfa, S),

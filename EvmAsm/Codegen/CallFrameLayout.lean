@@ -23,9 +23,13 @@ namespace EvmAsm.Codegen
 
 /-! ## Per-frame sub-region sizes (bytes) -/
 
-/-- EVM memory arena per frame: 64 KiB (covers Amsterdam `MAX_INIT_CODE_SIZE`
-    staging via the parent slice; matches today's single-frame `evm_memory`). -/
-def frameMemBytes : Nat := 0x10000
+/-- EVM memory arena per frame: 128 KiB. **Canonical source** for the per-frame
+    EVM memory capacity — `Dispatch.runtimeMemoryBytes` (the depth-0 global
+    `evm_memory`) derives from this, and the `call_frame_descend` zero-loop clears
+    exactly this many bytes of each slot on entry (`CallFrameDescend.lean:50-62`,
+    `li t0, 0x20000`). Grown from 64 KiB to cover large runtime LOG/COPY ranges;
+    the arena stride/size below follow. -/
+def frameMemBytes : Nat := 0x20000
 
 /-- Operand-stack guard band (one on each side of the stack arena). -/
 def frameStackGuardBytes : Nat := 512
@@ -58,9 +62,13 @@ def frameUsedBytes : Nat :=
     + frameReturndataBytes + frameEnvBytes + framePcBytes + frameCodebaseBytes
     + frameMetaBytes
 
-/-- Per-frame stride: `frameUsedBytes` rounded up to a 32-aligned `0x29000`
-    (164 KiB). Frame `d` lives at `frameArrayBase + d * frameStride`. -/
-def frameStride : Nat := 0x29000
+/-- Per-frame stride: `frameUsedBytes` (`0x38800`) rounded up to the 32-aligned
+    (in fact 4 KiB-aligned) `0x39000` (228 KiB). Frame `d` lives at
+    `frameArrayBase + d * frameStride`. This is the **ground-truth** stride the
+    emitted runtime uses: `frame_base` steps by `0x39000` (`LUI x6, 57` in
+    `CallFrameBase.lean:36`) and the arena `.zero` pad is sized from
+    `frameArrayBytes` below, so the two can no longer diverge. -/
+def frameStride : Nat := 0x39000
 
 /-! ## Sub-region offsets within a frame slot (bytes from the slot base) -/
 
@@ -75,6 +83,27 @@ def frameEnvOff : Nat := frameReturndataOff + frameReturndataBytes
 def framePcOff : Nat := frameEnvOff + frameEnvBytes
 def frameCodebaseOff : Nat := framePcOff + framePcBytes
 def frameMetaOff : Nat := frameCodebaseOff + frameCodebaseBytes
+
+/-! ## Drift pins: model geometry ≡ emitted literals (kernel-checked `#guard`)
+
+    The emitted runtime hardcodes these figures in the frame-addressing asm
+    (`CallFrameBase`/`CallFrameDescend`/`CallFrameReturn`); the arena `.zero`
+    size derives from `frameArrayBytes` (this module). Pinning the model offsets
+    to the emitted immediates here means a change to any per-frame sub-region size
+    fails loudly instead of silently under-sizing the arena (the `.71`
+    stride/arena divergence that this reconciliation closes). -/
+
+-- `frame_base` steps by `0x39000` (`LUI x6, 57`, `CallFrameBase.lean:36`).
+#guard frameStride = 0x39000
+-- `call_frame_descend`/`_return` set the child stack top at `+0x28200`
+-- (`CallFrameDescend.lean:60`, `CallFrameReturn.lean:261`).
+#guard frameStackTopOff = 0x28200
+-- `call_frame_descend`/`_return` set the child env base at `+0x38400`
+-- (`CallFrameDescend.lean:62`, `CallFrameReturn.lean:256`).
+#guard frameEnvOff = 0x38400
+-- The descend zero-loop clears `0x20000` per slot; `Dispatch.runtimeMemoryBytes`
+-- is the same value (and derives from this def).
+#guard frameMemBytes = 0x20000
 
 /-! ## Depth bound (execution-specs `STACK_DEPTH_LIMIT`) -/
 
@@ -108,7 +137,8 @@ def frameArrayBytes : Nat := frameSlotCount * frameStride
     (`vv4hr.3.4.*`) have since consumed that slack (measured `.data` headroom
     fell to ~59 MiB), so a1vvy REINSTATES the union to reclaim ~49 MiB.
 
-    The size relation flipped: the frame array (`frameArrayBytes` ~165 MiB) is now
+    The size relation flipped: the frame array (`frameArrayBytes` ~228 MiB at the
+    reconciled `0x39000` stride) is now
     LARGER than the basr pair (~49 MiB), so the pair is coalesced into the FRONT
     of `call_frame_arena` (`BlockVerdictDataSection.lean`) rather than the arena
     aliasing into the pair. Soundness is the same execution-dead disjointness
@@ -146,6 +176,19 @@ theorem frameMeta_within_stride : frameMetaOff + frameMetaBytes ≤ frameStride 
 /-- 1025 slots cover depths 0..1024 inclusive. -/
 theorem frameSlotCount_eq : frameSlotCount = 1025 := by decide
 
+/-- **Overrun closed (the `.71` fix, load-bearing):** the deepest reachable frame
+    is depth `maxCallDepth` (1024); the emitted `frame_base(d) = arena + (d-1)*stride`
+    places its slot at arena offset `(maxCallDepth-1)*frameStride`, so the slot spans
+    `[(maxCallDepth-1)*frameStride, maxCallDepth*frameStride)`. This slot end stays
+    within `frameArrayBytes`, i.e. the entire depth-1024 frame (memory/stack/env/…)
+    lands inside `call_frame_arena` and never overruns into the following `.data`.
+    With the STALE `frameStride = 0x29000` the arena was sized `1025*0x29000` while
+    `frame_base` stepped `0x39000`, so this failed for every depth ≥ ~738 — that
+    failure WAS the bug. It now passes for all 1025 slots against the corrected
+    `0x39000` stride/arena. -/
+theorem frameArray_covers_all_depths :
+    maxCallDepth * frameStride ≤ frameArrayBytes := by decide
+
 /-- **a1vvy union-fits gate (load-bearing):** the coalesced `basr_values` +
     `basr_accounts` pair fits within the frame array, so placing both at the
     front of `call_frame_arena` (with a trailing pad to `frameArrayBytes`) keeps
@@ -182,8 +225,9 @@ theorem frameArray_unions_basr_syslog_baap :
 
 /-- **The fits proof that actually matters (200M layout):** the BAL/state-replay
     arenas (~83 MiB at the 200M capacity) plus the standalone 1025-slot frame
-    array (~164 MiB) together stay well inside the `.data`→`.sszscratch` span
-    (453 MiB) — ~206 MiB of slack for the remaining `.data` objects (~80 MiB
+    array (~228 MiB at the reconciled `0x39000` stride) together stay well inside
+    the `.data`→`.sszscratch` span
+    (453 MiB) — ~142 MiB of slack for the remaining `.data` objects (~80 MiB
     measured). The ELF-level ground truth is `readelf -lW`: the top RW LOAD
     address must stay below the 0xc0000000 RAM ceiling. (Replaces
     `frameArray_fits_union`, which pinned the retired #8513 basr aliasing.) -/
@@ -192,7 +236,7 @@ theorem frameArray_and_balArenas_fit :
 
 /-- The usable `.data`→`.sszscratch` span is `0x1c500000` = 475,004,928 B
     = 453 MiB. Under the 200M layout the BAL-replay arenas (~83 MiB) and the
-    standalone frame array (~164 MiB) leave ample room for the rest of `.data`. -/
+    standalone frame array (~228 MiB) leave ample room for the rest of `.data`. -/
 theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c500000 := by decide
 
 /-- **vv4hr.3.4.2 PACK:** the active block-log arena = packed descriptors
