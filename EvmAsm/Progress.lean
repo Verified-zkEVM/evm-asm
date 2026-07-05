@@ -44,6 +44,8 @@ import EvmAsm.Evm64.Push.ImmediateCompose
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
+import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
@@ -420,5 +422,26 @@ private noncomputable abbrev _push1_witness      := @EvmAsm.Evm64.evm_push1_stac
 private noncomputable abbrev _push_witness       := @EvmAsm.Evm64.evm_push_stack_spec_within
 private noncomputable abbrev _dup_witness        := @EvmAsm.Evm64.evm_dup_stack_spec_within
 private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack_spec_within
+
+/-! ### State-assertion vocabulary witnesses
+
+    Headline lemmas of the separation-logic Assertions over the guest's
+    structured arenas (`evmMemoryIs` PR #9844; MPT node / node-DB
+    assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
+
+private noncomputable abbrev _evm_memory_is_mload_witness :=
+  @EvmAsm.Evm64.evm_mload_stack_spec_within_evmMemoryIs
+private noncomputable abbrev _evm_memory_is_peel_witness :=
+  @EvmAsm.Evm64.evmMemoryIs_peel_window64
+private noncomputable abbrev _mpt_node_kind_spec_witness :=
+  @EvmAsm.Evm64.mptNodeKindSpec_rlp
+private noncomputable abbrev _hp_roundtrip_witness :=
+  @EvmAsm.Evm64.hpDecode_hpEncode
+private noncomputable abbrev _node_db_snoc_witness :=
+  @EvmAsm.Evm64.nodeDbIs_snoc
+private noncomputable abbrev _node_db_lookup_spec_witness :=
+  @EvmAsm.Evm64.nodeDbLookupSpec_eq_build_node_db
+private noncomputable abbrev _node_db_stride_witness :=
+  @EvmAsm.Evm64.roundUp8_eq_alignToDword
 
 end EvmAsm.Progress

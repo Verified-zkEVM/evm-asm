@@ -166,6 +166,7 @@ import EvmAsm.Evm64.PrecompileDispatch
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
 import EvmAsm.Evm64.StateAssertions
+import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Evm64.MemoryGas
 import EvmAsm.Evm64.KeccakArgs
 import EvmAsm.Evm64.KeccakArgsStackDecode
