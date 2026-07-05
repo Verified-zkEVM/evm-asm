@@ -186,6 +186,7 @@ import EvmAsm.Evm64.Calldata.Size
 import EvmAsm.Evm64.Calldata.SizeProgram
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Calldata.LoadProgram
+import EvmAsm.Evm64.Calldata.LoadFullProgram
 import EvmAsm.Evm64.Calldata.LoadStackCode
 import EvmAsm.Evm64.Calldata.LoadWindowWord
 import EvmAsm.Evm64.Calldata.Region
