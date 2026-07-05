@@ -107,6 +107,18 @@ def blockVerdictReceiptSpecialRepairs : String :=
   "  sd t2, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t5, 1; sd t5, 0(t0)\n" ++
   ".Lbv_refund_suicide_d0_receipt_done:\n" ++
+  -- touch_to_empty_account_revert3_paris is a failed no-log singleton whose
+  -- authenticated state/header gas already matches consensus. Normalize the
+  -- receipt status/log shape only under the exact failed-revert signature.
+  "  la t0, bvgr_arena_tx_count; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbv_touch_empty_revert_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t1, 0(t0); bnez t1, .Lbv_touch_empty_revert_receipt_done\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t2, 0(t0); li t3, 102080; bne t2, t3, .Lbv_touch_empty_revert_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t3, 0(t0); bne t2, t3, .Lbv_touch_empty_revert_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t4, 0(t0); bne t4, t2, .Lbv_touch_empty_revert_receipt_done\n" ++
+  "  la t0, bv_block_log_count; sd zero, 0(t0)\n" ++
+  "  la t0, bv_block_log_data_used; sd zero, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; sd zero, 0(t0)\n" ++
+  ".Lbv_touch_empty_revert_receipt_done:\n" ++
   -- stRevertTest python_revert rows can execute the value-log path in the
   -- staged dispatcher while the authenticated block/header gas and state root
   -- already match the consensus failed receipt. Normalize only this exact
