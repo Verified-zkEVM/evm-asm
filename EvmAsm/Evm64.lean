@@ -191,6 +191,7 @@ import EvmAsm.Evm64.Calldata.LoadStackCode
 import EvmAsm.Evm64.Calldata.LoadWindowWord
 import EvmAsm.Evm64.Calldata.LoadDispatch
 import EvmAsm.Evm64.Calldata.Region
+import EvmAsm.Evm64.Calldata.LoadWindowArm
 import EvmAsm.Evm64.Calldata.CopyArgs
 import EvmAsm.Evm64.Calldata.CopyArgsStackDecode
 import EvmAsm.Evm64.Calldata.CopyExec
