@@ -108,6 +108,7 @@ import EvmAsm.Evm64.StorageAccess
 import EvmAsm.Evm64.StorageAccessWarm
 import EvmAsm.Evm64.StorageAccessOutcome
 import EvmAsm.Evm64.StorageArgs
+import EvmAsm.Evm64.StorageAssertions
 
 -- Opcode dispatch surface (#106)
 import EvmAsm.Evm64.Dispatch
@@ -165,6 +166,9 @@ import EvmAsm.Evm64.PrecompileDispatch
 
 -- EVM memory model (issue #99)
 import EvmAsm.Evm64.Memory
+import EvmAsm.Evm64.StateAssertions
+import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MemoryGas
 import EvmAsm.Evm64.KeccakArgs
 import EvmAsm.Evm64.KeccakArgsStackDecode

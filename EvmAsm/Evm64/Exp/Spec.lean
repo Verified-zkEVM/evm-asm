@@ -1106,7 +1106,8 @@ theorem evm_exp_headroom_stack_spec_within
   exact evm_exp_headroom_public_stack_shape_base_aligned_spec_within
     evmSp base baseWord exponentWord rest hbase
 
--- Placeholder: `evm_exp_stack_spec_within` lands in slice 6 (evm-asm-6snn).
+-- The public `evm_exp_stack_spec_within` lives in `Exp/HeadroomProgramSpec.lean`
+-- (it must sit beside the concrete appended-program abbrev it targets).
 
 /-- Canonical partial EXP headroom specification with the semantic result stack
     exposed directly and only the leftover implementation frame hidden. This
