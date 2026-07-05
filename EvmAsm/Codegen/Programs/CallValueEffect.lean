@@ -110,7 +110,7 @@ def callValueEffectData : String :=
   ".balign 16\n" ++
   "frame_parent_bases:\n  .zero 16400\n" ++
   ".balign 32\n" ++
-  "call_frame_arena:\n  .zero " ++ toString (0x29000 : Nat) ++ "\n" ++
+  "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
   "rb_running_block_bloom:\n  .zero 256\n" ++
   "rb_running_receipt_bloom:\n  .zero 256\n" ++
