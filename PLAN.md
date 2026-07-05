@@ -2895,6 +2895,25 @@ squares back on residues), and the secp sqrt skip-bit ladder PROVED
 1,0} audit, `secp_sqrt_ladder_correct` — no primality needed). New
 aggregator `EvmAsm/Crypto.lean`. All headline decls classical-3.
 
+`.38a` secp256k1 field-arithmetic stack — wave-1 first consumer (bead
+`.38.2`, Opus) STARTED. Decomposed into per-routine children `.38.2.1`–
+`.38.2.8` (callee-first). Key scoping correction: milestone-1
+`secfMulModP`/`secfSquareModP` (`.38.2.3`) is NOT directly
+`arithModHandle`-verifiable — `secfMulModP` CALLs `secf_be_to_le`/
+`secf_le_to_be`, which are nested bottom-test do-while converters BLOCKED
+on `.11.7`/`.68`; PATH A verifies `secfMulModP` `SpecR` conditional on
+assumed be/le `FnHandleS` hypotheses (genuinely instantiates the merged
+`.11.6` `arithModHandle`, the wave-1 point). The compare/scan leaves
+(`secfIsZero32`/`Eq32`/`CmpP`, `.38.2.2`) and the pow/inv/sqrt ladders
+(`.38.2.5`–`.7`) are likewise `.68`-blocked (mid-exit/do-while loops).
+LANDED (`.38.2.1`, `EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean`,
+the only immediately-unblocked routines): verified SAsm triples for the
+straight-line leaves `secfZero32` (writable-region 4×`SD x0`, post
+`ws = replicate 32 0`) and `secfCopy32` (two-region ro-load→rw-store, post
+`ws = srcBytes`), each byte-tied `body.flatten 0 ++ [ret] = secf…_prog`,
+port-check + classical-3. `secfGetBitLsb` deferred (bit-extraction post
+wants the `.38.1` `beBytesToNat`/`testBit` vocabulary).
+
 Handler-entry/guard-prologue seam landed (bead evm-asm-vgyg9 = `.49.a`;
 `docs/4ch8f-interp-strategy.md` §3 amendment). The emitted arith/logic
 handlers opened with a *multi-exit* stack-underflow/overflow guard
