@@ -188,6 +188,21 @@ inductive Stmt where
       of `«while»` (docs/sasm-design.md §3.10). -/
   | «doWhile» (label : String) (guard : Cond) (fuel : Nat)
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop) (body : Stmt)
+  /-- Bottom-test loop with an *entry-snapshot-parameterized* invariant
+      (the `doWhile`-to-`whileS` analogue): `inv rf₀ ws₀ A₀ i` must hold
+      immediately after the i-th run of `body`, where `(rf₀, ws₀, A₀)` is
+      the symbolic state at loop entry — same channel `whileS` uses for an
+      outer loop's quantified index to survive an inner loop (`sp` forgets
+      the entry reach otherwise).  Same code as `doWhile` (`body.flatten ++
+      [B guard → Lbody]`, no header, no `JAL`); same three VCs as
+      `doWhile`, with the snapshot universally quantified in `inv_step`/
+      `exhausted` and existentially recorded in the exit `sp` — e.g. a
+      nested bottom-test scan whose outer loop rereads a register after
+      the inner loop finishes (the BE↔LE field-element converters). -/
+  | «doWhileS» (label : String) (guard : Cond) (fuel : Nat)
+           (inv : RegFile → List (BitVec 8) → Assertion →
+             Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (body : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -229,6 +244,7 @@ def size : Stmt → Nat
   | «whileS» _ _ _ _ b  => b.size + 2
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.size + ba.size + 3
   | «doWhile» _ _ _ _ b => b.size + 1
+  | «doWhileS» _ _ _ _ b => b.size + 1
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
@@ -251,6 +267,7 @@ def callFree : Stmt → Bool
   | «whileS» _ _ _ _ b => b.callFree
   | «whileBreak» _ _ _ _ _ bb _ ba => bb.callFree && ba.callFree
   | «doWhile» _ _ _ _ b => b.callFree
+  | «doWhileS» _ _ _ _ b => b.callFree
   | call _ _          => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
