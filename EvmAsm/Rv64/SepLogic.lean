@@ -2886,6 +2886,60 @@ theorem sepConj_emp_left' (P : Assertion) : (empAssertion ** P) = P :=
   funext fun h => propext (sepConj_emp_left h)
 
 -- ---------------------------------------------------------------------------
+-- Pure-fact embedding (`assertPure`)
+--
+-- Attach a heap-independent Prop to an assertion: `assertPure P Q h = P ∧ Q h`.
+-- This is the canonical way structured assertions pin static facts (a
+-- region's declared capacity, a record's well-formedness) without a separate
+-- hypothesis: the fact travels with the resource, and under a proof of `P`
+-- the assertion collapses to `Q` (`assertPure_eq_of`) so all `Q`-level
+-- machinery applies unchanged. Used by the state-assertion vocabulary
+-- (`evmMemoryIs`-style `fun ps => P ∧ Q ps` definitions are exactly
+-- `assertPure P Q`).
+-- ---------------------------------------------------------------------------
+
+/-- `P` (pure, heap-independent) conjoined onto assertion `Q`. -/
+def assertPure (P : Prop) (Q : Assertion) : Assertion := fun h => P ∧ Q h
+
+/-- With `P` discharged, the pure conjunct disappears. -/
+theorem assertPure_eq_of {P : Prop} {Q : Assertion} (hp : P) :
+    assertPure P Q = Q :=
+  funext fun h => propext ⟨And.right, fun hq => ⟨hp, hq⟩⟩
+
+theorem assertPure_pure {P : Prop} {Q : Assertion} {h : PartialState}
+    (hx : assertPure P Q h) : P := hx.1
+
+theorem assertPure_assertion {P : Prop} {Q : Assertion} {h : PartialState}
+    (hx : assertPure P Q h) : Q h := hx.2
+
+theorem assertPure_intro {P : Prop} {Q : Assertion} {h : PartialState}
+    (hp : P) (hq : Q h) : assertPure P Q h := ⟨hp, hq⟩
+
+/-- Nested pure facts merge. -/
+theorem assertPure_assertPure (P₁ P₂ : Prop) (Q : Assertion) :
+    assertPure P₁ (assertPure P₂ Q) = assertPure (P₁ ∧ P₂) Q :=
+  funext fun h => propext and_assoc.symm
+
+/-- The pure fact floats out of a separating conjunction. -/
+theorem assertPure_sepConj (P : Prop) (Q R : Assertion) :
+    (assertPure P Q ** R) = assertPure P (Q ** R) := by
+  funext h
+  apply propext
+  constructor
+  · rintro ⟨h₁, h₂, hag, hun, ⟨hp, hq⟩, hr⟩
+    exact ⟨hp, h₁, h₂, hag, hun, hq, hr⟩
+  · rintro ⟨hp, h₁, h₂, hag, hun, hq, hr⟩
+    exact ⟨h₁, h₂, hag, hun, ⟨hp, hq⟩, hr⟩
+
+theorem pcFree_assertPure {P : Prop} {Q : Assertion} (hQ : Q.pcFree) :
+    (assertPure P Q).pcFree :=
+  fun h hx => hQ h hx.2
+
+instance (P : Prop) (Q : Assertion) [inst : Assertion.PCFree Q] :
+    Assertion.PCFree (assertPure P Q) :=
+  ⟨pcFree_assertPure inst.proof⟩
+
+-- ---------------------------------------------------------------------------
 -- Equality-congruence over `sepConj` (structural-cancel base lemmas, GH #245)
 --
 -- These three one-line congruence lemmas lift an established assertion

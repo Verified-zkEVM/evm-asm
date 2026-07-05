@@ -44,6 +44,7 @@ import EvmAsm.Evm64.Push.ImmediateCompose
 import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
+import EvmAsm.Stateless.State.AccountAssertions
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Evm64.MStore8.Spec
@@ -443,5 +444,11 @@ private noncomputable abbrev _node_db_lookup_spec_witness :=
   @EvmAsm.Evm64.nodeDbLookupSpec_eq_build_node_db
 private noncomputable abbrev _node_db_stride_witness :=
   @EvmAsm.Evm64.roundUp8_eq_alignToDword
+private noncomputable abbrev _account_rlp_decode_witness :=
+  @EvmAsm.Stateless.decode_account_from_leaf_accountRlp
+private noncomputable abbrev _account_balance_slot_witness :=
+  @EvmAsm.Stateless.bytesBEtoNat_beBytes32
+private noncomputable abbrev _account_rlp_length_witness :=
+  @EvmAsm.Stateless.accountRlp_length_le
 
 end EvmAsm.Progress

@@ -109,6 +109,29 @@ def keccakRound (rc : BitVec 64) (st : List (BitVec 64)) : List (BitVec 64) :=
 def keccakF (st : List (BitVec 64)) : List (BitVec 64) :=
   keccakRC.foldl (fun s rc => keccakRound rc s) st
 
+/-- Each round materializes exactly the 25 lanes (`List.ofFn`), whatever
+    the input length. -/
+theorem keccakRound_length (rc : BitVec 64) (st : List (BitVec 64)) :
+    (keccakRound rc st).length = 25 := by
+  unfold keccakRound
+  simp
+
+/-- Keccak-f always yields the 25-lane state (the first of the 24 rounds
+    already normalizes the length). -/
+theorem keccakF_length (st : List (BitVec 64)) : (keccakF st).length = 25 := by
+  have aux : ∀ (l : List (BitVec 64)) (s : List (BitVec 64)), s.length = 25 →
+      (l.foldl (fun s rc => keccakRound rc s) s).length = 25 := by
+    intro l
+    induction l with
+    | nil => intro s hs; exact hs
+    | cons rc rest ih =>
+      intro s _
+      exact ih _ (keccakRound_length rc s)
+  obtain ⟨rc, rest, hrc⟩ : ∃ rc rest, keccakRC = rc :: rest := ⟨_, _, rfl⟩
+  show (keccakRC.foldl (fun s rc => keccakRound rc s) st).length = 25
+  rw [hrc, List.foldl_cons]
+  exact aux rest _ (keccakRound_length rc st)
+
 set_option maxRecDepth 40000 in
 /-- Known-answer test, kernel-checked: absorbing the padded empty message
     into a zero state (rate 1088: `st[0] ^= 0x01`, `st[16] ^= 0x80 << 56`)
