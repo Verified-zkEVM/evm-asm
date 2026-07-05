@@ -199,27 +199,20 @@ theorem frameArray_covers_all_depths :
 theorem frameArray_unions_basr_pair :
     2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) ≤ frameArrayBytes := by decide
 
-/-- **a1vvy step 2 union-fits gate (load-bearing):** the basr pair PLUS the
-    Phase-H `bv_system_storage_log` arena (block_state_root system-write capture,
-    dead during Phase-D dispatch) together fit within the frame array, so all
-    three foreign arenas occupy distinct non-overlapping sub-ranges at the front
-    of `call_frame_arena` (`[0,S)`, `[S,2S)`, `[2S, 2S+L)` with
-    `L = bvSystemStorageLogBytes`) and the trailing pad to `frameArrayBytes` stays
-    non-negative. -/
-theorem frameArray_unions_basr_and_syslog :
-    2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) + bvSystemStorageLogBytes
-      ≤ frameArrayBytes := by decide
-
-/-- **a1vvy step 3 union-fits gate (load-bearing):** the basr pair + the
-    `bv_system_storage_log` arena + the four Phase-H `baap_storage_*` arenas
-    (`baap_storage_desc` + 3 `* bsrPathBytes` path arenas) all fit within the
-    frame array, so the seven coalesced foreign arenas occupy distinct,
-    non-overlapping, 32-aligned sub-ranges at the front of `call_frame_arena`
-    with a non-negative trailing pad to `frameArrayBytes`. All seven are
-    Phase-H (state-root recompute) scratch, dead during the Phase-D dispatch
-    window when the frame array is live. -/
-theorem frameArray_unions_basr_syslog_baap :
-    2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) + bvSystemStorageLogBytes
+/-- **Union-fits gate (load-bearing), post-`4ch8f.73`:** the basr pair + the four
+    Phase-H `baap_storage_*` arenas (`baap_storage_desc` + 3 `* bsrPathBytes` path
+    arenas) all fit within the frame array, so the six coalesced foreign arenas
+    occupy distinct, non-overlapping, 32-aligned sub-ranges at the front of
+    `call_frame_arena` (`[0,S)`, `[S,2S)`, then baap at `[2S, …)`) with a
+    non-negative trailing pad to `frameArrayBytes`. All six are Phase-H
+    (state-root recompute) scratch, dead during the Phase-D dispatch window when
+    the frame array is live. `bv_system_storage_log` is NO LONGER among them: it
+    is read post-dispatch (a frame slot would clobber it), so `4ch8f.73` moved it
+    to its own standalone `.data` region, provably disjoint from every frame slot
+    (`RegionMap.syslog_disjoint_from_frameArena`). Replaces the former
+    `frameArray_unions_basr_and_syslog` / `frameArray_unions_basr_syslog_baap`. -/
+theorem frameArray_unions_basr_baap :
+    2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)
       + bsrMaxBalItems * baapStorageDescBytes + 3 * (bsrMaxBalItems * bsrPathBytes)
       ≤ frameArrayBytes := by decide
 
