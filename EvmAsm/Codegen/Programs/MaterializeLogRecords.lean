@@ -8,8 +8,8 @@
 
   The M26 descriptor (logCapturePreBody, EvmLogHandlers.lean; 256-byte stride) stores
   256-bit words in NATIVE order:
-    * the ADDRESS at +192 is env+0..19 — LITTLE-ENDIAN (the gate reads env+19..env+0
-      to recover canonical BE; see callDescendFallThrough cd_caller_be);
+    * the packed block-log ADDRESS at +8 is already canonical big-endian
+      (block_log_window_snapshot copies the canonical BE descriptor address);
     * topic0 at +32 is a stack word — LITTLE-ENDIAN (the descent reverses +31..+0 to
       get cd_value_be BE);
     * the full log data lives in `evm_log_data` at `evm_log_data_meta[i] = (offset, len)`
@@ -23,8 +23,8 @@
     +80  data bytes (data_len, padded to 8)
   record stride = 80 + roundup8(data_len).
 
-  So materialize REVERSES the address (20 B) and topic0 (32 B) to BE and copies the
-  full data verbatim. Synthetic eip7708/SELFDESTRUCT logs bump the descriptor count
+  So materialize copies the already-canonical address (20 B), reverses topic0
+  (32 B) to BE, and copies the full data verbatim. Synthetic eip7708/SELFDESTRUCT logs bump the descriptor count
   without writing `evm_log_data_meta` (their <=32-byte data lives in the descriptor
   prefix); their stale/zero meta yields a record whose address is the synthetic
   emitter (not the deposit contract), which `parse_deposit_requests` skips on the
@@ -41,7 +41,7 @@ open EvmAsm.Rv64
 
 /-! ## materialize_log_records
     a0 = PACKED descriptor base (variable stride 32 + 32*topic_count; vv4hr.3.4.2)
-    address @ +8 (20 B), topic_count @ +0, topic0 @ +32.   a1 = log count
+    address @ +8 (20 B canonical BE), topic_count @ +0, topic0 @ +32.   a1 = log count
     a2 = evm_log_data base                                    a3 = meta base (24 B stride)
     a4 = out canonical-record array ptr
     a0 (output) = total bytes written (sum of 80 + roundup8(len) per record).
@@ -59,14 +59,14 @@ def materializeLogRecordsFunction : String :=
   "  mv s5, a4                    # out base\n" ++
   ".Lmlr_loop:\n" ++
   "  beqz s1, .Lmlr_done\n" ++
-  -- zero record[0..32] (address slot, padded) then write BE address (reverse desc+192..+211)
+  -- zero record[0..32] (address slot, padded) then copy canonical BE address from desc+8..+27
   "  sd zero, 0(s4); sd zero, 8(s4); sd zero, 16(s4); sd zero, 24(s4)\n" ++
-  "  addi t0, s0, 27              # src = packed desc + 8 + 19 (last addr byte; +8..+27)\n" ++
+  "  addi t0, s0, 8               # src = packed desc + 8 (canonical BE address)\n" ++
   "  mv t1, s4                    # dst = record+0\n" ++
   "  li t2, 20\n" ++
   ".Lmlr_addr:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
-  "  addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
   "  bnez t2, .Lmlr_addr\n" ++
   -- topic_count: record+32 = desc+0
   "  ld t0, 0(s0)\n  sd t0, 32(s4)\n" ++
@@ -115,9 +115,9 @@ def materializeLogRecordsFunction : String :=
     records so the byte-reversal (address + topic0 -> BE) and the data copy can be
     asserted.
 
-    Descriptor 0: addr = LE bytes 0x14..0x01 (env order) -> BE 0x01..0x14;
+    Descriptor 0: addr = BE bytes 0x01..0x14 -> record address 0x01..0x14;
       topic_count = 2; topic0 = LE 0x20..0x01 -> BE 0x01..0x20; data = "DEPO" (4 B) at off 0.
-    Descriptor 1: addr = LE 0x28..0x15 -> BE 0x15..0x28; topic_count = 1;
+    Descriptor 1: addr = BE bytes 0x15..0x28 -> record address 0x15..0x28; topic_count = 1;
       topic0 = LE 0x40..0x21 -> BE 0x21..0x40; data = 0 bytes (meta len 0).
 
     Output (at 0xa0010000):
@@ -133,10 +133,10 @@ def ziskMaterializeLogRecordsPrologue : String :=
   "  addi t1, s0, 32\n  li t2, 32\n  li t3, 32\n" ++   -- t3 = 0x20 counting down
   ".Lmlrp_t0:\n" ++
   "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_t0\n" ++
-  -- PACK: address (packed desc+8..27) = LE bytes 0x14,0x13,...,0x01 (so BE = 01..14)
-  "  addi t1, s0, 8\n  li t2, 20\n  li t3, 20\n" ++
+  -- PACK: address (packed desc+8..27) = BE bytes 0x01..0x14
+  "  addi t1, s0, 8\n  li t2, 20\n  li t3, 1\n" ++
   ".Lmlrp_a0:\n" ++
-  "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_a0\n" ++
+  "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, 1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_a0\n" ++
   -- descriptor 1 at mlr_descs+96 (desc0 reclen = 32 + 2*32 = 96)
   "  addi s0, s0, 96\n" ++
   "  li t0, 1\n  sd t0, 0(s0)\n" ++
@@ -144,10 +144,10 @@ def ziskMaterializeLogRecordsPrologue : String :=
   "  addi t1, s0, 32\n  li t2, 32\n  li t3, 64\n" ++
   ".Lmlrp_t1:\n" ++
   "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_t1\n" ++
-  -- address = LE 0x28..0x15 (BE = 15..28)
-  "  addi t1, s0, 8\n  li t2, 20\n  li t3, 40\n" ++
+  -- address = BE bytes 0x15..0x28
+  "  addi t1, s0, 8\n  li t2, 20\n  li t3, 21\n" ++
   ".Lmlrp_a1:\n" ++
-  "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, -1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_a1\n" ++
+  "  sb t3, 0(t1)\n  addi t1, t1, 1\n  addi t3, t3, 1\n  addi t2, t2, -1\n  bnez t2, .Lmlrp_a1\n" ++
   -- evm_log_data: bytes "DEPO" = 0x44 0x45 0x50 0x4f at offset 0
   "  la t0, mlr_data\n  li t1, 0x44\n  sb t1, 0(t0)\n  li t1, 0x45\n  sb t1, 1(t0)\n  li t1, 0x50\n  sb t1, 2(t0)\n  li t1, 0x4f\n  sb t1, 3(t0)\n" ++
   -- meta (24 B stride): meta[0] = (off 0, len 4) @+0; meta[1] = (off 0, len 0) @+24

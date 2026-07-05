@@ -77,6 +77,8 @@ def flatten (addr : Word) : Stmt → List Instr
                 ++ [.JAL .x0 (jBack (bb.size + ba.size + 2))]))
   | «doWhile» _ guard _ _ b =>
       b.flatten addr ++ [guard.toInstr (brOfsBack b.size)]
+  | «doWhileS» _ guard _ _ b =>
+      b.flatten addr ++ [guard.toInstr (brOfsBack b.size)]
   | call _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
   | callReg _ rs _ =>
@@ -105,6 +107,8 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | «whileBreak» _ guard fuel inv post bb breakCond ba ihbb ihba =>
       simp [flatten, size, ihbb, ihba]; omega
   | «doWhile» _ guard fuel inv b ihb =>
+      simp [flatten, size, ihb]
+  | «doWhileS» _ guard fuel inv b ihb =>
       simp [flatten, size, ihb]
   | call _ callee => rfl
   | callReg _ _ _ => rfl
@@ -144,6 +148,8 @@ def offsetsOk : Stmt → Bool
            && bb.offsetsOk && ba.offsetsOk
   | «doWhile» _ guard _ _ b =>
       guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
+  | «doWhileS» _ guard _ _ b =>
+      guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
   | call _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
@@ -171,6 +177,7 @@ def callsOk : Stmt → Word → Prop
       bb.callsOk (addr + 4)
         ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (bb.size + 2)))
   | «doWhile» _ _ _ _ b, addr => b.callsOk addr
+  | «doWhileS» _ _ _ _ b, addr => b.callsOk addr
   | call _ f, addr =>
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
