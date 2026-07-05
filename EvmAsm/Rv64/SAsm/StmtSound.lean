@@ -956,6 +956,122 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
         (asrtM_mono (fun rf ws A hr => hInvInit rf ws A hr))
         (fun _ hp => hp)
         hsound
+  | «doWhile» lbl c fuel inv b ihb =>
+      simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
+      obtain ⟨⟨⟨hwf, hsizepos⟩, hsizele⟩, hOB⟩ := hofs
+      simp only [Stmt.size] at hsz
+      -- VC pieces
+      have hInvInit : ∀ rf' ws' A', Stmt.sp reg rw b reach rf' ws' A' → inv 0 rf' ws' A' :=
+        hvcs.head
+      have hInvStep : ∀ i, i < fuel →
+          ∀ rf' ws' A', Stmt.sp reg rw b (fun rf ws A => inv i rf ws A ∧ c.holds rf) rf' ws' A' →
+            inv (i + 1) rf' ws' A' :=
+        hvcs.tail.head
+      have hExhausted : ∀ rf ws A, inv fuel rf ws A → ¬ c.holds rf := hvcs.tail.tail.head
+      have hBodyVcs := hvcs.tail.tail.tail
+      -- Code containment: the flattened code is `b.flatten base ++ [guard]`,
+      -- i.e. the body occupies the prefix and the guard branch the suffix
+      -- (no header instruction before the body).
+      have hflatlen : (b.flatten base).length = b.size := Stmt.flatten_length b base
+      have hflat : Stmt.flatten base (.doWhile lbl c fuel inv b)
+          = b.flatten base ++ [c.toInstr (Stmt.brOfsBack b.size)] := rfl
+      have hlenAll : 4 * ((b.flatten base).length + 1) ≤ 2 ^ 64 := by
+        rw [hflatlen]; omega
+      have hcode_b : ∀ a' i,
+          CodeReq.ofProg base (b.flatten base) a' = some i → cr a' = some i :=
+        fun a' i h => hcode a' i (hflat ▸ ofProg_mono_left a' i h)
+      have hcode_br : ∀ a' i,
+          CodeReq.singleton (base + BitVec.ofNat 64 (4 * b.size))
+            (c.toInstr (Stmt.brOfsBack b.size)) a' = some i → cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat]
+        apply ofProg_mono_right (p1 := b.flatten base)
+          (by simp only [List.length_cons, List.length_nil]; rw [hflatlen]; omega)
+        rw [hflatlen]
+        exact ofProg_head a' i h
+      -- The trailing guard branch, at any invariant index: continue to
+      -- `base` (the body's own entry) when `guard` holds, fall through to
+      -- `exit_` when it fails.  Unlike `while`'s negated header, no swap is
+      -- needed: the flattener emits `guard` (not `guard.neg`) since the
+      -- branch itself *is* the back-edge.
+      have hheader : ∀ (r : Reach),
+          cpsBranchWithin 1 (base + BitVec.ofNat 64 (4 * b.size)) cr (asrtM reg rw r)
+            base (asrtM reg rw fun rf ws A => r rf ws A ∧ c.holds rf)
+            (base + BitVec.ofNat 64 (4 * (b.size + 1)))
+              (asrtM reg rw fun rf ws A => r rf ws A ∧ ¬ c.holds rf) := by
+        intro r
+        have hbr := branch_spec_asrt c (Stmt.brOfsBack b.size) rw r
+          (base + BitVec.ofNat 64 (4 * b.size)) hwf
+        rw [add_brOfsBack base b.size hsizepos hsizele,
+          show (base + BitVec.ofNat 64 (4 * b.size)) + 4
+            = base + BitVec.ofNat 64 (4 * (b.size + 1)) from by bv_omega] at hbr
+        exact cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_br hbr)
+      -- Body triple for each continuing iteration index: `inv i ∧ guard` to
+      -- `inv (i+1)`, run at the body's entry `base`.
+      have hbodyStep : ∀ i, i < fuel →
+          cpsTripleWithin b.steps base (base + BitVec.ofNat 64 (4 * b.size)) cr
+            (asrtM reg rw fun rf ws A => inv i rf ws A ∧ c.holds rf)
+            (asrtM reg rw fun rf ws A => inv (i + 1) rf ws A) := by
+        intro i hi
+        have hb := ihb base (pfx ++ lbl ++ ".body.")
+          (fun rf ws A => inv i rf ws A ∧ c.holds rf) (by simpa [Stmt.callFree] using hleaf)
+          hOB (by omega) hcode_b
+          (Stmt.vcs_antitone reg rw b _ (fun rf ws A hr => Or.inr ⟨i, hi, hr.1, hr.2⟩) hBodyVcs)
+        exact cpsTripleWithin_weaken (fun _ hp => hp)
+          (asrtM_mono (fun rf ws A hsp => hInvStep i hi rf ws A hsp)) hb
+      -- Prologue: the body runs once, unconditionally, from the statement's
+      -- entry reach — the bottom-test loop has no header check before its
+      -- first iteration.
+      have hprologue :
+          cpsTripleWithin b.steps base (base + BitVec.ofNat 64 (4 * b.size)) cr
+            (asrtM reg rw reach) (asrtM reg rw fun rf ws A => inv 0 rf ws A) := by
+        have hb := ihb base (pfx ++ lbl ++ ".body.") reach
+          (by simpa [Stmt.callFree] using hleaf) hOB (by omega) hcode_b
+          (Stmt.vcs_antitone reg rw b _ (fun rf ws A hr => Or.inl hr) hBodyVcs)
+        exact cpsTripleWithin_weaken (fun _ hp => hp) (asrtM_mono hInvInit) hb
+      -- From the prologue's landing point `inv 0`, the remainder is an
+      -- ordinary `while`-shaped loop with the guard branch as its header
+      -- (`WP.loopNatCert`, unmodified — the bottom-test shape only changes
+      -- how the *first* iteration's precondition is reached).
+      have hcert : ∀ fuel' start, start + fuel' = fuel →
+          WP.loopNatCert 1 b.steps 1 (base + BitVec.ofNat 64 (4 * b.size)) base
+            (base + BitVec.ofNat 64 (4 * (b.size + 1))) cr
+            (fun i => asrtM reg rw fun rf ws A => inv i rf ws A)
+            (fun i => asrtM reg rw fun rf ws A => inv i rf ws A ∧ c.holds rf)
+            (fun i => asrtM reg rw fun rf ws A => inv i rf ws A ∧ ¬ c.holds rf)
+            (asrtM reg rw fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf)
+            start fuel' := by
+        intro fuel'
+        induction fuel' with
+        | zero =>
+            intro start hstart
+            simp only [WP.loopNatCert]
+            have hexit : cpsTripleWithin 0
+                (base + BitVec.ofNat 64 (4 * (b.size + 1)))
+                (base + BitVec.ofNat 64 (4 * (b.size + 1))) cr
+                (asrtM reg rw fun rf ws A => inv start rf ws A ∧ ¬ c.holds rf)
+                (asrtM reg rw fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf) :=
+              cpsTripleWithin_entails (asrtM_mono (fun rf ws A hh =>
+                ⟨⟨start, by omega, hh.1⟩, hh.2⟩))
+            have hsf : start = fuel := by omega
+            have hdead : cpsTripleWithin 0 base
+                (base + BitVec.ofNat 64 (4 * (b.size + 1))) cr
+                (asrtM reg rw fun rf ws A => inv start rf ws A ∧ c.holds rf)
+                (asrtM reg rw fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf) :=
+              cpsTripleWithin_unreachable (asrtM_unsat (fun rf ws A hh =>
+                hExhausted rf ws A (hsf ▸ hh.1) hh.2))
+            exact cpsBranchWithin_merge_same_cr
+              (hheader (fun rf ws A => inv start rf ws A)) hdead hexit
+        | succ fuel' ih =>
+            intro start hstart
+            refine ⟨hheader (fun rf ws A => inv start rf ws A),
+              hbodyStep start (by omega), ?_, ih (start + 1) (by omega)⟩
+            exact asrtM_mono (fun rf ws A hh => ⟨⟨start, by omega, hh.1⟩, hh.2⟩)
+      have hsound := WP.loopNatCert_sound (hcert fuel 0 (by omega))
+      simpa [Stmt.size, Stmt.steps] using
+        cpsTripleWithin_seq_same_cr hprologue hsound
   | call lbl f =>
       exact absurd hleaf (by simp [Stmt.callFree])
   | callReg lbl rs handles =>

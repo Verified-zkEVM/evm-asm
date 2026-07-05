@@ -158,6 +158,27 @@ theorem add_jBack (a : Word) (n : Nat) (h0 : 0 < n) (h2 : 4 * n ≤ 2 ^ 20) :
   simp only [BitVec.toNat_add, BitVec.toNat_ofNat, htoNat]
   omega
 
+/-- A backward conditional branch of `n` instructions undoes an
+    `n`-instruction advance (the `brOfs`-family 13-bit analogue of
+    `add_jBack`; the `doWhile` back-edge is a guard branch, not a `JAL`). -/
+theorem add_brOfsBack (a : Word) (n : Nat) (h0 : 0 < n) (h2 : 4 * n ≤ 2 ^ 12) :
+    (a + BitVec.ofNat 64 (4 * n)) + signExtend13 (Stmt.brOfsBack n) = a := by
+  have hmsb : (Stmt.brOfsBack n).msb = true := by
+    rw [BitVec.msb_eq_true_iff_two_mul_ge]
+    unfold Stmt.brOfsBack
+    simp only [BitVec.toNat_ofNat]
+    omega
+  have htoNat : (signExtend13 (Stmt.brOfsBack n)).toNat = 2 ^ 64 - 4 * n := by
+    unfold signExtend13 Stmt.brOfsBack
+    rw [BitVec.toNat_signExtend]
+    rw [show (BitVec.ofNat 13 (2 ^ 13 - 4 * n)).msb = true from hmsb]
+    simp only [BitVec.toNat_setWidth, BitVec.toNat_ofNat, if_true]
+    omega
+  apply BitVec.eq_of_toNat_eq
+  have ha := a.isLt
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat, htoNat]
+  omega
+
 /-- Nat-displacement associativity for instruction addresses. -/
 theorem addr_shift (a : Word) (m n : Nat) :
     (a + BitVec.ofNat 64 m) + BitVec.ofNat 64 n = a + BitVec.ofNat 64 (m + n) := by
