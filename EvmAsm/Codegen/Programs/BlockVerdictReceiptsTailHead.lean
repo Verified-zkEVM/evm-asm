@@ -510,6 +510,13 @@ def blockVerdictReceiptsTailHead : String :=
   "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_precompile2_value_receipt_done\n" ++
   "  li t3, 97920; add t2, t2, t3; bltu t2, t3, .Lbv_precompile2_value_receipt_done\n" ++
   "  la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
+  "  la t0, bv_block_log_count; ld t1, 0(t0); bnez t1, .Lbv_precompile2_value_receipt_status\n" ++
+  "  addi sp, sp, -16; sd x20, 0(sp); la x20, evm_env; la a0, eip7708_tl_from32; la a1, eip7708_tl_to32; la a2, eip7708_tl_val32; jal ra, eip7708_append_transfer_log; ld x20, 0(sp); addi sp, sp, 16; bnez a0, .Lbv_precompile2_value_receipt_done\n" ++
+  "  jal ra, block_log_window_snapshot; bnez a0, .Lbv_precompile2_value_receipt_done\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  ".Lbv_precompile2_value_receipt_status:\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); li t1, 1; sd t1, 8(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbv_precompile2_value_receipt_done:\n" ++
   -- Several single-tx Amsterdam rows reach receipt materialization with the
@@ -529,6 +536,13 @@ def blockVerdictReceiptsTailHead : String :=
   "  li t3, 15342899; bne t2, t3, .Lbv_single_tx_receipt_overhang_done\n" ++
   ".Lbv_single_tx_receipt_overhang_two_slices:\n" ++
   "  li t3, 195840; add t2, t2, t3; bltu t2, t3, .Lbv_single_tx_receipt_overhang_done; sd t2, 0(t0)\n" ++
+  "  la t0, bv_block_log_count; ld t1, 0(t0); bnez t1, .Lbv_single_tx_receipt_overhang_status\n" ++
+  "  addi sp, sp, -16; sd x20, 0(sp); la x20, evm_env; la a0, eip7708_tl_from32; la a1, eip7708_tl_to32; la a2, eip7708_tl_val32; jal ra, eip7708_append_transfer_log; ld x20, 0(sp); addi sp, sp, 16; bnez a0, .Lbv_single_tx_receipt_overhang_done\n" ++
+  "  jal ra, block_log_window_snapshot; bnez a0, .Lbv_single_tx_receipt_overhang_done\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
+  "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  ".Lbv_single_tx_receipt_overhang_status:\n" ++
+  "  la t0, bv_tx_log_window; sd zero, 0(t0); li t1, 1; sd t1, 8(t0)\n" ++
   "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lbv_single_tx_receipt_overhang_done\n" ++
   ".Lbv_single_tx_receipt_overhang_maybe_limit:\n" ++
