@@ -46,6 +46,7 @@ import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
+import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
@@ -426,7 +427,8 @@ private noncomputable abbrev _swap_witness       := @EvmAsm.Evm64.evm_swap_stack
 /-! ### State-assertion vocabulary witnesses
 
     Headline lemmas of the separation-logic Assertions over the guest's
-    structured arenas (`evmMemoryIs` PR #9844; MPT node / node-DB
+    structured arenas (`evmMemoryIs` PR #9844; MPT node / node-DB;
+    witness-section / code-DB
     assertions). Fenced here so `scripts/check-axioms.sh` audits them. -/
 
 private noncomputable abbrev _evm_memory_is_mload_witness :=
@@ -443,5 +445,13 @@ private noncomputable abbrev _node_db_lookup_spec_witness :=
   @EvmAsm.Evm64.nodeDbLookupSpec_eq_build_node_db
 private noncomputable abbrev _node_db_stride_witness :=
   @EvmAsm.Evm64.roundUp8_eq_alignToDword
+private noncomputable abbrev _witness_lookup_spec_witness :=
+  @EvmAsm.Evm64.witnessLookupSpec_correct
+private noncomputable abbrev _witness_index_split_witness :=
+  @EvmAsm.Evm64.witnessIndexIs_split_at
+private noncomputable abbrev _index_of_section_hashes_witness :=
+  @EvmAsm.Evm64.indexOfSection_hashes_eq_build_code_db
+private noncomputable abbrev _index_of_section_matches_witness :=
+  @EvmAsm.Evm64.indexOfSection_matchesSection
 
 end EvmAsm.Progress
