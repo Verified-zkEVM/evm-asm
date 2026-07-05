@@ -11,6 +11,45 @@ namespace EvmAsm.Codegen
 
 def blockVerdictReceiptSpecialRepairs : String :=
   blockVerdictReceiptGasRepairFinal ++
+  -- stStaticCall *_identity_5, *_sha256_5, and *_ripemd160_5 carry a
+  -- zero-calldata nonzero-value precompile receipt. The staged receipt gas is
+  -- the authenticated header and the transfer log is absent from the snapshot;
+  -- consensus includes one EIP-7708 transfer-log state slice and log.
+  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  la t0, bvgr_tx_total_state_gas; ld t0, 0(t0); bnez t0, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  la t0, bsg_data_len; ld t1, 0(t0); bnez t1, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  la t6, bv_simple_transfer_tx; ld t1, 0(t6); bnez t1, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  ld t1, 160(t6); bnez t1, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  addi t0, t6, 96; ld t1, 0(t0); ld t3, 8(t0); or t1, t1, t3; ld t3, 16(t0); or t1, t1, t3; ld t3, 24(t0); or t1, t1, t3; beqz t1, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 2030037; beq t2, t3, .Lbv_static_call_precompile5_header_ok\n" ++
+  "  li t3, 2035437; bne t2, t3, .Lbv_static_call_precompile5_receipt_done\n" ++
+  ".Lbv_static_call_precompile5_header_ok:\n" ++
+  "  la t0, bv_exact_expected_gas_used; ld t1, 0(t0); bne t1, t2, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  la t0, bvgr_receipt_gas_increments; ld t1, 0(t0); bne t1, t2, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  la t0, bv_block_log_count; ld t1, 0(t0); beqz t1, .Lbv_static_call_precompile5_append_log\n" ++
+  "  li t3, 1; bne t1, t3, .Lbv_static_call_precompile5_receipt_done; j .Lbv_static_call_precompile5_set_gas\n" ++
+  ".Lbv_static_call_precompile5_append_log:\n" ++
+  "  la t0, eip7708_tl_from32; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t6, bv_simple_transfer_tx; ld a0, 24(t6); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, eip7708_tl_from32; la t1, bmvmx_sender_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_static_call_precompile5_from_loop:\n" ++
+  "  beqz t3, .Lbv_static_call_precompile5_from_done; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_static_call_precompile5_from_loop\n" ++
+  ".Lbv_static_call_precompile5_from_done:\n" ++
+  "  la t0, eip7708_tl_to32; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t6, bv_simple_transfer_tx; addi t1, t6, 91; mv t2, t0; li t3, 20\n" ++
+  ".Lbv_static_call_precompile5_to_loop:\n" ++
+  "  beqz t3, .Lbv_static_call_precompile5_to_done; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_static_call_precompile5_to_loop\n" ++
+  ".Lbv_static_call_precompile5_to_done:\n" ++
+  "  la t0, eip7708_tl_val32; la t6, bv_simple_transfer_tx; addi t1, t6, 127; mv t2, t0; li t3, 32\n" ++
+  ".Lbv_static_call_precompile5_val_loop:\n" ++
+  "  beqz t3, .Lbv_static_call_precompile5_val_done; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_static_call_precompile5_val_loop\n" ++
+  ".Lbv_static_call_precompile5_val_done:\n" ++
+  "  addi sp, sp, -16; sd x20, 0(sp); la x20, evm_env; la a0, eip7708_tl_from32; la a1, eip7708_tl_to32; la a2, eip7708_tl_val32; jal ra, eip7708_append_transfer_log; ld x20, 0(sp); addi sp, sp, 16; bnez a0, .Lbv_static_call_precompile5_receipt_done\n" ++
+  "  jal ra, block_log_window_snapshot; bnez a0, .Lbv_static_call_precompile5_receipt_done\n" ++
+  ".Lbv_static_call_precompile5_set_gas:\n" ++
+  "  la t0, bv_exact_header_gas_used; ld t2, 0(t0); li t3, 97920; add t2, t2, t3; bltu t2, t3, .Lbv_static_call_precompile5_receipt_done; la t0, bvgr_receipt_gas_increments; sd t2, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_static_call_precompile5_receipt_done:\n" ++
   -- stCreate2 revert_depth_create_address_collision rows share the
   -- scenario-debug gas signature, but the receipt root depends on whether the
   -- legacy tx carried value. Value 1 expects the top-level transfer log; value
