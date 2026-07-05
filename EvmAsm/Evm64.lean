@@ -108,6 +108,7 @@ import EvmAsm.Evm64.StorageAccess
 import EvmAsm.Evm64.StorageAccessWarm
 import EvmAsm.Evm64.StorageAccessOutcome
 import EvmAsm.Evm64.StorageArgs
+import EvmAsm.Evm64.StorageAssertions
 
 -- Opcode dispatch surface (#106)
 import EvmAsm.Evm64.Dispatch

@@ -51,6 +51,7 @@
 -/
 
 import EvmAsm.Stateless.State.Account
+import EvmAsm.Stateless.State.AccountAssertions
 import EvmAsm.Stateless.State.Storage
 import EvmAsm.Stateless.State.PreState
 import EvmAsm.Stateless.State.BlockState
