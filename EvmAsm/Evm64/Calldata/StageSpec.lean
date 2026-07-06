@@ -392,5 +392,143 @@ theorem stage_body_spec_within
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => by xperm_chunked hp)
     hfull
 
+/-- `(n+1) - 1 = n` as words (loop counter decrement). -/
+private theorem word_ofNat_succ_dec (n : Nat) :
+    BitVec.ofNat 64 (n + 1) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 n := by
+  apply BitVec.eq_of_toNat_eq
+  have hs : (signExtend12 (-1 : BitVec 12) : Word).toNat = 18446744073709551615 := by decide
+  rw [BitVec.toNat_add, hs, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  omega
+
+/-- A successor counter `< 2^64` is nonzero as a word. -/
+private theorem word_ofNat_succ_ne_zero (n : Nat) (h : n + 1 < 18446744073709551616) :
+    BitVec.ofNat 64 (n + 1) ≠ (0 : Word) := by
+  have ht : (BitVec.ofNat 64 (n + 1) : Word).toNat = n + 1 := by
+    rw [BitVec.toNat_ofNat]; omega
+  intro hc; rw [hc] at ht; simp at ht
+
+/-- The staging copy loop closure (`base+68 → base+104`, indices [17..25]) by
+    induction on the countdown `n = 32 - i`. -/
+theorem stage_copy_loop_spec_within
+    (base memBase buf : Word) (cdByteOff normOff len : Nat)
+    (data memBytes origBuf : List (BitVec 8)) (n i : Nat) (x28v : Word)
+    (h_ni : i + n = 32)
+    (h_mem_align : memBase.toNat % 8 = 0)
+    (h_buf_align : buf.toNat % 8 = 0)
+    (h_fits : cdByteOff + len ≤ memBytes.length)
+    (h_data : data = (memBytes.drop cdByteOff).take len)
+    (h_normOff_le : normOff ≤ len)
+    (h_mem_over : memBase.toNat + memBytes.length + 32 ≤ 2 ^ 64)
+    (h_mem_valid : ∀ k, k < memBytes.length →
+      isValidByteAccess (memBase + BitVec.ofNat 64 k) = true)
+    (h_buf_over : buf.toNat + 64 < 2 ^ 64)
+    (h_buf_valid : ∀ k, k < 64 → isValidByteAccess (buf + BitVec.ofNat 64 k) = true)
+    (h_origBuf_len : origBuf.length = 64) :
+    cpsTripleWithin (9 * n + 1) (base + 68) (base + 104)
+      (evm_calldataload_staged_code base)
+      (((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normOff + i))) **
+       ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+       ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 i)) **
+       ((.x28 : Reg) ↦ᵣ x28v) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion buf (stageBufContent (callDataCopyBytes data normOff 32) origBuf i) **
+       bytesRegion memBase memBytes)
+      (((.x29 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normOff + 32))) **
+       ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+       ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 32)) **
+       regOwn .x28 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion buf (stageBufContent (callDataCopyBytes data normOff 32) origBuf 32) **
+       bytesRegion memBase memBytes) := by
+  set copyBytes := callDataCopyBytes data normOff 32 with hcb_def
+  have hmono17 : ∀ a i, CodeReq.singleton (base + 68) (.BEQ .x29 .x0 (36 : BitVec 13)) a = some i
+      → evm_calldataload_staged_code base a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base evm_calldataload_staged 17
+      (base + 68) (by rw [evm_calldataload_staged_length]; norm_num)
+      (by rw [evm_calldataload_staged_length]; norm_num) (by rfl))
+  have hmono25 : ∀ a i, CodeReq.singleton (base + 100) (.JAL .x0 (-32 : BitVec 21)) a = some i
+      → evm_calldataload_staged_code base a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base evm_calldataload_staged 25
+      (base + 100) (by rw [evm_calldataload_staged_length]; norm_num)
+      (by rw [evm_calldataload_staged_length]; norm_num) (by rfl))
+  have ha_t : (base + 68) + signExtend13 (36 : BitVec 13) = base + 104 := by
+    rw [show signExtend13 (36 : BitVec 13) = (36 : Word) from by decide]; bv_omega
+  have ha_f : (base + 68 : Word) + 4 = base + 72 := by bv_omega
+  have ha_back : (base + 100) + signExtend21 (-32 : BitVec 21) = base + 68 := by
+    rw [show signExtend21 (-32 : BitVec 21) = (-32 : Word) from by decide]; bv_omega
+  induction n generalizing i x28v with
+  | zero =>
+    have hi32 : i = 32 := by omega
+    subst hi32
+    have hbeq := beq_spec_gen_within .x29 .x0 (36 : BitVec 13) (BitVec.ofNat 64 0)
+      (0 : Word) (base + 68)
+    rw [ha_t, ha_f] at hbeq
+    have hbeqe := cpsBranchWithin_extend_code hmono17 hbeq
+    have htaken := cpsBranchWithin_takenStripPure2 hbeqe (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+      exact ((sepConj_pure_right _).1 hQ).2 (by decide))
+    have htf := cpsTripleWithin_frameR
+      (((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normOff + 32))) **
+       ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+       ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 32)) ** ((.x28 : Reg) ↦ᵣ x28v) **
+       bytesRegion buf (stageBufContent copyBytes origBuf 32) **
+       bytesRegion memBase memBytes) (by pcFreeR) htaken
+    simp only [sepConj_assoc'] at htf
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+        (fun sState hq => by
+          rw [show (BitVec.ofNat 64 0 : Word) = 0 from by decide] at hq
+          have hq2 : (((.x28 : Reg) ↦ᵣ x28v) **
+              ((.x29 : Reg) ↦ᵣ (0 : Word)) **
+              ((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normOff + 32))) **
+              ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+              ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 32)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+              bytesRegion buf (stageBufContent copyBytes origBuf 32) **
+              bytesRegion memBase memBytes) sState := by xperm_chunked hq
+          have hq3 := sepConj_mono_left (regIs_implies_regOwn .x28) _ hq2
+          xperm_chunked hq3) htf)
+  | succ k ih =>
+    have hi_lt : i < 32 := by omega
+    have hbeq := beq_spec_gen_within .x29 .x0 (36 : BitVec 13) (BitVec.ofNat 64 (k + 1))
+      (0 : Word) (base + 68)
+    rw [ha_t, ha_f] at hbeq
+    have hbeqe := cpsBranchWithin_extend_code hmono17 hbeq
+    have hnt := cpsBranchWithin_ntakenStripPure2 hbeqe (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact word_ofNat_succ_ne_zero k (by omega) ((sepConj_pure_right _).1 hQ).2)
+    have hntf := cpsTripleWithin_frameR
+      (((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normOff + i))) **
+       ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+       ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 i)) ** ((.x28 : Reg) ↦ᵣ x28v) **
+       bytesRegion buf (stageBufContent copyBytes origBuf i) **
+       bytesRegion memBase memBytes) (by pcFreeR) hnt
+    have hbody := stage_body_spec_within base memBase buf cdByteOff normOff len i data
+      memBytes origBuf (BitVec.ofNat 64 (k + 1)) x28v hi_lt h_mem_align h_buf_align
+      h_fits h_data h_normOff_le h_mem_over h_mem_valid h_buf_over h_buf_valid
+      h_origBuf_len rfl
+    rw [word_ofNat_succ_dec k] at hbody
+    have hjal := jal_x0_spec_gen_within (-32 : BitVec 21) (base + 100)
+    rw [ha_back] at hjal
+    have hjale := cpsTripleWithin_extend_code hmono25 hjal
+    have hih := ih (i + 1) ((copyBytes[i]'(by rw [hcb_def, callDataCopyBytes_length]; omega)).zeroExtend 64) (by omega)
+    -- Compose guard ; body ; jal ; IH.
+    simp only [sepConj_assoc'] at hntf
+    have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hntf hbody
+    have hjalf := cpsTripleWithin_frameR
+      (((.x28 : Reg) ↦ᵣ ((copyBytes[i]'(by rw [hcb_def, callDataCopyBytes_length]; omega)).zeroExtend 64)) **
+       ((.x30 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + normOff + (i + 1)))) **
+       ((.x6 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (cdByteOff + len))) **
+       ((.x31 : Reg) ↦ᵣ (buf + BitVec.ofNat 64 (i + 1))) **
+       ((.x29 : Reg) ↦ᵣ BitVec.ofNat 64 k) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion buf (stageBufContent copyBytes origBuf (i + 1)) **
+       bytesRegion memBase memBytes) (by pcFreeR) hjale
+    have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      simp only [sepConj_emp_left']; xperm_chunked hp) s1 hjalf
+    have s3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      simp only [sepConj_emp_left'] at hp; xperm_chunked hp) s2 hih
+    refine cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+        (fun _ hp => by xperm_chunked hp) s3)
+
 end Calldata
 end EvmAsm.Evm64
