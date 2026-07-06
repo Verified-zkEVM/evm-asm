@@ -33,7 +33,7 @@ namespace EvmAsm.Evm64
 namespace Calldata
 
 open EvmAsm.Rv64
-open EvmAsm.Evm64.EvmEnv (callDataPtrOff callDataLenOff)
+open EvmAsm.Evm64.EvmEnv (callDataPtrOff callDataLenOff envIs pcFree_envIs)
 
 /-- `pcFree` extended to close `bytesRegion _.pcFree` leaves. -/
 local macro "pcFreeR" : tactic =>
@@ -535,6 +535,148 @@ theorem evm_calldatacopy_loop_spec_within
     refine cpsTripleWithin_mono_nSteps (by omega)
       (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
         (fun _ hp => by xperm_chunked hp) s3)
+
+/-! ## The public CALLDATACOPY stack spec -/
+
+/-- Shed the four loop scratch registers (`x14 x15 x16 x18`) to ownership at
+    the tail of the CALLDATACOPY postcondition. -/
+private theorem cc_shed4 (F : Assertion) (v14 v15 v16 v18 : Word) :
+    ∀ ps,
+      (F ** (((.x14 : Reg) ↦ᵣ v14) ** ((.x15 : Reg) ↦ᵣ v15) **
+        ((.x16 : Reg) ↦ᵣ v16) ** ((.x18 : Reg) ↦ᵣ v18))) ps →
+      (F ** (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x18)) ps := by
+  apply sepConj_mono_right
+  apply sepConj_mono (regIs_implies_regOwn _)
+  apply sepConj_mono (regIs_implies_regOwn _)
+  apply sepConj_mono (regIs_implies_regOwn _)
+  exact regIs_implies_regOwn _
+
+/-- **The public CALLDATACOPY stack spec** (`0x37`) over the full
+    `evm_calldatacopy` program (entry `base`, exit `base + 76`): pops
+    `[destOffset, dataOffset, size]`, writes `callDataCopyBytes data
+    dataOffset size` into the EVM-memory window `[destOffset, destOffset +
+    size)` (zero-filling positions past `env.callDataLen`), for **every**
+    operand.  Pad-free: the calldata region needs no zero tail (the loop
+    zero-fills at copy time).  Option-1 source model: the calldata is a slice
+    of the aligned region `bytesRegion srcBase srcBytes` with
+    `env.callDataPtr = srcBase + cdByteOff`.  The destination is the EVM
+    memory `evmMemoryIs memBase capacity memBytes`.  All scratch shed to
+    ownership.  This is the CALLDATACOPY `.proven` registry witness. -/
+theorem evm_calldatacopy_stack_spec_within
+    (base sp envAddr memBase srcBase : Word)
+    (cdByteOff len capacity : Nat)
+    (env : EvmEnv) (destOffset dataOffset size : EvmWord) (rest : List EvmWord)
+    (data srcBytes memBytes : List (BitVec 8))
+    (destOld srcOld cntOld cdpOld endOld byteOld : Word)
+    (h_cdp : env.callDataPtr = srcBase + BitVec.ofNat 64 cdByteOff)
+    (h_len : len = env.callDataLen.toNat)
+    (h_data : data = (srcBytes.drop cdByteOff).take len)
+    (h_src_align : srcBase.toNat % 8 = 0)
+    (h_mem_align : memBase.toNat % 8 = 0)
+    (h_fits : cdByteOff + len ≤ srcBytes.length)
+    (h_win : (destOffset.getLimbN 0).toNat + (size.getLimbN 0).toNat ≤ memBytes.length)
+    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (h_mem_over : memBase.toNat + memBytes.length < 2 ^ 64)
+    (h_mem_valid : ∀ k, k < memBytes.length →
+      isValidByteAccess (memBase + BitVec.ofNat 64 k) = true)
+    (h_src_nowrap :
+      srcBase.toNat + cdByteOff + (dataOffset.getLimbN 0).toNat + (size.getLimbN 0).toNat ≤ 2 ^ 64)
+    (h_cap : memBytes.length = capacity) :
+    cpsTripleWithin (9 * (size.getLimbN 0).toNat + 10) base (base + 76)
+      (evm_calldatacopy_code .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19 base)
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x13 : Reg) ↦ᵣ memBase) ** ((.x14 : Reg) ↦ᵣ destOld) **
+       ((.x15 : Reg) ↦ᵣ srcOld) ** ((.x16 : Reg) ↦ᵣ cntOld) **
+       ((.x17 : Reg) ↦ᵣ cdpOld) ** ((.x18 : Reg) ↦ᵣ endOld) **
+       ((.x19 : Reg) ↦ᵣ byteOld) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       evmStackIs sp [destOffset, dataOffset, size] **
+       evmStackIs (sp + 96) rest ** envIs envAddr env **
+       evmMemoryIs memBase capacity memBytes ** bytesRegion srcBase srcBytes)
+      (((.x12 : Reg) ↦ᵣ (sp + 96)) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x13 : Reg) ↦ᵣ memBase) ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+       ((.x17 : Reg) ↦ᵣ env.callDataPtr) ** regOwn .x18 ** regOwn .x19 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       evmStackIs sp [destOffset, dataOffset, size] **
+       evmStackIs (sp + 96) rest ** envIs envAddr env **
+       evmMemoryIs memBase capacity
+         (copyDestContent memBytes (callDataCopyBytes data (dataOffset.getLimbN 0).toNat
+           (size.getLimbN 0).toNat) (destOffset.getLimbN 0).toNat (size.getLimbN 0).toNat) **
+       bytesRegion srcBase srcBytes) := by
+  set dataOff := (dataOffset.getLimbN 0).toNat with hdataOff
+  set destByteOff := (destOffset.getLimbN 0).toNat with hdestByteOff
+  set sz := (size.getLimbN 0).toNat with hsz
+  set copied := callDataCopyBytes data dataOff sz with hcopied
+  -- Preamble (base → base+36), framed with the untouched x0/x19 and the two regions.
+  have hpre := evm_calldatacopy_full_code_preamble_stack_spec_within
+    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19 (by decide) (by decide) (by decide)
+    (by decide) (by decide) sp base envAddr memBase destOld srcOld cntOld cdpOld
+    endOld env destOffset dataOffset size rest
+  have hpref := cpsTripleWithin_frameR
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x19 : Reg) ↦ᵣ byteOld) **
+     evmMemoryIs memBase capacity memBytes ** bytesRegion srcBase srcBytes)
+    (by
+      refine pcFree_sepConj (by pcFree) (pcFree_sepConj (by pcFree)
+        (pcFree_sepConj pcFree_evmMemoryIs (bytesRegion_pcFree _ _)))) hpre
+  -- Loop (base+36 → base+76) at i = 0, n = sz.
+  have hbytes : evmMemoryIs memBase capacity memBytes
+      = bytesRegion memBase memBytes := evmMemoryIs_eq_bytesRegion h_cap
+  have hloop := evm_calldatacopy_loop_spec_within base memBase srcBase cdByteOff
+    dataOff len destByteOff sz sz 0 data srcBytes memBytes byteOld
+    (by omega) h_src_align h_mem_align h_fits h_data h_win
+    h_src_over h_src_valid h_mem_over h_mem_valid (by omega)
+  have hloopf := cpsTripleWithin_frameR
+    (((.x12 : Reg) ↦ᵣ (sp + 96)) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+     ((.x13 : Reg) ↦ᵣ memBase) ** ((.x17 : Reg) ↦ᵣ env.callDataPtr) **
+     evmStackIs sp [destOffset, dataOffset, size] **
+     evmStackIs (sp + 96) rest ** envIs envAddr env)
+    (by
+      refine pcFree_sepConj (by pcFree) (pcFree_sepConj (by pcFree)
+        (pcFree_sepConj (by pcFree) (pcFree_sepConj (by pcFree)
+          (pcFree_sepConj pcFree_evmStackIs (pcFree_sepConj pcFree_evmStackIs
+            EvmEnv.pcFree_envIs))))) ) hloop
+  -- Value bridges connecting the preamble post to the loop entry.
+  have e_src : env.callDataPtr + dataOffset.getLimbN 0
+      = srcBase + BitVec.ofNat 64 (cdByteOff + dataOff + 0) := by
+    rw [h_cdp, hdataOff]; bv_omega
+  have e_end : env.callDataLen + env.callDataPtr
+      = srcBase + BitVec.ofNat 64 (cdByteOff + len) := by
+    rw [h_cdp, h_len]; bv_omega
+  have e_dest : memBase + destOffset.getLimbN 0
+      = memBase + BitVec.ofNat 64 (destByteOff + 0) := by
+    rw [hdestByteOff]; bv_omega
+  have e_cnt : size.getLimbN 0 = BitVec.ofNat 64 sz := by rw [hsz]; bv_omega
+  have e_mem : bytesRegion memBase memBytes
+      = bytesRegion memBase (copyDestContent memBytes copied destByteOff 0) := by
+    rw [copyDestContent_zero]
+  -- Compose preamble ; loop, rewriting the midpoint into the loop entry shape.
+  have hcomp := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      rw [← e_src, ← e_end, ← e_dest, ← e_cnt, ← e_mem, ← hbytes]
+      simp only [sepConj_assoc'] at hp ⊢; xperm_chunked hp) hpref hloopf
+  -- Reshape endpoints and lift the destination region to evmMemoryIs.
+  have hcdc_len : (copyDestContent memBytes copied destByteOff sz).length = capacity := by
+    rw [copyDestContent_length memBytes copied destByteOff sz
+      (by rw [hcopied, callDataCopyBytes_length]; omega)
+      (by rw [hcopied, callDataCopyBytes_length])]
+    exact h_cap
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hcomp)
+  · simp only [sepConj_assoc'] at hp ⊢; xperm_chunked hp
+  · rw [← evmMemoryIs_eq_bytesRegion hcdc_len] at hq
+    have hshed := cc_shed4
+      (((.x12 : Reg) ↦ᵣ (sp + 96)) ** ((.x20 : Reg) ↦ᵣ envAddr) **
+       ((.x13 : Reg) ↦ᵣ memBase) ** ((.x17 : Reg) ↦ᵣ env.callDataPtr) **
+       regOwn .x19 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       evmStackIs sp [destOffset, dataOffset, size] **
+       evmStackIs (sp + 96) rest ** envIs envAddr env **
+       evmMemoryIs memBase capacity (copyDestContent memBytes copied destByteOff sz) **
+       bytesRegion srcBase srcBytes)
+      (memBase + BitVec.ofNat 64 (destByteOff + sz))
+      (srcBase + BitVec.ofNat 64 (cdByteOff + dataOff + sz))
+      (0 : Word) (srcBase + BitVec.ofNat 64 (cdByteOff + len)) _
+      (by simp only [sepConj_assoc'] at hq ⊢; xperm_chunked hq)
+    simp only [sepConj_assoc'] at hshed ⊢; xperm_chunked hshed
 
 end Calldata
 end EvmAsm.Evm64
