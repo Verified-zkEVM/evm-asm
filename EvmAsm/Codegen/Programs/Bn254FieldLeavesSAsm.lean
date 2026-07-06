@@ -160,10 +160,13 @@ def bnfEq32Fn (a0 a1 : Word) (bs0 bs1 : List (BitVec 8)) : Fn where
   body := bnfEq32Body a0 a1 bs0 bs1
 
 -- ============================================================================
--- Byte-tie (re-emitted drop-in)
+-- Re-emitted drop-in program (position-independent, call-free)
 -- ============================================================================
 
-/-- Re-emitted drop-in: the verified `bnfEq32Body` flatten + `ret`. -/
+/-- Re-emitted drop-in: the verified `bnfEq32Body` flatten + `ret`.
+    NOT byte-identical to `bnfEq32_prog` (two-exit scan → single-exit
+    whileBreak + counter-derive); this is a verified functional drop-in
+    that changes guest bytes. Needs EEST A/B before replacing the guest. -/
 def bnfEq32_dropin_prog : Program :=
   (bnfEq32Body 0 0 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
 
