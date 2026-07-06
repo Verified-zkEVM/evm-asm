@@ -203,7 +203,7 @@ Each tagged `[P#]` `[effort: S/M/L]`. Prefer extending named assets.
 14. Activate GitHub merge queue on the already-present `merge_group` trigger; batch + auto-eject. **Write `docs/merge-queue-design.md` *first*** documenting the TAP test-and-bisect pattern (on batch failure, bisect the batch to eject the offending PR rather than re-running the full ~490-script ziskemu suite per PR) before flipping the queue on, so the team understands eviction behavior and avoids friction. **Extends `build.yml`.**
 15. Risk label + scorecard in `progress-delta.sh`/`summary.yml` (payload change to the existing lines 37–40 path); `actions/labeler` path+size labels (R-B1, R-B2). **Extends existing.**
 16. Statement-strength rubric + sign-off line in `pr-summary-progress-prompt.md` (R-B3). **Edit existing.**
-17. Bead-claim dashboard (`BEADS.md` or in `PLAN.md`), stale-PR nudge workflow (G2.6). **Net-new.**
+17. Bead-claim tracking in `PLAN.md`, stale-PR nudge workflow (G2.6). **Net-new.**
 
 **Phase 5 — Conventions-as-gates + cost (P1/P3). Extends suite + benchmark.**
 18. `check-opcode-structure.sh`, `check-naming.sh`, `check-heartbeats-approved.sh` (seed allowlist with the two grandfathered overrides), layering check; reframe suite as fitness functions in `AGENTS.md`; retire/repurpose orphaned `check-unbounded-cps.sh` (R-D1). **Net-new scripts + cleanup.**

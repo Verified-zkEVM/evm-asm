@@ -327,8 +327,8 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       **only** on the un-kernel-checkable question (vacuous/over-restricted
       precondition? postcondition covers stack+memory+gas+halting?) — explicitly
       **never on proof correctness** (the kernel is the perfect oracle there).
-    - **D6 (G2.6) — long-running-branch visibility.** `BEADS.md` claim ledger
-      (coordination overlay on the `bd` tracker — collision detection for
+    - **D6 (G2.6) — long-running-branch visibility.** Coordination
+      overlay on the `bd` tracker (collision detection for
       double-claimed beads) + `.github/workflows/stale-pr-nudge.yml`
       (`actions/stale@v9`, 21-day nudge, **never auto-closes**, `long-running`
       label exempts deliberately long-lived stacks).
